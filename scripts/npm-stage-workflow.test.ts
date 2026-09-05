@@ -1378,18 +1378,18 @@ describe("npm publication contract", () => {
 
     for (const required of [
       "push:\n    branches:\n      - main\n    paths:\n      - package.json",
-      "workflow_dispatch:",
+      "workflow_dispatch:\n    inputs:\n      publish_to_npm:\n        description: Submit the verified stable candidate to npm staging\n        required: false\n        default: false\n        type: boolean",
       "contents: read",
     ] as const) {
       expect(workflow).toContain(required);
     }
 
     for (const required of [
-      "name: Classify staging request",
+      "name: Classify candidate request",
       "permissions:\n      contents: read",
       "runs-on: ubuntu-latest",
       "timeout-minutes: 5",
-      "should_stage: ${{ steps.request.outputs.should_stage }}",
+      "should_prepare: ${{ steps.request.outputs.should_prepare }}",
       "source_sha: ${{ steps.request.outputs.source_sha }}",
       "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
       "persist-credentials: false",
@@ -1412,11 +1412,11 @@ describe("npm publication contract", () => {
       "push)",
       'git show "$previous_sha:package.json"',
       '[[ "$current_version" == "$previous_version" ]]',
-      "package.json changed without a version change; npm staging is not required",
+      "package.json changed without a version change; npm candidate preparation is not required",
       'OLD_VERSION="$previous_version" NEW_VERSION="$current_version" node -e',
-      "Automatic npm staging requires a version newer than $previous_version",
-      "Unsupported npm staging event $GITHUB_EVENT_NAME",
-      "should_stage=%s\\nsource_sha=%s\\n",
+      "Automatic npm candidate preparation requires a version newer than $previous_version",
+      "Unsupported npm candidate event $GITHUB_EVENT_NAME",
+      "should_prepare=%s\\nsource_sha=%s\\n",
     ] as const) {
       expect(classifyJob).toContain(required);
     }
@@ -1428,7 +1428,7 @@ describe("npm publication contract", () => {
     for (const required of [
       "name: Verify exact package",
       "needs: classify",
-      "if: needs.classify.outputs.should_stage == 'true'",
+      "if: needs.classify.outputs.should_prepare == 'true'",
       "permissions:\n      contents: read",
       "runs-on: ubuntu-latest",
       "source_sha: ${{ steps.identity.outputs.source_sha }}",
@@ -1472,6 +1472,7 @@ describe("npm publication contract", () => {
     for (const required of [
       "name: Stage exact package",
       "needs: verify",
+      "if: needs.verify.result == 'success' && github.event_name == 'workflow_dispatch' && inputs.publish_to_npm == true",
       "permissions:\n      contents: read\n      id-token: write",
       "environment: npm-stage",
       "timeout-minutes: 10",
@@ -1570,6 +1571,10 @@ describe("npm publication contract", () => {
     expect(workflow.match(/\n  push:/gu) ?? []).toHaveLength(1);
     expect(workflow).not.toContain("pull_request:");
     expect(workflow).not.toMatch(/\bnpm publish\b/u);
+    expect(stageJob.match(/inputs\.publish_to_npm == true/gu) ?? []).toHaveLength(1);
+    expect(stageJob).toContain("github.event_name == 'workflow_dispatch'");
+    expect(classifyJob).not.toContain("publish_to_npm");
+    expect(verifyJob).not.toContain("publish_to_npm");
     const registryFlags = workflow.match(/--registry=[^\s"']+/gu) ?? [];
     expect(registryFlags).toHaveLength(6);
     expect(new Set(registryFlags)).toEqual(new Set([`--registry=${npmRegistry}`]));
@@ -1610,7 +1615,7 @@ describe("npm publication contract", () => {
     expect(stageIndex).toBeGreaterThan(snapshotEqualityIndex);
   });
 
-  test("classifies only increasing stable versions for automatic staging", async () => {
+  test("classifies only increasing stable versions for automatic candidate preparation", async () => {
     const workflow = await readFile(stageWorkflowUrl, "utf8");
     const script = workflowStepScript(workflow, "Classify event-source package");
     const directory = await mkdtemp(join(tmpdir(), "wrench-stage-classify-"));
@@ -1724,16 +1729,16 @@ esac
       }
       expect(automatic.exitCode).toBe(0);
       expect(await readFile(githubOutput, "utf8")).toBe(
-        `should_stage=true\nsource_sha=${currentSha}\n`,
+        `should_prepare=true\nsource_sha=${currentSha}\n`,
       );
 
       const unchanged = await runCase({ PREVIOUS_MANIFEST: manifest("0.16.1") });
       expect(unchanged.exitCode).toBe(0);
       expect(unchanged.stdout).toContain(
-        "package.json changed without a version change; npm staging is not required",
+        "package.json changed without a version change; npm candidate preparation is not required",
       );
       expect(await readFile(githubOutput, "utf8")).toBe(
-        `should_stage=false\nsource_sha=${currentSha}\n`,
+        `should_prepare=false\nsource_sha=${currentSha}\n`,
       );
 
       const recovery = await runCase({
@@ -1742,13 +1747,13 @@ esac
       });
       expect(recovery.exitCode).toBe(0);
       expect(await readFile(githubOutput, "utf8")).toBe(
-        `should_stage=true\nsource_sha=${currentSha}\n`,
+        `should_prepare=true\nsource_sha=${currentSha}\n`,
       );
 
       for (const [overrides, message] of [
         [
           { CURRENT_MANIFEST: manifest("0.15.9") },
-          "Automatic npm staging requires a version newer than 0.16.0",
+          "Automatic npm candidate preparation requires a version newer than 0.16.0",
         ],
         [
           { CURRENT_MANIFEST: manifest("0.16.1-beta.1") },
@@ -1772,7 +1777,7 @@ esac
         ],
         [
           { GITHUB_REF: "refs/heads/not-main" },
-          "npm staging must run from main",
+          "npm candidate preparation must run from main",
         ],
       ] as const) {
         const rejected = await runCase(overrides);
@@ -7852,15 +7857,24 @@ fi
       "--environment npm-stage",
       "--allow-stage-publish",
       "npm access set mfa=publish @hraness/wrench",
-      "The `npm-stage` environment has no",
-      "required deployment reviewers",
-      "**Stage exact package** to start automatically",
+      "Create a GitHub environment named `npm-stage`",
+      "Disable administrator bypass",
+      "sole protection rule must be `branch_policy`",
+      "sole deployment policy must select branch `main` with type `branch`",
+      "Configure no required deployment reviewers and no environment secrets",
+      "manual dispatch explicitly\nsets `publish_to_npm=true`",
+      "a push and a default manual dispatch stop after\nuploading the exact candidate artifact",
+      "never request an OIDC token or\nmutate npm",
+      "Only the minimal staging job may reference this environment or\nrequest an OIDC token",
       "human inspection and two-factor approval",
       "starts **Stage npm package** automatically",
-      "manifest edit with an unchanged version succeeds without running the verify or",
-      "OIDC jobs.",
-      "Manual recovery",
-      "runs the same verification and main-only environment path",
+      "automatic run ends\n   there: it has no registry mutation, environment admission, or OIDC token",
+      "gh workflow run npm-stage.yml",
+      "-f publish_to_npm=true",
+      "still\n   cannot publish the package directly",
+      "manifest edit with an unchanged version succeeds without running verification",
+      "beta/candidate lane is the downloadable\nartifact, not an npm prerelease or dist-tag mutation",
+      "default manual\ndispatch above; it repeats verification and artifact upload without entering\nthe environment or touching npm",
       "scripts/npm-package-identity.ts",
       "--source-archive \"$wrench_npm_archive\"",
       "--registry-archive \"$wrench_registry_archive\"",
@@ -7965,8 +7979,8 @@ fi
       "Never create a `v0.16.3` Git tag or GitHub Release",
       "The completed\nreplacement is `0.16.4`; the first marker-bearing successor is `0.16.5`",
       "If release controls change materially after staging, that stage is ineligible\nfor tagging",
-      "An accepted and eligible stage must be inspected and approved without\na duplicate dispatch",
-      "An accepted but ineligible pending stage must be inspected,\nrejected with human two-factor authentication, and confirmed absent before one\nfresh same-version stage is dispatched from final current `main`",
+      "accepted and eligible stage must be inspected and approved without a duplicate\ndispatch",
+      "accepted but ineligible pending stage must be inspected, rejected\nwith human two-factor authentication, and confirmed absent before one fresh\nsame-version stage is explicitly dispatched from final current `main`",
       "If the\nineligible stage is already public, do not reject, unpublish, overwrite, tag, or\nrelease it; move the complete corrected release to a greater version",
       "npm stage reject <stage-id>",
       "git diff --quiet --no-ext-diff --no-textconv C M -- .github/workflows\nscripts/release-ref-authority.ts scripts/release-provider-outcome.mjs\nscripts/release-app-token.mjs scripts/release-ref-writer.mjs",
@@ -7975,16 +7989,21 @@ fi
       "terminal readback fail closed even though GitHub may already have created the\nimmutable Release",
       "The POST has no conditional-write lease",
       "never deletes, patches, or rolls back a Release\nin response",
-      "signed-in\nadministrator must read back both immutable Releases as `enabled=true` and one\nexact active repository tag ruleset",
+      "signed-in\nadministrator must read back immutable Releases as `enabled=true` and two exact\nactive repository tag rulesets",
       "sole ref target is `refs/tags/v*`",
-      "bypass-actor set is empty",
-      "exact rule types are `deletion` and\n`update`",
-      "Creation remains intentionally allowed",
-      "Ruleset `19989752`, currently named `Immutable version tags`",
-      "numeric ID and name are not authority: the semantic readback\nis",
-      "/repos/hraness/wrench/rulesets/$wrench_tag_ruleset_id",
+      "creation ruleset must contain only `creation` and give sole always-bypass\nauthority to User ID `894119`",
+      "immutable ruleset must contain only\n`deletion` plus `update` and have no bypass actors",
+      "owner bypass may create a release tag but cannot move or delete one",
+      "Rulesets `22311815`,\ncurrently named `Release tag creation`, and `19989752`, currently named\n`Immutable version tags`",
+      "numeric IDs and\nnames are not authority: the split semantics are",
+      "/repos/hraness/wrench/rulesets/$wrench_tag_create_ruleset_id",
+      "/repos/hraness/wrench/rulesets/$wrench_tag_immutable_ruleset_id",
       "value.target !== \"tag\"",
       "value.enforcement !== \"active\"",
+      "bypass[0]?.actor_id !== 894119",
+      "bypass[0]?.actor_type !== \"User\"",
+      "bypass[0]?.bypass_mode !== \"always\"",
+      "JSON.stringify(ruleTypes) !== '[\"creation\"]'",
       "value.bypass_actors.length !== 0",
       "refName.include[0] !== \"refs/tags/v*\"",
       "JSON.stringify(ruleTypes) !== '[\"deletion\",\"update\"]'",
@@ -7993,7 +8012,7 @@ fi
       "{enabled: .enabled, enforced_by_owner: .enforced_by_owner}",
       "Object.keys(value).sort().join(\",\") !== \"enabled,enforced_by_owner\"",
       "typeof value.enforced_by_owner !== \"boolean\"",
-      "residual\nadministrator-toggle window",
+      "with a residual administrator-toggle window",
       "treats `target_commitish` as\nnon-authoritative",
       "stable Release ID and publication time across\nthe authority sandwich and every promotion/outcome receipt readback",
       "Release workflow ID `323493609`",
@@ -8176,16 +8195,23 @@ fi
       .toBeLessThan(guide.indexOf(exactTagCommand));
 
     expect(agents).toContain("Follow `docs/publishing.md`");
-    expect(agents).toContain("automatically enter the exact staging pipeline");
+    expect(agents).toContain("automatically enter exact candidate verification");
+    expect(agents).toContain("default `workflow_dispatch` must never enter the GitHub environment");
+    expect(agents).toContain("boolean `publish_to_npm=true`");
     expect(agents).toContain("main-only `npm-stage` environment");
     expect(agents).toContain("no required GitHub deployment reviewers");
-    expect(agents).toContain("CI must stage automatically after verification");
+    expect(agents).toContain("never authorize direct OIDC publication for this dual-use package");
+    expect(agents).toContain("administrator bypass disabled, no reviewers, no secrets");
+    expect(agents).toContain("sole protection rule `branch_policy`");
+    expect(agents).toContain("sole selected deployment branch `main` with policy type `branch`");
     expect(agents).toContain("two-factor approval of the npm stage remain mandatory");
     expect(agents).toContain("Verify that exact public artifact before creating its tag");
-    expect(agents).toContain("Before every stable tag push, a signed-in administrator must freshly prove both immutable Releases enabled");
-    expect(agents).toContain("one exact active repository tag ruleset targeting only `refs/tags/v*`");
-    expect(agents).toContain("Current ruleset `19989752` / `Immutable version tags` is retained evidence");
-    expect(agents).toContain("semantics, not its ID or name, are authority");
+    expect(agents).toContain("Before every stable tag push, a signed-in administrator must freshly prove immutable Releases enabled");
+    expect(agents).toContain("two exact active repository tag rulesets targeting only `refs/tags/v*`");
+    expect(agents).toContain("sole always-bypass User `894119`");
+    expect(agents).toContain("Current rulesets `22311815` / `Release tag creation` and `19989752` / `Immutable version tags` are retained evidence");
+    expect(agents).toContain("split semantics, not their IDs or names, are authority");
+    expect(agents).toContain("Never give GitHub Actions or another Integration a release-tag bypass");
     expect(agents).toContain("Release workflow must not receive Administration permission or call ruleset endpoints");
     expect(guide).toContain("main-only `npm-stage` environment");
     expect(guide).toContain("no required deployment reviewers");

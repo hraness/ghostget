@@ -1,8 +1,9 @@
 # Publish Wrench
 
-Wrench uses one interactive first publication and stage-only trusted publishing
-for later versions. npm requires a package to exist before `npm stage publish`
-can use it, so the bootstrap cannot use the staging workflow.
+Wrench uses one interactive first publication, automatic non-registry candidate
+artifacts, and explicit stage-only trusted publishing for later stable trains.
+Because npm requires a package to exist before `npm stage publish` can use it,
+the bootstrap cannot use the staging workflow.
 
 ## Keep discovery metadata aligned
 
@@ -124,11 +125,15 @@ comparison before it creates the immutable GitHub Release.
 ## Configure stage-only trusted publishing
 
 Create a GitHub environment named `npm-stage` after the first package is public.
-Restrict its deployment branches to `main`. The `npm-stage` environment has no
-required deployment reviewers, so passing **Verify exact package** allows
-**Stage exact package** to start automatically. Do not add a secret to the
-environment. npm's separate human inspection and two-factor approval remain
-mandatory before the version becomes public.
+Disable administrator bypass. Its sole protection rule must be `branch_policy`,
+and its sole deployment policy must select branch `main` with type `branch`.
+Configure no required deployment reviewers and no environment secrets. The
+environment is entered only when a current-`main` manual dispatch explicitly
+sets `publish_to_npm=true`; a push and a default manual dispatch stop after
+uploading the exact candidate artifact and never request an OIDC token or
+mutate npm. Only the minimal staging job may reference this environment or
+request an OIDC token. npm's separate human inspection and two-factor approval
+remain mandatory before a staged version becomes public.
 
 If the current npm trust relationship does not name that environment, inspect
 and revoke it before creating the replacement:
@@ -195,14 +200,36 @@ immutable Releases determine completed-release ordering.
 1. Merge a monotonically greater stable version to `main`. A push that changes
    `package.json` starts **Stage npm package** automatically.
 2. Wait for **Verify exact package**. It packs, smokes, and uploads one exact
-   tarball with its `npm-pack.json`.
-3. **Stage exact package** starts automatically through the main-only
-   `npm-stage` environment. Only this minimal OIDC job can submit the verified
-   tarball to npm's staging area.
-4. Inspect the uploaded artifact and the staged npm package, then approve the
-   npm stage with human two-factor authentication.
-5. Download and smoke the public registry package.
-6. Create the matching `v<version>` tag on the staged source commit.
+   tarball with its `npm-pack.json` and SHA-256 manifest. The automatic run ends
+   there: it has no registry mutation, environment admission, or OIDC token.
+3. Inspect or exercise that uploaded candidate as often as needed. A default
+   manual dispatch is also candidate-only and is safe for current-`main`
+   recovery:
+
+   ```sh
+   gh workflow run npm-stage.yml \
+     --repo hraness/wrench \
+     --ref main
+   ```
+
+4. Only when intentionally batching a stable npm train, dispatch the same
+   workflow with the typed publication switch:
+
+   ```sh
+   gh workflow run npm-stage.yml \
+     --repo hraness/wrench \
+     --ref main \
+     -f publish_to_npm=true
+   ```
+
+   That run rebuilds and uploads its own exact candidate before **Stage exact
+   package** enters the main-only `npm-stage` environment. Only this minimal
+   OIDC job can submit the verified tarball to npm's staging area; it still
+   cannot publish the package directly.
+5. Inspect the uploaded artifact and staged npm package, then approve the npm
+   stage with human two-factor authentication.
+6. Download and smoke the public registry package.
+7. Create the matching `v<version>` tag on the staged source commit.
 
 The tag-push Release workflow intentionally executes source `S=C`: GitHub loads
 the workflow bytes from the tagged product/source commit. Release-control bytes
@@ -222,9 +249,11 @@ descendant. If npm has already published the version, its semver coordinate is
 consumed instead: never unpublish or overwrite it, and prepare a greater version.
 
 The read-only classifier compares the current and prior `package.json` files. A
-manifest edit with an unchanged version succeeds without running the verify or
-OIDC jobs. A prerelease, malformed version, downgrade, unavailable push base, or
-event source outside protected `main`'s linear history fails closed.
+manifest edit with an unchanged version succeeds without running verification
+or uploading an artifact. A prerelease, malformed version, downgrade,
+unavailable push base, or event source outside protected `main`'s linear
+history fails closed. This workflow's beta/candidate lane is the downloadable
+artifact, not an npm prerelease or dist-tag mutation.
 
 Both classifier and verifier use an exact depth-one, no-tag, credential-free
 checkout of the event source `C`. They bind the advertised protected `main`
@@ -238,14 +267,15 @@ and an ancestor of `C`, removes the ref, and reads the prior manifest by object
 ID. Manual recovery has no prior commit. Neither path uses a broad ref fetch, a forced
 refspec, or `FETCH_HEAD` as authority.
 
-If the automatic run did not start or failed before npm accepted the stage,
-dispatch **Stage npm package** from the current `main` branch. Manual recovery
-runs the same verification and main-only environment path. Once npm accepts a
-stage, first inspect whether that exact source and release-control closure remain
-eligible. An accepted and eligible stage must be inspected and approved without
-a duplicate dispatch. An accepted but ineligible pending stage must be inspected,
-rejected with human two-factor authentication, and confirmed absent before one
-fresh same-version stage is dispatched from final current `main`. If the
+If the automatic candidate run did not start or failed, use the default manual
+dispatch above; it repeats verification and artifact upload without entering
+the environment or touching npm. Use `publish_to_npm=true` only for one
+intentional stable-train submission. Once npm accepts a stage, first inspect
+whether that exact source and release-control closure remain eligible. An
+accepted and eligible stage must be inspected and approved without a duplicate
+dispatch. An accepted but ineligible pending stage must be inspected, rejected
+with human two-factor authentication, and confirmed absent before one fresh
+same-version stage is explicitly dispatched from final current `main`. If the
 ineligible stage is already public, do not reject, unpublish, overwrite, tag, or
 release it; move the complete corrected release to a greater version.
 
@@ -336,10 +366,12 @@ git tag v0.16.7 "$C"
 git push origin refs/tags/v0.16.7
 ```
 
-The staging workflow runs on GitHub-hosted runners with Node 24, npm 11.19.0,
-Bun 1.3.14, disabled package-manager caching, and no stored npm token. It binds
-the verified artifact and final tarball hash to source `C`. The checkout-free
-terminal OIDC job observes the combined governed refs twice with one
+The candidate/staging workflow runs on GitHub-hosted runners with Node 24, npm
+11.19.0, Bun 1.3.14, disabled package-manager caching, and no stored npm token.
+Every eligible push or dispatch binds the verified uploaded artifact and final
+tarball hash to source `C`. Only an explicit `publish_to_npm=true` dispatch may
+start the checkout-free terminal OIDC job, which observes the combined governed
+refs twice with one
 `ls-remote` connection per observation, requesting exact protected `main` and
 the prospective tag together. Each canonical advertisement is capped at 64 KiB
 and 500 rows, must contain one `main` row and no requested tag, and the pair
@@ -521,26 +553,28 @@ with explicit recovery guidance for the observed Latest coordinate. A
 supersession after that final read is not observable by the completed workflow.
 
 Immediately before the tag push that dispatches **Release**, a signed-in
-administrator must read back both immutable Releases as `enabled=true` and one
-exact active repository tag ruleset whose sole ref target is `refs/tags/v*`,
-whose bypass-actor set is empty, and whose exact rule types are `deletion` and
-`update`. Creation remains intentionally allowed so the new version tag can be
-created once; update and deletion must be denied to every actor afterward.
-Ruleset `19989752`, currently named `Immutable version tags`, is retained live
-evidence, but its numeric ID and name are not authority: the semantic readback
-is. If that evidence coordinate changes, resolve and retain the unique new
-semantic match before proceeding. The workflow token deliberately keeps only
-`contents:write` and cannot read either Administration endpoint. These fresh
-control-plane checks are therefore a trusted operator boundary, with a residual
-administrator-toggle window that repeated workflow reads cannot remove. The
-created and terminal Release readbacks and tag reads must still report exact
-immutable authority.
+administrator must read back immutable Releases as `enabled=true` and two exact
+active repository tag rulesets whose sole ref target is `refs/tags/v*`. The
+creation ruleset must contain only `creation` and give sole always-bypass
+authority to User ID `894119`. The immutable ruleset must contain only
+`deletion` plus `update` and have no bypass actors. Never combine those rules:
+the owner bypass may create a release tag but cannot move or delete one, while
+every other User or Integration is denied creation. Rulesets `22311815`,
+currently named `Release tag creation`, and `19989752`, currently named
+`Immutable version tags`, are retained live evidence, but their numeric IDs and
+names are not authority: the split semantics are. If either evidence coordinate
+changes, resolve and retain the unique new semantic match before proceeding.
+The workflow token deliberately keeps only `contents:write` and cannot read any
+Administration endpoint. These fresh control-plane checks are therefore a
+trusted operator boundary, with a residual administrator-toggle window that
+repeated workflow reads cannot remove. The created and terminal Release
+readbacks and tag reads must still report exact immutable authority.
 
 Run this with the signed-in administrator session immediately before creating
-the tag. First resolve the unique candidate from the repository ruleset list,
-then set `wrench_tag_ruleset_id` to that captured numeric ID. The validation
-records the required semantics alongside GitHub's immutable-Release diagnostic
-without granting the workflow Administration:
+the tag. First resolve the two unique candidates from the repository ruleset
+list, then set the IDs below to those captured numeric IDs. The validation
+records their required split semantics alongside GitHub's immutable-Release
+diagnostic without granting the workflow Administration:
 
 ```bash
 immutable_release_state="$(gh api \
@@ -560,13 +594,57 @@ if (
 ) process.exit(1);
 process.stdout.write(`${JSON.stringify(value)}\n`);
 NODE
-wrench_tag_ruleset_id=19989752
-tag_ruleset_state="$(gh api \
+wrench_tag_create_ruleset_id=22311815
+wrench_tag_immutable_ruleset_id=19989752
+tag_create_ruleset_state="$(gh api \
   --header 'Accept: application/vnd.github+json' \
   --header 'X-GitHub-Api-Version: 2026-03-10' \
-  "/repos/hraness/wrench/rulesets/$wrench_tag_ruleset_id")"
-TAG_RULESET_STATE="$tag_ruleset_state" node <<'NODE'
-const value = JSON.parse(process.env.TAG_RULESET_STATE ?? "null");
+  "/repos/hraness/wrench/rulesets/$wrench_tag_create_ruleset_id")"
+TAG_CREATE_RULESET_STATE="$tag_create_ruleset_state" node <<'NODE'
+const value = JSON.parse(process.env.TAG_CREATE_RULESET_STATE ?? "null");
+const refName = value?.conditions?.ref_name;
+const ruleTypes = Array.isArray(value?.rules)
+  ? value.rules.map((rule) => rule?.type).sort()
+  : [];
+const bypass = Array.isArray(value?.bypass_actors) ? value.bypass_actors : [];
+if (
+  value === null ||
+  typeof value !== "object" ||
+  Array.isArray(value) ||
+  value.target !== "tag" ||
+  value.source_type !== "Repository" ||
+  value.source !== "hraness/wrench" ||
+  value.enforcement !== "active" ||
+  bypass.length !== 1 ||
+  bypass[0]?.actor_id !== 894119 ||
+  bypass[0]?.actor_type !== "User" ||
+  bypass[0]?.bypass_mode !== "always" ||
+  refName === null ||
+  typeof refName !== "object" ||
+  !Array.isArray(refName.include) ||
+  refName.include.length !== 1 ||
+  refName.include[0] !== "refs/tags/v*" ||
+  !Array.isArray(refName.exclude) ||
+  refName.exclude.length !== 0 ||
+  JSON.stringify(ruleTypes) !== '["creation"]'
+) process.exit(1);
+process.stdout.write(`${JSON.stringify({
+  id: value.id,
+  name: value.name,
+  semantics: {
+    bypass: { actorId: 894119, actorType: "User", mode: "always" },
+    enforcement: value.enforcement,
+    ref: refName.include[0],
+    rules: ruleTypes,
+  },
+})}\n`);
+NODE
+tag_immutable_ruleset_state="$(gh api \
+  --header 'Accept: application/vnd.github+json' \
+  --header 'X-GitHub-Api-Version: 2026-03-10' \
+  "/repos/hraness/wrench/rulesets/$wrench_tag_immutable_ruleset_id")"
+TAG_IMMUTABLE_RULESET_STATE="$tag_immutable_ruleset_state" node <<'NODE'
+const value = JSON.parse(process.env.TAG_IMMUTABLE_RULESET_STATE ?? "null");
 const refName = value?.conditions?.ref_name;
 const ruleTypes = Array.isArray(value?.rules)
   ? value.rules.map((rule) => rule?.type).sort()

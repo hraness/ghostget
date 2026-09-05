@@ -7,6 +7,12 @@ on:
     paths:
       - package.json
   workflow_dispatch:
+    inputs:
+      publish_to_npm:
+        description: Submit the verified stable candidate to npm staging
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -17,13 +23,13 @@ concurrency:
 
 jobs:
   classify:
-    name: Classify staging request
+    name: Classify candidate request
     permissions:
       contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      should_stage: ${{ steps.request.outputs.should_stage }}
+      should_prepare: ${{ steps.request.outputs.should_prepare }}
       source_sha: ${{ steps.request.outputs.source_sha }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -45,7 +51,7 @@ jobs:
           set -euo pipefail
           git check-ref-format "refs/heads/$DEFAULT_BRANCH"
           if [[ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
-            echo "::error::npm staging must run from $DEFAULT_BRANCH"
+            echo "::error::npm candidate preparation must run from $DEFAULT_BRANCH"
             exit 1
           fi
           case "$GITHUB_EVENT_NAME" in
@@ -83,7 +89,7 @@ jobs:
               previous_sha="${BASH_REMATCH[1]}"
               ;;
             *)
-              echo "::error::Unsupported npm staging event $GITHUB_EVENT_NAME"
+              echo "::error::Unsupported npm candidate event $GITHUB_EVENT_NAME"
               exit 1
               ;;
           esac
@@ -111,7 +117,7 @@ jobs:
             exit 1
           fi
 
-          should_stage=true
+          should_prepare=true
           case "$GITHUB_EVENT_NAME" in
             workflow_dispatch)
               ;;
@@ -123,8 +129,8 @@ jobs:
                 exit 1
               fi
               if [[ "$current_version" == "$previous_version" ]]; then
-                should_stage=false
-                echo "::notice::package.json changed without a version change; npm staging is not required"
+                should_prepare=false
+                echo "::notice::package.json changed without a version change; npm candidate preparation is not required"
               elif ! OLD_VERSION="$previous_version" NEW_VERSION="$current_version" node -e '
                 const parse = (value) => value.split(".").map(BigInt);
                 const oldVersion = parse(process.env.OLD_VERSION ?? "");
@@ -135,19 +141,19 @@ jobs:
                 }
                 process.exit(1);
               '; then
-                echo "::error::Automatic npm staging requires a version newer than $previous_version, received $current_version"
+                echo "::error::Automatic npm candidate preparation requires a version newer than $previous_version, received $current_version"
                 exit 1
               fi
               ;;
           esac
 
-          printf 'should_stage=%s\nsource_sha=%s\n' \
-            "$should_stage" "$source_sha" >> "$GITHUB_OUTPUT"
+          printf 'should_prepare=%s\nsource_sha=%s\n' \
+            "$should_prepare" "$source_sha" >> "$GITHUB_OUTPUT"
 
   verify:
     name: Verify exact package
     needs: classify
-    if: needs.classify.outputs.should_stage == 'true'
+    if: needs.classify.outputs.should_prepare == 'true'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -180,7 +186,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
-            echo "::error::npm staging must run from $DEFAULT_BRANCH"
+            echo "::error::npm candidate verification must run from $DEFAULT_BRANCH"
             exit 1
           fi
           authority_output="$(node --experimental-strip-types \
@@ -285,6 +291,7 @@ jobs:
   stage:
     name: Stage exact package
     needs: verify
+    if: needs.verify.result == 'success' && github.event_name == 'workflow_dispatch' && inputs.publish_to_npm == true
     permissions:
       contents: read
       id-token: write
