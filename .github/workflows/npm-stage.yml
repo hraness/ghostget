@@ -549,8 +549,16 @@ jobs:
           const intentRuns = new Map();
           const resolutionCounts = new Map();
           const seenJobIds = new Set();
+          const legacyGenericStages = new Map([
+            [33134350359, { jobId: 98736138383, sha: "59724c9b8d660dc082989f154ee4e98c502df612", version: "0.16.0" }],
+            [33144248535, { jobId: 98768005663, sha: "12fde2af132b924f10664f249c924314c9d4ae9b", version: "0.16.1" }],
+            [33236415013, { jobId: 99062211048, sha: "33309c470336127228b959e2aaa54138247b9684", version: "0.16.2" }],
+            [33715165834, { jobId: 100531488173, sha: "c2d956ca4102d38c29e24ca4e13f26ce862b47f3", version: "0.16.3" }],
+            [33832566262, { jobId: 100906143000, sha: "05e6a3e7a19e34b2f1611357a3b124467b5a8977", version: "0.16.4" }],
+            [33920809926, { jobId: 101188893427, sha: "745ed522873c2e5d14537719d8dc74ac6bf2d70f", version: "0.16.5" }],
+          ]);
           const increment = (map, version) => map.set(version, (map.get(version) ?? 0) + 1);
-          const inspectRunJobs = (runId, expectedSha) => {
+          const inspectRunJobs = (runId, expectedSha, completedRun) => {
             const jobsPayload = JSON.parse(execute("gh", [
               "api",
               "--method", "GET",
@@ -590,6 +598,29 @@ jobs:
               ) throw new Error(`npm-stage run ${runId} contains an invalid job identity`);
               seenJobIds.add(job.id);
               if (!job.name.startsWith("Stage exact package")) continue;
+              if (job.name === "Stage exact package" && job.conclusion === "success") {
+                const legacy = legacyGenericStages.get(runId);
+                if (
+                  legacy === undefined
+                  || completedRun === undefined
+                  || job.id !== legacy.jobId
+                  || job.run_attempt !== 1
+                  || job.status !== "completed"
+                  || expectedSha !== legacy.sha
+                  || completedRun.run_attempt !== 1
+                  || completedRun.conclusion !== "success"
+                  || completedRun.actor?.id !== 894119
+                  || completedRun.actor?.type !== "User"
+                  || completedRun.triggering_actor?.id !== 894119
+                  || completedRun.triggering_actor?.type !== "User"
+                ) {
+                  throw new Error(`npm-stage run ${runId} contains an unsealed successful generic stage job`);
+                }
+                if (compare(parseVersion(legacy.version, `Legacy stage from run ${runId}`), latest) > 0) {
+                  throw new Error(`Legacy stage ${legacy.version} from run ${runId} is not covered by public npm latest`);
+                }
+                continue;
+              }
               const intents = job.steps.filter(step => (
                 step.name === "Record exclusive stable-stage intent"
                 && step.conclusion === "success"
@@ -604,7 +635,23 @@ jobs:
               if (resolutions.length > 1) {
                 throw new Error(`npm-stage run ${runId} has ambiguous successful resolution steps`);
               }
-              if (intents.length === 0 && resolutions.length === 0) continue;
+              const terminalWrites = job.steps.filter(step => (
+                (
+                  step.name === "Revalidate current main and stage exact package"
+                  || step.name === "Revalidate protected-main ancestry and stage exact package"
+                )
+                && step.conclusion !== null
+                && step.conclusion !== "skipped"
+              ));
+              if (terminalWrites.length > 1 || (terminalWrites.length === 1 && intents.length !== 1)) {
+                throw new Error(`npm-stage run ${runId} has a terminal write without one durable intent`);
+              }
+              if (intents.length === 0 && resolutions.length === 0) {
+                if (job.conclusion === "success") {
+                  throw new Error(`npm-stage run ${runId} has a successful stage job without a durable intent`);
+                }
+                continue;
+              }
               const match = /^Stage exact package v((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))$/u.exec(job.name);
               if (match === null) {
                 throw new Error(`npm-stage run ${runId} lacks a version-bound stage job`);
@@ -663,7 +710,7 @@ jobs:
               || run.repository?.private !== false
             ) throw new Error("Completed npm-stage history contains an invalid run identity");
             seenRunIds.add(run.id);
-            inspectRunJobs(run.id, run.head_sha);
+            inspectRunJobs(run.id, run.head_sha, run);
           }
           for (const [version, count] of resolutionCounts) {
             if (count > (intentRuns.get(version)?.length ?? 0)) {
@@ -833,11 +880,15 @@ jobs:
             for (let index = 0; index < header.length; index += 1) {
               checksum += index >= 148 && index < 156 ? 0x20 : header[index];
             }
-            if (checksum !== expectedChecksum || tarText(header, 257, 6) !== "ustar") {
+            if (
+              checksum !== expectedChecksum
+              || !header.subarray(257, 263).equals(Buffer.from("ustar\0", "ascii"))
+              || !header.subarray(263, 265).equals(Buffer.from("00", "ascii"))
+            ) {
               throw new Error("Packed package.json tar header is invalid");
             }
             const name = tarText(header, 0, 100);
-            const prefix = tarText(header, 345, 155);
+            const prefix = tarText(header, 345, header[475] === 0 ? 130 : 155);
             const path = prefix === "" ? name : `${prefix}/${name}`;
             if (path.startsWith("/") || path.includes("\\") || path.split("/").some(part => part === "" || part === "." || part === "..")) {
               throw new Error("Packed package.json tar path is unsafe");

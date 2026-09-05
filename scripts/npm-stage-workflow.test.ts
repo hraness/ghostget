@@ -1593,6 +1593,10 @@ describe("npm publication contract", () => {
       'Object.hasOwn(manifest, "tag")',
       'JSON.stringify(Object.keys(publishConfig).sort()) !== JSON.stringify(["access", "registry"])',
       'publishConfig.registry !== "https://registry.npmjs.org"',
+      "has a terminal write without one durable intent",
+      'header.subarray(257, 263).equals(Buffer.from("ustar\\0", "ascii"))',
+      'header.subarray(263, 265).equals(Buffer.from("00", "ascii"))',
+      "header[475] === 0 ? 130 : 155",
       "Packed Wrench can publish only to the canonical public npm registry",
       "Downloaded npm-package.sha256 is invalid",
       "Downloaded tarball does not match the verified SHA-256",
@@ -1629,6 +1633,16 @@ describe("npm publication contract", () => {
       "--provenance",
     ] as const) {
       expect(stageJob).toContain(required);
+    }
+    for (const sealedLegacyStage of [
+      '33134350359, { jobId: 98736138383, sha: "59724c9b8d660dc082989f154ee4e98c502df612", version: "0.16.0" }',
+      '33144248535, { jobId: 98768005663, sha: "12fde2af132b924f10664f249c924314c9d4ae9b", version: "0.16.1" }',
+      '33236415013, { jobId: 99062211048, sha: "33309c470336127228b959e2aaa54138247b9684", version: "0.16.2" }',
+      '33715165834, { jobId: 100531488173, sha: "c2d956ca4102d38c29e24ca4e13f26ce862b47f3", version: "0.16.3" }',
+      '33832566262, { jobId: 100906143000, sha: "05e6a3e7a19e34b2f1611357a3b124467b5a8977", version: "0.16.4" }',
+      '33920809926, { jobId: 101188893427, sha: "745ed522873c2e5d14537719d8dc74ac6bf2d70f", version: "0.16.5" }',
+    ] as const) {
+      expect(stageJob).toContain(sealedLegacyStage);
     }
 
     expect(workflow.match(/id-token: write/gu) ?? []).toHaveLength(1);
@@ -2001,8 +2015,10 @@ esac
     const runsFixture = join(directory, "runs.json");
     const currentJobsFixture = join(directory, "current-jobs.json");
     const firstJobsFixture = join(directory, "first-jobs.json");
+    const legacyJobsFixture = join(directory, "legacy-jobs.json");
     const resolutionJobsFixture = join(directory, "resolution-jobs.json");
     const historicalSha = "c".repeat(40);
+    const legacySha = "745ed522873c2e5d14537719d8dc74ac6bf2d70f";
     const resolutionSha = "e".repeat(40);
     const currentSha = "d".repeat(40);
     const currentInProgressJob = Object.freeze({
@@ -2050,6 +2066,16 @@ esac
         name: "Bind verified artifact identity",
       }],
     });
+    const sealedLegacyJob = Object.freeze({
+      conclusion: "success",
+      head_sha: legacySha,
+      id: 101188893427,
+      name: "Stage exact package",
+      run_attempt: 1,
+      run_id: 33920809926,
+      status: "completed",
+      steps: [],
+    });
 
     try {
       await mkdir(binaryDirectory, { recursive: true });
@@ -2073,6 +2099,7 @@ case "$*" in
   "api --method GET /repos/hraness/wrench/actions/runs/8001/jobs?filter=all&per_page=100") cat "$CURRENT_JOBS_FIXTURE" ;;
   "api --method GET /repos/hraness/wrench/actions/runs/7001/jobs?filter=all&per_page=100") cat "$FIRST_JOBS_FIXTURE" ;;
   "api --method GET /repos/hraness/wrench/actions/runs/7002/jobs?filter=all&per_page=100") cat "$RESOLUTION_JOBS_FIXTURE" ;;
+  "api --method GET /repos/hraness/wrench/actions/runs/33920809926/jobs?filter=all&per_page=100") cat "$LEGACY_JOBS_FIXTURE" ;;
   *) echo "unexpected gh command: $*" >&2; exit 1 ;;
 esac
 `, "utf8"),
@@ -2083,6 +2110,10 @@ esac
         writeFile(resolutionJobsFixture, `${JSON.stringify({
           total_count: 1,
           jobs: [persistedResolutionJob],
+        })}\n`, "utf8"),
+        writeFile(legacyJobsFixture, `${JSON.stringify({
+          total_count: 1,
+          jobs: [sealedLegacyJob],
         })}\n`, "utf8"),
         writeFile(join(directory, "global.npmrc"), "", "utf8"),
         writeFile(join(directory, "user.npmrc"), "", "utf8"),
@@ -2126,6 +2157,26 @@ esac
           },
         ],
       });
+      const sealedLegacyHistory = Object.freeze({
+        total_count: 1,
+        workflow_runs: [{
+          actor: { id: 894119, type: "User" },
+          conclusion: "success",
+          event: "workflow_dispatch",
+          head_branch: "main",
+          head_sha: legacySha,
+          id: 33920809926,
+          repository: {
+            full_name: providerRepository,
+            id: WRENCH_REPOSITORY_ID,
+            private: false,
+          },
+          run_attempt: 1,
+          status: "completed",
+          triggering_actor: { id: 894119, type: "User" },
+          workflow_id: 344213783,
+        }],
+      });
       const baseEnvironment = Object.freeze({
         CURRENT_JOBS_FIXTURE: currentJobsFixture,
         EXPECTED_REPOSITORY: providerRepository,
@@ -2137,6 +2188,7 @@ esac
         GITHUB_REPOSITORY: providerRepository,
         GITHUB_RUN_ID: "8001",
         GITHUB_SHA: currentSha,
+        LEGACY_JOBS_FIXTURE: legacyJobsFixture,
         NPM_DIRECTORY: directory,
         NPM_GLOBALCONFIG: join(directory, "global.npmrc"),
         NPM_USERCONFIG: join(directory, "user.npmrc"),
@@ -2231,6 +2283,61 @@ esac
       expect(`${reusedResolution.stdout}${reusedResolution.stderr}`).toContain(
         "does not identify a blocking intent",
       );
+
+      const sealedLegacy = await runHistory(sealedLegacyHistory, currentWithoutIntent, {
+        EXPECTED_VERSION: "0.16.6",
+        NPM_LATEST_VERSION: "0.16.5",
+      });
+      expect(sealedLegacy.exitCode, `${sealedLegacy.stdout}\n${sealedLegacy.stderr}`).toBe(0);
+
+      const uncoveredLegacy = await runHistory(sealedLegacyHistory, currentWithoutIntent, {
+        EXPECTED_VERSION: "0.16.6",
+        NPM_LATEST_VERSION: "0.16.4",
+      });
+      expect(uncoveredLegacy.exitCode).not.toBe(0);
+      expect(`${uncoveredLegacy.stdout}${uncoveredLegacy.stderr}`).toContain(
+        "Legacy stage 0.16.5 from run 33920809926 is not covered by public npm latest",
+      );
+
+      await writeFile(firstJobsFixture, `${JSON.stringify({
+        total_count: 1,
+        jobs: [{
+          ...failedIntentJob,
+          conclusion: "success",
+          name: "Stage exact package",
+          steps: [],
+        }],
+      })}\n`, "utf8");
+      const unknownGeneric = await runHistory(failedIntentHistory, currentWithoutIntent, {
+        NPM_LATEST_VERSION: "0.15.0",
+      });
+      expect(unknownGeneric.exitCode).not.toBe(0);
+      expect(`${unknownGeneric.stdout}${unknownGeneric.stderr}`).toContain(
+        "contains an unsealed successful generic stage job",
+      );
+
+      for (const terminalConclusion of ["failure", "cancelled", "timed_out"] as const) {
+        await writeFile(firstJobsFixture, `${JSON.stringify({
+          total_count: 1,
+          jobs: [{
+            ...failedIntentJob,
+            conclusion: terminalConclusion,
+            steps: [{
+              conclusion: terminalConclusion,
+              name: "Revalidate protected-main ancestry and stage exact package",
+            }],
+          }],
+        })}\n`, "utf8");
+        const unreservedMutation = await runHistory(
+          failedIntentHistory,
+          currentWithoutIntent,
+          { NPM_LATEST_VERSION: "0.15.0" },
+        );
+        expect(unreservedMutation.exitCode).not.toBe(0);
+        expect(`${unreservedMutation.stdout}${unreservedMutation.stderr}`).toContain(
+          "has a terminal write without one durable intent",
+        );
+      }
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
@@ -2719,6 +2826,79 @@ esac
       expect(`${result.stdout}${result.stderr}`).toContain(
         "Packed Wrench can publish only to the canonical public npm registry",
       );
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  test("matches npm node-tar USTAR version and extended-prefix parsing", async () => {
+    const workflow = await readFile(stageWorkflowUrl, "utf8");
+    const script = workflowStepScript(workflow, "Bind downloaded artifact");
+    const manifest = JSON.parse(await readFile(manifestUrl, "utf8")) as {
+      readonly name: string;
+      readonly version: string;
+    };
+    const directory = await mkdtemp(join(tmpdir(), "wrench-hostile-ustar-"));
+    const artifactDirectory = join(directory, "wrench-npm-package");
+    const filename = `hraness-wrench-${manifest.version}.tgz`;
+    const archive = join(artifactDirectory, filename);
+    try {
+      await mkdir(artifactDirectory, { recursive: true });
+      await run([
+        process.execPath,
+        "pm",
+        "pack",
+        "--filename",
+        archive,
+        "--ignore-scripts",
+        "--quiet",
+      ], repository);
+      const originalArchive = await readFile(archive);
+      const inventory = await inspectPackageArtifact(archive);
+      const originalTar = gunzipSync(originalArchive);
+      const manifestEntry = exactTarEntry(originalTar, "package/package.json");
+      const runMutation = async (
+        mutate: (tar: Buffer, headerOffset: number) => void,
+        expectedMessage: string,
+      ) => {
+        const tar = Buffer.from(originalTar);
+        mutate(tar, manifestEntry.headerOffset);
+        writeHeaderChecksum(tar, manifestEntry.headerOffset);
+        const archiveBytes = gzipSync(tar, { level: 9 });
+        await Promise.all([
+          writeFile(archive, archiveBytes),
+          writeFile(
+            join(artifactDirectory, "npm-pack.json"),
+            packJson(archiveBytes, inventory, manifest.name, manifest.version),
+          ),
+          writeFile(
+            join(artifactDirectory, "npm-package.sha256"),
+            `${createHash("sha256").update(archiveBytes).digest("hex")}\n`,
+          ),
+        ]);
+        const result = await runWorkflowScript(script, {
+          EXPECTED_TARBALL_NAME: filename,
+          EXPECTED_VERSION: manifest.version,
+          GITHUB_OUTPUT: join(directory, "github-output.txt"),
+          RUNNER_TEMP: directory,
+        });
+        expect(result.exitCode).not.toBe(0);
+        expect(`${result.stdout}${result.stderr}`).toContain(expectedMessage);
+      };
+
+      await runMutation((tar, headerOffset) => {
+        tar[headerOffset + 264] = "1".charCodeAt(0);
+      }, "Packed package.json tar header is invalid");
+
+      await runMutation((tar, headerOffset) => {
+        tar.fill(0, headerOffset, headerOffset + 100);
+        tar.write("package.json", headerOffset, "ascii");
+        tar.fill("a".charCodeAt(0), headerOffset + 345, headerOffset + 475);
+        tar[headerOffset + 475] = "/".charCodeAt(0);
+        tar[headerOffset + 476] = ".".charCodeAt(0);
+        tar[headerOffset + 477] = ".".charCodeAt(0);
+        tar[headerOffset + 478] = 0;
+      }, "Packed package.json tar path is unsafe");
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
@@ -3495,7 +3675,7 @@ elif [[ "$args" == "-c credential.helper= -c core.hooksPath=/dev/null fetch --no
   : > "$IMPORTED_TAG_STATE"
 elif [[ "$args" == "-c credential.helper= -c core.hooksPath=/dev/null merge-base --is-ancestor $VERIFIED_SHA refs/wrench-release/publication-main" ]]; then
   [[ "$ANCESTRY_MODE" == "valid" ]]
-elif [[ "$args" == "-c credential.helper= -c core.hooksPath=/dev/null diff --quiet --no-ext-diff --no-textconv $VERIFIED_SHA refs/wrench-release/publication-main -- .github/workflows scripts/release-ref-authority.ts scripts/release-provider-outcome.mjs scripts/release-app-token.mjs scripts/release-ref-writer.mjs" ]]; then
+elif [[ "$args" == "-c credential.helper= -c core.hooksPath=/dev/null diff --quiet --no-ext-diff --no-textconv $VERIFIED_SHA refs/wrench-release/publication-main -- .github/workflows scripts/release-ref-authority.ts scripts/npm-provenance-identity.ts scripts/npm-package-identity.ts scripts/package-artifact.ts scripts/package-budget.ts scripts/package-smoke.ts scripts/private-source-client-runtime-smoke.ts scripts/release-provider-outcome.mjs scripts/release-app-token.mjs scripts/release-ref-writer.mjs website/production-release-marker.mjs" ]]; then
   if [[ "$WORKFLOW_DRIFT_MODE" == "always" ||
         ( "$WORKFLOW_DRIFT_MODE" == "postwrite" && -f "$RELEASE_CREATED_STATE" ) ]]; then
     exit 1
@@ -8758,6 +8938,14 @@ esac
       "all\nattempts of its current run plus a bounded completed dispatch/job history",
       "durable reservation even when the job later\nfails or its npm write result is ambiguous",
       "whole-job success is not the lock",
+      "Any terminal npm-write step with a failure, cancellation, timeout, or\nsuccess conclusion",
+      "Successful generic jobs from the older workflow shape",
+      "run `33134350359`, job `98736138383`",
+      "run `33920809926`, job `101188893427`",
+      "Every other successful generic stage job",
+      "npm/node-tar-compatible USTAR handling",
+      "header byte 475 is zero and 155 bytes otherwise",
+      "complete transitive verifier/parser set",
       "successful exact-version clearance step before proceeding",
       "still\n   cannot publish the package directly",
       "manifest edit with an unchanged version succeeds without running verification",
@@ -8883,7 +9071,7 @@ esac
       "accepted but ineligible pending stage must be inspected, rejected\nwith human two-factor authentication, and confirmed absent before one fresh\nsame-version stage is explicitly dispatched from final current `main` with the",
       "If the\nineligible stage is already public, do not reject, unpublish, overwrite, tag, or\nrelease it; move the complete corrected release to a greater version",
       "npm stage reject <stage-id>",
-      "git diff --quiet --no-ext-diff --no-textconv C M -- .github/workflows\nscripts/release-ref-authority.ts scripts/release-provider-outcome.mjs\nscripts/release-app-token.mjs scripts/release-ref-writer.mjs",
+      "`git diff --quiet --no-ext-diff --no-textconv C M --` covers",
       "descendant movement is release-authority-safe only while",
       "release-control change in the irreducible prewrite-to-POST window",
       "terminal readback fail closed even though GitHub may already have created the\nimmutable Release",

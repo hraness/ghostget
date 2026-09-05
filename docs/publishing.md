@@ -574,9 +574,30 @@ successful intent step in an exact version-bound stage job blocks the next
 submission while that version is newer than public `latest`, regardless of the
 job's eventual conclusion. The exceptional exact rejected-stage input may clear
 one such reservation, and the successful dynamic resolution step persists that
-clearance for later runs. Jobs from the older workflow shape have neither marker
-and are not mistaken for durable intent. It then observes the combined governed
-refs twice with one
+clearance for later runs. Successful generic jobs from the older workflow shape
+are accepted only for these six already-public, exact owner-triggered attempt-1
+records:
+
+- `0.16.0`: run `33134350359`, job `98736138383`, source
+  `59724c9b8d660dc082989f154ee4e98c502df612`
+- `0.16.1`: run `33144248535`, job `98768005663`, source
+  `12fde2af132b924f10664f249c924314c9d4ae9b`
+- `0.16.2`: run `33236415013`, job `99062211048`, source
+  `33309c470336127228b959e2aaa54138247b9684`
+- `0.16.3`: run `33715165834`, job `100531488173`, source
+  `c2d956ca4102d38c29e24ca4e13f26ce862b47f3`
+- `0.16.4`: run `33832566262`, job `100906143000`, source
+  `05e6a3e7a19e34b2f1611357a3b124467b5a8977`
+- `0.16.5`: run `33920809926`, job `101188893427`, source
+  `745ed522873c2e5d14537719d8dc74ac6bf2d70f`
+
+Each sealed record requires owner User `894119` as both actor and triggering
+actor, a successful completed run and job, its exact source, and a public npm
+`latest` at or beyond its version. Every other successful generic stage job,
+and every successful versioned stage job without its durable intent, fails
+closed. Any terminal npm-write step with a failure, cancellation, timeout, or
+success conclusion likewise requires exactly one earlier successful durable
+intent. It then observes the combined governed refs twice with one
 `ls-remote` connection per observation, requesting exact protected `main` and
 the prospective tag together. Each canonical advertisement is capped at 64 KiB
 and 500 rows, must contain one `main` row and no requested tag, and the pair
@@ -595,7 +616,9 @@ main-only `npm-stage` environment applies only to this terminal job and has no
 required deployment reviewers.
 
 The checkout-free OIDC job also parses `package/package.json` directly from the
-downloaded tarball with bounded USTAR handling. Its `publishConfig` must contain
+downloaded tarball with bounded npm/node-tar-compatible USTAR handling. Every
+header must carry exact `ustar\\0` magic and version `00`; the prefix is 130
+bytes when header byte 475 is zero and 155 bytes otherwise. Its `publishConfig` must contain
 exactly `access=public` and `registry=https://registry.npmjs.org`; a top-level
 packed tag,
 scoped registry, proxy, authentication field, or any other publication setting
@@ -755,12 +778,14 @@ checking Latest. It does not use opaque `gh release view` or
 control path. The direct lightweight tag must remain on the verified release
 commit `C`, and protected linear `main` at each observation must equal or
 descend from `C`. That descendant movement is release-authority-safe only while
-`git diff --quiet --no-ext-diff --no-textconv C M -- .github/workflows
-scripts/release-ref-authority.ts scripts/release-provider-outcome.mjs
-scripts/release-app-token.mjs scripts/release-ref-writer.mjs` confirms that the
-high-privilege authority, publication, and promotion control closure is
-unchanged. The early release check and both publication-boundary checks enforce
-that condition using the exact imported `C` and `M` objects. After
+`git diff --quiet --no-ext-diff --no-textconv C M --` covers
+`.github/workflows`, the release-ref, npm provenance, npm package identity,
+package artifact, package budget, package smoke, packed private-source runtime,
+release provider, App-token, ref-writer, and production-marker modules. This
+complete transitive verifier/parser set confirms that the high-privilege
+authority, publication, and promotion control closure is unchanged. The early
+release check and both publication-boundary checks enforce that condition using
+the exact imported `C` and `M` objects. After
 completed-release-order validation
 and immediately before the irreversible create request, authenticated GitHub
 API reads still bind both coordinates. The release-ref helper then observes

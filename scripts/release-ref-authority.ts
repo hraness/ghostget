@@ -22,9 +22,16 @@ const TAG_REF = /^refs\/tags\/(v[A-Za-z0-9][A-Za-z0-9._-]{0,126})$/u;
 const RELEASE_CONTROL_PATHS = Object.freeze([
   ".github/workflows",
   "scripts/release-ref-authority.ts",
+  "scripts/npm-provenance-identity.ts",
+  "scripts/npm-package-identity.ts",
+  "scripts/package-artifact.ts",
+  "scripts/package-budget.ts",
+  "scripts/package-smoke.ts",
+  "scripts/private-source-client-runtime-smoke.ts",
   "scripts/release-provider-outcome.mjs",
   "scripts/release-app-token.mjs",
   "scripts/release-ref-writer.mjs",
+  "website/production-release-marker.mjs",
 ] as const);
 
 export type GitCommandResult = Readonly<{
