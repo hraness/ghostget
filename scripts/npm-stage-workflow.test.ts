@@ -1153,17 +1153,20 @@ describe("npm publication contract", () => {
 
     expect(artifact).toContain('from "./package-budget.js"');
     expect(smoke).toContain('from "./package-budget.js"');
-    expect(budget).toContain("two npm 10.9.7 packs");
-    expect(budget).toContain("2,214,175 packed bytes");
-    expect(budget).toContain("12,232,594 unpacked bytes, and 466 files");
+    expect(budget).toContain("two npm 11.19.0 packs");
+    expect(budget).toContain("2,214,418 packed bytes");
+    expect(budget).toContain("12,233,921 unpacked bytes, and 466 files");
+    expect(budget).toContain(
+      "7b13498e1070d95f2a1d564caba41f1eebc6a32a7a8e078373fe2fec564060a8",
+    );
+    expect(budget).toContain("Published 0.16.6 is 2,214,175 packed bytes");
+    expect(budget).toContain("466 files from npm 10.9.7");
     expect(budget).toContain(
       "e49aa949b885960aa42a0ee5f99a70cfd1bc115934bdc8131a2823fe62f5ff03",
     );
-    expect(budget).toContain("Published 0.16.5 is 2,175,150 packed bytes");
-    expect(budget).toContain("required Beeper v2.3.0 upgrade baseline");
-    expect(budget).toContain("35,983 bytes short");
+    expect(budget).toContain("reviewed recovery");
     expect(budget).toContain("measured a 3,543-byte Linux/macOS gzip spread");
-    expect(budget).toContain("Keep 6,734 packed bytes and 2,951 unpacked bytes");
+    expect(budget).toContain("Keep 6,491 packed bytes and 1,624 unpacked bytes");
     expect(MAX_PACKED_BYTES).toBe(2_220_909);
     expect(MAX_PACKED_ENTRIES).toBe(466);
     expect(MAX_PACKED_FILES).toBe(466);
@@ -1240,20 +1243,23 @@ describe("npm publication contract", () => {
     }
   });
 
-  test("keeps separate truthful Wrench 0.16.3, 0.16.4, 0.16.5, and 0.16.6 changelog sections", async () => {
+  test("keeps separate truthful Wrench 0.16.3 through 0.16.7 changelog sections", async () => {
     const changelog = await readFile(changelogUrl, "utf8");
     const unreleasedHeader = "## Unreleased\n";
-    const currentHeader = "## 0.16.6 - 2026-09-05\n";
-    const previousHeader = "## 0.16.5 - 2026-09-04\n";
+    const currentHeader = "## 0.16.7 - 2026-09-05\n";
+    const previousHeader = "## 0.16.6 - 2026-09-05\n";
+    const markerHeader = "## 0.16.5 - 2026-09-04\n";
     const releaseHeader = "## 0.16.4 - 2026-09-03\n";
     const incidentHeader = "## 0.16.3 - 2026-09-01\n";
     const unreleasedStart = changelog.indexOf(unreleasedHeader);
     const currentStart = changelog.indexOf(currentHeader);
     const previousStart = changelog.indexOf(previousHeader);
+    const markerStart = changelog.indexOf(markerHeader);
     const releaseStart = changelog.indexOf(releaseHeader);
     const incidentStart = changelog.indexOf(incidentHeader);
 
     expect(changelog.match(/^## Unreleased$/gmu) ?? []).toHaveLength(1);
+    expect(changelog.match(/^## 0\.16\.7 - 2026-09-05$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.6 - 2026-09-05$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.5 - 2026-09-04$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.4 - 2026-09-03$/gmu) ?? []).toHaveLength(1);
@@ -1261,7 +1267,8 @@ describe("npm publication contract", () => {
     expect(unreleasedStart).toBeGreaterThan(-1);
     expect(currentStart).toBeGreaterThan(unreleasedStart);
     expect(previousStart).toBeGreaterThan(currentStart);
-    expect(releaseStart).toBeGreaterThan(previousStart);
+    expect(markerStart).toBeGreaterThan(previousStart);
+    expect(releaseStart).toBeGreaterThan(markerStart);
     expect(incidentStart).toBeGreaterThan(releaseStart);
     expect(changelog.slice(unreleasedStart + unreleasedHeader.length, currentStart).trim()).toBe("");
 
@@ -1269,18 +1276,33 @@ describe("npm publication contract", () => {
     expect(currentReleaseEnd).toBe(previousStart - 1);
     const currentSection = changelog.slice(currentStart, currentReleaseEnd);
     for (const requiredFact of [
+      "pinned daemon exits",
+      "repeated inactive-session",
+      "unchanged private-root",
+      "final dead-owner proof",
+      "three consecutive CDP refusals",
+      "no close",
+      "or signal on this path",
+    ] as const) {
+      expect(currentSection).toContain(requiredFact);
+    }
+
+    const previousReleaseEnd = changelog.indexOf("\n## ", previousStart + previousHeader.length);
+    expect(previousReleaseEnd).toBe(markerStart - 1);
+    const previousSection = changelog.slice(previousStart, previousReleaseEnd);
+    for (const requiredFact of [
       "contacts.list@3",
       "beeper-linked-device 2.4.0",
       "feeds.read@2",
       "flair.user.choices",
       "Instagram",
     ] as const) {
-      expect(currentSection).toContain(requiredFact);
+      expect(previousSection).toContain(requiredFact);
     }
 
-    const previousReleaseEnd = changelog.indexOf("\n## ", previousStart + previousHeader.length);
-    expect(previousReleaseEnd).toBe(releaseStart - 1);
-    const previousSection = changelog.slice(previousStart, previousReleaseEnd);
+    const markerReleaseEnd = changelog.indexOf("\n## ", markerStart + markerHeader.length);
+    expect(markerReleaseEnd).toBe(releaseStart - 1);
+    const markerSection = changelog.slice(markerStart, markerReleaseEnd);
     for (const requiredFact of [
       "production-outcome job",
       "canonical release marker",
@@ -1288,7 +1310,7 @@ describe("npm publication contract", () => {
       "Latest Release projection",
       "version-tag update/deletion ruleset",
     ] as const) {
-      expect(previousSection).toContain(requiredFact);
+      expect(markerSection).toContain(requiredFact);
     }
 
     const nextReleaseStart = changelog.indexOf("\n## ", releaseStart + releaseHeader.length);
@@ -7800,7 +7822,7 @@ fi
       ]);
     const manifest = JSON.parse(manifestText) as { readonly version: string };
     const exactPackage = `@hraness/wrench@${manifest.version}`;
-    const nextReleaseVersion = "0.16.6";
+    const nextReleaseVersion = "0.16.7";
     const tagFailFastBoundary = 'set -eu\ncase "${STAGE_RUN_ID:-}" in';
     const stageRunIdGuard = 'case "${STAGE_RUN_ID:-}" in';
     const stageSourceBinding = 'C="$(gh api \\';
@@ -7863,7 +7885,7 @@ fi
       `manifest?.version !== "${nextReleaseVersion}"`,
       stagedPackageCoordinateProof,
       sourceArtifactDownload,
-      'wrench_source_name="npm-package-0.16.6-$C-$STAGE_RUN_ID-1"',
+      'wrench_source_name="npm-package-0.16.7-$C-$STAGE_RUN_ID-1"',
       '--name "$wrench_source_name"',
       registryArtifactDownload,
       registryIdentityCheck,

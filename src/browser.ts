@@ -2280,10 +2280,27 @@ export async function recoverPinnedAgentBrowserCleanupResource(
       await lifecycle.inspectSession(),
       resource,
     );
-    if (initialSession.state !== "active") {
-      throw new Error("browser cleanup daemon and session identity disagree");
-    }
-    if (initialSession.browserLaunched) {
+    if (initialSession.state === "inactive") {
+      const repeatedOwnerStatus = inspectOwner(control.daemonOwner);
+      if (repeatedOwnerStatus === "unknown") {
+        throw new Error("browser cleanup daemon state became indeterminate");
+      }
+      if (repeatedOwnerStatus === "exact-live-owner") {
+        throw new Error("browser cleanup daemon and session identity disagree");
+      }
+      assertBrowserCleanupResourceRootsMatch(resource);
+      const repeatedInactive = parseAgentBrowserSessionState(
+        await lifecycle.inspectSession(),
+        resource,
+      );
+      if (repeatedInactive.state !== "inactive") {
+        throw new Error("browser cleanup session state changed after daemon exit");
+      }
+      assertBrowserCleanupResourceRootsMatch(resource);
+      // A naturally exited owner is never closed or signaled here. It still
+      // falls through to the shared dead-owner, inactive-session, repeated
+      // CDP-refusal, and unchanged-root proof below.
+    } else if (initialSession.browserLaunched) {
       exactActiveAgentBrowserControl(initialSession, control);
       exactPinnedAgentBrowserCdpControl(await lifecycle.inspectCdp(), control);
       exactActiveAgentBrowserControl(
@@ -2349,30 +2366,32 @@ export async function recoverPinnedAgentBrowserCleanupResource(
         control,
       );
     }
-    const beforeTermination = inspectOwner(control.daemonOwner);
-    if (beforeTermination === "unknown") {
-      throw new Error("browser cleanup daemon state became indeterminate");
-    }
-    if (beforeTermination === "exact-live-owner") {
-      assertBrowserCleanupResourceRootsMatch(resource);
-      try {
-        terminateOwner(control.daemonOwner);
-      } catch {
-        if (inspectOwner(control.daemonOwner) === "exact-live-owner") {
-          throw new Error("browser cleanup daemon did not accept graceful termination");
-        }
+    if (initialSession.state === "active") {
+      const beforeTermination = inspectOwner(control.daemonOwner);
+      if (beforeTermination === "unknown") {
+        throw new Error("browser cleanup daemon state became indeterminate");
       }
-      const ownerDeadline = now() + 5_000;
-      for (;;) {
-        const status = inspectOwner(control.daemonOwner);
-        if (status === "unknown") {
-          throw new Error("browser cleanup daemon state became indeterminate");
+      if (beforeTermination === "exact-live-owner") {
+        assertBrowserCleanupResourceRootsMatch(resource);
+        try {
+          terminateOwner(control.daemonOwner);
+        } catch {
+          if (inspectOwner(control.daemonOwner) === "exact-live-owner") {
+            throw new Error("browser cleanup daemon did not accept graceful termination");
+          }
         }
-        if (status === "different-or-dead") break;
-        if (now() >= ownerDeadline) {
-          throw new Error("browser cleanup daemon did not stop after SIGTERM");
+        const ownerDeadline = now() + 5_000;
+        for (;;) {
+          const status = inspectOwner(control.daemonOwner);
+          if (status === "unknown") {
+            throw new Error("browser cleanup daemon state became indeterminate");
+          }
+          if (status === "different-or-dead") break;
+          if (now() >= ownerDeadline) {
+            throw new Error("browser cleanup daemon did not stop after SIGTERM");
+          }
+          await sleep(25);
         }
-        await sleep(25);
       }
     }
   }

@@ -7,6 +7,14 @@ coordinate that completed both checks.
 
 ## Unreleased
 
+## 0.16.7 - 2026-09-05
+
+- Recover a same-boot contained-browser cleanup when its pinned daemon exits
+  naturally between the initial live-owner proof and the first session read.
+  Require repeated inactive-session and unchanged private-root proofs, then a
+  final dead-owner proof plus three consecutive CDP refusals; issue no close
+  or signal on this path.
+
 ## 0.16.6 - 2026-09-05
 
 - Add Beeper `contacts.list@3` on beeper-linked-device 2.4.0 as a Desktop

@@ -1945,6 +1945,429 @@ describe("browser process isolation helpers", () => {
     }
   });
 
+  test("proves a live pinned daemon that exits before its first session read without signaling", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    const ownerStatuses = [
+      "exact-live-owner",
+      "different-or-dead",
+      "different-or-dead",
+      "different-or-dead",
+    ] as const;
+    let ownerReads = 0;
+    let sessionReads = 0;
+    let endpointRefusals = 0;
+    let terminationCount = 0;
+    try {
+      expect(await recoverPinnedAgentBrowserCleanupResource(
+        fixture.resource,
+        {
+          runCommand: (command) => {
+            if (!command.includes("info")) {
+              throw new Error("natural-exit recovery must only inspect the session");
+            }
+            sessionReads += 1;
+            return Promise.resolve(fixture.commandResult(
+              fixture.sessionInfo("inactive"),
+            ));
+          },
+          ownerStatus: () => {
+            const status = ownerStatuses[ownerReads];
+            if (status === undefined) {
+              throw new Error("natural-exit recovery inspected the owner too often");
+            }
+            ownerReads += 1;
+            return status;
+          },
+          terminateOwner: () => {
+            terminationCount += 1;
+          },
+          cdpEndpointStatus: (cdpUrl) => {
+            expect(cdpUrl).toBe(fixture.cdpUrl);
+            endpointRefusals += 1;
+            return Promise.resolve("unavailable");
+          },
+          sleep: () => Promise.resolve(),
+          now: () => 0,
+        },
+      )).toEqual(fixture.resource);
+      expect(ownerReads).toBe(4);
+      expect(sessionReads).toBe(4);
+      expect(endpointRefusals).toBe(3);
+      expect(terminationCount).toBe(0);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("rejects an inactive first session read unless the live owner is re-proved dead", async () => {
+    for (const expected of [
+      {
+        status: "exact-live-owner" as const,
+        message: "daemon and session identity disagree",
+      },
+      {
+        status: "unknown" as const,
+        message: "daemon state became indeterminate",
+      },
+    ]) {
+      const fixture = createPinnedBrowserRecoveryFixture();
+      let ownerReads = 0;
+      let sessionReads = 0;
+      let endpointReads = 0;
+      let terminationCount = 0;
+      try {
+        const message = await rejectionMessage(
+          recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+            runCommand: (command) => {
+              if (!command.includes("info")) {
+                throw new Error("owner reproof must not control the browser");
+              }
+              sessionReads += 1;
+              return Promise.resolve(fixture.commandResult(
+                fixture.sessionInfo("inactive"),
+              ));
+            },
+            ownerStatus: () => {
+              ownerReads += 1;
+              return ownerReads === 1 ? "exact-live-owner" : expected.status;
+            },
+            terminateOwner: () => {
+              terminationCount += 1;
+            },
+            cdpEndpointStatus: () => {
+              endpointReads += 1;
+              return Promise.resolve("unavailable");
+            },
+          }),
+        );
+        expect(message).toContain(expected.message);
+        expect(ownerReads).toBe(2);
+        expect(sessionReads).toBe(1);
+        expect(endpointReads).toBe(0);
+        expect(terminationCount).toBe(0);
+      } finally {
+        fixture.cleanup();
+      }
+    }
+  });
+
+  test("rejects a changed repeated session proof after the live owner exits", async () => {
+    for (const expected of [
+      {
+        value: (fixture: ReturnType<typeof createPinnedBrowserRecoveryFixture>) =>
+          fixture.sessionInfo("closed"),
+        message: "session state changed after daemon exit",
+      },
+      {
+        value: () => ({ success: true, data: null }),
+        message: "agent-browser session data is malformed",
+      },
+    ]) {
+      const fixture = createPinnedBrowserRecoveryFixture();
+      let ownerReads = 0;
+      let sessionReads = 0;
+      let endpointReads = 0;
+      let terminationCount = 0;
+      try {
+        const message = await rejectionMessage(
+          recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+            runCommand: (command) => {
+              if (!command.includes("info")) {
+                throw new Error("session reproof must not control the browser");
+              }
+              sessionReads += 1;
+              return Promise.resolve(fixture.commandResult(
+                sessionReads === 1
+                  ? fixture.sessionInfo("inactive")
+                  : expected.value(fixture),
+              ));
+            },
+            ownerStatus: () => {
+              ownerReads += 1;
+              return ownerReads === 1
+                ? "exact-live-owner"
+                : "different-or-dead";
+            },
+            terminateOwner: () => {
+              terminationCount += 1;
+            },
+            cdpEndpointStatus: () => {
+              endpointReads += 1;
+              return Promise.resolve("unavailable");
+            },
+          }),
+        );
+        expect(message).toContain(expected.message);
+        expect(ownerReads).toBe(2);
+        expect(sessionReads).toBe(2);
+        expect(endpointReads).toBe(0);
+        expect(terminationCount).toBe(0);
+      } finally {
+        fixture.cleanup();
+      }
+    }
+  });
+
+  test("rejects private-root replacement around the natural-exit session reproof", async () => {
+    for (const rootName of ["socket", "artifacts"] as const) {
+      for (const replacementPoint of ["before", "during"] as const) {
+        const fixture = createPinnedBrowserRecoveryFixture();
+        const root = rootName === "socket"
+          ? fixture.socketDirectory
+          : fixture.artifactsDirectory;
+        let ownerReads = 0;
+        let sessionReads = 0;
+        let endpointReads = 0;
+        let terminationCount = 0;
+        const replaceRoot = (): void => {
+          rmSync(root, { recursive: true, force: true });
+          mkdirSync(root, { mode: 0o700 });
+          chmodSync(root, 0o700);
+        };
+        try {
+          const message = await rejectionMessage(
+            recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+              runCommand: (command) => {
+                if (!command.includes("info")) {
+                  throw new Error("root reproof must not control the browser");
+                }
+                sessionReads += 1;
+                if (replacementPoint === "during" && sessionReads === 2) {
+                  replaceRoot();
+                }
+                return Promise.resolve(fixture.commandResult(
+                  fixture.sessionInfo("inactive"),
+                ));
+              },
+              ownerStatus: () => {
+                ownerReads += 1;
+                if (ownerReads === 2 && replacementPoint === "before") {
+                  replaceRoot();
+                }
+                return ownerReads === 1
+                  ? "exact-live-owner"
+                  : "different-or-dead";
+              },
+              terminateOwner: () => {
+                terminationCount += 1;
+              },
+              cdpEndpointStatus: () => {
+                endpointReads += 1;
+                return Promise.resolve("unavailable");
+              },
+            }),
+          );
+          expect(message).toContain("private root identity changed");
+          expect(ownerReads).toBe(2);
+          expect(sessionReads).toBe(replacementPoint === "before" ? 1 : 2);
+          expect(endpointReads).toBe(0);
+          expect(terminationCount).toBe(0);
+        } finally {
+          fixture.cleanup();
+        }
+      }
+    }
+  });
+
+  test("rejects owner liveness changes after accepting the natural-exit transition", async () => {
+    for (const expected of [
+      {
+        statuses: [
+          "exact-live-owner",
+          "different-or-dead",
+          "exact-live-owner",
+        ] as const,
+        message: "daemon quiescence is unproved",
+        sessionReads: 2,
+        endpointReads: 0,
+      },
+      {
+        statuses: [
+          "exact-live-owner",
+          "different-or-dead",
+          "different-or-dead",
+          "unknown",
+        ] as const,
+        message: "daemon quiescence changed",
+        sessionReads: 3,
+        endpointReads: 3,
+      },
+    ]) {
+      const fixture = createPinnedBrowserRecoveryFixture();
+      let ownerReads = 0;
+      let sessionReads = 0;
+      let endpointReads = 0;
+      let terminationCount = 0;
+      try {
+        const message = await rejectionMessage(
+          recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+            runCommand: (command) => {
+              if (!command.includes("info")) {
+                throw new Error("owner-drift reproof must not control the browser");
+              }
+              sessionReads += 1;
+              return Promise.resolve(fixture.commandResult(
+                fixture.sessionInfo("inactive"),
+              ));
+            },
+            ownerStatus: () => {
+              const status = expected.statuses[ownerReads];
+              if (status === undefined) {
+                throw new Error("owner-drift reproof inspected the owner too often");
+              }
+              ownerReads += 1;
+              return status;
+            },
+            terminateOwner: () => {
+              terminationCount += 1;
+            },
+            cdpEndpointStatus: () => {
+              endpointReads += 1;
+              return Promise.resolve("unavailable");
+            },
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          }),
+        );
+        expect(message).toContain(expected.message);
+        expect(ownerReads).toBe(expected.statuses.length);
+        expect(sessionReads).toBe(expected.sessionReads);
+        expect(endpointReads).toBe(expected.endpointReads);
+        expect(terminationCount).toBe(0);
+      } finally {
+        fixture.cleanup();
+      }
+    }
+  });
+
+  test("keeps natural-exit recovery fail-closed across the shared quiescence proof", async () => {
+    type TailCase = Readonly<{
+      message: string;
+      ownerStatuses: readonly (
+        | "exact-live-owner"
+        | "different-or-dead"
+        | "unknown"
+      )[];
+      sessionStates: readonly RecoveryFixtureState[];
+      endpointStatuses: readonly (
+        | "available"
+        | "unavailable"
+        | "indeterminate"
+      )[];
+      replaceArtifactsAfterEndpointRead?: number;
+    }>;
+    const cases: readonly TailCase[] = [
+      {
+        message: "session remained active",
+        ownerStatuses: [
+          "exact-live-owner",
+          "different-or-dead",
+          "different-or-dead",
+        ],
+        sessionStates: ["inactive", "inactive", "closed"],
+        endpointStatuses: [],
+      },
+      {
+        message: "endpoint state is indeterminate",
+        ownerStatuses: [
+          "exact-live-owner",
+          "different-or-dead",
+          "different-or-dead",
+        ],
+        sessionStates: ["inactive", "inactive", "inactive"],
+        endpointStatuses: ["indeterminate"],
+      },
+      {
+        message: "session quiescence changed",
+        ownerStatuses: [
+          "exact-live-owner",
+          "different-or-dead",
+          "different-or-dead",
+          "different-or-dead",
+        ],
+        sessionStates: ["inactive", "inactive", "inactive", "closed"],
+        endpointStatuses: ["unavailable", "unavailable", "unavailable"],
+      },
+      {
+        message: "private root identity changed",
+        ownerStatuses: [
+          "exact-live-owner",
+          "different-or-dead",
+          "different-or-dead",
+          "different-or-dead",
+        ],
+        sessionStates: ["inactive", "inactive", "inactive", "inactive"],
+        endpointStatuses: ["unavailable", "unavailable", "unavailable"],
+        replaceArtifactsAfterEndpointRead: 3,
+      },
+    ];
+
+    for (const expected of cases) {
+      const fixture = createPinnedBrowserRecoveryFixture();
+      let ownerReads = 0;
+      let sessionReads = 0;
+      let endpointReads = 0;
+      let terminationCount = 0;
+      try {
+        const message = await rejectionMessage(
+          recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+            runCommand: (command) => {
+              if (!command.includes("info")) {
+                throw new Error("shared-tail reproof must not control the browser");
+              }
+              const state = expected.sessionStates[sessionReads];
+              if (state === undefined) {
+                throw new Error("shared-tail reproof inspected the session too often");
+              }
+              sessionReads += 1;
+              return Promise.resolve(fixture.commandResult(
+                fixture.sessionInfo(state),
+              ));
+            },
+            ownerStatus: () => {
+              const status = expected.ownerStatuses[ownerReads];
+              if (status === undefined) {
+                throw new Error("shared-tail reproof inspected the owner too often");
+              }
+              ownerReads += 1;
+              return status;
+            },
+            terminateOwner: () => {
+              terminationCount += 1;
+            },
+            cdpEndpointStatus: () => {
+              const status = expected.endpointStatuses[endpointReads];
+              if (status === undefined) {
+                throw new Error("shared-tail reproof inspected the endpoint too often");
+              }
+              endpointReads += 1;
+              if (
+                expected.replaceArtifactsAfterEndpointRead === endpointReads
+              ) {
+                rmSync(fixture.artifactsDirectory, {
+                  recursive: true,
+                  force: true,
+                });
+                mkdirSync(fixture.artifactsDirectory, { mode: 0o700 });
+                chmodSync(fixture.artifactsDirectory, 0o700);
+              }
+              return Promise.resolve(status);
+            },
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          }),
+        );
+        expect(message).toContain(expected.message);
+        expect(ownerReads).toBe(expected.ownerStatuses.length);
+        expect(sessionReads).toBe(expected.sessionStates.length);
+        expect(endpointReads).toBe(expected.endpointStatuses.length);
+        expect(terminationCount).toBe(0);
+      } finally {
+        fixture.cleanup();
+      }
+    }
+  });
+
   test("re-proves prepared deletion safety from the surviving exact socket root", async () => {
     const fixture = createPinnedBrowserRecoveryFixture();
     const prepared = parseBrowserCleanupResourceIdentity({
