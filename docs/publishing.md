@@ -666,6 +666,16 @@ workflow readback plus `contents:read`; OIDC uses `id-token:write`. The
 main-only `npm-stage` environment applies only to this terminal job and has no
 required deployment reviewers.
 
+The predecessor workflow also produced the already-public
+`@hraness/wrench@0.16.7` from automatic push run `33992590999`, attempt `1`, at
+source `a2b321081335ac28e5df0ccbb67ebea0424d49f5`. Its exact successful generic
+stage job is `101383234021`; terminal step `7` is `Revalidate protected-main
+ancestry and stage exact package`. The current history reader intentionally
+queries only `workflow_dispatch` runs, so this push record is not part of
+`legacyGenericStages` and is never current staging authority. Public npm
+`latest` at or beyond `0.16.7` closes that already-consumed coordinate; a future
+candidate must still be monotonically greater.
+
 The checkout-free OIDC job also parses `package/package.json` directly from the
 downloaded tarball with bounded npm/node-tar-compatible USTAR handling. Every
 header must carry exact `ustar\\0` magic and version `00`; the prefix is 130
@@ -1318,8 +1328,10 @@ runner teardown around the product deadline.
 
 The bounded request contract is separate for REST and GraphQL. The current
 control flow can make at most 209 REST calls in the provider outcome job. The
-worst missing-Release path uses 30 calls, including all five bounded release
-pages plus the empty sentinel page. The immutable Release and downstream
+post-reauthorization publication helper's worst missing-Release path uses 30
+calls, including all five bounded release pages plus the empty sentinel page;
+the full immutable Release path uses 36 after its six terminal source-
+reauthorization calls. The immutable Release and downstream
 promotion workflows together use at most 351 REST calls, leaving 649 calls
 under the repository `GITHUB_TOKEN` limit of 1,000 REST requests per hour. The
 website authority sandwiches use at most 83 calls, the surrounding immutable

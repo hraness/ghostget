@@ -2045,7 +2045,7 @@ export async function resolveReleaseAuthority({
     && expectWorkflowRunId(requestedRunId, "triggering Release workflow run id")
       !== releaseWorkflowRunId
   ) {
-    fail("triggering Release run and immutable Release receipt name different runs");
+    fail("triggering Release run and sampled Release receipt name different runs");
   }
   exactReleaseWorkflowRun({
     expectedRunAttempt: requestedRunAttempt,

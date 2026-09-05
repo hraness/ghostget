@@ -1729,6 +1729,7 @@ describe("npm publication contract", () => {
     ] as const) {
       expect(stageJob).toContain(sealedLegacyStage166);
     }
+    expect(stageJob).not.toContain("33992590999");
 
     expect(workflow.match(/id-token: write/gu) ?? []).toHaveLength(1);
     expect(workflow.match(/environment: npm-stage/gu) ?? []).toHaveLength(1);
@@ -9753,6 +9754,10 @@ esac
       "run `33134350359`, job `98736138383`",
       "run `33920809926`, job `101188893427`",
       "run `33980252754`, job `101350099282`",
+      "`@hraness/wrench@0.16.7` from automatic push run `33992590999`",
+      "exact successful generic\nstage job is `101383234021`",
+      "push record is not part of\n`legacyGenericStages`",
+      "never current staging authority",
       "requires its exact successful terminal step identity",
       "Every other successful\ngeneric stage job",
       "npm/node-tar-compatible USTAR handling",
@@ -10022,8 +10027,9 @@ esac
       "final external read\nthat completes exactly at the deadline remains eligible",
       "no redundant clock sample or later API read follows it",
       "separate 30-minute timeout",
-      "worst missing-Release path uses 30 calls",
-      "five bounded release\npages plus the empty sentinel page",
+      "post-reauthorization publication helper's worst missing-Release path uses 30",
+      "full immutable Release path uses 36",
+      "five bounded release pages plus the empty sentinel page",
       "at most 209 REST calls in the provider outcome job",
       "use at most 351 REST calls",
       "leaving 649 calls",
