@@ -44,15 +44,13 @@ const PAGINATED_READ_REQUESTS = MAX_ITEMS / PAGE_SIZE + 1;
 const GITHUB_TOKEN_REST_REQUEST_LIMIT = 1_000;
 const GITHUB_ACTIONS_RELEASE_BOT = Object.freeze({
   id: 41898282,
-  login: "github-actions[bot]",
   type: "Bot",
 });
 const RELEASE_WORKFLOW = Object.freeze({
   id: 323493609,
-  name: "Release",
   path: ".github/workflows/release.yml",
 });
-const RELEASE_OWNER = Object.freeze({ id: 894119, login: "0thernet", type: "User" });
+const RELEASE_OWNER = Object.freeze({ id: 894119, type: "User" });
 const RELEASE_WORKFLOW_REQUEST_TIMEOUT_MILLISECONDS = 10_000;
 const RELEASE_SOURCE_RECEIPT_SCHEMA = "wrench-release-source-v1";
 const VERCEL_CREATOR = Object.freeze({ id: 35613825, login: "vercel[bot]", type: "Bot" });
@@ -179,7 +177,7 @@ const PRODUCTION_DEPLOYMENTS_QUERY = `query WrenchProductionDeployments(
 }`;
 
 const BASELINE_REST_REQUESTS = 2;
-const PROMOTION_REST_REQUESTS = 22;
+const PROMOTION_REST_REQUESTS = 21;
 const OUTCOME_REST_REQUESTS =
   6 +
   MAX_PROVIDER_POLLS * (2 + PAGINATED_READ_REQUESTS) +
@@ -189,9 +187,9 @@ const OUTCOME_REST_REQUESTS =
   7 +
   PAGINATED_READ_REQUESTS +
   7 +
-  12 + // three source checks add four calls each for the second main read and three comparisons
-  4; // four immutable Release reads also revalidate their exact Actions run
+  12; // three source checks add four calls each for the second main read and three comparisons
 const IMMUTABLE_RELEASE_REST_REQUESTS =
+  6 + // terminal current-attempt, workflow, repository, tag, main, and compare reauthorization
   3 + // initial tag, main, and exact Release lookup
   PAGINATED_READ_REQUESTS + // five bounded Release pages plus the empty sentinel
   2 + // pre-create main and tag revalidation
@@ -199,7 +197,8 @@ const IMMUTABLE_RELEASE_REST_REQUESTS =
   3 + // Release, terminal tag, and terminal main readbacks
   LATEST_RELEASE_MAX_ATTEMPTS + // bounded Latest convergence
   3; // pinned predecessor plus terminal exact-by-tag and Latest projection readbacks
-const WEBSITE_AUTHORITY_REST_REQUESTS = 2 + 4 * (2 * (7 + 1 + 1 + 1 + 1));
+const WEBSITE_AUTHORITY_REST_REQUESTS =
+  2 + 4 * (2 * (7 + 1 + 1 + 1)) + 1; // one initial exact Release workflow-run read
 const SURROUNDING_RELEASE_REST_REQUESTS =
   IMMUTABLE_RELEASE_REST_REQUESTS + WEBSITE_AUTHORITY_REST_REQUESTS;
 const BASELINE_GRAPHQL_REQUESTS = 2 * MAX_GRAPHQL_DEPLOYMENT_PAGES;
@@ -1733,7 +1732,6 @@ async function readImmutableRelease(
   tag,
   verifiedSha,
   workflowRunId,
-  expectedRunAttempt = "",
 ) {
   const value = exactWorkflowPublishedRelease({
     repository,
@@ -1742,17 +1740,6 @@ async function readImmutableRelease(
     verifiedTag: tag,
     workflowRunId,
   }, `Release ${tag}`);
-  exactReleaseWorkflowRun({
-    expectedRunAttempt,
-    repository,
-    value: await api.get(
-      `/repos/${repository}/actions/runs/${workflowRunId}`,
-      Object.freeze({ timeoutMilliseconds: RELEASE_WORKFLOW_REQUEST_TIMEOUT_MILLISECONDS }),
-    ),
-    verifiedSha,
-    verifiedTag: tag,
-    workflowRunId,
-  });
   const published = parseSecondTimestamp(value.published_at, `Release ${tag}.published_at`);
   return Object.freeze({
     id: value.id,
@@ -1802,7 +1789,6 @@ async function readVerifiedTagCommit(api, repository, tag, verifiedSha) {
 export async function revalidateReleaseAuthority({
   api,
   defaultBranch,
-  expectedReleaseWorkflowRunAttempt = "",
   eventName,
   releaseWorkflowRunId,
   recoveryWorkflowSha,
@@ -1826,7 +1812,6 @@ export async function revalidateReleaseAuthority({
     tag,
     sha,
     runId,
-    expectedReleaseWorkflowRunAttempt,
   );
   await readLatestRelease(api, coordinate, tag, sha, runId, firstRelease);
 
@@ -1838,7 +1823,6 @@ export async function revalidateReleaseAuthority({
     tag,
     sha,
     runId,
-    expectedReleaseWorkflowRunAttempt,
   );
   await readLatestRelease(api, coordinate, tag, sha, runId, secondRelease);
   if (
@@ -1906,9 +1890,7 @@ export function exactWorkflowPublishedRelease({
   const body = expectString(release.body, `${label}.body`);
   if (
     release.author?.id !== GITHUB_ACTIONS_RELEASE_BOT.id
-    || release.author?.login !== GITHUB_ACTIONS_RELEASE_BOT.login
     || release.author?.type !== GITHUB_ACTIONS_RELEASE_BOT.type
-    || release.name !== `Wrench ${verifiedTag}`
     || (body !== expectedReceipt && !body.startsWith(`${expectedReceipt}\n\n`))
   ) {
     fail(`Release ${verifiedTag} does not have the exact Actions workflow identity and source receipt`);
@@ -1956,7 +1938,6 @@ function expectReleaseOwner(value, label) {
   const actor = expectRecord(value, label);
   if (
     actor.id !== RELEASE_OWNER.id
-    || actor.login !== RELEASE_OWNER.login
     || actor.type !== RELEASE_OWNER.type
   ) {
     fail(`${label} is not the exact release owner`);
@@ -2002,7 +1983,6 @@ export function exactReleaseWorkflowRun({
   if (
     run.id !== Number(runId)
     || run.workflow_id !== RELEASE_WORKFLOW.id
-    || run.name !== RELEASE_WORKFLOW.name
     || run.path !== RELEASE_WORKFLOW.path
     || run.event !== "push"
     || run.head_branch !== tag
@@ -2107,7 +2087,6 @@ export async function resolveReleaseAuthority({
     tag,
     sha,
     releaseWorkflowRunId,
-    requestedRunAttempt,
   );
   await readLatestRelease(
     api,

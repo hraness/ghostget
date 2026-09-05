@@ -322,7 +322,6 @@ jobs:
           EXPECTED_REPOSITORY: "hraness/wrench"
           EXPECTED_REPOSITORY_ID: "1316443113"
           EXPECTED_WORKFLOW_ID: "344213783"
-          EXPECTED_WORKFLOW_NAME: "Stage npm package"
           EXPECTED_WORKFLOW_PATH: ".github/workflows/npm-stage.yml"
           GH_TOKEN: ${{ github.token }}
           INPUT_PUBLISH_TO_NPM: ${{ inputs.publish_to_npm }}
@@ -371,7 +370,6 @@ jobs:
             EXPECTED_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
             EXPECTED_SHA="$GITHUB_SHA" \
             EXPECTED_WORKFLOW_ID="$EXPECTED_WORKFLOW_ID" \
-            EXPECTED_WORKFLOW_NAME="$EXPECTED_WORKFLOW_NAME" \
             EXPECTED_WORKFLOW_PATH="$EXPECTED_WORKFLOW_PATH" node <<'NODE'
           const { readFileSync } = require("node:fs");
           const positiveInteger = (name) => {
@@ -393,7 +391,6 @@ jobs:
             attempt.id !== runId
             || attempt.run_attempt !== runAttempt
             || attempt.workflow_id !== workflowId
-            || attempt.name !== process.env.EXPECTED_WORKFLOW_NAME
             || attempt.path !== process.env.EXPECTED_WORKFLOW_PATH
             || attempt.event !== "workflow_dispatch"
             || attempt.head_branch !== "main"
@@ -408,7 +405,6 @@ jobs:
             || attempt.repository?.full_name !== process.env.EXPECTED_REPOSITORY
             || attempt.repository?.private !== false
             || workflow.id !== workflowId
-            || workflow.name !== process.env.EXPECTED_WORKFLOW_NAME
             || workflow.path !== process.env.EXPECTED_WORKFLOW_PATH
             || workflow.state !== "active"
             || repository.id !== repositoryId
@@ -623,19 +619,36 @@ jobs:
               ));
               if (job.name === "Stage exact package" && job.conclusion === "success") {
                 const legacy = legacyGenericStages.get(runId);
+                if (legacy === undefined || completedRun === undefined) {
+                  throw new Error(`npm-stage run ${runId} contains an unsealed successful generic stage job`);
+                }
+                const legacyAttempt = JSON.parse(execute("gh", [
+                  "api",
+                  "--method", "GET",
+                  `/repos/${repository}/actions/runs/${runId}/attempts/${legacy.runAttempt}`,
+                ], `sealed npm-stage run ${runId} attempt ${legacy.runAttempt}`));
                 if (
-                  legacy === undefined
-                  || completedRun === undefined
+                  !legacyAttempt
+                  || typeof legacyAttempt !== "object"
+                  || legacyAttempt.id !== runId
+                  || legacyAttempt.run_attempt !== legacy.runAttempt
+                  || legacyAttempt.status !== "completed"
+                  || legacyAttempt.conclusion !== "success"
+                  || legacyAttempt.workflow_id !== workflowNumber
+                  || legacyAttempt.event !== "workflow_dispatch"
+                  || legacyAttempt.head_branch !== "main"
+                  || legacyAttempt.head_sha !== legacy.sha
+                  || legacyAttempt.repository?.id !== repositoryNumber
+                  || legacyAttempt.repository?.full_name !== repository
+                  || legacyAttempt.repository?.private !== false
+                  || legacyAttempt.actor?.id !== 894119
+                  || legacyAttempt.actor?.type !== "User"
+                  || legacyAttempt.triggering_actor?.id !== 894119
+                  || legacyAttempt.triggering_actor?.type !== "User"
                   || job.id !== legacy.jobId
                   || job.run_attempt !== legacy.runAttempt
                   || job.status !== "completed"
                   || expectedSha !== legacy.sha
-                  || completedRun.run_attempt !== legacy.runAttempt
-                  || completedRun.conclusion !== "success"
-                  || completedRun.actor?.id !== 894119
-                  || completedRun.actor?.type !== "User"
-                  || completedRun.triggering_actor?.id !== 894119
-                  || completedRun.triggering_actor?.type !== "User"
                 ) {
                   throw new Error(`npm-stage run ${runId} contains an unsealed successful generic stage job`);
                 }
@@ -704,14 +717,15 @@ jobs:
               }
             }
           };
-          // A rerun changes the current run back to in_progress, so it drops out
-          // of the completed-runs query. Inspect all attempts of this run first.
+          // Inspect every attempt of the current run first. The complete retained
+          // run inventory below includes queued and in-progress reruns so an older
+          // run cannot hide a successful prior-attempt intent by changing state.
           inspectRunJobs(currentRunNumber, currentSha);
           const runsPayload = JSON.parse(execute("gh", [
             "api",
             "--method", "GET",
-            `/repos/${repository}/actions/workflows/${workflowId}/runs?event=workflow_dispatch&status=completed&branch=main&per_page=100`,
-          ], "completed npm-stage workflow runs"));
+            `/repos/${repository}/actions/workflows/${workflowId}/runs?event=workflow_dispatch&branch=main&per_page=100`,
+          ], "retained npm-stage workflow-dispatch runs"));
           if (
             !runsPayload
             || typeof runsPayload !== "object"
@@ -720,7 +734,14 @@ jobs:
             || runsPayload.total_count > 100
             || !Array.isArray(runsPayload.workflow_runs)
             || runsPayload.workflow_runs.length !== runsPayload.total_count
-          ) throw new Error("Completed npm-stage history exceeds the reviewed 100-run bound");
+          ) throw new Error("Retained npm-stage history exceeds the reviewed 100-run bound");
+          const retainedRunStatuses = new Set([
+            "queued", "in_progress", "completed", "waiting", "requested", "pending",
+          ]);
+          const terminalRunConclusions = new Set([
+            "action_required", "cancelled", "failure", "neutral", "success",
+            "skipped", "stale", "timed_out",
+          ]);
           const seenRunIds = new Set();
           for (const run of runsPayload.workflow_runs) {
             if (
@@ -729,18 +750,32 @@ jobs:
               || !Number.isSafeInteger(run.id)
               || run.id < 1
               || seenRunIds.has(run.id)
-              || run.id === currentRunNumber
+              || !Number.isSafeInteger(run.run_attempt)
+              || run.run_attempt < 1
               || run.workflow_id !== workflowNumber
               || run.event !== "workflow_dispatch"
               || run.head_branch !== "main"
               || !/^[a-f0-9]{40}$/u.test(run.head_sha ?? "")
-              || run.status !== "completed"
-              || typeof run.conclusion !== "string"
+              || !retainedRunStatuses.has(run.status)
+              || (
+                run.status === "completed"
+                  ? !terminalRunConclusions.has(run.conclusion)
+                  : run.conclusion !== null
+              )
               || run.repository?.id !== repositoryNumber
               || run.repository?.full_name !== repository
               || run.repository?.private !== false
-            ) throw new Error("Completed npm-stage history contains an invalid run identity");
+            ) throw new Error("Retained npm-stage history contains an invalid run identity or state");
             seenRunIds.add(run.id);
+            if (run.id === currentRunNumber) {
+              if (run.head_sha !== currentSha) {
+                throw new Error("Retained npm-stage history disagrees with the current run identity");
+              }
+              continue;
+            }
+            if (run.status !== "completed") {
+              throw new Error(`Retained npm-stage run ${run.id} is still ${run.status}`);
+            }
             inspectRunJobs(run.id, run.head_sha, run);
           }
           for (const [version, count] of resolutionCounts) {

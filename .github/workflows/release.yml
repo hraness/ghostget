@@ -310,7 +310,6 @@ jobs:
             || attempt.id !== runId
             || attempt.run_attempt !== runAttempt
             || attempt.workflow_id !== 344213783
-            || attempt.name !== "Stage npm package"
             || attempt.path !== ".github/workflows/npm-stage.yml"
             || attempt.event !== "workflow_dispatch"
             || attempt.head_branch !== "main"
@@ -325,7 +324,6 @@ jobs:
             || attempt.repository?.full_name !== "hraness/wrench"
             || attempt.repository?.private !== false
             || workflow.id !== 344213783
-            || workflow.name !== "Stage npm package"
             || workflow.path !== ".github/workflows/npm-stage.yml"
             || workflow.state !== "active"
             || repository.id !== 1316443113
@@ -409,7 +407,6 @@ jobs:
           EXPECTED_REPOSITORY: "hraness/wrench"
           EXPECTED_REPOSITORY_ID: "1316443113"
           EXPECTED_WORKFLOW_ID: "323493609"
-          EXPECTED_WORKFLOW_NAME: "Release"
           EXPECTED_WORKFLOW_PATH: ".github/workflows/release.yml"
         run: |
           set -euo pipefail
@@ -456,7 +453,6 @@ jobs:
             EXPECTED_SHA="$VERIFIED_SHA" \
             EXPECTED_TAG="$VERIFIED_TAG" \
             EXPECTED_WORKFLOW_ID="$EXPECTED_WORKFLOW_ID" \
-            EXPECTED_WORKFLOW_NAME="$EXPECTED_WORKFLOW_NAME" \
             EXPECTED_WORKFLOW_PATH="$EXPECTED_WORKFLOW_PATH" node <<'NODE'
           const { readFileSync } = require("node:fs");
           const positiveInteger = (name) => {
@@ -478,7 +474,6 @@ jobs:
             attempt.id !== runId
             || attempt.run_attempt !== runAttempt
             || attempt.workflow_id !== workflowId
-            || attempt.name !== process.env.EXPECTED_WORKFLOW_NAME
             || attempt.path !== process.env.EXPECTED_WORKFLOW_PATH
             || attempt.event !== "push"
             || attempt.head_branch !== process.env.EXPECTED_TAG
@@ -493,7 +488,6 @@ jobs:
             || attempt.repository?.full_name !== process.env.EXPECTED_REPOSITORY
             || attempt.repository?.private !== false
             || workflow.id !== workflowId
-            || workflow.name !== process.env.EXPECTED_WORKFLOW_NAME
             || workflow.path !== process.env.EXPECTED_WORKFLOW_PATH
             || workflow.state !== "active"
             || repository.id !== repositoryId

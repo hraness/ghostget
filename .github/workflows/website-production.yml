@@ -52,7 +52,6 @@ jobs:
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           UPSTREAM_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           UPSTREAM_WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
-          UPSTREAM_WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
         run: |
           set -euo pipefail
           if [[ "$DEFAULT_BRANCH" != "main" || "$EVENT_REF" != "refs/heads/main" || "$EVENT_REPOSITORY" != "hraness/wrench" || "$EVENT_REPOSITORY_ID" != "1316443113" ]]; then
@@ -69,7 +68,7 @@ jobs:
                 echo "::error::Upstream workflow ID is not the checked Release workflow ID"
                 exit 1
               fi
-              if [[ "$UPSTREAM_WORKFLOW_NAME" != "Release" || "$UPSTREAM_PATH" != ".github/workflows/release.yml" || "$UPSTREAM_EVENT" != "push" ]]; then
+              if [[ "$UPSTREAM_PATH" != ".github/workflows/release.yml" || "$UPSTREAM_EVENT" != "push" ]]; then
                 echo "::error::Upstream run is not the exact tag Release workflow"
                 exit 1
               fi
@@ -201,7 +200,6 @@ jobs:
     name: Snapshot provider baseline
     needs: verify
     permissions:
-      actions: read
       contents: read
       deployments: read
     runs-on: ubuntu-latest
@@ -244,7 +242,6 @@ jobs:
     needs: [verify, provider_baseline]
     if: needs.provider_baseline.outputs.advance_required == 'true'
     permissions:
-      actions: read
       contents: read
     environment: { name: production-ref-writer-key, deployment: false }
     runs-on: ubuntu-latest
@@ -309,7 +306,6 @@ jobs:
     needs: [verify, provider_baseline]
     if: needs.provider_baseline.outputs.advance_required == 'false'
     permissions:
-      actions: read
       contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -371,8 +367,7 @@ jobs:
       ${{ always() &&
           needs.verify.result == 'success' &&
           needs.provider_baseline.result == 'success' }}
-    permissions:
-      contents: read
+    permissions: {}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -423,7 +418,6 @@ jobs:
           needs.provider_baseline.result == 'success' &&
           needs.select_promotion.result == 'success' }}
     permissions:
-      actions: read
       contents: read
       deployments: read
     runs-on: ubuntu-latest

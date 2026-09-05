@@ -147,7 +147,6 @@ WRENCH_STAGE_WORKFLOW="$wrench_stage_workflow" node <<'NODE'
 const value = JSON.parse(process.env.WRENCH_STAGE_WORKFLOW ?? "null");
 if (
   value?.id !== 344213783 ||
-  value.name !== "Stage npm package" ||
   value.path !== ".github/workflows/npm-stage.yml" ||
   value.state !== "active"
 ) process.exit(1);
@@ -194,8 +193,10 @@ includes its exact version in the job name. Immediately before the terminal npm
 mutation, the job records a successful `Record exclusive stable-stage intent`
 step. That version-bound step is the durable reservation even when the job later
 fails or its npm write result is ambiguous. The source-free OIDC job inspects all
-attempts of its current run plus a bounded completed dispatch/job history and
-rejects another submission while any uncleared intent remains newer than public
+attempts of its current run plus the complete bounded retained dispatch/job
+history. A queued or in-progress non-current rerun is an ambiguity and fails
+closed; completed runs retain all prior-attempt intents. The job rejects another
+submission while any uncleared intent remains newer than public
 `latest`; whole-job success is not the lock. It scrubs ambient and file-backed npm
 tag configuration, proves pinned npm's clean default remains `latest`, re-reads
 public `latest` at the terminal boundary, and intentionally omits `--tag` so npm
@@ -417,7 +418,6 @@ if (
   value?.id !== runId ||
   value.run_attempt !== runAttempt ||
   value.workflow_id !== 344213783 ||
-  value.name !== "Stage npm package" ||
   value.path !== ".github/workflows/npm-stage.yml" ||
   value.event !== "workflow_dispatch" ||
   value.head_branch !== "main" ||
@@ -612,8 +612,9 @@ back its exact current attempt and requires both `actor` and
 `triggering_actor` to be owner User `894119`, exact workflow ID `344213783` and
 path `.github/workflows/npm-stage.yml`, protected `main`, source `C`, and public
 Wrench repository ID `1316443113`; delegated reruns fail before token minting.
-It reads canonical public npm `latest`, all attempts of its current run, and
-bounded completed `workflow_dispatch` run/job history with `actions:read`. A
+It reads canonical public npm `latest`, all attempts of its current run, and the
+complete bounded retained `workflow_dispatch` run/job history with
+`actions:read`. A queued or in-progress non-current run fails closed. A
 successful intent step in an exact version-bound stage job blocks the next
 submission while that version is newer than public `latest`, regardless of the
 job's eventual conclusion. The exceptional exact rejected-stage input may clear
@@ -820,8 +821,8 @@ or 404 response.
 Only an authenticated exact 404 permits one REST create request with the
 deterministic source receipt prepended to server-generated notes;
 authentication, transport, other API, or malformed response failures abort. A
-pre-existing exact Release is accepted only when its Actions bot, name,
-run/source receipt, and protected lightweight tag peel all match. The bounded completed-release ordering
+pre-existing exact Release is accepted only when its numeric Actions bot
+identity, run/source receipt, and protected lightweight tag peel all match. The bounded completed-release ordering
 audit runs on both the create and recovery paths, and canonical npm `latest` is
 read again immediately before either path crosses the final acceptance boundary.
 The workflow validates an exact REST readback before
@@ -1006,21 +1007,28 @@ test "$(git ls-remote --refs origin refs/tags/v0.16.6 | cut -f1)" = "$C"
 The create request sends the verified SHA `C` as `target_commitish`, but GitHub
 may normalize that response field to the default branch when the protected tag
 already exists. Response `target_commitish` is informational and is not release
-authority. Every publication readback instead requires the exact
-`Wrench v&lt;version&gt;` name, Actions bot ID `41898282`, and a deterministic body
-prefix binding repository, tag, source SHA, and `GITHUB_RUN_ID`; the separately
+authority. Every publication readback instead requires Actions bot ID
+`41898282` with type `Bot` and a deterministic body prefix binding repository,
+tag, source SHA, and `GITHUB_RUN_ID`; the separately
 read protected lightweight tag must still peel to `C`. Generated notes may
-follow that prefix but are not release authority. An owner rerun of the same
+follow that prefix but are not release authority. The Release display title and
+bot login are presentation only. An owner rerun of the same
 workflow run can therefore recover an already-created exact immutable Release,
 while a front-run Release or a Release from another run fails closed. Promotion
-derives the Release workflow run ID only from that anchored immutable receipt.
+derives the Release workflow run ID only from that sampled exact source receipt.
 The automatic path requires it to equal the triggering payload run ID and first
 attempt; manual recovery accepts no run-ID input and requires the receipt's exact
-run to have one positive current attempt. Every strict by-tag Release read also
-reads and validates that exact Actions run: workflow ID `323493609`, name
-`Release`, path `.github/workflows/release.yml`, tag push, head tag and SHA,
-completed success, owner actor and triggering actor, and the exact public Wrench
-repository and head repository. Both `wrench-provider-baseline-v4` and
+run to have one positive current attempt. The initial verification job reads that
+Actions run exactly once. It binds workflow ID `323493609`, path
+`.github/workflows/release.yml`, tag push, head tag and SHA, completed success,
+stable numeric IDs and types for the owner actor and triggering actor, and the
+exact public Wrench repository and head repository. Mutable actor logins, the
+run display name, and the Release display title are presentation, not authority.
+The body receipt is mutable GitHub control-plane data, so each accepted Release
+read samples and validates it exactly; the protected tag and stable numeric
+identities remain the durable authority. Later strict by-tag Release reads
+revalidate the sampled exact receipt and carried run ID without rereading Actions.
+Both `wrench-provider-baseline-v4` and
 `wrench-provider-promotion-v3` bind the Release workflow run ID across every
 promotion/outcome readback. The promotion receipt additionally binds the stable
 Release ID and publication time. Each Latest projection must be the same
@@ -1033,16 +1041,17 @@ default-branch `main`. GitHub starts it after **Release** completes, and manual
 recovery dispatches this workflow directly from current `main` with an untrusted
 stable-tag input. The automatic path treats the entire `workflow_run` payload as
 foreign data. It requires repository `hraness/wrench` with numeric ID
-`1316443113`, Release workflow ID `323493609`, exact workflow name and path, a
+`1316443113`, Release workflow ID `323493609`, exact workflow path, a
 tag `push`, first attempt, successful conclusion, and this repository as the head
 repository. The reviewed workflow source `W` originates from `main`; the
 automatic head SHA must instead equal the peeled immutable tag commit `C`.
 Manual recovery carries no upstream SHA, run ID, or run attempt. Both paths
 check out exact `W`, bind the package version from `C`, verify the immutable
-asset-free Latest Release and its exact Actions run, and prove `C<=W<=M` for
-protected current main `M` before any provider or ref work. The five jobs that
-perform strict Release/run reads have only the additional `actions: read`
-permission needed for those exact lookups; the receipt-selection job does not.
+asset-free Latest Release and its exact initial Actions run, and prove `C<=W<=M`
+for protected current main `M` before any provider or ref work. Only the initial
+verification job has `actions: read`; baseline, both promotion paths,
+receipt selection, and provider outcome carry the verified run ID but cannot
+read Actions.
 Main may advance by protected linear fast-forward after dispatch without
 invalidating reviewed `W`.
 
@@ -1232,8 +1241,7 @@ source drift, token-scope drift, push rejection, revocation failure, or post-rea
 mismatch fails closed. The workflow never creates, deletes, force-moves, or
 recreates the branch.
 
-A dependent job with only `actions: read`, `contents: read`, and
-`deployments: read` owns the
+A dependent job with only `contents: read` and `deployments: read` owns the
 bounded provider wait. Its explicit job condition accepts only successful
 verification, baseline, and promotion-selection results while tolerating the
 one intentionally skipped alternate promotion path; cancellation and every
@@ -1309,14 +1317,14 @@ a separate 30-minute timeout, leaving ten minutes for checkout, Node setup, and
 runner teardown around the product deadline.
 
 The bounded request contract is separate for REST and GraphQL. The current
-control flow can make at most 213 REST calls in the provider outcome job. The
+control flow can make at most 209 REST calls in the provider outcome job. The
 worst missing-Release path uses 30 calls, including all five bounded release
 pages plus the empty sentinel page. The immutable Release and downstream
-promotion workflows together use at most 357 REST calls, leaving 643 calls
+promotion workflows together use at most 351 REST calls, leaving 649 calls
 under the repository `GITHUB_TOKEN` limit of 1,000 REST requests per hour. The
-website authority sandwiches use at most 90 calls, the surrounding immutable
-Release and website authority paths use at most 120, and the promotion helper
-itself uses at most 22 read-only REST calls. Its leased Git
+website authority sandwiches use at most 83 calls, the surrounding immutable
+Release and website authority paths use at most 119, and the promotion helper
+itself uses at most 21 read-only REST calls. Its leased Git
 push and at most fourteen App REST requests do not consume that `GITHUB_TOKEN`
 budget. Those App requests are the three setup and mint calls, one DELETE, and
 at most ten convergence probes. Git authentication is outside that REST bound. Five
