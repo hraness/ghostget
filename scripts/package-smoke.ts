@@ -573,12 +573,17 @@ async function verifyPackagedSkill(
   if (
     typeof manifest.publishConfig !== "object"
     || manifest.publishConfig === null
+    || Array.isArray(manifest.publishConfig)
+    || JSON.stringify(Object.keys(manifest.publishConfig).sort())
+      !== JSON.stringify(["access", "registry"])
     || !("access" in manifest.publishConfig)
     || manifest.publishConfig.access !== "public"
     || !("registry" in manifest.publishConfig)
     || manifest.publishConfig.registry !== NPM_REGISTRY
   ) {
-    throw new Error("Packed Wrench must pin public publication to the canonical npm registry.");
+    throw new Error(
+      "Packed Wrench publishConfig may contain only public access and the canonical npm registry.",
+    );
   }
   if (
     typeof manifest.scripts === "object"

@@ -21,6 +21,10 @@ import {
 } from "./package-budget.js";
 import { verifyNpmPackageIdentity } from "./npm-package-identity.js";
 import {
+  verifyNpmProvenanceIdentity,
+  type NpmProvenanceIdentityInput,
+} from "./npm-provenance-identity.js";
+import {
   createReleaseAppJwt,
   parseReleaseAppConfiguration,
   parseReleaseAppIdentity,
@@ -206,9 +210,17 @@ function registryView(
 ): string {
   return `${JSON.stringify({
     dist: {
+      attestations: {
+        provenance: { predicateType: "https://slsa.dev/provenance/v1" },
+        url: `${npmRegistry}/-/npm/v1/attestations/${encodeURIComponent(name)}@${version}`,
+      },
       fileCount: inventory.fileCount,
       integrity: integrity(bytes),
       shasum: sha1(bytes),
+      signatures: [{
+        keyid: "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+        sig: "MEUCIQD0ZXN0LXNpZ25hdHVyZS1ieXRlcy1mb3Itd29ya2Zsb3cCIQDjZXN0LXNpZ25hdHVyZS1ieXRlcy1mb3Itd29ya2Zsb3c=",
+      }],
       tarball: `${npmRegistry}/${name}/-/wrench-${version}.tgz`,
       unpackedSize: inventory.unpackedBytes,
     },
@@ -1473,9 +1485,19 @@ describe("npm publication contract", () => {
       "name: Stage exact package",
       "needs: verify",
       "if: needs.verify.result == 'success' && github.event_name == 'workflow_dispatch' && inputs.publish_to_npm == true",
-      "permissions:\n      contents: read\n      id-token: write",
+      "permissions:\n      actions: read\n      contents: read\n      id-token: write",
       "environment: npm-stage",
       "timeout-minutes: 10",
+      "name: Reauthorize current npm stage attempt",
+      'EXPECTED_ACTOR_ID: "894119"',
+      'EXPECTED_REPOSITORY_ID: "1316443113"',
+      'EXPECTED_WORKFLOW_ID: "344213783"',
+      'EXPECTED_WORKFLOW_NAME: "Stage npm package"',
+      'EXPECTED_WORKFLOW_PATH: ".github/workflows/npm-stage.yml"',
+      "INPUT_PUBLISH_TO_NPM: ${{ inputs.publish_to_npm }}",
+      "REF_PROTECTED: ${{ github.ref_protected }}",
+      "attempt.actor?.id !== actorId",
+      "attempt.triggering_actor?.id !== actorId",
       "node-version: \"24\"",
       "package-manager-cache: false",
       "npm@11.19.0",
@@ -1514,6 +1536,11 @@ describe("npm publication contract", () => {
       'crypto.createHash("sha512")',
       'crypto.createHash("sha1")',
       "record.integrity !== integrity || record.shasum !== shasum",
+      "zlib.gunzipSync(bytes",
+      'path === "package/package.json"',
+      'JSON.stringify(Object.keys(publishConfig).sort()) !== JSON.stringify(["access", "registry"])',
+      'publishConfig.registry !== "https://registry.npmjs.org"',
+      "Packed Wrench can publish only to the canonical public npm registry",
       "Downloaded npm-package.sha256 is invalid",
       "Downloaded tarball does not match the verified SHA-256",
       "sha256=%s\\ntarball=%s\\n",
@@ -1546,6 +1573,7 @@ describe("npm publication contract", () => {
       "--access public",
       "--ignore-scripts",
       "--provenance",
+      "--tag latest",
     ] as const) {
       expect(stageJob).toContain(required);
     }
@@ -1565,6 +1593,8 @@ describe("npm publication contract", () => {
     expect(stageJob.match(/git ls-remote --sort=refname --refs/gu) ?? []).toHaveLength(2);
     expect(stageJob).not.toContain("git ls-remote --sort=refname --refs --tags");
     expect(stageJob.match(/npm stage publish/gu) ?? []).toHaveLength(1);
+    expect(stageJob.indexOf("Reauthorize current npm stage attempt"))
+      .toBeLessThan(stageJob.indexOf("actions/setup-node@"));
 
     expect(workflow).not.toContain("secrets.NPM_TOKEN");
     expect(workflow).not.toContain("NODE_AUTH_TOKEN");
@@ -1784,6 +1814,110 @@ esac
         expect(rejected.exitCode).not.toBe(0);
         expect(`${rejected.stdout}${rejected.stderr}`).toContain(message);
         expect(await Bun.file(githubOutput).exists()).toBe(false);
+      }
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  test("rejects delegated or replayed npm stage attempts before OIDC setup", async () => {
+    const workflow = await readFile(stageWorkflowUrl, "utf8");
+    const script = workflowStepScript(workflow, "Reauthorize current npm stage attempt");
+    const directory = await mkdtemp(join(tmpdir(), "wrench-stage-attempt-"));
+    const binaryDirectory = join(directory, "bin");
+    const ghStub = join(binaryDirectory, "gh");
+    const attemptFixture = join(directory, "attempt.json");
+    const workflowFixture = join(directory, "workflow.json");
+    const repositoryFixture = join(directory, "repository.json");
+    const sourceSha = "a".repeat(40);
+    const validAttempt = Object.freeze({
+      id: 8001,
+      run_attempt: 2,
+      workflow_id: 344213783,
+      name: "Stage npm package",
+      path: ".github/workflows/npm-stage.yml",
+      event: "workflow_dispatch",
+      head_branch: "main",
+      head_sha: sourceSha,
+      status: "in_progress",
+      conclusion: null,
+      actor: { id: 894119, type: "User" },
+      triggering_actor: { id: 894119, type: "User" },
+      repository: { id: WRENCH_REPOSITORY_ID, full_name: providerRepository, private: false },
+    });
+    try {
+      await mkdir(binaryDirectory, { recursive: true });
+      await Promise.all([
+        writeFile(workflowFixture, `${JSON.stringify({
+          id: 344213783,
+          name: "Stage npm package",
+          path: ".github/workflows/npm-stage.yml",
+          state: "active",
+        })}\n`, "utf8"),
+        writeFile(repositoryFixture, `${JSON.stringify({
+          id: WRENCH_REPOSITORY_ID,
+          full_name: providerRepository,
+          visibility: "public",
+          private: false,
+          default_branch: "main",
+        })}\n`, "utf8"),
+      ]);
+      await writeFile(ghStub, `#!/bin/bash
+set -euo pipefail
+case "$*" in
+  "api --method GET /repos/hraness/wrench/actions/runs/8001/attempts/2") cat "$ATTEMPT_FIXTURE" ;;
+  "api --method GET /repos/hraness/wrench/actions/workflows/344213783") cat "$WORKFLOW_FIXTURE" ;;
+  "api --method GET /repos/hraness/wrench") cat "$REPOSITORY_FIXTURE" ;;
+  *) echo "unexpected gh command: $*" >&2; exit 1 ;;
+esac
+`, "utf8");
+      await chmod(ghStub, 0o755);
+      const baseEnvironment = Object.freeze({
+        ATTEMPT_FIXTURE: attemptFixture,
+        EXPECTED_ACTOR_ID: "894119",
+        EXPECTED_REPOSITORY: providerRepository,
+        EXPECTED_REPOSITORY_ID: String(WRENCH_REPOSITORY_ID),
+        EXPECTED_WORKFLOW_ID: "344213783",
+        EXPECTED_WORKFLOW_NAME: "Stage npm package",
+        EXPECTED_WORKFLOW_PATH: ".github/workflows/npm-stage.yml",
+        GITHUB_EVENT_NAME: "workflow_dispatch",
+        GITHUB_REF: "refs/heads/main",
+        GITHUB_REPOSITORY: providerRepository,
+        GITHUB_REPOSITORY_ID: String(WRENCH_REPOSITORY_ID),
+        GITHUB_RUN_ATTEMPT: "2",
+        GITHUB_RUN_ID: "8001",
+        GITHUB_SHA: sourceSha,
+        INPUT_PUBLISH_TO_NPM: "true",
+        PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`,
+        REF_PROTECTED: "true",
+        REPOSITORY_FIXTURE: repositoryFixture,
+        RUNNER_TEMP: directory,
+        WORKFLOW_FIXTURE: workflowFixture,
+      });
+      const runCase = async (
+        attempt: Readonly<Record<string, unknown>>,
+        overrides: Readonly<Record<string, string>> = {},
+      ) => {
+        await writeFile(attemptFixture, `${JSON.stringify(attempt)}\n`, "utf8");
+        return runWorkflowScript(script, { ...baseEnvironment, ...overrides });
+      };
+
+      const accepted = await runCase(validAttempt);
+      if (accepted.exitCode !== 0) {
+        throw new Error(`Valid npm stage attempt failed:\n${accepted.stdout}${accepted.stderr}`);
+      }
+      expect(accepted.exitCode).toBe(0);
+      for (const [attempt, overrides] of [
+        [{ ...validAttempt, actor: { id: 7, type: "User" } }, {}],
+        [{ ...validAttempt, triggering_actor: { id: 7, type: "User" } }, {}],
+        [{ ...validAttempt, run_attempt: 1 }, {}],
+        [{ ...validAttempt, workflow_id: 7 }, {}],
+        [{ ...validAttempt, path: ".github/workflows/other.yml" }, {}],
+        [{ ...validAttempt, status: "completed", conclusion: "success" }, {}],
+        [validAttempt, { INPUT_PUBLISH_TO_NPM: "false" }],
+        [validAttempt, { REF_PROTECTED: "false" }],
+      ] as const) {
+        expect((await runCase(attempt, overrides)).exitCode).not.toBe(0);
       }
     } finally {
       await rm(directory, { force: true, recursive: true });
@@ -2176,7 +2310,10 @@ esac
       "\"npm\",\n      \"install\"",
       "`--registry=${NPM_REGISTRY}`",
       "not currently published on npm",
+      "Object.keys(manifest.publishConfig).sort()",
+      'JSON.stringify(["access", "registry"])',
       "manifest.publishConfig.registry !== NPM_REGISTRY",
+      "Packed Wrench publishConfig may contain only public access and the canonical npm registry",
     ] as const) {
       expect(smoke).toContain(required);
     }
@@ -2192,6 +2329,18 @@ esac
     expect(workflow).toContain("ref: refs/tags/${{ steps.request.outputs.tag }}");
     expect(workflow).toContain("fetch-depth: 1");
     expect(workflow).toContain("persist-credentials: false");
+    expect(workflow).toContain('npm view "$package_name" dist-tags.latest');
+    expect(workflow).toContain('"$latest_version" != "\\"$package_version\\""');
+    expect(workflow).toContain("npm audit signatures");
+    expect(workflow).toContain("--include-attestations");
+    expect(workflow).toContain("./scripts/npm-provenance-identity.ts");
+    expect(workflow).toContain("permissions:\n      actions: read\n      contents: read");
+    expect(workflow).toContain("--expected-event workflow_dispatch");
+    expect(workflow).toContain("--expected-repository-id 1316443113");
+    expect(workflow).toContain("--expected-workflow-path .github/workflows/npm-stage.yml");
+    expect(workflow).toContain("Published npm provenance is not bound to the completed owner-authorized Wrench stage attempt");
+    expect(workflow).toContain('attempt.status !== "completed"');
+    expect(workflow).toContain('attempt.conclusion !== "success"');
 
     try {
       const runCase = async (
@@ -2226,6 +2375,141 @@ esac
         const rejected = await runCase(rejectedEnvironment);
         expect(rejected.exitCode).not.toBe(0);
         expect(await Bun.file(output).exists()).toBe(false);
+      }
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  test("reauthorizes the exact owner on the current Release attempt before checkout", async () => {
+    const workflow = await readFile(releaseWorkflowUrl, "utf8");
+    const script = workflowStepScript(workflow, "Reauthorize current release attempt");
+    const publishStart = workflow.indexOf("  publish:\n");
+    const reauthorizeStart = workflow.indexOf("      - name: Reauthorize current release attempt\n");
+    const checkoutStart = workflow.indexOf(
+      "      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+      reauthorizeStart,
+    );
+
+    expect(workflow).toContain("name: Authorize owner release tag");
+    expect(workflow).toContain('EXPECTED_ACTOR_ID: "894119"');
+    expect(workflow).toContain('EXPECTED_REPOSITORY_ID: "1316443113"');
+    expect(workflow).toContain("REF_PROTECTED: ${{ github.ref_protected }}");
+    expect(workflow).toContain("needs: authorize");
+    expect(publishStart).toBeGreaterThan(0);
+    expect(reauthorizeStart).toBeGreaterThan(publishStart);
+    expect(checkoutStart).toBeGreaterThan(reauthorizeStart);
+    expect(workflow.slice(publishStart, reauthorizeStart)).toContain("actions: read");
+    for (const required of [
+      "attempt.actor?.id !== actorId",
+      "attempt.triggering_actor?.id !== actorId",
+      "attempt.workflow_id !== workflowId",
+      "attempt.path !== process.env.EXPECTED_WORKFLOW_PATH",
+      'value?.object?.type !== "commit"',
+      '"$comparison_status" != ahead && "$comparison_status" != identical',
+    ] as const) {
+      expect(script).toContain(required);
+    }
+
+    const directory = await mkdtemp(join(tmpdir(), "wrench-release-attempt-"));
+    const binaryDirectory = join(directory, "bin");
+    const ghStub = join(binaryDirectory, "gh");
+    const attemptFixture = join(directory, "attempt.json");
+    const workflowFixture = join(directory, "workflow.json");
+    const repositoryFixture = join(directory, "repository.json");
+    const tagFixture = join(directory, "tag.json");
+    const sourceSha = providerVerifiedSha;
+    const releaseTag = "v0.16.6";
+    const validAttempt = Object.freeze({
+      id: 9001,
+      run_attempt: 2,
+      workflow_id: 323493609,
+      name: "Release",
+      path: ".github/workflows/release.yml",
+      event: "push",
+      head_branch: releaseTag,
+      head_sha: sourceSha,
+      status: "in_progress",
+      conclusion: null,
+      actor: { id: 894119, type: "User" },
+      triggering_actor: { id: 894119, type: "User" },
+      repository: { id: WRENCH_REPOSITORY_ID, full_name: providerRepository, private: false },
+    });
+    try {
+      await mkdir(binaryDirectory, { recursive: true });
+      await Promise.all([
+        writeFile(workflowFixture, `${JSON.stringify({
+          id: 323493609,
+          name: "Release",
+          path: ".github/workflows/release.yml",
+          state: "active",
+        })}\n`, "utf8"),
+        writeFile(repositoryFixture, `${JSON.stringify({
+          id: WRENCH_REPOSITORY_ID,
+          full_name: providerRepository,
+          visibility: "public",
+          private: false,
+          default_branch: "main",
+        })}\n`, "utf8"),
+        writeFile(tagFixture, `${JSON.stringify({ object: { type: "commit", sha: sourceSha } })}\n`, "utf8"),
+      ]);
+      await writeFile(ghStub, `#!/bin/bash
+set -euo pipefail
+case "$*" in
+  "api --method GET /repos/hraness/wrench/actions/runs/9001/attempts/2") cat "$ATTEMPT_FIXTURE" ;;
+  "api --method GET /repos/hraness/wrench/actions/workflows/323493609") cat "$WORKFLOW_FIXTURE" ;;
+  "api --method GET /repos/hraness/wrench") cat "$REPOSITORY_FIXTURE" ;;
+  "api --method GET /repos/hraness/wrench/git/ref/tags/v0.16.6") cat "$TAG_FIXTURE" ;;
+  "api --method GET --jq .sha /repos/hraness/wrench/commits/main") printf '%s\\n' "$SOURCE_SHA" ;;
+  "api --method GET --jq .status /repos/hraness/wrench/compare/$SOURCE_SHA...$SOURCE_SHA") printf 'identical\\n' ;;
+  *) echo "unexpected gh command: $*" >&2; exit 1 ;;
+esac
+`, "utf8");
+      await chmod(ghStub, 0o755);
+      const baseEnvironment = Object.freeze({
+        ATTEMPT_FIXTURE: attemptFixture,
+        DEFAULT_BRANCH: "main",
+        EXPECTED_ACTOR_ID: "894119",
+        EXPECTED_REPOSITORY: providerRepository,
+        EXPECTED_REPOSITORY_ID: String(WRENCH_REPOSITORY_ID),
+        EXPECTED_WORKFLOW_ID: "323493609",
+        EXPECTED_WORKFLOW_NAME: "Release",
+        EXPECTED_WORKFLOW_PATH: ".github/workflows/release.yml",
+        GITHUB_EVENT_NAME: "push",
+        GITHUB_REF: `refs/tags/${releaseTag}`,
+        GITHUB_REPOSITORY: providerRepository,
+        GITHUB_REPOSITORY_ID: String(WRENCH_REPOSITORY_ID),
+        GITHUB_RUN_ATTEMPT: "2",
+        GITHUB_RUN_ID: "9001",
+        GITHUB_SHA: sourceSha,
+        PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`,
+        REPOSITORY_FIXTURE: repositoryFixture,
+        RUNNER_TEMP: directory,
+        SOURCE_SHA: sourceSha,
+        TAG_FIXTURE: tagFixture,
+        VERIFIED_SHA: sourceSha,
+        VERIFIED_TAG: releaseTag,
+        WORKFLOW_FIXTURE: workflowFixture,
+      });
+      const runCase = async (attempt: Readonly<Record<string, unknown>>) => {
+        await writeFile(attemptFixture, `${JSON.stringify(attempt)}\n`, "utf8");
+        return runWorkflowScript(script, baseEnvironment);
+      };
+
+      const accepted = await runCase(validAttempt);
+      if (accepted.exitCode !== 0) {
+        throw new Error(`Valid Release attempt failed:\n${accepted.stdout}${accepted.stderr}`);
+      }
+      expect(accepted.exitCode).toBe(0);
+      for (const hostileAttempt of [
+        { ...validAttempt, actor: { id: 7, type: "User" } },
+        { ...validAttempt, triggering_actor: { id: 7, type: "User" } },
+        { ...validAttempt, run_attempt: 1 },
+        { ...validAttempt, workflow_id: 7 },
+        { ...validAttempt, path: ".github/workflows/other.yml" },
+        { ...validAttempt, status: "completed", conclusion: "success" },
+      ] as const) {
+        expect((await runCase(hostileAttempt)).exitCode).not.toBe(0);
       }
     } finally {
       await rm(directory, { force: true, recursive: true });
@@ -2609,7 +2893,7 @@ fi
     expect(workflow).not.toContain("cmp \"$source_archive\" \"$registry_archive\"");
     expect(workflow.match(/npm pack /gu)).toHaveLength(2);
     expect(workflow.match(new RegExp(`--registry=${npmRegistry.replaceAll(".", "\\.")}`, "gu")))
-      .toHaveLength(4);
+      .toHaveLength(7);
     expect(workflow.indexOf("Verify exact public npm delivery"))
       .toBeLessThan(workflow.indexOf("\n  publish:"));
     const publishScript = workflowStepScript(workflow, "Publish verified GitHub Release");
@@ -8482,6 +8766,27 @@ describe("canonical npm package identity", () => {
       expect(verified.fileCount).toBe(sourceInventory.fileCount);
       expect(verified.sourceArchiveSha512).not.toBe(verified.registryArchiveSha512);
 
+      const registryViewValue = JSON.parse(await readFile(registryViewJson, "utf8")) as {
+        dist: { attestations?: unknown; signatures?: unknown[] };
+      };
+      const missingAttestationView = join(registryDirectory, "npm-view-no-attestation.json");
+      const noAttestation = structuredClone(registryViewValue);
+      delete noAttestation.dist.attestations;
+      await writeFile(missingAttestationView, `${JSON.stringify(noAttestation)}\n`, "utf8");
+      await expect(verifyNpmPackageIdentity({
+        ...validInput,
+        registryViewJson: missingAttestationView,
+      })).rejects.toThrow("npm registry view.dist.attestations must be an object");
+
+      const emptySignatureView = join(registryDirectory, "npm-view-no-signature.json");
+      const noSignature = structuredClone(registryViewValue);
+      noSignature.dist.signatures = [];
+      await writeFile(emptySignatureView, `${JSON.stringify(noSignature)}\n`, "utf8");
+      await expect(verifyNpmPackageIdentity({
+        ...validInput,
+        registryViewJson: emptySignatureView,
+      })).rejects.toThrow("npm registry package has no registry signature");
+
       const metadataDirectory = join(work, "metadata-mode");
       await mkdir(metadataDirectory);
       const metadataPackJson = join(metadataDirectory, "npm-pack.json");
@@ -8566,6 +8871,140 @@ describe("canonical npm package identity", () => {
         ...validInput,
         registryArchive: linkArchive,
       })).rejects.toThrow("Unsupported package tar entry type");
+    } finally {
+      await rm(work, { force: true, recursive: true });
+    }
+  });
+});
+
+describe("verified npm provenance identity", () => {
+  test("binds cryptographically audited publish and SLSA attestations to the stage workflow", async () => {
+    const work = await mkdtemp(join(tmpdir(), "wrench-provenance-identity-test-"));
+    const auditJson = join(work, "npm-audit.json");
+    const registryArchive = join(work, "hraness-wrench-0.16.6.tgz");
+    const archive = Buffer.from("reviewed Wrench registry archive\n", "utf8");
+    const archiveSha512 = createHash("sha512").update(archive).digest("hex");
+    const sourceSha = "a".repeat(40);
+    const version = "0.16.6";
+    const purl = `pkg:npm/%40hraness/wrench@${version}`;
+    const bundle = (predicateType: string, statement: unknown) => ({
+      predicateType,
+      bundle: {
+        mediaType: "application/vnd.dev.sigstore.bundle.v0.3+json",
+        verificationMaterial: { tlogEntries: [{}] },
+        dsseEnvelope: {
+          payload: Buffer.from(JSON.stringify(statement), "utf8").toString("base64"),
+          payloadType: "application/vnd.in-toto+json",
+          signatures: [{ keyid: "", sig: "verified" }],
+        },
+      },
+    });
+    const auditFixture = ({
+      event = "workflow_dispatch",
+      includePublish = true,
+      invalid = [] as readonly unknown[],
+      invocation = "https://github.com/hraness/wrench/actions/runs/123456/attempts/2",
+      source = sourceSha,
+      subjectDigest = archiveSha512,
+      workflowPath = ".github/workflows/npm-stage.yml",
+    } = {}) => {
+      const provenanceStatement = {
+        _type: "https://in-toto.io/Statement/v1",
+        subject: [{ name: purl, digest: { sha512: subjectDigest } }],
+        predicateType: "https://slsa.dev/provenance/v1",
+        predicate: {
+          buildDefinition: {
+            buildType: "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1",
+            externalParameters: {
+              workflow: {
+                ref: "refs/heads/main",
+                repository: "https://github.com/hraness/wrench",
+                path: workflowPath,
+              },
+            },
+            internalParameters: {
+              github: {
+                event_name: event,
+                repository_id: "1316443113",
+                repository_owner_id: "307125679",
+              },
+            },
+            resolvedDependencies: [{
+              uri: "git+https://github.com/hraness/wrench@refs/heads/main",
+              digest: { gitCommit: source },
+            }],
+          },
+          runDetails: {
+            builder: { id: "https://github.com/actions/runner/github-hosted" },
+            metadata: {
+              invocationId: invocation,
+            },
+          },
+        },
+      };
+      const publishPredicate = "https://github.com/npm/attestation/tree/main/specs/publish/v0.1";
+      const publishStatement = {
+        _type: "https://in-toto.io/Statement/v0.1",
+        subject: [{ name: purl, digest: { sha512: subjectDigest } }],
+        predicateType: publishPredicate,
+        predicate: {
+          name: "@hraness/wrench",
+          version,
+          registry: "https://registry.npmjs.org",
+        },
+      };
+      return {
+        invalid,
+        missing: [],
+        verified: [{
+          name: "@hraness/wrench",
+          version,
+          location: "node_modules/@hraness/wrench",
+          registry: "https://registry.npmjs.org/",
+          attestations: {
+            url: `https://registry.npmjs.org/-/npm/v1/attestations/%40hraness%2Fwrench@${version}`,
+            provenance: { predicateType: "https://slsa.dev/provenance/v1" },
+          },
+          attestationBundles: [
+            ...(includePublish ? [bundle(publishPredicate, publishStatement)] : []),
+            bundle("https://slsa.dev/provenance/v1", provenanceStatement),
+          ],
+        }],
+      };
+    };
+    const input: NpmProvenanceIdentityInput = Object.freeze({
+      auditJson,
+      expectedEvent: "workflow_dispatch",
+      expectedName: "@hraness/wrench",
+      expectedOwnerId: "307125679",
+      expectedRef: "refs/heads/main",
+      expectedRepository: "hraness/wrench",
+      expectedRepositoryId: "1316443113",
+      expectedSourceSha: sourceSha,
+      expectedVersion: version,
+      expectedWorkflowPath: ".github/workflows/npm-stage.yml",
+      registryArchive,
+    });
+    try {
+      await writeFile(registryArchive, archive);
+      await writeFile(auditJson, `${JSON.stringify(auditFixture())}\n`, "utf8");
+      await expect(verifyNpmProvenanceIdentity(input)).resolves.toEqual({
+        runAttempt: 2,
+        runId: 123456,
+      });
+
+      for (const [fixture, message] of [
+        [auditFixture({ event: "push" }), "Verified SLSA event"],
+        [auditFixture({ source: "b".repeat(40) }), "does not bind the staged commit"],
+        [auditFixture({ subjectDigest: "0".repeat(128) }), "does not bind the registry archive"],
+        [auditFixture({ workflowPath: ".github/workflows/release.yml" }), "Verified SLSA workflow path"],
+        [auditFixture({ includePublish: false }), "must verify one registry publish bundle"],
+        [auditFixture({ invalid: [{}] }), "contains invalid entries"],
+        [auditFixture({ invocation: "https://github.com/hraness/wrench/actions/runs/9007199254740992/attempts/2" }), "unsafe numeric identity"],
+      ] as const) {
+        await writeFile(auditJson, `${JSON.stringify(fixture)}\n`, "utf8");
+        await expect(verifyNpmProvenanceIdentity(input)).rejects.toThrow(message);
+      }
     } finally {
       await rm(work, { force: true, recursive: true });
     }

@@ -293,12 +293,106 @@ jobs:
     needs: verify
     if: needs.verify.result == 'success' && github.event_name == 'workflow_dispatch' && inputs.publish_to_npm == true
     permissions:
+      actions: read
       contents: read
       id-token: write
     environment: npm-stage
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Reauthorize current npm stage attempt
+        env:
+          EXPECTED_ACTOR_ID: "894119"
+          EXPECTED_REPOSITORY: "hraness/wrench"
+          EXPECTED_REPOSITORY_ID: "1316443113"
+          EXPECTED_WORKFLOW_ID: "344213783"
+          EXPECTED_WORKFLOW_NAME: "Stage npm package"
+          EXPECTED_WORKFLOW_PATH: ".github/workflows/npm-stage.yml"
+          GH_TOKEN: ${{ github.token }}
+          INPUT_PUBLISH_TO_NPM: ${{ inputs.publish_to_npm }}
+          REF_PROTECTED: ${{ github.ref_protected }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ || \
+                ! "$GITHUB_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ || \
+                ! "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ || \
+                "$GITHUB_EVENT_NAME" != workflow_dispatch || \
+                "$GITHUB_REF" != refs/heads/main || \
+                "$GITHUB_REPOSITORY" != "$EXPECTED_REPOSITORY" || \
+                "$GITHUB_REPOSITORY_ID" != "$EXPECTED_REPOSITORY_ID" || \
+                "$INPUT_PUBLISH_TO_NPM" != true || \
+                "$REF_PROTECTED" != true ]]; then
+            echo "::error::npm staging requires an intentional owner dispatch from protected main"
+            exit 1
+          fi
+          attempt_json="$(mktemp "$RUNNER_TEMP/wrench-stage-attempt.XXXXXX")"
+          workflow_json="$(mktemp "$RUNNER_TEMP/wrench-stage-workflow.XXXXXX")"
+          repository_json="$(mktemp "$RUNNER_TEMP/wrench-stage-repository.XXXXXX")"
+          trap 'rm -f "$attempt_json" "$workflow_json" "$repository_json"' EXIT
+          gh api --method GET \
+            "/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
+            > "$attempt_json"
+          gh api --method GET \
+            "/repos/$GITHUB_REPOSITORY/actions/workflows/$EXPECTED_WORKFLOW_ID" \
+            > "$workflow_json"
+          gh api --method GET "/repos/$GITHUB_REPOSITORY" > "$repository_json"
+          ATTEMPT_JSON="$attempt_json" \
+            WORKFLOW_JSON="$workflow_json" \
+            REPOSITORY_JSON="$repository_json" \
+            EXPECTED_ACTOR_ID="$EXPECTED_ACTOR_ID" \
+            EXPECTED_REPOSITORY="$EXPECTED_REPOSITORY" \
+            EXPECTED_REPOSITORY_ID="$EXPECTED_REPOSITORY_ID" \
+            EXPECTED_RUN_ID="$GITHUB_RUN_ID" \
+            EXPECTED_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            EXPECTED_SHA="$GITHUB_SHA" \
+            EXPECTED_WORKFLOW_ID="$EXPECTED_WORKFLOW_ID" \
+            EXPECTED_WORKFLOW_NAME="$EXPECTED_WORKFLOW_NAME" \
+            EXPECTED_WORKFLOW_PATH="$EXPECTED_WORKFLOW_PATH" node <<'NODE'
+          const { readFileSync } = require("node:fs");
+          const positiveInteger = (name) => {
+            const value = process.env[name] ?? "";
+            if (!/^[1-9][0-9]*$/u.test(value)) throw new Error(`Invalid ${name}`);
+            const number = Number(value);
+            if (!Number.isSafeInteger(number)) throw new Error(`Unsafe ${name}`);
+            return number;
+          };
+          const attempt = JSON.parse(readFileSync(process.env.ATTEMPT_JSON, "utf8"));
+          const workflow = JSON.parse(readFileSync(process.env.WORKFLOW_JSON, "utf8"));
+          const repository = JSON.parse(readFileSync(process.env.REPOSITORY_JSON, "utf8"));
+          const actorId = positiveInteger("EXPECTED_ACTOR_ID");
+          const repositoryId = positiveInteger("EXPECTED_REPOSITORY_ID");
+          const runId = positiveInteger("EXPECTED_RUN_ID");
+          const runAttempt = positiveInteger("EXPECTED_RUN_ATTEMPT");
+          const workflowId = positiveInteger("EXPECTED_WORKFLOW_ID");
+          if (
+            attempt.id !== runId
+            || attempt.run_attempt !== runAttempt
+            || attempt.workflow_id !== workflowId
+            || attempt.name !== process.env.EXPECTED_WORKFLOW_NAME
+            || attempt.path !== process.env.EXPECTED_WORKFLOW_PATH
+            || attempt.event !== "workflow_dispatch"
+            || attempt.head_branch !== "main"
+            || attempt.head_sha !== process.env.EXPECTED_SHA
+            || attempt.status !== "in_progress"
+            || attempt.conclusion !== null
+            || attempt.actor?.id !== actorId
+            || attempt.actor?.type !== "User"
+            || attempt.triggering_actor?.id !== actorId
+            || attempt.triggering_actor?.type !== "User"
+            || attempt.repository?.id !== repositoryId
+            || attempt.repository?.full_name !== process.env.EXPECTED_REPOSITORY
+            || attempt.repository?.private !== false
+            || workflow.id !== workflowId
+            || workflow.name !== process.env.EXPECTED_WORKFLOW_NAME
+            || workflow.path !== process.env.EXPECTED_WORKFLOW_PATH
+            || workflow.state !== "active"
+            || repository.id !== repositoryId
+            || repository.full_name !== process.env.EXPECTED_REPOSITORY
+            || repository.visibility !== "public"
+            || repository.private !== false
+            || repository.default_branch !== "main"
+          ) throw new Error("Current npm stage attempt is not owner-authorized for this exact public workflow");
+          NODE
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24"
@@ -375,6 +469,7 @@ jobs:
             EXPECTED_VERSION="$EXPECTED_VERSION" node <<'NODE'
           const fs = require("node:fs");
           const crypto = require("node:crypto");
+          const zlib = require("node:zlib");
           const value = JSON.parse(fs.readFileSync(process.env.PACK_JSON, "utf8"));
           if (!Array.isArray(value) || value.length !== 1) throw new Error("npm-pack.json must contain exactly one package");
           const record = value[0];
@@ -391,6 +486,88 @@ jobs:
           const integrity = `sha512-${crypto.createHash("sha512").update(bytes).digest("base64")}`;
           const shasum = crypto.createHash("sha1").update(bytes).digest("hex");
           if (record.integrity !== integrity || record.shasum !== shasum) throw new Error("Downloaded tarball digest differs from npm-pack.json");
+          const tar = zlib.gunzipSync(bytes, {
+            maxOutputLength: 32 * 1024 * 1024 + 512 * 1_280,
+          });
+          const tarText = (header, start, length) => {
+            const field = header.subarray(start, start + length);
+            const zero = field.indexOf(0);
+            const selected = zero < 0 ? field : field.subarray(0, zero);
+            if (selected.some(byte => byte > 0x7f)) throw new Error("Packed package.json tar header is not ASCII");
+            return selected.toString("ascii");
+          };
+          const tarOctal = (header, start, length, label) => {
+            const text = tarText(header, start, length).trim();
+            if (!/^[0-7]+$/u.test(text)) throw new Error(`Packed package.json has an invalid ${label}`);
+            const value = Number.parseInt(text, 8);
+            if (!Number.isSafeInteger(value) || value < 0) throw new Error(`Packed package.json has an unsafe ${label}`);
+            return value;
+          };
+          let offset = 0;
+          let zeroBlocks = 0;
+          let entries = 0;
+          let manifestBytes;
+          while (offset < tar.length) {
+            if (tar.length - offset < 512) throw new Error("Packed package.json tar header is truncated");
+            const header = tar.subarray(offset, offset + 512);
+            offset += 512;
+            if (header.every(byte => byte === 0)) {
+              zeroBlocks += 1;
+              if (zeroBlocks === 2) {
+                if (tar.subarray(offset).some(byte => byte !== 0)) throw new Error("Packed package.json tar has trailing data");
+                break;
+              }
+              continue;
+            }
+            if (zeroBlocks !== 0) throw new Error("Packed package.json tar terminator is invalid");
+            const expectedChecksum = tarOctal(header, 148, 8, "checksum");
+            let checksum = 0;
+            for (let index = 0; index < header.length; index += 1) {
+              checksum += index >= 148 && index < 156 ? 0x20 : header[index];
+            }
+            if (checksum !== expectedChecksum || tarText(header, 257, 6) !== "ustar") {
+              throw new Error("Packed package.json tar header is invalid");
+            }
+            const name = tarText(header, 0, 100);
+            const prefix = tarText(header, 345, 155);
+            const path = prefix === "" ? name : `${prefix}/${name}`;
+            if (path.startsWith("/") || path.includes("\\") || path.split("/").some(part => part === "" || part === "." || part === "..")) {
+              throw new Error("Packed package.json tar path is unsafe");
+            }
+            const size = tarOctal(header, 124, 12, "size");
+            const type = header[156];
+            if (type !== 0 && type !== 0x30 && type !== 0x35) throw new Error("Packed package.json tar contains a non-regular entry");
+            if (type === 0x35 && size !== 0) throw new Error("Packed package.json tar directory has data");
+            if (size > tar.length - offset) throw new Error("Packed package.json tar entry is truncated");
+            const padded = Math.ceil(size / 512) * 512;
+            if (padded > tar.length - offset || tar.subarray(offset + size, offset + padded).some(byte => byte !== 0)) {
+              throw new Error("Packed package.json tar padding is invalid");
+            }
+            if (path === "package/package.json") {
+              if ((type !== 0 && type !== 0x30) || manifestBytes !== undefined || size < 1 || size > 256 * 1024) {
+                throw new Error("Packed package.json is missing, duplicated, or unsafe");
+              }
+              manifestBytes = Buffer.from(tar.subarray(offset, offset + size));
+            }
+            offset += padded;
+            entries += 1;
+            if (entries > 1_280) throw new Error("Packed package.json tar contains too many entries");
+          }
+          if (zeroBlocks !== 2 || manifestBytes === undefined) throw new Error("Packed package.json is missing");
+          const manifest = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(manifestBytes));
+          const publishConfig = manifest?.publishConfig;
+          if (
+            manifest?.name !== "@hraness/wrench"
+            || manifest?.version !== process.env.EXPECTED_VERSION
+            || manifest?.private !== false
+            || manifest?.contentPolicy?.class !== "dual-use"
+            || publishConfig === null
+            || typeof publishConfig !== "object"
+            || Array.isArray(publishConfig)
+            || JSON.stringify(Object.keys(publishConfig).sort()) !== JSON.stringify(["access", "registry"])
+            || publishConfig.access !== "public"
+            || publishConfig.registry !== "https://registry.npmjs.org"
+          ) throw new Error("Packed Wrench can publish only to the canonical public npm registry");
           NODE
           expected_sha256="$(tr -d '\n' < "$sha256_file")"
           if [[ ! "$expected_sha256" =~ ^[a-f0-9]{64}$ ]]; then
@@ -507,4 +684,5 @@ jobs:
             --access public \
             --ignore-scripts \
             --provenance \
+            --tag latest \
             --registry=https://registry.npmjs.org

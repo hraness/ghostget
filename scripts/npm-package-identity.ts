@@ -303,6 +303,43 @@ async function verifyRegistryView(
   ) {
     throw new Error("npm registry metadata differs from the downloaded canonical package");
   }
+  const attestations = record(dist.attestations, "npm registry view.dist.attestations");
+  const provenance = record(
+    attestations.provenance,
+    "npm registry view.dist.attestations.provenance",
+  );
+  const attestationUrl = new URL(
+    stringField(attestations, "url", "npm registry view.dist.attestations"),
+  );
+  const attestationPrefix = "/-/npm/v1/attestations/";
+  if (
+    attestationUrl.origin !== npmRegistry
+    || attestationUrl.username !== ""
+    || attestationUrl.password !== ""
+    || attestationUrl.search !== ""
+    || attestationUrl.hash !== ""
+    || !attestationUrl.pathname.startsWith(attestationPrefix)
+    || decodeURIComponent(attestationUrl.pathname.slice(attestationPrefix.length))
+      !== `${expectedName}@${expectedVersion}`
+    || stringField(
+      provenance,
+      "predicateType",
+      "npm registry view.dist.attestations.provenance",
+    ) !== "https://slsa.dev/provenance/v1"
+  ) {
+    throw new Error("npm registry provenance metadata is not canonical");
+  }
+  if (!Array.isArray(dist.signatures) || dist.signatures.length === 0) {
+    throw new Error("npm registry package has no registry signature");
+  }
+  for (const [index, value] of dist.signatures.entries()) {
+    const signature = record(value, `npm registry signature ${String(index + 1)}`);
+    const keyId = stringField(signature, "keyid", `npm registry signature ${String(index + 1)}`);
+    const bytes = stringField(signature, "sig", `npm registry signature ${String(index + 1)}`);
+    if (!/^SHA256:[A-Za-z0-9+/]+={0,2}$/u.test(keyId) || !/^[A-Za-z0-9+/]+={0,2}$/u.test(bytes)) {
+      throw new Error("npm registry signature metadata is malformed");
+    }
+  }
 }
 
 function compareInventories(

@@ -169,6 +169,12 @@ relationship must name `hraness/wrench`, the exact `npm-stage.yml` filename, the
 must require two-factor authentication and disallow traditional publishing
 tokens. Do not add an npm token to GitHub.
 
+Keep only one pending stable stage for this package. The terminal command pins
+`--tag latest`; before approving it, reject any superseded pending stage and
+confirm the inspected version is greater than the current `latest`. Release
+verification requires that exact version to remain `dist-tags.latest` before it
+can create the corresponding GitHub Release.
+
 ## Create the first tag
 
 Create the matching tag on the same `main` commit only after the registry
@@ -234,6 +240,14 @@ immutable Releases determine completed-release ordering.
 The tag-push Release workflow intentionally executes source `S=C`: GitHub loads
 the workflow bytes from the tagged product/source commit. Release-control bytes
 in `C` must therefore contain the final reviewed repair before the tag exists.
+The workflow first requires the protected tag-push event and embedded sender to
+identify owner User ID `894119` in public repository ID `1316443113`. Before its
+sole write-capable job reads or executes repository code, it also reads back the
+exact current workflow attempt and requires both `actor` and
+`triggering_actor` to be that owner, workflow ID `323493609` and path
+`.github/workflows/release.yml`, the verified tag and commit, the active public
+repository, the direct lightweight tag object, and current protected-main
+ancestry. A rerun initiated by any other actor fails before checkout.
 On 2026-09-03, a stale-source manual recovery run staged and then published
 `@hraness/wrench@0.16.3` from stale source
 `c2d956ca4102d38c29e24ca4e13f26ce862b47f3`. That public npm coordinate is
@@ -370,7 +384,12 @@ The candidate/staging workflow runs on GitHub-hosted runners with Node 24, npm
 11.19.0, Bun 1.3.14, disabled package-manager caching, and no stored npm token.
 Every eligible push or dispatch binds the verified uploaded artifact and final
 tarball hash to source `C`. Only an explicit `publish_to_npm=true` dispatch may
-start the checkout-free terminal OIDC job, which observes the combined governed
+start the checkout-free terminal OIDC job. Before OIDC setup, that job reads
+back its exact current attempt and requires both `actor` and
+`triggering_actor` to be owner User `894119`, exact workflow ID `344213783` and
+path `.github/workflows/npm-stage.yml`, protected `main`, source `C`, and public
+Wrench repository ID `1316443113`; delegated reruns fail before token minting.
+It then observes the combined governed
 refs twice with one
 `ls-remote` connection per observation, requesting exact protected `main` and
 the prospective tag together. Each canonical advertisement is capped at 64 KiB
@@ -384,9 +403,30 @@ after that last read leaves the quarantined, reviewable stage bound to `C`;
 tagging and publication rebind the approved bytes before release. These are
 repeated governed-ref observations, not an atomic snapshot. The job does not
 initialize or fetch a repository, execute checked-out scripts, or use
-`FETCH_HEAD`. Its only GitHub token permission is `contents:read`, alongside
-OIDC `id-token:write`. The main-only `npm-stage` environment applies only to
-this terminal job and has no required deployment reviewers.
+`FETCH_HEAD`. Its GitHub token has only `actions:read` for the exact attempt and
+workflow readback plus `contents:read`; OIDC uses `id-token:write`. The
+main-only `npm-stage` environment applies only to this terminal job and has no
+required deployment reviewers.
+
+The checkout-free OIDC job also parses `package/package.json` directly from the
+downloaded tarball with bounded USTAR handling. Its `publishConfig` must contain
+exactly `access=public` and `registry=https://registry.npmjs.org`; a packed tag,
+scoped registry, proxy, authentication field, or any other publication setting
+fails before npm setup. The source-side package smoke enforces the same exact
+allowlist independently.
+
+Before the tag workflow may create an immutable GitHub Release, pinned npm
+11.19.0 installs the exact public package without lifecycle scripts in an
+isolated directory and runs `npm audit signatures --json
+--include-attestations`. The checked verifier requires empty invalid/missing
+sets, the registry publish attestation, and one cryptographically audited SLSA
+v1 statement whose subject digest matches the downloaded tarball and whose
+repository, workflow path, protected-main ref, workflow-dispatch event,
+repository/owner IDs, sole source commit, GitHub-hosted builder, and invocation
+URL all bind the inspected stage. The invocation must also resolve to the
+completed successful owner-authorized stage attempt before release mutation. A
+token-driven or wrong-workflow publication
+cannot become a GitHub Release merely because its tarball bytes match.
 
 `scripts/package-budget.ts` owns the shared packed-byte, unpacked-byte, and
 file-count ceilings used by artifact inspection and the clean-consumer smoke.
@@ -564,11 +604,13 @@ currently named `Release tag creation`, and `19989752`, currently named
 `Immutable version tags`, are retained live evidence, but their numeric IDs and
 names are not authority: the split semantics are. If either evidence coordinate
 changes, resolve and retain the unique new semantic match before proceeding.
-The workflow token deliberately keeps only `contents:write` and cannot read any
-Administration endpoint. These fresh control-plane checks are therefore a
-trusted operator boundary, with a residual administrator-toggle window that
-repeated workflow reads cannot remove. The created and terminal Release
-readbacks and tag reads must still report exact immutable authority.
+The write-capable workflow token deliberately keeps only `actions:read` for its
+own attempt/workflow readback and `contents:write` for the immutable Release; it
+cannot read any Administration endpoint. These fresh control-plane checks are
+therefore a trusted operator boundary,
+with a residual administrator-toggle window that repeated workflow reads
+cannot remove. The created and terminal
+Release readbacks and tag reads must still report exact immutable authority.
 
 Run this with the signed-in administrator session immediately before creating
 the tag. First resolve the two unique candidates from the repository ruleset
