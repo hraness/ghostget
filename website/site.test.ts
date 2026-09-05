@@ -488,7 +488,9 @@ describe("wrench.rip static site", () => {
       expect(footer).toContain('name="audience" type="hidden" value="wrench"');
       expect(footer).toContain(`src="${HRANESS_TURNSTILE_SCRIPT_URL}"`);
       expect(footer?.match(/data-slot="hraness-mark"/gu)).toHaveLength(1);
-      expect(footer?.match(/data-slot="social-icon"/gu)).toHaveLength(11);
+      expect(footer?.match(/data-slot="social-icon"/gu)).toHaveLength(
+        hranessSocialLinks.length,
+      );
       expect(
         [...(footer?.matchAll(/<a\b[^>]*\shref="([^"]+)"/gu) ?? [])]
           .map((match) => match[1]),
