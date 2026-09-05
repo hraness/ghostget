@@ -1240,34 +1240,57 @@ describe("npm publication contract", () => {
     }
   });
 
-  test("keeps separate truthful Wrench 0.16.3, 0.16.4, 0.16.5, and 0.16.6 changelog sections", async () => {
+  test("keeps separate truthful Wrench 0.16.3 through 0.16.7 changelog sections", async () => {
     const changelog = await readFile(changelogUrl, "utf8");
     const unreleasedHeader = "## Unreleased\n";
-    const currentHeader = "## 0.16.6 - 2026-09-05\n";
+    const currentHeader = "## 0.16.7 - 2026-09-05\n";
+    const consumedHeader = "## 0.16.6 - 2026-09-05\n";
     const previousHeader = "## 0.16.5 - 2026-09-04\n";
     const releaseHeader = "## 0.16.4 - 2026-09-03\n";
     const incidentHeader = "## 0.16.3 - 2026-09-01\n";
     const unreleasedStart = changelog.indexOf(unreleasedHeader);
     const currentStart = changelog.indexOf(currentHeader);
+    const consumedStart = changelog.indexOf(consumedHeader);
     const previousStart = changelog.indexOf(previousHeader);
     const releaseStart = changelog.indexOf(releaseHeader);
     const incidentStart = changelog.indexOf(incidentHeader);
 
     expect(changelog.match(/^## Unreleased$/gmu) ?? []).toHaveLength(1);
+    expect(changelog.match(/^## 0\.16\.7 - 2026-09-05$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.6 - 2026-09-05$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.5 - 2026-09-04$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.4 - 2026-09-03$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.3 - 2026-09-01$/gmu) ?? []).toHaveLength(1);
     expect(unreleasedStart).toBeGreaterThan(-1);
     expect(currentStart).toBeGreaterThan(unreleasedStart);
-    expect(previousStart).toBeGreaterThan(currentStart);
+    expect(consumedStart).toBeGreaterThan(currentStart);
+    expect(previousStart).toBeGreaterThan(consumedStart);
     expect(releaseStart).toBeGreaterThan(previousStart);
     expect(incidentStart).toBeGreaterThan(releaseStart);
     expect(changelog.slice(unreleasedStart + unreleasedHeader.length, currentStart).trim()).toBe("");
 
     const currentReleaseEnd = changelog.indexOf("\n## ", currentStart + currentHeader.length);
-    expect(currentReleaseEnd).toBe(previousStart - 1);
+    expect(currentReleaseEnd).toBe(consumedStart - 1);
     const currentSection = changelog.slice(currentStart, currentReleaseEnd);
+    const normalizedCurrentSection = currentSection.replace(/\s+/gu, " ");
+    expect(normalizedCurrentSection).toContain("reviewed 0.16.6 product payload");
+    expect(normalizedCurrentSection).toContain("fresh coordinate");
+
+    const consumedReleaseEnd = changelog.indexOf("\n## ", consumedStart + consumedHeader.length);
+    expect(consumedReleaseEnd).toBe(previousStart - 1);
+    const consumedSection = changelog.slice(consumedStart, consumedReleaseEnd);
+    const normalizedConsumedSection = consumedSection.replace(/\s+/gu, " ");
+    for (const incidentFact of [
+      "npm published it on 2026-09-05",
+      "lightweight `v0.16.6` tag points to that source",
+      "2292db1323e2d1a1c94e2fb7d8731b0c8ce97fc2",
+      "tag-triggered Release run",
+      "canceled",
+      "no immutable GitHub Release or production promotion",
+      "not a completed Wrench release",
+    ] as const) {
+      expect(normalizedConsumedSection).toContain(incidentFact);
+    }
     for (const requiredFact of [
       "contacts.list@3",
       "beeper-linked-device 2.4.0",
@@ -1275,7 +1298,7 @@ describe("npm publication contract", () => {
       "flair.user.choices",
       "Instagram",
     ] as const) {
-      expect(currentSection).toContain(requiredFact);
+      expect(consumedSection).toContain(requiredFact);
     }
 
     const previousReleaseEnd = changelog.indexOf("\n## ", previousStart + previousHeader.length);
@@ -7800,7 +7823,7 @@ fi
       ]);
     const manifest = JSON.parse(manifestText) as { readonly version: string };
     const exactPackage = `@hraness/wrench@${manifest.version}`;
-    const nextReleaseVersion = "0.16.6";
+    const nextReleaseVersion = "0.16.7";
     const tagFailFastBoundary = 'set -eu\ncase "${STAGE_RUN_ID:-}" in';
     const stageRunIdGuard = 'case "${STAGE_RUN_ID:-}" in';
     const stageSourceBinding = 'C="$(gh api \\';
@@ -7848,7 +7871,8 @@ fi
       ".workflow_id == 344213783",
       '.name == "Stage npm package"',
       '.path == ".github/workflows/npm-stage.yml"',
-      '.event == "workflow_dispatch"',
+      "exact inspected successful automatic\nstaging run from the version-changing `main` push",
+      '.event == "push"',
       '.head_branch == "main"',
       '.status == "completed"',
       '.conclusion == "success"',
@@ -7863,7 +7887,7 @@ fi
       `manifest?.version !== "${nextReleaseVersion}"`,
       stagedPackageCoordinateProof,
       sourceArtifactDownload,
-      'wrench_source_name="npm-package-0.16.6-$C-$STAGE_RUN_ID-1"',
+      'wrench_source_name="npm-package-0.16.7-$C-$STAGE_RUN_ID-1"',
       '--name "$wrench_source_name"',
       registryArtifactDownload,
       registryIdentityCheck,
@@ -7942,6 +7966,12 @@ fi
       "a stale-source manual recovery run staged and then published\n`@hraness/wrench@0.16.3` from stale source",
       "Never create a `v0.16.3` Git tag or GitHub Release",
       "The completed\nreplacement is `0.16.4`; the first marker-bearing successor is `0.16.5`",
+      "On 2026-09-05, `@hraness/wrench@0.16.6` was published from source",
+      "`2292db1323e2d1a1c94e2fb7d8731b0c8ce97fc2` and its `v0.16.6` tag was created",
+      "the tag-triggered Release workflow was canceled before it created an\nimmutable GitHub Release or promoted production",
+      "0.16.6 is not a completed Wrench release",
+      "Never rerun the\ncanceled workflow, move the tag, create the missing Release by hand, or promote\nthat coordinate",
+      "greater 0.16.7\ncoordinate",
       "If release controls change materially after staging, that stage is ineligible\nfor tagging",
       "An accepted and eligible stage must be inspected and approved without\na duplicate dispatch",
       "An accepted but ineligible pending stage must be inspected,\nrejected with human two-factor authentication, and confirmed absent before one\nfresh same-version stage is dispatched from final current `main`",

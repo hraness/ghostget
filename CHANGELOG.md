@@ -7,7 +7,22 @@ coordinate that completed both checks.
 
 ## Unreleased
 
+## 0.16.7 - 2026-09-05
+
+- Carry the reviewed 0.16.6 product payload to a fresh coordinate after npm
+  irreversibly consumed 0.16.6 but its tag-triggered Release workflow was
+  canceled before an immutable GitHub Release or production promotion.
+
 ## 0.16.6 - 2026-09-05
+
+`@hraness/wrench@0.16.6` is an irreversibly consumed incomplete coordinate from
+source `2292db1323e2d1a1c94e2fb7d8731b0c8ce97fc2`. npm published it on
+2026-09-05, and its lightweight `v0.16.6` tag points to that source, but the
+tag-triggered Release run was canceled before creating an immutable GitHub
+Release or production promotion. It has no immutable GitHub Release or
+production promotion, and it is not a completed Wrench release. Complete the
+unchanged product work as 0.16.7 rather than rerunning or rewriting the
+consumed coordinate.
 
 - Add Beeper `contacts.list@3` on beeper-linked-device 2.4.0 as a Desktop
   loopback contract that walks `hasMore` and `oldestCursor` pages up to the
