@@ -1772,19 +1772,13 @@ describe("npm publication contract", () => {
     expect(registryFlags).toHaveLength(8);
     expect(new Set(registryFlags)).toEqual(new Set([`--registry=${npmRegistry}`]));
     expect(
-      workflow.match(
-        new RegExp(`registry-url: "${npmRegistry.replaceAll(".", "\\.")}"`, "gu"),
-      ) ?? [],
+      workflow.match(/registry-url: "https:\/\/registry\.npmjs\.org"/gu) ?? [],
     ).toHaveLength(2);
     expect(
-      verifyJob.match(
-        new RegExp(`--registry=${npmRegistry.replaceAll(".", "\\.")}`, "gu"),
-      ) ?? [],
+      verifyJob.match(/--registry=https:\/\/registry\.npmjs\.org/gu) ?? [],
     ).toHaveLength(4);
     expect(
-      stageJob.match(
-        new RegExp(`--registry=${npmRegistry.replaceAll(".", "\\.")}`, "gu"),
-      ) ?? [],
+      stageJob.match(/--registry=https:\/\/registry\.npmjs\.org/gu) ?? [],
     ).toHaveLength(4);
 
     const downloadIndex = stageJob.indexOf("actions/download-artifact@");
@@ -3865,7 +3859,7 @@ fi
 
     expect(workflow).not.toContain("cmp \"$source_archive\" \"$registry_archive\"");
     expect(workflow.match(/npm pack /gu)).toHaveLength(2);
-    expect(workflow.match(new RegExp(`--registry=${npmRegistry.replaceAll(".", "\\.")}`, "gu")))
+    expect(workflow.match(/--registry=https:\/\/registry\.npmjs\.org/gu))
       .toHaveLength(9);
     expect(workflow.indexOf("Verify exact public npm delivery"))
       .toBeLessThan(workflow.indexOf("\n  publish:"));
