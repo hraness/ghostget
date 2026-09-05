@@ -230,9 +230,20 @@ export async function inspectPackageArtifact(
       break;
     }
     verifyHeaderChecksum(header, offset);
+    if (
+      !header.subarray(257, 263).equals(Buffer.from("ustar\0", "ascii"))
+      || !header.subarray(263, 265).equals(Buffer.from("00", "ascii"))
+    ) {
+      throw new Error(`Package tar header is not exact USTAR at byte ${String(offset)}`);
+    }
 
     const name = readString(header, 0, 100, `entry name at byte ${String(offset)}`);
-    const prefix = readString(header, 345, 155, `entry prefix at byte ${String(offset)}`);
+    const prefix = readString(
+      header,
+      345,
+      header[475] === 0 ? 130 : 155,
+      `entry prefix at byte ${String(offset)}`,
+    );
     const path = prefix.length > 0 ? `${prefix}/${name}` : name;
     const size = readOctal(header, 124, 12, `entry size for ${path}`);
     const mode = readOctal(header, 100, 8, `entry mode for ${path}`);

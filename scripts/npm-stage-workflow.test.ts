@@ -2045,9 +2045,11 @@ esac
       steps: [{
         conclusion: "success",
         name: "Record exclusive stable-stage intent",
+        number: 7,
       }, {
         conclusion: "failure",
         name: "Revalidate protected-main ancestry and stage exact package",
+        number: 8,
       }],
     });
     const persistedResolutionJob = Object.freeze({
@@ -2338,6 +2340,48 @@ esac
           "has a terminal write without one durable intent",
         );
       }
+
+      await writeFile(firstJobsFixture, `${JSON.stringify({
+        total_count: 1,
+        jobs: [{
+          ...failedIntentJob,
+          name: "Renamed terminal npm writer",
+        }],
+      })}\n`, "utf8");
+      const renamedTerminalJob = await runHistory(
+        failedIntentHistory,
+        currentWithoutIntent,
+        { NPM_LATEST_VERSION: "0.15.0" },
+      );
+      expect(renamedTerminalJob.exitCode).not.toBe(0);
+      expect(`${renamedTerminalJob.stdout}${renamedTerminalJob.stderr}`).toContain(
+        "lacks a version-bound stage job",
+      );
+
+      await writeFile(firstJobsFixture, `${JSON.stringify({
+        total_count: 1,
+        jobs: [{
+          ...failedIntentJob,
+          steps: [{
+            conclusion: "failure",
+            name: "Revalidate protected-main ancestry and stage exact package",
+            number: 7,
+          }, {
+            conclusion: "success",
+            name: "Record exclusive stable-stage intent",
+            number: 8,
+          }],
+        }],
+      })}\n`, "utf8");
+      const reversedIntent = await runHistory(
+        failedIntentHistory,
+        currentWithoutIntent,
+        { NPM_LATEST_VERSION: "0.15.0" },
+      );
+      expect(reversedIntent.exitCode).not.toBe(0);
+      expect(`${reversedIntent.stdout}${reversedIntent.stderr}`).toContain(
+        "terminal write is not immediately preceded by its durable intent",
+      );
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
@@ -2831,7 +2875,7 @@ esac
     }
   });
 
-  test("matches npm node-tar USTAR version and extended-prefix parsing", async () => {
+  test("keeps both tar consumers aligned on hostile USTAR version and prefix headers", async () => {
     const workflow = await readFile(stageWorkflowUrl, "utf8");
     const script = workflowStepScript(workflow, "Bind downloaded artifact");
     const manifest = JSON.parse(await readFile(manifestUrl, "utf8")) as {
@@ -2859,7 +2903,8 @@ esac
       const manifestEntry = exactTarEntry(originalTar, "package/package.json");
       const runMutation = async (
         mutate: (tar: Buffer, headerOffset: number) => void,
-        expectedMessage: string,
+        expectedArtifactMessage: string,
+        expectedWorkflowMessage: string,
       ) => {
         const tar = Buffer.from(originalTar);
         mutate(tar, manifestEntry.headerOffset);
@@ -2876,6 +2921,7 @@ esac
             `${createHash("sha256").update(archiveBytes).digest("hex")}\n`,
           ),
         ]);
+        await expect(inspectPackageArtifact(archive)).rejects.toThrow(expectedArtifactMessage);
         const result = await runWorkflowScript(script, {
           EXPECTED_TARBALL_NAME: filename,
           EXPECTED_VERSION: manifest.version,
@@ -2883,22 +2929,23 @@ esac
           RUNNER_TEMP: directory,
         });
         expect(result.exitCode).not.toBe(0);
-        expect(`${result.stdout}${result.stderr}`).toContain(expectedMessage);
+        expect(`${result.stdout}${result.stderr}`).toContain(expectedWorkflowMessage);
       };
 
       await runMutation((tar, headerOffset) => {
         tar[headerOffset + 264] = "1".charCodeAt(0);
-      }, "Packed package.json tar header is invalid");
+      }, "Package tar header is not exact USTAR", "Packed package.json tar header is invalid");
 
       await runMutation((tar, headerOffset) => {
         tar.fill(0, headerOffset, headerOffset + 100);
         tar.write("package.json", headerOffset, "ascii");
         tar.fill("a".charCodeAt(0), headerOffset + 345, headerOffset + 475);
+        tar.write("package/", headerOffset + 345, "ascii");
         tar[headerOffset + 475] = "/".charCodeAt(0);
         tar[headerOffset + 476] = ".".charCodeAt(0);
         tar[headerOffset + 477] = ".".charCodeAt(0);
         tar[headerOffset + 478] = 0;
-      }, "Packed package.json tar path is unsafe");
+      }, "Package tar entry has an unsafe path", "Packed package.json tar path is unsafe");
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
@@ -3978,7 +4025,7 @@ esac
       expect(postPrewriteGitCommands.match(/ls-remote --sort=refname --refs/gu) ?? [])
         .toHaveLength(4);
       expect(postPrewriteGitCommands.match(
-        /diff --quiet --no-ext-diff --no-textconv .* refs\/wrench-release\/publication-main -- \.github\/workflows scripts\/release-ref-authority\.ts scripts\/release-provider-outcome\.mjs scripts\/release-app-token\.mjs scripts\/release-ref-writer\.mjs/gu,
+        /diff --quiet --no-ext-diff --no-textconv .* refs\/wrench-release\/publication-main -- \.github\/workflows scripts\/release-ref-authority\.ts scripts\/npm-provenance-identity\.ts scripts\/npm-package-identity\.ts scripts\/package-artifact\.ts scripts\/package-budget\.ts scripts\/package-smoke\.ts scripts\/private-source-client-runtime-smoke\.ts scripts\/release-provider-outcome\.mjs scripts\/release-app-token\.mjs scripts\/release-ref-writer\.mjs website\/production-release-marker\.mjs/gu,
       ) ?? []).toHaveLength(2);
 
       const prewriteWorkflowDrift = await runCase({
@@ -8938,13 +8985,15 @@ esac
       "all\nattempts of its current run plus a bounded completed dispatch/job history",
       "durable reservation even when the job later\nfails or its npm write result is ambiguous",
       "whole-job success is not the lock",
-      "Any terminal npm-write step with a failure, cancellation, timeout, or\nsuccess conclusion",
+      "Any terminal npm-write step in any job, including one whose job name has\ndrifted",
+      "immediately preceding Actions step\nnumber",
       "Successful generic jobs from the older workflow shape",
       "run `33134350359`, job `98736138383`",
       "run `33920809926`, job `101188893427`",
       "Every other successful generic stage job",
       "npm/node-tar-compatible USTAR handling",
       "header byte 475 is zero and 155 bytes otherwise",
+      "source and\nrelease package-artifact parser enforces the same header contract",
       "complete transitive verifier/parser set",
       "successful exact-version clearance step before proceeding",
       "still\n   cannot publish the package directly",

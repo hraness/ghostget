@@ -597,7 +597,22 @@ jobs:
                 ))
               ) throw new Error(`npm-stage run ${runId} contains an invalid job identity`);
               seenJobIds.add(job.id);
-              if (!job.name.startsWith("Stage exact package")) continue;
+              const intents = job.steps.filter(step => (
+                step.name === "Record exclusive stable-stage intent"
+                && step.conclusion === "success"
+              ));
+              const resolutions = job.steps.filter(step => (
+                step.name.startsWith("Record cleared stable-stage intent")
+                && step.conclusion === "success"
+              ));
+              const terminalWrites = job.steps.filter(step => (
+                (
+                  step.name === "Revalidate current main and stage exact package"
+                  || step.name === "Revalidate protected-main ancestry and stage exact package"
+                )
+                && step.conclusion !== null
+                && step.conclusion !== "skipped"
+              ));
               if (job.name === "Stage exact package" && job.conclusion === "success") {
                 const legacy = legacyGenericStages.get(runId);
                 if (
@@ -621,33 +636,31 @@ jobs:
                 }
                 continue;
               }
-              const intents = job.steps.filter(step => (
-                step.name === "Record exclusive stable-stage intent"
-                && step.conclusion === "success"
-              ));
-              const resolutions = job.steps.filter(step => (
-                step.name.startsWith("Record cleared stable-stage intent")
-                && step.conclusion === "success"
-              ));
               if (intents.length > 1) {
                 throw new Error(`npm-stage run ${runId} has ambiguous successful intent steps`);
               }
               if (resolutions.length > 1) {
                 throw new Error(`npm-stage run ${runId} has ambiguous successful resolution steps`);
               }
-              const terminalWrites = job.steps.filter(step => (
-                (
-                  step.name === "Revalidate current main and stage exact package"
-                  || step.name === "Revalidate protected-main ancestry and stage exact package"
-                )
-                && step.conclusion !== null
-                && step.conclusion !== "skipped"
-              ));
               if (terminalWrites.length > 1 || (terminalWrites.length === 1 && intents.length !== 1)) {
                 throw new Error(`npm-stage run ${runId} has a terminal write without one durable intent`);
               }
+              if (terminalWrites.length === 1) {
+                const intentNumber = intents[0].number;
+                const terminalNumber = terminalWrites[0].number;
+                if (
+                  !Number.isSafeInteger(intentNumber)
+                  || intentNumber < 1
+                  || !Number.isSafeInteger(terminalNumber)
+                  || terminalNumber !== intentNumber + 1
+                ) {
+                  throw new Error(
+                    `npm-stage run ${runId} terminal write is not immediately preceded by its durable intent`,
+                  );
+                }
+              }
               if (intents.length === 0 && resolutions.length === 0) {
-                if (job.conclusion === "success") {
+                if (job.name.startsWith("Stage exact package") && job.conclusion === "success") {
                   throw new Error(`npm-stage run ${runId} has a successful stage job without a durable intent`);
                 }
                 continue;

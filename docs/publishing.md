@@ -595,9 +595,10 @@ Each sealed record requires owner User `894119` as both actor and triggering
 actor, a successful completed run and job, its exact source, and a public npm
 `latest` at or beyond its version. Every other successful generic stage job,
 and every successful versioned stage job without its durable intent, fails
-closed. Any terminal npm-write step with a failure, cancellation, timeout, or
-success conclusion likewise requires exactly one earlier successful durable
-intent. It then observes the combined governed refs twice with one
+closed. Any terminal npm-write step in any job, including one whose job name has
+drifted, with a failure, cancellation, timeout, or success conclusion requires
+exactly one successful durable intent at the immediately preceding Actions step
+number. It then observes the combined governed refs twice with one
 `ls-remote` connection per observation, requesting exact protected `main` and
 the prospective tag together. Each canonical advertisement is capped at 64 KiB
 and 500 rows, must contain one `main` row and no requested tag, and the pair
@@ -618,7 +619,9 @@ required deployment reviewers.
 The checkout-free OIDC job also parses `package/package.json` directly from the
 downloaded tarball with bounded npm/node-tar-compatible USTAR handling. Every
 header must carry exact `ustar\\0` magic and version `00`; the prefix is 130
-bytes when header byte 475 is zero and 155 bytes otherwise. Its `publishConfig` must contain
+bytes when header byte 475 is zero and 155 bytes otherwise. The source and
+release package-artifact parser enforces the same header contract against the
+same hostile fixtures. Its `publishConfig` must contain
 exactly `access=public` and `registry=https://registry.npmjs.org`; a top-level
 packed tag,
 scoped registry, proxy, authentication field, or any other publication setting
