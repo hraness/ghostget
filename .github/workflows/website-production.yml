@@ -22,12 +22,14 @@ jobs:
   verify:
     name: Verify immutable release and workflow source
     permissions:
+      actions: read
       contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
       verified_sha: ${{ steps.identity.outputs.sha }}
       verified_tag: ${{ steps.identity.outputs.tag }}
+      release_run_id: ${{ steps.identity.outputs.release_run_id }}
       workflow_sha: ${{ steps.request.outputs.sha }}
     steps:
       - name: Bind dispatch to reviewed main workflow source
@@ -47,6 +49,7 @@ jobs:
           UPSTREAM_HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
           UPSTREAM_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           UPSTREAM_PATH: ${{ github.event.workflow_run.path }}
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           UPSTREAM_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           UPSTREAM_WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
           UPSTREAM_WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
@@ -74,16 +77,24 @@ jobs:
                 echo "::error::Upstream Release must succeed on its first attempt"
                 exit 1
               fi
+              if [[ ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]*$ ]]; then
+                echo "::error::Upstream Release has no exact workflow run ID"
+                exit 1
+              fi
               if [[ "$UPSTREAM_HEAD_REPOSITORY" != "$GITHUB_REPOSITORY" || ! "$UPSTREAM_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
                 echo "::error::Upstream Release source is not this exact repository"
                 exit 1
               fi
               requested_tag="$UPSTREAM_HEAD_BRANCH"
               release_sha="$UPSTREAM_HEAD_SHA"
+              release_run_id="$UPSTREAM_RUN_ID"
+              release_run_attempt="$UPSTREAM_RUN_ATTEMPT"
               ;;
             workflow_dispatch)
               requested_tag="$INPUT_RELEASE_TAG"
               release_sha=""
+              release_run_id=""
+              release_run_attempt=""
               ;;
             *)
               echo "::error::Unsupported website production trigger $EVENT_NAME"
@@ -103,6 +114,8 @@ jobs:
           printf 'sha=%s\n' "$EVENT_SHA" >> "$GITHUB_OUTPUT"
           printf 'tag=%s\n' "$requested_tag" >> "$GITHUB_OUTPUT"
           printf 'release_sha=%s\n' "$release_sha" >> "$GITHUB_OUTPUT"
+          printf 'release_run_id=%s\n' "$release_run_id" >> "$GITHUB_OUTPUT"
+          printf 'release_run_attempt=%s\n' "$release_run_attempt" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
@@ -121,6 +134,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RECOVERY_WORKFLOW_SHA: ${{ steps.request.outputs.sha }}
           REQUESTED_RELEASE_SHA: ${{ steps.request.outputs.release_sha }}
+          REQUESTED_RELEASE_WORKFLOW_RUN_ATTEMPT: ${{ steps.request.outputs.release_run_attempt }}
+          REQUESTED_RELEASE_WORKFLOW_RUN_ID: ${{ steps.request.outputs.release_run_id }}
           REQUESTED_TAG: ${{ steps.request.outputs.tag }}
         run: |
           set -euo pipefail
@@ -172,13 +187,21 @@ jobs:
           esac
           printf 'sha=%s\n' "$tag_commit" >> "$GITHUB_OUTPUT"
           printf 'tag=%s\n' "$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
-          VERIFIED_SHA="$tag_commit" VERIFIED_TAG="$REQUESTED_TAG" \
-            node ./scripts/release-provider-outcome.mjs revalidate-authority
+          resolved_release_run_id="$(
+            VERIFIED_SHA="$tag_commit" VERIFIED_TAG="$REQUESTED_TAG" \
+              node ./scripts/release-provider-outcome.mjs resolve-release-authority
+          )"
+          if [[ ! "$resolved_release_run_id" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Release authority did not resolve one exact workflow run ID"
+            exit 1
+          fi
+          printf 'release_run_id=%s\n' "$resolved_release_run_id" >> "$GITHUB_OUTPUT"
 
   provider_baseline:
     name: Snapshot provider baseline
     needs: verify
     permissions:
+      actions: read
       contents: read
       deployments: read
     runs-on: ubuntu-latest
@@ -203,6 +226,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
           RECOVERY_WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}
+          VERIFIED_RELEASE_RUN_ID: ${{ needs.verify.outputs.release_run_id }}
           VERIFIED_SHA: ${{ needs.verify.outputs.verified_sha }}
           VERIFIED_TAG: ${{ needs.verify.outputs.verified_tag }}
         run: node ./scripts/release-provider-outcome.mjs revalidate-authority
@@ -210,6 +234,7 @@ jobs:
         id: baseline
         env:
           GH_TOKEN: ${{ github.token }}
+          VERIFIED_RELEASE_RUN_ID: ${{ needs.verify.outputs.release_run_id }}
           VERIFIED_SHA: ${{ needs.verify.outputs.verified_sha }}
           VERIFIED_TAG: ${{ needs.verify.outputs.verified_tag }}
         run: node ./scripts/release-provider-outcome.mjs baseline
@@ -219,6 +244,7 @@ jobs:
     needs: [verify, provider_baseline]
     if: needs.provider_baseline.outputs.advance_required == 'true'
     permissions:
+      actions: read
       contents: read
     environment: { name: production-ref-writer-key, deployment: false }
     runs-on: ubuntu-latest
@@ -242,6 +268,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
           RECOVERY_WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}
+          VERIFIED_RELEASE_RUN_ID: ${{ needs.verify.outputs.release_run_id }}
           VERIFIED_SHA: ${{ needs.verify.outputs.verified_sha }}
           VERIFIED_TAG: ${{ needs.verify.outputs.verified_tag }}
         run: node ./scripts/release-provider-outcome.mjs revalidate-authority
@@ -257,6 +284,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PROMOTION_EXPECTED_MODE: advanced
           RECOVERY_WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}
+          VERIFIED_RELEASE_RUN_ID: ${{ needs.verify.outputs.release_run_id }}
           VERIFIED_SHA: ${{ needs.verify.outputs.verified_sha }}
           VERIFIED_TAG: ${{ needs.verify.outputs.verified_tag }}
           WRENCH_RELEASE_APP_CLIENT_ID: ${{ vars.WRENCH_RELEASE_APP_CLIENT_ID }}
@@ -271,6 +299,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
           RECOVERY_WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}
+          VERIFIED_RELEASE_RUN_ID: ${{ needs.verify.outputs.release_run_id }}
           VERIFIED_SHA: ${{ needs.verify.outputs.verified_sha }}
           VERIFIED_TAG: ${{ needs.verify.outputs.verified_tag }}
         run: node ./scripts/release-provider-outcome.mjs revalidate-authority
@@ -280,6 +309,7 @@ jobs:
     needs: [verify, provider_baseline]
     if: needs.provider_baseline.outputs.advance_required == 'false'
     permissions:
+      actions: read
       contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -302,6 +332,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
           RECOVERY_WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}
+          VERIFIED_RELEASE_RUN_ID: ${{ needs.verify.outputs.release_run_id }}
           VERIFIED_SHA: ${{ needs.verify.outputs.verified_sha }}
           VERIFIED_TAG: ${{ needs.verify.outputs.verified_tag }}
         run: node ./scripts/release-provider-outcome.mjs revalidate-authority
@@ -314,6 +345,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PROMOTION_EXPECTED_MODE: already-exact
           RECOVERY_WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}
+          VERIFIED_RELEASE_RUN_ID: ${{ needs.verify.outputs.release_run_id }}
           VERIFIED_SHA: ${{ needs.verify.outputs.verified_sha }}
           VERIFIED_TAG: ${{ needs.verify.outputs.verified_tag }}
         run: node ./scripts/release-provider-outcome.mjs promote
@@ -323,6 +355,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
           RECOVERY_WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}
+          VERIFIED_RELEASE_RUN_ID: ${{ needs.verify.outputs.release_run_id }}
           VERIFIED_SHA: ${{ needs.verify.outputs.verified_sha }}
           VERIFIED_TAG: ${{ needs.verify.outputs.verified_tag }}
         run: node ./scripts/release-provider-outcome.mjs revalidate-authority
@@ -390,6 +423,7 @@ jobs:
           needs.provider_baseline.result == 'success' &&
           needs.select_promotion.result == 'success' }}
     permissions:
+      actions: read
       contents: read
       deployments: read
     runs-on: ubuntu-latest
@@ -413,6 +447,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PROMOTION_RECEIPT: ${{ needs.select_promotion.outputs.receipt }}
           RECOVERY_WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}
+          VERIFIED_RELEASE_RUN_ID: ${{ needs.verify.outputs.release_run_id }}
           VERIFIED_SHA: ${{ needs.verify.outputs.verified_sha }}
           VERIFIED_TAG: ${{ needs.verify.outputs.verified_tag }}
         run: node ./scripts/release-provider-outcome.mjs wait

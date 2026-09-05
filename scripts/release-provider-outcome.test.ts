@@ -695,7 +695,7 @@ describe("immutable Latest Release convergence", () => {
       author: { id: 41898282, login: "github-actions[bot]", type: "Bot" },
       body: releaseSourceReceipt(releaseCoordinates),
       name: `Wrench ${tag}`,
-      target_commitish: sourceSha,
+      target_commitish: "main",
     };
     expect(validateMatchingPublishedReleases(
       workflowRelease,

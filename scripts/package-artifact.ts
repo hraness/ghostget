@@ -259,9 +259,14 @@ export async function inspectPackageArtifact(
       );
     }
 
-    const nextOffset = offset + blockSize + Math.ceil(size / blockSize) * blockSize;
+    const dataOffset = offset + blockSize;
+    const contentEnd = dataOffset + size;
+    const nextOffset = dataOffset + Math.ceil(size / blockSize) * blockSize;
     if (nextOffset > tar.length) {
       throw new Error(`Package tar entry exceeds the archive: ${path}`);
+    }
+    if (tar.subarray(contentEnd, nextOffset).some((byte) => byte !== 0)) {
+      throw new Error(`Package tar entry padding is invalid: ${path}`);
     }
     if (type === "directory" && size !== 0) {
       throw new Error(`Package tar directory has non-zero size: ${path}`);
@@ -274,7 +279,7 @@ export async function inspectPackageArtifact(
     seen.add(relative);
 
     if (type === "file") {
-      const content = tar.subarray(offset + blockSize, offset + blockSize + size);
+      const content = tar.subarray(dataOffset, contentEnd);
       const file = Object.freeze({
         contentSha256: createHash("sha256").update(content).digest("hex"),
         contentSha512: createHash("sha512").update(content).digest("hex"),

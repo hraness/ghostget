@@ -550,12 +550,20 @@ jobs:
           const resolutionCounts = new Map();
           const seenJobIds = new Set();
           const legacyGenericStages = new Map([
-            [33134350359, { jobId: 98736138383, sha: "59724c9b8d660dc082989f154ee4e98c502df612", version: "0.16.0" }],
-            [33144248535, { jobId: 98768005663, sha: "12fde2af132b924f10664f249c924314c9d4ae9b", version: "0.16.1" }],
-            [33236415013, { jobId: 99062211048, sha: "33309c470336127228b959e2aaa54138247b9684", version: "0.16.2" }],
-            [33715165834, { jobId: 100531488173, sha: "c2d956ca4102d38c29e24ca4e13f26ce862b47f3", version: "0.16.3" }],
-            [33832566262, { jobId: 100906143000, sha: "05e6a3e7a19e34b2f1611357a3b124467b5a8977", version: "0.16.4" }],
-            [33920809926, { jobId: 101188893427, sha: "745ed522873c2e5d14537719d8dc74ac6bf2d70f", version: "0.16.5" }],
+            [33134350359, { jobId: 98736138383, runAttempt: 1, sha: "59724c9b8d660dc082989f154ee4e98c502df612", version: "0.16.0" }],
+            [33144248535, { jobId: 98768005663, runAttempt: 1, sha: "12fde2af132b924f10664f249c924314c9d4ae9b", version: "0.16.1" }],
+            [33236415013, { jobId: 99062211048, runAttempt: 1, sha: "33309c470336127228b959e2aaa54138247b9684", version: "0.16.2" }],
+            [33715165834, { jobId: 100531488173, runAttempt: 1, sha: "c2d956ca4102d38c29e24ca4e13f26ce862b47f3", version: "0.16.3" }],
+            [33832566262, { jobId: 100906143000, runAttempt: 1, sha: "05e6a3e7a19e34b2f1611357a3b124467b5a8977", version: "0.16.4" }],
+            [33920809926, { jobId: 101188893427, runAttempt: 1, sha: "745ed522873c2e5d14537719d8dc74ac6bf2d70f", version: "0.16.5" }],
+            [33980252754, {
+              jobId: 101350099282,
+              runAttempt: 1,
+              sha: "2292db1323e2d1a1c94e2fb7d8731b0c8ce97fc2",
+              terminalStepName: "Revalidate protected-main ancestry and stage exact package",
+              terminalStepNumber: 7,
+              version: "0.16.6",
+            }],
           ]);
           const increment = (map, version) => map.set(version, (map.get(version) ?? 0) + 1);
           const inspectRunJobs = (runId, expectedSha, completedRun) => {
@@ -619,10 +627,10 @@ jobs:
                   legacy === undefined
                   || completedRun === undefined
                   || job.id !== legacy.jobId
-                  || job.run_attempt !== 1
+                  || job.run_attempt !== legacy.runAttempt
                   || job.status !== "completed"
                   || expectedSha !== legacy.sha
-                  || completedRun.run_attempt !== 1
+                  || completedRun.run_attempt !== legacy.runAttempt
                   || completedRun.conclusion !== "success"
                   || completedRun.actor?.id !== 894119
                   || completedRun.actor?.type !== "User"
@@ -633,6 +641,16 @@ jobs:
                 }
                 if (compare(parseVersion(legacy.version, `Legacy stage from run ${runId}`), latest) > 0) {
                   throw new Error(`Legacy stage ${legacy.version} from run ${runId} is not covered by public npm latest`);
+                }
+                if (legacy.terminalStepName !== undefined) {
+                  const sealedTerminalWrites = job.steps.filter(step => (
+                    step.name === legacy.terminalStepName
+                    && step.number === legacy.terminalStepNumber
+                    && step.conclusion === "success"
+                  ));
+                  if (sealedTerminalWrites.length !== 1 || terminalWrites.length !== 1) {
+                    throw new Error(`npm-stage run ${runId} does not match its sealed terminal stage identity`);
+                  }
                 }
                 continue;
               }
@@ -1068,14 +1086,6 @@ jobs:
             }
           NODE
           fi
-          git ls-remote --sort=refname --refs "$repository_url" \
-            "refs/heads/main" "refs/tags/v$EXPECTED_VERSION" \
-            > "$RUNNER_TEMP/governed-2.refs"
-          if ! cmp --silent \
-            "$RUNNER_TEMP/governed-1.refs" "$RUNNER_TEMP/governed-2.refs"; then
-            echo "::error::Governed refs changed between terminal staging advertisements"
-            exit 1
-          fi
           unset NPM_CONFIG_TAG npm_config_tag
           configured_tag="$(cd "$NPM_DIRECTORY" && \
             NPM_CONFIG_USERCONFIG="$NPM_USERCONFIG" \
@@ -1114,6 +1124,14 @@ jobs:
           }
           throw new Error(`Candidate ${expectedValue} is already public as npm latest`);
           NODE
+          git ls-remote --sort=refname --refs "$repository_url" \
+            "refs/heads/main" "refs/tags/v$EXPECTED_VERSION" \
+            > "$RUNNER_TEMP/governed-2.refs"
+          if ! cmp --silent \
+            "$RUNNER_TEMP/governed-1.refs" "$RUNNER_TEMP/governed-2.refs"; then
+            echo "::error::Governed refs changed between terminal staging advertisements"
+            exit 1
+          fi
           (cd "$NPM_DIRECTORY" && \
             NPM_CONFIG_USERCONFIG="$NPM_USERCONFIG" \
             NPM_CONFIG_GLOBALCONFIG="$NPM_GLOBALCONFIG" \

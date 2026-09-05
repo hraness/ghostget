@@ -620,13 +620,6 @@ jobs:
             gh api "/repos/$GITHUB_REPOSITORY/releases/latest" > "$predecessor_release_file"
             node ./scripts/release-provider-outcome.mjs \
               validate-latest-predecessor < "$predecessor_release_file"
-            current_main_sha="$(gh api "/repos/$GITHUB_REPOSITORY/git/ref/heads/$DEFAULT_BRANCH" --jq '.object.sha')"
-            remote_tag_sha="$(gh api "/repos/$GITHUB_REPOSITORY/commits/refs%2Ftags%2F$VERIFIED_TAG" --jq '.sha')"
-            if [[ ! "$current_main_sha" =~ ^[0-9a-f]{40}$ || "$remote_tag_sha" != "$VERIFIED_SHA" ]]; then
-              echo "::error::Release authority moved before publication"
-              exit 1
-            fi
-            verify_publication_authority prewrite "$current_main_sha"
           fi
           unset NPM_CONFIG_TAG npm_config_tag
           configured_tag="$(cd "$npm_directory" && \
@@ -653,6 +646,13 @@ jobs:
           ) throw new Error("Canonical npm latest is not the exact verified release version");
           NODE
           if [[ "$release_lookup_state" == "missing" ]]; then
+            current_main_sha="$(gh api "/repos/$GITHUB_REPOSITORY/git/ref/heads/$DEFAULT_BRANCH" --jq '.object.sha')"
+            remote_tag_sha="$(gh api "/repos/$GITHUB_REPOSITORY/commits/refs%2Ftags%2F$VERIFIED_TAG" --jq '.sha')"
+            if [[ ! "$current_main_sha" =~ ^[0-9a-f]{40}$ || "$remote_tag_sha" != "$VERIFIED_SHA" ]]; then
+              echo "::error::Release authority moved before publication"
+              exit 1
+            fi
+            verify_publication_authority prewrite "$current_main_sha"
             release_receipt="$(node ./scripts/release-provider-outcome.mjs release-source-receipt)"
             created_release="$(gh api \
               --method POST \
