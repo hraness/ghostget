@@ -208,6 +208,8 @@ describe("Google OAuth lifecycle", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("Content-Security-Policy"))
         .toBe("default-src 'none'; font-src data:; style-src 'unsafe-inline'");
+      expect(html).toContain("Google is connected. You can close this tab and return to Wrench.");
+      expect(html).not.toContain("return to Codex");
       expect(html).toContain('font:18px/1.5 "Nebula Sans",ui-sans-serif,system-ui,sans-serif');
       expect(html).not.toContain("font:18px system-ui");
       expect(fontBytes.byteLength).toBe(70_652);

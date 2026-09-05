@@ -437,7 +437,7 @@ async function defaultAuthorize(
         finish(error instanceof Error ? error : new Error("Google returned an invalid authorization code"));
         return;
       }
-      callbackHtml(response, 200, "Google is connected. You can close this tab and return to Codex.");
+      callbackHtml(response, 200, "Google is connected. You can close this tab and return to Wrench.");
       finish(null, { code: validatedCode, redirectUri });
     });
     const timer = setTimeout(

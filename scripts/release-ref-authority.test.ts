@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import {
   assertRemoteTagAbsent,
@@ -18,6 +18,19 @@ import {
 
 const repositoryUrl = "https://github.com/hraness/wrench.git";
 const temporaryRoots: string[] = [];
+const protectedReleaseRuntimePaths = Object.freeze([
+  "scripts/release-ref-authority.ts",
+  "scripts/npm-provenance-identity.ts",
+  "scripts/npm-package-identity.ts",
+  "scripts/package-artifact.ts",
+  "scripts/package-budget.ts",
+  "scripts/package-smoke.ts",
+  "scripts/private-source-client-runtime-smoke.ts",
+  "scripts/release-provider-outcome.mjs",
+  "scripts/release-app-token.mjs",
+  "scripts/release-ref-writer.mjs",
+  "website/production-release-marker.mjs",
+]);
 
 afterEach(() => {
   for (const root of temporaryRoots.splice(0)) rmSync(root, { force: true, recursive: true });
@@ -62,6 +75,7 @@ function fixture(options: Readonly<{
   higherTagKind?: "annotated" | "lightweight";
   mainAtRelease?: boolean;
   releaseControlDrift?: boolean;
+  releaseControlDriftPath?: string;
   requestedTagKind?: "annotated" | "lightweight";
   workflowDrift?: boolean;
 }> = {}): Fixture {
@@ -74,9 +88,12 @@ function fixture(options: Readonly<{
   git(source, ["config", "user.email", "release-ref-authority@example.invalid"]);
   git(source, ["config", "user.name", "Release Ref Authority Fixture"]);
   writeFileSync(join(source, "package.json"), '{"name":"@hraness/wrench","version":"1.0.0"}\n');
-  if (options.releaseControlDrift === true) {
-    mkdirSync(join(source, "scripts"), { recursive: true });
-    writeFileSync(join(source, "scripts", "release-provider-outcome.mjs"), "export const revision = 1;\n");
+  const releaseControlDriftPath = options.releaseControlDriftPath
+    ?? (options.releaseControlDrift === true ? "scripts/release-provider-outcome.mjs" : undefined);
+  if (releaseControlDriftPath !== undefined) {
+    const driftFile = join(source, releaseControlDriftPath);
+    mkdirSync(dirname(driftFile), { recursive: true });
+    writeFileSync(driftFile, "export const revision = 1;\n");
   }
   git(source, ["add", "."]);
   git(source, ["commit", "--no-gpg-sign", "-m", "release"]);
@@ -108,9 +125,9 @@ function fixture(options: Readonly<{
         writeFileSync(join(source, ".github", "workflows", "drift.yml"), "name: drift\n");
         git(source, ["add", ".github/workflows/drift.yml"]);
       }
-      if (value === "one" && options.releaseControlDrift === true) {
-        writeFileSync(join(source, "scripts", "release-provider-outcome.mjs"), "export const revision = 2;\n");
-        git(source, ["add", "scripts/release-provider-outcome.mjs"]);
+      if (value === "one" && releaseControlDriftPath !== undefined) {
+        writeFileSync(join(source, releaseControlDriftPath), "export const revision = 2;\n");
+        git(source, ["add", releaseControlDriftPath]);
       }
       git(source, ["commit", "--no-gpg-sign", "-m", value]);
       if (value === "one") workflowSha = text(source, ["rev-parse", "HEAD"]);
@@ -460,12 +477,21 @@ describe("Wrench release and promotion ref authority", () => {
     })).toThrow("changed during verification");
   });
 
-  test("rejects release-control definition drift", () => {
-    for (const driftOptions of [
-      { workflowDrift: true },
-      { releaseControlDrift: true },
-    ] as const) {
-      const releaseControlDrift = fixture(driftOptions);
+  test("rejects workflow release-control definition drift", () => {
+    const releaseControlDrift = fixture({ workflowDrift: true });
+    checkoutRelease(releaseControlDrift);
+    expect(() => verifyReleaseRefAuthority({
+      mode: "release",
+      requestedTag: "v1.0.0",
+      runner: runnerFor(releaseControlDrift).runner,
+      workingDirectory: releaseControlDrift.work,
+    })).toThrow("different release-control definitions");
+  });
+
+  test.each(protectedReleaseRuntimePaths)(
+    "rejects release-control definition drift in %s",
+    (releaseControlDriftPath) => {
+      const releaseControlDrift = fixture({ releaseControlDriftPath });
       checkoutRelease(releaseControlDrift);
       expect(() => verifyReleaseRefAuthority({
         mode: "release",
@@ -473,8 +499,8 @@ describe("Wrench release and promotion ref authority", () => {
         runner: runnerFor(releaseControlDrift).runner,
         workingDirectory: releaseControlDrift.work,
       })).toThrow("different release-control definitions");
-    }
-  });
+    },
+  );
 
   test("binds two combined advertisements immediately before publication", () => {
     const input = fixture();
@@ -502,9 +528,16 @@ describe("Wrench release and promotion ref authority", () => {
       "--",
       ".github/workflows",
       "scripts/release-ref-authority.ts",
+      "scripts/npm-provenance-identity.ts",
+      "scripts/npm-package-identity.ts",
+      "scripts/package-artifact.ts",
+      "scripts/package-budget.ts",
+      "scripts/package-smoke.ts",
+      "scripts/private-source-client-runtime-smoke.ts",
       "scripts/release-provider-outcome.mjs",
       "scripts/release-app-token.mjs",
       "scripts/release-ref-writer.mjs",
+      "website/production-release-marker.mjs",
     ]);
   });
 
@@ -729,6 +762,18 @@ describe("Wrench staging ref authority", () => {
       runner: runnerFor(input).runner,
       tag: "v1.0.1-rc.1",
     })).toThrow("canonical stable version");
+    expect(() => assertRemoteTagAbsent({
+      runner: runnerFor(input).runner,
+      tag: "v9007199254740992.0.0",
+    })).toThrow("canonical stable version");
+    expect(assertRemoteTagAbsent({
+      expectedHeadSha: input.mainSha,
+      runner: runnerFor(input).runner,
+      tag: "v9007199254740991.0.0",
+    })).toEqual({
+      mainSha: input.mainSha,
+      tag: "v9007199254740991.0.0",
+    });
 
     let reads = 0;
     const drift = runnerFor(input, {

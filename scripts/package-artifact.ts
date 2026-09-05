@@ -230,9 +230,20 @@ export async function inspectPackageArtifact(
       break;
     }
     verifyHeaderChecksum(header, offset);
+    if (
+      !header.subarray(257, 263).equals(Buffer.from("ustar\0", "ascii"))
+      || !header.subarray(263, 265).equals(Buffer.from("00", "ascii"))
+    ) {
+      throw new Error(`Package tar header is not exact USTAR at byte ${String(offset)}`);
+    }
 
     const name = readString(header, 0, 100, `entry name at byte ${String(offset)}`);
-    const prefix = readString(header, 345, 155, `entry prefix at byte ${String(offset)}`);
+    const prefix = readString(
+      header,
+      345,
+      header[475] === 0 ? 130 : 155,
+      `entry prefix at byte ${String(offset)}`,
+    );
     const path = prefix.length > 0 ? `${prefix}/${name}` : name;
     const size = readOctal(header, 124, 12, `entry size for ${path}`);
     const mode = readOctal(header, 100, 8, `entry mode for ${path}`);
@@ -248,9 +259,14 @@ export async function inspectPackageArtifact(
       );
     }
 
-    const nextOffset = offset + blockSize + Math.ceil(size / blockSize) * blockSize;
+    const dataOffset = offset + blockSize;
+    const contentEnd = dataOffset + size;
+    const nextOffset = dataOffset + Math.ceil(size / blockSize) * blockSize;
     if (nextOffset > tar.length) {
       throw new Error(`Package tar entry exceeds the archive: ${path}`);
+    }
+    if (tar.subarray(contentEnd, nextOffset).some((byte) => byte !== 0)) {
+      throw new Error(`Package tar entry padding is invalid: ${path}`);
     }
     if (type === "directory" && size !== 0) {
       throw new Error(`Package tar directory has non-zero size: ${path}`);
@@ -263,7 +279,7 @@ export async function inspectPackageArtifact(
     seen.add(relative);
 
     if (type === "file") {
-      const content = tar.subarray(offset + blockSize, offset + blockSize + size);
+      const content = tar.subarray(dataOffset, contentEnd);
       const file = Object.freeze({
         contentSha256: createHash("sha256").update(content).digest("hex"),
         contentSha512: createHash("sha512").update(content).digest("hex"),

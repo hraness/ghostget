@@ -10,6 +10,7 @@ import {
 
 const npmRegistry = "https://registry.npmjs.org";
 const stableVersionPattern = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
+const maximumSafeSemverComponent = BigInt(Number.MAX_SAFE_INTEGER);
 
 type NpmPackFile = Readonly<{
   mode: number;
@@ -110,7 +111,13 @@ function expectedFilename(name: string, version: string): string {
   if (name !== "@hraness/wrench") {
     throw new Error(`Expected package name must be @hraness/wrench, received ${name}`);
   }
-  if (!stableVersionPattern.test(version)) {
+  const match = stableVersionPattern.exec(version);
+  if (
+    match?.[1] === undefined
+    || match[2] === undefined
+    || match[3] === undefined
+    || match.slice(1).some(component => BigInt(component) > maximumSafeSemverComponent)
+  ) {
     throw new Error(`Expected package version is not stable semantic version: ${version}`);
   }
   return `hraness-wrench-${version}.tgz`;
@@ -302,6 +309,43 @@ async function verifyRegistryView(
       !== canonicalRegistryTarball(expectedName, expectedVersion)
   ) {
     throw new Error("npm registry metadata differs from the downloaded canonical package");
+  }
+  const attestations = record(dist.attestations, "npm registry view.dist.attestations");
+  const provenance = record(
+    attestations.provenance,
+    "npm registry view.dist.attestations.provenance",
+  );
+  const attestationUrl = new URL(
+    stringField(attestations, "url", "npm registry view.dist.attestations"),
+  );
+  const attestationPrefix = "/-/npm/v1/attestations/";
+  if (
+    attestationUrl.origin !== npmRegistry
+    || attestationUrl.username !== ""
+    || attestationUrl.password !== ""
+    || attestationUrl.search !== ""
+    || attestationUrl.hash !== ""
+    || !attestationUrl.pathname.startsWith(attestationPrefix)
+    || decodeURIComponent(attestationUrl.pathname.slice(attestationPrefix.length))
+      !== `${expectedName}@${expectedVersion}`
+    || stringField(
+      provenance,
+      "predicateType",
+      "npm registry view.dist.attestations.provenance",
+    ) !== "https://slsa.dev/provenance/v1"
+  ) {
+    throw new Error("npm registry provenance metadata is not canonical");
+  }
+  if (!Array.isArray(dist.signatures) || dist.signatures.length === 0) {
+    throw new Error("npm registry package has no registry signature");
+  }
+  for (const [index, value] of dist.signatures.entries()) {
+    const signature = record(value, `npm registry signature ${String(index + 1)}`);
+    const keyId = stringField(signature, "keyid", `npm registry signature ${String(index + 1)}`);
+    const bytes = stringField(signature, "sig", `npm registry signature ${String(index + 1)}`);
+    if (!/^SHA256:[A-Za-z0-9+/]+={0,2}$/u.test(keyId) || !/^[A-Za-z0-9+/]+={0,2}$/u.test(bytes)) {
+      throw new Error("npm registry signature metadata is malformed");
+    }
   }
 }
 

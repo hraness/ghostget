@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url";
 
 import {
   RELEASE_APP_REVOCATION_OBSERVATION_OFFSETS_MILLISECONDS,
+  WRENCH_REPOSITORY_ID,
   withReleaseAppTokenFromEnvironment,
 } from "./release-app-token.mjs";
 import { advanceWebsiteProductionRefFromEnvironment } from "./release-ref-writer.mjs";
@@ -19,8 +20,8 @@ import {
   serializeProductionReleaseMarker,
 } from "../website/production-release-marker.mjs";
 
-const BASELINE_SCHEMA = "wrench-provider-baseline-v3";
-const PROMOTION_SCHEMA = "wrench-provider-promotion-v2";
+const BASELINE_SCHEMA = "wrench-provider-baseline-v4";
+const PROMOTION_SCHEMA = "wrench-provider-promotion-v3";
 const PRODUCTION_REF = "refs/heads/website-production";
 const PAGE_SIZE = 100;
 const MAX_ITEMS = 500;
@@ -41,6 +42,17 @@ const MAX_PUBLIC_REDIRECT_BYTES = 1_024;
 const MAX_ENCODED_RECEIPT_BYTES = 64 * 1024;
 const PAGINATED_READ_REQUESTS = MAX_ITEMS / PAGE_SIZE + 1;
 const GITHUB_TOKEN_REST_REQUEST_LIMIT = 1_000;
+const GITHUB_ACTIONS_RELEASE_BOT = Object.freeze({
+  id: 41898282,
+  type: "Bot",
+});
+const RELEASE_WORKFLOW = Object.freeze({
+  id: 323493609,
+  path: ".github/workflows/release.yml",
+});
+const RELEASE_OWNER = Object.freeze({ id: 894119, type: "User" });
+const RELEASE_WORKFLOW_REQUEST_TIMEOUT_MILLISECONDS = 10_000;
+const RELEASE_SOURCE_RECEIPT_SCHEMA = "wrench-release-source-v1";
 const VERCEL_CREATOR = Object.freeze({ id: 35613825, login: "vercel[bot]", type: "Bot" });
 const VERCEL_GRAPHQL_CREATOR = Object.freeze({ id: 35613825, login: "vercel", type: "Bot" });
 const GRAPHQL_PAGE_SIZE = 100;
@@ -61,6 +73,7 @@ const PUBLIC_TEXT_ROUTES = Object.freeze([
   Object.freeze({ prefix: "# Wrench\n", path: "/llms.txt" }),
 ]);
 const STABLE_TAG = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
+const MAXIMUM_SAFE_SEMVER_COMPONENT = BigInt(Number.MAX_SAFE_INTEGER);
 const SHA = /^[0-9a-f]{40}$/u;
 const SECOND_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/u;
 const RECEIPT_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
@@ -176,6 +189,7 @@ const OUTCOME_REST_REQUESTS =
   7 +
   12; // three source checks add four calls each for the second main read and three comparisons
 const IMMUTABLE_RELEASE_REST_REQUESTS =
+  6 + // terminal current-attempt, workflow, repository, tag, main, and compare reauthorization
   3 + // initial tag, main, and exact Release lookup
   PAGINATED_READ_REQUESTS + // five bounded Release pages plus the empty sentinel
   2 + // pre-create main and tag revalidation
@@ -183,7 +197,8 @@ const IMMUTABLE_RELEASE_REST_REQUESTS =
   3 + // Release, terminal tag, and terminal main readbacks
   LATEST_RELEASE_MAX_ATTEMPTS + // bounded Latest convergence
   3; // pinned predecessor plus terminal exact-by-tag and Latest projection readbacks
-const WEBSITE_AUTHORITY_REST_REQUESTS = 2 + 4 * (2 * (7 + 1 + 1 + 1));
+const WEBSITE_AUTHORITY_REST_REQUESTS =
+  2 + 4 * (2 * (7 + 1 + 1 + 1)) + 1; // one initial exact Release workflow-run read
 const SURROUNDING_RELEASE_REST_REQUESTS =
   IMMUTABLE_RELEASE_REST_REQUESTS + WEBSITE_AUTHORITY_REST_REQUESTS;
 const BASELINE_GRAPHQL_REQUESTS = 2 * MAX_GRAPHQL_DEPLOYMENT_PAGES;
@@ -634,12 +649,20 @@ function createProviderDeadline(monotonicNow) {
 }
 
 function deadlineBoundReadApi(api, deadline) {
-  const invoke = async (method, args, label) => {
+  const invoke = async (method, args, label, requestedTimeoutMilliseconds) => {
     const operation = api?.[method];
     if (typeof operation !== "function") fail(`provider API has no ${method} method`);
+    if (
+      requestedTimeoutMilliseconds !== undefined
+      && (!Number.isSafeInteger(requestedTimeoutMilliseconds)
+        || requestedTimeoutMilliseconds <= 0)
+    ) {
+      fail(`${label} timeout is not a positive safe integer`);
+    }
     const before = deadline.begin(`begin ${label}`);
     const timeoutMilliseconds = Math.min(
       PROVIDER_API_CALL_TIMEOUT_MILLISECONDS,
+      requestedTimeoutMilliseconds ?? PROVIDER_API_CALL_TIMEOUT_MILLISECONDS,
       Math.floor(before.remainingMilliseconds),
     );
     const result = await operation.call(api, ...args, Object.freeze({ timeoutMilliseconds }));
@@ -650,7 +673,12 @@ function deadlineBoundReadApi(api, deadline) {
     return result;
   };
   return Object.freeze({
-    get: (endpoint) => invoke("get", [endpoint], `GET ${String(endpoint)}`),
+    get: (endpoint, options = {}) => invoke(
+      "get",
+      [endpoint],
+      `GET ${String(endpoint)}`,
+      options.timeoutMilliseconds,
+    ),
     graphql: (request) => invoke("graphql", [request], "GraphQL Production deployments"),
   });
 }
@@ -735,7 +763,9 @@ function expectSha(value, label) {
 
 function expectStableTag(value, label) {
   const tag = expectString(value, label);
-  if (!STABLE_TAG.test(tag)) fail(`${label} is not one stable semantic-version tag`);
+  if (stableVersion(tag, label) === undefined) {
+    fail(`${label} is not one stable semantic-version tag in npm's safe numeric range`);
+  }
   return tag;
 }
 
@@ -1276,7 +1306,9 @@ async function readDeployment(api, repository, deploymentId) {
 function stableVersion(tag, label) {
   const match = STABLE_TAG.exec(expectString(tag, label));
   if (match === null) return undefined;
-  return Object.freeze(match.slice(1).map((part) => BigInt(part)));
+  const version = match.slice(1).map((part) => BigInt(part));
+  if (version.some(component => component > MAXIMUM_SAFE_SEMVER_COMPONENT)) return undefined;
+  return Object.freeze(version);
 }
 
 function compareStableVersions(left, right) {
@@ -1286,12 +1318,18 @@ function compareStableVersions(left, right) {
   return 0;
 }
 
-export async function assertReleaseTagNewerThanPublished({ api, repository, verifiedTag }) {
+export async function assertReleaseTagNewerThanPublished({
+  allowExistingTarget = false,
+  api,
+  repository,
+  verifiedTag,
+}) {
   const coordinate = expectRepository(repository);
   const tag = expectStableTag(verifiedTag, "verified tag");
   const next = stableVersion(tag, "verified tag");
   const ids = new Set();
   let exhausted = false;
+  let existingTargetCount = 0;
 
   for (let page = 1; page <= PAGINATED_READ_REQUESTS; page += 1) {
     const rawPage = expectArray(
@@ -1345,12 +1383,20 @@ export async function assertReleaseTagNewerThanPublished({ api, repository, veri
           release.published_at,
           `published releases page ${String(page)} item ${String(index)} published_at`,
         );
-        if (compareStableVersions(next, current) <= 0) {
+        const order = compareStableVersions(next, current);
+        if (order === 0 && allowExistingTarget && currentTag === tag) {
+          existingTargetCount += 1;
+          continue;
+        }
+        if (order <= 0) {
           fail(`Release ${tag} is not newer than ${currentTag}`);
         }
       }
     }
     if (rawPage.length < PAGE_SIZE) exhausted = true;
+  }
+  if (allowExistingTarget && existingTargetCount !== 1) {
+    fail(`Published release history does not contain exactly one existing ${tag}`);
   }
 }
 
@@ -1680,12 +1726,20 @@ function assertNoTerminalRestFailure(statuses, candidateId) {
   }
 }
 
-async function readImmutableRelease(api, repository, tag) {
-  const value = exactPublishedRelease(
-    await api.get(`/repos/${repository}/releases/tags/${tag}`),
-    tag,
-    `Release ${tag}`,
-  );
+async function readImmutableRelease(
+  api,
+  repository,
+  tag,
+  verifiedSha,
+  workflowRunId,
+) {
+  const value = exactWorkflowPublishedRelease({
+    repository,
+    value: await api.get(`/repos/${repository}/releases/tags/${tag}`),
+    verifiedSha,
+    verifiedTag: tag,
+    workflowRunId,
+  }, `Release ${tag}`);
   const published = parseSecondTimestamp(value.published_at, `Release ${tag}.published_at`);
   return Object.freeze({
     id: value.id,
@@ -1694,13 +1748,31 @@ async function readImmutableRelease(api, repository, tag) {
   });
 }
 
-async function readLatestRelease(api, repository, tag) {
-  const value = expectRecord(
+async function readLatestRelease(
+  api,
+  repository,
+  tag,
+  verifiedSha,
+  workflowRunId,
+  expectedRelease,
+) {
+  const latestValue = expectRecord(
     await api.get(`/repos/${repository}/releases/latest`),
     "Latest Release",
   );
-  if (value.tag_name !== tag) {
-    fail(`Release ${tag} is no longer Latest; recover from the current immutable Latest Release`);
+  if (latestValue.tag_name !== tag) fail(`Release ${tag} is no longer Latest`);
+  const value = exactWorkflowPublishedRelease({
+    repository,
+    value: latestValue,
+    verifiedSha,
+    verifiedTag: tag,
+    workflowRunId,
+  }, "Latest Release");
+  if (
+    value.id !== expectedRelease.id
+    || value.published_at !== expectedRelease.publishedAt
+  ) {
+    fail(`Release ${tag} is no longer the exact immutable Latest Release`);
   }
 }
 
@@ -1718,6 +1790,7 @@ export async function revalidateReleaseAuthority({
   api,
   defaultBranch,
   eventName,
+  releaseWorkflowRunId,
   recoveryWorkflowSha,
   repository,
   verifiedSha,
@@ -1726,31 +1799,35 @@ export async function revalidateReleaseAuthority({
   const coordinate = expectRepository(repository);
   const sha = expectSha(verifiedSha, "verified SHA");
   const tag = expectStableTag(verifiedTag, "verified tag");
+  const runId = expectWorkflowRunId(releaseWorkflowRunId, "verified Release workflow run id");
   const workflowSource = Object.freeze({ defaultBranch, eventName, recoveryWorkflowSha });
   if (eventName !== "workflow_dispatch" && eventName !== "workflow_run") {
     fail("website promotion authority must use the reviewed main-origin promotion workflow");
   }
+  await revalidateWorkflowSource(api, coordinate, workflowSource);
+  await readVerifiedTagCommit(api, coordinate, tag, sha);
+  const firstRelease = await readImmutableRelease(
+    api,
+    coordinate,
+    tag,
+    sha,
+    runId,
+  );
+  await readLatestRelease(api, coordinate, tag, sha, runId, firstRelease);
 
   await revalidateWorkflowSource(api, coordinate, workflowSource);
   await readVerifiedTagCommit(api, coordinate, tag, sha);
-  const firstRelease = exactPublishedRelease(
-    await api.get(`/repos/${coordinate}/releases/tags/${tag}`),
+  const secondRelease = await readImmutableRelease(
+    api,
+    coordinate,
     tag,
-    `Release ${tag}`,
+    sha,
+    runId,
   );
-  await readLatestRelease(api, coordinate, tag);
-
-  await revalidateWorkflowSource(api, coordinate, workflowSource);
-  await readVerifiedTagCommit(api, coordinate, tag, sha);
-  const secondRelease = exactPublishedRelease(
-    await api.get(`/repos/${coordinate}/releases/tags/${tag}`),
-    tag,
-    `terminal Release ${tag}`,
-  );
-  await readLatestRelease(api, coordinate, tag);
+  await readLatestRelease(api, coordinate, tag, sha, runId, secondRelease);
   if (
     firstRelease.id !== secondRelease.id ||
-    firstRelease.published_at !== secondRelease.published_at
+    firstRelease.publishedAt !== secondRelease.publishedAt
   ) {
     fail(`Release ${tag} changed during authority verification`);
   }
@@ -1772,6 +1849,260 @@ export function exactPublishedRelease(value, tag, label = "published Release") {
   }
   parseSecondTimestamp(release.published_at, `${label}.published_at`);
   return release;
+}
+
+function expectWorkflowRunId(value, label = "workflow run id") {
+  const text = expectString(value, label);
+  if (!/^[1-9][0-9]*$/u.test(text) || !Number.isSafeInteger(Number(text))) {
+    fail(`${label} is not a positive safe integer`);
+  }
+  return text;
+}
+
+export function releaseSourceReceipt({ repository, verifiedSha, verifiedTag, workflowRunId }) {
+  const coordinate = expectRepository(repository);
+  const sha = expectSha(verifiedSha, "release receipt source SHA");
+  const tag = expectStableTag(verifiedTag, "release receipt tag");
+  const runId = expectWorkflowRunId(workflowRunId, "release receipt workflow run id");
+  return [
+    RELEASE_SOURCE_RECEIPT_SCHEMA,
+    `repository=${coordinate}`,
+    `tag=${tag}`,
+    `source_sha=${sha}`,
+    `workflow_run_id=${runId}`,
+  ].join(" ");
+}
+
+export function exactWorkflowPublishedRelease({
+  repository,
+  value,
+  verifiedSha,
+  verifiedTag,
+  workflowRunId,
+}, label = "workflow-published Release") {
+  const release = exactPublishedRelease(value, verifiedTag, label);
+  const expectedReceipt = releaseSourceReceipt({
+    repository,
+    verifiedSha,
+    verifiedTag,
+    workflowRunId,
+  });
+  const body = expectString(release.body, `${label}.body`);
+  if (
+    release.author?.id !== GITHUB_ACTIONS_RELEASE_BOT.id
+    || release.author?.type !== GITHUB_ACTIONS_RELEASE_BOT.type
+    || (body !== expectedReceipt && !body.startsWith(`${expectedReceipt}\n\n`))
+  ) {
+    fail(`Release ${verifiedTag} does not have the exact Actions workflow identity and source receipt`);
+  }
+  return release;
+}
+
+export function releaseWorkflowRunIdFromPublishedRelease({
+  repository,
+  value,
+  verifiedSha,
+  verifiedTag,
+}, label = "workflow-published Release") {
+  const coordinate = expectRepository(repository);
+  const sha = expectSha(verifiedSha, "verified SHA");
+  const tag = expectStableTag(verifiedTag, "verified tag");
+  const release = exactPublishedRelease(value, tag, label);
+  const body = expectString(release.body, `${label}.body`);
+  const prefix = [
+    RELEASE_SOURCE_RECEIPT_SCHEMA,
+    `repository=${coordinate}`,
+    `tag=${tag}`,
+    `source_sha=${sha}`,
+    "workflow_run_id=",
+  ].join(" ");
+  const firstLine = body.split("\n", 1)[0] ?? "";
+  if (!firstLine.startsWith(prefix)) {
+    fail(`Release ${tag} does not have an anchored source receipt`);
+  }
+  const workflowRunId = expectWorkflowRunId(
+    firstLine.slice(prefix.length),
+    "Release receipt workflow run id",
+  );
+  exactWorkflowPublishedRelease({
+    repository: coordinate,
+    value: release,
+    verifiedSha: sha,
+    verifiedTag: tag,
+    workflowRunId,
+  }, label);
+  return workflowRunId;
+}
+
+function expectReleaseOwner(value, label) {
+  const actor = expectRecord(value, label);
+  if (
+    actor.id !== RELEASE_OWNER.id
+    || actor.type !== RELEASE_OWNER.type
+  ) {
+    fail(`${label} is not the exact release owner`);
+  }
+}
+
+function expectReleaseRepository(value, repository, label) {
+  const exact = expectRecord(value, label);
+  if (
+    exact.id !== WRENCH_REPOSITORY_ID
+    || exact.full_name !== repository
+    || exact.private !== false
+  ) {
+    fail(`${label} is not the exact public Wrench repository`);
+  }
+}
+
+export function exactReleaseWorkflowRun({
+  expectedRunAttempt = "",
+  repository,
+  value,
+  verifiedSha,
+  verifiedTag,
+  workflowRunId,
+}, label = "Release workflow run") {
+  const coordinate = expectRepository(repository);
+  const sha = expectSha(verifiedSha, "verified SHA");
+  const tag = expectStableTag(verifiedTag, "verified tag");
+  const runId = expectWorkflowRunId(workflowRunId, "verified Release workflow run id");
+  const run = expectRecord(value, label);
+  const runAttempt = expectSafeId(run.run_attempt, `${label}.run_attempt`);
+  const expectedAttemptText = expectString(expectedRunAttempt, "expected Release run attempt");
+  if (
+    expectedAttemptText !== ""
+    && runAttempt !== Number(expectWorkflowRunId(expectedAttemptText, "expected Release run attempt"))
+  ) {
+    fail(`${label} does not match the triggering Release run attempt`);
+  }
+  expectReleaseOwner(run.actor, `${label}.actor`);
+  expectReleaseOwner(run.triggering_actor, `${label}.triggering_actor`);
+  expectReleaseRepository(run.repository, coordinate, `${label}.repository`);
+  expectReleaseRepository(run.head_repository, coordinate, `${label}.head_repository`);
+  if (
+    run.id !== Number(runId)
+    || run.workflow_id !== RELEASE_WORKFLOW.id
+    || run.path !== RELEASE_WORKFLOW.path
+    || run.event !== "push"
+    || run.head_branch !== tag
+    || run.head_sha !== sha
+    || run.status !== "completed"
+    || run.conclusion !== "success"
+  ) {
+    fail(`${label} does not have the exact successful Release workflow identity`);
+  }
+  return run;
+}
+
+export async function resolveReleaseAuthority({
+  api,
+  defaultBranch,
+  eventName,
+  recoveryWorkflowSha,
+  repository,
+  requestedReleaseWorkflowRunAttempt = "",
+  requestedReleaseWorkflowRunId = "",
+  verifiedSha,
+  verifiedTag,
+}) {
+  const coordinate = expectRepository(repository);
+  const sha = expectSha(verifiedSha, "verified SHA");
+  const tag = expectStableTag(verifiedTag, "verified tag");
+  const requestedRunId = expectString(
+    requestedReleaseWorkflowRunId,
+    "requested Release workflow run id",
+  );
+  const requestedRunAttempt = expectString(
+    requestedReleaseWorkflowRunAttempt,
+    "requested Release workflow run attempt",
+  );
+  if ((requestedRunId === "") !== (requestedRunAttempt === "")) {
+    fail("triggering Release run ID and attempt must either both be present or both be absent");
+  }
+  if (eventName !== "workflow_dispatch" && eventName !== "workflow_run") {
+    fail("website promotion authority must use the reviewed main-origin promotion workflow");
+  }
+  if (
+    (eventName === "workflow_run" && requestedRunId === "")
+    || (eventName === "workflow_dispatch" && requestedRunId !== "")
+  ) {
+    fail("Release run coordinates do not match the website promotion trigger");
+  }
+  const workflowSource = Object.freeze({ defaultBranch, eventName, recoveryWorkflowSha });
+
+  await revalidateWorkflowSource(api, coordinate, workflowSource);
+  await readVerifiedTagCommit(api, coordinate, tag, sha);
+  const firstReleaseValue = await api.get(`/repos/${coordinate}/releases/tags/${tag}`);
+  const releaseWorkflowRunId = releaseWorkflowRunIdFromPublishedRelease({
+    repository: coordinate,
+    value: firstReleaseValue,
+    verifiedSha: sha,
+    verifiedTag: tag,
+  });
+  if (
+    requestedRunId !== ""
+    && expectWorkflowRunId(requestedRunId, "triggering Release workflow run id")
+      !== releaseWorkflowRunId
+  ) {
+    fail("triggering Release run and sampled Release receipt name different runs");
+  }
+  exactReleaseWorkflowRun({
+    expectedRunAttempt: requestedRunAttempt,
+    repository: coordinate,
+    value: await api.get(
+      `/repos/${coordinate}/actions/runs/${releaseWorkflowRunId}`,
+      Object.freeze({ timeoutMilliseconds: RELEASE_WORKFLOW_REQUEST_TIMEOUT_MILLISECONDS }),
+    ),
+    verifiedSha: sha,
+    verifiedTag: tag,
+    workflowRunId: releaseWorkflowRunId,
+  });
+  const firstPublished = parseSecondTimestamp(
+    expectRecord(firstReleaseValue, `Release ${tag}`).published_at,
+    `Release ${tag}.published_at`,
+  );
+  const firstRelease = Object.freeze({
+    id: expectSafeId(
+      expectRecord(firstReleaseValue, `Release ${tag}`).id,
+      `Release ${tag}.id`,
+    ),
+    publishedAt: firstPublished.timestamp,
+    publishedMilliseconds: firstPublished.milliseconds,
+  });
+  await readLatestRelease(
+    api,
+    coordinate,
+    tag,
+    sha,
+    releaseWorkflowRunId,
+    firstRelease,
+  );
+
+  await revalidateWorkflowSource(api, coordinate, workflowSource);
+  await readVerifiedTagCommit(api, coordinate, tag, sha);
+  const secondRelease = await readImmutableRelease(
+    api,
+    coordinate,
+    tag,
+    sha,
+    releaseWorkflowRunId,
+  );
+  await readLatestRelease(
+    api,
+    coordinate,
+    tag,
+    sha,
+    releaseWorkflowRunId,
+    secondRelease,
+  );
+  if (
+    firstRelease.id !== secondRelease.id
+    || firstRelease.publishedAt !== secondRelease.publishedAt
+  ) {
+    fail(`Release ${tag} changed during authority verification`);
+  }
+  return Object.freeze({ releaseWorkflowRunId });
 }
 
 function exactLatestRelease(value, label) {
@@ -1803,10 +2134,21 @@ function assertSameReleaseIdentity(actual, expected, label) {
   }
 }
 
-export function validateMatchingPublishedReleases(actualValue, expectedValue, verifiedTag) {
+export function validateMatchingPublishedReleases(
+  actualValue,
+  expectedValue,
+  { repository, verifiedSha, verifiedTag, workflowRunId },
+) {
   const tag = expectStableTag(verifiedTag, "verified tag");
-  const actual = exactPublishedRelease(actualValue, tag, `Release ${tag} readback`);
-  const expected = exactPublishedRelease(expectedValue, tag, `created Release ${tag}`);
+  const coordinates = { repository, verifiedSha, verifiedTag: tag, workflowRunId };
+  const actual = exactWorkflowPublishedRelease(
+    { ...coordinates, value: actualValue },
+    `Release ${tag} readback`,
+  );
+  const expected = exactWorkflowPublishedRelease(
+    { ...coordinates, value: expectedValue },
+    `created Release ${tag}`,
+  );
   assertSameReleaseIdentity(actual, expected, `Release ${tag} readback`);
   return Object.freeze({ releaseId: actual.id, tag });
 }
@@ -2024,6 +2366,7 @@ function parseBaselineReceipt(value) {
     "publicMarker",
     "productionRef",
     "refSha",
+    "releaseWorkflowRunId",
     "repository",
     "schema",
     "verifiedSha",
@@ -2035,6 +2378,10 @@ function parseBaselineReceipt(value) {
   const repository = expectRepository(receipt.repository);
   const verifiedSha = expectSha(receipt.verifiedSha, "baseline receipt verifiedSha");
   const verifiedTag = expectStableTag(receipt.verifiedTag, "baseline receipt verifiedTag");
+  const releaseWorkflowRunId = expectWorkflowRunId(
+    receipt.releaseWorkflowRunId,
+    "baseline receipt Release workflow run id",
+  );
   const refSha = expectSha(receipt.refSha, "baseline receipt refSha");
   const publicMarker = parsePublicMarkerReceipt(receipt.publicMarker);
   const lowerBound = parseReceiptTimestamp(receipt.lowerBound, "baseline receipt lowerBound");
@@ -2075,6 +2422,7 @@ function parseBaselineReceipt(value) {
     publicMarker,
     productionRef: PRODUCTION_REF,
     refSha,
+    releaseWorkflowRunId,
     repository,
     schema: BASELINE_SCHEMA,
     verifiedSha,
@@ -2091,6 +2439,7 @@ function baselineReceiptValue(receipt) {
     publicMarker: publicMarkerReceiptValue(receipt.publicMarker),
     productionRef: receipt.productionRef,
     refSha: receipt.refSha,
+    releaseWorkflowRunId: receipt.releaseWorkflowRunId,
     repository: receipt.repository,
     schema: receipt.schema,
     verifiedSha: receipt.verifiedSha,
@@ -2137,6 +2486,7 @@ function parsePromotionReceipt(value) {
     "releaseAppRevocation",
     "releaseId",
     "releasePublishedAt",
+    "releaseWorkflowRunId",
     "repository",
     "schema",
     "verifiedSha",
@@ -2171,6 +2521,10 @@ function parsePromotionReceipt(value) {
     releaseId: expectSafeId(receipt.releaseId, "promotion receipt releaseId"),
     releasePublishedAt: published.timestamp,
     releasePublishedMilliseconds: published.milliseconds,
+    releaseWorkflowRunId: expectWorkflowRunId(
+      receipt.releaseWorkflowRunId,
+      "promotion receipt Release workflow run id",
+    ),
     repository: expectRepository(receipt.repository),
     schema: PROMOTION_SCHEMA,
     verifiedSha: expectSha(receipt.verifiedSha, "promotion receipt verifiedSha"),
@@ -2188,6 +2542,7 @@ function promotionReceiptValue(receipt) {
     releaseAppRevocation: receipt.releaseAppRevocation,
     releaseId: receipt.releaseId,
     releasePublishedAt: receipt.releasePublishedAt,
+    releaseWorkflowRunId: receipt.releaseWorkflowRunId,
     repository: receipt.repository,
     schema: receipt.schema,
     verifiedSha: receipt.verifiedSha,
@@ -2255,6 +2610,7 @@ function validateStableBaselineMarker(
 export async function createProviderBaseline({
   api,
   publicSite = new WrenchPublicSite(),
+  releaseWorkflowRunId,
   repository,
   verifiedSha,
   verifiedTag,
@@ -2262,6 +2618,10 @@ export async function createProviderBaseline({
   const coordinate = expectRepository(repository);
   const sha = expectSha(verifiedSha, "verified SHA");
   const tag = expectStableTag(verifiedTag, "verified tag");
+  const runId = expectWorkflowRunId(
+    releaseWorkflowRunId,
+    "verified Release workflow run id",
+  );
   const initialMarker = await publicSite.readMarker(
     tag,
     sha,
@@ -2307,6 +2667,7 @@ export async function createProviderBaseline({
     publicMarker,
     productionRef: PRODUCTION_REF,
     refSha,
+    releaseWorkflowRunId: runId,
     repository: coordinate,
     schema: BASELINE_SCHEMA,
     verifiedSha: sha,
@@ -2320,6 +2681,7 @@ export async function promoteWebsiteProduction({
   baselineReceipt,
   defaultBranch = "main",
   eventName = "push",
+  releaseWorkflowRunId,
   recoveryWorkflowSha = "",
   repository,
   verifiedSha,
@@ -2328,6 +2690,10 @@ export async function promoteWebsiteProduction({
   const coordinate = expectRepository(repository);
   const sha = expectSha(verifiedSha, "verified SHA");
   const tag = expectStableTag(verifiedTag, "verified tag");
+  const runId = expectWorkflowRunId(
+    releaseWorkflowRunId,
+    "verified Release workflow run id",
+  );
   const baseline = parseBaselineReceipt(baselineReceipt);
   const workflowSource = Object.freeze({ defaultBranch, eventName, recoveryWorkflowSha });
   const baselineValue = baselineReceiptValue(baseline);
@@ -2335,13 +2701,14 @@ export async function promoteWebsiteProduction({
     baseline.repository !== coordinate
     || baseline.verifiedSha !== sha
     || baseline.verifiedTag !== tag
+    || baseline.releaseWorkflowRunId !== runId
   ) {
     fail("baseline receipt does not bind the verified release coordinate");
   }
 
   await readVerifiedTagCommit(api, coordinate, tag, sha);
-  const release = await readImmutableRelease(api, coordinate, tag);
-  await readLatestRelease(api, coordinate, tag);
+  const release = await readImmutableRelease(api, coordinate, tag, sha, runId);
+  await readLatestRelease(api, coordinate, tag, sha, runId, release);
   const initialRefSha = await readProductionRef(api, coordinate);
   if (initialRefSha !== baseline.refSha) fail("website-production moved after the baseline snapshot");
 
@@ -2379,6 +2746,7 @@ export async function promoteWebsiteProduction({
     releaseAppRevocation,
     releaseId: release.id,
     releasePublishedAt: release.publishedAt,
+    releaseWorkflowRunId: runId,
     repository: coordinate,
     schema: PROMOTION_SCHEMA,
     verifiedSha: sha,
@@ -2390,8 +2758,12 @@ export async function promoteWebsiteProduction({
 function validateReceiptPair(
   baselineValue,
   promotionValue,
-  { repository, verifiedSha, verifiedTag },
+  { releaseWorkflowRunId, repository, verifiedSha, verifiedTag },
 ) {
+  const authoritativeRunId = expectWorkflowRunId(
+    releaseWorkflowRunId,
+    "authoritative Release workflow run id",
+  );
   const authoritativeRepository = expectRepository(repository);
   const authoritativeSha = expectSha(verifiedSha, "authoritative verified SHA");
   const authoritativeTag = expectStableTag(verifiedTag, "authoritative verified tag");
@@ -2403,6 +2775,7 @@ function validateReceiptPair(
     baseline.repository !== promotion.repository ||
     baseline.verifiedSha !== promotion.verifiedSha ||
     baseline.verifiedTag !== promotion.verifiedTag ||
+    baseline.releaseWorkflowRunId !== promotion.releaseWorkflowRunId ||
     promotion.previousSha !== baseline.refSha
   ) {
     fail("provider receipts do not bind one release transition");
@@ -2410,7 +2783,8 @@ function validateReceiptPair(
   if (
     promotion.repository !== authoritativeRepository ||
     promotion.verifiedSha !== authoritativeSha ||
-    promotion.verifiedTag !== authoritativeTag
+    promotion.verifiedTag !== authoritativeTag ||
+    promotion.releaseWorkflowRunId !== authoritativeRunId
   ) {
     fail("provider receipts do not bind the authoritative release inputs");
   }
@@ -2584,6 +2958,8 @@ async function revalidateTerminalAuthority(api, promotion, workflowSource) {
     api,
     promotion.repository,
     promotion.verifiedTag,
+    promotion.verifiedSha,
+    promotion.releaseWorkflowRunId,
   );
   if (
     release.id !== promotion.releaseId ||
@@ -2591,7 +2967,14 @@ async function revalidateTerminalAuthority(api, promotion, workflowSource) {
   ) {
     fail("immutable Release identity changed");
   }
-  await readLatestRelease(api, promotion.repository, promotion.verifiedTag);
+  await readLatestRelease(
+    api,
+    promotion.repository,
+    promotion.verifiedTag,
+    promotion.verifiedSha,
+    promotion.releaseWorkflowRunId,
+    release,
+  );
   await revalidateWorkflowSource(api, promotion.repository, workflowSource);
 }
 
@@ -2718,14 +3101,27 @@ async function confirmSuccess(
     promotion.verifiedTag,
     promotion.verifiedSha,
   );
-  const release = await readImmutableRelease(api, promotion.repository, promotion.verifiedTag);
+  const release = await readImmutableRelease(
+    api,
+    promotion.repository,
+    promotion.verifiedTag,
+    promotion.verifiedSha,
+    promotion.releaseWorkflowRunId,
+  );
   if (
     release.id !== promotion.releaseId ||
     release.publishedAt !== promotion.releasePublishedAt
   ) {
     fail("immutable Release identity changed");
   }
-  await readLatestRelease(api, promotion.repository, promotion.verifiedTag);
+  await readLatestRelease(
+    api,
+    promotion.repository,
+    promotion.verifiedTag,
+    promotion.verifiedSha,
+    promotion.releaseWorkflowRunId,
+    release,
+  );
   const observed = await observeCandidate(api, baseline, promotion, successSnapshot.candidate.id);
   if (observed.candidate === undefined) fail("candidate Production deployment disappeared after success");
   if (observed.graphCandidate === undefined) {
@@ -2828,6 +3224,7 @@ export async function waitForProviderOutcome({
   monotonicNow = () => performance.now(),
   promotionReceipt,
   publicSite = new WrenchPublicSite(),
+  releaseWorkflowRunId,
   repository,
   sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
   pollIntervalMilliseconds = PROVIDER_POLL_INTERVAL_MILLISECONDS,
@@ -2848,7 +3245,7 @@ export async function waitForProviderOutcome({
   const { baseline, promotion } = validateReceiptPair(
     baselineReceipt,
     promotionReceipt,
-    { repository, verifiedSha, verifiedTag },
+    { releaseWorkflowRunId, repository, verifiedSha, verifiedTag },
   );
   const workflowSource = Object.freeze({ defaultBranch, eventName, recoveryWorkflowSha });
   await readVerifiedTagCommit(
@@ -2861,6 +3258,8 @@ export async function waitForProviderOutcome({
     api,
     promotion.repository,
     promotion.verifiedTag,
+    promotion.verifiedSha,
+    promotion.releaseWorkflowRunId,
   );
   if (
     release.id !== promotion.releaseId ||
@@ -2868,7 +3267,14 @@ export async function waitForProviderOutcome({
   ) {
     fail("immutable Release identity changed");
   }
-  await readLatestRelease(api, promotion.repository, promotion.verifiedTag);
+  await readLatestRelease(
+    api,
+    promotion.repository,
+    promotion.verifiedTag,
+    promotion.verifiedSha,
+    promotion.releaseWorkflowRunId,
+    release,
+  );
   await revalidateWorkflowSource(api, promotion.repository, workflowSource);
 
   const deadline = createProviderDeadline(monotonicNow);
@@ -3148,6 +3554,7 @@ async function main() {
   if (command === "baseline") {
     const receipt = await createProviderBaseline({
       api,
+      releaseWorkflowRunId: process.env.VERIFIED_RELEASE_RUN_ID,
       repository: process.env.GITHUB_REPOSITORY,
       verifiedSha: process.env.VERIFIED_SHA,
       verifiedTag: process.env.VERIFIED_TAG,
@@ -3158,11 +3565,25 @@ async function main() {
     return;
   }
   if (command === "release-order") {
+    const releaseLookupState = process.env.RELEASE_LOOKUP_STATE;
+    if (releaseLookupState !== "found" && releaseLookupState !== "missing") {
+      fail("RELEASE_LOOKUP_STATE must be found or missing");
+    }
     await assertReleaseTagNewerThanPublished({
+      allowExistingTarget: releaseLookupState === "found",
       api,
       repository: process.env.GITHUB_REPOSITORY,
       verifiedTag: process.env.VERIFIED_TAG,
     });
+    return;
+  }
+  if (command === "release-source-receipt") {
+    process.stdout.write(releaseSourceReceipt({
+      repository: process.env.GITHUB_REPOSITORY,
+      verifiedSha: process.env.VERIFIED_SHA,
+      verifiedTag: process.env.VERIFIED_TAG,
+      workflowRunId: process.env.GITHUB_RUN_ID,
+    }));
     return;
   }
   if (command === "inspect-release-response") {
@@ -3171,7 +3592,13 @@ async function main() {
       "Release lookup response",
     );
     if (response.found) {
-      exactPublishedRelease(response.value, process.env.VERIFIED_TAG, "existing Release");
+      exactWorkflowPublishedRelease({
+        repository: process.env.GITHUB_REPOSITORY,
+        value: response.value,
+        verifiedSha: process.env.VERIFIED_SHA,
+        verifiedTag: process.env.VERIFIED_TAG,
+        workflowRunId: process.env.GITHUB_RUN_ID,
+      }, "existing Release");
       process.stdout.write("found\n");
     } else {
       process.stdout.write("missing\n");
@@ -3179,11 +3606,13 @@ async function main() {
     return;
   }
   if (command === "validate-release") {
-    exactPublishedRelease(
-      parseJson(readFileSync(0, "utf8"), "Release response"),
-      process.env.VERIFIED_TAG,
-      "Release response",
-    );
+    exactWorkflowPublishedRelease({
+      repository: process.env.GITHUB_REPOSITORY,
+      value: parseJson(readFileSync(0, "utf8"), "Release response"),
+      verifiedSha: process.env.VERIFIED_SHA,
+      verifiedTag: process.env.VERIFIED_TAG,
+      workflowRunId: process.env.GITHUB_RUN_ID,
+    }, "Release response");
     return;
   }
   if (command === "validate-latest-predecessor") {
@@ -3198,12 +3627,24 @@ async function main() {
     validateMatchingPublishedReleases(
       actualRelease,
       readBoundedJsonFile(process.argv[3], "created Release response"),
-      process.env.VERIFIED_TAG,
+      {
+        repository: process.env.GITHUB_REPOSITORY,
+        verifiedSha: process.env.VERIFIED_SHA,
+        verifiedTag: process.env.VERIFIED_TAG,
+        workflowRunId: process.env.GITHUB_RUN_ID,
+      },
     );
     return;
   }
   if (command === "wait-latest-release") {
     const targetRelease = parseJson(readFileSync(0, "utf8"), "target Release response");
+    exactWorkflowPublishedRelease({
+      repository: process.env.GITHUB_REPOSITORY,
+      value: targetRelease,
+      verifiedSha: process.env.VERIFIED_SHA,
+      verifiedTag: process.env.VERIFIED_TAG,
+      workflowRunId: process.env.GITHUB_RUN_ID,
+    }, "target Release response");
     const result = await waitForLatestRelease({
       api,
       predecessorRelease: readBoundedJsonFile(
@@ -3221,6 +3662,13 @@ async function main() {
   }
   if (command === "require-latest-release") {
     const targetRelease = parseJson(readFileSync(0, "utf8"), "target Release response");
+    exactWorkflowPublishedRelease({
+      repository: process.env.GITHUB_REPOSITORY,
+      value: targetRelease,
+      verifiedSha: process.env.VERIFIED_SHA,
+      verifiedTag: process.env.VERIFIED_TAG,
+      workflowRunId: process.env.GITHUB_RUN_ID,
+    }, "target Release response");
     const result = await requireLatestRelease({
       api,
       repository: process.env.GITHUB_REPOSITORY,
@@ -3232,6 +3680,13 @@ async function main() {
   }
   if (command === "revalidate-latest-release") {
     const targetRelease = parseJson(readFileSync(0, "utf8"), "target Release response");
+    exactWorkflowPublishedRelease({
+      repository: process.env.GITHUB_REPOSITORY,
+      value: targetRelease,
+      verifiedSha: process.env.VERIFIED_SHA,
+      verifiedTag: process.env.VERIFIED_TAG,
+      workflowRunId: process.env.GITHUB_RUN_ID,
+    }, "target Release response");
     const result = await revalidateLatestReleaseProjection({
       api,
       repository: process.env.GITHUB_REPOSITORY,
@@ -3249,11 +3704,28 @@ async function main() {
     });
     return;
   }
+  if (command === "resolve-release-authority") {
+    const result = await resolveReleaseAuthority({
+      api,
+      defaultBranch: process.env.DEFAULT_BRANCH,
+      eventName: process.env.EVENT_NAME,
+      recoveryWorkflowSha: process.env.RECOVERY_WORKFLOW_SHA,
+      repository: process.env.GITHUB_REPOSITORY,
+      requestedReleaseWorkflowRunAttempt:
+        process.env.REQUESTED_RELEASE_WORKFLOW_RUN_ATTEMPT,
+      requestedReleaseWorkflowRunId: process.env.REQUESTED_RELEASE_WORKFLOW_RUN_ID,
+      verifiedSha: process.env.VERIFIED_SHA,
+      verifiedTag: process.env.VERIFIED_TAG,
+    });
+    process.stdout.write(result.releaseWorkflowRunId);
+    return;
+  }
   if (command === "revalidate-authority") {
     await revalidateReleaseAuthority({
       api,
       defaultBranch: process.env.DEFAULT_BRANCH,
       eventName: process.env.EVENT_NAME,
+      releaseWorkflowRunId: process.env.VERIFIED_RELEASE_RUN_ID,
       recoveryWorkflowSha: process.env.RECOVERY_WORKFLOW_SHA,
       repository: process.env.GITHUB_REPOSITORY,
       verifiedSha: process.env.VERIFIED_SHA,
@@ -3271,6 +3743,7 @@ async function main() {
       baselineReceipt: decodeProviderReceipt(process.env.BASELINE_RECEIPT, "BASELINE_RECEIPT"),
       defaultBranch: process.env.DEFAULT_BRANCH,
       eventName: process.env.EVENT_NAME,
+      releaseWorkflowRunId: process.env.VERIFIED_RELEASE_RUN_ID,
       recoveryWorkflowSha: process.env.RECOVERY_WORKFLOW_SHA,
       repository: process.env.GITHUB_REPOSITORY,
       verifiedSha: process.env.VERIFIED_SHA,
@@ -3299,6 +3772,7 @@ async function main() {
       maxPolls,
       pollIntervalMilliseconds,
       promotionReceipt: decodeProviderReceipt(process.env.PROMOTION_RECEIPT, "PROMOTION_RECEIPT"),
+      releaseWorkflowRunId: process.env.VERIFIED_RELEASE_RUN_ID,
       recoveryWorkflowSha: process.env.RECOVERY_WORKFLOW_SHA,
       repository: process.env.GITHUB_REPOSITORY,
       verifiedSha: process.env.VERIFIED_SHA,
@@ -3309,7 +3783,7 @@ async function main() {
     );
     return;
   }
-  fail("expected baseline, release-order, release validation, Latest convergence, authority, promote, or wait command");
+  fail("expected baseline, release-order, release validation, Latest convergence, authority resolution, authority, promote, or wait command");
 }
 
 const invokedPath = process.argv[1];

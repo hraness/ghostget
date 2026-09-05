@@ -17,13 +17,21 @@ const MAXIMUM_GIT_OUTPUT_BYTES = 256 * 1_024;
 const GIT_TIMEOUT_MILLISECONDS = 120_000;
 const SHA = /^[0-9a-f]{40}$/u;
 const STABLE_TAG = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
+const MAXIMUM_SAFE_SEMVER_COMPONENT = BigInt(Number.MAX_SAFE_INTEGER);
 const TAG_REF = /^refs\/tags\/(v[A-Za-z0-9][A-Za-z0-9._-]{0,126})$/u;
 const RELEASE_CONTROL_PATHS = Object.freeze([
   ".github/workflows",
   "scripts/release-ref-authority.ts",
+  "scripts/npm-provenance-identity.ts",
+  "scripts/npm-package-identity.ts",
+  "scripts/package-artifact.ts",
+  "scripts/package-budget.ts",
+  "scripts/package-smoke.ts",
+  "scripts/private-source-client-runtime-smoke.ts",
   "scripts/release-provider-outcome.mjs",
   "scripts/release-app-token.mjs",
   "scripts/release-ref-writer.mjs",
+  "website/production-release-marker.mjs",
 ] as const);
 
 export type GitCommandResult = Readonly<{
@@ -186,7 +194,9 @@ function stableVersion(tag: string): readonly [bigint, bigint, bigint] | undefin
   if (match?.[1] === undefined || match[2] === undefined || match[3] === undefined) {
     return undefined;
   }
-  return Object.freeze([BigInt(match[1]), BigInt(match[2]), BigInt(match[3])]);
+  const version = [BigInt(match[1]), BigInt(match[2]), BigInt(match[3])] as const;
+  if (version.some(component => component > MAXIMUM_SAFE_SEMVER_COMPONENT)) return undefined;
+  return Object.freeze(version);
 }
 
 function validTagRef(ref: string): boolean {
