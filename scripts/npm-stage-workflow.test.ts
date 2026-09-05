@@ -8931,9 +8931,21 @@ esac
       ]);
     const manifest = JSON.parse(manifestText) as { readonly version: string };
     const exactPackage = `@hraness/wrench@${manifest.version}`;
-    const nextReleaseVersion = "0.16.8";
+    const nextReleaseVersion = "0.16.6";
     const tagFailFastBoundary = 'set -eu\ncase "${STAGE_RUN_ID:-}" in';
     const stageRunIdGuard = 'case "${STAGE_RUN_ID:-}" in';
+    const stageRunEventPredicate =
+      '(.event == "push" or .event == "workflow_dispatch")';
+    const sanctionedManualRecovery =
+      "sanctioned manual recovery run when automatic staging did not\n" +
+      "start, failed before npm accepted the stage, or accepted an ineligible stage\n" +
+      "that was then rejected and confirmed absent";
+    const legacyStageRunIdentity = "runId === 33980252754";
+    const legacyStageSourceIdentity =
+      'process.env.EXPECTED_SHA === "2292db1323e2d1a1c94e2fb7d8731b0c8ce97fc2"';
+    const legacyStageJobIdentity = '[101350099282, "Stage exact package"]';
+    const legacyStageTerminalStep =
+      'step.name === "Revalidate protected-main ancestry and stage exact package"';
     const stageSourceBinding = 'C="$(STAGE_ATTEMPT_FILE="$stage_attempt_file" \\';
     const stageSourceObjectProof = 'test "$(git rev-parse --verify "$C^{commit}")" = "$C"';
     const stagedManifestRead = 'git show "${C}:package.json"';
@@ -8944,7 +8956,8 @@ esac
     const registryIdentityCheck = "bun run ./scripts/npm-package-identity.ts \\";
     const registrySmokeCheck = "bun run ./scripts/package-smoke.ts \\";
     const provenanceCheck = "bun run ./scripts/npm-provenance-identity.ts \\";
-    const exactTagCommand = `git tag v${nextReleaseVersion} "$C"`;
+    const exactTagReadback =
+      `git rev-parse --verify "refs/tags/v${nextReleaseVersion}^{commit}"`;
     const oneTimeBootstrap =
       "This section records the one-time bootstrap of `@hraness/wrench@0.15.1`.";
     const doNotReuseBootstrap =
@@ -9000,6 +9013,10 @@ esac
       "manifest edit with an unchanged version succeeds without running verification",
       "beta/candidate lane is the downloadable\nartifact, not an npm prerelease or dist-tag mutation",
       "default manual\ndispatch above; it repeats verification and artifact upload without entering\nthe environment or touching npm",
+      "If the automatic run did not start or failed before npm accepted the stage",
+      sanctionedManualRecovery,
+      "retain that\nliteral only as historical policy evidence, not as current staging authority",
+      stageRunEventPredicate,
       "scripts/npm-package-identity.ts",
       "--source-archive \"$wrench_npm_archive\"",
       "--registry-archive \"$wrench_registry_archive\"",
@@ -9019,7 +9036,17 @@ esac
       "value.triggering_actor?.id !== 894119",
       "value.repository?.id !== 1316443113",
       "/attempts/$STAGE_RUN_ATTEMPT/jobs?per_page=100",
-      `job.name === "Stage exact package v${nextReleaseVersion}"`,
+      legacyStageRunIdentity,
+      "runAttempt === 1",
+      legacyStageSourceIdentity,
+      '[101344097423, "Classify staging request"]',
+      '[101344128985, "Verify exact package"]',
+      legacyStageJobIdentity,
+      "value.total_count !== legacyStageJobs.size",
+      "job.id !== 101350099282",
+      "step.number === 7",
+      legacyStageTerminalStep,
+      'job.name === "Stage exact package v0.16.6"',
       'test "${#C}" -eq 40',
       '*[!0-9a-f]*) exit 1 ;;',
       'test "$(git cat-file -t "$C")" = commit',
@@ -9030,16 +9057,19 @@ esac
       `manifest?.version !== "${nextReleaseVersion}"`,
       stagedPackageCoordinateProof,
       sourceArtifactDownload,
-      'wrench_source_name="npm-package-0.16.8-$C-$STAGE_RUN_ID-$STAGE_RUN_ATTEMPT"',
+      'wrench_source_name="npm-package-0.16.6-$C-$STAGE_RUN_ID-$STAGE_RUN_ATTEMPT"',
       '--name "$wrench_source_name"',
       registryArtifactDownload,
       registryIdentityCheck,
       provenanceCheck,
+      "--expected-event workflow_dispatch",
       "value.runId !== Number(process.env.EXPECTED_RUN_ID)",
       "value.runAttempt !== Number(process.env.EXPECTED_RUN_ATTEMPT)",
       registrySmokeCheck,
       `--expected-version ${nextReleaseVersion}`,
-      exactTagCommand,
+      exactTagReadback,
+      "Never create or push it again",
+      "git ls-remote --refs origin refs/tags/v0.16.6 | cut -f1",
       "npm stage approve <stage-id>",
       "The exact npm keyword list is checked by `scripts/package-smoke.ts`",
       "Repository topics are maintainer-managed discovery",
@@ -9310,8 +9340,9 @@ esac
     const commands = npmCommands(guide);
     expect(commands.length).toBeGreaterThan(0);
     for (const command of commands) expect(command).toContain(`--registry=${npmRegistry}`);
-    expect(guide.split("\n")).toContain(exactTagCommand);
+    expect(guide).toContain(exactTagReadback);
     expect(guide.split("\n")).not.toContain(`git tag v${nextReleaseVersion}`);
+    expect(guide).not.toContain(`git push origin refs/tags/v${nextReleaseVersion}`);
     const stageSectionIndex = guide.indexOf("## Stage a later version");
     const stageIndexOf = (value: string) => guide.indexOf(value, stageSectionIndex);
     expect(stageIndexOf(tagFailFastBoundary)).toBeLessThan(stageIndexOf(stageSourceBinding));
@@ -9328,13 +9359,13 @@ esac
       .toBeLessThan(stageIndexOf(registryIdentityCheck));
     expect(stageIndexOf(registryIdentityCheck)).toBeLessThan(stageIndexOf(provenanceCheck));
     expect(stageIndexOf(provenanceCheck)).toBeLessThan(stageIndexOf(registrySmokeCheck));
-    expect(stageIndexOf(registrySmokeCheck)).toBeLessThan(stageIndexOf(exactTagCommand));
+    expect(stageIndexOf(registrySmokeCheck)).toBeLessThan(stageIndexOf(exactTagReadback));
     expect(guide.indexOf("/repos/hraness/wrench/immutable-releases"))
-      .toBeLessThan(guide.indexOf(exactTagCommand));
+      .toBeLessThan(guide.indexOf(exactTagReadback));
     expect(guide.indexOf("npm publish \"$wrench_npm_archive\""))
       .toBeLessThan(guide.indexOf("npm trust github @hraness/wrench"));
     expect(guide.indexOf("npm trust github @hraness/wrench"))
-      .toBeLessThan(guide.indexOf(exactTagCommand));
+      .toBeLessThan(guide.indexOf(exactTagReadback));
 
     expect(agents).toContain("Follow `docs/publishing.md`");
     expect(agents).toContain("automatically enter exact candidate verification");

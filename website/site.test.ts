@@ -50,6 +50,11 @@ import {
   renderProviderOverviewCards,
 } from "./provider-presentation";
 import { PRODUCTION_RELEASE_MARKER_PATH } from "./production-release-marker.mjs";
+import {
+  BEEPER_LOCAL_OPERATION_CONTRACT_VERSIONS,
+  BEEPER_LOCAL_OPERATION_NAMES,
+  BEEPER_LOCAL_OPERATION_RUNTIME_TRANSPORTS,
+} from "../src/providers/beeper-local";
 
 const repositoryRoot = resolve(import.meta.dir, "..");
 const websiteRoot = import.meta.dir;
@@ -90,7 +95,10 @@ function lossyWebpDimensions(bytes: Uint8Array): Readonly<{ height: number; widt
 
 describe("wrench.rip static site", () => {
   test("derives the public release from strict root package identity", async () => {
-    const manifest: unknown = await Bun.file(join(repositoryRoot, "package.json")).json();
+    const [manifest, lockfile]: [unknown, string] = await Promise.all([
+      Bun.file(join(repositoryRoot, "package.json")).json(),
+      Bun.file(join(repositoryRoot, "bun.lock")).text(),
+    ]);
     const identity = parsePackageIdentity(manifest);
     expect(identity).toMatchObject({
       description: SITE_DESCRIPTION,
@@ -105,6 +113,65 @@ describe("wrench.rip static site", () => {
     expect(Array.isArray(packageFiles)).toBe(true);
     expect(packageFiles).not.toContain("website");
     expect(packageFiles).not.toContain("vercel.json");
+    expect(manifest).toMatchObject({
+      devDependencies: {
+        "@hraness/site-footer": "github:hraness/site-footer#v0.4.6",
+      },
+    });
+    expect(lockfile).toContain(
+      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#617574f"',
+    );
+  });
+
+  test("keeps handwritten Beeper transport and contract counts bound to source", async () => {
+    const [readme, localCliGuide] = await Promise.all([
+      Bun.file(join(repositoryRoot, "README.md")).text(),
+      Bun.file(join(repositoryRoot, "docs/local-cli-providers.md")).text(),
+    ]);
+    const desktopLoopbackOperations = BEEPER_LOCAL_OPERATION_NAMES.filter(
+      (operation) => BEEPER_LOCAL_OPERATION_RUNTIME_TRANSPORTS[operation]
+        === "desktop-loopback",
+    );
+    const contractVersionCounts = ([1, 2, 3] as const).map(
+      (version) => BEEPER_LOCAL_OPERATION_NAMES.filter(
+        (operation) => BEEPER_LOCAL_OPERATION_CONTRACT_VERSIONS[operation] === version,
+      ).length,
+    );
+
+    expect(BEEPER_PRESENTATION_TRANSPORT_COUNTS).toEqual({
+      cliBackedOperationCount: 26,
+      desktopLoopbackOperationCount: 6,
+    });
+    expect(desktopLoopbackOperations).toEqual([
+      "accounts.list",
+      "contacts.list",
+      "messaging.search",
+      "conversations.read",
+      "messaging.read",
+      "messaging.content.search",
+    ]);
+    expect(contractVersionCounts).toEqual([25, 5, 2]);
+
+    const normalizedReadme = readme.replace(/\s+/gu, " ");
+    const normalizedLocalCliGuide = localCliGuide.replace(/\s+/gu, " ");
+    expect(normalizedReadme).toContain(
+      "Of those, 26 operations use the authoritative `@beeper/cli` 0.6.2 executable; six reads use fixed Beeper Desktop loopback endpoints.",
+    );
+    expect(normalizedReadme).toContain(
+      "25 at contract version 1, five at contract version 2, and two at contract version 3: `contacts.list` and `messaging.read`.",
+    );
+    expect(normalizedReadme).toContain(
+      "Six fixed Desktop loopback reads are `accounts.list`, `contacts.list`, `messaging.search`, `conversations.read`, `messaging.read`, and `messaging.content.search`",
+    );
+    expect(normalizedLocalCliGuide).toContain(
+      "pinned official `@beeper/cli` 0.6.2 executable into 26 CLI-backed operations and adds six fixed Beeper Desktop loopback reads, for 32 named operations in all.",
+    );
+    expect(normalizedLocalCliGuide).toContain(
+      "25 operations at contract version 1, five at version 2, and two at version 3: `contacts.list` and `messaging.read`.",
+    );
+    expect(normalizedLocalCliGuide).toContain(
+      "six direct loopback reads are `accounts.list`, `contacts.list`, `messaging.search`, `conversations.read`, `messaging.read`, and `messaging.content.search`",
+    );
   });
 
   test("rejects metadata drift and non-release versions", () => {

@@ -10,17 +10,18 @@ Portable plugin protocol v1 cannot declare `local-cli`. Native process authority
 and executable provenance remain code-owned source-plugin responsibilities.
 
 The built-in Beeper adapter is the first production example. It turns the
-pinned official `@beeper/cli` 0.6.2 executable into 27 CLI-backed operations
-and adds five fixed Beeper Desktop loopback reads, for 32 named operations in
+pinned official `@beeper/cli` 0.6.2 executable into 26 CLI-backed operations
+and adds six fixed Beeper Desktop loopback reads, for 32 named operations in
 all. The source plugin owns executable and endpoint verification, Desktop-target
 and account binding, strict projections, process bounds, and mutation recovery.
 See the public [Beeper provider guide](https://wrench.rip/providers/beeper/) and
 the current release's [supported-action directory](https://wrench.rip/provider-capabilities/#provider-beeper).
 
-The selected operation set is 25 operations at contract version 1, six at
-version 2, and `messaging.read` at version 3. The five direct loopback reads are
-`accounts.list`, `messaging.search`, `conversations.read`, `messaging.read`, and
-`messaging.content.search`; they do not fall back to the CLI or SDK. The CLI
+The selected operation set is 25 operations at contract version 1, five at
+version 2, and two at version 3: `contacts.list` and `messaging.read`. The six
+direct loopback reads are `accounts.list`, `contacts.list`, `messaging.search`,
+`conversations.read`, `messaging.read`, and `messaging.content.search`; they do
+not fall back to the CLI or SDK. The CLI
 executable is authoritative: the tagged source `packages/cli/package.json`
 declares 0.6.1, which is provenance only.
 

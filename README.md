@@ -57,8 +57,8 @@ the exact installed contract state.
 Beeper is Wrench's first provider adapter with a pinned local-CLI transport. Its
 32 supported actions read accounts, contacts, conversations, and messages;
 manage reactions, drafts, reminders, and conversation state; and preview and
-confirm sends, edits, group changes, and presence. Twenty-seven operations use
-the authoritative `@beeper/cli` 0.6.2 executable; five reads use fixed Beeper
+confirm sends, edits, group changes, and presence. Of those, 26 operations use
+the authoritative `@beeper/cli` 0.6.2 executable; six reads use fixed Beeper
 Desktop loopback endpoints. Wrench binds one Desktop target and does not expose
 a generic command runner. Submission is not a claim of network delivery.
 
@@ -546,7 +546,7 @@ personal relationship and biometric-derived metadata. See the focused
 ### Beeper through exact pinned and direct Desktop contracts
 
 The bundled `beeper-linked-device` source plugin operates an existing Beeper
-Desktop authorization through one pinned CLI contract and five fixed Desktop
+Desktop authorization through one pinned CLI contract and six fixed Desktop
 loopback read contracts. This is Wrench's first `local-cli` transport: the
 adapter selects semantic operations while its source plugin owns exact
 executable identity, fixed command templates and endpoints, strict input and
@@ -554,12 +554,15 @@ output projections, account and Desktop-target proof, process bounds, and
 mutation recovery. It is not a generic Beeper command runner.
 
 The adapter covers ordinary Beeper work through 32 operations: 25 at contract
-version 1, six at contract version 2, and `messaging.read` at contract version 3.
-The 27 CLI-backed operations include bridges, contacts, writes, exact message
-reads, and the other named actions. Five fixed Desktop loopback reads are
-`accounts.list`, `messaging.search`, `conversations.read`, `messaging.read`, and
-`messaging.content.search`; the current `messaging.read` contract adds opaque
-before/after cursors and a sender filter. R1 reads include accounts, bridges,
+version 1, five at contract version 2, and two at contract version 3:
+`contacts.list` and `messaging.read`. The 26 CLI-backed operations include
+bridges, contact search and exact contact reads, writes, single-message and
+context reads, and the other named actions. Six fixed Desktop loopback reads are
+`accounts.list`, `contacts.list`, `messaging.search`, `conversations.read`,
+`messaging.read`, and `messaging.content.search`; the current `contacts.list`
+contract walks Desktop contact pages with opaque before/after cursors. The
+current `messaging.read` contract uses the same cursor scheme and adds a sender
+filter. R1 reads include accounts, bridges,
 contacts, conversations, message pages, exact messages, message context, and
 bounded searches. R2 desired-state actions include
 reactions, archive, pin, mute, priority, private drafts, reminders, and local

@@ -361,15 +361,30 @@ npm stage reject <stage-id> \
   --registry=https://registry.npmjs.org
 ```
 
-To complete the 0.16.8 release, download and smoke
-`@hraness/wrench@0.16.8` after approving its fresh stage. Keep the public
+The 0.16.6 stage predates the candidate-only automatic path described above.
+Its legacy policy admitted an inspected successful automatic push run, or the
+sanctioned manual recovery run when automatic staging did not
+start, failed before npm accepted the stage, or accepted an ineligible stage
+that was then rejected and confirmed absent.
+If the automatic run did not start or failed before npm accepted the stage, the
+legacy workflow's manual path was its recovery. Current releases instead require
+the explicit `publish_to_npm=true` dispatch described above. The predecessor's
+selector was `(.event == "push" or .event == "workflow_dispatch")`; retain that
+literal only as historical policy evidence, not as current staging authority.
+
+To audit the 0.16.6 package handoff, download and smoke the already-public
+`@hraness/wrench@0.16.6` after its stage was approved. Keep the public
 coordinate and tag literal through the final registry checks. Set
 `STAGE_RUN_ID` and `STAGE_RUN_ATTEMPT` to the numeric identity of the exact
-inspected successful staging attempt. Resolve `C` from that attempt rather than
-ambient `HEAD`, require its complete actor, triggering actor, repository,
-workflow, source, successful version-bound job, and successful durable intent
-step identity, and require the full lowercase commit object locally before
-preparing `v0.16.8`:
+inspected successful staging attempt. The already-public coordinate came from
+manual recovery run `33980252754`, attempt 1, at source
+`2292db1323e2d1a1c94e2fb7d8731b0c8ce97fc2`; never substitute another generic
+legacy job. Never treat a current candidate-only push run as an npm stage.
+Resolve `C` from that attempt rather than ambient `HEAD`, require its complete
+actor, triggering actor, repository, workflow, and source identity, then require
+either that exact sealed legacy job and terminal step or the current
+version-bound job and durable intent. Require the full lowercase commit object
+locally before accepting the retained `v0.16.6` handoff evidence:
 
 ```sh
 set -eu
@@ -438,6 +453,16 @@ if (
 ) process.exit(1);
 let exactStageJobs = 0;
 const jobIds = new Set();
+const legacyStageJobs = new Map([
+  [101344097423, "Classify staging request"],
+  [101344128985, "Verify exact package"],
+  [101350099282, "Stage exact package"],
+]);
+const isLegacyStageRun =
+  runId === 33980252754 &&
+  runAttempt === 1 &&
+  process.env.EXPECTED_SHA === "2292db1323e2d1a1c94e2fb7d8731b0c8ce97fc2";
+if (isLegacyStageRun && value.total_count !== legacyStageJobs.size) process.exit(1);
 for (const job of value.jobs) {
   if (
     !Number.isSafeInteger(job?.id) || job.id < 1 ||
@@ -453,7 +478,22 @@ for (const job of value.jobs) {
     ))
   ) process.exit(1);
   jobIds.add(job.id);
-  if (job.name === "Stage exact package v0.16.8" && job.conclusion === "success") {
+  if (isLegacyStageRun) {
+    if (legacyStageJobs.get(job.id) !== job.name || job.conclusion !== "success") {
+      process.exit(1);
+    }
+    if (job.id !== 101350099282) continue;
+    const successfulTerminalSteps = job.steps.filter(step => (
+      step.number === 7 &&
+      step.name === "Revalidate protected-main ancestry and stage exact package" &&
+      step.conclusion === "success"
+    ));
+    if (successfulTerminalSteps.length !== 1) process.exit(1);
+    exactStageJobs += 1;
+  } else if (
+    job.name === "Stage exact package v0.16.6" &&
+    job.conclusion === "success"
+  ) {
     const successfulIntents = job.steps.filter(step => (
       step.name === "Record exclusive stable-stage intent" &&
       step.conclusion === "success"
@@ -468,31 +508,31 @@ test "$(git cat-file -t "$C")" = commit
 test "$(git rev-parse --verify "$C^{commit}")" = "$C"
 package_coordinate="$(
   git show "${C}:package.json" |
-    node -e 'const manifest = JSON.parse(require("node:fs").readFileSync(0, "utf8")); if (manifest?.name !== "@hraness/wrench" || manifest?.version !== "0.16.8") process.exit(1); process.stdout.write(`${manifest.name}@${manifest.version}`);'
+    node -e 'const manifest = JSON.parse(require("node:fs").readFileSync(0, "utf8")); if (manifest?.name !== "@hraness/wrench" || manifest?.version !== "0.16.6") process.exit(1); process.stdout.write(`${manifest.name}@${manifest.version}`);'
 )"
-test "$package_coordinate" = "@hraness/wrench@0.16.8"
+test "$package_coordinate" = "@hraness/wrench@0.16.6"
 wrench_source_artifact="$(mktemp -d)"
-wrench_source_name="npm-package-0.16.8-$C-$STAGE_RUN_ID-$STAGE_RUN_ATTEMPT"
+wrench_source_name="npm-package-0.16.6-$C-$STAGE_RUN_ID-$STAGE_RUN_ATTEMPT"
 gh run download "$STAGE_RUN_ID" \
   --repo hraness/wrench \
   --name "$wrench_source_name" \
   --dir "$wrench_source_artifact"
-wrench_npm_archive="$wrench_source_artifact/hraness-wrench-0.16.8.tgz"
+wrench_npm_archive="$wrench_source_artifact/hraness-wrench-0.16.6.tgz"
 wrench_npm_json="$wrench_source_artifact/npm-pack.json"
 wrench_registry_artifact="$(mktemp -d)"
 wrench_registry_json="$wrench_registry_artifact/npm-pack.json"
 wrench_registry_view_json="$wrench_registry_artifact/npm-view.json"
-npm pack @hraness/wrench@0.16.8 \
+npm pack @hraness/wrench@0.16.6 \
   --ignore-scripts \
   --json \
   --pack-destination "$wrench_registry_artifact" \
   --registry=https://registry.npmjs.org > "$wrench_registry_json"
-npm view @hraness/wrench@0.16.8 name version dist \
+npm view @hraness/wrench@0.16.6 name version dist \
   --json \
   --registry=https://registry.npmjs.org > "$wrench_registry_view_json"
 test "$(npm view @hraness/wrench dist-tags.latest \
-  --json --registry=https://registry.npmjs.org)" = '"0.16.8"'
-wrench_registry_archive="$wrench_registry_artifact/hraness-wrench-0.16.8.tgz"
+  --json --registry=https://registry.npmjs.org)" = '"0.16.6"'
+wrench_registry_archive="$wrench_registry_artifact/hraness-wrench-0.16.6.tgz"
 bun run ./scripts/npm-package-identity.ts \
   --source-archive "$wrench_npm_archive" \
   --source-pack-json "$wrench_npm_json" \
@@ -500,7 +540,7 @@ bun run ./scripts/npm-package-identity.ts \
   --registry-pack-json "$wrench_registry_json" \
   --registry-view-json "$wrench_registry_view_json" \
   --expected-name @hraness/wrench \
-  --expected-version 0.16.8
+  --expected-version 0.16.6
 wrench_signature_audit="$(mktemp -d)"
 wrench_signature_audit_json="$wrench_signature_audit/audit.json"
 WRENCH_SIGNATURE_AUDIT="$wrench_signature_audit" node <<'NODE'
@@ -510,7 +550,7 @@ writeFileSync(join(process.env.WRENCH_SIGNATURE_AUDIT, "package.json"), `${JSON.
   name: "wrench-pretag-signature-audit",
   private: true,
   version: "0.0.0",
-  dependencies: { "@hraness/wrench": "0.16.8" },
+  dependencies: { "@hraness/wrench": "0.16.6" },
 })}\n`, { encoding: "utf8", mode: 0o600 });
 NODE
 npm install \
@@ -537,7 +577,7 @@ wrench_provenance_identity="$(bun run ./scripts/npm-provenance-identity.ts \
   --expected-repository hraness/wrench \
   --expected-repository-id 1316443113 \
   --expected-source-sha "$C" \
-  --expected-version 0.16.8 \
+  --expected-version 0.16.6 \
   --expected-workflow-path .github/workflows/npm-stage.yml \
   --registry-archive "$wrench_registry_archive")"
 PROVENANCE_IDENTITY="$wrench_provenance_identity" \
@@ -943,13 +983,14 @@ process.stdout.write(`${JSON.stringify({
 NODE
 ```
 
-Only after every readback above succeeds, create the direct lightweight tag at
-the still-pinned staged commit and push that exact ref:
+For 0.16.6, the direct lightweight tag already exists at the pinned staged
+commit. Never create or push it again. Read the local and remote refs back
+without mutation:
 
 ```sh
 test "$(git rev-parse --verify "$C^{commit}")" = "$C"
-git tag v0.16.6 "$C"
-git push origin refs/tags/v0.16.6
+test "$(git rev-parse --verify "refs/tags/v0.16.6^{commit}")" = "$C"
+test "$(git ls-remote --refs origin refs/tags/v0.16.6 | cut -f1)" = "$C"
 ```
 
 The create request and every publication readback require the verified SHA as
