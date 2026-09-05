@@ -41,6 +41,12 @@ const MAX_PUBLIC_REDIRECT_BYTES = 1_024;
 const MAX_ENCODED_RECEIPT_BYTES = 64 * 1024;
 const PAGINATED_READ_REQUESTS = MAX_ITEMS / PAGE_SIZE + 1;
 const GITHUB_TOKEN_REST_REQUEST_LIMIT = 1_000;
+const GITHUB_ACTIONS_RELEASE_BOT = Object.freeze({
+  id: 41898282,
+  login: "github-actions[bot]",
+  type: "Bot",
+});
+const RELEASE_SOURCE_RECEIPT_SCHEMA = "wrench-release-source-v1";
 const VERCEL_CREATOR = Object.freeze({ id: 35613825, login: "vercel[bot]", type: "Bot" });
 const VERCEL_GRAPHQL_CREATOR = Object.freeze({ id: 35613825, login: "vercel", type: "Bot" });
 const GRAPHQL_PAGE_SIZE = 100;
@@ -61,6 +67,7 @@ const PUBLIC_TEXT_ROUTES = Object.freeze([
   Object.freeze({ prefix: "# Wrench\n", path: "/llms.txt" }),
 ]);
 const STABLE_TAG = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
+const MAXIMUM_SAFE_SEMVER_COMPONENT = BigInt(Number.MAX_SAFE_INTEGER);
 const SHA = /^[0-9a-f]{40}$/u;
 const SECOND_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/u;
 const RECEIPT_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
@@ -735,7 +742,9 @@ function expectSha(value, label) {
 
 function expectStableTag(value, label) {
   const tag = expectString(value, label);
-  if (!STABLE_TAG.test(tag)) fail(`${label} is not one stable semantic-version tag`);
+  if (stableVersion(tag, label) === undefined) {
+    fail(`${label} is not one stable semantic-version tag in npm's safe numeric range`);
+  }
   return tag;
 }
 
@@ -1276,7 +1285,9 @@ async function readDeployment(api, repository, deploymentId) {
 function stableVersion(tag, label) {
   const match = STABLE_TAG.exec(expectString(tag, label));
   if (match === null) return undefined;
-  return Object.freeze(match.slice(1).map((part) => BigInt(part)));
+  const version = match.slice(1).map((part) => BigInt(part));
+  if (version.some(component => component > MAXIMUM_SAFE_SEMVER_COMPONENT)) return undefined;
+  return Object.freeze(version);
 }
 
 function compareStableVersions(left, right) {
@@ -1286,12 +1297,18 @@ function compareStableVersions(left, right) {
   return 0;
 }
 
-export async function assertReleaseTagNewerThanPublished({ api, repository, verifiedTag }) {
+export async function assertReleaseTagNewerThanPublished({
+  allowExistingTarget = false,
+  api,
+  repository,
+  verifiedTag,
+}) {
   const coordinate = expectRepository(repository);
   const tag = expectStableTag(verifiedTag, "verified tag");
   const next = stableVersion(tag, "verified tag");
   const ids = new Set();
   let exhausted = false;
+  let existingTargetCount = 0;
 
   for (let page = 1; page <= PAGINATED_READ_REQUESTS; page += 1) {
     const rawPage = expectArray(
@@ -1345,12 +1362,20 @@ export async function assertReleaseTagNewerThanPublished({ api, repository, veri
           release.published_at,
           `published releases page ${String(page)} item ${String(index)} published_at`,
         );
-        if (compareStableVersions(next, current) <= 0) {
+        const order = compareStableVersions(next, current);
+        if (order === 0 && allowExistingTarget && currentTag === tag) {
+          existingTargetCount += 1;
+          continue;
+        }
+        if (order <= 0) {
           fail(`Release ${tag} is not newer than ${currentTag}`);
         }
       }
     }
     if (rawPage.length < PAGE_SIZE) exhausted = true;
+  }
+  if (allowExistingTarget && existingTargetCount !== 1) {
+    fail(`Published release history does not contain exactly one existing ${tag}`);
   }
 }
 
@@ -1774,6 +1799,56 @@ export function exactPublishedRelease(value, tag, label = "published Release") {
   return release;
 }
 
+function expectWorkflowRunId(value, label = "workflow run id") {
+  const text = expectString(value, label);
+  if (!/^[1-9][0-9]*$/u.test(text) || !Number.isSafeInteger(Number(text))) {
+    fail(`${label} is not a positive safe integer`);
+  }
+  return text;
+}
+
+export function releaseSourceReceipt({ repository, verifiedSha, verifiedTag, workflowRunId }) {
+  const coordinate = expectRepository(repository);
+  const sha = expectSha(verifiedSha, "release receipt source SHA");
+  const tag = expectStableTag(verifiedTag, "release receipt tag");
+  const runId = expectWorkflowRunId(workflowRunId, "release receipt workflow run id");
+  return [
+    RELEASE_SOURCE_RECEIPT_SCHEMA,
+    `repository=${coordinate}`,
+    `tag=${tag}`,
+    `source_sha=${sha}`,
+    `workflow_run_id=${runId}`,
+  ].join(" ");
+}
+
+export function exactWorkflowPublishedRelease({
+  repository,
+  value,
+  verifiedSha,
+  verifiedTag,
+  workflowRunId,
+}, label = "workflow-published Release") {
+  const release = exactPublishedRelease(value, verifiedTag, label);
+  const expectedReceipt = releaseSourceReceipt({
+    repository,
+    verifiedSha,
+    verifiedTag,
+    workflowRunId,
+  });
+  const body = expectString(release.body, `${label}.body`);
+  if (
+    release.author?.id !== GITHUB_ACTIONS_RELEASE_BOT.id
+    || release.author?.login !== GITHUB_ACTIONS_RELEASE_BOT.login
+    || release.author?.type !== GITHUB_ACTIONS_RELEASE_BOT.type
+    || release.target_commitish !== verifiedSha
+    || release.name !== `Wrench ${verifiedTag}`
+    || (body !== expectedReceipt && !body.startsWith(`${expectedReceipt}\n\n`))
+  ) {
+    fail(`Release ${verifiedTag} does not have the exact Actions workflow identity and source receipt`);
+  }
+  return release;
+}
+
 function exactLatestRelease(value, label) {
   const release = expectRecord(value, label);
   const tag = expectStableTag(release.tag_name, `${label} tag`);
@@ -1803,10 +1878,21 @@ function assertSameReleaseIdentity(actual, expected, label) {
   }
 }
 
-export function validateMatchingPublishedReleases(actualValue, expectedValue, verifiedTag) {
+export function validateMatchingPublishedReleases(
+  actualValue,
+  expectedValue,
+  { repository, verifiedSha, verifiedTag, workflowRunId },
+) {
   const tag = expectStableTag(verifiedTag, "verified tag");
-  const actual = exactPublishedRelease(actualValue, tag, `Release ${tag} readback`);
-  const expected = exactPublishedRelease(expectedValue, tag, `created Release ${tag}`);
+  const coordinates = { repository, verifiedSha, verifiedTag: tag, workflowRunId };
+  const actual = exactWorkflowPublishedRelease(
+    { ...coordinates, value: actualValue },
+    `Release ${tag} readback`,
+  );
+  const expected = exactWorkflowPublishedRelease(
+    { ...coordinates, value: expectedValue },
+    `created Release ${tag}`,
+  );
   assertSameReleaseIdentity(actual, expected, `Release ${tag} readback`);
   return Object.freeze({ releaseId: actual.id, tag });
 }
@@ -3158,11 +3244,25 @@ async function main() {
     return;
   }
   if (command === "release-order") {
+    const releaseLookupState = process.env.RELEASE_LOOKUP_STATE;
+    if (releaseLookupState !== "found" && releaseLookupState !== "missing") {
+      fail("RELEASE_LOOKUP_STATE must be found or missing");
+    }
     await assertReleaseTagNewerThanPublished({
+      allowExistingTarget: releaseLookupState === "found",
       api,
       repository: process.env.GITHUB_REPOSITORY,
       verifiedTag: process.env.VERIFIED_TAG,
     });
+    return;
+  }
+  if (command === "release-source-receipt") {
+    process.stdout.write(releaseSourceReceipt({
+      repository: process.env.GITHUB_REPOSITORY,
+      verifiedSha: process.env.VERIFIED_SHA,
+      verifiedTag: process.env.VERIFIED_TAG,
+      workflowRunId: process.env.GITHUB_RUN_ID,
+    }));
     return;
   }
   if (command === "inspect-release-response") {
@@ -3171,7 +3271,13 @@ async function main() {
       "Release lookup response",
     );
     if (response.found) {
-      exactPublishedRelease(response.value, process.env.VERIFIED_TAG, "existing Release");
+      exactWorkflowPublishedRelease({
+        repository: process.env.GITHUB_REPOSITORY,
+        value: response.value,
+        verifiedSha: process.env.VERIFIED_SHA,
+        verifiedTag: process.env.VERIFIED_TAG,
+        workflowRunId: process.env.GITHUB_RUN_ID,
+      }, "existing Release");
       process.stdout.write("found\n");
     } else {
       process.stdout.write("missing\n");
@@ -3179,11 +3285,13 @@ async function main() {
     return;
   }
   if (command === "validate-release") {
-    exactPublishedRelease(
-      parseJson(readFileSync(0, "utf8"), "Release response"),
-      process.env.VERIFIED_TAG,
-      "Release response",
-    );
+    exactWorkflowPublishedRelease({
+      repository: process.env.GITHUB_REPOSITORY,
+      value: parseJson(readFileSync(0, "utf8"), "Release response"),
+      verifiedSha: process.env.VERIFIED_SHA,
+      verifiedTag: process.env.VERIFIED_TAG,
+      workflowRunId: process.env.GITHUB_RUN_ID,
+    }, "Release response");
     return;
   }
   if (command === "validate-latest-predecessor") {
@@ -3198,12 +3306,24 @@ async function main() {
     validateMatchingPublishedReleases(
       actualRelease,
       readBoundedJsonFile(process.argv[3], "created Release response"),
-      process.env.VERIFIED_TAG,
+      {
+        repository: process.env.GITHUB_REPOSITORY,
+        verifiedSha: process.env.VERIFIED_SHA,
+        verifiedTag: process.env.VERIFIED_TAG,
+        workflowRunId: process.env.GITHUB_RUN_ID,
+      },
     );
     return;
   }
   if (command === "wait-latest-release") {
     const targetRelease = parseJson(readFileSync(0, "utf8"), "target Release response");
+    exactWorkflowPublishedRelease({
+      repository: process.env.GITHUB_REPOSITORY,
+      value: targetRelease,
+      verifiedSha: process.env.VERIFIED_SHA,
+      verifiedTag: process.env.VERIFIED_TAG,
+      workflowRunId: process.env.GITHUB_RUN_ID,
+    }, "target Release response");
     const result = await waitForLatestRelease({
       api,
       predecessorRelease: readBoundedJsonFile(
@@ -3221,6 +3341,13 @@ async function main() {
   }
   if (command === "require-latest-release") {
     const targetRelease = parseJson(readFileSync(0, "utf8"), "target Release response");
+    exactWorkflowPublishedRelease({
+      repository: process.env.GITHUB_REPOSITORY,
+      value: targetRelease,
+      verifiedSha: process.env.VERIFIED_SHA,
+      verifiedTag: process.env.VERIFIED_TAG,
+      workflowRunId: process.env.GITHUB_RUN_ID,
+    }, "target Release response");
     const result = await requireLatestRelease({
       api,
       repository: process.env.GITHUB_REPOSITORY,
@@ -3232,6 +3359,13 @@ async function main() {
   }
   if (command === "revalidate-latest-release") {
     const targetRelease = parseJson(readFileSync(0, "utf8"), "target Release response");
+    exactWorkflowPublishedRelease({
+      repository: process.env.GITHUB_REPOSITORY,
+      value: targetRelease,
+      verifiedSha: process.env.VERIFIED_SHA,
+      verifiedTag: process.env.VERIFIED_TAG,
+      workflowRunId: process.env.GITHUB_RUN_ID,
+    }, "target Release response");
     const result = await revalidateLatestReleaseProjection({
       api,
       repository: process.env.GITHUB_REPOSITORY,

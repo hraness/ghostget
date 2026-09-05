@@ -8,6 +8,7 @@ const workflowBuildType = "https://slsa-framework.github.io/github-actions-build
 const githubHostedBuilder = "https://github.com/actions/runner/github-hosted";
 const shaPattern = /^[a-f0-9]{40}$/u;
 const stableVersionPattern = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
+const maximumSafeSemverComponent = BigInt(Number.MAX_SAFE_INTEGER);
 
 export type NpmProvenanceIdentityInput = Readonly<{
   auditJson: string;
@@ -78,7 +79,13 @@ export async function verifyNpmProvenanceIdentity(
   input: NpmProvenanceIdentityInput,
 ): Promise<VerifiedNpmProvenanceIdentity> {
   if (input.expectedName !== "@hraness/wrench") throw new Error("Unexpected package name");
-  if (!stableVersionPattern.test(input.expectedVersion)) throw new Error("Expected version is not stable semver");
+  const versionMatch = stableVersionPattern.exec(input.expectedVersion);
+  if (
+    versionMatch?.[1] === undefined
+    || versionMatch[2] === undefined
+    || versionMatch[3] === undefined
+    || versionMatch.slice(1).some(component => BigInt(component) > maximumSafeSemverComponent)
+  ) throw new Error("Expected version is not stable semver");
   if (!shaPattern.test(input.expectedSourceSha)) throw new Error("Expected source SHA is malformed");
   positiveId(input.expectedRepositoryId, "Expected repository ID");
   positiveId(input.expectedOwnerId, "Expected repository owner ID");

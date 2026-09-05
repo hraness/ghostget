@@ -6,6 +6,7 @@ import {
   latestReleaseConvergenceBudget,
   requireLatestRelease,
   revalidateLatestReleaseProjection,
+  releaseSourceReceipt,
   releasePublicHostRequestBudget,
   validateMatchingPublishedReleases,
   waitForLatestRelease,
@@ -682,15 +683,29 @@ describe("immutable Latest Release convergence", () => {
       verifiedTag: tag,
     })).rejects.toThrow("is no longer Latest");
 
+    const workflowRunId = "88001";
+    const releaseCoordinates = {
+      repository: "hraness/wrench",
+      verifiedSha: sourceSha,
+      verifiedTag: tag,
+      workflowRunId,
+    };
+    const workflowRelease = {
+      ...release(tag, 10),
+      author: { id: 41898282, login: "github-actions[bot]", type: "Bot" },
+      body: releaseSourceReceipt(releaseCoordinates),
+      name: `Wrench ${tag}`,
+      target_commitish: sourceSha,
+    };
     expect(validateMatchingPublishedReleases(
-      release(tag, 10),
-      release(tag, 10),
-      tag,
+      workflowRelease,
+      workflowRelease,
+      releaseCoordinates,
     )).toEqual({ releaseId: 10, tag });
     expect(() => validateMatchingPublishedReleases(
-      release(tag, 11),
-      release(tag, 10),
-      tag,
+      { ...workflowRelease, id: 11 },
+      workflowRelease,
+      releaseCoordinates,
     )).toThrow("does not bind the immutable target Release");
   });
 

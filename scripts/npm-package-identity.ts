@@ -10,6 +10,7 @@ import {
 
 const npmRegistry = "https://registry.npmjs.org";
 const stableVersionPattern = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
+const maximumSafeSemverComponent = BigInt(Number.MAX_SAFE_INTEGER);
 
 type NpmPackFile = Readonly<{
   mode: number;
@@ -110,7 +111,13 @@ function expectedFilename(name: string, version: string): string {
   if (name !== "@hraness/wrench") {
     throw new Error(`Expected package name must be @hraness/wrench, received ${name}`);
   }
-  if (!stableVersionPattern.test(version)) {
+  const match = stableVersionPattern.exec(version);
+  if (
+    match?.[1] === undefined
+    || match[2] === undefined
+    || match[3] === undefined
+    || match.slice(1).some(component => BigInt(component) > maximumSafeSemverComponent)
+  ) {
     throw new Error(`Expected package version is not stable semantic version: ${version}`);
   }
   return `hraness-wrench-${version}.tgz`;

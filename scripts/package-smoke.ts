@@ -42,9 +42,17 @@ const packageDiscoveryKeywords = [
   "bun",
 ] as const;
 const NPM_REGISTRY = "https://registry.npmjs.org";
+const stableVersionPattern = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
+const maximumSafeSemverComponent = BigInt(Number.MAX_SAFE_INTEGER);
 const sweetCookieVerificationUrl = "https://codeload.github.com/hraness/sweet-cookie/tar.gz/refs/tags/v0.4.2";
 const sweetCookieVerificationIntegrity = "sha512-HddZketABRWbHiLYqMbGlYuqEaWdtqAjES28eKHr2cPDdPvrXiF4JQxD4pl9WzSOre6p/B3zA4Z3uIsCHo/+uQ==";
 const verificationPackages = [`@steipete/sweet-cookie@${sweetCookieVerificationUrl}`,"@types/bun@^1.3.14","fast-check@^4.8.0"];
+
+function isNpmStableVersion(value: string): boolean {
+  const match = stableVersionPattern.exec(value);
+  if (match?.[1] === undefined || match[2] === undefined || match[3] === undefined) return false;
+  return match.slice(1).every(component => BigInt(component) <= maximumSafeSemverComponent);
+}
 const inertRootImportProgram = `
   import fs from "node:fs";
   import fsPromises from "node:fs/promises";
@@ -571,6 +579,7 @@ async function verifyPackagedSkill(
     throw new Error("Packed Wrench must declare its Bun runtime floor.");
   }
   if (
+    Object.hasOwn(manifest, "tag") ||
     typeof manifest.publishConfig !== "object"
     || manifest.publishConfig === null
     || Array.isArray(manifest.publishConfig)
@@ -629,8 +638,11 @@ const sourceManifest = requireRecord(
 );
 const packageVersion = requireString(sourceManifest, "version", "package.json");
 assertPackageDiscoveryKeywords(sourceManifest.keywords, "package.json");
-if (!/^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$/u.test(packageVersion)) {
+if (!isNpmStableVersion(packageVersion)) {
   throw new Error(`package.json version is not stable semantic version: ${packageVersion}.`);
+}
+if (Object.hasOwn(sourceManifest, "tag")) {
+  throw new Error("package.json must not define a top-level npm publication tag.");
 }
 const exactNpmArtifact = parseExactNpmArtifact(process.argv.slice(2), repository);
 const work = await mkdtemp(join(tmpdir(), "hraness-package-smoke-"));

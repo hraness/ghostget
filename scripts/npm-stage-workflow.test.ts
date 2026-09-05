@@ -47,6 +47,8 @@ import {
   parseIncludedGitHubResponse,
   promoteWebsiteProduction,
   revalidateReleaseAuthority,
+  exactWorkflowPublishedRelease,
+  releaseSourceReceipt,
   releaseGraphqlRequestBudget,
   releasePublicHostRequestBudget,
   releaseRestRequestBudget,
@@ -162,9 +164,17 @@ async function runWorkflowScript(
 }
 
 async function run(command: readonly string[], cwd: string): Promise<void> {
-  const child = Bun.spawn([...command], { cwd, stderr: "inherit", stdout: "inherit" });
-  const exitCode = await child.exited;
-  if (exitCode !== 0) throw new Error(`Command failed (${String(exitCode)}): ${command.join(" ")}`);
+  const child = Bun.spawn([...command], { cwd, stderr: "pipe", stdout: "pipe" });
+  const [exitCode, stderr, stdout] = await Promise.all([
+    child.exited,
+    new Response(child.stderr).text(),
+    new Response(child.stdout).text(),
+  ]);
+  if (exitCode !== 0) {
+    throw new Error(
+      `Command failed (${String(exitCode)}): ${command.join(" ")}\n${stdout}${stderr}`,
+    );
+  }
 }
 
 function sha1(bytes: Uint8Array): string {
@@ -245,6 +255,31 @@ function firstRegularHeader(tar: Buffer): Readonly<{ offset: number; size: numbe
     offset += 512 + Math.ceil(size / 512) * 512;
   }
   throw new Error("Test package contains no non-empty regular file");
+}
+
+function exactTarEntry(
+  tar: Buffer,
+  expectedPath: string,
+): Readonly<{ dataOffset: number; headerOffset: number; size: number }> {
+  let offset = 0;
+  while (offset + 512 <= tar.length) {
+    const header = tar.subarray(offset, offset + 512);
+    if (header.every((byte) => byte === 0)) break;
+    const text = (start: number, length: number) => {
+      const bytes = header.subarray(start, start + length);
+      const zero = bytes.indexOf(0);
+      return (zero < 0 ? bytes : bytes.subarray(0, zero)).toString("utf8");
+    };
+    const name = text(0, 100);
+    const prefix = text(345, 155);
+    const path = prefix === "" ? name : `${prefix}/${name}`;
+    const size = readTarOctal(tar, offset + 124);
+    if (path === expectedPath) {
+      return Object.freeze({ dataOffset: offset + 512, headerOffset: offset, size });
+    }
+    offset += 512 + Math.ceil(size / 512) * 512;
+  }
+  throw new Error(`Test package has no ${expectedPath} entry`);
 }
 
 function writeHeaderChecksum(tar: Buffer, offset: number): void {
@@ -1391,6 +1426,7 @@ describe("npm publication contract", () => {
     for (const required of [
       "push:\n    branches:\n      - main\n    paths:\n      - package.json",
       "workflow_dispatch:\n    inputs:\n      publish_to_npm:\n        description: Submit the verified stable candidate to npm staging\n        required: false\n        default: false\n        type: boolean",
+      "resolved_stage_version:\n        description: Exact prior staged version already rejected by npm (exceptional recovery only)\n        required: false\n        default: \"\"\n        type: string",
       "contents: read",
     ] as const) {
       expect(workflow).toContain(required);
@@ -1482,7 +1518,7 @@ describe("npm publication contract", () => {
     expect(verifyJob.match(/npm view /gu) ?? []).toHaveLength(2);
 
     for (const required of [
-      "name: Stage exact package",
+      "name: Stage exact package v${{ needs.verify.outputs.package_version }}",
       "needs: verify",
       "if: needs.verify.result == 'success' && github.event_name == 'workflow_dispatch' && inputs.publish_to_npm == true",
       "permissions:\n      actions: read\n      contents: read\n      id-token: write",
@@ -1495,18 +1531,34 @@ describe("npm publication contract", () => {
       'EXPECTED_WORKFLOW_NAME: "Stage npm package"',
       'EXPECTED_WORKFLOW_PATH: ".github/workflows/npm-stage.yml"',
       "INPUT_PUBLISH_TO_NPM: ${{ inputs.publish_to_npm }}",
+      "RESOLVED_STAGE_VERSION: ${{ inputs.resolved_stage_version }}",
       "REF_PROTECTED: ${{ github.ref_protected }}",
       "attempt.actor?.id !== actorId",
       "attempt.triggering_actor?.id !== actorId",
       "node-version: \"24\"",
       "package-manager-cache: false",
       "npm@11.19.0",
+      "name: Establish clean npm publication defaults",
+      'unset NPM_CONFIG_TAG npm_config_tag',
+      'NPM_CONFIG_USERCONFIG="$user_config"',
+      'NPM_CONFIG_GLOBALCONFIG="$global_config"',
+      "npm config get tag",
+      "name: Reject unresolved stable-stage intent",
+      "event=workflow_dispatch&status=completed&branch=main&per_page=100",
+      "jobs?filter=all&per_page=100",
+      "inspectRunJobs(currentRunNumber, currentSha)",
+      'step.name === "Record exclusive stable-stage intent"',
+      'step.name.startsWith("Record cleared stable-stage intent")',
+      "Resolved prior stage ${resolvedStageVersion} does not identify a blocking intent",
+      "already reserved stable stage ${version}",
+      "name: Record cleared stable-stage intent v${{ inputs.resolved_stage_version }}",
+      "name: Record exclusive stable-stage intent",
       "name: Bind verified artifact identity",
       "EXPECTED_ARTIFACT_NAME: ${{ needs.verify.outputs.artifact_name }}",
       "EXPECTED_SOURCE_SHA: ${{ needs.verify.outputs.source_sha }}",
       "EXPECTED_TARBALL_NAME: ${{ needs.verify.outputs.tarball_name }}",
       "EXPECTED_VERSION: ${{ needs.verify.outputs.package_version }}",
-      '[[ ! "$EXPECTED_VERSION" =~ ^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$ ]]',
+      "BigInt(Number.MAX_SAFE_INTEGER)",
       '[[ ! "$EXPECTED_SOURCE_SHA" =~ ^[a-f0-9]{40}$ || "$EXPECTED_SOURCE_SHA" != "$GITHUB_SHA" ]]',
       '[[ ! "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ || ! "$GITHUB_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]',
       'tarball_name="hraness-wrench-$EXPECTED_VERSION.tgz"',
@@ -1538,6 +1590,7 @@ describe("npm publication contract", () => {
       "record.integrity !== integrity || record.shasum !== shasum",
       "zlib.gunzipSync(bytes",
       'path === "package/package.json"',
+      'Object.hasOwn(manifest, "tag")',
       'JSON.stringify(Object.keys(publishConfig).sort()) !== JSON.stringify(["access", "registry"])',
       'publishConfig.registry !== "https://registry.npmjs.org"',
       "Packed Wrench can publish only to the canonical public npm registry",
@@ -1570,10 +1623,10 @@ describe("npm publication contract", () => {
       'current_tarball_sha256="$(sha256sum "$TARBALL"',
       '"$current_tarball_sha256" != "$EXPECTED_TARBALL_SHA256"',
       "npm stage publish \"$TARBALL\"",
+      "npm view @hraness/wrench dist-tags.latest --json",
       "--access public",
       "--ignore-scripts",
       "--provenance",
-      "--tag latest",
     ] as const) {
       expect(stageJob).toContain(required);
     }
@@ -1593,8 +1646,17 @@ describe("npm publication contract", () => {
     expect(stageJob.match(/git ls-remote --sort=refname --refs/gu) ?? []).toHaveLength(2);
     expect(stageJob).not.toContain("git ls-remote --sort=refname --refs --tags");
     expect(stageJob.match(/npm stage publish/gu) ?? []).toHaveLength(1);
+    expect(stageJob).not.toContain("--tag");
     expect(stageJob.indexOf("Reauthorize current npm stage attempt"))
       .toBeLessThan(stageJob.indexOf("actions/setup-node@"));
+    const intentStep = stageJob.indexOf("      - name: Record exclusive stable-stage intent\n");
+    const mutationStep = stageJob.indexOf(
+      "      - name: Revalidate protected-main ancestry and stage exact package\n",
+    );
+    expect(intentStep).toBeGreaterThan(-1);
+    expect(mutationStep).toBeGreaterThan(intentStep);
+    expect(stageJob.slice(intentStep, mutationStep).match(/^      - name:/gmu) ?? [])
+      .toHaveLength(1);
 
     expect(workflow).not.toContain("secrets.NPM_TOKEN");
     expect(workflow).not.toContain("NODE_AUTH_TOKEN");
@@ -1603,10 +1665,11 @@ describe("npm publication contract", () => {
     expect(workflow).not.toMatch(/\bnpm publish\b/u);
     expect(stageJob.match(/inputs\.publish_to_npm == true/gu) ?? []).toHaveLength(1);
     expect(stageJob).toContain("github.event_name == 'workflow_dispatch'");
-    expect(classifyJob).not.toContain("publish_to_npm");
+    expect(classifyJob).toContain("INPUT_PUBLISH_TO_NPM: ${{ inputs.publish_to_npm }}");
+    expect(classifyJob).toContain("RESOLVED_STAGE_VERSION: ${{ inputs.resolved_stage_version }}");
     expect(verifyJob).not.toContain("publish_to_npm");
-    const registryFlags = workflow.match(/--registry=[^\s"']+/gu) ?? [];
-    expect(registryFlags).toHaveLength(6);
+    const registryFlags = workflow.match(/--registry=[^\s"')]+/gu) ?? [];
+    expect(registryFlags).toHaveLength(8);
     expect(new Set(registryFlags)).toEqual(new Set([`--registry=${npmRegistry}`]));
     expect(
       workflow.match(
@@ -1622,7 +1685,7 @@ describe("npm publication contract", () => {
       stageJob.match(
         new RegExp(`--registry=${npmRegistry.replaceAll(".", "\\.")}`, "gu"),
       ) ?? [],
-    ).toHaveLength(2);
+    ).toHaveLength(4);
 
     const downloadIndex = stageJob.indexOf("actions/download-artifact@");
     const firstHashIndex = stageJob.indexOf('actual_sha256="$(sha256sum "$tarball"');
@@ -1741,9 +1804,11 @@ esac
         GITHUB_REF: "refs/heads/main",
         GITHUB_REPOSITORY: "hraness/wrench",
         GITHUB_SHA: currentSha,
+        INPUT_PUBLISH_TO_NPM: "false",
         ORIGINAL_PATH: process.env.PATH ?? "",
         PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`,
         PREVIOUS_MANIFEST: manifest("0.16.0"),
+        RESOLVED_STAGE_VERSION: "",
         RUNNER_TEMP: directory,
       });
       const runCase = async (
@@ -1890,6 +1955,7 @@ esac
         INPUT_PUBLISH_TO_NPM: "true",
         PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`,
         REF_PROTECTED: "true",
+        RESOLVED_STAGE_VERSION: "",
         REPOSITORY_FIXTURE: repositoryFixture,
         RUNNER_TEMP: directory,
         WORKFLOW_FIXTURE: workflowFixture,
@@ -1916,9 +1982,255 @@ esac
         [{ ...validAttempt, status: "completed", conclusion: "success" }, {}],
         [validAttempt, { INPUT_PUBLISH_TO_NPM: "false" }],
         [validAttempt, { REF_PROTECTED: "false" }],
+        [validAttempt, { RESOLVED_STAGE_VERSION: "9007199254740992.0.0" }],
       ] as const) {
         expect((await runCase(attempt, overrides)).exitCode).not.toBe(0);
       }
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  test("the durable stage-intent lock survives failed jobs and same-run ambiguous reruns", async () => {
+    const workflow = await readFile(stageWorkflowUrl, "utf8");
+    const script = workflowStepScript(workflow, "Reject unresolved stable-stage intent");
+    const directory = await mkdtemp(join(tmpdir(), "wrench-stage-history-"));
+    const binaryDirectory = join(directory, "bin");
+    const npmStub = join(binaryDirectory, "npm");
+    const ghStub = join(binaryDirectory, "gh");
+    const runsFixture = join(directory, "runs.json");
+    const currentJobsFixture = join(directory, "current-jobs.json");
+    const firstJobsFixture = join(directory, "first-jobs.json");
+    const resolutionJobsFixture = join(directory, "resolution-jobs.json");
+    const historicalSha = "c".repeat(40);
+    const resolutionSha = "e".repeat(40);
+    const currentSha = "d".repeat(40);
+    const currentInProgressJob = Object.freeze({
+      conclusion: null,
+      head_sha: currentSha,
+      id: 8101,
+      name: "Stage exact package v0.15.2",
+      run_attempt: 2,
+      run_id: 8001,
+      status: "in_progress",
+      steps: [{
+        conclusion: null,
+        name: "Reject unresolved stable-stage intent",
+      }],
+    });
+    const failedIntentJob = Object.freeze({
+      conclusion: "failure",
+      head_sha: historicalSha,
+      id: 7101,
+      name: "Stage exact package v0.15.1",
+      run_attempt: 1,
+      run_id: 7001,
+      status: "completed",
+      steps: [{
+        conclusion: "success",
+        name: "Record exclusive stable-stage intent",
+      }, {
+        conclusion: "failure",
+        name: "Revalidate protected-main ancestry and stage exact package",
+      }],
+    });
+    const persistedResolutionJob = Object.freeze({
+      conclusion: "failure",
+      head_sha: resolutionSha,
+      id: 7201,
+      name: "Stage exact package v0.15.2",
+      run_attempt: 1,
+      run_id: 7002,
+      status: "completed",
+      steps: [{
+        conclusion: "success",
+        name: "Record cleared stable-stage intent v0.15.1",
+      }, {
+        conclusion: "failure",
+        name: "Bind verified artifact identity",
+      }],
+    });
+
+    try {
+      await mkdir(binaryDirectory, { recursive: true });
+      await Promise.all([
+        writeFile(npmStub, `#!/bin/bash
+set -euo pipefail
+if [[ "\${1-}" == config && "\${2-}" == get && "\${3-}" == tag ]]; then
+  printf 'latest\n'
+elif [[ "\${1-}" == view && "\${2-}" == @hraness/wrench && \
+        "\${3-}" == dist-tags.latest && "\${4-}" == --json ]]; then
+  printf '"%s"\n' "$NPM_LATEST_VERSION"
+else
+  echo "unexpected npm command: $*" >&2
+  exit 1
+fi
+`, "utf8"),
+        writeFile(ghStub, `#!/bin/bash
+set -euo pipefail
+case "$*" in
+  "api --method GET /repos/hraness/wrench/actions/workflows/344213783/runs?event=workflow_dispatch&status=completed&branch=main&per_page=100") cat "$RUNS_FIXTURE" ;;
+  "api --method GET /repos/hraness/wrench/actions/runs/8001/jobs?filter=all&per_page=100") cat "$CURRENT_JOBS_FIXTURE" ;;
+  "api --method GET /repos/hraness/wrench/actions/runs/7001/jobs?filter=all&per_page=100") cat "$FIRST_JOBS_FIXTURE" ;;
+  "api --method GET /repos/hraness/wrench/actions/runs/7002/jobs?filter=all&per_page=100") cat "$RESOLUTION_JOBS_FIXTURE" ;;
+  *) echo "unexpected gh command: $*" >&2; exit 1 ;;
+esac
+`, "utf8"),
+        writeFile(firstJobsFixture, `${JSON.stringify({
+          total_count: 1,
+          jobs: [failedIntentJob],
+        })}\n`, "utf8"),
+        writeFile(resolutionJobsFixture, `${JSON.stringify({
+          total_count: 1,
+          jobs: [persistedResolutionJob],
+        })}\n`, "utf8"),
+        writeFile(join(directory, "global.npmrc"), "", "utf8"),
+        writeFile(join(directory, "user.npmrc"), "", "utf8"),
+      ]);
+      await Promise.all([chmod(npmStub, 0o755), chmod(ghStub, 0o755)]);
+      const emptyHistory = Object.freeze({ total_count: 0, workflow_runs: [] });
+      const failedIntentHistory = Object.freeze({
+        total_count: 1,
+        workflow_runs: [{
+          conclusion: "failure",
+          event: "workflow_dispatch",
+          head_branch: "main",
+          head_sha: historicalSha,
+          id: 7001,
+          repository: {
+            full_name: providerRepository,
+            id: WRENCH_REPOSITORY_ID,
+            private: false,
+          },
+          status: "completed",
+          workflow_id: 344213783,
+        }],
+      });
+      const resolvedHistory = Object.freeze({
+        total_count: 2,
+        workflow_runs: [
+          ...failedIntentHistory.workflow_runs,
+          {
+            conclusion: "failure",
+            event: "workflow_dispatch",
+            head_branch: "main",
+            head_sha: resolutionSha,
+            id: 7002,
+            repository: {
+              full_name: providerRepository,
+              id: WRENCH_REPOSITORY_ID,
+              private: false,
+            },
+            status: "completed",
+            workflow_id: 344213783,
+          },
+        ],
+      });
+      const baseEnvironment = Object.freeze({
+        CURRENT_JOBS_FIXTURE: currentJobsFixture,
+        EXPECTED_REPOSITORY: providerRepository,
+        EXPECTED_REPOSITORY_ID: String(WRENCH_REPOSITORY_ID),
+        EXPECTED_VERSION: "0.15.2",
+        EXPECTED_WORKFLOW_ID: "344213783",
+        FIRST_JOBS_FIXTURE: firstJobsFixture,
+        GH_TOKEN: "read-only-token",
+        GITHUB_REPOSITORY: providerRepository,
+        GITHUB_RUN_ID: "8001",
+        GITHUB_SHA: currentSha,
+        NPM_DIRECTORY: directory,
+        NPM_GLOBALCONFIG: join(directory, "global.npmrc"),
+        NPM_USERCONFIG: join(directory, "user.npmrc"),
+        PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`,
+        RESOLVED_STAGE_VERSION: "",
+        RESOLUTION_JOBS_FIXTURE: resolutionJobsFixture,
+        RUNS_FIXTURE: runsFixture,
+        RUNNER_TEMP: directory,
+      });
+      const runHistory = async (
+        history: Readonly<Record<string, unknown>>,
+        currentJobs: Readonly<Record<string, unknown>>,
+        overrides: Readonly<Record<string, string>> = {},
+      ) => {
+        await Promise.all([
+          writeFile(runsFixture, `${JSON.stringify(history)}\n`, "utf8"),
+          writeFile(currentJobsFixture, `${JSON.stringify(currentJobs)}\n`, "utf8"),
+        ]);
+        return runWorkflowScript(script, { ...baseEnvironment, ...overrides });
+      };
+      const currentWithoutIntent = Object.freeze({
+        total_count: 1,
+        jobs: [currentInProgressJob],
+      });
+
+      const first = await runHistory(emptyHistory, currentWithoutIntent, {
+        NPM_LATEST_VERSION: "0.15.0",
+      });
+      expect(first.exitCode, `${first.stdout}\n${first.stderr}`).toBe(0);
+
+      const pending = await runHistory(failedIntentHistory, currentWithoutIntent, {
+        NPM_LATEST_VERSION: "0.15.0",
+      });
+      expect(pending.exitCode).not.toBe(0);
+      expect(`${pending.stdout}${pending.stderr}`).toContain(
+        "7001/attempt-1/job-7101 already reserved stable stage 0.15.1",
+      );
+
+      const advanced = await runHistory(failedIntentHistory, currentWithoutIntent, {
+        NPM_LATEST_VERSION: "0.15.1",
+      });
+      expect(advanced.exitCode, `${advanced.stdout}\n${advanced.stderr}`).toBe(0);
+
+      const rejectedStageRecovery = await runHistory(failedIntentHistory, currentWithoutIntent, {
+        NPM_LATEST_VERSION: "0.15.0",
+        RESOLVED_STAGE_VERSION: "0.15.1",
+      });
+      expect(
+        rejectedStageRecovery.exitCode,
+        `${rejectedStageRecovery.stdout}\n${rejectedStageRecovery.stderr}`,
+      ).toBe(0);
+
+      const wrongRecovery = await runHistory(failedIntentHistory, currentWithoutIntent, {
+        NPM_LATEST_VERSION: "0.15.0",
+        RESOLVED_STAGE_VERSION: "0.15.2",
+      });
+      expect(wrongRecovery.exitCode).not.toBe(0);
+
+      const sameRunPriorAttempt = Object.freeze({
+        total_count: 2,
+        jobs: [{
+          ...failedIntentJob,
+          head_sha: currentSha,
+          id: 8100,
+          run_id: 8001,
+        }, currentInProgressJob],
+      });
+      const blockedRerun = await runHistory(emptyHistory, sameRunPriorAttempt, {
+        NPM_LATEST_VERSION: "0.15.0",
+      });
+      expect(blockedRerun.exitCode).not.toBe(0);
+      expect(`${blockedRerun.stdout}${blockedRerun.stderr}`).toContain(
+        "8001/attempt-1/job-8100 already reserved stable stage 0.15.1",
+      );
+      const recoveredRerun = await runHistory(emptyHistory, sameRunPriorAttempt, {
+        NPM_LATEST_VERSION: "0.15.0",
+        RESOLVED_STAGE_VERSION: "0.15.1",
+      });
+      expect(recoveredRerun.exitCode, `${recoveredRerun.stdout}\n${recoveredRerun.stderr}`)
+        .toBe(0);
+
+      const persistedResolution = await runHistory(resolvedHistory, currentWithoutIntent, {
+        NPM_LATEST_VERSION: "0.15.0",
+      });
+      expect(persistedResolution.exitCode, `${persistedResolution.stdout}\n${persistedResolution.stderr}`)
+        .toBe(0);
+      const reusedResolution = await runHistory(resolvedHistory, currentWithoutIntent, {
+        NPM_LATEST_VERSION: "0.15.0",
+        RESOLVED_STAGE_VERSION: "0.15.1",
+      });
+      expect(reusedResolution.exitCode).not.toBe(0);
+      expect(`${reusedResolution.stdout}${reusedResolution.stderr}`).toContain(
+        "does not identify a blocking intent",
+      );
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
@@ -1952,6 +2264,7 @@ esac
 
       for (const environment of [
         { ...baseEnvironment, EXPECTED_VERSION: "0.15.1/../../escape" },
+        { ...baseEnvironment, EXPECTED_VERSION: "9007199254740992.0.0" },
         { ...baseEnvironment, EXPECTED_TARBALL_NAME: "../../escape.tgz" },
         { ...baseEnvironment, EXPECTED_SOURCE_SHA: "../unsafe-source" },
         { ...baseEnvironment, EXPECTED_ARTIFACT_NAME: `${baseEnvironment.EXPECTED_ARTIFACT_NAME}-other` },
@@ -2095,7 +2408,18 @@ case "$COMPARISON_STATUS" in
 esac
 `, "utf8");
       await writeFile(sha256Stub, `#!/bin/bash\nset -euo pipefail\nprintf 'sha256sum %s\\n' "$*" >> "$COMMAND_LOG"\nprintf '%s  %s\\n' "$EXPECTED_TARBALL_SHA256" "$1"\n`, "utf8");
-      await writeFile(npmStub, `#!/bin/bash\nset -euo pipefail\nprintf 'npm %s\\n' "$*" >> "$COMMAND_LOG"\nprintf 'published\\n' > "$PUBLISH_MARKER"\n`, "utf8");
+      await writeFile(npmStub, `#!/bin/bash
+set -euo pipefail
+printf 'npm %s\n' "$*" >> "$COMMAND_LOG"
+case "$*" in
+  "config get tag") printf 'latest\n' ;;
+  "view @hraness/wrench dist-tags.latest --json --registry=https://registry.npmjs.org")
+    printf '"%s"\n' "$NPM_LATEST_VERSION"
+    ;;
+  "stage publish "*) printf 'published\n' > "$PUBLISH_MARKER" ;;
+  *) echo "unexpected npm command: $*" >&2; exit 1 ;;
+esac
+`, "utf8");
       await Promise.all([
         chmod(ghStub, 0o755),
         chmod(gitStub, 0o755),
@@ -2116,6 +2440,10 @@ esac
         GH_TOKEN: "read-only-token",
         GIT_CALL_COUNT: gitCallCount,
         PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`,
+        NPM_DIRECTORY: directory,
+        NPM_GLOBALCONFIG: join(directory, "global.npmrc"),
+        NPM_LATEST_VERSION: "0.15.0",
+        NPM_USERCONFIG: join(directory, "user.npmrc"),
         PUBLISH_MARKER: publishMarker,
         RUNNER_TEMP: directory,
         TARBALL: tarball,
@@ -2139,6 +2467,21 @@ esac
         expect(combinedIndexes[1]).toBeGreaterThan(combinedIndexes[0] ?? -1);
         expect(hashIndex).toBeLessThan(combinedIndexes[0] ?? -1);
         expect(publishIndex).toBeGreaterThan(combinedIndexes[1] ?? -1);
+        expect(commands).not.toContain("--tag");
+
+        await rm(commandLog, { force: true });
+        await rm(gitCallCount, { force: true });
+        await rm(publishMarker, { force: true });
+        const frontRun = await runWorkflowScript(script, {
+          ...baseEnvironment,
+          GIT_SNAPSHOT_STATUS: "absent",
+          NPM_LATEST_VERSION: "0.15.2",
+        });
+        expect(frontRun.exitCode).not.toBe(0);
+        expect(`${frontRun.stdout}${frontRun.stderr}`).toContain(
+          "Candidate 0.15.1 is older than public npm latest 0.15.2",
+        );
+        expect(await Bun.file(publishMarker).exists()).toBe(false);
 
         await rm(commandLog, { force: true });
         await rm(gitCallCount, { force: true });
@@ -2310,12 +2653,74 @@ esac
       "\"npm\",\n      \"install\"",
       "`--registry=${NPM_REGISTRY}`",
       "not currently published on npm",
+      'Object.hasOwn(manifest, "tag")',
       "Object.keys(manifest.publishConfig).sort()",
       'JSON.stringify(["access", "registry"])',
       "manifest.publishConfig.registry !== NPM_REGISTRY",
       "Packed Wrench publishConfig may contain only public access and the canonical npm registry",
     ] as const) {
       expect(smoke).toContain(required);
+    }
+  });
+
+  test("rejects a packed top-level npm tag before OIDC publication", async () => {
+    const workflow = await readFile(stageWorkflowUrl, "utf8");
+    const script = workflowStepScript(workflow, "Bind downloaded artifact");
+    const manifest = JSON.parse(await readFile(manifestUrl, "utf8")) as {
+      readonly name: string;
+      readonly version: string;
+    };
+    const directory = await mkdtemp(join(tmpdir(), "wrench-packed-tag-"));
+    const artifactDirectory = join(directory, "wrench-npm-package");
+    const filename = `hraness-wrench-${manifest.version}.tgz`;
+    const archive = join(artifactDirectory, filename);
+    try {
+      await mkdir(artifactDirectory, { recursive: true });
+      await run([
+        process.execPath,
+        "pm",
+        "pack",
+        "--filename",
+        archive,
+        "--ignore-scripts",
+        "--quiet",
+      ], repository);
+      const tar = gunzipSync(await readFile(archive));
+      const manifestEntry = exactTarEntry(tar, "package/package.json");
+      const manifestBytes = tar.subarray(
+        manifestEntry.dataOffset,
+        manifestEntry.dataOffset + manifestEntry.size,
+      );
+      const originalKey = Buffer.from('"bin":', "utf8");
+      const replacementKey = Buffer.from('"tag":', "utf8");
+      const keyOffset = manifestBytes.indexOf(originalKey);
+      expect(keyOffset).toBeGreaterThan(-1);
+      replacementKey.copy(tar, manifestEntry.dataOffset + keyOffset);
+      const archiveBytes = gzipSync(tar, { level: 9 });
+      await writeFile(archive, archiveBytes);
+      const inventory = await inspectPackageArtifact(archive);
+      await Promise.all([
+        writeFile(
+          join(artifactDirectory, "npm-pack.json"),
+          packJson(archiveBytes, inventory, manifest.name, manifest.version),
+        ),
+        writeFile(
+          join(artifactDirectory, "npm-package.sha256"),
+          `${createHash("sha256").update(archiveBytes).digest("hex")}\n`,
+        ),
+      ]);
+      const result = await runWorkflowScript(script, {
+        EXPECTED_TARBALL_NAME: filename,
+        EXPECTED_VERSION: manifest.version,
+        GITHUB_OUTPUT: join(directory, "github-output.txt"),
+        RUNNER_TEMP: directory,
+      });
+      expect(result.exitCode).not.toBe(0);
+      expect(`${result.stdout}${result.stderr}`).toContain(
+        "Packed Wrench can publish only to the canonical public npm registry",
+      );
+    } finally {
+      await rm(directory, { force: true, recursive: true });
     }
   });
 
@@ -2338,7 +2743,22 @@ esac
     expect(workflow).toContain("--expected-event workflow_dispatch");
     expect(workflow).toContain("--expected-repository-id 1316443113");
     expect(workflow).toContain("--expected-workflow-path .github/workflows/npm-stage.yml");
+    expect(workflow).toContain(
+      "actions/runs/$stage_run_id/attempts/$stage_run_attempt/jobs?per_page=100",
+    );
+    expect(workflow).toContain(
+      'const expectedJobName = `Stage exact package v${process.env.EXPECTED_VERSION}`',
+    );
     expect(workflow).toContain("Published npm provenance is not bound to the completed owner-authorized Wrench stage attempt");
+    expect(workflow).toContain(
+      "Published npm provenance does not bind exactly one successful versioned stage job",
+    );
+    expect(workflow).toContain(
+      'step.name === "Record exclusive stable-stage intent"',
+    );
+    expect(workflow).toContain(
+      "Published npm provenance stage job lacks one exact successful stable-stage intent",
+    );
     expect(workflow).toContain('attempt.status !== "completed"');
     expect(workflow).toContain('attempt.conclusion !== "success"');
 
@@ -2370,6 +2790,10 @@ esac
         },
         { EVENT_REF: "refs/heads/main", EVENT_REF_NAME: "main", EVENT_REF_TYPE: "branch" },
         { EVENT_REF_NAME: "v0.16.2\npoison", EVENT_REF: "refs/tags/v0.16.2\npoison" },
+        {
+          EVENT_REF_NAME: "v9007199254740992.0.0",
+          EVENT_REF: "refs/tags/v9007199254740992.0.0",
+        },
         { EVENT_NAME: "schedule" },
       ] as const) {
         const rejected = await runCase(rejectedEnvironment);
@@ -2893,7 +3317,7 @@ fi
     expect(workflow).not.toContain("cmp \"$source_archive\" \"$registry_archive\"");
     expect(workflow.match(/npm pack /gu)).toHaveLength(2);
     expect(workflow.match(new RegExp(`--registry=${npmRegistry.replaceAll(".", "\\.")}`, "gu")))
-      .toHaveLength(7);
+      .toHaveLength(9);
     expect(workflow.indexOf("Verify exact public npm delivery"))
       .toBeLessThan(workflow.indexOf("\n  publish:"));
     const publishScript = workflowStepScript(workflow, "Publish verified GitHub Release");
@@ -2939,6 +3363,15 @@ fi
     expect(publishScript).toContain("require-latest-release");
     expect(publishScript).toContain('validate-created-release "$created_release_file"');
     expect(publishScript).toContain("revalidate-latest-release");
+    expect(publishScript).toContain('RELEASE_LOOKUP_STATE="$release_lookup_state"');
+    expect(publishScript.match(/release-provider-outcome\.mjs release-order/gu) ?? [])
+      .toHaveLength(1);
+    expect(publishScript).toContain("release-source-receipt");
+    expect(publishScript).toContain('-f body="$release_receipt"');
+    expect(publishScript).toContain("npm view @hraness/wrench dist-tags.latest --json");
+    expect(publishScript).toContain('unset NPM_CONFIG_TAG npm_config_tag');
+    expect(publishScript).toContain('NPM_CONFIG_USERCONFIG="$npm_user_config"');
+    expect(publishScript).toContain('NPM_CONFIG_GLOBALCONFIG="$npm_global_config"');
     expect(publishScript).toContain("--method POST");
     expect(publishScript).toContain("-F generate_release_notes=true");
     expect(publishScript).toContain("-f make_latest=legacy");
@@ -2947,6 +3380,9 @@ fi
     expect(publishScript).not.toContain("gh release create");
     const predecessorIndex = publishScript.indexOf("validate-latest-predecessor");
     const postIndex = publishScript.indexOf("--method POST");
+    const finalNpmLatestIndex = publishScript.indexOf(
+      "npm view @hraness/wrench dist-tags.latest --json",
+    );
     const convergenceIndex = publishScript.indexOf("wait-latest-release");
     const postwriteIndex = publishScript.indexOf(
       'verify_publication_authority postwrite "$terminal_main_sha"',
@@ -2954,6 +3390,8 @@ fi
     const terminalProjectionIndex = publishScript.indexOf("revalidate-latest-release");
     expect(predecessorIndex).toBeGreaterThan(-1);
     expect(predecessorIndex).toBeLessThan(postIndex);
+    expect(finalNpmLatestIndex).toBeGreaterThan(predecessorIndex);
+    expect(finalNpmLatestIndex).toBeLessThan(postIndex);
     expect(convergenceIndex).toBeGreaterThan(postIndex);
     expect(postwriteIndex).toBeGreaterThan(convergenceIndex);
     expect(terminalProjectionIndex).toBeGreaterThan(postwriteIndex);
@@ -2999,8 +3437,10 @@ fi
     const binaryDirectory = join(directory, "bin");
     const ghStub = join(binaryDirectory, "gh");
     const gitStub = join(binaryDirectory, "git");
+    const npmStub = join(binaryDirectory, "npm");
     const commandLog = join(directory, "commands.log");
     const gitCommandLog = join(directory, "git-commands.log");
+    const npmCommandLog = join(directory, "npm-commands.log");
     const gitCallCount = join(directory, "git-call-count.txt");
     const peeledCommitSha = "2".repeat(40);
     const tagObjectSha = "3".repeat(40);
@@ -3084,7 +3524,26 @@ elif [[ "$LOOKUP_MODE" == "missing" ]]; then
   current_latest_tag="$PRE_CREATE_LATEST_TAG"
 fi
 release_json() {
-  printf '{"assets":[],"draft":false,"id":%s,"immutable":%s,"prerelease":false,"published_at":"2026-08-29T14:00:00Z","tag_name":"%s","target_commitish":"main"}' "$1" "$RELEASE_IMMUTABLE" "$VERIFIED_TAG"
+  RELEASE_OUTPUT_ID="$1" node -e '
+    const value = {
+      assets: [],
+      author: {
+        id: Number(process.env.RELEASE_AUTHOR_ID),
+        login: process.env.RELEASE_AUTHOR_LOGIN,
+        type: process.env.RELEASE_AUTHOR_TYPE,
+      },
+      body: process.env.RELEASE_BODY,
+      draft: false,
+      id: Number(process.env.RELEASE_OUTPUT_ID),
+      immutable: process.env.RELEASE_IMMUTABLE === "true",
+      name: process.env.RELEASE_NAME,
+      prerelease: false,
+      published_at: "2026-08-29T14:00:00Z",
+      tag_name: process.env.VERIFIED_TAG,
+      target_commitish: process.env.RELEASE_TARGET_SHA,
+    };
+    process.stdout.write(JSON.stringify(value));
+  '
 }
 latest_json() {
   local latest_id=9
@@ -3133,6 +3592,10 @@ elif [[ "$args" == *"/releases?per_page=100&page="* ]]; then
   page="\${args##*page=}"
   if [[ "$RELEASE_SCAN_MODE" == "max" && "$page" -le 5 ]]; then
     node -e 'const page = Number(process.argv[1]); process.stdout.write(JSON.stringify(Array.from({ length: 100 }, (_, index) => { const id = (page - 1) * 100 + index + 1; return { draft: true, id, prerelease: false, tag_name: "draft-" + String(id) }; })))' "$page"
+  elif [[ "$page" == "1" && ( "$LOOKUP_MODE" == "existing" || "$RELEASE_SCAN_MODE" == "front-run" ) ]]; then
+    printf '['
+    release_json "$RELEASE_ID"
+    printf ']\n'
   else
     printf '[]\n'
   fi
@@ -3152,8 +3615,27 @@ else
   echo "unexpected gh command: $args" >&2
   exit 1
 fi
+	`, "utf8");
+      await writeFile(npmStub, `#!/bin/bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$NPM_COMMAND_LOG"
+case "$*" in
+  "config get tag") printf 'latest\n' ;;
+  "view @hraness/wrench dist-tags.latest --json --registry=https://registry.npmjs.org")
+    printf '"%s"\n' "$NPM_LATEST_VERSION"
+    ;;
+  *) echo "unexpected npm command: $*" >&2; exit 1 ;;
+esac
 `, "utf8");
-      await Promise.all([chmod(ghStub, 0o755), chmod(gitStub, 0o755)]);
+      await Promise.all([chmod(ghStub, 0o755), chmod(gitStub, 0o755), chmod(npmStub, 0o755)]);
+
+      const workflowRunId = "88001";
+      const expectedReceipt = releaseSourceReceipt({
+        repository: providerRepository,
+        verifiedSha: peeledCommitSha,
+        verifiedTag: "v0.16.2",
+        workflowRunId,
+      });
 
       const baseEnvironment = Object.freeze({
         ANCESTRY_MODE: "valid",
@@ -3167,6 +3649,7 @@ fi
         GIT_ADMIN_DIRECTORY: join(directory, "git-admin"),
         GIT_COMMAND_LOG: gitCommandLog,
         GITHUB_REPOSITORY: "hraness/wrench",
+        GITHUB_RUN_ID: workflowRunId,
         LATEST_TAG: "v0.16.2",
         PRE_CREATE_LATEST_TAG: "v0.16.1",
         LOOKUP_MODE: "existing",
@@ -3174,14 +3657,23 @@ fi
         IMPORTED_TAG_STATE: join(directory, "imported-tag"),
         ALLOW_CREATE: "false",
         PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`,
+        RUNNER_TEMP: directory,
         POST_CREATE_LATEST_TAG: "",
         POST_CREATE_MAIN_SHA: "",
         CREATED_RELEASE_ID: "10",
         RELEASE_ID: "10",
+        RELEASE_AUTHOR_ID: "41898282",
+        RELEASE_AUTHOR_LOGIN: "github-actions[bot]",
+        RELEASE_AUTHOR_TYPE: "Bot",
+        RELEASE_BODY: `${expectedReceipt}\n\n## What's Changed\nGenerated notes`,
         RELEASE_READ_COUNT: join(directory, "release-read-count"),
         RELEASE_IMMUTABLE: "true",
+        RELEASE_NAME: "Wrench v0.16.2",
+        RELEASE_TARGET_SHA: peeledCommitSha,
         RELEASE_CREATED_STATE: join(directory, "release-created"),
         RELEASE_SCAN_MODE: "empty",
+        NPM_COMMAND_LOG: npmCommandLog,
+        NPM_LATEST_VERSION: "0.16.2",
         REMOTE_ADVERTISEMENT_MODE: "stable",
         REMOTE_MAIN_SHA: peeledCommitSha,
         REMOTE_TAG_OID: peeledCommitSha,
@@ -3198,6 +3690,7 @@ fi
         await rm(commandLog, { force: true });
         await rm(gitCommandLog, { force: true });
         await rm(gitCallCount, { force: true });
+        await rm(npmCommandLog, { force: true });
         await rm(baseEnvironment.IMPORTED_MAIN_STATE, { force: true });
         await rm(baseEnvironment.IMPORTED_TAG_STATE, { force: true });
         await rm(baseEnvironment.RELEASE_CREATED_STATE, { force: true });
@@ -3217,12 +3710,40 @@ fi
       expect((await readFile(gitCommandLog, "utf8")).match(/ls-remote --sort=refname --refs/gu) ?? [])
         .toHaveLength(2);
 
+      for (const [overrides, expectedMessage] of [
+        [{ RELEASE_AUTHOR_ID: "7" }, "exact Actions workflow identity and source receipt"],
+        [{ RELEASE_AUTHOR_LOGIN: "attacker" }, "exact Actions workflow identity and source receipt"],
+        [{ RELEASE_NAME: "Front-run" }, "exact Actions workflow identity and source receipt"],
+        [{ RELEASE_TARGET_SHA: "4".repeat(40) }, "exact Actions workflow identity and source receipt"],
+        [{ RELEASE_BODY: `${expectedReceipt}0` }, "exact Actions workflow identity and source receipt"],
+      ] as const) {
+        const rejected = await runCase(overrides);
+        expect(rejected.exitCode).not.toBe(0);
+        expect(`${rejected.stdout}${rejected.stderr}`).toContain(expectedMessage);
+        expect(await readFile(commandLog, "utf8")).not.toContain("--method POST");
+      }
+
+      const frontRun = await runCase({
+        ALLOW_CREATE: "true",
+        LOOKUP_MODE: "missing",
+        RELEASE_SCAN_MODE: "front-run",
+      });
+      expect(frontRun.exitCode).not.toBe(0);
+      expect(`${frontRun.stdout}${frontRun.stderr}`).toContain(
+        "Release v0.16.2 is not newer than v0.16.2",
+      );
+      expect(await readFile(commandLog, "utf8")).not.toContain("--method POST");
+
       const created = await runCase({ ALLOW_CREATE: "true", LOOKUP_MODE: "missing" });
       expect(created.exitCode).toBe(0);
       const createCommands = await readFile(commandLog, "utf8");
       expect(createCommands).toContain("--method POST");
       expect(createCommands).toContain("generate_release_notes=true");
       expect(createCommands).toContain("target_commitish=2222222222222222222222222222222222222222");
+      expect(createCommands).toContain(`body=${expectedReceipt}`);
+      expect(await readFile(npmCommandLog, "utf8")).toContain(
+        "view @hraness/wrench dist-tags.latest --json --registry=https://registry.npmjs.org",
+      );
       expect(createCommands.match(/\/releases\/latest/gu) ?? []).toHaveLength(3);
       expect((await readFile(gitCommandLog, "utf8")).match(/ls-remote --sort=refname --refs/gu) ?? [])
         .toHaveLength(4);
@@ -3564,7 +4085,9 @@ fi
     expect(helper).toContain("encodeURIComponent(`refs/tags/${tag}`)");
     expect(helper).not.toContain("/commits/tags/");
     expect(helper).not.toContain("head_commit");
-    expect(helper).not.toContain("target_commitish");
+    expect(helper).toContain("release.target_commitish !== verifiedSha");
+    expect(helper).toContain("41898282");
+    expect(helper).toContain("wrench-release-source-v1");
     expect(helper).toContain("advanceWebsiteProductionRefFromEnvironment");
     expect(helper).toContain('key.startsWith("WRENCH_RELEASE_APP_")');
     expect(scrubReadOnlyGithubEnvironment({
@@ -5871,6 +6394,76 @@ fi
       repository: providerRepository,
       verifiedTag: providerTag,
     })).rejects.toThrow("is not an object");
+
+    await expect(assertReleaseTagNewerThanPublished({
+      allowExistingTarget: true,
+      api: releaseApi([publishedRelease(1, providerTag)]),
+      repository: providerRepository,
+      verifiedTag: providerTag,
+    })).resolves.toBeUndefined();
+    await expect(assertReleaseTagNewerThanPublished({
+      allowExistingTarget: true,
+      api: releaseApi([]),
+      repository: providerRepository,
+      verifiedTag: providerTag,
+    })).rejects.toThrow("does not contain exactly one existing v0.16.2");
+    await expect(assertReleaseTagNewerThanPublished({
+      allowExistingTarget: true,
+      api: releaseApi([
+        publishedRelease(1, providerTag),
+        publishedRelease(2, "v0.16.3"),
+      ]),
+      repository: providerRepository,
+      verifiedTag: providerTag,
+    })).rejects.toThrow("is not newer than v0.16.3");
+
+    await expect(assertReleaseTagNewerThanPublished({
+      api: releaseApi([publishedRelease(1, "v9007199254740990.0.0")]),
+      repository: providerRepository,
+      verifiedTag: "v9007199254740991.0.0",
+    })).resolves.toBeUndefined();
+    await expect(assertReleaseTagNewerThanPublished({
+      api: releaseApi([]),
+      repository: providerRepository,
+      verifiedTag: "v9007199254740992.0.0",
+    })).rejects.toThrow("npm's safe numeric range");
+  });
+
+  test("binds a workflow-published Release to its exact bot, source, and run receipt", () => {
+    const workflowRunId = "88001";
+    const receipt = releaseSourceReceipt({
+      repository: providerRepository,
+      verifiedSha: providerVerifiedSha,
+      verifiedTag: providerTag,
+      workflowRunId,
+    });
+    const exactRelease = providerRelease({
+      author: { id: 41898282, login: "github-actions[bot]", type: "Bot" },
+      body: `${receipt}\n\n## What's Changed\nGenerated notes are not authority.`,
+      name: `Wrench ${providerTag}`,
+      target_commitish: providerVerifiedSha,
+    });
+    const coordinates = {
+      repository: providerRepository,
+      verifiedSha: providerVerifiedSha,
+      verifiedTag: providerTag,
+      workflowRunId,
+    };
+    expect(exactWorkflowPublishedRelease({ ...coordinates, value: exactRelease }))
+      .toEqual(exactRelease);
+    for (const overrides of [
+      { author: { id: 7, login: "github-actions[bot]", type: "Bot" } },
+      { author: { id: 41898282, login: "owner", type: "User" } },
+      { body: `${receipt}suffix` },
+      { body: releaseSourceReceipt({ ...coordinates, workflowRunId: "88002" }) },
+      { name: "Wrench front-run" },
+      { target_commitish: providerPreviousSha },
+    ] as const) {
+      expect(() => exactWorkflowPublishedRelease({
+        ...coordinates,
+        value: { ...exactRelease, ...overrides },
+      })).toThrow("exact Actions workflow identity and source receipt");
+    }
   });
 
   test("exhausts bounded deployment and status pages without trusting API order", async () => {
@@ -8111,10 +8704,10 @@ fi
       ]);
     const manifest = JSON.parse(manifestText) as { readonly version: string };
     const exactPackage = `@hraness/wrench@${manifest.version}`;
-    const nextReleaseVersion = "0.16.7";
+    const nextReleaseVersion = "0.16.8";
     const tagFailFastBoundary = 'set -eu\ncase "${STAGE_RUN_ID:-}" in';
     const stageRunIdGuard = 'case "${STAGE_RUN_ID:-}" in';
-    const stageSourceBinding = 'C="$(gh api \\';
+    const stageSourceBinding = 'C="$(STAGE_ATTEMPT_FILE="$stage_attempt_file" \\';
     const stageSourceObjectProof = 'test "$(git rev-parse --verify "$C^{commit}")" = "$C"';
     const stagedManifestRead = 'git show "${C}:package.json"';
     const stagedPackageCoordinateProof =
@@ -8123,6 +8716,7 @@ fi
     const registryArtifactDownload = `npm pack @hraness/wrench@${nextReleaseVersion} \\`;
     const registryIdentityCheck = "bun run ./scripts/npm-package-identity.ts \\";
     const registrySmokeCheck = "bun run ./scripts/package-smoke.ts \\";
+    const provenanceCheck = "bun run ./scripts/npm-provenance-identity.ts \\";
     const exactTagCommand = `git tag v${nextReleaseVersion} "$C"`;
     const oneTimeBootstrap =
       "This section records the one-time bootstrap of `@hraness/wrench@0.15.1`.";
@@ -8146,15 +8740,25 @@ fi
       "sole protection rule must be `branch_policy`",
       "sole deployment policy must select branch `main` with type `branch`",
       "Configure no required deployment reviewers and no environment secrets",
+      "gh workflow enable npm-stage.yml --repo hraness/wrench",
+      "/repos/hraness/wrench/actions/workflows/npm-stage.yml",
+      "value?.id !== 344213783",
+      'value.state !== "active"',
       "manual dispatch explicitly\nsets `publish_to_npm=true`",
       "a push and a default manual dispatch stop after\nuploading the exact candidate artifact",
       "never request an OIDC token or\nmutate npm",
       "Only the minimal staging job may reference this environment or\nrequest an OIDC token",
       "human inspection and two-factor approval",
-      "starts **Stage npm package** automatically",
+      "automatically starts candidate verification in **Stage npm\n   package**",
       "automatic run ends\n   there: it has no registry mutation, environment admission, or OIDC token",
       "gh workflow run npm-stage.yml",
       "-f publish_to_npm=true",
+      "-f resolved_stage_version=0.16.6",
+      "Leave `resolved_stage_version` empty for every ordinary candidate or staging",
+      "all\nattempts of its current run plus a bounded completed dispatch/job history",
+      "durable reservation even when the job later\nfails or its npm write result is ambiguous",
+      "whole-job success is not the lock",
+      "successful exact-version clearance step before proceeding",
       "still\n   cannot publish the package directly",
       "manifest edit with an unchanged version succeeds without running verification",
       "beta/candidate lane is the downloadable\nartifact, not an npm prerelease or dist-tag mutation",
@@ -8164,15 +8768,21 @@ fi
       "--registry-archive \"$wrench_registry_archive\"",
       tagFailFastBoundary,
       stageRunIdGuard,
+      'case "${STAGE_RUN_ATTEMPT:-}" in',
       stageSourceBinding,
-      ".workflow_id == 344213783",
-      '.name == "Stage npm package"',
-      '.path == ".github/workflows/npm-stage.yml"',
-      '.event == "workflow_dispatch"',
-      '.head_branch == "main"',
-      '.status == "completed"',
-      '.conclusion == "success"',
-      ".run_attempt == 1",
+      "value.workflow_id !== 344213783",
+      'value.name !== "Stage npm package"',
+      'value.path !== ".github/workflows/npm-stage.yml"',
+      'value.event !== "workflow_dispatch"',
+      'value.head_branch !== "main"',
+      'value.status !== "completed"',
+      'value.conclusion !== "success"',
+      "value.run_attempt !== runAttempt",
+      "value.actor?.id !== 894119",
+      "value.triggering_actor?.id !== 894119",
+      "value.repository?.id !== 1316443113",
+      "/attempts/$STAGE_RUN_ATTEMPT/jobs?per_page=100",
+      `job.name === "Stage exact package v${nextReleaseVersion}"`,
       'test "${#C}" -eq 40',
       '*[!0-9a-f]*) exit 1 ;;',
       'test "$(git cat-file -t "$C")" = commit',
@@ -8183,10 +8793,13 @@ fi
       `manifest?.version !== "${nextReleaseVersion}"`,
       stagedPackageCoordinateProof,
       sourceArtifactDownload,
-      'wrench_source_name="npm-package-0.16.7-$C-$STAGE_RUN_ID-1"',
+      'wrench_source_name="npm-package-0.16.8-$C-$STAGE_RUN_ID-$STAGE_RUN_ATTEMPT"',
       '--name "$wrench_source_name"',
       registryArtifactDownload,
       registryIdentityCheck,
+      provenanceCheck,
+      "value.runId !== Number(process.env.EXPECTED_RUN_ID)",
+      "value.runAttempt !== Number(process.env.EXPECTED_RUN_ATTEMPT)",
       registrySmokeCheck,
       `--expected-version ${nextReleaseVersion}`,
       exactTagCommand,
@@ -8257,6 +8870,9 @@ fi
       "does not read or update `website-production`, wait for Vercel, or\nreceive the dedicated App key",
       "The Release lookup accepts only an exact REST 200",
       "Only an authenticated exact 404 permits one REST create request",
+      "pre-existing exact Release is accepted only when its Actions bot, target SHA,",
+      "deterministic source receipt prepended to server-generated notes",
+      "canonical npm `latest` is\nread again immediately before either path",
       "does not use opaque `gh release view` or\n`gh release create` commands",
       "tag-push Release workflow intentionally executes source `S=C`",
       "a stale-source manual recovery run staged and then published\n`@hraness/wrench@0.16.3` from stale source",
@@ -8264,7 +8880,7 @@ fi
       "The completed\nreplacement is `0.16.4`; the first marker-bearing successor is `0.16.5`",
       "If release controls change materially after staging, that stage is ineligible\nfor tagging",
       "accepted and eligible stage must be inspected and approved without a duplicate\ndispatch",
-      "accepted but ineligible pending stage must be inspected, rejected\nwith human two-factor authentication, and confirmed absent before one fresh\nsame-version stage is explicitly dispatched from final current `main`",
+      "accepted but ineligible pending stage must be inspected, rejected\nwith human two-factor authentication, and confirmed absent before one fresh\nsame-version stage is explicitly dispatched from final current `main` with the",
       "If the\nineligible stage is already public, do not reject, unpublish, overwrite, tag, or\nrelease it; move the complete corrected release to a greater version",
       "npm stage reject <stage-id>",
       "git diff --quiet --no-ext-diff --no-textconv C M -- .github/workflows\nscripts/release-ref-authority.ts scripts/release-provider-outcome.mjs\nscripts/release-app-token.mjs scripts/release-ref-writer.mjs",
@@ -8297,7 +8913,9 @@ fi
       "Object.keys(value).sort().join(\",\") !== \"enabled,enforced_by_owner\"",
       "typeof value.enforced_by_owner !== \"boolean\"",
       "with a residual administrator-toggle window",
-      "treats `target_commitish` as\nnon-authoritative",
+      "exact `target_commitish`",
+      "Actions bot ID\n`41898282`",
+      "and `GITHUB_RUN_ID`",
       "stable Release ID and publication time across\nthe authority sandwich and every promotion/outcome receipt readback",
       "Release workflow ID `323493609`",
       "entire `workflow_run` payload as\nforeign data",
@@ -8471,8 +9089,11 @@ fi
       .toBeLessThan(stageIndexOf(registryArtifactDownload));
     expect(stageIndexOf(registryArtifactDownload))
       .toBeLessThan(stageIndexOf(registryIdentityCheck));
-    expect(stageIndexOf(registryIdentityCheck)).toBeLessThan(stageIndexOf(registrySmokeCheck));
+    expect(stageIndexOf(registryIdentityCheck)).toBeLessThan(stageIndexOf(provenanceCheck));
+    expect(stageIndexOf(provenanceCheck)).toBeLessThan(stageIndexOf(registrySmokeCheck));
     expect(stageIndexOf(registrySmokeCheck)).toBeLessThan(stageIndexOf(exactTagCommand));
+    expect(guide.indexOf("/repos/hraness/wrench/immutable-releases"))
+      .toBeLessThan(guide.indexOf(exactTagCommand));
     expect(guide.indexOf("npm publish \"$wrench_npm_archive\""))
       .toBeLessThan(guide.indexOf("npm trust github @hraness/wrench"));
     expect(guide.indexOf("npm trust github @hraness/wrench"))
@@ -8482,6 +9103,7 @@ fi
     expect(agents).toContain("automatically enter exact candidate verification");
     expect(agents).toContain("default `workflow_dispatch` must never enter the GitHub environment");
     expect(agents).toContain("boolean `publish_to_npm=true`");
+    expect(agents).toContain("an agent acting under standing repository delivery authority may make that dispatch without adding a separate human approval gate");
     expect(agents).toContain("main-only `npm-stage` environment");
     expect(agents).toContain("no required GitHub deployment reviewers");
     expect(agents).toContain("never authorize direct OIDC publication for this dual-use package");
@@ -8489,6 +9111,13 @@ fi
     expect(agents).toContain("sole protection rule `branch_policy`");
     expect(agents).toContain("sole selected deployment branch `main` with policy type `branch`");
     expect(agents).toContain("two-factor approval of the npm stage remain mandatory");
+    expect(agents).toContain("Name each stage job with its exact stable version");
+    expect(agents).toContain("successful version-bound `Record exclusive stable-stage intent` step immediately before the npm mutation");
+    expect(agents).toContain("never use whole-job success as the lock");
+    expect(agents).toContain("all attempts of the current run with `actions:read`");
+    expect(agents).toContain("resolved_stage_version");
+    expect(agents).toContain("successful exact-version resolution step must persist that clearance");
+    expect(agents).toContain("call `npm stage publish` without `--tag`");
     expect(agents).toContain("Verify that exact public artifact before creating its tag");
     expect(agents).toContain("Before every stable tag push, a signed-in administrator must freshly prove immutable Releases enabled");
     expect(agents).toContain("two exact active repository tag rulesets targeting only `refs/tags/v*`");
@@ -8765,6 +9394,10 @@ describe("canonical npm package identity", () => {
       const verified = await verifyNpmPackageIdentity(validInput);
       expect(verified.fileCount).toBe(sourceInventory.fileCount);
       expect(verified.sourceArchiveSha512).not.toBe(verified.registryArchiveSha512);
+      await expect(verifyNpmPackageIdentity({
+        ...validInput,
+        expectedVersion: "9007199254740992.0.0",
+      })).rejects.toThrow("Expected package version is not stable semantic version");
 
       const registryViewValue = JSON.parse(await readFile(registryViewJson, "utf8")) as {
         dist: { attestations?: unknown; signatures?: unknown[] };
@@ -8992,6 +9625,10 @@ describe("verified npm provenance identity", () => {
         runAttempt: 2,
         runId: 123456,
       });
+      await expect(verifyNpmProvenanceIdentity({
+        ...input,
+        expectedVersion: "9007199254740992.0.0",
+      })).rejects.toThrow("Expected version is not stable semver");
 
       for (const [fixture, message] of [
         [auditFixture({ event: "push" }), "Verified SLSA event"],

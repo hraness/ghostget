@@ -80,6 +80,13 @@ jobs:
             echo "::error::Release request is not one stable semantic-version tag"
             exit 1
           fi
+          if ! EVENT_REF_NAME="$EVENT_REF_NAME" node -e '
+            const match = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(process.env.EVENT_REF_NAME ?? "");
+            if (match === null || match.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))) process.exit(1);
+          '; then
+            echo "::error::Release request exceeds npm's supported semantic-version range"
+            exit 1
+          fi
           printf 'tag=%s\n' "$EVENT_REF_NAME" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -129,6 +136,13 @@ jobs:
           package_version="$(bun -e 'const value = await Bun.file("package.json").json(); if (typeof value.version !== "string") process.exit(1); process.stdout.write(value.version)')"
           if [[ ! "$package_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             echo "::error::Package version $package_version is not a stable semantic version"
+            exit 1
+          fi
+          if ! PACKAGE_VERSION="$package_version" node -e '
+            const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(process.env.PACKAGE_VERSION ?? "");
+            if (match === null || match.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))) process.exit(1);
+          '; then
+            echo "::error::Package version $package_version exceeds npm's supported semantic-version range"
             exit 1
           fi
           expected_tag="v$package_version"
@@ -261,24 +275,31 @@ jobs:
           NODE
           )
           stage_attempt_json="$(mktemp "$RUNNER_TEMP/wrench-published-stage-attempt.XXXXXX")"
+          stage_jobs_json="$(mktemp "$RUNNER_TEMP/wrench-published-stage-jobs.XXXXXX")"
           stage_workflow_json="$(mktemp "$RUNNER_TEMP/wrench-published-stage-workflow.XXXXXX")"
           repository_json="$(mktemp "$RUNNER_TEMP/wrench-published-stage-repository.XXXXXX")"
-          trap 'rm -f "$stage_attempt_json" "$stage_workflow_json" "$repository_json"' EXIT
+          trap 'rm -f "$stage_attempt_json" "$stage_jobs_json" "$stage_workflow_json" "$repository_json"' EXIT
           gh api --method GET \
             "/repos/$GITHUB_REPOSITORY/actions/runs/$stage_run_id/attempts/$stage_run_attempt" \
             > "$stage_attempt_json"
+          gh api --method GET \
+            "/repos/$GITHUB_REPOSITORY/actions/runs/$stage_run_id/attempts/$stage_run_attempt/jobs?per_page=100" \
+            > "$stage_jobs_json"
           gh api --method GET \
             "/repos/$GITHUB_REPOSITORY/actions/workflows/344213783" \
             > "$stage_workflow_json"
           gh api --method GET "/repos/$GITHUB_REPOSITORY" > "$repository_json"
           ATTEMPT_JSON="$stage_attempt_json" \
+            JOBS_JSON="$stage_jobs_json" \
             EXPECTED_RUN_ATTEMPT="$stage_run_attempt" \
             EXPECTED_RUN_ID="$stage_run_id" \
             EXPECTED_SHA="$GITHUB_SHA" \
+            EXPECTED_VERSION="$package_version" \
             REPOSITORY_JSON="$repository_json" \
             WORKFLOW_JSON="$stage_workflow_json" node <<'NODE'
           const fs = require("node:fs");
           const attempt = JSON.parse(fs.readFileSync(process.env.ATTEMPT_JSON, "utf8"));
+          const jobsResponse = JSON.parse(fs.readFileSync(process.env.JOBS_JSON, "utf8"));
           const workflow = JSON.parse(fs.readFileSync(process.env.WORKFLOW_JSON, "utf8"));
           const repository = JSON.parse(fs.readFileSync(process.env.REPOSITORY_JSON, "utf8"));
           const runId = Number(process.env.EXPECTED_RUN_ID);
@@ -313,6 +334,55 @@ jobs:
             || repository.private !== false
             || repository.default_branch !== "main"
           ) throw new Error("Published npm provenance is not bound to the completed owner-authorized Wrench stage attempt");
+          if (
+            !Number.isSafeInteger(jobsResponse?.total_count)
+            || jobsResponse.total_count < 1
+            || jobsResponse.total_count > 100
+            || !Array.isArray(jobsResponse.jobs)
+            || jobsResponse.jobs.length !== jobsResponse.total_count
+          ) throw new Error("Published npm provenance stage-attempt jobs are not one bounded complete response");
+          const expectedJobName = `Stage exact package v${process.env.EXPECTED_VERSION}`;
+          let exactSuccessfulStageJobs = 0;
+          const jobIds = new Set();
+          for (const job of jobsResponse.jobs) {
+            if (
+              !Number.isSafeInteger(job?.id)
+              || job.id < 1
+              || jobIds.has(job.id)
+              || job.run_id !== runId
+              || job.run_attempt !== runAttempt
+              || job.head_sha !== process.env.EXPECTED_SHA
+              || typeof job.name !== "string"
+              || typeof job.status !== "string"
+              || (job.conclusion !== null && typeof job.conclusion !== "string")
+              || !Array.isArray(job.steps)
+              || job.steps.length > 100
+              || job.steps.some(step => (
+                !step
+                || typeof step !== "object"
+                || typeof step.name !== "string"
+                || (step.conclusion !== null && typeof step.conclusion !== "string")
+              ))
+            ) throw new Error("Published npm provenance stage-attempt job identity is malformed");
+            jobIds.add(job.id);
+            if (
+              job.name === expectedJobName
+              && job.status === "completed"
+              && job.conclusion === "success"
+            ) {
+              const successfulIntents = job.steps.filter(step => (
+                step.name === "Record exclusive stable-stage intent"
+                && step.conclusion === "success"
+              ));
+              if (successfulIntents.length !== 1) {
+                throw new Error("Published npm provenance stage job lacks one exact successful stable-stage intent");
+              }
+              exactSuccessfulStageJobs += 1;
+            }
+          }
+          if (exactSuccessfulStageJobs !== 1) {
+            throw new Error("Published npm provenance does not bind exactly one successful versioned stage job");
+          }
           NODE
           bun run ./scripts/package-smoke.ts \
             --archive "$registry_archive" \
@@ -353,6 +423,14 @@ jobs:
                 "$GITHUB_REF" != "refs/tags/$VERIFIED_TAG" || \
                 "$GITHUB_SHA" != "$VERIFIED_SHA" ]]; then
             echo "::error::Current release attempt is not the exact protected tag run"
+            exit 1
+          fi
+          if ! VERIFIED_TAG="$VERIFIED_TAG" node -e '
+            const value = process.env.VERIFIED_TAG ?? "";
+            const match = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(value);
+            if (match === null || match.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))) process.exit(1);
+          '; then
+            echo "::error::Current release attempt has an unsupported stable version"
             exit 1
           fi
           attempt_json="$(mktemp "$RUNNER_TEMP/wrench-release-attempt.XXXXXX")"
@@ -453,11 +531,26 @@ jobs:
         with:
           node-version: "24"
           package-manager-cache: false
+      - name: Pin npm
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.19.0 \
+            --ignore-scripts \
+            --registry=https://registry.npmjs.org
+          test "$(npm --version)" = "11.19.0"
       - name: Publish verified GitHub Release
         run: |
           set -euo pipefail
           if [[ ! "$VERIFIED_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             echo "::error::Publish request has no verified stable release tag"
+            exit 1
+          fi
+          if ! VERIFIED_TAG="$VERIFIED_TAG" node -e '
+            const value = process.env.VERIFIED_TAG ?? "";
+            const match = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(value);
+            if (match === null || match.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))) process.exit(1);
+          '; then
+            echo "::error::Publish request has an unsupported stable release version"
             exit 1
           fi
           if [[ ! "$VERIFIED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
@@ -488,7 +581,15 @@ jobs:
           release_lookup_stderr="$(mktemp)"
           predecessor_release_file="$(mktemp)"
           created_release_file="$(mktemp)"
-          trap 'rm -f "$release_lookup_stderr" "$predecessor_release_file" "$created_release_file"' EXIT
+          npm_latest_file="$(mktemp)"
+          npm_directory="$RUNNER_TEMP/wrench-release-npm"
+          npm_user_config="$RUNNER_TEMP/wrench-release-userconfig"
+          npm_global_config="$RUNNER_TEMP/wrench-release-globalconfig"
+          mkdir -p "$npm_directory"
+          : > "$npm_user_config"
+          : > "$npm_global_config"
+          chmod 600 "$npm_user_config" "$npm_global_config"
+          trap 'rm -f "$release_lookup_stderr" "$predecessor_release_file" "$created_release_file" "$npm_latest_file" "$npm_user_config" "$npm_global_config"' EXIT
           set +e
           release_lookup="$(gh api --include "$release_endpoint" 2>"$release_lookup_stderr")"
           release_lookup_exit="$?"
@@ -513,8 +614,9 @@ jobs:
               exit 1
               ;;
           esac
-          if [[ "$release_lookup_state" == "missing" ]]; then
+          RELEASE_LOOKUP_STATE="$release_lookup_state" \
             node ./scripts/release-provider-outcome.mjs release-order
+          if [[ "$release_lookup_state" == "missing" ]]; then
             gh api "/repos/$GITHUB_REPOSITORY/releases/latest" > "$predecessor_release_file"
             node ./scripts/release-provider-outcome.mjs \
               validate-latest-predecessor < "$predecessor_release_file"
@@ -525,9 +627,37 @@ jobs:
               exit 1
             fi
             verify_publication_authority prewrite "$current_main_sha"
+          fi
+          unset NPM_CONFIG_TAG npm_config_tag
+          configured_tag="$(cd "$npm_directory" && \
+            NPM_CONFIG_USERCONFIG="$npm_user_config" \
+            NPM_CONFIG_GLOBALCONFIG="$npm_global_config" \
+            npm config get tag)"
+          if [[ "$configured_tag" != latest ]]; then
+            echo "::error::Pinned npm does not have the clean default publication tag latest"
+            exit 1
+          fi
+          (cd "$npm_directory" && \
+            NPM_CONFIG_USERCONFIG="$npm_user_config" \
+            NPM_CONFIG_GLOBALCONFIG="$npm_global_config" \
+            npm view @hraness/wrench dist-tags.latest --json \
+              --registry=https://registry.npmjs.org) > "$npm_latest_file"
+          NPM_LATEST_JSON="$npm_latest_file" VERIFIED_TAG="$VERIFIED_TAG" node <<'NODE'
+          const { readFileSync } = require("node:fs");
+          const latest = JSON.parse(readFileSync(process.env.NPM_LATEST_JSON, "utf8"));
+          const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(latest ?? "");
+          if (
+            match === null
+            || match.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))
+            || `v${latest}` !== process.env.VERIFIED_TAG
+          ) throw new Error("Canonical npm latest is not the exact verified release version");
+          NODE
+          if [[ "$release_lookup_state" == "missing" ]]; then
+            release_receipt="$(node ./scripts/release-provider-outcome.mjs release-source-receipt)"
             created_release="$(gh api \
               --method POST \
               "/repos/$GITHUB_REPOSITORY/releases" \
+              -f body="$release_receipt" \
               -F draft=false \
               -F generate_release_notes=true \
               -f make_latest=legacy \

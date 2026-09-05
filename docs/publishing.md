@@ -135,6 +135,26 @@ mutate npm. Only the minimal staging job may reference this environment or
 request an OIDC token. npm's separate human inspection and two-factor approval
 remain mandatory before a staged version becomes public.
 
+Enable the checked workflow after it reaches `main`, then require the exact live
+workflow identity and active state. A disabled workflow cannot provide either
+candidate recovery or staging authority:
+
+```sh
+gh workflow enable npm-stage.yml --repo hraness/wrench
+wrench_stage_workflow="$(gh api \
+  /repos/hraness/wrench/actions/workflows/npm-stage.yml)"
+WRENCH_STAGE_WORKFLOW="$wrench_stage_workflow" node <<'NODE'
+const value = JSON.parse(process.env.WRENCH_STAGE_WORKFLOW ?? "null");
+if (
+  value?.id !== 344213783 ||
+  value.name !== "Stage npm package" ||
+  value.path !== ".github/workflows/npm-stage.yml" ||
+  value.state !== "active"
+) process.exit(1);
+process.stdout.write(`${JSON.stringify({ id: value.id, state: value.state })}\n`);
+NODE
+```
+
 If the current npm trust relationship does not name that environment, inspect
 and revoke it before creating the replacement:
 
@@ -169,9 +189,19 @@ relationship must name `hraness/wrench`, the exact `npm-stage.yml` filename, the
 must require two-factor authentication and disallow traditional publishing
 tokens. Do not add an npm token to GitHub.
 
-Keep only one pending stable stage for this package. The terminal command pins
-`--tag latest`; before approving it, reject any superseded pending stage and
-confirm the inspected version is greater than the current `latest`. Release
+Keep only one pending stable stage for this package. Every OIDC stage job
+includes its exact version in the job name. Immediately before the terminal npm
+mutation, the job records a successful `Record exclusive stable-stage intent`
+step. That version-bound step is the durable reservation even when the job later
+fails or its npm write result is ambiguous. The source-free OIDC job inspects all
+attempts of its current run plus a bounded completed dispatch/job history and
+rejects another submission while any uncleared intent remains newer than public
+`latest`; whole-job success is not the lock. It scrubs ambient and file-backed npm
+tag configuration, proves pinned npm's clean default remains `latest`, re-reads
+public `latest` at the terminal boundary, and intentionally omits `--tag` so npm
+retains its own monotonic default-tag guard. Before approving a stage, reject any
+superseded pending stage and confirm the inspected version is greater than the
+current `latest`. Release
 verification requires that exact version to remain `dist-tags.latest` before it
 can create the corresponding GitHub Release.
 
@@ -204,7 +234,8 @@ immutable Releases determine completed-release ordering.
 ## Stage a later version
 
 1. Merge a monotonically greater stable version to `main`. A push that changes
-   `package.json` starts **Stage npm package** automatically.
+   `package.json` automatically starts candidate verification in **Stage npm
+   package**.
 2. Wait for **Verify exact package**. It packs, smokes, and uploads one exact
    tarball with its `npm-pack.json` and SHA-256 manifest. The automatic run ends
    there: it has no registry mutation, environment admission, or OIDC token.
@@ -229,9 +260,12 @@ immutable Releases determine completed-release ordering.
    ```
 
    That run rebuilds and uploads its own exact candidate before **Stage exact
-   package** enters the main-only `npm-stage` environment. Only this minimal
+   package v&lt;version&gt;** enters the main-only `npm-stage` environment. Only this minimal
    OIDC job can submit the verified tarball to npm's staging area; it still
-   cannot publish the package directly.
+   cannot publish the package directly. An authorized maintainer or agent acting
+   under standing repository delivery authority may make this dispatch; it does
+   not introduce another human approval gate. npm inspection, approval, or
+   rejection still requires the signed-in maintainer and two-factor authentication.
 5. Inspect the uploaded artifact and staged npm package, then approve the npm
    stage with human two-factor authentication.
 6. Download and smoke the public registry package.
@@ -289,7 +323,24 @@ whether that exact source and release-control closure remain eligible. An
 accepted and eligible stage must be inspected and approved without a duplicate
 dispatch. An accepted but ineligible pending stage must be inspected, rejected
 with human two-factor authentication, and confirmed absent before one fresh
-same-version stage is explicitly dispatched from final current `main`. If the
+same-version stage is explicitly dispatched from final current `main` with the
+exact rejected version acknowledged by the exceptional recovery input:
+
+   ```sh
+   gh workflow run npm-stage.yml \
+     --repo hraness/wrench \
+     --ref main \
+     -f publish_to_npm=true \
+     -f resolved_stage_version=0.16.6
+   ```
+
+Leave `resolved_stage_version` empty for every ordinary candidate or staging
+dispatch. The workflow accepts a nonempty value only when its durable history
+contains an uncleared successful intent for that exact version above public
+`latest`; this is an owner-authorized assertion that the npm stage was already
+rejected, not a way to approve, replace, or ignore a pending stage. The recovery
+run records a successful exact-version clearance step before proceeding, so a
+later retry cannot silently reuse the same exception. If the
 ineligible stage is already public, do not reject, unpublish, overwrite, tag, or
 release it; move the complete corrected release to a greater version.
 
@@ -310,61 +361,138 @@ npm stage reject <stage-id> \
   --registry=https://registry.npmjs.org
 ```
 
-To complete the 0.16.7 release, download and smoke
-`@hraness/wrench@0.16.7` after approving its fresh stage. Keep the public
+To complete the 0.16.8 release, download and smoke
+`@hraness/wrench@0.16.8` after approving its fresh stage. Keep the public
 coordinate and tag literal through the final registry checks. Set
-`STAGE_RUN_ID` to the numeric ID of the exact inspected successful manual
-staging run. Resolve `C` from that run rather than ambient `HEAD`, and require
-the full lowercase commit object locally before creating `v0.16.7`:
+`STAGE_RUN_ID` and `STAGE_RUN_ATTEMPT` to the numeric identity of the exact
+inspected successful staging attempt. Resolve `C` from that attempt rather than
+ambient `HEAD`, require its complete actor, triggering actor, repository,
+workflow, source, successful version-bound job, and successful durable intent
+step identity, and require the full lowercase commit object locally before
+preparing `v0.16.8`:
 
 ```sh
 set -eu
 case "${STAGE_RUN_ID:-}" in
   ""|*[!0-9]*) exit 1 ;;
 esac
-C="$(gh api \
-  "/repos/hraness/wrench/actions/runs/$STAGE_RUN_ID" \
-  --jq 'select(
-    .workflow_id == 344213783 and
-    .name == "Stage npm package" and
-    .path == ".github/workflows/npm-stage.yml" and
-    .event == "workflow_dispatch" and
-    .head_branch == "main" and
-    .status == "completed" and
-    .conclusion == "success" and
-    .run_attempt == 1
-  ) | .head_sha')"
+case "${STAGE_RUN_ATTEMPT:-}" in
+  ""|*[!0-9]*) exit 1 ;;
+esac
+test "$STAGE_RUN_ID" -gt 0
+test "$STAGE_RUN_ATTEMPT" -gt 0
+stage_attempt_file="$(mktemp)"
+stage_jobs_file="$(mktemp)"
+gh api \
+  "/repos/hraness/wrench/actions/runs/$STAGE_RUN_ID/attempts/$STAGE_RUN_ATTEMPT" \
+  > "$stage_attempt_file"
+C="$(STAGE_ATTEMPT_FILE="$stage_attempt_file" \
+  EXPECTED_RUN_ID="$STAGE_RUN_ID" \
+  EXPECTED_RUN_ATTEMPT="$STAGE_RUN_ATTEMPT" node <<'NODE'
+const { readFileSync } = require("node:fs");
+const runId = Number(process.env.EXPECTED_RUN_ID);
+const runAttempt = Number(process.env.EXPECTED_RUN_ATTEMPT);
+const value = JSON.parse(readFileSync(process.env.STAGE_ATTEMPT_FILE, "utf8"));
+if (
+  !Number.isSafeInteger(runId) || runId < 1 ||
+  !Number.isSafeInteger(runAttempt) || runAttempt < 1 ||
+  value?.id !== runId ||
+  value.run_attempt !== runAttempt ||
+  value.workflow_id !== 344213783 ||
+  value.name !== "Stage npm package" ||
+  value.path !== ".github/workflows/npm-stage.yml" ||
+  value.event !== "workflow_dispatch" ||
+  value.head_branch !== "main" ||
+  !/^[a-f0-9]{40}$/u.test(value.head_sha ?? "") ||
+  value.status !== "completed" ||
+  value.conclusion !== "success" ||
+  value.actor?.id !== 894119 || value.actor?.type !== "User" ||
+  value.triggering_actor?.id !== 894119 ||
+  value.triggering_actor?.type !== "User" ||
+  value.repository?.id !== 1316443113 ||
+  value.repository?.full_name !== "hraness/wrench" ||
+  value.repository?.private !== false
+) process.exit(1);
+process.stdout.write(value.head_sha);
+NODE
+)"
 test "${#C}" -eq 40
 case "$C" in
   *[!0-9a-f]*) exit 1 ;;
 esac
+gh api \
+  "/repos/hraness/wrench/actions/runs/$STAGE_RUN_ID/attempts/$STAGE_RUN_ATTEMPT/jobs?per_page=100" \
+  > "$stage_jobs_file"
+STAGE_JOBS_FILE="$stage_jobs_file" \
+  EXPECTED_RUN_ID="$STAGE_RUN_ID" \
+  EXPECTED_RUN_ATTEMPT="$STAGE_RUN_ATTEMPT" \
+  EXPECTED_SHA="$C" node <<'NODE'
+const { readFileSync } = require("node:fs");
+const runId = Number(process.env.EXPECTED_RUN_ID);
+const runAttempt = Number(process.env.EXPECTED_RUN_ATTEMPT);
+const value = JSON.parse(readFileSync(process.env.STAGE_JOBS_FILE, "utf8"));
+if (
+  !Number.isSafeInteger(value?.total_count) ||
+  value.total_count < 1 || value.total_count > 100 ||
+  !Array.isArray(value.jobs) || value.jobs.length !== value.total_count
+) process.exit(1);
+let exactStageJobs = 0;
+const jobIds = new Set();
+for (const job of value.jobs) {
+  if (
+    !Number.isSafeInteger(job?.id) || job.id < 1 ||
+    jobIds.has(job.id) ||
+    job.run_id !== runId || job.run_attempt !== runAttempt ||
+    job.head_sha !== process.env.EXPECTED_SHA ||
+    typeof job.name !== "string" || typeof job.status !== "string" ||
+    (job.conclusion !== null && typeof job.conclusion !== "string") ||
+    !Array.isArray(job.steps) || job.steps.length > 100 ||
+    job.steps.some(step => (
+      !step || typeof step !== "object" || typeof step.name !== "string" ||
+      (step.conclusion !== null && typeof step.conclusion !== "string")
+    ))
+  ) process.exit(1);
+  jobIds.add(job.id);
+  if (job.name === "Stage exact package v0.16.8" && job.conclusion === "success") {
+    const successfulIntents = job.steps.filter(step => (
+      step.name === "Record exclusive stable-stage intent" &&
+      step.conclusion === "success"
+    ));
+    if (successfulIntents.length !== 1) process.exit(1);
+    exactStageJobs += 1;
+  }
+}
+if (exactStageJobs !== 1) process.exit(1);
+NODE
 test "$(git cat-file -t "$C")" = commit
 test "$(git rev-parse --verify "$C^{commit}")" = "$C"
 package_coordinate="$(
   git show "${C}:package.json" |
-    node -e 'const manifest = JSON.parse(require("node:fs").readFileSync(0, "utf8")); if (manifest?.name !== "@hraness/wrench" || manifest?.version !== "0.16.7") process.exit(1); process.stdout.write(`${manifest.name}@${manifest.version}`);'
+    node -e 'const manifest = JSON.parse(require("node:fs").readFileSync(0, "utf8")); if (manifest?.name !== "@hraness/wrench" || manifest?.version !== "0.16.8") process.exit(1); process.stdout.write(`${manifest.name}@${manifest.version}`);'
 )"
-test "$package_coordinate" = "@hraness/wrench@0.16.7"
+test "$package_coordinate" = "@hraness/wrench@0.16.8"
 wrench_source_artifact="$(mktemp -d)"
-wrench_source_name="npm-package-0.16.7-$C-$STAGE_RUN_ID-1"
+wrench_source_name="npm-package-0.16.8-$C-$STAGE_RUN_ID-$STAGE_RUN_ATTEMPT"
 gh run download "$STAGE_RUN_ID" \
   --repo hraness/wrench \
   --name "$wrench_source_name" \
   --dir "$wrench_source_artifact"
-wrench_npm_archive="$wrench_source_artifact/hraness-wrench-0.16.7.tgz"
+wrench_npm_archive="$wrench_source_artifact/hraness-wrench-0.16.8.tgz"
 wrench_npm_json="$wrench_source_artifact/npm-pack.json"
 wrench_registry_artifact="$(mktemp -d)"
 wrench_registry_json="$wrench_registry_artifact/npm-pack.json"
 wrench_registry_view_json="$wrench_registry_artifact/npm-view.json"
-npm pack @hraness/wrench@0.16.7 \
+npm pack @hraness/wrench@0.16.8 \
   --ignore-scripts \
   --json \
   --pack-destination "$wrench_registry_artifact" \
   --registry=https://registry.npmjs.org > "$wrench_registry_json"
-npm view @hraness/wrench@0.16.7 name version dist \
+npm view @hraness/wrench@0.16.8 name version dist \
   --json \
   --registry=https://registry.npmjs.org > "$wrench_registry_view_json"
-wrench_registry_archive="$wrench_registry_artifact/hraness-wrench-0.16.7.tgz"
+test "$(npm view @hraness/wrench dist-tags.latest \
+  --json --registry=https://registry.npmjs.org)" = '"0.16.8"'
+wrench_registry_archive="$wrench_registry_artifact/hraness-wrench-0.16.8.tgz"
 bun run ./scripts/npm-package-identity.ts \
   --source-archive "$wrench_npm_archive" \
   --source-pack-json "$wrench_npm_json" \
@@ -372,13 +500,64 @@ bun run ./scripts/npm-package-identity.ts \
   --registry-pack-json "$wrench_registry_json" \
   --registry-view-json "$wrench_registry_view_json" \
   --expected-name @hraness/wrench \
-  --expected-version 0.16.7
+  --expected-version 0.16.8
+wrench_signature_audit="$(mktemp -d)"
+wrench_signature_audit_json="$wrench_signature_audit/audit.json"
+WRENCH_SIGNATURE_AUDIT="$wrench_signature_audit" node <<'NODE'
+const { writeFileSync } = require("node:fs");
+const { join } = require("node:path");
+writeFileSync(join(process.env.WRENCH_SIGNATURE_AUDIT, "package.json"), `${JSON.stringify({
+  name: "wrench-pretag-signature-audit",
+  private: true,
+  version: "0.0.0",
+  dependencies: { "@hraness/wrench": "0.16.8" },
+})}\n`, { encoding: "utf8", mode: 0o600 });
+NODE
+npm install \
+  --prefix "$wrench_signature_audit" \
+  --ignore-scripts \
+  --omit=dev \
+  --omit=optional \
+  --no-audit \
+  --no-fund \
+  --registry=https://registry.npmjs.org
+npm audit signatures \
+  --prefix "$wrench_signature_audit" \
+  --json \
+  --include-attestations \
+  --omit=dev \
+  --omit=optional \
+  --registry=https://registry.npmjs.org > "$wrench_signature_audit_json"
+wrench_provenance_identity="$(bun run ./scripts/npm-provenance-identity.ts \
+  --audit-json "$wrench_signature_audit_json" \
+  --expected-event workflow_dispatch \
+  --expected-name @hraness/wrench \
+  --expected-owner-id 307125679 \
+  --expected-ref refs/heads/main \
+  --expected-repository hraness/wrench \
+  --expected-repository-id 1316443113 \
+  --expected-source-sha "$C" \
+  --expected-version 0.16.8 \
+  --expected-workflow-path .github/workflows/npm-stage.yml \
+  --registry-archive "$wrench_registry_archive")"
+PROVENANCE_IDENTITY="$wrench_provenance_identity" \
+  EXPECTED_RUN_ID="$STAGE_RUN_ID" \
+  EXPECTED_RUN_ATTEMPT="$STAGE_RUN_ATTEMPT" node <<'NODE'
+const value = JSON.parse(process.env.PROVENANCE_IDENTITY ?? "null");
+if (
+  Object.keys(value ?? {}).sort().join(",") !== "runAttempt,runId" ||
+  value.runId !== Number(process.env.EXPECTED_RUN_ID) ||
+  value.runAttempt !== Number(process.env.EXPECTED_RUN_ATTEMPT)
+) process.exit(1);
+NODE
 bun run ./scripts/package-smoke.ts \
   --archive "$wrench_registry_archive" \
   --pack-json "$wrench_registry_json"
-git tag v0.16.7 "$C"
-git push origin refs/tags/v0.16.7
 ```
+
+Do not create the tag yet. Keep the same shell and exact `C`, perform the fresh
+administrator immutable-Release and tag-ruleset readback below, and only then
+push the tag.
 
 The candidate/staging workflow runs on GitHub-hosted runners with Node 24, npm
 11.19.0, Bun 1.3.14, disabled package-manager caching, and no stored npm token.
@@ -389,7 +568,14 @@ back its exact current attempt and requires both `actor` and
 `triggering_actor` to be owner User `894119`, exact workflow ID `344213783` and
 path `.github/workflows/npm-stage.yml`, protected `main`, source `C`, and public
 Wrench repository ID `1316443113`; delegated reruns fail before token minting.
-It then observes the combined governed
+It reads canonical public npm `latest`, all attempts of its current run, and
+bounded completed `workflow_dispatch` run/job history with `actions:read`. A
+successful intent step in an exact version-bound stage job blocks the next
+submission while that version is newer than public `latest`, regardless of the
+job's eventual conclusion. The exceptional exact rejected-stage input may clear
+one such reservation, and the successful dynamic resolution step persists that
+clearance for later runs. Jobs from the older workflow shape have neither marker
+and are not mistaken for durable intent. It then observes the combined governed
 refs twice with one
 `ls-remote` connection per observation, requesting exact protected `main` and
 the prospective tag together. Each canonical advertisement is capped at 64 KiB
@@ -410,9 +596,10 @@ required deployment reviewers.
 
 The checkout-free OIDC job also parses `package/package.json` directly from the
 downloaded tarball with bounded USTAR handling. Its `publishConfig` must contain
-exactly `access=public` and `registry=https://registry.npmjs.org`; a packed tag,
+exactly `access=public` and `registry=https://registry.npmjs.org`; a top-level
+packed tag,
 scoped registry, proxy, authentication field, or any other publication setting
-fails before npm setup. The source-side package smoke enforces the same exact
+fails before OIDC publication. The source-side package smoke enforces the same exact
 allowlist independently.
 
 Before the tag workflow may create an immutable GitHub Release, pinned npm
@@ -555,9 +742,14 @@ the non-draft, non-prerelease immutable GitHub Release, and proves that Release
 is Latest. It does not read or update `website-production`, wait for Vercel, or
 receive the dedicated App key. The Release lookup accepts only an exact REST 200
 or 404 response.
-Only an authenticated exact 404 permits one REST create request with
-server-generated notes; authentication, transport, other API, or malformed
-response failures abort. The workflow validates an exact REST readback before
+Only an authenticated exact 404 permits one REST create request with the
+deterministic source receipt prepended to server-generated notes;
+authentication, transport, other API, or malformed response failures abort. A
+pre-existing exact Release is accepted only when its Actions bot, target SHA,
+name, and run/source receipt all match. The bounded completed-release ordering
+audit runs on both the create and recovery paths, and canonical npm `latest` is
+read again immediately before either path crosses the final acceptance boundary.
+The workflow validates an exact REST readback before
 checking Latest. It does not use opaque `gh release view` or
 `gh release create` commands, so hidden requests cannot escape the bounded
 control path. The direct lightweight tag must remain on the verified release
@@ -723,13 +915,26 @@ process.stdout.write(`${JSON.stringify({
 NODE
 ```
 
-The create request supplies the verified SHA as `target_commitish`, but GitHub
-does not use that field when the tag already exists, and live readback may report
-the default branch. Promotion therefore treats `target_commitish` as
-non-authoritative. It binds the stable Release ID and publication time across
-the authority sandwich and every promotion/outcome receipt readback while the
+Only after every readback above succeeds, create the direct lightweight tag at
+the still-pinned staged commit and push that exact ref:
+
+```sh
+test "$(git rev-parse --verify "$C^{commit}")" = "$C"
+git tag v0.16.6 "$C"
+git push origin refs/tags/v0.16.6
+```
+
+The create request and every publication readback require the verified SHA as
+exact `target_commitish`, the exact `Wrench v&lt;version&gt;` name, Actions bot ID
+`41898282`, and a deterministic body prefix binding repository, tag, source SHA,
+and `GITHUB_RUN_ID`. Generated notes may follow that prefix but are not release
+authority. An owner rerun of the same workflow run can therefore recover an
+already-created exact immutable Release, while a front-run Release or a Release
+from another run fails closed. Promotion additionally binds the
+stable Release ID and publication time across
+the authority sandwich and every promotion/outcome receipt readback, while the
 exact tag name, encoded peeled-tag commit, immutable state, Latest Release, and
-current-main ancestry provide release authority.
+current-main ancestry remain authority.
 
 The separate **Promote website production** workflow is loaded from current
 default-branch `main`. GitHub starts it after **Release** completes, and manual

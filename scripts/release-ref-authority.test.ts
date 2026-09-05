@@ -729,6 +729,18 @@ describe("Wrench staging ref authority", () => {
       runner: runnerFor(input).runner,
       tag: "v1.0.1-rc.1",
     })).toThrow("canonical stable version");
+    expect(() => assertRemoteTagAbsent({
+      runner: runnerFor(input).runner,
+      tag: "v9007199254740992.0.0",
+    })).toThrow("canonical stable version");
+    expect(assertRemoteTagAbsent({
+      expectedHeadSha: input.mainSha,
+      runner: runnerFor(input).runner,
+      tag: "v9007199254740991.0.0",
+    })).toEqual({
+      mainSha: input.mainSha,
+      tag: "v9007199254740991.0.0",
+    });
 
     let reads = 0;
     const drift = runnerFor(input, {

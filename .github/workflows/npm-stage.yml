@@ -13,6 +13,11 @@ on:
         required: false
         default: false
         type: boolean
+      resolved_stage_version:
+        description: Exact prior staged version already rejected by npm (exceptional recovery only)
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -47,6 +52,8 @@ jobs:
         env:
           BEFORE_SHA: ${{ github.event.before }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          INPUT_PUBLISH_TO_NPM: ${{ inputs.publish_to_npm }}
+          RESOLVED_STAGE_VERSION: ${{ inputs.resolved_stage_version }}
         run: |
           set -euo pipefail
           git check-ref-format "refs/heads/$DEFAULT_BRANCH"
@@ -56,6 +63,10 @@ jobs:
           fi
           case "$GITHUB_EVENT_NAME" in
             workflow_dispatch)
+              if [[ -n "$RESOLVED_STAGE_VERSION" && "$INPUT_PUBLISH_TO_NPM" != true ]]; then
+                echo "::error::resolved_stage_version is valid only for an intentional npm staging dispatch"
+                exit 1
+              fi
               authority_output="$(node --experimental-strip-types \
                 ./scripts/release-ref-authority.ts stage-current "$GITHUB_SHA")"
               authority=()
@@ -105,7 +116,8 @@ jobs:
               if (value === null || typeof value !== "object" || Array.isArray(value)) process.exit(1);
               const { name, version } = value;
               if (name !== "@hraness/wrench" || typeof version !== "string") process.exit(1);
-              if (!/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.test(version)) process.exit(1);
+              const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(version);
+              if (match === null || match.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))) process.exit(1);
               process.stdout.write(version);
             ' "$1"
           }
@@ -226,7 +238,11 @@ jobs:
             echo "::error::Unexpected package name $package_name"
             exit 1
           fi
-          if [[ ! "$package_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+          if ! PACKAGE_VERSION="$package_version" node -e '
+            const value = process.env.PACKAGE_VERSION ?? "";
+            const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(value);
+            if (match === null || match.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))) process.exit(1);
+          '; then
             echo "::error::Package version $package_version is not stable semantic version"
             exit 1
           fi
@@ -289,7 +305,7 @@ jobs:
           retention-days: 30
 
   stage:
-    name: Stage exact package
+    name: Stage exact package v${{ needs.verify.outputs.package_version }}
     needs: verify
     if: needs.verify.result == 'success' && github.event_name == 'workflow_dispatch' && inputs.publish_to_npm == true
     permissions:
@@ -311,6 +327,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           INPUT_PUBLISH_TO_NPM: ${{ inputs.publish_to_npm }}
           REF_PROTECTED: ${{ github.ref_protected }}
+          RESOLVED_STAGE_VERSION: ${{ inputs.resolved_stage_version }}
         run: |
           set -euo pipefail
           if [[ ! "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ || \
@@ -323,6 +340,14 @@ jobs:
                 "$INPUT_PUBLISH_TO_NPM" != true || \
                 "$REF_PROTECTED" != true ]]; then
             echo "::error::npm staging requires an intentional owner dispatch from protected main"
+            exit 1
+          fi
+          if [[ -n "$RESOLVED_STAGE_VERSION" ]] && ! RESOLVED_STAGE_VERSION="$RESOLVED_STAGE_VERSION" node -e '
+            const value = process.env.RESOLVED_STAGE_VERSION ?? "";
+            const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(value);
+            if (match === null || match.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))) process.exit(1);
+          '; then
+            echo "::error::resolved_stage_version must be one stable semantic version within npm's safe numeric range"
             exit 1
           fi
           attempt_json="$(mktemp "$RUNNER_TEMP/wrench-stage-attempt.XXXXXX")"
@@ -405,6 +430,282 @@ jobs:
             --ignore-scripts \
             --registry=https://registry.npmjs.org
           test "$(npm --version)" = "11.19.0"
+      - name: Establish clean npm publication defaults
+        id: npm_config
+        run: |
+          set -euo pipefail
+          clean_directory="$RUNNER_TEMP/wrench-clean-npm"
+          user_config="$RUNNER_TEMP/wrench-npm-userconfig"
+          global_config="$RUNNER_TEMP/wrench-npm-globalconfig"
+          mkdir -p "$clean_directory"
+          : > "$user_config"
+          : > "$global_config"
+          chmod 600 "$user_config" "$global_config"
+          unset NPM_CONFIG_TAG npm_config_tag
+          configured_tag="$(cd "$clean_directory" && \
+            NPM_CONFIG_USERCONFIG="$user_config" \
+            NPM_CONFIG_GLOBALCONFIG="$global_config" \
+            npm config get tag)"
+          if [[ "$configured_tag" != latest ]]; then
+            echo "::error::Pinned npm does not have the clean default publication tag latest"
+            exit 1
+          fi
+          printf 'directory=%s\nuserconfig=%s\nglobalconfig=%s\n' \
+            "$clean_directory" "$user_config" "$global_config" >> "$GITHUB_OUTPUT"
+      - name: Reject unresolved stable-stage intent
+        env:
+          EXPECTED_REPOSITORY: "hraness/wrench"
+          EXPECTED_REPOSITORY_ID: "1316443113"
+          EXPECTED_VERSION: ${{ needs.verify.outputs.package_version }}
+          EXPECTED_WORKFLOW_ID: "344213783"
+          GH_TOKEN: ${{ github.token }}
+          NPM_DIRECTORY: ${{ steps.npm_config.outputs.directory }}
+          NPM_GLOBALCONFIG: ${{ steps.npm_config.outputs.globalconfig }}
+          NPM_USERCONFIG: ${{ steps.npm_config.outputs.userconfig }}
+          RESOLVED_STAGE_VERSION: ${{ inputs.resolved_stage_version }}
+        run: |
+          set -euo pipefail
+          unset NPM_CONFIG_TAG npm_config_tag
+          cd "$NPM_DIRECTORY"
+          HISTORY_USER_CONFIG="$NPM_USERCONFIG" \
+            HISTORY_GLOBAL_CONFIG="$NPM_GLOBALCONFIG" node <<'NODE'
+          const { spawnSync } = require("node:child_process");
+          const expectedName = "@hraness/wrench";
+          const expectedRepository = process.env.EXPECTED_REPOSITORY ?? "";
+          const expectedVersion = process.env.EXPECTED_VERSION ?? "";
+          const workflowId = process.env.EXPECTED_WORKFLOW_ID ?? "";
+          const repositoryId = process.env.EXPECTED_REPOSITORY_ID ?? "";
+          const repository = process.env.GITHUB_REPOSITORY ?? "";
+          const currentRunId = process.env.GITHUB_RUN_ID ?? "";
+          const currentSha = process.env.GITHUB_SHA ?? "";
+          const resolvedStageVersion = process.env.RESOLVED_STAGE_VERSION ?? "";
+          const userConfig = process.env.HISTORY_USER_CONFIG ?? "";
+          const globalConfig = process.env.HISTORY_GLOBAL_CONFIG ?? "";
+          const maximum = BigInt(Number.MAX_SAFE_INTEGER);
+          const versionPattern = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
+          const parseVersion = (value, label) => {
+            if (typeof value !== "string") throw new Error(`${label} is not a string`);
+            const match = versionPattern.exec(value);
+            if (match === null) throw new Error(`${label} is not a stable semantic version`);
+            const parts = match.slice(1).map(BigInt);
+            if (parts.some(part => part > maximum)) {
+              throw new Error(`${label} exceeds Number.MAX_SAFE_INTEGER`);
+            }
+            return parts;
+          };
+          const compare = (left, right) => {
+            for (let index = 0; index < 3; index += 1) {
+              if (left[index] !== right[index]) return left[index] > right[index] ? 1 : -1;
+            }
+            return 0;
+          };
+          const execute = (command, args, label) => {
+            const result = spawnSync(command, args, {
+              encoding: "utf8",
+              maxBuffer: 10 * 1024 * 1024,
+            });
+            if (result.status !== 0 || result.error) throw new Error(`Could not read ${label}`);
+            return result.stdout;
+          };
+          const positiveSafeInteger = (value, label) => {
+            if (!/^[1-9][0-9]*$/u.test(value)) throw new Error(`Invalid ${label}`);
+            const number = Number(value);
+            if (!Number.isSafeInteger(number)) throw new Error(`Unsafe ${label}`);
+            return number;
+          };
+          const workflowNumber = positiveSafeInteger(workflowId, "workflow id");
+          const repositoryNumber = positiveSafeInteger(repositoryId, "repository id");
+          const currentRunNumber = positiveSafeInteger(currentRunId, "current run id");
+          if (
+            repository !== expectedRepository
+            || expectedRepository !== "hraness/wrench"
+            || !/^[a-f0-9]{40}$/u.test(currentSha)
+            || userConfig === ""
+            || globalConfig === ""
+          ) throw new Error("Stable-stage history identity is invalid");
+          const current = parseVersion(expectedVersion, "Candidate version");
+          const resolved = resolvedStageVersion === ""
+            ? null
+            : parseVersion(resolvedStageVersion, "Resolved prior stage version");
+          const configuredTag = execute("npm", [
+            "config", "get", "tag",
+            `--globalconfig=${globalConfig}`,
+            `--userconfig=${userConfig}`,
+          ], "clean npm default tag").trim();
+          if (configuredTag !== "latest") throw new Error("Clean npm publication default moved before history inspection");
+          const latestValue = JSON.parse(execute("npm", [
+            "view",
+            expectedName,
+            "dist-tags.latest",
+            "--json",
+            `--globalconfig=${globalConfig}`,
+            "--registry=https://registry.npmjs.org",
+            `--userconfig=${userConfig}`,
+          ], "npm latest"));
+          const latest = parseVersion(latestValue, "Public npm latest");
+          if (compare(current, latest) <= 0) {
+            throw new Error(`Candidate ${expectedVersion} is not newer than public npm latest ${latestValue}`);
+          }
+          const intentRuns = new Map();
+          const resolutionCounts = new Map();
+          const seenJobIds = new Set();
+          const increment = (map, version) => map.set(version, (map.get(version) ?? 0) + 1);
+          const inspectRunJobs = (runId, expectedSha) => {
+            const jobsPayload = JSON.parse(execute("gh", [
+              "api",
+              "--method", "GET",
+              `/repos/${repository}/actions/runs/${runId}/jobs?filter=all&per_page=100`,
+            ], `jobs for npm-stage run ${runId}`));
+            if (
+              !jobsPayload
+              || typeof jobsPayload !== "object"
+              || !Number.isSafeInteger(jobsPayload.total_count)
+              || jobsPayload.total_count < 0
+              || jobsPayload.total_count > 100
+              || !Array.isArray(jobsPayload.jobs)
+              || jobsPayload.jobs.length !== jobsPayload.total_count
+            ) throw new Error(`npm-stage run ${runId} exceeds the reviewed 100-job bound`);
+            for (const job of jobsPayload.jobs) {
+              if (
+                !job
+                || typeof job !== "object"
+                || !Number.isSafeInteger(job.id)
+                || job.id < 1
+                || seenJobIds.has(job.id)
+                || job.run_id !== runId
+                || !Number.isSafeInteger(job.run_attempt)
+                || job.run_attempt < 1
+                || job.head_sha !== expectedSha
+                || typeof job.name !== "string"
+                || typeof job.status !== "string"
+                || (job.conclusion !== null && typeof job.conclusion !== "string")
+                || !Array.isArray(job.steps)
+                || job.steps.length > 100
+                || job.steps.some(step => (
+                  !step
+                  || typeof step !== "object"
+                  || typeof step.name !== "string"
+                  || (step.conclusion !== null && typeof step.conclusion !== "string")
+                ))
+              ) throw new Error(`npm-stage run ${runId} contains an invalid job identity`);
+              seenJobIds.add(job.id);
+              if (!job.name.startsWith("Stage exact package")) continue;
+              const intents = job.steps.filter(step => (
+                step.name === "Record exclusive stable-stage intent"
+                && step.conclusion === "success"
+              ));
+              const resolutions = job.steps.filter(step => (
+                step.name.startsWith("Record cleared stable-stage intent")
+                && step.conclusion === "success"
+              ));
+              if (intents.length > 1) {
+                throw new Error(`npm-stage run ${runId} has ambiguous successful intent steps`);
+              }
+              if (resolutions.length > 1) {
+                throw new Error(`npm-stage run ${runId} has ambiguous successful resolution steps`);
+              }
+              if (intents.length === 0 && resolutions.length === 0) continue;
+              const match = /^Stage exact package v((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))$/u.exec(job.name);
+              if (match === null) {
+                throw new Error(`npm-stage run ${runId} lacks a version-bound stage job`);
+              }
+              const stagedVersion = match[1];
+              parseVersion(stagedVersion, `Staged version from run ${runId}`);
+              if (intents.length === 1) {
+                const reservations = intentRuns.get(stagedVersion) ?? [];
+                reservations.push(`${runId}/attempt-${job.run_attempt}/job-${job.id}`);
+                intentRuns.set(stagedVersion, reservations);
+              }
+              if (resolutions.length === 1) {
+                const resolutionMatch = /^Record cleared stable-stage intent v((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))$/u.exec(resolutions[0].name);
+                if (resolutionMatch === null) {
+                  throw new Error(`npm-stage run ${runId} has an invalid cleared-intent identity`);
+                }
+                parseVersion(resolutionMatch[1], `Cleared version from run ${runId}`);
+                increment(resolutionCounts, resolutionMatch[1]);
+              }
+            }
+          };
+          // A rerun changes the current run back to in_progress, so it drops out
+          // of the completed-runs query. Inspect all attempts of this run first.
+          inspectRunJobs(currentRunNumber, currentSha);
+          const runsPayload = JSON.parse(execute("gh", [
+            "api",
+            "--method", "GET",
+            `/repos/${repository}/actions/workflows/${workflowId}/runs?event=workflow_dispatch&status=completed&branch=main&per_page=100`,
+          ], "completed npm-stage workflow runs"));
+          if (
+            !runsPayload
+            || typeof runsPayload !== "object"
+            || !Number.isSafeInteger(runsPayload.total_count)
+            || runsPayload.total_count < 0
+            || runsPayload.total_count > 100
+            || !Array.isArray(runsPayload.workflow_runs)
+            || runsPayload.workflow_runs.length !== runsPayload.total_count
+          ) throw new Error("Completed npm-stage history exceeds the reviewed 100-run bound");
+          const seenRunIds = new Set();
+          for (const run of runsPayload.workflow_runs) {
+            if (
+              !run
+              || typeof run !== "object"
+              || !Number.isSafeInteger(run.id)
+              || run.id < 1
+              || seenRunIds.has(run.id)
+              || run.id === currentRunNumber
+              || run.workflow_id !== workflowNumber
+              || run.event !== "workflow_dispatch"
+              || run.head_branch !== "main"
+              || !/^[a-f0-9]{40}$/u.test(run.head_sha ?? "")
+              || run.status !== "completed"
+              || typeof run.conclusion !== "string"
+              || run.repository?.id !== repositoryNumber
+              || run.repository?.full_name !== repository
+              || run.repository?.private !== false
+            ) throw new Error("Completed npm-stage history contains an invalid run identity");
+            seenRunIds.add(run.id);
+            inspectRunJobs(run.id, run.head_sha);
+          }
+          for (const [version, count] of resolutionCounts) {
+            if (count > (intentRuns.get(version)?.length ?? 0)) {
+              throw new Error(`Retained history has a cleared ${version} intent without its matching reservation`);
+            }
+          }
+          if (resolved !== null) {
+            const reservations = intentRuns.get(resolvedStageVersion)?.length ?? 0;
+            const resolutions = resolutionCounts.get(resolvedStageVersion) ?? 0;
+            if (
+              reservations <= resolutions
+              || compare(resolved, latest) <= 0
+              || compare(resolved, current) > 0
+            ) {
+              throw new Error(`Resolved prior stage ${resolvedStageVersion} does not identify a blocking intent`);
+            }
+            increment(resolutionCounts, resolvedStageVersion);
+          }
+          for (const [version, reservations] of intentRuns) {
+            const outstanding = reservations.length - (resolutionCounts.get(version) ?? 0);
+            if (outstanding > 0 && compare(parseVersion(version, "Reserved stage"), latest) > 0) {
+              throw new Error(
+                `Refusing to stage ${expectedVersion}: ${reservations[reservations.length - 1]} already reserved stable stage ${version}`,
+              );
+            }
+          }
+          NODE
+      - name: Record cleared stable-stage intent v${{ inputs.resolved_stage_version }}
+        if: inputs.resolved_stage_version != ''
+        env:
+          RESOLVED_STAGE_VERSION: ${{ inputs.resolved_stage_version }}
+        run: |
+          set -euo pipefail
+          if ! RESOLVED_STAGE_VERSION="$RESOLVED_STAGE_VERSION" node -e '
+            const value = process.env.RESOLVED_STAGE_VERSION ?? "";
+            const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(value);
+            if (match === null || match.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))) process.exit(1);
+          '; then
+            echo "::error::Cleared stable-stage intent identity is invalid"
+            exit 1
+          fi
+          echo "Recorded the cleared retained-history intent for @hraness/wrench@$RESOLVED_STAGE_VERSION"
       - name: Bind verified artifact identity
         id: package_identity
         env:
@@ -414,7 +715,11 @@ jobs:
           EXPECTED_VERSION: ${{ needs.verify.outputs.package_version }}
         run: |
           set -euo pipefail
-          if [[ ! "$EXPECTED_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+          if ! EXPECTED_VERSION="$EXPECTED_VERSION" node -e '
+            const value = process.env.EXPECTED_VERSION ?? "";
+            const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(value);
+            if (match === null || match.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))) process.exit(1);
+          '; then
             echo "::error::Verified package version is not stable semantic version"
             exit 1
           fi
@@ -453,7 +758,10 @@ jobs:
           pack_json="$artifact_directory/npm-pack.json"
           sha256_file="$artifact_directory/npm-package.sha256"
           tarball="$artifact_directory/$EXPECTED_TARBALL_NAME"
-          mapfile -d '' artifact_entries < <(find "$artifact_directory" -mindepth 1 -maxdepth 1 -print0 | sort -z)
+          artifact_entries=()
+          while IFS= read -r -d '' artifact_entry; do
+            artifact_entries+=("$artifact_entry")
+          done < <(find "$artifact_directory" -mindepth 1 -maxdepth 1 -print0 | sort -z)
           if [[ ${#artifact_entries[@]} -ne 3 ]]; then
             echo "::error::Downloaded npm artifact must contain exactly the tarball, npm-pack.json, and npm-package.sha256"
             exit 1
@@ -561,6 +869,7 @@ jobs:
             || manifest?.version !== process.env.EXPECTED_VERSION
             || manifest?.private !== false
             || manifest?.contentPolicy?.class !== "dual-use"
+            || Object.hasOwn(manifest, "tag")
             || publishConfig === null
             || typeof publishConfig !== "object"
             || Array.isArray(publishConfig)
@@ -580,6 +889,22 @@ jobs:
             exit 1
           fi
           printf 'sha256=%s\ntarball=%s\n' "$actual_sha256" "$tarball" >> "$GITHUB_OUTPUT"
+      - name: Record exclusive stable-stage intent
+        env:
+          EXPECTED_VERSION: ${{ steps.package_identity.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ || \
+                ! "$GITHUB_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]] || \
+             ! EXPECTED_VERSION="$EXPECTED_VERSION" node -e '
+               const value = process.env.EXPECTED_VERSION ?? "";
+               const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(value);
+               if (match === null || match.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))) process.exit(1);
+             '; then
+            echo "::error::Stable-stage intent identity is invalid"
+            exit 1
+          fi
+          echo "Reserved the exclusive retained-history intent for @hraness/wrench@$EXPECTED_VERSION in run $GITHUB_RUN_ID attempt $GITHUB_RUN_ATTEMPT"
       - name: Revalidate protected-main ancestry and stage exact package
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -587,6 +912,9 @@ jobs:
           EXPECTED_TARBALL_SHA256: ${{ steps.artifact.outputs.sha256 }}
           EXPECTED_VERSION: ${{ steps.package_identity.outputs.version }}
           GH_TOKEN: ${{ github.token }}
+          NPM_DIRECTORY: ${{ steps.npm_config.outputs.directory }}
+          NPM_GLOBALCONFIG: ${{ steps.npm_config.outputs.globalconfig }}
+          NPM_USERCONFIG: ${{ steps.npm_config.outputs.userconfig }}
           TARBALL: ${{ steps.artifact.outputs.tarball }}
         run: |
           set -euo pipefail
@@ -614,7 +942,11 @@ jobs:
           const sha = /^[0-9a-f]{40}$/u;
           const stableTag = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
           const expectedTag = process.env.EXPECTED_TAG ?? "";
-          if (!stableTag.test(expectedTag)) {
+          const tagMatch = stableTag.exec(expectedTag);
+          if (
+            tagMatch === null
+            || tagMatch.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))
+          ) {
             throw new Error("Terminal staging coordinates are malformed");
           }
           const path = process.env.SNAPSHOT;
@@ -680,9 +1012,49 @@ jobs:
             echo "::error::Governed refs changed between terminal staging advertisements"
             exit 1
           fi
-          npm stage publish "$TARBALL" \
-            --access public \
-            --ignore-scripts \
-            --provenance \
-            --tag latest \
-            --registry=https://registry.npmjs.org
+          unset NPM_CONFIG_TAG npm_config_tag
+          configured_tag="$(cd "$NPM_DIRECTORY" && \
+            NPM_CONFIG_USERCONFIG="$NPM_USERCONFIG" \
+            NPM_CONFIG_GLOBALCONFIG="$NPM_GLOBALCONFIG" \
+            npm config get tag)"
+          if [[ "$configured_tag" != latest ]]; then
+            echo "::error::Clean npm publication default moved at the terminal staging boundary"
+            exit 1
+          fi
+          final_latest_file="$(mktemp "$RUNNER_TEMP/wrench-terminal-latest.XXXXXX")"
+          trap 'rm -f "$final_latest_file"' EXIT
+          (cd "$NPM_DIRECTORY" && \
+            NPM_CONFIG_USERCONFIG="$NPM_USERCONFIG" \
+            NPM_CONFIG_GLOBALCONFIG="$NPM_GLOBALCONFIG" \
+            npm view @hraness/wrench dist-tags.latest --json \
+              --registry=https://registry.npmjs.org) > "$final_latest_file"
+          LATEST_JSON="$final_latest_file" EXPECTED_VERSION="$EXPECTED_VERSION" node <<'NODE'
+          const { readFileSync } = require("node:fs");
+          const parseStable = (value, label) => {
+            if (typeof value !== "string") throw new Error(`${label} is not a string`);
+            const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(value);
+            if (
+              match === null
+              || match.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))
+            ) throw new Error(`${label} is not a supported stable semantic version`);
+            return match.slice(1).map(BigInt);
+          };
+          const latestValue = JSON.parse(readFileSync(process.env.LATEST_JSON, "utf8"));
+          const latest = parseStable(latestValue, "Public npm latest");
+          const expectedValue = process.env.EXPECTED_VERSION ?? "";
+          const expected = parseStable(expectedValue, "Candidate version");
+          for (let index = 0; index < 3; index += 1) {
+            if (expected[index] === latest[index]) continue;
+            if (expected[index] > latest[index]) process.exit(0);
+            throw new Error(`Candidate ${expectedValue} is older than public npm latest ${latestValue}`);
+          }
+          throw new Error(`Candidate ${expectedValue} is already public as npm latest`);
+          NODE
+          (cd "$NPM_DIRECTORY" && \
+            NPM_CONFIG_USERCONFIG="$NPM_USERCONFIG" \
+            NPM_CONFIG_GLOBALCONFIG="$NPM_GLOBALCONFIG" \
+            npm stage publish "$TARBALL" \
+              --access public \
+              --ignore-scripts \
+              --provenance \
+              --registry=https://registry.npmjs.org)
