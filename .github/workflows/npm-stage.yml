@@ -984,7 +984,7 @@ jobs:
           if (
             manifest?.name !== "@hraness/wrench"
             || manifest?.version !== process.env.EXPECTED_VERSION
-            || manifest?.private !== false
+            || (Object.hasOwn(manifest, "private") && manifest.private !== false)
             || manifest?.contentPolicy?.class !== "dual-use"
             || Object.hasOwn(manifest, "tag")
             || publishConfig === null

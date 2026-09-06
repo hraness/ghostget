@@ -1689,6 +1689,7 @@ describe("npm publication contract", () => {
       "zlib.gunzipSync(bytes",
       'path === "package/package.json"',
       'Object.hasOwn(manifest, "tag")',
+      'Object.hasOwn(manifest, "private") && manifest.private !== false',
       'JSON.stringify(Object.keys(publishConfig).sort()) !== JSON.stringify(["access", "registry"])',
       'publishConfig.registry !== "https://registry.npmjs.org"',
       "has a terminal write without one durable intent",
@@ -3093,16 +3094,17 @@ esac
       "`--registry=${NPM_REGISTRY}`",
       "not currently published on npm",
       'Object.hasOwn(manifest, "tag")',
+      'Object.hasOwn(manifest, "private") && manifest.private !== false',
       "Object.keys(manifest.publishConfig).sort()",
       'JSON.stringify(["access", "registry"])',
       "manifest.publishConfig.registry !== NPM_REGISTRY",
-      "Packed Wrench publishConfig may contain only public access and the canonical npm registry",
+      "Packed Wrench must remain public and publishConfig may contain only public access and the canonical npm registry",
     ] as const) {
       expect(smoke).toContain(required);
     }
   });
 
-  test("rejects a packed top-level npm tag before OIDC publication", async () => {
+  test("accepts omitted private and rejects a packed top-level npm tag before OIDC publication", async () => {
     const workflow = await readFile(stageWorkflowUrl, "utf8");
     const script = workflowStepScript(workflow, "Bind downloaded artifact");
     const manifest = JSON.parse(await readFile(manifestUrl, "utf8")) as {
@@ -3124,12 +3126,89 @@ esac
         "--ignore-scripts",
         "--quiet",
       ], repository);
-      const tar = gunzipSync(await readFile(archive));
+      const originalArchive = await readFile(archive);
+      const originalInventory = await inspectPackageArtifact(archive);
+      await Promise.all([
+        writeFile(
+          join(artifactDirectory, "npm-pack.json"),
+          packJson(originalArchive, originalInventory, manifest.name, manifest.version),
+        ),
+        writeFile(
+          join(artifactDirectory, "npm-package.sha256"),
+          `${createHash("sha256").update(originalArchive).digest("hex")}\n`,
+        ),
+      ]);
+      const accepted = await runWorkflowScript(script, {
+        EXPECTED_TARBALL_NAME: filename,
+        EXPECTED_VERSION: manifest.version,
+        GITHUB_OUTPUT: join(directory, "github-output.txt"),
+        RUNNER_TEMP: directory,
+      });
+      expect(accepted.exitCode).toBe(0);
+
+      const tar = gunzipSync(originalArchive);
       const manifestEntry = exactTarEntry(tar, "package/package.json");
       const manifestBytes = tar.subarray(
         manifestEntry.dataOffset,
         manifestEntry.dataOffset + manifestEntry.size,
       );
+      const manifestText = manifestBytes.toString("utf8");
+      expect(manifestText).not.toContain('"private"');
+      const manifestWithoutClosingBrace = manifestText.trimEnd().slice(0, -1);
+      const manifestPaddedSize = Math.ceil(manifestEntry.size / 512) * 512;
+      const runPrivateVariant = async (
+        value: string,
+        accepted: boolean,
+      ): Promise<void> => {
+        const variantManifest = Buffer.from(
+          `${manifestWithoutClosingBrace},\n  "private": ${value}\n}\n`,
+          "utf8",
+        );
+        expect(Math.ceil(variantManifest.length / 512) * 512).toBe(manifestPaddedSize);
+        const variantTar = Buffer.from(tar);
+        variantTar.fill(
+          0,
+          manifestEntry.dataOffset,
+          manifestEntry.dataOffset + manifestPaddedSize,
+        );
+        variantManifest.copy(variantTar, manifestEntry.dataOffset);
+        variantTar.fill(0, manifestEntry.headerOffset + 124, manifestEntry.headerOffset + 136);
+        Buffer.from(variantManifest.length.toString(8).padStart(11, "0"), "ascii")
+          .copy(variantTar, manifestEntry.headerOffset + 124);
+        writeHeaderChecksum(variantTar, manifestEntry.headerOffset);
+        const variantArchive = gzipSync(variantTar, { level: 9 });
+        await writeFile(archive, variantArchive);
+        const variantInventory = await inspectPackageArtifact(archive);
+        await Promise.all([
+          writeFile(
+            join(artifactDirectory, "npm-pack.json"),
+            packJson(variantArchive, variantInventory, manifest.name, manifest.version),
+          ),
+          writeFile(
+            join(artifactDirectory, "npm-package.sha256"),
+            `${createHash("sha256").update(variantArchive).digest("hex")}\n`,
+          ),
+        ]);
+        const result = await runWorkflowScript(script, {
+          EXPECTED_TARBALL_NAME: filename,
+          EXPECTED_VERSION: manifest.version,
+          GITHUB_OUTPUT: join(directory, "github-output.txt"),
+          RUNNER_TEMP: directory,
+        });
+        if (accepted) {
+          expect(result.exitCode).toBe(0);
+        } else {
+          expect(result.exitCode).not.toBe(0);
+          expect(`${result.stdout}${result.stderr}`).toContain(
+            "Packed Wrench can publish only to the canonical public npm registry",
+          );
+        }
+      };
+      await runPrivateVariant("false", true);
+      for (const rejected of ["true", "null", '"false"', "0", "{}"] as const) {
+        await runPrivateVariant(rejected, false);
+      }
+
       const originalKey = Buffer.from('"bin":', "utf8");
       const replacementKey = Buffer.from('"tag":', "utf8");
       const keyOffset = manifestBytes.indexOf(originalKey);
