@@ -1,3 +1,4 @@
+import { withReadCleanupAdmission } from "./read-admission-runtime";
 import {
   chmodSync,
   existsSync,
@@ -1806,6 +1807,45 @@ describe("web-session cleanup admission", () => {
         "requested web-session cleanup admission is invalid",
       );
       expect(blocked.cause).toBeInstanceOf(Error);
+    });
+  });
+});
+
+describe("R1 Effect cleanup admission", () => {
+  test("retains exact native admission after operation settlement until both barriers prove cleanup", async () => {
+    await withState(async environment => {
+      const first = Promise.withResolvers<void>();
+      const second = Promise.withResolvers<void>();
+      const started = Promise.withResolvers<void>();
+      let settled = false;
+      const execution = withReadCleanupAdmission(identity(), environment, register => {
+        register(first.promise);
+        register(second.promise);
+        started.resolve();
+        return Promise.resolve("bounded-result");
+      }, undefined, error => Promise.reject(error));
+      void execution.then(() => { settled = true; }, () => { settled = true; });
+      await started.promise;
+      first.resolve();
+      for (let i = 0; i < 8; i += 1) await Promise.resolve();
+      expect(settled).toBeFalse();
+      expect(listWebSessionCleanupAdmissions(environment)).toHaveLength(1);
+      second.resolve();
+      expect(await execution).toBe("bounded-result");
+      expect(listWebSessionCleanupAdmissions(environment)).toEqual([]);
+    });
+  });
+
+  test("a failed native barrier retains durable custody independently of the exact operation rejection", async () => {
+    await withState(async environment => {
+      const primary = new Error("private operation failure");
+      const cleanup = new Error("private cleanup failure");
+      const execution = withReadCleanupAdmission(identity(), environment, register => {
+        register(Promise.reject(cleanup));
+        return Promise.reject(primary);
+      }, undefined, error => Promise.reject(error));
+      await expect(execution).rejects.toBe(primary);
+      expect(listWebSessionCleanupAdmissions(environment)).toMatchObject([{ claim: { containment: { status: "cleanup-unsafe" } } }]);
     });
   });
 });

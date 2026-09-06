@@ -1,3 +1,4 @@
+import { runWebSessionReadWithDeadline } from "./web-session-read-runtime";
 import { describe, expect, test } from "bun:test";
 
 import type { WebSessionRecipe } from "./model";
@@ -66,7 +67,8 @@ async function rejectionMessage(action: Promise<unknown>): Promise<string> {
   throw new Error("expected operation to reject");
 }
 
-describe("web-session plugin execution boundary", () => {
+for (const [label, runDeadline] of [["legacy", runWebSessionOperationWithDeadline], ["R1 Effect", runWebSessionReadWithDeadline]] as const) {
+describe(`${label} web-session plugin execution boundary`, () => {
   test("enforces plugin-owned conditional input validation", () => {
     const operation = {
       validateInput: (input: Readonly<Record<string, unknown>>) =>
@@ -90,7 +92,7 @@ describe("web-session plugin execution boundary", () => {
     caller.abort("private cancellation reason");
     let calls = 0;
     const message = await rejectionMessage(
-      runWebSessionOperationWithDeadline(
+      runDeadline(
         recipe,
         { signal: caller.signal },
         () => {
@@ -109,7 +111,7 @@ describe("web-session plugin execution boundary", () => {
     const clock = new FakeMonotonicClock();
     const captured: { options?: WebSessionExecutionOptions } = {};
     let durableCallbacks = 0;
-    const execution = runWebSessionOperationWithDeadline(
+    const execution = runDeadline(
       recipe,
       {
         deadlineClock: clock,
@@ -172,7 +174,7 @@ describe("web-session plugin execution boundary", () => {
     const cleanup = new Promise<void>((_resolve, reject) => {
       rejectCleanup = reject;
     });
-    const execution = runWebSessionOperationWithDeadline(
+    const execution = runDeadline(
       recipe,
       { deadlineClock: clock },
       (options) => {
@@ -206,7 +208,7 @@ describe("web-session plugin execution boundary", () => {
     const clock = new FakeMonotonicClock();
     const cleanup = new Promise<void>(() => undefined);
     let kernelBarrier: Promise<void> | undefined;
-    const execution = runWebSessionOperationWithDeadline(
+    const execution = runDeadline(
       recipe,
       {
         deadlineClock: clock,
@@ -237,3 +239,5 @@ describe("web-session plugin execution boundary", () => {
     expect(clock.pendingTimers()).toBe(0);
   });
 });
+
+}

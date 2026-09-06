@@ -173,3 +173,6 @@ git -C /absolute/path/to/wrench worktree prune
 Review the exact `<WRENCH_DEV_HOME>/<task>` directory separately before
 deleting it. It can contain private auth, provider, plugin, and media state. Do
 not use a broad glob or remove the worktree directory directly.
+
+The [read runtime ownership guide](effect-read-runtime.md) describes the R1 Effect
+programs, native cleanup proof and the `bun run check:effect` architecture gate.

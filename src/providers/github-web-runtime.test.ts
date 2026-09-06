@@ -369,3 +369,21 @@ describe("GitHub public organization statistics runtime", () => {
     )).toMatchObject({ status: "failed", readFailure: { category: "contract-drift" } });
   });
 });
+
+test("organization scope cancels an overflowing body once and releases its reader despite cancellation failure", async () => {
+  let cancellations = 0;
+  let requests = 0;
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(new Uint8Array(65)); },
+    cancel() { cancellations += 1; return Promise.reject(new Error("private cleanup detail")); },
+  });
+  const response = new Response(body, { headers: { "content-type": "application/json" } });
+  const result = await executeGitHubPublicOrganizationRead({ ...organizationRecipe, maxOutputBytes: 64 }, { organization: "hraness" }, {
+    fetch: () => { requests += 1; return Promise.resolve(response); },
+  }, undefined);
+  expect(result).toMatchObject({ status: "failed", output: null, readFailure: { category: "contract-drift" } });
+  expect(requests).toBe(1);
+  expect(cancellations).toBe(1);
+  expect(body.locked).toBeFalse();
+  expect(JSON.stringify(result)).not.toContain("private cleanup detail");
+});

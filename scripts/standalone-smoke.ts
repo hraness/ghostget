@@ -31,6 +31,7 @@ const expectedClosureRuntimeDependencies = Object.freeze({
   "source-map": "0.6.1",
   "source-map-support": "0.5.21",
   typescript: "6.0.3",
+  effect: "3.22.1",
 });
 const reviewedKbDynamicModuleKeyFile = "dist/index-qry4vhxk.js";
 const reviewedKbDynamicModuleSha256 =

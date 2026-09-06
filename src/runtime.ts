@@ -1,3 +1,6 @@
+import { withReadCleanupAdmission, withPortableReadAdmission } from "./read-admission-runtime";
+import { runWebSessionReadWithDeadline } from "./web-session-read-runtime";
+import { runReadInvocation } from "./invocation-read-runtime";
 import { existsSync } from "node:fs";
 import {
   createCipheriv,
@@ -4296,6 +4299,336 @@ type RunPreparedOptions = {
   ) => void;
 };
 
+async function runPreparedReadCore(invocation: PreparedInvocation, planDigest: string | null, options: RunPreparedOptions): Promise<InvocationResult> {
+  const registry = options.registry ?? providerPluginRegistry;
+  const checked = revalidatePreparedInvocation(invocation, registry);
+  invocation = checked.invocation;
+  const persistReceipt = options.persistReceipt ?? writeReceipt;
+  const operation = checked.operation;
+  if (operation.risk === "R4") throw new Error("R4 capabilities are blocked by wrench");
+  if (operation.risk !== "R1") throw new Error("read interpreter requires an R1 operation");
+  const providerOperation = isProviderOperation(operation);
+  const webSessionOperation = isWebSessionOperation(operation);
+  const localCliOperation = isLocalCliOperation(operation);
+  const reviewedTemplateOperation = isReviewedTemplateOperation(operation);
+  const pluginResolution = resolveCodeOwnedPluginOperation(operation, registry);
+  const plannedDispatches = pluginResolution !== null
+    ? runProviderPluginPlanConformance(
+        pluginResolution.operation,
+        invocation.input,
+      )
+      : reviewedTemplateOperation
+        ? planReviewedTemplateDispatches(invocation.operationId, operation.risk, operation.reviewedTemplate)
+        : operation.browser === undefined
+          ? (() => {
+            throw new Error(DOM_ACTION_TRANSPORT_DISABLED_MESSAGE);
+          })()
+          : expandBrowserRecipe(operation.browser, invocation.input).dispatches;
+  if (
+    options.confirmedDispatches !== undefined
+    && canonicalJson(plannedDispatches) !== canonicalJson(options.confirmedDispatches)
+  ) {
+    throw new Error(
+      "planned dispatch schedule changed before execution; preview the action again",
+    );
+  }
+  const planned = plannedDispatches.length;
+  if (operation.risk === "R1" && planned !== 0) {
+    throw new Error("R1 operations must not schedule remote dispatches");
+  }
+  const currentProviderContractHash = providerOperation
+    ? providerContractHash(
+        getProviderContract(operation.provider, registry),
+        registry,
+      )
+    : null;
+  const currentWebSessionContractHash = webSessionOperation
+    ? webSessionContractHash(
+        getWebSessionContract(operation.webSession, registry),
+        registry,
+      )
+    : null;
+  const currentLocalCliContractIdentity = localCliOperation
+    ? localCliContractIdentity(operation.localCli, registry)
+    : null;
+  const currentReviewedTemplateContractHash = reviewedTemplateOperation
+    ? reviewedTemplateHash(operation.reviewedTemplate)
+    : null;
+  const currentPortablePluginContract =
+    pluginResolution?.portableIdentity ?? null;
+  const inputHash = sha256(canonicalJson(invocation.input));
+  const runId = options.runId ?? crypto.randomUUID();
+  if (!/^[0-9a-f-]{36}$/u.test(runId)) {
+    throw new Error("run ID is malformed");
+  }
+  const startedAt = (options.now ?? new Date()).toISOString();
+  const adapter = {
+    id: invocation.manifest.id,
+    version: invocation.manifest.version,
+    hash: manifestHash(invocation.manifest),
+  };
+  const auth = { id: invocation.auth.id, hash: authHash(invocation.auth), kind: invocation.auth.kind };
+  const withTransport = (value: RunReceiptCommon): RunReceipt => {
+    if (currentPortablePluginContract !== null) {
+      return {
+        ...value,
+        schemaVersion: 6,
+        transport: "portable-provider-plugin",
+        portablePluginContract: currentPortablePluginContract,
+      };
+    }
+    if (providerOperation) {
+      if (currentProviderContractHash === null) throw new Error("official provider contract hash is unavailable");
+      return {
+        ...value,
+        schemaVersion: 3,
+        transport: "provider-api",
+        providerContractHash: currentProviderContractHash,
+      };
+    }
+    if (webSessionOperation) {
+      if (currentWebSessionContractHash === null) throw new Error("authenticated web contract hash is unavailable");
+      return {
+        ...value,
+        schemaVersion: 4,
+        transport: "web-session-api",
+        webSessionContractHash: currentWebSessionContractHash,
+      };
+    }
+    if (localCliOperation) {
+      if (currentLocalCliContractIdentity === null) {
+        throw new Error("local CLI contract identity is unavailable");
+      }
+      return {
+        ...value,
+        schemaVersion: 7,
+        transport: "local-cli",
+        localCliContract: currentLocalCliContractIdentity,
+      };
+    }
+    if (reviewedTemplateOperation) {
+      if (currentReviewedTemplateContractHash === null) throw new Error("reviewed template contract hash is unavailable");
+      return {
+        ...value,
+        schemaVersion: 5,
+        transport: "reviewed-template-api",
+        reviewedTemplateContractHash: currentReviewedTemplateContractHash,
+      };
+    }
+    return { ...value, schemaVersion: 2, transport: "browser" };
+  };
+  const durableReceipt: RunReceipt = withTransport({
+    runId,
+    planDigest,
+    adapter,
+    operation: invocation.operationId,
+    risk: operation.risk,
+    inputHash,
+    auth,
+    status: "pending",
+    dispatchStarted: false,
+    dispatch: { planned, started: 0, verified: 0 },
+    startedAt,
+    finishedAt: startedAt,
+    finalOrigin: null,
+    error: "execution was prepared but no durable final outcome was recorded",
+  });
+
+  const rejectReadDispatch = (_event: unknown): Promise<void> => Promise.reject(new Error("dispatch progress diverged from the confirmed schedule"));
+  const executionKind = providerOperation ? "provider" : webSessionOperation ? "web-session" : localCliOperation ? "local-cli" : reviewedTemplateOperation ? "reviewed-template" : "browser";
+  const transportLabel = providerOperation ? "official API" : webSessionOperation ? "authenticated web API" : localCliOperation ? "local CLI" : reviewedTemplateOperation ? "reviewed authenticated API" : "browser";
+  const maxOutputBytes = executionOutputLimit(operation);
+  const publicWebSessionOperation = webSessionOperation && isPublicWebSessionInvocationAuthority(invocation.auth);
+  return runReadInvocation({
+    provisional: durableReceipt,
+    transportLabel,
+    apiOperation: providerOperation || webSessionOperation || localCliOperation || reviewedTemplateOperation,
+    persist: receipt => persistReceipt(receipt, options.environment),
+    now: () => (options.now ?? new Date()).toISOString(),
+    finalOrigin: url => finalOrigin(url, invocation.manifest.origins),
+    recoveryHandle: boundedRecoveryHandle,
+    redact: redactSensitiveText,
+    parse: raw => boundedExecutionResult(raw, executionKind, maxOutputBytes),
+    rejected: error => {
+    const preservedArtifactsError =
+      error instanceof PreservedBrowserArtifactsError
+        ? error
+        : error instanceof WebSessionCleanupUnverifiedError
+          && error.cause instanceof PreservedBrowserArtifactsError
+          ? error.cause
+          : null;
+    const cleanupRequired = error instanceof WebSessionCleanupUnverifiedError
+      || error instanceof WebSessionCleanupAdmissionBlockedError;
+    return {
+      status: "failed",
+      output: null,
+      finalUrl: null,
+      dispatchStarted: false,
+      dispatch: durableReceipt.dispatch,
+      error: preservedArtifactsError !== null
+        ? "provider browser cleanup could not be verified; private artifacts were preserved and durable cleanup admission requires wrench doctor before retry"
+        : cleanupRequired
+          ? localCliOperation
+            ? "local CLI child/private-root cleanup could not be verified; durable cleanup admission blocks retry until wrench doctor proves every pinned process group quiescent and removes the exact private root"
+            : "authenticated web cleanup could not be verified; durable cleanup admission blocks retry until wrench doctor proves and completes exact browser-session recovery"
+          : boundedThrownExecutorReason(error),
+      ...(cleanupRequired
+        ? { readFailure: readFailureProjection("cleanup-required") }
+        : error instanceof OperationDeadlineError
+          && error.failure === "timed-out"
+          ? { readFailure: readFailureProjection("operation-timeout") }
+          : {}),
+      ...(preservedArtifactsError === null
+        ? {}
+        : {
+            privateArtifactsPreserved: true,
+            recoveryHandle: preservedArtifactsError.recoveryHandle,
+          }),
+    };
+
+    },
+    execute: async () => {
+      if (options.preflightFailure !== undefined) throw options.preflightFailure;
+    return providerOperation
+      ? await (options.executeProvider ?? executeProviderOperation)(
+          invocation.manifest,
+          operation.provider,
+          invocation.input,
+          persistedAuthAuthority(invocation.auth),
+          {
+            registry,
+            ...(options.fileResolver === undefined ? {} : { fileResolver: options.fileResolver }),
+            ...(options.now === undefined ? {} : { now: options.now }),
+            ...(options.signal === undefined ? {} : { signal: options.signal }),
+            environment: options.environment,
+            beforeDispatch: (event) => rejectReadDispatch(event),
+            afterDispatchVerified: (event) => rejectReadDispatch(event),
+          },
+        )
+      : webSessionOperation
+        ? await runWebSessionReadWithDeadline(
+            operation.webSession,
+            {
+              ...(options.fileResolver === undefined ? {} : { fileResolver: options.fileResolver }),
+              environment: options.environment,
+              ...(options.signal === undefined ? {} : { signal: options.signal }),
+              ...(options.registerCleanupBarrier === undefined
+                ? {}
+                : {
+                  registerCleanupBarrier: options.registerCleanupBarrier,
+                }),
+              beforeDispatch: (event) => rejectReadDispatch(event),
+              afterDispatchVerified: (event) => rejectReadDispatch(event),
+            },
+            async (executionOptions: WebSessionExecutionOptions) => {
+              if (
+                pluginResolution === null
+                || (
+                  pluginResolution.binding.transport !== "web-session-api"
+                  && pluginResolution.binding.transport !== "linked-device"
+                )
+              ) {
+                throw new Error(
+                  "authenticated session operation resolved to the wrong plugin transport",
+                );
+              }
+              if (publicWebSessionOperation) {
+                if (pluginResolution.binding.transport !== "web-session-api") {
+                  throw new Error(
+                    "public access is available only to a web-session plugin binding",
+                  );
+                }
+                const executePublic = options.executePublicWebSession
+                  ?? pluginResolution.binding.executePublic;
+                if (executePublic === undefined) {
+                  throw new Error(
+                    "reviewed public web-session operation has no public runtime hook",
+                  );
+                }
+                return executePublic(
+                  invocation.manifest,
+                  operation.webSession,
+                  invocation.input,
+                  executionOptions,
+                );
+              }
+              return (options.executeWebSession
+                ?? pluginResolution.binding.execute)(
+                invocation.manifest,
+                operation.webSession,
+                invocation.input,
+                persistedAuthAuthority(invocation.auth),
+                executionOptions,
+              );
+            },
+          )
+        : localCliOperation
+          ? await runLocalCliOperationWithDeadline(
+              operation.localCli,
+              {
+                ...(options.fileResolver === undefined
+                  ? {}
+                  : { fileResolver: options.fileResolver }),
+                environment: options.environment,
+                ...(options.signal === undefined
+                  ? {}
+                  : { signal: options.signal }),
+                ...(options.registerCleanupBarrier === undefined
+                  ? {}
+                  : { registerCleanupBarrier: options.registerCleanupBarrier }),
+                beforeDispatch: (event) =>
+                  rejectReadDispatch(event),
+                afterDispatchVerified: (event) =>
+                  rejectReadDispatch(event),
+              },
+              async (executionOptions: LocalCliExecutionOptions) => {
+                if (
+                  pluginResolution === null
+                  || pluginResolution.binding.transport !== "local-cli"
+                ) {
+                  throw new Error(
+                    "local CLI operation resolved to the wrong plugin transport",
+                  );
+                }
+                return (options.executeLocalCli
+                  ?? pluginResolution.binding.execute)(
+                  invocation.manifest,
+                  operation.localCli,
+                  invocation.input,
+                  persistedAuthAuthority(invocation.auth),
+                  executionOptions,
+                );
+              },
+            )
+        : reviewedTemplateOperation
+          ? await (options.executeReviewedTemplate ?? executeReviewedTemplateOperation)(
+              invocation.manifest,
+              invocation.operationId,
+              operation.reviewedTemplate,
+              invocation.input,
+              persistedAuthAuthority(invocation.auth),
+              {
+                beforeDispatch: (event) => rejectReadDispatch(event),
+                afterDispatchVerified: (event) => rejectReadDispatch(event),
+              },
+            )
+          : await (options.executeRecipe ?? executeBrowserRecipe)(
+          invocation.manifest,
+          operation.browser,
+          invocation.input,
+          persistedAuthAuthority(invocation.auth),
+          {
+            headed: options.headed,
+            ...(options.fileResolver === undefined ? {} : { fileResolver: options.fileResolver }),
+            beforeDispatch: (event) => rejectReadDispatch(event),
+            afterDispatchVerified: (event) => rejectReadDispatch(event),
+          },
+        );
+
+    },
+  });
+}
+
 async function runPreparedCore(
   invocation: PreparedInvocation,
   planDigest: string | null,
@@ -4306,6 +4639,7 @@ async function runPreparedCore(
   invocation = checked.invocation;
   const persistReceipt = options.persistReceipt ?? writeReceipt;
   const operation = checked.operation;
+  if (operation.risk === "R1") return runPreparedReadCore(invocation, planDigest, options);
   if (operation.risk === "R4") throw new Error("R4 capabilities are blocked by wrench");
   const isWrite = operation.risk === "R2" || operation.risk === "R3";
   if (isWrite) {
@@ -4348,9 +4682,6 @@ async function runPreparedCore(
     );
   }
   const planned = plannedDispatches.length;
-  if (operation.risk === "R1" && planned !== 0) {
-    throw new Error("R1 operations must not schedule remote dispatches");
-  }
   const currentProviderContractHash = providerOperation
     ? providerContractHash(
         getProviderContract(operation.provider, registry),
@@ -5153,15 +5484,6 @@ async function runPreparedCore(
             ? "local CLI child/private-root cleanup could not be verified; durable cleanup admission blocks retry until wrench doctor proves every pinned process group quiescent and removes the exact private root"
             : "authenticated web cleanup could not be verified; durable cleanup admission blocks retry until wrench doctor proves and completes exact browser-session recovery"
           : boundedThrownExecutorReason(error),
-      ...(operation.risk === "R1"
-        && cleanupRequired
-        ? { readFailure: readFailureProjection("cleanup-required") }
-        : operation.risk === "R1"
-          && started === 0
-          && error instanceof OperationDeadlineError
-          && error.failure === "timed-out"
-          ? { readFailure: readFailureProjection("operation-timeout") }
-          : {}),
       ...(preservedArtifactsError === null
         ? {}
         : {
@@ -5173,7 +5495,7 @@ async function runPreparedCore(
   const executionNoOp = "noOp" in execution && execution.noOp === true;
   const validExecutionProgress = isDispatchProgress(execution.dispatch)
     && execution.dispatch.planned === planned
-    && (execution.readFailure === undefined || operation.risk === "R1")
+    && execution.readFailure === undefined
     && execution.dispatch.started === durableReceipt.dispatch.started
     && execution.dispatch.verified === durableReceipt.dispatch.verified
     && execution.dispatchStarted === (execution.dispatch.started > 0)
@@ -5209,10 +5531,7 @@ async function runPreparedCore(
   const receiptStatus: RunReceipt["status"] = execution.status === "succeeded"
     ? isWrite && !executionNoOp ? "submitted" : "succeeded"
     : execution.status;
-  const readFailure = operation.risk === "R1" && receiptStatus === "failed"
-    ? execution.readFailure ?? readFailureProjection("contract-drift")
-    : undefined;
-  const publishedOutput = readFailure === undefined ? execution.output : null;
+  const publishedOutput = execution.output;
   const finishedAt = (options.now ?? new Date()).toISOString();
   const privateArtifactsPreserved = "privateArtifactsPreserved" in execution
     && execution.privateArtifactsPreserved === true;
@@ -5326,34 +5645,7 @@ async function runPreparedCore(
       ...(recoveryHandle === null ? {} : { recoveryHandle }),
     };
   }
-  try {
-    persistReceipt(receipt, options.environment);
-  } catch {
-    return {
-      receipt: {
-        ...receipt,
-        status: "failed",
-        error: `${transportLabel} read completed, but its final receipt could not be stored${privateArtifactRecoveryMessage === null
-          ? ""
-          : `; ${privateArtifactRecoveryMessage}`}`,
-      },
-      output: null,
-      replayed: false,
-      readFailure: readFailure?.category === "cleanup-required"
-        ? readFailure
-        : readFailureProjection("contract-drift"),
-      privateArtifactsPreserved,
-      ...(recoveryHandle === null ? {} : { recoveryHandle }),
-    };
-  }
-  return {
-    receipt,
-    output: publishedOutput,
-    replayed: false,
-    ...(readFailure === undefined ? {} : { readFailure }),
-    privateArtifactsPreserved,
-    ...(recoveryHandle === null ? {} : { recoveryHandle }),
-  };
+  throw new Error("remote write has no run journal");
 }
 
 async function runPrepared(
@@ -5363,6 +5655,7 @@ async function runPrepared(
 ): Promise<InvocationResult> {
   const registry = options.registry ?? providerPluginRegistry;
   const checked = revalidatePreparedInvocation(invocation, registry);
+  const executeCore = checked.operation.risk === "R1" ? runPreparedReadCore : runPreparedCore;
   const portableIdentity =
     checked.invocation.portablePluginContract ?? null;
   const runId = options.runId ?? crypto.randomUUID();
@@ -5406,10 +5699,15 @@ async function runPrepared(
           : "web-session-api",
         executionIdentityHash,
       };
+      if (checked.operation.risk === "R1") return withReadCleanupAdmission(cleanupIdentity, options.environment,
+        registerCleanupBarrier => executeCore(checked.invocation, planDigest, { ...options, runId, registerCleanupBarrier }),
+        options.now,
+        preflightFailure => executeCore(checked.invocation, planDigest, { ...options, runId, preflightFailure }),
+      );
       return withWebSessionCleanupAdmission(
         cleanupIdentity,
         options.environment,
-        (registerCleanupBarrier) => runPreparedCore(
+        (registerCleanupBarrier) => executeCore(
           checked.invocation,
           planDigest,
           {
@@ -5419,25 +5717,17 @@ async function runPrepared(
           },
         ),
         options.now,
-        checked.operation.risk === "R1"
-          ? (preflightFailure) => runPreparedCore(
-              checked.invocation,
-              planDigest,
-              {
-                ...options,
-                runId,
-                preflightFailure,
-              },
-            )
-          : undefined,
       );
     }
-    return runPreparedCore(
+    return executeCore(
       checked.invocation,
       planDigest,
       { ...options, runId },
     );
   }
+  if (checked.operation.risk === "R1") return withPortableReadAdmission(portableIdentity, runId, options.environment, options.now,
+    () => executeCore(checked.invocation, planDigest, { ...options, runId }),
+  );
   const now = options.now ?? new Date();
   const lease = acquirePortableProviderPluginInvocationLease(
     portableIdentity,
@@ -5451,7 +5741,7 @@ async function runPrepared(
       options.environment,
     );
   const outcome = await settlePortableProviderPluginCleanup(
-    () => runPreparedCore(
+    () => executeCore(
       checked.invocation,
       planDigest,
       { ...options, runId },

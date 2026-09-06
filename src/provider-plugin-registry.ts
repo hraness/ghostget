@@ -24,6 +24,10 @@ import {
   sep,
 } from "node:path";
 import ts from "typescript";
+import {
+  hasNonLiteralModuleLoad,
+  providerPluginScriptKind,
+} from "./provider-plugin-module-analysis";
 
 import {
   reviewedBuiltInContractIdentity,
@@ -701,165 +705,6 @@ function valueImports(source: string, path: string): readonly {
   return scanner.scanImports(moduleSource);
 }
 
-const opaqueModuleLoaderNames = new Set([
-  "createRequire",
-  "eval",
-  "getBuiltinModule",
-]);
-
-function hasOneLiteralModuleArgument(node: ts.CallExpression): boolean {
-  const [argument] = node.arguments;
-  return node.arguments.length === 1
-    && argument !== undefined
-    && ts.isStringLiteralLike(argument);
-}
-
-function propertyLoaderName(
-  node: ts.PropertyAccessExpression | ts.ElementAccessExpression,
-): string | undefined {
-  if (ts.isPropertyAccessExpression(node)) return node.name.text;
-  const argument = node.argumentExpression;
-  return argument !== undefined && ts.isStringLiteralLike(argument)
-    ? argument.text
-    : undefined;
-}
-
-function propertyLoaderReference(
-  node: ts.PropertyAccessExpression | ts.ElementAccessExpression,
-): boolean {
-  const name = propertyLoaderName(node);
-  if (name === undefined) return false;
-  if (opaqueModuleLoaderNames.has(name)) return true;
-  if (name !== "require") return false;
-  const owner = node.expression;
-  return ts.isIdentifier(owner)
-    && (
-      owner.text === "global"
-      || owner.text === "globalThis"
-      || owner.text === "mod"
-      || owner.text === "module"
-    );
-}
-
-function isPropertyNameIdentifier(
-  node: ts.Identifier,
-  parent: ts.Node | undefined,
-): boolean {
-  if (parent === undefined) return false;
-  return (
-    ts.isPropertyAccessExpression(parent)
-    && parent.name === node
-  ) || (
-    (
-      ts.isPropertyAssignment(parent)
-      || ts.isMethodDeclaration(parent)
-      || ts.isPropertyDeclaration(parent)
-      || ts.isPropertySignature(parent)
-      || ts.isMethodSignature(parent)
-    )
-    && parent.name === node
-  );
-}
-
-function providerPluginScriptKind(path: string): ts.ScriptKind {
-  const extension = extname(path);
-  if (extension === ".tsx") return ts.ScriptKind.TSX;
-  if (extension === ".jsx") return ts.ScriptKind.JSX;
-  if (extension === ".ts" || extension === ".mts" || extension === ".cts") {
-    return ts.ScriptKind.TS;
-  }
-  return ts.ScriptKind.JS;
-}
-
-/**
- * Conservatively rejects runtime loading that Bun's literal import scanner
- * cannot bind to an exact dependency edge. Source plugins remain trusted code;
- * this AST policy prevents accidental identity omissions and common aliases,
- * rather than attempting to sandbox deliberately obfuscated JavaScript.
- */
-function hasNonLiteralModuleLoad(source: string, path: string): boolean {
-  const sourceFile = ts.createSourceFile(
-    path,
-    source,
-    ts.ScriptTarget.ESNext,
-    false,
-    providerPluginScriptKind(path),
-  );
-  let found = false;
-  const visit = (node: ts.Node, parent?: ts.Node): void => {
-    if (found) return;
-    if (ts.isCallExpression(node)) {
-      if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-        found = !hasOneLiteralModuleArgument(node);
-        return;
-      }
-      if (
-        ts.isIdentifier(node.expression)
-        && node.expression.text === "require"
-      ) {
-        found = !hasOneLiteralModuleArgument(node);
-        return;
-      }
-      if (
-        ts.isIdentifier(node.expression)
-        && (
-          opaqueModuleLoaderNames.has(node.expression.text)
-          || node.expression.text === "Function"
-        )
-      ) {
-        found = true;
-        return;
-      }
-      if (
-        (
-          ts.isPropertyAccessExpression(node.expression)
-          || ts.isElementAccessExpression(node.expression)
-        )
-        && (
-          propertyLoaderName(node.expression) === "require"
-          || opaqueModuleLoaderNames.has(
-            propertyLoaderName(node.expression) ?? "",
-          )
-        )
-      ) {
-        found = true;
-        return;
-      }
-    }
-    if (
-      ts.isNewExpression(node)
-      && ts.isIdentifier(node.expression)
-      && node.expression.text === "Function"
-    ) {
-      found = true;
-      return;
-    }
-    if (
-      (
-        ts.isPropertyAccessExpression(node)
-        || ts.isElementAccessExpression(node)
-      )
-      && propertyLoaderReference(node)
-    ) {
-      found = true;
-      return;
-    }
-    if (
-      ts.isIdentifier(node)
-      && !isPropertyNameIdentifier(node, parent)
-      && (
-        node.text === "require"
-        || opaqueModuleLoaderNames.has(node.text)
-      )
-    ) {
-      found = true;
-      return;
-    }
-    node.forEachChild((child) => visit(child, node));
-  };
-  visit(sourceFile);
-  return found;
-}
 
 function analyzeProviderModule(
   bytes: Buffer,

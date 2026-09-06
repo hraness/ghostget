@@ -391,6 +391,7 @@
     "src/provider-plugin-portable-runtime.ts",
     "src/provider-plugin-protocol.ts",
     "src/provider-plugin-registry.ts",
+    "src/provider-plugin-module-analysis.ts",
     "src/provider-plugin-store.ts",
     "src/provider-plugin-test-fixture.ts",
     "src/provider-plugin.ts",
@@ -509,7 +510,22 @@
     "README.md",
     "CHANGELOG.md",
     "DISCLOSURE",
-    "LICENSE"
+    "LICENSE",
+    "src/read-effect-platform.ts",
+    "src/read-effect-runtime.ts",
+    "src/web-session-read-errors.ts",
+    "src/invocation-read-runtime.ts",
+    "src/web-session-read-runtime.ts",
+    "src/read-admission-runtime.ts",
+    "src/read-effect.ts",
+    "src/invocation-read-platform.ts",
+    "src/invocation-read-program.ts",
+    "src/web-session-cleanup-join.ts",
+    "src/providers/github-read-program.ts",
+    "src/providers/linkedin-self-program.ts",
+    "src/providers/github-read-platform.ts",
+    "src/providers/linkedin-self-platform.ts",
+    "src/providers/github-read-model.ts"
   ],
   "scripts": {
     "website:build": "bun run website/build.ts",
@@ -530,7 +546,7 @@
     "test:standalone": "bun run scripts/standalone-smoke.ts",
     "test:package": "bun run ./scripts/package-smoke.ts",
     "test:npm-release": "bun test --no-orphans --timeout 45000 --max-concurrency 1 ./scripts/release-ref-authority.test.ts ./scripts/npm-stage-workflow.test.ts ./scripts/ci-pr-gate.test.ts",
-    "check:static": "bun run typecheck && bun run website:check && bun run test:npm-release",
+    "check:static": "bun run typecheck && bun run check:effect && bun run website:check && bun run test:npm-release",
     "check:package": "bun run build && bun run test:package",
     "check:macos": "bun run ./scripts/ci-macos-check.ts",
     "check": "bun run check:static && bun run check:package && bun run test && bun run test:standalone",
@@ -538,12 +554,14 @@
     "kb:check:lane": "bunx --bun github:hraness/kb#v0.15.2 check --root kb --no-catalog",
     "kb:check": "bunx --bun github:hraness/kb#v0.15.2 check --root kb && bunx --bun github:hraness/kb#v0.15.2 agents check --root kb --repo .",
     "kb:catalog": "bunx --bun github:hraness/kb#v0.15.2 catalog --root kb",
-    "prepack": "bun run check"
+    "prepack": "bun run check",
+    "check:effect": "bun scripts/check-effect-architecture.ts"
   },
   "dependencies": {
     "@hraness/kb": "0.17.1",
     "@hraness/message-like-me": "github:hraness/message-like-me#v0.7.0",
     "buffer-from": "1.1.2",
+    "effect": "3.22.1",
     "source-map": "0.6.1",
     "source-map-support": "0.5.21",
     "typescript": "6.0.3"

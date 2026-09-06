@@ -1,3 +1,4 @@
+import { WebSessionAuthStateError, WebSessionResponseRejectedError, WebSessionReadTransportError } from "./web-session-read-errors";
 import {
   acquireCookieRecords,
   type CookieRecordReader,
@@ -220,9 +221,9 @@ function cookieSelection(auth: WrenchAuth, timeoutMs: number): CookieSelection {
     };
   }
   if (auth.kind === "browser-profile") {
-    throw new Error("authenticated web API execution requires the browser auth locator to name a cookie source");
+    throw new WebSessionAuthStateError("authenticated web API execution requires the browser auth locator to name a cookie source");
   }
-  throw new Error("authenticated web API execution requires browser-session or cookie auth");
+  throw new WebSessionAuthStateError("authenticated web API execution requires browser-session or cookie auth");
 }
 
 function contentTypeEssence(response: Response): string | null {
@@ -270,9 +271,9 @@ async function boundedBytes(
           );
         } catch (error) {
           if (error instanceof OperationDeadlineError) throw error;
-          throw new Error(
+          throw new WebSessionReadTransportError(
             "authenticated web response body stream failed before completion",
-            { cause: error },
+            error,
           );
         }
       })();
@@ -452,7 +453,11 @@ function parseResponseCookie(
 }
 
 export function webSessionCookie(cookies: readonly StrictCookie[], name: string): string {
-  return exactCookie(cookies, name);
+  try { return exactCookie(cookies, name); }
+  catch (cause) {
+    if (cause instanceof Error) throw new WebSessionAuthStateError(cause.message, { cause });
+    throw cause;
+  }
 }
 
 export function webSessionAuthSubject(auth: WrenchAuth): string | null {
@@ -491,7 +496,7 @@ export async function createWebSessionClient(
   if (
     validatedSource.rejected !== 0
     || validatedSource.cookies.length !== cookieResult.cookies.length
-  ) throw new Error("authenticated web cookie source returned malformed or out-of-scope records");
+  ) throw new WebSessionAuthStateError("authenticated web cookie source returned malformed or out-of-scope records");
   const rotation = options.cookieRotation;
   const allowedNames = new Set(rotation?.allowedNames ?? []);
   if (
@@ -508,7 +513,7 @@ export async function createWebSessionClient(
       || rotation.tombstoneTtlSeconds < 1
       || rotation.tombstoneTtlSeconds > 31 * 24 * 60 * 60
     )
-  ) throw new Error("authenticated web rotating-cookie allowlist is invalid");
+  ) throw new WebSessionAuthStateError("authenticated web rotating-cookie allowlist is invalid");
   const nowSeconds = Math.floor(Date.now() / 1_000);
   const cachedCookies = new Map<string, WebSessionCookieRotationEntry>();
   const cachedTombstones = new Map<string, WebSessionCookieRotationTombstone>();
@@ -523,14 +528,14 @@ export async function createWebSessionClient(
         || entry.acceptedAtSeconds < 0
         || entry.acceptedAtSeconds > nowSeconds + 300
         || !allowedNames.has(entry.cookie.name)
-      ) throw new Error("authenticated web rotating-cookie cache is invalid");
+      ) throw new WebSessionAuthStateError("authenticated web rotating-cookie cache is invalid");
       const validated = filterCookies([entry.cookie], parsedOrigin, nowSeconds);
       if (validated.rejected !== 0 || validated.cookies.length !== 1) {
-        throw new Error("authenticated web rotating-cookie cache is invalid");
+        throw new WebSessionAuthStateError("authenticated web rotating-cookie cache is invalid");
       }
       if (nowSeconds - entry.acceptedAtSeconds > rotation.maxCachedCookieAgeSeconds) continue;
       const cookie = validated.cookies[0];
-      if (cookie === undefined) throw new Error("authenticated web rotating-cookie cache is invalid");
+      if (cookie === undefined) throw new WebSessionAuthStateError("authenticated web rotating-cookie cache is invalid");
       const key = cookieIdentity(cookie);
       if (cachedCookies.has(key)) throw new Error("authenticated web rotating-cookie cache contains a duplicate");
       cachedCookies.set(key, Object.freeze({
@@ -544,7 +549,7 @@ export async function createWebSessionClient(
         || tombstone.acceptedAtSeconds < 0
         || tombstone.acceptedAtSeconds > nowSeconds + 300
         || !allowedNames.has(tombstone.name)
-      ) throw new Error("authenticated web rotating-cookie cache is invalid");
+      ) throw new WebSessionAuthStateError("authenticated web rotating-cookie cache is invalid");
       const validated = filterCookies([{
         name: tombstone.name,
         value: "",
@@ -558,7 +563,7 @@ export async function createWebSessionClient(
       }], parsedOrigin, nowSeconds);
       const identity = validated.cookies[0];
       if (validated.rejected !== 0 || validated.cookies.length !== 1 || identity === undefined) {
-        throw new Error("authenticated web rotating-cookie cache is invalid");
+        throw new WebSessionAuthStateError("authenticated web rotating-cookie cache is invalid");
       }
       const key = cookieIdentity(identity);
       if (
@@ -568,7 +573,7 @@ export async function createWebSessionClient(
         || identity.path !== tombstone.path
         || cachedTombstones.has(key)
         || cachedCookies.has(key)
-      ) throw new Error("authenticated web rotating-cookie cache is invalid");
+      ) throw new WebSessionAuthStateError("authenticated web rotating-cookie cache is invalid");
       if (nowSeconds - tombstone.acceptedAtSeconds > rotation.tombstoneTtlSeconds) continue;
       cachedTombstones.set(key, Object.freeze({ ...tombstone }));
     }
@@ -651,7 +656,7 @@ export async function createWebSessionClient(
             WEB_SESSION_OPERATION_LABEL,
           );
         } catch (error) {
-          throw new Error("authenticated web API request failed before a reviewed response was received", { cause: error });
+          throw new WebSessionReadTransportError("authenticated web API request failed before a reviewed response was received", error);
         }
         const expected = request.expectedStatuses ?? [200];
         const contentType = contentTypeEssence(response);
@@ -660,7 +665,7 @@ export async function createWebSessionClient(
           : contentType !== null && request.expectedContentTypes.includes(contentType);
         if (!expected.includes(response.status) || !contentTypeAllowed) {
           response.body?.cancel().catch(() => undefined);
-          throw new Error(`authenticated web API returned unreviewed status/content type ${response.status}/${contentType ?? "missing"}`);
+          throw new WebSessionResponseRejectedError(`authenticated web API returned unreviewed status/content type ${response.status}/${contentType ?? "missing"}`, response.status, contentType);
         }
         await applyResponseCookies(response, request.url);
         const status = response.status;
@@ -714,12 +719,12 @@ export async function createWebSessionClient(
               WEB_SESSION_OPERATION_LABEL,
             );
           } catch (error) {
-            throw new Error("authenticated web request failed before a reviewed response was received", { cause: error });
+            throw new WebSessionReadTransportError("authenticated web request failed before a reviewed response was received", error);
           }
           const contentType = contentTypeEssence(response);
           if (response.status !== 200 || contentType === null || !request.expectedContentTypes.includes(contentType)) {
             response.body?.cancel().catch(() => undefined);
-            throw new Error(`authenticated web request returned unreviewed status/content type ${response.status}/${contentType ?? "missing"}`);
+            throw new WebSessionResponseRejectedError(`authenticated web request returned unreviewed status/content type ${response.status}/${contentType ?? "missing"}`, response.status, contentType);
           }
           await applyResponseCookies(response, request.url);
           const bytes = await boundedBytes(
@@ -774,11 +779,11 @@ export async function createWebSessionClient(
               WEB_SESSION_OPERATION_LABEL,
             );
           } catch (error) {
-            throw new Error("authenticated web API request failed before a reviewed response was received", { cause: error });
+            throw new WebSessionReadTransportError("authenticated web API request failed before a reviewed response was received", error);
           }
           if (!request.expectedStatuses.includes(response.status)) {
             response.body?.cancel().catch(() => undefined);
-            throw new Error(`authenticated web API request returned unreviewed status ${response.status}`);
+            throw new WebSessionResponseRejectedError(`authenticated web API request returned unreviewed status ${response.status}`, response.status, null);
           }
           await applyResponseCookies(response, request.url);
           let responseId: string | null | undefined;
