@@ -33,5 +33,59 @@ test("UserTweets Relay and snowflake identities round-trip to the requested user
       __typename: "User",
       id: relayId,
     }), userId === "0" ? "1" : "0")).toThrow("did not bind the requested user");
+    assertXWebUserFeedTargetBound(userTweetsResponse({
+      __typename: "User",
+      timeline: {
+        timeline: {
+          instructions: [{
+            type: "TimelineAddEntries",
+            entries: [{
+              entryId: "tweet-1",
+              sortIndex: "1",
+              content: {
+                entryType: "TimelineTimelineItem",
+                itemContent: {
+                  itemType: "TimelineTweet",
+                  tweet_results: {
+                    result: {
+                      __typename: "Tweet",
+                      rest_id: "1",
+                      legacy: { full_text: "authored", user_id_str: userId },
+                    },
+                  },
+                },
+              },
+            }],
+          }],
+        },
+      },
+    }), userId);
+    expect(() => assertXWebUserFeedTargetBound(userTweetsResponse({
+      __typename: "User",
+      timeline: {
+        timeline: {
+          instructions: [{
+            type: "TimelineAddEntries",
+            entries: [{
+              entryId: "tweet-1",
+              sortIndex: "1",
+              content: {
+                entryType: "TimelineTimelineItem",
+                itemContent: {
+                  itemType: "TimelineTweet",
+                  tweet_results: {
+                    result: {
+                      __typename: "Tweet",
+                      rest_id: "1",
+                      legacy: { full_text: "other", user_id_str: userId === "0" ? "1" : "0" },
+                    },
+                  },
+                },
+              },
+            }],
+          }],
+        },
+      },
+    }), userId)).toThrow("did not bind the requested user");
   }));
 });
