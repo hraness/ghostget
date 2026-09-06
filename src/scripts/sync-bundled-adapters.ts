@@ -516,7 +516,8 @@ function publishBundledAdapterGeneration(
       preservedIds.push(adapter.id);
       continue;
     }
-    const installedHash = manifestHash(snapshot.result.value);
+    const installedManifest = snapshot.result.value;
+    const installedHash = manifestHash(installedManifest);
     const acceptedHashes = new Set([
       manifestHash(adapter.current.manifest),
       ...adapter.upgradeFrom.map((baseline) =>
@@ -524,7 +525,7 @@ function publishBundledAdapterGeneration(
       ),
     ]);
     const installedOlderGeneration = adapter.upgradeFrom.some((baseline) =>
-      baseline.manifest.version === snapshot.result.value.version
+      baseline.manifest.version === installedManifest.version
     );
     if (acceptedHashes.has(installedHash) || installedOlderGeneration) {
       selections.push({
@@ -537,7 +538,7 @@ function publishBundledAdapterGeneration(
       installed += 1;
       continue;
     }
-    const runtime = parseRuntimeManifest(snapshot.result.value, registry);
+    const runtime = parseRuntimeManifest(installedManifest, registry);
     if (!runtime.ok) {
       selections.push({
         id: adapter.id,
@@ -556,7 +557,7 @@ function publishBundledAdapterGeneration(
     selections.push({
       id: adapter.id,
       state: "present",
-      manifest: snapshot.result.value,
+      manifest: installedManifest,
       sourceContentSha256: snapshot.contentSha256,
       expectedCurrentContentSha256: snapshot.contentSha256,
     });
