@@ -5,6 +5,8 @@ artifacts, and explicit stage-only trusted publishing for later stable trains.
 Because npm requires a package to exist before `npm stage publish` can use it,
 the bootstrap cannot use the staging workflow.
 
+The current reviewed release candidate is `@hraness/wrench@0.16.8`.
+
 ## Keep discovery metadata aligned
 
 The exact npm keyword list is checked by `scripts/package-smoke.ts` in source

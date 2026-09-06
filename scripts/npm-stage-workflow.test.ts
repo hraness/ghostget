@@ -1181,7 +1181,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_713_472);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_727_808);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1272,23 +1272,24 @@ describe("npm publication contract", () => {
     expect(artifact).toContain('from "./package-budget.js"');
     expect(smoke).toContain('from "./package-budget.js"');
     expect(budget).toContain("two npm 11.19.0 packs");
-    expect(budget).toContain("2,214,418 packed bytes");
-    expect(budget).toContain("12,233,921 unpacked bytes, and 466 files");
+    expect(budget).toContain("2,216,425 packed bytes");
+    expect(budget).toContain("12,248,071 unpacked bytes, and 466 files");
+    expect(budget).toContain(
+      "3556cbc1ceac05f99c4ca33e509cf15acd942b4cc40429b1574ab17e251fc0c9",
+    );
+    expect(budget).toContain("Published 0.16.7 is 2,214,418 packed bytes");
+    expect(budget).toContain("466 files from npm 11.19.0");
     expect(budget).toContain(
       "7b13498e1070d95f2a1d564caba41f1eebc6a32a7a8e078373fe2fec564060a8",
     );
-    expect(budget).toContain("Published 0.16.6 is 2,214,175 packed bytes");
-    expect(budget).toContain("466 files from npm 10.9.7");
-    expect(budget).toContain(
-      "e49aa949b885960aa42a0ee5f99a70cfd1bc115934bdc8131a2823fe62f5ff03",
-    );
-    expect(budget).toContain("reviewed recovery");
+    expect(budget).toContain("LinkedIn activity pagination, cleanup convergence");
     expect(budget).toContain("measured a 3,543-byte Linux/macOS gzip spread");
-    expect(budget).toContain("Keep 6,491 packed bytes and 1,624 unpacked bytes");
+    expect(budget).toContain("leaves 4,484 bytes");
+    expect(budget).toContain("1,624 unpacked bytes");
     expect(MAX_PACKED_BYTES).toBe(2_220_909);
     expect(MAX_PACKED_ENTRIES).toBe(466);
     expect(MAX_PACKED_FILES).toBe(466);
-    expect(MAX_UNPACKED_BYTES).toBe(12_235_545);
+    expect(MAX_UNPACKED_BYTES).toBe(12_249_695);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
@@ -1297,7 +1298,7 @@ describe("npm publication contract", () => {
       entryCount: { min: 466, max: 466 },
       fileCount: { min: 466, max: 466 },
       packedBytes: { min: 1_600_000, max: 2_220_909 },
-      unpackedBytes: { min: 9_000_000, max: 12_235_545 },
+      unpackedBytes: { min: 9_000_000, max: 12_249_695 },
     });
   });
 
@@ -1361,22 +1362,25 @@ describe("npm publication contract", () => {
     }
   });
 
-  test("keeps separate truthful Wrench 0.16.3 through 0.16.7 changelog sections", async () => {
+  test("keeps separate truthful Wrench 0.16.3 through 0.16.8 changelog sections", async () => {
     const changelog = await readFile(changelogUrl, "utf8");
     const unreleasedHeader = "## Unreleased\n";
-    const currentHeader = "## 0.16.7 - 2026-09-05\n";
-    const previousHeader = "## 0.16.6 - 2026-09-05\n";
+    const currentHeader = "## 0.16.8 - 2026-09-06\n";
+    const previousHeader = "## 0.16.7 - 2026-09-05\n";
+    const consumedHeader = "## 0.16.6 - 2026-09-05\n";
     const markerHeader = "## 0.16.5 - 2026-09-04\n";
     const releaseHeader = "## 0.16.4 - 2026-09-03\n";
     const incidentHeader = "## 0.16.3 - 2026-09-01\n";
     const unreleasedStart = changelog.indexOf(unreleasedHeader);
     const currentStart = changelog.indexOf(currentHeader);
     const previousStart = changelog.indexOf(previousHeader);
+    const consumedStart = changelog.indexOf(consumedHeader);
     const markerStart = changelog.indexOf(markerHeader);
     const releaseStart = changelog.indexOf(releaseHeader);
     const incidentStart = changelog.indexOf(incidentHeader);
 
     expect(changelog.match(/^## Unreleased$/gmu) ?? []).toHaveLength(1);
+    expect(changelog.match(/^## 0\.16\.8 - 2026-09-06$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.7 - 2026-09-05$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.6 - 2026-09-05$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.5 - 2026-09-04$/gmu) ?? []).toHaveLength(1);
@@ -1385,7 +1389,8 @@ describe("npm publication contract", () => {
     expect(unreleasedStart).toBeGreaterThan(-1);
     expect(currentStart).toBeGreaterThan(unreleasedStart);
     expect(previousStart).toBeGreaterThan(currentStart);
-    expect(markerStart).toBeGreaterThan(previousStart);
+    expect(consumedStart).toBeGreaterThan(previousStart);
+    expect(markerStart).toBeGreaterThan(consumedStart);
     expect(releaseStart).toBeGreaterThan(markerStart);
     expect(incidentStart).toBeGreaterThan(releaseStart);
     expect(changelog.slice(unreleasedStart + unreleasedHeader.length, currentStart).trim()).toBe("");
@@ -1393,6 +1398,26 @@ describe("npm publication contract", () => {
     const currentReleaseEnd = changelog.indexOf("\n## ", currentStart + currentHeader.length);
     expect(currentReleaseEnd).toBe(previousStart - 1);
     const currentSection = changelog.slice(currentStart, currentReleaseEnd);
+    for (const requiredFact of [
+      "completed LinkedIn profile and organization statistics",
+      "Instagram",
+      "single close attempt",
+      "one strict, no-effect",
+      "two inactive session reads",
+      "three spaced CDP refusals",
+      "Never repeat",
+      "fail-closed",
+      "REST.li variable",
+      "total: 0",
+      "positive paging total",
+      "without inventing",
+    ] as const) {
+      expect(currentSection).toContain(requiredFact);
+    }
+
+    const previousReleaseEnd = changelog.indexOf("\n## ", previousStart + previousHeader.length);
+    expect(previousReleaseEnd).toBe(consumedStart - 1);
+    const previousSection = changelog.slice(previousStart, previousReleaseEnd);
     for (const requiredFact of [
       "pinned daemon exits",
       "repeated inactive-session",
@@ -1402,12 +1427,12 @@ describe("npm publication contract", () => {
       "no close",
       "or signal on this path",
     ] as const) {
-      expect(currentSection).toContain(requiredFact);
+      expect(previousSection).toContain(requiredFact);
     }
 
-    const previousReleaseEnd = changelog.indexOf("\n## ", previousStart + previousHeader.length);
-    expect(previousReleaseEnd).toBe(markerStart - 1);
-    const previousSection = changelog.slice(previousStart, previousReleaseEnd);
+    const consumedReleaseEnd = changelog.indexOf("\n## ", consumedStart + consumedHeader.length);
+    expect(consumedReleaseEnd).toBe(markerStart - 1);
+    const consumedSection = changelog.slice(consumedStart, consumedReleaseEnd);
     for (const requiredFact of [
       "contacts.list@3",
       "beeper-linked-device 2.4.0",
@@ -1415,7 +1440,7 @@ describe("npm publication contract", () => {
       "flair.user.choices",
       "Instagram",
     ] as const) {
-      expect(previousSection).toContain(requiredFact);
+      expect(consumedSection).toContain(requiredFact);
     }
 
     const markerReleaseEnd = changelog.indexOf("\n## ", markerStart + markerHeader.length);

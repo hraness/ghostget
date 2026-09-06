@@ -7,6 +7,22 @@ coordinate that completed both checks.
 
 ## Unreleased
 
+## 0.16.8 - 2026-09-06
+
+- Preserve completed LinkedIn profile and organization statistics and Instagram
+  profile statistics when their contained browser exits naturally just after
+  the single close attempt. Cleanup may retry only one strict, no-effect
+  convergence proof: exact dead owner, two inactive session reads, unchanged
+  private roots, three spaced CDP refusals, and a final owner, session, and root
+  reproof before the existing durable journals remove either root. Never repeat
+  the provider read, close attempt, or termination signal, and keep malformed,
+  identity-drifted, root-replaced, CDP-ambiguous, and claim-drifted states
+  fail-closed.
+- Bind LinkedIn profile-activity requests to the observed REST.li variable
+  ordering and escaping. Treat the current `total: 0` response as a terminal
+  page, and advance from a positive paging total without inventing a missing
+  next link.
+
 ## 0.16.7 - 2026-09-05
 
 - Recover a same-boot contained-browser cleanup when its pinned daemon exits
