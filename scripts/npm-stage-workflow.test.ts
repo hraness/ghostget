@@ -1362,10 +1362,11 @@ describe("npm publication contract", () => {
     }
   });
 
-  test("keeps separate truthful Wrench 0.16.3 through 0.16.8 changelog sections", async () => {
+  test("keeps separate truthful Wrench 0.16.3 through 0.16.9 changelog sections", async () => {
     const changelog = await readFile(changelogUrl, "utf8");
     const unreleasedHeader = "## Unreleased\n";
-    const currentHeader = "## 0.16.8 - 2026-09-06\n";
+    const currentHeader = "## 0.16.9 - 2026-09-06\n";
+    const cleanupHeader = "## 0.16.8 - 2026-09-06\n";
     const previousHeader = "## 0.16.7 - 2026-09-05\n";
     const consumedHeader = "## 0.16.6 - 2026-09-05\n";
     const markerHeader = "## 0.16.5 - 2026-09-04\n";
@@ -1373,6 +1374,7 @@ describe("npm publication contract", () => {
     const incidentHeader = "## 0.16.3 - 2026-09-01\n";
     const unreleasedStart = changelog.indexOf(unreleasedHeader);
     const currentStart = changelog.indexOf(currentHeader);
+    const cleanupStart = changelog.indexOf(cleanupHeader);
     const previousStart = changelog.indexOf(previousHeader);
     const consumedStart = changelog.indexOf(consumedHeader);
     const markerStart = changelog.indexOf(markerHeader);
@@ -1380,6 +1382,7 @@ describe("npm publication contract", () => {
     const incidentStart = changelog.indexOf(incidentHeader);
 
     expect(changelog.match(/^## Unreleased$/gmu) ?? []).toHaveLength(1);
+    expect(changelog.match(/^## 0\.16\.9 - 2026-09-06$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.8 - 2026-09-06$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.7 - 2026-09-05$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.6 - 2026-09-05$/gmu) ?? []).toHaveLength(1);
@@ -1388,7 +1391,8 @@ describe("npm publication contract", () => {
     expect(changelog.match(/^## 0\.16\.3 - 2026-09-01$/gmu) ?? []).toHaveLength(1);
     expect(unreleasedStart).toBeGreaterThan(-1);
     expect(currentStart).toBeGreaterThan(unreleasedStart);
-    expect(previousStart).toBeGreaterThan(currentStart);
+    expect(cleanupStart).toBeGreaterThan(currentStart);
+    expect(previousStart).toBeGreaterThan(cleanupStart);
     expect(consumedStart).toBeGreaterThan(previousStart);
     expect(markerStart).toBeGreaterThan(consumedStart);
     expect(releaseStart).toBeGreaterThan(markerStart);
@@ -1396,8 +1400,10 @@ describe("npm publication contract", () => {
     expect(changelog.slice(unreleasedStart + unreleasedHeader.length, currentStart).trim()).toBe("");
 
     const currentReleaseEnd = changelog.indexOf("\n## ", currentStart + currentHeader.length);
-    expect(currentReleaseEnd).toBe(previousStart - 1);
-    const currentSection = changelog.slice(currentStart, currentReleaseEnd);
+    expect(currentReleaseEnd).toBe(cleanupStart - 1);
+    const cleanupReleaseEnd = changelog.indexOf("\n## ", cleanupStart + cleanupHeader.length);
+    expect(cleanupReleaseEnd).toBe(previousStart - 1);
+    const cleanupSection = changelog.slice(cleanupStart, cleanupReleaseEnd);
     for (const requiredFact of [
       "completed LinkedIn profile and organization statistics",
       "Instagram",
@@ -1412,7 +1418,7 @@ describe("npm publication contract", () => {
       "positive paging total",
       "without inventing",
     ] as const) {
-      expect(currentSection).toContain(requiredFact);
+      expect(cleanupSection).toContain(requiredFact);
     }
 
     const previousReleaseEnd = changelog.indexOf("\n## ", previousStart + previousHeader.length);
