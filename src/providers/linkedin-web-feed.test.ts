@@ -137,7 +137,10 @@ describe("LinkedIn profile-activity cursors and requests", () => {
     expect(url.searchParams.get("includeWebMetadata")).toBe("true");
     expect(url.searchParams.get("queryId")).toBe(QUERY_ID);
     expect(url.searchParams.get("variables")).toBe(
-      `(count:10,profileUrn:${PROFILE_URN},start:20)`,
+      `(count:10,start:20,profileUrn:${PROFILE_URN})`,
+    );
+    expect(url.search).toBe(
+      `?includeWebMetadata=true&queryId=${encodeURIComponent(QUERY_ID)}&variables=(count:10,start:20,profileUrn:urn%3Ali%3Afsd_profile%3AACoAAExactTargetProfile)`,
     );
     expect(() => assertLinkedInProfileActivityRequest({ method: "GET", url }, {
       queryId: QUERY_ID,
@@ -150,6 +153,29 @@ describe("LinkedIn profile-activity cursors and requests", () => {
       profileUrn: PROFILE_URN,
       count: 10,
       start: 0,
+    })).toThrow("request binding changed");
+
+    const wholeTupleEncoded = new URL(url);
+    wholeTupleEncoded.search = new URLSearchParams({
+      includeWebMetadata: "true",
+      queryId: QUERY_ID,
+      variables: `(count:10,start:20,profileUrn:${PROFILE_URN})`,
+    }).toString();
+    expect(() => assertLinkedInProfileActivityRequest({ method: "GET", url: wholeTupleEncoded }, {
+      queryId: QUERY_ID,
+      profileUrn: PROFILE_URN,
+      count: 10,
+      start: 20,
+    })).toThrow("request binding changed");
+
+    const literalUrnColons = new URL(
+      `${url.origin}/voyager/api/graphql?includeWebMetadata=true&queryId=${encodeURIComponent(QUERY_ID)}&variables=(count:10,start:20,profileUrn:${PROFILE_URN})`,
+    );
+    expect(() => assertLinkedInProfileActivityRequest({ method: "GET", url: literalUrnColons }, {
+      queryId: QUERY_ID,
+      profileUrn: PROFILE_URN,
+      count: 10,
+      start: 20,
     })).toThrow("request binding changed");
   });
 
@@ -273,6 +299,63 @@ describe("LinkedIn profile-activity projection", () => {
       repostCount: null,
       hasMedia: false,
     });
+  });
+
+  test("treats LinkedIn total:0 with a full page and no next link as complete", () => {
+    const page = projectLinkedInProfileActivityPage({
+      response: pageResponse([updateEntity({
+        imageComponent: { images: [{}] },
+      })], [countsEntity()], {
+        count: 1,
+        start: 0,
+        total: 0,
+      }),
+      target,
+      queryId: QUERY_ID,
+      profileUrn: PROFILE_URN,
+      limit: 1,
+      start: 0,
+      observedAt: OBSERVED_AT,
+    });
+    expect(page.complete).toBeTrue();
+    expect(page.nextCursor).toBeNull();
+    expect(page.posts).toHaveLength(1);
+  });
+
+  test("advances from a positive paging total without a next link", () => {
+    const page = projectLinkedInProfileActivityPage({
+      response: pageResponse([updateEntity()], [], {
+        count: 1,
+        start: 0,
+        total: 3,
+      }),
+      target,
+      queryId: QUERY_ID,
+      profileUrn: PROFILE_URN,
+      limit: 1,
+      start: 0,
+      observedAt: OBSERVED_AT,
+    });
+    expect(page.complete).toBeFalse();
+    expect(page.nextCursor).toBe(`${LINKEDIN_PROFILE_ACTIVITY_CURSOR_PREFIX}:j-hawkins:1`);
+  });
+
+  test("completes the final page from a positive paging total without a next link", () => {
+    const page = projectLinkedInProfileActivityPage({
+      response: pageResponse([updateEntity()], [], {
+        count: 1,
+        start: 2,
+        total: 3,
+      }),
+      target,
+      queryId: QUERY_ID,
+      profileUrn: PROFILE_URN,
+      limit: 1,
+      start: 2,
+      observedAt: OBSERVED_AT,
+    });
+    expect(page.complete).toBeTrue();
+    expect(page.nextCursor).toBeNull();
   });
 
   test("reports unknown completeness without inventing a cursor when paging is omitted", () => {
