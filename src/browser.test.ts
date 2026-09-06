@@ -904,6 +904,218 @@ describe("browser process isolation helpers", () => {
     }
   });
 
+  test("preserves completed operation output when close acknowledgement races a natural daemon exit", async () => {
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    let published: PublishedCleanupResource | null = null;
+    let daemonLive = true;
+    let scheduleNaturalExit = false;
+    let ownerInspections = 0;
+    let closeCommands = 0;
+    let terminationCount = 0;
+    let endpointRefusals = 0;
+    let quiescentCommits = 0;
+    let rootCommits = 0;
+    const launchHash = "41";
+    const exactLaunchHashJson = (value: unknown): string =>
+      JSON.stringify(value).replaceAll(
+        `"launchHash":"${launchHash}"`,
+        `"launchHash":${launchHash}`,
+      );
+    const currentLifecycle = () => ({
+      effectiveLaunch: {
+        browserLaunched: true,
+        engine: "chrome",
+        launchHash,
+      },
+      launched: false,
+      relaunchedBrowser: false,
+      restartedBackground: false,
+      restoreStatus: "not_configured",
+      reused: true,
+      saveStatus: "not_attempted",
+    } as const);
+    const sessionInfo = (): unknown => {
+      const resource = published;
+      if (resource === null) throw new Error("missing published cleanup resource");
+      if (!daemonLive) {
+        return {
+          success: true,
+          data: {
+            active: false,
+            namespace: null,
+            pid: null,
+            runtime: null,
+            runtimeError: null,
+            session: resource.session,
+            socketDir: resource.socketDirectory,
+            version: null,
+          },
+        };
+      }
+      const lifecycle = currentLifecycle();
+      return {
+        success: true,
+        data: {
+          active: true,
+          namespace: null,
+          pid: process.pid,
+          runtime: {
+            backgroundPid: process.pid,
+            browserLaunched: true,
+            compatibilityStatus: "current",
+            effectiveLaunch: lifecycle.effectiveLaunch,
+            engine: "chrome",
+            launchHash,
+            lifecycle,
+            namespace: null,
+            pageCount: 1,
+            restoreCheckFn: null,
+            restoreCheckText: null,
+            restoreCheckUrl: null,
+            restoreKey: null,
+            restoreLoadedPath: null,
+            restoreSave: "auto",
+            restoreSavedPath: null,
+            restoreStatus: "not_configured",
+            restoreStatusDetail: null,
+            restoreValidationPending: false,
+            saveStatus: "not_attempted",
+            session: resource.session,
+            socketDir: resource.socketDirectory,
+          },
+          runtimeError: null,
+          session: resource.session,
+          socketDir: resource.socketDirectory,
+          version: "0.32.3",
+        },
+      };
+    };
+    const publisher = Object.assign(
+      (resource: PublishedCleanupResource): void => {
+        published = resource;
+      },
+      {
+        markBrowserCleanupQuiescent: (): void => {
+          quiescentCommits += 1;
+        },
+        markBrowserCleanupRootRemoved: (): void => {
+          rootCommits += 1;
+        },
+      },
+    );
+    const session = await createBrowserSession(manifest, auth, {
+      headed: false,
+      timeoutMs: 1_000,
+      maxOutputBytes: 64 * 1024,
+      publishCleanupResource: publisher,
+      dependencies: {
+        startNetworkProxy: () => Promise.resolve({
+          url: "http://127.0.0.1:43124",
+          port: 43_124,
+          close: () => Promise.resolve(),
+        }),
+        acquireCookieRecords: () =>
+          Promise.resolve({ cookies: [], warnings: [] }),
+        runCommand: (command, options) => {
+          if (command.includes("batch")) {
+            const batch = JSON.parse(options.stdin ?? "[]") as readonly unknown[];
+            return Promise.resolve({
+              stdout: `${JSON.stringify(batch.map(() => ({
+                success: true,
+                data: { exact: "completed-output" },
+              })))}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          if (command.includes("info")) {
+            return Promise.resolve({
+              stdout: `${exactLaunchHashJson(sessionInfo())}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          if (command.includes("cdp-url")) {
+            return Promise.resolve({
+              stdout: `${exactLaunchHashJson({
+                success: true,
+                data: {
+                  cdpUrl: "ws://127.0.0.1:43125/devtools/browser/natural-exit",
+                  lifecycle: currentLifecycle(),
+                },
+              })}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          }
+          if (command.includes("close")) {
+            closeCommands += 1;
+            scheduleNaturalExit = true;
+            return Promise.resolve({
+              stdout: "{\"success\":false}\n",
+              stderr: "",
+              exitCode: 1,
+            });
+          }
+          throw new Error("unexpected browser command");
+        },
+        cleanupLifecycle: {
+          ownerStatus: () => {
+            ownerInspections += 1;
+            if (scheduleNaturalExit && ownerInspections === 2) {
+              queueMicrotask(() => {
+                scheduleNaturalExit = false;
+                daemonLive = false;
+              });
+            }
+            return daemonLive
+              ? "exact-live-owner"
+              : "different-or-dead";
+          },
+          terminateOwner: () => {
+            terminationCount += 1;
+          },
+          cdpEndpointStatus: () => {
+            endpointRefusals += 1;
+            return Promise.resolve("unavailable");
+          },
+          sleep: () => Promise.resolve(),
+        },
+      },
+    });
+    const resource = session.cleanupResourceIdentity;
+    if (resource === undefined) throw new Error("cleanup resource was not published");
+    try {
+      const completed = await session.runBatch(
+        [["get", "url"]],
+        1_000,
+        64 * 1024,
+      );
+      expect(await rejectionMessage(session.close())).toContain(
+        "neither acknowledged nor independently proved quiescent",
+      );
+      await session.cleanup();
+      expect(completed).toEqual([{
+        success: true,
+        data: { exact: "completed-output" },
+      }]);
+      expect(closeCommands).toBe(1);
+      expect(terminationCount).toBe(0);
+      expect(endpointRefusals).toBe(12);
+      expect(quiescentCommits).toBe(1);
+      expect(rootCommits).toBe(2);
+      expect(existsSync(resource.artifactsDirectory)).toBeFalse();
+      expect(existsSync(resource.socketDirectory)).toBeFalse();
+    } finally {
+      rmSync(resource.artifactsDirectory, { recursive: true, force: true });
+      rmSync(resource.socketDirectory, { recursive: true, force: true });
+    }
+  });
+
   test("publishes prepared roots before profile-clone effects can fail", async () => {
     const unavailableProfile = join(
       tmpdir(),
@@ -1937,7 +2149,7 @@ describe("browser process isolation helpers", () => {
         sleep: () => Promise.resolve(),
         now: () => 0,
       });
-      expect(sessionInspectionCount).toBe(2);
+      expect(sessionInspectionCount).toBe(3);
       expect(endpointRefusalCount).toBe(3);
       expect(terminationCount).toBe(0);
     } finally {
@@ -1999,6 +2211,98 @@ describe("browser process isolation helpers", () => {
     }
   });
 
+  test("converges without effects when the pinned daemon exits at later cleanup observation boundaries", async () => {
+    for (const exitPoint of [
+      "between-session-reads",
+      "around-cdp-inspection",
+      "during-close-acknowledgement",
+    ] as const) {
+      const fixture = createPinnedBrowserRecoveryFixture();
+      let state: RecoveryFixtureState = "launched";
+      let ownerLive = true;
+      let sessionReads = 0;
+      let cdpReads = 0;
+      let closeCommands = 0;
+      let endpointRefusals = 0;
+      let terminationCount = 0;
+      try {
+        expect(await recoverPinnedAgentBrowserCleanupResource(
+          fixture.resource,
+          {
+            runCommand: (command) => {
+              if (command.includes("info")) {
+                sessionReads += 1;
+                if (
+                  exitPoint === "between-session-reads"
+                  && sessionReads === 2
+                ) {
+                  ownerLive = false;
+                  state = "inactive";
+                }
+                return Promise.resolve(fixture.commandResult(
+                  fixture.sessionInfo(state),
+                ));
+              }
+              if (command.includes("cdp-url")) {
+                cdpReads += 1;
+                if (exitPoint === "around-cdp-inspection") {
+                  ownerLive = false;
+                  state = "inactive";
+                  return Promise.resolve(fixture.commandResult(
+                    { success: false },
+                    1,
+                  ));
+                }
+                return Promise.resolve(fixture.commandResult(fixture.cdpInfo()));
+              }
+              if (command.includes("close")) {
+                closeCommands += 1;
+                if (exitPoint !== "during-close-acknowledgement") {
+                  throw new Error("natural-exit fixture closed unexpectedly");
+                }
+                ownerLive = false;
+                state = "inactive";
+                return Promise.resolve(fixture.commandResult(
+                  { success: false },
+                  1,
+                ));
+              }
+              throw new Error("unexpected natural-exit recovery command");
+            },
+            ownerStatus: () => ownerLive
+              ? "exact-live-owner"
+              : "different-or-dead",
+            terminateOwner: () => {
+              terminationCount += 1;
+            },
+            cdpEndpointStatus: (cdpUrl) => {
+              expect(cdpUrl).toBe(fixture.cdpUrl);
+              endpointRefusals += 1;
+              return Promise.resolve("unavailable");
+            },
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          },
+        )).toEqual(fixture.resource);
+        expect(terminationCount).toBe(0);
+        expect(endpointRefusals).toBe(3);
+        expect(sessionReads).toBe(
+          exitPoint === "around-cdp-inspection"
+            ? 4
+            : exitPoint === "between-session-reads"
+            ? 5
+            : 6,
+        );
+        expect(cdpReads).toBe(1);
+        expect(closeCommands).toBe(
+          exitPoint === "during-close-acknowledgement" ? 1 : 0,
+        );
+      } finally {
+        fixture.cleanup();
+      }
+    }
+  });
+
   test("rejects an inactive first session read unless the live owner is re-proved dead", async () => {
     for (const expected of [
       {
@@ -2056,7 +2360,7 @@ describe("browser process isolation helpers", () => {
       {
         value: (fixture: ReturnType<typeof createPinnedBrowserRecoveryFixture>) =>
           fixture.sessionInfo("closed"),
-        message: "session state changed after daemon exit",
+        message: "session remained active",
       },
       {
         value: () => ({ success: true, data: null }),
@@ -2098,7 +2402,7 @@ describe("browser process isolation helpers", () => {
           }),
         );
         expect(message).toContain(expected.message);
-        expect(ownerReads).toBe(2);
+        expect(ownerReads).toBe(3);
         expect(sessionReads).toBe(2);
         expect(endpointReads).toBe(0);
         expect(terminationCount).toBe(0);
@@ -2158,7 +2462,7 @@ describe("browser process isolation helpers", () => {
             }),
           );
           expect(message).toContain("private root identity changed");
-          expect(ownerReads).toBe(2);
+          expect(ownerReads).toBe(replacementPoint === "before" ? 2 : 3);
           expect(sessionReads).toBe(replacementPoint === "before" ? 1 : 2);
           expect(endpointReads).toBe(0);
           expect(terminationCount).toBe(0);
@@ -2176,8 +2480,9 @@ describe("browser process isolation helpers", () => {
           "exact-live-owner",
           "different-or-dead",
           "exact-live-owner",
+          "exact-live-owner",
         ] as const,
-        message: "daemon quiescence is unproved",
+        message: "pinned owner is not quiescent",
         sessionReads: 2,
         endpointReads: 0,
       },
@@ -2258,7 +2563,7 @@ describe("browser process isolation helpers", () => {
     }>;
     const cases: readonly TailCase[] = [
       {
-        message: "session remained active",
+        message: "session quiescence changed",
         ownerStatuses: [
           "exact-live-owner",
           "different-or-dead",
@@ -2358,8 +2663,16 @@ describe("browser process isolation helpers", () => {
           }),
         );
         expect(message).toContain(expected.message);
-        expect(ownerReads).toBe(expected.ownerStatuses.length);
-        expect(sessionReads).toBe(expected.sessionStates.length);
+        expect(ownerReads).toBe(
+          expected.replaceArtifactsAfterEndpointRead === undefined
+            ? expected.ownerStatuses.length
+            : expected.ownerStatuses.length - 1,
+        );
+        expect(sessionReads).toBe(
+          expected.replaceArtifactsAfterEndpointRead === undefined
+            ? expected.sessionStates.length
+            : expected.sessionStates.length - 1,
+        );
         expect(endpointReads).toBe(expected.endpointStatuses.length);
         expect(terminationCount).toBe(0);
       } finally {

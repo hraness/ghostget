@@ -94,6 +94,14 @@ weakening those proofs. Never delete a claim, kill a browser tree, or edit
 Wrench state to bypass this fence. If any proof is missing or changes, retain
 the claim and inspect the reported category rather than treating a reboot as a
 recovery procedure.
+LinkedIn profile and organization reads and Instagram profile reads whose
+browser daemon exits naturally during finalization can settle inline without
+repeating the read or signaling the dead owner. That path still requires the
+exact pinned owner to be dead, two exact inactive session envelopes, unchanged
+private-root generations, three refused CDP connections, and a final owner,
+session, and root reproof. Unknown liveness, malformed lifecycle output,
+identity drift, root replacement, an available or indeterminate CDP endpoint,
+and durable-claim drift remain cleanup-required.
 
 ## Author a portable provider
 

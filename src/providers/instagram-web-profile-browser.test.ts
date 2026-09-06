@@ -233,6 +233,54 @@ describe("Instagram profile stats contained-browser transport", () => {
     expect(lifecycle).toEqual({ closed: true, cleaned: true });
   });
 
+  test("preserves a completed profile read when cleanup proves a natural exit after close acknowledgement is lost", async () => {
+    const bindings: BrowserReadBinding[] = [];
+    let responseCursor = 0;
+    let closeAttempts = 0;
+    let cleanupAttempts = 0;
+    const responses = [
+      bodyRecord(viewerHtml(), "text/html"),
+      bodyRecord(JSON.stringify(profileResponse()), "application/json"),
+    ] as const;
+    const session: BrowserSession = {
+      runBatch: (commands) => {
+        const command = commands[0];
+        if (command?.[0] !== "eval" || command[1] === undefined) {
+          throw new Error("unexpected Instagram profile browser command");
+        }
+        bindings.push(requestBinding(command[1]));
+        const response = responses[responseCursor];
+        responseCursor += 1;
+        if (response === undefined) throw new Error("unexpected extra evaluation");
+        return Promise.resolve([response]);
+      },
+      close: () => {
+        closeAttempts += 1;
+        return Promise.reject(new Error("simulated lost close acknowledgement"));
+      },
+      cleanup: () => {
+        cleanupAttempts += 1;
+        return Promise.resolve();
+      },
+    };
+    const transport = await createInstagramProfileBrowserTransport(profileAuth, {
+      timeoutMs: 2_000,
+      maxOutputBytes: 2 * 1024 * 1024,
+      dependencies: { createBrowserSession: () => Promise.resolve(session) },
+    });
+
+    const viewer = await transport.readCurrentViewerHtml();
+    const profile = await transport.readProfileJson(PROFILE);
+    await transport.close();
+    await transport.close();
+
+    expect(viewer).toBe(viewerHtml());
+    expect(profile).toEqual(profileResponse());
+    expect(bindings.map(({ path }) => path)).toEqual(["/", PROFILE_PATH]);
+    expect(closeAttempts).toBe(1);
+    expect(cleanupAttempts).toBe(1);
+  });
+
   test("accepts each browser-session auth realm and rejects non-browser realms before startup", async () => {
     for (const auth of [profileAuth, cookieSourceAuth, cookiesFileAuth]) {
       const receivedAuth: WrenchAuth[] = [];

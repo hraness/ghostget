@@ -44,7 +44,7 @@ wrench plugin list
 
 ## Built-in provider catalog
 
-This v0.16.7 source tree supports executable actions for 20 services: Beeper,
+This v0.16.8 source tree supports executable actions for 20 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WhatsApp, X, and YouTube.
@@ -116,9 +116,9 @@ the latest release that completed every gate.
 Install the single Wrench Agent Skill with either runner:
 
 ```sh
-npx skills add hraness/wrench#v0.16.7
+npx skills add hraness/wrench#v0.16.8
 # or
-bunx skills add hraness/wrench#v0.16.7
+bunx skills add hraness/wrench#v0.16.8
 ```
 
 The skill teaches Codex, Claude Code, Cursor, and other compatible coding
@@ -129,7 +129,7 @@ After the matching immutable Release exists, install this exact version from
 npm:
 
 ```sh
-bun add --global @hraness/wrench@0.16.7
+bun add --global @hraness/wrench@0.16.8
 wrench adapter sync-bundled --json
 wrench doctor
 ```
@@ -157,7 +157,7 @@ For that same released coordinate, install Wrench in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add @hraness/wrench@0.16.7
+bun add @hraness/wrench@0.16.8
 ```
 
 ```ts
@@ -259,11 +259,21 @@ wrench runs list --json
 
 If a crash leaves capacity blocked, run `wrench doctor --json` and read
 `wrench.home` from the report. The admission files are under
-`<wrench.home>/captures/browser-admissions`. Rebooting is the safest recovery;
-the next capture can verify the prior-boot claim and retire it. Manual recovery
-on the same boot requires first finding and terminating the exact orphaned
-agent-browser and Chromium process group, then removing only its corresponding
-`slot-N.json`. Never remove a claim merely because its Wrench PID is gone.
+`<wrench.home>/captures/browser-admissions`. Same-boot recovery acquires a
+durable recovery lease and rechecks the exact private session, daemon start,
+launch identity, CDP endpoint, and root generations before any effect. A
+naturally exited exact owner needs no signal: Wrench requires two exact inactive
+session envelopes, unchanged roots, three refused CDP connections, and a final
+owner, session, and root reproof. A still-live exact owner may receive only the
+bounded graceful termination modeled by that recovery protocol.
+
+Do not edit or remove a claim because its Wrench PID is gone, and do not treat a
+reboot as the recovery procedure. Unknown liveness, malformed lifecycle output,
+identity drift, root replacement, an available or indeterminate CDP endpoint,
+and claim drift all retain the claim. LinkedIn profile and organization reads
+and Instagram profile reads use the same no-effect proof when a browser daemon
+exits during finalization, so a completed read remains available without
+repeating the provider request or signaling a dead owner.
 
 The slot remains held through upstream browser, proxy, process, and isolation
 cleanup settlement. Managed provider/bootstrap and derivation browser sessions

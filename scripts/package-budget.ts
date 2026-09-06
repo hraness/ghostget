@@ -1,20 +1,21 @@
-// After a clean Bun 1.3.14 build, two npm 11.19.0 packs of the 0.16.7
-// same-boot browser cleanup recovery candidate were byte-identical:
-// 2,214,418 packed bytes, 12,233,921 unpacked bytes, and 466 files.
+// After a clean Bun 1.3.14 build, two npm 11.19.0 packs of the 0.16.8
+// browser cleanup convergence candidate were byte-identical:
+// 2,216,583 packed bytes, 12,248,757 unpacked bytes, and 466 files.
 // Their SHA-256 was
+// e7776ab116c9b16f25385b5b973a0df52f1347b21f0083b03645e19a1304dd9b.
+// Published 0.16.7 is 2,214,418 packed bytes, 12,233,921 unpacked bytes, and
+// 466 files from npm 11.19.0. Its SHA-256 was
 // 7b13498e1070d95f2a1d564caba41f1eebc6a32a7a8e078373fe2fec564060a8.
-// Published 0.16.6 is 2,214,175 packed bytes, 12,232,594 unpacked bytes, and
-// 466 files from npm 10.9.7. Its SHA-256 was
-// e49aa949b885960aa42a0ee5f99a70cfd1bc115934bdc8131a2823fe62f5ff03.
-// The 243 packed and 1,327 unpacked bytes of growth are the reviewed recovery
-// logic and release note.
+// The 2,165 packed and 14,836 unpacked bytes of growth are the reviewed
+// LinkedIn activity pagination, cleanup convergence, and release notes.
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
-// Keep 6,491 packed bytes and 1,624 unpacked bytes of bounded headroom.
+// Keep the existing 2,220,909-byte packed ceiling, which leaves 4,326 bytes
+// above this candidate, and 938 unpacked bytes of bounded headroom.
 // File inventory remains exact at 466.
 export const MAX_PACKED_BYTES = 2_220_909;
 export const MAX_PACKED_ENTRIES = 466;
 export const MAX_PACKED_FILES = 466;
-export const MAX_UNPACKED_BYTES = 12_235_545;
+export const MAX_UNPACKED_BYTES = 12_249_695;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
