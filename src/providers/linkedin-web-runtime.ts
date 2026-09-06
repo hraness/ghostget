@@ -1,3 +1,8 @@
+import { validateWebSessionAuthState } from "../web-session-read-errors";
+import * as Effect from "effect/Effect";
+import { runReadEffect } from "../read-effect-runtime";
+import { LinkedInSelfPlatformLive } from "./linkedin-self-platform";
+import { linkedInSelfReadProgram } from "./linkedin-self-program";
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 
@@ -87,7 +92,6 @@ import {
   normalizeLinkedInArticleDraftV2Metadata,
   normalizeLinkedInMessagingList,
   projectLinkedInOrganizationStats,
-  projectLinkedInPersonalProfileStats,
 } from "./linkedin-web";
 import { resolveLinkedInMessengerConversationsQueryId } from "./linkedin-web-bootstrap";
 import {
@@ -497,7 +501,7 @@ async function createLinkedInClient(
     initialSnapshot.value,
     initialSnapshot.contentSha256,
   );
-  const cachedState = parseCachedLinkedInCookies(initialSnapshot.value);
+  const cachedState = validateWebSessionAuthState(() => parseCachedLinkedInCookies(initialSnapshot.value));
   return createWebSessionClient(LINKEDIN_ORIGIN, auth, {
     timeoutMs,
     ...(budget.signal === undefined ? {} : { signal: budget.signal }),
@@ -511,7 +515,7 @@ async function createLinkedInClient(
       maxCachedCookieAgeSeconds: LINKEDIN_ROTATING_COOKIE_MAX_CACHE_AGE_SECONDS,
       tombstoneTtlSeconds: LINKEDIN_ROTATING_COOKIE_TOMBSTONE_TTL_SECONDS,
       save: async (state) => {
-        const value = cachedLinkedInCookiesValue(state);
+        const value = validateWebSessionAuthState(() => cachedLinkedInCookiesValue(state));
         const saved = await saveLinkedInCookieSnapshot(
           auth,
           authHash,
@@ -548,8 +552,8 @@ async function createLinkedInClient(
             "LinkedIn rotating session state changed concurrently without ordered provenance",
           );
         }
-        const latest = parseCachedLinkedInCookies(latestSnapshot.value);
-        const merged = mergeLinkedInRotationStates(state, latest);
+        const latest = validateWebSessionAuthState(() => parseCachedLinkedInCookies(latestSnapshot.value));
+        const merged = validateWebSessionAuthState(() => mergeLinkedInRotationStates(state, latest));
         if (canonicalJson(merged) !== canonicalJson(latest)) {
           const reconciled = await saveLinkedInCookieSnapshot(
             auth,
@@ -767,7 +771,7 @@ export async function probeLinkedInWebSubject(
 
 function boundLinkedInStatsIdentity(
   auth: WrenchAuth,
-  identity: LinkedInCurrentIdentity,
+  identity: Pick<LinkedInCurrentIdentity, "subject">,
 ): string {
   const expected = webSessionAuthSubject(auth);
   if (expected === null || expected !== identity.subject) {
@@ -953,120 +957,18 @@ async function executeLinkedInPersonalProfileRead(
   if (typeof includeConnections !== "boolean") {
     throw new Error("input.include_connections must be boolean");
   }
-  let requestStage = auth.kind === "browser-profile"
-    ? "contained-browser signed-in identity preflight"
-    : "signed-in identity preflight";
-  let failureStage: LinkedInStatsFailureStage = "identity";
-  let browserTransport: LinkedInProfileBrowserTransport | null = null;
-  try {
-    let client: WebSessionClient | null = null;
-    let identity: LinkedInCurrentIdentity;
-    if (auth.kind === "browser-profile") {
-      browserTransport = await createLinkedInStatsBrowserTransport(
-        auth,
-        recipe,
-        options,
-      );
-      identity = identityFromMeResponse(
-        await browserTransport.currentIdentityResponse(),
-      );
-    } else {
-      client = await createLinkedInClient(auth, recipe.timeoutMs, options.dependencies, options);
-      const csrf = linkedInCsrfTokenFromJSessionId(
-        webSessionCookie(client.cookies, "JSESSIONID"),
-      );
-      try {
-        identity = await currentIdentity(client, csrf);
-      } catch (error) {
-        if (!linkedInCurrentIdentityAllowsBrowserFallback(error)) throw error;
-        requestStage = "contained-browser signed-in identity preflight";
-        browserTransport = await createLinkedInStatsBrowserTransport(
-          auth,
-          recipe,
-          options,
-        );
-        identity = identityFromMeResponse(
-          await browserTransport.currentIdentityResponse(),
-        );
-      }
-    }
-    const subject = boundLinkedInStatsIdentity(auth, identity);
-    if (identity.publicIdentifier === null) {
-      throw new Error(
-        "LinkedIn current member omitted its bound public profile identifier",
-      );
-    }
-    if (identity.publicIdentifier !== target.slug) {
-      throw new Error(
-        "LinkedIn current member public profile identifier does not match the requested profile URL",
-      );
-    }
-    requestStage = browserTransport === null
-      ? "public self-profile page read"
-      : "contained-browser public self-profile page read";
-    failureStage = "target";
-    let profileHtml: string;
-    if (browserTransport !== null) {
-      profileHtml = await browserTransport.readProfileHtml(target.url);
-    } else {
-      if (client === null) throw new Error("LinkedIn direct stats client is unavailable");
-      profileHtml = await client.requestText({
-        url: new URL(target.url),
-        method: "GET",
-        headers: linkedInHtmlHeaders(`${LINKEDIN_ORIGIN}/feed/`),
-        expectedContentTypes: ["text/html"],
-        maxBytes: recipe.maxOutputBytes,
-      });
-    }
-    let connectionsHtml: string | null = null;
-    if (includeConnections) {
-      failureStage = "supplemental";
-      requestStage = browserTransport === null
-        ? "private My Network connections page read"
-        : "contained-browser private My Network connections page read";
-      if (browserTransport !== null) {
-        connectionsHtml = await browserTransport.readConnectionsHtml(target.url);
-      } else {
-        if (client === null) throw new Error("LinkedIn direct stats client is unavailable");
-        connectionsHtml = await client.requestText({
-          url: new URL(`${LINKEDIN_ORIGIN}/mynetwork/invite-connect/connections/`),
-          method: "GET",
-          headers: linkedInHtmlHeaders(target.url),
-          expectedContentTypes: ["text/html"],
-          maxBytes: recipe.maxOutputBytes,
-        });
-      }
-    }
-    requestStage = "exact metric projection";
-    const output = projectLinkedInPersonalProfileStats({
-      profileHtml,
-      connectionsHtml,
-      profileUrl: target.url,
-      expectedSubject: subject,
-      expectedPublicIdentifier: identity.publicIdentifier,
-      observedAt: new Date(options.dependencies?.now?.() ?? Date.now()).toISOString(),
-    });
-    return {
-      status: "succeeded",
-      output,
-      finalUrl: target.url,
-      dispatchStarted: false,
-      dispatch: { planned: 0, started: 0, verified: 0 },
-    };
-  } catch (error) {
-    if (error instanceof PreservedBrowserArtifactsError) throw error;
-    return {
-      status: "failed",
-      output: null,
-      finalUrl: target.url,
-      dispatchStarted: false,
-      dispatch: { planned: 0, started: 0, verified: 0 },
-      error: linkedInProfileStatsFailure(error, "personal", requestStage),
-      readFailure: linkedInProfileStatsReadFailure(error, failureStage),
-    };
-  } finally {
-    await browserTransport?.close();
-  }
+  return runReadEffect(linkedInSelfReadProgram(target, includeConnections, auth.kind === "browser-profile", (error, stage) => linkedInProfileStatsFailure(error, "personal", stage)).pipe(
+    Effect.provide(LinkedInSelfPlatformLive({
+      openBrowser: () => createLinkedInStatsBrowserTransport(auth, recipe, options),
+      openDirect: () => createLinkedInClient(auth, recipe.timeoutMs, options.dependencies, options),
+      directIdentity: client => currentIdentity(client, validateWebSessionAuthState(() => linkedInCsrfTokenFromJSessionId(webSessionCookie(client.cookies, "JSESSIONID")))),
+      decodeIdentity: identityFromMeResponse,
+      bindIdentity: identity => boundLinkedInStatsIdentity(auth, identity),
+      readProfile: (client, url) => client.requestText({ url: new URL(url), method: "GET", headers: linkedInHtmlHeaders(`${LINKEDIN_ORIGIN}/feed/`), expectedContentTypes: ["text/html"], maxBytes: recipe.maxOutputBytes }),
+      readConnections: (client, url) => client.requestText({ url: new URL(`${LINKEDIN_ORIGIN}/mynetwork/invite-connect/connections/`), method: "GET", headers: linkedInHtmlHeaders(url), expectedContentTypes: ["text/html"], maxBytes: recipe.maxOutputBytes }),
+      observedAt: () => new Date(options.dependencies?.now?.() ?? Date.now()).toISOString(),
+    })),
+  ));
 }
 
 async function executeLinkedInOrganizationRead(

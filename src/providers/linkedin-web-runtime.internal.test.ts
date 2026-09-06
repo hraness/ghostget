@@ -1,3 +1,4 @@
+import { WebSessionReadTransportError } from "../web-session-read-errors";
 import { describe, expect, test } from "bun:test";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -1596,7 +1597,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         retryDisposition: "retry-once-after-60s",
       },
       {
-        failure: new Error("authenticated web response body stream failed before completion"),
+        failure: new WebSessionReadTransportError("authenticated web response body stream failed before completion", new Error("private stream failure")),
         category: "provider-temporary",
         retryDisposition: "retry-once-after-60s",
       },

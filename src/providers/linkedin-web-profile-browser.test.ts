@@ -1,4 +1,7 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { chmodSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { describe, expect, test } from "bun:test";
 
@@ -8,7 +11,16 @@ import {
   type BrowserSession,
   type CreateBrowserSessionOptions,
 } from "../browser";
-import { OperationDeadline } from "../operation-deadline";
+import { OperationDeadline, type OperationDeadlineClock } from "../operation-deadline";
+import { withReadCleanupAdmission } from "../read-admission-runtime";
+import { listWebSessionCleanupAdmissions } from "../web-session-cleanup-admission";
+import { runWebSessionReadWithDeadline } from "../web-session-read-runtime";
+import {
+  WEB_SESSION_CLEANUP_JOIN_TIMEOUT_MS,
+  WebSessionCleanupUnverifiedError,
+  type WebSessionExecution,
+} from "../web-session-execution";
+import { executeLinkedInWebOperation } from "./linkedin-web-runtime";
 import {
   createLinkedInProfileBrowserTransport,
   LinkedInProfileBrowserFailure,
@@ -128,6 +140,168 @@ function identityResponse(): string {
 }
 
 describe("LinkedIn profile stats contained-browser transport", () => {
+  test.each(["within-join", "after-join-timeout"] as const)(
+    "R1 native close acknowledgement loss preserves cleanup custody %s",
+    async (proofTiming) => {
+      const root = mkdtempSync(join(tmpdir(), "wrench-linkedin-cleanup-join-"));
+      chmodSync(root, 0o700);
+      const environment = { WRENCH_STATE_HOME: join(root, "state"), HOME: root };
+      const proof = Promise.withResolvers<void>();
+      const cleanupStarted = Promise.withResolvers<void>();
+      const joinScheduled = Promise.withResolvers<() => void>();
+      const caller = new AbortController();
+      const timers = new Set<() => void>();
+      const clock: OperationDeadlineClock = {
+        now: () => 0,
+        schedule: (callback, delayMs) => {
+          timers.add(callback);
+          if (delayMs === WEB_SESSION_CLEANUP_JOIN_TIMEOUT_MS) {
+            joinScheduled.resolve(callback);
+          }
+          return () => { timers.delete(callback); };
+        },
+      };
+      const recipe = {
+        site: "linkedin",
+        action: "profiles.read",
+        contractVersion: 1,
+        timeoutMs: 1_000,
+        maxOutputBytes: 2 * 1024 * 1024,
+      } as const;
+      const events: string[] = [];
+      const barriers: Promise<void>[] = [];
+      // The existing native BrowserSession seam exposes proof settlement.
+      // browser.test.ts separately proves that cleanup cannot fulfill without
+      // exact owner/session/endpoint/root observations and journalled removal.
+      const session: BrowserSession = {
+        runBatch: (commands) => {
+          const command = commands[0];
+          if (command?.[0] !== "eval" || command[1] === undefined) {
+            throw new Error("unexpected LinkedIn cleanup-join command");
+          }
+          const binding = requestBinding(command[1]);
+          events.push(binding.path);
+          if (binding.path === "/voyager/api/me") {
+            return Promise.resolve([browserBodyRecord(identityResponse(), "application/json")]);
+          }
+          if (binding.path === "/in/0thernet/") {
+            return Promise.resolve([browserBodyRecord(
+              '<a href="/mynetwork/network-manager/people-follow/followers"><span>7,553</span> followers</a>',
+              "text/html",
+            )]);
+          }
+          throw new Error("cleanup-join read crossed its exact profile path");
+        },
+        close: () => {
+          events.push("close");
+          return Promise.reject(new Error("simulated lost close acknowledgement"));
+        },
+        cleanup: () => {
+          events.push("cleanup-started");
+          cleanupStarted.resolve();
+          return proof.promise.then(() => { events.push("cleanup-proved"); });
+        },
+      };
+      let provider: Promise<WebSessionExecution> | undefined;
+      let settled = false;
+      const execution = withReadCleanupAdmission({
+        runId: randomUUID(),
+        pluginId: "linkedin-web",
+        pluginVersion: "1.0.0",
+        pluginImplementationHash: "1".repeat(64),
+        adapterId: "linkedin-web",
+        adapterHash: "2".repeat(64),
+        surfaceId: "linkedin",
+        authId: auth.id,
+        authHash: "3".repeat(64),
+      }, environment, register => runWebSessionReadWithDeadline(recipe, {
+        signal: caller.signal,
+        deadlineClock: clock,
+        registerCleanupBarrier: barrier => {
+          barriers.push(barrier);
+          return register(barrier);
+        },
+      }, options => {
+        provider = executeLinkedInWebOperation(recipe, {
+          profile_url: PROFILE_URL,
+          include_connections: false,
+        }, auth, {
+          ...options,
+          dependencies: {
+            acquireCookies: () => Promise.reject(new Error("cleanup-join read exported cookies")),
+            fetch: () => Promise.reject(new Error("cleanup-join read used direct fetch")),
+            now: () => Date.parse("2026-09-06T00:00:00.000Z"),
+            createProfileBrowserTransport: (receivedAuth, transportOptions) =>
+              createLinkedInProfileBrowserTransport(receivedAuth, {
+                ...transportOptions,
+                dependencies: { createBrowserSession: () => Promise.resolve(session) },
+              }),
+          },
+        });
+        return provider;
+      }), undefined, error => Promise.reject(error));
+      const observed = execution.then(
+        value => { settled = true; return { kind: "succeeded" as const, value }; },
+        error => { settled = true; return { kind: "failed" as const, error }; },
+      );
+      try {
+        await cleanupStarted.promise;
+        expect(events).toEqual(["/voyager/api/me", "/in/0thernet/", "close", "cleanup-started"]);
+        expect(settled).toBeFalse();
+        expect(barriers).toHaveLength(1);
+        expect(listWebSessionCleanupAdmissions(environment)).toHaveLength(1);
+        if (proofTiming === "after-join-timeout") {
+          caller.abort();
+          const expireJoin = await joinScheduled.promise;
+          expect(settled).toBeFalse();
+          expireJoin();
+          const outcome = await observed;
+          expect(outcome.kind).toBe("failed");
+          if (outcome.kind === "failed") {
+            expect(outcome.error).toBeInstanceOf(WebSessionCleanupUnverifiedError);
+            await expect(barriers[0]!).rejects.toBe(outcome.error);
+          }
+          expect(listWebSessionCleanupAdmissions(environment)).toMatchObject([
+            { claim: { containment: { status: "cleanup-unsafe" } } },
+          ]);
+        }
+        proof.resolve();
+        if (provider === undefined) throw new Error("profile provider was not started");
+        const completed = await provider;
+        expect(completed).toMatchObject({
+          status: "succeeded",
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+          output: {
+            target: { id: auth.subject },
+            metrics: { followers: { value: 7553 } },
+          },
+        });
+        const outcome = await observed;
+        if (proofTiming === "within-join") {
+          expect(outcome).toEqual({ kind: "succeeded", value: completed });
+          await expect(barriers[0]!).resolves.toBeUndefined();
+          expect(listWebSessionCleanupAdmissions(environment)).toEqual([]);
+        } else {
+          expect(outcome.kind).toBe("failed");
+          if (outcome.kind === "failed") await expect(barriers[0]!).rejects.toBe(outcome.error);
+          expect(listWebSessionCleanupAdmissions(environment)).toMatchObject([
+            { claim: { containment: { status: "cleanup-unsafe" } } },
+          ]);
+        }
+        expect(events.filter(event => event === "close")).toHaveLength(1);
+        expect(events.filter(event => event === "cleanup-proved")).toHaveLength(1);
+        expect(timers.size).toBe(0);
+      } finally {
+        proof.resolve();
+        caller.abort();
+        await observed;
+        await provider?.catch(() => undefined);
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
   test("preserves startup and command deadline state before provider classification", async () => {
     for (const failure of ["cancelled", "timed-out"] as const) {
       const createDeadline = (): OperationDeadline => {

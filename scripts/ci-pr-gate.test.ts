@@ -135,7 +135,7 @@ describe("complete local and release check composition", () => {
       readonly scripts?: Record<string, string>;
     };
     expect(manifest.scripts?.["check:static"]).toBe(
-      "bun run typecheck && bun run website:check && bun run test:npm-release",
+      "bun run typecheck && bun run check:effect && bun run website:check && bun run test:npm-release",
     );
     expect(manifest.scripts?.["check:package"]).toBe(
       "bun run build && bun run test:package",

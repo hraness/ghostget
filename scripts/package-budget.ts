@@ -1,4 +1,18 @@
-// After a clean Bun 1.3.14 build, two npm 11.19.0 packs of the 0.16.8
+// After a clean Bun 1.3.14 build, two npm 11.19.0 packs of the 0.16.9
+// Effect read candidate including the X identity fixes were byte-identical:
+// 2,230,059 packed bytes, 12,318,665 unpacked bytes, and 482 files.
+// Their SHA-256 was
+// 08e3dc841233150b5f09a698cfc56b47f8c0a62d013d22167849164f65de28d1.
+// Same-run main ab952fd measured 2,215,741 packed / 12,254,140 unpacked
+// bytes and 466 files. Growth includes 16 new read/scanner source files,
+// changed orchestration and the 0.16.9 source identity and release notes.
+// The 2,234,385-byte packed ceiling leaves 4,326 bytes above this candidate,
+// 842 fewer than the fresh baseline's residual allowance. Retain main's
+// 860 unpacked bytes of headroom, 78 below the prior Effect allowance,
+// and an exact 482-file inventory. Both normal builds preserved all 11
+// generated files byte-for-byte.
+//
+// Historical 0.16.8 measurement: two npm 11.19.0 packs of the
 // browser cleanup convergence candidate were byte-identical:
 // 2,216,583 packed bytes, 12,248,757 unpacked bytes, and 466 files.
 // Their SHA-256 was
@@ -9,18 +23,12 @@
 // The 2,165 packed and 14,836 unpacked bytes of growth are the reviewed
 // LinkedIn activity pagination, cleanup convergence, and release notes.
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
-// Keep the existing 2,220,909-byte packed ceiling, which leaves 4,326 bytes
-// above this candidate, and 938 unpacked bytes of bounded headroom.
-// File inventory remains exact at 466.
-// The UserTweets user-identity bind adds reviewed unpacked growth above that
-// 0.16.8 candidate. The later identity-less UserTweets timeline-author bind
-// adds 1,252 unpacked bytes above the 12,252,888-byte User-node bind
-// candidate. Raise the unpacked ceiling to 12,255,000, which leaves 860 bytes
-// of bounded headroom above the 12,254,140-byte timeline-bind candidate.
-export const MAX_PACKED_BYTES = 2_220_909;
-export const MAX_PACKED_ENTRIES = 466;
-export const MAX_PACKED_FILES = 466;
-export const MAX_UNPACKED_BYTES = 12_255_000;
+// That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
+// and 938 unpacked bytes of headroom, with exactly 466 files.
+export const MAX_PACKED_BYTES = 2_234_385;
+export const MAX_PACKED_ENTRIES = 482;
+export const MAX_PACKED_FILES = 482;
+export const MAX_UNPACKED_BYTES = 12_319_525;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

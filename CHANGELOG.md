@@ -7,6 +7,25 @@ coordinate that completed both checks.
 
 ## Unreleased
 
+## 0.16.9 - 2026-09-06
+
+- Move R1 read receipt sequencing, deadline handling, cleanup admission, GitHub
+  organization reads, and LinkedIn self-profile reads into bounded Effect 3.22.1
+  programs. Preserve public Promise interfaces, result projections, and R2/R3
+  write dispatch rules.
+- Wait for native cleanup proof before releasing authenticated read admission.
+  A 30-second cleanup-join deadline retains unsafe admission; late cleanup cannot
+  upgrade that settled outcome. Preserve contained-browser ownership and
+  private-root checks.
+- Keep built-in durable contract identities fixed while deriving and revalidating
+  the complete current source/dependency closure. Reuse pre-encoded UTF-8 sort
+  keys during dependency discovery; fresh trust observations and byte ordering
+  remain unchanged. The added Effect dependency expands that inspected graph.
+- Refresh the reviewed X UserTweets query descriptor and bind changed user
+  identity shapes to the requested account. When the response omits user-level
+  identity, require matching authored-post evidence; reject contradictory or
+  unproven identities with structured contract-drift refusal.
+
 ## 0.16.8 - 2026-09-06
 
 - Preserve completed LinkedIn profile and organization statistics and Instagram
