@@ -27,6 +27,13 @@ native asynchronous context so descendant cleanup remains associated with the
 exact invocation lease. No Effect finalizer replaces process-group, inode,
 content-hash or private-root proof.
 
+Contained-browser cleanup may independently prove quiescence after its single
+close acknowledgement is lost. The transport accepts that native proof before
+its Effect finalizer completes. The outer cleanup join retains its existing
+30-second bound: once it marks a barrier unsafe, later native proof cannot
+reverse that settlement or release the durable admission. Native recovery owns
+any later reconciliation.
+
 GitHub organization reads use a local HTTP layer and sequential pagination
 program. The original pure organization, repository, continuation and metric
 validators remain authoritative. Every page must complete the declared bounded
@@ -37,8 +44,8 @@ routes remain fixed by the provider contract.
 LinkedIn self-profile reads use a local service for direct and contained-browser
 operations. The program owns the selected transport, exact current-member and
 profile-slug checks, sequential profile and optional connections reads, and metric
-projection. Browser cleanup settles before its outcome leaves the scope. A close
-failure keeps the previous Promise-finally precedence. Typed direct HTTP response
+projection. Browser cleanup settles before its outcome leaves the scope. A failed
+transport finalizer keeps the previous Promise-finally precedence. Typed direct HTTP response
 metadata permits only the reviewed identity fallback statuses; message text cannot
 grant a transport switch or retry classification. Unrecognized foreign failures
 remain contract drift. Pure profile and metric parsers remain unchanged.

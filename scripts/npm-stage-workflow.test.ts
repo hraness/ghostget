@@ -1181,7 +1181,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_727_808);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_808_704);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1272,10 +1272,10 @@ describe("npm publication contract", () => {
     expect(artifact).toContain('from "./package-budget.js"');
     expect(smoke).toContain('from "./package-budget.js"');
     expect(budget).toContain("two npm 11.19.0 packs");
-    expect(budget).toContain("2,216,583 packed bytes");
-    expect(budget).toContain("12,248,757 unpacked bytes, and 466 files");
+    expect(budget).toContain("2,228,738 packed bytes");
+    expect(budget).toContain("12,313,147 unpacked bytes, and 482 files");
     expect(budget).toContain(
-      "e7776ab116c9b16f25385b5b973a0df52f1347b21f0083b03645e19a1304dd9b",
+      "989973905a2314294e9e89c38602b22f8912784e3eedb1152bc703685a40bd1f",
     );
     expect(budget).toContain("Published 0.16.7 is 2,214,418 packed bytes");
     expect(budget).toContain("466 files from npm 11.19.0");
@@ -1286,19 +1286,19 @@ describe("npm publication contract", () => {
     expect(budget).toContain("measured a 3,543-byte Linux/macOS gzip spread");
     expect(budget).toContain("leaves 4,326 bytes");
     expect(budget).toContain("938 unpacked bytes");
-    expect(MAX_PACKED_BYTES).toBe(2_220_909);
-    expect(MAX_PACKED_ENTRIES).toBe(466);
-    expect(MAX_PACKED_FILES).toBe(466);
-    expect(MAX_UNPACKED_BYTES).toBe(12_249_695);
+    expect(MAX_PACKED_BYTES).toBe(2_233_064);
+    expect(MAX_PACKED_ENTRIES).toBe(482);
+    expect(MAX_PACKED_FILES).toBe(482);
+    expect(MAX_UNPACKED_BYTES).toBe(12_314_085);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 466, max: 466 },
-      fileCount: { min: 466, max: 466 },
-      packedBytes: { min: 1_600_000, max: 2_220_909 },
-      unpackedBytes: { min: 9_000_000, max: 12_249_695 },
+      entryCount: { min: 482, max: 482 },
+      fileCount: { min: 482, max: 482 },
+      packedBytes: { min: 1_600_000, max: 2_233_064 },
+      unpackedBytes: { min: 9_000_000, max: 12_314_085 },
     });
   });
 
@@ -3170,13 +3170,12 @@ esac
           `${manifestWithoutClosingBrace},\n  "private": ${value}\n}\n`,
           "utf8",
         );
-        expect(Math.ceil(variantManifest.length / 512) * 512).toBe(manifestPaddedSize);
-        const variantTar = Buffer.from(tar);
-        variantTar.fill(
-          0,
-          manifestEntry.dataOffset,
-          manifestEntry.dataOffset + manifestPaddedSize,
-        );
+        const variantPaddedSize = Math.ceil(variantManifest.length / 512) * 512;
+        const variantTar = Buffer.concat([
+          tar.subarray(0, manifestEntry.dataOffset),
+          Buffer.alloc(variantPaddedSize),
+          tar.subarray(manifestEntry.dataOffset + manifestPaddedSize),
+        ]);
         variantManifest.copy(variantTar, manifestEntry.dataOffset);
         variantTar.fill(0, manifestEntry.headerOffset + 124, manifestEntry.headerOffset + 136);
         Buffer.from(variantManifest.length.toString(8).padStart(11, "0"), "ascii")
