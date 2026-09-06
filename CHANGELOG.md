@@ -7,11 +7,6 @@ coordinate that completed both checks.
 
 ## Unreleased
 
-- Bind X `feeds.read` `feed=user` responses when the current UserTweets User
-  node omits `rest_id` and carries the requested snowflake as a Relay `id`,
-  `legacy.id_str`, `timeline_v2` alias, or reviewed visibility wrapper. Reject
-  an unbound or mismatched user. Bookmarks are unchanged.
-
 ## 0.16.8 - 2026-09-06
 
 - Preserve completed LinkedIn profile and organization statistics and Instagram
