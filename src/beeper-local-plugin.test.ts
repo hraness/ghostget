@@ -337,6 +337,14 @@ describe("Beeper pinned local-CLI provider plugin", () => {
     expect(baseline.derived).toBeFalse();
     expect(changed.derived).toBeTrue();
     expect(changed.hash).not.toBe(baseline.hash);
+    const binding = providerPluginRegistry.requireRoute("local-cli", "beeper");
+    expect(providerPluginRegistry.implementationClosureHash(binding)).toBe(baseline.hash);
+
+    // Beeper 2.4.0's durable writer identity was reviewed against this closure
+    // at 5fb740ec4fef243734734bfbd917ed09bc7001c2. Current runtime source changes
+    // must change the execution closure above without rewriting that identity.
+    const reviewedDistributionClosureSha256 =
+      "4fd54b5f19fae01e72b6c6d10b2f6d7debbd5225086cf7026d806a3df193e103";
     const adapterSha256 = createHash("sha256")
       .update(readFileSync(
         join(import.meta.dir, "assets", "adapters", "beeper", "wrench-web-adapter.json"),
@@ -352,13 +360,15 @@ describe("Beeper pinned local-CLI provider plugin", () => {
         adapterVersion: "2.4.0",
         adapterSha256,
         localCliSurfaceSha256: BEEPER_CLI_V062_WHOLE_SURFACE_SHA256,
-        implementationClosureSha256: baseline.hash,
+        implementationClosureSha256: reviewedDistributionClosureSha256,
       }))
       .digest("hex");
     expect(reviewedBuiltInContractIdentity(
       "beeper-linked-device",
       "2.4.0",
     ).implementationSha256).toBe(derivedContractIdentity);
+    expect(providerPluginRegistry.contractImplementationHash(binding).toString("hex"))
+      .toBe(derivedContractIdentity);
     expect(derivedContractIdentity).not.toBe(BEEPER_CLI_V062_WHOLE_SURFACE_SHA256);
   });
 
