@@ -1272,10 +1272,10 @@ describe("npm publication contract", () => {
     expect(artifact).toContain('from "./package-budget.js"');
     expect(smoke).toContain('from "./package-budget.js"');
     expect(budget).toContain("two npm 11.19.0 packs");
-    expect(budget).toContain("2,216,425 packed bytes");
-    expect(budget).toContain("12,248,071 unpacked bytes, and 466 files");
+    expect(budget).toContain("2,216,583 packed bytes");
+    expect(budget).toContain("12,248,757 unpacked bytes, and 466 files");
     expect(budget).toContain(
-      "3556cbc1ceac05f99c4ca33e509cf15acd942b4cc40429b1574ab17e251fc0c9",
+      "e7776ab116c9b16f25385b5b973a0df52f1347b21f0083b03645e19a1304dd9b",
     );
     expect(budget).toContain("Published 0.16.7 is 2,214,418 packed bytes");
     expect(budget).toContain("466 files from npm 11.19.0");
@@ -1284,8 +1284,8 @@ describe("npm publication contract", () => {
     );
     expect(budget).toContain("LinkedIn activity pagination, cleanup convergence");
     expect(budget).toContain("measured a 3,543-byte Linux/macOS gzip spread");
-    expect(budget).toContain("leaves 4,484 bytes");
-    expect(budget).toContain("1,624 unpacked bytes");
+    expect(budget).toContain("leaves 4,326 bytes");
+    expect(budget).toContain("938 unpacked bytes");
     expect(MAX_PACKED_BYTES).toBe(2_220_909);
     expect(MAX_PACKED_ENTRIES).toBe(466);
     expect(MAX_PACKED_FILES).toBe(466);
