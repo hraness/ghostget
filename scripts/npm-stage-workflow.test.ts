@@ -4528,7 +4528,7 @@ esac
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
-  }, 30_000);
+  });
 
   test("keeps provider verification read-only, terminal, and release-authoritative", async () => {
     const [releaseWorkflow, workflow, helper, appHelper, writerHelper, codeowners] = await Promise.all([
