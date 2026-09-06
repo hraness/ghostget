@@ -1869,11 +1869,13 @@ function providerPluginPackageDependencyIdentity(
   };
   type InstalledPackageOccurrence = {
     readonly nodeId: string;
+    readonly nodeIdSortKey: Buffer;
     readonly snapshot: InstalledPackageSnapshot;
   };
   type PendingInstalledModule = {
     readonly occurrence: InstalledPackageOccurrence;
     readonly path: string;
+    readonly pathSortKey: Buffer;
     readonly packageDepth: number;
   };
   const pending: PendingRepositoryDependency[] = [];
@@ -1945,6 +1947,7 @@ function providerPluginPackageDependencyIdentity(
       pendingInstalledModules.push({
         occurrence,
         path: entryRelativePath,
+        pathSortKey: Buffer.from(entryRelativePath, "utf8"),
         packageDepth,
       });
     }
@@ -2076,7 +2079,11 @@ function providerPluginPackageDependencyIdentity(
         .update("provider-plugin-installed-package-node@1\0")
         .update(discoveryCoordinate)
         .digest("base64url");
-      occurrence = Object.freeze({ nodeId, snapshot });
+      occurrence = Object.freeze({
+        nodeId,
+        nodeIdSortKey: Buffer.from(nodeId, "utf8"),
+        snapshot,
+      });
       installedOccurrences.set(snapshot.root, occurrence);
       installedFiles += snapshot.files.length + snapshot.links.length;
       installedDirectories += snapshot.verificationWalk.directoryCount;
@@ -2271,9 +2278,10 @@ function providerPluginPackageDependencyIdentity(
       }
     }
     while (pendingInstalledModules.length > 0) {
+    // Private UTF-8 keys preserve byte ordering without per-comparison encoding.
     pendingInstalledModules.sort((left, right) =>
-      compareIdentityText(left.occurrence.nodeId, right.occurrence.nodeId)
-      || compareIdentityText(left.path, right.path));
+      Buffer.compare(left.occurrence.nodeIdSortKey, right.occurrence.nodeIdSortKey)
+      || Buffer.compare(left.pathSortKey, right.pathSortKey));
     const pendingModule = pendingInstalledModules.pop();
     if (pendingModule === undefined) continue;
     const moduleKey =
