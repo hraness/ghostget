@@ -133,14 +133,14 @@ describe("X query descriptor revision evidence", () => {
 
   test("records the current reviewed UserTweets and SearchTimeline observations", () => {
     expect(evidence("UserTweets")).toMatchObject({
-      queryId: "SXVCYB8XHSS25nzIljNtZA",
-      sourceChunk: "main.7de7adccd6c7c8f0a.js",
-      observedOn: "2026-09-01",
+      queryId: "eviprbEPLvNG88V3smUngQ",
+      sourceChunk: "main.ae82e9d02d3328bba.js",
+      observedOn: "2026-09-06",
     });
     expect(evidence("SearchTimeline")).toMatchObject({
       queryId: "hyPfJYJ_XAtDYoslQc-Rgg",
-      sourceChunk: "main.7de7adccd6c7c8f0a.js",
-      observedOn: "2026-09-01",
+      sourceChunk: "main.ae82e9d02d3328bba.js",
+      observedOn: "2026-09-06",
     });
     expect(xWebSemanticOperationRegistry["feeds.user"]).toEqual({
       semanticOperation: "feeds.read",
@@ -160,6 +160,7 @@ describe("X query descriptor revision evidence", () => {
     });
     const serialized = JSON.stringify(xWebQueryDescriptorEvidenceSnapshot);
     expect(serialized).not.toContain("6r5OLCC_wFH4CpRyXKuAmQ");
+    expect(serialized).not.toContain("SXVCYB8XHSS25nzIljNtZA");
     expect(serialized).not.toContain("hz_94eVAtrtQo_vO3my7Rw");
   });
 
