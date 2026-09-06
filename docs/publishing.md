@@ -683,8 +683,9 @@ downloaded tarball with bounded npm/node-tar-compatible USTAR handling. Every
 header must carry exact `ustar\\0` magic and version `00`; the prefix is 130
 bytes when header byte 475 is zero and 155 bytes otherwise. The source and
 release package-artifact parser enforces the same header contract against the
-same hostile fixtures. Its `publishConfig` must contain
-exactly `access=public` and `registry=https://registry.npmjs.org`; a top-level
+same hostile fixtures. Its `private` field must be absent or exactly `false`,
+and its `publishConfig` must contain exactly `access=public` and
+`registry=https://registry.npmjs.org`; a top-level
 packed tag,
 scoped registry, proxy, authentication field, or any other publication setting
 fails before OIDC publication. The source-side package smoke enforces the same exact

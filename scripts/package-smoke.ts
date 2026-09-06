@@ -474,6 +474,7 @@ async function verifyPackagedSkill(
   const metadata = await readFile(join(skillRoot, "agents", "openai.yaml"), "utf8");
   const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8")) as {
     readonly name?: unknown;
+    readonly private?: unknown;
     readonly version?: unknown;
     readonly contentPolicy?: unknown;
     readonly dependencies?: unknown;
@@ -579,6 +580,7 @@ async function verifyPackagedSkill(
     throw new Error("Packed Wrench must declare its Bun runtime floor.");
   }
   if (
+    (Object.hasOwn(manifest, "private") && manifest.private !== false) ||
     Object.hasOwn(manifest, "tag") ||
     typeof manifest.publishConfig !== "object"
     || manifest.publishConfig === null
@@ -591,7 +593,7 @@ async function verifyPackagedSkill(
     || manifest.publishConfig.registry !== NPM_REGISTRY
   ) {
     throw new Error(
-      "Packed Wrench publishConfig may contain only public access and the canonical npm registry.",
+      "Packed Wrench must remain public and publishConfig may contain only public access and the canonical npm registry.",
     );
   }
   if (
