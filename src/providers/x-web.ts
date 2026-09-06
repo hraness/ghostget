@@ -1292,11 +1292,35 @@ function collectXWebUserIdentities(
   return returnedIds;
 }
 
+function userFeedTimelineContainer(result: JsonRecord): JsonRecord | null {
+  if (Object.hasOwn(result, "timeline") && result.timeline !== undefined && result.timeline !== null) {
+    return record(result.timeline, "X user feed response.data.user.result.timeline");
+  }
+  if (Object.hasOwn(result, "timeline_v2") && result.timeline_v2 !== undefined && result.timeline_v2 !== null) {
+    return record(result.timeline_v2, "X user feed response.data.user.result.timeline_v2");
+  }
+  return null;
+}
+
+function collectXWebUserTimelineAuthorIds(result: JsonRecord): ReadonlySet<string> {
+  const container = userFeedTimelineContainer(result);
+  if (container === null || !Object.hasOwn(container, "timeline") || container.timeline === undefined || container.timeline === null) {
+    return new Set();
+  }
+  const authorIds = new Set<string>();
+  for (const item of normalizeXWebUrtTimeline(container.timeline).items) {
+    if (item.kind !== "tweet" || item.author.id === null) continue;
+    authorIds.add(item.author.id);
+  }
+  return authorIds;
+}
+
 /**
  * Bind a UserTweets response to the requested user before the timeline is
  * exposed. The current UserTweets document still returns `__typename: "User"`
- * and `timeline.timeline`, but may omit `rest_id` and carry the snowflake as a
- * Relay `id`, `legacy.id_str`, or reviewed visibility wrapper.
+ * and `timeline.timeline`, but the User node may omit every identity field.
+ * Bind from the User snowflake when present, otherwise from authored timeline
+ * posts whose `rest_id` or `legacy.user_id_str` is the requested user.
  */
 export function assertXWebUserFeedTargetBound(
   response: unknown,
@@ -1306,7 +1330,9 @@ export function assertXWebUserFeedTargetBound(
   const data = responseData(response, "X user feed response");
   const user = record(data.user, "X user feed response.data.user");
   const result = unwrapXWebUserResult(user.result, "X user feed response.data.user.result");
-  const returnedIds = collectXWebUserIdentities(user, result);
+  const nodeIds = collectXWebUserIdentities(user, result);
+  const authorIds = collectXWebUserTimelineAuthorIds(result);
+  const returnedIds = new Set<string>([...nodeIds, ...authorIds]);
   if (returnedIds.size === 0) {
     throw new Error("X user feed response omitted a bindable user rest_id");
   }

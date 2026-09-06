@@ -1734,6 +1734,54 @@ describe("X bookmark export projection", () => {
     });
   });
 
+  test("binds the current UserTweets User node from authored timeline posts when the User omits every identity field", () => {
+    const userId = "1173552893003255808";
+    const identityLessUser = {
+      data: {
+        user: {
+          result: {
+            __typename: "User",
+            timeline: {
+              timeline: timeline(
+                timelineItemEntry("tweet-1", tweetResult("91", {
+                  text: "from yacinemtb",
+                  author: { id: userId, username: "yacinemtb", name: "Yacine" },
+                })),
+              ),
+            },
+          },
+        },
+      },
+    };
+    const identityLessLegacyOnly = {
+      data: {
+        user: {
+          result: {
+            __typename: "User",
+            timeline: {
+              timeline: timeline(
+                timelineItemEntry("tweet-1", {
+                  __typename: "Tweet",
+                  rest_id: "92",
+                  legacy: { full_text: "legacy author only", user_id_str: userId },
+                }),
+              ),
+            },
+          },
+        },
+      },
+    };
+    assertXWebUserFeedTargetBound(identityLessUser, userId);
+    assertXWebUserFeedTargetBound(identityLessLegacyOnly, userId);
+    expect(extractXWebGraphQlReadResponseRoot("feeds.user", identityLessUser)).toEqual(
+      identityLessUser.data.user.result.timeline.timeline,
+    );
+    expect(projectXWebFeedPage("feeds.user", identityLessUser, 1).posts[0]).toMatchObject({
+      id: "91",
+      authorId: userId,
+    });
+  });
+
   test("rejects an unbound or mismatched UserTweets user", () => {
     const userId = "1173552893003255808";
     const timelineEntries = timeline(
@@ -1749,6 +1797,33 @@ describe("X bookmark export projection", () => {
         },
       },
     }, userId)).toThrow("omitted a bindable user rest_id");
+    expect(() => assertXWebUserFeedTargetBound({
+      data: {
+        user: {
+          result: {
+            __typename: "User",
+            timeline: { timeline: timeline() },
+          },
+        },
+      },
+    }, userId)).toThrow("omitted a bindable user rest_id");
+    expect(() => assertXWebUserFeedTargetBound({
+      data: {
+        user: {
+          result: {
+            __typename: "User",
+            timeline: {
+              timeline: timeline(
+                timelineItemEntry("tweet-other", tweetResult("93", {
+                  text: "other author",
+                  author: { id: "999", username: "other", name: "Other" },
+                })),
+              ),
+            },
+          },
+        },
+      },
+    }, userId)).toThrow("did not bind the requested user");
     expect(() => assertXWebUserFeedTargetBound({
       data: {
         user: {
