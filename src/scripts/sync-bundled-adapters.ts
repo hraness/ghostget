@@ -523,7 +523,10 @@ function publishBundledAdapterGeneration(
         manifestHash(baseline.manifest)
       ),
     ]);
-    if (acceptedHashes.has(installedHash)) {
+    const installedOlderGeneration = adapter.upgradeFrom.some((baseline) =>
+      baseline.manifest.version === snapshot.result.value.version
+    );
+    if (acceptedHashes.has(installedHash) || installedOlderGeneration) {
       selections.push({
         id: adapter.id,
         state: "present",
@@ -576,7 +579,7 @@ function publishBundledAdapterGeneration(
   }
   for (const id of preservedIds) {
     output.stderr(
-      `wrench installer: preserved the installed ${id} adapter because it differs from the bundled version; inspect it or reinstall with --force\n`,
+      `wrench installer: preserved the installed ${id} adapter because it differs from the bundled version; inspect it or replace it with wrench adapter install of this release's bundled manifest and --force\n`,
     );
   }
   for (const id of repairedIds) {

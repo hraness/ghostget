@@ -17,6 +17,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
+import { runCapabilities } from "../catalog-cli";
 import {
   manifestHash,
   parseRuntimeManifest,
@@ -656,6 +657,159 @@ describe("single-process bundled adapter generation sync", () => {
     expect(selectedX?.state).toBe("present");
     if (selectedX?.state !== "present") throw new Error("x selection missing");
     expect(selectedX.manifest.version).toBe("9.9.9");
+  });
+
+  test("upgrades a drifted older x-web generation instead of preserving it", async () => {
+    const state = temporaryState();
+    const captured = outputCapture();
+    const discovered = discoverBundledAdapters();
+    const xWeb = discovered.find((adapter) => adapter.id === "x-web");
+    if (xWeb === undefined) throw new Error("bundled x-web adapter is missing");
+    const baseline = JSON.parse(readFileSync(join(
+      assetsDirectory,
+      "x",
+      "wrench-web-adapter.v1.7.0.json",
+    ), "utf8")) as {
+      readonly operations: Record<string, unknown>;
+    };
+    const later = JSON.parse(readFileSync(join(
+      assetsDirectory,
+      "x",
+      "wrench-web-adapter.v1.11.0.json",
+    ), "utf8")) as {
+      readonly operations: Record<string, unknown>;
+    };
+    const drifted = {
+      ...baseline,
+      operations: {
+        ...baseline.operations,
+        "profiles.read": later.operations["profiles.read"],
+        "content.delete": later.operations["content.delete"],
+      },
+    };
+    mkdirSync(state.environment.WRENCH_STATE_HOME!, {
+      recursive: true,
+      mode: 0o700,
+    });
+    const legacyPath = adapterManifestPath("x-web", state.environment);
+    mkdirSync(dirname(legacyPath), { recursive: true, mode: 0o700 });
+    writeFileSync(legacyPath, `${JSON.stringify(drifted)}\n`, { mode: 0o600 });
+    let selections: readonly BundledAdapterGenerationSelection[] = [];
+
+    const result = await syncBundledAdapters({
+      environment: state.environment,
+      output: captured.output,
+      wrenchMain: (arguments_, _environment, output) => {
+        writeSuccessfulValidation(arguments_, output);
+        return Promise.resolve(0);
+      },
+      installGeneration: (value) => {
+        selections = value;
+        return {
+          commitId: "00000000-0000-4000-8000-000000000005",
+          installed: value.filter((selection) => selection.state === "present").length,
+          preservedLegacy: value.filter((selection) => selection.state === "legacy").length,
+        };
+      },
+    });
+
+    expect(result.preserved).toBe(0);
+    expect(captured.stderr()).not.toContain("preserved the installed x-web adapter");
+    const selected = selections.find((selection) => selection.id === "x-web");
+    expect(selected?.state).toBe("present");
+    if (selected?.state !== "present") throw new Error("x-web selection missing");
+    expect(selected.manifest.version).toBe(xWeb.current.manifest.version);
+    expect(selected.manifest.operations["profiles.read"]).toBeDefined();
+    expect(selected.manifest.operations["content.delete"]).toBeDefined();
+    expect(selected.manifest.operations["feeds.read"]).toMatchObject({
+      risk: "R1",
+      webSession: { action: "feeds.read", contractVersion: 1 },
+    });
+  });
+
+  test("restores a coherent x-web bookmarks feed from the 0.10.1-era baseline", async () => {
+    const state = temporaryState();
+    const captured = outputCapture();
+    const discovered = discoverBundledAdapters();
+    const xWeb = discovered.find((adapter) => adapter.id === "x-web");
+    if (xWeb === undefined) throw new Error("bundled x-web adapter is missing");
+    mkdirSync(state.environment.WRENCH_STATE_HOME!, {
+      recursive: true,
+      mode: 0o700,
+    });
+    const legacyPath = adapterManifestPath("x-web", state.environment);
+    mkdirSync(dirname(legacyPath), { recursive: true, mode: 0o700 });
+    writeFileSync(
+      legacyPath,
+      readFileSync(join(assetsDirectory, "x", "wrench-web-adapter.v1.7.0.json")),
+      { mode: 0o600 },
+    );
+
+    const result = await syncBundledAdapters({
+      environment: state.environment,
+      output: captured.output,
+      wrenchMain: (arguments_, _environment, output) => {
+        writeSuccessfulValidation(arguments_, output);
+        return Promise.resolve(0);
+      },
+    });
+
+    expect(result.preserved).toBe(0);
+    const installed = loadInstalledManifest(
+      "x-web",
+      state.environment,
+      providerPluginRegistry,
+    );
+    expect(installed.ok).toBeTrue();
+    if (!installed.ok) throw new Error(installed.issues.join("; "));
+    expect(installed.value.version).toBe(xWeb.current.manifest.version);
+    const stdout: string[] = [];
+    const exitCode = runCapabilities(
+      { command: "capabilities", adapterId: "x-web", json: true },
+      state.environment,
+      {
+        stdout: (value) => stdout.push(value),
+        stderr: () => undefined,
+      },
+      providerPluginRegistry,
+    );
+    expect(exitCode).toBe(0);
+    const view = JSON.parse(stdout.join("")) as {
+      readonly ok: boolean;
+      readonly adapters: readonly {
+        readonly id: string;
+        readonly version: string;
+        readonly invalid?: boolean;
+        readonly issues?: readonly string[];
+        readonly operations: readonly {
+          readonly id: string;
+          readonly risk: string;
+          readonly state?: string;
+          readonly webSessionContractVersion?: number;
+          readonly input?: {
+            readonly properties?: {
+              readonly feed?: { readonly enum?: readonly string[] };
+            };
+          };
+        }[];
+      }[];
+    };
+    expect(view.ok).toBeTrue();
+    expect(view.adapters).toHaveLength(1);
+    expect(view.adapters[0]?.invalid).toBeUndefined();
+    expect(view.adapters[0]?.version).toBe(xWeb.current.manifest.version);
+    const feed = view.adapters[0]?.operations.find((operation) =>
+      operation.id === "feeds.read");
+    expect(feed).toMatchObject({
+      risk: "R1",
+      state: "observed",
+      webSessionContractVersion: 1,
+    });
+    expect(feed?.input?.properties?.feed?.enum).toContain("bookmarks");
+    expect(view.adapters[0]?.operations.some((operation) =>
+      operation.id === "profiles.read")).toBeTrue();
+    expect(view.adapters[0]?.operations.some((operation) =>
+      operation.id === "content.delete")).toBeTrue();
   });
 
   test("repairs a diagnostically valid installed adapter that this runtime cannot execute", async () => {
