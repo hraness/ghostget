@@ -744,6 +744,7 @@ describe("single-process bundled adapter generation sync", () => {
       readFileSync(join(assetsDirectory, "x", "wrench-web-adapter.v1.7.0.json")),
       { mode: 0o600 },
     );
+    let selections: readonly BundledAdapterGenerationSelection[] = [];
 
     const result = await syncBundledAdapters({
       environment: state.environment,
@@ -752,17 +753,26 @@ describe("single-process bundled adapter generation sync", () => {
         writeSuccessfulValidation(arguments_, output);
         return Promise.resolve(0);
       },
+      installGeneration: (value) => {
+        selections = value;
+        return {
+          commitId: "00000000-0000-4000-8000-000000000006",
+          installed: value.filter((selection) => selection.state === "present").length,
+          preservedLegacy: value.filter((selection) => selection.state === "legacy").length,
+        };
+      },
     });
 
     expect(result.preserved).toBe(0);
-    const installed = loadInstalledManifest(
-      "x-web",
-      state.environment,
-      providerPluginRegistry,
-    );
-    expect(installed.ok).toBeTrue();
-    if (!installed.ok) throw new Error(installed.issues.join("; "));
-    expect(installed.value.version).toBe(xWeb.current.manifest.version);
+    const selected = selections.find((selection) => selection.id === "x-web");
+    expect(selected?.state).toBe("present");
+    if (selected?.state !== "present") throw new Error("x-web selection missing");
+    expect(selected.manifest.version).toBe(xWeb.current.manifest.version);
+    installManifest(selected.manifest, {
+      force: true,
+      environment: state.environment,
+      registry: providerPluginRegistry,
+    });
     const stdout: string[] = [];
     const exitCode = runCapabilities(
       { command: "capabilities", adapterId: "x-web", json: true },
