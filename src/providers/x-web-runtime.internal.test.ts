@@ -31,7 +31,7 @@ import {
 const MAIN_URL = "https://abs.twimg.com/responsive-web/client-web/main.abcdef12.js";
 const VIEWER_QUERY_ID = "5XShkXk2oO2J7SYmTu6pvw";
 const BOOKMARKS_QUERY_ID = "iblrFnKr6PZUR-dWpfXG6g";
-const USER_TWEETS_QUERY_ID = "SXVCYB8XHSS25nzIljNtZA";
+const USER_TWEETS_QUERY_ID = "eviprbEPLvNG88V3smUngQ";
 const SEARCH_TIMELINE_QUERY_ID = "hyPfJYJ_XAtDYoslQc-Rgg";
 const ARTICLE_QUERY_ID = "btD9FyMDa3_vydVp7fr87Q";
 const ARTICLE_BUNDLE_URL = "https://abs.twimg.com/responsive-web/client-web/bundle.TwitterArticles.305538ca.js";
@@ -1198,6 +1198,7 @@ describe("X authenticated internal-API runtime", () => {
     expect(result.error).toContain("reviewed evidence is stale");
     expect(result.error).not.toContain("ChangedQueryId_12345");
     expect(result.error).not.toContain("6r5OLCC_wFH4CpRyXKuAmQ");
+    expect(result.error).not.toContain("SXVCYB8XHSS25nzIljNtZA");
   });
 
   test("dispatches SearchTimeline and pages a search feed with a next cursor", async () => {
