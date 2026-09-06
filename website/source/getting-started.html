@@ -67,7 +67,7 @@
 wrench adapter sync-bundled --json
 wrench doctor</code></pre>
           </div>
-          <p>The global install pins the public npm package to the release version shown above. <code>adapter sync-bundled</code> atomically installs the reviewed data manifests shipped by that exact package version. It upgrades only an exact bundled baseline and preserves an independently modified install.</p>
+          <p>The global install pins the public npm package to the release version shown above. <code>adapter sync-bundled</code> atomically installs the reviewed data manifests shipped by that exact package version. It upgrades an exact bundled baseline, including an older generation whose bytes later drifted, and preserves an independently modified current or newer install.</p>
           <p>The matching GitHub tag and immutable Release bind the same checked source and package version. The Agent Skill remains available through skills.sh.</p>
         </section>
 

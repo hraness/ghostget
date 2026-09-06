@@ -516,14 +516,18 @@ function publishBundledAdapterGeneration(
       preservedIds.push(adapter.id);
       continue;
     }
-    const installedHash = manifestHash(snapshot.result.value);
+    const installedManifest = snapshot.result.value;
+    const installedHash = manifestHash(installedManifest);
     const acceptedHashes = new Set([
       manifestHash(adapter.current.manifest),
       ...adapter.upgradeFrom.map((baseline) =>
         manifestHash(baseline.manifest)
       ),
     ]);
-    if (acceptedHashes.has(installedHash)) {
+    const installedOlderGeneration = adapter.upgradeFrom.some((baseline) =>
+      baseline.manifest.version === installedManifest.version
+    );
+    if (acceptedHashes.has(installedHash) || installedOlderGeneration) {
       selections.push({
         id: adapter.id,
         state: "present",
@@ -534,7 +538,7 @@ function publishBundledAdapterGeneration(
       installed += 1;
       continue;
     }
-    const runtime = parseRuntimeManifest(snapshot.result.value, registry);
+    const runtime = parseRuntimeManifest(installedManifest, registry);
     if (!runtime.ok) {
       selections.push({
         id: adapter.id,
@@ -553,7 +557,7 @@ function publishBundledAdapterGeneration(
     selections.push({
       id: adapter.id,
       state: "present",
-      manifest: snapshot.result.value,
+      manifest: installedManifest,
       sourceContentSha256: snapshot.contentSha256,
       expectedCurrentContentSha256: snapshot.contentSha256,
     });
@@ -576,7 +580,7 @@ function publishBundledAdapterGeneration(
   }
   for (const id of preservedIds) {
     output.stderr(
-      `wrench installer: preserved the installed ${id} adapter because it differs from the bundled version; inspect it or reinstall with --force\n`,
+      `wrench installer: preserved the installed ${id} adapter because it differs from the bundled version; inspect it or replace it with wrench adapter install of this release's bundled manifest and --force\n`,
     );
   }
   for (const id of repairedIds) {
