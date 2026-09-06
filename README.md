@@ -141,10 +141,11 @@ local dependency and auth contracts are ready.
 
 `wrench adapter sync-bundled` atomically installs the reviewed data manifests
 shipped by that exact package version. It upgrades exact current or archived
-bundled baselines and preserves independently modified installs that the
-running CLI can execute. A source-owned bundled manifest from an incompatible
-Wrench release is repaired with the running release's bundled contract and a
-warning explains how to restore the newer release.
+bundled baselines, including an older generation whose bytes later drifted, and
+preserves independently modified current or newer installs that the running CLI
+can execute. A source-owned bundled manifest from an incompatible Wrench
+release is repaired with the running release's bundled contract and a warning
+explains how to restore the newer release.
 
 The public manifest projects each closure-attested package as an exact runtime
 dependency. Standalone validation installs without the repository lock, then
