@@ -9,7 +9,6 @@ import {
   buildXWebGraphQlPath,
   classifyXWebHeaderNamesForEvidence,
   enforceXWebHeaderSinkPolicy,
-  assertXWebUserFeedTargetBound,
   extractXWebGraphQlReadResponseRoot,
   extractXWebUrtBottomCursor,
   MAX_X_CREATE_TWEET_TEXT_LENGTH,
@@ -1675,110 +1674,6 @@ describe("X bookmark export projection", () => {
         },
       },
     }, 10)).toThrow("X post text must be bounded public text");
-  });
-
-  test("binds the current UserTweets User node when rest_id moved off the result", () => {
-    const userId = "1173552893003255808";
-    const relayId = Buffer.from(`User:${userId}`, "utf8").toString("base64");
-    const timelineEntries = timeline(
-      timelineItemEntry("tweet-1", tweetResult("81", {
-        text: "from yacinemtb",
-        author: { id: userId, username: "yacinemtb", name: "Yacine" },
-      })),
-    );
-    const currentShape = {
-      data: {
-        user: {
-          result: {
-            __typename: "User",
-            id: relayId,
-            timeline: { timeline: timelineEntries },
-          },
-        },
-      },
-    };
-    const wrappedShape = {
-      data: {
-        user: {
-          result: {
-            __typename: "UserWithVisibilityResults",
-            user: {
-              __typename: "User",
-              rest_id: userId,
-              timeline: { timeline: timelineEntries },
-            },
-          },
-        },
-      },
-    };
-    const timelineV2Shape = {
-      data: {
-        user: {
-          result: {
-            __typename: "User",
-            legacy: { id_str: userId },
-            timeline_v2: { timeline: timelineEntries },
-          },
-        },
-      },
-    };
-    assertXWebUserFeedTargetBound(currentShape, userId);
-    assertXWebUserFeedTargetBound(wrappedShape, userId);
-    assertXWebUserFeedTargetBound(timelineV2Shape, userId);
-    expect(extractXWebGraphQlReadResponseRoot("feeds.user", currentShape)).toEqual(timelineEntries);
-    expect(extractXWebGraphQlReadResponseRoot("feeds.user", wrappedShape)).toEqual(timelineEntries);
-    expect(extractXWebGraphQlReadResponseRoot("feeds.user", timelineV2Shape)).toEqual(timelineEntries);
-    expect(projectXWebFeedPage("feeds.user", currentShape, 1).posts[0]).toMatchObject({
-      id: "81",
-      authorId: userId,
-    });
-  });
-
-  test("rejects an unbound or mismatched UserTweets user", () => {
-    const userId = "1173552893003255808";
-    const timelineEntries = timeline(
-      timelineItemEntry("tweet-1", tweetResult("82", { text: "unbound" })),
-    );
-    expect(() => assertXWebUserFeedTargetBound({
-      data: {
-        user: {
-          result: {
-            __typename: "User",
-            timeline: { timeline: timelineEntries },
-          },
-        },
-      },
-    }, userId)).toThrow("omitted a bindable user rest_id");
-    expect(() => assertXWebUserFeedTargetBound({
-      data: {
-        user: {
-          result: {
-            __typename: "User",
-            rest_id: "999",
-            timeline: { timeline: timelineEntries },
-          },
-        },
-      },
-    }, userId)).toThrow("did not bind the requested user");
-    expect(() => assertXWebUserFeedTargetBound({
-      data: {
-        user: {
-          result: {
-            __typename: "UserUnavailable",
-          },
-        },
-      },
-    }, userId)).toThrow("X user feed target is unavailable");
-    expect(() => assertXWebUserFeedTargetBound({
-      data: {
-        user: {
-          result: {
-            __typename: "FutureUserShape",
-            rest_id: userId,
-          },
-        },
-      },
-    }, userId)).toThrow("unreviewed result typename");
   });
 
   test("rejects extra fields, duplicate post ids, and a mismatched feed on the export page", () => {

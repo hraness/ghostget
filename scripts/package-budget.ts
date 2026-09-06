@@ -12,13 +12,10 @@
 // Keep the existing 2,220,909-byte packed ceiling, which leaves 4,326 bytes
 // above this candidate, and 938 unpacked bytes of bounded headroom.
 // File inventory remains exact at 466.
-// The UserTweets user-identity bind adds reviewed unpacked growth above that
-// 0.16.8 candidate. Raise the unpacked ceiling to 12,254,000, which leaves
-// 1,112 bytes of bounded headroom above the 12,252,888-byte bind candidate.
 export const MAX_PACKED_BYTES = 2_220_909;
 export const MAX_PACKED_ENTRIES = 466;
 export const MAX_PACKED_FILES = 466;
-export const MAX_UNPACKED_BYTES = 12_254_000;
+export const MAX_UNPACKED_BYTES = 12_249_695;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
