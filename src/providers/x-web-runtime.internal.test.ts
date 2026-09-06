@@ -244,6 +244,20 @@ function userFeedResponse(userId: string, ...entries: readonly unknown[]): unkno
   };
 }
 
+function userFeedResponseCurrentShape(userId: string, ...entries: readonly unknown[]): unknown {
+  return {
+    data: {
+      user: {
+        result: {
+          __typename: "User",
+          id: Buffer.from(`User:${userId}`, "utf8").toString("base64"),
+          timeline: { timeline: timeline(...entries) },
+        },
+      },
+    },
+  };
+}
+
 function searchFeedResponse(...entries: readonly unknown[]): unknown {
   return {
     data: {
@@ -1059,6 +1073,79 @@ describe("X authenticated internal-API runtime", () => {
         expect(await rejectionMessage(execution)).toContain(expected);
       }
     }
+  });
+
+  test("binds the current UserTweets User node when rest_id is a Relay id", async () => {
+    const calls: CapturedRequest[] = [];
+    const runtimeDependencies = dependencies(calls, (request) => {
+      if (request.url.href === "https://x.com/home") {
+        return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+      }
+      if (request.url.href === MAIN_URL) {
+        return new Response(mainBundle(
+          descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+          descriptor("UserTweets", USER_TWEETS_QUERY_ID, "query"),
+        ), { headers: { "content-type": "application/javascript" } });
+      }
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      if (request.url.pathname.endsWith("/UserTweets")) {
+        return jsonResponse(userFeedResponseCurrentShape(
+          VIEWER_ID,
+          tweetEntry(FOCAL_POST_ID, "user feed post"),
+          cursorEntry("next-user-page"),
+        ));
+      }
+      throw new Error(`unexpected test request ${request.url.href}`);
+    });
+    expect(await executeXWebOperation(
+      xRecipe("feeds.read"),
+      { feed: "user", user_id: VIEWER_ID, limit: 10 },
+      xAuth,
+      { dependencies: runtimeDependencies },
+    )).toMatchObject({
+      status: "succeeded",
+      output: { posts: [{ id: FOCAL_POST_ID }], cursor: "next-user-page" },
+    });
+  });
+
+  test("fails closed when the current UserTweets User node omits every bindable rest_id", async () => {
+    const runtimeDependencies = dependencies([], (request) => {
+      if (request.url.href === "https://x.com/home") {
+        return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+      }
+      if (request.url.href === MAIN_URL) {
+        return new Response(mainBundle(
+          descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+          descriptor("UserTweets", USER_TWEETS_QUERY_ID, "query"),
+        ), { headers: { "content-type": "application/javascript" } });
+      }
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      if (request.url.pathname.endsWith("/UserTweets")) {
+        return jsonResponse({
+          data: {
+            user: {
+              result: {
+                __typename: "User",
+                timeline: {
+                  timeline: timeline(
+                    tweetEntry(FOCAL_POST_ID, "unbound user feed post"),
+                  ),
+                },
+              },
+            },
+          },
+        });
+      }
+      throw new Error(`unexpected test request ${request.url.href}`);
+    });
+    const message = await rejectionMessage(executeXWebOperation(
+      xRecipe("feeds.read"),
+      { feed: "user", user_id: VIEWER_ID, limit: 10 },
+      xAuth,
+      { dependencies: runtimeDependencies },
+    ));
+    expect(message).toContain("omitted a bindable user rest_id");
+    expect(message).not.toContain(VIEWER_ID);
   });
 
   test("binds List-feed responses to one returned List identity", async () => {

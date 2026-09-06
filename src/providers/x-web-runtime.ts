@@ -55,6 +55,7 @@ import {
 } from "./x-transaction-id";
 import {
   assertExactXWebGraphQlBinding,
+  assertXWebUserFeedTargetBound,
   authorizeXWebMutationRequest,
   authorizeXWebR1GraphQlRequest,
   bindXWebOperationMetadataValues,
@@ -1074,17 +1075,12 @@ function assertFeedTargetBound(
   input: OperationInput,
   response: unknown,
 ): void {
-  if (request.operationId !== "feeds.user" && request.operationId !== "feeds.list-latest") return;
-  const data = graphQlData(response, `X ${request.operationId} response`);
   if (request.operationId === "feeds.user") {
-    const expected = postId(input.user_id, "input.user_id");
-    const user = record(data.user, "X user feed response.data.user");
-    const result = record(user.result, "X user feed response.data.user.result");
-    if (postId(result.rest_id, "X user feed response rest_id") !== expected) {
-      throw new Error("X user feed response did not bind the requested user");
-    }
+    assertXWebUserFeedTargetBound(response, input.user_id);
     return;
   }
+  if (request.operationId !== "feeds.list-latest") return;
+  const data = graphQlData(response, `X ${request.operationId} response`);
 
   const expected = postId(input.list_id, "input.list_id");
   const list = record(data.list, "X List feed response.data.list");
