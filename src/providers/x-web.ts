@@ -1219,6 +1219,152 @@ export function projectXWebProfileStats(
   });
 }
 
+const X_USER_SNOWFLAKE = /^[0-9]{1,19}$/u;
+const X_USER_RELAY = /^User:([0-9]{1,19})$/u;
+const X_USER_RELAY_BASE64 = /^[A-Za-z0-9+/]+=*$/u;
+
+function decodeXWebUserRelayId(value: string): string | null {
+  const raw = X_USER_RELAY.exec(value);
+  if (raw) return raw[1]!;
+  if (!X_USER_RELAY_BASE64.test(value) || value.length > 64) return null;
+  const decoded = Buffer.from(value, "base64").toString("utf8");
+  return X_USER_RELAY.exec(decoded)?.[1] ?? null;
+}
+
+function xWebUserIdentity(value: unknown, label: string): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value) || value < 1) {
+      throw new Error(`${label} must be a 1-19 digit X identifier`);
+    }
+    return String(value);
+  }
+  if (typeof value !== "string" || value.length < 1 || value.length > 64 || /[\0\r]/u.test(value)) {
+    throw new Error(`${label} must be a bounded string`);
+  }
+  if (X_USER_SNOWFLAKE.test(value)) return value;
+  return decodeXWebUserRelayId(value);
+}
+
+function unwrapXWebUserResult(value: unknown, label: string): JsonRecord {
+  let result = record(value, label);
+  for (let depth = 0; depth < 3; depth += 1) {
+    const typename = result.__typename;
+    if (typename === "UserUnavailable") {
+      throw new Error("X user feed target is unavailable");
+    }
+    if (typename === undefined || typename === "User") return result;
+    if (typename !== "UserWithVisibilityResults") {
+      throw new Error("X user feed response contained an unreviewed result typename");
+    }
+    if (isRecord(result.user)) {
+      result = record(result.user, `${label}.user`);
+      continue;
+    }
+    if (isRecord(result.user_results)) {
+      const userResults = record(result.user_results, `${label}.user_results`);
+      result = record(userResults.result, `${label}.user_results.result`);
+      continue;
+    }
+    throw new Error(`${label} omitted a nested User`);
+  }
+  throw new Error(`${label} nested User wrappers exceeded the reviewed bound`);
+}
+
+function collectXWebUserIdentities(
+  user: JsonRecord,
+  result: JsonRecord,
+): ReadonlySet<string> {
+  const returnedIds = new Set<string>();
+  const candidates = [
+    [result.rest_id, "X user feed response rest_id"],
+    [result.id, "X user feed response id"],
+    [isRecord(result.legacy) ? result.legacy.id_str : undefined, "X user feed response legacy.id_str"],
+    [isRecord(result.core) ? result.core.rest_id : undefined, "X user feed response core.rest_id"],
+    [user.rest_id, "X user feed response.data.user rest_id"],
+    [user.id, "X user feed response.data.user id"],
+    [user.id_str, "X user feed response.data.user id_str"],
+  ] as const;
+  for (const [value, label] of candidates) {
+    const id = xWebUserIdentity(value, label);
+    if (id !== null) returnedIds.add(id);
+  }
+  return returnedIds;
+}
+
+function userFeedTimelineContainer(result: JsonRecord): JsonRecord | null {
+  if (Object.hasOwn(result, "timeline") && result.timeline !== undefined && result.timeline !== null) {
+    return record(result.timeline, "X user feed response.data.user.result.timeline");
+  }
+  if (Object.hasOwn(result, "timeline_v2") && result.timeline_v2 !== undefined && result.timeline_v2 !== null) {
+    return record(result.timeline_v2, "X user feed response.data.user.result.timeline_v2");
+  }
+  return null;
+}
+
+function collectXWebUserTimelineAuthorIds(result: JsonRecord): ReadonlySet<string> {
+  const container = userFeedTimelineContainer(result);
+  if (container === null || !Object.hasOwn(container, "timeline") || container.timeline === undefined || container.timeline === null) {
+    return new Set();
+  }
+  const authorIds = new Set<string>();
+  for (const item of normalizeXWebUrtTimeline(container.timeline).items) {
+    if (item.kind !== "tweet" || item.author.id === null) continue;
+    authorIds.add(item.author.id);
+  }
+  return authorIds;
+}
+
+/**
+ * Bind a UserTweets response to the requested user before the timeline is
+ * exposed. The current UserTweets document still returns `__typename: "User"`
+ * and `timeline.timeline`, but the User node may omit every identity field.
+ * Bind from the User snowflake when present, otherwise from authored timeline
+ * posts whose `rest_id` or `legacy.user_id_str` is the requested user.
+ */
+export function assertXWebUserFeedTargetBound(
+  response: unknown,
+  expectedUserId: unknown,
+): void {
+  const expected = exactTweetId(expectedUserId, "input.user_id");
+  const data = responseData(response, "X user feed response");
+  const user = record(data.user, "X user feed response.data.user");
+  const result = unwrapXWebUserResult(user.result, "X user feed response.data.user.result");
+  const nodeIds = collectXWebUserIdentities(user, result);
+  const authorIds = collectXWebUserTimelineAuthorIds(result);
+  const returnedIds = new Set<string>([...nodeIds, ...authorIds]);
+  if (returnedIds.size === 0) {
+    throw new Error("X user feed response omitted a bindable user rest_id");
+  }
+  if (returnedIds.size !== 1 || !returnedIds.has(expected)) {
+    throw new Error("X user feed response did not bind the requested user");
+  }
+}
+
+function userFeedRootSegment(
+  operationId: XWebSemanticOperationId,
+  parent: JsonRecord,
+  segment: string,
+  root: readonly string[],
+): unknown {
+  if (
+    operationId === "feeds.user"
+    && segment === "timeline"
+    && !Object.hasOwn(parent, "timeline")
+    && Object.hasOwn(parent, "timeline_v2")
+  ) {
+    return parent.timeline_v2;
+  }
+  if (!Object.hasOwn(parent, segment) || parent[segment] === null || parent[segment] === undefined) {
+    throw new Error(`X ${operationId} response omitted reviewed root ${root.join(".")}`);
+  }
+  const next = parent[segment];
+  if (operationId === "feeds.user" && segment === "result") {
+    return unwrapXWebUserResult(next, "X user feed response.data.user.result");
+  }
+  return next;
+}
+
 /**
  * Bind a GraphQL read response to the reviewed operation-specific root before
  * a caller normalizes it. This catches 200 responses for a different schema.
@@ -1234,10 +1380,7 @@ export function extractXWebGraphQlReadResponseRoot(
   let current: unknown = responseData(response, `X ${operationId} response`);
   for (const [index, segment] of definition.responseRoot.entries()) {
     const parent = record(current, `X ${operationId} response root ${definition.responseRoot.slice(0, index).join(".") || "data"}`);
-    if (!Object.hasOwn(parent, segment) || parent[segment] === null || parent[segment] === undefined) {
-      throw new Error(`X ${operationId} response omitted reviewed root ${definition.responseRoot.join(".")}`);
-    }
-    current = parent[segment];
+    current = userFeedRootSegment(operationId, parent, segment, definition.responseRoot);
   }
   return current;
 }

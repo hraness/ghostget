@@ -60,11 +60,12 @@ release boundary.
 
 ## Status
 
-The source implementation is reviewed and the 0.16.9 candidate is prepared on
-main `b9f6ef8b1f54f232781951ffa85ae61349bb59de`. This includes upstream strict
-natural-exit browser cleanup and the X UserTweets descriptor refresh. The
-existing 0.16.8 npm stage retains its original source and owner. This plan stays
-in progress through package, current-head checks and governed release delivery;
+The source implementation is reviewed and the 0.16.9 candidate includes main
+`ab952fd9dfde14c4f4972b980f0c2b14e1c1d396`. This retains upstream strict
+natural-exit browser cleanup, the X UserTweets descriptor refresh and both
+subsequent response-identity fixes. Public npm 0.16.8 retains its original
+source and artifact; this candidate uses the next version. This plan stays in
+progress through package, current-head checks and governed release delivery;
 neither a local candidate nor a successful npm stage is public availability.
 
 ## Review and execution evidence
@@ -84,6 +85,12 @@ earlier full run exposed a test that confused current source
 closure with a frozen historical durable contract. Its repair independently
 derives both identities and preserves mutation sensitivity; no production
 identity constant changed. That stopped run is not a successful full gate.
+
+The aggregate on `291643a` passed its static, release-fixture and installed-
+package stages before being stopped to integrate the newer X changes. It is
+partial evidence, not a full pass. The joined payload receives fresh package
+measurements and a complete repository gate; earlier limits are not carried
+forward as measurements of changed source.
 
 The complete final repository check, exact installed-package proof, KB check,
 current PR Required (including macOS) and release readbacks remain delivery

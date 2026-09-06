@@ -21,8 +21,10 @@ coordinate that completed both checks.
   the complete current source/dependency closure. Reuse pre-encoded UTF-8 sort
   keys during dependency discovery; fresh trust observations and byte ordering
   remain unchanged. The added Effect dependency expands that inspected graph.
-- Refresh the reviewed X UserTweets query descriptor from current first-party
-  evidence, preserving structured contract-drift refusal when it changes again.
+- Refresh the reviewed X UserTweets query descriptor and bind changed user
+  identity shapes to the requested account. When the response omits user-level
+  identity, require matching authored-post evidence; reject contradictory or
+  unproven identities with structured contract-drift refusal.
 
 ## 0.16.8 - 2026-09-06
 
