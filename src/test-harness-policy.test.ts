@@ -632,13 +632,18 @@ describe("test harness policy", () => {
     }
   });
 
-  test("all executable source tests use the package harness policy", async () => {
-    const sourceRoot = import.meta.dir;
-    const files = await executableTestFiles(sourceRoot);
+  test("all executable source and script tests use the package harness policy", async () => {
+    const repositoryRoot = join(import.meta.dir, "..");
+    const files = (
+      await Promise.all([
+        executableTestFiles(import.meta.dir),
+        executableTestFiles(join(repositoryRoot, "scripts")),
+      ])
+    ).flat();
     const violations = (
       await Promise.all(files.map(async (file) => {
         const source = await readFile(file, "utf8");
-        return inspectTestSource(displayPath(sourceRoot, file), source);
+        return inspectTestSource(displayPath(repositoryRoot, file), source);
       }))
     ).flat();
 
