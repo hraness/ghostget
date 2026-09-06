@@ -314,6 +314,49 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     await transport.close();
   });
 
+  test("preserves a completed company read when cleanup proves a natural exit after close acknowledgement is lost", async () => {
+    const paths: string[] = [];
+    let closeAttempts = 0;
+    let cleanupAttempts = 0;
+    const session: BrowserSession = {
+      runBatch: (commands) => {
+        const command = commands[0];
+        if (command?.[0] !== "eval" || command[1] === undefined) {
+          throw new Error("unexpected LinkedIn organization browser command");
+        }
+        const binding = requestBinding(command[1]);
+        paths.push(binding.path);
+        return Promise.resolve([binding.kind === "json"
+          ? browserBodyRecord(identityResponse(), "application/json")
+          : browserBodyRecord("<html>6 followers</html>", "text/html")]);
+      },
+      close: () => {
+        closeAttempts += 1;
+        return Promise.reject(new Error("simulated lost close acknowledgement"));
+      },
+      cleanup: () => {
+        cleanupAttempts += 1;
+        return Promise.resolve();
+      },
+    };
+    const transport = await createLinkedInProfileBrowserTransport(auth, {
+      timeoutMs: 1_000,
+      maxOutputBytes: 2 * 1024 * 1024,
+      dependencies: { createBrowserSession: () => Promise.resolve(session) },
+    });
+
+    const identity = await transport.currentIdentityResponse();
+    const organization = await transport.readOrganizationHtml(ORGANIZATION_URL);
+    await transport.close();
+    await transport.close();
+
+    expect(identity).toEqual(JSON.parse(identityResponse()));
+    expect(organization).toBe("<html>6 followers</html>");
+    expect(paths).toEqual(["/voyager/api/me", "/company/hraness/"]);
+    expect(closeAttempts).toBe(1);
+    expect(cleanupAttempts).toBe(1);
+  });
+
   test("rejects cross-origin evaluations and each corrupt body-integrity field", async () => {
     const body = identityResponse();
     const fixtures = [

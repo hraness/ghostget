@@ -111,7 +111,7 @@ export type BrowserSession = {
   readonly runBatch: (commands: readonly (readonly string[])[], timeoutMs: number, maxOutputBytes: number) => Promise<readonly JsonRecord[]>;
   /** Waits for every in-flight batch to settle before closing the browser. */
   readonly close: () => Promise<void>;
-  /** Refuses to touch private resources until close has been verified. */
+  /** Refuses to touch private resources until close is acknowledged or independently proved. */
   readonly cleanup: () => Promise<void>;
   readonly recoveryHandle?: string;
   readonly cleanupResourceIdentity?: BrowserCleanupResourceIdentity;
@@ -283,6 +283,20 @@ class BrowserCommandCleanupError extends Error {
   constructor(message: string, cause?: unknown) {
     super(message, cause === undefined ? undefined : { cause });
     this.name = "BrowserCommandCleanupError";
+  }
+}
+
+class AgentBrowserLifecycleCommandUnavailableError extends Error {
+  constructor(label: string) {
+    super(`agent-browser ${label} could not be verified`);
+    this.name = "AgentBrowserLifecycleCommandUnavailableError";
+  }
+}
+
+class AgentBrowserCleanupOwnerStillLiveError extends Error {
+  constructor() {
+    super("browser cleanup pinned owner is not quiescent");
+    this.name = "AgentBrowserCleanupOwnerStillLiveError";
   }
 }
 
@@ -1943,8 +1957,9 @@ function browserLifecycleCommandContext(
           ? {}
           : { signal: dependencies.commandSignal }),
       });
-    } catch {
-      throw new Error(`agent-browser ${label} could not be verified`);
+    } catch (error) {
+      if (error instanceof BrowserCommandCleanupError) throw error;
+      throw new AgentBrowserLifecycleCommandUnavailableError(label);
     }
   };
   return Object.freeze({
@@ -1954,7 +1969,9 @@ function browserLifecycleCommandContext(
         "session inspection",
       );
       if (result.exitCode !== 0) {
-        throw new Error("agent-browser session inspection could not be verified");
+        throw new AgentBrowserLifecycleCommandUnavailableError(
+          "session inspection",
+        );
       }
       try {
         return parseLastJsonWithExactLaunchHashes(result.stdout);
@@ -1974,7 +1991,9 @@ function browserLifecycleCommandContext(
         "control inspection",
       );
       if (result.exitCode !== 0) {
-        throw new Error("agent-browser control inspection could not be verified");
+        throw new AgentBrowserLifecycleCommandUnavailableError(
+          "control inspection",
+        );
       }
       try {
         return parseLastJsonWithExactLaunchHashes(result.stdout);
@@ -2243,6 +2262,103 @@ export async function exactAgentBrowserCdpEndpointStatus(
 }
 
 /**
+ * Prove a pinned browser already quiescent without closing or signaling it.
+ * Two exact inactive-session observations and unchanged private roots precede
+ * three endpoint refusals. A final dead-owner, inactive-session, and root
+ * reproof closes the race at the return boundary.
+ */
+async function provePinnedAgentBrowserCleanupResourceQuiescentWithoutEffects(
+  value: BrowserCleanupResourceIdentityV2,
+  dependencies: AgentBrowserLifecycleDependencies = {},
+): Promise<BrowserCleanupResourceIdentityV2> {
+  const resource = parseBrowserCleanupResourceIdentity(value);
+  if (
+    resource.kind !== "agent-browser-session-v2"
+    || resource.phase !== "controlled"
+  ) {
+    throw new Error("browser cleanup resource does not have an exact control witness");
+  }
+  const control = resource.control;
+  const lifecycle = browserLifecycleCommandContext(resource, dependencies);
+  const inspectOwner = dependencies.ownerStatus ?? processOwnerStatus;
+  const sleep = dependencies.sleep
+    ?? ((milliseconds: number) => Bun.sleep(milliseconds));
+  const endpointStatus = dependencies.cdpEndpointStatus
+    ?? exactAgentBrowserCdpEndpointStatus;
+  assertBrowserCleanupResourceRootsMatch(resource);
+  let ownerStatus = inspectOwner(control.daemonOwner);
+  if (ownerStatus === "unknown") {
+    throw new Error("browser cleanup daemon state is indeterminate");
+  }
+  if (ownerStatus === "exact-live-owner") {
+    let transitionUnavailable: AgentBrowserLifecycleCommandUnavailableError
+      | null = null;
+    try {
+      const transition = parseAgentBrowserSessionState(
+        await lifecycle.inspectSession(),
+        resource,
+      );
+      if (transition.state === "active") {
+        if (transition.browserLaunched) {
+          exactActiveAgentBrowserControl(transition, control);
+        } else {
+          exactClosedAgentBrowserDaemon(transition, control);
+        }
+      }
+    } catch (error) {
+      if (!(error instanceof AgentBrowserLifecycleCommandUnavailableError)) {
+        throw error;
+      }
+      transitionUnavailable = error;
+    }
+    ownerStatus = inspectOwner(control.daemonOwner);
+    if (ownerStatus === "unknown") {
+      throw new Error("browser cleanup daemon state is indeterminate");
+    }
+    if (ownerStatus === "exact-live-owner") {
+      if (transitionUnavailable !== null) throw transitionUnavailable;
+      throw new AgentBrowserCleanupOwnerStillLiveError();
+    }
+    assertBrowserCleanupResourceRootsMatch(resource);
+  }
+  for (let read = 0; read < 2; read += 1) {
+    const inactive = parseAgentBrowserSessionState(
+      await lifecycle.inspectSession(),
+      resource,
+    );
+    if (inactive.state !== "inactive") {
+      throw new Error(read === 0
+        ? "browser cleanup session remained active"
+        : "browser cleanup session quiescence changed");
+    }
+    assertBrowserCleanupResourceRootsMatch(resource);
+  }
+  for (let refusal = 0; refusal < 3; refusal += 1) {
+    const status = await endpointStatus(control.cdpUrl);
+    if (status === "indeterminate") {
+      throw new Error("browser cleanup endpoint state is indeterminate");
+    }
+    if (status !== "unavailable") {
+      throw new Error("browser cleanup endpoint remained available");
+    }
+    assertBrowserCleanupResourceRootsMatch(resource);
+    if (refusal < 2) await sleep(25);
+  }
+  if (inspectOwner(control.daemonOwner) !== "different-or-dead") {
+    throw new Error("browser cleanup daemon quiescence changed");
+  }
+  const finalInactive = parseAgentBrowserSessionState(
+    await lifecycle.inspectSession(),
+    resource,
+  );
+  if (finalInactive.state !== "inactive") {
+    throw new Error("browser cleanup session quiescence changed");
+  }
+  assertBrowserCleanupResourceRootsMatch(resource);
+  return resource;
+}
+
+/**
  * Prove one pinned daemon and browser endpoint quiescent within fixed bounds.
  * The only signal permitted for the exact pinned owner is SIGTERM. This
  * function never deletes roots; its caller must CAS the durable claim and
@@ -2270,87 +2386,185 @@ export async function recoverPinnedAgentBrowserCleanupResource(
     ?? ((owner: ProcessOwnerIdentity): void => {
       process.kill(owner.pid, "SIGTERM");
     });
+  const proveNaturalExitAtBoundary = async (
+    boundaryFailure: unknown,
+  ): Promise<BrowserCleanupResourceIdentityV2> => {
+    const status = inspectOwner(control.daemonOwner);
+    if (status === "unknown") {
+      throw new Error("browser cleanup daemon state became indeterminate");
+    }
+    if (status === "exact-live-owner") throw boundaryFailure;
+    return provePinnedAgentBrowserCleanupResourceQuiescentWithoutEffects(
+      resource,
+      dependencies,
+    );
+  };
+  const observeSessionAtBoundary = async (): Promise<
+    | {
+        readonly kind: "session";
+        readonly value: AgentBrowserSessionState;
+      }
+    | {
+        readonly kind: "quiescent";
+        readonly resource: BrowserCleanupResourceIdentityV2;
+      }
+  > => {
+    try {
+      return Object.freeze({
+        kind: "session" as const,
+        value: parseAgentBrowserSessionState(
+          await lifecycle.inspectSession(),
+          resource,
+        ),
+      });
+    } catch (error) {
+      if (error instanceof AgentBrowserLifecycleCommandUnavailableError) {
+        return Object.freeze({
+          kind: "quiescent" as const,
+          resource: await proveNaturalExitAtBoundary(error),
+        });
+      }
+      throw error;
+    }
+  };
+  const observePinnedCdpAtBoundary = async (): Promise<
+    | { readonly kind: "control" }
+    | {
+        readonly kind: "quiescent";
+        readonly resource: BrowserCleanupResourceIdentityV2;
+      }
+  > => {
+    let observed: unknown;
+    try {
+      observed = await lifecycle.inspectCdp();
+    } catch (error) {
+      if (error instanceof AgentBrowserLifecycleCommandUnavailableError) {
+        return Object.freeze({
+          kind: "quiescent" as const,
+          resource: await proveNaturalExitAtBoundary(error),
+        });
+      }
+      throw error;
+    }
+    exactPinnedAgentBrowserCdpControl(observed, control);
+    return Object.freeze({ kind: "control" as const });
+  };
   assertBrowserCleanupResourceRootsMatch(resource);
   const initialOwnerStatus = inspectOwner(control.daemonOwner);
   if (initialOwnerStatus === "unknown") {
     throw new Error("browser cleanup daemon state is indeterminate");
   }
-  if (initialOwnerStatus === "exact-live-owner") {
-    const initialSession = parseAgentBrowserSessionState(
-      await lifecycle.inspectSession(),
+  if (initialOwnerStatus === "different-or-dead") {
+    return provePinnedAgentBrowserCleanupResourceQuiescentWithoutEffects(
       resource,
+      dependencies,
     );
+  }
+  if (initialOwnerStatus === "exact-live-owner") {
+    const initialObservation = await observeSessionAtBoundary();
+    if (initialObservation.kind === "quiescent") {
+      return initialObservation.resource;
+    }
+    const initialSession = initialObservation.value;
     if (initialSession.state === "inactive") {
-      const repeatedOwnerStatus = inspectOwner(control.daemonOwner);
-      if (repeatedOwnerStatus === "unknown") {
-        throw new Error("browser cleanup daemon state became indeterminate");
-      }
-      if (repeatedOwnerStatus === "exact-live-owner") {
-        throw new Error("browser cleanup daemon and session identity disagree");
-      }
-      assertBrowserCleanupResourceRootsMatch(resource);
-      const repeatedInactive = parseAgentBrowserSessionState(
-        await lifecycle.inspectSession(),
-        resource,
+      return proveNaturalExitAtBoundary(
+        new Error("browser cleanup daemon and session identity disagree"),
       );
-      if (repeatedInactive.state !== "inactive") {
-        throw new Error("browser cleanup session state changed after daemon exit");
-      }
-      assertBrowserCleanupResourceRootsMatch(resource);
-      // A naturally exited owner is never closed or signaled here. It still
-      // falls through to the shared dead-owner, inactive-session, repeated
-      // CDP-refusal, and unchanged-root proof below.
     } else if (initialSession.browserLaunched) {
       exactActiveAgentBrowserControl(initialSession, control);
-      exactPinnedAgentBrowserCdpControl(await lifecycle.inspectCdp(), control);
-      exactActiveAgentBrowserControl(
-        parseAgentBrowserSessionState(
-          await lifecycle.inspectSession(),
+      const firstCdp = await observePinnedCdpAtBoundary();
+      if (firstCdp.kind === "quiescent") return firstCdp.resource;
+      const repeatedActiveObservation = await observeSessionAtBoundary();
+      if (repeatedActiveObservation.kind === "quiescent") {
+        return repeatedActiveObservation.resource;
+      }
+      const repeatedActive = repeatedActiveObservation.value;
+      if (repeatedActive.state === "inactive") {
+        return proveNaturalExitAtBoundary(
+          new Error("browser cleanup daemon identity changed before close"),
+        );
+      }
+      exactActiveAgentBrowserControl(repeatedActive, control);
+      const beforeCloseStatus = inspectOwner(control.daemonOwner);
+      if (beforeCloseStatus === "unknown") {
+        throw new Error("browser cleanup daemon state became indeterminate");
+      }
+      if (beforeCloseStatus === "different-or-dead") {
+        return provePinnedAgentBrowserCleanupResourceQuiescentWithoutEffects(
           resource,
-        ),
-        control,
-      );
-      if (inspectOwner(control.daemonOwner) !== "exact-live-owner") {
-        throw new Error("browser cleanup daemon identity changed before close");
+          dependencies,
+        );
       }
       assertBrowserCleanupResourceRootsMatch(resource);
-      const closeSucceeded = await lifecycle.close();
-      const afterClose = parseAgentBrowserSessionState(
-        await lifecycle.inspectSession(),
-        resource,
-      );
+      let closeSucceeded = false;
+      try {
+        closeSucceeded = await lifecycle.close();
+      } catch (error) {
+        if (error instanceof AgentBrowserLifecycleCommandUnavailableError) {
+          return proveNaturalExitAtBoundary(error);
+        }
+        throw error;
+      }
+      const afterCloseObservation = await observeSessionAtBoundary();
+      if (afterCloseObservation.kind === "quiescent") {
+        return afterCloseObservation.resource;
+      }
+      const afterClose = afterCloseObservation.value;
+      if (afterClose.state === "active") {
+        if (afterClose.browserLaunched) {
+          exactActiveAgentBrowserControl(afterClose, control);
+        } else {
+          exactClosedAgentBrowserDaemon(afterClose, control);
+        }
+      }
       const afterCloseOwnerStatus = inspectOwner(control.daemonOwner);
       if (afterCloseOwnerStatus === "unknown") {
         throw new Error("browser cleanup daemon state became indeterminate");
       }
+      if (afterCloseOwnerStatus === "different-or-dead") {
+        return provePinnedAgentBrowserCleanupResourceQuiescentWithoutEffects(
+          resource,
+          dependencies,
+        );
+      }
       if (afterCloseOwnerStatus === "exact-live-owner") {
         if (afterClose.state === "active" && afterClose.browserLaunched) {
-          exactActiveAgentBrowserControl(afterClose, control);
-          exactPinnedAgentBrowserCdpControl(await lifecycle.inspectCdp(), control);
-          exactActiveAgentBrowserControl(
-            parseAgentBrowserSessionState(
-              await lifecycle.inspectSession(),
-              resource,
-            ),
-            control,
-          );
+          const afterCloseCdp = await observePinnedCdpAtBoundary();
+          if (afterCloseCdp.kind === "quiescent") {
+            return afterCloseCdp.resource;
+          }
+          const repeatedAfterCloseObservation = await observeSessionAtBoundary();
+          if (repeatedAfterCloseObservation.kind === "quiescent") {
+            return repeatedAfterCloseObservation.resource;
+          }
+          const repeatedAfterClose = repeatedAfterCloseObservation.value;
+          if (repeatedAfterClose.state === "inactive") {
+            return proveNaturalExitAtBoundary(
+              new Error("browser cleanup control identity changed"),
+            );
+          }
+          exactActiveAgentBrowserControl(repeatedAfterClose, control);
         } else if (afterClose.state === "active") {
           if (!closeSucceeded) {
             throw new Error("agent-browser graceful close could not be verified");
           }
-          exactClosedAgentBrowserDaemon(afterClose, control);
-          exactClosedAgentBrowserDaemon(
-            parseAgentBrowserSessionState(
-              await lifecycle.inspectSession(),
-              resource,
-            ),
-            control,
-          );
+          const repeatedClosedObservation = await observeSessionAtBoundary();
+          if (repeatedClosedObservation.kind === "quiescent") {
+            return repeatedClosedObservation.resource;
+          }
+          const repeatedClosed = repeatedClosedObservation.value;
+          if (repeatedClosed.state === "inactive") {
+            return proveNaturalExitAtBoundary(
+              new Error("browser cleanup control identity changed"),
+            );
+          }
+          exactClosedAgentBrowserDaemon(repeatedClosed, control);
         } else {
-          const repeatedInactive = parseAgentBrowserSessionState(
-            await lifecycle.inspectSession(),
-            resource,
-          );
+          const repeatedInactiveObservation = await observeSessionAtBoundary();
+          if (repeatedInactiveObservation.kind === "quiescent") {
+            return repeatedInactiveObservation.resource;
+          }
+          const repeatedInactive = repeatedInactiveObservation.value;
           if (repeatedInactive.state !== "inactive") {
             throw new Error("browser cleanup session state changed before termination");
           }
@@ -2358,13 +2572,17 @@ export async function recoverPinnedAgentBrowserCleanupResource(
       }
     } else {
       exactClosedAgentBrowserDaemon(initialSession, control);
-      exactClosedAgentBrowserDaemon(
-        parseAgentBrowserSessionState(
-          await lifecycle.inspectSession(),
-          resource,
-        ),
-        control,
-      );
+      const repeatedClosedObservation = await observeSessionAtBoundary();
+      if (repeatedClosedObservation.kind === "quiescent") {
+        return repeatedClosedObservation.resource;
+      }
+      const repeatedClosed = repeatedClosedObservation.value;
+      if (repeatedClosed.state === "inactive") {
+        return proveNaturalExitAtBoundary(
+          new Error("browser cleanup control identity changed"),
+        );
+      }
+      exactClosedAgentBrowserDaemon(repeatedClosed, control);
     }
     if (initialSession.state === "active") {
       const beforeTermination = inspectOwner(control.daemonOwner);
@@ -2392,6 +2610,11 @@ export async function recoverPinnedAgentBrowserCleanupResource(
           }
           await sleep(25);
         }
+      } else {
+        return provePinnedAgentBrowserCleanupResourceQuiescentWithoutEffects(
+          resource,
+          dependencies,
+        );
       }
     }
   }
@@ -2914,7 +3137,15 @@ export async function createBrowserSession(
   const networkProxyCreation: {
     pending: Promise<LocalNetworkProxy> | null;
   } = { pending: null };
-  let closed = false;
+  let closeDisposition:
+    | "open"
+    | "acknowledged"
+    | "independently-proved-quiescent" = "open";
+  let closeRecoveryDisposition:
+    | "ineligible"
+    | "retry-strict-no-effect-proof" = "ineligible";
+  let cleanupConvergenceAttempted = false;
+  const sessionIsClosed = (): boolean => closeDisposition !== "open";
   let closeOperation: Promise<void> | null = null;
   let launchAttempted = false;
   const activeBatches = new Set<Promise<readonly JsonRecord[]>>();
@@ -2924,7 +3155,7 @@ export async function createBrowserSession(
     timeoutMs: number,
     maxOutputBytes: number,
   ): Promise<readonly JsonRecord[]> => {
-    if (closed || closeOperation !== null) {
+    if (sessionIsClosed() || closeOperation !== null) {
       throw new Error("browser session is closed");
     }
     return runBrowserSetupStep(
@@ -2964,7 +3195,7 @@ export async function createBrowserSession(
     );
   };
   const close = (): Promise<void> => {
-    if (closed) return Promise.resolve();
+    if (sessionIsClosed()) return Promise.resolve();
     if (closeOperation !== null) return closeOperation;
     closeOperation = (async () => {
       if (activeBatches.size > 0) {
@@ -2981,20 +3212,93 @@ export async function createBrowserSession(
       if (unsafeCommandCleanup !== null) {
         throw unsafeCommandCleanup;
       }
-      const result = await runBrowserCommand(
-        [...agentBrowserCommand(), ...globalArguments, "close", "--json"],
-        { cwd: directory, environment, timeoutMs: 15_000, maxOutputBytes: 1024 * 1024 },
-      );
-      if (result.exitCode !== 0) throw agentBrowserFailure(result, "agent-browser close");
-      closed = true;
+      let closeFailure: unknown;
+      try {
+        const result = await runBrowserCommand(
+          [...agentBrowserCommand(), ...globalArguments, "close", "--json"],
+          { cwd: directory, environment, timeoutMs: 15_000, maxOutputBytes: 1024 * 1024 },
+        );
+        if (result.exitCode === 0) {
+          closeDisposition = "acknowledged";
+          return;
+        }
+        closeFailure = agentBrowserFailure(result, "agent-browser close");
+      } catch (error) {
+        if (error instanceof BrowserCommandCleanupError) throw error;
+        closeFailure = error;
+      }
+      const resource = cleanupResourceIdentity;
+      if (
+        resource === null
+        || resource.kind !== "agent-browser-session-v2"
+        || resource.phase !== "controlled"
+      ) throw closeFailure;
+      try {
+        await provePinnedAgentBrowserCleanupResourceQuiescentWithoutEffects(
+          resource,
+          {
+            ...options.dependencies?.cleanupLifecycle,
+            runCommand: runBrowserCommand,
+          },
+        );
+      } catch (quiescenceFailure) {
+        if (quiescenceFailure instanceof AgentBrowserCleanupOwnerStillLiveError) {
+          closeRecoveryDisposition = "retry-strict-no-effect-proof";
+        }
+        throw new AggregateError(
+          [closeFailure, quiescenceFailure],
+          "browser session close was neither acknowledged nor independently proved quiescent",
+        );
+      }
+      closeDisposition = "independently-proved-quiescent";
     })();
     return closeOperation;
   };
   const cleanup = async (): Promise<void> => {
-    if (!closed && closeOperation === null) {
+    if (!sessionIsClosed() && closeOperation === null) {
       throw new Error("refusing to delete private browser artifacts before the session closes");
     }
     const failures: unknown[] = [];
+    if (!sessionIsClosed() && closeOperation !== null) {
+      try {
+        await closeOperation;
+      } catch {
+        // close() retains and reports its exact failure. cleanup() may only
+        // make the one no-effect convergence proof admitted below.
+      }
+      if (
+        !sessionIsClosed()
+        && closeRecoveryDisposition === "retry-strict-no-effect-proof"
+        && !cleanupConvergenceAttempted
+        && unsafeCommandCleanup === null
+        && activeBatches.size === 0
+      ) {
+        cleanupConvergenceAttempted = true;
+        const resource = cleanupResourceIdentity;
+        if (
+          resource === null
+          || resource.kind !== "agent-browser-session-v2"
+          || resource.phase !== "controlled"
+        ) {
+          failures.push(new Error(
+            "browser cleanup resource identity is unavailable for close convergence",
+          ));
+        } else {
+          try {
+            await provePinnedAgentBrowserCleanupResourceQuiescentWithoutEffects(
+              resource,
+              {
+                ...options.dependencies?.cleanupLifecycle,
+                runCommand: runBrowserCommand,
+              },
+            );
+            closeDisposition = "independently-proved-quiescent";
+          } catch (error) {
+            failures.push(error);
+          }
+        }
+      }
+    }
     let resourcesQuiescent = true;
     if (networkProxy !== null) {
       const proxy = networkProxy;
@@ -3010,7 +3314,7 @@ export async function createBrowserSession(
         );
       }
     }
-    const rootsAreUnused = closed && activeBatches.size === 0;
+    const rootsAreUnused = sessionIsClosed() && activeBatches.size === 0;
     if (!rootsAreUnused) {
       failures.push(
         new Error(
@@ -3235,7 +3539,7 @@ export async function createBrowserSession(
       }
       networkProxyCreation.pending = null;
     }
-    if (!launchAttempted) closed = true;
+    if (!launchAttempted) closeDisposition = "acknowledged";
     if (launchAttempted && !commandCleanupUnsafe) {
       if (!await teardownCompletesWithin(
         close(),
@@ -3276,7 +3580,7 @@ export async function createBrowserSession(
       );
     } else if (
       resourcesQuiescent
-      && closed
+      && sessionIsClosed()
       && activeBatches.size === 0
       && !commandCleanupUnsafe
     ) {

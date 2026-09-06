@@ -333,7 +333,9 @@ async function finalizeBrowserSession(session: BrowserSession): Promise<void> {
   } catch (error) {
     failures.push(error);
   }
-  if (closeVerified && cleanupVerified) return;
+  // BrowserSession cleanup can resolve only after close was acknowledged or
+  // the same pinned resource was independently proved quiescent.
+  if (cleanupVerified) return;
   const cleanupEvidence = (
     closeVerified
     && !cleanupVerified
