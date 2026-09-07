@@ -39,7 +39,9 @@ program. The original pure organization, repository, continuation and metric
 validators remain authoritative. Every page must complete the declared bounded
 repository set exactly once. Scoped readers release their lock, and rejected
 responses request bounded cancellation. Headers, origin, byte bounds and request
-routes remain fixed by the provider contract.
+routes remain fixed by the provider contract. Failed or timed-out cancellation
+projects cleanup-required with no automatic retry. Cleanup failure is recorded
+independently of its rejection value, including an undefined rejection reason.
 
 LinkedIn self-profile reads use a local service for direct and contained-browser
 operations. The program owns the selected transport, exact current-member and
@@ -49,6 +51,16 @@ transport finalizer keeps the previous Promise-finally precedence. Typed direct 
 metadata permits only the reviewed identity fallback statuses; message text cannot
 grant a transport switch or retry classification. Unrecognized foreign failures
 remain contract drift. Pure profile and metric parsers remain unchanged.
+
+LinkedIn company reads have a separate service and complete acquisition, identity,
+company-page, projection and cleanup program. The signed-in member must match the
+authorized account before company access; the company target is independently
+bound to its exact universal name and company identity by the existing projector.
+It need not match the member's personal profile slug. The personal and company
+programs share only the typed failure and identity-fallback rules. Company reads
+no longer accept an error message resembling an HTTP status as evidence to
+switch transports or permit a retry. Both programs preserve the original close
+error at the Promise boundary and retain an earlier operation Cause privately.
 
 The package pins the runtime dependency and includes each new source module in
 its explicit publication inventory. Root imports remain inert, and pure provider

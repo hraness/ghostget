@@ -88,9 +88,9 @@ export function githubOrganizationReadProgram(requestedOrganization: string): Ef
           `https://github.com/${requestedOrganization}`,
           { stage, authenticated: false, targetStatusUnavailable: true }
         );
-        return Effect.succeed(error.cleanupCause === undefined
-          ? failure
-          : { ...failure, readFailure: readFailureProjection("cleanup-required") });
+        return Effect.succeed(Object.hasOwn(error, "cleanupCause")
+          ? { ...failure, readFailure: readFailureProjection("cleanup-required") }
+          : failure);
       }
     ));
   });

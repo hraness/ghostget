@@ -1,5 +1,18 @@
-// After a clean Bun 1.3.14 build, two npm 11.19.0 packs of the 0.16.9
-// Effect read candidate including the X identity fixes were byte-identical:
+// After a clean Bun 1.3.14 build, two npm 11.19.0 packs of the combined
+// 0.16.9 company-read and cleanup candidate were byte-identical:
+// 2,229,858 packed bytes, 12,320,769 unpacked bytes, and 485 files.
+// Their SHA-256 was
+// 7b72a20a95ef0e92feec1c6e75b556800dc08215f142bac0fa6c24b53fd74928.
+// Same-run main 154e33e measured 2,230,119 packed / 12,318,890 unpacked
+// bytes and 482 files. Three local company/failure modules, five changed
+// payloads, and no removed files account for -261 packed / +1,879 unpacked
+// bytes. Both normal builds preserved all 11 generated files byte-for-byte.
+// The 2,234,124-byte packed ceiling leaves 4,266 bytes above this candidate.
+// Retain current main's 635 unpacked bytes of headroom and exact 485-file
+// inventory. These ceilings change by only the measured delta from main.
+//
+// Historical PR176 0.16.9 measurement, including the X identity fixes:
+// two npm 11.19.0 packs after a clean Bun 1.3.14 build were byte-identical:
 // 2,230,059 packed bytes, 12,318,665 unpacked bytes, and 482 files.
 // Their SHA-256 was
 // 08e3dc841233150b5f09a698cfc56b47f8c0a62d013d22167849164f65de28d1.
@@ -25,10 +38,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_234_385;
-export const MAX_PACKED_ENTRIES = 482;
-export const MAX_PACKED_FILES = 482;
-export const MAX_UNPACKED_BYTES = 12_319_525;
+export const MAX_PACKED_BYTES = 2_234_124;
+export const MAX_PACKED_ENTRIES = 485;
+export const MAX_PACKED_FILES = 485;
+export const MAX_UNPACKED_BYTES = 12_321_404;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

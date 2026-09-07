@@ -11,6 +11,8 @@ import { PreservedBrowserArtifactsError } from "../browser";
 import type { WebSessionRecipe } from "../model";
 import { canonicalJson } from "../canonical-json";
 import { OperationDeadlineError } from "../operation-deadline";
+import { runWebSessionReadWithDeadline } from "../web-session-read-runtime";
+import { WEB_SESSION_CLEANUP_JOIN_TIMEOUT_MS } from "../web-session-execution";
 import {
   buildLinkedInArticleContent,
   buildLinkedInArticleContentHtml,
@@ -1347,6 +1349,161 @@ describe("LinkedIn authenticated internal-API runtime", () => {
       "organization:https://www.linkedin.com/company/hraness/",
       "close",
     ]);
+  });
+
+  test.each([302, 401, 403])("company reads retain native identity-%i browser fallback", async (status) => {
+    const directCalls: CapturedRequest[] = [];
+    const browserCalls: string[] = [];
+    const result = await executeLinkedInWebOperation(organizationRecipe(), {
+      organization_url: "https://www.linkedin.com/company/hraness",
+    }, linkedinAuth, {
+      beforeDispatch: () => Promise.reject(new Error("company read invoked dispatch")),
+      dependencies: {
+        ...dependencies(directCalls, () => jsonResponse({ error: "private response detail" }, status)),
+        now: () => Date.parse("2026-09-06T00:00:00.000Z"),
+        createProfileBrowserTransport: () => Promise.resolve({
+          currentIdentityResponse: () => { browserCalls.push("identity"); return Promise.resolve(currentIdentityResponse()); },
+          readProfileHtml: () => Promise.reject(new Error("company crossed self profile")),
+          readConnectionsHtml: () => Promise.reject(new Error("company crossed connections")),
+          readOrganizationHtml: () => { browserCalls.push("company"); return Promise.resolve(linkedInOrganizationStatsHtml()); },
+          close: () => { browserCalls.push("close"); return Promise.resolve(); },
+        }),
+      },
+    });
+    expect(result).toMatchObject({ status: "succeeded", dispatch: { planned: 0, started: 0, verified: 0 }, output: { target: { id: "urn:li:fsd_company:123" } } });
+    expect(directCalls.map(call => call.url.pathname)).toEqual(["/voyager/api/me"]);
+    expect(browserCalls).toEqual(["identity", "company", "close"]);
+    expect(JSON.stringify(result)).not.toContain("private response detail");
+  });
+
+  test("company CSRF validation retains typed auth repair without browser fallback", async () => {
+    const calls: CapturedRequest[] = [];
+    let browserCalls = 0;
+    const result = await executeLinkedInWebOperation(organizationRecipe(), {
+      organization_url: "https://www.linkedin.com/company/hraness",
+    }, linkedinAuth, {
+      dependencies: {
+        ...dependencies(calls, () => { throw new Error("invalid CSRF started a request"); }),
+        acquireCookies: () => Promise.resolve({ cookies: [strictCookie("li_at", "fixture")], warnings: [] }),
+        createProfileBrowserTransport: () => { browserCalls += 1; return Promise.reject(new Error("invalid CSRF switched transport")); },
+      },
+    });
+    expect(result).toMatchObject({ status: "failed", output: null, readFailure: { category: "auth-repair-required", retryDisposition: "repair-auth" } });
+    expect(calls).toEqual([]);
+    expect(browserCalls).toBe(0);
+  });
+
+  test.each(["direct", "browser"] as const)("company %s identity mismatch stops before target access", async (transport) => {
+    const calls: CapturedRequest[] = [];
+    const browserCalls: string[] = [];
+    const changedIdentity = { data: { plainId: "987654321" }, included: [{ entityUrn: "urn:li:fsd_profile:987654321" }] };
+    const result = await executeLinkedInWebOperation(organizationRecipe(), {
+      organization_url: "https://www.linkedin.com/company/hraness",
+    }, transport === "browser" ? linkedinBrowserProfileAuth : linkedinAuth, {
+      dependencies: {
+        ...dependencies(calls, () => jsonResponse(changedIdentity)),
+        createProfileBrowserTransport: () => Promise.resolve({
+          currentIdentityResponse: () => { browserCalls.push("identity"); return Promise.resolve(changedIdentity); },
+          readProfileHtml: () => Promise.reject(new Error("company crossed self profile")),
+          readConnectionsHtml: () => Promise.reject(new Error("company crossed connections")),
+          readOrganizationHtml: () => { browserCalls.push("company"); return Promise.reject(new Error("unbound company read")); },
+          close: () => { browserCalls.push("close"); return Promise.resolve(); },
+        }),
+      },
+    });
+    expect(result).toMatchObject({ status: "failed", output: null, dispatch: { planned: 0, started: 0, verified: 0 }, readFailure: { category: "account-mismatch", retryDisposition: "do-not-retry" } });
+    expect(calls.map(call => call.url.pathname)).toEqual(transport === "direct" ? ["/voyager/api/me"] : []);
+    expect(browserCalls).toEqual(transport === "browser" ? ["identity", "close"] : []);
+  });
+
+  test.each(["success", "failure"] as const)("company projection refusal waits for native close %s", async (closeOutcome) => {
+    const closeStarted = Promise.withResolvers<void>();
+    const closing = Promise.withResolvers<void>();
+    const failure = new Error("private company close detail");
+    const events: string[] = [];
+    let settled = false;
+    const operation = executeLinkedInWebOperation(organizationRecipe(), {
+      organization_url: "https://www.linkedin.com/company/hraness",
+    }, linkedinBrowserProfileAuth, { dependencies: {
+      createProfileBrowserTransport: () => Promise.resolve({
+        currentIdentityResponse: () => { events.push("identity"); return Promise.resolve(currentIdentityResponse()); },
+        readProfileHtml: () => Promise.reject(new Error("company crossed self profile")),
+        readConnectionsHtml: () => Promise.reject(new Error("company crossed connections")),
+        readOrganizationHtml: () => { events.push("company"); return Promise.resolve(linkedInOrganizationStatsHtml().replace("hraness", "unrelated-company")); },
+        close: () => { events.push("close"); closeStarted.resolve(); return closing.promise; },
+      }),
+    } });
+    const outcome = operation.then(value => { settled = true; return { value }; }, (error: unknown) => { settled = true; return { error }; });
+    await closeStarted.promise;
+    try {
+      expect(events).toEqual(["identity", "company", "close"]);
+      expect(settled).toBeFalse();
+    } finally {
+      if (closeOutcome === "success") closing.resolve();
+      else closing.reject(failure);
+    }
+    const result = await outcome;
+    if (closeOutcome === "failure") expect("error" in result ? result.error : undefined).toBe(failure);
+    else {
+      expect(result).toMatchObject({ value: { status: "failed", output: null, readFailure: { category: "contract-drift", retryDisposition: "do-not-retry" } } });
+      expect(JSON.stringify(result)).not.toContain("private");
+    }
+  });
+
+  test("cancelled company read joins ignored native work and close before R1 settlement", async () => {
+    const caller = new AbortController();
+    const reading = Promise.withResolvers<string>();
+    const readStarted = Promise.withResolvers<void>();
+    const closeStarted = Promise.withResolvers<void>();
+    const closing = Promise.withResolvers<void>();
+    const joinScheduled = Promise.withResolvers<void>();
+    const events: string[] = [];
+    let settled = false;
+    const recipe = organizationRecipe();
+    const operation = runWebSessionReadWithDeadline(recipe, {
+      signal: caller.signal,
+      deadlineClock: {
+        now: () => 0,
+        schedule: (_callback, delay) => { if (delay === WEB_SESSION_CLEANUP_JOIN_TIMEOUT_MS) joinScheduled.resolve(); return () => undefined; },
+      },
+    }, options => executeLinkedInWebOperation(recipe, {
+      organization_url: "https://www.linkedin.com/company/hraness",
+    }, linkedinBrowserProfileAuth, { ...options, dependencies: {
+      createProfileBrowserTransport: () => Promise.resolve({
+        currentIdentityResponse: () => { events.push("identity"); return Promise.resolve(currentIdentityResponse()); },
+        readProfileHtml: () => Promise.reject(new Error("company crossed self profile")),
+        readConnectionsHtml: () => Promise.reject(new Error("company crossed connections")),
+        readOrganizationHtml: () => { events.push("company"); readStarted.resolve(); return reading.promise; },
+        close: () => { events.push("close"); closeStarted.resolve(); return closing.promise; },
+      }),
+    } }));
+    const outcome = operation.then(value => { settled = true; return { value }; }, (error: unknown) => { settled = true; return { error }; });
+    try {
+      await readStarted.promise;
+      caller.abort("private cancellation detail");
+      await joinScheduled.promise;
+      expect(events).toEqual(["identity", "company"]);
+      expect(settled).toBeFalse();
+      reading.resolve(linkedInOrganizationStatsHtml());
+      await closeStarted.promise;
+      expect(settled).toBeFalse();
+      closing.resolve();
+      const result = await outcome;
+      expect("error" in result).toBeTrue();
+      if ("error" in result) {
+        expect(result.error).toBeInstanceOf(OperationDeadlineError);
+        if (result.error instanceof OperationDeadlineError) {
+          expect(result.error.failure).toBe("cancelled");
+          expect(result.error.message).not.toContain("private");
+        }
+      }
+      expect(events).toEqual(["identity", "company", "close"]);
+    } finally {
+      reading.resolve(linkedInOrganizationStatsHtml());
+      closing.resolve();
+      caller.abort();
+      await outcome;
+    }
   });
 
   test("fails closed and admits cleanup when browser-profile stats finalization preserves artifacts", async () => {

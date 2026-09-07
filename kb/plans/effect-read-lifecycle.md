@@ -24,12 +24,16 @@ tags:
 R1 invocation owns provisional receipt persistence, execution, bounded decoding,
 zero-dispatch validation, redaction, final persistence and output publication in
 one typed program. GitHub organization pagination and LinkedIn authenticated
-self-profile statistics use product-local services and scoped resources.
+self-profile and company statistics use product-local services and scoped
+resources.
 
 ## Invariants
 
-Public Promise interfaces, canonical wire data, exact provider/account identity,
-response byte/page/deadline limits and retry policy remain stable. R2/R3 write
+Public Promise interfaces, canonical wire data, exact provider/account identity
+and response byte/page/deadline limits remain stable. Retry and fallback retain
+contract-supported behavior with two explicit restrictions: failed cleanup
+prevents retry, and company fallback requires typed native response metadata.
+R2/R3 write
 confirmation, durable dispatch and journal authority remain in their existing
 interpreter. A completed fiber is never proof that a native process, browser or
 private root is quiescent. Exact cleanup admission and portable lease custody
@@ -60,12 +64,26 @@ release boundary.
 
 ## Status
 
-The source implementation is reviewed and the 0.16.9 candidate includes main
-`ab952fd9dfde14c4f4972b980f0c2b14e1c1d396`. This retains upstream strict
+The initial implementation merged through PR176 as `ef16de6` and passed its
+complete local, Required CI and automatic candidate checks. Before publication,
+PR179 advanced main to `154e33e` and changed GitHub cancellation handling.
+Independent review reproduced an undefined-cause edge in that change. The
+combined, still-unpublished 0.16.9 candidate fixes that edge and adds the
+independently reviewed LinkedIn company program. It retains upstream strict
 natural-exit browser cleanup, the X UserTweets descriptor refresh and both
-subsequent response-identity fixes. Public npm 0.16.8 retains its original
-source and artifact; this candidate uses the next version. This plan stays in
-progress through package, current-head checks and governed release delivery;
+subsequent response-identity fixes.
+
+The combined source at `112b573` includes all three new production modules in
+the explicit package inventory. Two npm 11.19.0 packs after a normal Bun 1.3.14
+build were byte-identical: 2,229,858 packed bytes, 12,320,769 unpacked bytes and
+485 files. All 11 generated files remained unchanged. Independently reviewed
+limits preserve current main's measured residual headroom: 2,234,124 packed
+and 12,321,404 unpacked bytes, with exactly 485 files. Package-excluded control
+and documentation edits follow that measurement.
+
+Public npm 0.16.8 retains its original source and artifact. The combined source
+requires fresh full local and current-head Required checks before one intentional
+stage and governed release delivery. Earlier gates remain historical evidence;
 neither a local candidate nor a successful npm stage is public availability.
 
 ## Review and execution evidence
@@ -96,6 +114,22 @@ The complete final repository check, exact installed-package proof, KB check,
 current PR Required (including macOS) and release readbacks remain delivery
 gates. Record their exact completed coordinates in the linked issue and PR;
 earlier focused receipts do not admit a later source tree or artifact.
+
+The company continuation passed 86 focused tests and 1,168 assertions, followed
+by two exact-error identity regressions with seven assertions and compiler
+checks. Review traced the actual browser transport through R1 cleanup admission.
+The company capability remains separate from the personal-profile capability;
+the new company/self extraction shares only pure typed failure and fallback
+helpers. Typed native response
+metadata authorizes fallback, so diagnostic text cannot select a new transport.
+
+The GitHub regression demonstrates that `Promise.reject(undefined)` is still a
+cleanup failure. Own-property presence now distinguishes that outcome from
+successful cancellation. The new production-seam tests failed three cases on
+unchanged main and passed all 19 tests with 105 assertions after the repair,
+including null, false, Error and overflowing-reader cases. Cleanup causes remain
+private, cancellation runs once, and the reader lock is released. These focused
+checks and independent reviews precede the combined source's full gate.
 
 ## Performance tradeoff
 

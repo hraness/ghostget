@@ -140,9 +140,14 @@ function identityResponse(): string {
 }
 
 describe("LinkedIn profile stats contained-browser transport", () => {
-  test.each(["within-join", "after-join-timeout"] as const)(
-    "R1 native close acknowledgement loss preserves cleanup custody %s",
-    async (proofTiming) => {
+  test.each([
+    ["within-join", "profiles.read"],
+    ["after-join-timeout", "profiles.read"],
+    ["within-join", "organizations.read"],
+    ["after-join-timeout", "organizations.read"],
+  ] as const)(
+    "R1 native close acknowledgement loss preserves cleanup custody %s for %s",
+    async (proofTiming, action) => {
       const root = mkdtempSync(join(tmpdir(), "wrench-linkedin-cleanup-join-"));
       chmodSync(root, 0o700);
       const environment = { WRENCH_STATE_HOME: join(root, "state"), HOME: root };
@@ -163,11 +168,12 @@ describe("LinkedIn profile stats contained-browser transport", () => {
       };
       const recipe = {
         site: "linkedin",
-        action: "profiles.read",
+        action,
         contractVersion: 1,
         timeoutMs: 1_000,
         maxOutputBytes: 2 * 1024 * 1024,
       } as const;
+      const targetPath = action === "profiles.read" ? "/in/0thernet/" : "/company/hraness/";
       const events: string[] = [];
       const barriers: Promise<void>[] = [];
       // The existing native BrowserSession seam exposes proof settlement.
@@ -189,6 +195,14 @@ describe("LinkedIn profile stats contained-browser transport", () => {
               '<a href="/mynetwork/network-manager/people-follow/followers"><span>7,553</span> followers</a>',
               "text/html",
             )]);
+          }
+          if (binding.path === "/company/hraness/") {
+            return Promise.resolve([browserBodyRecord(`<code style="display: none" id="bpr-guid-123">${JSON.stringify({
+              included: [
+                { $type: "com.linkedin.voyager.dash.organization.Company", entityUrn: "urn:li:fsd_company:123", universalName: "hraness", "*followingState": "urn:li:fsd_followingState:company-123", name: "Fixture Company" },
+                { $type: "com.linkedin.voyager.dash.feed.FollowingState", entityUrn: "urn:li:fsd_followingState:company-123", followerCount: 6 },
+              ],
+            })}</code>`, "text/html")]);
           }
           throw new Error("cleanup-join read crossed its exact profile path");
         },
@@ -222,10 +236,10 @@ describe("LinkedIn profile stats contained-browser transport", () => {
           return register(barrier);
         },
       }, options => {
-        provider = executeLinkedInWebOperation(recipe, {
+        provider = executeLinkedInWebOperation(recipe, action === "profiles.read" ? {
           profile_url: PROFILE_URL,
           include_connections: false,
-        }, auth, {
+        } : { organization_url: ORGANIZATION_URL }, auth, {
           ...options,
           dependencies: {
             acquireCookies: () => Promise.reject(new Error("cleanup-join read exported cookies")),
@@ -246,7 +260,7 @@ describe("LinkedIn profile stats contained-browser transport", () => {
       );
       try {
         await cleanupStarted.promise;
-        expect(events).toEqual(["/voyager/api/me", "/in/0thernet/", "close", "cleanup-started"]);
+        expect(events).toEqual(["/voyager/api/me", targetPath, "close", "cleanup-started"]);
         expect(settled).toBeFalse();
         expect(barriers).toHaveLength(1);
         expect(listWebSessionCleanupAdmissions(environment)).toHaveLength(1);
@@ -273,8 +287,8 @@ describe("LinkedIn profile stats contained-browser transport", () => {
           dispatchStarted: false,
           dispatch: { planned: 0, started: 0, verified: 0 },
           output: {
-            target: { id: auth.subject },
-            metrics: { followers: { value: 7553 } },
+            target: { id: action === "profiles.read" ? auth.subject : "urn:li:fsd_company:123" },
+            metrics: { followers: { value: action === "profiles.read" ? 7553 : 6 } },
           },
         });
         const outcome = await observed;
