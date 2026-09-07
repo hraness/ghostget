@@ -370,12 +370,12 @@ describe("GitHub public organization statistics runtime", () => {
   });
 });
 
-test("organization scope cancels an overflowing body once and releases its reader despite cancellation failure", async () => {
+test.each([new Error("private cleanup detail"), undefined])("organization scope cancels an overflowing body once and releases its reader despite cancellation failure %#", async (cleanupCause) => {
   let cancellations = 0;
   let requests = 0;
   const body = new ReadableStream<Uint8Array>({
     start(controller) { controller.enqueue(new Uint8Array(65)); },
-    cancel() { cancellations += 1; return Promise.reject(new Error("private cleanup detail")); },
+    cancel() { cancellations += 1; return Promise.reject(cleanupCause); },
   });
   const response = new Response(body, { headers: { "content-type": "application/json" } });
   const result = await executeGitHubPublicOrganizationRead({ ...organizationRecipe, maxOutputBytes: 64 }, { organization: "hraness" }, {
@@ -397,13 +397,19 @@ test("organization scope cancels an overflowing body once and releases its reade
   expect(JSON.stringify(result)).not.toContain("private cleanup detail");
 });
 
-test("organization scope requires cleanup repair only when retryable response cancellation fails", async () => {
-  for (const [status, primaryCategory] of [
-    [503, "provider-temporary"],
-    [429, "provider-throttled"],
+for (const [status, primaryCategory] of [
+  [503, "provider-temporary"],
+  [429, "provider-throttled"],
+] as const) {
+  const privateSentinel = `private cleanup detail ${status}`;
+  for (const [cleanupLabel, cleanupRejects, cleanupCause] of [
+    ["success", false, undefined],
+    ["undefined", true, undefined],
+    ["null", true, null],
+    ["false", true, false],
+    ["Error", true, new Error(privateSentinel)],
   ] as const) {
-    for (const cleanupRejects of [false, true]) {
-      const privateSentinel = `private cleanup detail ${status}`;
+    test(`organization scope preserves cleanup failure presence for ${status} with ${cleanupLabel} cancellation`, async () => {
       let cancellations = 0;
       let requests = 0;
       const body = new ReadableStream<Uint8Array>({
@@ -411,7 +417,7 @@ test("organization scope requires cleanup repair only when retryable response ca
         cancel() {
           cancellations += 1;
           return cleanupRejects
-            ? Promise.reject(new Error(privateSentinel))
+            ? Promise.reject(cleanupCause)
             : Promise.resolve();
         },
       });
@@ -448,6 +454,6 @@ test("organization scope requires cleanup repair only when retryable response ca
       expect(cancellations).toBe(1);
       expect(body.locked).toBeFalse();
       expect(JSON.stringify(result)).not.toContain(privateSentinel);
-    }
+    });
   }
-});
+}
