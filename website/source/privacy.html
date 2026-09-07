@@ -101,8 +101,8 @@
 
         <section aria-labelledby="website-mailing-list">
           <h2 id="website-mailing-list">Wrench mailing-list subscriptions are separate</h2>
-          <p>The footer sends the submitted email address and Cloudflare Turnstile response to <code>https://account.hraness.com/api/mailing/subscribe</code>. Each request has the fixed <code>wrench</code> audience and <code>source=hraness-site-footer</code>. An eligible new request records a pending Wrench membership. Resend sends the confirmation message from <code>newsletter@news.hraness.com</code>; following its link records confirmation and changes the membership to subscribed.</p>
-          <p>Subscribed members can receive later Wrench mail through Resend from <code>news.hraness.com</code>. The unsubscribe flow removes only the Wrench audience membership. The mailing list is optional: using the Wrench CLI, SDK, or wrench.rip does not require a subscription, and a Wrench subscription does not enroll the address in another Hraness audience.</p>
+          <p>The footer sends the submitted email address and Cloudflare Turnstile response to <code>https://account.hraness.com/api/mailing/subscribe</code>. Each request has the fixed <code>wrench</code> audience and <code>source=hraness-site-footer</code>. An eligible new request records a pending Wrench membership. Resend sends the confirmation message from <code>newsletter@news.hraness.com</code>. The emailed link opens a confirmation page; only an explicit Confirm subscription POST records consent and changes the membership to subscribed.</p>
+          <p>Subscribed members can receive later Wrench mail through Resend from <code>news.hraness.com</code>. The unsubscribe flow changes only the Wrench audience membership to unsubscribed; it does not remove the membership. The mailing list is optional: using the Wrench CLI, SDK, or wrench.rip does not require a subscription, and a Wrench subscription does not enroll the address in another Hraness audience.</p>
         </section>
 
         <section aria-labelledby="without-javascript">

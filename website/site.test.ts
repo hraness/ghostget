@@ -986,51 +986,41 @@ describe("wrench.rip static site", () => {
     expect(privacy?.html).toContain(
       "does not open, copy, or ask Photos to materialize referenced photo or video asset files",
     );
-    expect(privacy?.html).toContain("Cloudflare Turnstile response");
-    expect(privacy?.html).toContain(
-      "<code>https://account.hraness.com/api/mailing/subscribe</code>",
-    );
-    expect(privacy?.html).toContain("fixed <code>wrench</code> audience");
-    expect(privacy?.html).toContain("<code>source=hraness-site-footer</code>");
-    expect(privacy?.html).toContain("An eligible new request records a pending Wrench membership");
-    expect(privacy?.html).toContain(
-      "Resend sends the confirmation message from <code>newsletter@news.hraness.com</code>",
-    );
-    expect(privacy?.html).toContain("following its link records confirmation");
-    expect(privacy?.html).toContain("changes the membership to subscribed");
-    expect(privacy?.html).toContain("later Wrench mail through Resend from <code>news.hraness.com</code>");
-    expect(privacy?.html).toContain("removes only the Wrench audience membership");
-    expect(privacy?.html).toContain(
-      "using the Wrench CLI, SDK, or wrench.rip does not require a subscription",
-    );
-    expect(privacy?.html).toContain(
-      "does not enroll the address in another Hraness audience",
-    );
     const privacyMarkdown = await readFile(
       join(websiteRoot, "dist", markdownSiblingPath("/privacy/").slice(1)),
       "utf8",
     );
-    expect(privacyMarkdown).toContain("## Wrench mailing-list subscriptions are separate");
-    expect(privacyMarkdown).toContain("Cloudflare Turnstile response");
-    expect(privacyMarkdown).toContain(
-      "`https://account.hraness.com/api/mailing/subscribe`",
-    );
-    expect(privacyMarkdown).toContain("fixed `wrench` audience");
-    expect(privacyMarkdown).toContain("`source=hraness-site-footer`");
-    expect(privacyMarkdown).toContain("An eligible new request records a pending Wrench membership");
-    expect(privacyMarkdown).toContain(
-      "Resend sends the confirmation message from `newsletter@news.hraness.com`",
-    );
-    expect(privacyMarkdown).toContain("following its link records confirmation");
-    expect(privacyMarkdown).toContain("changes the membership to subscribed");
-    expect(privacyMarkdown).toContain("later Wrench mail through Resend from `news.hraness.com`");
-    expect(privacyMarkdown).toContain("removes only the Wrench audience membership");
-    expect(privacyMarkdown).toContain(
-      "using the Wrench CLI, SDK, or wrench.rip does not require a subscription",
-    );
-    expect(privacyMarkdown).toContain(
-      "does not enroll the address in another Hraness audience",
-    );
+    const mailingHtml = /<section aria-labelledby="website-mailing-list">[\s\S]*?<\/section>/u
+      .exec(privacy?.html ?? "")?.[0];
+    const mailingMarkdown = /## Wrench mailing-list subscriptions are separate[\s\S]*?(?=\n\n## )/u
+      .exec(privacyMarkdown)?.[0];
+    const normalizeMailingCopy = (value: string | undefined): string =>
+      (value ?? "")
+        .replaceAll(/<[^>]+>/gu, " ")
+        .replaceAll(/[`#]/gu, "")
+        .replaceAll(/\s+/gu, " ")
+        .replaceAll(/\s+([,.;:!?])/gu, "$1")
+        .trim();
+    const expectedMailingCopy = [
+      "Wrench mailing-list subscriptions are separate",
+      "The footer sends the submitted email address and Cloudflare Turnstile response to https://account.hraness.com/api/mailing/subscribe. Each request has the fixed wrench audience and source=hraness-site-footer. An eligible new request records a pending Wrench membership. Resend sends the confirmation message from newsletter@news.hraness.com. The emailed link opens a confirmation page; only an explicit Confirm subscription POST records consent and changes the membership to subscribed.",
+      "Subscribed members can receive later Wrench mail through Resend from news.hraness.com. The unsubscribe flow changes only the Wrench audience membership to unsubscribed; it does not remove the membership. The mailing list is optional: using the Wrench CLI, SDK, or wrench.rip does not require a subscription, and a Wrench subscription does not enroll the address in another Hraness audience.",
+    ].join(" ");
+    const normalizedMailingCopies = [mailingHtml, mailingMarkdown].map(normalizeMailingCopy);
+    expect(normalizedMailingCopies).toEqual([expectedMailingCopy, expectedMailingCopy]);
+    const lifecycleStages = [
+      "pending Wrench membership",
+      "emailed link opens a confirmation page",
+      "explicit Confirm subscription POST records consent",
+      "membership to subscribed",
+      "membership to unsubscribed",
+      "does not remove the membership",
+    ];
+    for (const copy of normalizedMailingCopies) {
+      const lifecycleOffsets = lifecycleStages.map((stage) => copy.indexOf(stage));
+      expect(lifecycleOffsets.every((offset) => offset >= 0)).toBe(true);
+      expect(lifecycleOffsets).toEqual([...lifecycleOffsets].sort((left, right) => left - right));
+    }
 
     const providerCapabilities = pages.find((page) =>
       page.definition.canonicalPath === "/provider-capabilities/");
