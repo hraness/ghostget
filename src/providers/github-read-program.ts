@@ -1,6 +1,9 @@
 import * as Effect from "effect/Effect";
 import { readAttempt, type ReadEffectFailure } from "../read-effect";
-import type { WebSessionExecution } from "../web-session-execution";
+import {
+  readFailureProjection,
+  type WebSessionExecution,
+} from "../web-session-execution";
 import { GitHubReadPlatform } from "./github-read-platform";
 import {
   exactNextPageLink,
@@ -78,12 +81,17 @@ export function githubOrganizationReadProgram(requestedOrganization: string): Ef
       };
     }).pipe(Effect.catchTag(
       "ReadEffectFailure",
-      error => Effect.succeed(failedProviderRead(
-        "GitHub organization",
-        error.cause,
-        `https://github.com/${requestedOrganization}`,
-        { stage, authenticated: false, targetStatusUnavailable: true }
-      ))
+      error => {
+        const failure = failedProviderRead(
+          "GitHub organization",
+          error.cause,
+          `https://github.com/${requestedOrganization}`,
+          { stage, authenticated: false, targetStatusUnavailable: true }
+        );
+        return Effect.succeed(error.cleanupCause === undefined
+          ? failure
+          : { ...failure, readFailure: readFailureProjection("cleanup-required") });
+      }
     ));
   });
 }
