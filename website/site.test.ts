@@ -986,6 +986,42 @@ describe("wrench.rip static site", () => {
     expect(privacy?.html).toContain(
       "does not open, copy, or ask Photos to materialize referenced photo or video asset files",
     );
+    const privacyMarkdown = await readFile(
+      join(websiteRoot, "dist", markdownSiblingPath("/privacy/").slice(1)),
+      "utf8",
+    );
+    const mailingHtml = /<section aria-labelledby="website-mailing-list">[\s\S]*?<\/section>/u
+      .exec(privacy?.html ?? "")?.[0];
+    const mailingMarkdown = /## Wrench mailing-list subscriptions are separate[\s\S]*?(?=\n\n## )/u
+      .exec(privacyMarkdown)?.[0];
+    const normalizeMailingCopy = (value: string | undefined): string =>
+      (value ?? "")
+        .replaceAll(/<[^>]+>/gu, " ")
+        .replaceAll(/[`#]/gu, "")
+        .replaceAll(/\s+/gu, " ")
+        .replaceAll(/\s+([,.;:!?])/gu, "$1")
+        .trim();
+    const expectedMailingCopy = [
+      "Wrench mailing-list subscriptions are separate",
+      "The optional footer form loads Cloudflare Turnstile. When you submit it, Hraness Accounts processes the email address and Turnstile response at https://account.hraness.com/api/mailing/subscribe. Each request uses the fixed wrench audience and source=hraness-site-footer. An eligible request records a pending Wrench membership. Resend processes the email address to deliver a confirmation message from newsletter@news.hraness.com. The emailed link opens the Hraness Accounts confirmation page. Only the page's explicit Confirm subscription POST records consent and changes the membership to subscribed.",
+      "Subscribed members can receive later Wrench mail through Resend from news.hraness.com. Unsubscribing retains the Wrench membership and consent history, changes only that membership to unsubscribed, and leaves every other Hraness audience unchanged. The mailing list is optional: using the Wrench CLI, SDK, or wrench.rip does not require a subscription, and a Wrench subscription does not enroll the address in another Hraness audience.",
+    ].join(" ");
+    const normalizedMailingCopies = [mailingHtml, mailingMarkdown].map(normalizeMailingCopy);
+    expect(normalizedMailingCopies).toEqual([expectedMailingCopy, expectedMailingCopy]);
+    const lifecycleStages = [
+      "pending Wrench membership",
+      "emailed link opens the Hraness Accounts confirmation page",
+      "explicit Confirm subscription POST records consent",
+      "membership to subscribed",
+      "retains the Wrench membership and consent history",
+      "membership to unsubscribed",
+      "leaves every other Hraness audience unchanged",
+    ];
+    for (const copy of normalizedMailingCopies) {
+      const lifecycleOffsets = lifecycleStages.map((stage) => copy.indexOf(stage));
+      expect(lifecycleOffsets.every((offset) => offset >= 0)).toBe(true);
+      expect(lifecycleOffsets).toEqual([...lifecycleOffsets].sort((left, right) => left - right));
+    }
 
     const providerCapabilities = pages.find((page) =>
       page.definition.canonicalPath === "/provider-capabilities/");
