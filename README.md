@@ -44,7 +44,7 @@ wrench plugin list
 
 ## Built-in provider catalog
 
-This v0.16.9 source tree supports executable actions for 20 services: Beeper,
+This v0.16.10 source tree supports executable actions for 20 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WhatsApp, X, and YouTube.
@@ -116,9 +116,9 @@ the latest release that completed every gate.
 Install the single Wrench Agent Skill with either runner:
 
 ```sh
-npx skills add hraness/wrench#v0.16.9
+npx skills add hraness/wrench#v0.16.10
 # or
-bunx skills add hraness/wrench#v0.16.9
+bunx skills add hraness/wrench#v0.16.10
 ```
 
 The skill teaches Codex, Claude Code, Cursor, and other compatible coding
@@ -129,7 +129,7 @@ After the matching immutable Release exists, install this exact version from
 npm:
 
 ```sh
-bun add --global @hraness/wrench@0.16.9
+bun add --global @hraness/wrench@0.16.10
 wrench adapter sync-bundled --json
 wrench doctor
 ```
@@ -157,7 +157,7 @@ For that same released coordinate, install Wrench in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add @hraness/wrench@0.16.9
+bun add @hraness/wrench@0.16.10
 ```
 
 ```ts

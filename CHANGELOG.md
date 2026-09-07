@@ -7,6 +7,13 @@ coordinate that completed both checks.
 
 ## Unreleased
 
+## 0.16.10 - 2026-09-07
+
+- Show the Ra mark and five social links in the shared website footer, with
+  compact spacing and the existing mailing signup.
+- Report Reddit read throttling as a structured retryable failure. Validate
+  retry metadata and keep provider response details out of public diagnostics.
+
 ## 0.16.9 - 2026-09-06
 
 - Move R1 read receipt sequencing, deadline handling, cleanup admission, GitHub
