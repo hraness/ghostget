@@ -525,6 +525,9 @@
     "src/providers/linkedin-self-program.ts",
     "src/providers/github-read-platform.ts",
     "src/providers/linkedin-self-platform.ts",
+    "src/providers/linkedin-company-platform.ts",
+    "src/providers/linkedin-company-program.ts",
+    "src/providers/linkedin-read-failure.ts",
     "src/providers/github-read-model.ts"
   ],
   "scripts": {
