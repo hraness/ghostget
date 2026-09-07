@@ -381,9 +381,73 @@ test("organization scope cancels an overflowing body once and releases its reade
   const result = await executeGitHubPublicOrganizationRead({ ...organizationRecipe, maxOutputBytes: 64 }, { organization: "hraness" }, {
     fetch: () => { requests += 1; return Promise.resolve(response); },
   }, undefined);
-  expect(result).toMatchObject({ status: "failed", output: null, readFailure: { category: "contract-drift" } });
+  expect(result).toMatchObject({
+    status: "failed",
+    output: null,
+    readFailure: {
+      category: "cleanup-required",
+      retryDisposition: "do-not-retry",
+    },
+    dispatchStarted: false,
+    dispatch: { planned: 0, started: 0, verified: 0 },
+  });
   expect(requests).toBe(1);
   expect(cancellations).toBe(1);
   expect(body.locked).toBeFalse();
   expect(JSON.stringify(result)).not.toContain("private cleanup detail");
+});
+
+test("organization scope requires cleanup repair only when retryable response cancellation fails", async () => {
+  for (const [status, primaryCategory] of [
+    [503, "provider-temporary"],
+    [429, "provider-throttled"],
+  ] as const) {
+    for (const cleanupRejects of [false, true]) {
+      const privateSentinel = `private cleanup detail ${status}`;
+      let cancellations = 0;
+      let requests = 0;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) { controller.enqueue(new Uint8Array([1])); },
+        cancel() {
+          cancellations += 1;
+          return cleanupRejects
+            ? Promise.reject(new Error(privateSentinel))
+            : Promise.resolve();
+        },
+      });
+      const result = await executeGitHubPublicOrganizationRead(
+        organizationRecipe,
+        { organization: "hraness" },
+        {
+          fetch: () => {
+            requests += 1;
+            return Promise.resolve(new Response(body, {
+              status,
+              headers: { "content-type": "application/json" },
+            }));
+          },
+        },
+        undefined,
+      );
+      expect(result).toMatchObject({
+        status: "failed",
+        output: null,
+        readFailure: cleanupRejects
+          ? {
+              category: "cleanup-required",
+              retryDisposition: "do-not-retry",
+            }
+          : {
+              category: primaryCategory,
+              retryDisposition: "retry-once-after-60s",
+            },
+        dispatchStarted: false,
+        dispatch: { planned: 0, started: 0, verified: 0 },
+      });
+      expect(requests).toBe(1);
+      expect(cancellations).toBe(1);
+      expect(body.locked).toBeFalse();
+      expect(JSON.stringify(result)).not.toContain(privateSentinel);
+    }
+  }
 });
