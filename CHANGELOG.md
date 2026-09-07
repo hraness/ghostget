@@ -10,9 +10,12 @@ coordinate that completed both checks.
 ## 0.16.9 - 2026-09-06
 
 - Move R1 read receipt sequencing, deadline handling, cleanup admission, GitHub
-  organization reads, and LinkedIn self-profile reads into bounded Effect 3.22.1
-  programs. Preserve public Promise interfaces, result projections, and R2/R3
-  write dispatch rules.
+  organization reads, and LinkedIn self-profile and company reads into bounded
+  Effect 3.22.1 programs. Preserve public Promise interfaces, result projections,
+  and R2/R3 write dispatch rules. Require typed identity-response metadata for
+  the reviewed LinkedIn transport fallback.
+- Prevent GitHub read retries when response cleanup fails or times out, including
+  cancellation that rejects without an error value. Keep cleanup causes private.
 - Wait for native cleanup proof before releasing authenticated read admission.
   A 30-second cleanup-join deadline retains unsafe admission; late cleanup cannot
   upgrade that settled outcome. Preserve contained-browser ownership and
