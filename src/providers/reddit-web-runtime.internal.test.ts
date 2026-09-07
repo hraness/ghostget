@@ -441,6 +441,85 @@ describe("Reddit authenticated internal API runtime", () => {
     }
   });
 
+  test("projects provider throttling for every observed Reddit read without retry or dispatch", async () => {
+    const scenarios = [
+      { action: "profiles.read", input: { profile: "wrench_viewer" } },
+      { action: "feeds.read", input: { feed: "home" } },
+      { action: "posts.read", input: { post_id: POST_ID } },
+      { action: "comments.read", input: { post_id: POST_ID } },
+      { action: "media.read", input: { post_id: POST_ID } },
+      { action: "messaging.list", input: { folder: "inbox" } },
+      { action: "messaging.read", input: { folder: "inbox", message_id: MESSAGE_ID } },
+      { action: "flair.user.choices", input: { community: "Python" } },
+      { action: "flair.post.choices", input: { community: "Python" } },
+    ] as const;
+
+    for (const scenario of scenarios) {
+      const calls: CapturedRequest[] = [];
+      let callbacks = 0;
+      const result = await executeRedditWebOperation(
+        recipe(scenario.action),
+        scenario.input,
+        redditAuth,
+        {
+          dependencies: dependencies(calls, (request) => {
+            if (request.url.pathname === "/api/me.json") {
+              return jsonResponse(viewerResponse());
+            }
+            return jsonResponse({}, 429);
+          }),
+          beforeDispatch: () => {
+            callbacks += 1;
+            return Promise.resolve();
+          },
+          afterProviderAcceptedMutationTarget: () => {
+            callbacks += 1;
+            return Promise.resolve();
+          },
+          afterDispatchVerified: () => {
+            callbacks += 1;
+            return Promise.resolve();
+          },
+        },
+      );
+      expect(result).toMatchObject({
+        status: "failed",
+        output: null,
+        dispatchStarted: false,
+        dispatch: { planned: 0, started: 0, verified: 0 },
+        readFailure: {
+          category: "provider-throttled",
+          retryDisposition: "retry-once-after-60s",
+        },
+      });
+      expect(calls).toHaveLength(2);
+      expect(callbacks).toBe(0);
+    }
+  });
+
+  test("projects an identity throttle before starting a Reddit target read", async () => {
+    const calls: CapturedRequest[] = [];
+    const result = await executeRedditWebOperation(
+      recipe("comments.read"),
+      { post_id: POST_ID },
+      redditAuth,
+      {
+        dependencies: dependencies(calls, () => jsonResponse({}, 429)),
+      },
+    );
+    expect(result).toMatchObject({
+      status: "failed",
+      output: null,
+      dispatchStarted: false,
+      dispatch: { planned: 0, started: 0, verified: 0 },
+      readFailure: {
+        category: "provider-throttled",
+        retryDisposition: "retry-once-after-60s",
+      },
+    });
+    expect(calls.map((request) => request.url.pathname)).toEqual(["/api/me.json"]);
+  });
+
   test("reads exact profile counts and a complete visible contribution window", async () => {
     const calls: CapturedRequest[] = [];
     let callbacks = 0;
@@ -1086,9 +1165,9 @@ describe("Reddit authenticated internal API runtime", () => {
     expect(calls.every((request) => request.method === "GET")).toBeTrue();
   });
 
-  test("fails account mismatch before the target request and rejects reservations before cookie acquisition", () => {
+  test("projects account mismatch before the target request and rejects reservations before cookie acquisition", async () => {
     const mismatchCalls: CapturedRequest[] = [];
-    expect(executeRedditWebOperation(
+    expect(await executeRedditWebOperation(
       recipe("feeds.read"),
       { feed: "home" },
       redditAuth,
@@ -1098,11 +1177,17 @@ describe("Reddit authenticated internal API runtime", () => {
           return jsonResponse(viewerResponse(FIRST_MODHASH, "another"));
         }),
       },
-    )).rejects.toThrow("no longer matches");
+    )).toMatchObject({
+      status: "failed",
+      readFailure: {
+        category: "account-mismatch",
+        retryDisposition: "do-not-retry",
+      },
+    });
     expect(mismatchCalls).toHaveLength(1);
 
     let acquisitions = 0;
-    expect(executeRedditWebOperation(
+    await expect(executeRedditWebOperation(
       recipe("messaging.send"),
       { recipient: "nobody", body: "not sent" },
       redditAuth,
