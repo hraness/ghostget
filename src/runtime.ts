@@ -1,3 +1,8 @@
+import * as Effect from "effect/Effect";
+import { ConfirmedWritePlatformLive } from "./confirmed-write-platform";
+import { confirmedWriteProgram } from "./confirmed-write-program";
+import { runConfirmedWrite } from "./confirmed-write-runtime";
+import { GENERIC_EXECUTOR_TERMINATION, type LedgerEntry, type LedgerSnapshot, type BoundedExecution, type RunPreparedOptions } from "./confirmed-write-model";
 import { withReadCleanupAdmission, withPortableReadAdmission } from "./read-admission-runtime";
 import { runWebSessionReadWithDeadline } from "./web-session-read-runtime";
 import { runReadInvocation } from "./invocation-read-runtime";
@@ -22,12 +27,7 @@ import {
   withSettledReadProjectionAuthAdmission,
   type ReadProjectionQuery,
 } from "./read-projections";
-import {
-  executeBrowserRecipe,
-  PreservedBrowserArtifactsError,
-  type BrowserDispatchEvent,
-  type BrowserFileResolver,
-} from "./browser";
+import { executeBrowserRecipe, PreservedBrowserArtifactsError } from "./browser";
 import {
   canonicalJson,
   DOM_ACTION_TRANSPORT_DISABLED_MESSAGE,
@@ -57,11 +57,7 @@ import {
   parseLocalCliContractIdentityV1,
   type LocalCliContractIdentityV1,
 } from "./local-cli-contracts";
-import type {
-  LocalCliDispatchEvent,
-  LocalCliExecutionOptions,
-  LocalCliOperationExecutor,
-} from "./local-cli-execution";
+import type { LocalCliExecutionOptions, LocalCliOperationExecutor } from "./local-cli-execution";
 import { runLocalCliOperationWithDeadline } from "./local-cli-execution";
 import { localCliToolArtifactForCurrentRuntime } from "./local-cli-tool-identity";
 import type { OperationDeadlineClock } from "./operation-deadline";
@@ -69,10 +65,7 @@ import {
   getProviderContract,
   providerContractHash,
 } from "./provider-contracts";
-import {
-  executeProviderOperation,
-  type ProviderDispatchEvent,
-} from "./provider";
+import { executeProviderOperation } from "./provider";
 import { runProviderPluginPlanConformance } from "./provider-plugin";
 import { requireProviderPluginAuth } from "./provider-plugin-auth";
 import type {
@@ -87,14 +80,8 @@ import {
   parsePortableOperationIdentityV1,
   type PortableOperationIdentityV1,
 } from "./provider-plugin-portable-identity";
-import {
-  acquirePortableProviderPluginInvocationLease,
-  createPortableProviderPluginInvocationLeaseContainmentController,
-  releasePortableProviderPluginInvocationLease,
-} from "./provider-plugin-invocation-lease";
-import {
-  settlePortableProviderPluginCleanup,
-} from "./provider-plugin-cleanup-barrier";
+
+
 import {
   loadInstalledPortableProviderPlugin,
   withPortableProviderPluginCatalogLock,
@@ -104,25 +91,8 @@ import {
   getWebSessionContract,
   webSessionContractHash,
 } from "./web-session-contracts";
-import {
-  parseReadFailureProjection,
-  readFailureProjection,
-  runWebSessionOperationWithDeadline,
-  WebSessionCleanupUnverifiedError,
-  type ReadFailureProjection,
-  type WebSessionCleanupBarrierRegistrar,
-  type WebSessionExecutionOptions,
-  type WebSessionDispatchEvent,
-  type WebSessionOperationExecutor,
-  type PublicWebSessionOperationExecutor,
-  type WebSessionProviderAcceptedMutationTargetEvent,
-  type WebSessionProviderBoundMutationTargetEvent,
-} from "./web-session-execution";
-import {
-  WebSessionCleanupAdmissionBlockedError,
-  withWebSessionCleanupAdmission,
-  type WebSessionCleanupAdmissionIdentity,
-} from "./web-session-cleanup-admission";
+import { parseReadFailureProjection, readFailureProjection, WebSessionCleanupUnverifiedError, type ReadFailureProjection, type WebSessionExecutionOptions, type WebSessionOperationExecutor, type PublicWebSessionOperationExecutor } from "./web-session-execution";
+import { WebSessionCleanupAdmissionBlockedError, type WebSessionCleanupAdmissionIdentity } from "./web-session-cleanup-admission";
 import {
   isPublicWebSessionInvocationAuthority,
   parsePublicWebSessionInvocationAuthority,
@@ -133,13 +103,7 @@ import {
   type InvocationAuthority,
   type WebSessionAuthenticationPolicy,
 } from "./web-session-authentication-policy";
-import {
-  executeReviewedTemplateOperation,
-  isCookieCapableWebAuth,
-  planReviewedTemplateDispatches,
-  reviewedTemplateHash,
-  type ReviewedTemplateDispatchEvent,
-} from "./reviewed-template";
+import { executeReviewedTemplateOperation, isCookieCapableWebAuth, planReviewedTemplateDispatches, reviewedTemplateHash } from "./reviewed-template";
 import {
   cleanupPlanAssets,
   isPlanBoundFile,
@@ -147,25 +111,8 @@ import {
   resolvePlanAssetFiles,
   stagePlanAssets,
 } from "./plan-assets";
-import {
-  readRecoveryCapsule,
-  removeProviderAcceptedMutationTargetEvidence,
-  removeRecoveryCapsule,
-  writeProviderAcceptedMutationTargetEvidence,
-  writeRecoveryCapsule,
-  type RecoveryContractIdentity,
-} from "./recovery";
-import {
-  createRunJournal,
-  initialRunJournal,
-  listRunJournalSnapshots,
-  readRunJournal,
-  runJournalNeedsRepair,
-  transitionRunJournal,
-  updateRunJournal,
-  type RunJournal,
-  type RunJournalSnapshot,
-} from "./run-journal";
+import { readRecoveryCapsule, removeProviderAcceptedMutationTargetEvidence, removeRecoveryCapsule, type RecoveryContractIdentity } from "./recovery";
+import { listRunJournalSnapshots, readRunJournal, runJournalNeedsRepair, transitionRunJournal, updateRunJournal, type RunJournal, type RunJournalSnapshot } from "./run-journal";
 import {
   currentProcessStartIdentity,
   processOwnerStatus,
@@ -3038,26 +2985,9 @@ function validateFreshPlan(
   }, registry).invocation;
 }
 
-type LedgerEntry = {
-  readonly schemaVersion: 2 | 3;
-  readonly keyHash: string;
-  readonly adapterHash: string;
-  readonly authHash: string;
-  readonly inputHash: string;
-  readonly planDigest: string;
-  readonly status: "pending" | "succeeded" | "partial" | "indeterminate";
-  readonly dispatch: RunReceipt["dispatch"];
-  readonly runId: string;
-  readonly updatedAt: string;
-  readonly expiresAt: string;
-  readonly duplicateIntentHash?: string;
-};
 
-type LedgerSnapshot = {
-  readonly path: string;
-  readonly entry: LedgerEntry;
-  readonly contentSha256: string;
-};
+
+
 
 const MAX_LEDGER_BYTES = 64 * 1024;
 
@@ -3991,18 +3921,7 @@ export type InvocationResult = {
   readonly recoveryHandle?: string;
 };
 
-type BoundedExecution = {
-  readonly status: "succeeded" | "failed" | "partial" | "indeterminate";
-  readonly output: unknown;
-  readonly finalUrl: string | null;
-  readonly dispatchStarted: boolean;
-  readonly dispatch: RunReceipt["dispatch"];
-  readonly error?: string;
-  readonly readFailure?: ReadFailureProjection;
-  readonly noOp?: true;
-  readonly privateArtifactsPreserved?: boolean;
-  readonly recoveryHandle?: string;
-};
+
 
 const MAX_EXECUTION_ERROR_BYTES = 8 * 1024;
 const MAX_FINAL_URL_BYTES = 8 * 1024;
@@ -4136,8 +4055,6 @@ function executionOutputLimit(
   return operation.browser.maxOutputBytes;
 }
 
-const GENERIC_EXECUTOR_TERMINATION =
-  "provider executor terminated without returning a bounded result";
 
 function boundedThrownExecutorReason(error: unknown): string {
   const raw = error instanceof Error
@@ -4273,31 +4190,7 @@ function boundedExecutionResult(
   };
 }
 
-type RunPreparedOptions = {
-  readonly headed: boolean;
-  readonly environment: Readonly<Record<string, string | undefined>>;
-  readonly registry?: ProviderPluginRegistry;
-  readonly now?: Date;
-  readonly executeRecipe?: typeof executeBrowserRecipe;
-  readonly executeProvider?: typeof executeProviderOperation;
-  readonly executeWebSession?: WebSessionOperationExecutor;
-  readonly executeLocalCli?: LocalCliOperationExecutor;
-  readonly executePublicWebSession?: PublicWebSessionOperationExecutor;
-  readonly executeReviewedTemplate?: typeof executeReviewedTemplateOperation;
-  readonly fileResolver?: BrowserFileResolver;
-  readonly confirmedDispatches?: readonly BrowserDispatchPlan[];
-  readonly hasPlanAssets?: boolean;
-  readonly runId?: string;
-  readonly confirmationClaim?: ConfirmationClaimSnapshot;
-  readonly duplicateRisk?: InvocationDuplicateRiskV1;
-  readonly signal?: AbortSignal;
-  readonly registerCleanupBarrier?: WebSessionCleanupBarrierRegistrar;
-  readonly preflightFailure?: WebSessionCleanupAdmissionBlockedError;
-  readonly persistReceipt?: (
-    receipt: RunReceipt,
-    environment: Readonly<Record<string, string | undefined>>,
-  ) => void;
-};
+
 
 async function runPreparedReadCore(invocation: PreparedInvocation, planDigest: string | null, options: RunPreparedOptions): Promise<InvocationResult> {
   const registry = options.registry ?? providerPluginRegistry;
@@ -4629,1024 +4522,7 @@ async function runPreparedReadCore(invocation: PreparedInvocation, planDigest: s
   });
 }
 
-async function runPreparedCore(
-  invocation: PreparedInvocation,
-  planDigest: string | null,
-  options: RunPreparedOptions,
-): Promise<InvocationResult> {
-  const registry = options.registry ?? providerPluginRegistry;
-  const checked = revalidatePreparedInvocation(invocation, registry);
-  invocation = checked.invocation;
-  const persistReceipt = options.persistReceipt ?? writeReceipt;
-  const operation = checked.operation;
-  if (operation.risk === "R1") return runPreparedReadCore(invocation, planDigest, options);
-  if (operation.risk === "R4") throw new Error("R4 capabilities are blocked by wrench");
-  const isWrite = operation.risk === "R2" || operation.risk === "R3";
-  if (isWrite) {
-    const claimRepair = repairInterruptedConfirmationClaims(
-      options.environment,
-    );
-    const journalRepair = repairInterruptedRunJournals(
-      options.environment,
-      options.now ?? new Date(),
-    );
-    if (claimRepair.invalid > 0 || journalRepair.issues.length > 0) {
-      throw new Error(
-        "local execution recovery has unresolved state; run wrench doctor before starting another write",
-      );
-    }
-  }
-  const providerOperation = isProviderOperation(operation);
-  const webSessionOperation = isWebSessionOperation(operation);
-  const localCliOperation = isLocalCliOperation(operation);
-  const reviewedTemplateOperation = isReviewedTemplateOperation(operation);
-  const pluginResolution = resolveCodeOwnedPluginOperation(operation, registry);
-  const plannedDispatches = pluginResolution !== null
-    ? runProviderPluginPlanConformance(
-        pluginResolution.operation,
-        invocation.input,
-      )
-      : reviewedTemplateOperation
-        ? planReviewedTemplateDispatches(invocation.operationId, operation.risk, operation.reviewedTemplate)
-        : operation.browser === undefined
-          ? (() => {
-            throw new Error(DOM_ACTION_TRANSPORT_DISABLED_MESSAGE);
-          })()
-          : expandBrowserRecipe(operation.browser, invocation.input).dispatches;
-  if (
-    options.confirmedDispatches !== undefined
-    && canonicalJson(plannedDispatches) !== canonicalJson(options.confirmedDispatches)
-  ) {
-    throw new Error(
-      "planned dispatch schedule changed before execution; preview the action again",
-    );
-  }
-  const planned = plannedDispatches.length;
-  const currentProviderContractHash = providerOperation
-    ? providerContractHash(
-        getProviderContract(operation.provider, registry),
-        registry,
-      )
-    : null;
-  const currentWebSessionContractHash = webSessionOperation
-    ? webSessionContractHash(
-        getWebSessionContract(operation.webSession, registry),
-        registry,
-      )
-    : null;
-  const currentLocalCliContractIdentity = localCliOperation
-    ? localCliContractIdentity(operation.localCli, registry)
-    : null;
-  const currentReviewedTemplateContractHash = reviewedTemplateOperation
-    ? reviewedTemplateHash(operation.reviewedTemplate)
-    : null;
-  const currentPortablePluginContract =
-    pluginResolution?.portableIdentity ?? null;
-  const recoveryContract = (): RecoveryContractIdentity => {
-    if (currentPortablePluginContract !== null) {
-      return {
-        transport: "portable-provider-plugin",
-        identity: currentPortablePluginContract,
-      };
-    }
-    if (providerOperation) {
-      if (currentProviderContractHash === null) throw new Error("official provider contract hash is unavailable");
-      return {
-        transport: "provider-api",
-        provider: operation.provider.provider,
-        action: operation.provider.action,
-        version: operation.provider.contractVersion,
-        hash: currentProviderContractHash,
-      };
-    }
-    if (webSessionOperation) {
-      if (currentWebSessionContractHash === null) throw new Error("authenticated web contract hash is unavailable");
-      return {
-        transport: "web-session-api",
-        site: operation.webSession.site,
-        action: operation.webSession.action,
-        version: operation.webSession.contractVersion,
-        hash: currentWebSessionContractHash,
-      };
-    }
-    if (localCliOperation) {
-      if (currentLocalCliContractIdentity === null) {
-        throw new Error("local CLI contract identity is unavailable");
-      }
-      return {
-        transport: "local-cli",
-        identity: currentLocalCliContractIdentity,
-      };
-    }
-    if (reviewedTemplateOperation) {
-      if (currentReviewedTemplateContractHash === null) throw new Error("reviewed template contract hash is unavailable");
-      return {
-        transport: "reviewed-template-api",
-        version: operation.reviewedTemplate.contractVersion,
-        hash: currentReviewedTemplateContractHash,
-      };
-    }
-    throw new Error(DOM_ACTION_TRANSPORT_DISABLED_MESSAGE);
-  };
-  const inputHash = sha256(canonicalJson(invocation.input));
-  const runId = options.runId ?? crypto.randomUUID();
-  if (!/^[0-9a-f-]{36}$/u.test(runId)) {
-    throw new Error("run ID is malformed");
-  }
-  const startedAt = (options.now ?? new Date()).toISOString();
-  const adapter = {
-    id: invocation.manifest.id,
-    version: invocation.manifest.version,
-    hash: manifestHash(invocation.manifest),
-  };
-  const auth = { id: invocation.auth.id, hash: authHash(invocation.auth), kind: invocation.auth.kind };
-  const durableWriteAuth = (): InvocationPlanCommon["auth"] => {
-    if (!isWrite) throw new Error("read invocation has no durable write auth");
-    const selected = persistedAuthAuthority(invocation.auth);
-    return {
-      id: selected.id,
-      hash: authHash(selected),
-      kind: selected.kind,
-    };
-  };
-  const withTransport = (value: RunReceiptCommon): RunReceipt => {
-    if (currentPortablePluginContract !== null) {
-      return {
-        ...value,
-        schemaVersion: 6,
-        transport: "portable-provider-plugin",
-        portablePluginContract: currentPortablePluginContract,
-      };
-    }
-    if (providerOperation) {
-      if (currentProviderContractHash === null) throw new Error("official provider contract hash is unavailable");
-      return {
-        ...value,
-        schemaVersion: 3,
-        transport: "provider-api",
-        providerContractHash: currentProviderContractHash,
-      };
-    }
-    if (webSessionOperation) {
-      if (currentWebSessionContractHash === null) throw new Error("authenticated web contract hash is unavailable");
-      return {
-        ...value,
-        schemaVersion: 4,
-        transport: "web-session-api",
-        webSessionContractHash: currentWebSessionContractHash,
-      };
-    }
-    if (localCliOperation) {
-      if (currentLocalCliContractIdentity === null) {
-        throw new Error("local CLI contract identity is unavailable");
-      }
-      return {
-        ...value,
-        schemaVersion: 7,
-        transport: "local-cli",
-        localCliContract: currentLocalCliContractIdentity,
-      };
-    }
-    if (reviewedTemplateOperation) {
-      if (currentReviewedTemplateContractHash === null) throw new Error("reviewed template contract hash is unavailable");
-      return {
-        ...value,
-        schemaVersion: 5,
-        transport: "reviewed-template-api",
-        reviewedTemplateContractHash: currentReviewedTemplateContractHash,
-      };
-    }
-    return { ...value, schemaVersion: 2, transport: "browser" };
-  };
-  let journal: RunJournalSnapshot | null = null;
-  let durableReceipt: RunReceipt = withTransport({
-    runId,
-    planDigest,
-    adapter,
-    operation: invocation.operationId,
-    risk: operation.risk,
-    inputHash,
-    auth,
-    status: "pending",
-    dispatchStarted: false,
-    dispatch: { planned, started: 0, verified: 0 },
-    startedAt,
-    finishedAt: startedAt,
-    finalOrigin: null,
-    error: "execution was prepared but no durable final outcome was recorded",
-  });
-  if (isWrite) {
-    if (planDigest === null) throw new Error("remote writes require a confirmation plan");
-    if (
-      options.confirmationClaim === undefined
-      || options.confirmationClaim.claim.digest !== planDigest
-      || options.confirmationClaim.claim.runId !== runId
-    ) {
-      throw new Error(
-        "remote writes require an exact durable confirmation ownership claim",
-      );
-    }
-    if (!isProviderPluginOperationName(invocation.operationId)) {
-      throw new Error("run journal operation name is malformed");
-    }
-    const contract = recoveryContract();
-    const timeoutMs = providerOperation
-      ? operation.provider.timeoutMs
-      : webSessionOperation
-        ? operation.webSession.timeoutMs
-        : localCliOperation
-          ? operation.localCli.timeoutMs
-        : reviewedTemplateOperation
-          ? operation.reviewedTemplate.state === "reviewed"
-            ? operation.reviewedTemplate.timeoutMs
-            : 10 * 60_000
-          : operation.browser?.timeoutMs ?? 10 * 60_000;
-    const processIdentity = currentProcessStartIdentity();
-    try {
-      journal = createRunJournal(initialRunJournal({
-        runId,
-        planDigest,
-        adapter,
-        operation: invocation.operationId,
-        risk: operation.risk,
-        inputHash,
-        auth: durableWriteAuth(),
-        contract: contract.transport === "portable-provider-plugin"
-          || contract.transport === "local-cli"
-          ? contract
-          : {
-              transport: contract.transport,
-              hash: contract.hash,
-            },
-        ...(options.duplicateRisk === undefined
-          ? {}
-          : {
-              duplicateIntent: {
-                schemaVersion: 1 as const,
-                intentHash: options.duplicateRisk.intentHash,
-                sourceRunId: options.duplicateRisk.sourceRunId,
-              },
-            }),
-        plannedDispatches: planned,
-        hasPlanAssets: options.hasPlanAssets === true,
-        owner: {
-          pid: process.pid,
-          token: crypto.randomUUID(),
-          ...processIdentity,
-          leaseUntil: new Date(
-            Date.parse(startedAt) + timeoutMs + 30_000,
-          ).toISOString(),
-        },
-        startedAt,
-        dedupeExpiresAt: new Date(
-          Date.parse(startedAt) + operation.dedupeWindowMs,
-        ).toISOString(),
-      }), options.environment);
-    } catch (error) {
-      releaseConfirmationClaim(
-        options.confirmationClaim,
-        options.environment,
-      );
-      throw error;
-    }
-    if (
-      !removePrivateStateFile(
-        planPath(planDigest, options.environment),
-        options.environment,
-      )
-    ) {
-      try {
-        journal = updateRunJournal(journal, {
-          type: "finished",
-          status: "failed",
-          finalOrigin: null,
-          error: "confirmation ownership was lost before plan consumption",
-          at: startedAt,
-        }, options.environment);
-        projectRunJournal(journal.journal, options.environment);
-      } finally {
-        releaseConfirmationClaim(
-          options.confirmationClaim,
-          options.environment,
-        );
-      }
-      throw new Error("confirmation plan was already consumed or cancelled");
-    }
-    try {
-      journal = updateRunJournal(journal, {
-        type: "confirmation-consumed",
-        at: startedAt,
-      }, options.environment);
-    } catch (error) {
-      // The still-present claim plus absent plan is a durable recovery witness.
-      throw new Error(
-        "confirmation plan was consumed, but its run journal could not claim ownership; run wrench doctor before retrying",
-        { cause: error },
-      );
-    }
-    if (
-      !releaseConfirmationClaim(
-        options.confirmationClaim,
-        options.environment,
-      )
-    ) {
-      try {
-        journal = updateRunJournal(journal, {
-          type: "finished",
-          status: "failed",
-          finalOrigin: null,
-          error: "confirmation ownership claim changed before release",
-          at: startedAt,
-        }, options.environment);
-        projectRunJournal(journal.journal, options.environment);
-      } catch {
-        // The consumed journal remains fail-closed and repairable.
-      }
-      throw new Error(
-        "confirmation ownership claim changed unexpectedly; run wrench doctor before retrying",
-      );
-    }
-    durableReceipt = runJournalReceipt(journal.journal);
-  }
-  const finalizePreDispatchFailure = (message: string): void => {
-    if (journal === null) return;
-    try {
-      if (journal.journal.phase !== "terminal") {
-        journal = updateRunJournal(journal, {
-          type: "finished",
-          status: "failed",
-          finalOrigin: null,
-          error: message,
-          at: (options.now ?? new Date()).toISOString(),
-        }, options.environment);
-      }
-      projectRunJournal(journal.journal, options.environment);
-      durableReceipt = runJournalReceipt(journal.journal);
-    } catch {
-      // Never delete or rewrite subordinate state when the source journal did
-      // not durably accept the terminal transition.
-    }
-  };
-  try {
-    persistReceipt(durableReceipt, options.environment);
-  } catch (error) {
-    if (journal !== null) {
-      try {
-        journal = updateRunJournal(journal, {
-          type: "finished",
-          status: "failed",
-          finalOrigin: null,
-          error: "provisional receipt could not be projected before dispatch",
-          at: (options.now ?? new Date()).toISOString(),
-        }, options.environment);
-      } catch {
-        // The prepared journal still proves that dispatch never started.
-      }
-    }
-    throw new Error("refusing to start execution because its provisional receipt could not be stored", { cause: error });
-  }
-  if (isWrite) {
-    if (planDigest === null) throw new Error("remote writes require a confirmation plan");
-    const path = ledgerPath(
-      adapter.hash,
-      auth.hash,
-      invocation.operationId,
-      inputHash,
-      options.environment,
-      options.duplicateRisk?.intentHash,
-    );
-    const entry: LedgerEntry = {
-      schemaVersion: options.duplicateRisk === undefined ? 2 : 3,
-      keyHash: options.duplicateRisk?.intentHash ?? inputHash,
-      adapterHash: adapter.hash,
-      authHash: auth.hash,
-      inputHash,
-      planDigest: planDigest ?? "",
-      status: "pending",
-      dispatch: durableReceipt.dispatch,
-      runId,
-      updatedAt: startedAt,
-      expiresAt: new Date(Date.parse(startedAt) + operation.dedupeWindowMs).toISOString(),
-      ...(options.duplicateRisk === undefined
-        ? {}
-        : { duplicateIntentHash: options.duplicateRisk.intentHash }),
-    };
-    let acquired: ReturnType<typeof acquireLedger>;
-    try {
-      acquired = acquireLedger(
-        path,
-        entry,
-        options.environment,
-        options.now ?? new Date(),
-      );
-    } catch (error) {
-      finalizePreDispatchFailure(
-        "idempotency state could not be inspected before dispatch",
-      );
-      throw new Error(
-        "refusing to start a remote write because its idempotency state could not be inspected",
-        { cause: error },
-      );
-    }
-    if (!acquired.acquired) {
-      finalizePreDispatchFailure(
-        "another run already owns this idempotency scope",
-      );
-      if (
-        acquired.existing.inputHash !== inputHash
-        || acquired.existing.adapterHash !== adapter.hash
-        || acquired.existing.authHash !== auth.hash
-      ) throw new Error("idempotency key was already used in a different action scope");
-      if (acquired.existing.status === "succeeded") {
-        return {
-          receipt: readRunReceipt(acquired.existing.runId, options.environment),
-          output: null,
-          replayed: true,
-          privateArtifactsPreserved: false,
-        };
-      }
-      throw new Error(`a prior attempt (${acquired.existing.runId}) may have reached the provider; inspect 'wrench runs show ${acquired.existing.runId}' and reconcile it before retrying`);
-    }
-    try {
-      if (journal === null) throw new Error("remote write has no run journal");
-      journal = updateRunJournal(journal, {
-        type: "ledger-claimed",
-        ledgerRelativePath: relativeStatePath(
-          acquired.snapshot.path,
-          options.environment,
-        ),
-        at: (options.now ?? new Date()).toISOString(),
-      }, options.environment);
-    } catch (error) {
-      finalizePreDispatchFailure(
-        "idempotency claim could not be bound to the run journal",
-      );
-      throw new Error(
-        "refusing to start a remote write because its run journal could not claim the idempotency ledger",
-        { cause: error },
-      );
-    }
-    try {
-      writeRecoveryCapsule({
-        schemaVersion: 1,
-        runId,
-        createdAt: startedAt,
-        planDigest,
-        adapter,
-        operation: invocation.operationId,
-        risk: operation.risk,
-        input: invocation.input,
-        inputHash,
-        auth: durableWriteAuth(),
-        contract: recoveryContract(),
-      }, options.environment);
-      if (journal === null) throw new Error("remote write has no run journal");
-      journal = updateRunJournal(journal, {
-        type: "recovery-stored",
-        at: (options.now ?? new Date()).toISOString(),
-      }, options.environment);
-      durableReceipt = runJournalReceipt(journal.journal);
-    } catch (error) {
-      finalizePreDispatchFailure(
-        "encrypted recovery state could not be made durable before dispatch",
-      );
-      throw new Error("refusing to start a remote write because its encrypted recovery capsule could not be stored", {
-        cause: error,
-      });
-    }
-  }
-  let duplicateSourceClaimed = false;
-  const persistDispatchProgress = (
-    event:
-      | BrowserDispatchEvent
-      | ProviderDispatchEvent
-      | WebSessionDispatchEvent
-      | LocalCliDispatchEvent
-      | ReviewedTemplateDispatchEvent,
-    phase: "starting" | "verified",
-  ): Promise<void> => {
-    const expectedDispatch = plannedDispatches[event.index - 1];
-    const prior = durableReceipt.dispatch;
-    const expectedPrior = phase === "starting"
-      ? { planned, started: event.index - 1, verified: event.index - 1 }
-      : { planned, started: event.index, verified: event.index - 1 };
-    if (
-      !isDispatchProgress(event.progress)
-      || event.progress.planned !== planned
-      || event.index < 1
-      || event.index > planned
-      || expectedDispatch === undefined
-      || event.id !== expectedDispatch.id
-      || canonicalJson(prior) !== canonicalJson(expectedPrior)
-      || (phase === "starting"
-        ? event.progress.started !== event.index - 1
-          || event.progress.verified !== event.index - 1
-        : event.progress.started !== event.index
-          || event.progress.verified !== event.index)
-    ) {
-      return Promise.reject(new Error("dispatch progress diverged from the confirmed schedule"));
-    }
-    const dispatch = phase === "starting"
-      ? { planned, started: event.index, verified: event.progress.verified }
-      : event.progress;
-    if (!isDispatchProgress(dispatch)) return Promise.reject(new Error("dispatch progress is malformed"));
-    const progressAt = (options.now ?? new Date()).toISOString();
-    let next: RunReceipt = {
-      ...durableReceipt,
-      status: "pending",
-      dispatchStarted: dispatch.started > 0,
-      dispatch,
-      finishedAt: progressAt,
-      error: phase === "starting"
-        ? "a dispatch was durably marked before provider submission; a missing final outcome requires reconciliation"
-        : "verified dispatch progress was stored; execution has not reached a durable final outcome",
-    };
-    try {
-      if (
-        phase === "starting"
-        && event.index === 1
-        && options.duplicateRisk !== undefined
-        && !duplicateSourceClaimed
-      ) {
-        claimDuplicateRiskSource(
-          options.duplicateRisk,
-          runId,
-          options.environment,
-          options.now ?? new Date(),
-        );
-        duplicateSourceClaimed = true;
-      }
-      if (journal !== null) {
-        journal = updateRunJournal(journal, {
-          type: phase === "starting" ? "dispatch-started" : "dispatch-verified",
-          index: event.index,
-          at: progressAt,
-        }, options.environment);
-        next = runJournalReceipt(journal.journal);
-        durableReceipt = next;
-      } else {
-        persistReceipt(next, options.environment);
-      }
-      durableReceipt = next;
-      return Promise.resolve();
-    } catch (error) {
-      return Promise.reject(new Error("refusing provider dispatch because durable progress could not be stored", { cause: error }));
-    }
-  };
-  const persistProviderBoundMutationTarget = (
-    eventValue:
-      | WebSessionProviderAcceptedMutationTargetEvent
-      | WebSessionProviderBoundMutationTargetEvent,
-  ): Promise<void> => {
-    const event = foreignDataRecord(eventValue);
-    if (
-      event === null
-      || !hasExactKeys(event, ["id", "index", "target"])
-      || typeof event.id !== "string"
-      || !Number.isSafeInteger(event.index)
-    ) {
-      return Promise.reject(new Error(
-        "provider-accepted mutation target event is malformed",
-      ));
-    }
-    const index = event.index as number;
-    const expectedDispatch = plannedDispatches[index - 1];
-    const current = durableReceipt.dispatch;
-    if (
-      !isWrite
-      || (!webSessionOperation && !localCliOperation)
-      || journal === null
-      || expectedDispatch === undefined
-      || event.id !== expectedDispatch.id
-      || index < 1
-      || index > planned
-      || current.planned !== planned
-      || current.started !== index
-      || current.verified !== index - 1
-    ) {
-      return Promise.reject(new Error(
-        "provider-accepted mutation target diverged from the active dispatch",
-      ));
-    }
-    const contract = recoveryContract();
-    if (
-      contract.transport !== "web-session-api"
-      && contract.transport !== "local-cli"
-    ) {
-      return Promise.reject(new Error(
-        "provider-accepted mutation target requires a session or local CLI contract",
-      ));
-    }
-    try {
-      writeProviderAcceptedMutationTargetEvidence({
-        schemaVersion: 1,
-        runId,
-        acceptedAt: (options.now ?? new Date()).toISOString(),
-        planDigest,
-        adapter,
-        operation: invocation.operationId,
-        inputHash,
-        auth,
-        contract,
-        dispatch: {
-          id: event.id,
-          index,
-          planned,
-        },
-        target: event.target,
-      }, options.environment);
-      return Promise.resolve();
-    } catch (error) {
-      return Promise.reject(new Error(
-        "provider-accepted mutation target could not be stored",
-        { cause: error },
-      ));
-    }
-  };
-  const executionKind = providerOperation
-    ? "provider"
-    : webSessionOperation
-      ? "web-session"
-      : localCliOperation
-        ? "local-cli"
-      : reviewedTemplateOperation ? "reviewed-template" : "browser";
-  const exactTargetReconciliationKind =
-    pluginResolution?.operation.reconciliation?.kind;
-  const maxOutputBytes = executionOutputLimit(operation);
-  const publicWebSessionOperation = webSessionOperation
-    && isPublicWebSessionInvocationAuthority(invocation.auth);
-  let execution: BoundedExecution;
-  try {
-    if (options.preflightFailure !== undefined) {
-      throw options.preflightFailure;
-    }
-    const rawExecution: unknown = providerOperation
-      ? await (options.executeProvider ?? executeProviderOperation)(
-          invocation.manifest,
-          operation.provider,
-          invocation.input,
-          persistedAuthAuthority(invocation.auth),
-          {
-            registry,
-            ...(options.fileResolver === undefined ? {} : { fileResolver: options.fileResolver }),
-            ...(options.now === undefined ? {} : { now: options.now }),
-            ...(options.signal === undefined ? {} : { signal: options.signal }),
-            environment: options.environment,
-            beforeDispatch: (event) => persistDispatchProgress(event, "starting"),
-            afterDispatchVerified: (event) => persistDispatchProgress(event, "verified"),
-          },
-        )
-      : webSessionOperation
-        ? await runWebSessionOperationWithDeadline(
-            operation.webSession,
-            {
-              ...(options.fileResolver === undefined ? {} : { fileResolver: options.fileResolver }),
-              environment: options.environment,
-              ...(options.signal === undefined ? {} : { signal: options.signal }),
-              ...(options.registerCleanupBarrier === undefined
-                ? {}
-                : {
-                  registerCleanupBarrier: options.registerCleanupBarrier,
-                }),
-              beforeDispatch: (event) => persistDispatchProgress(event, "starting"),
-              ...(isWrite
-                && exactTargetReconciliationKind
-                  === "provider-accepted-target-presence"
-                ? {
-                  afterProviderAcceptedMutationTarget:
-                    persistProviderBoundMutationTarget,
-                }
-                : {}),
-              ...(isWrite
-                && exactTargetReconciliationKind
-                  === "provider-bound-target-desired-state"
-                ? {
-                  afterProviderBoundMutationTarget:
-                    persistProviderBoundMutationTarget,
-                }
-                : {}),
-              afterDispatchVerified: (event) => persistDispatchProgress(event, "verified"),
-            },
-            async (executionOptions: WebSessionExecutionOptions) => {
-              if (
-                pluginResolution === null
-                || (
-                  pluginResolution.binding.transport !== "web-session-api"
-                  && pluginResolution.binding.transport !== "linked-device"
-                )
-              ) {
-                throw new Error(
-                  "authenticated session operation resolved to the wrong plugin transport",
-                );
-              }
-              if (publicWebSessionOperation) {
-                if (pluginResolution.binding.transport !== "web-session-api") {
-                  throw new Error(
-                    "public access is available only to a web-session plugin binding",
-                  );
-                }
-                const executePublic = options.executePublicWebSession
-                  ?? pluginResolution.binding.executePublic;
-                if (executePublic === undefined) {
-                  throw new Error(
-                    "reviewed public web-session operation has no public runtime hook",
-                  );
-                }
-                return executePublic(
-                  invocation.manifest,
-                  operation.webSession,
-                  invocation.input,
-                  executionOptions,
-                );
-              }
-              return (options.executeWebSession
-                ?? pluginResolution.binding.execute)(
-                invocation.manifest,
-                operation.webSession,
-                invocation.input,
-                persistedAuthAuthority(invocation.auth),
-                executionOptions,
-              );
-            },
-          )
-        : localCliOperation
-          ? await runLocalCliOperationWithDeadline(
-              operation.localCli,
-              {
-                ...(options.fileResolver === undefined
-                  ? {}
-                  : { fileResolver: options.fileResolver }),
-                environment: options.environment,
-                ...(options.signal === undefined
-                  ? {}
-                  : { signal: options.signal }),
-                ...(options.registerCleanupBarrier === undefined
-                  ? {}
-                  : { registerCleanupBarrier: options.registerCleanupBarrier }),
-                beforeDispatch: (event) =>
-                  persistDispatchProgress(event, "starting"),
-                ...(isWrite
-                  && exactTargetReconciliationKind
-                    === "provider-accepted-target-presence"
-                  ? {
-                    afterProviderAcceptedMutationTarget:
-                      persistProviderBoundMutationTarget,
-                  }
-                  : {}),
-                ...(isWrite
-                  && exactTargetReconciliationKind
-                    === "provider-bound-target-desired-state"
-                  ? {
-                    afterProviderBoundMutationTarget:
-                      persistProviderBoundMutationTarget,
-                  }
-                  : {}),
-                afterDispatchVerified: (event) =>
-                  persistDispatchProgress(event, "verified"),
-              },
-              async (executionOptions: LocalCliExecutionOptions) => {
-                if (
-                  pluginResolution === null
-                  || pluginResolution.binding.transport !== "local-cli"
-                ) {
-                  throw new Error(
-                    "local CLI operation resolved to the wrong plugin transport",
-                  );
-                }
-                return (options.executeLocalCli
-                  ?? pluginResolution.binding.execute)(
-                  invocation.manifest,
-                  operation.localCli,
-                  invocation.input,
-                  persistedAuthAuthority(invocation.auth),
-                  executionOptions,
-                );
-              },
-            )
-        : reviewedTemplateOperation
-          ? await (options.executeReviewedTemplate ?? executeReviewedTemplateOperation)(
-              invocation.manifest,
-              invocation.operationId,
-              operation.reviewedTemplate,
-              invocation.input,
-              persistedAuthAuthority(invocation.auth),
-              {
-                beforeDispatch: (event) => persistDispatchProgress(event, "starting"),
-                afterDispatchVerified: (event) => persistDispatchProgress(event, "verified"),
-              },
-            )
-          : await (options.executeRecipe ?? executeBrowserRecipe)(
-          invocation.manifest,
-          operation.browser,
-          invocation.input,
-          persistedAuthAuthority(invocation.auth),
-          {
-            headed: options.headed,
-            ...(options.fileResolver === undefined ? {} : { fileResolver: options.fileResolver }),
-            beforeDispatch: (event) => persistDispatchProgress(event, "starting"),
-            afterDispatchVerified: (event) => persistDispatchProgress(event, "verified"),
-          },
-        );
-    try {
-      execution = boundedExecutionResult(rawExecution, executionKind, maxOutputBytes);
-    } catch {
-      const { started } = durableReceipt.dispatch;
-      execution = {
-        status: started > 0 ? "indeterminate" : "failed",
-        output: null,
-        finalUrl: null,
-        dispatchStarted: started > 0,
-        dispatch: durableReceipt.dispatch,
-        error: GENERIC_EXECUTOR_TERMINATION,
-      };
-    }
-  } catch (error) {
-    const { started } = durableReceipt.dispatch;
-    const preservedArtifactsError =
-      error instanceof PreservedBrowserArtifactsError
-        ? error
-        : error instanceof WebSessionCleanupUnverifiedError
-          && error.cause instanceof PreservedBrowserArtifactsError
-          ? error.cause
-          : null;
-    const cleanupRequired = error instanceof WebSessionCleanupUnverifiedError
-      || error instanceof WebSessionCleanupAdmissionBlockedError;
-    execution = {
-      status: started > 0 ? "indeterminate" : "failed",
-      output: null,
-      finalUrl: null,
-      dispatchStarted: started > 0,
-      dispatch: durableReceipt.dispatch,
-      error: preservedArtifactsError !== null
-        ? "provider browser cleanup could not be verified; private artifacts were preserved and durable cleanup admission requires wrench doctor before retry"
-        : cleanupRequired
-          ? localCliOperation
-            ? "local CLI child/private-root cleanup could not be verified; durable cleanup admission blocks retry until wrench doctor proves every pinned process group quiescent and removes the exact private root"
-            : "authenticated web cleanup could not be verified; durable cleanup admission blocks retry until wrench doctor proves and completes exact browser-session recovery"
-          : boundedThrownExecutorReason(error),
-      ...(preservedArtifactsError === null
-        ? {}
-        : {
-            privateArtifactsPreserved: true,
-            recoveryHandle: preservedArtifactsError.recoveryHandle,
-          }),
-    };
-  }
-  const executionNoOp = "noOp" in execution && execution.noOp === true;
-  const validExecutionProgress = isDispatchProgress(execution.dispatch)
-    && execution.dispatch.planned === planned
-    && execution.readFailure === undefined
-    && execution.dispatch.started === durableReceipt.dispatch.started
-    && execution.dispatch.verified === durableReceipt.dispatch.verified
-    && execution.dispatchStarted === (execution.dispatch.started > 0)
-    && (!executionNoOp || (
-      isWrite
-      && planned > 0
-      && execution.status === "succeeded"
-      && execution.dispatch.started === 0
-      && execution.dispatch.verified === 0
-      && execution.dispatchStarted === false
-    ))
-    && (execution.status !== "succeeded" || executionNoOp || (
-      execution.dispatch.started === planned && execution.dispatch.verified === planned
-    ))
-    && (execution.status !== "failed" || execution.dispatch.started === 0)
-    && (execution.status !== "partial" || (
-      execution.dispatch.verified > 0
-      && execution.dispatch.started === execution.dispatch.verified
-      && execution.dispatch.verified < planned
-    ))
-    && (execution.status !== "indeterminate" || execution.dispatch.started > 0);
-  if (!validExecutionProgress) {
-    const { started } = durableReceipt.dispatch;
-    execution = {
-      status: started > 0 ? "indeterminate" : "failed",
-      output: null,
-      finalUrl: null,
-      dispatchStarted: started > 0,
-      dispatch: durableReceipt.dispatch,
-      error: "provider executor returned invalid dispatch progress",
-    };
-  }
-  const receiptStatus: RunReceipt["status"] = execution.status === "succeeded"
-    ? isWrite && !executionNoOp ? "submitted" : "succeeded"
-    : execution.status;
-  const publishedOutput = execution.output;
-  const finishedAt = (options.now ?? new Date()).toISOString();
-  const privateArtifactsPreserved = "privateArtifactsPreserved" in execution
-    && execution.privateArtifactsPreserved === true;
-  const recoveryHandle = boundedRecoveryHandle("recoveryHandle" in execution ? execution.recoveryHandle : undefined);
-  const privateArtifactRecoveryMessage = privateArtifactsPreserved
-    ? `private browser artifacts were preserved; wrench doctor must prove and complete exact browser-session recovery before retry${recoveryHandle === null
-        ? ""
-        : `; recovery handle: ${recoveryHandle}`}`
-    : null;
-  const apiOperation = providerOperation
-    || webSessionOperation
-    || localCliOperation
-    || reviewedTemplateOperation;
-  const transportLabel = providerOperation
-    ? "official API"
-    : webSessionOperation
-      ? "authenticated web API"
-      : localCliOperation
-        ? "local CLI"
-        : reviewedTemplateOperation
-          ? "reviewed authenticated API"
-          : "browser";
-  const providerReason = apiOperation && execution.error !== undefined
-    ? redactSensitiveText(execution.error).slice(0, 2_000)
-    : null;
-  const withProviderReason = (message: string): string => providerReason === null
-    ? message
-    : `${message}; reason: ${providerReason}`;
-  let receipt: RunReceipt = withTransport({
-    runId,
-    planDigest,
-    adapter,
-    operation: invocation.operationId,
-    risk: operation.risk,
-    inputHash,
-    auth,
-    status: receiptStatus,
-    dispatchStarted: execution.dispatch.started > 0,
-    dispatch: execution.dispatch,
-    startedAt,
-    finishedAt,
-    finalOrigin: finalOrigin(execution.finalUrl, invocation.manifest.origins),
-    error: execution.error === undefined
-      ? null
-      : privateArtifactRecoveryMessage !== null
-        ? privateArtifactRecoveryMessage
-        : redactSensitiveText(receiptStatus === "partial"
-            ? withProviderReason(`${transportLabel} stopped after verified dispatches before completing the confirmed schedule; reconcile before retrying`)
-            : receiptStatus === "indeterminate"
-              ? withProviderReason(`${transportLabel} result is indeterminate after the dispatch boundary`)
-              : apiOperation
-                ? withProviderReason(`${transportLabel} operation failed before the dispatch boundary`)
-                : "browser recipe failed before the dispatch boundary"),
-  });
-  if (journal !== null) {
-    if (
-      receiptStatus !== "succeeded"
-      && receiptStatus !== "submitted"
-      && receiptStatus !== "failed"
-      && receiptStatus !== "partial"
-      && receiptStatus !== "indeterminate"
-    ) {
-      throw new Error("remote write produced an unsupported terminal journal status");
-    }
-    try {
-      journal = updateRunJournal(journal, {
-        type: "finished",
-        status: receiptStatus,
-        finalOrigin: receipt.finalOrigin,
-        error: receipt.error,
-        ...(executionNoOp ? { noOp: true as const } : {}),
-        at: finishedAt,
-      }, options.environment);
-      receipt = runJournalReceipt(journal.journal);
-    } catch {
-      try {
-        const reloaded = readRunJournal(runId, options.environment);
-        if (reloaded !== null) journal = reloaded;
-      } catch {
-        // Retain the last exact durable snapshot.
-      }
-    }
-    if (journal.journal.phase === "terminal") {
-      receipt = runJournalReceipt(journal.journal);
-      try {
-        projectRunJournal(journal.journal, options.environment);
-      } catch {
-        // The terminal journal remains the source of truth for later repair.
-      }
-      return {
-        receipt,
-        output: publishedOutput,
-        replayed: false,
-        privateArtifactsPreserved,
-        ...(recoveryHandle === null ? {} : { recoveryHandle }),
-      };
-    }
-    const pending = runJournalReceipt(journal.journal);
-    return {
-      receipt: {
-        ...pending,
-        error: `${execution.dispatch.started > 0
-          ? `${transportLabel} execution crossed dispatch, but its final run journal could not be stored; reconcile this run before any retry`
-          : `${transportLabel} execution ended before dispatch, but its final run journal could not be stored; run wrench doctor before retrying`}${privateArtifactRecoveryMessage === null
-            ? ""
-            : `; ${privateArtifactRecoveryMessage}`}`,
-      },
-      output: null,
-      replayed: false,
-      privateArtifactsPreserved,
-      ...(recoveryHandle === null ? {} : { recoveryHandle }),
-    };
-  }
-  throw new Error("remote write has no run journal");
-}
+
 
 async function runPrepared(
   invocation: PreparedInvocation,
@@ -5655,7 +4531,7 @@ async function runPrepared(
 ): Promise<InvocationResult> {
   const registry = options.registry ?? providerPluginRegistry;
   const checked = revalidatePreparedInvocation(invocation, registry);
-  const executeCore = checked.operation.risk === "R1" ? runPreparedReadCore : runPreparedCore;
+  const executeCore = runPreparedReadCore;
   const portableIdentity =
     checked.invocation.portablePluginContract ?? null;
   const runId = options.runId ?? crypto.randomUUID();
@@ -5699,25 +4575,12 @@ async function runPrepared(
           : "web-session-api",
         executionIdentityHash,
       };
-      if (checked.operation.risk === "R1") return withReadCleanupAdmission(cleanupIdentity, options.environment,
+      return withReadCleanupAdmission(cleanupIdentity, options.environment,
         registerCleanupBarrier => executeCore(checked.invocation, planDigest, { ...options, runId, registerCleanupBarrier }),
         options.now,
         preflightFailure => executeCore(checked.invocation, planDigest, { ...options, runId, preflightFailure }),
       );
-      return withWebSessionCleanupAdmission(
-        cleanupIdentity,
-        options.environment,
-        (registerCleanupBarrier) => executeCore(
-          checked.invocation,
-          planDigest,
-          {
-            ...options,
-            runId,
-            registerCleanupBarrier,
-          },
-        ),
-        options.now,
-      );
+
     }
     return executeCore(
       checked.invocation,
@@ -5725,41 +4588,9 @@ async function runPrepared(
       { ...options, runId },
     );
   }
-  if (checked.operation.risk === "R1") return withPortableReadAdmission(portableIdentity, runId, options.environment, options.now,
+  return withPortableReadAdmission(portableIdentity, runId, options.environment, options.now,
     () => executeCore(checked.invocation, planDigest, { ...options, runId }),
   );
-  const now = options.now ?? new Date();
-  const lease = acquirePortableProviderPluginInvocationLease(
-    portableIdentity,
-    runId,
-    options.environment,
-    now,
-  );
-  const containment =
-    createPortableProviderPluginInvocationLeaseContainmentController(
-      lease,
-      options.environment,
-    );
-  const outcome = await settlePortableProviderPluginCleanup(
-    () => executeCore(
-      checked.invocation,
-      planDigest,
-      { ...options, runId },
-    ),
-    {
-      containment,
-      cleanupComplete: containment.cleanupComplete,
-    },
-  );
-  releasePortableProviderPluginInvocationLease(
-    containment.current,
-    options.environment,
-    new Date(),
-  );
-  if (outcome.status === "rejected") {
-    throw outcome.reason;
-  }
-  return outcome.value;
 }
 
 export async function executeReadInvocation(
@@ -5814,121 +4645,38 @@ export async function confirmInvocation(
     readonly persistReceipt?: (receipt: RunReceipt, environment: Readonly<Record<string, string | undefined>>) => void;
   },
 ): Promise<InvocationResult> {
-  const environment = options.environment ?? process.env;
-  if (loadInvocationPlan(digest, environment).plan.messagingComposite !== undefined) {
-    throw new Error(
-      "messaging composite execution is unavailable until a reviewed provider executor is installed",
-    );
-  }
-  const registry = options.registry ?? providerPluginRegistry;
-  const now = options.now ?? new Date();
-  const claimRepair = repairInterruptedConfirmationClaims(environment);
-  const journalRepair = repairInterruptedRunJournals(environment, now);
-  if (claimRepair.invalid > 0 || journalRepair.issues.length > 0) {
-    throw new Error(
-      "local execution recovery has unresolved state; run wrench doctor before confirming",
-    );
-  }
-  const runId = crypto.randomUUID();
-  const claim = acquireConfirmationClaim(
-    digest,
-    runId,
-    environment,
-    now,
-  );
-  let stored: StoredPlan | null = null;
-  let invocation: PreparedInvocation | null = null;
-  try {
-    stored = loadInvocationPlan(digest, environment);
-    const loadManifest: typeof loadInstalledManifest = options.loadManifest
-      ?? ((adapterId, selectedEnvironment = process.env) =>
-        loadInstalledManifestWithRegistry(adapterId, selectedEnvironment, registry));
-    invocation = validateFreshPlan(
-      stored,
-      environment,
-      now,
-      registry,
-      loadManifest,
-    );
-    if (stored.plan.duplicateRisk !== undefined) {
-      const current = resolveInvocationDuplicateRisk(
-        stored.plan,
-        [stored.plan.duplicateRisk.sourceRunId],
-        environment,
-      );
-      if (
-        current === undefined
-        || canonicalJson(current) !== canonicalJson(stored.plan.duplicateRisk)
-      ) {
-        throw new Error(
-          "duplicate-risk source evidence changed after preview; inspect the source run and preview again",
-        );
-      }
-    }
-  } finally {
-    if (invocation === null && stored !== null) {
-      if (removePrivateStateFile(planPath(digest, environment), environment)) {
-        if (!planDigestHasRetainingJournal(digest, environment)) {
-          cleanupPlanAssets(digest, environment);
-        }
-      }
-      releaseConfirmationClaim(claim, environment);
-    } else if (invocation === null) {
-      releaseConfirmationClaim(claim, environment);
-    }
-  }
-  let result: InvocationResult | null = null;
-  let runPreparedStarted = false;
-  try {
-    const fileInputs: FileInputValue[] = [];
-    for (const value of Object.values(invocation.input)) {
-      if (isInputArray(value)) {
-        for (const item of value) {
-          if (isFileInputValue(item)) fileInputs.push(item);
-        }
-      } else if (isFileInputValue(value)) fileInputs.push(value);
-    }
-    // Verify every bound byte before crossing either execution boundary. Keep
-    // this inside cleanup so a corrupt or missing bundle never becomes orphaned.
-    if (fileInputs.length > 0) resolvePlanAssetFiles(fileInputs, digest, environment);
-    const operation = invocation.manifest.operations[invocation.operationId];
-    if (operation?.risk !== "R2" && operation?.risk !== "R3") {
-      throw new Error("only R2 and R3 plans use confirmation");
-    }
-    runPreparedStarted = true;
-    result = await runPrepared(invocation, digest, {
-      headed: options.headed,
-      environment,
-      registry,
-      ...(fileInputs.length === 0 ? {} : {
-        fileResolver: (files) => Promise.resolve(resolvePlanAssetFiles(files, digest, environment)),
-      }),
-      hasPlanAssets: fileInputs.length > 0,
-      runId,
-      confirmationClaim: claim,
-      confirmedDispatches: stored.plan.dispatches,
-      ...(stored.plan.duplicateRisk === undefined
-        ? {}
-        : { duplicateRisk: stored.plan.duplicateRisk }),
-      ...(options.now === undefined ? {} : { now: options.now }),
-      ...(options.executeRecipe === undefined ? {} : { executeRecipe: options.executeRecipe }),
-      ...(options.executeProvider === undefined ? {} : { executeProvider: options.executeProvider }),
-      ...(options.executeWebSession === undefined ? {} : { executeWebSession: options.executeWebSession }),
-      ...(options.executeLocalCli === undefined ? {} : { executeLocalCli: options.executeLocalCli }),
-      ...(options.executeReviewedTemplate === undefined ? {} : { executeReviewedTemplate: options.executeReviewedTemplate }),
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-      ...(options.persistReceipt === undefined ? {} : { persistReceipt: options.persistReceipt }),
-    });
-    return result;
-  } finally {
-    if (!runPreparedStarted && result === null && stored !== null) {
-      removePrivateStateFile(planPath(digest, environment), environment);
-      if (!planDigestHasRetainingJournal(digest, environment)) {
-        cleanupPlanAssets(digest, environment);
-      }
-    }
-    releaseConfirmationClaim(claim, environment);
-  }
+  return runConfirmedWrite(confirmedWriteProgram(digest).pipe(Effect.provide(ConfirmedWritePlatformLive({
+    isInputArray, isFileInputValue,
+    resolveCodeOwnedPluginOperation,
+    hasExactKeys,
+    revalidatePreparedInvocation,
+    planPath,
+    acquireConfirmationClaim,
+    releaseConfirmationClaim,
+    authHash,
+    finalOrigin,
+    boundedRecoveryHandle,
+    loadInstalledManifestWithRegistry,
+    resolveInvocationDuplicateRisk,
+    claimDuplicateRiskSource,
+    loadInvocationPlan,
+    planDigestHasRetainingJournal,
+    validateFreshPlan,
+    isDispatchProgress,
+    ledgerPath,
+    acquireLedger,
+    writeReceipt,
+    runJournalReceipt,
+    relativeStatePath,
+    projectRunJournal,
+    repairInterruptedConfirmationClaims,
+    repairInterruptedRunJournals,
+    foreignDataRecord,
+    executionOutputLimit,
+    boundedThrownExecutorReason,
+    boundedExecutionResult,
+    readRunReceipt
+  }, options))));
 }
 
 export type MessagingConfirmationResult = {

@@ -10,8 +10,9 @@ const findings = inspectEffectArchitecture(createArchitectureProgram(resolve(roo
     "src/providers/github-read-platform.ts", "src/providers/github-read-program.ts", "src/providers/github-web-runtime.ts",
     "src/providers/linkedin-self-platform.ts", "src/providers/linkedin-self-program.ts", "src/providers/linkedin-web-runtime.ts",
     "src/providers/linkedin-company-platform.ts", "src/providers/linkedin-company-program.ts",
+    "src/providers/linkedin-profile-activity-platform.ts", "src/providers/linkedin-profile-activity-program.ts",
   ],
-  adapters: ["src/read-effect-platform.ts", "src/invocation-read-platform.ts", "src/read-admission-runtime.ts", "src/web-session-read-runtime.ts", "src/providers/github-read-platform.ts", "src/providers/github-web-runtime.ts", "src/providers/linkedin-self-platform.ts", "src/providers/linkedin-web-runtime.ts", "src/providers/linkedin-company-platform.ts"],
+  adapters: ["src/read-effect-platform.ts", "src/invocation-read-platform.ts", "src/read-admission-runtime.ts", "src/web-session-read-runtime.ts", "src/providers/github-read-platform.ts", "src/providers/github-web-runtime.ts", "src/providers/linkedin-self-platform.ts", "src/providers/linkedin-web-runtime.ts", "src/providers/linkedin-company-platform.ts", "src/providers/linkedin-profile-activity-platform.ts"],
   runtimeRoots: ["src/read-effect-runtime.ts", "src/invocation-read-runtime.ts", "src/read-admission-runtime.ts", "src/web-session-read-runtime.ts"],
   ignoredDirectories: ["scripts"],
 });

@@ -528,7 +528,10 @@
     "src/providers/linkedin-company-platform.ts",
     "src/providers/linkedin-company-program.ts",
     "src/providers/linkedin-read-failure.ts",
-    "src/providers/github-read-model.ts"
+    "src/providers/github-read-model.ts",
+    "src/providers/linkedin-profile-activity-failure.ts",
+    "src/providers/linkedin-profile-activity-platform.ts",
+    "src/providers/linkedin-profile-activity-program.ts"
   ],
   "scripts": {
     "website:build": "bun run website/build.ts",

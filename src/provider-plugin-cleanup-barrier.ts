@@ -159,6 +159,29 @@ async function awaitCleanupBarriers(
   }
 }
 
+/** One native context, shared by a program's individually admitted foreign calls. */
+export function createPortableProviderPluginCleanupContext(options: {
+  readonly containment?: PortableProviderPluginCleanupContainment;
+  readonly cleanupComplete?: () => void;
+} = {}) {
+  const parentScope = cleanupBarrierStorage.getStore();
+  const parentJoin = parentScope === undefined
+    ? undefined
+    : registerPortableProviderPluginCleanupBarrier();
+  const containment = options.containment ?? parentScope?.containment;
+  const scope: CleanupBarrierScope = {
+    barriers: [], accepting: true,
+    ...(containment === undefined ? {} : { containment }),
+  };
+  return Object.freeze({
+    run: <A>(operation: () => A): A => cleanupBarrierStorage.run(scope, operation),
+    closeRegistration: () => { scope.accepting = false; },
+    join: () => awaitCleanupBarriers(scope),
+    complete: () => { options.cleanupComplete?.(); parentJoin?.verified(); },
+    unsafe: (cause: unknown) => { scope.accepting = false; parentJoin?.unsafe(cause); },
+  });
+}
+
 /**
  * Settle an operation independently from its cleanup join. Callers may publish
  * an ordinary provider failure, but may release the exact durable lease only
@@ -175,19 +198,9 @@ export async function settlePortableProviderPluginCleanup<T>(
     readonly cleanupComplete?: () => void;
   } = {},
 ): Promise<PortableProviderPluginOperationOutcome<T>> {
-  const parentScope = cleanupBarrierStorage.getStore();
-  const parentJoin = parentScope === undefined
-    ? undefined
-    : registerPortableProviderPluginCleanupBarrier();
-  const containment = options.containment ?? parentScope?.containment;
-  const scope: CleanupBarrierScope = {
-    barriers: [],
-    accepting: true,
-    ...(containment === undefined ? {} : { containment }),
-  };
+  const context = createPortableProviderPluginCleanupContext(options);
   try {
-    const outcome = await cleanupBarrierStorage.run(
-      scope,
+    const outcome = await context.run(
       async (): Promise<PortableProviderPluginOperationOutcome<T>> => {
         try {
           return Object.freeze({
@@ -205,14 +218,12 @@ export async function settlePortableProviderPluginCleanup<T>(
     // Resource owners must register their barrier before starting the
     // resource. Once the operation settles, descendants may finish already
     // registered cleanup but cannot introduce a late unjoined boundary.
-    scope.accepting = false;
-    await awaitCleanupBarriers(scope);
-    options.cleanupComplete?.();
-    parentJoin?.verified();
+    context.closeRegistration();
+    await context.join();
+    context.complete();
     return outcome;
   } catch (error) {
-    scope.accepting = false;
-    parentJoin?.unsafe(error);
+    context.unsafe(error);
     throw error;
   }
 }

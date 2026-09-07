@@ -41,6 +41,7 @@ import {
 } from "./linkedin-web-profile-browser";
 import {
   LinkedInFeedBrowserFailure,
+  LinkedInFeedBrowserResponseRejectedError,
   type LinkedInFeedBrowserTransport,
 } from "./linkedin-web-feed-browser";
 import { LINKEDIN_PROFILE_ACTIVITY_QUERY_PREFIX } from "./linkedin-web-feed";
@@ -3333,5 +3334,169 @@ describe("LinkedIn authenticated internal-API runtime", () => {
     });
     expect(result.error).toContain("signed-out authwall");
     expect(browserCalls).toEqual(["identity", "close"]);
+  });
+});
+
+describe("native profile-activity ownership", () => {
+  const binding = {
+    profileUrn: "urn:li:fsd_profile:ACoAAExactTargetProfile",
+    queryId: `${LINKEDIN_PROFILE_ACTIVITY_QUERY_PREFIX}.7f16f6612fc18a3623688ca7a74d7696`,
+  };
+  const input = { feed: "profile-activity", vanity: "fixture-person", limit: 10 };
+  const emptyPage = {
+    data: { data: { feedDashProfileUpdatesByMemberFeed: {
+      $type: "com.linkedin.restli.common.CollectionResponse",
+      "*elements": [],
+      paging: { count: 10, start: 0, links: [] },
+    } } },
+    included: [],
+  };
+  function browser(overrides: Partial<LinkedInFeedBrowserTransport> = {}): LinkedInFeedBrowserTransport {
+    return {
+      currentIdentityResponse: () => Promise.resolve(currentIdentityResponse()),
+      resolveProfileActivityBinding: () => Promise.resolve(binding),
+      readProfileActivityPage: () => Promise.resolve(emptyPage),
+      close: () => Promise.resolve(),
+      ...overrides,
+    };
+  }
+  const run = (transport: LinkedInFeedBrowserTransport) => executeLinkedInWebOperation(
+    profileActivityRecipe(), input, linkedinBrowserProfileAuth,
+    { dependencies: { createFeedBrowserTransport: () => Promise.resolve(transport), now: () => 0 } },
+  );
+
+  test("binds the signed-in account before observing the independent target", async () => {
+    const events: string[] = [];
+    const result = await run(browser({
+      currentIdentityResponse: () => {
+        events.push("identity");
+        return Promise.resolve({
+          data: { plainId: "987654321" },
+          included: [{ entityUrn: "urn:li:fsd_profile:987654321" }],
+        });
+      },
+      resolveProfileActivityBinding: () => { events.push("target"); return Promise.resolve(binding); },
+      close: () => { events.push("close"); return Promise.resolve(); },
+    }));
+    expect(events).toEqual(["identity", "close"]);
+    expect(result).toMatchObject({ status: "failed", readFailure: { category: "account-mismatch", retryDisposition: "do-not-retry" } });
+    expect(result.error).toContain("signed-in account binding");
+  });
+
+  test.each(["identity", "binding", "page"] as const)("preserves native 404 category at %s", async (stage) => {
+    const failure = new LinkedInFeedBrowserResponseRejectedError(404, "application/json");
+    const reject = () => Promise.reject(failure);
+    const result = await run(browser({
+      ...(stage === "identity" ? { currentIdentityResponse: reject } : {}),
+      ...(stage === "binding" ? { resolveProfileActivityBinding: reject } : {}),
+      ...(stage === "page" ? { readProfileActivityPage: reject } : {}),
+    }));
+    expect(result).toMatchObject({ status: "failed", readFailure: { category: stage === "identity" ? "contract-drift" : "target-unavailable" } });
+  });
+
+  test.each(["typed", "message"] as const)("selects auth repair from %s authority only", async (evidence) => {
+    const failure = evidence === "typed"
+      ? new LinkedInFeedBrowserFailure("session-cookie", "private native detail")
+      : new Error("private cookie session current member no longer matches");
+    const result = await run(browser({ currentIdentityResponse: () => Promise.reject(failure) }));
+    expect(result).toMatchObject({ status: "failed", readFailure: { category: evidence === "typed" ? "auth-repair-required" : "contract-drift" } });
+    expect(JSON.stringify(result)).not.toContain("private");
+  });
+
+  test.each([undefined, null, false, new Error("private close detail")])("preserves exact public close rejection after projection refusal (%j)", async (failure) => {
+    const closeStarted = Promise.withResolvers<void>();
+    const closing = Promise.withResolvers<void>();
+    let settled = false;
+    const outcome = run(browser({
+      readProfileActivityPage: () => Promise.resolve({}),
+      close: () => { closeStarted.resolve(); return closing.promise; },
+    })).then(value => { settled = true; return { kind: "success" as const, value }; }, (error: unknown) => { settled = true; return { kind: "failure" as const, error }; });
+    await closeStarted.promise;
+    try { expect(settled).toBeFalse(); } finally { closing.reject(failure); }
+    const result = await outcome;
+    expect(result.kind).toBe("failure");
+    if (result.kind === "failure") expect(result.error).toBe(failure);
+  });
+
+  test.each(["acquire", "page"] as const)("cancelled activity joins held native %s and close before R1 settlement", async (heldBoundary) => {
+    const caller = new AbortController();
+    const started = Promise.withResolvers<void>();
+    const acquisition = Promise.withResolvers<LinkedInFeedBrowserTransport>();
+    const reading = Promise.withResolvers<unknown>();
+    const closeStarted = Promise.withResolvers<void>();
+    const closing = Promise.withResolvers<void>();
+    const joinScheduled = Promise.withResolvers<void>();
+    const events: string[] = [];
+    let settled = false;
+    const transport = browser({
+      currentIdentityResponse: () => { events.push("identity"); return Promise.resolve(currentIdentityResponse()); },
+      readProfileActivityPage: () => { events.push("page"); started.resolve(); return reading.promise; },
+      close: () => { events.push("close"); closeStarted.resolve(); return closing.promise; },
+    });
+    const recipe = profileActivityRecipe();
+    const operation = runWebSessionReadWithDeadline(recipe, {
+      signal: caller.signal,
+      deadlineClock: {
+        now: () => 0,
+        schedule: (_callback, delay) => { if (delay === WEB_SESSION_CLEANUP_JOIN_TIMEOUT_MS) joinScheduled.resolve(); return () => undefined; },
+      },
+    }, options => executeLinkedInWebOperation(recipe, input, linkedinBrowserProfileAuth, { ...options, dependencies: {
+      now: () => 0,
+      createFeedBrowserTransport: () => {
+        events.push("acquire");
+        if (heldBoundary === "acquire") { started.resolve(); return acquisition.promise; }
+        return Promise.resolve(transport);
+      },
+    } }));
+    const outcome = operation.then(value => { settled = true; return { kind: "success" as const, value }; }, (error: unknown) => { settled = true; return { kind: "failure" as const, error }; });
+    try {
+      await started.promise;
+      caller.abort("private cancellation reason");
+      await joinScheduled.promise;
+      expect(settled).toBeFalse();
+      expect(events).not.toContain("close");
+      acquisition.resolve(transport);
+      reading.resolve(emptyPage);
+      await closeStarted.promise;
+      expect(settled).toBeFalse();
+      closing.resolve();
+      const result = await outcome;
+      expect(result.kind).toBe("failure");
+      if (result.kind === "failure") {
+        expect(result.error).toBeInstanceOf(OperationDeadlineError);
+        if (result.error instanceof OperationDeadlineError) expect(result.error.failure).toBe("cancelled");
+      }
+      expect(events.filter(event => event === "close")).toHaveLength(1);
+    } finally {
+      acquisition.resolve(transport);
+      reading.resolve(emptyPage);
+      closing.resolve();
+      caller.abort();
+      await outcome;
+    }
+  });
+
+  test("retains cleanup-unsafe proof in the real registered activity barrier", async () => {
+    const failure = new PreservedBrowserArtifactsError("private cleanup detail", "private recovery handle", new Error("private cleanup cause"));
+    const barriers: Promise<void>[] = [];
+    const publisher = () => undefined;
+    const operation = executeLinkedInWebOperation(profileActivityRecipe(), input, linkedinBrowserProfileAuth, {
+      dependencies: {
+        now: () => 0,
+        createFeedBrowserTransport: (_auth, options) => {
+          expect(options.publishCleanupResource).toBe(publisher);
+          return Promise.resolve(browser({ close: () => Promise.reject(failure) }));
+        },
+      },
+      registerCleanupBarrier: barrier => { barriers.push(barrier); return publisher; },
+    });
+    expect(barriers).toHaveLength(1);
+    const cleanup = barriers[0]!.then(() => ({ kind: "success" as const }), (error: unknown) => ({ kind: "failure" as const, error }));
+    const result = await operation.then(() => ({ kind: "success" as const }), (error: unknown) => ({ kind: "failure" as const, error }));
+    const proof = await cleanup;
+    expect(result.kind).toBe("failure");
+    expect(proof.kind).toBe("failure");
+    if (result.kind === "failure") expect(result.error).toBe(failure);
+    if (proof.kind === "failure") expect(proof.error).toBe(failure);
   });
 });

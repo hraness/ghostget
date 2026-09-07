@@ -3,7 +3,7 @@ title: Own bounded read invocation lifecycles with Effect
 description: Move R1 receipt sequencing and selected statistics reads to typed Effect programs while retaining native custody and immutable provider contracts.
 type: plan
 area: runtime
-status: in-progress
+status: completed
 repository_scopes:
   - src
   - scripts
@@ -145,6 +145,22 @@ costs. Ordinary modules keep parent-free parsing, with binding analysis only
 for the exceptional private-record proof. Pre-encoded queue keys preserve
 ordering without caching or skipping a fresh trust observation. Retain the
 measured limitation when deciding which remaining provider families to migrate.
+
+## Result
+
+The read rollout completed in public npm and immutable GitHub 0.16.9. PR181
+merged as `a5aadcf11f93d398486fca661b583045d6e7829e`; Release
+[34145904039](https://github.com/hraness/wrench/actions/runs/34145904039)
+and production promotion
+[34149402712](https://github.com/hraness/wrench/actions/runs/34149402712)
+passed. Exact public artifact, installed consumers, signed provenance, source
+and canonical production release marker were verified. Earlier incomplete
+checkpoints above retain their original context and are superseded by this
+completed result.
+
+The next profile-activity and confirmed-write work has a separate
+[[plans/effect-profile-and-confirmed-write|expansion plan]]. The completed read
+rollout does not qualify those newer source changes or their future release.
 
 ## Durable memory
 

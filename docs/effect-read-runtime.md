@@ -62,6 +62,17 @@ no longer accept an error message resembling an HTTP status as evidence to
 switch transports or permit a retry. Both programs preserve the original close
 error at the Promise boundary and retain an earlier operation Cause privately.
 
+LinkedIn profile-activity reads have their own complete browser acquisition,
+current-member binding, independent profile target/query observation, bounded
+page read, projection and close program. Each native operation remains owned
+until its actual Promise settles, even when the Effect observer is interrupted.
+The existing operation deadline and cleanup barrier retain physical custody.
+Only the identity-binding producer and typed browser failures select account
+mismatch or authentication repair; diagnostic wording cannot grant those
+categories. Close failure still wins by exact rejection identity, including
+falsey values, and the earlier operation Cause remains private. Home-feed
+capture requirements, cursor binding, request order and public DTOs are unchanged.
+
 The package pins the runtime dependency and includes each new source module in
 its explicit publication inventory. Root imports remain inert, and pure provider
 contract and serialization modules do not construct a runtime. Provider startup
@@ -79,13 +90,15 @@ rejected throughout callback bodies. This bounded source proof does not sandbox
 obfuscated JavaScript or mutated JavaScript intrinsics.
 
 `bun run check:effect` uses the repository's unchanged TypeScript 6.0.3 compiler
-and copied architecture checker 1.3.0. Exact modules have declared program,
+and copied architecture checker 1.4.0. Exact modules have declared program,
 adapter and interpreter roles. Paired fixtures reject ignored Effects, unowned
 runners, broad error/requirement channels, unsafe assertions, suppression and
-JavaScript catch around a fallible direct Effect generator yield. This is a
-source constraint, not a proof of purity, security or linear resource use.
-Separately declared or parenthesized generator functions are outside the new
-catch rule's current recognition. Domain tests remain necessary.
+JavaScript catch around a fallible Effect generator yield. The checker resolves
+statically bound direct/parenthesized generators, declarations, const aliases
+and imported aliases against the actual Effect symbol. Factories, reassignment
+and arbitrary indirect wrappers still require semantic review. This is a source
+constraint, not a proof of purity, security or linear resource use. Domain tests
+remain necessary.
 
 The complete `bun run check` and applicable native gates remain required on the
 reviewed tree. Release staging and public promotion follow the unchanged

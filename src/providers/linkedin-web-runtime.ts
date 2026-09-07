@@ -4,6 +4,8 @@ import { runReadEffect } from "../read-effect-runtime";
 import { LinkedInSelfPlatformLive } from "./linkedin-self-platform";
 import { LinkedInCompanyPlatformLive } from "./linkedin-company-platform";
 import { linkedInCompanyReadProgram } from "./linkedin-company-program";
+import { LinkedInProfileActivityPlatformLive } from "./linkedin-profile-activity-platform";
+import { linkedInProfileActivityReadProgram } from "./linkedin-profile-activity-program";
 import { linkedInSelfReadProgram } from "./linkedin-self-program";
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
@@ -15,7 +17,6 @@ import {
 import type { WrenchAuth } from "../auth";
 import {
   browserCleanupBarrier,
-  PreservedBrowserArtifactsError,
   type BrowserFileResolver,
 } from "../browser";
 import type { FileInputValue, OperationInput, WebSessionRecipe } from "../model";
@@ -36,7 +37,6 @@ import {
 } from "../session-secrets";
 import {
   OperationDeadline,
-  OperationDeadlineError,
 } from "../operation-deadline";
 import {
   createWebSessionClient,
@@ -49,7 +49,6 @@ import {
   type WebSessionNetworkDependencies,
 } from "../web-session-client";
 import type {
-  ReadFailureProjection,
   WebSessionCleanupBarrierRegistrar,
   WebSessionCleanupResourcePublisher,
   WebSessionDispatchEvent,
@@ -58,7 +57,6 @@ import type {
   WebSessionProviderAcceptedMutationTargetEvent,
 } from "../web-session-execution";
 import {
-  readFailureProjection,
   startWebSessionCleanupTrackedOperation,
 } from "../web-session-execution";
 import {
@@ -116,13 +114,9 @@ import {
   linkedInProfileActivityFeed,
   linkedInProfileActivityTarget,
   parseLinkedInProfileActivityCursor,
-  projectLinkedInProfileActivityPage,
 } from "./linkedin-web-feed";
 import {
   createLinkedInFeedBrowserTransport,
-  LinkedInFeedBrowserFailure,
-  LinkedInFeedBrowserResponseRejectedError,
-  type LinkedInFeedBrowserTransport,
 } from "./linkedin-web-feed-browser";
 
 const LINKEDIN_ORIGIN = "https://www.linkedin.com";
@@ -834,8 +828,6 @@ function linkedInProfileStatsFailure(
               : "reviewed response projection");
   return `LinkedIn ${target} profile stats failed during ${requestStage} at ${stage}; no remote write occurred`;
 }
-
-type LinkedInStatsFailureStage = "identity" | "target" | "supplemental";
 
 async function createLinkedInStatsBrowserTransport(
   auth: WrenchAuth,
@@ -2115,147 +2107,27 @@ async function executeLinkedInProfileActivityRead(
   });
   const cursor = parseLinkedInProfileActivityCursor(input.cursor, target.slug);
   const limit = integerInput(input, "limit", 20, 1, LINKEDIN_PROFILE_ACTIVITY_MAX_ITEMS);
-  let requestStage = "contained-browser signed-in identity preflight";
-  let failureStage: LinkedInStatsFailureStage = "identity";
-  let browserTransport: LinkedInFeedBrowserTransport | null = null;
-  try {
-    const createTransport = options.dependencies?.createFeedBrowserTransport
-      ?? createLinkedInFeedBrowserTransport;
-    browserTransport = await createTransport(auth, {
-      timeoutMs: recipe.timeoutMs,
-      maxOutputBytes: recipe.maxOutputBytes,
-      ...(options.operationDeadline === undefined
-        ? {}
-        : { operationDeadline: options.operationDeadline }),
-      ...(options.publishCleanupResource === undefined
-        ? {}
-        : { publishCleanupResource: options.publishCleanupResource }),
-    });
-    const identity = identityFromMeResponse(
-      await browserTransport.currentIdentityResponse(),
-    );
-    boundLinkedInStatsIdentity(auth, identity);
-    requestStage = "contained-browser profile-activity query observation";
-    failureStage = "target";
-    const binding = await browserTransport.resolveProfileActivityBinding(target.slug);
-    requestStage = "contained-browser profile-activity page read";
-    const response = await browserTransport.readProfileActivityPage({
-      count: limit,
-      start: cursor.start,
-    });
-    requestStage = "exact profile-activity projection";
-    const output = projectLinkedInProfileActivityPage({
-      response,
-      target,
-      profileUrn: binding.profileUrn,
-      queryId: binding.queryId,
-      limit,
-      start: cursor.start,
-      observedAt: new Date(options.dependencies?.now?.() ?? Date.now()).toISOString(),
-    });
-    return {
-      status: "succeeded",
-      output,
-      finalUrl: target.activityUrl,
-      dispatchStarted: false,
-      dispatch: { planned: 0, started: 0, verified: 0 },
-    };
-  } catch (error) {
-    if (error instanceof PreservedBrowserArtifactsError) throw error;
-    return {
-      status: "failed",
-      output: null,
-      finalUrl: target.activityUrl,
-      dispatchStarted: false,
-      dispatch: { planned: 0, started: 0, verified: 0 },
-      error: linkedInProfileActivityFailure(error, requestStage),
-      readFailure: linkedInProfileActivityReadFailure(error, failureStage),
-    };
-  } finally {
-    await browserTransport?.close();
-  }
-}
-
-function linkedInProfileActivityFailure(error: unknown, requestStage: string): string {
-  const message = error instanceof Error ? error.message : "";
-  const stage = message.includes("authwall") || message.includes("signed-out")
-    ? "signed-out authwall"
-    : message.includes("current member no longer matches")
-      ? "signed-in account binding"
-      : message.includes("registered query") || message.includes("was not found")
-        || message.includes("is ambiguous")
-        ? "live query observation"
-        : message.includes("exceeded the requested limit")
-          || message.includes("did not bind one collection")
-          || message.includes("omitted a referenced update")
-          ? "exact page projection"
-          : message.includes("cookie") || message.includes("session")
-            ? "signed-in session cookie"
-            : "reviewed response projection";
-  return `LinkedIn profile-activity read failed during ${requestStage} at ${stage}; no remote write occurred`;
-}
-
-function linkedInProfileActivityReadFailure(
-  error: unknown,
-  failureStage: LinkedInStatsFailureStage,
-): ReadFailureProjection {
-  let deadlineCause: unknown = error;
-  for (let depth = 0; depth < 8 && deadlineCause !== undefined; depth += 1) {
-    if (deadlineCause instanceof OperationDeadlineError) {
-      return deadlineCause.failure === "timed-out"
-        ? readFailureProjection("operation-timeout")
-        : readFailureProjection("contract-drift");
-    }
-    deadlineCause = deadlineCause instanceof Error
-      ? deadlineCause.cause
-      : undefined;
-  }
-  let current: unknown = error;
-  for (let depth = 0; depth < 8 && current !== undefined; depth += 1) {
-    if (current instanceof LinkedInFeedBrowserResponseRejectedError) {
-      if (current.status === 401 || current.status === 403) {
-        return readFailureProjection("auth-repair-required");
-      }
-      if (current.status === 429) {
-        return readFailureProjection("provider-throttled");
-      }
-      if (current.status === 302 || current.status === 408 || current.status >= 500) {
-        return readFailureProjection("provider-temporary");
-      }
-      if (current.status === 404 && failureStage === "target") {
-        return readFailureProjection("target-unavailable");
-      }
-      return readFailureProjection("contract-drift");
-    }
-    if (current instanceof LinkedInFeedBrowserFailure) {
-      if (current.category === "authwall" || current.category === "session-cookie") {
-        return readFailureProjection("auth-repair-required");
-      }
-      if (
-        current.category === "startup"
-        || current.category === "execution-context"
-        || current.category === "provider-fetch"
-      ) return readFailureProjection("provider-temporary");
-      return readFailureProjection("contract-drift");
-    }
-    const message = current instanceof Error ? current.message : "";
-    if (message.includes("current member no longer matches")) {
-      return readFailureProjection("account-mismatch");
-    }
-    if (
-      message.includes("home-feed read remains capture-required")
-      || message.includes("registered query")
-      || message.includes("was not found")
-      || message.includes("is ambiguous")
-    ) {
-      return readFailureProjection("contract-drift");
-    }
-    if (message.includes("cookie") || message.includes("session")) {
-      return readFailureProjection("auth-repair-required");
-    }
-    current = current instanceof Error ? current.cause : undefined;
-  }
-  return readFailureProjection("contract-drift");
+  return runReadEffect(linkedInProfileActivityReadProgram(target, cursor.start, limit).pipe(
+    Effect.provide(LinkedInProfileActivityPlatformLive({
+      openBrowser: () => {
+        const createTransport = options.dependencies?.createFeedBrowserTransport
+          ?? createLinkedInFeedBrowserTransport;
+        return createTransport(auth, {
+          timeoutMs: recipe.timeoutMs,
+          maxOutputBytes: recipe.maxOutputBytes,
+          ...(options.operationDeadline === undefined
+            ? {}
+            : { operationDeadline: options.operationDeadline }),
+          ...(options.publishCleanupResource === undefined
+            ? {}
+            : { publishCleanupResource: options.publishCleanupResource }),
+        });
+      },
+      decodeIdentity: identityFromMeResponse,
+      bindIdentity: identity => boundLinkedInStatsIdentity(auth, identity),
+      observedAt: () => new Date(options.dependencies?.now?.() ?? Date.now()).toISOString(),
+    })),
+  ));
 }
 
 export async function executeLinkedInWebOperation(
