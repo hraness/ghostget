@@ -769,7 +769,7 @@ export async function buildWebsite(
     readFile(designKitFontsStylesPath, "utf8"),
     readFile(designKitProductMarketingStylesPath, "utf8"),
     readFile(
-      fileURLToPath(import.meta.resolve("@hraness/site-footer/styles.css")),
+      fileURLToPath(import.meta.resolve("@hraness/site-footer/stylex.css")),
       "utf8",
     ),
     Bun.build({

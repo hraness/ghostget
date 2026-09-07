@@ -115,11 +115,11 @@ describe("wrench.rip static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/site-footer": "github:hraness/site-footer#v0.4.6",
+        "@hraness/site-footer": "github:hraness/site-footer#v0.6.0",
       },
     });
     expect(lockfile).toContain(
-      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#617574f"',
+      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#e7a0d30"',
     );
   });
 
@@ -525,7 +525,8 @@ describe("wrench.rip static site", () => {
       "code:not(pre code):not(.hraness-marketing-flow__code)",
     );
     expect(sourceCss).not.toContain(".footer {");
-    expect(builtCss).toContain(".hraness-site-footer {");
+    expect(builtCss).toContain("--hraness-site-footer-social-target");
+    expect(builtCss).not.toContain('@import "./dist/stylex.css"');
     expect(builtCss).toContain(".hraness-marketing-hero {");
     expect(builtCss).toContain("@media (pointer: coarse)");
     for (const css of [sourceCss, builtCss]) {
@@ -550,6 +551,7 @@ describe("wrench.rip static site", () => {
       const footer = /<footer\b[\s\S]*?<\/footer>/u.exec(document)?.[0];
       expect(footer).toBeDefined();
       expect(footer).toContain('data-slot="hraness-site-footer"');
+      expect(footer).not.toContain("hraness-site-footer__wordmark");
       expect(footer).toContain('data-mailing-list="signup"');
       expect(footer).toContain(`action="${HRANESS_MAILING_SUBSCRIBE_URL}"`);
       expect(footer).toContain('name="audience" type="hidden" value="wrench"');
