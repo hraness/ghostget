@@ -115,11 +115,11 @@ describe("wrench.rip static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/site-footer": "github:hraness/site-footer#v0.6.0",
+        "@hraness/site-footer": "github:hraness/site-footer#v0.6.1",
       },
     });
     expect(lockfile).toContain(
-      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#e7a0d30"',
+      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#590056b"',
     );
   });
 
