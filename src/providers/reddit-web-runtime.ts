@@ -533,6 +533,7 @@ async function executeFlairChoices(
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;
     readonly dependencies?: RedditWebRuntimeDependencies;
+    readonly setStage?: (stage: ProviderReadFailureStage) => void;
   },
 ): Promise<WebSessionExecution> {
   if (!isRedditFlairOperation(recipe.action)) {
@@ -543,6 +544,7 @@ async function executeFlairChoices(
     throw new Error("Reddit flair selection is capture-required");
   }
   const viewer = await requireBoundViewer(client, auth);
+  options.setStage?.("target");
   const flairClient = await createWebSessionClient(REDDIT_LEASE_ORIGIN, auth, {
     timeoutMs: recipe.timeoutMs,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
@@ -835,6 +837,69 @@ function messageFolder(input: OperationInput): RedditMessageFolder {
     throw new Error("input.folder must name inbox, unread, or sent");
   }
   return value;
+}
+
+function redditReadFinalUrl(
+  operation: RedditWebOperationName,
+  input: OperationInput,
+): string | null {
+  if (operation === "profiles.read") {
+    return `${REDDIT_ORIGIN}/user/${encodeURIComponent(profileInput(input))}/`;
+  }
+  if (operation === "feeds.read") {
+    if (input.feed !== "home") {
+      throw new Error("input.feed must be the observed Reddit home feed");
+    }
+    return REDDIT_ORIGIN;
+  }
+  if (
+    operation === "posts.read"
+    || operation === "comments.read"
+    || operation === "media.read"
+  ) {
+    return `${REDDIT_ORIGIN}/comments/${postInput(input).slice(3)}/`;
+  }
+  if (operation === "messaging.list" || operation === "messaging.read") {
+    return `${REDDIT_ORIGIN}/message/${messageFolder(input)}/`;
+  }
+  if (operation === "flair.user.choices" || operation === "flair.post.choices") {
+    const parsed = parseRedditFlairInput(operation, input);
+    if (parsed.action !== "choices") {
+      throw new Error("Reddit flair selection is capture-required");
+    }
+    return parsed.target.kind === "post"
+      ? `${REDDIT_LEASE_ORIGIN}/r/${parsed.target.community}/submit`
+      : `${REDDIT_LEASE_ORIGIN}/r/${parsed.target.community}/`;
+  }
+  return null;
+}
+
+function redditReadAccountMismatch(error: Error): boolean {
+  return error.message.includes("viewer no longer matches")
+    || error.message.includes("no longer matches the confirmed auth subject")
+    || error.message.includes("did not match the bound current account");
+}
+
+function redditReadAuthRepairRequired(error: Error): boolean {
+  return error.message.includes("auth locator bound");
+}
+
+function failedRedditRead(
+  operation: RedditWebOperationName,
+  error: unknown,
+  finalUrl: string | null,
+  stage: ProviderReadFailureStage,
+): WebSessionExecution {
+  return failedProviderRead(`Reddit ${operation}`, error, finalUrl, {
+    stage,
+    authenticated: true,
+    accountMismatch: redditReadAccountMismatch,
+    authRepairRequired: redditReadAuthRepairRequired,
+    targetStatusUnavailable: operation === "posts.read"
+      || operation === "comments.read"
+      || operation === "media.read"
+      || operation === "messaging.read",
+  });
 }
 
 async function readMessages(
@@ -1752,6 +1817,9 @@ export async function executeRedditWebOperation(
   if (contract.state !== "observed") {
     throw new Error(`Reddit authenticated web operation ${recipe.action} is capture-required: ${contract.reason}`);
   }
+  const readFinalUrl = contract.effect === "read"
+    ? redditReadFinalUrl(recipe.action, input)
+    : null;
   let client: WebSessionClient;
   try {
     client = await createWebSessionClient(REDDIT_ORIGIN, auth, {
@@ -1763,13 +1831,8 @@ export async function executeRedditWebOperation(
       ...(options.dependencies === undefined ? {} : { dependencies: options.dependencies }),
     });
   } catch (error) {
-    if (recipe.action !== "profiles.read") throw error;
-    return failedProviderRead(
-      "Reddit profile",
-      error,
-      `${REDDIT_ORIGIN}/user/${encodeURIComponent(profileInput(input))}/`,
-      { stage: "bootstrap", authenticated: true },
-    );
+    if (contract.effect !== "read") throw error;
+    return failedRedditRead(recipe.action, error, readFinalUrl, "bootstrap");
   }
   if (recipe.action === "media.publish") {
     return executeMediaPublish(client, recipe, input, auth, options);
@@ -1784,11 +1847,18 @@ export async function executeRedditWebOperation(
     void options.beforeDispatch;
     void options.afterProviderAcceptedMutationTarget;
     void options.afterDispatchVerified;
-    return executeFlairChoices(client, recipe, input, auth, options);
+    let stage: ProviderReadFailureStage = "identity";
+    try {
+      return await executeFlairChoices(client, recipe, input, auth, {
+        ...options,
+        setStage: (next) => { stage = next; },
+      });
+    } catch (error) {
+      return failedRedditRead(recipe.action, error, readFinalUrl, stage);
+    }
   }
 
   if (recipe.action === "profiles.read") {
-    const finalUrl = `${REDDIT_ORIGIN}/user/${encodeURIComponent(profileInput(input))}/`;
     let stage: ProviderReadFailureStage = "identity";
     try {
       const viewer = await requireBoundViewer(client, auth);
@@ -1803,63 +1873,57 @@ export async function executeRedditWebOperation(
       return {
         status: "succeeded",
         output,
-        finalUrl,
+        finalUrl: readFinalUrl,
         dispatchStarted: false,
         dispatch: { planned: 0, started: 0, verified: 0 },
       };
     } catch (error) {
-      return failedProviderRead("Reddit profile", error, finalUrl, {
-        stage,
-        authenticated: true,
-        accountMismatch: (candidate) => candidate.message.includes("no longer matches")
-          || candidate.message.includes("did not match the bound current account"),
-        authRepairRequired: (candidate) => candidate.message.includes("auth locator bound"),
-      });
+      return failedRedditRead(recipe.action, error, readFinalUrl, stage);
     }
   }
-  await requireBoundViewer(client, auth);
   // R1 operations never enter the mutation dispatch ledger.
   void options.beforeDispatch;
+  void options.afterProviderAcceptedMutationTarget;
   void options.afterDispatchVerified;
-  let output: unknown;
-  let finalUrl: string;
-  if (recipe.action === "media.read") {
-    const targetId = redditPostId(input.post_id, "input.post_id");
-    output = projectRedditHostedVideoMetadata(
-      await readPostPresenceValue(
-        client,
+  let stage: ProviderReadFailureStage = "identity";
+  try {
+    await requireBoundViewer(client, auth);
+    stage = "target";
+    let output: unknown;
+    if (recipe.action === "media.read") {
+      const targetId = redditPostId(input.post_id, "input.post_id");
+      output = projectRedditHostedVideoMetadata(
+        await readPostPresenceValue(
+          client,
+          targetId,
+          recipe.maxOutputBytes,
+          "media.read",
+        ),
         targetId,
-        recipe.maxOutputBytes,
-        "media.read",
-      ),
-      targetId,
-    );
-    finalUrl = `${REDDIT_ORIGIN}/comments/${targetId.slice(3)}/`;
-  } else {
-    output = recipe.action === "feeds.read"
-        ? await readFeed(client, recipe, input)
-        : recipe.action === "posts.read"
-          ? await readPostOrComments(client, recipe, input, false)
-          : recipe.action === "comments.read"
-            ? await readPostOrComments(client, recipe, input, true)
-            : recipe.action === "messaging.list"
-              ? await readMessages(client, recipe, input, false)
-              : recipe.action === "messaging.read"
-                ? await readMessages(client, recipe, input, true)
-                : (() => {
-                    throw new Error(`Reddit authenticated web operation ${recipe.action} has no executable reviewed contract`);
-                  })();
-    finalUrl = recipe.action === "feeds.read"
-        ? REDDIT_ORIGIN
-        : recipe.action === "posts.read" || recipe.action === "comments.read"
-          ? `${REDDIT_ORIGIN}/comments/${postInput(input).slice(3)}/`
-          : `${REDDIT_ORIGIN}/message/${messageFolder(input)}/`;
+      );
+    } else {
+      output = recipe.action === "feeds.read"
+          ? await readFeed(client, recipe, input)
+          : recipe.action === "posts.read"
+            ? await readPostOrComments(client, recipe, input, false)
+            : recipe.action === "comments.read"
+              ? await readPostOrComments(client, recipe, input, true)
+              : recipe.action === "messaging.list"
+                ? await readMessages(client, recipe, input, false)
+                : recipe.action === "messaging.read"
+                  ? await readMessages(client, recipe, input, true)
+                  : (() => {
+                      throw new Error(`Reddit authenticated web operation ${recipe.action} has no executable reviewed contract`);
+                    })();
+    }
+    return {
+      status: "succeeded",
+      output,
+      finalUrl: readFinalUrl,
+      dispatchStarted: false,
+      dispatch: { planned: 0, started: 0, verified: 0 },
+    };
+  } catch (error) {
+    return failedRedditRead(recipe.action, error, readFinalUrl, stage);
   }
-  return {
-    status: "succeeded",
-    output,
-    finalUrl,
-    dispatchStarted: false,
-    dispatch: { planned: 0, started: 0, verified: 0 },
-  };
 }

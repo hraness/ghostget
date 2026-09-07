@@ -1181,7 +1181,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_818_944);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_820_992);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1272,8 +1272,8 @@ describe("npm publication contract", () => {
     expect(artifact).toContain('from "./package-budget.js"');
     expect(smoke).toContain('from "./package-budget.js"');
     expect(budget).toContain("two npm 11.19.0 packs");
-    expect(budget).toContain("2,229,858 packed bytes");
-    expect(budget).toContain("12,320,769 unpacked bytes, and 485 files");
+    expect(budget).toContain("2,232,402 packed bytes");
+    expect(budget).toContain("12,322,791 unpacked bytes, and 485 files");
     expect(budget).toContain(
       "7b72a20a95ef0e92feec1c6e75b556800dc08215f142bac0fa6c24b53fd74928",
     );
@@ -1285,11 +1285,11 @@ describe("npm publication contract", () => {
     expect(budget).toContain("LinkedIn activity pagination, cleanup convergence");
     expect(budget).toContain("measured a 3,543-byte Linux/macOS gzip spread");
     expect(budget).toContain("leaves 4,266 bytes");
-    expect(budget).toContain("635 unpacked bytes");
-    expect(MAX_PACKED_BYTES).toBe(2_234_124);
+    expect(budget).toContain("635 unpacked bytes of headroom");
+    expect(MAX_PACKED_BYTES).toBe(2_236_668);
     expect(MAX_PACKED_ENTRIES).toBe(485);
     expect(MAX_PACKED_FILES).toBe(485);
-    expect(MAX_UNPACKED_BYTES).toBe(12_321_404);
+    expect(MAX_UNPACKED_BYTES).toBe(12_323_426);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
@@ -1297,8 +1297,8 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 485, max: 485 },
       fileCount: { min: 485, max: 485 },
-      packedBytes: { min: 1_600_000, max: 2_234_124 },
-      unpackedBytes: { min: 9_000_000, max: 12_321_404 },
+      packedBytes: { min: 1_600_000, max: 2_236_668 },
+      unpackedBytes: { min: 9_000_000, max: 12_323_426 },
     });
   });
 

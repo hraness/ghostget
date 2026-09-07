@@ -1,5 +1,15 @@
-// After a clean Bun 1.3.14 build, two npm 11.19.0 packs of the combined
-// 0.16.9 company-read and cleanup candidate were byte-identical:
+// After a clean Bun 1.3.14 build, two npm 11.16.0 packs of the Reddit
+// read-failure candidate were byte-identical:
+// 2,232,402 packed bytes, 12,322,791 unpacked bytes, and 485 files.
+// Their SHA-256 was
+// 0ee7396258a400d69a81fffb80e2d0b3808326c5ea837a47ff464e2ca606022e.
+// Current main measured 2,229,858 packed / 12,320,769 unpacked bytes and
+// 485 files. The two changed Reddit runtime and test payloads account for
+// +2,544 packed / +2,022 unpacked bytes. Preserve main's reviewed 4,266
+// packed and 635 unpacked bytes of headroom with an exact 485-file inventory.
+// These ceilings change by only the measured delta from main.
+//
+// Historical combined 0.16.9 company-read and cleanup candidate:
 // 2,229,858 packed bytes, 12,320,769 unpacked bytes, and 485 files.
 // Their SHA-256 was
 // 7b72a20a95ef0e92feec1c6e75b556800dc08215f142bac0fa6c24b53fd74928.
@@ -38,10 +48,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_234_124;
+export const MAX_PACKED_BYTES = 2_236_668;
 export const MAX_PACKED_ENTRIES = 485;
 export const MAX_PACKED_FILES = 485;
-export const MAX_UNPACKED_BYTES = 12_321_404;
+export const MAX_UNPACKED_BYTES = 12_323_426;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
