@@ -99,6 +99,12 @@
           <p>URL query strings, fragments, and common attribution parameters are stripped before an event can leave the browser. The site does not use replay, identity, feature flags, broad autocapture, console capture, or person profiles. It does not record form input, local file paths, CLI state, or provider account material. JavaScript is optional, and every public page remains readable without it.</p>
         </section>
 
+        <section aria-labelledby="website-mailing-list">
+          <h2 id="website-mailing-list">Wrench mailing-list subscriptions are separate</h2>
+          <p>The footer sends the submitted email address and Cloudflare Turnstile response to <code>https://account.hraness.com/api/mailing/subscribe</code>. Each request has the fixed <code>wrench</code> audience and <code>source=hraness-site-footer</code>. An eligible new request records a pending Wrench membership. Resend sends the confirmation message from <code>newsletter@news.hraness.com</code>; following its link records confirmation and changes the membership to subscribed.</p>
+          <p>Subscribed members can receive later Wrench mail through Resend from <code>news.hraness.com</code>. The unsubscribe flow removes only the Wrench audience membership. The mailing list is optional: using the Wrench CLI, SDK, or wrench.rip does not require a subscription, and a Wrench subscription does not enroll the address in another Hraness audience.</p>
+        </section>
+
         <section aria-labelledby="without-javascript">
           <h2 id="without-javascript">The documentation works without JavaScript</h2>
           <p>Agents can request <code>Accept: text/markdown</code> on a public content URL and receive a Markdown body with <code>Vary: Accept</code>. A Do Not Track signal disables the optional analytics bootstrap. The site content, install commands, privacy information, and support links remain available when JavaScript does not run.</p>
