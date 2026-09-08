@@ -100,6 +100,52 @@ late handle publication, lost commit acknowledgments, private earlier causes,
 unsafe retained admission, and exact terminal output withholding. Use the real
 native cleanup context and durable fixtures; no live mutation is necessary.
 
+## Confirmed-write execution checkpoint
+
+The native confirmed-write implementation for [issue 186](https://github.com/hraness/wrench/issues/186)
+is complete in source and independently reviewed. The single invocation program
+owns qualification, durable preparation, dispatch, reconciliation and cleanup;
+the existing native storage and process kernels retain authority. Public Promise
+facades and the immediate durable callback prefix remain part of the contract.
+
+The first broad causal run retained 167 passes, 13 failures and 4,927 assertions.
+One failure exposed a real admission regression: providing an already constructed,
+resource-free service through `Layer.succeed` entered the pinned runtime's
+asynchronous memo-map semaphore before the write program. Direct service provision
+removes that boundary while preserving one interpreter. The immediate public-call
+and journal assertions remain unchanged; a delayed test observation would not
+prove this law.
+
+Eight cleanup fixtures compared uncanonicalized temporary paths against native
+canonical storage paths, and three projection fixtures targeted the generic
+writer instead of the existing conditional receipt writer. Those fault seams now
+match the production paths and still require the original selected rejection and
+durable outcomes. The CAS property reached its existing ten-second limit after
+18 trials. It now constructs only the unaffected prefix with the production
+reducer, then exercises the chosen physical commit, repeated stale-snapshot
+refusal, exact bytes, readback and next native transition. Its 24-run setting and
+deadline remain unchanged; complete schedule semantics retain their separate
+reducer property.
+
+Source checkpoint `bfe0ea8b92e5924291eb1e522e4a8e0b8af72d50` contains these
+reviewed repairs and [the ownership guide](../../docs/effect-confirmed-write-runtime.md).
+The fresh focused sequence passed 180 causal tests and 4,878 assertions, full
+TypeScript and the unchanged architecture policy. The immediate public-call
+oracle passed without delayed observation; all cleanup/projection controls and
+the 24-case native CAS property passed within its unchanged deadline.
+
+Independent terminal review matched all 785 source files and modes, six command
+logs and the runner. The focused receipt has SHA-256
+`80cf9b7ceb141c4137589316004ea87edf5b160c01dee7f408293b4180087749`;
+its independent review is
+`88186c9ace6a8e9ac5167346709b95ab692d43d6f7fd267ef56334616216abe4`.
+The failed attempts remain historical evidence. Candidate 0.16.11 still requires
+generated/package convergence, KB checks, the fresh full aggregate/native gates
+and current-head CI. Public npm, immutable Release and production are separate
+later admissions. Released baseline 0.16.10 at
+`521922ed2c81441aeab2cddb67cde5d8ffe078c9` remains the comparison and recovery
+coordinate until that delivery completes.
+
 ## Recovery
 
 Keep the exact released 0.16.10 source available until the successor completes

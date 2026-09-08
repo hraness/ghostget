@@ -7,6 +7,25 @@ coordinate that completed both checks.
 
 ## Unreleased
 
+## 0.16.11 - 2026-09-07
+
+- Own LinkedIn profile-activity browser acquisition, current-account binding,
+  independent profile observation, bounded page projection and native cleanup
+  in an Effect 3.22.1 program. Keep pagination, result shapes and close order.
+- Use producer-owned identity evidence and typed browser failures for account
+  mismatch and authentication repair; diagnostic text cannot grant either.
+- Own the complete R2/R3 confirmation lifecycle in one native Effect program:
+  claim validation, durable journal/receipt/ledger/recovery preparation, dispatch,
+  result reconciliation and cleanup. Keep the public Promise interfaces and
+  existing preview, confirmation and at-most-once authority.
+- Persist dispatch and accepted-target callbacks synchronously before their
+  returned Promises can be awaited. Preserve the exact selected native cleanup
+  rejection, including falsey values, while earlier causes remain private.
+- Retain physical cleanup custody and durable recovery after uncertain native
+  work. Lost acknowledgment withholds unproven output and never permits an
+  automatic resubmission; journal-proven output survives a repairable projection
+  failure without repeating execution.
+
 ## 0.16.10 - 2026-09-07
 
 - Show the Ra mark and five social links in the shared website footer, with
