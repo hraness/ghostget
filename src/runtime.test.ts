@@ -4991,8 +4991,8 @@ describe("native confirmation rejection identity", () => {
       try {
         installFixture(testState);
         const stored = createAndSaveInvocationPlan(prepared(testState), testState.environment);
-        planPath = join(testState.directory, "plans", `${stored.digest}.json`);
-        claimPath = join(testState.directory, "plans", `${stored.digest}.claim.json`);
+        planPath = join(wrenchStateHome(testState.environment), "plans", `${stored.digest}.json`);
+        claimPath = join(wrenchStateHome(testState.environment), "plans", `${stored.digest}.claim.json`);
         const outcome = await confirmInvocation(stored.digest, {
           headed: false, environment: testState.environment,
           loadManifest: () => { primaryObserved = true; throw primary; },
@@ -5082,10 +5082,10 @@ describe("confirmed terminal authority", () => {
 describe("confirmed repairable projection", () => {
   test.each([undefined, null, false])("publishes journal-proven output despite terminal receipt projection rejecting %j", async failure => {
     const testState = state();
-    const write = PrivateStorage.writePrivateJson;
+    const write = PrivateStorage.writePrivateJsonIfUnchanged;
     let refused = 0;
-    const projection = spyOn(PrivateStorage, "writePrivateJson").mockImplementation((path, value, options) => {
-      if (path.startsWith(join(testState.directory, "runs") + "/") && path.endsWith(".json")) {
+    const projection = spyOn(PrivateStorage, "writePrivateJsonIfUnchanged").mockImplementation((path, value, options) => {
+      if (path.startsWith(join(wrenchStateHome(testState.environment), "runs") + "/") && path.endsWith(".json")) {
         const runId = path.slice(path.lastIndexOf("/") + 1, -5);
         if (readRunJournal(runId, testState.environment)?.journal.phase === "terminal") { refused += 1; throw failure; }
       }

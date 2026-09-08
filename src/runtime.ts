@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { ConfirmedWritePlatformLive } from "./confirmed-write-platform";
+import { ConfirmedWritePlatform, makeConfirmedWritePlatform } from "./confirmed-write-platform";
 import { confirmedWriteProgram } from "./confirmed-write-program";
 import { runConfirmedWrite } from "./confirmed-write-runtime";
 import { GENERIC_EXECUTOR_TERMINATION, type LedgerEntry, type LedgerSnapshot, type BoundedExecution, type RunPreparedOptions } from "./confirmed-write-model";
@@ -4645,7 +4645,9 @@ export async function confirmInvocation(
     readonly persistReceipt?: (receipt: RunReceipt, environment: Readonly<Record<string, string | undefined>>) => void;
   },
 ): Promise<InvocationResult> {
-  return runConfirmedWrite(confirmedWriteProgram(digest).pipe(Effect.provide(ConfirmedWritePlatformLive({
+  // This resource-free service is already constructed synchronously. Layer
+  // memoization acquires an async semaphore and would defer the native prefix.
+  return runConfirmedWrite(confirmedWriteProgram(digest).pipe(Effect.provideService(ConfirmedWritePlatform, makeConfirmedWritePlatform({
     isInputArray, isFileInputValue,
     resolveCodeOwnedPluginOperation,
     hasExactKeys,

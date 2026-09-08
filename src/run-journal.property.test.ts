@@ -90,8 +90,6 @@ test("a lost native acknowledgement never permits a stale journal write in a bou
       chmodSync(root, 0o700);
       const environment = { ...process.env, WRENCH_STATE_HOME: root };
       try {
-        let current = createRunJournal(initial(planned, assets), environment);
-        const path = join(root, "run-journals", `${current.journal.runId}.json`);
         const events: RunJournalEvent[] = [
           { type: "confirmation-consumed", at: timestamp(0) },
           { type: "ledger-claimed", ledgerRelativePath: `idempotency/ff/${"f".repeat(64)}.json`, at: timestamp(1) },
@@ -102,29 +100,35 @@ test("a lost native acknowledgement never permits a stale journal write in a bou
           events.push({ type: "dispatch-verified", index, at: timestamp(events.length) });
         }
         events.push({ type: "finished", status: "submitted", finalOrigin: null, error: null, at: timestamp(events.length) });
-        let lostAcknowledgements = 0;
-        for (const [index, event] of events.entries()) {
-          const committed = updateRunJournal(current, event, environment);
-          if (index === lostAt) {
-            lostAcknowledgements += 1;
-            // The caller still holds the pre-commit snapshot. Retain the exact
-            // native bytes while deliberately discarding its acknowledgement.
-            const bytes = readFileSync(path);
-            for (let attempt = 0; attempt < staleAttempts; attempt += 1) {
-              expect(() => updateRunJournal(current, event, environment)).toThrow("changed concurrently");
-              expect(readFileSync(path)).toEqual(bytes);
-            }
-            const observed = readRunJournal(current.journal.runId, environment);
-            if (observed === null) throw new Error("committed journal disappeared");
-            expect(observed).toEqual(committed);
-            current = observed;
-          } else current = committed;
-          expect(current.journal.revision).toBe(index + 1);
+        // Construct the unaffected prefix through the production reducer. Only
+        // the selected commit, stale attempts, readback and next transition need
+        // physical CAS: those are the native boundaries under this fault law.
+        let prefix = initial(planned, assets);
+        for (const event of events.slice(0, lostAt)) prefix = transitionRunJournal(prefix, event);
+        const current = createRunJournal(prefix, environment);
+        const event = events[lostAt];
+        if (event === undefined) throw new Error("fault position outside the bounded schedule");
+        const committed = updateRunJournal(current, event, environment);
+        const path = join(root, "run-journals", `${current.journal.runId}.json`);
+        const bytes = readFileSync(path);
+        // The caller still holds the pre-commit snapshot, as if the successful
+        // native write's acknowledgement had been lost.
+        for (let attempt = 0; attempt < staleAttempts; attempt += 1) {
+          expect(() => updateRunJournal(current, event, environment)).toThrow("changed concurrently");
+          expect(readFileSync(path)).toEqual(bytes);
         }
-        expect(lostAcknowledgements).toBe(1);
-        expect(current.journal.phase).toBe("terminal");
-        expect(current.journal.dispatch).toEqual({ planned, started: planned, verified: planned });
-        expect(readRunJournal(current.journal.runId, environment)).toEqual(current);
+        const observed = readRunJournal(current.journal.runId, environment);
+        if (observed === null) throw new Error("committed journal disappeared");
+        expect(observed).toEqual(committed);
+        expect(observed.journal.revision).toBe(lostAt + 1);
+        const next = events[lostAt + 1];
+        const continued = next === undefined ? observed : updateRunJournal(observed, next, environment);
+        expect(continued.journal.revision).toBe(lostAt + (next === undefined ? 1 : 2));
+        if (next === undefined) {
+          expect(continued.journal.phase).toBe("terminal");
+          expect(continued.journal.dispatch).toEqual({ planned, started: planned, verified: planned });
+        }
+        expect(readRunJournal(current.journal.runId, environment)).toEqual(continued);
       } finally {
         rmSync(root, { recursive: true, force: true });
       }

@@ -28,7 +28,7 @@ function finalizePreDispatchFailure(state: Execution, message: string) {
     }
     yield* state.projectJournal;
     yield* state.refreshReceipt;
-  }).pipe(Effect.either);
+  }).pipe(Effect.either, Effect.asVoid);
 }
 
 function prepareAndExecute(
@@ -62,7 +62,7 @@ function prepareAndExecute(
       yield* Effect.either(Effect.gen(function*() {
         yield* state.record({ type: "finished", status: "failed", finalOrigin: null, error: "confirmation ownership claim changed before release", at: state.startedAt });
         yield* state.projectJournal;
-      }));
+      })).pipe(Effect.asVoid);
       return yield* refuse("confirmation", "confirmation ownership claim changed unexpectedly; run wrench doctor before retrying");
     }
     yield* state.refreshReceipt;
@@ -73,7 +73,7 @@ function prepareAndExecute(
           type: "finished", status: "failed", finalOrigin: null,
           error: "provisional receipt could not be projected before dispatch", at: yield* state.clock()
         });
-      }));
+      })).pipe(Effect.asVoid);
       return yield* wrapped(provisional.left, "refusing to start execution because its provisional receipt could not be stored");
     }
     const request = yield* state.ledgerRequest;
@@ -115,8 +115,8 @@ function prepareAndExecute(
       ? { status: "fulfilled", value: dispatched.right }
       : { status: "rejected", reason: dispatched.left.cause }, maxOutputBytes);
     const terminal = yield* Effect.either(state.record(projected.terminalEvent));
-    if (Either.isLeft(terminal)) yield* Effect.either(state.reloadJournal);
-    if (state.journalTerminal) yield* Effect.either(state.projectJournal);
+    if (Either.isLeft(terminal)) yield* Effect.either(state.reloadJournal).pipe(Effect.asVoid);
+    if (state.journalTerminal) yield* Effect.either(state.projectJournal).pipe(Effect.asVoid);
     return yield* state.result(projected.result);
   });
 }

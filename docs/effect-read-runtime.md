@@ -3,7 +3,8 @@
 R1 execution uses Effect 3.22.1 for receipt sequencing, bounded result admission,
 cleanup admission and the selected statistics pipelines. Public SDK and provider
 hooks keep their Promise interfaces. R2/R3 confirmation, dispatch and journal
-transitions remain in the write interpreter.
+transitions use the separate
+[confirmed-write interpreter](effect-confirmed-write-runtime.md).
 
 `ReadInvocationPlatform` supplies receipt persistence, the selected native
 executor, strict foreign-result parsing, redaction and observation time.

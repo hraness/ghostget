@@ -176,3 +176,5 @@ not use a broad glob or remove the worktree directory directly.
 
 The [read runtime ownership guide](effect-read-runtime.md) describes the R1 Effect
 programs, native cleanup proof and the `bun run check:effect` architecture gate.
+The [confirmed-write guide](effect-confirmed-write-runtime.md) explains synchronous
+durable callbacks, reconciliation and native cleanup for R2/R3 confirmation.

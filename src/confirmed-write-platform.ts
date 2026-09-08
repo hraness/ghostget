@@ -1,6 +1,5 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 import { GENERIC_EXECUTOR_TERMINATION, type BoundedExecution, type LedgerEntry, type LedgerSnapshot, type RunPreparedOptions } from "./confirmed-write-model";
 import type { PreparedInvocation, StoredPlan, InvocationPlan, InvocationDuplicateRiskV1, InvocationResult, RunReceipt, ConfirmationClaimSnapshot, ConfirmationClaimRepairReport, RunJournalRepairReport, confirmInvocation } from "./runtime";
 import { ConfirmedWriteFailure, confirmedWriteAttempt, type ConfirmedWritePhase } from "./confirmed-write-failure";
@@ -1054,6 +1053,3 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
 export class ConfirmedWritePlatform extends Context.Tag("wrench/ConfirmedWritePlatform/v1")<
   ConfirmedWritePlatform, ReturnType<typeof makeConfirmedWritePlatform>
 >() { }
-
-export const ConfirmedWritePlatformLive = (kernel: ConfirmedWriteKernel, options: ConfirmOptions) =>
-  Layer.succeed(ConfirmedWritePlatform, makeConfirmedWritePlatform(kernel, options));
