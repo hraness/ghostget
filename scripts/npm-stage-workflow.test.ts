@@ -1181,7 +1181,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_820_992);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_861_440);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1286,19 +1286,19 @@ describe("npm publication contract", () => {
     expect(budget).toContain("measured a 3,543-byte Linux/macOS gzip spread");
     expect(budget).toContain("leaves 4,266 bytes");
     expect(budget).toContain("635 unpacked bytes of headroom");
-    expect(MAX_PACKED_BYTES).toBe(2_236_668);
-    expect(MAX_PACKED_ENTRIES).toBe(485);
-    expect(MAX_PACKED_FILES).toBe(485);
-    expect(MAX_UNPACKED_BYTES).toBe(12_323_426);
+    expect(MAX_PACKED_BYTES).toBe(2_244_781);
+    expect(MAX_PACKED_ENTRIES).toBe(493);
+    expect(MAX_PACKED_FILES).toBe(493);
+    expect(MAX_UNPACKED_BYTES).toBe(12_355_659);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 485, max: 485 },
-      fileCount: { min: 485, max: 485 },
-      packedBytes: { min: 1_600_000, max: 2_236_668 },
-      unpackedBytes: { min: 9_000_000, max: 12_323_426 },
+      entryCount: { min: 493, max: 493 },
+      fileCount: { min: 493, max: 493 },
+      packedBytes: { min: 1_600_000, max: 2_244_781 },
+      unpackedBytes: { min: 9_000_000, max: 12_355_659 },
     });
   });
 
@@ -1362,10 +1362,11 @@ describe("npm publication contract", () => {
     }
   });
 
-  test("keeps separate truthful Wrench 0.16.3 through 0.16.10 changelog sections", async () => {
+  test("keeps separate truthful Wrench 0.16.3 through 0.16.11 changelog sections", async () => {
     const changelog = await readFile(changelogUrl, "utf8");
     const unreleasedHeader = "## Unreleased\n";
-    const currentHeader = "## 0.16.10 - 2026-09-07\n";
+    const currentHeader = "## 0.16.11 - 2026-09-07\n";
+    const footerHeader = "## 0.16.10 - 2026-09-07\n";
     const companyHeader = "## 0.16.9 - 2026-09-06\n";
     const cleanupHeader = "## 0.16.8 - 2026-09-06\n";
     const previousHeader = "## 0.16.7 - 2026-09-05\n";
@@ -1375,6 +1376,7 @@ describe("npm publication contract", () => {
     const incidentHeader = "## 0.16.3 - 2026-09-01\n";
     const unreleasedStart = changelog.indexOf(unreleasedHeader);
     const currentStart = changelog.indexOf(currentHeader);
+    const footerStart = changelog.indexOf(footerHeader);
     const companyStart = changelog.indexOf(companyHeader);
     const cleanupStart = changelog.indexOf(cleanupHeader);
     const previousStart = changelog.indexOf(previousHeader);
@@ -1384,6 +1386,7 @@ describe("npm publication contract", () => {
     const incidentStart = changelog.indexOf(incidentHeader);
 
     expect(changelog.match(/^## Unreleased$/gmu) ?? []).toHaveLength(1);
+    expect(changelog.match(/^## 0\.16\.11 - 2026-09-07$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.10 - 2026-09-07$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.9 - 2026-09-06$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.8 - 2026-09-06$/gmu) ?? []).toHaveLength(1);
@@ -1394,7 +1397,8 @@ describe("npm publication contract", () => {
     expect(changelog.match(/^## 0\.16\.3 - 2026-09-01$/gmu) ?? []).toHaveLength(1);
     expect(unreleasedStart).toBeGreaterThan(-1);
     expect(currentStart).toBeGreaterThan(unreleasedStart);
-    expect(companyStart).toBeGreaterThan(currentStart);
+    expect(footerStart).toBeGreaterThan(currentStart);
+    expect(companyStart).toBeGreaterThan(footerStart);
     expect(cleanupStart).toBeGreaterThan(companyStart);
     expect(previousStart).toBeGreaterThan(cleanupStart);
     expect(consumedStart).toBeGreaterThan(previousStart);
@@ -1404,7 +1408,9 @@ describe("npm publication contract", () => {
     expect(changelog.slice(unreleasedStart + unreleasedHeader.length, currentStart).trim()).toBe("");
 
     const currentReleaseEnd = changelog.indexOf("\n## ", currentStart + currentHeader.length);
-    expect(currentReleaseEnd).toBe(companyStart - 1);
+    expect(currentReleaseEnd).toBe(footerStart - 1);
+    const footerReleaseEnd = changelog.indexOf("\n## ", footerStart + footerHeader.length);
+    expect(footerReleaseEnd).toBe(companyStart - 1);
     const companyReleaseEnd = changelog.indexOf("\n## ", companyStart + companyHeader.length);
     expect(companyReleaseEnd).toBe(cleanupStart - 1);
     const cleanupReleaseEnd = changelog.indexOf("\n## ", cleanupStart + cleanupHeader.length);

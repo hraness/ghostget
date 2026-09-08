@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
+import * as RunJournalStore from "./run-journal";
+import * as PrivateStorage from "./storage";
 import {
   createCipheriv,
   createDecipheriv,
@@ -4794,5 +4796,309 @@ describe("receipts", () => {
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }
+  });
+});
+
+
+describe("native confirmed-write ownership", () => {
+  test("consumes confirmation and persists immediate callbacks before their Promises are awaited", async () => {
+    const testState = state();
+    const finish = Promise.withResolvers<void>();
+    let pending: ReturnType<typeof confirmInvocation> | undefined;
+    try {
+      installFixture(testState);
+      const stored = createAndSaveInvocationPlan(prepared(testState, "immediate journal protocol"), testState.environment);
+      let entered = false;
+      pending = confirmInvocation(stored.digest, {
+        headed: false, environment: testState.environment,
+        executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
+          entered = true;
+          if (options?.beforeDispatch === undefined || options.afterDispatchVerified === undefined) throw new Error("required durable callbacks missing");
+          const current = () => {
+            const entries = RunJournalStore.listRunJournalSnapshots(testState.environment);
+            expect(entries).toHaveLength(1);
+            const entry = entries[0];
+            if (entry === undefined || "invalid" in entry) throw new Error("exact native journal missing");
+            return entry;
+          };
+          expect(current().journal.planState).toBe("consumed");
+          const starting = { id: "posts-publish", index: 1, progress: { planned: 1, started: 0, verified: 0 } } as const;
+          const first = options.beforeDispatch(starting);
+          const afterFirst = current();
+          expect(afterFirst.journal.dispatch).toEqual({ planned: 1, started: 1, verified: 0 });
+          const competing = options.beforeDispatch(starting).then(() => ({ accepted: true }), error => ({ accepted: false, error }));
+          expect(current().contentSha256).toBe(afterFirst.contentSha256);
+          const verified = options.afterDispatchVerified({ id: "posts-publish", index: 1, progress: { planned: 1, started: 1, verified: 1 } });
+          expect(current().journal.dispatch).toEqual({ planned: 1, started: 1, verified: 1 });
+          await first;
+          expect(await competing).toMatchObject({ accepted: false });
+          await verified;
+          await finish.promise;
+          return execution();
+        },
+      });
+      // This is the exact original pre-await boundary, not a timer observation.
+      expect(entered).toBeTrue();
+      expect(existsSync(join(testState.directory, "plans", `${stored.digest}.json`))).toBeFalse();
+      expect(existsSync(join(testState.directory, "plans", `${stored.digest}.claim.json`))).toBeFalse();
+      finish.resolve();
+      const result = await pending;
+      expect(result.receipt.status).toBe("submitted");
+      expect(result.output).toEqual({ observed: true });
+    } finally {
+      finish.resolve();
+      await pending?.catch(() => undefined);
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  for (const at of ["before", "after"] as const) {
+    test.each([undefined, null, false, new Error("bounded fixture rejection")])(`retains ${at}-dispatch failure presence for %j`, async failure => {
+      const testState = state();
+      try {
+        installFixture(testState);
+        const stored = createAndSaveInvocationPlan(prepared(testState), testState.environment);
+        let calls = 0;
+        const result = await confirmInvocation(stored.digest, {
+          headed: false, environment: testState.environment,
+          executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
+            calls += 1;
+            if (at === "after") await options?.beforeDispatch?.({ id: "posts-publish", index: 1, progress: { planned: 1, started: 0, verified: 0 } });
+            throw failure;
+          },
+        });
+        expect(calls).toBe(1);
+        expect(result.receipt).toMatchObject({ status: at === "before" ? "failed" : "indeterminate", dispatch: { planned: 1, started: at === "before" ? 0 : 1, verified: 0 } });
+        expect(result.output).toBeNull();
+        expect(readRunJournal(result.receipt.runId, testState.environment)?.journal.phase).toBe("terminal");
+      } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+    });
+  }
+
+  for (const transition of ["confirmation-consumed", "dispatch-started", "finished"] as const) {
+    test.each([undefined, null, false])(`does not repeat ${transition} after a committed native write loses its %j acknowledgement`, async failure => {
+      const testState = state();
+      const update = RunJournalStore.updateRunJournal;
+      let armed = true;
+      let attempts = 0;
+      let commits = 0;
+      const writer = spyOn(RunJournalStore, "updateRunJournal").mockImplementation((snapshot, event, environment) => {
+        if (event.type === transition) attempts += 1;
+        const next = update(snapshot, event, environment);
+        if (event.type === transition) commits += 1;
+        if (event.type === transition && armed) {
+          armed = false;
+          throw failure;
+        }
+        return next;
+      });
+      try {
+        installFixture(testState);
+        const stored = createAndSaveInvocationPlan(prepared(testState), testState.environment);
+        let executions = 0;
+        let submissions = 0;
+        const outcome = await confirmInvocation(stored.digest, {
+          headed: false, environment: testState.environment,
+          executeProvider: async (_manifest, _recipe, _input, _auth, options) => {
+            executions += 1;
+            await options?.beforeDispatch?.({ id: "posts-publish", index: 1, progress: { planned: 1, started: 0, verified: 0 } });
+            submissions += 1;
+            await options?.afterDispatchVerified?.({ id: "posts-publish", index: 1, progress: { planned: 1, started: 1, verified: 1 } });
+            return execution();
+          },
+        }).then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error }));
+        expect(attempts).toBe(1);
+        expect(commits).toBe(1);
+        expect(existsSync(join(testState.directory, "plans", `${stored.digest}.json`))).toBeFalse();
+        expect(existsSync(join(testState.directory, "plans", `${stored.digest}.claim.json`))).toBeFalse();
+        const snapshots = RunJournalStore.listRunJournalSnapshots(testState.environment);
+        expect(snapshots).toHaveLength(1);
+        const snapshot = snapshots[0];
+        if (snapshot === undefined || "invalid" in snapshot) throw new Error("durable native write missing");
+        expect(snapshot.journal.planState).toBe("consumed");
+        if (transition === "confirmation-consumed") {
+          expect(executions).toBe(0);
+          expect(submissions).toBe(0);
+          expect(outcome.ok).toBeFalse();
+          if (outcome.ok) throw new Error("consumption acknowledgement loss must reject");
+          expect(outcome.error).toBeInstanceOf(Error);
+          expect(outcome.error.cause).toBe(failure);
+        } else {
+          expect(executions).toBe(1);
+          expect(submissions).toBe(transition === "finished" ? 1 : 0);
+          expect(outcome.ok).toBeTrue();
+          if (!outcome.ok) throw outcome.error;
+          expect(outcome.value.receipt.status).toBe(transition === "finished" ? "submitted" : "pending");
+          expect(outcome.value.output).toEqual(transition === "finished" ? { observed: true } : null);
+          expect(snapshot.journal.dispatch.started).toBe(1);
+        }
+      } finally {
+        writer.mockRestore();
+        rmSync(testState.directory, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+
+describe("native confirmation rejection identity", () => {
+  test.each([undefined, null, false, new Error("native validation failure")])("retains rejected native validation %j through actual plan and claim cleanup", async failure => {
+    const testState = state();
+    try {
+      installFixture(testState);
+      const stored = createAndSaveInvocationPlan(prepared(testState), testState.environment);
+      let providerCalls = 0;
+      const outcome = await confirmInvocation(stored.digest, {
+        headed: false, environment: testState.environment,
+        loadManifest: () => { throw failure; },
+        executeProvider: () => { providerCalls += 1; return Promise.resolve(execution()); },
+      }).then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error }));
+      expect(outcome.ok).toBeFalse();
+      if (outcome.ok) throw new Error("native rejection disappeared");
+      expect(outcome.error).toBe(failure);
+      expect(providerCalls).toBe(0);
+      expect(existsSync(join(testState.directory, "plans", `${stored.digest}.json`))).toBeFalse();
+      expect(existsSync(join(testState.directory, "plans", `${stored.digest}.claim.json`))).toBeFalse();
+      expect(RunJournalStore.listRunJournalSnapshots(testState.environment)).toEqual([]);
+    } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+
+  for (const cleanup of ["plan", "claim"] as const) {
+    test.each([undefined, null, false, new Error("native removal failure")])(`selects ${cleanup} cleanup rejection %j after a distinct validation failure`, async failure => {
+      const testState = state();
+      const removePlan = PrivateStorage.removePrivateStateFile;
+      const removeClaim = PrivateStorage.removePrivateStateFileIfUnchanged;
+      const primary = new Error("confirmed validation failed before dispatch");
+      let primaryObserved = false;
+      let cleanupAttempts = 0;
+      let providerCalls = 0;
+      let planPath = "";
+      let claimPath = "";
+      const planRemoval = spyOn(PrivateStorage, "removePrivateStateFile").mockImplementation((path, environment, parent) => {
+        if (primaryObserved && cleanup === "plan" && path === planPath) {
+          cleanupAttempts += 1;
+          throw failure;
+        }
+        return removePlan(path, environment, parent);
+      });
+      const claimRemoval = spyOn(PrivateStorage, "removePrivateStateFileIfUnchanged").mockImplementation((path, options, environment) => {
+        if (primaryObserved && cleanup === "claim" && path === claimPath) {
+          cleanupAttempts += 1;
+          throw failure;
+        }
+        return removeClaim(path, options, environment);
+      });
+      try {
+        installFixture(testState);
+        const stored = createAndSaveInvocationPlan(prepared(testState), testState.environment);
+        planPath = join(wrenchStateHome(testState.environment), "plans", `${stored.digest}.json`);
+        claimPath = join(wrenchStateHome(testState.environment), "plans", `${stored.digest}.claim.json`);
+        const outcome = await confirmInvocation(stored.digest, {
+          headed: false, environment: testState.environment,
+          loadManifest: () => { primaryObserved = true; throw primary; },
+          executeProvider: () => { providerCalls += 1; return Promise.resolve(execution()); },
+        }).then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error }));
+        expect(outcome.ok).toBeFalse();
+        if (outcome.ok) throw new Error("native cleanup rejection disappeared");
+        expect(outcome.error).toBe(failure);
+        expect(primaryObserved).toBeTrue();
+        expect(cleanupAttempts).toBe(1);
+        expect(providerCalls).toBe(0);
+        expect(existsSync(planPath)).toBe(cleanup === "plan");
+        expect(existsSync(claimPath)).toBeTrue();
+        expect(RunJournalStore.listRunJournalSnapshots(testState.environment)).toEqual([]);
+      } finally {
+        planRemoval.mockRestore();
+        claimRemoval.mockRestore();
+        rmSync(testState.directory, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+describe("confirmed terminal authority", () => {
+  test.each([undefined, null, false])("withholds output when terminal CAS rejects before commit with %j", async failure => {
+    const testState = state();
+    const update = RunJournalStore.updateRunJournal;
+    let rejected = 0;
+    const writer = spyOn(RunJournalStore, "updateRunJournal").mockImplementation((snapshot, event, environment) => {
+      if (event.type === "finished") { rejected += 1; throw failure; }
+      return update(snapshot, event, environment);
+    });
+    try {
+      installFixture(testState);
+      const stored = createAndSaveInvocationPlan(prepared(testState), testState.environment);
+      let submissions = 0;
+      const result = await confirmInvocation(stored.digest, {
+        headed: false, environment: testState.environment,
+        executeProvider: providerExecutor(execution(), () => { submissions += 1; }),
+      });
+      expect(rejected).toBe(1);
+      expect(submissions).toBe(1);
+      expect(result.receipt.status).toBe("pending");
+      expect(result.output).toBeNull();
+      expect(readRunJournal(result.receipt.runId, testState.environment)?.journal).toMatchObject({ dispatch: { planned: 1, started: 1, verified: 1 } });
+    } finally { writer.mockRestore(); rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+
+  test("keeps the existing claim witness when duplicate-risk freshness fails after invocation validation", async () => {
+    const testState = state();
+    try {
+      installManifest(xWebManifest(), { force: false, environment: testState.environment });
+      const auth = createAuth("x-web-native-duplicate", { source: "arc", profile: "Profile 1", subject: "123" });
+      saveAuth(auth, testState.environment);
+      const media = join(testState.directory, "native-duplicate.png");
+      writeFileSync(media, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52]), { mode: 0o600 });
+      const invocation = prepareInvocation("x-web", "posts.publish", { body: "duplicate-risk claim witness", media, media_type: "image/png" }, auth.id, testState.environment);
+      const initial = createAndSaveInvocationPlan(invocation, testState.environment);
+      const dispatch = initial.plan.dispatches[0];
+      if (dispatch === undefined) throw new Error("fixture dispatch missing");
+      const source = await confirmInvocation(initial.digest, {
+        headed: false, environment: testState.environment,
+        executeWebSession: async (_manifest, _recipe, _input, _auth, options) => {
+          await options?.beforeDispatch?.({ id: dispatch.id, index: 1, progress: { planned: 1, started: 0, verified: 0 } });
+          return { status: "indeterminate", output: null, finalUrl: null, dispatchStarted: true, dispatch: { planned: 1, started: 1, verified: 0 }, error: "fixture response lost" };
+        },
+      });
+      const successor = createAndSaveInvocationPlan(invocation, testState.environment, new Date(), providerPluginRegistry, { duplicateRiskOf: [source.receipt.runId] });
+      const sourcePath = join(testState.directory, "run-journals", `${source.receipt.runId}.json`);
+      // Semantically equal JSON with a changed exact native snapshot hash is a
+      // real new observation; it cannot silently retain the preview's binding.
+      writeFileSync(sourcePath, readFileSync(sourcePath, "utf8") + "\n", { mode: 0o600 });
+      let calls = 0;
+      expect(await rejectionMessage(confirmInvocation(successor.digest, {
+        headed: false, environment: testState.environment,
+        executeWebSession: () => { calls += 1; throw new Error("must not execute stale evidence"); },
+      }))).toContain("duplicate-risk source evidence changed after preview");
+      expect(calls).toBe(0);
+      expect(existsSync(join(testState.directory, "plans", `${successor.digest}.json`))).toBeTrue();
+      expect(existsSync(join(testState.directory, "plans", `${successor.digest}.claim.json`))).toBeTrue();
+      expect(RunJournalStore.listRunJournalSnapshots(testState.environment)).toHaveLength(1);
+    } finally { rmSync(testState.directory, { recursive: true, force: true }); }
+  });
+});
+
+
+describe("confirmed repairable projection", () => {
+  test.each([undefined, null, false])("publishes journal-proven output despite terminal receipt projection rejecting %j", async failure => {
+    const testState = state();
+    const write = PrivateStorage.writePrivateJsonIfUnchanged;
+    let refused = 0;
+    const projection = spyOn(PrivateStorage, "writePrivateJsonIfUnchanged").mockImplementation((path, value, options) => {
+      if (path.startsWith(join(wrenchStateHome(testState.environment), "runs") + "/") && path.endsWith(".json")) {
+        const runId = path.slice(path.lastIndexOf("/") + 1, -5);
+        if (readRunJournal(runId, testState.environment)?.journal.phase === "terminal") { refused += 1; throw failure; }
+      }
+      return write(path, value, options);
+    });
+    try {
+      installFixture(testState);
+      const stored = createAndSaveInvocationPlan(prepared(testState), testState.environment);
+      const result = await confirmInvocation(stored.digest, { headed: false, environment: testState.environment, executeProvider: providerExecutor() });
+      expect(refused).toBe(1);
+      expect(result.receipt.status).toBe("submitted");
+      expect(result.output).toEqual({ observed: true });
+      expect(readRunJournal(result.receipt.runId, testState.environment)?.journal.phase).toBe("terminal");
+    } finally { projection.mockRestore(); rmSync(testState.directory, { recursive: true, force: true }); }
   });
 });

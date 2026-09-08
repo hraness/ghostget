@@ -54,6 +54,7 @@ import type {
   PortableProviderRuntimeDependencies,
 } from "./provider-plugin-portable-runtime";
 import {
+  PortableProviderPluginCleanupUnverifiedError,
   registerPortableProviderPluginCleanupBarrier,
   settlePortableProviderPluginCleanup,
 } from "./provider-plugin-cleanup-barrier";
@@ -3167,5 +3168,123 @@ describe("portable provider runtime capability containment", () => {
     });
     expect(events).toEqual(["before", "fetch"]);
     expect(fetches).toBe(1);
+  });
+});
+
+describe("confirmed portable native ownership", () => {
+  test("confirms through the real admission-gated host and releases only proven native custody", async () => {
+    const isolatedRoot = mkdtempSync(join(tmpdir(), "wrench-confirmed-native-host-"));
+    chmodSync(isolatedRoot, 0o700);
+    const isolatedEnvironment = { WRENCH_STATE_HOME: join(isolatedRoot, "wrench-home"), HOME: isolatedRoot };
+    const path = join(isolatedRoot, "cookies.json");
+    try {
+      writeFileSync(path, "[]", { mode: 0o600 });
+      installPackage(createPackage(isolatedRoot, mainIdentity, true), isolatedEnvironment);
+      const auth = cookiesAuth(path);
+      saveAuth(auth, isolatedEnvironment);
+      let fetches = 0;
+      let closes = 0;
+      const catalog = createPortableProviderPluginCatalog(emptyRegistry(), isolatedEnvironment, {
+        createFetchScope: () => Object.freeze({
+          fetch: () => { fetches += 1; return Promise.resolve(new Response('{"id":"1"}', { status: 201, headers: { "content-type": "application/json" } })); },
+          close: () => { closes += 1; },
+        }),
+      });
+      const manifest = catalog.registry.resolveOwnedManifest("portable-web");
+      if (manifest === undefined) throw new Error("portable fixture unavailable");
+      const stored = createAndSaveInvocationPlan({ manifest, operationId: "messages.send", input: { mode: "normal" }, auth }, isolatedEnvironment, new Date(), catalog.registry);
+      const result = await confirmInvocation(stored.digest, {
+        headed: false, environment: isolatedEnvironment, registry: catalog.registry,
+        loadManifest: () => ({ ok: true, value: manifest }),
+      });
+      expect(result.receipt).toMatchObject({ status: "submitted", dispatch: { planned: 1, started: 1, verified: 1 } });
+      expect(result.output).toEqual({ submitted: true });
+      expect(fetches).toBe(1);
+      expect(closes).toBe(1);
+      expect(listPortableProviderPluginInvocationLeases(isolatedEnvironment)).toEqual([]);
+    } finally { rmSync(isolatedRoot, { recursive: true, force: true }); }
+  });
+
+  test("keeps the real confirmed lease through cancelled host settlement and late unsafe cleanup", async () => {
+    const isolatedRoot = mkdtempSync(join(tmpdir(), "wrench-confirmed-held-native-host-"));
+    chmodSync(isolatedRoot, 0o700);
+    const isolatedEnvironment = { WRENCH_STATE_HOME: join(isolatedRoot, "wrench-home"), HOME: isolatedRoot };
+    const path = join(isolatedRoot, "cookies.json");
+    const started = Promise.withResolvers<void>();
+    const finishHost = Promise.withResolvers<void>();
+    const releaseCleanup = Promise.withResolvers<void>();
+    const fetchClosed = Promise.withResolvers<void>();
+    let pending: ReturnType<typeof confirmInvocation> | undefined;
+    try {
+      writeFileSync(path, "[]", { mode: 0o600 });
+      installPackage(createPackage(isolatedRoot, mainIdentity, true), isolatedEnvironment);
+      const auth = cookiesAuth(path);
+      saveAuth(auth, isolatedEnvironment);
+      let outwardSettled = false;
+      let hosts = 0;
+      let closes = 0;
+      const catalog = createPortableProviderPluginCatalog(emptyRegistry(), isolatedEnvironment, {
+        createFetchScope: () => Object.freeze({
+          fetch: () => Promise.resolve(new Response("{}")),
+          close: () => { closes += 1; fetchClosed.resolve(); },
+        }),
+        runHost: async invocation => {
+          hosts += 1;
+          const cleanup = registerPortableProviderPluginCleanupBarrier();
+          void releaseCleanup.promise.then(() => cleanup.unsafe(false));
+          if (invocation.capabilityHost === undefined) throw new Error("native capability host missing");
+          const admitted = await invocation.capabilityHost.handle({ kind: "dispatch.begin", dispatchId: "messages.send" }, {
+            invocationId: "confirmed-native-host", requestId: "dispatch-begin", route: invocation.route,
+            signal: invocation.signal ?? new AbortController().signal,
+          });
+          if (admitted.kind !== "dispatch.begin") throw new Error("native dispatch did not begin");
+          started.resolve();
+          await finishHost.promise;
+          return { output: null, finalUrl: null, dispatch: { planned: 1, started: 1, verified: 0 } };
+        },
+      });
+      const manifest = catalog.registry.resolveOwnedManifest("portable-web");
+      if (manifest === undefined) throw new Error("portable fixture unavailable");
+      const invocation = { manifest, operationId: "messages.send", input: { mode: "normal" }, auth } as const;
+      const stored = createAndSaveInvocationPlan(invocation, isolatedEnvironment, new Date(), catalog.registry);
+      const controller = new AbortController();
+      pending = confirmInvocation(stored.digest, {
+        headed: false, environment: isolatedEnvironment, registry: catalog.registry, signal: controller.signal,
+        loadManifest: () => ({ ok: true, value: manifest }),
+      });
+      const outcome = pending.then(value => { outwardSettled = true; return { ok: true as const, value }; }, error => { outwardSettled = true; return { ok: false as const, error }; });
+      const beforeSettlement = (milestone: Promise<void>, label: string) => Promise.race([
+        milestone,
+        outcome.then(result => {
+          if (!result.ok) throw result.error;
+          throw new Error(`confirmation settled before ${label}`);
+        }),
+      ]);
+      await beforeSettlement(started.promise, "native host admission");
+      controller.abort();
+      expect(closes).toBe(0);
+      expect(listPortableProviderPluginInvocationLeases(isolatedEnvironment)).toHaveLength(1);
+      finishHost.resolve();
+      await beforeSettlement(fetchClosed.promise, "native fetch-scope close");
+      expect(outwardSettled).toBeFalse();
+      expect(listPortableProviderPluginInvocationLeases(isolatedEnvironment)).toHaveLength(1);
+      releaseCleanup.resolve();
+      const result = await outcome;
+      expect(result.ok).toBeFalse();
+      if (result.ok) throw new Error("unsafe native cleanup was accepted");
+      expect(result.error).toBeInstanceOf(PortableProviderPluginCleanupUnverifiedError);
+      expect(result.error.cause).toBe(false);
+      expect(listPortableProviderPluginInvocationLeases(isolatedEnvironment)).toMatchObject([{ lease: { containment: { status: "cleanup-unsafe" } } }]);
+      const retry = createAndSaveInvocationPlan(invocation, isolatedEnvironment, new Date(), catalog.registry);
+      expect(await rejectionMessage(confirmInvocation(retry.digest, {
+        headed: false, environment: isolatedEnvironment, registry: catalog.registry,
+        loadManifest: () => ({ ok: true, value: manifest }),
+      }))).toContain("blocked by cleanup-unsafe lease");
+      expect(hosts).toBe(1);
+    } finally {
+      finishHost.resolve(); releaseCleanup.resolve();
+      await pending?.catch(() => undefined);
+      rmSync(isolatedRoot, { recursive: true, force: true });
+    }
   });
 });

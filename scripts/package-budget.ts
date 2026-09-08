@@ -1,3 +1,18 @@
+// Native Effect lifecycle candidate 0.16.11, measured from source ff7a76b
+// against released main 521922ed after clean Bun 1.3.14 builds.
+// Two npm 11.19.0 packs were byte-identical: 2,238,339 packed bytes,
+// 12,355,344 unpacked bytes and 493 files. Their SHA-256 was
+// 4d0b86e270fbeece902f10175d0c9b453ec1c2fbf247cd9b156e5dc659abd280.
+// The Bun archive had the same canonical paths, bytes and modes.
+// The same-run baseline was 2,230,226 packed / 12,323,111 unpacked
+// bytes and 485 files. Eight native lifecycle modules plus the version
+// and caller changes account for +8,113 packed / +32,233 unpacked bytes.
+// Preserve only the baseline's measured 6,442 packed and 315 unpacked
+// bytes of residual headroom, with exactly 493 files/entries. The generated
+// version chunk is renamed and its two imports updated; eight other generated
+// files are unchanged. These limits add only the measured delta from main.
+//
+// Historical Reddit read-failure measurement:
 // After a clean Bun 1.3.14 build, two npm 11.16.0 packs of the Reddit
 // read-failure candidate were byte-identical:
 // 2,232,402 packed bytes, 12,322,791 unpacked bytes, and 485 files.
@@ -48,10 +63,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_236_668;
-export const MAX_PACKED_ENTRIES = 485;
-export const MAX_PACKED_FILES = 485;
-export const MAX_UNPACKED_BYTES = 12_323_426;
+export const MAX_PACKED_BYTES = 2_244_781;
+export const MAX_PACKED_ENTRIES = 493;
+export const MAX_PACKED_FILES = 493;
+export const MAX_UNPACKED_BYTES = 12_355_659;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

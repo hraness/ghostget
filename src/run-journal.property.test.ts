@@ -1,12 +1,21 @@
 import { expect, test } from "bun:test";
+import { createHash } from "node:crypto";
+import { chmodSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { assertProperty, fc } from "./test-support";
+import { canonicalJson } from "./canonical-json";
 
 import {
+  createRunJournal,
   initialRunJournal,
   parseRunJournal,
+  readRunJournal,
   transitionRunJournal,
+  updateRunJournal,
   type RunJournal,
   type RunJournalContract,
+  type RunJournalEvent,
 } from "./run-journal";
 import type { PortableOperationIdentityV1 } from "./provider-plugin-portable-identity";
 
@@ -69,6 +78,73 @@ function ready(planned: number, assets: boolean): RunJournal {
     at: timestamp(2),
   });
 }
+
+test("a lost native acknowledgement never permits a stale journal write in a bounded dispatch schedule", () => {
+  assertProperty(fc.property(
+    fc.integer({ min: 1, max: 3 }).chain(planned => fc.record({
+      planned: fc.constant(planned),
+      lostAt: fc.integer({ min: 0, max: 2 * planned + 3 }),
+      staleAttempts: fc.integer({ min: 1, max: 3 }),
+      assets: fc.boolean(),
+    })),
+    ({ planned, lostAt, staleAttempts, assets }) => {
+      const root = mkdtempSync(join(tmpdir(), "wrench-journal-cas-property-"));
+      chmodSync(root, 0o700);
+      const environment = { ...process.env, WRENCH_STATE_HOME: root };
+      try {
+        const events: RunJournalEvent[] = [
+          { type: "confirmation-consumed", at: timestamp(0) },
+          { type: "ledger-claimed", ledgerRelativePath: `idempotency/ff/${"f".repeat(64)}.json`, at: timestamp(1) },
+          { type: "recovery-stored", at: timestamp(2) },
+        ];
+        for (let index = 1; index <= planned; index += 1) {
+          events.push({ type: "dispatch-started", index, at: timestamp(events.length) });
+          events.push({ type: "dispatch-verified", index, at: timestamp(events.length) });
+        }
+        events.push({ type: "finished", status: "submitted", finalOrigin: null, error: null, at: timestamp(events.length) });
+        // Construct the unaffected prefix through the production reducer. Only
+        // the selected commit, stale attempts, readback and next transition need
+        // physical CAS: those are the native boundaries under this fault law.
+        let prefix = initial(planned, assets);
+        for (const event of events.slice(0, lostAt)) prefix = transitionRunJournal(prefix, event);
+        const current = createRunJournal(prefix, environment);
+        const event = events[lostAt];
+        if (event === undefined) throw new Error("fault position outside the bounded schedule");
+        const committed = updateRunJournal(current, event, environment);
+        const path = join(root, "run-journals", `${current.journal.runId}.json`);
+        const bytes = readFileSync(path);
+        // The caller still holds the pre-commit snapshot, as if the successful
+        // native write's acknowledgement had been lost.
+        for (let attempt = 0; attempt < staleAttempts; attempt += 1) {
+          expect(() => updateRunJournal(current, event, environment)).toThrow("changed concurrently");
+          expect(readFileSync(path)).toEqual(bytes);
+        }
+        const observed = readRunJournal(current.journal.runId, environment);
+        if (observed === null) throw new Error("committed journal disappeared");
+        expect(observed).toEqual(committed);
+        expect(observed.journal.revision).toBe(lostAt + 1);
+        const next = events[lostAt + 1];
+        const continued = next === undefined ? observed : updateRunJournal(observed, next, environment);
+        expect(continued.journal.revision).toBe(lostAt + (next === undefined ? 1 : 2));
+        if (next === undefined) {
+          expect(continued.journal.phase).toBe("terminal");
+          expect(continued.journal.dispatch).toEqual({ planned, started: planned, verified: planned });
+        }
+        // Recovery already used the native journal reader above. Inspect the
+        // successor's physical bytes directly without repeating its two helper
+        // processes; keep canonical encoding, digest and parser checks explicit.
+        const persistedBytes = readFileSync(path);
+        expect(persistedBytes).toEqual(Buffer.from(`${canonicalJson(continued.journal)}\n`));
+        expect(createHash("sha256").update(persistedBytes).digest("hex"))
+          .toBe(continued.contentSha256);
+        expect(parseRunJournal(JSON.parse(persistedBytes.toString("utf8")) as unknown))
+          .toEqual(continued.journal);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  ), { numRuns: 24 });
+});
 
 test("every bounded complete dispatch sequence reaches one canonical successful state", () => {
   assertProperty(fc.property(
