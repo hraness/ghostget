@@ -94,7 +94,7 @@ The two earlier attempts exposed a malformed test identity and a superseded
 unused import; both failures remain recorded. Neither required production logic
 to change. This is focused evidence, not a full gate or release.
 
-Confirmed-write acceptance will exercise production confirmation with immediate
+Confirmed-write acceptance exercises production confirmation with immediate
 journal inspection, competing/stale callbacks, held native dispatch and cleanup,
 late handle publication, lost commit acknowledgments, private earlier causes,
 unsafe retained admission, and exact terminal output withholding. Use the real
@@ -139,9 +139,9 @@ logs and the runner. The focused receipt has SHA-256
 `80cf9b7ceb141c4137589316004ea87edf5b160c01dee7f408293b4180087749`;
 its independent review is
 `88186c9ace6a8e9ac5167346709b95ab692d43d6f7fd267ef56334616216abe4`.
-The failed attempts remain historical evidence. Candidate 0.16.11 still requires
-generated/package convergence, KB checks, the fresh full aggregate/native gates
-and current-head CI. Public npm, immutable Release and production are separate
+The failed attempts remain historical evidence. At that checkpoint, candidate
+0.16.11 still required generated/package convergence, KB checks, the fresh full
+aggregate/native gates and current-head CI. Public npm, immutable Release and production are separate
 later admissions. Released baseline 0.16.10 at
 `521922ed2c81441aeab2cddb67cde5d8ffe078c9` remains the comparison and recovery
 coordinate until that delivery completes.
@@ -179,10 +179,42 @@ A separate offline reanalysis accepted the original immutable archives and
 source maps; it did not rewrite the failed receipt, rebuild or repack. This is
 package measurement evidence, not current-head final or release admission.
 
-Required KB percolation has not run: automatic approval review rejected the
-command's execution transport and pinned GitHub package. Resolve that approval
-and complete normal KB convergence before the fresh full/native gate. Current
-CI and the governed release/production sequence remain required.
+Checkpoint `6e22a77f22a8c7deac413804b3807f9946c2c321`, tree
+`ba88776c14b45c7e9e0abc481bbeff657da5aba2`, contains the reviewed property,
+package-control and generated changes. Local package-contract checks passed
+six tests and 67 assertions; the source catalog check covered all 18 plugins.
+[CI 34178515084](https://github.com/hraness/wrench/actions/runs/34178515084)
+passed all ten jobs, including Required, and CodeQL run 34178512149 passed.
+The synthetic PR merge had exactly the checkpoint tree. Four Linux shards
+passed 3,856 tests and 154,023 assertions with four existing skips; the native
+journal property passed in 8,916.23 ms under the unchanged 24-case limit.
+Static checks passed types, Effect policy, website 65/5,079 and release
+83/7,850. Omni passed 18/606; macOS passed 196/896 plus its 1/45 canary.
+Normal package build and consumer smoke, generated-tree cleanliness and seven
+Node entry imports also passed. These are current PR and focused checks;
+the final local aggregate after KB convergence remains required.
+
+## Knowledge review and remaining admission
+
+An earlier percolation attempt was blocked by automatic approval review of its
+execution transport and pinned GitHub package. Following explicit user approval,
+the unchanged scheduler command and `github:hraness/kb#v0.15.2` percolation
+completed for this plan and the completed read plan.
+
+The bounded review proposed missing concepts for the recurring `providers`,
+`runtime` and `validation` tags. The cited read, write and provider-marketing
+plans describe different operations and admission requirements. Their reusable
+ownership conclusions already have maintained homes in the read/write runtime
+guides, [[notes/repository-seams|repository seams]] and
+[[notes/documentation-ownership|documentation ownership]]. Shared tags alone do
+not justify another concept definition or an authored relationship. The tags
+remain useful query facets; no inferred or reciprocal edges were added.
+
+After the final note edits, refresh and check the KB and agent-context mappings
+before freezing the source. The integration owner then runs the unchanged full
+local and macOS gates, obtains applicable current-head CI and review, and follows
+the governed candidate/stage, public-provenance, immutable Release and production
+sequence. Candidate 0.16.11 remains unpublished in this plan's evidence.
 
 ## Recovery
 

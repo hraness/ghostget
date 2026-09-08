@@ -19,6 +19,11 @@ tags:
 
 # Own bounded read invocation lifecycles with Effect
 
+This completed plan records the 0.16.9 read rollout. The prepublication
+checkpoints below retain their historical requirements; the Result section owns
+its completed delivery evidence. Later profile-activity and confirmed-write work
+has a separate [[plans/effect-profile-and-confirmed-write|expansion plan]].
+
 ## Outcome
 
 R1 invocation owns provisional receipt persistence, execution, bounded decoding,
@@ -62,7 +67,7 @@ reviewed tree. Provider contracts and packaged dependency closure must remain
 verified. Public npm promotion remains subject to the existing stage-only
 release boundary.
 
-## Status
+## Prepublication checkpoints
 
 The initial implementation merged through PR176 as `ef16de6` and passed its
 complete local, Required CI and automatic candidate checks. Before publication,
