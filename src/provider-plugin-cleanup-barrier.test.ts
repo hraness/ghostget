@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   PortableProviderPluginCleanupUnverifiedError,
+  createPortableProviderPluginCleanupContext,
   registerPortableProviderPluginCleanupBarrier,
   settlePortableProviderPluginCleanup,
   trackPortableProviderPluginHostCompletion,
@@ -148,5 +149,40 @@ describe("portable provider plugin cleanup barriers", () => {
       value: "terminal",
     });
     await attempted;
+  });
+});
+
+describe("portable cleanup context across separately admitted native calls", () => {
+  test("retains parent join and descendants across native Promise settlement", async () => {
+    const host = Promise.withResolvers<void>();
+    const childCreated = Promise.withResolvers<void>();
+    let context: ReturnType<typeof createPortableProviderPluginCleanupContext> | undefined;
+    let parentSettled = false;
+    const events: string[] = [];
+    const parent = settlePortableProviderPluginCleanup(() => {
+      context = createPortableProviderPluginCleanupContext({ cleanupComplete: () => { events.push("complete"); } });
+      const descendant = context.run(async () => {
+        await Promise.resolve();
+        const cleanup = registerPortableProviderPluginCleanupBarrier();
+        childCreated.resolve();
+        await host.promise;
+        cleanup.verified();
+      });
+      void descendant.catch(error => { childCreated.reject(error); context?.unsafe(error); });
+      return Promise.resolve("parent");
+    }).then(value => { parentSettled = true; return value; }, error => { childCreated.reject(error); throw error; });
+    try {
+      await childCreated.promise;
+      if (context === undefined) throw new Error("native context not acquired");
+      context.closeRegistration();
+      const joined = context.join().then(() => { context?.complete(); });
+      expect(parentSettled).toBeFalse();
+      expect(events).toEqual([]);
+      expect(() => context?.run(() => registerPortableProviderPluginCleanupBarrier())).toThrow("operation scope closed");
+      host.resolve();
+      await joined;
+      expect(await parent).toEqual({ status: "fulfilled", value: "parent" });
+      expect(events).toEqual(["complete"]);
+    } finally { host.resolve(); await parent.catch(() => undefined); }
   });
 });

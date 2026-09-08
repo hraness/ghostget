@@ -1,12 +1,19 @@
 import { expect, test } from "bun:test";
+import { chmodSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { assertProperty, fc } from "./test-support";
 
 import {
+  createRunJournal,
   initialRunJournal,
   parseRunJournal,
+  readRunJournal,
   transitionRunJournal,
+  updateRunJournal,
   type RunJournal,
   type RunJournalContract,
+  type RunJournalEvent,
 } from "./run-journal";
 import type { PortableOperationIdentityV1 } from "./provider-plugin-portable-identity";
 
@@ -69,6 +76,61 @@ function ready(planned: number, assets: boolean): RunJournal {
     at: timestamp(2),
   });
 }
+
+test("a lost native acknowledgement never permits a stale journal write in a bounded dispatch schedule", () => {
+  assertProperty(fc.property(
+    fc.integer({ min: 1, max: 3 }).chain(planned => fc.record({
+      planned: fc.constant(planned),
+      lostAt: fc.integer({ min: 0, max: 2 * planned + 3 }),
+      staleAttempts: fc.integer({ min: 1, max: 3 }),
+      assets: fc.boolean(),
+    })),
+    ({ planned, lostAt, staleAttempts, assets }) => {
+      const root = mkdtempSync(join(tmpdir(), "wrench-journal-cas-property-"));
+      chmodSync(root, 0o700);
+      const environment = { ...process.env, WRENCH_STATE_HOME: root };
+      try {
+        let current = createRunJournal(initial(planned, assets), environment);
+        const path = join(root, "run-journals", `${current.journal.runId}.json`);
+        const events: RunJournalEvent[] = [
+          { type: "confirmation-consumed", at: timestamp(0) },
+          { type: "ledger-claimed", ledgerRelativePath: `idempotency/ff/${"f".repeat(64)}.json`, at: timestamp(1) },
+          { type: "recovery-stored", at: timestamp(2) },
+        ];
+        for (let index = 1; index <= planned; index += 1) {
+          events.push({ type: "dispatch-started", index, at: timestamp(events.length) });
+          events.push({ type: "dispatch-verified", index, at: timestamp(events.length) });
+        }
+        events.push({ type: "finished", status: "submitted", finalOrigin: null, error: null, at: timestamp(events.length) });
+        let lostAcknowledgements = 0;
+        for (const [index, event] of events.entries()) {
+          const committed = updateRunJournal(current, event, environment);
+          if (index === lostAt) {
+            lostAcknowledgements += 1;
+            // The caller still holds the pre-commit snapshot. Retain the exact
+            // native bytes while deliberately discarding its acknowledgement.
+            const bytes = readFileSync(path);
+            for (let attempt = 0; attempt < staleAttempts; attempt += 1) {
+              expect(() => updateRunJournal(current, event, environment)).toThrow("changed concurrently");
+              expect(readFileSync(path)).toEqual(bytes);
+            }
+            const observed = readRunJournal(current.journal.runId, environment);
+            if (observed === null) throw new Error("committed journal disappeared");
+            expect(observed).toEqual(committed);
+            current = observed;
+          } else current = committed;
+          expect(current.journal.revision).toBe(index + 1);
+        }
+        expect(lostAcknowledgements).toBe(1);
+        expect(current.journal.phase).toBe("terminal");
+        expect(current.journal.dispatch).toEqual({ planned, started: planned, verified: planned });
+        expect(readRunJournal(current.journal.runId, environment)).toEqual(current);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  ), { numRuns: 24 });
+});
 
 test("every bounded complete dispatch sequence reaches one canonical successful state", () => {
   assertProperty(fc.property(

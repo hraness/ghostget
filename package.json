@@ -531,7 +531,12 @@
     "src/providers/github-read-model.ts",
     "src/providers/linkedin-profile-activity-failure.ts",
     "src/providers/linkedin-profile-activity-platform.ts",
-    "src/providers/linkedin-profile-activity-program.ts"
+    "src/providers/linkedin-profile-activity-program.ts",
+    "src/confirmed-write-model.ts",
+    "src/confirmed-write-failure.ts",
+    "src/confirmed-write-platform.ts",
+    "src/confirmed-write-program.ts",
+    "src/confirmed-write-runtime.ts"
   ],
   "scripts": {
     "website:build": "bun run website/build.ts",

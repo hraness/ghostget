@@ -11,7 +11,7 @@ export class ConfirmedWriteFailure extends Data.TaggedError("ConfirmedWriteFailu
   readonly phase: ConfirmedWritePhase;
   readonly cause: unknown;
   readonly priorCause?: Cause.Cause<ConfirmedWriteFailure>;
-}> {}
+}> { }
 
 export function confirmedWriteAttempt<A>(
   phase: ConfirmedWritePhase,

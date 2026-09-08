@@ -43,7 +43,8 @@ function prepareAndExecute(
       return yield* refuse("confirmation", "local execution recovery has unresolved state; run wrench doctor before starting another write");
     }
     const state = yield* platform.execution(checked, digest, options);
-    const created = yield* Effect.either(state.createJournal);
+    const requestJournal = yield* state.journalRequest;
+    const created = yield* Effect.either(state.createJournal(requestJournal));
     if (Either.isLeft(created)) {
       return yield* confirmedWriteFinally(Effect.fail(created.left), state.releaseClaim);
     }
@@ -68,8 +69,10 @@ function prepareAndExecute(
     const provisional = yield* Effect.either(state.persistProvisional);
     if (Either.isLeft(provisional)) {
       yield* Effect.either(Effect.gen(function*() {
-        yield* state.record({ type: "finished", status: "failed", finalOrigin: null,
-          error: "provisional receipt could not be projected before dispatch", at: yield* state.clock() });
+        yield* state.record({
+          type: "finished", status: "failed", finalOrigin: null,
+          error: "provisional receipt could not be projected before dispatch", at: yield* state.clock()
+        });
       }));
       return yield* wrapped(provisional.left, "refusing to start execution because its provisional receipt could not be stored");
     }
@@ -106,10 +109,11 @@ function prepareAndExecute(
       yield* finalizePreDispatchFailure(state, "encrypted recovery state could not be made durable before dispatch");
       return yield* wrapped(recovery.left, "refusing to start a remote write because its encrypted recovery capsule could not be stored");
     }
+    const maxOutputBytes = yield* state.outputLimit;
     const dispatched = yield* Effect.either(state.dispatch);
     const projected = yield* state.projectExecution(Either.isRight(dispatched)
       ? { status: "fulfilled", value: dispatched.right }
-      : { status: "rejected", reason: dispatched.left.cause });
+      : { status: "rejected", reason: dispatched.left.cause }, maxOutputBytes);
     const terminal = yield* Effect.either(state.record(projected.terminalEvent));
     if (Either.isLeft(terminal)) yield* Effect.either(state.reloadJournal);
     if (state.journalTerminal) yield* Effect.either(state.projectJournal);
