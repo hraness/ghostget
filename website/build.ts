@@ -228,6 +228,53 @@ const designKitProductMarketingStylesPath = fileURLToPath(
 );
 const designKitFontsDirectory = join(dirname(designKitFontsStylesPath), "fonts");
 
+const uiStylesheetImports = {
+  "./tokens.css": "@hraness/ui/tokens.css",
+  "./reset.css": "@hraness/ui/reset.css",
+  "./components.css": "@hraness/ui/components.css",
+  "../dist/stylex.css": "@hraness/ui/stylex.css",
+} as const;
+
+export type UiStylesheetImport = keyof typeof uiStylesheetImports;
+
+/** Inline the pinned package's facade before placing it in one static asset. */
+export function compileUiStylesheet(
+  facade: string,
+  imports: Readonly<Record<UiStylesheetImport, string>>,
+): string {
+  const remaining = new Set(Object.keys(uiStylesheetImports));
+  const compiled = facade.replace(
+    /^[\t ]*@import\s+(["'])([^"'\r\n]+)\1\s*;[\t ]*$/gmu,
+    (_statement: string, _quote: string, source: string): string => {
+      if (!remaining.delete(source)) {
+        throw new Error(`Unsupported or repeated UI stylesheet import: ${source}`);
+      }
+      return imports[source as UiStylesheetImport].trim();
+    },
+  );
+  if (remaining.size !== 0 || /@import\b/iu.test(compiled)) {
+    throw new Error("UI stylesheet imports must match the complete pinned public CSS exports.");
+  }
+  return compiled.trim();
+}
+
+async function readUiStylesheet(): Promise<string> {
+  const entries = Object.entries(uiStylesheetImports);
+  const [facade, ...stylesheets] = await Promise.all([
+    readFile(fileURLToPath(import.meta.resolve("@hraness/ui/styles.css")), "utf8"),
+    ...entries.map(([, exportedPath]) => readFile(
+      fileURLToPath(import.meta.resolve(exportedPath)),
+      "utf8",
+    )),
+  ]);
+  return compileUiStylesheet(
+    facade!,
+    Object.fromEntries(
+      entries.map(([source], index) => [source, stylesheets[index]!]),
+    ) as Record<UiStylesheetImport, string>,
+  );
+}
+
 const supportedPostHogHosts = new Set([
   "https://eu.i.posthog.com",
   "https://us.i.posthog.com",
@@ -752,6 +799,7 @@ export async function buildWebsite(
     notFoundMarkdown,
     llmsTemplate,
     css,
+    uiCss,
     designKitFontsCss,
     designKitProductMarketingCss,
     hranessSiteFooterCss,
@@ -766,6 +814,7 @@ export async function buildWebsite(
     readFile(join(sourceRoot, "404.md"), "utf8"),
     readFile(join(sourceRoot, "llms.txt"), "utf8"),
     readFile(join(sourceRoot, "styles.css"), "utf8"),
+    readUiStylesheet(),
     readFile(designKitFontsStylesPath, "utf8"),
     readFile(designKitProductMarketingStylesPath, "utf8"),
     readFile(
@@ -805,7 +854,9 @@ export async function buildWebsite(
     );
   }
   const postHog = postHogEnvironment(environment);
-  const compiledCss = `${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${css.trimEnd()}\n\n${hranessSiteFooterCss.trim()}\n`;
+  // The UI facade establishes its complete layer order before the static
+  // marketing grammar and footer. Product tokens and composition follow them.
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${css.trimEnd()}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;

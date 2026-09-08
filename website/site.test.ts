@@ -13,6 +13,7 @@ import {
 import {
   agentSkillInstallCommands,
   buildWebsite,
+  compileUiStylesheet,
   CONTENT_REVIEWED_RELEASE,
   DEFAULT_POSTHOG_HOST,
   DEMO_PUBLIC_FILES,
@@ -29,6 +30,7 @@ import {
   versionedNpmPackageUrl,
   WRENCH_MAILING_TURNSTILE_SITEKEY_ENV,
   wrenchMailingListConfig,
+  type UiStylesheetImport,
 } from "./build";
 import { handleDocumentNegotiation } from "../edge/negotiation";
 import {
@@ -94,6 +96,41 @@ function lossyWebpDimensions(bytes: Uint8Array): Readonly<{ height: number; widt
 }
 
 describe("wrench.rip static site", () => {
+  test("inlines the complete UI stylesheet after its layer declarations", () => {
+    const imports = {
+      "./tokens.css": ":root { --ui-foreground: CanvasText; }",
+      "./reset.css": "@layer base { button { font: inherit; } }",
+      "./components.css": "@layer components.hraness-ui.legacy { .hook { color: inherit; } }",
+      "../dist/stylex.css": "@layer components.hraness-ui.priority1 { .compiled { display: flex; } }",
+    } satisfies Record<UiStylesheetImport, string>;
+    const prelude = "@layer base, components;\n@layer components.hraness-ui.legacy, components.hraness-ui.priority1;";
+    const facade = `${prelude}\n${Object.keys(imports).map((source) => `@import "${source}";`).join("\n")}\n`;
+
+    expect(compileUiStylesheet(facade, imports)).toBe(
+      `${prelude}\n${Object.values(imports).join("\n")}`,
+    );
+    expect(() => compileUiStylesheet(
+      `${facade}@import "./components.css";\n`,
+      imports,
+    )).toThrow("repeated UI stylesheet import");
+    expect(() => compileUiStylesheet(
+      facade.replace('@import "../dist/stylex.css";', ""),
+      imports,
+    )).toThrow("complete pinned public CSS exports");
+    expect(() => compileUiStylesheet(
+      facade.replace('@import "./tokens.css";', '@import "https://example.com/tokens.css";'),
+      imports,
+    )).toThrow("Unsupported");
+    expect(() => compileUiStylesheet(
+      facade.replace('@import "./tokens.css";', '@import "./tokens.css" screen;'),
+      imports,
+    )).toThrow("complete pinned public CSS exports");
+    expect(() => compileUiStylesheet(facade, {
+      ...imports,
+      "./components.css": '@import "./unbundled.css";',
+    })).toThrow("complete pinned public CSS exports");
+  });
+
   test("derives the public release from strict root package identity", async () => {
     const [manifest, lockfile]: [unknown, string] = await Promise.all([
       Bun.file(join(repositoryRoot, "package.json")).json(),
@@ -115,9 +152,13 @@ describe("wrench.rip static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
+        "@hraness/design-kit": "github:hraness/design-kit#v0.5.2",
         "@hraness/site-footer": "github:hraness/site-footer#v0.6.1",
+        "@hraness/ui": "github:hraness/ui#v0.5.7",
       },
     });
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.5.2"');
+    expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.7"');
     expect(lockfile).toContain(
       '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#590056b"',
     );
@@ -265,6 +306,23 @@ describe("wrench.rip static site", () => {
     const cssAsset = /<link rel="stylesheet" href="([^"?]+)">/u.exec(html)?.[1];
     expect(cssAsset).toMatch(/^\/assets\/styles-[a-f0-9]{12}\.css$/u);
     const builtCss = await readFile(join(websiteRoot, "dist", cssAsset!.slice(1)), "utf8");
+    expect(builtCss).not.toMatch(/@import\b/iu);
+    expect(builtCss.startsWith("@layer base, components;")).toBe(true);
+    expect(builtCss.endsWith(`${sourceCss.trimEnd()}\n`)).toBe(true);
+    for (const publicStylesheet of [
+      "@hraness/ui/tokens.css",
+      "@hraness/ui/reset.css",
+      "@hraness/ui/components.css",
+      "@hraness/ui/stylex.css",
+      "@hraness/design-kit/product-marketing.css",
+      "@hraness/site-footer/stylex.css",
+    ]) {
+      const stylesheet = (await readFile(
+        new URL(import.meta.resolve(publicStylesheet)),
+        "utf8",
+      )).trim();
+      expect(builtCss.split(stylesheet)).toHaveLength(2);
+    }
 
     expect(vercel.git).toEqual({
       deploymentEnabled: {
@@ -314,6 +372,17 @@ describe("wrench.rip static site", () => {
       join(websiteRoot, "dist/assets/fonts/nebula-sans/PROVENANCE.md"),
       "utf8",
     )).toContain("https://www.nebulasans.com/download/NebulaSans-1.010.zip");
+    const fontsStylesheetUrl = new URL(import.meta.resolve("@hraness/design-kit/fonts.css"));
+    const fontsCss = await readFile(fontsStylesheetUrl, "utf8");
+    const fontReferences = [...fontsCss.matchAll(/url\("([^"\r\n]+)"\)/gu)];
+    expect(fontReferences.length).toBeGreaterThan(1);
+    for (const reference of fontReferences) {
+      const relativeFont = reference[1]!;
+      expect(relativeFont).toMatch(/^\.\/fonts\/.+\.woff2$/u);
+      expect(await readFile(join(websiteRoot, "dist/assets", relativeFont))).toEqual(
+        await readFile(new URL(relativeFont, fontsStylesheetUrl)),
+      );
+    }
 
     expect(html).toContain(`<title>${SITE_TITLE}</title>`);
     for (const page of pages) {
