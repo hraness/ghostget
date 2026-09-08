@@ -1,8 +1,10 @@
 import { expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import { chmodSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assertProperty, fc } from "./test-support";
+import { canonicalJson } from "./canonical-json";
 
 import {
   createRunJournal,
@@ -128,7 +130,15 @@ test("a lost native acknowledgement never permits a stale journal write in a bou
           expect(continued.journal.phase).toBe("terminal");
           expect(continued.journal.dispatch).toEqual({ planned, started: planned, verified: planned });
         }
-        expect(readRunJournal(current.journal.runId, environment)).toEqual(continued);
+        // Recovery already used the native journal reader above. Inspect the
+        // successor's physical bytes directly without repeating its two helper
+        // processes; keep canonical encoding, digest and parser checks explicit.
+        const persistedBytes = readFileSync(path);
+        expect(persistedBytes).toEqual(Buffer.from(`${canonicalJson(continued.journal)}\n`));
+        expect(createHash("sha256").update(persistedBytes).digest("hex"))
+          .toBe(continued.contentSha256);
+        expect(parseRunJournal(JSON.parse(persistedBytes.toString("utf8")) as unknown))
+          .toEqual(continued.journal);
       } finally {
         rmSync(root, { recursive: true, force: true });
       }

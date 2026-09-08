@@ -146,6 +146,44 @@ later admissions. Released baseline 0.16.10 at
 `521922ed2c81441aeab2cddb67cde5d8ffe078c9` remains the comparison and recovery
 coordinate until that delivery completes.
 
+## CI and package convergence
+
+CI on source `ff7a76b` passed unit shards 1, 3 and 4, Omni, macOS, standalone
+and CodeQL. Package and three release-contract checks refused the old exact
+485-file inventory against the new 493-file payload. Unit shard 2 interrupted
+the native journal property after 23 of 24 cases at its existing ten-second
+limit, with seed 1882010165 and no semantic counterexample.
+
+The property now reads the final persisted successor bytes directly, checking
+canonical encoding, SHA-256 and parsed journal equality. Its actual recovery
+reader and every native selected write, stale attempt and next transition remain.
+This removes two redundant helper processes per sample while preserving all
+24 cases and the same deadline. The exact CI seed passed in 7.36 seconds; the
+ordinary property file passed six tests and 3,830 assertions, and TypeScript
+passed. Independent review accepted the unchanged-input receipt
+`78ac699e8426fac09db58b630f9710f529981c4bc714ff703679a114dcc1f41d`.
+
+A clean same-run baseline/candidate measurement produced byte-identical npm
+archives and a matching canonical Bun payload. The candidate contains 493 files,
+2,238,339 packed bytes and 12,355,344 unpacked bytes. Its eight new lifecycle
+modules and changed caller/version files add 8,113 packed and 32,233 unpacked
+bytes over released main. The budget preserves only that baseline's observed
+6,442 packed and 315 unpacked bytes of headroom. The normal build renames the
+version chunk and updates its two imports; other generated files are unchanged.
+All original payload hashes and modes were bound to the exact built source.
+
+The measurement wrapper's first receipt failed because its work-only field
+parser confused packedBytes with the suffix of unpackedBytes. A one-line
+field-boundary repair and eight pure parser cases were independently reviewed.
+A separate offline reanalysis accepted the original immutable archives and
+source maps; it did not rewrite the failed receipt, rebuild or repack. This is
+package measurement evidence, not current-head final or release admission.
+
+Required KB percolation has not run: automatic approval review rejected the
+command's execution transport and pinned GitHub package. Resolve that approval
+and complete normal KB convergence before the fresh full/native gate. Current
+CI and the governed release/production sequence remain required.
+
 ## Recovery
 
 Keep the exact released 0.16.10 source available until the successor completes
