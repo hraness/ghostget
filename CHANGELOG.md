@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.16.15 - 2026-09-09
+
+- Pin consumer compiler and declaration versions to the qualified source tuple;
+  retain strict checks and log resolved identities.
+- Preserve both failed v0.16.14 attempts and their evidence. Neither published
+  artifacts.
+
 ## 0.16.14 - 2026-09-09
 
 - Check the real canonical npm archive in required PR CI before tagging, using

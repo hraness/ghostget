@@ -1,7 +1,7 @@
 // @bun
 import {
   WRENCH_VERSION
-} from "./index-3h4rbres.js";
+} from "./index-90ykwc8b.js";
 import {
   canonicalJson,
   sha256

@@ -4,7 +4,7 @@ import {
 } from "./index-26yq8q16.js";
 import {
   WRENCH_VERSION
-} from "./index-3h4rbres.js";
+} from "./index-90ykwc8b.js";
 import {
   canonicalJson,
   sha256

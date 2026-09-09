@@ -1,3 +1,14 @@
+// Canonical GitHub 0.16.15, measured after the qualified consumer-type repair:
+// two identical Node 24.20.0 / npm 11.19.0 archives have 2,252,952 compressed
+// and 12,418,556 payload bytes across exactly 501 files, SHA-256
+// 3a0adf3c9584a831a5b29ecab47eb1ace4a9e2cacfafabd64cb6eb3d10998226.
+// Every file/mode matches source; 492 files are unchanged from 0.16.14.
+// The new changelog adds 250 payload bytes; other packaged edits project .15.
+// Identical raw tar recompresses to 2,255,325 bytes under the available motley
+// build. Retain every existing bound: 3,977 bytes above that measured maximum,
+// 65 payload bytes remaining, exactly 501 files/entries and the same tar bound.
+// Fresh Linux CI still verifies its actual canonical npm archive.
+//
 // Canonical GitHub 0.16.14, measured with Bun 1.3.14 build and two
 // byte-identical Homebrew Node 24.20.0 / npm 11.19.0 packs: 2,252,826
 // compressed / 12,418,306 payload bytes / 501 files, SHA-256
