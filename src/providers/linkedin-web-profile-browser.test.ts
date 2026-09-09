@@ -466,6 +466,70 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     expect(cleaned).toBeTrue();
   });
 
+  test("performs one exact identity, profile, and profileContactInfo sequence", async () => {
+    const requests: BrowserReadBinding[] = [];
+    const session: BrowserSession = {
+      runBatch: (commands) => {
+        const command = commands[0];
+        if (command?.[0] === "open" || command?.[0] === "wait") {
+          return Promise.resolve([{ success: true, result: {} }]);
+        }
+        if (command?.[0] !== "eval" || command[1] === undefined) {
+          throw new Error("unexpected LinkedIn contact-info browser command");
+        }
+        const binding = requestBinding(command[1]);
+        requests.push(binding);
+        if (binding.path === "/voyager/api/me") {
+          return Promise.resolve([browserBodyRecord(identityResponse(), "application/json")]);
+        }
+        if (binding.path === "/in/0thernet/") {
+          return Promise.resolve([browserBodyRecord("<html>1st</html>", "text/html")]);
+        }
+        if (binding.path === "/voyager/api/identity/profiles/0thernet/profileContactInfo") {
+          return Promise.resolve([browserBodyRecord(
+            '{"emailAddress":"connection@example.test"}',
+            "application/vnd.linkedin.normalized+json+2.1",
+          )]);
+        }
+        throw new Error(`unexpected LinkedIn contact-info path ${binding.path}`);
+      },
+      close: () => Promise.resolve(),
+      cleanup: () => Promise.resolve(),
+    };
+    const transport = await createLinkedInProfileBrowserTransport(auth, {
+      timeoutMs: 1_000,
+      maxOutputBytes: 2 * 1024 * 1024,
+      dependencies: { createBrowserSession: () => Promise.resolve(session) },
+    });
+    expect(await transport.currentIdentityResponse()).toEqual(JSON.parse(identityResponse()));
+    expect(await transport.readProfileHtml(PROFILE_URL)).toBe("<html>1st</html>");
+    expect(await transport.readContactInfoJson(PROFILE_URL)).toEqual({
+      emailAddress: "connection@example.test",
+    });
+    await expect(transport.readConnectionsHtml(PROFILE_URL)).rejects.toThrow("out of order");
+    expect(requests).toEqual([
+      {
+        kind: "json",
+        maxBytes: 2 * 1024 * 1024,
+        path: "/voyager/api/me",
+        referrer: "https://www.linkedin.com/feed/",
+      },
+      {
+        kind: "html",
+        maxBytes: 2 * 1024 * 1024,
+        path: "/in/0thernet/",
+        referrer: "https://www.linkedin.com/feed/",
+      },
+      {
+        kind: "json",
+        maxBytes: 2 * 1024 * 1024,
+        path: "/voyager/api/identity/profiles/0thernet/profileContactInfo",
+        referrer: PROFILE_URL,
+      },
+    ]);
+    await transport.close();
+  });
+
   test("allows only one company page after the exact current-member request", async () => {
     const paths: string[] = [];
     const session: BrowserSession = {

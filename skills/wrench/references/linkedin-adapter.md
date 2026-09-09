@@ -1,10 +1,12 @@
 # LinkedIn authenticated web API adapter
 
-The current `linkedin-web` schema-v4 adapter has five observed operations:
-`profiles.read@1`, `organizations.read@1`, `feeds.read@2`,
+The current `linkedin-web` schema-v4 adapter has six observed operations:
+`profiles.read@1`, `organizations.read@1`, `contacts.read@1`, `feeds.read@2`,
 `articles.draft.save@7`, and `posts.publish@3`. The two profile-stat operations
 bind the current member, then read one exact self profile or requested
-organization Page without DOM automation. `feeds.read@2` pages one member's
+organization Page without DOM automation. `contacts.read@1` reads Contact info
+for one exact 1st-degree connection profile through the same contained Chrome
+session. `feeds.read@2` pages one member's
 recent-activity posts through the same contained Chrome session: it binds the
 signed-in viewer, resolves the live `voyagerFeedDashProfileUpdates` query on
 `/in/{vanity}/recent-activity/all/`, and projects authored text, engagement
@@ -37,6 +39,7 @@ First-party traffic is not the same as a documented public API. Use this local c
 - [Install and inspect](#install-and-inspect)
 - [Configure the signed-in realm](#configure-the-signed-in-realm)
 - [Recapture inbox listing](#recapture-inbox-listing)
+- [1st-degree Contact info](#1st-degree-contact-info)
 - [Native Article draft saving](#native-article-draft-saving)
 - [Resolve current LinkedIn material](#resolve-current-linkedin-material)
 - [Preserve capture-required operations](#preserve-capture-required-operations)
@@ -104,7 +107,7 @@ The standalone client can strictly review a short-lived `__cf_bm` edge-cookie
 rotation: it accepts only that name, validates origin, attributes, expiry, and
 deletion semantics, and binds the encrypted cache to the auth-locator hash.
 Removing the auth locator removes that cache. Profile-backed statistics do not
-export their session into that standalone client. Only the five observed
+export their session into that standalone client. Only the six observed
 operations may cross the execution boundary; every capture-required operation
 still refuses before its provider client is created.
 
@@ -220,6 +223,35 @@ standalone client, even with Chrome's normal request headers. A cookie-only
 realm is therefore not the scheduled profile-stat transport. The path-backed
 browser branch preserves the browser/device context while still keeping the
 operation fixed and target-bound.
+
+## 1st-degree Contact info
+
+`contacts.read@1` is an observed R1 read for one exact 1st-degree connection
+profile URL. It binds the signed-in viewer, requires LinkedIn's `DISTANCE_1`
+relationship on that vanity, then reads the first-party
+`/voyager/api/identity/profiles/{vanity}/profileContactInfo` route from the
+profile-page context. The projection returns `email` when LinkedIn shows it,
+plus any of the vanity profile link, connected-since date, phone numbers,
+websites, and birthday. Completeness is `complete` when at least one of those
+optional fields is present and `partial` when the payload bound but LinkedIn
+omitted every optional field.
+
+A 2026-09-08 signed-in capture of a 1st-degree profile showed the Contact info
+control on the intro card and a modal with the vanity link, Email, and
+Connected since. The browser also issued an RSC navigation whose `screenId` was
+`com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay`. That
+overlay observation graduated the surface. The executable contract is the
+reviewed Voyager GET, not a caller-selected RSC body, DOM click, or selector.
+Wrench does not message, connect, or InMail.
+
+Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
+third-degree, and out-of-network profiles fail closed because LinkedIn hid
+Contact info from that viewer. The operation never invents a hidden email.
+
+```sh
+printf '%s' '{"profile_url":"https://www.linkedin.com/in/example/"}' \
+  | wrench invoke linkedin-web contacts.read --input - --auth linkedin-main --json
+```
 
 `relationships.recommendations.read` and `relationships.connect` remain
 `capture-required`. The former reserves one bounded R1 page from the `all`

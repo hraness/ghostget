@@ -49,6 +49,7 @@ export type LinkedInProfileBrowserTransport = {
   readonly currentIdentityResponse: () => Promise<unknown>;
   readonly readProfileHtml: (profileUrl: string) => Promise<string>;
   readonly readConnectionsHtml: (profileUrl: string) => Promise<string>;
+  readonly readContactInfoJson: (profileUrl: string) => Promise<unknown>;
   readonly readOrganizationHtml: (organizationUrl: string) => Promise<string>;
   readonly close: () => Promise<void>;
 };
@@ -625,6 +626,32 @@ export async function createLinkedInProfileBrowserTransport(
       });
       state = "complete";
       return decodedBody(result, options.maxOutputBytes);
+    },
+    readContactInfoJson: async (profileUrl: string) => {
+      if (state !== "profile") {
+        throw new Error("LinkedIn stats browser Contact-info read is out of order");
+      }
+      const profile = exactLinkedInUrl(profileUrl, "profile");
+      const slug = profile.pathname.slice("/in/".length, -1);
+      const result = await run({
+        kind: "json",
+        maxBytes: Math.min(MAX_IDENTITY_BYTES, options.maxOutputBytes),
+        path: `/voyager/api/identity/profiles/${slug}/profileContactInfo`,
+        referrer: profile.href,
+      });
+      state = "complete";
+      const text = decodedBody(
+        result,
+        Math.min(MAX_IDENTITY_BYTES, options.maxOutputBytes),
+      );
+      try {
+        return JSON.parse(text) as unknown;
+      } catch {
+        throw new LinkedInProfileBrowserFailure(
+          "identity-json",
+          "LinkedIn stats browser Contact-info response was not valid JSON",
+        );
+      }
     },
     readOrganizationHtml: async (organizationUrl: string) => {
       if (state !== "identity") {

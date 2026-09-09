@@ -26,6 +26,7 @@ test.each(["success", "failure"] as const)(
       currentIdentityResponse: () => Promise.reject(primary),
       readProfileHtml: unexpected,
       readConnectionsHtml: unexpected,
+      readContactInfoJson: unexpected,
       readOrganizationHtml: unexpected,
       close: () => {
         events.push("close");

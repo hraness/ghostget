@@ -7,6 +7,13 @@ coordinate that completed both checks.
 
 ## Unreleased
 
+- Add LinkedIn `contacts.read@1` for one exact 1st-degree Contact-info
+  read through a contained Chrome session. Bind the signed-in viewer, require
+  `DISTANCE_1` on the requested vanity, then project email when LinkedIn shows
+  it plus any profile link, connected-since date, phones, websites, or
+  birthday. Self profiles stay on `profiles.read`. Hidden or non-1st Contact
+  info fails closed.
+
 ## 0.16.11 - 2026-09-07
 
 - Own LinkedIn profile-activity browser acquisition, current-account binding,
