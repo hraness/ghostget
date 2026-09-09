@@ -22,6 +22,8 @@ const protectedReleaseRuntimePaths = Object.freeze([
   "scripts/release-ref-authority.ts",
   "scripts/npm-provenance-identity.ts",
   "scripts/npm-package-identity.ts",
+        "scripts/github-release-artifact.ts",
+        "scripts/github-release-publish.ts",
   "scripts/package-artifact.ts",
   "scripts/package-budget.ts",
   "scripts/package-smoke.ts",
@@ -30,6 +32,7 @@ const protectedReleaseRuntimePaths = Object.freeze([
   "scripts/release-app-token.mjs",
   "scripts/release-ref-writer.mjs",
   "website/production-release-marker.mjs",
+        "website/github-release-artifact.mjs",
 ]);
 
 afterEach(() => {
@@ -530,6 +533,8 @@ describe("Wrench release and promotion ref authority", () => {
       "scripts/release-ref-authority.ts",
       "scripts/npm-provenance-identity.ts",
       "scripts/npm-package-identity.ts",
+        "scripts/github-release-artifact.ts",
+        "scripts/github-release-publish.ts",
       "scripts/package-artifact.ts",
       "scripts/package-budget.ts",
       "scripts/package-smoke.ts",
@@ -538,6 +543,7 @@ describe("Wrench release and promotion ref authority", () => {
       "scripts/release-app-token.mjs",
       "scripts/release-ref-writer.mjs",
       "website/production-release-marker.mjs",
+        "website/github-release-artifact.mjs",
     ]);
   });
 

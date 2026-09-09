@@ -1,6 +1,9 @@
 import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { parseReleaseAssetDescriptors, parseReleaseManifest, usesGithubReleaseAssets, verifyReleaseAssetBytes,
+  type ReleaseAssetDescriptor } from "./github-release-artifact.mjs";
 
 const PACKAGE_NAME = "@hraness/wrench" as const;
 const REPOSITORY = "hraness/wrench" as const;
@@ -38,7 +41,8 @@ export type ProductionReleaseEvidence = Readonly<{
   githubTagCommitSha: string;
   headSha: string;
   latestGithubRelease: unknown;
-  npmManifest: unknown;
+  npmManifest?: unknown;
+  canonicalAssets?: unknown;
 }>;
 
 export type ProductionReleaseEvidenceLoader = (
@@ -48,6 +52,7 @@ export type ProductionReleaseEvidenceLoader = (
 export type ProductionReleaseEvidenceDependencies = Readonly<{
   fetchGithubCommitSha: (url: string, label: string) => Promise<string>;
   fetchJson: (url: string, label: string) => Promise<unknown>;
+  fetchAsset?: (asset: ReleaseAssetDescriptor) => Promise<Uint8Array>;
   readHeadSha: () => Promise<string>;
 }>;
 
@@ -221,9 +226,9 @@ export function parseProductionReleaseIdentity(
   });
 }
 
-function parseEvidence(value: unknown): ProductionReleaseEvidence {
+function parseEvidence(value: unknown, canonical: boolean): ProductionReleaseEvidence {
   const evidence = unknownRecord(value, "production release evidence");
-  exactKeys(evidence, evidenceKeys, "production release evidence");
+  exactKeys(evidence, canonical ? [...evidenceKeys.filter(key => key !== "npmManifest"), "canonicalAssets"] : evidenceKeys, "production release evidence");
   if (typeof evidence.headSha !== "string" || !commitShaPattern.test(evidence.headSha)) {
     throw new TypeError("Production HEAD evidence must be a lowercase 40-character commit SHA.");
   }
@@ -235,7 +240,7 @@ function parseEvidence(value: unknown): ProductionReleaseEvidence {
     ),
     headSha: evidence.headSha,
     latestGithubRelease: evidence.latestGithubRelease,
-    npmManifest: evidence.npmManifest,
+    ...(canonical ? { canonicalAssets: evidence.canonicalAssets } : { npmManifest: evidence.npmManifest }),
   };
 }
 
@@ -295,14 +300,16 @@ export function verifyProductionReleaseEvidence(
   evidenceValue: unknown,
 ): VerifiedProductionReleaseIdentity {
   const identity = parseProductionReleaseIdentity(packageValue);
-  const evidence = parseEvidence(evidenceValue);
+  const canonical = usesGithubReleaseAssets(identity.tag);
+  const evidence = parseEvidence(evidenceValue, canonical);
   const tagCommit = evidence.githubTagCommitSha;
   if (tagCommit !== evidence.headSha) {
     throw new Error(
       `Checked-out HEAD ${evidence.headSha} is not exact GitHub tag ${identity.tag} commit ${tagCommit}.`,
     );
   }
-  verifyNpmManifest(identity, evidence.npmManifest);
+  if (canonical) verifyCanonicalAssets(identity, evidence);
+  else verifyNpmManifest(identity, evidence.npmManifest);
   const release = githubReleaseState(evidence.githubRelease, `GitHub Release ${identity.tag}`);
   if (release.tagName !== identity.tag) {
     throw new Error(`GitHub Release tag ${release.tagName} is not ${identity.tag}.`);
@@ -315,6 +322,49 @@ export function verifyProductionReleaseEvidence(
     throw new Error(`GitHub Release ${identity.tag} is not Latest.`);
   }
   return Object.freeze({ ...identity, sourceSha: evidence.headSha });
+}
+
+// Vercel verifies immutable asset identity and digests. Cryptographic Sigstore verification
+// belongs to the authenticated canonical release and independent promotion CI admissions.
+function verifyCanonicalAssets(identity: ProductionReleaseIdentity, evidence: ProductionReleaseEvidence): void {
+  const release = unknownRecord(evidence.githubRelease, "canonical GitHub Release");
+  const latest = unknownRecord(evidence.latestGithubRelease, "Latest canonical GitHub Release");
+  const descriptors = parseReleaseAssetDescriptors(release.assets, identity.tag);
+  if (JSON.stringify(parseReleaseAssetDescriptors(latest.assets, identity.tag)) !== JSON.stringify(descriptors)) {
+    throw new Error("Latest GitHub Release asset identity differs from the exact immutable release.");
+  }
+  const assets = unknownRecord(evidence.canonicalAssets, "canonical asset evidence");
+  exactKeys(assets, ["archive", "manifest"], "canonical asset evidence");
+  if (!(assets.archive instanceof Uint8Array) || !(assets.manifest instanceof Uint8Array)) throw new Error("Canonical artifact evidence must contain exact bytes.");
+  const manifestDescriptor = descriptors.find(asset => asset.name === "release-manifest.json")!;
+  verifyReleaseAssetBytes(assets.manifest, manifestDescriptor);
+  const manifest = parseReleaseManifest(JSON.parse(decodeUtf8(assets.manifest, "canonical release manifest")) as unknown, {
+    tag: identity.tag, sourceSha: evidence.headSha,
+  });
+  const archiveDescriptor = descriptors.find(asset => asset.name === manifest.archive.name)!;
+  verifyReleaseAssetBytes(assets.archive, archiveDescriptor);
+  if (manifest.archive.bytes !== archiveDescriptor.bytes || manifest.archive.sha256 !== archiveDescriptor.sha256
+    || createHash("sha512").update(assets.archive).digest("hex") !== manifest.archive.sha512) throw new Error("Canonical archive differs from its admitted manifest.");
+  const receipt = `wrench-release-source-v1 repository=${REPOSITORY} tag=${identity.tag} source_sha=${evidence.headSha} workflow_run_id=${manifest.runId}`;
+  for (const value of [release, latest]) {
+    const author = unknownRecord(value.author, "canonical release author");
+    if (value.target_commitish !== evidence.headSha || author.id !== 41898282 || author.type !== "Bot"
+      || typeof value.body !== "string" || value.body.split("\n", 1)[0] !== receipt) {
+      throw new Error("Canonical release is not the exact authenticated workflow publication.");
+    }
+  }
+}
+
+export async function fetchCanonicalAsset(asset: ReleaseAssetDescriptor, fetchImplementation: PublicFetch = fetch): Promise<Uint8Array> {
+  const response = await fetchImplementation(asset.url, { redirect: "follow", signal: AbortSignal.timeout(NETWORK_DEADLINE_MS) });
+  const url = new URL(response.url);
+  if (response.status !== 200 || url.protocol !== "https:" || url.username !== "" || url.password !== ""
+    || !["github.com", "release-assets.githubusercontent.com"].includes(url.hostname)) {
+    await response.body?.cancel(); throw new Error("Canonical GitHub asset download failed closed.");
+  }
+  const bytes = await readBoundedStream(response.body, asset.bytes, `Canonical asset ${asset.name}`);
+  verifyReleaseAssetBytes(bytes, asset);
+  return bytes;
 }
 
 export async function fetchPublicJson(
@@ -443,6 +493,7 @@ export async function loadProductionReleaseEvidence(
   dependencies: ProductionReleaseEvidenceDependencies = {
     fetchGithubCommitSha,
     fetchJson: fetchPublicJson,
+    fetchAsset: fetchCanonicalAsset,
     readHeadSha: readLocalHeadSha,
   },
 ): Promise<ProductionReleaseEvidence> {
@@ -456,7 +507,7 @@ export async function loadProductionReleaseEvidence(
         `${GITHUB_API_ORIGIN}/repos/${REPOSITORY}/commits/${tagRefPath}`,
         `GitHub tag ${identity.tag} commit SHA`,
       ),
-      dependencies.fetchJson(
+      usesGithubReleaseAssets(identity.tag) ? Promise.resolve(undefined) : dependencies.fetchJson(
         `${NPM_REGISTRY_ORIGIN}/${packagePath}/${identity.version}`,
         "Canonical npm registry",
       ),
@@ -469,12 +520,23 @@ export async function loadProductionReleaseEvidence(
         "Latest GitHub Release",
       ),
     ]);
+  let canonicalAssets: unknown;
+  if (usesGithubReleaseAssets(identity.tag)) {
+    const release = unknownRecord(githubRelease, "canonical GitHub Release");
+    const assets = parseReleaseAssetDescriptors(release.assets, identity.tag);
+    if (dependencies.fetchAsset === undefined) throw new Error("Canonical asset loader is unavailable.");
+    const [archive, manifest] = await Promise.all([
+      dependencies.fetchAsset(assets.find(asset => asset.name.endsWith(".tgz"))!),
+      dependencies.fetchAsset(assets.find(asset => asset.name === "release-manifest.json")!),
+    ]);
+    canonicalAssets = { archive, manifest };
+  }
   return {
     githubRelease,
     githubTagCommitSha,
     headSha,
     latestGithubRelease,
-    npmManifest,
+    ...(usesGithubReleaseAssets(identity.tag) ? { canonicalAssets } : { npmManifest }),
   };
 }
 

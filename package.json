@@ -1,6 +1,6 @@
 {
   "name": "@hraness/wrench",
-  "version": "0.16.12",
+  "version": "0.16.13",
   "description": "Open-source CLI and TypeScript SDK for precise web capabilities for AI agents: page capture, verified media archives, encrypted reads, and typed provider operations.",
   "license": "MIT",
   "type": "module",
@@ -560,7 +560,7 @@
     "accept:media:authenticated": "bun run scripts/media/authenticated-capture-acceptance.ts",
     "test:standalone": "bun run scripts/standalone-smoke.ts",
     "test:package": "bun run ./scripts/package-smoke.ts",
-    "test:npm-release": "bun test --no-orphans --timeout 45000 --max-concurrency 1 ./scripts/release-ref-authority.test.ts ./scripts/npm-stage-workflow.test.ts ./scripts/ci-pr-gate.test.ts",
+    "test:npm-release": "bun test --no-orphans --timeout 45000 --max-concurrency 1 ./scripts/release-ref-authority.test.ts ./scripts/npm-stage-workflow.test.ts ./scripts/github-release-artifact.test.ts ./scripts/ci-pr-gate.test.ts",
     "check:static": "bun run typecheck && bun run check:effect && bun run website:check && bun run test:npm-release",
     "check:package": "bun run build && bun run test:package",
     "check:macos": "bun run ./scripts/ci-macos-check.ts",

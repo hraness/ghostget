@@ -162,7 +162,7 @@ function inventoryIdentity(inventory: PackageArtifactInventory): string {
   return JSON.stringify(inventory.entries.map(entryIdentity));
 }
 
-async function verifyPackArtifact(
+export async function verifyPackArtifact(
   archive: string,
   packJson: string,
   expectedName: string,

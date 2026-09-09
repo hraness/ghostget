@@ -27,7 +27,7 @@ wrench capabilities
 wrench plugin list
 ```
 
-[Install](#install) · [npm package](https://www.npmjs.com/package/@hraness/wrench) · [Project site](https://wrench.rip) · [Privacy and data custody](https://wrench.rip/privacy/) · [Security policy](SECURITY.md) · [Plugin guide](docs/plugins.md) · [Local CLI transport guide](docs/local-cli-providers.md)
+[Install](#install) · [GitHub Releases](https://github.com/hraness/wrench/releases) · [Project site](https://wrench.rip) · [Privacy and data custody](https://wrench.rip/privacy/) · [Security policy](SECURITY.md) · [Plugin guide](docs/plugins.md) · [Local CLI transport guide](docs/local-cli-providers.md)
 
 ## What Wrench does
 
@@ -44,7 +44,7 @@ wrench plugin list
 
 ## Built-in provider catalog
 
-This v0.16.12 source tree supports executable actions for 20 services: Beeper,
+This v0.16.13 source tree supports executable actions for 20 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WhatsApp, X, and YouTube.
@@ -106,30 +106,31 @@ owns the narrow capability boundary that can sit beneath them.
 
 ## Install
 
-This README is bound to the package version in this source tree. Its exact npm,
-tag, and Agent Skill coordinates can become individually reachable while a
-release is being staged. Treat them as one completed, supported public release
-only after the workflow has verified the registry package and created the
-matching immutable GitHub Release. The release-bound production site identifies
-the latest release that completed every gate.
+The package name remains `@hraness/wrench`. After its optional npm mirror is
+verified public, `@hraness/wrench@0.16.13` is also available from the registry.
+
+This README describes the package version in this source tree. Its versioned
+GitHub archive and Agent Skill become a supported public release after the
+canonical artifact workflow publishes the matching immutable GitHub Release.
+The release-bound production site identifies the latest completed release.
+The optional npm mirror can follow later without delaying canonical delivery.
 
 Install the single Wrench Agent Skill with either runner:
 
 ```sh
-npx skills add hraness/wrench#v0.16.12
+npx skills add hraness/wrench#v0.16.13
 # or
-bunx skills add hraness/wrench#v0.16.12
+bunx skills add hraness/wrench#v0.16.13
 ```
 
 The skill teaches Codex, Claude Code, Cursor, and other compatible coding
 agents when to use Wrench, how to preserve its trust boundaries, and how to
 install the CLI if it is missing. Start a new agent session after installation.
 
-After the matching immutable Release exists, install this exact version from
-npm:
+After the matching immutable Release exists, install this exact canonical archive:
 
 ```sh
-bun add --global @hraness/wrench@0.16.12
+bun add --global https://github.com/hraness/wrench/releases/download/v0.16.13/hraness-wrench-0.16.13.tgz
 wrench adapter sync-bundled --json
 wrench doctor
 ```
@@ -157,7 +158,7 @@ For that same released coordinate, install Wrench in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add @hraness/wrench@0.16.12
+bun add https://github.com/hraness/wrench/releases/download/v0.16.13/hraness-wrench-0.16.13.tgz
 ```
 
 ```ts

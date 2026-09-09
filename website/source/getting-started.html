@@ -67,7 +67,7 @@
 wrench adapter sync-bundled --json
 wrench doctor</code></pre>
           </div>
-          <p>The global install pins the public npm package to the release version shown above. <code>adapter sync-bundled</code> atomically installs the reviewed data manifests shipped by that exact package version. It upgrades an exact bundled baseline, including an older generation whose bytes later drifted, and preserves an independently modified current or newer install.</p>
+          <p>The global install pins the canonical GitHub archive to the release version shown above. <code>adapter sync-bundled</code> atomically installs the reviewed data manifests shipped by that exact package version. It upgrades an exact bundled baseline, including an older generation whose bytes later drifted, and preserves an independently modified current or newer install.</p>
           <p>The matching GitHub tag and immutable Release bind the same checked source and package version. The Agent Skill remains available through skills.sh.</p>
         </section>
 
@@ -126,7 +126,7 @@ This domain is for use in documentation examples without needing permission. Avo
         <section aria-labelledby="sdk">
           <h2 id="sdk">4. Use Wrench from TypeScript</h2>
           <p>Applications can pin the same release and import its side-effect-free package entrypoints:</p>
-          <div class="command-panel"><pre><code>bun add @hraness/wrench@{{WRENCH_VERSION}}</code></pre></div>
+          <div class="command-panel"><pre><code>bun add {{WRENCH_PACKAGE_ARTIFACT}}</code></pre></div>
           <div class="command-panel"><pre><code>import {
   isProviderPluginId,
   type ProviderPluginDefinitionV1,
@@ -144,7 +144,7 @@ const plugin = candidate satisfies ProviderPluginDefinitionV1</code></pre></div>
           <h2 id="developer-resources">Wrench developer resources</h2>
           <p>These are the current public Wrench developer resources for the CLI, TypeScript SDK, Agent Skill, and provider plugin workflow. Wrench does not publish a hosted API, OpenAPI description, OAuth developer portal, webhook catalog, or MCP server.</p>
           <ul class="guide-list">
-            <li><a href="{{WRENCH_NPM_PACKAGE}}">Install the <code>@hraness/wrench</code> CLI and TypeScript SDK from npm</a></li>
+            <li><a href="{{WRENCH_PACKAGE_ARTIFACT}}">Install the <code>@hraness/wrench</code> CLI and TypeScript SDK from GitHub Releases</a></li>
             <li><a href="{{WRENCH_SKILLS}}">Install the Wrench Agent Skill from skills.sh</a> with <code>{{WRENCH_SKILL_INSTALL_COMMAND}}</code></li>
             <li><a href="/capture-and-archives/">Capture URLs and create verified media archives</a></li>
             <li><a href="/getting-started/#demo">Watch and download the first-capture demo</a></li>

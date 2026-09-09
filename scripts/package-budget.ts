@@ -1,3 +1,14 @@
+// Canonical GitHub 0.16.13, measured with npm 11.19.0 / Node 24.20.0 after
+// a clean Bun 1.3.14 build: 2,249,656 packed / 12,408,429 unpacked / 497 files.
+// Same-toolchain unchanged main 95debf1 measured 2,249,213 packed /
+// 12,407,061 unpacked / 497 files. Canonical installation docs, release notes,
+// version identity, and package script metadata add 443 packed / 1,368 unpacked
+// bytes. The baseline npm archive itself exceeded the old packed ceiling by
+// 4,432 bytes. Admit only this measured npm maximum with no packed headroom;
+// retain main's remaining 32 unpacked bytes of headroom and exact inventory.
+// Candidate SHA-256: a36b0c73d12741465b5e2def214530524c99f8692c6ebe0ed0f72ca089efe89a.
+// Baseline SHA-256: 1f0ab1e2c15a91e81ac7e8c671d4841fbb0cd0ee2b978b884f09233d168f6515.
+//
 // LinkedIn contacts.read SDUI successor on 0.16.11, measured after a
 // clean Bun 1.3.14 build: 12,406,778 unpacked bytes and 497 files.
 // Same-train LinkedIn contacts.read (PR #189) measured 2,108,672 packed /
@@ -85,10 +96,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_244_781;
+export const MAX_PACKED_BYTES = 2_249_656;
 export const MAX_PACKED_ENTRIES = 497;
 export const MAX_PACKED_FILES = 497;
-export const MAX_UNPACKED_BYTES = 12_407_093;
+export const MAX_UNPACKED_BYTES = 12_408_461;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

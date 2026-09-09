@@ -1,128 +1,157 @@
 # Publish Wrench
 
-Wrench uses one interactive first publication, automatic non-registry candidate
-artifacts, and explicit stage-only trusted publishing for later stable trains.
-Because npm requires a package to exist before `npm stage publish` can use it,
-the bootstrap cannot use the staging workflow.
+GitHub Releases are canonical starting with `@hraness/wrench@0.16.13`.
+The package name, CLI, seven SDK exports, and reviewed dependency pins stay the
+same. npm is an optional mirror of the identical canonical archive. A delayed
+npm stage or two-factor approval does not block a GitHub Release or its website
+promotion. Historical versions and assetless Releases through v0.16.12 remain
+unchanged.
 
-The current reviewed release candidate is `@hraness/wrench@0.16.12`.
+## Admit the canonical GitHub artifact
 
-## Keep discovery metadata aligned
+Start from the exact reviewed source commit `C` merged below protected `main`.
+Complete the repository's applicable source, focused native, package/install,
+and independent review gates. Keep Node 24, npm 11.19.0, and Bun 1.3.14. The
+release workflow retains its complete `bun run check`, clean generated `dist`
+and `bun.lock` check, dry packing, and all seven Node import checks. Its exact
+packed archive also passes the isolated package consumer smoke before any
+attestation or publication capability is available.
 
-The exact npm keyword list is checked by `scripts/package-smoke.ts` in source
-and in the packed artifact. Repository topics are maintainer-managed discovery
-metadata, not release identity. Keep this checked topic set aligned through the
-GitHub repository settings: `agent-skills`, `agent-tools`, `ai-agents`, `beeper`,
-`browser-automation`, `bun`, `cli`, `coding-agents`, `cross-provider`,
-`developer-tools`, `knowledge-base`, `local-first`, `media-archive`, `messaging`,
-`provider-plugins`, `tool-calling`, `typescript`, `typescript-sdk`,
-`web-automation`, and `web-capture`. Do not grant a release workflow repository
-administration permission only to synchronize topics.
+Choose a new stable package version greater than every completed stable
+Release. A raw tag is a request, not a completed publication. Check the package
+version, `src/version.ts`, generated package bytes, installation examples,
+changelog, and asset filename together. Retain `@hraness/kb` at 0.17.1; this
+migration does not upgrade its native browser or cookie contracts.
 
-## Bootstrap the npm package
+Immediately before tag dispatch, require signed-in administrator readback that
+immutable Releases are enabled. Keep Administration out of workflow tokens;
+the residual control-plane setting-toggle window remains explicit. Create one
+direct lightweight `v<version>` tag on the admitted package commit and push only
+that exact ref. Do not overwrite, annotate-convert, move, or delete a historical
+tag to recover a run. Both the actor and triggering actor must be exact User
+`894119`; the protected tag, public repository `hraness/wrench` / `1316443113`,
+and Release workflow `323493609` remain bound at each capability boundary.
 
-This section records the one-time bootstrap of `@hraness/wrench@0.15.1`.
-That package is already public. Do not reuse these bootstrap commands for any
-later version. Follow [Stage a later version](#stage-a-later-version) instead.
+The canonical asset set is exactly:
 
-Start from the current `main` commit after the required checks pass. Use Node
-24, npm 11.19.0, and Bun 1.3.14. Do not create the release tag yet.
+- `hraness-wrench-<version>.tgz`, packed once with `npm pack --ignore-scripts`.
+- `npm-pack.json`, the receipt for those exact bytes.
+- `release-manifest.json`, the strict `hraness-github-release-v1` identity,
+  including repository/name/version/tag, source `C`, reviewed workflow authority
+  `W`, run ID/attempt, and archive size/SHA-256/SHA-512.
+- `SHA256SUMS`, covering the preceding three files in that order.
+- `provenance.jsonl`, the GitHub attestation bundle for all four build files.
 
-1. Install the frozen graph without lifecycle scripts.
+Wrench has no separate platform-native release assets. Its optional native
+providers retain their existing installation, identity, and live admission
+requirements. Publishing the CLI does not establish live provider qualification.
 
-   ```sh
-   bun install --frozen-lockfile --ignore-scripts
-   ```
+The read-only build uploads a run-and-attempt-specific artifact. A separate
+checkout-free attestation job reauthorizes the exact owner/run/tag before
+requesting OIDC, validates the four-file handoff, and invokes pinned
+`actions/attest` with registry publication and storage records disabled. The
+publisher independently reauthorizes the run before checkout, verifies each
+file with `gh attestation verify`, and binds the successful verifier's signed
+certificate to the exact numeric repository/owner IDs, source/ref, workflow,
+GitHub-hosted push, and run ID/attempt. Predicate metadata alone is not authority.
+The source archive and npm receipt must also agree on every inspected safe
+USTAR entry, mode, count, size, and integrity. Reject extra files, traversal,
+links, malformed receipts, unsafe package configuration, and mismatched bytes.
 
-2. Run the complete repository gate.
+Publication creates a draft, uploads only missing exact names without clobber,
+reads back all five uploaded descriptors and digests, rechecks current protected
+main/tag/release-control closure and stable Release ordering, then publishes it
+as immutable Latest. Keep the existing bounded Latest convergence check and
+terminal authority readback. A matching partial draft from the same run attempt
+may resume only with matching source, bot, body, and every already uploaded
+asset. A mismatched draft or another attempt fails closed and retains evidence;
+never delete/recreate it or silently relabel it. A completed release is accepted
+only with its original signed identity, never with a newly rebuilt artifact.
 
-   ```sh
-   bun run check
-   ```
+The Release workflow does not hold the production App key, touch production
+refs, or wait for Vercel. The separate production workflow cryptographically
+verifies the canonical archive before collecting the provider baseline.
 
-3. Confirm that the build did not change the checked package outputs.
+## Install the canonical release
 
-   ```sh
-   git status --porcelain --untracked-files=all -- dist bun.lock
-   ```
-
-   Continue only when this command produces no output.
-
-4. Create and smoke one exact npm tarball.
-
-   ```sh
-   wrench_npm_artifact="$(mktemp -d)"
-   wrench_npm_json="$wrench_npm_artifact/npm-pack.json"
-   npm pack \
-     --ignore-scripts \
-     --json \
-     --pack-destination "$wrench_npm_artifact" \
-     --registry=https://registry.npmjs.org > "$wrench_npm_json"
-   wrench_npm_archive="$wrench_npm_artifact/hraness-wrench-0.15.1.tgz"
-   bun run ./scripts/package-smoke.ts \
-     --archive "$wrench_npm_archive" \
-     --pack-json "$wrench_npm_json"
-   ```
-
-   Review the complete npm inventory, integrity, file count, packed size, and
-   unpacked size. The smoke validates those reported values against the same
-   tarball and installs it with npm in a clean consumer.
-
-5. Publish that reviewed file with the signed-in maintainer session.
-
-   ```sh
-   wrench_npm_cache="$(mktemp -d)"
-   npm publish "$wrench_npm_archive" \
-     --access public \
-     --cache "$wrench_npm_cache" \
-     --ignore-scripts \
-     --registry=https://registry.npmjs.org
-   ```
-
-   Complete npm's interactive two-factor authentication. Never put an npm
-   password, one-time password, recovery code, session cookie, or token in Git,
-   a workflow, a task file, or chat.
-
-## Verify the registry artifact
-
-Download the public package and compare it with the reviewed bootstrap file
-before configuring automation or creating `v0.15.1`.
+For the CLI:
 
 ```sh
-npm view @hraness/wrench@0.15.1 version \
-  --registry=https://registry.npmjs.org
-wrench_registry_artifact="$(mktemp -d)"
-wrench_registry_json="$wrench_registry_artifact/npm-pack.json"
-wrench_registry_view_json="$wrench_registry_artifact/npm-view.json"
-npm pack @hraness/wrench@0.15.1 \
-  --ignore-scripts \
-  --json \
-  --pack-destination "$wrench_registry_artifact" \
-  --registry=https://registry.npmjs.org > "$wrench_registry_json"
-npm view @hraness/wrench@0.15.1 name version dist \
-  --json \
-  --registry=https://registry.npmjs.org > "$wrench_registry_view_json"
-wrench_registry_archive="$wrench_registry_artifact/hraness-wrench-0.15.1.tgz"
-bun run ./scripts/npm-package-identity.ts \
-  --source-archive "$wrench_npm_archive" \
-  --source-pack-json "$wrench_npm_json" \
-  --registry-archive "$wrench_registry_archive" \
-  --registry-pack-json "$wrench_registry_json" \
-  --registry-view-json "$wrench_registry_view_json" \
-  --expected-name @hraness/wrench \
-  --expected-version 0.15.1
-bun run ./scripts/package-smoke.ts \
-  --archive "$wrench_registry_archive" \
-  --pack-json "$wrench_registry_json"
+bun add --global https://github.com/hraness/wrench/releases/download/v0.16.13/hraness-wrench-0.16.13.tgz
+wrench --version
+wrench doctor --json
 ```
 
-Continue only when the canonical package-identity comparison and the
-clean-consumer smoke pass. The comparator binds both archives to their own npm
-pack metadata, binds the downloaded archive to canonical registry metadata,
-and requires identical paths, entry types, modes, sizes, and file bytes. It
-deliberately ignores gzip transport headers, archive ownership, timestamps,
-and tar entry ordering. The tag workflow repeats this source-to-registry
-comparison before it creates the immutable GitHub Release.
+For the SDK, use the same URL without `--global`. Package imports remain
+`@hraness/wrench` and the existing exported subpaths. npm consumers may use
+`npm install` with that exact tarball URL. Do not add a private registry or a
+curl-to-shell installer. Verify the immutable release, complete asset set,
+checksums, signed provenance, and a clean consumer install before reporting a
+new release as delivered. Preview commands describe the checked source's
+candidate coordinate; publication must complete before those commands work.
+
+## Optional npm mirror
+
+The existing npm listing is retained. Its `contentPolicy.class` remains
+`dual-use`; npm support has been asked to review unattended stable publication,
+but a submitted request is not approval. Until approved, only stage-only OIDC
+is permitted and human inspection and two-factor approval of the exact npm
+stage remain mandatory before that mirror becomes public. Never scrape an MFA
+code, add an automation token, remove the declaration, or bypass that policy.
+The interactive v0.15.1 bootstrap is already complete and is not repeated.
+
+`npm-stage.yml` is dispatch-only. A default dispatch verifies an already
+published canonical release and uploads a uniquely named mirror handoff without
+entering the environment, requesting OIDC, or mutating npm. To choose an older
+canonical release while a newer GitHub Release exists, set `release_tag` to its
+exact stable tag. The reviewed main-origin workflow source `W` stays distinct
+from canonical package source `C`, with `C<=W<=M` under protected current main.
+The canonical version must still be newer than public npm `latest`; never move
+npm's default tag backward.
+
+```sh
+gh workflow run npm-stage.yml --repo hraness/wrench --ref main \
+  -f release_tag=v0.16.13
+```
+
+The read-only verify job downloads the five immutable assets, verifies their
+signed original Release run and safe package identity, and retains the full
+source gate and clean generated-tree check in an isolated tagged `C` checkout.
+It runs that tagged source's isolated install contract from the same checkout
+against the exact canonical archive. It
+copies only those same archive and receipt bytes into the existing bounded
+three-file mirror handoff; it does not rebuild or repack the package.
+
+An explicit owner-authorized dispatch may then stage the mirror:
+
+```sh
+gh workflow run npm-stage.yml --repo hraness/wrench --ref main \
+  -f release_tag=v0.16.13 -f publish_to_npm=true
+```
+
+The minimal checkout-free terminal job retains exact actor/repository/run
+reauthorization, the main-only stage environment, clean npm configuration,
+archive hashing and unsafe packed configuration rejection, OIDC provenance,
+and the retained Actions-history intent lock. `Record exclusive stable-stage
+intent` is a durable reservation even if the enclosing job fails or the npm
+write is ambiguous; whole-job success is not the lock. Scan the complete bounded
+retained dispatch/job history and current-run attempts. A queued or in-progress
+non-current rerun, an unexplained terminal staging step, or an unresolved intent
+newer than public npm latest blocks another stage. Historical generic jobs keep
+their exact checked run/job/step allowlist; they never authorize new staging.
+
+Immediately before staging, hash the handed-off archive again, check the exact
+immutable canonical release and its archive digest, and observe two identical
+bounded combined `main` plus exact canonical-tag advertisements around the
+ancestry and clean-default/public-latest checks. The existing tag must resolve
+to `C`; it is not an absence check. Leave `resolved_stage_version` empty for an
+ordinary run. Only after npm has rejected one exact prior stage may an
+owner-authorized dispatch name that version to persist the existing exact
+clearance step. Ambiguous writes are readback and diagnosis work, never blind
+retries. Run `npm stage publish` without `--tag`; preserve npm's monotonic
+`latest` protection and required two-factor promotion. After npm promotion,
+verify the public tarball bytes and npm provenance against the canonical asset
+before advertising `@hraness/wrench@<version>` as an available registry mirror.
 
 ## Configure stage-only trusted publishing
 
@@ -131,8 +160,8 @@ Disable administrator bypass. Its sole protection rule must be `branch_policy`,
 and its sole deployment policy must select branch `main` with type `branch`.
 Configure no required deployment reviewers and no environment secrets. The
 environment is entered only when a current-`main` manual dispatch explicitly
-sets `publish_to_npm=true`; a push and a default manual dispatch stop after
-uploading the exact candidate artifact and never request an OIDC token or
+sets `publish_to_npm=true`; a default manual dispatch stops after
+uploading the exact canonical mirror handoff and never requests an OIDC token or
 mutate npm. Only the minimal staging job may reference this environment or
 request an OIDC token. npm's separate human inspection and two-factor approval
 remain mandatory before a staged version becomes public.
@@ -208,508 +237,6 @@ current `latest`. Release
 verification requires that exact version to remain `dist-tags.latest` before it
 can create the corresponding GitHub Release.
 
-## Create the first tag
-
-Create the matching tag on the same `main` commit only after the registry
-artifact and trusted-publisher settings are verified.
-
-```sh
-git tag v0.15.1
-git push origin refs/tags/v0.15.1
-```
-
-The tag is a release request. Wait for the read-only verification job to
-rebuild and compare the exact public npm tarball, then verify that the GitHub
-Release is non-draft, immutable, and Latest.
-
-Release verification starts from a depth-one, credential-free checkout of the
-requested tag. `scripts/release-ref-authority.ts` reads only the exact remote
-`main` ref and the bounded `refs/tags/v*` inventory. The combined inventory must
-be canonical UTF-8, at most 64 KiB and 500 rows, and stable across two reads.
-The helper imports only those governed refs with tags disabled and without
-writing `FETCH_HEAD`. Wrench release tags are lightweight direct commit tags.
-The requested tag and checkout must name one commit `C`, and protected linear
-`main` must equal or descend from `C`. An annotated requested tag, moved ref,
-divergence, rollback, or malformed advertisement fails closed. A higher raw
-`v*` tag is only a queued release request; bounded non-draft, non-prerelease,
-immutable Releases determine completed-release ordering.
-
-## Stage a later version
-
-1. Merge a monotonically greater stable version to `main`. A push that changes
-   `package.json` automatically starts candidate verification in **Stage npm
-   package**.
-2. Wait for **Verify exact package**. It packs, smokes, and uploads one exact
-   tarball with its `npm-pack.json` and SHA-256 manifest. The automatic run ends
-   there: it has no registry mutation, environment admission, or OIDC token.
-3. Inspect or exercise that uploaded candidate as often as needed. A default
-   manual dispatch is also candidate-only and is safe for current-`main`
-   recovery:
-
-   ```sh
-   gh workflow run npm-stage.yml \
-     --repo hraness/wrench \
-     --ref main
-   ```
-
-4. Only when intentionally batching a stable npm train, dispatch the same
-   workflow with the typed publication switch:
-
-   ```sh
-   gh workflow run npm-stage.yml \
-     --repo hraness/wrench \
-     --ref main \
-     -f publish_to_npm=true
-   ```
-
-   That run rebuilds and uploads its own exact candidate before **Stage exact
-   package v&lt;version&gt;** enters the main-only `npm-stage` environment. Only this minimal
-   OIDC job can submit the verified tarball to npm's staging area; it still
-   cannot publish the package directly. An authorized maintainer or agent acting
-   under standing repository delivery authority may make this dispatch; it does
-   not introduce another human approval gate. npm inspection, approval, or
-   rejection still requires the signed-in maintainer and two-factor authentication.
-5. Inspect the uploaded artifact and staged npm package, then approve the npm
-   stage with human two-factor authentication.
-6. Download and smoke the public registry package.
-7. Create the matching `v<version>` tag on the staged source commit.
-
-The tag-push Release workflow intentionally executes source `S=C`: GitHub loads
-the workflow bytes from the tagged product/source commit. Release-control bytes
-in `C` must therefore contain the final reviewed repair before the tag exists.
-The workflow first requires the protected tag-push event and embedded sender to
-identify owner User ID `894119` in public repository ID `1316443113`. Before its
-sole write-capable job reads or executes repository code, it also reads back the
-exact current workflow attempt and requires both `actor` and
-`triggering_actor` to be that owner, workflow ID `323493609` and path
-`.github/workflows/release.yml`, the verified tag and commit, the active public
-repository, the direct lightweight tag object, and current protected-main
-ancestry. A rerun initiated by any other actor fails before checkout.
-On 2026-09-03, a stale-source manual recovery run staged and then published
-`@hraness/wrench@0.16.3` from stale source
-`c2d956ca4102d38c29e24ca4e13f26ce862b47f3`. That public npm coordinate is
-consumed. Never create a `v0.16.3` Git tag or GitHub Release, and never attempt
-to unpublish, overwrite, or repair those public bytes in place. The completed
-replacement is `0.16.4`; the first marker-bearing successor is `0.16.5` from
-the final reviewed control descendant and a fresh exact stage.
-If release controls change materially after staging, that stage is ineligible
-for tagging. If the ineligible stage is still pending, inspect it, reject that
-exact stage with human two-factor authentication, and confirm that it is absent
-before creating and verifying a fresh same-version stage from the final repaired
-descendant. If npm has already published the version, its semver coordinate is
-consumed instead: never unpublish or overwrite it, and prepare a greater version.
-
-The read-only classifier compares the current and prior `package.json` files. A
-manifest edit with an unchanged version succeeds without running verification
-or uploading an artifact. A prerelease, malformed version, downgrade,
-unavailable push base, or event source outside protected `main`'s linear
-history fails closed. This workflow's beta/candidate lane is the downloadable
-artifact, not an npm prerelease or dist-tag mutation.
-
-Both classifier and verifier use an exact depth-one, no-tag, credential-free
-checkout of the event source `C`. They bind the advertised protected `main`
-tip `M` twice, import only that governed history under a temporary private ref,
-and require `C=M` or strict linear ancestry `C<M`. A later no-version-change
-push may therefore advance `main` during the long package gate without
-changing the artifact already bound to `C`; a later workflow change still makes
-that stage ineligible for tagging under the rule above. For a push, the
-classifier also requires GitHub's exact nonzero `before` commit to be present
-and an ancestor of `C`, removes the ref, and reads the prior manifest by object
-ID. Manual recovery has no prior commit. Neither path uses a broad ref fetch, a forced
-refspec, or `FETCH_HEAD` as authority.
-
-If the automatic candidate run did not start or failed, use the default manual
-dispatch above; it repeats verification and artifact upload without entering
-the environment or touching npm. Use `publish_to_npm=true` only for one
-intentional stable-train submission. Once npm accepts a stage, first inspect
-whether that exact source and release-control closure remain eligible. An
-accepted and eligible stage must be inspected and approved without a duplicate
-dispatch. An accepted but ineligible pending stage must be inspected, rejected
-with human two-factor authentication, and confirmed absent before one fresh
-same-version stage is explicitly dispatched from final current `main` with the
-exact rejected version acknowledged by the exceptional recovery input:
-
-```sh
-# Replace this non-runnable placeholder with the exact rejected pending version.
-rejected_stage_version='<exact-rejected-version-newer-than-latest>'
-test "$rejected_stage_version" != '<exact-rejected-version-newer-than-latest>'
-gh workflow run npm-stage.yml \
-  --repo hraness/wrench \
-  --ref main \
-  -f publish_to_npm=true \
-  -f resolved_stage_version="$rejected_stage_version"
-```
-
-Leave `resolved_stage_version` empty for every ordinary candidate or staging
-dispatch. The workflow accepts a nonempty value only when its durable history
-contains an uncleared successful intent for that exact version above public
-`latest`; this is an owner-authorized assertion that the npm stage was already
-rejected, not a way to approve, replace, or ignore a pending stage. The recovery
-run records a successful exact-version clearance step before proceeding, so a
-later retry cannot silently reuse the same exception. If the
-ineligible stage is already public, do not reject, unpublish, overwrite, tag, or
-release it; move the complete corrected release to a greater version.
-
-Use the canonical registry for every inspection and promotion command:
-
-```sh
-npm stage list @hraness/wrench \
-  --json \
-  --registry=https://registry.npmjs.org
-npm stage view <stage-id> \
-  --json \
-  --registry=https://registry.npmjs.org
-npm stage download <stage-id> \
-  --registry=https://registry.npmjs.org
-npm stage approve <stage-id> \
-  --registry=https://registry.npmjs.org
-npm stage reject <stage-id> \
-  --registry=https://registry.npmjs.org
-```
-
-The 0.16.6 stage predates the candidate-only automatic path described above.
-Its legacy policy admitted an inspected successful automatic push run, or the
-sanctioned manual recovery run when automatic staging did not
-start, failed before npm accepted the stage, or accepted an ineligible stage
-that was then rejected and confirmed absent.
-If the automatic run did not start or failed before npm accepted the stage, the
-legacy workflow's manual path was its recovery. Current releases instead require
-the explicit `publish_to_npm=true` dispatch described above. The predecessor's
-selector was `(.event == "push" or .event == "workflow_dispatch")`; retain that
-literal only as historical policy evidence, not as current staging authority.
-
-To audit the 0.16.6 package handoff, download and smoke the already-public
-`@hraness/wrench@0.16.6` after its stage was approved. Keep the public
-coordinate and tag literal through the final registry checks. Set
-`STAGE_RUN_ID` and `STAGE_RUN_ATTEMPT` to the numeric identity of the exact
-inspected successful staging attempt. The already-public coordinate came from
-manual recovery run `33980252754`, attempt 1, at source
-`2292db1323e2d1a1c94e2fb7d8731b0c8ce97fc2`; never substitute another generic
-legacy job. Never treat a current candidate-only push run as an npm stage.
-Resolve `C` from that attempt rather than ambient `HEAD`, require its complete
-actor, triggering actor, repository, workflow, and source identity, then require
-either that exact sealed legacy job and terminal step or the current
-version-bound job and durable intent. Require the full lowercase commit object
-locally before accepting the retained `v0.16.6` handoff evidence:
-
-```sh
-set -eu
-case "${STAGE_RUN_ID:-}" in
-  ""|*[!0-9]*) exit 1 ;;
-esac
-case "${STAGE_RUN_ATTEMPT:-}" in
-  ""|*[!0-9]*) exit 1 ;;
-esac
-test "$STAGE_RUN_ID" -gt 0
-test "$STAGE_RUN_ATTEMPT" -gt 0
-stage_attempt_file="$(mktemp)"
-stage_jobs_file="$(mktemp)"
-gh api \
-  "/repos/hraness/wrench/actions/runs/$STAGE_RUN_ID/attempts/$STAGE_RUN_ATTEMPT" \
-  > "$stage_attempt_file"
-C="$(STAGE_ATTEMPT_FILE="$stage_attempt_file" \
-  EXPECTED_RUN_ID="$STAGE_RUN_ID" \
-  EXPECTED_RUN_ATTEMPT="$STAGE_RUN_ATTEMPT" node <<'NODE'
-const { readFileSync } = require("node:fs");
-const runId = Number(process.env.EXPECTED_RUN_ID);
-const runAttempt = Number(process.env.EXPECTED_RUN_ATTEMPT);
-const value = JSON.parse(readFileSync(process.env.STAGE_ATTEMPT_FILE, "utf8"));
-if (
-  !Number.isSafeInteger(runId) || runId < 1 ||
-  !Number.isSafeInteger(runAttempt) || runAttempt < 1 ||
-  value?.id !== runId ||
-  value.run_attempt !== runAttempt ||
-  value.workflow_id !== 344213783 ||
-  value.path !== ".github/workflows/npm-stage.yml" ||
-  value.event !== "workflow_dispatch" ||
-  value.head_branch !== "main" ||
-  !/^[a-f0-9]{40}$/u.test(value.head_sha ?? "") ||
-  value.status !== "completed" ||
-  value.conclusion !== "success" ||
-  value.actor?.id !== 894119 || value.actor?.type !== "User" ||
-  value.triggering_actor?.id !== 894119 ||
-  value.triggering_actor?.type !== "User" ||
-  value.repository?.id !== 1316443113 ||
-  value.repository?.full_name !== "hraness/wrench" ||
-  value.repository?.private !== false
-) process.exit(1);
-process.stdout.write(value.head_sha);
-NODE
-)"
-test "${#C}" -eq 40
-case "$C" in
-  *[!0-9a-f]*) exit 1 ;;
-esac
-gh api \
-  "/repos/hraness/wrench/actions/runs/$STAGE_RUN_ID/attempts/$STAGE_RUN_ATTEMPT/jobs?per_page=100" \
-  > "$stage_jobs_file"
-STAGE_JOBS_FILE="$stage_jobs_file" \
-  EXPECTED_RUN_ID="$STAGE_RUN_ID" \
-  EXPECTED_RUN_ATTEMPT="$STAGE_RUN_ATTEMPT" \
-  EXPECTED_SHA="$C" node <<'NODE'
-const { readFileSync } = require("node:fs");
-const runId = Number(process.env.EXPECTED_RUN_ID);
-const runAttempt = Number(process.env.EXPECTED_RUN_ATTEMPT);
-const value = JSON.parse(readFileSync(process.env.STAGE_JOBS_FILE, "utf8"));
-if (
-  !Number.isSafeInteger(value?.total_count) ||
-  value.total_count < 1 || value.total_count > 100 ||
-  !Array.isArray(value.jobs) || value.jobs.length !== value.total_count
-) process.exit(1);
-let exactStageJobs = 0;
-const jobIds = new Set();
-const legacyStageJobs = new Map([
-  [101344097423, "Classify staging request"],
-  [101344128985, "Verify exact package"],
-  [101350099282, "Stage exact package"],
-]);
-const isLegacyStageRun =
-  runId === 33980252754 &&
-  runAttempt === 1 &&
-  process.env.EXPECTED_SHA === "2292db1323e2d1a1c94e2fb7d8731b0c8ce97fc2";
-if (isLegacyStageRun && value.total_count !== legacyStageJobs.size) process.exit(1);
-for (const job of value.jobs) {
-  if (
-    !Number.isSafeInteger(job?.id) || job.id < 1 ||
-    jobIds.has(job.id) ||
-    job.run_id !== runId || job.run_attempt !== runAttempt ||
-    job.head_sha !== process.env.EXPECTED_SHA ||
-    typeof job.name !== "string" || typeof job.status !== "string" ||
-    (job.conclusion !== null && typeof job.conclusion !== "string") ||
-    !Array.isArray(job.steps) || job.steps.length > 100 ||
-    job.steps.some(step => (
-      !step || typeof step !== "object" || typeof step.name !== "string" ||
-      (step.conclusion !== null && typeof step.conclusion !== "string")
-    ))
-  ) process.exit(1);
-  jobIds.add(job.id);
-  if (isLegacyStageRun) {
-    if (legacyStageJobs.get(job.id) !== job.name || job.conclusion !== "success") {
-      process.exit(1);
-    }
-    if (job.id !== 101350099282) continue;
-    const successfulTerminalSteps = job.steps.filter(step => (
-      step.number === 7 &&
-      step.name === "Revalidate protected-main ancestry and stage exact package" &&
-      step.conclusion === "success"
-    ));
-    if (successfulTerminalSteps.length !== 1) process.exit(1);
-    exactStageJobs += 1;
-  } else if (
-    job.name === "Stage exact package v0.16.6" &&
-    job.conclusion === "success"
-  ) {
-    const successfulIntents = job.steps.filter(step => (
-      step.name === "Record exclusive stable-stage intent" &&
-      step.conclusion === "success"
-    ));
-    if (successfulIntents.length !== 1) process.exit(1);
-    exactStageJobs += 1;
-  }
-}
-if (exactStageJobs !== 1) process.exit(1);
-NODE
-test "$(git cat-file -t "$C")" = commit
-test "$(git rev-parse --verify "$C^{commit}")" = "$C"
-package_coordinate="$(
-  git show "${C}:package.json" |
-    node -e 'const manifest = JSON.parse(require("node:fs").readFileSync(0, "utf8")); if (manifest?.name !== "@hraness/wrench" || manifest?.version !== "0.16.6") process.exit(1); process.stdout.write(`${manifest.name}@${manifest.version}`);'
-)"
-test "$package_coordinate" = "@hraness/wrench@0.16.6"
-wrench_source_artifact="$(mktemp -d)"
-wrench_source_name="npm-package-0.16.6-$C-$STAGE_RUN_ID-$STAGE_RUN_ATTEMPT"
-gh run download "$STAGE_RUN_ID" \
-  --repo hraness/wrench \
-  --name "$wrench_source_name" \
-  --dir "$wrench_source_artifact"
-wrench_npm_archive="$wrench_source_artifact/hraness-wrench-0.16.6.tgz"
-wrench_npm_json="$wrench_source_artifact/npm-pack.json"
-wrench_registry_artifact="$(mktemp -d)"
-wrench_registry_json="$wrench_registry_artifact/npm-pack.json"
-wrench_registry_view_json="$wrench_registry_artifact/npm-view.json"
-npm pack @hraness/wrench@0.16.6 \
-  --ignore-scripts \
-  --json \
-  --pack-destination "$wrench_registry_artifact" \
-  --registry=https://registry.npmjs.org > "$wrench_registry_json"
-npm view @hraness/wrench@0.16.6 name version dist \
-  --json \
-  --registry=https://registry.npmjs.org > "$wrench_registry_view_json"
-test "$(npm view @hraness/wrench dist-tags.latest \
-  --json --registry=https://registry.npmjs.org)" = '"0.16.6"'
-wrench_registry_archive="$wrench_registry_artifact/hraness-wrench-0.16.6.tgz"
-bun run ./scripts/npm-package-identity.ts \
-  --source-archive "$wrench_npm_archive" \
-  --source-pack-json "$wrench_npm_json" \
-  --registry-archive "$wrench_registry_archive" \
-  --registry-pack-json "$wrench_registry_json" \
-  --registry-view-json "$wrench_registry_view_json" \
-  --expected-name @hraness/wrench \
-  --expected-version 0.16.6
-wrench_signature_audit="$(mktemp -d)"
-wrench_signature_audit_json="$wrench_signature_audit/audit.json"
-WRENCH_SIGNATURE_AUDIT="$wrench_signature_audit" node <<'NODE'
-const { writeFileSync } = require("node:fs");
-const { join } = require("node:path");
-writeFileSync(join(process.env.WRENCH_SIGNATURE_AUDIT, "package.json"), `${JSON.stringify({
-  name: "wrench-pretag-signature-audit",
-  private: true,
-  version: "0.0.0",
-  dependencies: { "@hraness/wrench": "0.16.6" },
-})}\n`, { encoding: "utf8", mode: 0o600 });
-NODE
-npm install \
-  --prefix "$wrench_signature_audit" \
-  --ignore-scripts \
-  --omit=dev \
-  --omit=optional \
-  --no-audit \
-  --no-fund \
-  --registry=https://registry.npmjs.org
-npm audit signatures \
-  --prefix "$wrench_signature_audit" \
-  --json \
-  --include-attestations \
-  --omit=dev \
-  --omit=optional \
-  --registry=https://registry.npmjs.org > "$wrench_signature_audit_json"
-wrench_provenance_identity="$(bun run ./scripts/npm-provenance-identity.ts \
-  --audit-json "$wrench_signature_audit_json" \
-  --expected-event workflow_dispatch \
-  --expected-name @hraness/wrench \
-  --expected-owner-id 307125679 \
-  --expected-ref refs/heads/main \
-  --expected-repository hraness/wrench \
-  --expected-repository-id 1316443113 \
-  --expected-source-sha "$C" \
-  --expected-version 0.16.6 \
-  --expected-workflow-path .github/workflows/npm-stage.yml \
-  --registry-archive "$wrench_registry_archive")"
-PROVENANCE_IDENTITY="$wrench_provenance_identity" \
-  EXPECTED_RUN_ID="$STAGE_RUN_ID" \
-  EXPECTED_RUN_ATTEMPT="$STAGE_RUN_ATTEMPT" node <<'NODE'
-const value = JSON.parse(process.env.PROVENANCE_IDENTITY ?? "null");
-if (
-  Object.keys(value ?? {}).sort().join(",") !== "runAttempt,runId" ||
-  value.runId !== Number(process.env.EXPECTED_RUN_ID) ||
-  value.runAttempt !== Number(process.env.EXPECTED_RUN_ATTEMPT)
-) process.exit(1);
-NODE
-bun run ./scripts/package-smoke.ts \
-  --archive "$wrench_registry_archive" \
-  --pack-json "$wrench_registry_json"
-```
-
-The `v0.16.6` tag already exists, so this retained audit is readback-only: never
-create or push that tag again. For a future version, keep the same shell and
-exact `C`, perform the fresh administrator immutable-Release and tag-ruleset
-readback below, and only then push that future tag.
-
-The candidate/staging workflow runs on GitHub-hosted runners with Node 24, npm
-11.19.0, Bun 1.3.14, disabled package-manager caching, and no stored npm token.
-Every eligible push or dispatch binds the verified uploaded artifact and final
-tarball hash to source `C`. Only an explicit `publish_to_npm=true` dispatch may
-start the checkout-free terminal OIDC job. Before OIDC setup, that job reads
-back its exact current attempt and requires both `actor` and
-`triggering_actor` to be owner User `894119`, exact workflow ID `344213783` and
-path `.github/workflows/npm-stage.yml`, protected `main`, source `C`, and public
-Wrench repository ID `1316443113`; delegated reruns fail before token minting.
-It reads canonical public npm `latest`, all attempts of its current run, and the
-complete bounded retained `workflow_dispatch` run/job history with
-`actions:read`. A queued or in-progress non-current run fails closed. A
-successful intent step in an exact version-bound stage job blocks the next
-submission while that version is newer than public `latest`, regardless of the
-job's eventual conclusion. The exceptional exact rejected-stage input may clear
-one such reservation, and the successful dynamic resolution step persists that
-clearance for later runs. Successful generic jobs from the older workflow shape
-are accepted only for these seven already-public, exact owner-triggered attempt-1
-records:
-
-- `0.16.0`: run `33134350359`, job `98736138383`, source
-  `59724c9b8d660dc082989f154ee4e98c502df612`
-- `0.16.1`: run `33144248535`, job `98768005663`, source
-  `12fde2af132b924f10664f249c924314c9d4ae9b`
-- `0.16.2`: run `33236415013`, job `99062211048`, source
-  `33309c470336127228b959e2aaa54138247b9684`
-- `0.16.3`: run `33715165834`, job `100531488173`, source
-  `c2d956ca4102d38c29e24ca4e13f26ce862b47f3`
-- `0.16.4`: run `33832566262`, job `100906143000`, source
-  `05e6a3e7a19e34b2f1611357a3b124467b5a8977`
-- `0.16.5`: run `33920809926`, job `101188893427`, source
-  `745ed522873c2e5d14537719d8dc74ac6bf2d70f`
-- `0.16.6`: run `33980252754`, job `101350099282`, source
-  `2292db1323e2d1a1c94e2fb7d8731b0c8ce97fc2`; its terminal write is exact
-  step `7`, `Revalidate protected-main ancestry and stage exact package`
-
-Each sealed record requires owner User `894119` as both actor and triggering
-actor, exact attempt `1`, a successful completed run and job, its exact source,
-and a public npm `latest` at or beyond its version. The `0.16.6` record also
-requires its exact successful terminal step identity. Every other successful
-generic stage job, and every successful versioned stage job without its durable
-intent, fails closed. Any terminal npm-write step in any job, including one
-whose job name has drifted, with a failure, cancellation, timeout, or success
-conclusion requires exactly one successful durable intent at the immediately
-preceding Actions step number. It then observes the combined governed refs twice with one
-`ls-remote` connection per observation, requesting exact protected `main` and
-the prospective tag together. Each canonical advertisement is capped at 64 KiB
-and 500 rows, must contain one `main` row and no requested tag, and the pair
-must be byte-identical. If advertised main is `M!=C`, one authenticated,
-strictly parsed comparison must prove positive-ahead linear ancestry `C<M`,
-with `behind_by=0`, exact base and merge base `C`, and terminal commit `M`.
-The tarball hash precedes both observations. The final clean npm-tag and public
-`latest` checks occur after the ancestry proof; the second advertisement and
-its equality check are then immediately adjacent to `npm stage publish`. A
-protected descendant advance after that last read leaves the quarantined,
-reviewable stage bound to `C`; tagging and publication rebind the approved bytes before release. These are
-repeated governed-ref observations, not an atomic snapshot. The job does not
-initialize or fetch a repository, execute checked-out scripts, or use
-`FETCH_HEAD`. Its GitHub token has only `actions:read` for the exact attempt and
-workflow readback plus `contents:read`; OIDC uses `id-token:write`. The
-main-only `npm-stage` environment applies only to this terminal job and has no
-required deployment reviewers.
-
-The predecessor workflow also produced the already-public
-`@hraness/wrench@0.16.7` from automatic push run `33992590999`, attempt `1`, at
-source `a2b321081335ac28e5df0ccbb67ebea0424d49f5`. Its exact successful generic
-stage job is `101383234021`; terminal step `7` is `Revalidate protected-main
-ancestry and stage exact package`. The current history reader intentionally
-queries only `workflow_dispatch` runs, so this push record is not part of
-`legacyGenericStages` and is never current staging authority. Public npm
-`latest` at or beyond `0.16.7` closes that already-consumed coordinate; a future
-candidate must still be monotonically greater.
-
-The checkout-free OIDC job also parses `package/package.json` directly from the
-downloaded tarball with bounded npm/node-tar-compatible USTAR handling. Every
-header must carry exact `ustar\\0` magic and version `00`; the prefix is 130
-bytes when header byte 475 is zero and 155 bytes otherwise. The source and
-release package-artifact parser enforces the same header contract against the
-same hostile fixtures. Its `private` field must be absent or exactly `false`,
-and its `publishConfig` must contain exactly `access=public` and
-`registry=https://registry.npmjs.org`; a top-level
-packed tag,
-scoped registry, proxy, authentication field, or any other publication setting
-fails before OIDC publication. The source-side package smoke enforces the same exact
-allowlist independently.
-
-Before the tag workflow may create an immutable GitHub Release, pinned npm
-11.19.0 installs the exact public package without lifecycle scripts in an
-isolated directory and runs `npm audit signatures --json
---include-attestations`. The checked verifier requires empty invalid/missing
-sets, the registry publish attestation, and one cryptographically audited SLSA
-v1 statement whose subject digest matches the downloaded tarball and whose
-repository, workflow path, protected-main ref, workflow-dispatch event,
-repository/owner IDs, sole source commit, GitHub-hosted builder, and invocation
-URL all bind the inspected stage. The invocation must also resolve to the
-completed successful owner-authorized stage attempt before release mutation. A
-token-driven or wrong-workflow publication
-cannot become a GitHub Release merely because its tarball bytes match.
-
-`scripts/package-budget.ts` owns the shared packed-byte, unpacked-byte, and
-file-count ceilings used by artifact inspection and the clean-consumer smoke.
-Remeasure the candidate with the pinned npm version after any reviewed payload
-change. Keep enough packed-byte room for the observed Linux and macOS gzip
-spread without replacing the path and content checks with a broad size limit.
-
 ## Deploy the release-bound website
 
 Configure the Vercel project's Production Branch as `website-production` and
@@ -723,8 +250,7 @@ state fails before external verification or site generation. Production also
 requires `VERCEL_GIT_COMMIT_REF=website-production`, while that ref is rejected
 for a non-production deployment.
 `main` and pull requests are preview sources only; they may describe a package
-candidate that has not completed npm staging, tagging, or immutable Release
-publication, so they must never replace the public production site.
+candidate that has not completed tagging or immutable Release publication, so they must never replace the public production site.
 
 Keep Vercel project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue` under team
 `team_UAd1iD2XogJlbFg4h14mRaPM` linked to GitHub repository ID `1316443113`
@@ -772,7 +298,7 @@ plus read-only GitHub evidence.
 
 Vercel will not accept a Production Branch that does not exist. For the one-time
 migration only, first verify the current immutable Latest Release against its
-exact remote tag commit and canonical npm version, then create
+exact remote tag commit and canonical GitHub artifact version, then create
 `website-production` once at that release commit with the GitHub create-ref API.
 Fail if the branch already exists, and never bootstrap it from `main` or an
 unreleased candidate. Configure Vercel only after that exact ref exists. This
@@ -828,55 +354,35 @@ keeps that token read-only and uses the short-lived App token only inside the
 leased Git push.
 
 After the one-time bootstrap has established `website-production`, the tag
-workflow rebuilds and compares the exact public npm package, creates or verifies
-the non-draft, non-prerelease immutable GitHub Release, and proves that Release
-is Latest. It does not read or update `website-production`, wait for Vercel, or
-receive the dedicated App key. The Release lookup accepts only an exact REST 200
-or 404 response.
-Only an authenticated exact 404 permits one REST create request with the
-deterministic source receipt prepended to server-generated notes;
-authentication, transport, other API, or malformed response failures abort. A
-pre-existing exact Release is accepted only when its numeric Actions bot
-identity, run/source receipt, and protected lightweight tag peel all match. The bounded completed-release ordering
-audit runs on both the create and recovery paths, and canonical npm `latest` is
-read again immediately before either path crosses the final acceptance boundary.
-The workflow validates an exact REST readback before
-checking Latest. It does not use opaque `gh release view` or
-`gh release create` commands, so hidden requests cannot escape the bounded
-control path. The direct lightweight tag must remain on the verified release
-commit `C`, and protected linear `main` at each observation must equal or
-descend from `C`. That descendant movement is release-authority-safe only while
-`git diff --quiet --no-ext-diff --no-textconv C M --` covers
-`.github/workflows`, the release-ref, npm provenance, npm package identity,
-package artifact, package budget, package smoke, packed private-source runtime,
-release provider, App-token, ref-writer, and production-marker modules. This
-complete transitive verifier/parser set confirms that the high-privilege
-authority, publication, and promotion control closure is unchanged. The early
-release check and both publication-boundary checks enforce that condition using
-the exact imported `C` and `M` objects. After completed-release-order validation
-and the final canonical npm `latest` proof, immediately before the irreversible
-create request, authenticated GitHub API reads still bind both coordinates.
-No further Git, GitHub, or npm command intervenes between that terminal
-prewrite and the create request. The release-ref helper then observes
-the combined governed `main` and `refs/tags/v*` advertisement twice, through
-one `ls-remote` connection per observation, and requires the two canonical
-advertisements to be equal. This is a bounded repeated observation, not an
-atomic provider snapshot. Protected tag immutability and monotonic main ancestry
-keep a later main fast-forward from changing `C`; that movement remains
-release-authority-safe only when it also preserves that release-control
-closure. The terminal readback repeats both the authenticated API checks and
-the combined-advertisement helper, including the release-control comparison. A
-release-control change in the irreducible prewrite-to-POST window makes the
-terminal readback fail closed even though GitHub may already have created the
-immutable Release. Recovery must inspect that exact Release and the current
-Latest Release; the workflow never deletes, patches, or rolls back a Release
-in response. The POST has no conditional-write lease and uses
-`make_latest=legacy`; a higher raw
-`v*` tag is only another queued request, while bounded published immutable
-Releases define completed ordering. If the terminal readback observes another
-immutable Release as Latest, this release remains valid and the workflow fails
-with explicit recovery guidance for the observed Latest coordinate. A
-supersession after that final read is not observable by the completed workflow.
+workflow admits the canonical artifact, creates or resumes the exact draft,
+verifies its uploaded asset descriptors, and publishes the immutable Latest
+Release. It does not read or update `website-production`, wait for Vercel, or
+receive the App key. Only an authenticated exact REST 404 permits draft creation;
+other lookup failures abort. A pre-existing draft must bind the original exact
+Actions bot, run/attempt, source receipt, direct lightweight tag, and every
+already uploaded asset. No clobber, deletion, relabeling, tag movement, or
+rollback is permitted. The only publication PATCH changes the admitted draft
+to non-draft and requests Latest after the complete five-file readback.
+
+Before each draft creation, missing-asset upload, and publication, fetch only the
+fully qualified governed main and tag refs, prove `C<=M`, and require unchanged
+release controls. The release-ref helper's closure includes `.github/workflows`,
+the release-ref, npm provenance/package identity, package artifact/budget/smoke,
+packed private-source runtime, canonical verifier/publisher, provider, App-token,
+ref-writer, production-marker, and canonical asset-parser modules. It observes
+two equal bounded combined main-plus-tag advertisements around that proof.
+Current main may move linearly while preserving those controls. The publication
+path also exhausts the bounded completed stable-Release ordering census before
+creating or publishing a draft; a higher raw tag alone is an incomplete request.
+The canonical artifact has no dependency on npm latest.
+
+After publication, require exact immutable release and asset readback, bounded
+Latest convergence, and terminal protected-ref/control-closure verification.
+GitHub has no conditional lease for publishing a Release, so a concurrent
+control-plane change may make readback fail after publication. Preserve that
+immutable release and inspect current authority; never delete or rewrite it.
+If another immutable release becomes Latest, recover from its actual coordinate.
+A supersession after the final read is not observable by the completed workflow.
 
 Immediately before the tag push that dispatches **Release**, a signed-in
 administrator must read back immutable Releases as `enabled=true` and two exact
@@ -1407,7 +913,7 @@ Vercel runs the checked-in marked `website:vercel-build` command. Valid preview
 and development builds, plus true local builds with no Vercel signal, generate
 the site without external release checks. A production build first requires the
 checked-out HEAD and root package version to equal the exact `v<version>` commit
-returned by GitHub's bounded public commit API, requires canonical npm to
+returned by GitHub's bounded public commit API, requires canonical GitHub artifact to
 contain that version with SHA-512 integrity, and requires the matching immutable
 GitHub Release to be non-draft, non-prerelease, and Latest. It also requires
 Vercel's system commit SHA to equal that verifier-proven local HEAD and its
@@ -1425,13 +931,13 @@ This production admission assumes a Vercel Git deployment whose checkout keeps
 a resolvable Git `HEAD`; missing repository metadata is a hard failure, not a
 reason to trust deployment environment variables. Keep `.git` out of
 `.vercelignore` so the Git-connected shallow clone retains the metadata needed
-for this independent check. Canonical npm name, version, and SHA-512 integrity
-are sufficient at this layer because the tag Release workflow first rebuilds
-and compares the exact tarball with canonical npm before creating the immutable
-Release, and the separate main-origin workflow advances `website-production`
-only after it revalidates that release authority. The production verifier then
-independently rechecks the promoted commit, tag, registry coordinate, and
-immutable Latest Release.
+for this independent check. Starting with v0.16.13, the build checks the exact
+five immutable asset descriptors, Actions bot/source receipt, manifest identity,
+archive size and SHA-256/SHA-512 digests, tag/HEAD, and Latest. It trusts the
+canonical workflow's authenticated source/install/attestation admission;
+cryptographic Sigstore verification runs separately in promotion CI, not inside
+Vercel. Historical assetless Releases retain their previous npm manifest check.
+A failure prevents a production build and its release marker from publishing.
 
 See npm's documentation for [trusted
 publishing](https://docs.npmjs.com/trusted-publishers/), [staged
