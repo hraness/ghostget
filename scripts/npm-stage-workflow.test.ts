@@ -1532,6 +1532,10 @@ describe("npm publication contract", () => {
     expect(parsed.jobs.classify!.environment).toBeUndefined();
     expect(parsed.jobs.verify!.environment).toBeUndefined();
     expect(parsed.jobs.stage!.environment).toBe("npm-stage");
+    const verifyCheckout = parsed.jobs.verify!.steps.find((step) => String(step.uses).startsWith("actions/checkout@"));
+    expect(verifyCheckout?.with).toEqual({
+      "fetch-depth": 1, "fetch-tags": false, "persist-credentials": false, ref: "${{ github.sha }}",
+    });
     const classify = workflow.slice(workflow.indexOf("  classify:"), workflow.indexOf("  verify:"));
     const verify = workflow.slice(workflow.indexOf("  verify:"), workflow.indexOf("  stage:"));
     const stage = workflow.slice(workflow.indexOf("  stage:"));
@@ -3137,6 +3141,11 @@ esac
       websiteWorkflow,
       "Bind dispatch to reviewed main workflow source",
     );
+    const parsed = Bun.YAML.parse(websiteWorkflow) as { jobs: { verify: { steps: { uses?: string; with?: unknown }[] } } };
+    const verifyCheckout = parsed.jobs.verify.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
+    expect(verifyCheckout?.with).toEqual({
+      "fetch-depth": 1, "fetch-tags": false, "persist-credentials": false, ref: "${{ github.sha }}",
+    });
 
     expect(releaseWorkflow).not.toContain("workflow_dispatch:");
     expect(releaseWorkflow).not.toContain("release-provider-outcome.mjs promote");

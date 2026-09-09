@@ -120,7 +120,7 @@ jobs:
           fetch-depth: 1
           fetch-tags: false
           persist-credentials: false
-          ref: ${{ steps.request.outputs.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24"
