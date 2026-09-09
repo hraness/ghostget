@@ -130,6 +130,55 @@ describe("macOS PR check subset", () => {
 });
 
 describe("complete local and release check composition", () => {
+  test("checks the release npm compressor and strict archive parser before tagging", async () => {
+    type Step = { name?: string; uses?: string; if?: unknown; "continue-on-error"?: unknown; run?: string; with?: Record<string, unknown> };
+    type Job = { if?: unknown; "continue-on-error"?: unknown; needs?: string[]; steps: Step[] };
+    type Workflow = { jobs: Record<string, Job> };
+    const [ciSource, releaseSource] = await Promise.all([
+      readFile(ciWorkflowUrl, "utf8"),
+      readFile(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"),
+    ]);
+    const ci = Bun.YAML.parse(ciSource) as Workflow;
+    const release = Bun.YAML.parse(releaseSource) as Workflow;
+    const packageJob = ci.jobs.package;
+    const releaseJob = release.jobs.verify;
+    if (packageJob === undefined || releaseJob === undefined) throw new Error("Missing package gate");
+    const node = (job: Job) => job.steps.find(step => step.uses?.startsWith("actions/setup-node@"));
+    const pin = (job: Job) => job.steps.find(step => step.name === "Pin npm");
+    expect(node(packageJob)).toEqual(node(releaseJob));
+    expect(node(packageJob)?.with).toEqual({
+      "node-version": "24.20.0",
+      "registry-url": "https://registry.npmjs.org",
+      "package-manager-cache": false,
+    });
+    expect(pin(packageJob)).toEqual(pin(releaseJob));
+    expect(pin(packageJob)?.run).toContain('test "$(npm --version)" = "11.19.0"');
+    expect(packageJob.if).toBeUndefined();
+    expect(packageJob["continue-on-error"]).toBeUndefined();
+    expect(packageJob.steps.every(step => step.if === undefined)).toBeTrue();
+    expect(packageJob.steps.every(step => step["continue-on-error"] === undefined)).toBeTrue();
+    const packed = packageJob.steps.find(step => step.name === "Check the canonical npm archive before tagging");
+    const packing = 'npm pack --ignore-scripts --json --pack-destination "$directory" \\\n  --registry=https://registry.npmjs.org > "$directory/npm-pack.json"';
+    if (packed === undefined) throw new Error("Missing canonical npm archive step");
+    expect(packed.run).toContain(packing);
+    expect(releaseJob.steps.find(step => step.name === "Prepare and install the exact canonical archive")?.run)
+      .toContain(packing);
+    expect(packed?.run).toContain('bun run ./scripts/package-artifact.ts "$directory/hraness-wrench-$package_version.tgz"');
+    expect(packed.run).toBe([
+      "set -euo pipefail",
+      'directory="$(mktemp -d "$RUNNER_TEMP/wrench-canonical-ci.XXXXXX")"',
+      'package_version="$(node -p \'require("./package.json").version\')"',
+      packing,
+      'cat "$directory/npm-pack.json"',
+      'bun run ./scripts/package-artifact.ts "$directory/hraness-wrench-$package_version.tgz"',
+      "",
+    ].join("\n"));
+    expect(packageJob.steps.indexOf(packed)).toBeGreaterThan(
+      packageJob.steps.findIndex(step => step.run === "bun run check:package"),
+    );
+    expect(ci.jobs.required?.needs).toContain("package");
+  });
+
   test("keeps bun run check as the sequential union of the PR jobs", async () => {
     const manifest = JSON.parse(await readFile(packageManifestUrl, "utf8")) as {
       readonly scripts?: Record<string, string>;

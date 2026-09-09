@@ -55,7 +55,7 @@ export const GITHUB_RELEASES_URL = "https://github.com/hraness/wrench/releases" 
 export const SKILLS_URL = "https://skills.sh/hraness/wrench" as const;
 export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const SKILL_REPOSITORY = "hraness/wrench" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.16.13" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.16.14" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const WRENCH_MAILING_TURNSTILE_SITEKEY_ENV =
   "NEXT_PUBLIC_HRANESS_MAILING_TURNSTILE_SITEKEY" as const;

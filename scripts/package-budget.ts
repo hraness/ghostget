@@ -1,3 +1,21 @@
+// Canonical GitHub 0.16.14, measured with Bun 1.3.14 build and two
+// byte-identical Homebrew Node 24.20.0 / npm 11.19.0 packs: 2,252,826
+// compressed / 12,418,306 payload bytes / 501 files, SHA-256
+// 1bf550bba8f75aa0933fa9fcd9def7e446e1a60a5b3a3e12555ef934caf23969.
+// Every file/mode matches the source; 492 files are unchanged from 0.16.13.
+// Version projections and the recovery changelog add 494 payload bytes.
+// Recompressing the identical raw tar with zlib 1.3.2.1-motley produces
+// 2,255,206 bytes, versus 2,252,826 with local zlib 1.2.12. The retained
+// 0.16.13 raw tar likewise reproduces the failed Linux pack's exact size
+// (2,255,037) under motley without changing any tar byte. That failed npm
+// archive itself was not retained, so recompression does not recover its identity.
+// Allow 4,096 bytes above the largest measured compression (2,255,206),
+// covering the current 2,380-byte and historical 3,543-byte spreads. This
+// bounded portability allowance is not a guarantee for arbitrary compressors:
+// required CI checks the actual npm archive under the pinned release toolchain.
+// Preserve 315 payload bytes of headroom and exactly 501 files/entries.
+// All prior measurements and the failed 0.16.13 tag remain historical.
+//
 // Canonical GitHub 0.16.13 joined with exact main 6e8f757, measured after a
 // clean Bun 1.3.14 build with Node 24.20.0 / npm 11.19.0. Two archives are
 // byte-identical: 2,252,656 packed / 12,417,812 payload bytes / 501 files,
@@ -151,10 +169,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_252_656;
+export const MAX_PACKED_BYTES = 2_259_302;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_418_127;
+export const MAX_UNPACKED_BYTES = 12_418_621;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
