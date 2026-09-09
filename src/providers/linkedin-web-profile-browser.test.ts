@@ -21,6 +21,7 @@ import {
   type WebSessionExecution,
 } from "../web-session-execution";
 import { executeLinkedInWebOperation } from "./linkedin-web-runtime";
+import { buildLinkedInProfileContactInfoGraphqlPath } from "./linkedin-web-contact";
 import {
   createLinkedInProfileBrowserTransport,
   LinkedInProfileBrowserFailure,
@@ -466,7 +467,7 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     expect(cleaned).toBeTrue();
   });
 
-  test("performs one exact identity, profile, and profileContactInfo sequence", async () => {
+  test("performs one exact identity, profile, and Contact-info GraphQL sequence", async () => {
     const requests: BrowserReadBinding[] = [];
     const session: BrowserSession = {
       runBatch: (commands) => {
@@ -485,7 +486,7 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         if (binding.path === "/in/0thernet/") {
           return Promise.resolve([browserBodyRecord("<html>1st</html>", "text/html")]);
         }
-        if (binding.path === "/voyager/api/identity/profiles/0thernet/profileContactInfo") {
+        if (binding.path.startsWith("/voyager/api/graphql") && binding.path.includes("voyagerIdentityDashProfileContactInfo")) {
           return Promise.resolve([browserBodyRecord(
             '{"emailAddress":"connection@example.test"}',
             "application/vnd.linkedin.normalized+json+2.1",
@@ -501,9 +502,13 @@ describe("LinkedIn profile stats contained-browser transport", () => {
       maxOutputBytes: 2 * 1024 * 1024,
       dependencies: { createBrowserSession: () => Promise.resolve(session) },
     });
+    const contactInput = {
+      profileUrl: PROFILE_URL,
+      profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+    };
     expect(await transport.currentIdentityResponse()).toEqual(JSON.parse(identityResponse()));
     expect(await transport.readProfileHtml(PROFILE_URL)).toBe("<html>1st</html>");
-    expect(await transport.readContactInfoJson(PROFILE_URL)).toEqual({
+    expect(await transport.readContactInfoJson(contactInput)).toEqual({
       emailAddress: "connection@example.test",
     });
     await expect(transport.readConnectionsHtml(PROFILE_URL)).rejects.toThrow("out of order");
@@ -523,7 +528,9 @@ describe("LinkedIn profile stats contained-browser transport", () => {
       {
         kind: "json",
         maxBytes: 2 * 1024 * 1024,
-        path: "/voyager/api/identity/profiles/0thernet/profileContactInfo",
+        path: buildLinkedInProfileContactInfoGraphqlPath({
+          profileUrn: contactInput.profileUrn,
+        }),
         referrer: PROFILE_URL,
       },
     ]);

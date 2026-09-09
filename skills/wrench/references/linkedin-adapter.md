@@ -227,22 +227,38 @@ operation fixed and target-bound.
 ## 1st-degree Contact info
 
 `contacts.read@1` is an observed R1 read for one exact 1st-degree connection
-profile URL. It binds the signed-in viewer, requires LinkedIn's `DISTANCE_1`
-relationship on that vanity, then reads the first-party
-`/voyager/api/identity/profiles/{vanity}/profileContactInfo` route from the
-profile-page context. The projection returns `email` when LinkedIn shows it,
-plus any of the vanity profile link, connected-since date, phone numbers,
-websites, and birthday. Completeness is `complete` when at least one of those
-optional fields is present and `partial` when the payload bound but LinkedIn
-omitted every optional field.
+profile URL. It binds the signed-in viewer, then requires a 1st-degree
+relationship on that vanity from the profile page. Current LinkedIn pages are
+SDUI/RSC and often omit classic `bpr-guid-*` Profile embeds. The binder
+therefore walks both those Voyager code payloads and `window.__como_rehydration__`,
+and treats `memberDistance`, `networkDistance`, or `distance` of `DISTANCE_1`,
+`1`, or `"1"` as first-degree when that value is joined to the requested vanity
+or its profile URN.
+
+When the same page already embeds Contact-info fields, including a labeled
+Email row, the operation projects those fields and does not issue a second
+fetch. Otherwise it GETs `/voyager/api/graphql` for
+`voyagerIdentityDashProfileContactInfo`, using a page-resolved `queryId` when
+the HTML contains exactly one decorated revision and `queryName` otherwise.
+Variables are exactly `(profileUrn:{urn})`. Classic
+`/voyager/api/identity/profiles/{vanity}/profileContactInfo` now returns HTTP
+410 and is rejected. The executable contract is that reviewed first-party GET
+or the page-embedded fields, not a caller-selected RSC body, DOM click, or
+selector. Wrench does not message, connect, or InMail.
+
+The projection returns `email` when LinkedIn shows it, plus any of the vanity
+profile link, connected-since date, phone numbers, websites, and birthday.
+Completeness is `complete` when at least one of those optional fields is
+present and `partial` when the payload bound but LinkedIn omitted every
+optional field.
 
 A 2026-09-08 signed-in capture of a 1st-degree profile showed the Contact info
 control on the intro card and a modal with the vanity link, Email, and
-Connected since. The browser also issued an RSC navigation whose `screenId` was
-`com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay`. That
-overlay observation graduated the surface. The executable contract is the
-reviewed Voyager GET, not a caller-selected RSC body, DOM click, or selector.
-Wrench does not message, connect, or InMail.
+Connected since. The same capture had Como rehydration with numeric
+`networkDistance: 1`, a `ProfileContactDetailsOverlay` screen, and no
+`bpr-guid-*` Profile records. Voyager `profileContactInfo`, `networkinfo`, and
+`profileView` returned 410. That drift is why the binder and fetch path
+changed.
 
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid

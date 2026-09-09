@@ -4,6 +4,7 @@ import * as Layer from "effect/Layer";
 import { ReadEffectFailure, readAttempt } from "../read-effect";
 import { readNative } from "../read-effect-platform";
 import { LinkedInContactIdentityMismatch } from "./linkedin-contact-failure";
+import type { LinkedInContactInfoJsonInput } from "./linkedin-web-contact";
 import type { LinkedInProfileBrowserTransport } from "./linkedin-web-profile-browser";
 
 export type LinkedInContactIdentity = { readonly subject: string };
@@ -27,8 +28,8 @@ function platform(ports: LinkedInContactNative) {
     ),
     profileHtml: (browser: LinkedInProfileBrowserTransport, profileUrl: string) =>
       readNative(() => browser.readProfileHtml(profileUrl)).pipe(Effect.uninterruptible),
-    contactPayload: (browser: LinkedInProfileBrowserTransport, profileUrl: string) =>
-      readNative(() => browser.readContactInfoJson(profileUrl)).pipe(Effect.uninterruptible),
+    contactPayload: (browser: LinkedInProfileBrowserTransport, input: LinkedInContactInfoJsonInput) =>
+      readNative(() => browser.readContactInfoJson(input)).pipe(Effect.uninterruptible),
     observedAt: readAttempt(ports.observedAt),
     closeBrowser: (browser: LinkedInProfileBrowserTransport) =>
       readNative(() => browser.close()).pipe(Effect.uninterruptible),

@@ -303,8 +303,9 @@ const identities = Object.freeze({
   "linkedin-web": {
     schemaVersion: 1,
     pluginVersion: "1.6.0",
-    implementationSha256: "97194dc5a8ec3afc4f4a20152efe51dbdc2fa8a8dde0cd9484b54718c4767f45",
+    implementationSha256: "e4614ab9c7733d7526b8157410e462f1bb48fdaa1c2319a6a4179c18b9e6839d",
     legacyCurrentReadImplementationSha256: [
+      "97194dc5a8ec3afc4f4a20152efe51dbdc2fa8a8dde0cd9484b54718c4767f45",
       "64621493e09949fcb9973270140fec1d7398374cf48d3ef150a0c24b882fdeb8",
       "da9d19f6a31d5308579bff7d9b4f77bc458ef69890f0f8c3239cbebeac4bb2a5",
       "97d1f8169a39f207db27145ef79de0f52ea98ad416ee69d4c5d3689d76211e2a",
@@ -316,7 +317,6 @@ const identities = Object.freeze({
       "951102310bd87f93ce0863c1a444371d62f412934cc805f82c9981f82edfe50e",
       "4fd6c293984be688a9273acb09bccea64a75134daca745b322fa8d33dfe9f97c",
       "624e146839f4d20d361a949c3ddb726f0c6b741f4d094e873e82185cf3f03175",
-      "9e2baa00763f311fbb4c651c513793a356021f8a703f08e06f52437c01d02089",
     ],
     legacyReadImplementationSha256: {
       test: "00a99426ec31182f8d37d5cceb819947a09e630b468bb6e3ed8827f5b0fa4628",

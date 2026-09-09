@@ -11,6 +11,10 @@ import {
   type CreateBrowserSessionOptions,
 } from "../browser";
 import type { WrenchManifest } from "../model";
+import {
+  buildLinkedInProfileContactInfoGraphqlPath,
+  type LinkedInContactInfoJsonInput,
+} from "./linkedin-web-contact";
 import type {
   WebSessionCleanupResourcePublisher,
   WebSessionOperationDeadline,
@@ -49,7 +53,7 @@ export type LinkedInProfileBrowserTransport = {
   readonly currentIdentityResponse: () => Promise<unknown>;
   readonly readProfileHtml: (profileUrl: string) => Promise<string>;
   readonly readConnectionsHtml: (profileUrl: string) => Promise<string>;
-  readonly readContactInfoJson: (profileUrl: string) => Promise<unknown>;
+  readonly readContactInfoJson: (input: LinkedInContactInfoJsonInput) => Promise<unknown>;
   readonly readOrganizationHtml: (organizationUrl: string) => Promise<string>;
   readonly close: () => Promise<void>;
 };
@@ -627,16 +631,18 @@ export async function createLinkedInProfileBrowserTransport(
       state = "complete";
       return decodedBody(result, options.maxOutputBytes);
     },
-    readContactInfoJson: async (profileUrl: string) => {
+    readContactInfoJson: async (input: LinkedInContactInfoJsonInput) => {
       if (state !== "profile") {
         throw new Error("LinkedIn stats browser Contact-info read is out of order");
       }
-      const profile = exactLinkedInUrl(profileUrl, "profile");
-      const slug = profile.pathname.slice("/in/".length, -1);
+      const profile = exactLinkedInUrl(input.profileUrl, "profile");
       const result = await run({
         kind: "json",
         maxBytes: Math.min(MAX_IDENTITY_BYTES, options.maxOutputBytes),
-        path: `/voyager/api/identity/profiles/${slug}/profileContactInfo`,
+        path: buildLinkedInProfileContactInfoGraphqlPath({
+          profileUrn: input.profileUrn,
+          queryId: input.queryId,
+        }),
         referrer: profile.href,
       });
       state = "complete";
