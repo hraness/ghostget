@@ -164,6 +164,10 @@ jobs:
           printf 'main_sha=%s\n' "$verified_main_sha" >> "$GITHUB_OUTPUT"
           printf 'archive_name=hraness-wrench-%s.tgz\n' "$package_version" >> "$GITHUB_OUTPUT"
       - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Provision exact native fixture browser
+        run: |
+          fixture_browser_root="$(bun run ./scripts/provision-derive-browser.ts)"
+          printf 'WRENCH_DERIVE_BROWSER_ROOT=%s\n' "$fixture_browser_root" >> "$GITHUB_ENV"
       - run: bun run check
       - run: |
           generated_status="$(git status --porcelain --untracked-files=all -- dist bun.lock)"

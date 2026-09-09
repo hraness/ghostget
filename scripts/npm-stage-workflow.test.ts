@@ -1521,6 +1521,42 @@ describe("npm publication contract", () => {
     expect(incidentSection).not.toContain("WhatsApp Message Like Me");
   });
 
+  test("non-main dispatch cannot admit either source-checkout job", async () => {
+    const workflow = await readFile(stageWorkflowUrl, "utf8");
+    const jobs = ["classify", "verify"].map((name) => {
+      const start = workflow.indexOf(`\n  ${name}:\n`);
+      expect(start).toBeGreaterThan(-1);
+      const end = workflow.indexOf(name === "classify" ? "\n  verify:\n" : "\n  stage:\n", start + 1);
+      expect(end).toBeGreaterThan(start);
+      const job = workflow.slice(start, end);
+      const guards = [...job.matchAll(/^    if: (.+)$/gmu)].map((match) => match[1]);
+      expect(guards).toHaveLength(1);
+      const guard = guards[0];
+      expect(guard).toBe(name === "classify" ? "github.ref == 'refs/heads/main'"
+        : "github.ref == 'refs/heads/main' && needs.classify.outputs.should_prepare == 'true'");
+      expect(job.indexOf("\n    if:")).toBeLessThan(job.indexOf("\n    steps:"));
+      if (guard === undefined) throw new Error("missing source-checkout guard");
+      return guard.split(" && ").map((term) => {
+        const comparison = /^(github\.ref|needs\.classify\.outputs\.should_prepare) == '([^']+)'$/u.exec(term);
+        const key = comparison?.[1];
+        const value = comparison?.[2];
+        if (key === undefined || value === undefined) throw new Error("unexpected source-checkout guard grammar");
+        return { key, value };
+      });
+    });
+    for (const ref of ["refs/heads/main", "refs/heads/candidate", "refs/heads/main-candidate",
+      "refs/tags/main", "refs/pull/197/merge", "", "refs/heads/main "]) {
+      for (const shouldPrepare of ["true", "false", ""]) {
+        const values: Record<string, string> = { "github.ref": ref,
+          "needs.classify.outputs.should_prepare": shouldPrepare };
+        const admitted = jobs.map((guard) => guard.every(({ key, value }) =>
+          values[key]?.toLowerCase() === value.toLowerCase()));
+        expect(admitted).toEqual([ref === "refs/heads/main",
+          ref === "refs/heads/main" && shouldPrepare === "true"]);
+      }
+    }
+  });
+
   test("separates canonical mirror verification from checkout-free stage capability", async () => {
     const workflow = await readFile(stageWorkflowUrl, "utf8");
     const parsed = Bun.YAML.parse(workflow) as { on: Record<string, unknown>; jobs: Record<string, { permissions: Record<string, string>; environment?: string; steps: Record<string, unknown>[] }> };
@@ -1532,6 +1568,8 @@ describe("npm publication contract", () => {
     expect(parsed.jobs.classify!.environment).toBeUndefined();
     expect(parsed.jobs.verify!.environment).toBeUndefined();
     expect(parsed.jobs.stage!.environment).toBe("npm-stage");
+    expect(workflow.match(/ref: \$\{\{ github\.sha \}\}/gu) ?? []).toHaveLength(2);
+    expect(workflow).not.toContain("ref: ${{ needs.classify.outputs.source_sha }}");
     const verifyCheckout = parsed.jobs.verify!.steps.find((step) => String(step.uses).startsWith("actions/checkout@"));
     expect(verifyCheckout?.with).toEqual({
       "fetch-depth": 1, "fetch-tags": false, "persist-credentials": false, ref: "${{ github.sha }}",
