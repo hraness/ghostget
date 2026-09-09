@@ -105,11 +105,11 @@ export const LINKEDIN_WEB_OPERATIONS = {
     requests: [{
       kind: "server-rendered-read",
       method: "GET",
-      path: "/in/:publicIdentifier/ and /voyager/api/identity/profiles/:publicIdentifier/profileContactInfo",
-      queryPrefix: null,
-      allowedQueryParameters: [],
-      requiredQueryParameters: [],
-      fixedQueryParameters: [],
+      path: "/in/:publicIdentifier/ and /voyager/api/graphql voyagerIdentityDashProfileContactInfo",
+      queryPrefix: "voyagerIdentityDashProfileContactInfo",
+      allowedQueryParameters: ["includeWebMetadata", "queryId", "queryName", "variables"],
+      requiredQueryParameters: ["includeWebMetadata", "variables"],
+      fixedQueryParameters: [["includeWebMetadata", "true"]],
     }],
   },
   "feeds.read": {
@@ -3210,18 +3210,37 @@ export function assertLinkedInWebR1RequestAllowed(
       url.origin === "https://www.linkedin.com"
       && url.username === ""
       && url.password === ""
-      && url.search === ""
       && url.hash === ""
     ) {
-      if (/^\/in\/[A-Za-z0-9][A-Za-z0-9_-]{1,99}\/$/u.test(url.pathname)) {
+      if (url.search === "" && url.pathname === "/voyager/api/me") return;
+      if (url.search === "" && /^\/in\/[A-Za-z0-9][A-Za-z0-9_-]{1,99}\/$/u.test(url.pathname)) {
         linkedInPersonalProfileTarget(url.href);
         return;
       }
-      const match = /^\/voyager\/api\/identity\/profiles\/([A-Za-z0-9][A-Za-z0-9_-]{1,99})\/profileContactInfo$/u
-        .exec(url.pathname);
-      if (match?.[1] !== undefined) {
-        linkedInPersonalProfilePublicIdentifier(match[1]);
-        return;
+      if (url.pathname === LINKEDIN_GRAPHQL_PATH) {
+        const queryNames = [...url.searchParams.keys()];
+        const queryKey = queryNames[1];
+        if (
+          queryNames.length === 3
+          && queryNames[0] === "includeWebMetadata"
+          && queryNames[2] === "variables"
+          && (queryKey === "queryId" || queryKey === "queryName")
+          && url.searchParams.get("includeWebMetadata") === "true"
+          && url.searchParams.getAll("includeWebMetadata").length === 1
+          && url.searchParams.getAll("variables").length === 1
+          && queryKey !== undefined
+          && url.searchParams.getAll(queryKey).length === 1
+          && (
+            queryKey === "queryName"
+              ? url.searchParams.get("queryName") === "voyagerIdentityDashProfileContactInfo"
+              : /^voyagerIdentityDashProfileContactInfo\.[0-9a-f]{32}$/u.test(
+                url.searchParams.get("queryId") ?? "",
+              )
+          )
+          && /^\(profileUrn:urn:li:fsd_profile:[A-Za-z0-9_-]{1,256}\)$/u.test(
+            url.searchParams.get("variables") ?? "",
+          )
+        ) return;
       }
     }
     throw new Error("LinkedIn contact-info request escaped its exact reviewed route");

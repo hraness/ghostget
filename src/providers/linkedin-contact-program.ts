@@ -10,7 +10,9 @@ import {
 } from "./linkedin-contact-failure";
 import {
   projectLinkedInContactInfo,
+  projectLinkedInEmbeddedContactFields,
   projectLinkedInProfileContactBinding,
+  resolveLinkedInProfileContactInfoQueryId,
   type LinkedInContactInfoTarget,
 } from "./linkedin-web-contact";
 
@@ -28,13 +30,33 @@ export function linkedInContactReadProgram(
         yield* platform.bindIdentity(identity);
         stage = "profile";
         const profileHtml = yield* platform.profileHtml(browser, target.url);
-        yield* readAttempt(() => projectLinkedInProfileContactBinding({
+        const binding = yield* readAttempt(() => projectLinkedInProfileContactBinding({
           profileHtml,
           profileUrl: target.url,
           expectedViewerSubject: identity.subject,
         }));
-        stage = "contact";
-        const contactPayload = yield* platform.contactPayload(browser, target.url);
+        const embedded = yield* readAttempt(() =>
+          projectLinkedInEmbeddedContactFields(profileHtml, binding.vanity)
+        );
+        let contactPayload: unknown;
+        if (embedded !== undefined && embedded.email !== null) {
+          contactPayload = Object.freeze({
+            emailAddress: embedded.email,
+            connectedAt: embedded.connectedSince,
+            phoneNumbers: embedded.phones,
+            websites: embedded.websites,
+            birthDateOn: embedded.birthday,
+            profileUrl: embedded.profileUrl,
+          });
+        } else {
+          stage = "contact";
+          const queryId = resolveLinkedInProfileContactInfoQueryId(profileHtml);
+          contactPayload = yield* platform.contactPayload(browser, {
+            profileUrl: target.url,
+            profileUrn: binding.profileUrn,
+            ...(queryId === undefined ? {} : { queryId }),
+          });
+        }
         stage = "projection";
         const observedAt = yield* platform.observedAt;
         const output = yield* readAttempt(() => projectLinkedInContactInfo({
