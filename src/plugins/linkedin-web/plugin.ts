@@ -189,7 +189,7 @@ function linkedinArticleDraftV2Dispatches(
 
 const currentOperations = webSessionContractOperations(
   Object.values(linkedinContracts),
-    "f27fb4c97d91208e42f3a22ef680c1c3ade194f95876ea939abcd0bf93c6edbe",
+    "69842239ec24a571440b41c47d3e4f8c8be21b170207fe7458a07090b35da2c7",
   {
     "posts.publish": [2],
   },
@@ -343,6 +343,10 @@ export const linkedinWebPlugin = defineProviderPlugin({
     ["providers/linkedin-web-article-browser.ts", "../../providers/linkedin-web-article-browser.ts"],
     ["providers/linkedin-web-post-browser.ts", "../../providers/linkedin-web-post-browser.ts"],
     ["providers/linkedin-web-profile-browser.ts", "../../providers/linkedin-web-profile-browser.ts"],
+    ["providers/linkedin-web-contact.ts", "../../providers/linkedin-web-contact.ts"],
+    ["providers/linkedin-contact-failure.ts", "../../providers/linkedin-contact-failure.ts"],
+    ["providers/linkedin-contact-platform.ts", "../../providers/linkedin-contact-platform.ts"],
+    ["providers/linkedin-contact-program.ts", "../../providers/linkedin-contact-program.ts"],
     ["providers/linkedin-web-feed.ts", "../../providers/linkedin-web-feed.ts"],
     ["providers/linkedin-web-feed-browser.ts", "../../providers/linkedin-web-feed-browser.ts"],
     ["providers/linkedin-web-runtime.ts", "../../providers/linkedin-web-runtime.ts"],

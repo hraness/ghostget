@@ -24,6 +24,7 @@ export const LINKEDIN_GRAPHQL_PATH = "/voyager/api/graphql";
 export const LINKEDIN_WEB_OPERATION_NAMES = Object.freeze([
   "feeds.read",
   "contacts.list",
+  "contacts.read",
   "profiles.read",
   "organizations.read",
   "relationships.recommendations.read",
@@ -95,6 +96,21 @@ export const LINKEDIN_WEB_OPERATIONS = {
     state: "capture-required",
     evidence: "none",
     requests: [],
+  },
+  "contacts.read": {
+    effect: "read",
+    risk: "R1",
+    state: "observed",
+    evidence: "live-response",
+    requests: [{
+      kind: "server-rendered-read",
+      method: "GET",
+      path: "/in/:publicIdentifier/ and /voyager/api/identity/profiles/:publicIdentifier/profileContactInfo",
+      queryPrefix: null,
+      allowedQueryParameters: [],
+      requiredQueryParameters: [],
+      fixedQueryParameters: [],
+    }],
   },
   "feeds.read": {
     effect: "read",
@@ -3179,6 +3195,36 @@ export function assertLinkedInWebR1RequestAllowed(
       method: boundedText(requestValue.method, "LinkedIn messaging-list request method", 16),
     }, requestValue.mailboxUrn);
     return;
+  }
+  if (operationValue === "contacts.read") {
+    if (!isRecord(requestValue)) throw new Error("LinkedIn contact-info request must be an object");
+    const method = boundedText(requestValue.method, "LinkedIn contact-info request method", 16)
+      .toUpperCase();
+    if (method !== "GET") throw new Error("LinkedIn contact-info reads require GET");
+    const rawUrl = requestValue.url;
+    if (!(rawUrl instanceof URL) && typeof rawUrl !== "string") {
+      throw new Error("LinkedIn contact-info request URL is invalid");
+    }
+    const url = rawUrl instanceof URL ? new URL(rawUrl.href) : new URL(rawUrl);
+    if (
+      url.origin === "https://www.linkedin.com"
+      && url.username === ""
+      && url.password === ""
+      && url.search === ""
+      && url.hash === ""
+    ) {
+      if (/^\/in\/[A-Za-z0-9][A-Za-z0-9_-]{1,99}\/$/u.test(url.pathname)) {
+        linkedInPersonalProfileTarget(url.href);
+        return;
+      }
+      const match = /^\/voyager\/api\/identity\/profiles\/([A-Za-z0-9][A-Za-z0-9_-]{1,99})\/profileContactInfo$/u
+        .exec(url.pathname);
+      if (match?.[1] !== undefined) {
+        linkedInPersonalProfilePublicIdentifier(match[1]);
+        return;
+      }
+    }
+    throw new Error("LinkedIn contact-info request escaped its exact reviewed route");
   }
   if (operationValue === "profiles.read" || operationValue === "organizations.read") {
     if (!isRecord(requestValue)) throw new Error("LinkedIn profile read request must be an object");

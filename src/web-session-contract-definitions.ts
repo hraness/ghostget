@@ -375,6 +375,7 @@ const BLUESKY_WEB_OPERATIONS = operationPolicies("bluesky", [
 });
 const LINKEDIN_WEB_OPERATIONS = operationPolicies("linkedin", [
   "articles.draft.save",
+  "contacts.read",
   "feeds.read",
   "organizations.read",
   "posts.publish",
@@ -571,6 +572,14 @@ const bluesky = {
 
 const linkedin = {
   "contacts.list": contract("linkedin", "contacts.list", "R1", "capture-required", "consumer-web contact statistics require a fresh viewer-bound messaging-participant collection with real conversation and message pagination, group attribution, completeness, and acknowledgement-free behavior"),
+  "contacts.read": contract(
+    "linkedin",
+    "contacts.read",
+    LINKEDIN_WEB_OPERATIONS["contacts.read"].risk,
+    LINKEDIN_WEB_OPERATIONS["contacts.read"].state,
+    "reviewed contained-Chrome 1st-degree Contact-info read: bind the signed-in viewer, require DISTANCE_1 on the requested vanity, then GET the exact profileContactInfo route and project email plus any shown profile link, connected-since date, phones, websites, or birthday",
+    LINKEDIN_WEB_OPERATIONS["contacts.read"].contractVersion,
+  ),
   "feeds.read": contract(
     "linkedin",
     "feeds.read",
