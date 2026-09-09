@@ -1536,6 +1536,42 @@ describe("npm publication contract", () => {
     expect(incidentSection).not.toContain("WhatsApp Message Like Me");
   });
 
+  test("non-main dispatch cannot admit either source-checkout job", async () => {
+    const workflow = await readFile(stageWorkflowUrl, "utf8");
+    const jobs = ["classify", "verify"].map((name) => {
+      const start = workflow.indexOf(`\n  ${name}:\n`);
+      expect(start).toBeGreaterThan(-1);
+      const end = workflow.indexOf(name === "classify" ? "\n  verify:\n" : "\n  stage:\n", start + 1);
+      expect(end).toBeGreaterThan(start);
+      const job = workflow.slice(start, end);
+      const guards = [...job.matchAll(/^    if: (.+)$/gmu)].map((match) => match[1]);
+      expect(guards).toHaveLength(1);
+      const guard = guards[0];
+      expect(guard).toBe(name === "classify" ? "github.ref == 'refs/heads/main'"
+        : "github.ref == 'refs/heads/main' && needs.classify.outputs.should_prepare == 'true'");
+      expect(job.indexOf("\n    if:")).toBeLessThan(job.indexOf("\n    steps:"));
+      if (guard === undefined) throw new Error("missing source-checkout guard");
+      return guard.split(" && ").map((term) => {
+        const comparison = /^(github\.ref|needs\.classify\.outputs\.should_prepare) == '([^']+)'$/u.exec(term);
+        const key = comparison?.[1];
+        const value = comparison?.[2];
+        if (key === undefined || value === undefined) throw new Error("unexpected source-checkout guard grammar");
+        return { key, value };
+      });
+    });
+    for (const ref of ["refs/heads/main", "refs/heads/candidate", "refs/heads/main-candidate",
+      "refs/tags/main", "refs/pull/197/merge", "", "refs/heads/main "]) {
+      for (const shouldPrepare of ["true", "false", ""]) {
+        const values: Record<string, string> = { "github.ref": ref,
+          "needs.classify.outputs.should_prepare": shouldPrepare };
+        const admitted = jobs.map((guard) => guard.every(({ key, value }) =>
+          values[key]?.toLowerCase() === value.toLowerCase()));
+        expect(admitted).toEqual([ref === "refs/heads/main",
+          ref === "refs/heads/main" && shouldPrepare === "true"]);
+      }
+    }
+  });
+
   test("separates read-only classification and verification from checkout-free terminal staging", async () => {
     const workflow = await readFile(stageWorkflowUrl, "utf8");
     const classifyStart = workflow.indexOf("\n  classify:\n");
@@ -1555,6 +1591,8 @@ describe("npm publication contract", () => {
     expect(workflow.match(/fetch-depth: 1/gu) ?? []).toHaveLength(2);
     expect(workflow.match(/fetch-tags: false/gu) ?? []).toHaveLength(2);
     expect(workflow.match(/persist-credentials: false/gu) ?? []).toHaveLength(2);
+    expect(workflow.match(/ref: \$\{\{ github\.sha \}\}/gu) ?? []).toHaveLength(2);
+    expect(workflow).not.toContain("ref: ${{ needs.classify.outputs.source_sha }}");
     expect(workflow).not.toContain("fetch-depth: 0");
     expect(workflow).not.toContain("/immutable-releases");
     expect(workflow).not.toContain("git fetch --force");
@@ -1571,6 +1609,7 @@ describe("npm publication contract", () => {
 
     for (const required of [
       "name: Classify candidate request",
+      "if: github.ref == 'refs/heads/main'",
       "permissions:\n      contents: read",
       "runs-on: ubuntu-latest",
       "timeout-minutes: 5",
@@ -1613,7 +1652,7 @@ describe("npm publication contract", () => {
     for (const required of [
       "name: Verify exact package",
       "needs: classify",
-      "if: needs.classify.outputs.should_prepare == 'true'",
+      "if: github.ref == 'refs/heads/main' && needs.classify.outputs.should_prepare == 'true'",
       "permissions:\n      contents: read",
       "runs-on: ubuntu-latest",
       "source_sha: ${{ steps.identity.outputs.source_sha }}",
@@ -1628,7 +1667,8 @@ describe("npm publication contract", () => {
       "EXPECTED_SOURCE_SHA: ${{ needs.classify.outputs.source_sha }}",
       "fetch-depth: 1",
       "fetch-tags: false",
-      "ref: ${{ needs.classify.outputs.source_sha }}",
+      "ref: ${{ github.sha }}",
+      'if [[ "$GITHUB_SHA" != "$EXPECTED_SOURCE_SHA" || \\\n                "$GITHUB_SHA" != "$source_sha" ]]; then',
       './scripts/release-ref-authority.ts stage-current "$EXPECTED_SOURCE_SHA"',
       "name: Verify unpublished package identity\n        env:\n          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}",
       'tag-absent "v$package_version" "$GITHUB_SHA"',
