@@ -1161,7 +1161,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_932_608);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_933_120);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1269,7 +1269,7 @@ describe("npm publication contract", () => {
     expect(MAX_PACKED_BYTES).toBe(2_259_302);
     expect(MAX_PACKED_ENTRIES).toBe(501);
     expect(MAX_PACKED_FILES).toBe(501);
-    expect(MAX_UNPACKED_BYTES).toBe(12_418_621);
+    expect(MAX_UNPACKED_BYTES).toBe(12_419_121);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
@@ -1278,7 +1278,7 @@ describe("npm publication contract", () => {
       entryCount: { min: 501, max: 501 },
       fileCount: { min: 501, max: 501 },
       packedBytes: { min: 1_600_000, max: 2_259_302 },
-      unpackedBytes: { min: 9_000_000, max: 12_418_621 },
+      unpackedBytes: { min: 9_000_000, max: 12_419_121 },
     });
   });
 
@@ -1342,11 +1342,12 @@ describe("npm publication contract", () => {
     }
   });
 
-  test("keeps separate truthful Wrench 0.16.3 through 0.16.15 changelog sections", async () => {
+  test("keeps separate truthful Wrench 0.16.3 through 0.16.16 changelog sections", async () => {
     const changelog = await readFile(changelogUrl, "utf8");
     const unreleasedHeader = "## Unreleased\n";
     const candidateHeader = "## 0.16.12 - 2026-09-08\n";
     const canonicalHeader = "## 0.16.13 - 2026-09-09\n";
+    const admissionHeader = "## 0.16.16 - 2026-09-09\n";
     const typingHeader = "## 0.16.15 - 2026-09-09\n";
     const packingHeader = "## 0.16.14 - 2026-09-09\n";
     const currentHeader = "## 0.16.11 - 2026-09-07\n";
@@ -1361,6 +1362,7 @@ describe("npm publication contract", () => {
     const unreleasedStart = changelog.indexOf(unreleasedHeader);
     const candidateStart = changelog.indexOf(candidateHeader);
     const canonicalStart = changelog.indexOf(canonicalHeader);
+    const admissionStart = changelog.indexOf(admissionHeader);
     const typingStart = changelog.indexOf(typingHeader);
     const packingStart = changelog.indexOf(packingHeader);
     const currentStart = changelog.indexOf(currentHeader);
@@ -1390,7 +1392,8 @@ describe("npm publication contract", () => {
     expect(currentStart).toBeGreaterThan(candidateStart);
     expect(currentStart).toBeGreaterThan(unreleasedStart);
     expect(canonicalStart).toBeGreaterThan(unreleasedStart);
-    expect(typingStart).toBeGreaterThan(unreleasedStart);
+    expect(admissionStart).toBeGreaterThan(unreleasedStart);
+    expect(typingStart).toBeGreaterThan(admissionStart);
     expect(packingStart).toBeGreaterThan(typingStart);
     expect(canonicalStart).toBeGreaterThan(packingStart);
     expect(currentStart).toBeGreaterThan(canonicalStart);
@@ -1402,7 +1405,7 @@ describe("npm publication contract", () => {
     expect(markerStart).toBeGreaterThan(consumedStart);
     expect(releaseStart).toBeGreaterThan(markerStart);
     expect(incidentStart).toBeGreaterThan(releaseStart);
-    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, typingStart).trim()).toBe("");
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, admissionStart).trim()).toBe("");
 
     const candidateReleaseEnd = changelog.indexOf("\n## ", candidateStart + candidateHeader.length);
     expect(candidateReleaseEnd).toBe(currentStart - 1);
