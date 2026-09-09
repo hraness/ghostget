@@ -3684,6 +3684,59 @@ describe("LinkedIn contacts.read runtime", () => {
     expect(result.error).toContain("no remote write occurred");
   });
 
+  test("binds RSC-array Como flight and fetches Contact-info by queryName when queryId is absent", async () => {
+    const browserCalls: string[] = [];
+    const queryIds: Array<string | undefined> = [];
+    const flight = `1:I["ProfileView"]\n2:${JSON.stringify({
+      publicIdentifier: "example",
+      vieweeMemberUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+      networkDistance: 1,
+    })}`;
+    const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify([flight])}</script></body></html>`;
+    expect(html).not.toContain("voyagerIdentityDashProfileContactInfo.");
+    const result = await executeLinkedInWebOperation(contactInfoRecipe(), {
+      profile_url: "https://www.linkedin.com/in/example/",
+    }, linkedinBrowserProfileAuth, {
+      dependencies: {
+        now: () => Date.parse("2026-09-08T18:00:00.000Z"),
+        createProfileBrowserTransport: () => Promise.resolve({
+          currentIdentityResponse: () => {
+            browserCalls.push("identity");
+            return Promise.resolve(currentIdentityResponse());
+          },
+          readProfileHtml: () => {
+            browserCalls.push("profile");
+            return Promise.resolve(html);
+          },
+          readConnectionsHtml: () => Promise.reject(new Error("flight crossed connections")),
+          readContactInfoJson: (input) => {
+            browserCalls.push("contact");
+            queryIds.push(input.queryId);
+            return Promise.resolve({
+              $type: "com.linkedin.voyager.identity.profile.ProfileContactInfo",
+              emailAddress: "connection@example.test",
+              connectedAt: Date.parse("2023-10-03T00:00:00.000Z"),
+            });
+          },
+          readOrganizationHtml: () => Promise.reject(new Error("flight crossed company")),
+          close: () => {
+            browserCalls.push("close");
+            return Promise.resolve();
+          },
+        }),
+      },
+    });
+    expect(result).toMatchObject({
+      status: "succeeded",
+      output: {
+        contact: { email: "connection@example.test" },
+        profile: { relationship: "first-degree", vanity: "example" },
+      },
+    });
+    expect(browserCalls).toEqual(["identity", "profile", "contact", "close"]);
+    expect(queryIds).toEqual([undefined]);
+  });
+
   test("binds Como networkDistance and skips GraphQL when the page already embeds Email", async () => {
     const browserCalls: string[] = [];
     const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify({

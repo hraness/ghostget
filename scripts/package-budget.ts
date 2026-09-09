@@ -1,3 +1,8 @@
+// Unreleased LinkedIn contacts.read Como RSC-array extraction, measured from
+// the 0.16.15 payload plus the reviewed packaged source and skill growth:
+// 12,418,556 + 3,772 = 12,422,328 payload bytes. Keep the same 501 files and
+// packed ceiling. Leave 256 unpacked bytes of headroom.
+//
 // Canonical GitHub 0.16.15, measured after the qualified consumer-type repair:
 // two identical Node 24.20.0 / npm 11.19.0 archives have 2,252,952 compressed
 // and 12,418,556 payload bytes across exactly 501 files, SHA-256
@@ -183,7 +188,7 @@
 export const MAX_PACKED_BYTES = 2_259_302;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_418_621;
+export const MAX_UNPACKED_BYTES = 12_422_584;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

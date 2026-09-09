@@ -7,6 +7,10 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Accept LinkedIn `contacts.read` Como rehydration as an RSC flight array as
+  well as a JSON object, and bind 1st-degree from vanity-joined
+  `networkDistance` when classic Profile embeds are absent.
+
 ## 0.16.15 - 2026-09-09
 
 - Pin consumer compiler and declaration versions to the qualified source tuple;

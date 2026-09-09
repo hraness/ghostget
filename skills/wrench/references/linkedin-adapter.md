@@ -230,10 +230,14 @@ operation fixed and target-bound.
 profile URL. It binds the signed-in viewer, then requires a 1st-degree
 relationship on that vanity from the profile page. Current LinkedIn pages are
 SDUI/RSC and often omit classic `bpr-guid-*` Profile embeds. The binder
-therefore walks both those Voyager code payloads and `window.__como_rehydration__`,
-and treats `memberDistance`, `networkDistance`, or `distance` of `DISTANCE_1`,
+therefore walks both those Voyager code payloads and `window.__como_rehydration__`.
+Current pages assign that global as either a JSON object (`= { … }`) or an RSC
+flight array (`= [ "1:I[…]\\n2:{…}" ]`). The binder accepts both, decodes
+flight rows that carry JSON objects or arrays, and treats
+`memberDistance`, `networkDistance`, or `distance` of `DISTANCE_1`,
 `1`, or `"1"` as first-degree when that value is joined to the requested vanity
-or its profile URN.
+or its profile URN (`entityUrn`, `objectUrn`, `profileUrn`, or `vieweeMemberUrn`).
+Empty, missing, or import-only bootstrap stays fail-closed.
 
 When the same page already embeds Contact-info fields, including a labeled
 Email row, the operation projects those fields and does not issue a second
@@ -259,6 +263,15 @@ Connected since. The same capture had Como rehydration with numeric
 `bpr-guid-*` Profile records. Voyager `profileContactInfo`, `networkinfo`, and
 `profileView` returned 410. That drift is why the binder and fetch path
 changed.
+
+A 2026-09-09 signed-in capture of the same 1st-degree path still omitted
+`bpr-guid-*` and `voyagerIdentityDashProfileContactInfo` query IDs. Como
+rehydration had moved from an object assignment to an RSC flight array, so
+object-only parsing treated the page as missing bootstrap. The live flight
+string still carried vanity-joined `networkDistance: 1` next to
+`vieweeMemberUrn` / PROFILE_VIEW breadcrumbs. Adapter 1.23.0 accepts that
+array form and still uses `queryName` when the page embeds no decorated
+queryId.
 
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid
