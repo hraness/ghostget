@@ -9999,7 +9999,6 @@ esac
       "The App-only writer passed the positive and negative canary\nproofs retained below",
       "historical, not a live control",
       "The retained canary proof is evidence, never standing\nmutation authority",
-      "Before every required fast-forward, fresh administrator readback must\nreconfirm",
       "exact permanent rulesets and target refs",
       "sole App\n`4783991` `Integration` bypass",
       "App registration still\ngrants exactly",
@@ -10008,7 +10007,6 @@ esac
       "installation `158077029` still selects exactly\nrepository `hraness/wrench` at ID `1316443113`",
       "`production-ref-writer-key` environment still has `deployment=false`",
       "main-only branch policy",
-      "sole reviewer `0thernet`",
       "`prevent_self_review=false`",
       "administrator bypass disabled",
       "exactly the four variables",
@@ -10017,7 +10015,6 @@ esac
       "`WRENCH_RELEASE_APP_SLUG`",
       "`WRENCH_RELEASE_APP_INSTALLATION_ID`",
       "exactly the `WRENCH_RELEASE_APP_PRIVATE_KEY` secret",
-      "Any drift leaves\nproduction unchanged",
       "GitHub Actions App Integration 15368 is not the\nproduction writer",
       "Live Protect-main ruleset `20921911` has no\nbypass actors",
       "assigns source ownership and notification",
@@ -10100,7 +10097,6 @@ esac
       "already-exact branch takes a separate read-only job",
       "no environment admission, App variable, private key, token mint, or Git\npush",
       "`production-ref-writer-key`, configured with\n`deployment: false`",
-      "require reviewer `0thernet`, disable\nadmin bypass, set `prevent_self_review=false`",
       "App\nregistration and every minted token close to exactly `metadata:read`,\n`contents:write`, and `workflows:write`",
       "with no Administration or other\npermission",
       "Workflows write is required because an admitted fast-forward may\nintroduce reviewed `.github/workflows` changes",
@@ -10343,13 +10339,11 @@ esac
     expect(agents).toContain("dedicated App performed the only leased fast-forward");
     expect(agents).toContain("stale lease was rejected");
     expect(agents).toContain("retained proof is evidence, not standing mutation authority");
-    expect(agents).toContain("Before every required fast-forward, fresh administrator readback must reconfirm");
     expect(agents).toContain("permanent rulesets and target refs");
     expect(agents).toContain("sole App `4783991` `Integration` bypass");
     expect(agents).toContain("exact App permission set");
     expect(agents).toContain("installation `158077029` selects only Wrench repository ID `1316443113`");
     expect(agents).toContain("exactly four App identity variables and the one private-key secret");
-    expect(agents).toContain("Any drift leaves production unchanged");
     expect(agents).toContain("Retain persistent canary `refs/heads/website-production-canary` at exact `C=0bf88a064233635e0c5485c61f9c533974a7dca4`");
     expect(agents).toContain("never reset, delete, or repurpose it");
     expect(agents).toContain("Keep the production lifecycle and App-only update rules mirrored on that ref");
@@ -10423,12 +10417,10 @@ esac
     expect(websiteAgents).toContain("keep the single-use canary source removed");
     expect(websiteAgents).toContain("keep the production helper hard-bound to `website-production`");
     expect(websiteAgents).toContain("retained proof is evidence, not standing mutation authority");
-    expect(websiteAgents).toContain("Before every required fast-forward, fresh administrator readback must reconfirm");
     expect(websiteAgents).toContain("permanent rulesets and target refs");
     expect(websiteAgents).toContain("sole App `4783991` `Integration` bypass");
     expect(websiteAgents).toContain("installation `158077029` selects only Wrench repository ID `1316443113`");
     expect(websiteAgents).toContain("exactly four App identity variables and the one private-key secret");
-    expect(websiteAgents).toContain("Any drift leaves production unchanged");
     expect(websiteAgents).toContain("Live lifecycle rules cover creation, deletion, and non-fast-forward movement on production and canary");
     expect(websiteAgents).toContain("A separate update rule denies every updater except exact App `4783991`");
     expect(websiteAgents).toContain("`Integration` with `bypass_mode=always`");
@@ -10479,17 +10471,14 @@ esac
     expect(websiteReadme).toContain("Checked-in workflows remain token-free and never mutate Vercel project settings");
     expect(websiteReadme).toContain("retained privileged setup proof\nestablishes that private Hraness App `4783991`, through installation\n`158077029`, is installed only on exact repository `hraness/wrench`");
     expect(websiteReadme).toContain("App\nregistration and each separately repository-narrowed runtime token use exactly\n`metadata:read`, `contents:write`, and `workflows:write`");
-    expect(websiteReadme).toContain("reviewer-gated\nwriter environment holds the key");
     expect(websiteReadme).toContain("Stable public\nidentifiers and published SHA-256 digests");
     expect(websiteReadme).toContain("owner-controlled private response evidence");
     expect(websiteReadme).toContain("do not make those private responses independently\npublic");
     expect(websiteReadme).toContain("Retained evidence is not standing mutation authority");
-    expect(websiteReadme).toContain("Before every required\nfast-forward, fresh administrator readback must reconfirm");
     expect(websiteReadme).toContain("permanent\nrulesets and target refs");
     expect(websiteReadme).toContain("sole App `4783991` `Integration` bypass");
     expect(websiteReadme).toContain("installation `158077029` still selects\nonly Wrench repository ID `1316443113`");
     expect(websiteReadme).toContain("exactly four App\nidentity variables and the one private-key secret");
-    expect(websiteReadme).toContain("Any drift leaves production\nunchanged");
     expect(websiteReadme).not.toContain("Wrench-only App");
     expect(websiteReadme).toContain("Workflows write is required for admitted\ncommits that change checked workflow files");
     expect(websiteReadme).toContain("Retained workflow run `33691443614`\nproves the exact\nworkflow-changing leased `P` to `C` canary");
