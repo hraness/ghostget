@@ -332,6 +332,13 @@ class AgentBrowserCleanupOwnerStillLiveError extends Error {
   }
 }
 
+class AgentBrowserPostCloseTransitionStillSettlingError extends Error {
+  constructor() {
+    super("browser cleanup post-close transition is still settling");
+    this.name = "AgentBrowserPostCloseTransitionStillSettlingError";
+  }
+}
+
 function recoveryHandleComponent(value: string): string {
   return Buffer.from(value, "utf8").toString("base64url");
 }
@@ -2385,6 +2392,7 @@ async function provePinnedAgentBrowserCleanupResourceQuiescentWithoutEffects(
       throw new Error("browser cleanup daemon state is indeterminate");
     }
     if (ownerStatus === "exact-live-owner") {
+      assertBrowserCleanupResourceRootsMatch(resource);
       if (transitionUnavailable !== null) throw transitionUnavailable;
       throw new AgentBrowserCleanupOwnerStillLiveError();
     }
@@ -2427,15 +2435,22 @@ async function provePinnedAgentBrowserCleanupResourceQuiescentWithoutEffects(
   return resource;
 }
 
+type PinnedAgentBrowserCleanupRecoveryMode =
+  | "may-close-browser"
+  | "close-already-attempted";
+
 /**
  * Prove one pinned daemon and browser endpoint quiescent within fixed bounds.
  * The only signal permitted for the exact pinned owner is SIGTERM. This
  * function never deletes roots; its caller must CAS the durable claim and
  * recheck the same identities immediately before deletion.
  */
-export async function recoverPinnedAgentBrowserCleanupResource(
+async function recoverPinnedAgentBrowserCleanupResourceCore(
   value: BrowserCleanupResourceIdentityV2,
-  dependencies: AgentBrowserLifecycleDependencies = {},
+  dependencies: AgentBrowserLifecycleDependencies,
+  mode: PinnedAgentBrowserCleanupRecoveryMode,
+  postCloseEffectDeadline: number | null = null,
+  admitPostCloseTermination: (() => void) | null = null,
 ): Promise<BrowserCleanupResourceIdentityV2> {
   const resource = parseBrowserCleanupResourceIdentity(value);
   if (
@@ -2445,6 +2460,7 @@ export async function recoverPinnedAgentBrowserCleanupResource(
     throw new Error("browser cleanup resource does not have an exact control witness");
   }
   const control = resource.control;
+  const postClose = mode === "close-already-attempted";
   const lifecycle = browserLifecycleCommandContext(resource, dependencies);
   const inspectOwner = dependencies.ownerStatus ?? processOwnerStatus;
   const sleep = dependencies.sleep ?? ((milliseconds: number) => Bun.sleep(milliseconds));
@@ -2462,7 +2478,16 @@ export async function recoverPinnedAgentBrowserCleanupResource(
     if (status === "unknown") {
       throw new Error("browser cleanup daemon state became indeterminate");
     }
-    if (status === "exact-live-owner") throw boundaryFailure;
+    if (status === "exact-live-owner") {
+      assertBrowserCleanupResourceRootsMatch(resource);
+      if (
+        postClose
+        && boundaryFailure instanceof AgentBrowserLifecycleCommandUnavailableError
+      ) {
+        throw new AgentBrowserPostCloseTransitionStillSettlingError();
+      }
+      throw boundaryFailure;
+    }
     return provePinnedAgentBrowserCleanupResourceQuiescentWithoutEffects(
       resource,
       dependencies,
@@ -2536,9 +2561,26 @@ export async function recoverPinnedAgentBrowserCleanupResource(
     }
     const initialSession = initialObservation.value;
     if (initialSession.state === "inactive") {
+      if (postClose) {
+        const transitionOwnerStatus = inspectOwner(control.daemonOwner);
+        if (transitionOwnerStatus === "unknown") {
+          throw new Error("browser cleanup daemon state became indeterminate");
+        }
+        if (transitionOwnerStatus === "exact-live-owner") {
+          assertBrowserCleanupResourceRootsMatch(resource);
+          throw new AgentBrowserPostCloseTransitionStillSettlingError();
+        }
+      }
       return proveNaturalExitAtBoundary(
         new Error("browser cleanup daemon and session identity disagree"),
       );
+    } else if (
+      initialSession.browserLaunched
+      && postClose
+    ) {
+      exactActiveAgentBrowserControl(initialSession, control);
+      assertBrowserCleanupResourceRootsMatch(resource);
+      throw new AgentBrowserPostCloseTransitionStillSettlingError();
     } else if (initialSession.browserLaunched) {
       exactActiveAgentBrowserControl(initialSession, control);
       const firstCdp = await observePinnedCdpAtBoundary();
@@ -2660,6 +2702,16 @@ export async function recoverPinnedAgentBrowserCleanupResource(
       }
       if (beforeTermination === "exact-live-owner") {
         assertBrowserCleanupResourceRootsMatch(resource);
+        if (
+          postClose
+          && postCloseEffectDeadline !== null
+          && now() >= postCloseEffectDeadline
+        ) {
+          throw new Error(
+            "browser cleanup post-close convergence deadline expired",
+          );
+        }
+        admitPostCloseTermination?.();
         try {
           terminateOwner(control.daemonOwner);
         } catch {
@@ -2667,16 +2719,24 @@ export async function recoverPinnedAgentBrowserCleanupResource(
             throw new Error("browser cleanup daemon did not accept graceful termination");
           }
         }
-        const ownerDeadline = now() + 5_000;
+        const ownerDeadline = postClose
+          && postCloseEffectDeadline !== null
+          ? Math.min(now() + 5_000, postCloseEffectDeadline)
+          : now() + 5_000;
+        let ownerSleeps = 0;
         for (;;) {
           const status = inspectOwner(control.daemonOwner);
           if (status === "unknown") {
             throw new Error("browser cleanup daemon state became indeterminate");
           }
           if (status === "different-or-dead") break;
-          if (now() >= ownerDeadline) {
+          if (
+            ownerSleeps >= (postClose ? 80 : 200)
+            || now() >= ownerDeadline
+          ) {
             throw new Error("browser cleanup daemon did not stop after SIGTERM");
           }
+          ownerSleeps += 1;
           await sleep(25);
         }
       } else {
@@ -2698,8 +2758,12 @@ export async function recoverPinnedAgentBrowserCleanupResource(
   if (inactive.state !== "inactive") {
     throw new Error("browser cleanup session remained active");
   }
-  const endpointDeadline = now() + 5_000;
+  const endpointDeadline = postClose
+    && postCloseEffectDeadline !== null
+    ? Math.min(now() + 5_000, postCloseEffectDeadline)
+    : now() + 5_000;
   let consecutiveRefusals = 0;
+  let endpointSleeps = 0;
   while (consecutiveRefusals < 3) {
     const status = await endpointStatus(control.cdpUrl);
     if (status === "indeterminate") {
@@ -2709,9 +2773,13 @@ export async function recoverPinnedAgentBrowserCleanupResource(
       ? consecutiveRefusals + 1
       : 0;
     if (consecutiveRefusals >= 3) break;
-    if (now() >= endpointDeadline) {
+    if (
+      endpointSleeps >= (postClose ? 80 : 200)
+      || now() >= endpointDeadline
+    ) {
       throw new Error("browser cleanup endpoint remained available");
     }
+    endpointSleeps += 1;
     await sleep(25);
   }
   if (inspectOwner(control.daemonOwner) !== "different-or-dead") {
@@ -2726,6 +2794,108 @@ export async function recoverPinnedAgentBrowserCleanupResource(
   }
   assertBrowserCleanupResourceRootsMatch(resource);
   return resource;
+}
+
+export async function recoverPinnedAgentBrowserCleanupResource(
+  value: BrowserCleanupResourceIdentityV2,
+  dependencies: AgentBrowserLifecycleDependencies = {},
+): Promise<BrowserCleanupResourceIdentityV2> {
+  return recoverPinnedAgentBrowserCleanupResourceCore(
+    value,
+    dependencies,
+    "may-close-browser",
+  );
+}
+
+/**
+ * Resume only the cleanup half of a browser close whose acknowledgement was
+ * lost. A still-launched browser is observed again within the existing
+ * teardown bound, but is never closed or signaled by this path. Only two exact
+ * browser-closed observations can reach the pinned-owner SIGTERM recovery.
+ */
+async function recoverPinnedAgentBrowserCleanupResourceAfterCloseAttempt(
+  value: BrowserCleanupResourceIdentityV2,
+  dependencies: AgentBrowserLifecycleDependencies = {},
+): Promise<BrowserCleanupResourceIdentityV2> {
+  const sleep = dependencies.sleep
+    ?? ((milliseconds: number) => Bun.sleep(milliseconds));
+  const suppliedNow = dependencies.now ?? (() => performance.now());
+  let lastNow = Number.NEGATIVE_INFINITY;
+  const now = (): number => {
+    const value = suppliedNow();
+    if (!Number.isFinite(value) || value < lastNow) {
+      throw new Error("browser cleanup monotonic clock is invalid");
+    }
+    lastNow = value;
+    return value;
+  };
+  const deadline = now() + BROWSER_RESOURCE_TEARDOWN_TIMEOUT_MS;
+  const retryIntervalMs = 25;
+  const maximumAttempts = Math.ceil(
+    BROWSER_RESOURCE_TEARDOWN_TIMEOUT_MS / retryIntervalMs,
+  ) + 1;
+  let attempts = 0;
+  let lastTransitionFailure: unknown = new Error(
+    "browser cleanup post-close convergence did not start",
+  );
+  let terminationAttempted = false;
+  const originalCommandTimeoutMs = dependencies.commandTimeoutMs;
+  const boundedDependencies: AgentBrowserLifecycleDependencies = {
+    ...dependencies,
+    now,
+    commandTimeoutMs: () => Math.max(
+      1,
+      Math.min(
+        originalCommandTimeoutMs?.() ?? 10_000,
+        Math.max(0, deadline - now()),
+      ),
+    ),
+  };
+  while (
+    attempts < maximumAttempts
+    && (attempts === 0 || now() < deadline)
+  ) {
+    attempts += 1;
+    try {
+      return await recoverPinnedAgentBrowserCleanupResourceCore(
+        value,
+        boundedDependencies,
+        "close-already-attempted",
+        deadline,
+        () => {
+          if (terminationAttempted) {
+            throw new Error(
+              "browser cleanup post-close termination was already attempted",
+            );
+          }
+          terminationAttempted = true;
+        },
+      );
+    } catch (error) {
+      if (terminationAttempted) throw error;
+      let retryable = error
+        instanceof AgentBrowserPostCloseTransitionStillSettlingError;
+      if (error instanceof AgentBrowserLifecycleCommandUnavailableError) {
+        const resource = parseBrowserCleanupResourceIdentity(value);
+        if (
+          resource.kind !== "agent-browser-session-v2"
+          || resource.phase !== "controlled"
+        ) throw error;
+        assertBrowserCleanupResourceRootsMatch(resource);
+        const inspectOwner = dependencies.ownerStatus ?? processOwnerStatus;
+        const ownerStatus = inspectOwner(resource.control.daemonOwner);
+        if (ownerStatus === "unknown") {
+          throw new Error("browser cleanup daemon state became indeterminate");
+        }
+        retryable = true;
+      }
+      if (!retryable) throw error;
+      lastTransitionFailure = error;
+      if (attempts >= maximumAttempts || now() >= deadline) throw error;
+      await sleep(retryIntervalMs);
+    }
+  }
+  throw lastTransitionFailure;
 }
 
 /**
@@ -3212,7 +3382,7 @@ export async function createBrowserSession(
     | "independently-proved-quiescent" = "open";
   let closeRecoveryDisposition:
     | "ineligible"
-    | "retry-strict-no-effect-proof" = "ineligible";
+    | "retry-after-close-attempt" = "ineligible";
   let cleanupConvergenceAttempted = false;
   const sessionIsClosed = (): boolean => closeDisposition !== "open";
   let closeOperation: Promise<void> | null = null;
@@ -3311,8 +3481,12 @@ export async function createBrowserSession(
           },
         );
       } catch (quiescenceFailure) {
-        if (quiescenceFailure instanceof AgentBrowserCleanupOwnerStillLiveError) {
-          closeRecoveryDisposition = "retry-strict-no-effect-proof";
+        if (
+          quiescenceFailure instanceof AgentBrowserCleanupOwnerStillLiveError
+          || quiescenceFailure
+            instanceof AgentBrowserLifecycleCommandUnavailableError
+        ) {
+          closeRecoveryDisposition = "retry-after-close-attempt";
         }
         throw new AggregateError(
           [closeFailure, quiescenceFailure],
@@ -3333,11 +3507,12 @@ export async function createBrowserSession(
         await closeOperation;
       } catch {
         // close() retains and reports its exact failure. cleanup() may only
-        // make the one no-effect convergence proof admitted below.
+        // wait for exact post-close convergence and may terminate only a
+        // twice-observed browser-closed pinned daemon.
       }
       if (
         !sessionIsClosed()
-        && closeRecoveryDisposition === "retry-strict-no-effect-proof"
+        && closeRecoveryDisposition === "retry-after-close-attempt"
         && !cleanupConvergenceAttempted
         && unsafeCommandCleanup === null
         && activeBatches.size === 0
@@ -3354,7 +3529,7 @@ export async function createBrowserSession(
           ));
         } else {
           try {
-            await provePinnedAgentBrowserCleanupResourceQuiescentWithoutEffects(
+            await recoverPinnedAgentBrowserCleanupResourceAfterCloseAttempt(
               resource,
               {
                 ...options.dependencies?.cleanupLifecycle,

@@ -46,7 +46,7 @@ const stableVersionPattern = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)
 const maximumSafeSemverComponent = BigInt(Number.MAX_SAFE_INTEGER);
 const sweetCookieVerificationUrl = "https://codeload.github.com/hraness/sweet-cookie/tar.gz/refs/tags/v0.4.2";
 const sweetCookieVerificationIntegrity = "sha512-HddZketABRWbHiLYqMbGlYuqEaWdtqAjES28eKHr2cPDdPvrXiF4JQxD4pl9WzSOre6p/B3zA4Z3uIsCHo/+uQ==";
-const verificationPackages = [`@steipete/sweet-cookie@${sweetCookieVerificationUrl}`,"@types/bun@^1.3.14","fast-check@^4.8.0"];
+const verificationPackages = [`@steipete/sweet-cookie@${sweetCookieVerificationUrl}`,"@types/bun@1.3.14","@types/node@26.1.2","fast-check@^4.8.0"];
 
 function isNpmStableVersion(value: string): boolean {
   const match = stableVersionPattern.exec(value);

@@ -1,3 +1,10 @@
+// Same-boot post-close convergence on canonical GitHub 0.16.14, measured from
+// exact main e8f972e after a clean Bun 1.3.14 build: 12,424,418 unpacked bytes
+// and 501 files. The two reviewed browser source/test changes add 6,112 bytes
+// to the 12,418,306-byte canonical archive without changing its inventory.
+// Preserve 26 bytes of unpacked allowance and the packed portability bound;
+// this source-only candidate does not claim a new release coordinate.
+//
 // Canonical GitHub 0.16.14, measured with Bun 1.3.14 build and two
 // byte-identical Homebrew Node 24.20.0 / npm 11.19.0 packs: 2,252,826
 // compressed / 12,418,306 payload bytes / 501 files, SHA-256
@@ -172,7 +179,7 @@
 export const MAX_PACKED_BYTES = 2_259_302;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_418_621;
+export const MAX_UNPACKED_BYTES = 12_424_444;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

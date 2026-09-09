@@ -905,7 +905,17 @@ describe("browser process isolation helpers", () => {
     }
   });
 
-  test("preserves completed operation output when close acknowledgement races a natural daemon exit", async () => {
+  test("preserves output only after lost close acknowledgement reaches exact quiescence", async () => {
+    for (const closeOutcome of [
+      "closed-daemon",
+      "delayed-closed-daemon",
+      "natural-exit",
+      "inactive-live",
+      "info-unavailable",
+      "deadline-before-term",
+      "post-signal-info-unavailable",
+      "still-launched",
+    ] as const) {
     type PublishedCleanupResource = Parameters<
       NonNullable<
         Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
@@ -913,13 +923,34 @@ describe("browser process isolation helpers", () => {
     >[0];
     let published: PublishedCleanupResource | null = null;
     let daemonLive = true;
-    let scheduleNaturalExit = false;
-    let ownerInspections = 0;
+    let browserClosed = false;
+    let clock = 0;
+    let recoverySleeps = 0;
     let closeCommands = 0;
+    let cleanupStarted = false;
+    let postCloseSessionReads = 0;
+    const postCloseSessionTimeouts: Array<{
+      readonly remaining: number;
+      readonly timeout: number;
+    }> = [];
     let terminationCount = 0;
+    let postCloseCdpInspections = 0;
     let endpointRefusals = 0;
     let quiescentCommits = 0;
     let rootCommits = 0;
+    let unavailableSessionReads = closeOutcome === "info-unavailable" ? 2 : 0;
+    let postSignalUnavailableReads = closeOutcome
+      === "post-signal-info-unavailable"
+      ? 1
+      : 0;
+    const convergenceSessionReadLimit = closeOutcome === "still-launched"
+      ? 81
+      : closeOutcome === "deadline-before-term"
+        ? 2
+        : closeOutcome === "closed-daemon"
+          || closeOutcome === "post-signal-info-unavailable"
+          ? 3
+          : 4;
     const launchHash = "41";
     const exactLaunchHashJson = (value: unknown): string =>
       JSON.stringify(value).replaceAll(
@@ -928,9 +959,9 @@ describe("browser process isolation helpers", () => {
       );
     const currentLifecycle = () => ({
       effectiveLaunch: {
-        browserLaunched: true,
+        browserLaunched: !browserClosed,
         engine: "chrome",
-        launchHash,
+        launchHash: browserClosed ? null : launchHash,
       },
       launched: false,
       relaunchedBrowser: false,
@@ -942,7 +973,10 @@ describe("browser process isolation helpers", () => {
     const sessionInfo = (): unknown => {
       const resource = published;
       if (resource === null) throw new Error("missing published cleanup resource");
-      if (!daemonLive) {
+      if (
+        !daemonLive
+        || (closeCommands > 0 && closeOutcome === "inactive-live")
+      ) {
         return {
           success: true,
           data: {
@@ -966,14 +1000,14 @@ describe("browser process isolation helpers", () => {
           pid: process.pid,
           runtime: {
             backgroundPid: process.pid,
-            browserLaunched: true,
+            browserLaunched: lifecycle.effectiveLaunch.browserLaunched,
             compatibilityStatus: "current",
             effectiveLaunch: lifecycle.effectiveLaunch,
             engine: "chrome",
-            launchHash,
+            launchHash: lifecycle.effectiveLaunch.launchHash,
             lifecycle,
             namespace: null,
-            pageCount: 1,
+            pageCount: browserClosed ? 0 : 1,
             restoreCheckFn: null,
             restoreCheckText: null,
             restoreCheckUrl: null,
@@ -1034,6 +1068,28 @@ describe("browser process isolation helpers", () => {
             });
           }
           if (command.includes("info")) {
+            if (cleanupStarted) {
+              const observedNow = closeOutcome === "still-launched" ? 0 : clock;
+              postCloseSessionReads += 1;
+              if (postCloseSessionReads <= convergenceSessionReadLimit) {
+                postCloseSessionTimeouts.push({
+                  remaining: Math.max(1, 2_000 - observedNow),
+                  timeout: options.timeoutMs,
+                });
+              }
+              if (
+                closeOutcome === "deadline-before-term"
+                && postCloseSessionReads === 2
+              ) clock = 2_000;
+            }
+            if (closeCommands > 0 && unavailableSessionReads > 0) {
+              unavailableSessionReads -= 1;
+              throw new Error("simulated transient session-info transport loss");
+            }
+            if (terminationCount > 0 && postSignalUnavailableReads > 0) {
+              postSignalUnavailableReads -= 1;
+              throw new Error("simulated post-signal session-info transport loss");
+            }
             return Promise.resolve({
               stdout: `${exactLaunchHashJson(sessionInfo())}\n`,
               stderr: "",
@@ -1041,6 +1097,7 @@ describe("browser process isolation helpers", () => {
             });
           }
           if (command.includes("cdp-url")) {
+            if (closeCommands > 0) postCloseCdpInspections += 1;
             return Promise.resolve({
               stdout: `${exactLaunchHashJson({
                 success: true,
@@ -1055,7 +1112,11 @@ describe("browser process isolation helpers", () => {
           }
           if (command.includes("close")) {
             closeCommands += 1;
-            scheduleNaturalExit = true;
+            if (
+              closeOutcome === "closed-daemon"
+              || closeOutcome === "deadline-before-term"
+              || closeOutcome === "post-signal-info-unavailable"
+            ) browserClosed = true;
             return Promise.resolve({
               stdout: "{\"success\":false}\n",
               stderr: "",
@@ -1065,26 +1126,52 @@ describe("browser process isolation helpers", () => {
           throw new Error("unexpected browser command");
         },
         cleanupLifecycle: {
-          ownerStatus: () => {
-            ownerInspections += 1;
-            if (scheduleNaturalExit && ownerInspections === 2) {
-              queueMicrotask(() => {
-                scheduleNaturalExit = false;
-                daemonLive = false;
-              });
-            }
-            return daemonLive
-              ? "exact-live-owner"
-              : "different-or-dead";
-          },
-          terminateOwner: () => {
+          ownerStatus: () => daemonLive
+            ? "exact-live-owner"
+            : "different-or-dead",
+          terminateOwner: (owner) => {
+            const current = published;
+            if (
+              current === null
+              || current.kind !== "agent-browser-session-v2"
+              || current.phase !== "controlled"
+            ) throw new Error("controlled cleanup resource was not published");
+            expect(owner).toEqual(current.control.daemonOwner);
+            expect(
+              closeOutcome === "closed-daemon"
+              || closeOutcome === "delayed-closed-daemon"
+              || closeOutcome === "info-unavailable"
+              || closeOutcome === "post-signal-info-unavailable",
+            ).toBeTrue();
+            expect(browserClosed).toBeTrue();
             terminationCount += 1;
+            daemonLive = false;
           },
           cdpEndpointStatus: () => {
             endpointRefusals += 1;
             return Promise.resolve("unavailable");
           },
-          sleep: () => Promise.resolve(),
+          sleep: (milliseconds) => {
+            clock += milliseconds;
+            recoverySleeps += 1;
+            if (
+              (
+                closeOutcome === "natural-exit"
+                || closeOutcome === "inactive-live"
+              )
+              && recoverySleeps === 1
+            ) daemonLive = false;
+            if (
+              closeOutcome === "info-unavailable"
+              && recoverySleeps === 1
+            ) browserClosed = true;
+            if (
+              closeOutcome === "delayed-closed-daemon"
+              && recoverySleeps === 1
+            ) browserClosed = true;
+            return Promise.resolve();
+          },
+          now: () => closeOutcome === "still-launched" ? 0 : clock,
         },
       },
     });
@@ -1099,21 +1186,103 @@ describe("browser process isolation helpers", () => {
       expect(await rejectionMessage(session.close())).toContain(
         "neither acknowledged nor independently proved quiescent",
       );
-      await session.cleanup();
+      cleanupStarted = true;
+      const cleanupShouldFail = closeOutcome === "still-launched"
+        || closeOutcome === "deadline-before-term"
+        || closeOutcome === "post-signal-info-unavailable";
+      if (!cleanupShouldFail) {
+        await session.cleanup();
+      } else {
+        expect(await rejectionMessage(session.cleanup())).toContain(
+          "did not remove every private resource",
+        );
+      }
       expect(completed).toEqual([{
         success: true,
         data: { exact: "completed-output" },
       }]);
       expect(closeCommands).toBe(1);
-      expect(terminationCount).toBe(0);
-      expect(endpointRefusals).toBe(12);
-      expect(quiescentCommits).toBe(1);
-      expect(rootCommits).toBe(2);
-      expect(existsSync(resource.artifactsDirectory)).toBeFalse();
-      expect(existsSync(resource.socketDirectory)).toBeFalse();
+      expect(postCloseCdpInspections).toBe(0);
+      expect(terminationCount).toBe(
+        closeOutcome === "closed-daemon"
+          || closeOutcome === "delayed-closed-daemon"
+          || closeOutcome === "info-unavailable"
+          || closeOutcome === "post-signal-info-unavailable"
+          ? 1
+          : 0,
+      );
+      expect(endpointRefusals).toBe(
+        cleanupShouldFail ? 0 : 12,
+      );
+      expect(quiescentCommits).toBe(
+        cleanupShouldFail ? 0 : 1,
+      );
+      expect(rootCommits).toBe(
+        cleanupShouldFail ? 0 : 2,
+      );
+      expect(existsSync(resource.artifactsDirectory)).toBe(
+        cleanupShouldFail,
+      );
+      expect(existsSync(resource.socketDirectory)).toBe(
+        cleanupShouldFail,
+      );
+      expect(postCloseSessionTimeouts).toHaveLength(
+        convergenceSessionReadLimit,
+      );
+      for (const observation of postCloseSessionTimeouts) {
+        expect(observation.timeout).toBeGreaterThanOrEqual(1);
+        expect(observation.timeout).toBeLessThanOrEqual(
+          observation.remaining,
+        );
+      }
+      expect(unavailableSessionReads).toBe(0);
+      expect(postSignalUnavailableReads).toBe(0);
+      if (closeOutcome === "delayed-closed-daemon") {
+        expect(postCloseSessionTimeouts[0]?.timeout).toBe(2_000);
+        expect(postCloseSessionTimeouts[1]?.timeout).toBe(1_975);
+      }
+      if (cleanupShouldFail) {
+        expect(recoverySleeps).toBe(
+          closeOutcome === "still-launched" ? 80 : 0,
+        );
+        const sleepsAfterFirstCleanup = recoverySleeps;
+        const readsAfterFirstCleanup = postCloseSessionReads;
+        const closeCommandsAfterFirstCleanup = closeCommands;
+        const terminationsAfterFirstCleanup = terminationCount;
+        const cdpInspectionsAfterFirstCleanup = postCloseCdpInspections;
+        const endpointRefusalsAfterFirstCleanup = endpointRefusals;
+        const quiescentCommitsAfterFirstCleanup = quiescentCommits;
+        const rootCommitsAfterFirstCleanup = rootCommits;
+        const artifactsExistAfterFirstCleanup = existsSync(
+          resource.artifactsDirectory,
+        );
+        const socketExistsAfterFirstCleanup = existsSync(
+          resource.socketDirectory,
+        );
+        expect(await rejectionMessage(session.cleanup())).toContain(
+          "did not remove every private resource",
+        );
+        expect(recoverySleeps).toBe(sleepsAfterFirstCleanup);
+        expect(postCloseSessionReads).toBe(readsAfterFirstCleanup);
+        expect(closeCommands).toBe(closeCommandsAfterFirstCleanup);
+        expect(terminationCount).toBe(terminationsAfterFirstCleanup);
+        expect(postCloseCdpInspections).toBe(
+          cdpInspectionsAfterFirstCleanup,
+        );
+        expect(endpointRefusals).toBe(endpointRefusalsAfterFirstCleanup);
+        expect(quiescentCommits).toBe(quiescentCommitsAfterFirstCleanup);
+        expect(rootCommits).toBe(rootCommitsAfterFirstCleanup);
+        expect(existsSync(resource.artifactsDirectory)).toBe(
+          artifactsExistAfterFirstCleanup,
+        );
+        expect(existsSync(resource.socketDirectory)).toBe(
+          socketExistsAfterFirstCleanup,
+        );
+      }
     } finally {
       rmSync(resource.artifactsDirectory, { recursive: true, force: true });
       rmSync(resource.socketDirectory, { recursive: true, force: true });
+    }
     }
   });
 
@@ -2084,8 +2253,8 @@ describe("browser process isolation helpers", () => {
   test("requires the exact owner to die after SIGTERM", async () => {
     const fixture = createPinnedBrowserRecoveryFixture();
     let state: RecoveryFixtureState = "launched";
-    let clock = 0;
     let terminationCount = 0;
+    let sleepCount = 0;
     try {
       const message = await rejectionMessage(
         recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
@@ -2108,15 +2277,68 @@ describe("browser process isolation helpers", () => {
           terminateOwner: () => {
             terminationCount += 1;
           },
-          sleep: () => Promise.resolve(),
-          now: () => {
-            const current = clock;
-            clock += 5_001;
-            return current;
+          sleep: () => {
+            sleepCount += 1;
+            return Promise.resolve();
           },
+          now: () => 0,
         }),
       );
       expect(message).toContain("did not stop after SIGTERM");
+      expect(terminationCount).toBe(1);
+      expect(sleepCount).toBe(200);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("bounds endpoint refusal polling with a frozen test clock", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    let state: RecoveryFixtureState = "launched";
+    let ownerLive = true;
+    let endpointReads = 0;
+    let sleepCount = 0;
+    let terminationCount = 0;
+    try {
+      const message = await rejectionMessage(
+        recoverPinnedAgentBrowserCleanupResource(fixture.resource, {
+          runCommand: (command) => {
+            if (command.includes("info")) {
+              return Promise.resolve(fixture.commandResult(
+                fixture.sessionInfo(state),
+              ));
+            }
+            if (command.includes("cdp-url")) {
+              return Promise.resolve(fixture.commandResult(fixture.cdpInfo()));
+            }
+            if (command.includes("close")) {
+              state = "closed";
+              return Promise.resolve(fixture.commandResult({ success: true }));
+            }
+            throw new Error("unexpected recovery command");
+          },
+          ownerStatus: () => ownerLive
+            ? "exact-live-owner"
+            : "different-or-dead",
+          terminateOwner: () => {
+            terminationCount += 1;
+            ownerLive = false;
+            state = "inactive";
+          },
+          cdpEndpointStatus: () => {
+            endpointReads += 1;
+            return Promise.resolve("available");
+          },
+          sleep: () => {
+            sleepCount += 1;
+            return Promise.resolve();
+          },
+          now: () => 0,
+        }),
+      );
+      expect(message).toContain("endpoint remained available");
+      expect(endpointReads).toBe(201);
+      expect(sleepCount).toBe(200);
       expect(terminationCount).toBe(1);
     } finally {
       fixture.cleanup();
