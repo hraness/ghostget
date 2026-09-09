@@ -152,12 +152,40 @@ task name so it does not fall back to the stable `wrench` executable.
 
 ## Verify and retire a task
 
-Run the complete gate inside the task worktree before handing off a change:
+Before source delivery, run relevant focused local checks inside the task
+worktree and obtain independent impact and diff review. Complete `Required`
+PR CI is the normal final source integration gate for executable and
+documentation changes. It runs the complete Linux aggregate plus a selected
+macOS suite; preserve its executable phase-composition and disjoint source
+coverage contracts:
 
 ```sh
 cd /absolute/path/wrench-worktrees/codex-20260814-example
-bun run check
+bun test scripts/ci-pr-gate.test.ts
 ```
+
+Record the repository, reviewed workflow, successful run and attempt, complete
+required job union, actual checked commit and tree, PR head, and current base.
+Revalidate immediately before conditional merge; head or base movement requires
+matching current-candidate CI. An older candidate's receipt never qualifies the
+new integration.
+
+The selected macOS inventory in `scripts/ci-macos-check.ts` does not cover every
+native behavior or establish complete macOS package or installation equivalence.
+For impacted native behavior outside that suite, run relevant focused macOS
+checks or add and pass an independently reviewed CI extension. Keep every
+explicit local, native, coupled-sequence, live, installation, package-release,
+provider-control, and production acceptance requirement, including opt-in
+qualifications when required. Hosted runners do not qualify the user's
+Keychain, signed-in browser, profiles, devices, installation, or production state.
+
+Keep `bun run check` available as the complete local aggregate and use it when
+coverage or equivalence is uncertain, a coupled sequence must run together, or a
+known failure needs the complete local reproduction. Diagnose observed failures
+and retain their relevant reproduction
+and repair checks. Independently review workflow, discovery, command, deadline,
+and platform changes against the prior required coverage; edited coverage
+assertions alone cannot certify a weakened workflow.
 
 Before cleanup, make sure no chat or shell is using the worktree and commit or
 otherwise preserve wanted changes. Then remove the exact worktree through Git,
