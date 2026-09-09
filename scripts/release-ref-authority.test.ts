@@ -311,6 +311,32 @@ describe("bounded Wrench remote ref inventories", () => {
 });
 
 describe("Wrench release and promotion ref authority", () => {
+  test.each([undefined, "", "preview", "Main", "main ", "main"])(
+    "requires exact workflow branch context before ref inspection (%s)",
+    (defaultBranch) => {
+      const result = spawnSync("node", [
+        "--experimental-strip-types", join(import.meta.dir, "release-ref-authority.ts"),
+        "context-probe", "v1.0.0",
+      ], {
+        encoding: "utf8",
+        env: {
+          PATH: process.env.PATH ?? "",
+          GITHUB_REPOSITORY: "hraness/wrench",
+          ...(defaultBranch === undefined ? {} : { DEFAULT_BRANCH: defaultBranch }),
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+        maxBuffer: 64 * 1_024,
+        timeout: 10_000,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain(defaultBranch === "main"
+        ? "Unsupported release-ref authority mode."
+        : "Release-ref authority must run for hraness/wrench on exact default branch main.");
+    },
+  );
+
   test("accepts one lightweight release tag below protected current main", () => {
     const input = fixture();
     checkoutRelease(input);

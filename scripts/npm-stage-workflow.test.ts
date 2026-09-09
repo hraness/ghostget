@@ -1609,6 +1609,23 @@ describe("npm publication contract", () => {
     expect(stage.slice(equality, mutation)).not.toMatch(/^\s*(?:gh|git|npm)\b/gmu);
   });
 
+  test("passes default-branch context to every mirror ref-authority invocation", async () => {
+    const workflow = Bun.YAML.parse(await readFile(stageWorkflowUrl, "utf8")) as {
+      jobs: Record<string, { steps: { name?: string; run?: string; env?: Record<string, string> }[] }>;
+    };
+    const authoritySteps = Object.values(workflow.jobs).flatMap((job) =>
+      job.steps.filter((step) => step.run?.includes("./scripts/release-ref-authority.ts")));
+    expect(authoritySteps.map((step) => step.name)).toEqual([
+      "Classify event-source package",
+      "Verify admitted source and protected-main ancestry",
+      "Pack and smoke one exact npm artifact",
+    ]);
+    for (const step of authoritySteps) {
+      expect(step.env?.DEFAULT_BRANCH, step.name)
+        .toBe("${{ github.event.repository.default_branch }}");
+    }
+  });
+
   test("classifies only exact protected-main canonical mirror dispatches", async () => {
     const workflow = await readFile(stageWorkflowUrl, "utf8");
     const script = workflowStepScript(workflow, "Classify event-source package");
