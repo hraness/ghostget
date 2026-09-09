@@ -22,7 +22,9 @@ import {
   agentBrowserCommand,
   isolatedEnvironment,
   parseLastJsonWithExactLaunchHashes,
+  runCommand,
 } from "./browser";
+import { collectFixtureDaemon, DerivationBrowserFixture, fixtureSessionPid } from "./derive-browser-fixture.test-support";
 
 import {
   acquireDerivationLifecycleGate,
@@ -87,6 +89,7 @@ import { sha256 } from "./model";
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
 import { providerPluginRegistry } from "./provider-plugins";
 import { captureProcessOwnerIdentity, processOwnerStatus } from "./process-identity";
+import { fc, propertyParameters } from "./test-support";
 import {
   createPrivateJsonIfAbsent,
   listPrivateStateDirectory,
@@ -911,6 +914,93 @@ async function leaveCrashedLifecycleGate(id: string, wrenchState: string): Promi
   return join(wrenchState, "derivations", `.lifecycle-${id}`);
 }
 
+describe("derivation browser fixture cleanup", () => {
+  const owner = { pid: 42, bootId: "fixture-boot", processStartId: "fixture-start" } as const;
+  const inactive = {
+    success: true,
+    data: { active: false, namespace: null, pid: null, runtime: null, runtimeError: null,
+      session: "fixture-session", socketDir: "fixture-socket", version: null },
+  };
+
+  test("requires positive exact inactive-session evidence", () => {
+    expect(fixtureSessionPid(inactive, "fixture-session", "fixture-socket")).toBeNull();
+    for (const data of [
+      { ...inactive.data, namespace: "default" }, { ...inactive.data, session: "other" },
+      { ...inactive.data, socketDir: "other" }, { ...inactive.data, pid: 42 },
+      { ...inactive.data, runtimeError: "unavailable" }, { ...inactive.data, active: true },
+      { ...inactive.data, runtime: {} }, { ...inactive.data, version: "0.32.3" },
+      { ...inactive.data, extra: null },
+    ]) expect(() => fixtureSessionPid({ ...inactive, data }, "fixture-session", "fixture-socket")).toThrow();
+    fc.assert(fc.property(fc.jsonValue(), (value) => {
+      if (value !== "fixture-session") {
+        expect(() => fixtureSessionPid({ ...inactive, data: { ...inactive.data, session: value } },
+          "fixture-session", "fixture-socket")).toThrow();
+      }
+    }), propertyParameters);
+  });
+
+  test("bounds cleanup fault schedules and never signals an unproven owner", async () => {
+    for (const fault of ["none", "already-closed", "dead-owner", "unknown-owner", "wrong-pid",
+      "routing-before-close", "routing-after-close", "unknown-after-close", "close-error", "sticky"] as const) {
+      let live = true;
+      let closed = false;
+      let reads = 0;
+      let now = 0;
+      const events: string[] = [];
+      const closeError = new Error("original close failure");
+      const result = collectFixtureDaemon(owner, {
+        inspect: async () => {
+          reads += 1;
+          if (fault === "wrong-pid" || (fault === "routing-before-close" && reads === 2)
+            || (fault === "routing-after-close" && closed)) return 99;
+          return live ? owner.pid : null;
+        },
+        capture: () => { throw new Error("must not replace a recorded owner"); },
+        bound: () => {},
+        status: () => fault === "unknown-owner" || (fault === "unknown-after-close" && closed)
+          ? "unknown" : fault === "dead-owner" || !live ? "different-or-dead" : "exact-live-owner",
+        close: async () => {
+          events.push("close");
+          closed = true;
+          if (fault === "already-closed") live = false;
+          if (fault === "close-error") throw closeError;
+          return 0;
+        },
+        terminate: (actual) => {
+          expect(actual).toBe(owner);
+          events.push("SIGTERM");
+          if (fault !== "sticky") live = false;
+        },
+        now: () => now,
+        sleep: async () => { now += 25; },
+      });
+      if (fault === "none" || fault === "already-closed") {
+        expect(await result).toBe(owner);
+        expect(events).toEqual(fault === "none" ? ["close", "SIGTERM"] : ["close"]);
+      } else {
+        let failure: unknown;
+        try { await result; } catch (error) { failure = error; }
+        expect(failure).toBeInstanceOf(Error);
+        if (fault === "close-error") expect((failure as AggregateError).errors).toContain(closeError);
+        if (["dead-owner", "unknown-owner", "wrong-pid", "routing-before-close"].includes(fault)) {
+          expect(events).toEqual([]);
+        }
+        if (["routing-after-close", "unknown-after-close"].includes(fault)) expect(events).toEqual(["close"]);
+        if (fault === "sticky") expect(now).toBe(5_000);
+      }
+    }
+  });
+
+  test("does not equate inactive routing with collection of a live native owner", async () => {
+    await expect(collectFixtureDaemon(owner, {
+      inspect: async () => null, capture: () => owner, bound: () => {}, status: () => "exact-live-owner",
+      close: async () => { throw new Error("must not close inactive routing"); },
+      terminate: () => { throw new Error("must not signal inactive routing"); },
+      now: () => 0, sleep: async () => {},
+    })).rejects.toThrow("uncollected owner");
+  });
+});
+
 describe("derivation session path defenses", () => {
   test("strictly binds the code-owned guard browser CDP and current URL", () => {
     // Pinned agent-browser emits its Option<u64> launch hash as an unquoted JSON
@@ -1680,7 +1770,7 @@ describe("derivation session path defenses", () => {
     }
   });
 
-  test("an exact dead CDP pin cannot dispatch against a replacement browser", () => {
+  test("an exact dead CDP pin cannot dispatch against a replacement browser", async () => {
     if (process.platform === "win32") return;
     const directory = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-pin-replacement-test-")));
     const socketDirectory = realpathSync(mkdtempSync(join(tmpdir(), "wdp-")));
@@ -1709,9 +1799,9 @@ describe("derivation session path defenses", () => {
     const ownerSession = "io-derive-0123456789ab";
     const replacementSession = "io-replace-0123456789";
     const pinSession = "io-derive-pin-0123456789ab";
+    const fixture = new DerivationBrowserFixture(directory, socketDirectory, [pinSession, ownerSession, replacementSession]);
     const browserEnvironment = isolatedEnvironment(socketDirectory);
-    const browserWithSession = (session: string, policy: string, ...arguments_: readonly string[]) => Bun.spawnSync({
-      cmd: [
+    const browserWithSession = (session: string, policy: string, ...arguments_: readonly string[]) => runCommand([
         ...agentBrowserCommand(),
         "--config",
         "agent-browser.json",
@@ -1720,17 +1810,16 @@ describe("derivation session path defenses", () => {
         "--session",
         session,
         ...arguments_,
-      ],
+      ], {
       cwd: directory,
-      env: browserEnvironment,
-      stdout: "pipe",
-      stderr: "pipe",
+      environment: browserEnvironment,
+      timeoutMs: 10_000,
+      maxOutputBytes: 1024 * 1024,
     });
     const browser = (...arguments_: readonly string[]) => browserWithSession(ownerSession, "action-policy.json", ...arguments_);
     const guardBrowser = (...arguments_: readonly string[]) => browserWithSession(ownerSession, "action-policy.json", ...arguments_);
     const replacementBrowser = (policy: string, ...arguments_: readonly string[]) => browserWithSession(replacementSession, policy, ...arguments_);
-    const helperRequest = (request: unknown) => Bun.spawnSync({
-      cmd: [
+    const helperRequest = (request: unknown) => runCommand([
         process.execPath,
         "--no-env-file",
         "--no-install",
@@ -1738,12 +1827,12 @@ describe("derivation session path defenses", () => {
         "--no-addons",
         `--config=${bunConfig}`,
         helper,
-      ],
+      ], {
       cwd: directory,
-      env: { NODE_ENV: "production" },
-      stdin: new Blob([JSON.stringify(request)]),
-      stdout: "pipe",
-      stderr: "pipe",
+      environment: { NODE_ENV: "production" },
+      stdin: JSON.stringify(request),
+      timeoutMs: 12_000,
+      maxOutputBytes: 1024 * 1024,
     });
     const baseRequest = {
       schemaVersion: 1,
@@ -1765,14 +1854,14 @@ describe("derivation session path defenses", () => {
       maxOutputBytes: 1024 * 1024,
       arguments: ["batch", "--bail", "--json"],
     } as const;
-    let oldCdpUrl: string | null = null;
-    try {
-      const cdpResult = guardBrowser("--json", "get", "cdp-url");
+    await fixture.run(async () => {
+      const cdpResult = await guardBrowser("--json", "get", "cdp-url");
       expect(cdpResult.exitCode).toBe(0);
       const cdpValue = parseLastJsonWithExactLaunchHashes(cdpResult.stdout.toString()) as {
         readonly data: { readonly cdpUrl: string };
       };
-      oldCdpUrl = cdpValue.data.cdpUrl;
+      const oldCdpUrl = cdpValue.data.cdpUrl;
+      await fixture.bind(ownerSession, oldCdpUrl);
       writeBrowserConfig(true);
       const pinDescriptor = {
         sessionName: pinSession,
@@ -1781,7 +1870,7 @@ describe("derivation session path defenses", () => {
         confirmationAction: null,
         daemonOwner: null,
       } as const;
-      const pinContextResult = helperRequest({
+      const pinContextResult = await helperRequest({
         ...baseRequest,
         requestId: crypto.randomUUID(),
         codeOwnedBrowserRequest: "pin-context",
@@ -1793,18 +1882,20 @@ describe("derivation session path defenses", () => {
         parseLastJsonWithExactLaunchHashes(pinContextResult.stdout.toString()),
         ["example.com"],
       );
+      await fixture.bind(pinSession, oldCdpUrl);
 
-      expect(browser("close", "--json").exitCode).toBe(0);
+      expect((await browser("close", "--json")).exitCode).toBe(0);
       writeBrowserConfig(false);
-      const replacementCdp = replacementBrowser("action-policy.json", "--json", "get", "cdp-url");
+      const replacementCdp = await replacementBrowser("action-policy.json", "--json", "get", "cdp-url");
       expect(replacementCdp.exitCode).toBe(0);
       const replacementCdpValue = parseLastJsonWithExactLaunchHashes(replacementCdp.stdout.toString()) as {
         readonly data: { readonly cdpUrl: string };
       };
+      await fixture.bind(replacementSession, replacementCdpValue.data.cdpUrl);
       expect(replacementCdpValue.data.cdpUrl).not.toBe(oldCdpUrl);
       writeBrowserConfig(true);
 
-      const refused = helperRequest({
+      const refused = await helperRequest({
         ...baseRequest,
         requestId: crypto.randomUUID(),
         codeOwnedBrowserRequest: "pinned-batch",
@@ -1813,35 +1904,13 @@ describe("derivation session path defenses", () => {
       });
       expect(refused.exitCode).not.toBe(0);
 
-      const replacementUrl = replacementBrowser("action-policy.json", "--json", "get", "url");
+      const replacementUrl = await replacementBrowser("action-policy.json", "--json", "get", "url");
       expect(replacementUrl.exitCode).toBe(0);
       const replacementUrlValue = parseLastJsonWithExactLaunchHashes(replacementUrl.stdout.toString()) as {
         readonly data: { readonly url: string };
       };
       expect(replacementUrlValue.data.url).toBe("about:blank");
-    } finally {
-      if (oldCdpUrl !== null) {
-        Bun.spawnSync({
-          cmd: [
-            ...agentBrowserCommand(),
-            "--session",
-            pinSession,
-            "--cdp",
-            oldCdpUrl,
-            "close",
-            "--json",
-          ],
-          cwd: directory,
-          env: browserEnvironment,
-          stdout: "ignore",
-          stderr: "ignore",
-        });
-      }
-      browser("close", "--json");
-      replacementBrowser("action-policy.json", "close", "--json");
-      rmSync(socketDirectory, { recursive: true, force: true });
-      rmSync(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("confirms one exact pinned mutation and denies browser relaunch before confirmation", async () => {
@@ -1867,9 +1936,9 @@ describe("derivation session path defenses", () => {
     const bunConfig = join(import.meta.dir, "state-helper.bunfig.toml");
     const ownerSession = "io-derive-abcdef012345";
     const pinSession = "io-derive-pin-abcdef012345";
+    const fixture = new DerivationBrowserFixture(directory, socketDirectory, [pinSession, ownerSession]);
     const browserEnvironment = isolatedEnvironment(socketDirectory);
-    const browserWithSession = (sessionName: string, ...arguments_: readonly string[]) => Bun.spawnSync({
-      cmd: [
+    const browserWithSession = (sessionName: string, ...arguments_: readonly string[]) => runCommand([
         ...agentBrowserCommand(),
         "--config",
         "agent-browser.json",
@@ -1878,14 +1947,13 @@ describe("derivation session path defenses", () => {
         "--session",
         sessionName,
         ...arguments_,
-      ],
+      ], {
       cwd: directory,
-      env: browserEnvironment,
-      stdout: "pipe",
-      stderr: "pipe",
+      environment: browserEnvironment,
+      timeoutMs: 10_000,
+      maxOutputBytes: 1024 * 1024,
     });
-    const helperRequest = (request: unknown) => Bun.spawnSync({
-      cmd: [
+    const helperRequest = (request: unknown) => runCommand([
         process.execPath,
         "--no-env-file",
         "--no-install",
@@ -1893,12 +1961,12 @@ describe("derivation session path defenses", () => {
         "--no-addons",
         `--config=${bunConfig}`,
         helper,
-      ],
+      ], {
       cwd: directory,
-      env: { NODE_ENV: "production" },
-      stdin: new Blob([JSON.stringify(request)]),
-      stdout: "pipe",
-      stderr: "pipe",
+      environment: { NODE_ENV: "production" },
+      stdin: JSON.stringify(request),
+      timeoutMs: 12_000,
+      maxOutputBytes: 1024 * 1024,
     });
     const baseRequest = {
       schemaVersion: 1,
@@ -1919,16 +1987,16 @@ describe("derivation session path defenses", () => {
       timeoutMs: 10_000,
       maxOutputBytes: 1024 * 1024,
     } as const;
-    let cdpUrl: string | null = null;
-    try {
-      const ownerContext = browserWithSession(ownerSession, "--json", "get", "cdp-url");
+    await fixture.run(async () => {
+      const ownerContext = await browserWithSession(ownerSession, "--json", "get", "cdp-url");
       expect(ownerContext.exitCode).toBe(0);
       const ownerValue = parseLastJsonWithExactLaunchHashes(ownerContext.stdout.toString()) as {
         readonly data: { readonly cdpUrl: string };
       };
-      cdpUrl = ownerValue.data.cdpUrl;
+      const cdpUrl = ownerValue.data.cdpUrl;
+      await fixture.bind(ownerSession, cdpUrl);
       writeBrowserConfig(true);
-      const guardedOwnerContext = helperRequest({
+      const guardedOwnerContext = await helperRequest({
         ...baseRequest,
         requestId: crypto.randomUUID(),
         codeOwnedBrowserRequest: "readiness-context",
@@ -1948,7 +2016,7 @@ describe("derivation session path defenses", () => {
         confirmationAction: null,
         daemonOwner: null,
       } as const;
-      const pinContextResult = helperRequest({
+      const pinContextResult = await helperRequest({
         ...baseRequest,
         requestId: crypto.randomUUID(),
         codeOwnedBrowserRequest: "pin-context",
@@ -1961,8 +2029,9 @@ describe("derivation session path defenses", () => {
         parseLastJsonWithExactLaunchHashes(pinContextResult.stdout.toString()),
         ["example.com"],
       );
-      const prompt = (command: readonly string[]) => {
-        const result = helperRequest({
+      await fixture.bind(pinSession, cdpUrl);
+      const prompt = async (command: readonly string[]) => {
+        const result = await helperRequest({
           ...baseRequest,
           requestId: crypto.randomUUID(),
           codeOwnedBrowserRequest: "pinned-batch",
@@ -1974,7 +2043,7 @@ describe("derivation session path defenses", () => {
         const pending = parseLastJsonWithExactLaunchHashes(result.stdout.toString());
         const confirmation = parsePinnedDerivationConfirmation(pending, command);
         if (confirmation === null) throw new Error("test mutation did not require confirmation");
-        const infoResult = browserWithSession(pinSession, "session", "info", "--json");
+        const infoResult = await browserWithSession(pinSession, "session", "info", "--json");
         expect(infoResult.exitCode).toBe(0);
         const info = parseLastJsonWithExactLaunchHashes(infoResult.stdout.toString()) as {
           readonly data: { readonly pid: number };
@@ -1999,8 +2068,8 @@ describe("derivation session path defenses", () => {
         browserStdin: null,
       });
 
-      const first = prompt(["press", "Tab"]);
-      const confirmed = confirm(first.confirmation, first.daemonOwner);
+      const first = await prompt(["press", "Tab"]);
+      const confirmed = await confirm(first.confirmation, first.daemonOwner);
       if (confirmed.exitCode !== 0) {
         const stderr = confirmed.stderr.toString();
         const category = [
@@ -2023,23 +2092,18 @@ describe("derivation session path defenses", () => {
         },
       );
 
-      const second = prompt(["press", "Shift+Tab"]);
-      expect(browserWithSession(ownerSession, "close", "--json").exitCode).toBe(0);
+      const second = await prompt(["press", "Shift+Tab"]);
+      expect((await browserWithSession(ownerSession, "close", "--json")).exitCode).toBe(0);
       let endpointStatus: Awaited<ReturnType<typeof exactCdpEndpointStatus>> = "available";
       for (let attempt = 0; attempt < 100 && endpointStatus === "available"; attempt += 1) {
         endpointStatus = await exactCdpEndpointStatus(cdpUrl);
         if (endpointStatus === "available") await Bun.sleep(25);
       }
       expect(endpointStatus).toBe("unavailable");
-      const denied = confirm(second.confirmation, second.daemonOwner);
+      const denied = await confirm(second.confirmation, second.daemonOwner);
       expect(denied.exitCode).not.toBe(0);
       expect(await exactCdpEndpointStatus(cdpUrl)).toBe("unavailable");
-    } finally {
-      browserWithSession(pinSession, "close", "--json");
-      browserWithSession(ownerSession, "close", "--json");
-      rmSync(socketDirectory, { recursive: true, force: true });
-      rmSync(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   test("removes partial control and socket trees when profile initialization fails", async () => {

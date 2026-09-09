@@ -7,6 +7,13 @@ coordinate that completed both checks.
 
 ## Unreleased
 
+## 0.16.12 - 2026-09-08
+
+- Add LinkedIn `contacts.read` for first-degree Contact info with bounded reads
+  and exact account and profile identity checks.
+- Compile shared website styles while preserving typography, keyboard focus,
+  touch targets, forced colors, and reduced motion.
+
 ## 0.16.11 - 2026-09-07
 
 - Own LinkedIn profile-activity browser acquisition, current-account binding,

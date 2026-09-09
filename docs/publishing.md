@@ -5,7 +5,7 @@ artifacts, and explicit stage-only trusted publishing for later stable trains.
 Because npm requires a package to exist before `npm stage publish` can use it,
 the bootstrap cannot use the staging workflow.
 
-The current reviewed release candidate is `@hraness/wrench@0.16.11`.
+The current reviewed release candidate is `@hraness/wrench@0.16.12`.
 
 ## Keep discovery metadata aligned
 
