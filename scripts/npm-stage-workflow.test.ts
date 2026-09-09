@@ -1251,9 +1251,9 @@ describe("npm publication contract", () => {
 
     expect(artifact).toContain('from "./package-budget.js"');
     expect(smoke).toContain('from "./package-budget.js"');
-    expect(smoke).toContain('"@types/bun@1.3.14"');
-    expect(smoke).not.toContain('"@types/bun@^1.3.14"');
-    expect(smoke).toContain('"@types/node@26.1.2"');
+    expect(smoke).toContain('"@types/bun": "1.3.14"');
+    expect(smoke).not.toContain('"@types/bun": "^1.3.14"');
+    expect(smoke).toContain('"@types/node": "26.1.2"');
     expect(budget).toContain("two npm 11.19.0 packs");
     expect(budget).toContain("2,232,402 packed bytes");
     expect(budget).toContain("12,322,791 unpacked bytes, and 485 files");
