@@ -1,3 +1,15 @@
+// X Viewer and Bookmarks query-ID refresh on 0.16.12, measured from the
+// 2026-09-08 22:06 client-web drop after a clean Bun 1.3.14 build:
+// 12,407,079 unpacked bytes and 497 files. Same-train LinkedIn
+// contacts.read SDUI successor measured 12,406,778 unpacked bytes and
+// 497 files. Recording the current Viewer main.cd39a626fdb81748a.js
+// source chunk plus Bookmarks evidence and snapshot tests accounts for
+// +301 unpacked bytes with no file-count change. Preserve the prior 315
+// unpacked bytes of residual headroom and the existing packed ceiling,
+// which still covers the bun pack and the prior npm 11.19.0 gzip
+// allowance. The omitted-private publication variant adds 21 unpacked
+// bytes and remains inside that headroom.
+//
 // LinkedIn contacts.read SDUI successor on 0.16.11, measured after a
 // clean Bun 1.3.14 build: 12,406,778 unpacked bytes and 497 files.
 // Same-train LinkedIn contacts.read (PR #189) measured 2,108,672 packed /
@@ -88,7 +100,7 @@
 export const MAX_PACKED_BYTES = 2_244_781;
 export const MAX_PACKED_ENTRIES = 497;
 export const MAX_PACKED_FILES = 497;
-export const MAX_UNPACKED_BYTES = 12_407_093;
+export const MAX_UNPACKED_BYTES = 12_407_394;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

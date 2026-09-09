@@ -4,7 +4,7 @@ import { assertProperty, fc } from "../test-support";
 import { resolveCurrentXWebChunkUrl } from "./x-web-runtime";
 
 const BOOKMARKS_FAMILY = "shared~bundle.BookmarkFolders~bundle.Bookmarks";
-const REVIEWED_SOURCE_CHUNK = `${BOOKMARKS_FAMILY}.34bab1bee55aa5a1a.js`;
+const REVIEWED_SOURCE_CHUNK = `${BOOKMARKS_FAMILY}.433463ce78e2afaba.js`;
 const HEX = "0123456789abcdef";
 
 const hexOfWidth = (width: number) =>

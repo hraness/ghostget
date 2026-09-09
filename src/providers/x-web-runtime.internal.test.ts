@@ -29,8 +29,8 @@ import {
 } from "./x-web-runtime";
 
 const MAIN_URL = "https://abs.twimg.com/responsive-web/client-web/main.abcdef12.js";
-const VIEWER_QUERY_ID = "5XShkXk2oO2J7SYmTu6pvw";
-const BOOKMARKS_QUERY_ID = "iblrFnKr6PZUR-dWpfXG6g";
+const VIEWER_QUERY_ID = "9t128XgFic52jPUEkJMf6w";
+const BOOKMARKS_QUERY_ID = "tF6KOjmZM0WGcB2Q0mfwhw";
 const USER_TWEETS_QUERY_ID = "eviprbEPLvNG88V3smUngQ";
 const SEARCH_TIMELINE_QUERY_ID = "hyPfJYJ_XAtDYoslQc-Rgg";
 const ARTICLE_QUERY_ID = "btD9FyMDa3_vydVp7fr87Q";
