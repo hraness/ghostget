@@ -1,3 +1,11 @@
+// The same transcript candidate now includes content-free browser lifecycle
+// diagnostics used to qualify an existing CI startup failure. Two npm 11.19.0
+// packs are byte-identical: 2,252,230 packed / 12,416,426 unpacked bytes,
+// 501 files, SHA-256 747a59db718874ab8a33d529c251e23ba5a66afb09116ad5a95b326c063fb575.
+// Compared with the transcript-only candidate below, browser.ts adds 925 packed
+// and 3,455 unpacked bytes. All eleven SDK dist files remain byte-identical.
+// Retain zero packed headroom, 32 unpacked bytes, and exactly 501 files/entries.
+//
 // Transcript persistence owner, measured from exact main 5c25433 after clean
 // Bun 1.3.14 builds with npm 11.19.0. Two candidate packs were byte-identical:
 // 2,251,305 packed bytes, 12,412,971 unpacked bytes and 501 files, SHA-256
@@ -97,10 +105,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_251_305;
+export const MAX_PACKED_BYTES = 2_252_230;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_413_003;
+export const MAX_UNPACKED_BYTES = 12_416_458;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

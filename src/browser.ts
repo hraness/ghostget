@@ -279,6 +279,38 @@ export class AgentBrowserLiveControlUnavailableError extends Error {
   }
 }
 
+type BrowserCommandStreamObservation = {
+  bytes: number;
+  naturalEof: boolean;
+  failed: boolean;
+};
+
+type BrowserCommandObservation = {
+  readonly elapsedMs: number;
+  readonly wrapperExited: boolean;
+  readonly wrapperExitCode: number | null;
+  readonly stdout: Readonly<BrowserCommandStreamObservation>;
+  readonly stderr: Readonly<BrowserCommandStreamObservation>;
+};
+
+export type BrowserCommandLifecycle = {
+  readonly schemaVersion: 1;
+  readonly stopReason: "timeout" | "cancelled" | "stdout-error" | "stderr-error" | "command-error";
+  readonly beforeStop: BrowserCommandObservation;
+  readonly terminal: BrowserCommandObservation & {
+    readonly originalGroupTerminationSucceeded: boolean;
+    readonly resourcesSettled: boolean;
+  };
+};
+
+// Content-free observations never grant cleanup authority or modify an Error.
+const browserCommandObservations = new WeakMap<object, BrowserCommandLifecycle>();
+export function browserCommandLifecycle(error: unknown): BrowserCommandLifecycle | null {
+  return typeof error === "object" && error !== null
+    ? browserCommandObservations.get(error) ?? null
+    : null;
+}
+
 class BrowserCommandCleanupError extends Error {
   constructor(message: string, cause?: unknown) {
     super(message, cause === undefined ? undefined : { cause });
@@ -1101,6 +1133,7 @@ async function readBoundedStream(
   stream: ReadableStream<Uint8Array>,
   maxBytes: number,
   cancellation: AbortSignal,
+  observation: BrowserCommandStreamObservation,
 ): Promise<string> {
   const bytes = new BoundedByteBuffer(maxBytes);
   const reader = stream.getReader();
@@ -1112,7 +1145,12 @@ async function readBoundedStream(
     if (cancellation.aborted) cancel();
     for (;;) {
       const result = await reader.read();
-      if (result.done) break;
+      if (result.done) {
+        // Cancellation may resolve read() with done:true; that is not natural EOF.
+        observation.naturalEof = !cancellation.aborted;
+        break;
+      }
+      observation.bytes = Math.min(Number.MAX_SAFE_INTEGER, observation.bytes + result.value.byteLength);
       if (!bytes.append(result.value)) {
         throw new Error(`process output exceeded ${maxBytes} bytes`);
       }
@@ -1144,6 +1182,7 @@ export async function runCommand(
   if (isCancelled()) {
     throw new Error("agent-browser command was cancelled");
   }
+  const startedAt = performance.now();
   const ownsProcessGroup = true;
   const child = Bun.spawn([...command], {
     cwd: options.cwd,
@@ -1154,10 +1193,33 @@ export async function runCommand(
     stderr: "pipe",
   });
   let childExited = false;
+  let wrapperExitCode: number | null = null;
   const exited = child.exited.then((exitCode) => {
     childExited = true;
+    wrapperExitCode = exitCode;
     return exitCode;
   });
+  const stdoutObservation: BrowserCommandStreamObservation = { bytes: 0, naturalEof: false, failed: false };
+  const stderrObservation: BrowserCommandStreamObservation = { bytes: 0, naturalEof: false, failed: false };
+  const observe = (): BrowserCommandObservation => Object.freeze({
+    elapsedMs: Math.max(0, performance.now() - startedAt),
+    wrapperExited: childExited,
+    wrapperExitCode,
+    stdout: Object.freeze({ ...stdoutObservation }),
+    stderr: Object.freeze({ ...stderrObservation }),
+  });
+  let firstStop: { readonly reason: BrowserCommandLifecycle["stopReason"]; readonly observation: BrowserCommandObservation } | null = null;
+  const diagnosed = <E extends Error>(error: E, originalGroupTerminationSucceeded: boolean, resourcesSettled: boolean): E => {
+    try {
+      if (firstStop !== null) browserCommandObservations.set(error, Object.freeze({
+        schemaVersion: 1,
+        stopReason: firstStop.reason,
+        beforeStop: firstStop.observation,
+        terminal: Object.freeze({ ...observe(), originalGroupTerminationSucceeded, resourcesSettled }),
+      }));
+    } catch { /* Best-effort observation must never replace the selected failure. */ }
+    return error;
+  };
   const outputCancellation = new AbortController();
   const signalProcessTree = (signal: "SIGTERM" | "SIGKILL"): void => {
     if (ownsProcessGroup) {
@@ -1250,36 +1312,41 @@ export async function runCommand(
   const stopped = new Promise<never>((_resolve, reject) => {
     rejectForStop = reject;
   });
-  const requestStop = (error: Error): void => {
+  const requestStop = (error: Error, reason: BrowserCommandLifecycle["stopReason"] = "command-error"): void => {
     if (state.failure !== null) return;
     state.failure = error;
+    try { firstStop = { reason, observation: observe() }; } catch { /* Preserve failure and cleanup. */ }
     outputCancellation.abort();
     state.termination = terminate();
     void state.termination.catch(() => undefined);
     rejectForStop?.(error);
   };
   const onAbort = (): void => {
-    requestStop(new Error("agent-browser command was cancelled"));
+    requestStop(new Error("agent-browser command was cancelled"), "cancelled");
   };
   options.signal?.addEventListener("abort", onAbort, { once: true });
   if (isCancelled()) onAbort();
   const timeout = setTimeout(() => {
-    requestStop(new Error(`agent-browser timed out after ${options.timeoutMs}ms`));
+    requestStop(new Error(`agent-browser timed out after ${options.timeoutMs}ms`), "timeout");
   }, options.timeoutMs);
   const stdout = readBoundedStream(
     child.stdout,
     options.maxOutputBytes,
     outputCancellation.signal,
+    stdoutObservation,
   ).catch((error: unknown) => {
-    requestStop(error instanceof Error ? error : new Error(String(error)));
+    stdoutObservation.failed = true;
+    requestStop(error instanceof Error ? error : new Error(String(error)), "stdout-error");
     throw error;
   });
   const stderr = readBoundedStream(
     child.stderr,
     Math.min(options.maxOutputBytes, 2 * 1024 * 1024),
     outputCancellation.signal,
+    stderrObservation,
   ).catch((error: unknown) => {
-    requestStop(error instanceof Error ? error : new Error(String(error)));
+    stderrObservation.failed = true;
+    requestStop(error instanceof Error ? error : new Error(String(error)), "stderr-error");
     throw error;
   });
   const completed = Promise.all([stdout, stderr, exited]);
@@ -1293,8 +1360,10 @@ export async function runCommand(
   } catch (error) {
     requestStop(error instanceof Error ? error : new Error(String(error)));
     let terminationFailure: unknown;
+    let originalGroupTerminationSucceeded = false;
     try {
       await state.termination;
+      originalGroupTerminationSucceeded = true;
     } catch (terminationError) {
       terminationFailure = terminationError;
     }
@@ -1305,33 +1374,33 @@ export async function runCommand(
     );
     if (!resourcesSettled) child.unref();
     if (terminationFailure !== undefined) {
-      throw terminationFailure instanceof BrowserCommandCleanupError
+      throw diagnosed(terminationFailure instanceof BrowserCommandCleanupError
         ? terminationFailure
         : new BrowserCommandCleanupError(
             "agent-browser termination failed",
             terminationFailure,
-          );
+          ), originalGroupTerminationSucceeded, resourcesSettled);
     }
     if (!resourcesSettled) {
-      throw new BrowserCommandCleanupError(
+      throw diagnosed(new BrowserCommandCleanupError(
         "agent-browser resources did not settle after process termination",
-      );
+      ), originalGroupTerminationSucceeded, resourcesSettled);
     }
     const failure = state.failure ?? error;
     const normalizedFailure = failure instanceof Error
       ? failure
       : new Error(String(failure));
     if (normalizedFailure instanceof BrowserCommandCleanupError) {
-      throw normalizedFailure;
+      throw diagnosed(normalizedFailure, originalGroupTerminationSucceeded, resourcesSettled);
     }
     // A POSIX process group cannot prove that a descendant did not call
     // setsid(2) and become reparented before termination began. Any command
     // that required forced stopping therefore has an unprovable containment
     // boundary even when its original process group and streams are gone.
-    throw new BrowserCommandCleanupError(
+    throw diagnosed(new BrowserCommandCleanupError(
       `${normalizedFailure.message}; descendant process cleanup could not be verified`,
       normalizedFailure,
-    );
+    ), originalGroupTerminationSucceeded, resourcesSettled);
   } finally {
     clearTimeout(timeout);
     options.signal?.removeEventListener("abort", onAbort);

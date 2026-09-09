@@ -52,3 +52,11 @@ The first permanent focused run passed 138 tests and failed the composed return-
 ## Recovery
 
 No durable format or identity changes. If the new owner fails qualification, keep the failing evidence and repair it before delivery. Native work is joined before the existing caller recovery runs; no fallback may release the lock or remove staging merely because the first sibling failed.
+
+## Integration evidence
+
+The first PR candidate passed eight CI jobs, including the native browser shard and clean package installation. Its static gate rejected a stale hard-coded decompression-ceiling expectation. The reviewed source budget and actual gunzip rejection stayed enforced; the expectation now follows the measured archive's rounded bound.
+
+A separate recurring native browser-startup failure has not been causally diagnosed. The existing command boundary now retains bounded, content-free wrapper and stream observations before forced stop and after settlement. The test fixture labels its initial CDP read and cleanup commands explicitly, since one retained stack did not map to the checked source line. These observations preserve the selected error, deadlines and cleanup authority. Two existing native controls and three fixture cleanup controls pass, including proof that a settled original process group does not establish escaped-descendant cleanup. The existing escaped-child teardown remains unchanged; no new post-kill exit proof or Linux root-cause claim is made.
+
+The package comparison includes the transcript owner and these diagnostics: 501 files, 2,252,230 compressed bytes and 12,416,426 payload bytes, with all eleven generated SDK files unchanged. Final current-candidate CI and the coordinated canonical-release source join remain pending.
