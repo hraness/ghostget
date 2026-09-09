@@ -1,3 +1,15 @@
+// Transcript persistence owner, measured from exact main 5c25433 after clean
+// Bun 1.3.14 builds with npm 11.19.0. Two candidate packs were byte-identical:
+// 2,251,305 packed bytes, 12,412,971 unpacked bytes and 501 files, SHA-256
+// d8720197e108a996373f4fda5d72ff4f938f82ca4d325be53917b052f20b01c2.
+// The same-toolchain baseline was 2,249,213 packed / 12,407,061 unpacked bytes
+// and 497 files. Four internal persistence modules, the archive caller and
+// its explicit package allowlist add 2,092 packed / 5,910 unpacked bytes.
+// All generated SDK files remain byte-identical. The baseline already exceeded
+// the previous packed ceiling; use the measured candidate with no packed
+// headroom, retain only the remaining 32 unpacked bytes, and require exactly
+// 501 files/entries. This measurement does not admit a later release/source.
+//
 // LinkedIn contacts.read SDUI successor on 0.16.11, measured after a
 // clean Bun 1.3.14 build: 12,406,778 unpacked bytes and 497 files.
 // Same-train LinkedIn contacts.read (PR #189) measured 2,108,672 packed /
@@ -85,10 +97,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_244_781;
-export const MAX_PACKED_ENTRIES = 497;
-export const MAX_PACKED_FILES = 497;
-export const MAX_UNPACKED_BYTES = 12_407_093;
+export const MAX_PACKED_BYTES = 2_251_305;
+export const MAX_PACKED_ENTRIES = 501;
+export const MAX_PACKED_FILES = 501;
+export const MAX_UNPACKED_BYTES = 12_413_003;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
