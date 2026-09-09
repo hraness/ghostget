@@ -7,6 +7,12 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.16.16 - 2026-09-09
+
+- Retry exact claim-read drift during browser admission after ownership
+  reconciliation, preserving the two-browser cap, deadlines, and unsafe-state
+  refusal. Retain immutable v0.16.15 and its failed mirror evidence.
+
 ## 0.16.15 - 2026-09-09
 
 - Pin consumer compiler and declaration versions to the qualified source tuple;
