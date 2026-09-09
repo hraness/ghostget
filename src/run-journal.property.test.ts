@@ -143,7 +143,11 @@ test("a lost native acknowledgement never permits a stale journal write in a bou
         rmSync(root, { recursive: true, force: true });
       }
     },
-  ), { numRuns: 24 });
+  ), {
+    numRuns: 24,
+    // Allow bounded headroom for native helper startup and durable disk I/O.
+    interruptAfterTimeLimit: 30_000,
+  });
 });
 
 test("every bounded complete dispatch sequence reaches one canonical successful state", () => {

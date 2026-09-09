@@ -69,8 +69,9 @@ it is historical, not a live control. The retained privileged setup proof
 establishes that private Hraness App `4783991`, through installation
 `158077029`, is installed only on exact repository `hraness/wrench`. The App
 registration and each separately repository-narrowed runtime token use exactly
-`metadata:read`, `contents:write`, and `workflows:write`; the reviewer-gated
-writer environment holds the key. Workflows write is required for admitted
+`metadata:read`, `contents:write`, and `workflows:write`; the main-only
+writer environment holds the key and admits verified releases automatically.
+Workflows write is required for admitted
 commits that change checked workflow files. Retained workflow run `33691443614`
 proves the exact
 workflow-changing leased `P` to `C` canary, ordinary denial, stale-lease
@@ -81,15 +82,18 @@ registration, installation-selection, token, and revocation response bodies are
 owner-controlled private response evidence. Those identifiers and digests bind
 the retained bytes; they do not make those private responses independently
 public.
-Retained evidence is not standing mutation authority. Before every required
-fast-forward, fresh administrator readback must reconfirm the permanent
+Retained evidence is not standing mutation authority. At setup, after a control-plane configuration or workflow-authority change,
+and during drift recovery, fresh administrator readback must reconfirm the permanent
 rulesets and target refs, the sole App `4783991` `Integration` bypass, the
 App's exact permission set, and that installation `158077029` still selects
 only Wrench repository ID `1316443113`. It must also reconfirm the main-only
-`production-ref-writer-key` environment, sole reviewer `0thernet`,
-`prevent_self_review=false`, disabled administrator bypass, exactly four App
-identity variables and the one private-key secret. Any drift leaves production
-unchanged. The v0.16.4 incident-freeze removal does not authorize changing the
+`production-ref-writer-key` environment, no required deployment reviewers or
+wait timer, `prevent_self_review=false`, disabled administrator bypass, exactly four App
+identity variables and the one private-key secret. Control changes include
+fresh evidence before activation. Routine promotions retain the existing
+per-run artifact, source, App, token, ref, lease, revocation, provider, and public
+checks without waiting for a separate administrator census or reviewer. Any
+detected drift suspends promotion until the controls are requalified. The v0.16.4 incident-freeze removal does not authorize changing the
 two permanent rulesets or silently weakening a future incident freeze.
 The persistent canary remains at
 exact `C=0bf88a064233635e0c5485c61f9c533974a7dca4` and must never be reset,

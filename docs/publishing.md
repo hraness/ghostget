@@ -795,19 +795,21 @@ production writer and must not be configured as the update-rule bypass.
 
 The retained canary proof is evidence, never standing
 mutation authority.
-Before every required fast-forward, fresh administrator readback must
+At setup, after a control-plane configuration or workflow-authority change,
+and during drift recovery, fresh administrator readback must
 reconfirm the exact permanent rulesets and target refs and the sole App
 `4783991` `Integration` bypass. It must prove that the App registration still
 grants exactly `metadata:read`, `contents:write`, and `workflows:write` with no
 other permission, and that installation `158077029` still selects exactly
 repository `hraness/wrench` at ID `1316443113`. The
 `production-ref-writer-key` environment still has `deployment=false`, a
-main-only branch policy, sole reviewer `0thernet`, `prevent_self_review=false`,
-administrator bypass disabled, exactly the four variables
+main-only branch policy, no required deployment reviewers or wait timer,
+`prevent_self_review=false`, administrator bypass disabled, exactly the four variables
 `WRENCH_RELEASE_APP_ID`, `WRENCH_RELEASE_APP_CLIENT_ID`,
 `WRENCH_RELEASE_APP_SLUG`, and `WRENCH_RELEASE_APP_INSTALLATION_ID`, and
-exactly the `WRENCH_RELEASE_APP_PRIVATE_KEY` secret. Any drift leaves
-production unchanged. The audited v0.16.4 removal of incident freeze
+exactly the `WRENCH_RELEASE_APP_PRIVATE_KEY` secret. Control changes must
+include fresh readback evidence before activation. Any detected drift leaves
+production unchanged until those controls are requalified. The audited v0.16.4 removal of incident freeze
 `22182820` does not authorize changing either permanent rule or silently
 weakening a future incident freeze.
 
@@ -1099,12 +1101,25 @@ terminal ref before emitting a receipt.
 Only an actual fast-forward enters `production-ref-writer-key`, configured with
 `deployment: false` so the secret-bearing job does not create a GitHub
 Deployment record that could collide with the Vercel-only Production inventory.
-The environment must permit only `main`, require reviewer `0thernet`, disable
-admin bypass, set `prevent_self_review=false` because that reviewer is currently
-the sole eligible maintainer, and store only `WRENCH_RELEASE_APP_PRIVATE_KEY`
+The environment must permit only `main`, configure no required deployment
+reviewers or wait timer, disable admin bypass, set `prevent_self_review=false`,
+and store only `WRENCH_RELEASE_APP_PRIVATE_KEY`
 plus the reviewed App ID, client ID, slug, and selected installation ID
 variables. The job repeats the full `C<=W<=M`, peeled-tag, immutable Release,
-and Latest authority check after environment approval and before mutation.
+and Latest authority check after automatic environment admission and before
+credentials and mutation. The preceding immutable-release, exact workflow-source,
+and provider-baseline checks authorize admission without a separate human review.
+The privileged control-plane census runs at setup, after control-plane or
+workflow-authority changes, and during drift recovery. The agent performs it
+programmatically through already-authorized access and retains fresh evidence
+with each control change. Routine promotions do not wait for another census.
+Every run still checks immutable artifact and source identity, the configured
+App and installation, exact token permissions and the single Wrench repository,
+the existing ref and fast-forward relationship, lease, and revocation. Live
+GitHub rules enforce ref restrictions, and provider and public readbacks bind
+the delivered result. The retained canary supports the established writer
+behavior; changes to writer identity, permissions, lease, or revocation require
+new bounded admission evidence without resetting or repurposing that canary.
 
 The writer authenticates one private Hraness-owned GitHub App. The App
 registration and every minted token close to exactly `metadata:read`,
@@ -1194,7 +1209,8 @@ ruleset fingerprint variables by exact name:
 `WRENCH_RELEASE_PRODUCTION_FREEZE_RULESET_UPDATED_AT`. Read the environment back and
 require exactly the four reviewed App ID, client ID, slug, and installation ID
 variables plus the single private key secret, with its main-only branch policy,
-reviewer, `prevent_self_review` setting, and disabled admin bypass unchanged.
+absence of deployment reviewers or wait timers, `prevent_self_review` setting,
+and disabled admin bypass unchanged.
 Retain both permanent rulesets and the canary at `C`. The six temporary
 fingerprint variables were cleanup inputs, not durable environment state. A
 future incident freeze must be created, captured, audited, and removed by exact
@@ -1383,7 +1399,7 @@ Release. It resolves the peeled tag as verified release commit `C`, keeps that
 coordinate distinct from reviewed workflow source `W`, and proves `C<=W<=M`
 against protected current main. An
 already-exact recovery remains entirely outside the key environment. A required
-fast-forward repeats every authority check after reviewer admission before it
+fast-forward repeats every authority check after automatic admission before it
 mints the one-repository App token. Never rerun an ambiguous App push, bypass the
 explicit lease, or write the production branch manually.
 
