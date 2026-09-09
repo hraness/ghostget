@@ -4,25 +4,41 @@ Issues and focused pull requests are welcome. Open an issue before changing a
 durable wire format, trust boundary, confirmation rule, or compatibility
 contract so the required migration and evidence can be agreed first.
 
-Use Bun 1.3.14. Product, runtime, workflow, dependency, and build changes
-require the complete local gate, as does source acceptance that needs local, native,
-or live application behavior. Pull-request CI runs the same Linux steps as parallel jobs
-plus a macOS-only subset; `Required` still waits for that full union.
+Use Bun 1.3.14. Complete `Required` PR CI is the normal final source integration
+gate for executable and documentation changes. Run relevant focused local checks
+and obtain independent impact and diff review before delivery. CI runs the
+complete Linux aggregate as parallel jobs plus a selected macOS suite;
+`Required` waits for that full union. Its executable phase-composition and
+disjoint source coverage contracts in `scripts/ci-pr-gate.test.ts` remain required.
 
 ```sh
 bun install --frozen-lockfile
-bun run check
+bun test scripts/ci-pr-gate.test.ts
 ```
 
-For a diff limited to non-executable guidance, documentation, and assertions
-about that documentation, focused local documentation contracts and
-`bun test scripts/ci-pr-gate.test.ts` may precede the unchanged complete
-`Required` PR CI as the final source integration gate. An independent reviewer
-must confirm that no product, workflow, dependency, build input, or generated
-output changed and that no source acceptance depends on local, native, or live
-application behavior. Require completed CI for the exact current PR head and base;
-requalify if either changes. Package-release gates, provider-control admission,
-and production verification still apply to those later operations.
+Record the repository, reviewed workflow, successful run and attempt, complete
+required job union, actual checked commit and tree, PR head, and current base.
+Revalidate those coordinates immediately before conditional merge. Head or base
+movement requires matching current-candidate CI; an older candidate's receipt
+does not qualify a new integration.
+
+The macOS suite in `scripts/ci-macos-check.ts` is a selected inventory, currently
+ten files and one patterned iMessage canary. It does not establish complete
+macOS source, package, or installation equivalence. For impacted native behavior
+outside that suite, run relevant focused macOS checks or add and pass an
+independently reviewed CI extension. Hosted runners do not qualify the user's
+Keychain, signed-in browser, profiles, devices, installation, or production
+state. Keep every explicit local, native, coupled-sequence, live, installation,
+package-release, provider-control, and production acceptance check, including
+opt-in qualifications when required.
+
+Keep `bun run check` available as the complete local aggregate and use it when
+coverage or equivalence is uncertain, a coupled sequence must run together, or
+a known failure needs the complete local reproduction. Diagnose observed
+failures and retain their
+relevant reproduction and repair checks. Independently review workflow,
+discovery, command, deadline, and platform changes against the prior required
+coverage; edited coverage assertions alone cannot certify a weakened workflow.
 
 For parallel chats or other concurrent local work, follow the
 [isolated worktree workflow](docs/local-development.md). It keeps changing
