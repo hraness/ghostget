@@ -1,3 +1,14 @@
+// Joined main 4045057 (X Viewer/Bookmarks evidence and browser fixture controls)
+// after clean Bun 1.3.14 builds and two identical npm 11.19.0 packs per source:
+// baseline 2,249,250 packed / 12,407,079 payload bytes / 497 files;
+// candidate 2,252,267 packed / 12,416,444 payload bytes / 501 files,
+// SHA-256 d3398684f63eff73167dce16074f07d2db4bbbaeb4174fad9d77dbabd49bb3f7.
+// The transcript owner and browser diagnostics add 3,017 packed and 9,365
+// payload bytes, with all eleven generated SDK files unchanged. Main's npm
+// archive already exceeds its packed ceiling by 4,469 bytes; retain no packed
+// headroom and preserve current main's 315 payload bytes of headroom, with
+// exactly 501 files/entries. The earlier measurements below remain historical.
+//
 // The same transcript candidate now includes content-free browser lifecycle
 // diagnostics used to qualify an existing CI startup failure. Two npm 11.19.0
 // packs are byte-identical: 2,252,230 packed / 12,416,426 unpacked bytes,
@@ -17,6 +28,18 @@
 // the previous packed ceiling; use the measured candidate with no packed
 // headroom, retain only the remaining 32 unpacked bytes, and require exactly
 // 501 files/entries. This measurement does not admit a later release/source.
+//
+// X Viewer and Bookmarks query-ID refresh on 0.16.12, measured from the
+// 2026-09-08 22:06 client-web drop after a clean Bun 1.3.14 build:
+// 12,407,079 unpacked bytes and 497 files. Same-train LinkedIn
+// contacts.read SDUI successor measured 12,406,778 unpacked bytes and
+// 497 files. Recording the current Viewer main.cd39a626fdb81748a.js
+// source chunk plus Bookmarks evidence and snapshot tests accounts for
+// +301 unpacked bytes with no file-count change. Preserve the prior 315
+// unpacked bytes of residual headroom and the existing packed ceiling,
+// which still covers the bun pack and the prior npm 11.19.0 gzip
+// allowance. The omitted-private publication variant adds 21 unpacked
+// bytes and remains inside that headroom.
 //
 // LinkedIn contacts.read SDUI successor on 0.16.11, measured after a
 // clean Bun 1.3.14 build: 12,406,778 unpacked bytes and 497 files.
@@ -105,10 +128,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_252_230;
+export const MAX_PACKED_BYTES = 2_252_267;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_416_458;
+export const MAX_UNPACKED_BYTES = 12_416_759;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

@@ -152,9 +152,9 @@ type FeedRequest = {
 const viewerEvidence = Object.freeze({
   operationName: "Viewer",
   operationType: "query" as const,
-  queryId: "5XShkXk2oO2J7SYmTu6pvw",
-  sourceChunk: "main.e4aca26a.js",
-  observedOn: "2026-08-14",
+  queryId: "9t128XgFic52jPUEkJMf6w",
+  sourceChunk: "main.cd39a626fdb81748a.js",
+  observedOn: "2026-09-09",
 });
 
 function isRecord(value: unknown): value is JsonRecord {
