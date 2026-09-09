@@ -1,0 +1,95 @@
+import { expect, test } from "bun:test";
+import { assertProperty, fc } from "../test-support";
+
+import {
+  assertLinkedInContactInfoRequest,
+  linkedInContactInfoPath,
+  linkedInContactInfoTarget,
+  projectLinkedInContactInfo,
+  projectLinkedInProfileContactBinding,
+} from "./linkedin-web-contact";
+
+const VIEWER = "urn:li:fsd_profile:123456789";
+const PROFILE_URN = "urn:li:fsd_profile:ACoAAFixtureProfile";
+const OBSERVED_AT = "2026-09-08T18:00:00.000Z";
+const vanity = fc.stringMatching(/^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/u);
+
+function bootstrapHtml(value: unknown): string {
+  const encoded = JSON.stringify(value).replace(/[&<>"=\\]/gu, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "=": "&#61;",
+    "\\": "&#92;",
+  })[character] ?? character);
+  return `<html><body><code style="display: none" id="bpr-guid-123">${encoded}</code></body></html>`;
+}
+
+test("LinkedIn contact-info targets and request paths stay bound to one vanity", () => {
+  assertProperty(fc.property(vanity, (slug) => {
+    const target = linkedInContactInfoTarget(`https://www.linkedin.com/in/${slug}`);
+    expect(target.slug).toBe(slug.toLowerCase());
+    expect(target.url).toBe(`https://www.linkedin.com/in/${slug.toLowerCase()}/`);
+    expect(linkedInContactInfoPath(slug)).toBe(
+      `/voyager/api/identity/profiles/${slug.toLowerCase()}/profileContactInfo`,
+    );
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "GET",
+      url: target.url,
+    })).not.toThrow();
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "GET",
+      url: `https://www.linkedin.com${linkedInContactInfoPath(slug)}`,
+    })).not.toThrow();
+  }));
+});
+
+test("LinkedIn contact-info binding never invents a 1st-degree relationship", () => {
+  assertProperty(fc.property(
+    vanity,
+    fc.constantFrom("DISTANCE_2", "DISTANCE_3", "OUT_OF_NETWORK", "SELF"),
+    (slug, distance) => {
+      const html = bootstrapHtml({
+        $type: "com.linkedin.voyager.identity.profile.Profile",
+        publicIdentifier: slug,
+        entityUrn: distance === "SELF" ? VIEWER : PROFILE_URN,
+        memberDistance: distance,
+      });
+      expect(() => projectLinkedInProfileContactBinding({
+        profileHtml: html,
+        profileUrl: `https://www.linkedin.com/in/${slug}/`,
+        expectedViewerSubject: VIEWER,
+      })).toThrow(distance === "SELF"
+        ? "use profiles.read for the signed-in self profile"
+        : "not a 1st-degree connection");
+    },
+  ));
+});
+
+test("LinkedIn contact-info projection never invents an email", () => {
+  assertProperty(fc.property(
+    vanity,
+    fc.option(fc.constant("connection@example.test"), { nil: undefined }),
+    (slug, email) => {
+      const html = bootstrapHtml({
+        $type: "com.linkedin.voyager.identity.profile.Profile",
+        publicIdentifier: slug,
+        entityUrn: PROFILE_URN,
+        memberDistance: "DISTANCE_1",
+      });
+      const projected = projectLinkedInContactInfo({
+        profileHtml: html,
+        contactPayload: {
+          $type: "com.linkedin.voyager.identity.profile.ProfileContactInfo",
+          ...(email === undefined ? {} : { emailAddress: email }),
+        },
+        profileUrl: `https://www.linkedin.com/in/${slug}/`,
+        expectedViewerSubject: VIEWER,
+        observedAt: OBSERVED_AT,
+      });
+      expect(projected.contact.email).toBe(email ?? null);
+      expect(JSON.stringify(projected)).not.toContain("@gmail.com");
+    },
+  ));
+});

@@ -57,6 +57,25 @@ describe("LinkedIn web provider plugin", () => {
       .toContain("providers/linkedin-web-feed-browser.ts");
   });
 
+  test("advertises observed 1st-degree Contact-info reads", () => {
+    const contact = binding.operations.find((operation) =>
+      operation.name === "contacts.read");
+    expect(contact).toMatchObject({
+      contractVersion: 1,
+      risk: "R1",
+      state: "observed",
+      dispatch: "none",
+      input: {
+        properties: {
+          profile_url: { type: "string", minLength: 25, maxLength: 2048 },
+        },
+        required: ["profile_url"],
+      },
+    });
+    expect(linkedinWebPlugin.implementationSources.map((source) => source.label))
+      .toContain("providers/linkedin-web-contact.ts");
+  });
+
   test("advertises observed exact personal and organization profile reads", () => {
     const profile = binding.operations.find((operation) =>
       operation.name === "profiles.read");

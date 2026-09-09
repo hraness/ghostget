@@ -1,0 +1,642 @@
+import {
+  linkedInPersonalProfilePublicIdentifier,
+  linkedInPersonalProfileTarget,
+  type LinkedInProfileTarget,
+} from "./linkedin-web";
+
+export const LINKEDIN_CONTACT_INFO_PATH_PREFIX =
+  "/voyager/api/identity/profiles/";
+export const LINKEDIN_CONTACT_INFO_PATH_SUFFIX = "/profileContactInfo";
+export const LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID =
+  "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay";
+
+const LINKEDIN_ORIGIN = "https://www.linkedin.com";
+const PROFILE_URN = /^urn:li:fsd_profile:[A-Za-z0-9_-]{1,256}$/u;
+const VIEWER_SUBJECT = /^urn:li:fsd_profile:[0-9]{1,32}$/u;
+const EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,24}$/u;
+const PHONE = /^\+?[0-9][0-9 .\-()]{6,30}[0-9]$/u;
+const BIRTHDAY = /^(?:[0-9]{4}-)?(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$/u;
+const CONNECTED_DISPLAY =
+  /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) ([1-9]|[12][0-9]|3[01]), ([0-9]{4})$/u;
+const MONTHS = Object.freeze({
+  Jan: "01",
+  Feb: "02",
+  Mar: "03",
+  Apr: "04",
+  May: "05",
+  Jun: "06",
+  Jul: "07",
+  Aug: "08",
+  Sep: "09",
+  Oct: "10",
+  Nov: "11",
+  Dec: "12",
+});
+const HTML_ENTITY =
+  /&(?:nbsp|quot|amp|lt|gt|apos|#(?:[xX][0-9A-Fa-f]{1,6}|[0-9]{1,7}));/gu;
+const MAX_HTML_BYTES = 8 * 1024 * 1024;
+const MAX_CODE_TAGS = 256;
+const MAX_WALK_NODES = 500_000;
+const MAX_PHONES = 8;
+const MAX_WEBSITES = 8;
+const CONTACT_TYPE_SUFFIX = "ProfileContactInfo";
+const PROFILE_TYPE_SUFFIX = "identity.profile.Profile";
+
+export type LinkedInContactInfoTarget = LinkedInProfileTarget;
+
+export type LinkedInContactRelationship = "first-degree";
+
+export type LinkedInProfileContactBinding = {
+  readonly vanity: string;
+  readonly profileUrn: string;
+  readonly url: string;
+  readonly relationship: LinkedInContactRelationship;
+};
+
+export type LinkedInContactFields = {
+  readonly email: string | null;
+  readonly profileUrl: string | null;
+  readonly connectedSince: string | null;
+  readonly phones: readonly string[];
+  readonly websites: readonly string[];
+  readonly birthday: string | null;
+};
+
+export type LinkedInContactInfo = {
+  readonly schemaVersion: 1;
+  readonly provider: "linkedin";
+  readonly profile: LinkedInProfileContactBinding;
+  readonly viewer: { readonly subject: string };
+  readonly observedAt: string;
+  readonly completeness: "complete" | "partial";
+  readonly contact: LinkedInContactFields;
+};
+
+type JsonRecord = Readonly<Record<string, unknown>>;
+
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function boundedText(value: unknown, label: string, maximum: number): string {
+  if (
+    typeof value !== "string"
+    || value.length < 1
+    || value.length > maximum
+    || /[\0\r]/u.test(value)
+  ) throw new Error(`${label} must be a bounded string`);
+  return value;
+}
+
+function observationTime(value: string): string {
+  if (
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(value)
+    || !Number.isFinite(Date.parse(value))
+  ) throw new Error("LinkedIn contact-info observedAt must be an exact UTC timestamp");
+  return value;
+}
+
+function viewerSubject(value: unknown): string {
+  const subject = boundedText(value, "LinkedIn contact-info viewer subject", 512);
+  if (!VIEWER_SUBJECT.test(subject)) {
+    throw new Error("LinkedIn contact-info viewer subject has an unsupported format");
+  }
+  return subject;
+}
+
+function profileUrn(value: unknown): string {
+  const urn = boundedText(value, "LinkedIn contact-info profile URN", 512);
+  if (!PROFILE_URN.test(urn)) {
+    throw new Error("LinkedIn contact-info profile URN changed format");
+  }
+  return urn;
+}
+
+export function linkedInContactInfoTarget(value: unknown): LinkedInContactInfoTarget {
+  return linkedInPersonalProfileTarget(value);
+}
+
+export function linkedInContactInfoPath(vanity: string): string {
+  const slug = linkedInPersonalProfilePublicIdentifier(vanity);
+  return `${LINKEDIN_CONTACT_INFO_PATH_PREFIX}${slug}${LINKEDIN_CONTACT_INFO_PATH_SUFFIX}`;
+}
+
+export function linkedInContactInfoUrl(vanity: string): URL {
+  return new URL(linkedInContactInfoPath(vanity), LINKEDIN_ORIGIN);
+}
+
+export function assertLinkedInContactInfoRequest(requestValue: unknown): void {
+  if (!isRecord(requestValue)) {
+    throw new Error("LinkedIn contact-info request must be an object");
+  }
+  const method = boundedText(requestValue.method, "LinkedIn contact-info request method", 16)
+    .toUpperCase();
+  if (method !== "GET") throw new Error("LinkedIn contact-info reads require GET");
+  const rawUrl = requestValue.url;
+  if (!(rawUrl instanceof URL) && typeof rawUrl !== "string") {
+    throw new Error("LinkedIn contact-info request URL is invalid");
+  }
+  const url = rawUrl instanceof URL ? new URL(rawUrl.href) : new URL(rawUrl);
+  if (
+    url.origin === LINKEDIN_ORIGIN
+    && url.username === ""
+    && url.password === ""
+    && url.search === ""
+    && url.hash === ""
+  ) {
+    if (/^\/in\/[A-Za-z0-9][A-Za-z0-9_-]{1,99}\/$/u.test(url.pathname)) {
+      linkedInPersonalProfileTarget(url.href);
+      return;
+    }
+    const match = /^\/voyager\/api\/identity\/profiles\/([A-Za-z0-9][A-Za-z0-9_-]{1,99})\/profileContactInfo$/u
+      .exec(url.pathname);
+    if (match?.[1] !== undefined) {
+      linkedInPersonalProfilePublicIdentifier(match[1]);
+      return;
+    }
+  }
+  throw new Error("LinkedIn contact-info request escaped its exact reviewed route");
+}
+
+function decodeHtmlEntity(entity: string): string {
+  if (entity === "&nbsp;") return " ";
+  if (entity === "&quot;") return '"';
+  if (entity === "&amp;") return "&";
+  if (entity === "&lt;") return "<";
+  if (entity === "&gt;") return ">";
+  if (entity === "&apos;") return "'";
+  const numeric = /^&#(?:[xX]([0-9A-Fa-f]{1,6})|([0-9]{1,7}));$/u.exec(entity);
+  if (numeric === null) {
+    throw new Error("LinkedIn contact-info page used an unsupported HTML entity");
+  }
+  const codePoint = Number.parseInt(
+    numeric[1] ?? numeric[2] ?? "",
+    numeric[1] === undefined ? 10 : 16,
+  );
+  if (
+    !Number.isSafeInteger(codePoint)
+    || codePoint < 0
+    || codePoint > 0x10_FFFF
+    || (codePoint >= 0xD800 && codePoint <= 0xDFFF)
+  ) throw new Error("LinkedIn contact-info page used an invalid numeric HTML entity");
+  return String.fromCodePoint(codePoint);
+}
+
+function htmlAttribute(value: string, name: string): string | null {
+  const matches = [...value.matchAll(
+    new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "giu"),
+  )];
+  if (matches.length === 0) return null;
+  if (matches.length !== 1) throw new Error(`LinkedIn contact-info HTML repeated ${name}`);
+  const raw = matches[0]?.[1] ?? matches[0]?.[2];
+  if (raw === undefined || raw.length > 4_096) {
+    throw new Error(`LinkedIn contact-info HTML ${name} exceeded its reviewed bound`);
+  }
+  return raw.replace(HTML_ENTITY, (entity) => decodeHtmlEntity(entity));
+}
+
+function embeddedRecords(html: unknown): readonly JsonRecord[] {
+  if (typeof html !== "string" || html.length < 1 || html.length > MAX_HTML_BYTES) {
+    throw new Error("LinkedIn contact-info profile page exceeded its reviewed HTML bound");
+  }
+  const roots: unknown[] = [];
+  let codeTags = 0;
+  for (const match of html.matchAll(/<code\b([^>]{0,4096})>([\s\S]*?)<\/code>/giu)) {
+    codeTags += 1;
+    if (codeTags > MAX_CODE_TAGS) {
+      throw new Error("LinkedIn contact-info profile page returned too many code payloads");
+    }
+    const attributes = match[1];
+    const body = match[2];
+    if (attributes === undefined || body === undefined) continue;
+    const id = htmlAttribute(attributes, "id");
+    if (id === null || !/^bpr-guid-[0-9]{1,12}$/u.test(id)) continue;
+    if (body.length < 1 || body.length > 1024 * 1024) {
+      throw new Error("LinkedIn contact-info bootstrap payload exceeded its reviewed bound");
+    }
+    const json = body.replace(HTML_ENTITY, (entity) => decodeHtmlEntity(entity)).trim();
+    try {
+      roots.push(JSON.parse(json) as unknown);
+    } catch {
+      throw new Error("LinkedIn contact-info bootstrap payload contained malformed JSON");
+    }
+  }
+  if (roots.length < 1) {
+    throw new Error("LinkedIn contact-info profile page omitted its bootstrap payloads");
+  }
+  const records: JsonRecord[] = [];
+  const stack = roots.map((value) => ({ value, depth: 0 }));
+  let nodes = 0;
+  while (stack.length > 0) {
+    const next = stack.pop()!;
+    nodes += 1;
+    if (nodes > MAX_WALK_NODES || next.depth > 32) {
+      throw new Error("LinkedIn contact-info bootstrap exceeded its traversal bound");
+    }
+    if (Array.isArray(next.value)) {
+      if (next.value.length > 20_000) {
+        throw new Error("LinkedIn contact-info bootstrap array exceeded its reviewed bound");
+      }
+      for (const value of next.value) stack.push({ value, depth: next.depth + 1 });
+      continue;
+    }
+    if (!isRecord(next.value)) continue;
+    records.push(next.value);
+    for (const value of Object.values(next.value)) {
+      stack.push({ value, depth: next.depth + 1 });
+    }
+  }
+  return Object.freeze(records);
+}
+
+function typeName(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function distanceValue(record: JsonRecord): string | number | null {
+  const raw = record.memberDistance ?? record.networkDistance ?? record.distance;
+  if (typeof raw === "string" || typeof raw === "number") return raw;
+  if (isRecord(raw) && (typeof raw.value === "string" || typeof raw.value === "number")) {
+    return raw.value;
+  }
+  return null;
+}
+
+function isFirstDegree(value: string | number): boolean {
+  return value === "DISTANCE_1" || value === 1 || value === "1";
+}
+
+function isSelfDistance(value: string | number): boolean {
+  return value === "DISTANCE_SELF" || value === "SELF" || value === 0 || value === "0";
+}
+
+export function projectLinkedInProfileContactBinding(input: {
+  readonly profileHtml: unknown;
+  readonly profileUrl: unknown;
+  readonly expectedViewerSubject: unknown;
+}): LinkedInProfileContactBinding {
+  const target = linkedInContactInfoTarget(input.profileUrl);
+  const viewer = viewerSubject(input.expectedViewerSubject);
+  const records = embeddedRecords(input.profileHtml);
+  const profiles = records.filter((record) => {
+    const type = typeName(record.$type);
+    if (!type.endsWith(PROFILE_TYPE_SUFFIX) && type !== "com.linkedin.voyager.identity.profile.Profile") {
+      return false;
+    }
+    if (record.publicIdentifier === undefined && record.vanityName === undefined) return false;
+    const vanity = linkedInPersonalProfilePublicIdentifier(
+      record.publicIdentifier ?? record.vanityName,
+    );
+    return vanity === target.slug;
+  });
+  if (profiles.length < 1) {
+    throw new Error("LinkedIn contact-info profile page did not bind the requested vanity");
+  }
+  const urns = new Set(profiles.map((record) => profileUrn(record.entityUrn ?? record.objectUrn)));
+  if (urns.size !== 1) {
+    throw new Error("LinkedIn contact-info profile page exposed ambiguous target identities");
+  }
+  const urn = urns.values().next().value!;
+  if (urn === viewer) {
+    throw new Error(
+      "LinkedIn contacts.read reads one 1st-degree connection; use profiles.read for the signed-in self profile",
+    );
+  }
+  const distances = profiles.map(distanceValue).filter((value): value is string | number => value !== null);
+  const unique = [...new Set(distances.map((value) => String(value)))];
+  if (unique.length !== 1 || distances[0] === undefined) {
+    throw new Error("LinkedIn contact-info profile page omitted or contradicted its relationship distance");
+  }
+  const distance = distances[0];
+  if (isSelfDistance(distance)) {
+    throw new Error(
+      "LinkedIn contacts.read reads one 1st-degree connection; use profiles.read for the signed-in self profile",
+    );
+  }
+  if (!isFirstDegree(distance)) {
+    throw new Error(
+      "LinkedIn hid Contact info because the signed-in viewer is not a 1st-degree connection of this profile",
+    );
+  }
+  return Object.freeze({
+    vanity: target.slug,
+    profileUrn: urn,
+    url: target.url,
+    relationship: "first-degree",
+  });
+}
+
+function oneUnique<T>(
+  values: readonly T[],
+  label: string,
+): T | null {
+  const unique = [...new Set(values)];
+  if (unique.length === 0) return null;
+  if (unique.length !== 1) throw new Error(`${label} was ambiguous`);
+  return unique[0]!;
+}
+
+function emailAddress(value: unknown, label: string): string {
+  const email = boundedText(value, label, 254).toLowerCase();
+  if (!EMAIL.test(email)) throw new Error(`${label} is not a reviewed email`);
+  return email;
+}
+
+function optionalEmail(value: unknown, label: string): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  return emailAddress(value, label);
+}
+
+function phoneNumber(value: unknown, label: string): string {
+  const phone = boundedText(value, label, 32);
+  if (!PHONE.test(phone)) throw new Error(`${label} is not a reviewed phone number`);
+  return phone;
+}
+
+function websiteUrl(value: unknown, label: string): string {
+  const raw = boundedText(value, label, 2_048);
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`${label} must be an absolute URL`);
+  }
+  if (
+    (url.protocol !== "https:" && url.protocol !== "http:")
+    || url.username !== ""
+    || url.password !== ""
+  ) throw new Error(`${label} must be a safe public HTTP URL`);
+  return url.href;
+}
+
+function linkedInProfileHref(value: unknown, expectedVanity: string): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  const raw = boundedText(value, "LinkedIn contact-info profile link", 2_048);
+  let url: URL;
+  try {
+    url = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+  } catch {
+    throw new Error("LinkedIn contact-info profile link must be an absolute URL");
+  }
+  if (
+    url.hostname !== "www.linkedin.com" && url.hostname !== "linkedin.com"
+  ) throw new Error("LinkedIn contact-info profile link escaped LinkedIn");
+  const match = /^\/in\/([A-Za-z0-9][A-Za-z0-9_-]{1,99})\/?$/u.exec(url.pathname);
+  if (match?.[1] === undefined) {
+    throw new Error("LinkedIn contact-info profile link has an unsupported path");
+  }
+  const vanity = linkedInPersonalProfilePublicIdentifier(match[1]);
+  if (vanity !== expectedVanity) {
+    throw new Error("LinkedIn contact-info profile link does not match the requested vanity");
+  }
+  return `https://www.linkedin.com/in/${vanity}/`;
+}
+
+function padDay(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function birthdayValue(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value === "string") {
+    const text = boundedText(value, "LinkedIn contact-info birthday", 16);
+    if (!BIRTHDAY.test(text)) throw new Error("LinkedIn contact-info birthday changed format");
+    return text;
+  }
+  if (!isRecord(value)) throw new Error("LinkedIn contact-info birthday changed shape");
+  const month = value.month;
+  const day = value.day;
+  if (!Number.isSafeInteger(month) || (month as number) < 1 || (month as number) > 12) {
+    throw new Error("LinkedIn contact-info birthday month is invalid");
+  }
+  if (!Number.isSafeInteger(day) || (day as number) < 1 || (day as number) > 31) {
+    throw new Error("LinkedIn contact-info birthday day is invalid");
+  }
+  if (value.year === undefined || value.year === null) {
+    return `${padDay(month as number)}-${padDay(day as number)}`;
+  }
+  if (
+    !Number.isSafeInteger(value.year)
+    || (value.year as number) < 1900
+    || (value.year as number) > 2100
+  ) throw new Error("LinkedIn contact-info birthday year is invalid");
+  return `${value.year}-${padDay(month as number)}-${padDay(day as number)}`;
+}
+
+function connectedSinceValue(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw new Error("LinkedIn contact-info connected-since timestamp is invalid");
+    }
+    const date = new Date(value);
+    if (!Number.isFinite(date.valueOf())) {
+      throw new Error("LinkedIn contact-info connected-since timestamp is invalid");
+    }
+    return date.toISOString().slice(0, 10);
+  }
+  const text = boundedText(value, "LinkedIn contact-info connected-since", 32);
+  if (/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u.test(text)) return text;
+  const match = CONNECTED_DISPLAY.exec(text);
+  if (match === null) {
+    throw new Error("LinkedIn contact-info connected-since changed format");
+  }
+  const month = MONTHS[match[1] as keyof typeof MONTHS];
+  const day = padDay(Number(match[2]));
+  return `${match[3]}-${month}-${day}`;
+}
+
+function phonesFromUnknown(value: unknown): readonly string[] {
+  if (value === undefined || value === null) return Object.freeze([]);
+  if (!Array.isArray(value) || value.length > MAX_PHONES) {
+    throw new Error("LinkedIn contact-info phone list exceeded its reviewed bound");
+  }
+  return Object.freeze(value.map((item, index) => {
+    if (typeof item === "string") return phoneNumber(item, `LinkedIn contact-info phone[${index}]`);
+    if (!isRecord(item)) throw new Error("LinkedIn contact-info phone changed shape");
+    return phoneNumber(
+      item.number ?? item.phoneNumber ?? item.value,
+      `LinkedIn contact-info phone[${index}]`,
+    );
+  }));
+}
+
+function websitesFromUnknown(value: unknown): readonly string[] {
+  if (value === undefined || value === null) return Object.freeze([]);
+  if (!Array.isArray(value) || value.length > MAX_WEBSITES) {
+    throw new Error("LinkedIn contact-info website list exceeded its reviewed bound");
+  }
+  return Object.freeze(value.map((item, index) => {
+    if (typeof item === "string") return websiteUrl(item, `LinkedIn contact-info website[${index}]`);
+    if (!isRecord(item)) throw new Error("LinkedIn contact-info website changed shape");
+    return websiteUrl(item.url ?? item.value, `LinkedIn contact-info website[${index}]`);
+  }));
+}
+
+function labelKey(value: unknown): string {
+  return boundedText(value, "LinkedIn contact-info field label", 64).trim().toLowerCase();
+}
+
+function labeledFields(value: unknown): JsonRecord | null {
+  if (!Array.isArray(value) || value.length > 32) return null;
+  const collected: {
+    email?: string;
+    profileUrl?: string;
+    connectedSince?: string;
+    phones: string[];
+    websites: string[];
+    birthday?: string;
+  } = { phones: [], websites: [] };
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    const label = item.label ?? item.title ?? item.heading;
+    const raw = item.value ?? item.text ?? item.href;
+    if (typeof label !== "string") continue;
+    const key = labelKey(label);
+    if (key === "email") {
+      const email = optionalEmail(raw, "LinkedIn contact-info Email");
+      if (email !== null) collected.email = email;
+      continue;
+    }
+    if (key === "connected since") {
+      const connected = connectedSinceValue(raw);
+      if (connected !== null) collected.connectedSince = connected;
+      continue;
+    }
+    if (key === "phone" || key === "phone number") {
+      collected.phones.push(phoneNumber(raw, "LinkedIn contact-info Phone"));
+      continue;
+    }
+    if (key === "website" || key === "websites") {
+      collected.websites.push(websiteUrl(raw, "LinkedIn contact-info Website"));
+      continue;
+    }
+    if (key === "birthday") {
+      const birthday = birthdayValue(raw);
+      if (birthday !== null) collected.birthday = birthday;
+    }
+  }
+  if (
+    collected.email === undefined
+    && collected.profileUrl === undefined
+    && collected.connectedSince === undefined
+    && collected.phones.length === 0
+    && collected.websites.length === 0
+    && collected.birthday === undefined
+  ) return null;
+  return Object.freeze({
+    emailAddress: collected.email ?? null,
+    connectedAt: collected.connectedSince ?? null,
+    phoneNumbers: collected.phones,
+    websites: collected.websites,
+    birthDateOn: collected.birthday ?? null,
+  });
+}
+
+function contactEntity(record: JsonRecord): boolean {
+  const type = typeName(record.$type);
+  return type.endsWith(CONTACT_TYPE_SUFFIX)
+    || record.emailAddress !== undefined
+    || record.connectedAt !== undefined
+    || record.phoneNumbers !== undefined
+    || record.websites !== undefined
+    || record.birthDateOn !== undefined;
+}
+
+function collectRecords(value: unknown): readonly JsonRecord[] {
+  const records: JsonRecord[] = [];
+  const stack = [{ value, depth: 0 }];
+  let nodes = 0;
+  while (stack.length > 0) {
+    const next = stack.pop()!;
+    nodes += 1;
+    if (nodes > MAX_WALK_NODES || next.depth > 32) {
+      throw new Error("LinkedIn contact-info payload exceeded its traversal bound");
+    }
+    if (Array.isArray(next.value)) {
+      if (next.value.length > 20_000) {
+        throw new Error("LinkedIn contact-info payload array exceeded its reviewed bound");
+      }
+      const labeled = labeledFields(next.value);
+      if (labeled !== null) records.push(labeled);
+      for (const item of next.value) stack.push({ value: item, depth: next.depth + 1 });
+      continue;
+    }
+    if (!isRecord(next.value)) continue;
+    records.push(next.value);
+    const nestedLabels = labeledFields(next.value.fields ?? next.value.items ?? next.value.rows);
+    if (nestedLabels !== null) records.push(nestedLabels);
+    for (const item of Object.values(next.value)) {
+      stack.push({ value: item, depth: next.depth + 1 });
+    }
+  }
+  return Object.freeze(records);
+}
+
+function projectFields(
+  payload: unknown,
+  vanity: string,
+): LinkedInContactFields {
+  if (!isRecord(payload) && !Array.isArray(payload)) {
+    throw new Error("LinkedIn contact-info payload must be a JSON object or array");
+  }
+  const records = collectRecords(payload);
+  const entities = records.filter(contactEntity);
+  if (entities.length < 1) {
+    throw new Error("LinkedIn contact-info payload omitted its contact fields");
+  }
+  const emails = entities
+    .map((record) => optionalEmail(record.emailAddress ?? record.email, "LinkedIn contact-info email"))
+    .filter((value): value is string => value !== null);
+  const profileUrls = entities
+    .map((record) => linkedInProfileHref(
+      record.profileUrl ?? record.vanityName ?? record.publicIdentifier,
+      vanity,
+    ))
+    .filter((value): value is string => value !== null);
+  const connected = entities
+    .map((record) => connectedSinceValue(record.connectedAt ?? record.connectedSince))
+    .filter((value): value is string => value !== null);
+  const birthdays = entities
+    .map((record) => birthdayValue(record.birthDateOn ?? record.birthday))
+    .filter((value): value is string => value !== null);
+  const phones = entities.flatMap((record) => [...phonesFromUnknown(record.phoneNumbers ?? record.phones)]);
+  const websites = entities.flatMap((record) => [...websitesFromUnknown(record.websites)]);
+  return Object.freeze({
+    email: oneUnique(emails, "LinkedIn contact-info email"),
+    profileUrl: oneUnique(profileUrls, "LinkedIn contact-info profile link") ?? `https://www.linkedin.com/in/${vanity}/`,
+    connectedSince: oneUnique(connected, "LinkedIn contact-info connected-since"),
+    phones: Object.freeze([...new Set(phones)]),
+    websites: Object.freeze([...new Set(websites)]),
+    birthday: oneUnique(birthdays, "LinkedIn contact-info birthday"),
+  });
+}
+
+export function projectLinkedInContactInfo(input: {
+  readonly profileHtml: unknown;
+  readonly contactPayload: unknown;
+  readonly profileUrl: unknown;
+  readonly expectedViewerSubject: unknown;
+  readonly observedAt: string;
+}): LinkedInContactInfo {
+  const binding = projectLinkedInProfileContactBinding({
+    profileHtml: input.profileHtml,
+    profileUrl: input.profileUrl,
+    expectedViewerSubject: input.expectedViewerSubject,
+  });
+  const contact = projectFields(input.contactPayload, binding.vanity);
+  const hasAny = contact.email !== null
+    || contact.connectedSince !== null
+    || contact.phones.length > 0
+    || contact.websites.length > 0
+    || contact.birthday !== null;
+  return Object.freeze({
+    schemaVersion: 1,
+    provider: "linkedin",
+    profile: binding,
+    viewer: Object.freeze({ subject: viewerSubject(input.expectedViewerSubject) }),
+    observedAt: observationTime(input.observedAt),
+    completeness: hasAny ? "complete" : "partial",
+    contact,
+  });
+}

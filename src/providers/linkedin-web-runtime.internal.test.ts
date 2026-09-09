@@ -1091,6 +1091,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         browserCalls.push(`connections:${url}`);
         return Promise.resolve("<h1><span>4,877</span> connections</h1><button>Sort by:</button><label>Search with filters</label>");
       },
+      readContactInfoJson: () => Promise.reject(new Error("personal read crossed Contact-info")),
       readOrganizationHtml: () => Promise.reject(
         new Error("personal read must not request a company page"),
       ),
@@ -1145,6 +1146,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         },
         readProfileHtml: () => Promise.reject(new Error("probe crossed profile read")),
         readConnectionsHtml: () => Promise.reject(new Error("probe crossed connections read")),
+        readContactInfoJson: () => Promise.reject(new Error("probe crossed Contact-info read")),
         readOrganizationHtml: () => Promise.reject(new Error("probe crossed company read")),
         close: () => {
           browserCalls.push("close");
@@ -1220,6 +1222,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
       },
       readProfileHtml: () => Promise.reject(new Error("cancelled probe crossed profile read")),
       readConnectionsHtml: () => Promise.reject(new Error("cancelled probe crossed connections read")),
+      readContactInfoJson: () => Promise.reject(new Error("cancelled probe crossed Contact-info read")),
       readOrganizationHtml: () => Promise.reject(new Error("cancelled probe crossed company read")),
       close: () => {
         browserCalls.push("close");
@@ -1264,6 +1267,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         browserCalls.push(`connections:${url}`);
         return Promise.resolve("<h1><span>4,877</span> connections</h1><button>Sort by:</button><label>Search with filters</label>");
       },
+      readContactInfoJson: () => Promise.reject(new Error("personal read crossed Contact-info")),
       readOrganizationHtml: () => Promise.reject(new Error("personal read crossed company page")),
       close: () => {
         browserCalls.push("close");
@@ -1318,6 +1322,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
       },
       readProfileHtml: () => Promise.reject(new Error("company read crossed profile page")),
       readConnectionsHtml: () => Promise.reject(new Error("company read crossed connections page")),
+      readContactInfoJson: () => Promise.reject(new Error("company read crossed Contact-info")),
       readOrganizationHtml: (url) => {
         browserCalls.push(`organization:${url}`);
         return Promise.resolve(linkedInOrganizationStatsHtml());
@@ -1366,6 +1371,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
           currentIdentityResponse: () => { browserCalls.push("identity"); return Promise.resolve(currentIdentityResponse()); },
           readProfileHtml: () => Promise.reject(new Error("company crossed self profile")),
           readConnectionsHtml: () => Promise.reject(new Error("company crossed connections")),
+          readContactInfoJson: () => Promise.reject(new Error("company crossed Contact-info")),
           readOrganizationHtml: () => { browserCalls.push("company"); return Promise.resolve(linkedInOrganizationStatsHtml()); },
           close: () => { browserCalls.push("close"); return Promise.resolve(); },
         }),
@@ -1407,6 +1413,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
           currentIdentityResponse: () => { browserCalls.push("identity"); return Promise.resolve(changedIdentity); },
           readProfileHtml: () => Promise.reject(new Error("company crossed self profile")),
           readConnectionsHtml: () => Promise.reject(new Error("company crossed connections")),
+          readContactInfoJson: () => Promise.reject(new Error("company crossed Contact-info")),
           readOrganizationHtml: () => { browserCalls.push("company"); return Promise.reject(new Error("unbound company read")); },
           close: () => { browserCalls.push("close"); return Promise.resolve(); },
         }),
@@ -1430,6 +1437,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         currentIdentityResponse: () => { events.push("identity"); return Promise.resolve(currentIdentityResponse()); },
         readProfileHtml: () => Promise.reject(new Error("company crossed self profile")),
         readConnectionsHtml: () => Promise.reject(new Error("company crossed connections")),
+        readContactInfoJson: () => Promise.reject(new Error("company crossed Contact-info")),
         readOrganizationHtml: () => { events.push("company"); return Promise.resolve(linkedInOrganizationStatsHtml().replace("hraness", "unrelated-company")); },
         close: () => { events.push("close"); closeStarted.resolve(); return closing.promise; },
       }),
@@ -1474,6 +1482,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         currentIdentityResponse: () => { events.push("identity"); return Promise.resolve(currentIdentityResponse()); },
         readProfileHtml: () => Promise.reject(new Error("company crossed self profile")),
         readConnectionsHtml: () => Promise.reject(new Error("company crossed connections")),
+        readContactInfoJson: () => Promise.reject(new Error("company crossed Contact-info")),
         readOrganizationHtml: () => { events.push("company"); readStarted.resolve(); return reading.promise; },
         close: () => { events.push("close"); closeStarted.resolve(); return closing.promise; },
       }),
@@ -1532,6 +1541,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
           browserCalls.push(`connections:${url}`);
           return Promise.resolve("<h1><span>4,877</span> connections</h1><button>Sort by:</button><label>Search with filters</label>");
         },
+        readContactInfoJson: () => Promise.reject(new Error("personal read crossed Contact-info")),
         readOrganizationHtml: (url) => {
           browserCalls.push(`organization:${url}`);
           return Promise.resolve(linkedInOrganizationStatsHtml());
@@ -1610,6 +1620,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         },
         readProfileHtml: () => Promise.reject(new Error("drift reached profile page")),
         readConnectionsHtml: () => Promise.reject(new Error("drift reached connections page")),
+        readContactInfoJson: () => Promise.reject(new Error("drift reached Contact-info")),
         readOrganizationHtml: () => Promise.reject(new Error("drift reached company page")),
         close: () => {
           browserCalls.push("close");
@@ -1788,6 +1799,9 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         ),
         readConnectionsHtml: () => Promise.reject(
           new Error("typed failure crossed connection read"),
+        ),
+        readContactInfoJson: () => Promise.reject(
+          new Error("typed failure crossed Contact-info read"),
         ),
         readOrganizationHtml: () => Promise.reject(
           new Error("typed failure crossed company read"),
@@ -3498,5 +3512,175 @@ describe("native profile-activity ownership", () => {
     expect(proof.kind).toBe("failure");
     if (result.kind === "failure") expect(result.error).toBe(failure);
     if (proof.kind === "failure") expect(proof.error).toBe(failure);
+  });
+});
+
+function contactInfoRecipe(): WebSessionRecipe {
+  return {
+    site: "linkedin",
+    action: "contacts.read",
+    contractVersion: 1,
+    timeoutMs: 1_000,
+    maxOutputBytes: 4 * 1024 * 1024,
+  };
+}
+
+function firstDegreeContactHtml(): string {
+  const encoded = JSON.stringify({
+    $type: "com.linkedin.voyager.identity.profile.Profile",
+    publicIdentifier: "example",
+    entityUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+    memberDistance: "DISTANCE_1",
+  }).replace(/[&<>"=\\]/gu, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "=": "&#61;",
+    "\\": "&#92;",
+  })[character] ?? character);
+  return `<html><body><code style="display: none" id="bpr-guid-123">${encoded}</code></body></html>`;
+}
+
+describe("LinkedIn contacts.read runtime", () => {
+  test("projects 1st-degree Contact info through the contained browser only", async () => {
+    const browserCalls: string[] = [];
+    const transport: LinkedInProfileBrowserTransport = {
+      currentIdentityResponse: () => {
+        browserCalls.push("identity");
+        return Promise.resolve(currentIdentityResponse());
+      },
+      readProfileHtml: (url) => {
+        browserCalls.push(`profile:${url}`);
+        return Promise.resolve(firstDegreeContactHtml());
+      },
+      readConnectionsHtml: () => Promise.reject(new Error("contacts.read crossed connections")),
+      readContactInfoJson: (url) => {
+        browserCalls.push(`contact:${url}`);
+        return Promise.resolve({
+          $type: "com.linkedin.voyager.identity.profile.ProfileContactInfo",
+          emailAddress: "connection@example.test",
+          connectedAt: Date.parse("2023-10-03T00:00:00.000Z"),
+        });
+      },
+      readOrganizationHtml: () => Promise.reject(new Error("contacts.read crossed company")),
+      close: () => {
+        browserCalls.push("close");
+        return Promise.resolve();
+      },
+    };
+    const result = await executeLinkedInWebOperation(contactInfoRecipe(), {
+      profile_url: "https://www.linkedin.com/in/example/",
+    }, linkedinBrowserProfileAuth, {
+      dependencies: {
+        now: () => Date.parse("2026-09-08T18:00:00.000Z"),
+        createProfileBrowserTransport: () => Promise.resolve(transport),
+      },
+    });
+    expect(result).toMatchObject({
+      status: "succeeded",
+      finalUrl: "https://www.linkedin.com/in/example/",
+      output: {
+        completeness: "complete",
+        contact: {
+          email: "connection@example.test",
+          connectedSince: "2023-10-03",
+        },
+        profile: { relationship: "first-degree", vanity: "example" },
+      },
+    });
+    expect(browserCalls).toEqual([
+      "identity",
+      "profile:https://www.linkedin.com/in/example/",
+      "contact:https://www.linkedin.com/in/example/",
+      "close",
+    ]);
+    expect(JSON.stringify(result)).not.toContain("@gmail.com");
+  });
+
+  test("fails closed for a non-1st profile before Contact-info is fetched", async () => {
+    const browserCalls: string[] = [];
+    const encoded = JSON.stringify({
+      $type: "com.linkedin.voyager.identity.profile.Profile",
+      publicIdentifier: "example",
+      entityUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+      memberDistance: "DISTANCE_2",
+    }).replace(/[&<>"=\\]/gu, (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "=": "&#61;",
+      "\\": "&#92;",
+    })[character] ?? character);
+    const transport: LinkedInProfileBrowserTransport = {
+      currentIdentityResponse: () => {
+        browserCalls.push("identity");
+        return Promise.resolve(currentIdentityResponse());
+      },
+      readProfileHtml: () => {
+        browserCalls.push("profile");
+        return Promise.resolve(
+          `<html><body><code style="display: none" id="bpr-guid-123">${encoded}</code></body></html>`,
+        );
+      },
+      readConnectionsHtml: () => Promise.reject(new Error("non-1st crossed connections")),
+      readContactInfoJson: () => {
+        browserCalls.push("contact");
+        return Promise.reject(new Error("non-1st fetched Contact-info"));
+      },
+      readOrganizationHtml: () => Promise.reject(new Error("non-1st crossed company")),
+      close: () => {
+        browserCalls.push("close");
+        return Promise.resolve();
+      },
+    };
+    const result = await executeLinkedInWebOperation(contactInfoRecipe(), {
+      profile_url: "https://www.linkedin.com/in/example/",
+    }, linkedinBrowserProfileAuth, {
+      dependencies: {
+        now: () => Date.parse("2026-09-08T18:00:00.000Z"),
+        createProfileBrowserTransport: () => Promise.resolve(transport),
+      },
+    });
+    expect(result.status).toBe("failed");
+    expect(result.output).toBeNull();
+    expect(result.error).toContain("no remote write occurred");
+    expect(browserCalls).toEqual(["identity", "profile", "close"]);
+  });
+
+  test("refuses the signed-in self profile", async () => {
+    const encoded = JSON.stringify({
+      $type: "com.linkedin.voyager.identity.profile.Profile",
+      publicIdentifier: "example",
+      entityUrn: MEMBER_URN,
+      memberDistance: "SELF",
+    }).replace(/[&<>"=\\]/gu, (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "=": "&#61;",
+      "\\": "&#92;",
+    })[character] ?? character);
+    const result = await executeLinkedInWebOperation(contactInfoRecipe(), {
+      profile_url: "https://www.linkedin.com/in/example/",
+    }, linkedinBrowserProfileAuth, {
+      dependencies: {
+        now: () => Date.parse("2026-09-08T18:00:00.000Z"),
+        createProfileBrowserTransport: () => Promise.resolve({
+          currentIdentityResponse: () => Promise.resolve(currentIdentityResponse()),
+          readProfileHtml: () => Promise.resolve(
+            `<html><body><code style="display: none" id="bpr-guid-123">${encoded}</code></body></html>`,
+          ),
+          readConnectionsHtml: () => Promise.reject(new Error("self crossed connections")),
+          readContactInfoJson: () => Promise.reject(new Error("self fetched Contact-info")),
+          readOrganizationHtml: () => Promise.reject(new Error("self crossed company")),
+          close: () => Promise.resolve(),
+        }),
+      },
+    });
+    expect(result.status).toBe("failed");
+    expect(result.error).toContain("no remote write occurred");
   });
 });

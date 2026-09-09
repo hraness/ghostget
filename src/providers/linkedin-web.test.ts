@@ -60,6 +60,7 @@ describe("LinkedIn internal-web operation registry", () => {
     expect(LINKEDIN_WEB_OPERATION_NAMES).toEqual([
       "feeds.read",
       "contacts.list",
+      "contacts.read",
       "profiles.read",
       "organizations.read",
       "relationships.recommendations.read",
@@ -94,6 +95,7 @@ describe("LinkedIn internal-web operation registry", () => {
   test("graduates only private native Article saving, exact post publishing, and profile-activity reads", () => {
     const observed = new Set([
       "articles.draft.save",
+      "contacts.read",
       "feeds.read",
       "organizations.read",
       "posts.publish",
@@ -106,7 +108,8 @@ describe("LinkedIn internal-web operation registry", () => {
         operation === "posts.publish" ? 5
           : operation === "profiles.read"
             || operation === "organizations.read"
-            || operation === "feeds.read" ? 1
+            || operation === "feeds.read"
+            || operation === "contacts.read" ? 1
             : 0,
       );
     }
@@ -707,6 +710,7 @@ describe("LinkedIn R1 internal-request gate", () => {
         operation === "profiles.read"
         || operation === "organizations.read"
         || operation === "feeds.read"
+        || operation === "contacts.read"
       ) continue;
       expect(contract.requests).toHaveLength(0);
       expect(contract.state).toBe("capture-required");

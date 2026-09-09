@@ -2116,6 +2116,7 @@ describe("doctor authenticated API readiness", () => {
         adapters: ["linkedin-web"],
         observedOperations: [
           "articles.draft.save",
+          "contacts.read",
           "feeds.read",
           "organizations.read",
           "posts.publish",
@@ -2190,6 +2191,7 @@ describe("doctor authenticated API readiness", () => {
         accountBoundAuth: ["linkedin-bound"],
         observedOperations: [
           "articles.draft.save",
+          "contacts.read",
           "feeds.read",
           "organizations.read",
           "posts.publish",
