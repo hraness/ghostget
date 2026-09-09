@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import {
   agentBrowserCommand,
+  browserCommandLifecycle,
   isolatedEnvironment,
   parseLastJsonWithExactLaunchHashes,
   runCommand,
@@ -170,6 +171,7 @@ export class DerivationBrowserFixture {
   private readonly admitColdLaunch: (session: string) => void;
   private readonly browserHome: DeriveBrowserHome;
   private readonly startupEvidence: unknown[] = [];
+  private readonly commandFailures: unknown[] = [];
 
   constructor(
     private readonly directory: string,
@@ -211,18 +213,38 @@ export class DerivationBrowserFixture {
     return { NODE_ENV: "production", ...this.browserHome.environment };
   }
 
+  recordCommandFailure(session: string | null, operation: "initial-cdp" | "body" | "session-info" | "session-close", error: unknown): void {
+    try {
+      const lifecycle = browserCommandLifecycle(error);
+      if (lifecycle === null || this.commandFailures.length >= 32) return;
+      if (session !== null && !this.sessions.includes(session)) return;
+      const role = session === null ? "unattributed-body"
+        : session.startsWith("io-derive-pin-") ? "pin"
+        : session.startsWith("io-replace-") ? "replacement" : "owner";
+      const value = Object.freeze({ operation, role, lifecycle });
+      this.commandFailures.push(value);
+      console.error(`[wrench-fixture-command] ${JSON.stringify(value)}`);
+    } catch { /* Diagnostics cannot replace any primary or cleanup failure. */ }
+  }
+
   private async inspect(session: string): Promise<number | null> {
     this.assertRoots();
     if (!this.sessions.includes(session)) throw new Error("fixture session is not owned");
     const timeoutMs = this.cleanupDeadline === null ? 3_000
       : fixtureCollectionTimeout(this.cleanupDeadline, performance.now());
-    const result = await runCommand([
-      ...agentBrowserCommand(), "--config", "agent-browser.json", "--action-policy", "action-policy.json",
-      "--session", session, "session", "info", "--json",
-    ], {
-      cwd: this.directory, environment: this.browserEnvironment(),
-      timeoutMs, maxOutputBytes: 1024 * 1024,
-    });
+    let result: Awaited<ReturnType<typeof runCommand>>;
+    try {
+      result = await runCommand([
+        ...agentBrowserCommand(), "--config", "agent-browser.json", "--action-policy", "action-policy.json",
+        "--session", session, "session", "info", "--json",
+      ], {
+        cwd: this.directory, environment: this.browserEnvironment(),
+        timeoutMs, maxOutputBytes: 1024 * 1024,
+      });
+    } catch (error) {
+      this.recordCommandFailure(session, "session-info", error);
+      throw error;
+    }
     this.assertRoots();
     if (result.exitCode !== 0) throw new Error(`fixture session inspection failed: ${fixtureCommandDiagnostic(result)}`);
     const value = parseLastJsonWithExactLaunchHashes(result.stdout);
@@ -277,7 +299,10 @@ export class DerivationBrowserFixture {
 
   async run(body: () => Promise<void>): Promise<void> {
     const errors: unknown[] = [];
-    try { await body(); } catch (error) { errors.push(error); }
+    try { await body(); } catch (error) {
+      this.recordCommandFailure(null, "body", error);
+      errors.push(error);
+    }
     this.cleanupDeadline = performance.now() + 30_000;
     const cleanupDeadline = this.cleanupDeadline;
     const collected: string[] = [];
@@ -295,13 +320,19 @@ export class DerivationBrowserFixture {
             const timeoutMs = fixtureCollectionTimeout(cleanupDeadline, performance.now());
             // The exact CDP endpoint may intentionally be dead. Close the daemon session,
             // without --cdp, while its original routing and tripwire config still exist.
-            const result = await runCommand([
-              ...agentBrowserCommand(), "--config", "agent-browser.json", "--action-policy", "action-policy.json",
-              "--session", session, "close", "--json",
-            ], {
-              cwd: this.directory, environment: this.browserEnvironment(),
-              timeoutMs, maxOutputBytes: 1024 * 1024,
-            });
+            let result: Awaited<ReturnType<typeof runCommand>>;
+            try {
+              result = await runCommand([
+                ...agentBrowserCommand(), "--config", "agent-browser.json", "--action-policy", "action-policy.json",
+                "--session", session, "close", "--json",
+              ], {
+                cwd: this.directory, environment: this.browserEnvironment(),
+                timeoutMs, maxOutputBytes: 1024 * 1024,
+              });
+            } catch (error) {
+              this.recordCommandFailure(session, "session-close", error);
+              throw error;
+            }
             this.assertRoots();
             if (result.exitCode !== 0) throw new Error(`fixture close failed: ${fixtureCommandDiagnostic(result)}`);
             return result.exitCode;
@@ -353,6 +384,7 @@ export class DerivationBrowserFixture {
           executableSha256: this.browserHome.toolchain.receipt.executableSha256,
           treeSha256: this.browserHome.toolchain.receipt.treeSha256 },
         startup: this.startupEvidence,
+        commandFailures: this.commandFailures,
         owners: [...this.owners].map(([session, owner]) => ({ session, ...owner })),
         roots: this.roots.map(({ stat }) => ({ device: stat.dev.toString(), inode: stat.ino.toString() })),
       })}\n`, { mode: 0o600, flag: "wx" });

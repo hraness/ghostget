@@ -1940,7 +1940,13 @@ describe("derivation session path defenses", () => {
       arguments: ["batch", "--bail", "--json"],
     } as const;
     await fixture.run(async () => {
-      const cdpResult = await fixture.launch(ownerSession);
+      let cdpResult: Awaited<ReturnType<typeof fixture.launch>>;
+      try {
+        cdpResult = await fixture.launch(ownerSession);
+      } catch (error) {
+        fixture.recordCommandFailure(ownerSession, "initial-cdp", error);
+        throw error;
+      }
       expect(cdpResult.exitCode).toBe(0);
       const cdpValue = parseLastJsonWithExactLaunchHashes(cdpResult.stdout.toString()) as {
         readonly data: { readonly cdpUrl: string };

@@ -22,6 +22,7 @@ import {
   adoptLiveLegacyBrowserCleanupResource,
   bindLiveAgentBrowserCleanupResource,
   browserCleanupBarrier,
+  browserCommandLifecycle,
   browserCleanupResourceExtends,
   browserCleanupResourceRootStatus,
   browserRecoveryHandle,
@@ -3610,9 +3611,29 @@ describe("browser process isolation helpers", () => {
       expect(Number.isSafeInteger(pid)).toBeTrue();
 
       controller.abort();
-      expect(await rejectionMessage(operation)).toContain(
-        "agent-browser command was cancelled",
-      );
+      const failure = await rejectionValue(operation);
+      expect(failure).toBeInstanceOf(Error);
+      expect((failure as Error).name).toBe("BrowserCommandCleanupError");
+      expect((failure as Error).message).toContain("agent-browser command was cancelled");
+      expect((failure as Error).cause).toBeInstanceOf(Error);
+      expect(((failure as Error).cause as Error).message).toBe("agent-browser command was cancelled");
+      const lifecycle = browserCommandLifecycle(failure);
+      expect(lifecycle).not.toBeNull();
+      expect(lifecycle?.stopReason).toBe("cancelled");
+      expect(lifecycle?.beforeStop.wrapperExited).toBeFalse();
+      expect(lifecycle?.beforeStop.stdout.naturalEof).toBeFalse();
+      expect(lifecycle?.beforeStop.stderr.naturalEof).toBeFalse();
+      expect(lifecycle?.terminal.wrapperExited).toBeTrue();
+      expect(lifecycle?.terminal.stdout.naturalEof).toBeFalse();
+      expect(lifecycle?.terminal.stderr.naturalEof).toBeFalse();
+      expect(lifecycle?.terminal.originalGroupTerminationSucceeded).toBeTrue();
+      expect(lifecycle?.terminal.resourcesSettled).toBeTrue();
+      expect(Object.isFrozen(lifecycle)).toBeTrue();
+      expect(JSON.stringify(lifecycle)).not.toContain(directory);
+      expect(Object.keys(lifecycle ?? {}).sort()).toEqual(["beforeStop", "schemaVersion", "stopReason", "terminal"]);
+      expect(Object.keys(lifecycle?.beforeStop ?? {}).sort()).toEqual(["elapsedMs", "stderr", "stdout", "wrapperExitCode", "wrapperExited"]);
+      expect(Object.keys(lifecycle?.beforeStop.stdout ?? {}).sort()).toEqual(["bytes", "failed", "naturalEof"]);
+      expect(browserCommandLifecycle(new Error("unrelated"))).toBeNull();
 
       let processIsLive = true;
       try {
@@ -3676,9 +3697,13 @@ describe("browser process isolation helpers", () => {
       expect(Number.isSafeInteger(escapedPid)).toBeTrue();
 
       controller.abort();
-      expect(await rejectionMessage(operation)).toContain(
-        "descendant process cleanup could not be verified",
-      );
+      const failure = await rejectionValue(operation);
+      expect(failure).toBeInstanceOf(Error);
+      expect((failure as Error).message).toContain("descendant process cleanup could not be verified");
+      const lifecycle = browserCommandLifecycle(failure);
+      expect(lifecycle?.terminal.originalGroupTerminationSucceeded).toBeTrue();
+      expect(lifecycle?.terminal.resourcesSettled).toBeTrue();
+      // These observations cannot certify the still-live escaped descendant.
 
       expect(() => process.kill(escapedPid!, 0)).not.toThrow();
     } finally {
