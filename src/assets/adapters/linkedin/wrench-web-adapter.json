@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "linkedin-web",
-  "version": "1.20.0",
+  "version": "1.21.0",
   "displayName": "LinkedIn (Authenticated Web API)",
   "surfaceId": "linkedin",
   "origins": [
@@ -45,6 +45,33 @@
       "webSession": {
         "site": "linkedin",
         "action": "contacts.list",
+        "contractVersion": 1,
+        "timeoutMs": 60000,
+        "maxOutputBytes": 4194304
+      }
+    },
+    "contacts.read": {
+      "description": "Observed contract: read Contact info for one exact 1st-degree LinkedIn connection profile. Projects email when LinkedIn shows it, plus any of the profile link, connected-since date, phone numbers, websites, and birthday. Hidden or non-1st Contact info fails closed.",
+      "risk": "R1",
+      "sideEffect": "none",
+      "idempotency": "none",
+      "dedupeWindowMs": 0,
+      "input": {
+        "properties": {
+          "profile_url": {
+            "type": "string",
+            "description": "Exact public LinkedIn 1st-degree connection profile URL",
+            "minLength": 25,
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "profile_url"
+        ]
+      },
+      "webSession": {
+        "site": "linkedin",
+        "action": "contacts.read",
         "contractVersion": 1,
         "timeoutMs": 60000,
         "maxOutputBytes": 4194304

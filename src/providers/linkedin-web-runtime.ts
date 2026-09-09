@@ -6,7 +6,10 @@ import { LinkedInCompanyPlatformLive } from "./linkedin-company-platform";
 import { linkedInCompanyReadProgram } from "./linkedin-company-program";
 import { LinkedInProfileActivityPlatformLive } from "./linkedin-profile-activity-platform";
 import { linkedInProfileActivityReadProgram } from "./linkedin-profile-activity-program";
+import { LinkedInContactPlatformLive } from "./linkedin-contact-platform";
+import { linkedInContactReadProgram } from "./linkedin-contact-program";
 import { linkedInSelfReadProgram } from "./linkedin-self-program";
+import { linkedInContactInfoTarget } from "./linkedin-web-contact";
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 
@@ -846,6 +849,23 @@ async function createLinkedInStatsBrowserTransport(
       ? {}
       : { publishCleanupResource: options.publishCleanupResource }),
   });
+}
+
+async function executeLinkedInContactInfoRead(
+  recipe: WebSessionRecipe,
+  input: OperationInput,
+  auth: WrenchAuth,
+  options: LinkedInWebExecutionOptions,
+): Promise<WebSessionExecution> {
+  const target = linkedInContactInfoTarget(input.profile_url);
+  return runReadEffect(linkedInContactReadProgram(target).pipe(
+    Effect.provide(LinkedInContactPlatformLive({
+      openBrowser: () => createLinkedInStatsBrowserTransport(auth, recipe, options),
+      decodeIdentity: identityFromMeResponse,
+      bindIdentity: identity => boundLinkedInStatsIdentity(auth, identity),
+      observedAt: () => new Date(options.dependencies?.now?.() ?? Date.now()).toISOString(),
+    })),
+  ));
 }
 
 async function executeLinkedInPersonalProfileRead(
@@ -2149,6 +2169,27 @@ export async function executeLinkedInWebOperation(
     return startWebSessionCleanupTrackedOperation(
       options.registerCleanupBarrier,
       (publishCleanupResource) => executeLinkedInProfileActivityRead(
+        recipe,
+        input,
+        auth,
+        {
+          ...options,
+          ...(publishCleanupResource === undefined
+            ? {}
+            : { publishCleanupResource }),
+        },
+      ),
+      browserCleanupBarrier,
+    );
+  }
+  if (
+    recipe.site === "linkedin"
+    && recipe.contractVersion === 1
+    && recipe.action === "contacts.read"
+  ) {
+    return startWebSessionCleanupTrackedOperation(
+      options.registerCleanupBarrier,
+      (publishCleanupResource) => executeLinkedInContactInfoRead(
         recipe,
         input,
         auth,

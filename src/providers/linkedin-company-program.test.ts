@@ -45,6 +45,7 @@ test.each(["native", "message"] as const)(
           currentIdentityResponse: () => { events.push("browser-identity"); return Promise.reject(new Error("private identity failure")); },
           readProfileHtml: unexpected,
           readConnectionsHtml: unexpected,
+          readContactInfoJson: unexpected,
           readOrganizationHtml: unexpected,
           close: () => { events.push("close"); return Promise.resolve(); },
         });
@@ -84,6 +85,7 @@ test.each(["success", "failure"] as const)(
         currentIdentityResponse: () => Promise.reject(primary),
         readProfileHtml: unexpected,
         readConnectionsHtml: unexpected,
+        readContactInfoJson: unexpected,
         readOrganizationHtml: unexpected,
         close: () => { events.push("close"); closeStarted.resolve(); return closeSettlement.promise; },
       }),
