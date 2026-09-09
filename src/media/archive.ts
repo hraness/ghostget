@@ -1,3 +1,5 @@
+import { persistLocalTranscript } from "./transcript-persistence-runtime";
+import type { TranscriptArtifactsResult } from "./transcript-persistence-model";
 import { randomUUID } from "node:crypto";
 import type { Dirent } from "node:fs";
 import { chmod, lstat, mkdir, mkdtemp, open, opendir, readFile, readdir, realpath, rename, rm, unlink, writeFile } from "node:fs/promises";
@@ -840,49 +842,10 @@ async function transcriptArtifacts(
   };
 }
 
-interface TranscriptArtifactsResult {
-  readonly transcript: MediaTranscript;
-  readonly artifacts: readonly MediaArtifact[];
-}
-
 function unavailableTranscript(
   reason: "not_requested" | "transcriber_not_configured" | "audio_not_present",
 ): TranscriptArtifactsResult {
   return { transcript: { status: "unavailable", reason }, artifacts: [] };
-}
-
-async function persistLocalTranscript(
-  itemRoot: string,
-  result: Extract<LocalTranscriptionResult, { status: "transcribed" }>,
-): Promise<TranscriptArtifactsResult> {
-  const captionsDirectory = join(itemRoot, "data", "captions");
-  const timedPath = join(captionsDirectory, "transcript.vtt");
-  const textPath = join(captionsDirectory, "transcript.txt");
-  const cuesPath = join(captionsDirectory, "transcript.json");
-  await Promise.all([
-    writeFile(timedPath, result.transcript.vtt, { encoding: "utf8", mode: 0o600 }),
-    writeFile(textPath, result.transcript.text, { encoding: "utf8", mode: 0o600 }),
-    writeFile(cuesPath, result.transcript.json, { encoding: "utf8", mode: 0o600 }),
-  ]);
-  const timedRelative = relativeArtifactPath(itemRoot, timedPath);
-  const textRelative = relativeArtifactPath(itemRoot, textPath);
-  const cuesRelative = relativeArtifactPath(itemRoot, cuesPath);
-  return {
-    transcript: {
-      status: "available",
-      source: "local",
-      language: result.language,
-      timedPath: timedRelative,
-      textPath: textRelative,
-      cuesPath: cuesRelative,
-      provenance: result.provenance,
-    },
-    artifacts: await Promise.all([
-      createMediaArtifact(itemRoot, timedRelative, "transcript_vtt"),
-      createMediaArtifact(itemRoot, textRelative, "transcript_text"),
-      createMediaArtifact(itemRoot, cuesRelative, "transcript_json"),
-    ]),
-  };
 }
 
 function localProvenanceMatchesPlan(

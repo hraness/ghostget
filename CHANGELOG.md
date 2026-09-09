@@ -1,6 +1,6 @@
 # Changelog
 
-Versioned sections identify checked package source. Starting with v0.16.12,
+Versioned sections identify checked package source. Starting with v0.16.13,
 a version is publicly released after its exact canonical GitHub archive and
 provenance are published in an immutable Release. npm mirrors are optional.
 Historical entries retain their original delivery coordinates.

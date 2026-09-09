@@ -1161,7 +1161,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_918_272);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_932_096);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1266,19 +1266,19 @@ describe("npm publication contract", () => {
     expect(budget).toContain("measured a 3,543-byte Linux/macOS gzip spread");
     expect(budget).toContain("leaves 4,266 bytes");
     expect(budget).toContain("635 unpacked bytes of headroom");
-    expect(MAX_PACKED_BYTES).toBe(2_249_656);
-    expect(MAX_PACKED_ENTRIES).toBe(497);
-    expect(MAX_PACKED_FILES).toBe(497);
-    expect(MAX_UNPACKED_BYTES).toBe(12_408_461);
+    expect(MAX_PACKED_BYTES).toBe(2_252_656);
+    expect(MAX_PACKED_ENTRIES).toBe(501);
+    expect(MAX_PACKED_FILES).toBe(501);
+    expect(MAX_UNPACKED_BYTES).toBe(12_418_127);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 497, max: 497 },
-      fileCount: { min: 497, max: 497 },
-      packedBytes: { min: 1_600_000, max: 2_249_656 },
-      unpackedBytes: { min: 9_000_000, max: 12_408_461 },
+      entryCount: { min: 501, max: 501 },
+      fileCount: { min: 501, max: 501 },
+      packedBytes: { min: 1_600_000, max: 2_252_656 },
+      unpackedBytes: { min: 9_000_000, max: 12_418_127 },
     });
   });
 
