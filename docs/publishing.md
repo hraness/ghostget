@@ -11,11 +11,16 @@ unchanged.
 
 Start from the exact reviewed source commit `C` merged below protected `main`.
 Complete the repository's applicable source, focused native, package/install,
-and independent review gates. Keep Node 24, npm 11.19.0, and Bun 1.3.14. The
+and independent review gates. Keep Node 24.20.0, npm 11.19.0, and Bun 1.3.14. The
 release workflow retains its complete `bun run check`, clean generated `dist`
 and `bun.lock` check, dry packing, and all seven Node import checks. Its exact
 packed archive also passes the isolated package consumer smoke before any
-attestation or publication capability is available.
+attestation or publication capability is available. Required PR CI also packs with
+the same Node/npm versions and canonical npm command, then checks the existing
+strict archive parser before tagging. The existing Bun package and isolated
+consumer checks remain required. Record the Node zlib build and platform along
+with both package measurements; equal Node/npm versions alone do not establish
+equal gzip bytes.
 
 Choose a new stable package version greater than every completed stable
 Release. A raw tag is a request, not a completed publication. Check the package
@@ -77,12 +82,18 @@ The Release workflow does not hold the production App key, touch production
 refs, or wait for Vercel. The separate production workflow cryptographically
 verifies the canonical archive before collecting the provider baseline.
 
+The `v0.16.13` request passed its complete source gate but failed canonical
+preparation because its npm archive exceeded the compressed-byte ceiling. No
+canonical assets were uploaded or published. Retain that tag and failed run;
+`v0.16.14` is a new candidate and is usable only after its own immutable Release
+passes admission.
+
 ## Install the canonical release
 
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/wrench/releases/download/v0.16.13/hraness-wrench-0.16.13.tgz
+bun add --global https://github.com/hraness/wrench/releases/download/v0.16.14/hraness-wrench-0.16.14.tgz
 wrench --version
 wrench doctor --json
 ```
@@ -116,7 +127,7 @@ npm's default tag backward.
 
 ```sh
 gh workflow run npm-stage.yml --repo hraness/wrench --ref main \
-  -f release_tag=v0.16.13
+  -f release_tag=v0.16.14
 ```
 
 The read-only verify job downloads the five immutable assets, verifies their
@@ -131,7 +142,7 @@ An explicit owner-authorized dispatch may then stage the mirror:
 
 ```sh
 gh workflow run npm-stage.yml --repo hraness/wrench --ref main \
-  -f release_tag=v0.16.13 -f publish_to_npm=true
+  -f release_tag=v0.16.14 -f publish_to_npm=true
 ```
 
 The minimal checkout-free terminal job retains exact actor/repository/run

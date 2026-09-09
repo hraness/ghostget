@@ -99,7 +99,7 @@ jobs:
           ref: refs/tags/${{ steps.request.outputs.tag }}
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: "24"
+          node-version: "24.20.0"
           registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -112,6 +112,7 @@ jobs:
             --ignore-scripts \
             --registry=https://registry.npmjs.org
           test "$(npm --version)" = "11.19.0"
+          node -p 'JSON.stringify({ node: process.version, zlib: process.versions.zlib, platform: process.platform, arch: process.arch })'
       - name: Verify release identity
         id: identity
         env:
@@ -532,7 +533,7 @@ jobs:
           ref: ${{ needs.verify.outputs.verified_sha }}
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: "24"
+          node-version: "24.20.0"
           package-manager-cache: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:

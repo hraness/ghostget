@@ -7,6 +7,15 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.16.14 - 2026-09-09
+
+- Check the real canonical npm archive in required PR CI before tagging, using
+  the same pinned Node and npm versions as the release workflow. Retain Bun
+  package checks and exact archive, payload, provenance, and install admission.
+- Retain the failed v0.16.13 tag: its source gate passed, but canonical archive
+  preparation exceeded the compressed-byte ceiling before any asset upload.
+  This version becomes public only after its own immutable Release succeeds.
+
 ## 0.16.13 - 2026-09-09
 
 - Distribute the same named CLI and seven SDK exports through a versioned

@@ -499,7 +499,7 @@ describe("wrench.rip static site", () => {
     expect(html).toContain('data-hraness-marketing="pillars"');
     expect(html).toContain('data-hraness-marketing="maker"');
     expect(html).toContain('clipped: "2026-09-05"');
-    expect(html).toContain(`Wrench ${packageIdentity.release}, run on September 5, 2026`);
+    expect(html).toContain("Wrench public-page read, recorded on September 5, 2026");
     expect(html).toContain('<a href="https://hraness.com">hraness.com</a>');
     expect(html).toContain('<a href="https://x.com/hraness">@hraness</a>');
     expect(html).not.toMatch(/\bstyle="/u);
