@@ -123,11 +123,14 @@ describe("X query descriptor revision evidence", () => {
   test("records the current reviewed Bookmarks observation", () => {
     const bookmarks = evidence("Bookmarks");
     expect(bookmarks).toMatchObject({
-      queryId: "iblrFnKr6PZUR-dWpfXG6g",
-      sourceChunk: "shared~bundle.BookmarkFolders~bundle.Bookmarks.34bab1bee55aa5a1a.js",
-      observedOn: "2026-09-01",
+      queryId: "tF6KOjmZM0WGcB2Q0mfwhw",
+      sourceChunk: "shared~bundle.BookmarkFolders~bundle.Bookmarks.433463ce78e2afaba.js",
+      observedOn: "2026-09-09",
     });
+    expect(bookmarks.queryId).not.toBe("iblrFnKr6PZUR-dWpfXG6g");
     expect(bookmarks.queryId).not.toBe("LoLaMO4GuHLEPJWrenchH9kjAw");
+    expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
+      .not.toContain("iblrFnKr6PZUR-dWpfXG6g");
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
       .not.toContain("LoLaMO4GuHLEPJWrenchH9kjAw");
   });
@@ -188,10 +191,13 @@ describe("X query descriptor revision evidence", () => {
 
   test("records the current reviewed Viewer and Article descriptor observations", () => {
     expect(evidence("Viewer")).toMatchObject({
-      queryId: "5XShkXk2oO2J7SYmTu6pvw",
-      sourceChunk: "main.e4aca26a.js",
-      observedOn: "2026-08-14",
+      queryId: "9t128XgFic52jPUEkJMf6w",
+      sourceChunk: "main.cd39a626fdb81748a.js",
+      observedOn: "2026-09-09",
     });
+    expect(evidence("Viewer").queryId).not.toBe("5XShkXk2oO2J7SYmTu6pvw");
+    expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
+      .not.toContain("5XShkXk2oO2J7SYmTu6pvw");
     expect(evidence("ArticleEntityDraftCreate")).toMatchObject({
       queryId: "btD9FyMDa3_vydVp7fr87Q",
       sourceChunk: "bundle.TwitterArticles.305538ca.js",
