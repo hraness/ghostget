@@ -5,6 +5,7 @@ import { appendFileSync, readFileSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
+import { parseReleaseAssetDescriptors, usesGithubReleaseAssets } from "../website/github-release-artifact.mjs";
 
 import {
   RELEASE_APP_REVOCATION_OBSERVATION_OFFSETS_MILLISECONDS,
@@ -1842,11 +1843,12 @@ export function exactPublishedRelease(value, tag, label = "published Release") {
     release.tag_name !== stableTag ||
     release.draft !== false ||
     release.prerelease !== false ||
-    release.immutable !== true ||
-    assets.length !== 0
+    release.immutable !== true
   ) {
-    fail(`Release ${stableTag} is not exact, published, immutable, and asset-free`);
+    fail(`Release ${stableTag} is not exact, published, and immutable`);
   }
+  if (usesGithubReleaseAssets(stableTag)) parseReleaseAssetDescriptors(assets, stableTag);
+  else if (assets.length !== 0) fail(`Historical Release ${stableTag} must remain asset-free`);
   parseSecondTimestamp(release.published_at, `${label}.published_at`);
   return release;
 }

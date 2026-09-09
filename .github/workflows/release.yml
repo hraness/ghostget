@@ -62,6 +62,9 @@ jobs:
     outputs:
       verified_sha: ${{ steps.identity.outputs.sha }}
       verified_tag: ${{ steps.identity.outputs.tag }}
+      workflow_sha: ${{ steps.identity.outputs.main_sha }}
+      archive_name: ${{ steps.identity.outputs.archive_name }}
+      artifact_hashes: ${{ steps.canonical.outputs.artifact_hashes }}
     steps:
       - name: Resolve release request
         id: request
@@ -133,6 +136,7 @@ jobs:
             echo "::error::Release ref authority did not bind tag below protected current main"
             exit 1
           fi
+          verified_main_sha="${BASH_REMATCH[1]}"
           package_version="$(bun -e 'const value = await Bun.file("package.json").json(); if (typeof value.version !== "string") process.exit(1); process.stdout.write(value.version)')"
           if [[ ! "$package_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             echo "::error::Package version $package_version is not a stable semantic version"
@@ -157,6 +161,8 @@ jobs:
           fi
           printf 'tag=%s\n' "$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
           printf 'sha=%s\n' "$tag_commit" >> "$GITHUB_OUTPUT"
+          printf 'main_sha=%s\n' "$verified_main_sha" >> "$GITHUB_OUTPUT"
+          printf 'archive_name=hraness-wrench-%s.tgz\n' "$package_version" >> "$GITHUB_OUTPUT"
       - run: bun install --frozen-lockfile --ignore-scripts
       - name: Provision exact native fixture browser
         run: |
@@ -171,239 +177,238 @@ jobs:
           fi
       - run: bun pm pack --dry-run --ignore-scripts
       - run: node --input-type=module -e 'await Promise.all(["./dist/index.js","./dist/client.js","./dist/beeper-client.js","./dist/apple-photos-client.js","./dist/whatsapp-client.js","./dist/omni-client.js","./dist/messaging.js"].map((path) => import(path)))'
-      - name: Verify exact public npm delivery
+      - name: Prepare and install the exact canonical archive
+        id: canonical
         env:
-          GH_TOKEN: ${{ github.token }}
+          VERIFIED_SHA: ${{ steps.identity.outputs.sha }}
+          VERIFIED_TAG: ${{ steps.identity.outputs.tag }}
+          WORKFLOW_SHA: ${{ steps.identity.outputs.main_sha }}
         run: |
           set -euo pipefail
-          package_name="$(node -p 'require("./package.json").name')"
-          package_version="$(node -p 'require("./package.json").version')"
-          package_spec="$package_name@$package_version"
-          source_directory="$RUNNER_TEMP/wrench-release-source"
-          registry_directory="$RUNNER_TEMP/wrench-release-registry"
-          source_json="$RUNNER_TEMP/wrench-release-source.json"
-          registry_json="$RUNNER_TEMP/wrench-release-registry.json"
-          registry_view_json="$RUNNER_TEMP/wrench-release-registry-view.json"
-          mkdir -p "$source_directory" "$registry_directory"
+          directory="$RUNNER_TEMP/wrench-canonical"
+          mkdir -m 700 "$directory"
+          npm pack --ignore-scripts --json --pack-destination "$directory" \
+            --registry=https://registry.npmjs.org > "$directory/npm-pack.json"
+          bun run ./scripts/github-release-artifact.ts prepare "$directory"
+          bun run ./scripts/package-smoke.ts \
+            --archive "$directory/hraness-wrench-${VERIFIED_TAG#v}.tgz" \
+            --pack-json "$directory/npm-pack.json"
+          DIRECTORY="$directory" node <<'NODE'
+          const fs = require("node:fs"); const path = require("node:path"); const crypto = require("node:crypto");
+          const names = fs.readdirSync(process.env.DIRECTORY).sort();
+          const hashes = Object.fromEntries(names.map(name => [name, crypto.createHash("sha256").update(fs.readFileSync(path.join(process.env.DIRECTORY, name))).digest("hex")]));
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `artifact_hashes=${JSON.stringify(hashes)}\n`);
+          NODE
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: canonical-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wrench-canonical
+          if-no-files-found: error
+          retention-days: 30
 
-          npm pack \
-            --ignore-scripts \
-            --json \
-            --pack-destination "$source_directory" \
-            --registry=https://registry.npmjs.org > "$source_json"
-          npm pack "$package_spec" \
-            --ignore-scripts \
-            --json \
-            --pack-destination "$registry_directory" \
-            --registry=https://registry.npmjs.org > "$registry_json"
-          npm view "$package_spec" name version dist \
-            --json \
-            --registry=https://registry.npmjs.org > "$registry_view_json"
-          latest_version="$(npm view "$package_name" dist-tags.latest \
-            --json \
-            --registry=https://registry.npmjs.org)"
-          if [[ "$latest_version" != "\"$package_version\"" ]]; then
-            echo "::error::npm latest is $latest_version, expected $package_version"
+  attest:
+    name: Attest exact canonical build files
+    outputs:
+      bundle_sha256: ${{ steps.bundle.outputs.bundle_sha256 }}
+    needs: verify
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      attestations: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DEFAULT_BRANCH: main
+      GH_TOKEN: ${{ github.token }}
+      VERIFIED_SHA: ${{ needs.verify.outputs.verified_sha }}
+      VERIFIED_TAG: ${{ needs.verify.outputs.verified_tag }}
+    steps:
+      - name: Reauthorize current release attempt
+        env:
+          EXPECTED_ACTOR_ID: "894119"
+          EXPECTED_REPOSITORY: "hraness/wrench"
+          EXPECTED_REPOSITORY_ID: "1316443113"
+          EXPECTED_WORKFLOW_ID: "323493609"
+          EXPECTED_WORKFLOW_PATH: ".github/workflows/release.yml"
+        run: |
+          set -euo pipefail
+          if [[ ! "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ || \
+                ! "$GITHUB_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ || \
+                ! "$VERIFIED_SHA" =~ ^[a-f0-9]{40}$ || \
+                ! "$VERIFIED_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ || \
+                "$GITHUB_EVENT_NAME" != push || \
+                "$GITHUB_REPOSITORY" != "$EXPECTED_REPOSITORY" || \
+                "$GITHUB_REPOSITORY_ID" != "$EXPECTED_REPOSITORY_ID" || \
+                "$GITHUB_REF" != "refs/tags/$VERIFIED_TAG" || \
+                "$GITHUB_SHA" != "$VERIFIED_SHA" ]]; then
+            echo "::error::Current release attempt is not the exact protected tag run"
             exit 1
           fi
-
-          source_name="$(node -e 'const fs = require("node:fs"); const value = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); if (!Array.isArray(value) || value.length !== 1 || typeof value[0].filename !== "string") process.exit(1); process.stdout.write(value[0].filename)' "$source_json")"
-          registry_name="$(node -e 'const fs = require("node:fs"); const value = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); if (!Array.isArray(value) || value.length !== 1 || typeof value[0].filename !== "string") process.exit(1); process.stdout.write(value[0].filename)' "$registry_json")"
-          if [[ "$source_name" != "$registry_name" ]]; then
-            echo "::error::Source tarball $source_name does not match registry tarball $registry_name"
+          if ! VERIFIED_TAG="$VERIFIED_TAG" node -e '
+            const value = process.env.VERIFIED_TAG ?? "";
+            const match = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(value);
+            if (match === null || match.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))) process.exit(1);
+          '; then
+            echo "::error::Current release attempt has an unsupported stable version"
             exit 1
           fi
-          source_archive="$source_directory/$source_name"
-          registry_archive="$registry_directory/$registry_name"
-          bun run ./scripts/npm-package-identity.ts \
-            --source-archive "$source_archive" \
-            --source-pack-json "$source_json" \
-            --registry-archive "$registry_archive" \
-            --registry-pack-json "$registry_json" \
-            --registry-view-json "$registry_view_json" \
-            --expected-name "$package_name" \
-            --expected-version "$package_version"
-          audit_directory="$RUNNER_TEMP/wrench-release-signature-audit"
-          audit_json="$RUNNER_TEMP/wrench-release-signature-audit.json"
-          mkdir -p "$audit_directory"
-          AUDIT_DIRECTORY="$audit_directory" \
-            PACKAGE_NAME="$package_name" \
-            PACKAGE_VERSION="$package_version" node <<'NODE'
-          const { writeFileSync } = require("node:fs");
-          const { join } = require("node:path");
-          writeFileSync(join(process.env.AUDIT_DIRECTORY, "package.json"), `${JSON.stringify({
-            name: "wrench-release-signature-audit",
-            private: true,
-            version: "0.0.0",
-            dependencies: { [process.env.PACKAGE_NAME]: process.env.PACKAGE_VERSION },
-          })}\n`, { encoding: "utf8", mode: 0o600 });
-          NODE
-          npm install \
-            --prefix "$audit_directory" \
-            --ignore-scripts \
-            --omit=dev \
-            --omit=optional \
-            --no-audit \
-            --no-fund \
-            --registry=https://registry.npmjs.org
-          npm audit signatures \
-            --prefix "$audit_directory" \
-            --json \
-            --include-attestations \
-            --omit=dev \
-            --omit=optional \
-            --registry=https://registry.npmjs.org \
-            > "$audit_json"
-          provenance_identity="$(bun run ./scripts/npm-provenance-identity.ts \
-            --audit-json "$audit_json" \
-            --expected-event workflow_dispatch \
-            --expected-name "$package_name" \
-            --expected-owner-id 307125679 \
-            --expected-ref refs/heads/main \
-            --expected-repository hraness/wrench \
-            --expected-repository-id 1316443113 \
-            --expected-source-sha "$GITHUB_SHA" \
-            --expected-version "$package_version" \
-            --expected-workflow-path .github/workflows/npm-stage.yml \
-            --registry-archive "$registry_archive")"
-          read -r stage_run_id stage_run_attempt < <(PROVENANCE_IDENTITY="$provenance_identity" node <<'NODE'
-          const identity = JSON.parse(process.env.PROVENANCE_IDENTITY ?? "null");
-          if (
-            !Number.isSafeInteger(identity?.runId)
-            || identity.runId < 1
-            || !Number.isSafeInteger(identity?.runAttempt)
-            || identity.runAttempt < 1
-            || Object.keys(identity).sort().join(",") !== "runAttempt,runId"
-          ) throw new Error("Verified npm provenance returned an invalid run identity");
-          process.stdout.write(`${identity.runId} ${identity.runAttempt}\n`);
-          NODE
-          )
-          stage_attempt_json="$(mktemp "$RUNNER_TEMP/wrench-published-stage-attempt.XXXXXX")"
-          stage_jobs_json="$(mktemp "$RUNNER_TEMP/wrench-published-stage-jobs.XXXXXX")"
-          stage_workflow_json="$(mktemp "$RUNNER_TEMP/wrench-published-stage-workflow.XXXXXX")"
-          repository_json="$(mktemp "$RUNNER_TEMP/wrench-published-stage-repository.XXXXXX")"
-          trap 'rm -f "$stage_attempt_json" "$stage_jobs_json" "$stage_workflow_json" "$repository_json"' EXIT
+          attempt_json="$(mktemp "$RUNNER_TEMP/wrench-release-attempt.XXXXXX")"
+          workflow_json="$(mktemp "$RUNNER_TEMP/wrench-release-workflow.XXXXXX")"
+          repository_json="$(mktemp "$RUNNER_TEMP/wrench-release-repository.XXXXXX")"
+          tag_ref_json="$(mktemp "$RUNNER_TEMP/wrench-release-tag-ref.XXXXXX")"
+          trap 'rm -f "$attempt_json" "$workflow_json" "$repository_json" "$tag_ref_json"' EXIT
           gh api --method GET \
-            "/repos/$GITHUB_REPOSITORY/actions/runs/$stage_run_id/attempts/$stage_run_attempt" \
-            > "$stage_attempt_json"
+            "/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
+            > "$attempt_json"
           gh api --method GET \
-            "/repos/$GITHUB_REPOSITORY/actions/runs/$stage_run_id/attempts/$stage_run_attempt/jobs?per_page=100" \
-            > "$stage_jobs_json"
-          gh api --method GET \
-            "/repos/$GITHUB_REPOSITORY/actions/workflows/344213783" \
-            > "$stage_workflow_json"
+            "/repos/$GITHUB_REPOSITORY/actions/workflows/$EXPECTED_WORKFLOW_ID" \
+            > "$workflow_json"
           gh api --method GET "/repos/$GITHUB_REPOSITORY" > "$repository_json"
-          ATTEMPT_JSON="$stage_attempt_json" \
-            JOBS_JSON="$stage_jobs_json" \
-            EXPECTED_RUN_ATTEMPT="$stage_run_attempt" \
-            EXPECTED_RUN_ID="$stage_run_id" \
-            EXPECTED_SHA="$GITHUB_SHA" \
-            EXPECTED_VERSION="$package_version" \
+          ATTEMPT_JSON="$attempt_json" \
+            WORKFLOW_JSON="$workflow_json" \
             REPOSITORY_JSON="$repository_json" \
-            WORKFLOW_JSON="$stage_workflow_json" node <<'NODE'
-          const fs = require("node:fs");
-          const attempt = JSON.parse(fs.readFileSync(process.env.ATTEMPT_JSON, "utf8"));
-          const jobsResponse = JSON.parse(fs.readFileSync(process.env.JOBS_JSON, "utf8"));
-          const workflow = JSON.parse(fs.readFileSync(process.env.WORKFLOW_JSON, "utf8"));
-          const repository = JSON.parse(fs.readFileSync(process.env.REPOSITORY_JSON, "utf8"));
-          const runId = Number(process.env.EXPECTED_RUN_ID);
-          const runAttempt = Number(process.env.EXPECTED_RUN_ATTEMPT);
+            EXPECTED_ACTOR_ID="$EXPECTED_ACTOR_ID" \
+            EXPECTED_REPOSITORY="$EXPECTED_REPOSITORY" \
+            EXPECTED_REPOSITORY_ID="$EXPECTED_REPOSITORY_ID" \
+            EXPECTED_RUN_ID="$GITHUB_RUN_ID" \
+            EXPECTED_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            EXPECTED_SHA="$VERIFIED_SHA" \
+            EXPECTED_TAG="$VERIFIED_TAG" \
+            EXPECTED_WORKFLOW_ID="$EXPECTED_WORKFLOW_ID" \
+            EXPECTED_WORKFLOW_PATH="$EXPECTED_WORKFLOW_PATH" node <<'NODE'
+          const { readFileSync } = require("node:fs");
+          const positiveInteger = (name) => {
+            const value = process.env[name] ?? "";
+            if (!/^[1-9][0-9]*$/u.test(value)) throw new Error(`Invalid ${name}`);
+            const number = Number(value);
+            if (!Number.isSafeInteger(number)) throw new Error(`Unsafe ${name}`);
+            return number;
+          };
+          const attempt = JSON.parse(readFileSync(process.env.ATTEMPT_JSON, "utf8"));
+          const workflow = JSON.parse(readFileSync(process.env.WORKFLOW_JSON, "utf8"));
+          const repository = JSON.parse(readFileSync(process.env.REPOSITORY_JSON, "utf8"));
+          const actorId = positiveInteger("EXPECTED_ACTOR_ID");
+          const repositoryId = positiveInteger("EXPECTED_REPOSITORY_ID");
+          const runId = positiveInteger("EXPECTED_RUN_ID");
+          const runAttempt = positiveInteger("EXPECTED_RUN_ATTEMPT");
+          const workflowId = positiveInteger("EXPECTED_WORKFLOW_ID");
           if (
-            !Number.isSafeInteger(runId)
-            || !Number.isSafeInteger(runAttempt)
-            || attempt.id !== runId
+            attempt.id !== runId
             || attempt.run_attempt !== runAttempt
-            || attempt.workflow_id !== 344213783
-            || attempt.path !== ".github/workflows/npm-stage.yml"
-            || attempt.event !== "workflow_dispatch"
-            || attempt.head_branch !== "main"
+            || attempt.workflow_id !== workflowId
+            || attempt.path !== process.env.EXPECTED_WORKFLOW_PATH
+            || attempt.event !== "push"
+            || attempt.head_branch !== process.env.EXPECTED_TAG
             || attempt.head_sha !== process.env.EXPECTED_SHA
-            || attempt.status !== "completed"
-            || attempt.conclusion !== "success"
-            || attempt.actor?.id !== 894119
+            || attempt.status !== "in_progress"
+            || attempt.conclusion !== null
+            || attempt.actor?.id !== actorId
             || attempt.actor?.type !== "User"
-            || attempt.triggering_actor?.id !== 894119
+            || attempt.triggering_actor?.id !== actorId
             || attempt.triggering_actor?.type !== "User"
-            || attempt.repository?.id !== 1316443113
-            || attempt.repository?.full_name !== "hraness/wrench"
+            || attempt.repository?.id !== repositoryId
+            || attempt.repository?.full_name !== process.env.EXPECTED_REPOSITORY
             || attempt.repository?.private !== false
-            || workflow.id !== 344213783
-            || workflow.path !== ".github/workflows/npm-stage.yml"
+            || workflow.id !== workflowId
+            || workflow.path !== process.env.EXPECTED_WORKFLOW_PATH
             || workflow.state !== "active"
-            || repository.id !== 1316443113
-            || repository.full_name !== "hraness/wrench"
+            || repository.id !== repositoryId
+            || repository.full_name !== process.env.EXPECTED_REPOSITORY
             || repository.visibility !== "public"
             || repository.private !== false
             || repository.default_branch !== "main"
-          ) throw new Error("Published npm provenance is not bound to the completed owner-authorized Wrench stage attempt");
-          if (
-            !Number.isSafeInteger(jobsResponse?.total_count)
-            || jobsResponse.total_count < 1
-            || jobsResponse.total_count > 100
-            || !Array.isArray(jobsResponse.jobs)
-            || jobsResponse.jobs.length !== jobsResponse.total_count
-          ) throw new Error("Published npm provenance stage-attempt jobs are not one bounded complete response");
-          const expectedJobName = `Stage exact package v${process.env.EXPECTED_VERSION}`;
-          let exactSuccessfulStageJobs = 0;
-          const jobIds = new Set();
-          for (const job of jobsResponse.jobs) {
-            if (
-              !Number.isSafeInteger(job?.id)
-              || job.id < 1
-              || jobIds.has(job.id)
-              || job.run_id !== runId
-              || job.run_attempt !== runAttempt
-              || job.head_sha !== process.env.EXPECTED_SHA
-              || typeof job.name !== "string"
-              || typeof job.status !== "string"
-              || (job.conclusion !== null && typeof job.conclusion !== "string")
-              || !Array.isArray(job.steps)
-              || job.steps.length > 100
-              || job.steps.some(step => (
-                !step
-                || typeof step !== "object"
-                || typeof step.name !== "string"
-                || (step.conclusion !== null && typeof step.conclusion !== "string")
-              ))
-            ) throw new Error("Published npm provenance stage-attempt job identity is malformed");
-            jobIds.add(job.id);
-            if (
-              job.name === expectedJobName
-              && job.status === "completed"
-              && job.conclusion === "success"
-            ) {
-              const successfulIntents = job.steps.filter(step => (
-                step.name === "Record exclusive stable-stage intent"
-                && step.conclusion === "success"
-              ));
-              if (successfulIntents.length !== 1) {
-                throw new Error("Published npm provenance stage job lacks one exact successful stable-stage intent");
-              }
-              exactSuccessfulStageJobs += 1;
-            }
-          }
-          if (exactSuccessfulStageJobs !== 1) {
-            throw new Error("Published npm provenance does not bind exactly one successful versioned stage job");
-          }
+          ) throw new Error("Current release attempt is not owner-authorized for this exact public workflow");
           NODE
-          bun run ./scripts/package-smoke.ts \
-            --archive "$registry_archive" \
-            --pack-json "$registry_json"
+          gh api --method GET "/repos/$GITHUB_REPOSITORY/git/ref/tags/$VERIFIED_TAG" \
+            > "$tag_ref_json"
+          TAG_REF_JSON="$tag_ref_json" EXPECTED_SHA="$VERIFIED_SHA" node -e '
+            const value = JSON.parse(require("node:fs").readFileSync(process.env.TAG_REF_JSON, "utf8"));
+            if (value?.object?.type !== "commit" || value.object.sha !== process.env.EXPECTED_SHA) process.exit(1);
+          '
+          current_default_sha="$(gh api --method GET --jq '.sha' \
+            "/repos/$GITHUB_REPOSITORY/commits/$DEFAULT_BRANCH")"
+          if [[ ! "$current_default_sha" =~ ^[a-f0-9]{40}$ ]]; then
+            echo "::error::Current protected main identity is malformed"
+            exit 1
+          fi
+          comparison_status="$(gh api --method GET --jq '.status' \
+            "/repos/$GITHUB_REPOSITORY/compare/$VERIFIED_SHA...$current_default_sha")"
+          if [[ "$comparison_status" != ahead && "$comparison_status" != identical ]]; then
+            echo "::error::Tag $VERIFIED_TAG is no longer reachable from $DEFAULT_BRANCH"
+            exit 1
+          fi
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: canonical-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wrench-canonical
+      - name: Bind source-free attestation input
+        env:
+          DIRECTORY: ${{ runner.temp }}/wrench-canonical
+          EXPECTED_WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}
+          EXPECTED_ARTIFACT_HASHES: ${{ needs.verify.outputs.artifact_hashes }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs'); const path = require('node:path'); const crypto = require('node:crypto');
+          const directory = process.env.DIRECTORY;
+          const names = [`hraness-wrench-${process.env.VERIFIED_TAG.slice(1)}.tgz`, 'npm-pack.json', 'release-manifest.json', 'SHA256SUMS'];
+          if (fs.readdirSync(directory).sort().join(',') !== [...names].sort().join(',')) throw new Error('Attestation input inventory differs');
+          const hashes = JSON.parse(process.env.EXPECTED_ARTIFACT_HASHES);
+          if (hashes === null || typeof hashes !== 'object' || Array.isArray(hashes) || Object.keys(hashes).sort().join(',') !== [...names].sort().join(',')) throw new Error('Trusted build hashes are malformed');
+          for (const name of names) {
+            const stat = fs.lstatSync(path.join(directory, name));
+            if (!stat.isFile() || stat.isSymbolicLink() || stat.size <= 0 || stat.size > 8 * 1024 * 1024) throw new Error('Attestation input is not a bounded regular file');
+            if (typeof hashes[name] !== 'string' || !/^[a-f0-9]{64}$/u.test(hashes[name]) || crypto.createHash('sha256').update(fs.readFileSync(path.join(directory, name))).digest('hex') !== hashes[name]) throw new Error('Attestation input differs from verified build output');
+          }
+          const manifest = JSON.parse(fs.readFileSync(path.join(directory, 'release-manifest.json'), 'utf8'));
+          if (manifest.sourceSha !== process.env.VERIFIED_SHA || manifest.tag !== process.env.VERIFIED_TAG || manifest.workflowSha !== process.env.EXPECTED_WORKFLOW_SHA || manifest.runId !== Number(process.env.GITHUB_RUN_ID) || manifest.runAttempt !== Number(process.env.GITHUB_RUN_ATTEMPT) || manifest.repositoryId !== 1316443113 || manifest.package !== '@hraness/wrench') throw new Error('Attestation input belongs to another build');
+          const expected = names.slice(0, 3).map(name => `${crypto.createHash('sha256').update(fs.readFileSync(path.join(directory, name))).digest('hex')}  ${name}\n`).join('');
+          if (fs.readFileSync(path.join(directory, 'SHA256SUMS'), 'utf8') !== expected) throw new Error('Attestation input checksums differ');
+          NODE
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        id: provenance
+        with:
+          subject-path: |
+            ${{ runner.temp }}/wrench-canonical/${{ needs.verify.outputs.archive_name }}
+            ${{ runner.temp }}/wrench-canonical/npm-pack.json
+            ${{ runner.temp }}/wrench-canonical/release-manifest.json
+            ${{ runner.temp }}/wrench-canonical/SHA256SUMS
+          push-to-registry: false
+          create-storage-record: false
+      - name: Retain verified provenance bundle
+        id: bundle
+        env:
+          BUNDLE_PATH: ${{ steps.provenance.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          cp -- "$BUNDLE_PATH" "$RUNNER_TEMP/wrench-canonical/provenance.jsonl"
+          bundle_sha256="$(sha256sum "$RUNNER_TEMP/wrench-canonical/provenance.jsonl" | awk '{ print $1 }')"
+          printf 'bundle_sha256=%s\n' "$bundle_sha256" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: canonical-attested-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wrench-canonical
+          if-no-files-found: error
+          retention-days: 30
 
   publish:
     name: Publish immutable GitHub Release
-    needs: verify
+    needs: [verify, attest]
     permissions:
       actions: read
       contents: write
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     env:
-      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      DEFAULT_BRANCH: main
       GH_REPO: ${{ github.repository }}
       GH_TOKEN: ${{ github.token }}
       VERIFIED_SHA: ${{ needs.verify.outputs.verified_sha }}
       VERIFIED_TAG: ${{ needs.verify.outputs.verified_tag }}
+      WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}
+      EXPECTED_ARTIFACT_HASHES: ${{ needs.verify.outputs.artifact_hashes }}
+      EXPECTED_BUNDLE_SHA256: ${{ needs.attest.outputs.bundle_sha256 }}
     steps:
       - name: Reauthorize current release attempt
         env:
@@ -529,164 +534,12 @@ jobs:
         with:
           node-version: "24"
           package-manager-cache: false
-      - name: Pin npm
-        run: |
-          set -euo pipefail
-          npm install --global npm@11.19.0 \
-            --ignore-scripts \
-            --registry=https://registry.npmjs.org
-          test "$(npm --version)" = "11.19.0"
-      - name: Publish verified GitHub Release
-        run: |
-          set -euo pipefail
-          if [[ ! "$VERIFIED_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo "::error::Publish request has no verified stable release tag"
-            exit 1
-          fi
-          if ! VERIFIED_TAG="$VERIFIED_TAG" node -e '
-            const value = process.env.VERIFIED_TAG ?? "";
-            const match = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(value);
-            if (match === null || match.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))) process.exit(1);
-          '; then
-            echo "::error::Publish request has an unsupported stable release version"
-            exit 1
-          fi
-          if [[ ! "$VERIFIED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::Publish request has no verified release commit"
-            exit 1
-          fi
-          remote_tag_sha="$(gh api "/repos/$GITHUB_REPOSITORY/commits/refs%2Ftags%2F$VERIFIED_TAG" --jq '.sha')"
-          current_main_sha="$(gh api "/repos/$GITHUB_REPOSITORY/git/ref/heads/$DEFAULT_BRANCH" --jq '.object.sha')"
-          if [[ "$remote_tag_sha" != "$VERIFIED_SHA" || ! "$current_main_sha" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::Remote tag or current main authority is malformed"
-            exit 1
-          fi
-          verify_publication_authority() {
-            local actual expected expected_main phase
-            phase="$1"
-            expected_main="$2"
-            actual="$(node --experimental-strip-types \
-              ./scripts/release-ref-authority.ts "publication-$phase" \
-              "$VERIFIED_TAG" "$VERIFIED_SHA" "$expected_main")"
-            expected="$(printf 'sha=%s\ntag=%s\nmain_sha=%s' \
-              "$VERIFIED_SHA" "$VERIFIED_TAG" "$expected_main")"
-            if [[ "$actual" != "$expected" ]]; then
-              echo "::error::Publication authority output is malformed"
-              exit 1
-            fi
-          }
-          release_endpoint="/repos/$GITHUB_REPOSITORY/releases/tags/$VERIFIED_TAG"
-          release_lookup_stderr="$(mktemp)"
-          predecessor_release_file="$(mktemp)"
-          created_release_file="$(mktemp)"
-          npm_latest_file="$(mktemp)"
-          npm_directory="$RUNNER_TEMP/wrench-release-npm"
-          npm_user_config="$RUNNER_TEMP/wrench-release-userconfig"
-          npm_global_config="$RUNNER_TEMP/wrench-release-globalconfig"
-          mkdir -p "$npm_directory"
-          : > "$npm_user_config"
-          : > "$npm_global_config"
-          chmod 600 "$npm_user_config" "$npm_global_config"
-          trap 'rm -f "$release_lookup_stderr" "$predecessor_release_file" "$created_release_file" "$npm_latest_file" "$npm_user_config" "$npm_global_config"' EXIT
-          set +e
-          release_lookup="$(gh api --include "$release_endpoint" 2>"$release_lookup_stderr")"
-          release_lookup_exit="$?"
-          set -e
-          release_lookup_state="$(printf '%s' "$release_lookup" | \
-            node ./scripts/release-provider-outcome.mjs inspect-release-response)"
-          case "$release_lookup_state" in
-            found)
-              if [[ "$release_lookup_exit" -ne 0 ]]; then
-                echo "::error::Exact Release lookup returned a Release with exit $release_lookup_exit"
-                exit 1
-              fi
-              ;;
-            missing)
-              if [[ "$release_lookup_exit" -ne 1 ]]; then
-                echo "::error::Exact Release absence returned unexpected exit $release_lookup_exit"
-                exit 1
-              fi
-              ;;
-            *)
-              echo "::error::Exact Release lookup returned an unsupported state"
-              exit 1
-              ;;
-          esac
-          RELEASE_LOOKUP_STATE="$release_lookup_state" \
-            node ./scripts/release-provider-outcome.mjs release-order
-          if [[ "$release_lookup_state" == "missing" ]]; then
-            gh api "/repos/$GITHUB_REPOSITORY/releases/latest" > "$predecessor_release_file"
-            node ./scripts/release-provider-outcome.mjs \
-              validate-latest-predecessor < "$predecessor_release_file"
-          fi
-          unset NPM_CONFIG_TAG npm_config_tag
-          configured_tag="$(cd "$npm_directory" && \
-            NPM_CONFIG_USERCONFIG="$npm_user_config" \
-            NPM_CONFIG_GLOBALCONFIG="$npm_global_config" \
-            npm config get tag)"
-          if [[ "$configured_tag" != latest ]]; then
-            echo "::error::Pinned npm does not have the clean default publication tag latest"
-            exit 1
-          fi
-          (cd "$npm_directory" && \
-            NPM_CONFIG_USERCONFIG="$npm_user_config" \
-            NPM_CONFIG_GLOBALCONFIG="$npm_global_config" \
-            npm view @hraness/wrench dist-tags.latest --json \
-              --registry=https://registry.npmjs.org) > "$npm_latest_file"
-          NPM_LATEST_JSON="$npm_latest_file" VERIFIED_TAG="$VERIFIED_TAG" node <<'NODE'
-          const { readFileSync } = require("node:fs");
-          const latest = JSON.parse(readFileSync(process.env.NPM_LATEST_JSON, "utf8"));
-          const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(latest ?? "");
-          if (
-            match === null
-            || match.slice(1).some(part => BigInt(part) > BigInt(Number.MAX_SAFE_INTEGER))
-            || `v${latest}` !== process.env.VERIFIED_TAG
-          ) throw new Error("Canonical npm latest is not the exact verified release version");
-          NODE
-          if [[ "$release_lookup_state" == "missing" ]]; then
-            current_main_sha="$(gh api "/repos/$GITHUB_REPOSITORY/git/ref/heads/$DEFAULT_BRANCH" --jq '.object.sha')"
-            remote_tag_sha="$(gh api "/repos/$GITHUB_REPOSITORY/commits/refs%2Ftags%2F$VERIFIED_TAG" --jq '.sha')"
-            if [[ ! "$current_main_sha" =~ ^[0-9a-f]{40}$ || "$remote_tag_sha" != "$VERIFIED_SHA" ]]; then
-              echo "::error::Release authority moved before publication"
-              exit 1
-            fi
-            verify_publication_authority prewrite "$current_main_sha"
-            release_receipt="$(node ./scripts/release-provider-outcome.mjs release-source-receipt)"
-            created_release="$(gh api \
-              --method POST \
-              "/repos/$GITHUB_REPOSITORY/releases" \
-              -f body="$release_receipt" \
-              -F draft=false \
-              -F generate_release_notes=true \
-              -f make_latest=legacy \
-              -f name="Wrench $VERIFIED_TAG" \
-              -F prerelease=false \
-              -f tag_name="$VERIFIED_TAG" \
-              -f target_commitish="$VERIFIED_SHA")"
-            printf '%s' "$created_release" > "$created_release_file"
-            node ./scripts/release-provider-outcome.mjs \
-              validate-release < "$created_release_file"
-          fi
-          release_readback="$(gh api "$release_endpoint")"
-          printf '%s' "$release_readback" | \
-            node ./scripts/release-provider-outcome.mjs validate-release
-          if [[ "$release_lookup_state" == "missing" ]]; then
-            printf '%s' "$release_readback" | \
-              node ./scripts/release-provider-outcome.mjs \
-                validate-created-release "$created_release_file"
-            printf '%s' "$release_readback" | \
-              node ./scripts/release-provider-outcome.mjs \
-                wait-latest-release "$predecessor_release_file"
-          else
-            printf '%s' "$release_readback" | \
-              node ./scripts/release-provider-outcome.mjs require-latest-release
-          fi
-          terminal_tag_sha="$(gh api "/repos/$GITHUB_REPOSITORY/commits/refs%2Ftags%2F$VERIFIED_TAG" --jq '.sha')"
-          terminal_main_sha="$(gh api "/repos/$GITHUB_REPOSITORY/git/ref/heads/$DEFAULT_BRANCH" --jq '.object.sha')"
-          verify_publication_authority postwrite "$terminal_main_sha"
-          if [[ "$terminal_tag_sha" != "$VERIFIED_SHA" ]]; then
-            echo "::error::Immutable release tag moved during publication"
-            exit 1
-          fi
-          printf '%s' "$release_readback" | \
-            node ./scripts/release-provider-outcome.mjs revalidate-latest-release
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: canonical-attested-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wrench-canonical
+      - name: Verify signed canonical assets and publish exact immutable Release
+        run: bun run ./scripts/github-release-publish.ts "$RUNNER_TEMP/wrench-canonical"

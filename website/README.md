@@ -58,7 +58,7 @@ the exact verified release commit. That writer first fetches only the verified
 tag into its depth-one reviewed-workflow checkout, peels it to the independently
 verified SHA without executing tagged code, and then performs the leased push.
 The reviewed workflow source must descend from that release commit and must
-equal or precede protected current main; canonical npm, the peeled tag, and the
+equal or precede protected current main; the canonical GitHub archive, the peeled tag, and the
 immutable Latest GitHub Release must agree on the release identity. A missing branch is a hard
 failure; neither workflow recreates it. One live no-bypass ruleset protects
 creation, deletion, and non-fast-forward movement on the production and canary
@@ -99,7 +99,7 @@ The persistent canary remains at
 exact `C=0bf88a064233635e0c5485c61f9c533974a7dca4` and must never be reset,
 deleted, or repurposed. On a production deployment,
 `website:vercel-build` independently verifies checked-out HEAD, the matching
-GitHub tag commit, canonical npm, and the immutable Latest Release before
+GitHub tag commit, the canonical GitHub archive, and the immutable Latest Release before
 building. Only after the verified build passes does it emit the exact bounded
 seven-key `/.well-known/wrench-release.json`, binding that source identity to
 the strict Vercel deployment URL. The promotion outcome requires that URL to
@@ -110,3 +110,5 @@ introduces it. Preview and local builds perform no external release verification
 and emit no production marker.
 Root `middleware.ts` imports only `edge/negotiation.ts` for Accept q-values,
 `406`, and markdown 404 bodies.
+
+For v0.16.13 and later, the bounded production build verifies immutable Release metadata, bot/source receipt, exactly five asset descriptors, and manifest/archive digests. It trusts the authenticated canonical workflow admission. Independent promotion CI verifies Sigstore provenance; the Vercel build does not run a local cryptographic Sigstore verifier. Historical assetless Releases retain their npm manifest check.

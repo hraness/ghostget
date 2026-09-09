@@ -152,7 +152,7 @@ describe("complete local and release check composition", () => {
     expect(manifest.scripts?.["test:npm-release"]).toBe(
       "bun test --no-orphans --timeout 45000 --max-concurrency 1"
       + " ./scripts/release-ref-authority.test.ts ./scripts/npm-stage-workflow.test.ts"
-      + " ./scripts/ci-pr-gate.test.ts",
+      + " ./scripts/github-release-artifact.test.ts ./scripts/ci-pr-gate.test.ts",
     );
   });
 

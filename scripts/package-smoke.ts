@@ -618,16 +618,17 @@ async function verifyPackagedSkill(
     }
   }
   const install = await readFile(join(skillRoot, "references", "install.md"), "utf8");
-  if (!install.includes(`@hraness/wrench@${expectedVersion}`)) {
+  const canonicalArchive = `https://github.com/hraness/wrench/releases/download/v${expectedVersion}/hraness-wrench-${expectedVersion}.tgz`;
+  if (!install.includes(canonicalArchive)) {
     throw new Error("Packed Wrench skill install pin does not match the package version.");
   }
   const readme = await readFile(join(packageRoot, "README.md"), "utf8");
   if (
     readme.includes("not currently published on npm")
     || readme.includes("registries are not supported install paths")
-    || !readme.includes(`@hraness/wrench@${expectedVersion}`)
+    || !readme.includes(canonicalArchive)
   ) {
-    throw new Error("Packed Wrench README does not describe the current npm install path.");
+    throw new Error("Packed Wrench README does not describe the exact canonical archive install path.");
   }
 
   await verifyPackedArchivedAdapterInventory(repository, packageRoot);

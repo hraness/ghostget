@@ -1,3 +1,26 @@
+// Canonical GitHub 0.16.13 joined with exact main 6e8f757, measured after a
+// clean Bun 1.3.14 build with Node 24.20.0 / npm 11.19.0. Two archives are
+// byte-identical: 2,252,656 packed / 12,417,812 payload bytes / 501 files,
+// SHA-256 24af5d712ac7633931ecab576860819a5266eb2b1bc9b262bfa61069a77fd420.
+// This pair includes the corrected canonical starting version in CHANGELOG.
+// Every file and mode matches the combined source. The exact main archive is
+// 2,252,267 packed / 12,416,444 payload bytes / 501 files. Canonical install
+// docs and version projections add 389 packed / 1,368 payload bytes; 492
+// files are unchanged, with eight changed paths and one version-chunk rename.
+// Retain zero packed headroom and current main's 315 payload bytes, with
+// exactly 501 files/entries. Earlier candidate measurements are historical.
+//
+// Canonical GitHub 0.16.13, measured with npm 11.19.0 / Node 24.20.0 after
+// a clean Bun 1.3.14 build: 2,249,656 packed / 12,408,429 unpacked / 497 files.
+// Same-toolchain unchanged main 95debf1 measured 2,249,213 packed /
+// 12,407,061 unpacked / 497 files. Canonical installation docs, release notes,
+// version identity, and package script metadata add 443 packed / 1,368 unpacked
+// bytes. The baseline npm archive itself exceeded the old packed ceiling by
+// 4,432 bytes. Admit only this measured npm maximum with no packed headroom;
+// retain main's remaining 32 unpacked bytes of headroom and exact inventory.
+// Candidate SHA-256: a36b0c73d12741465b5e2def214530524c99f8692c6ebe0ed0f72ca089efe89a.
+// Baseline SHA-256: 1f0ab1e2c15a91e81ac7e8c671d4841fbb0cd0ee2b978b884f09233d168f6515.
+//
 // Joined main 4045057 (X Viewer/Bookmarks evidence and browser fixture controls)
 // after clean Bun 1.3.14 builds and two identical npm 11.19.0 packs per source:
 // baseline 2,249,250 packed / 12,407,079 payload bytes / 497 files;
@@ -128,10 +151,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_252_267;
+export const MAX_PACKED_BYTES = 2_252_656;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_416_759;
+export const MAX_UNPACKED_BYTES = 12_418_127;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

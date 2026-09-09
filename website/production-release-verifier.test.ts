@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 
 import {
   collectBoundedChildOutput,
   fetchGithubCommitSha,
+  fetchCanonicalAsset,
   fetchPublicJson,
   loadProductionReleaseEvidence,
   parseGithubCommitSha,
@@ -15,6 +17,53 @@ import {
   type BoundedChildProcess,
   type ProductionReleaseEvidence,
 } from "./production-release-verifier";
+import { parseReleaseAssetDescriptors, releaseAssetNames } from "./github-release-artifact.mjs";
+
+test("canonical production admission binds immutable archive bytes without npm availability", async () => {
+  const tag = "v0.16.13";
+  const archive = Buffer.from("exact tested archive fixture");
+  const sourceSha = "a".repeat(40);
+  const manifest = Buffer.from(JSON.stringify({ schema: "hraness-github-release-v1", repository: "hraness/wrench", repositoryId: 1316443113,
+    package: "@hraness/wrench", version: "0.16.13", tag, sourceSha, workflowSha: "b".repeat(40), workflow: ".github/workflows/release.yml", runId: 123, runAttempt: 1,
+    archive: { name: "hraness-wrench-0.16.13.tgz", bytes: archive.length, sha256: createHash("sha256").update(archive).digest("hex"), sha512: createHash("sha512").update(archive).digest("hex") },
+  }));
+  const assets = releaseAssetNames(tag).map((name, index) => {
+    const bytes = name.endsWith(".tgz") ? archive : name === "release-manifest.json" ? manifest : Buffer.from("admitted metadata");
+    return { id: index + 1, name, size: bytes.length, state: "uploaded", digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+      url: `https://api.github.com/repos/hraness/wrench/releases/assets/${index + 1}`,
+      browser_download_url: `https://github.com/hraness/wrench/releases/download/${tag}/${name}` };
+  });
+  const release = { id: 1, tag_name: tag, draft: false, prerelease: false, immutable: true, target_commitish: sourceSha,
+    author: { id: 41898282, type: "Bot" }, body: `wrench-release-source-v1 repository=hraness/wrench tag=${tag} source_sha=${sourceSha} workflow_run_id=123`, assets };
+  const evidence = { headSha: sourceSha, githubTagCommitSha: sourceSha, githubRelease: release, latestGithubRelease: release,
+    canonicalAssets: { archive, manifest } };
+  const identity = { name: "@hraness/wrench", version: "0.16.13" };
+  expect(verifyProductionReleaseEvidence(identity, evidence).sourceSha).toBe(sourceSha);
+  for (const changed of [
+    { ...evidence, canonicalAssets: { archive: Buffer.from("corrupt"), manifest } },
+    { ...evidence, canonicalAssets: { archive, manifest: Buffer.from("{}") } },
+    { ...evidence, githubRelease: { ...release, target_commitish: "b".repeat(40) } },
+    { ...evidence, githubRelease: { ...release, author: { id: 894119, type: "User" } } },
+    { ...evidence, githubRelease: { ...release, body: release.body.replace("run_id=123", "run_id=124") } },
+    { ...evidence, latestGithubRelease: { ...release, assets: assets.slice(1) } },
+    { ...evidence, npmManifest: { name: identity.name, version: identity.version } },
+  ]) expect(() => verifyProductionReleaseEvidence(identity, changed)).toThrow();
+  const urls: string[] = [];
+  const loaded = await loadProductionReleaseEvidence(parseProductionReleaseIdentity(identity), {
+    readHeadSha: async () => sourceSha, fetchGithubCommitSha: async () => sourceSha,
+    fetchJson: async url => { urls.push(url); return release; },
+    fetchAsset: async asset => asset.name.endsWith(".tgz") ? archive : manifest,
+  });
+  expect(verifyProductionReleaseEvidence(identity, loaded).tag).toBe(tag);
+  expect(urls).toHaveLength(2); expect(urls.every(url => url.startsWith("https://api.github.com/"))).toBe(true);
+  const descriptor = parseReleaseAssetDescriptors(assets, tag).find(asset => asset.name.endsWith(".tgz"))!;
+  const response = (bytes: Uint8Array, url: string): Response => {
+    const value = new Response(Uint8Array.from(bytes).buffer); Object.defineProperty(value, "url", { value: url }); return value;
+  };
+  expect(await fetchCanonicalAsset(descriptor, async () => response(archive, "https://release-assets.githubusercontent.com/exact"))).toEqual(new Uint8Array(archive));
+  await expect(fetchCanonicalAsset(descriptor, async () => response(archive, "https://example.com/asset"))).rejects.toThrow();
+  await expect(fetchCanonicalAsset(descriptor, async () => response(Buffer.concat([archive, archive]), descriptor.url))).rejects.toThrow();
+});
 
 const packageValue = Object.freeze({
   name: "@hraness/wrench",

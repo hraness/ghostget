@@ -129,12 +129,24 @@ test("native fixture HOME admits only the bound toolchain and rejects replacemen
 
 test("native fixture provisioning precedes every CI full or selected-shard gate", () => {
   const root = join(import.meta.dir, "..");
-  for (const name of ["npm-stage", "release"]) {
-    const workflow = readFileSync(join(root, ".github", "workflows", `${name}.yml`), "utf8");
-    expect(workflow.indexOf("bun run ./scripts/provision-derive-browser.ts")).toBeGreaterThan(0);
-    expect(workflow.indexOf("bun run ./scripts/provision-derive-browser.ts")).toBeLessThan(workflow.indexOf("- run: bun run check"));
-    expect(workflow).toContain("WRENCH_DERIVE_BROWSER_ROOT=%s");
-  }
+  const release = readFileSync(join(root, ".github", "workflows", "release.yml"), "utf8");
+  expect(release.indexOf("bun run ./scripts/provision-derive-browser.ts")).toBeGreaterThan(0);
+  expect(release.indexOf("bun run ./scripts/provision-derive-browser.ts")).toBeLessThan(release.indexOf("- run: bun run check"));
+  expect(release).toContain("WRENCH_DERIVE_BROWSER_ROOT=%s");
+  const stage = readFileSync(join(root, ".github", "workflows", "npm-stage.yml"), "utf8");
+  const taggedSource = stage.indexOf('git worktree add --detach "$smoke_source" "$VERIFIED_SHA"');
+  expect(taggedSource).toBeGreaterThan(0);
+  const checkEnd = stage.indexOf("          )", taggedSource);
+  expect(checkEnd).toBeGreaterThan(taggedSource);
+  const scopedCheck = stage.slice(taggedSource, checkEnd);
+  const enterSource = scopedCheck.indexOf('cd "$smoke_source"');
+  const install = scopedCheck.indexOf("bun install --frozen-lockfile --ignore-scripts");
+  const provision = scopedCheck.indexOf("bun run ./scripts/provision-derive-browser.ts");
+  const check = scopedCheck.indexOf('WRENCH_DERIVE_BROWSER_ROOT="$fixture_browser_root" bun run check');
+  expect(enterSource).toBeGreaterThan(0);
+  expect(install).toBeGreaterThan(enterSource);
+  expect(provision).toBeGreaterThan(install);
+  expect(check).toBeGreaterThan(provision);
   const ci = readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8");
   expect(ci.indexOf("bun run ./scripts/provision-derive-browser.ts")).toBeGreaterThan(0);
   expect(ci).toContain("--for-shard '${{ matrix.shard }}' 4");

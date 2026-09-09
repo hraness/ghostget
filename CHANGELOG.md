@@ -1,11 +1,23 @@
 # Changelog
 
-Versioned sections identify checked package source. A version is publicly
-released only after the matching canonical npm package and immutable GitHub
-Release exist; the release-bound production site identifies the latest
-coordinate that completed both checks.
+Versioned sections identify checked package source. Starting with v0.16.13,
+a version is publicly released after its exact canonical GitHub archive and
+provenance are published in an immutable Release. npm mirrors are optional.
+Historical entries retain their original delivery coordinates.
 
 ## Unreleased
+
+## 0.16.13 - 2026-09-09
+
+- Distribute the same named CLI and seven SDK exports through a versioned
+  GitHub Release archive with an exact manifest, checksums, signed provenance,
+  and isolated installation checks. Keep existing dependency pins.
+- Publish canonical artifacts independently of npm staging. Optional npm
+  mirrors consume identical verified archive bytes and retain stage-only OIDC,
+  durable intent, unsafe-configuration checks, and required two-factor promotion.
+- Admit production through immutable canonical artifact evidence and independent
+  promotion provenance verification while retaining the exact source, App,
+  canary, conditional ref write, revocation, provider, and public-readback guards.
 
 ## 0.16.12 - 2026-09-08
 

@@ -18,7 +18,7 @@ import {
   DEFAULT_POSTHOG_HOST,
   DEMO_PUBLIC_FILES,
   markdownSiblingPath,
-  NPM_PACKAGE_URL,
+  GITHUB_RELEASES_URL,
   parsePackageIdentity,
   PUBLIC_PAGES,
   PUBLISHER_URL,
@@ -27,7 +27,7 @@ import {
   SITE_ORIGIN,
   SITE_TITLE,
   SKILLS_URL,
-  versionedNpmPackageUrl,
+  versionedPackageArtifactUrl,
   WRENCH_MAILING_TURNSTILE_SITEKEY_ENV,
   wrenchMailingListConfig,
   type UiStylesheetImport,
@@ -277,7 +277,7 @@ describe("wrench.rip static site", () => {
     const packageIdentity = parsePackageIdentity(
       await Bun.file(join(repositoryRoot, "package.json")).json(),
     );
-    const npmPackageUrl = versionedNpmPackageUrl(packageIdentity);
+    const npmPackageUrl = versionedPackageArtifactUrl(packageIdentity);
     const skillInstallCommands = agentSkillInstallCommands(packageIdentity);
     const beeperOperationCount =
       BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount
@@ -420,7 +420,7 @@ describe("wrench.rip static site", () => {
     expect(html).toContain('<meta property="og:image:height" content="630">');
     expect(html).toContain('<meta name="robots" content="max-image-preview:large">');
     expect(html).not.toContain('<meta name="keywords"');
-    expect(html).toContain(`@hraness/wrench@${packageIdentity.version}`);
+    expect(html).toContain(`hraness-wrench-${packageIdentity.version}.tgz`);
     expect(html).toContain(`Install Wrench ${packageIdentity.release}`);
     expect(html).toContain(`>${skillInstallCommands.npx}</code>`);
     expect(html).toContain(`<code>${skillInstallCommands.bunx}</code>`);
@@ -428,10 +428,10 @@ describe("wrench.rip static site", () => {
       `<a href="${SKILLS_URL}">View the Wrench Agent Skill on skills.sh.</a>`,
     );
     expect(html).toContain(
-      `<a href="${npmPackageUrl}"><code>@hraness/wrench</code> package on npm</a>`,
+      `<a href="${npmPackageUrl}"><code>@hraness/wrench</code> canonical release archive</a>`,
     );
     expect(html).not.toContain(`value="${skillInstallCommands.npx}"`);
-    expect(html).not.toContain(`href="${NPM_PACKAGE_URL}"`);
+    expect(html).not.toContain(`href="${GITHUB_RELEASES_URL}"`);
     expect(html).not.toContain("skills add hraness/wrench</code>");
     expect(html).toContain('class="skill-install" data-skill-install');
     expect(html).toContain("data-skill-install-copy");
@@ -1041,7 +1041,7 @@ describe("wrench.rip static site", () => {
     const gettingStarted = pages.find((page) => page.definition.canonicalPath === "/getting-started/");
     expect(gettingStarted?.html).toContain("Wrench developer resources");
     expect(gettingStarted?.html).toContain(
-      `<a href="${npmPackageUrl}">Install the <code>@hraness/wrench</code> CLI and TypeScript SDK from npm</a>`,
+      `<a href="${npmPackageUrl}">Install the <code>@hraness/wrench</code> CLI and TypeScript SDK from GitHub Releases</a>`,
     );
     expect(gettingStarted?.html).toContain(
       `<a href="${SKILLS_URL}">Install the Wrench Agent Skill from skills.sh</a>`,

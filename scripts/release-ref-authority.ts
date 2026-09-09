@@ -24,6 +24,8 @@ const RELEASE_CONTROL_PATHS = Object.freeze([
   "scripts/release-ref-authority.ts",
   "scripts/npm-provenance-identity.ts",
   "scripts/npm-package-identity.ts",
+  "scripts/github-release-artifact.ts",
+  "scripts/github-release-publish.ts",
   "scripts/package-artifact.ts",
   "scripts/package-budget.ts",
   "scripts/package-smoke.ts",
@@ -32,6 +34,7 @@ const RELEASE_CONTROL_PATHS = Object.freeze([
   "scripts/release-app-token.mjs",
   "scripts/release-ref-writer.mjs",
   "website/production-release-marker.mjs",
+  "website/github-release-artifact.mjs",
 ] as const);
 
 export type GitCommandResult = Readonly<{
