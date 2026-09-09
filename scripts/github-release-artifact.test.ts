@@ -53,8 +53,9 @@ describe("canonical release publication and safe local input", () => {
         assets: [], published_at: "2026-09-08T01:00:00Z" };
       const draft = (): Json => ({ id: 100, name: `Wrench ${tag}`, tag_name: tag, target_commitish: sourceSha, body,
         draft: true, prerelease: false, immutable: false, author: { id: 41898282, type: "Bot" }, assets: [] });
-      const execute = async (initial?: Json, fault = ""): Promise<{ writes: string[]; release: Json | undefined; error?: unknown }> => {
+      const execute = async (initial?: Json, fault = ""): Promise<{ writes: string[]; downloads: number[]; release: Json | undefined; error?: unknown }> => {
         let release = initial === undefined ? undefined : structuredClone(initial); const writes: string[] = [];
+        const downloads: number[] = [];
         const run = (args: readonly string[], input?: string): { status: number; stdout: string } => {
           if (args[0] === "node") {
             if (fault === "control-drift") throw new Error("release-control drift");
@@ -97,15 +98,26 @@ describe("canonical release publication and safe local input", () => {
           else throw new Error(`Unexpected API ${endpoint}`);
           return { status: 0, stdout: JSON.stringify(value) };
         };
-        try { await publishCanonicalRelease(directory, manifest, run); return { writes, release }; }
-        catch (error) { return { writes, release, error }; }
+        const download = (id: number, expectedBytes: number): Uint8Array => {
+          const asset = assets.find(asset => asset.id === id);
+          if (asset === undefined || expectedBytes !== asset.size || !release?.assets.some((current: Json) => current.id === id)) {
+            throw new Error("Download must bind one admitted uploaded asset and byte count");
+          }
+          downloads.push(id);
+          return fault === "remote-corrupt" || (fault === "published-corrupt" && release.draft === false)
+            ? Buffer.alloc(expectedBytes) : Buffer.from(`fixture:${asset.name}`);
+        };
+        try { await publishCanonicalRelease(directory, manifest, run, download); return { writes, downloads, release }; }
+        catch (error) { return { writes, downloads, release, error }; }
       };
       const fresh = await execute(); expect(fresh.error).toBeUndefined();
       expect(fresh.writes).toEqual(["create", ...names.map(name => `upload:${name}`), "publish"]);
+      expect(fresh.downloads).toHaveLength(10);
       const partial = draft(); partial.assets = [assets[0]];
       const resumed = await execute(partial); expect(resumed.error).toBeUndefined();
       expect(resumed.writes).toEqual([...names.slice(1).map(name => `upload:${name}`), "publish"]);
       const completed = await execute(fresh.release); expect(completed.error).toBeUndefined(); expect(completed.writes).toEqual([]);
+      expect(completed.downloads).toHaveLength(5);
       for (const altered of [
         { ...draft(), target_commitish: workflowSha }, { ...draft(), body: `${body} different-attempt` },
         { ...draft(), immutable: true }, { ...draft(), author: { id: 894119, type: "User" } },
@@ -120,6 +132,13 @@ describe("canonical release publication and safe local input", () => {
       }
       const readbackDrift = await execute(draft(), "post-upload-id-drift");
       expect(readbackDrift.error).toBeDefined(); expect(readbackDrift.writes).toEqual([`upload:${names[0]}`]);
+      const completeDraft = { ...draft(), assets };
+      const corruptDraft = await execute(completeDraft, "remote-corrupt");
+      expect(corruptDraft.error).toBeDefined(); expect(corruptDraft.writes).toEqual([]);
+      const corruptReadback = await execute(completeDraft, "published-corrupt");
+      expect(corruptReadback.error).toBeDefined(); expect(corruptReadback.writes).toEqual(["publish"]);
+      const corruptCompleted = await execute(fresh.release, "remote-corrupt");
+      expect(corruptCompleted.error).toBeDefined(); expect(corruptCompleted.writes).toEqual([]);
       expect(() => validateDraftAssets([{ ...assets[0], url: "https://example.com/asset" }], manifest, directory)).toThrow();
     } finally { await rm(directory, { recursive: true, force: true }); }
   });

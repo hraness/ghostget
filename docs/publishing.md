@@ -58,11 +58,16 @@ The source archive and npm receipt must also agree on every inspected safe
 USTAR entry, mode, count, size, and integrity. Reject extra files, traversal,
 links, malformed receipts, unsafe package configuration, and mismatched bytes.
 
-Publication creates a draft, uploads only missing exact names without clobber,
-reads back all five uploaded descriptors and digests, rechecks current protected
+Publication discovers retained drafts through the bounded authenticated release
+inventory when the by-tag endpoint returns 404. It retains the exact release ID,
+creates a draft only when absent, and uploads only missing exact names without
+clobber. Before publication, it validates all five descriptors, downloads each
+exact asset ID with its admitted byte bound, and compares its actual bytes and
+SHA-256 to the verified local artifact. It rechecks current protected
 main/tag/release-control closure and stable Release ordering, then publishes it
-as immutable Latest. Keep the existing bounded Latest convergence check and
-terminal authority readback. A matching partial draft from the same run attempt
+as immutable Latest and repeats the exact downloaded-byte proof. Keep the
+existing bounded Latest convergence check and terminal authority readback.
+A matching partial draft from the same run attempt
 may resume only with matching source, bot, body, and every already uploaded
 asset. A mismatched draft or another attempt fails closed and retains evidence;
 never delete/recreate it or silently relabel it. A completed release is accepted

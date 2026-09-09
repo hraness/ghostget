@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { verifyBuildHandoff, verifyReleaseDirectory } from "./github-release-artifact.js";
-import { parseReleaseAssetDescriptors, releaseAssetNames, type ReleaseManifest } from "../website/github-release-artifact.mjs";
+import { parseReleaseAssetDescriptors, releaseAssetNames, verifyReleaseAssetBytes, type ReleaseManifest } from "../website/github-release-artifact.mjs";
 import {
   assertReleaseTagNewerThanPublished, exactLatestPredecessor, exactWorkflowPublishedRelease,
   parseOptionalIncludedGitHubResponse, releaseSourceReceipt, requireLatestRelease,
@@ -14,6 +14,19 @@ const repository = "hraness/wrench";
 const prefix = `/repos/${repository}`;
 type CommandResult = { status: number; stdout: string };
 type Runner = (args: readonly string[], input?: string) => CommandResult;
+type AssetDownloader = (id: number, expectedBytes: number) => Uint8Array;
+function downloadAsset(id: number, expectedBytes: number): Uint8Array {
+  if (!Number.isSafeInteger(id) || id <= 0 || !Number.isSafeInteger(expectedBytes)
+    || expectedBytes <= 0 || expectedBytes > 8 * 1024 * 1024) throw new Error("Release asset download is outside its admitted bound");
+  const result = spawnSync("gh", ["api", "--method", "GET", `${prefix}/releases/assets/${id}`,
+    "-H", "Accept: application/octet-stream"], {
+    timeout: 120_000, maxBuffer: expectedBytes + 1,
+    env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("WRENCH_RELEASE_APP_"))),
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.error !== undefined || result.status !== 0) throw new Error("Bounded release asset download did not complete");
+  return result.stdout;
+}
 function command(args: readonly string[], input?: string): CommandResult {
   const result = spawnSync(args[0]!, args.slice(1), {
     encoding: "utf8", timeout: 120_000, maxBuffer: 8 * 1024 * 1024,
@@ -82,7 +95,7 @@ export function validateDraftAssets(value: unknown, manifest: ReleaseManifest, d
   return names.filter(name => !found.has(name));
 }
 
-export async function publishCanonicalRelease(directory: string, manifest: ReleaseManifest, run: Runner = command): Promise<void> {
+export async function publishCanonicalRelease(directory: string, manifest: ReleaseManifest, run: Runner = command, download: AssetDownloader = downloadAsset): Promise<void> {
   const get = async (endpoint: string): Promise<unknown> => JSON.parse(successful(run, ["gh", "api", "--method", "GET", endpoint]));
   const api = { get };
   const coordinates = { repository, verifiedSha: manifest.sourceSha, verifiedTag: manifest.tag, workflowRunId: String(manifest.runId) };
@@ -94,6 +107,11 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
   if (lookup.status !== (response.found ? 0 : 1)) throw new Error("Release lookup status is not exact");
   let release: Record<string, unknown> | undefined = response.found
     ? object(response.value) : await discoverRetainedRelease(get, manifest.tag);
+  const verifyRemoteBytes = (value: Record<string, unknown>): void => {
+    for (const asset of parseReleaseAssetDescriptors(value.assets, manifest.tag)) {
+      verifyReleaseAssetBytes(download(asset.id, asset.bytes), asset);
+    }
+  };
   const authority = async (phase: "prewrite" | "postwrite"): Promise<void> => {
     const main = object(object(await get(`${prefix}/git/ref/heads/main`)).object).sha;
     if (typeof main !== "string" || !/^[a-f0-9]{40}$/u.test(main)) throw new Error("Current main is not exact");
@@ -105,6 +123,7 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
     exactWorkflowPublishedRelease({ ...coordinates, value: release });
     if (release.body !== body) throw new Error("Published release belongs to another attempt; do not relabel or rebuild it");
     if (validateDraftAssets(release.assets, manifest, directory).length !== 0) throw new Error("Published release omits canonical assets");
+    verifyRemoteBytes(release);
     await authority("prewrite");
     await requireLatestRelease({ api, repository, targetRelease: release, verifiedTag: manifest.tag });
     await authority("postwrite");
@@ -145,6 +164,7 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
   release = await readDraft();
   if (validateDraftAssets(release.assets, manifest, directory).length !== 0) throw new Error("Draft is incomplete");
   parseReleaseAssetDescriptors(release.assets, manifest.tag);
+  verifyRemoteBytes(release);
   await assertReleaseTagNewerThanPublished({ api, repository, verifiedTag: manifest.tag });
   await authority("prewrite");
   const published = mutate("PATCH", `${prefix}/releases/${draftId}`, { draft: false, make_latest: "true" });
@@ -154,6 +174,7 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
   exactWorkflowPublishedRelease({ ...coordinates, value: readback });
   if (readback.id !== draftId || readback.published_at !== published.published_at
     || validateDraftAssets(readback.assets, manifest, directory).length !== 0) throw new Error("Immutable publication readback differs");
+  verifyRemoteBytes(readback);
   await waitForLatestRelease({ api, predecessorRelease: predecessor, repository, targetRelease: readback, verifiedTag: manifest.tag });
   await authority("postwrite");
   await revalidateLatestReleaseProjection({ api, repository, targetRelease: readback, verifiedTag: manifest.tag });
