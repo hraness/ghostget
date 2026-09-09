@@ -1287,18 +1287,18 @@ describe("npm publication contract", () => {
     expect(budget).toContain("leaves 4,266 bytes");
     expect(budget).toContain("635 unpacked bytes of headroom");
     expect(MAX_PACKED_BYTES).toBe(2_244_781);
-    expect(MAX_PACKED_ENTRIES).toBe(493);
-    expect(MAX_PACKED_FILES).toBe(493);
-    expect(MAX_UNPACKED_BYTES).toBe(12_355_659);
+    expect(MAX_PACKED_ENTRIES).toBe(497);
+    expect(MAX_PACKED_FILES).toBe(497);
+    expect(MAX_UNPACKED_BYTES).toBe(12_397_364);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 493, max: 493 },
-      fileCount: { min: 493, max: 493 },
+      entryCount: { min: 497, max: 497 },
+      fileCount: { min: 497, max: 497 },
       packedBytes: { min: 1_600_000, max: 2_244_781 },
-      unpackedBytes: { min: 9_000_000, max: 12_355_659 },
+      unpackedBytes: { min: 9_000_000, max: 12_397_364 },
     });
   });
 

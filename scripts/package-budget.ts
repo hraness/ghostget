@@ -1,3 +1,15 @@
+// LinkedIn contacts.read candidate on 0.16.11, measured after a clean
+// Bun 1.3.14 build. Two bun pm pack archives were byte-identical:
+// 2,108,672 packed bytes, 12,397,049 unpacked bytes and 497 files.
+// Their SHA-256 was
+// 7e0467f54474f749ddd5cd2e3b8a4ed433a761a96b7aa9c9942bd382077264bc.
+// Same-train 0.16.11 measured 2,238,339 packed / 12,355,344 unpacked
+// bytes and 493 files. Four Contact-info modules plus reviewed adapter,
+// catalog, plugin, and runtime edits account for +4 files and
+// +41,705 unpacked bytes. Preserve the prior 315 unpacked bytes of
+// residual headroom and the existing packed ceiling, which still covers
+// the bun pack and the prior npm 11.19.0 gzip allowance.
+//
 // Native Effect lifecycle candidate 0.16.11, measured from source ff7a76b
 // against released main 521922ed after clean Bun 1.3.14 builds.
 // Two npm 11.19.0 packs were byte-identical: 2,238,339 packed bytes,
@@ -64,9 +76,9 @@
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
 export const MAX_PACKED_BYTES = 2_244_781;
-export const MAX_PACKED_ENTRIES = 493;
-export const MAX_PACKED_FILES = 493;
-export const MAX_UNPACKED_BYTES = 12_355_659;
+export const MAX_PACKED_ENTRIES = 497;
+export const MAX_PACKED_FILES = 497;
+export const MAX_UNPACKED_BYTES = 12_397_364;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
