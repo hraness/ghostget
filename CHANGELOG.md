@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.16.16 - 2026-09-09
+
+- Adopt published Sweet Cookie 0.4.3 through KB 0.19.6 and the exact verification
+  dependency. Retain explicit browser keychain selection for custom profiles.
+- Reject opaque partition metadata in cookie-file web sessions before request
+  replay, including malformed flags and opaque records without a partition key.
+
 ## 0.16.15 - 2026-09-09
 
 - Pin consumer compiler and declaration versions to the qualified source tuple;

@@ -586,10 +586,10 @@ const reviewedMetaDynamicInstalledModuleIdentities = Object.freeze([
 ]);
 const reviewedKbDynamicInstalledPackage = Object.freeze({
   name: "@hraness/kb",
-  version: "0.17.1",
-  keyFile: "dist/index-qry4vhxk.js",
+  version: "0.19.6",
+  keyFile: "dist/index-5vdj4pae.js",
   sha256:
-    "da69a90f9cf1edbfe82443c5f73226fe9960103522e37a106ff4ec04e3325e97",
+    "107b59e5a662171180d098e30469457f8b2ceeb6ec9d22971fec7076d855704a",
 });
 const reviewedKbDynamicResolutionPolicy =
   "createRequire(parentUrl).resolve(`$" +
