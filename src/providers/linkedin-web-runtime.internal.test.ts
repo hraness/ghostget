@@ -3555,8 +3555,8 @@ describe("LinkedIn contacts.read runtime", () => {
         return Promise.resolve(firstDegreeContactHtml());
       },
       readConnectionsHtml: () => Promise.reject(new Error("contacts.read crossed connections")),
-      readContactInfoJson: (url) => {
-        browserCalls.push(`contact:${url}`);
+      readContactInfoJson: (input) => {
+        browserCalls.push(`contact:${input.profileUrl}:${input.profileUrn}`);
         return Promise.resolve({
           $type: "com.linkedin.voyager.identity.profile.ProfileContactInfo",
           emailAddress: "connection@example.test",
@@ -3592,7 +3592,7 @@ describe("LinkedIn contacts.read runtime", () => {
     expect(browserCalls).toEqual([
       "identity",
       "profile:https://www.linkedin.com/in/example/",
-      "contact:https://www.linkedin.com/in/example/",
+      "contact:https://www.linkedin.com/in/example/:urn:li:fsd_profile:ACoAAFixtureProfile",
       "close",
     ]);
     expect(JSON.stringify(result)).not.toContain("@gmail.com");
@@ -3682,5 +3682,50 @@ describe("LinkedIn contacts.read runtime", () => {
     });
     expect(result.status).toBe("failed");
     expect(result.error).toContain("no remote write occurred");
+  });
+
+  test("binds Como networkDistance and skips GraphQL when the page already embeds Email", async () => {
+    const browserCalls: string[] = [];
+    const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify({
+      publicIdentifier: "example",
+      entityUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+      networkDistance: 1,
+      fields: [{ label: "Email", value: "connection@example.test" }],
+    })}</script></body></html>`;
+    const result = await executeLinkedInWebOperation(contactInfoRecipe(), {
+      profile_url: "https://www.linkedin.com/in/example/",
+    }, linkedinBrowserProfileAuth, {
+      dependencies: {
+        now: () => Date.parse("2026-09-08T18:00:00.000Z"),
+        createProfileBrowserTransport: () => Promise.resolve({
+          currentIdentityResponse: () => {
+            browserCalls.push("identity");
+            return Promise.resolve(currentIdentityResponse());
+          },
+          readProfileHtml: () => {
+            browserCalls.push("profile");
+            return Promise.resolve(html);
+          },
+          readConnectionsHtml: () => Promise.reject(new Error("embedded email crossed connections")),
+          readContactInfoJson: () => {
+            browserCalls.push("contact");
+            return Promise.reject(new Error("embedded email fetched Contact-info"));
+          },
+          readOrganizationHtml: () => Promise.reject(new Error("embedded email crossed company")),
+          close: () => {
+            browserCalls.push("close");
+            return Promise.resolve();
+          },
+        }),
+      },
+    });
+    expect(result).toMatchObject({
+      status: "succeeded",
+      output: {
+        contact: { email: "connection@example.test" },
+        profile: { relationship: "first-degree" },
+      },
+    });
+    expect(browserCalls).toEqual(["identity", "profile", "close"]);
   });
 });

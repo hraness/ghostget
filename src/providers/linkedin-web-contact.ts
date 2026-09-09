@@ -1,14 +1,17 @@
 import {
+  encodeRestliV2Value,
+  LINKEDIN_GRAPHQL_PATH,
   linkedInPersonalProfilePublicIdentifier,
   linkedInPersonalProfileTarget,
   type LinkedInProfileTarget,
 } from "./linkedin-web";
 
-export const LINKEDIN_CONTACT_INFO_PATH_PREFIX =
-  "/voyager/api/identity/profiles/";
-export const LINKEDIN_CONTACT_INFO_PATH_SUFFIX = "/profileContactInfo";
+export const LINKEDIN_PROFILE_CONTACT_INFO_QUERY_NAME =
+  "voyagerIdentityDashProfileContactInfo";
 export const LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID =
   "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay";
+const CONTACT_QUERY_ID =
+  /^voyagerIdentityDashProfileContactInfo\.[0-9a-f]{32}$/u;
 
 const LINKEDIN_ORIGIN = "https://www.linkedin.com";
 const PROFILE_URN = /^urn:li:fsd_profile:[A-Za-z0-9_-]{1,256}$/u;
@@ -36,11 +39,11 @@ const HTML_ENTITY =
   /&(?:nbsp|quot|amp|lt|gt|apos|#(?:[xX][0-9A-Fa-f]{1,6}|[0-9]{1,7}));/gu;
 const MAX_HTML_BYTES = 8 * 1024 * 1024;
 const MAX_CODE_TAGS = 256;
+const MAX_COMO_ROOTS = 8;
 const MAX_WALK_NODES = 500_000;
 const MAX_PHONES = 8;
 const MAX_WEBSITES = 8;
 const CONTACT_TYPE_SUFFIX = "ProfileContactInfo";
-const PROFILE_TYPE_SUFFIX = "identity.profile.Profile";
 
 export type LinkedInContactInfoTarget = LinkedInProfileTarget;
 
@@ -70,6 +73,12 @@ export type LinkedInContactInfo = {
   readonly observedAt: string;
   readonly completeness: "complete" | "partial";
   readonly contact: LinkedInContactFields;
+};
+
+export type LinkedInContactInfoJsonInput = {
+  readonly profileUrl: string;
+  readonly profileUrn: string;
+  readonly queryId?: string;
 };
 
 type JsonRecord = Readonly<Record<string, unknown>>;
@@ -116,13 +125,70 @@ export function linkedInContactInfoTarget(value: unknown): LinkedInContactInfoTa
   return linkedInPersonalProfileTarget(value);
 }
 
-export function linkedInContactInfoPath(vanity: string): string {
-  const slug = linkedInPersonalProfilePublicIdentifier(vanity);
-  return `${LINKEDIN_CONTACT_INFO_PATH_PREFIX}${slug}${LINKEDIN_CONTACT_INFO_PATH_SUFFIX}`;
+function contactQueryId(value: unknown): string {
+  const queryId = boundedText(value, "LinkedIn contact-info GraphQL queryId", 128);
+  if (!CONTACT_QUERY_ID.test(queryId)) {
+    throw new Error("LinkedIn contact-info GraphQL queryId changed format");
+  }
+  return queryId;
 }
 
-export function linkedInContactInfoUrl(vanity: string): URL {
-  return new URL(linkedInContactInfoPath(vanity), LINKEDIN_ORIGIN);
+export function buildLinkedInProfileContactInfoGraphqlPath(input: {
+  readonly profileUrn: unknown;
+  readonly queryId?: unknown;
+}): string {
+  const urn = profileUrn(input.profileUrn);
+  const selector = input.queryId === undefined
+    ? `queryName=${encodeURIComponent(LINKEDIN_PROFILE_CONTACT_INFO_QUERY_NAME)}`
+    : `queryId=${encodeURIComponent(contactQueryId(input.queryId))}`;
+  return `${LINKEDIN_GRAPHQL_PATH}?includeWebMetadata=true&${selector}&variables=(profileUrn:${encodeRestliV2Value(urn)})`;
+}
+
+export function linkedInProfileContactInfoGraphqlUrl(input: {
+  readonly profileUrn: unknown;
+  readonly queryId?: unknown;
+}): URL {
+  return new URL(buildLinkedInProfileContactInfoGraphqlPath(input), LINKEDIN_ORIGIN);
+}
+
+export function resolveLinkedInProfileContactInfoQueryId(html: unknown): string | undefined {
+  if (typeof html !== "string" || html.length < 1 || html.length > MAX_HTML_BYTES) {
+    return undefined;
+  }
+  const unique = new Set<string>();
+  for (const match of html.matchAll(/voyagerIdentityDashProfileContactInfo\.([0-9a-f]{32})/giu)) {
+    const decoration = match[1];
+    if (decoration === undefined) continue;
+    unique.add(`voyagerIdentityDashProfileContactInfo.${decoration.toLowerCase()}`);
+  }
+  if (unique.size !== 1) return undefined;
+  return unique.values().next().value;
+}
+
+function assertLinkedInContactInfoGraphqlUrl(url: URL): void {
+  const queryNames = [...url.searchParams.keys()];
+  const queryKey = queryNames[1];
+  if (
+    queryNames.length !== 3
+    || queryNames[0] !== "includeWebMetadata"
+    || queryNames[2] !== "variables"
+    || (queryKey !== "queryId" && queryKey !== "queryName")
+    || url.searchParams.get("includeWebMetadata") !== "true"
+    || url.searchParams.getAll("includeWebMetadata").length !== 1
+    || url.searchParams.getAll("variables").length !== 1
+    || (queryKey !== undefined && url.searchParams.getAll(queryKey).length !== 1)
+  ) throw new Error("LinkedIn contact-info request escaped its exact reviewed route");
+  if (queryKey === "queryId") {
+    contactQueryId(url.searchParams.get("queryId"));
+  } else if (url.searchParams.get("queryName") !== LINKEDIN_PROFILE_CONTACT_INFO_QUERY_NAME) {
+    throw new Error("LinkedIn contact-info request escaped its exact reviewed route");
+  }
+  const variables = url.searchParams.get("variables");
+  if (
+    typeof variables !== "string"
+    || !/^\(profileUrn:urn:li:fsd_profile:[A-Za-z0-9_-]{1,256}\)$/u.test(variables)
+  ) throw new Error("LinkedIn contact-info request escaped its exact reviewed route");
+  profileUrn(/^\(profileUrn:(urn:li:fsd_profile:[A-Za-z0-9_-]{1,256})\)$/u.exec(variables)?.[1]);
 }
 
 export function assertLinkedInContactInfoRequest(requestValue: unknown): void {
@@ -141,17 +207,15 @@ export function assertLinkedInContactInfoRequest(requestValue: unknown): void {
     url.origin === LINKEDIN_ORIGIN
     && url.username === ""
     && url.password === ""
-    && url.search === ""
     && url.hash === ""
   ) {
-    if (/^\/in\/[A-Za-z0-9][A-Za-z0-9_-]{1,99}\/$/u.test(url.pathname)) {
+    if (url.search === "" && url.pathname === "/voyager/api/me") return;
+    if (url.search === "" && /^\/in\/[A-Za-z0-9][A-Za-z0-9_-]{1,99}\/$/u.test(url.pathname)) {
       linkedInPersonalProfileTarget(url.href);
       return;
     }
-    const match = /^\/voyager\/api\/identity\/profiles\/([A-Za-z0-9][A-Za-z0-9_-]{1,99})\/profileContactInfo$/u
-      .exec(url.pathname);
-    if (match?.[1] !== undefined) {
-      linkedInPersonalProfilePublicIdentifier(match[1]);
+    if (url.pathname === LINKEDIN_GRAPHQL_PATH) {
+      assertLinkedInContactInfoGraphqlUrl(url);
       return;
     }
   }
@@ -195,6 +259,74 @@ function htmlAttribute(value: string, name: string): string | null {
   return raw.replace(HTML_ENTITY, (entity) => decodeHtmlEntity(entity));
 }
 
+function extractBalancedJsonObject(source: string, start: number): string | undefined {
+  if (source[start] !== "{") return undefined;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  const limit = Math.min(source.length, start + MAX_HTML_BYTES);
+  for (let index = start; index < limit; index += 1) {
+    const character = source[index];
+    if (character === undefined) break;
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (character === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (character === "\"") inString = false;
+      continue;
+    }
+    if (character === "\"") {
+      inString = true;
+      continue;
+    }
+    if (character === "{") depth += 1;
+    else if (character === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, index + 1);
+    }
+  }
+  return undefined;
+}
+
+function extractComoRehydrationRoots(html: string): unknown[] {
+  const roots: unknown[] = [];
+  const marker = "__como_rehydration__";
+  let searchFrom = 0;
+  while (searchFrom < html.length && roots.length < MAX_COMO_ROOTS) {
+    const markerIndex = html.indexOf(marker, searchFrom);
+    if (markerIndex === -1) break;
+    let cursor = markerIndex + marker.length;
+    while (cursor < html.length && /\s/u.test(html[cursor] ?? "")) cursor += 1;
+    if (html[cursor] !== "=") {
+      searchFrom = markerIndex + marker.length;
+      continue;
+    }
+    cursor += 1;
+    while (cursor < html.length && /\s/u.test(html[cursor] ?? "")) cursor += 1;
+    if (html[cursor] !== "{") {
+      searchFrom = cursor;
+      continue;
+    }
+    const json = extractBalancedJsonObject(html, cursor);
+    if (json === undefined) {
+      searchFrom = cursor + 1;
+      continue;
+    }
+    try {
+      roots.push(JSON.parse(json) as unknown);
+    } catch {
+      throw new Error("LinkedIn contact-info bootstrap payload contained malformed JSON");
+    }
+    searchFrom = cursor + json.length;
+  }
+  return roots;
+}
+
 function embeddedRecords(html: unknown): readonly JsonRecord[] {
   if (typeof html !== "string" || html.length < 1 || html.length > MAX_HTML_BYTES) {
     throw new Error("LinkedIn contact-info profile page exceeded its reviewed HTML bound");
@@ -221,6 +353,7 @@ function embeddedRecords(html: unknown): readonly JsonRecord[] {
       throw new Error("LinkedIn contact-info bootstrap payload contained malformed JSON");
     }
   }
+  roots.push(...extractComoRehydrationRoots(html));
   if (roots.length < 1) {
     throw new Error("LinkedIn contact-info profile page omitted its bootstrap payloads");
   }
@@ -270,6 +403,57 @@ function isSelfDistance(value: string | number): boolean {
   return value === "DISTANCE_SELF" || value === "SELF" || value === 0 || value === "0";
 }
 
+function optionalPublicIdentifier(value: unknown): string | null {
+  if (typeof value !== "string" || value.length < 1) return null;
+  try {
+    return linkedInPersonalProfilePublicIdentifier(value);
+  } catch {
+    return null;
+  }
+}
+
+function vanityFromHref(value: unknown): string | null {
+  if (typeof value !== "string" || value.length < 1 || value.length > 2_048) return null;
+  let url: URL;
+  try {
+    url = new URL(value.startsWith("http") ? value : `https://www.linkedin.com${value.startsWith("/") ? value : `/${value}`}`);
+  } catch {
+    return null;
+  }
+  if (url.hostname !== "www.linkedin.com" && url.hostname !== "linkedin.com") return null;
+  const match = /^\/in\/([A-Za-z0-9][A-Za-z0-9_-]{1,99})\/?$/u.exec(url.pathname);
+  if (match?.[1] === undefined) return null;
+  return optionalPublicIdentifier(match[1]);
+}
+
+function vanityFromRecord(record: JsonRecord): string | null {
+  return optionalPublicIdentifier(record.publicIdentifier)
+    ?? optionalPublicIdentifier(record.vanityName)
+    ?? vanityFromHref(record.profileUrl)
+    ?? vanityFromHref(record.url)
+    ?? vanityFromHref(record.canonicalUrl)
+    ?? vanityFromHref(record.navigationUrl);
+}
+
+function profileUrnFromRecord(record: JsonRecord): string | null {
+  for (const key of ["entityUrn", "objectUrn", "profileUrn"] as const) {
+    const value = record[key];
+    if (typeof value !== "string") continue;
+    try {
+      return profileUrn(value);
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+function selfProfileError(): Error {
+  return new Error(
+    "LinkedIn contacts.read reads one 1st-degree connection; use profiles.read for the signed-in self profile",
+  );
+}
+
 export function projectLinkedInProfileContactBinding(input: {
   readonly profileHtml: unknown;
   readonly profileUrl: unknown;
@@ -278,41 +462,35 @@ export function projectLinkedInProfileContactBinding(input: {
   const target = linkedInContactInfoTarget(input.profileUrl);
   const viewer = viewerSubject(input.expectedViewerSubject);
   const records = embeddedRecords(input.profileHtml);
-  const profiles = records.filter((record) => {
-    const type = typeName(record.$type);
-    if (!type.endsWith(PROFILE_TYPE_SUFFIX) && type !== "com.linkedin.voyager.identity.profile.Profile") {
-      return false;
-    }
-    if (record.publicIdentifier === undefined && record.vanityName === undefined) return false;
-    const vanity = linkedInPersonalProfilePublicIdentifier(
-      record.publicIdentifier ?? record.vanityName,
-    );
-    return vanity === target.slug;
-  });
-  if (profiles.length < 1) {
+  const vanityRecords = records.filter((record) => vanityFromRecord(record) === target.slug);
+  if (vanityRecords.length < 1) {
     throw new Error("LinkedIn contact-info profile page did not bind the requested vanity");
   }
-  const urns = new Set(profiles.map((record) => profileUrn(record.entityUrn ?? record.objectUrn)));
+  const urns = new Set<string>();
+  for (const record of vanityRecords) {
+    const urn = profileUrnFromRecord(record);
+    if (urn !== null) urns.add(urn);
+  }
+  if (urns.size < 1) {
+    throw new Error("LinkedIn contact-info profile page omitted its target identity");
+  }
   if (urns.size !== 1) {
     throw new Error("LinkedIn contact-info profile page exposed ambiguous target identities");
   }
   const urn = urns.values().next().value!;
-  if (urn === viewer) {
-    throw new Error(
-      "LinkedIn contacts.read reads one 1st-degree connection; use profiles.read for the signed-in self profile",
-    );
-  }
-  const distances = profiles.map(distanceValue).filter((value): value is string | number => value !== null);
+  if (urn === viewer) throw selfProfileError();
+  const related = records.filter((record) =>
+    vanityFromRecord(record) === target.slug || profileUrnFromRecord(record) === urn
+  );
+  const distances = related
+    .map(distanceValue)
+    .filter((value): value is string | number => value !== null);
   const unique = [...new Set(distances.map((value) => String(value)))];
   if (unique.length !== 1 || distances[0] === undefined) {
     throw new Error("LinkedIn contact-info profile page omitted or contradicted its relationship distance");
   }
   const distance = distances[0];
-  if (isSelfDistance(distance)) {
-    throw new Error(
-      "LinkedIn contacts.read reads one 1st-degree connection; use profiles.read for the signed-in self profile",
-    );
-  }
+  if (isSelfDistance(distance)) throw selfProfileError();
   if (!isFirstDegree(distance)) {
     throw new Error(
       "LinkedIn hid Contact info because the signed-in viewer is not a 1st-degree connection of this profile",
@@ -324,6 +502,16 @@ export function projectLinkedInProfileContactBinding(input: {
     url: target.url,
     relationship: "first-degree",
   });
+}
+
+export function projectLinkedInEmbeddedContactFields(
+  html: unknown,
+  vanity: string,
+): LinkedInContactFields | undefined {
+  const records = embeddedRecords(html);
+  const entities = collectRecords(records).filter(contactEntity);
+  if (entities.length < 1) return undefined;
+  return projectFields(records, vanity);
 }
 
 function oneUnique<T>(
