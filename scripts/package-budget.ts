@@ -1,3 +1,13 @@
+// LinkedIn contacts.read SDUI successor on 0.16.11, measured after a
+// clean Bun 1.3.14 build: 12,406,778 unpacked bytes and 497 files.
+// Same-train LinkedIn contacts.read (PR #189) measured 2,108,672 packed /
+// 12,397,049 unpacked bytes and 497 files. SDUI binding, GraphQL
+// contact-info contract, and reviewed adapter, catalog, plugin, runtime,
+// and test edits account for +9,729 unpacked bytes with no file-count
+// change. Preserve the prior 315 unpacked bytes of residual headroom and
+// the existing packed ceiling, which still covers the bun pack and the
+// prior npm 11.19.0 gzip allowance.
+//
 // LinkedIn contacts.read candidate on 0.16.11, measured after a clean
 // Bun 1.3.14 build. Two bun pm pack archives were byte-identical:
 // 2,108,672 packed bytes, 12,397,049 unpacked bytes and 497 files.
@@ -78,7 +88,7 @@
 export const MAX_PACKED_BYTES = 2_244_781;
 export const MAX_PACKED_ENTRIES = 497;
 export const MAX_PACKED_FILES = 497;
-export const MAX_UNPACKED_BYTES = 12_397_364;
+export const MAX_UNPACKED_BYTES = 12_407_093;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
