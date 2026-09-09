@@ -16,7 +16,7 @@
 
 # Guidelines
 
-- Use Bun 1.3.14 and run `bun run check` before handing off a change.
+- Use Bun 1.3.14. Run `bun run check` before handoff for product, runtime, workflow, dependency, or build changes and whenever source acceptance needs local, native, or live application behavior. A reviewed diff limited to non-executable guidance, documentation, and assertions about that documentation may instead use focused local documentation contracts plus `bun test scripts/ci-pr-gate.test.ts`, followed by unchanged complete `Required` PR CI as its final source integration gate. An independent reviewer must confirm that eligibility and that no product, workflow, dependency, build input, or generated output changed. Bind the completed CI evidence to the exact current PR head and base; requalify after either changes. This narrow source path does not replace package-release gates, provider-control admission, or production verification.
 - Follow `WRITING.md` for internal prose and `STYLE.md` for public prose.
 - Apply unreasonably robust programming when agent work is cheap. Model invalid states out of existence and pair readable regression examples with property tests for general laws.
 - Deliver changes to `main` through a current-head pull request. Keep the stable `Required` CI job green, resolve every review thread, and serialize merges. Human approval stays optional while one regular maintainer would otherwise self-review. Never force-push or bypass the gate.

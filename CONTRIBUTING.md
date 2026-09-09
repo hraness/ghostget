@@ -4,14 +4,25 @@ Issues and focused pull requests are welcome. Open an issue before changing a
 durable wire format, trust boundary, confirmation rule, or compatibility
 contract so the required migration and evidence can be agreed first.
 
-Use Bun 1.3.14 and run the complete standalone gate. Pull-request CI
-runs the same steps as parallel Linux jobs plus a macOS-only subset;
-`Required` still waits for that full union.
+Use Bun 1.3.14. Product, runtime, workflow, dependency, and build changes
+require the complete local gate, as does source acceptance that needs local, native,
+or live application behavior. Pull-request CI runs the same Linux steps as parallel jobs
+plus a macOS-only subset; `Required` still waits for that full union.
 
 ```sh
 bun install --frozen-lockfile
 bun run check
 ```
+
+For a diff limited to non-executable guidance, documentation, and assertions
+about that documentation, focused local documentation contracts and
+`bun test scripts/ci-pr-gate.test.ts` may precede the unchanged complete
+`Required` PR CI as the final source integration gate. An independent reviewer
+must confirm that no product, workflow, dependency, build input, or generated
+output changed and that no source acceptance depends on local, native, or live
+application behavior. Require completed CI for the exact current PR head and base;
+requalify if either changes. Package-release gates, provider-control admission,
+and production verification still apply to those later operations.
 
 For parallel chats or other concurrent local work, follow the
 [isolated worktree workflow](docs/local-development.md). It keeps changing

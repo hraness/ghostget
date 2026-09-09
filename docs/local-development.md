@@ -152,12 +152,24 @@ task name so it does not fall back to the stable `wrench` executable.
 
 ## Verify and retire a task
 
-Run the complete gate inside the task worktree before handing off a change:
+Run the complete gate inside the task worktree before handing off product,
+runtime, workflow, dependency, or build changes, and whenever source acceptance needs
+local, native, or live application behavior:
 
 ```sh
 cd /absolute/path/wrench-worktrees/codex-20260814-example
 bun run check
 ```
+
+A diff limited to non-executable guidance, documentation, and assertions about
+that documentation may use focused local documentation contracts plus
+`bun test scripts/ci-pr-gate.test.ts`, then the unchanged complete `Required`
+PR CI as its final source integration gate. Have an independent reviewer
+confirm that no product, workflow, dependency, build input, or generated output
+changed and that no source acceptance depends on local, native, or live application behavior.
+Bind completed CI to the exact current PR head and base, and requalify after
+either changes. This path does not replace package-release gates,
+provider-control admission, or production verification.
 
 Before cleanup, make sure no chat or shell is using the worktree and commit or
 otherwise preserve wanted changes. Then remove the exact worktree through Git,
