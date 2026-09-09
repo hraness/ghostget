@@ -16,6 +16,7 @@ import {
   type ProcessOwnerIdentity,
   type ProcessOwnerStatus,
 } from "./process-identity";
+import { DeriveBrowserHome, type DeriveBrowserToolchain } from "./derive-browser-toolchain.test-support";
 
 // Pinned agent-browser 0.32.3 allows 30s for Chrome's DevToolsActivePort,
 // plus daemon admission and IPC. Only a fresh fixture-owned launch gets this
@@ -167,17 +168,21 @@ export class DerivationBrowserFixture {
   private readonly evidenceDirectory: string;
   private cleanupDeadline: number | null = null;
   private readonly admitColdLaunch: (session: string) => void;
+  private readonly browserHome: DeriveBrowserHome;
+  private readonly startupEvidence: unknown[] = [];
 
   constructor(
     private readonly directory: string,
     private readonly socketDirectory: string,
     private readonly sessions: readonly string[],
+    toolchain: DeriveBrowserToolchain,
   ) {
     if (sessions.length < 2 || sessions.length > 3 || new Set(sessions).size !== sessions.length
       || sessions.some((session) => !/^io-(?:derive(?:-pin)?|replace)-[a-f0-9]{10,12}$/u.test(session))) {
       throw new Error("fixture session inventory is invalid");
     }
     this.admitColdLaunch = createFixtureColdLaunchAdmission(sessions);
+    this.browserHome = new DeriveBrowserHome(directory, toolchain);
     this.roots = [directory, socketDirectory].map((path) => ({ path, stat: lstatSync(path, { bigint: true }) }));
     this.assertRoots();
     this.evidenceDirectory = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-cleanup-proof-")));
@@ -185,6 +190,7 @@ export class DerivationBrowserFixture {
   }
 
   private assertRoots(): void {
+    this.browserHome.assertStable();
     for (const { path, stat } of this.roots) {
       const current = lstatSync(path, { bigint: true });
       if (!current.isDirectory() || current.isSymbolicLink() || realpathSync(path) !== path
@@ -193,6 +199,16 @@ export class DerivationBrowserFixture {
         throw new Error("fixture cleanup roots changed");
       }
     }
+  }
+
+  browserEnvironment(): Readonly<Record<string, string>> {
+    this.assertRoots();
+    return { ...isolatedEnvironment(this.socketDirectory), ...this.browserHome.environment };
+  }
+
+  helperEnvironment(): Readonly<Record<string, string>> {
+    this.assertRoots();
+    return { NODE_ENV: "production", ...this.browserHome.environment };
   }
 
   private async inspect(session: string): Promise<number | null> {
@@ -204,12 +220,19 @@ export class DerivationBrowserFixture {
       ...agentBrowserCommand(), "--config", "agent-browser.json", "--action-policy", "action-policy.json",
       "--session", session, "session", "info", "--json",
     ], {
-      cwd: this.directory, environment: isolatedEnvironment(this.socketDirectory),
+      cwd: this.directory, environment: this.browserEnvironment(),
       timeoutMs, maxOutputBytes: 1024 * 1024,
     });
     this.assertRoots();
     if (result.exitCode !== 0) throw new Error(`fixture session inspection failed: ${fixtureCommandDiagnostic(result)}`);
-    return fixtureSessionPid(parseLastJsonWithExactLaunchHashes(result.stdout), session, this.socketDirectory);
+    const value = parseLastJsonWithExactLaunchHashes(result.stdout);
+    const pid = fixtureSessionPid(value, session, this.socketDirectory);
+    const data = record(record(value).data);
+    if (this.startupEvidence.length < 64) this.startupEvidence.push({
+      phase: "inspection", sessionIndex: this.sessions.indexOf(session), active: pid !== null,
+      browserLaunched: pid === null ? false : record(data.runtime).browserLaunched,
+    });
+    return pid;
   }
 
   /** One explicit cold launch per isolated owned session; never a pin or a retry. */
@@ -218,11 +241,21 @@ export class DerivationBrowserFixture {
     if (this.cleanupDeadline !== null || this.owners.has(session)) throw new Error("fixture cold launch is not fresh and owned");
     this.admitColdLaunch(session);
     if (await this.inspect(session) !== null) throw new Error("fixture cold launch session is already active");
-    const result = await runCommand([
+    const started = performance.now();
+    let result: CommandResult;
+    try { result = await runCommand([
       ...agentBrowserCommand(), "--config", "agent-browser.json", "--action-policy", "action-policy.json",
       "--session", session, "--json", "get", "cdp-url",
-    ], { cwd: this.directory, environment: isolatedEnvironment(this.socketDirectory),
+    ], { cwd: this.directory, environment: this.browserEnvironment(),
       timeoutMs: fixtureColdLaunchTimeoutMs, maxOutputBytes: 1024 * 1024 });
+    } catch (error) {
+      this.startupEvidence.push({ phase: "cold-command-failed", sessionIndex: this.sessions.indexOf(session),
+        elapsedMs: Math.ceil(performance.now() - started),
+        deadline: error instanceof Error && error.message.includes("timed out after 40000ms") });
+      throw error;
+    }
+    this.startupEvidence.push({ phase: "cold-command-returned", sessionIndex: this.sessions.indexOf(session),
+      elapsedMs: Math.ceil(performance.now() - started), exitCode: result.exitCode });
     this.assertRoots();
     if (result.exitCode !== 0) throw new Error(`fixture cold launch failed: ${fixtureCommandDiagnostic(result)}`);
     return result;
@@ -266,7 +299,7 @@ export class DerivationBrowserFixture {
               ...agentBrowserCommand(), "--config", "agent-browser.json", "--action-policy", "action-policy.json",
               "--session", session, "close", "--json",
             ], {
-              cwd: this.directory, environment: isolatedEnvironment(this.socketDirectory),
+              cwd: this.directory, environment: this.browserEnvironment(),
               timeoutMs, maxOutputBytes: 1024 * 1024,
             });
             this.assertRoots();
@@ -306,15 +339,28 @@ export class DerivationBrowserFixture {
         if (round < 2) await Bun.sleep(25);
       }
       fixtureCollectionTimeout(cleanupDeadline, performance.now());
+      await this.browserHome.toolchain.verify();
+      fixtureCollectionTimeout(cleanupDeadline, performance.now());
       quiescent = true;
     } catch (error) { errors.push(error); }
     // No raw command output, browser state, endpoint, or original error is serialized.
     try {
       writeFileSync(join(this.evidenceDirectory, "cleanup.json"), `${JSON.stringify({
         schemaVersion: 1, quiescent, failed: errors.length > 0, collected,
+        browserToolchain: { version: this.browserHome.toolchain.receipt.version,
+          platform: this.browserHome.toolchain.receipt.platform,
+          archiveSha256: this.browserHome.toolchain.receipt.archiveSha256,
+          executableSha256: this.browserHome.toolchain.receipt.executableSha256,
+          treeSha256: this.browserHome.toolchain.receipt.treeSha256 },
+        startup: this.startupEvidence,
         owners: [...this.owners].map(([session, owner]) => ({ session, ...owner })),
         roots: this.roots.map(({ stat }) => ({ device: stat.dev.toString(), inode: stat.ino.toString() })),
       })}\n`, { mode: 0o600, flag: "wx" });
+      if (errors.length > 0) process.stderr.write(`native fixture startup evidence: ${JSON.stringify({
+        version: this.browserHome.toolchain.receipt.version, platform: this.browserHome.toolchain.receipt.platform,
+        executableSha256: this.browserHome.toolchain.receipt.executableSha256,
+        startup: this.startupEvidence, quiescent,
+      })}\n`);
       if (quiescent && errors.length === 0) {
         this.assertRoots();
         rmSync(this.socketDirectory, { recursive: true });

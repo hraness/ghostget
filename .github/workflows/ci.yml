@@ -68,6 +68,10 @@ jobs:
         with:
           bun-version: "1.3.14"
       - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Provision exact native fixture browser when selected
+        run: |
+          fixture_browser_root="$(bun run ./scripts/provision-derive-browser.ts --for-shard '${{ matrix.shard }}' 4)"
+          printf 'WRENCH_DERIVE_BROWSER_ROOT=%s\n' "$fixture_browser_root" >> "$GITHUB_ENV"
       - run: bun run ./scripts/ci-test-shard.ts ${{ matrix.shard }} 4
 
   test-omni:
