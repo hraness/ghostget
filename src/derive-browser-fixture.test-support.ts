@@ -1,11 +1,13 @@
 import { chmodSync, lstatSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 import {
   agentBrowserCommand,
   isolatedEnvironment,
   parseLastJsonWithExactLaunchHashes,
   runCommand,
+  type CommandResult,
 } from "./browser";
 import { exactCdpEndpointStatus } from "./derive";
 import {
@@ -14,6 +16,41 @@ import {
   type ProcessOwnerIdentity,
   type ProcessOwnerStatus,
 } from "./process-identity";
+
+// Pinned agent-browser 0.32.3 allows 30s for Chrome's DevToolsActivePort,
+// plus daemon admission and IPC. Only a fresh fixture-owned launch gets this
+// envelope; action/pin commands keep their existing 10s product deadlines.
+export const fixtureColdLaunchTimeoutMs = 40_000;
+
+/** Consume an explicit cold-launch grant once, before any command can start. */
+export function createFixtureColdLaunchAdmission(sessions: readonly string[]): (session: string) => void {
+  const owned = new Set(sessions);
+  const admitted = new Set<string>();
+  return (session) => {
+    if (!owned.has(session) || session.startsWith("io-derive-pin-") || admitted.has(session)) {
+      throw new Error("fixture cold launch is not fresh and owned");
+    }
+    admitted.add(session);
+  };
+}
+
+export function fixtureCollectionTimeout(deadline: number, now: number): number {
+  if (!Number.isFinite(deadline) || !Number.isFinite(now)) throw new Error("fixture cleanup clock is invalid");
+  const remaining = Math.floor(deadline - now);
+  if (remaining <= 0 || remaining > 30_000) throw new Error("fixture cleanup deadline expired or changed");
+  return remaining;
+}
+
+/** Native output may contain paths or browser state: expose only fixed literals and byte custody. */
+export function fixtureCommandDiagnostic(result: CommandResult): string {
+  const diagnostic = ["Chrome not found.", "Failed to launch Chrome", "Failed to connect to browser",
+    "Daemon failed to start", "action denied", "Action denied"]
+    .filter((literal) => result.stderr.includes(literal) || result.stdout.includes(literal));
+  return JSON.stringify({ exitCode: result.exitCode, stderrBytes: Buffer.byteLength(result.stderr),
+    stderrSha256: createHash("sha256").update(result.stderr).digest("hex"),
+    stdoutBytes: Buffer.byteLength(result.stdout), stdoutSha256: createHash("sha256").update(result.stdout).digest("hex"),
+    diagnostic });
+}
 
 function record(value: unknown): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -55,6 +92,7 @@ export function fixtureSessionPid(value: unknown, session: string, socketDirecto
 }
 
 type CollectionPorts = {
+  readonly deadline: number;
   readonly inspect: () => Promise<number | null>;
   readonly capture: (pid: number) => ProcessOwnerIdentity;
   readonly bound: (owner: ProcessOwnerIdentity) => void;
@@ -70,7 +108,10 @@ export async function collectFixtureDaemon(
   previousOwner: ProcessOwnerIdentity | undefined,
   ports: CollectionPorts,
 ): Promise<ProcessOwnerIdentity | null> {
+  const withinDeadline = (): void => { fixtureCollectionTimeout(ports.deadline, ports.now()); };
+  withinDeadline();
   const pid = await ports.inspect();
+  withinDeadline();
   if (pid === null) {
     if (previousOwner !== undefined && ports.status(previousOwner) !== "different-or-dead") {
       throw new Error("inactive fixture session still has an uncollected owner");
@@ -80,6 +121,7 @@ export async function collectFixtureDaemon(
   const owner = previousOwner ?? ports.capture(pid);
   ports.bound(owner);
   const exact = (): void => {
+    withinDeadline();
     if (pid !== owner.pid || ports.status(owner) !== "exact-live-owner") {
       throw new Error("fixture daemon owner changed or became indeterminate");
     }
@@ -99,7 +141,7 @@ export async function collectFixtureDaemon(
       exact();
       ports.terminate(owner);
     }
-    const deadline = ports.now() + 5_000;
+    const deadline = Math.min(ports.deadline, ports.now() + 5_000);
     for (;;) {
       const status = ports.status(owner);
       if (status === "different-or-dead") break;
@@ -107,7 +149,9 @@ export async function collectFixtureDaemon(
       if (ports.now() >= deadline) throw new Error("fixture daemon did not terminate");
       await ports.sleep();
     }
+    withinDeadline();
     if (await ports.inspect() !== null) throw new Error("collected fixture session is still active");
+    withinDeadline();
   } catch (error) {
     closeErrors.push(error);
   }
@@ -121,7 +165,8 @@ export class DerivationBrowserFixture {
   private readonly owners = new Map<string, ProcessOwnerIdentity>();
   private readonly endpoints = new Set<string>();
   private readonly evidenceDirectory: string;
-  private cleanupDeadline = Infinity;
+  private cleanupDeadline: number | null = null;
+  private readonly admitColdLaunch: (session: string) => void;
 
   constructor(
     private readonly directory: string,
@@ -132,6 +177,7 @@ export class DerivationBrowserFixture {
       || sessions.some((session) => !/^io-(?:derive(?:-pin)?|replace)-[a-f0-9]{10,12}$/u.test(session))) {
       throw new Error("fixture session inventory is invalid");
     }
+    this.admitColdLaunch = createFixtureColdLaunchAdmission(sessions);
     this.roots = [directory, socketDirectory].map((path) => ({ path, stat: lstatSync(path, { bigint: true }) }));
     this.assertRoots();
     this.evidenceDirectory = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-cleanup-proof-")));
@@ -152,18 +198,34 @@ export class DerivationBrowserFixture {
   private async inspect(session: string): Promise<number | null> {
     this.assertRoots();
     if (!this.sessions.includes(session)) throw new Error("fixture session is not owned");
-    const remaining = this.cleanupDeadline - performance.now();
-    if (remaining <= 0) throw new Error("fixture cleanup deadline expired");
+    const timeoutMs = this.cleanupDeadline === null ? 3_000
+      : fixtureCollectionTimeout(this.cleanupDeadline, performance.now());
     const result = await runCommand([
       ...agentBrowserCommand(), "--config", "agent-browser.json", "--action-policy", "action-policy.json",
       "--session", session, "session", "info", "--json",
     ], {
       cwd: this.directory, environment: isolatedEnvironment(this.socketDirectory),
-      timeoutMs: Math.min(3_000, remaining), maxOutputBytes: 1024 * 1024,
+      timeoutMs, maxOutputBytes: 1024 * 1024,
     });
     this.assertRoots();
-    if (result.exitCode !== 0) throw new Error("fixture session inspection failed");
+    if (result.exitCode !== 0) throw new Error(`fixture session inspection failed: ${fixtureCommandDiagnostic(result)}`);
     return fixtureSessionPid(parseLastJsonWithExactLaunchHashes(result.stdout), session, this.socketDirectory);
+  }
+
+  /** One explicit cold launch per isolated owned session; never a pin or a retry. */
+  async launch(session: string): Promise<CommandResult> {
+    this.assertRoots();
+    if (this.cleanupDeadline !== null || this.owners.has(session)) throw new Error("fixture cold launch is not fresh and owned");
+    this.admitColdLaunch(session);
+    if (await this.inspect(session) !== null) throw new Error("fixture cold launch session is already active");
+    const result = await runCommand([
+      ...agentBrowserCommand(), "--config", "agent-browser.json", "--action-policy", "action-policy.json",
+      "--session", session, "--json", "get", "cdp-url",
+    ], { cwd: this.directory, environment: isolatedEnvironment(this.socketDirectory),
+      timeoutMs: fixtureColdLaunchTimeoutMs, maxOutputBytes: 1024 * 1024 });
+    this.assertRoots();
+    if (result.exitCode !== 0) throw new Error(`fixture cold launch failed: ${fixtureCommandDiagnostic(result)}`);
+    return result;
   }
 
   async bind(session: string, cdpUrl: string): Promise<void> {
@@ -184,19 +246,20 @@ export class DerivationBrowserFixture {
     const errors: unknown[] = [];
     try { await body(); } catch (error) { errors.push(error); }
     this.cleanupDeadline = performance.now() + 30_000;
+    const cleanupDeadline = this.cleanupDeadline;
     const collected: string[] = [];
     // Pins close before the owned browser to which they were attached.
     for (const session of this.sessions) {
       try {
         await collectFixtureDaemon(this.owners.get(session), {
+          deadline: cleanupDeadline,
           inspect: () => this.inspect(session),
           capture: captureProcessOwnerIdentity,
           bound: (owner) => { this.owners.set(session, owner); },
           status: processOwnerStatus,
           close: async () => {
             this.assertRoots();
-            const remaining = this.cleanupDeadline - performance.now();
-            if (remaining <= 0) throw new Error("fixture cleanup deadline expired");
+            const timeoutMs = fixtureCollectionTimeout(cleanupDeadline, performance.now());
             // The exact CDP endpoint may intentionally be dead. Close the daemon session,
             // without --cdp, while its original routing and tripwire config still exist.
             const result = await runCommand([
@@ -204,9 +267,10 @@ export class DerivationBrowserFixture {
               "--session", session, "close", "--json",
             ], {
               cwd: this.directory, environment: isolatedEnvironment(this.socketDirectory),
-              timeoutMs: Math.min(3_000, remaining), maxOutputBytes: 1024 * 1024,
+              timeoutMs, maxOutputBytes: 1024 * 1024,
             });
             this.assertRoots();
+            if (result.exitCode !== 0) throw new Error(`fixture close failed: ${fixtureCommandDiagnostic(result)}`);
             return result.exitCode;
           },
           terminate: (owner) => {
@@ -226,6 +290,7 @@ export class DerivationBrowserFixture {
     try {
       if (collected.length !== this.sessions.length) throw new Error("fixture collection is incomplete");
       for (let round = 0; round < 3; round += 1) {
+        fixtureCollectionTimeout(cleanupDeadline, performance.now());
         for (const session of this.sessions) {
           if (await this.inspect(session) !== null) throw new Error("fixture session became active after collection");
         }
@@ -233,11 +298,14 @@ export class DerivationBrowserFixture {
           if (processOwnerStatus(owner) !== "different-or-dead") throw new Error("fixture owner remains uncollected");
         }
         for (const endpoint of this.endpoints) {
+          fixtureCollectionTimeout(cleanupDeadline, performance.now());
           if (await exactCdpEndpointStatus(endpoint) !== "unavailable") throw new Error("fixture CDP endpoint remains uncollected");
+          fixtureCollectionTimeout(cleanupDeadline, performance.now());
         }
         this.assertRoots();
         if (round < 2) await Bun.sleep(25);
       }
+      fixtureCollectionTimeout(cleanupDeadline, performance.now());
       quiescent = true;
     } catch (error) { errors.push(error); }
     // No raw command output, browser state, endpoint, or original error is serialized.

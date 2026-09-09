@@ -24,7 +24,8 @@ import {
   parseLastJsonWithExactLaunchHashes,
   runCommand,
 } from "./browser";
-import { collectFixtureDaemon, DerivationBrowserFixture, fixtureSessionPid } from "./derive-browser-fixture.test-support";
+import { collectFixtureDaemon, createFixtureColdLaunchAdmission, DerivationBrowserFixture, fixtureColdLaunchTimeoutMs,
+  fixtureCollectionTimeout, fixtureCommandDiagnostic, fixtureSessionPid } from "./derive-browser-fixture.test-support";
 
 import {
   acquireDerivationLifecycleGate,
@@ -922,6 +923,89 @@ describe("derivation browser fixture cleanup", () => {
       session: "fixture-session", socketDir: "fixture-socket", version: null },
   };
 
+  test("separates native cold startup from the single non-sliding cleanup window", () => {
+    expect(fixtureColdLaunchTimeoutMs).toBe(40_000);
+    expect(fixtureCollectionTimeout(30_000, 0)).toBe(30_000);
+    expect(fixtureCollectionTimeout(30_000, 10_000)).toBe(20_000);
+    expect(fixtureCollectionTimeout(30_000, 29_999)).toBe(1);
+    for (const [deadline, now] of [[30_000, 30_000], [30_000, 30_001], [30_001, 0],
+      [Infinity, 0], [30_000, NaN]] as const) {
+      expect(() => fixtureCollectionTimeout(deadline, now)).toThrow();
+    }
+  });
+
+  test("cold launch refuses pins, foreign sessions and duplicate attempts before command dispatch", () => {
+    const admitted: string[] = [];
+    const claim = createFixtureColdLaunchAdmission(["io-derive-0123456789ab", "io-replace-0123456789", "io-derive-pin-0123456789ab"]);
+    const dispatch = (session: string) => { claim(session); admitted.push(session); };
+    for (const session of ["", "default", "io-derive-ffffffffffff", "io-derive-pin-0123456789ab"]) {
+      expect(() => dispatch(session)).toThrow("not fresh and owned");
+    }
+    expect(admitted).toEqual([]);
+    dispatch("io-derive-0123456789ab");
+    expect(() => dispatch("io-derive-0123456789ab")).toThrow("not fresh and owned");
+    dispatch("io-replace-0123456789");
+    expect(admitted).toEqual(["io-derive-0123456789ab", "io-replace-0123456789"]);
+  });
+
+  test("retains native failure identity without publishing raw browser state or paths", () => {
+    const stderr = "Chrome not found.\n/private/fixture-profile secret-cookie=value\nws://127.0.0.1:4567/private";
+    const diagnostic = fixtureCommandDiagnostic({ exitCode: 1, stdout: "private page", stderr });
+    expect(JSON.parse(diagnostic)).toEqual({ exitCode: 1, stderrBytes: Buffer.byteLength(stderr),
+      stderrSha256: sha256(stderr), stdoutBytes: 12, stdoutSha256: sha256("private page"),
+      diagnostic: ["Chrome not found."] });
+    for (const privateValue of ["/private", "secret-cookie", "private page", "127.0.0.1"]) {
+      expect(diagnostic).not.toContain(privateValue);
+    }
+    expect(JSON.parse(fixtureCommandDiagnostic({ exitCode: 1, stderr: "", stdout:
+      JSON.stringify({ success: false, error: "Failed to launch Chrome at /private/fixture" }) })).diagnostic)
+      .toEqual(["Failed to launch Chrome"]);
+  });
+
+  test("slow startup inspection can settle inside custody but expiry never authorizes an unbound signal", async () => {
+    for (const latency of [4_000, 30_000] as const) {
+      let now = 0;
+      let live = true;
+      let reads = 0;
+      const events: string[] = [];
+      const budgets: number[] = [];
+      const collection = collectFixtureDaemon(undefined, {
+        deadline: 30_000,
+        inspect: async () => {
+          budgets.push(fixtureCollectionTimeout(30_000, now));
+          if (++reads === 1) now += latency;
+          return live ? owner.pid : null;
+        },
+        capture: () => { events.push("capture"); return owner; },
+        bound: () => { events.push("bind"); },
+        status: () => live ? "exact-live-owner" : "different-or-dead",
+        close: async () => { events.push("close"); return 0; },
+        terminate: () => { events.push("SIGTERM"); live = false; },
+        now: () => now, sleep: async () => { now += 25; },
+      });
+      if (latency === 4_000) {
+        expect(await collection).toBe(owner);
+        expect(events).toEqual(["capture", "bind", "close", "SIGTERM"]);
+        expect(budgets).toEqual([30_000, 26_000, 26_000, 26_000]);
+      } else {
+        await expect(collection).rejects.toThrow("deadline");
+        expect(events).toEqual([]);
+        expect(live).toBe(true);
+      }
+    }
+  });
+
+  test("close cannot renew custody or authorize a signal after its original deadline", async () => {
+    let now = 0;
+    let signals = 0;
+    await expect(collectFixtureDaemon(owner, {
+      deadline: 30_000, inspect: async () => owner.pid, capture: () => owner, bound: () => {},
+      status: () => "exact-live-owner", close: async () => { now = 30_000; return 0; },
+      terminate: () => { signals++; }, now: () => now, sleep: async () => {},
+    })).rejects.toThrow("cleanup failed");
+    expect(signals).toBe(0);
+  });
+
   test("requires positive exact inactive-session evidence", () => {
     expect(fixtureSessionPid(inactive, "fixture-session", "fixture-socket")).toBeNull();
     for (const data of [
@@ -949,6 +1033,7 @@ describe("derivation browser fixture cleanup", () => {
       const events: string[] = [];
       const closeError = new Error("original close failure");
       const result = collectFixtureDaemon(owner, {
+        deadline: 30_000,
         inspect: async () => {
           reads += 1;
           if (fault === "wrong-pid" || (fault === "routing-before-close" && reads === 2)
@@ -993,6 +1078,7 @@ describe("derivation browser fixture cleanup", () => {
 
   test("does not equate inactive routing with collection of a live native owner", async () => {
     await expect(collectFixtureDaemon(owner, {
+      deadline: 30_000,
       inspect: async () => null, capture: () => owner, bound: () => {}, status: () => "exact-live-owner",
       close: async () => { throw new Error("must not close inactive routing"); },
       terminate: () => { throw new Error("must not signal inactive routing"); },
@@ -1817,7 +1903,6 @@ describe("derivation session path defenses", () => {
       maxOutputBytes: 1024 * 1024,
     });
     const browser = (...arguments_: readonly string[]) => browserWithSession(ownerSession, "action-policy.json", ...arguments_);
-    const guardBrowser = (...arguments_: readonly string[]) => browserWithSession(ownerSession, "action-policy.json", ...arguments_);
     const replacementBrowser = (policy: string, ...arguments_: readonly string[]) => browserWithSession(replacementSession, policy, ...arguments_);
     const helperRequest = (request: unknown) => runCommand([
         process.execPath,
@@ -1855,7 +1940,7 @@ describe("derivation session path defenses", () => {
       arguments: ["batch", "--bail", "--json"],
     } as const;
     await fixture.run(async () => {
-      const cdpResult = await guardBrowser("--json", "get", "cdp-url");
+      const cdpResult = await fixture.launch(ownerSession);
       expect(cdpResult.exitCode).toBe(0);
       const cdpValue = parseLastJsonWithExactLaunchHashes(cdpResult.stdout.toString()) as {
         readonly data: { readonly cdpUrl: string };
@@ -1886,7 +1971,7 @@ describe("derivation session path defenses", () => {
 
       expect((await browser("close", "--json")).exitCode).toBe(0);
       writeBrowserConfig(false);
-      const replacementCdp = await replacementBrowser("action-policy.json", "--json", "get", "cdp-url");
+      const replacementCdp = await fixture.launch(replacementSession);
       expect(replacementCdp.exitCode).toBe(0);
       const replacementCdpValue = parseLastJsonWithExactLaunchHashes(replacementCdp.stdout.toString()) as {
         readonly data: { readonly cdpUrl: string };
@@ -1988,7 +2073,7 @@ describe("derivation session path defenses", () => {
       maxOutputBytes: 1024 * 1024,
     } as const;
     await fixture.run(async () => {
-      const ownerContext = await browserWithSession(ownerSession, "--json", "get", "cdp-url");
+      const ownerContext = await fixture.launch(ownerSession);
       expect(ownerContext.exitCode).toBe(0);
       const ownerValue = parseLastJsonWithExactLaunchHashes(ownerContext.stdout.toString()) as {
         readonly data: { readonly cdpUrl: string };
