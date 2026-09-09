@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { verifyBuildHandoff, verifyReleaseDirectory } from "./github-release-artifact.js";
-import { parseReleaseAssetDescriptors, releaseAssetNames, verifyReleaseAssetBytes, type ReleaseManifest } from "../website/github-release-artifact.mjs";
+import { parseReleaseAssetDescriptors, releaseAssetNames, verifyReleaseAssetBytes, type ReleaseManifest, type ReleaseAssetDescriptor } from "../website/github-release-artifact.mjs";
 import {
   assertReleaseTagNewerThanPublished, exactLatestPredecessor, exactWorkflowPublishedRelease,
   parseOptionalIncludedGitHubResponse, releaseSourceReceipt, requireLatestRelease,
@@ -76,23 +76,39 @@ async function discoverRetainedRelease(get: (endpoint: string) => Promise<unknow
   return release;
 }
 
-export function validateDraftAssets(value: unknown, manifest: ReleaseManifest, directory: string): string[] {
+export function validateReleaseAssets(releaseValue: unknown, manifest: ReleaseManifest, directory: string): {
+  missing: string[]; descriptors: readonly ReleaseAssetDescriptor[];
+} {
+  const release = object(releaseValue); const value = release.assets;
+  if (typeof release.draft !== "boolean") throw new Error("Release asset admission requires an exact draft state");
   if (!Array.isArray(value) || value.length > 5) throw new Error("Draft assets exceed the exact inventory");
   const names = releaseAssetNames(manifest.tag); const found = new Set<string>(); const ids = new Set<number>();
+  const descriptors: ReleaseAssetDescriptor[] = [];
   for (const raw of value) {
     const asset = object(raw); const name = asset.name;
     if (typeof name !== "string" || !names.includes(name) || found.has(name)
       || !Number.isSafeInteger(asset.id) || Number(asset.id) <= 0 || ids.has(Number(asset.id))
       || asset.state !== "uploaded") throw new Error("Draft contains an unexpected or incomplete asset; no replacement is permitted");
+    const canonicalUrl = `https://github.com/${repository}/releases/download/${manifest.tag}/${name}`;
+    const temporaryPrefix = `https://github.com/${repository}/releases/download/`;
+    // GitHub exposes this temporary URL only while an uploaded asset is a draft.
+    // Downloads remain authenticated requests to the exact numeric asset endpoint.
+    const temporaryPath = typeof asset.browser_download_url === "string" && asset.browser_download_url.startsWith(temporaryPrefix)
+      ? asset.browser_download_url.slice(temporaryPrefix.length) : "";
+    const temporaryMatch = /^untagged-[0-9a-f]{20}\/([^/]+)$/u.exec(temporaryPath);
+    const temporaryUrl = release.draft === true && temporaryMatch?.[1] === name;
     const bytes = readFileSync(join(directory, name));
-    if (asset.size !== bytes.length || asset.digest !== `sha256:${createHash("sha256").update(bytes).digest("hex")}`
+    if (!Number.isSafeInteger(asset.size) || Number(asset.size) <= 0 || Number(asset.size) > 8 * 1024 * 1024
+      || asset.size !== bytes.length || asset.digest !== `sha256:${createHash("sha256").update(bytes).digest("hex")}`
       || asset.url !== `https://api.github.com${prefix}/releases/assets/${asset.id}`
-      || asset.browser_download_url !== `https://github.com/${repository}/releases/download/${manifest.tag}/${name}`) {
+      || (asset.browser_download_url !== canonicalUrl && !temporaryUrl)) {
       throw new Error("Draft asset differs from the already verified canonical bytes; preserve it for diagnosis");
     }
     found.add(name); ids.add(Number(asset.id));
+    descriptors.push({ id: Number(asset.id), name, bytes: bytes.length,
+      sha256: String(asset.digest).slice(7), url: String(asset.browser_download_url) });
   }
-  return names.filter(name => !found.has(name));
+  return { missing: names.filter(name => !found.has(name)), descriptors };
 }
 
 export async function publishCanonicalRelease(directory: string, manifest: ReleaseManifest, run: Runner = command, download: AssetDownloader = downloadAsset): Promise<void> {
@@ -108,9 +124,10 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
   let release: Record<string, unknown> | undefined = response.found
     ? object(response.value) : await discoverRetainedRelease(get, manifest.tag);
   const verifyRemoteBytes = (value: Record<string, unknown>): void => {
-    for (const asset of parseReleaseAssetDescriptors(value.assets, manifest.tag)) {
-      verifyReleaseAssetBytes(download(asset.id, asset.bytes), asset);
-    }
+    const admitted = validateReleaseAssets(value, manifest, directory);
+    if (admitted.missing.length !== 0) throw new Error("Remote byte proof requires all canonical assets");
+    const descriptors = value.draft === true ? admitted.descriptors : parseReleaseAssetDescriptors(value.assets, manifest.tag);
+    for (const asset of descriptors) verifyReleaseAssetBytes(download(asset.id, asset.bytes), asset);
   };
   const authority = async (phase: "prewrite" | "postwrite"): Promise<void> => {
     const main = object(object(await get(`${prefix}/git/ref/heads/main`)).object).sha;
@@ -122,7 +139,7 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
   if (release !== undefined && release.draft === false) {
     exactWorkflowPublishedRelease({ ...coordinates, value: release });
     if (release.body !== body) throw new Error("Published release belongs to another attempt; do not relabel or rebuild it");
-    if (validateDraftAssets(release.assets, manifest, directory).length !== 0) throw new Error("Published release omits canonical assets");
+    if (validateReleaseAssets(release, manifest, directory).missing.length !== 0) throw new Error("Published release omits canonical assets");
     verifyRemoteBytes(release);
     await authority("prewrite");
     await requireLatestRelease({ api, repository, targetRelease: release, verifiedTag: manifest.tag });
@@ -155,25 +172,24 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
     if (value.id !== draftId) throw new Error("Draft readback differs from the retained release identity");
     return value;
   };
-  for (const name of validateDraftAssets(release.assets, manifest, directory)) {
+  for (const name of validateReleaseAssets(release, manifest, directory).missing) {
     await authority("prewrite");
     successful(run, ["gh", "release", "upload", manifest.tag, join(directory, name), "--repo", repository]);
     const readback = await readDraft();
-    validateDraftAssets(readback.assets, manifest, directory);
+    validateReleaseAssets(readback, manifest, directory);
   }
   release = await readDraft();
-  if (validateDraftAssets(release.assets, manifest, directory).length !== 0) throw new Error("Draft is incomplete");
-  parseReleaseAssetDescriptors(release.assets, manifest.tag);
+  if (validateReleaseAssets(release, manifest, directory).missing.length !== 0) throw new Error("Draft is incomplete");
   verifyRemoteBytes(release);
   await assertReleaseTagNewerThanPublished({ api, repository, verifiedTag: manifest.tag });
   await authority("prewrite");
   const published = mutate("PATCH", `${prefix}/releases/${draftId}`, { draft: false, make_latest: "true" });
   exactWorkflowPublishedRelease({ ...coordinates, value: published });
-  if (published.id !== draftId || validateDraftAssets(published.assets, manifest, directory).length !== 0) throw new Error("Published identity or asset bytes differ from the exact draft");
+  if (published.id !== draftId || validateReleaseAssets(published, manifest, directory).missing.length !== 0) throw new Error("Published identity or asset bytes differ from the exact draft");
   const readback = object(await get(endpoint));
   exactWorkflowPublishedRelease({ ...coordinates, value: readback });
   if (readback.id !== draftId || readback.published_at !== published.published_at
-    || validateDraftAssets(readback.assets, manifest, directory).length !== 0) throw new Error("Immutable publication readback differs");
+    || validateReleaseAssets(readback, manifest, directory).missing.length !== 0) throw new Error("Immutable publication readback differs");
   verifyRemoteBytes(readback);
   await waitForLatestRelease({ api, predecessorRelease: predecessor, repository, targetRelease: readback, verifiedTag: manifest.tag });
   await authority("postwrite");

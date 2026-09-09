@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseReleaseManifest, releaseAssetNames } from "../website/github-release-artifact.mjs";
 import { attestationVerifyArguments, verifyBuildHandoff, verifyReleaseDirectory } from "./github-release-artifact.js";
-import { publishCanonicalRelease, validateDraftAssets } from "./github-release-publish.js";
+import { publishCanonicalRelease, validateReleaseAssets } from "./github-release-publish.js";
 
 const tag = "v0.16.13";
 const sourceSha = "a".repeat(40);
@@ -43,6 +43,8 @@ describe("canonical release publication and safe local input", () => {
           state: "uploaded", browser_download_url: `https://github.com/hraness/wrench/releases/download/${tag}/${name}`,
           url: `https://api.github.com/repos/hraness/wrench/releases/assets/${index + 10}` };
       }));
+      const temporaryAssets = assets.map(asset => ({ ...asset,
+        browser_download_url: `https://github.com/hraness/wrench/releases/download/untagged-ef6c1bd779e9dd4032bb/${asset.name}` }));
       const hashes = Object.fromEntries(assets.slice(0, 4).map(asset => [asset.name, asset.digest.slice(7)]));
       const bundleHash = assets[4]!.digest.slice(7);
       await verifyBuildHandoff(directory, tag, hashes, bundleHash);
@@ -64,7 +66,7 @@ describe("canonical release publication and safe local input", () => {
           if (args[1] === "release" && args[2] === "upload") {
             const name = args[4]!.split("/").at(-1)!;
             if (release === undefined || release.draft !== true || release.assets.some((asset: Json) => asset.name === name)) throw new Error("unexpected overwrite");
-            writes.push(`upload:${name}`); release.assets.push(structuredClone(assets.find(asset => asset.name === name)!));
+            writes.push(`upload:${name}`); release.assets.push(structuredClone(temporaryAssets.find(asset => asset.name === name)!));
             return { status: 0, stdout: "" };
           }
           if (args[1] !== "api") throw new Error(`Unexpected command ${args.join(" ")}`);
@@ -77,7 +79,8 @@ describe("canonical release publication and safe local input", () => {
           if (method === "POST") { writes.push("create"); release = { ...draft(), ...JSON.parse(input!) }; return { status: 0, stdout: JSON.stringify(release) }; }
           if (method === "PATCH") {
             if (release?.assets.length !== 5) throw new Error("premature publication");
-            writes.push("publish"); release = { ...release, draft: false, immutable: true, published_at: "2026-09-09T01:00:00Z" };
+            writes.push("publish"); release = { ...release, draft: false, immutable: true, published_at: "2026-09-09T01:00:00Z",
+              assets: fault === "published-temporary-url" ? release.assets : structuredClone(assets) };
             return { status: 0, stdout: JSON.stringify(release) };
           }
           if (method !== "GET") throw new Error("Unsupported mutation");
@@ -113,7 +116,7 @@ describe("canonical release publication and safe local input", () => {
       const fresh = await execute(); expect(fresh.error).toBeUndefined();
       expect(fresh.writes).toEqual(["create", ...names.map(name => `upload:${name}`), "publish"]);
       expect(fresh.downloads).toHaveLength(10);
-      const partial = draft(); partial.assets = [assets[0]];
+      const partial = draft(); partial.assets = [temporaryAssets[0]];
       const resumed = await execute(partial); expect(resumed.error).toBeUndefined();
       expect(resumed.writes).toEqual([...names.slice(1).map(name => `upload:${name}`), "publish"]);
       const completed = await execute(fresh.release); expect(completed.error).toBeUndefined(); expect(completed.writes).toEqual([]);
@@ -132,6 +135,22 @@ describe("canonical release publication and safe local input", () => {
       }
       const readbackDrift = await execute(draft(), "post-upload-id-drift");
       expect(readbackDrift.error).toBeDefined(); expect(readbackDrift.writes).toEqual([`upload:${names[0]}`]);
+      const temporaryPublished = await execute({ ...fresh.release, assets: temporaryAssets });
+      expect(temporaryPublished.error).toBeDefined(); expect(temporaryPublished.writes).toEqual([]);
+      const temporaryReadback = await execute({ ...draft(), assets: temporaryAssets }, "published-temporary-url");
+      expect(temporaryReadback.error).toBeDefined(); expect(temporaryReadback.writes).toEqual(["publish"]);
+      for (const browser_download_url of [
+        `https://github.com/other/wrench/releases/download/untagged-ef6c1bd779e9dd4032bb/${names[0]}`,
+        "https://github.com/hraness/wrench/releases/download/untagged-ef6c1bd779e9dd4032bb/wrong-name",
+        `https://github.com/hraness/wrench/releases/download/untagged-EF6C1BD779E9DD4032BB/${names[0]}`,
+        `https://github.com/hraness/wrench/releases/download/untagged-ef6c1bd779e9dd4032b/${names[0]}`,
+        `https://github.com/hraness/wrench/releases/download/untagged-ef6c1bd779e9dd4032bb/${names[0]}?download=1`,
+        `https://github.com/hraness/wrench/releases/download/untagged-ef6c1bd779e9dd4032bb/nested/${names[0]}`,
+      ]) {
+        const denied = await execute({ ...draft(), assets: [{ ...assets[0], browser_download_url }] });
+        expect(denied.error).toBeDefined(); expect(denied.writes).toEqual([]); expect(denied.downloads).toEqual([]);
+      }
+      expect(() => validateReleaseAssets({ assets, draft: "true" }, manifest, directory)).toThrow();
       const completeDraft = { ...draft(), assets };
       const corruptDraft = await execute(completeDraft, "remote-corrupt");
       expect(corruptDraft.error).toBeDefined(); expect(corruptDraft.writes).toEqual([]);
@@ -139,7 +158,7 @@ describe("canonical release publication and safe local input", () => {
       expect(corruptReadback.error).toBeDefined(); expect(corruptReadback.writes).toEqual(["publish"]);
       const corruptCompleted = await execute(fresh.release, "remote-corrupt");
       expect(corruptCompleted.error).toBeDefined(); expect(corruptCompleted.writes).toEqual([]);
-      expect(() => validateDraftAssets([{ ...assets[0], url: "https://example.com/asset" }], manifest, directory)).toThrow();
+      expect(() => validateReleaseAssets({ draft: true, assets: [{ ...assets[0], url: "https://example.com/asset" }] }, manifest, directory)).toThrow();
     } finally { await rm(directory, { recursive: true, force: true }); }
   });
 });
