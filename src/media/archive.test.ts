@@ -1,3 +1,4 @@
+import { observeTranscriptNativeFailure } from "./transcript-persistence-native.test-support";
 import { afterEach, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
@@ -2745,4 +2746,48 @@ describe("direct HTTP archive routing", () => {
     expect(attempts).toBe(2);
     expect(await verifyMediaItem(retried.itemDirectory)).toMatchObject({ ok: true });
   });
+});
+
+describe("local transcript native sibling custody", () => {
+  for (const route of ["direct", "yt-dlp"] as const) {
+    for (const phase of ["write", "hash"] as const) {
+      test(`${route} joins every native ${phase} before its existing recovery`, async () => {
+        const noCaptions = { ...metadata, manualCaptionLanguages: [], automaticCaptionLanguages: [] };
+        const observed = await observeTranscriptNativeFailure(phase, root => {
+          const base = route === "direct"
+            ? directDependencies(() => directMediaBody(77), { value: 0 })
+            : dependencies({ value: 0 }, noCaptions);
+          return mediaUrl({
+            url: route === "direct" ? "https://example.com/finite.mp4" : noCaptions.canonicalUrl,
+            mode: "archive", language: "en", libraryDirectory: root, inheritYtDlpConfig: false,
+          }, {
+            ...base,
+            loadConfiguredTranscriber: () => Promise.resolve({ kind: "ready", transcriber: readyTranscriber }),
+            transcribeAudioLocally: options => Promise.resolve(successfulLocalTranscript(options)),
+          });
+        });
+        expect(observed.before).toEqual({ early: false, pending: true, lockExists: true, stagingExists: true });
+        expect(observed.after.pending).toBe(false);
+        expect(observed.after.activeHashes).toBe(0);
+        expect(observed.after.lockExists).toBe(false);
+        expect(observed.after.stagingExists).toBe(route === "yt-dlp");
+        expect(observed.writes).toBe(3);
+        expect(observed.result.ok).toBe(false);
+        if (!observed.result.ok) {
+          expect(observed.result.cause).toBeInstanceOf(MediaArchiveError);
+          if (observed.result.cause instanceof MediaArchiveError) {
+            expect(observed.result.cause.code).toBe("IO_ERROR");
+            expect(observed.result.cause.message).toBe(`transcript sibling ${phase} failed`);
+          }
+        }
+        expect(observed.events.some(event => event.name === "lock-release-completed")).toBe(true);
+        expect(observed.events.filter(event => event.name.startsWith("lock-release") || event.name.startsWith("quarantine")).every(event => !event.pending)).toBe(true);
+        expect(observed.events.some(event => event.name === "quarantine-completed")).toBe(route === "direct");
+        if (phase === "hash") {
+          expect(observed.after.hashClosed).toBe(true);
+          expect(observed.events.filter(event => event.name === "hash-settled" && event.path?.startsWith("data/captions/transcript.")).length).toBe(3);
+        }
+      });
+    }
+  }
 });
