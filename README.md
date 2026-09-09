@@ -44,7 +44,7 @@ wrench plugin list
 
 ## Built-in provider catalog
 
-This v0.16.14 source tree supports executable actions for 20 services: Beeper,
+This v0.16.15 source tree supports executable actions for 20 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WhatsApp, X, and YouTube.
@@ -107,7 +107,7 @@ owns the narrow capability boundary that can sit beneath them.
 ## Install
 
 The package name remains `@hraness/wrench`. After its optional npm mirror is
-verified public, `@hraness/wrench@0.16.14` is also available from the registry.
+verified public, `@hraness/wrench@0.16.15` is also available from the registry.
 
 This README describes the package version in this source tree. Its versioned
 GitHub archive and Agent Skill become a supported public release after the
@@ -118,9 +118,9 @@ The optional npm mirror can follow later without delaying canonical delivery.
 Install the single Wrench Agent Skill with either runner:
 
 ```sh
-npx skills add hraness/wrench#v0.16.14
+npx skills add hraness/wrench#v0.16.15
 # or
-bunx skills add hraness/wrench#v0.16.14
+bunx skills add hraness/wrench#v0.16.15
 ```
 
 The skill teaches Codex, Claude Code, Cursor, and other compatible coding
@@ -130,7 +130,7 @@ install the CLI if it is missing. Start a new agent session after installation.
 After the matching immutable Release exists, install this exact canonical archive:
 
 ```sh
-bun add --global https://github.com/hraness/wrench/releases/download/v0.16.14/hraness-wrench-0.16.14.tgz
+bun add --global https://github.com/hraness/wrench/releases/download/v0.16.15/hraness-wrench-0.16.15.tgz
 wrench adapter sync-bundled --json
 wrench doctor
 ```
@@ -158,7 +158,7 @@ For that same released coordinate, install Wrench in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/wrench/releases/download/v0.16.14/hraness-wrench-0.16.14.tgz
+bun add https://github.com/hraness/wrench/releases/download/v0.16.15/hraness-wrench-0.16.15.tgz
 ```
 
 ```ts

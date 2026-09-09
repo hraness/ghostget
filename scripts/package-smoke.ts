@@ -46,7 +46,18 @@ const stableVersionPattern = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)
 const maximumSafeSemverComponent = BigInt(Number.MAX_SAFE_INTEGER);
 const sweetCookieVerificationUrl = "https://codeload.github.com/hraness/sweet-cookie/tar.gz/refs/tags/v0.4.2";
 const sweetCookieVerificationIntegrity = "sha512-HddZketABRWbHiLYqMbGlYuqEaWdtqAjES28eKHr2cPDdPvrXiF4JQxD4pl9WzSOre6p/B3zA4Z3uIsCHo/+uQ==";
-const verificationPackages = [`@steipete/sweet-cookie@${sweetCookieVerificationUrl}`,"@types/bun@^1.3.14","fast-check@^4.8.0"];
+// Match the repository's qualified compiler/declaration tuple. Bun's wildcard
+// Node type dependency can otherwise select incompatible declarations.
+const verificationToolchain = Object.freeze({
+  "@types/bun": "1.3.14",
+  "@types/node": "26.1.2",
+  "typescript": "6.0.3",
+  "fast-check": "4.9.0",
+});
+const verificationPackages = [
+  `@steipete/sweet-cookie@${sweetCookieVerificationUrl}`,
+  ...Object.entries(verificationToolchain).map(([name, version]) => `${name}@${version}`),
+];
 
 function isNpmStableVersion(value: string): boolean {
   const match = stableVersionPattern.exec(value);
@@ -119,6 +130,31 @@ async function assertSweetCookieLock(lockPath: string, label: string): Promise<v
   if (record === undefined || !record.includes(sweetCookieVerificationIntegrity)) {
     throw new Error(`${label} does not bind the immutable Sweet Cookie v0.4.2 codeload integrity`);
   }
+}
+
+async function logConsumerToolchain(consumer: string): Promise<void> {
+  const packages = [];
+  for (const [name, expectedVersion] of Object.entries({
+    ...verificationToolchain,
+    "bun-types": verificationToolchain["@types/bun"],
+  })) {
+    const bytes = await readFile(join(consumer, "node_modules", name, "package.json"));
+    const manifest = requireRecord(JSON.parse(bytes.toString("utf8")) as unknown, `${name} manifest`);
+    const version = requireString(manifest, "version", `${name} manifest`);
+    if (manifest.name !== name || version !== expectedVersion) {
+      throw new Error(`Clean consumer ${name} does not match the qualified version ${expectedVersion}.`);
+    }
+    packages.push({
+      name,
+      version,
+      manifestSha256: createHash("sha256").update(bytes).digest("hex"),
+    });
+  }
+  const lock = await readFile(join(consumer, "bun.lock"));
+  console.log(JSON.stringify({
+    packageConsumerToolchain: packages,
+    bunLockSha256: createHash("sha256").update(lock).digest("hex"),
+  }));
 }
 
 async function run(
@@ -848,6 +884,7 @@ void [
 ];
 `);
   await writeFile(join(consumer, "tsconfig.bundler.json"), "{\n  \"compilerOptions\": {\n    \"target\": \"ES2023\",\n    \"lib\": [\n      \"ES2023\",\n      \"DOM\",\n      \"DOM.Iterable\"\n    ],\n    \"types\": [\n      \"bun\",\n      \"node\"\n    ],\n    \"strict\": true,\n    \"noEmit\": true,\n    \"skipLibCheck\": false,\n    \"module\": \"Preserve\",\n    \"moduleResolution\": \"Bundler\"\n  },\n  \"include\": [\n    \"index.ts\"\n  ]\n}");
+  await logConsumerToolchain(consumer);
   await run([process.execPath, "x", "tsc", "-p", "./tsconfig.bundler.json"], consumer);
 
 } finally {

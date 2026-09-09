@@ -85,15 +85,19 @@ verifies the canonical archive before collecting the provider baseline.
 The `v0.16.13` request passed its complete source gate but failed canonical
 preparation because its npm archive exceeded the compressed-byte ceiling. No
 canonical assets were uploaded or published. Retain that tag and failed run;
-`v0.16.14` is a new candidate and is usable only after its own immutable Release
-passes admission.
+`v0.16.14` also remains unpublished: its first attempt was interrupted without
+a proven cause, and its one complete recovery failed strict consumer typing
+after resolving incompatible floating declarations. Keep both attempts and
+the tag intact. `v0.16.15` pins the consumer compiler and declaration tuple to
+the source-qualified versions. It is usable only after its own immutable
+Release passes admission.
 
 ## Install the canonical release
 
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/wrench/releases/download/v0.16.14/hraness-wrench-0.16.14.tgz
+bun add --global https://github.com/hraness/wrench/releases/download/v0.16.15/hraness-wrench-0.16.15.tgz
 wrench --version
 wrench doctor --json
 ```
@@ -127,7 +131,7 @@ npm's default tag backward.
 
 ```sh
 gh workflow run npm-stage.yml --repo hraness/wrench --ref main \
-  -f release_tag=v0.16.14
+  -f release_tag=v0.16.15
 ```
 
 The read-only verify job downloads the five immutable assets, verifies their
@@ -142,7 +146,7 @@ An explicit owner-authorized dispatch may then stage the mirror:
 
 ```sh
 gh workflow run npm-stage.yml --repo hraness/wrench --ref main \
-  -f release_tag=v0.16.14 -f publish_to_npm=true
+  -f release_tag=v0.16.15 -f publish_to_npm=true
 ```
 
 The minimal checkout-free terminal job retains exact actor/repository/run

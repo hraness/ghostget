@@ -1342,11 +1342,12 @@ describe("npm publication contract", () => {
     }
   });
 
-  test("keeps separate truthful Wrench 0.16.3 through 0.16.14 changelog sections", async () => {
+  test("keeps separate truthful Wrench 0.16.3 through 0.16.15 changelog sections", async () => {
     const changelog = await readFile(changelogUrl, "utf8");
     const unreleasedHeader = "## Unreleased\n";
     const candidateHeader = "## 0.16.12 - 2026-09-08\n";
     const canonicalHeader = "## 0.16.13 - 2026-09-09\n";
+    const typingHeader = "## 0.16.15 - 2026-09-09\n";
     const packingHeader = "## 0.16.14 - 2026-09-09\n";
     const currentHeader = "## 0.16.11 - 2026-09-07\n";
     const footerHeader = "## 0.16.10 - 2026-09-07\n";
@@ -1360,6 +1361,7 @@ describe("npm publication contract", () => {
     const unreleasedStart = changelog.indexOf(unreleasedHeader);
     const candidateStart = changelog.indexOf(candidateHeader);
     const canonicalStart = changelog.indexOf(canonicalHeader);
+    const typingStart = changelog.indexOf(typingHeader);
     const packingStart = changelog.indexOf(packingHeader);
     const currentStart = changelog.indexOf(currentHeader);
     const footerStart = changelog.indexOf(footerHeader);
@@ -1388,7 +1390,8 @@ describe("npm publication contract", () => {
     expect(currentStart).toBeGreaterThan(candidateStart);
     expect(currentStart).toBeGreaterThan(unreleasedStart);
     expect(canonicalStart).toBeGreaterThan(unreleasedStart);
-    expect(packingStart).toBeGreaterThan(unreleasedStart);
+    expect(typingStart).toBeGreaterThan(unreleasedStart);
+    expect(packingStart).toBeGreaterThan(typingStart);
     expect(canonicalStart).toBeGreaterThan(packingStart);
     expect(currentStart).toBeGreaterThan(canonicalStart);
     expect(footerStart).toBeGreaterThan(currentStart);
@@ -1399,7 +1402,7 @@ describe("npm publication contract", () => {
     expect(markerStart).toBeGreaterThan(consumedStart);
     expect(releaseStart).toBeGreaterThan(markerStart);
     expect(incidentStart).toBeGreaterThan(releaseStart);
-    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, packingStart).trim()).toBe("");
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, typingStart).trim()).toBe("");
 
     const candidateReleaseEnd = changelog.indexOf("\n## ", candidateStart + candidateHeader.length);
     expect(candidateReleaseEnd).toBe(currentStart - 1);
