@@ -20,12 +20,12 @@ import { createServer } from "node:net";
 
 import {
   agentBrowserCommand,
-  isolatedEnvironment,
   parseLastJsonWithExactLaunchHashes,
   runCommand,
 } from "./browser";
 import { collectFixtureDaemon, createFixtureColdLaunchAdmission, DerivationBrowserFixture, fixtureColdLaunchTimeoutMs,
   fixtureCollectionTimeout, fixtureCommandDiagnostic, fixtureSessionPid } from "./derive-browser-fixture.test-support";
+import { DeriveBrowserToolchain } from "./derive-browser-toolchain.test-support";
 
 import {
   acquireDerivationLifecycleGate,
@@ -1885,8 +1885,8 @@ describe("derivation session path defenses", () => {
     const ownerSession = "io-derive-0123456789ab";
     const replacementSession = "io-replace-0123456789";
     const pinSession = "io-derive-pin-0123456789ab";
-    const fixture = new DerivationBrowserFixture(directory, socketDirectory, [pinSession, ownerSession, replacementSession]);
-    const browserEnvironment = isolatedEnvironment(socketDirectory);
+    const fixture = new DerivationBrowserFixture(directory, socketDirectory, [pinSession, ownerSession, replacementSession],
+      await DeriveBrowserToolchain.load());
     const browserWithSession = (session: string, policy: string, ...arguments_: readonly string[]) => runCommand([
         ...agentBrowserCommand(),
         "--config",
@@ -1898,7 +1898,7 @@ describe("derivation session path defenses", () => {
         ...arguments_,
       ], {
       cwd: directory,
-      environment: browserEnvironment,
+      environment: fixture.browserEnvironment(),
       timeoutMs: 10_000,
       maxOutputBytes: 1024 * 1024,
     });
@@ -1914,7 +1914,7 @@ describe("derivation session path defenses", () => {
         helper,
       ], {
       cwd: directory,
-      environment: { NODE_ENV: "production" },
+      environment: fixture.helperEnvironment(),
       stdin: JSON.stringify(request),
       timeoutMs: 12_000,
       maxOutputBytes: 1024 * 1024,
@@ -2027,8 +2027,8 @@ describe("derivation session path defenses", () => {
     const bunConfig = join(import.meta.dir, "state-helper.bunfig.toml");
     const ownerSession = "io-derive-abcdef012345";
     const pinSession = "io-derive-pin-abcdef012345";
-    const fixture = new DerivationBrowserFixture(directory, socketDirectory, [pinSession, ownerSession]);
-    const browserEnvironment = isolatedEnvironment(socketDirectory);
+    const fixture = new DerivationBrowserFixture(directory, socketDirectory, [pinSession, ownerSession],
+      await DeriveBrowserToolchain.load());
     const browserWithSession = (sessionName: string, ...arguments_: readonly string[]) => runCommand([
         ...agentBrowserCommand(),
         "--config",
@@ -2040,7 +2040,7 @@ describe("derivation session path defenses", () => {
         ...arguments_,
       ], {
       cwd: directory,
-      environment: browserEnvironment,
+      environment: fixture.browserEnvironment(),
       timeoutMs: 10_000,
       maxOutputBytes: 1024 * 1024,
     });
@@ -2054,7 +2054,7 @@ describe("derivation session path defenses", () => {
         helper,
       ], {
       cwd: directory,
-      environment: { NODE_ENV: "production" },
+      environment: fixture.helperEnvironment(),
       stdin: JSON.stringify(request),
       timeoutMs: 12_000,
       maxOutputBytes: 1024 * 1024,

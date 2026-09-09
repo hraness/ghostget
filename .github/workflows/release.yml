@@ -158,6 +158,10 @@ jobs:
           printf 'tag=%s\n' "$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
           printf 'sha=%s\n' "$tag_commit" >> "$GITHUB_OUTPUT"
       - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Provision exact native fixture browser
+        run: |
+          fixture_browser_root="$(bun run ./scripts/provision-derive-browser.ts)"
+          printf 'WRENCH_DERIVE_BROWSER_ROOT=%s\n' "$fixture_browser_root" >> "$GITHUB_ENV"
       - run: bun run check
       - run: |
           generated_status="$(git status --porcelain --untracked-files=all -- dist bun.lock)"
