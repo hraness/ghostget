@@ -1,9 +1,31 @@
-// Same-boot post-close convergence on canonical GitHub 0.16.14, measured from
-// exact main e8f972e after a clean Bun 1.3.14 build: 12,424,418 unpacked bytes
-// and 501 files. The two reviewed browser source/test changes add 6,112 bytes
-// to the 12,418,306-byte canonical archive without changing its inventory.
-// Preserve 26 bytes of unpacked allowance and the packed portability bound;
-// this source-only candidate does not claim a new release coordinate.
+// Same-boot post-close convergence on canonical GitHub 0.16.16 composes the
+// exact 12,419,056-byte main archive with the byte-identical 6,112-byte
+// browser source delta, yielding 12,425,168 unpacked bytes across the same
+// 501 files. Preserve 26 bytes of unpacked allowance and the existing packed
+// portability bound; this source-only candidate does not claim a new release.
+//
+// Canonical GitHub 0.16.16, measured after exact browser-claim drift recovery:
+// two identical Node 24.20.0 / npm 11.19.0 archives have 2,253,071 compressed
+// and 12,419,056 payload bytes across exactly 501 files, SHA-256
+// a5195435e2d9a524e66a9e72b99b5472d8680c9467ee1bb54898a0e4dd01d401.
+// Every file/mode matches source; 491 files are unchanged from published .15.
+// Browser admission adds 255 bytes and the changelog 245; other edits only
+// project the new version. Identical raw tar recompresses to 2,255,428 bytes
+// under the available motley build. Keep the 2,259,302 compressed ceiling;
+// increase only payload by the measured 500 bytes, retaining 65 bytes of
+// headroom, exactly 501 files/entries and the derived 12,933,120 tar ceiling.
+// Fresh Linux CI must still verify its actual canonical npm archive.
+//
+// Canonical GitHub 0.16.15, measured after the qualified consumer-type repair:
+// two identical Node 24.20.0 / npm 11.19.0 archives have 2,252,952 compressed
+// and 12,418,556 payload bytes across exactly 501 files, SHA-256
+// 3a0adf3c9584a831a5b29ecab47eb1ace4a9e2cacfafabd64cb6eb3d10998226.
+// Every file/mode matches source; 492 files are unchanged from 0.16.14.
+// The new changelog adds 250 payload bytes; other packaged edits project .15.
+// Identical raw tar recompresses to 2,255,325 bytes under the available motley
+// build. Retain every existing bound: 3,977 bytes above that measured maximum,
+// 65 payload bytes remaining, exactly 501 files/entries and the same tar bound.
+// Fresh Linux CI still verifies its actual canonical npm archive.
 //
 // Canonical GitHub 0.16.14, measured with Bun 1.3.14 build and two
 // byte-identical Homebrew Node 24.20.0 / npm 11.19.0 packs: 2,252,826
@@ -179,7 +201,7 @@
 export const MAX_PACKED_BYTES = 2_259_302;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_424_444;
+export const MAX_UNPACKED_BYTES = 12_425_194;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
