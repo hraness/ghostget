@@ -328,7 +328,12 @@ describe("local browser admission", () => {
     }
   });
 
-  test("adopts its exact claim after a committed create reports failure", async () => {
+  test.each([
+    ["failure", () => new Error("injected postcommit browser admission failure")],
+    ["exact read drift", () => new Error("create diagnostic", {
+      cause: new Error("state helper: state file changed while it was read"),
+    })],
+  ] as const)("adopts its exact claim after a committed create reports %s", async (_label, failure) => {
     const testState = state();
     let injected = 0;
     try {
@@ -338,7 +343,7 @@ describe("local browser admission", () => {
         dependencies: admissionDependencies({
           afterCreateCommitForTest: () => {
             injected += 1;
-            throw new Error("injected postcommit browser admission failure");
+            throw failure();
           },
         }),
       });
@@ -350,6 +355,116 @@ describe("local browser admission", () => {
         ...BROWSER_ADMISSION_STATE_DIRECTORY.split("/"),
         "slot-0.json",
       ))).toBeFalse();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test.each(["absent", "foreign"] as const)("retries exact create read drift after %s reconciliation", async (reconciled) => {
+    const testState = state();
+    let creates = 0;
+    let waits = 0;
+    let elapsed = 0;
+    try {
+      const initialized = await acquireBrowserAdmission({
+        timeoutMs: 10_000,
+        environment: testState.environment,
+        dependencies: admissionDependencies(),
+      });
+      const directory = join(testState.directory, BROWSER_ADMISSION_STATE_DIRECTORY);
+      const slotPath = join(directory, "slot-0.json");
+      const foreignClaim = readFileSync(slotPath, "utf8");
+      initialized.release();
+      writeFileSync(join(directory, "slot-1.json"), "{}\n", { mode: 0o600 });
+      const token = "22222222-2222-4222-8222-222222222222";
+      const admission = await acquireBrowserAdmission({
+        timeoutMs: 10_000,
+        environment: testState.environment,
+        dependencies: admissionDependencies({
+          randomToken: () => token,
+          monotonicNow: () => elapsed,
+          beforeCreateForTest: (slot) => {
+            creates += 1;
+            expect(slot).toBe(0);
+            if (creates !== 1) return;
+            if (reconciled === "foreign") {
+              writeFileSync(slotPath, foreignClaim, { mode: 0o600 });
+            }
+            const drift = new Error("state helper: state file changed while it was read");
+            throw reconciled === "foreign"
+              ? new Error("create diagnostic", { cause: drift })
+              : drift;
+          },
+          random: () => 0,
+          sleep: async (milliseconds) => {
+            waits += 1;
+            expect(milliseconds).toBeGreaterThan(0);
+            expect(milliseconds).toBeLessThanOrEqual(250);
+            elapsed += milliseconds;
+            if (reconciled === "foreign") {
+              expect(readFileSync(slotPath, "utf8")).toBe(foreignClaim);
+              rmSync(slotPath);
+            } else {
+              expect(existsSync(slotPath)).toBeFalse();
+            }
+          },
+        }),
+      });
+      expect(creates).toBe(2);
+      expect(waits).toBe(1);
+      expect(admission.slot).toBe(0);
+      expect(admission.owner.token).toBe(token);
+      expect(admission.owner.token).not.toBe(initialized.owner.token);
+      expect(readFileSync(join(directory, "slot-1.json"), "utf8")).toBe("{}\n");
+      admission.release();
+      expect(existsSync(slotPath)).toBeFalse();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test.each([
+    "unrelated create failure",
+    "state helper: state file changed while it was read extra",
+    "state file changed while it was read",
+  ])("keeps unrecognized create errors fatal: %s", async (message) => {
+    const testState = state();
+    const failure = new Error(message);
+    let waits = 0;
+    try {
+      await expect(acquireBrowserAdmission({
+        timeoutMs: 10_000,
+        environment: testState.environment,
+        dependencies: admissionDependencies({
+          beforeCreateForTest: () => { throw failure; },
+          sleep: async () => { waits += 1; },
+        }),
+      })).rejects.toBe(failure);
+      expect(waits).toBe(0);
+      expect(existsSync(join(testState.directory, BROWSER_ADMISSION_STATE_DIRECTORY, "slot-0.json"))).toBeFalse();
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps malformed create reconciliation fatal after exact read drift", async () => {
+    const testState = state();
+    const slotPath = join(testState.directory, BROWSER_ADMISSION_STATE_DIRECTORY, "slot-0.json");
+    let waits = 0;
+    try {
+      await expect(acquireBrowserAdmission({
+        timeoutMs: 10_000,
+        environment: testState.environment,
+        dependencies: admissionDependencies({
+          beforeCreateForTest: () => {
+            writeFileSync(slotPath, "{}\n", { mode: 0o600 });
+            throw new Error("state helper: state file changed while it was read");
+          },
+          sleep: async () => { waits += 1; },
+        }),
+      })).rejects.toThrow("browser admission creation could not be reconciled");
+      expect(waits).toBe(0);
+      expect(readFileSync(slotPath, "utf8")).toBe("{}\n");
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }
