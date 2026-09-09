@@ -74,6 +74,22 @@ function cssPropertyValues(css: string, selector: string, property: string): str
   return values;
 }
 
+test("Ask AI preserves product typography while retaining shared line-height and wrapping atoms", async () => {
+  const css = await readFile(join(websiteRoot, "source/styles.css"), "utf8");
+  const label = '.wrench-ask-ai [data-slot="ask-ai-about-this-label"]';
+  const link = '.wrench-ask-ai [data-slot="ask-ai-about-this-link"]';
+  for (const [selector, property, value] of [
+    [label, "color", "inherit"], [label, "font-family", "inherit"],
+    [label, "letter-spacing", "normal"], [label, "text-transform", "none"],
+    [link, "font-family", "inherit"], [link, "background-color", "transparent"],
+    [`${link}:hover`, "background-color", "transparent"],
+    [`${link}:focus-visible`, "outline", "2px solid var(--focus)"],
+    [`${link}:focus-visible`, "outline-offset", "2px"],
+  ] as const) expect(cssPropertyValues(css, selector, property)).toEqual([value]);
+  expect(cssPropertyValues(css, label, "line-height")).toEqual([]);
+  for (const selector of [label, link]) expect(cssPropertyValues(css, selector, "white-space")).toEqual([]);
+});
+
 function lossyWebpDimensions(bytes: Uint8Array): Readonly<{ height: number; width: number }> {
   const ascii = (start: number, end: number): string =>
     String.fromCharCode(...bytes.subarray(start, end));
