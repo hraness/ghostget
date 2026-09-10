@@ -1163,7 +1163,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_954_624);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_955_136);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1275,10 +1275,10 @@ describe("npm publication contract", () => {
     expect(budget).toContain("measured a 3,543-byte Linux/macOS gzip spread");
     expect(budget).toContain("leaves 4,266 bytes");
     expect(budget).toContain("635 unpacked bytes of headroom");
-    expect(MAX_PACKED_BYTES).toBe(2_263_713);
+    expect(MAX_PACKED_BYTES).toBe(2_267_917);
     expect(MAX_PACKED_ENTRIES).toBe(500);
     expect(MAX_PACKED_FILES).toBe(500);
-    expect(MAX_UNPACKED_BYTES).toBe(12_441_658);
+    expect(MAX_UNPACKED_BYTES).toBe(12_442_287);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
@@ -1286,8 +1286,8 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 500, max: 500 },
       fileCount: { min: 500, max: 500 },
-      packedBytes: { min: 1_600_000, max: 2_263_713 },
-      unpackedBytes: { min: 9_000_000, max: 12_441_658 },
+      packedBytes: { min: 1_600_000, max: 2_267_917 },
+      unpackedBytes: { min: 9_000_000, max: 12_442_287 },
     });
   });
 
@@ -1356,6 +1356,7 @@ describe("npm publication contract", () => {
     const unreleasedHeader = "## Unreleased\n";
     const candidateHeader = "## 0.16.12 - 2026-09-08\n";
     const canonicalHeader = "## 0.16.13 - 2026-09-09\n";
+    const contactHeader = "## 0.17.3 - 2026-09-10\n";
     const listingHeader = "## 0.17.2 - 2026-09-10\n";
     const fixHeader = "## 0.17.1 - 2026-09-10\n";
     const renameHeader = "## 0.17.0 - 2026-09-09\n";
@@ -1375,6 +1376,7 @@ describe("npm publication contract", () => {
     const unreleasedStart = changelog.indexOf(unreleasedHeader);
     const candidateStart = changelog.indexOf(candidateHeader);
     const canonicalStart = changelog.indexOf(canonicalHeader);
+    const contactStart = changelog.indexOf(contactHeader);
     const listingStart = changelog.indexOf(listingHeader);
     const fixStart = changelog.indexOf(fixHeader);
     const renameStart = changelog.indexOf(renameHeader);
@@ -1428,10 +1430,15 @@ describe("npm publication contract", () => {
     expect(markerStart).toBeGreaterThan(consumedStart);
     expect(releaseStart).toBeGreaterThan(markerStart);
     expect(incidentStart).toBeGreaterThan(releaseStart);
+    expect(changelog.match(/^## 0\.17\.3 - 2026-09-10$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.17\.2 - 2026-09-10$/gmu) ?? []).toHaveLength(1);
-    expect(listingStart).toBeGreaterThan(unreleasedStart);
+    expect(contactStart).toBeGreaterThan(unreleasedStart);
+    expect(contactStart).toBeLessThan(listingStart);
     expect(listingStart).toBeLessThan(fixStart);
-    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, listingStart).trim()).toBe("");
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, contactStart).trim()).toBe("");
+    expect(changelog.slice(contactStart, listingStart)).toContain("`contacts.read@1`");
+    expect(changelog.slice(contactStart, listingStart)).toMatch(/RSC\s+flight array/u);
+    expect(changelog.slice(contactStart, listingStart)).toContain("Adapter bundle 1.23.0");
     expect(changelog.slice(listingStart, fixStart)).toContain("contentPolicy");
     expect(changelog.slice(fixStart, renameStart)).toContain("--allow-escape-sequences");
 

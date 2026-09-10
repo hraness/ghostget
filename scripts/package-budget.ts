@@ -1,3 +1,19 @@
+// Ghostget 0.17.3, measured after the LinkedIn `contacts.read` Como RSC
+// flight-array fix (#217) joined the 0.17.2 release source and the version
+// bump: a Bun 1.3.14 build and npm pack (Node 24.18.1 / npm 11.16.0, darwin
+// arm64) measures 12,442,222 payload bytes across exactly 500 files. The
+// 0.17.3 changelog entry and version projections add 629 payload bytes
+// compared with the joined measurement below. Raise the payload ceiling to
+// the measurement plus 65 bytes of headroom and keep the 500-entry inventory.
+// The same pack compresses to 2,261,019 bytes here, 2,694 bytes under the
+// previous 2,263,713 packed ceiling, which is less than the 2,802-byte spread
+// the Linux release toolchain (zlib 1.3.2.1-motley) showed against darwin
+// arm64 for 0.17.0. Raise the packed ceiling to that projected Linux size
+// (2,263,821) plus the reviewed 4,096-byte portability allowance: 2,267,917.
+// This is a projection from the last measured spread, not a Linux
+// measurement; fresh Linux CI still checks its actual canonical archive under
+// the pinned release toolchain.
+//
 // Ghostget 0.17.2 source plus the LinkedIn `contacts.read` Como RSC
 // flight-array bootstrap fix (adapter bundle 1.23.0), measured with no version
 // bump or changelog entry: two Node 24.18.1 / npm 11.16.0 archives on darwin
@@ -287,10 +303,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_263_713;
+export const MAX_PACKED_BYTES = 2_267_917;
 export const MAX_PACKED_ENTRIES = 500;
 export const MAX_PACKED_FILES = 500;
-export const MAX_UNPACKED_BYTES = 12_441_658;
+export const MAX_UNPACKED_BYTES = 12_442_287;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
