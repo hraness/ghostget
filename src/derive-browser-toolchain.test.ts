@@ -130,9 +130,10 @@ test("native fixture HOME admits only the bound toolchain and rejects replacemen
 test("native fixture provisioning precedes every CI full or selected-shard gate", () => {
   const root = join(import.meta.dir, "..");
   const release = readFileSync(join(root, ".github", "workflows", "release.yml"), "utf8");
-  expect(release.indexOf("bun run ./scripts/provision-derive-browser.ts")).toBeGreaterThan(0);
-  expect(release.indexOf("bun run ./scripts/provision-derive-browser.ts")).toBeLessThan(release.indexOf("- run: bun run check"));
-  expect(release).toContain("WRENCH_DERIVE_BROWSER_ROOT=%s");
+  // Release admits the complete exact-source CI union, including the provisioned
+  // derive shard; the optional mirror still executes its own tagged full check.
+  expect(release).toContain("bun run ./scripts/release-source-ci.ts admit");
+  expect(release.indexOf("bun run ./scripts/release-source-ci.ts admit")).toBeLessThan(release.indexOf("- run: bun run build"));
   const stage = readFileSync(join(root, ".github", "workflows", "npm-stage.yml"), "utf8");
   const taggedSource = stage.indexOf('git worktree add --detach "$smoke_source" "$VERIFIED_SHA"');
   expect(taggedSource).toBeGreaterThan(0);

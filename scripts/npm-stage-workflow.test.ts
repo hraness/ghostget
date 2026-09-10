@@ -3591,14 +3591,16 @@ fi
     const workflow = await readFile(releaseWorkflowUrl, "utf8");
     const parsed = Bun.YAML.parse(workflow) as { jobs: Record<string, { needs?: string | string[]; permissions: Record<string, string> }> };
     expect(Object.keys(parsed.jobs)).toEqual(["authorize", "verify", "attest", "publish"]);
-    expect(parsed.jobs.verify!.permissions).toEqual({ actions: "read", contents: "read" });
+    expect(parsed.jobs.verify!.permissions).toEqual({ actions: "read", contents: "read", checks: "read", "pull-requests": "read", "security-events": "read" });
     expect(parsed.jobs.attest!.permissions).toEqual({ actions: "read", contents: "read", "id-token": "write", attestations: "write" });
     expect(parsed.jobs.publish!.permissions).toEqual({ actions: "read", contents: "write" });
     expect(parsed.jobs.publish!.needs).toEqual(["verify", "attest"]);
     const verify = workflow.slice(workflow.indexOf("  verify:"), workflow.indexOf("  attest:"));
     const attest = workflow.slice(workflow.indexOf("  attest:"), workflow.indexOf("  publish:"));
     const publish = workflow.slice(workflow.indexOf("  publish:"));
-    expect(verify).toContain("bun run check"); expect(verify).toContain("package-smoke.ts");
+    expect(verify).toContain("bun run ./scripts/release-source-ci.ts admit");
+    expect(verify).toContain("bun run build"); expect(verify).toContain("package-smoke.ts");
+    expect(verify).not.toContain("- run: bun run check");
     expect(verify).toContain("github-release-artifact.ts prepare");
     expect(attest).not.toContain("actions/checkout"); expect(attest).not.toContain("./scripts/");
     expect(attest).toContain("actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6");

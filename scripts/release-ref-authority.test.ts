@@ -20,6 +20,7 @@ const repositoryUrl = "https://github.com/hraness/wrench.git";
 const temporaryRoots: string[] = [];
 const protectedReleaseRuntimePaths = Object.freeze([
   "scripts/release-ref-authority.ts",
+  "scripts/release-source-ci.ts",
   "scripts/npm-provenance-identity.ts",
   "scripts/npm-package-identity.ts",
         "scripts/github-release-artifact.ts",
@@ -557,6 +558,7 @@ describe("Wrench release and promotion ref authority", () => {
       "--",
       ".github/workflows",
       "scripts/release-ref-authority.ts",
+  "scripts/release-source-ci.ts",
       "scripts/npm-provenance-identity.ts",
       "scripts/npm-package-identity.ts",
         "scripts/github-release-artifact.ts",
