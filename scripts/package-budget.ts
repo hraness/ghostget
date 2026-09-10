@@ -1,3 +1,13 @@
+// Ghostget 0.17.0 packed-size portability: required Linux CI (run 34437025340)
+// measured the canonical npm archive at 2,259,617 compressed bytes under the
+// pinned Node 24.20.0 / npm 11.19.0 toolchain and zlib 1.3.2.1-motley, 315
+// bytes above the previous 2,259,302 ceiling, while the same tree compresses
+// to 2,256,815 bytes on darwin arm64. Payload, inventory, and tar bounds are
+// unchanged. Keep the reviewed 4,096-byte portability allowance above the
+// largest measured compression: 2,259,617 + 4,096 = 2,263,713. This remains a
+// compressor-spread allowance, not a guarantee for arbitrary compressors;
+// required CI still checks the actual archive under the release toolchain.
+//
 // Ghostget 0.17.0, measured after joining main (#204 post-close convergence)
 // and escaping script-embedded canonical JSON in the LinkedIn post provider:
 // two Node 24.20.0 / npm 11.19.0 archives on darwin arm64 are byte-identical,
@@ -233,7 +243,7 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_259_302;
+export const MAX_PACKED_BYTES = 2_263_713;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
 export const MAX_UNPACKED_BYTES = 12_437_937;

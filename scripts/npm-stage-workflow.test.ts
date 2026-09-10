@@ -1275,7 +1275,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("measured a 3,543-byte Linux/macOS gzip spread");
     expect(budget).toContain("leaves 4,266 bytes");
     expect(budget).toContain("635 unpacked bytes of headroom");
-    expect(MAX_PACKED_BYTES).toBe(2_259_302);
+    expect(MAX_PACKED_BYTES).toBe(2_263_713);
     expect(MAX_PACKED_ENTRIES).toBe(501);
     expect(MAX_PACKED_FILES).toBe(501);
     expect(MAX_UNPACKED_BYTES).toBe(12_437_937);
@@ -1286,7 +1286,7 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 501, max: 501 },
       fileCount: { min: 501, max: 501 },
-      packedBytes: { min: 1_600_000, max: 2_259_302 },
+      packedBytes: { min: 1_600_000, max: 2_263_713 },
       unpackedBytes: { min: 9_000_000, max: 12_437_937 },
     });
   });
