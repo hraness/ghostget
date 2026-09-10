@@ -39,8 +39,10 @@ const HTML_ENTITY =
   /&(?:nbsp|quot|amp|lt|gt|apos|#(?:[xX][0-9A-Fa-f]{1,6}|[0-9]{1,7}));/gu;
 const MAX_HTML_BYTES = 8 * 1024 * 1024;
 const MAX_CODE_TAGS = 256;
-const MAX_COMO_ROOTS = 8;
+const MAX_COMO_ASSIGNMENTS = 8;
+const MAX_COMO_DECODED_ROOTS = 256;
 const MAX_WALK_NODES = 500_000;
+const RSC_FLIGHT_ROW = /(?:^|\n)(\d+):/u;
 const MAX_PHONES = 8;
 const MAX_WEBSITES = 8;
 const CONTACT_TYPE_SUFFIX = "ProfileContactInfo";
@@ -259,8 +261,16 @@ function htmlAttribute(value: string, name: string): string | null {
   return raw.replace(HTML_ENTITY, (entity) => decodeHtmlEntity(entity));
 }
 
-function extractBalancedJsonObject(source: string, start: number): string | undefined {
-  if (source[start] !== "{") return undefined;
+function skipWhitespace(source: string, start: number): number {
+  let index = start;
+  while (index < source.length && /\s/u.test(source[index] ?? "")) index += 1;
+  return index;
+}
+
+function extractBalancedJsonValue(source: string, start: number): string | undefined {
+  const opener = source[start];
+  if (opener !== "{" && opener !== "[") return undefined;
+  const closer = opener === "{" ? "}" : "]";
   let depth = 0;
   let inString = false;
   let escaped = false;
@@ -284,8 +294,8 @@ function extractBalancedJsonObject(source: string, start: number): string | unde
       inString = true;
       continue;
     }
-    if (character === "{") depth += 1;
-    else if (character === "}") {
+    if (character === opener) depth += 1;
+    else if (character === closer) {
       depth -= 1;
       if (depth === 0) return source.slice(start, index + 1);
     }
@@ -293,34 +303,94 @@ function extractBalancedJsonObject(source: string, start: number): string | unde
   return undefined;
 }
 
+function parseJsonRoot(json: string): unknown {
+  try {
+    return JSON.parse(json) as unknown;
+  } catch {
+    throw new Error("LinkedIn contact-info bootstrap payload contained malformed JSON");
+  }
+}
+
+function looksLikeRscFlight(value: string): boolean {
+  return RSC_FLIGHT_ROW.test(value);
+}
+
+function decodeRscFlightRecords(text: string): unknown[] {
+  const records: unknown[] = [];
+  let index = 0;
+  while (index < text.length && records.length < MAX_COMO_DECODED_ROOTS) {
+    index = skipWhitespace(text, index);
+    const row = /^(\d+):/u.exec(text.slice(index));
+    if (row === null) break;
+    index += row[0].length;
+    const first = text[index];
+    if (first === "{" || first === "[") {
+      const json = extractBalancedJsonValue(text, index);
+      if (json === undefined) {
+        index += 1;
+        continue;
+      }
+      records.push(parseJsonRoot(json));
+      index += json.length;
+      continue;
+    }
+    const nextRow = text.slice(index).search(/\n\d+:/u);
+    index = nextRow === -1 ? text.length : index + nextRow + 1;
+  }
+  return records;
+}
+
+function decodeComoRehydrationValue(value: unknown): unknown[] {
+  if (typeof value === "string") {
+    return looksLikeRscFlight(value) ? decodeRscFlightRecords(value) : [];
+  }
+  if (Array.isArray(value)) {
+    if (value.length > 20_000) {
+      throw new Error("LinkedIn contact-info bootstrap array exceeded its reviewed bound");
+    }
+    const decoded: unknown[] = [];
+    for (const item of value) {
+      if (decoded.length >= MAX_COMO_DECODED_ROOTS) break;
+      if (typeof item === "string") {
+        decoded.push(...decodeComoRehydrationValue(item));
+        continue;
+      }
+      decoded.push(item);
+    }
+    return decoded;
+  }
+  if (isRecord(value)) return [value];
+  return [];
+}
+
 function extractComoRehydrationRoots(html: string): unknown[] {
   const roots: unknown[] = [];
   const marker = "__como_rehydration__";
   let searchFrom = 0;
-  while (searchFrom < html.length && roots.length < MAX_COMO_ROOTS) {
+  let assignments = 0;
+  while (
+    searchFrom < html.length
+    && assignments < MAX_COMO_ASSIGNMENTS
+    && roots.length < MAX_COMO_DECODED_ROOTS
+  ) {
     const markerIndex = html.indexOf(marker, searchFrom);
     if (markerIndex === -1) break;
-    let cursor = markerIndex + marker.length;
-    while (cursor < html.length && /\s/u.test(html[cursor] ?? "")) cursor += 1;
+    let cursor = skipWhitespace(html, markerIndex + marker.length);
     if (html[cursor] !== "=") {
       searchFrom = markerIndex + marker.length;
       continue;
     }
-    cursor += 1;
-    while (cursor < html.length && /\s/u.test(html[cursor] ?? "")) cursor += 1;
-    if (html[cursor] !== "{") {
-      searchFrom = cursor;
-      continue;
-    }
-    const json = extractBalancedJsonObject(html, cursor);
+    cursor = skipWhitespace(html, cursor + 1);
+    const json = extractBalancedJsonValue(html, cursor);
     if (json === undefined) {
       searchFrom = cursor + 1;
       continue;
     }
-    try {
-      roots.push(JSON.parse(json) as unknown);
-    } catch {
-      throw new Error("LinkedIn contact-info bootstrap payload contained malformed JSON");
+    assignments += 1;
+    const decoded = decodeComoRehydrationValue(parseJsonRoot(json));
+    for (const root of decoded) {
+      if (roots.length >= MAX_COMO_DECODED_ROOTS) break;
+      roots.push(root);
     }
     searchFrom = cursor + json.length;
   }
@@ -436,7 +506,7 @@ function vanityFromRecord(record: JsonRecord): string | null {
 }
 
 function profileUrnFromRecord(record: JsonRecord): string | null {
-  for (const key of ["entityUrn", "objectUrn", "profileUrn"] as const) {
+  for (const key of ["entityUrn", "objectUrn", "profileUrn", "vieweeMemberUrn"] as const) {
     const value = record[key];
     if (typeof value !== "string") continue;
     try {
@@ -470,6 +540,24 @@ export function projectLinkedInProfileContactBinding(input: {
   for (const record of vanityRecords) {
     const urn = profileUrnFromRecord(record);
     if (urn !== null) urns.add(urn);
+  }
+  if (urns.size < 1) {
+    const joined = new Set<string>();
+    let sawSelf = false;
+    for (const record of records) {
+      const urn = profileUrnFromRecord(record);
+      const distance = distanceValue(record);
+      if (urn === viewer || (distance !== null && isSelfDistance(distance))) {
+        sawSelf = true;
+      }
+      if (urn === null || urn === viewer || distance === null) continue;
+      joined.add(urn);
+    }
+    if (joined.size === 1) {
+      for (const urn of joined) urns.add(urn);
+    } else if (sawSelf && joined.size === 0) {
+      throw selfProfileError();
+    }
   }
   if (urns.size < 1) {
     throw new Error("LinkedIn contact-info profile page omitted its target identity");
