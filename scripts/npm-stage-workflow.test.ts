@@ -1163,7 +1163,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_945_408);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_951_552);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1253,6 +1253,9 @@ describe("npm publication contract", () => {
 
     expect(artifact).toContain('from "./package-budget.js"');
     expect(smoke).toContain('from "./package-budget.js"');
+    expect(smoke).toContain('"@types/bun": "1.3.14"');
+    expect(smoke).not.toContain('"@types/bun": "^1.3.14"');
+    expect(smoke).toContain('"@types/node": "26.1.2"');
     expect(budget).toContain("two npm 11.19.0 packs");
     expect(budget).toContain("2,232,402 packed bytes");
     expect(budget).toContain("12,322,791 unpacked bytes, and 485 files");
@@ -1265,13 +1268,17 @@ describe("npm publication contract", () => {
       "7b13498e1070d95f2a1d564caba41f1eebc6a32a7a8e078373fe2fec564060a8",
     );
     expect(budget).toContain("LinkedIn activity pagination, cleanup convergence");
+    expect(budget).toContain("12,419,404-byte release archive");
+    expect(budget).toContain("6,112-byte");
+    expect(budget).toContain("12,425,516 unpacked bytes");
+    expect(budget).toContain("26 bytes of unpacked allowance");
     expect(budget).toContain("measured a 3,543-byte Linux/macOS gzip spread");
     expect(budget).toContain("leaves 4,266 bytes");
     expect(budget).toContain("635 unpacked bytes of headroom");
     expect(MAX_PACKED_BYTES).toBe(2_259_302);
     expect(MAX_PACKED_ENTRIES).toBe(501);
     expect(MAX_PACKED_FILES).toBe(501);
-    expect(MAX_UNPACKED_BYTES).toBe(12_431_825);
+    expect(MAX_UNPACKED_BYTES).toBe(12_437_937);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
@@ -1280,7 +1287,7 @@ describe("npm publication contract", () => {
       entryCount: { min: 501, max: 501 },
       fileCount: { min: 501, max: 501 },
       packedBytes: { min: 1_600_000, max: 2_259_302 },
-      unpackedBytes: { min: 9_000_000, max: 12_431_825 },
+      unpackedBytes: { min: 9_000_000, max: 12_437_937 },
     });
   });
 

@@ -1,13 +1,14 @@
-// Ghostget 0.17.0, measured after escaping script-embedded canonical JSON in
-// the LinkedIn post provider: two Node 24.20.0 / npm 11.19.0 archives on
-// darwin arm64 are byte-identical, with 2,255,633 compressed and 12,431,760
-// payload bytes across exactly 501 files, SHA-256
-// c0a358711a0ee6566650cea3eef768ef596a68d1295589b6a1ee275287cc4f69.
-// The escaping helper and its call sites add 595 payload bytes compared with
-// the previous 0.17.0 measurement. Raise only the payload ceiling by that
-// measured delta, preserving 65 bytes of headroom, the existing compressed
-// allowance, and the exact inventory. Fresh Linux CI still checks its actual
-// canonical archive under the pinned release toolchain.
+// Ghostget 0.17.0, measured after joining main (#204 post-close convergence)
+// and escaping script-embedded canonical JSON in the LinkedIn post provider:
+// two Node 24.20.0 / npm 11.19.0 archives on darwin arm64 are byte-identical,
+// with 2,256,815 compressed and 12,437,872 payload bytes across exactly
+// 501 files, SHA-256
+// 33a15400af2a0acb9eb5b4c3457b153d3898ef8f3295efeb89c948fb07eed6a0.
+// The joined browser source delta and the escaping helper add 6,707 payload
+// bytes compared with the previous 0.17.0 measurement. Raise only the payload
+// ceiling by that measured delta, preserving 65 bytes of headroom, the existing
+// compressed allowance, and the exact inventory. Fresh Linux CI still checks
+// its actual canonical archive under the pinned release toolchain.
 //
 // Ghostget 0.17.0, measured after joining 0.16.17 and a clean Bun 1.3.14
 // build: two Node 24.20.0 / npm 11.19.0 archives on darwin arm64 (zlib 1.2.12)
@@ -19,6 +20,12 @@
 // by that measured delta, preserving 65 bytes of headroom, the existing
 // compressed allowance, and the exact inventory. Fresh Linux CI still checks
 // its actual canonical archive under the pinned release toolchain.
+//
+// Same-boot post-close convergence on canonical GitHub 0.16.17 composes the
+// exact 12,419,404-byte release archive with the byte-identical 6,112-byte
+// browser source delta, yielding 12,425,516 unpacked bytes across the same
+// 501 files. Preserve 26 bytes of unpacked allowance and the existing packed
+// portability bound; this source-only candidate does not claim a new release.
 //
 // Canonical GitHub 0.16.17 with KB 0.19.6 and upstream Sweet Cookie 0.4.3:
 // two identical official Node 24.20.0 / npm 11.19.0 archives on darwin-arm64
@@ -229,7 +236,7 @@
 export const MAX_PACKED_BYTES = 2_259_302;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_431_825;
+export const MAX_UNPACKED_BYTES = 12_437_937;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

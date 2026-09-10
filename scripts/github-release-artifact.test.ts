@@ -86,6 +86,22 @@ describe("exact source CI admission", () => {
     expect(fixture.calls.filter(path => path.endsWith("/logs"))).toHaveLength(9);
     expect(fixture.calls.filter(path => path.endsWith("/git/ref/heads/main"))).toHaveLength(2);
   });
+  test("admits the renamed ghostget repository only with the exact immutable repository identity", () => {
+    const renamed = (id: number) => {
+      const fixture = sourceCiFixture();
+      for (const runId of [100, 200]) for (const path of [`${fixture.prefix}/actions/runs/${runId}`, `${fixture.prefix}/actions/runs/${runId}/attempts/1`]) {
+        for (const repo of [fixture.responses[path].repository, fixture.responses[path].head_repository]) { repo.id = id; repo.full_name = "hraness/ghostget"; }
+      }
+      for (const repo of [fixture.responses[`${fixture.prefix}/pulls/50`].base.repo, fixture.responses[`${fixture.prefix}/pulls/50`].head.repo]) {
+        repo.id = id; repo.full_name = "hraness/ghostget";
+      }
+      return fixture;
+    };
+    const fixture = renamed(1316443113);
+    expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).not.toThrow();
+    const foreign = renamed(1);
+    expect(() => admitSourceCi(foreign.input, foreign.read, foreign.clock)).toThrow("foreign repository");
+  });
   test("admits only the current successful attempt while retaining older analyses", () => {
     const fixture = sourceCiFixture(2);
     fixture.analyses.push(...fixture.analyses.map(value => ({ ...value, id: value.id + 10, created_at: "2026-09-08T01:10:00Z" })));

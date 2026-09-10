@@ -5,6 +5,10 @@ import { isDeepStrictEqual } from "node:util";
 
 // No package imports: both entry points run before the frozen dependency install.
 const REPOSITORY = "hraness/ghostget";
+// GitHub renamed the repository from wrench to ghostget while retaining the
+// same immutable repository identity. Source admission binds the current name
+// together with that exact numeric identity.
+const REPOSITORY_NAMES = new Set([REPOSITORY]);
 const REPOSITORY_ID = 1316443113;
 const PREFIX = `repos/${REPOSITORY}`;
 const MAIN_REF = "refs/heads/main";
@@ -45,7 +49,7 @@ function text(value: unknown): string {
 function digest(value: string | Uint8Array): string { return createHash("sha256").update(value).digest("hex"); }
 function repository(value: unknown): void {
   const data = object(value);
-  requireValue(data.id === REPOSITORY_ID && data.full_name === REPOSITORY, "foreign repository");
+  requireValue(data.id === REPOSITORY_ID && typeof data.full_name === "string" && REPOSITORY_NAMES.has(data.full_name), "foreign repository");
 }
 function inventory(value: unknown, key: string): ObjectValue[] {
   const data = object(value); const entries = array(data[key]).map(object);
@@ -231,7 +235,7 @@ function localSource(): Omit<SourceCiInput, "main"> {
   return { source, tree, workflowSha256: digest(readFileSync(CI_PATH)), lockSha256: digest(readFileSync("bun.lock")) };
 }
 function githubEnvironment(): void {
-  requireValue(process.env.GITHUB_REPOSITORY === REPOSITORY && process.env.GITHUB_REPOSITORY_ID === String(REPOSITORY_ID)
+  requireValue(REPOSITORY_NAMES.has(process.env.GITHUB_REPOSITORY ?? "") && process.env.GITHUB_REPOSITORY_ID === String(REPOSITORY_ID)
     && process.env.RUNNER_ENVIRONMENT === "github-hosted", "requires the exact GitHub-hosted repository");
 }
 function toolchain() {
