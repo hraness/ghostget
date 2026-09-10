@@ -1,3 +1,14 @@
+// Ghostget 0.17.1, measured after the release-admission log-read fix and the
+// version bump: two Node 24.20.0 / npm 11.19.0 archives on darwin arm64 are
+// byte-identical, with 2,257,105 compressed and 12,438,857 payload bytes
+// across exactly 501 files, SHA-256
+// dc47e826f2b771a9d054cbe39195b873277bb8b450644e4e8e54d462900f4c2e.
+// The changelog entry and version projections add 332 payload bytes compared
+// with the final 0.17.0 measurement. Raise only the payload ceiling by that
+// measured delta, preserving 65 bytes of headroom, the existing packed
+// allowance, and the exact inventory. Fresh Linux CI still checks its actual
+// canonical archive under the pinned release toolchain.
+//
 // Ghostget 0.17.0, measured after extending script-literal escaping to the
 // remaining LinkedIn article, feed, profile, Instagram profile, and X
 // transaction page scripts: two Node 24.20.0 / npm 11.19.0 archives on
@@ -252,7 +263,7 @@
 export const MAX_PACKED_BYTES = 2_263_713;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_438_590;
+export const MAX_UNPACKED_BYTES = 12_438_922;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

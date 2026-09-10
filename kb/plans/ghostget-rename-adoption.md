@@ -170,3 +170,20 @@ rediscover it.
   release verifies: the Codex-prepared Jungle rename change (89 files, pin
   `github:hraness/ghostget#v0.17.0`, lock deliberately not regenerated) waits
   for the real archive so the lock resolves the immutable release asset.
+
+## v0.17.0 admission failure and the v0.17.1 decision (documents-aa, 2026-09-10)
+
+- PR #207 merged as `4e2a56a`; PR #209 (script-literal escaping for the
+  remaining page-script providers) merged as `7967214` and carried the
+  `v0.17.0` tag. Release run `34442137619` failed in Verify at "Admit exact
+  source CI and security" with only "bounded read-only command failed".
+- Local `admitSourceCi` from the exact checkout passed all 45 reads. A
+  branch-only diagnostic under the Verify job's exact permissions (run
+  `34442630921`) showed every JSON read succeeding and every job-log read
+  failing: the runner's `gh` 2.100.0 refuses output containing terminal escape
+  sequences unless `--allow-escape-sequences` is passed. This was the admit
+  step's first execution on a runner.
+- Tags are immutable, so `v0.17.0` stays an assetless failed request.
+  `v0.17.1` passes the flag for log reads only, bumps the version and
+  documentation, and is the first canonical Ghostget release; the Jungle pin
+  targets `github:hraness/ghostget#v0.17.1`.
