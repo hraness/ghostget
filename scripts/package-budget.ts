@@ -1,3 +1,11 @@
+// LinkedIn contacts.read Como RSC flight-array extraction joined with main
+// 7967214 (script-literal escaping): a clean Bun 1.3.14 build and npm pack on
+// darwin arm64 measures 12,442,095 unpacked bytes across the same 501 files,
+// 3,570 bytes above the previous 12,438,525 measurement from the reviewed
+// adapter, tests, and skill growth. Keep the packed ceiling and exact file
+// inventory; raise only the unpacked bound to the measured size plus 65 bytes
+// of allowance. Required Linux CI independently checks the canonical archive.
+//
 // Ghostget 0.17.0, measured after extending script-literal escaping to the
 // remaining LinkedIn article, feed, profile, Instagram profile, and X
 // transaction page scripts: two Node 24.20.0 / npm 11.19.0 archives on
@@ -252,7 +260,7 @@
 export const MAX_PACKED_BYTES = 2_263_713;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_438_590;
+export const MAX_UNPACKED_BYTES = 12_442_160;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
