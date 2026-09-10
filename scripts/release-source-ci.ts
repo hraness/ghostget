@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 
 // No package imports: both entry points run before the frozen dependency install.
-const REPOSITORY = "hraness/wrench";
+const REPOSITORY = "hraness/ghostget";
 const REPOSITORY_ID = 1316443113;
 const PREFIX = `repos/${REPOSITORY}`;
 const MAIN_REF = "refs/heads/main";

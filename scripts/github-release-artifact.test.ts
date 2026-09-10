@@ -23,8 +23,8 @@ type Json = Record<string, any>;
 function sourceCiFixture(attempt = 1, prNumber = 50) {
   const input: SourceCiInput = { source: "1".repeat(40), tree: "2".repeat(40), main: "3".repeat(40),
     workflowSha256: "4".repeat(64), lockSha256: "5".repeat(64) };
-  const prefix = "repos/hraness/wrench"; const head = "6".repeat(40);
-  const repo = { id: 1316443113, full_name: "hraness/wrench" };
+  const prefix = "repos/hraness/ghostget"; const head = "6".repeat(40);
+  const repo = { id: 1316443113, full_name: "hraness/ghostget" };
   const responses: Json = {};
   responses[`${prefix}/git/ref/heads/main`] = { ref: "refs/heads/main", object: { type: "commit", sha: input.main } };
   for (const sha of [input.source, head]) responses[`${prefix}/git/commits/${sha}`] = { sha, tree: { sha: input.tree } };
@@ -93,13 +93,14 @@ describe("exact source CI admission", () => {
     expect(result.ci.attempt).toBe(2); expect(result.codeql.attempt).toBe(2);
     expect(result.security.exactAnalyses.map(value => value.id)).toEqual([800, 801]);
   });
-  test("admits the observed closed PR CodeQL response with an empty association and exact provider summary", () => {
+  test("admits a current-repository closed PR CodeQL response with an empty association and exact provider summary", () => {
     const fixture = sourceCiFixture(1, 203);
     const checks = fixture.responses[`${fixture.prefix}/commits/${fixture.head}/check-runs?per_page=100&filter=latest`];
-    // Selected fields of GitHub's direct check 102698893117; only the source SHA is fixture-local.
+    // Response shape follows GitHub check 102698893117; repository and source identity are fixture-local.
+    // The historical Wrench summary is separately rejected below; it is not rewritten provider evidence.
     checks.check_runs = [{ id: 102698893117, name: "CodeQL", app: { id: 57789 }, head_sha: fixture.head,
       status: "completed", conclusion: "success", pull_requests: [], output: {
-        summary: "[View all branch alerts](/hraness/wrench/security/code-scanning?query=pr%3A203+tool%3ACodeQL+is%3Aopen).",
+        summary: "[View all branch alerts](/hraness/ghostget/security/code-scanning?query=pr%3A203+tool%3ACodeQL+is%3Aopen).",
       } }];
     const result = admitSourceCi(fixture.input, fixture.read, fixture.clock);
     expect(result.security.pullRequest).toBe(203);
@@ -107,7 +108,7 @@ describe("exact source CI admission", () => {
     expect(result.security.sameMergedTree).toBe(fixture.input.tree);
   });
   test("refuses malformed summary fallback and never rescues contradictory nonempty associations", () => {
-    const summary = "[View all branch alerts](/hraness/wrench/security/code-scanning?query=pr%3A50+tool%3ACodeQL+is%3Aopen).";
+    const summary = "[View all branch alerts](/hraness/ghostget/security/code-scanning?query=pr%3A50+tool%3ACodeQL+is%3Aopen).";
     const mutations: ((check: Json) => void)[] = [
       check => { delete check.pull_requests; },
       check => { check.pull_requests = null; },
@@ -117,7 +118,7 @@ describe("exact source CI admission", () => {
       check => { check.output.summary = null; },
       check => { check.output.summary = 50; },
       ...[summary.replace("pr%3A50", "pr%3A51"), summary.replace("/hraness/", "/foreign/"),
-        summary.replace("/wrench/", "/other/"), summary.replace("tool%3ACodeQL", "tool%3AOther"),
+        summary.replace("/ghostget/", "/other/"), summary.replace("/ghostget/", "/wrench/"), summary.replace("tool%3ACodeQL", "tool%3AOther"),
         summary.replace("is%3Aopen", "is%3Aclosed"), summary.replace("pr%3A50", "pr:50"),
         summary.replace("](/", "](https://github.com/"), summary + "\n", summary + summary, "extra " + summary,
       ].map(value => (check: Json) => { check.output.summary = value; }),
@@ -135,7 +136,7 @@ describe("exact source CI admission", () => {
       (associated: Json) => { associated.head.sha = "7".repeat(40); },
       (associated: Json) => { associated.base.ref = "other"; },
       (associated: Json) => { associated.head.repo.id = 1; },
-      (associated: Json) => { associated.base.repo.url = "https://api.github.com/repos/foreign/wrench"; },
+      (associated: Json) => { associated.base.repo.url = "https://api.github.com/repos/foreign/ghostget"; },
     ]) {
       const fixture = sourceCiFixture();
       const check = fixture.responses[`${fixture.prefix}/commits/${fixture.head}/check-runs?per_page=100&filter=latest`].check_runs[0];
@@ -178,7 +179,7 @@ describe("exact source CI admission", () => {
       f => { f.responses[`${f.prefix}/actions/runs/100`].event = "pull_request"; },
       f => { f.responses[`${f.prefix}/actions/runs/100`].head_branch = "other"; },
       f => { f.responses[`${f.prefix}/actions/runs/100`].head_repository.id = 1; },
-      f => { f.responses[`${f.prefix}/actions/runs/100`].repository.full_name = "foreign/wrench"; },
+      f => { f.responses[`${f.prefix}/actions/runs/100`].repository.full_name = "foreign/ghostget"; },
       f => { f.responses[`${f.prefix}/actions/runs/100`].run_attempt = 2; },
       f => { f.responses[`${f.prefix}/actions/runs/100/attempts/1`].run_attempt = 2; },
       f => { f.responses[`${f.prefix}/actions/runs/100/attempts/1`].status = "in_progress"; },
