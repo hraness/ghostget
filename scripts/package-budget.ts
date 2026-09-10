@@ -1,3 +1,17 @@
+// Ghostget 0.17.2 source plus the LinkedIn `contacts.read` Como RSC
+// flight-array bootstrap fix (adapter bundle 1.23.0), measured with no version
+// bump or changelog entry: two Node 24.18.1 / npm 11.16.0 archives on darwin
+// arm64 are byte-identical, with 2,260,707 compressed and 12,441,593 payload
+// bytes across exactly 500 files, SHA-256
+// 4c1a296100f76cb3ca81e56e4c4cba238ee48b1abf945cb0f8063a2132263570.
+// The flight-array decoder, its tests, the rotated implementation identity,
+// and the skill references add 3,570 payload bytes compared with the 0.17.2
+// measurement. Raise only the payload ceiling to the measured value plus
+// 65 bytes of headroom; the packed size stays 3,006 bytes under the existing
+// packed allowance and the 500-entry inventory is unchanged. Fresh Linux CI
+// still checks its actual canonical archive under the pinned release
+// toolchain.
+//
 // Ghostget 0.17.2, measured after publishing the npm coordinate as ordinary
 // software: the package manifest drops its content-policy field and the
 // disclosure file leaves the inventory, which now holds exactly 500 files. Two
@@ -276,7 +290,7 @@
 export const MAX_PACKED_BYTES = 2_263_713;
 export const MAX_PACKED_ENTRIES = 500;
 export const MAX_PACKED_FILES = 500;
-export const MAX_UNPACKED_BYTES = 12_438_088;
+export const MAX_UNPACKED_BYTES = 12_441_658;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

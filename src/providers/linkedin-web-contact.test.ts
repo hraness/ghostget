@@ -51,6 +51,14 @@ function comoHtml(value: unknown): string {
   return `<html><body><script>window.__como_rehydration__=${JSON.stringify(value)}</script></body></html>`;
 }
 
+function comoFlightHtml(rows: readonly unknown[]): string {
+  const flight = rows.map((row, index) => {
+    if (typeof row === "string" && /^\d+:/u.test(row)) return row;
+    return `${index + 1}:${typeof row === "string" ? row : JSON.stringify(row)}`;
+  }).join("\n");
+  return comoHtml([flight]);
+}
+
 const CONTACT_QUERY_ID =
   "voyagerIdentityDashProfileContactInfo.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const GRAPHQL_PATH = buildLinkedInProfileContactInfoGraphqlPath({
@@ -214,6 +222,65 @@ describe("LinkedIn contacts.read 1st-degree binding", () => {
     })).toMatchObject({ relationship: "first-degree", profileUrn: PROFILE_URN });
   });
 
+  test("binds 1st-degree from an RSC flight array assignment with vanity-joined networkDistance", () => {
+    const html = comoFlightHtml([
+      'I["com.linkedin.sdui.flagshipnav.profile.ProfileView"]',
+      {
+        publicIdentifier: "example",
+        vieweeMemberUrn: PROFILE_URN,
+        networkDistance: 1,
+        screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+      },
+    ]);
+    expect(html).toContain("__como_rehydration__=[");
+    expect(html).not.toContain("bpr-guid-");
+    expect(html).not.toContain("voyagerIdentityDashProfileContactInfo.");
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: html,
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toEqual({
+      vanity: "example",
+      profileUrn: PROFILE_URN,
+      url: PROFILE_URL,
+      relationship: "first-degree",
+    });
+  });
+
+  test("joins flight vanity to a sibling vieweeMemberUrn plus networkDistance", () => {
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([
+        'I["PROFILE_VIEW"]',
+        { publicIdentifier: "example" },
+        { vieweeMemberUrn: PROFILE_URN, networkDistance: 1 },
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toMatchObject({
+      vanity: "example",
+      profileUrn: PROFILE_URN,
+      relationship: "first-degree",
+    });
+  });
+
+  test("fails closed when Como bootstrap is missing, empty, or has no JSON roots", () => {
+    expect(() => projectLinkedInProfileContactBinding({
+      profileHtml: "<html><body>no bootstrap</body></html>",
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toThrow("omitted its bootstrap payloads");
+    expect(() => projectLinkedInProfileContactBinding({
+      profileHtml: comoHtml([]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toThrow("omitted its bootstrap payloads");
+    expect(() => projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml(['I["ProfileView"]', 'I["ProfileContactDetailsOverlay"]']),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toThrow("omitted its bootstrap payloads");
+  });
+
   test("joins Como distance to the requested vanity and fails closed otherwise", () => {
     expect(() => projectLinkedInProfileContactBinding({
       profileHtml: comoHtml({
@@ -241,10 +308,31 @@ describe("LinkedIn contacts.read 1st-degree binding", () => {
       profileUrl: PROFILE_URL,
       expectedViewerSubject: VIEWER,
     })).toThrow("use profiles.read for the signed-in self profile");
+    expect(() => projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([{
+        publicIdentifier: "example",
+        vieweeMemberUrn: PROFILE_URN,
+        networkDistance: 2,
+      }]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toThrow("not a 1st-degree connection");
+    expect(() => projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([{
+        publicIdentifier: "example",
+        vieweeMemberUrn: VIEWER,
+        networkDistance: 0,
+      }]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toThrow("use profiles.read for the signed-in self profile");
   });
 
   test("resolves one unique decorated Contact-info queryId from the page", () => {
     expect(resolveLinkedInProfileContactInfoQueryId(profileHtml())).toBeUndefined();
+    expect(resolveLinkedInProfileContactInfoQueryId(
+      comoFlightHtml([{ publicIdentifier: "example", networkDistance: 1 }]),
+    )).toBeUndefined();
     expect(resolveLinkedInProfileContactInfoQueryId(
       `${comoHtml({ publicIdentifier: "example" })} ${CONTACT_QUERY_ID}`,
     )).toBe(CONTACT_QUERY_ID);
