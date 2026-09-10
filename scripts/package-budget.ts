@@ -1,3 +1,9 @@
+// Same-boot post-close convergence on canonical GitHub 0.16.17 composes the
+// exact 12,419,404-byte release archive with the byte-identical 6,112-byte
+// browser source delta, yielding 12,425,516 unpacked bytes across the same
+// 501 files. Preserve 26 bytes of unpacked allowance and the existing packed
+// portability bound; this source-only candidate does not claim a new release.
+//
 // Canonical GitHub 0.16.17 with KB 0.19.6 and upstream Sweet Cookie 0.4.3:
 // two identical official Node 24.20.0 / npm 11.19.0 archives on darwin-arm64
 // with zlib 1.3.2.1-motley-42c2f19 measure 2,255,577 packed and
@@ -207,7 +213,7 @@
 export const MAX_PACKED_BYTES = 2_259_302;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_419_469;
+export const MAX_UNPACKED_BYTES = 12_425_542;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
