@@ -39,6 +39,7 @@ import {
 } from "./release-app-token.mjs";
 import {
   assertReleaseTagNewerThanPublished,
+  CANONICAL_RELEASE_JOBS,
   collectDeploymentStatuses,
   collectProductionDeployments,
   createProviderBaseline as createProviderBaselineRaw,
@@ -5093,6 +5094,49 @@ fi
       value: providerReleaseWorkflowRun({ run_attempt: 3 }),
       workflowRunId: providerReleaseWorkflowRunId,
     })).toThrow("does not match the triggering Release run attempt");
+
+    // A receipt attempt that published the immutable Release and then failed a
+    // later npm job is admitted only with its complete canonical job inventory.
+    const canonicalJob = (name: string, overrides: Record<string, ProviderJson> = {}): ProviderJson => ({
+      id: 5000 + CANONICAL_RELEASE_JOBS.indexOf(name), name, run_id: Number(providerReleaseWorkflowRunId), run_attempt: 1,
+      head_sha: providerVerifiedSha, status: "completed", conclusion: "success", ...overrides,
+    });
+    const npmJob = { id: 5010, name: "Publish exact npm package through OIDC", run_id: Number(providerReleaseWorkflowRunId),
+      run_attempt: 1, head_sha: providerVerifiedSha, status: "completed", conclusion: "failure" };
+    const canonicalJobs = (mutate: (jobs: ProviderJson[]) => void = () => {}): ProviderJson => {
+      const jobs = [...CANONICAL_RELEASE_JOBS.map((name) => canonicalJob(name)), npmJob];
+      mutate(jobs);
+      return { total_count: jobs.length, jobs };
+    };
+    const failedAttempt = providerReleaseWorkflowRun({ conclusion: "failure" });
+    expect(exactReleaseWorkflowRun({
+      ...coordinates, canonicalJobs: canonicalJobs(), expectedRunAttempt: "1", value: failedAttempt,
+      workflowRunId: providerReleaseWorkflowRunId,
+    })).toEqual(failedAttempt);
+    expect(() => exactReleaseWorkflowRun({
+      ...coordinates, expectedRunAttempt: "1", value: failedAttempt, workflowRunId: providerReleaseWorkflowRunId,
+    })).toThrow("exact successful Release workflow identity");
+    for (const [mutate, message] of [
+      [(jobs: ProviderJson[]) => { (jobs[3] as Record<string, ProviderJson>).conclusion = "failure"; }, "did not succeed in the receipt attempt"],
+      [(jobs: ProviderJson[]) => { (jobs[1] as Record<string, ProviderJson>).status = "in_progress"; }, "did not succeed in the receipt attempt"],
+      [(jobs: ProviderJson[]) => { (jobs[2] as Record<string, ProviderJson>).run_attempt = 2; }, "did not succeed in the receipt attempt"],
+      [(jobs: ProviderJson[]) => { (jobs[0] as Record<string, ProviderJson>).head_sha = "3".repeat(40); }, "did not succeed in the receipt attempt"],
+      [(jobs: ProviderJson[]) => { jobs.splice(3, 1); }, "does not contain exactly one"],
+      [(jobs: ProviderJson[]) => { jobs.push(canonicalJob("Verify")); }, "does not contain exactly one"],
+    ] as const) {
+      expect(() => exactReleaseWorkflowRun({
+        ...coordinates, canonicalJobs: canonicalJobs(mutate), expectedRunAttempt: "1", value: failedAttempt,
+        workflowRunId: providerReleaseWorkflowRunId,
+      })).toThrow(message);
+    }
+    expect(() => exactReleaseWorkflowRun({
+      ...coordinates, canonicalJobs: { total_count: 6, jobs: canonicalJobs().jobs }, expectedRunAttempt: "1", value: failedAttempt,
+      workflowRunId: providerReleaseWorkflowRunId,
+    })).toThrow("complete bounded job inventory");
+    expect(() => exactReleaseWorkflowRun({
+      ...coordinates, canonicalJobs: canonicalJobs(), value: providerReleaseWorkflowRun({ status: "in_progress", conclusion: null }),
+      workflowRunId: providerReleaseWorkflowRunId,
+    })).toThrow("exact successful Release workflow identity");
 
     const automaticApi = new ProviderApiFixture();
     await expect(resolveReleaseAuthority({

@@ -160,8 +160,10 @@ export async function downloadReleaseDirectory(
     await writeFile(join(directory, asset.name), bytes, { flag: "wx", mode: 0o600 });
   }
   const manifest = await verifyReleaseDirectory(directory, { ...expected, runId: Number(runId) }, runGh);
+  const attemptPath = `repos/${GITHUB_RELEASE_REPOSITORY}/actions/runs/${runId}/attempts/${manifest.runAttempt}`;
   exactReleaseWorkflowRun({ repository: GITHUB_RELEASE_REPOSITORY,
-    value: JSON.parse(runGh(["api", `repos/${GITHUB_RELEASE_REPOSITORY}/actions/runs/${runId}/attempts/${manifest.runAttempt}`])),
+    value: JSON.parse(runGh(["api", attemptPath])),
+    canonicalJobs: JSON.parse(runGh(["api", `${attemptPath}/jobs?per_page=100`])),
     verifiedSha: expected.sourceSha, verifiedTag: expected.tag, workflowRunId: runId,
     expectedRunAttempt: String(manifest.runAttempt) });
   return manifest;
