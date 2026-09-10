@@ -8167,7 +8167,11 @@ printf 'npm %s\\n' "$*" >> "$COMMAND_LOG"
 if [[ "$1" == config && "$2" == get && "$3" == tag ]]; then printf '%s\\n' "$CLEAN_TAG"; exit 0; fi
 if [[ "$1" == publish ]]; then
   [[ -z "\${NPM_CONFIG_TAG-}" && -z "\${npm_config_tag-}" ]] || exit 96
-  printf '{"id":"@hraness/ghostget@%s","name":"@hraness/ghostget","version":"%s","integrity":"%s"}\\n' "${version}" "${version}" "$PUBLISHED_INTEGRITY"
+  if [[ "\${PUBLISH_RECEIPT_SHAPE-}" == flat ]]; then
+    printf '{"id":"@hraness/ghostget@%s","name":"@hraness/ghostget","version":"%s","integrity":"%s"}\\n' "${version}" "${version}" "$PUBLISHED_INTEGRITY"
+    exit 0
+  fi
+  printf '{"@hraness/ghostget":{"id":"@hraness/ghostget@%s","name":"@hraness/ghostget","version":"%s","integrity":"%s","filename":"hraness-ghostget-%s.tgz"}}\\n' "${version}" "${version}" "$PUBLISHED_INTEGRITY" "${version}"
   exit 0
 fi
 exit 98
@@ -8214,6 +8218,7 @@ exit 98
         [{}, { ...release, assets: [{ ...release.assets[0], digest: `sha256:${"9".repeat(64)}` }, ...release.assets.slice(1)] }, "not the exact canonical archive bytes"],
         [{}, { ...release, assets: [{ ...release.assets[0], size: archive.byteLength + 1 }, ...release.assets.slice(1)] }, "not the exact canonical archive bytes"],
         [{ PUBLISHED_INTEGRITY: "sha512-AAAA" }, release, "one exact published Ghostget identity"],
+        [{ PUBLISH_RECEIPT_SHAPE: "flat" }, release, "one exact published Ghostget identity"],
       ];
       for (const [extra, fixture, message] of rejections) {
         const rejected = await runCase(extra, fixture);
