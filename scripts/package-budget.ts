@@ -1,3 +1,16 @@
+// Ghostget 0.17.5, measured after the bounded newest-window CodeQL analyses
+// read joined the 0.17.4 release source and the version bump: two Bun 1.3.14
+// builds and npm packs (Node 24.20.0 / npm 11.19.0, darwin arm64) are
+// byte-identical, with 2,258,370 compressed and 12,443,517 payload bytes
+// across exactly 500 files, SHA-256
+// 319fa969d7398386b7f2963cb000a02bd3b99d0fad19a16141bfad1429e10bfb.
+// The 0.17.5 changelog entry and version projections add 476 payload bytes
+// compared with the 0.17.4 measurement. Raise only the payload ceiling to the
+// measured value plus 65 bytes of headroom (12,443,582); the packed size
+// stays 9,547 bytes under the existing packed allowance and the 500-entry
+// inventory is unchanged. Fresh Linux CI still checks its actual canonical
+// archive under the pinned release toolchain.
+//
 // Ghostget 0.17.4, measured after the npm publication moved into the tag
 // Release workflow (#219) and the version bump: two Bun 1.3.14 builds and npm
 // packs (Node 24.20.0 / npm 11.19.0, darwin arm64) are byte-identical, with
@@ -319,7 +332,7 @@
 export const MAX_PACKED_BYTES = 2_267_917;
 export const MAX_PACKED_ENTRIES = 500;
 export const MAX_PACKED_FILES = 500;
-export const MAX_UNPACKED_BYTES = 12_443_106;
+export const MAX_UNPACKED_BYTES = 12_443_582;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

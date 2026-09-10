@@ -4,7 +4,7 @@ import {
 } from "./index-26yq8q16.js";
 import {
   GHOSTGET_VERSION
-} from "./index-33bd4k33.js";
+} from "./index-pf74yjs2.js";
 import {
   canonicalJson,
   sha256

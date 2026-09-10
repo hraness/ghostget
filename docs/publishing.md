@@ -1,6 +1,6 @@
 # Publish Ghostget
 
-Ghostget starts at `@hraness/ghostget@0.17.4`, with command `ghostget` and the
+Ghostget starts at `@hraness/ghostget@0.17.5`, with command `ghostget` and the
 existing seven SDK subpaths. GitHub Releases became canonical under the former
 `@hraness/wrench` name at v0.16.13. Historical manifests, archive filenames, and
 signed provenance keep that original identity. npm carries the identical
@@ -146,12 +146,22 @@ passed, and every job log does. The helper now passes that flag for log reads
 only. Retain the assetless `v0.17.0` tag and its failed run; `v0.17.1` is the
 first canonical Ghostget release.
 
+The `v0.17.4` request, the first tag after npm publication moved into the
+Release workflow, passed its owner, tag, and package identity checks but
+failed source-CI admission before any canonical asset was built: `main` had
+accumulated one hundred CodeQL analyses, so the helper's single hundred-entry
+page read tripped its own truncation bound. The helper now reads a bounded
+twenty-entry newest-first window, in which the exact current-main analyses
+always sit, and rejects only an oversized window. Retain the assetless
+`v0.17.4` tag and its failed run; `v0.17.5` is the first release published to
+npm by the Release workflow.
+
 ## Install the canonical release
 
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.17.4/hraness-ghostget-0.17.4.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.17.5/hraness-ghostget-0.17.5.tgz
 ghostget --version
 ghostget doctor --json
 ```
