@@ -5,7 +5,7 @@
     "": {
       "name": "@hraness/wrench",
       "dependencies": {
-        "@hraness/kb": "0.17.1",
+        "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
         "@hraness/message-like-me": "github:hraness/message-like-me#v0.7.0",
         "buffer-from": "1.1.2",
         "effect": "3.22.1",
@@ -17,7 +17,7 @@
         "@hraness/design-kit": "github:hraness/design-kit#v0.5.2",
         "@hraness/site-footer": "github:hraness/site-footer#v0.6.1",
         "@hraness/ui": "github:hraness/ui#v0.5.7",
-        "@steipete/sweet-cookie": "https://codeload.github.com/hraness/sweet-cookie/tar.gz/refs/tags/v0.4.2",
+        "@steipete/sweet-cookie": "0.4.3",
         "@types/bun": "^1.3.14",
         "@types/react": "19.2.14",
         "@types/react-dom": "19.2.3",
@@ -32,9 +32,11 @@
 
     "@hraness/design-kit": ["@hraness/design-kit@github:hraness/design-kit#0c7e339", { "dependencies": { "@hugeicons/core-free-icons": "^4.2.2", "@stylexjs/stylex": "0.19.0", "motion": "12.42.0", "next-themes": "0.4.6", "react-aria-components": "1.19.0", "recharts": "3.8.0", "sugar-high": "^1.2.1", "web-haptics": "0.0.6" }, "peerDependencies": { "@hraness/ui": ">=0.5.4 <0.6.0", "react": ">=18 <20", "react-dom": ">=18 <20" }, "optionalPeers": ["@hraness/ui"] }, "hraness-design-kit-0c7e339", "sha512-YEwnSYFvHkUN2hxuODjzU/0AnsWU/NcGwKmxB404o7y47xfMX8MhUtNiIbCWLuS0E/GVGgOtatSsBE8jX3Bz8g=="],
 
-    "@hraness/kb": ["@hraness/kb@0.17.1", "", { "dependencies": { "@steipete/sweet-cookie": "github:hraness/sweet-cookie#v0.4.2", "@tobilu/qmd": "git+https://github.com/hraness/qmd.git#aa993dceb3ef8cfb71d470554ca437570f5a2b3c", "agent-browser": "0.32.3", "defuddle": "0.19.1", "yaml": "^2.9.0", "zod": "^4.4.3" }, "bin": { "kb": "dist/cli.js", "kb-evaluation-builder": "dist/evaluation-builder.js" } }, "sha512-/6f4O6H4v8ww63trm+fNTwazx0SN/AXYNqA4XyAb1bPLF8uIzz2qlJN3Uhcf5BUsgZvaoSQ+3hNro+QUqIksig=="],
+    "@hraness/kb": ["@hraness/kb@https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz", { "dependencies": { "@hraness/oh": "github:hraness/oh#v0.2.0", "@steipete/sweet-cookie": "0.4.3", "@tobilu/qmd": "git+https://github.com/hraness/qmd.git#aa993dceb3ef8cfb71d470554ca437570f5a2b3c", "agent-browser": "0.32.3", "defuddle": "0.19.1", "effect": "3.22.1", "yaml": "^2.9.0", "zod": "^4.4.3" }, "bin": { "kb": "./dist/cli.js", "kb-evaluation-builder": "./dist/evaluation-builder.js" } }, "sha512-x+iwO3ilHlRabW9i2m+rWneIjQqVOxu0UdgjQyB+DHklo61SjPP4ECDmhYH369B5HmeMImqdEKopm/lNIGTMrA=="],
 
     "@hraness/message-like-me": ["@hraness/message-like-me@github:hraness/message-like-me#83453cc", { "bin": { "messagelikeme": "./dist/cli.js" } }, "hraness-message-like-me-83453cc", "sha512-Zp3rGNfrbZjlwHTzqE3dIHCBuiG1q/eTiK9+qbwNaTfhH6jC27Rk/qXZuBLKwEkpH4KxptF3WJ8gWKTYh2CgDA=="],
+
+    "@hraness/oh": ["@hraness/oh@github:hraness/oh#89fb133", { "peerDependencies": { "@libsql/client": ">=0.17.4 <1", "@suss/datalog": "0.20.0", "@tobilu/qmd": "2.5.3" }, "optionalPeers": ["@libsql/client", "@suss/datalog", "@tobilu/qmd"], "bin": { "oh": "./dist/cli.js" } }, "hraness-oh-89fb133", "sha512-huk8DqOAhnwMm4QAOU+JiyxfdfUF0pZth1jnzOkOmZQe6NqZjR+LXAe2swIVdBMn1hCHb47+c7IqFH3QUTBWTQ=="],
 
     "@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#590056b", { "peerDependencies": { "react": ">=18 <20" }, "optionalPeers": ["react"] }, "hraness-site-footer-590056b", "sha512-/Zi9u1j5uUn0Y0iubtaWfJ69qFO/c/8lyQvXkPyL0ULLCw4SjGRuOqB/ozB0T1QTgcPOR/uxaHVbGWjINYzSiw=="],
 
@@ -124,7 +126,7 @@
 
     "@standard-schema/utils": ["@standard-schema/utils@0.3.0", "", {}, "sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g=="],
 
-    "@steipete/sweet-cookie": ["@steipete/sweet-cookie@https://codeload.github.com/hraness/sweet-cookie/tar.gz/refs/tags/v0.4.2", { "bin": { "sweet-cookie": "packages/core/dist/cli.js" } }, "sha512-HddZketABRWbHiLYqMbGlYuqEaWdtqAjES28eKHr2cPDdPvrXiF4JQxD4pl9WzSOre6p/B3zA4Z3uIsCHo/+uQ=="],
+    "@steipete/sweet-cookie": ["@steipete/sweet-cookie@0.4.3", "", { "bin": { "sweet-cookie": "dist/cli.js" } }, "sha512-+ugAbvXMl/mzmRRpGeeK4ShjWDZVR4Ul5DouKnwjhaqdozAakDyHceyagkOxRG8DYbCaQhTsuaMUod2nA3EKWQ=="],
 
     "@stylexjs/stylex": ["@stylexjs/stylex@0.19.0", "", { "dependencies": { "css-mediaquery": "^0.1.2", "invariant": "^2.2.4", "styleq": "0.2.1" } }, "sha512-CnUFp7YMaDLDeemsWOfJgoC/gKM5P/yBNMcpJaE6ChJmXr7s0DJwSeGTTlHJcqqwN9OW1qGtmARWLFhGZN1pTA=="],
 
@@ -759,8 +761,6 @@
     "zod": ["zod@4.4.3", "", {}, "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="],
 
     "zod-to-json-schema": ["zod-to-json-schema@3.25.2", "", { "peerDependencies": { "zod": "^3.25.28 || ^4" } }, "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="],
-
-    "@hraness/kb/@steipete/sweet-cookie": ["@steipete/sweet-cookie@github:hraness/sweet-cookie#04ddf06", { "bin": { "sweet-cookie": "packages/core/dist/cli.js" } }, "hraness-sweet-cookie-04ddf06", "sha512-SxVC8mp7OiWY4RHtBPlDl51xpRDTh8lNctnLdUGdos62oflrrroC3qQZ/YMdR2Vd62wKUBmnErBlrLumTuj2cw=="],
 
     "@modelcontextprotocol/sdk/zod": ["zod@4.2.1", "", {}, "sha512-0wZ1IRqGGhMP76gLqz8EyfBXKk0J2qo2+H3fi4mcUP/KtTocoX08nmIAHl1Z2kJIZbZee8KOpBCSNPRgauucjw=="],
 
