@@ -1,3 +1,17 @@
+// Ghostget 0.17.5 source plus the LinkedIn `contacts.read` deep Como SDUI
+// binding (adapter bundle 1.24.0), measured with no version bump: a Bun
+// 1.3.14 `pm pack` and an npm pack (Node 22.22.2 / npm 10.9.7, Linux x64)
+// share 12,452,808 payload bytes across exactly 500 files. The bun archive
+// is 2,122,506 compressed bytes, SHA-256
+// 095660d3ab7bdb676e5412df74142044e7a6722df5adac650a3f558264a4583e; npm
+// compresses the same payload to 2,263,622 bytes. The deeper walk, identity
+// join, changelog, and rotated implementation identity add 9,291 payload
+// bytes compared with the 0.17.5 measurement. Raise only the payload
+// ceiling to the measured value plus 65 bytes of headroom (12,452,873); the
+// npm packed size stays 4,295 bytes under the existing packed allowance and
+// the 500-entry inventory is unchanged. Fresh Linux CI still checks its
+// actual canonical archive under the pinned release toolchain.
+//
 // Ghostget 0.17.5, measured after the bounded newest-window CodeQL analyses
 // read joined the 0.17.4 release source and the version bump: two Bun 1.3.14
 // builds and npm packs (Node 24.20.0 / npm 11.19.0, darwin arm64) are
@@ -332,7 +346,7 @@
 export const MAX_PACKED_BYTES = 2_267_917;
 export const MAX_PACKED_ENTRIES = 500;
 export const MAX_PACKED_FILES = 500;
-export const MAX_UNPACKED_BYTES = 12_443_582;
+export const MAX_UNPACKED_BYTES = 12_452_873;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
