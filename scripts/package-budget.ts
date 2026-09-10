@@ -1,10 +1,10 @@
 // Ghostget 0.17.0, measured after extending script-literal escaping to the
 // remaining LinkedIn article, feed, profile, Instagram profile, and X
 // transaction page scripts: two Node 24.20.0 / npm 11.19.0 archives on
-// darwin arm64 are byte-identical, with 2,256,989 compressed and
-// 12,438,522 payload bytes across exactly 501 files, SHA-256
-// 8fea94c7045cd6fdb562969a3fb2c2f0ba2e891170c1b062f92a4c7761e0c1fc.
-// The shared escape helper and its call sites add 650 payload bytes compared
+// darwin arm64 are byte-identical, with 2,256,982 compressed and
+// 12,438,525 payload bytes across exactly 501 files, SHA-256
+// a934202bbc26e1e1ba1b135bdd3867168c61a9425f6ee5e412ac7622beec0070.
+// The shared escape helper and its call sites add 653 payload bytes compared
 // with the joined 0.17.0 measurement. Raise only the payload ceiling by that
 // measured delta, preserving 65 bytes of headroom, the existing packed
 // allowance, and the exact inventory. Fresh Linux CI still checks its actual
@@ -252,7 +252,7 @@
 export const MAX_PACKED_BYTES = 2_263_713;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_438_587;
+export const MAX_UNPACKED_BYTES = 12_438_590;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

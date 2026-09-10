@@ -1278,7 +1278,7 @@ describe("npm publication contract", () => {
     expect(MAX_PACKED_BYTES).toBe(2_263_713);
     expect(MAX_PACKED_ENTRIES).toBe(501);
     expect(MAX_PACKED_FILES).toBe(501);
-    expect(MAX_UNPACKED_BYTES).toBe(12_438_587);
+    expect(MAX_UNPACKED_BYTES).toBe(12_438_590);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
@@ -1287,7 +1287,7 @@ describe("npm publication contract", () => {
       entryCount: { min: 501, max: 501 },
       fileCount: { min: 501, max: 501 },
       packedBytes: { min: 1_600_000, max: 2_263_713 },
-      unpackedBytes: { min: 9_000_000, max: 12_438_587 },
+      unpackedBytes: { min: 9_000_000, max: 12_438_590 },
     });
   });
 

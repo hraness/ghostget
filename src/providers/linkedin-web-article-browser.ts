@@ -340,7 +340,7 @@ async function stageLinkedInArticleImageBytes(
     const commands: (readonly string[])[] = [];
     for (let offset = 0; offset < encoded.length; offset += 48 * 1_024) {
       const chunk = encoded.slice(offset, offset + 48 * 1_024);
-      const source = `(async()=>{const key=${jsonScriptLiteral(key)};const chunks=globalThis[key];if(!Array.isArray(chunks)||chunks.length>=256)throw new Error("LinkedIn image staging changed shape");chunks.push(${JSON.stringify(chunk)});return true})()`;
+      const source = `(async()=>{const key=${jsonScriptLiteral(key)};const chunks=globalThis[key];if(!Array.isArray(chunks)||chunks.length>=256)throw new Error("LinkedIn image staging changed shape");chunks.push(${jsonScriptLiteral(chunk)});return true})()`;
       commands.push(["eval", source]);
     }
     for (
