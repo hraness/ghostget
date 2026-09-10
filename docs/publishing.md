@@ -12,21 +12,55 @@ unchanged.
 Start from the exact reviewed source commit `C` merged below protected `main`.
 Complete the repository's applicable source, focused native, package/install,
 and independent review gates. Keep Node 24.20.0, npm 11.19.0, and Bun 1.3.14. The
-release workflow retains its complete `bun run check`, clean generated `dist`
-and `bun.lock` check, dry packing, and all seven Node import checks. Its exact
-packed archive also passes the isolated package consumer smoke before any
-attestation or publication capability is available. Required PR CI also packs with
-the same Node/npm versions and canonical npm command, then checks the existing
-strict archive parser before tagging. The existing Bun package and isolated
-consumer checks remain required. Record the Node zlib build and platform along
-with both package measurements; equal Node/npm versions alone do not establish
-equal gzip bytes.
+release workflow admits the exact commit's successful default-branch CI run
+before installing dependencies. This replaces its duplicate serial `bun run
+check`; the complete local aggregate and `prepack` stay unchanged. The CI union
+covers static checks, package and isolated Bun-consumer checks, every whole-file
+source shard, serialized omni tests, standalone checks, and selected macOS checks.
+Explicit focused local/native and coupled reproductions still apply under
+`CONTRIBUTING.md`; the independently required npm-mirror full check is unchanged.
+
+`scripts/release-source-ci.ts` reads GitHub's current run attempt directly. It
+requires the exact repository, active workflow ID/path, main-push source and tree,
+all ten successful jobs, and nine actual checkout logs. Each source job records
+its exact workflow/lock hashes, Node/npm/Bun versions and GitHub-hosted platform
+before its frozen install. Admission also requires both successful exact-source
+CodeQL jobs and current main analyses, plus the successful security comparison
+on the merged PR's identical tree. Any present main comparison must succeed;
+analysis result counts are recorded without asserting that no alerts exist.
+The CodeQL app's check must identify that exact PR through its returned PR
+association. If GitHub returns an empty association array, only its exact
+repository-and-PR-specific `View all branch alerts` summary is accepted instead.
+A nonempty contradictory association never falls back to the summary. This
+observed provider format is matched literally; future formatting changes stop
+admission until reviewed, and do not justify skipping the security comparison.
+Every required CI and CodeQL job must have completed within 72 hours of admission,
+with valid start/completion times and no future completion. This permits normal
+overnight and multi-day delivery while bounding reuse; older source requires an
+ordinary complete CI rerun before tagging. Each analysis must fall inside its
+current attempt's corresponding language-job interval. Mutable run update times
+alone never establish freshness.
+Missing, failed, skipped, ambiguous, stale-attempt, or drifting evidence blocks
+the release. The helper samples the control evidence again before returning and
+logs its bounded receipt; it never reruns CI or accepts a caller-supplied receipt.
+Only the read-only Verify job adds Checks, Pull requests and Security events read
+permissions for these API reads. Publication and attestation permissions stay
+unchanged.
+
+After admission, Release still performs a fresh frozen install and deterministic
+build, checks generated `dist` and `bun.lock` cleanliness, dry packing and all
+seven Node imports. Its new exact npm archive passes the strict artifact parser
+and isolated consumer smoke before attestation or publication capability is
+available. CI also packs with the same Node/npm versions and canonical npm
+command, then checks the archive parser before tagging. Record the Node zlib
+build and platform with package measurements; equal Node/npm versions alone do
+not establish equal gzip bytes.
 
 Choose a new stable package version greater than every completed stable
 Release. A raw tag is a request, not a completed publication. Check the package
 version, `src/version.ts`, generated package bytes, installation examples,
-changelog, and asset filename together. Retain `@hraness/kb` at 0.17.1; this
-migration does not upgrade its native browser or cookie contracts.
+changelog, and asset filename together. Dependency upgrades must preserve the
+reviewed native browser and cookie contracts and pass their focused checks.
 
 Immediately before tag dispatch, require signed-in administrator readback that
 immutable Releases are enabled. Keep Administration out of workflow tokens;
@@ -105,7 +139,7 @@ installation or mirror commands.
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/wrench/releases/download/v0.16.16/hraness-wrench-0.16.16.tgz
+bun add --global https://github.com/hraness/wrench/releases/download/v0.16.17/hraness-wrench-0.16.17.tgz
 wrench --version
 wrench doctor --json
 ```
@@ -139,7 +173,7 @@ npm's default tag backward.
 
 ```sh
 gh workflow run npm-stage.yml --repo hraness/wrench --ref main \
-  -f release_tag=v0.16.16
+  -f release_tag=v0.16.17
 ```
 
 The read-only verify job downloads the five immutable assets, verifies their
@@ -154,7 +188,7 @@ An explicit owner-authorized dispatch may then stage the mirror:
 
 ```sh
 gh workflow run npm-stage.yml --repo hraness/wrench --ref main \
-  -f release_tag=v0.16.16 -f publish_to_npm=true
+  -f release_tag=v0.16.17 -f publish_to_npm=true
 ```
 
 The minimal checkout-free terminal job retains exact actor/repository/run

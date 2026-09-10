@@ -1161,7 +1161,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_938_752);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_939_264);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1266,9 +1266,9 @@ describe("npm publication contract", () => {
       "7b13498e1070d95f2a1d564caba41f1eebc6a32a7a8e078373fe2fec564060a8",
     );
     expect(budget).toContain("LinkedIn activity pagination, cleanup convergence");
-    expect(budget).toContain("12,419,056-byte main archive");
+    expect(budget).toContain("12,419,404-byte release archive");
     expect(budget).toContain("6,112-byte");
-    expect(budget).toContain("12,425,168 unpacked bytes");
+    expect(budget).toContain("12,425,516 unpacked bytes");
     expect(budget).toContain("26 bytes of unpacked allowance");
     expect(budget).toContain("measured a 3,543-byte Linux/macOS gzip spread");
     expect(budget).toContain("leaves 4,266 bytes");
@@ -1276,7 +1276,7 @@ describe("npm publication contract", () => {
     expect(MAX_PACKED_BYTES).toBe(2_259_302);
     expect(MAX_PACKED_ENTRIES).toBe(501);
     expect(MAX_PACKED_FILES).toBe(501);
-    expect(MAX_UNPACKED_BYTES).toBe(12_425_194);
+    expect(MAX_UNPACKED_BYTES).toBe(12_425_542);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
@@ -1285,7 +1285,7 @@ describe("npm publication contract", () => {
       entryCount: { min: 501, max: 501 },
       fileCount: { min: 501, max: 501 },
       packedBytes: { min: 1_600_000, max: 2_259_302 },
-      unpackedBytes: { min: 9_000_000, max: 12_425_194 },
+      unpackedBytes: { min: 9_000_000, max: 12_425_542 },
     });
   });
 
@@ -1349,11 +1349,12 @@ describe("npm publication contract", () => {
     }
   });
 
-  test("keeps separate truthful Wrench 0.16.3 through 0.16.16 changelog sections", async () => {
+  test("keeps separate truthful Wrench 0.16.3 through 0.16.17 changelog sections", async () => {
     const changelog = await readFile(changelogUrl, "utf8");
     const unreleasedHeader = "## Unreleased\n";
     const candidateHeader = "## 0.16.12 - 2026-09-08\n";
     const canonicalHeader = "## 0.16.13 - 2026-09-09\n";
+    const cookieHeader = "## 0.16.17 - 2026-09-09\n";
     const admissionHeader = "## 0.16.16 - 2026-09-09\n";
     const typingHeader = "## 0.16.15 - 2026-09-09\n";
     const packingHeader = "## 0.16.14 - 2026-09-09\n";
@@ -1369,6 +1370,7 @@ describe("npm publication contract", () => {
     const unreleasedStart = changelog.indexOf(unreleasedHeader);
     const candidateStart = changelog.indexOf(candidateHeader);
     const canonicalStart = changelog.indexOf(canonicalHeader);
+    const cookieStart = changelog.indexOf(cookieHeader);
     const admissionStart = changelog.indexOf(admissionHeader);
     const typingStart = changelog.indexOf(typingHeader);
     const packingStart = changelog.indexOf(packingHeader);
@@ -1383,6 +1385,7 @@ describe("npm publication contract", () => {
     const incidentStart = changelog.indexOf(incidentHeader);
 
     expect(changelog.match(/^## Unreleased$/gmu) ?? []).toHaveLength(1);
+    expect(changelog.match(/^## 0\.16\.17 - 2026-09-09$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.13 - 2026-09-09$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.12 - 2026-09-08$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.11 - 2026-09-07$/gmu) ?? []).toHaveLength(1);
@@ -1399,7 +1402,8 @@ describe("npm publication contract", () => {
     expect(currentStart).toBeGreaterThan(candidateStart);
     expect(currentStart).toBeGreaterThan(unreleasedStart);
     expect(canonicalStart).toBeGreaterThan(unreleasedStart);
-    expect(admissionStart).toBeGreaterThan(unreleasedStart);
+    expect(cookieStart).toBeGreaterThan(unreleasedStart);
+    expect(admissionStart).toBeGreaterThan(cookieStart);
     expect(typingStart).toBeGreaterThan(admissionStart);
     expect(packingStart).toBeGreaterThan(typingStart);
     expect(canonicalStart).toBeGreaterThan(packingStart);
@@ -1412,7 +1416,19 @@ describe("npm publication contract", () => {
     expect(markerStart).toBeGreaterThan(consumedStart);
     expect(releaseStart).toBeGreaterThan(markerStart);
     expect(incidentStart).toBeGreaterThan(releaseStart);
-    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, admissionStart).trim()).toBe("");
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, cookieStart).trim()).toBe("");
+
+    const cookieReleaseEnd = changelog.indexOf("\n## ", cookieStart + cookieHeader.length);
+    expect(cookieReleaseEnd).toBe(admissionStart - 1);
+    const cookieSection = changelog.slice(cookieStart, cookieReleaseEnd);
+    for (const requiredFact of [
+      "Sweet Cookie 0.4.3 through KB 0.19.6",
+      "explicit browser keychain selection for custom profiles",
+      "opaque partition metadata in cookie-file web sessions",
+      "malformed flags and opaque records without a partition key",
+    ] as const) {
+      expect(cookieSection).toContain(requiredFact);
+    }
 
     const candidateReleaseEnd = changelog.indexOf("\n## ", candidateStart + candidateHeader.length);
     expect(candidateReleaseEnd).toBe(currentStart - 1);
@@ -3582,14 +3598,16 @@ fi
     const workflow = await readFile(releaseWorkflowUrl, "utf8");
     const parsed = Bun.YAML.parse(workflow) as { jobs: Record<string, { needs?: string | string[]; permissions: Record<string, string> }> };
     expect(Object.keys(parsed.jobs)).toEqual(["authorize", "verify", "attest", "publish"]);
-    expect(parsed.jobs.verify!.permissions).toEqual({ actions: "read", contents: "read" });
+    expect(parsed.jobs.verify!.permissions).toEqual({ actions: "read", contents: "read", checks: "read", "pull-requests": "read", "security-events": "read" });
     expect(parsed.jobs.attest!.permissions).toEqual({ actions: "read", contents: "read", "id-token": "write", attestations: "write" });
     expect(parsed.jobs.publish!.permissions).toEqual({ actions: "read", contents: "write" });
     expect(parsed.jobs.publish!.needs).toEqual(["verify", "attest"]);
     const verify = workflow.slice(workflow.indexOf("  verify:"), workflow.indexOf("  attest:"));
     const attest = workflow.slice(workflow.indexOf("  attest:"), workflow.indexOf("  publish:"));
     const publish = workflow.slice(workflow.indexOf("  publish:"));
-    expect(verify).toContain("bun run check"); expect(verify).toContain("package-smoke.ts");
+    expect(verify).toContain("bun run ./scripts/release-source-ci.ts admit");
+    expect(verify).toContain("bun run build"); expect(verify).toContain("package-smoke.ts");
+    expect(verify).not.toContain("- run: bun run check");
     expect(verify).toContain("github-release-artifact.ts prepare");
     expect(attest).not.toContain("actions/checkout"); expect(attest).not.toContain("./scripts/");
     expect(attest).toContain("actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6");

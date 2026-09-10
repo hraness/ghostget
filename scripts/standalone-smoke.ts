@@ -25,7 +25,7 @@ type InstalledClosurePackage = {
 };
 
 const expectedClosureRuntimeDependencies = Object.freeze({
-  "@hraness/kb": "0.17.1",
+  "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
   "@hraness/message-like-me": "github:hraness/message-like-me#v0.7.0",
   "buffer-from": "1.1.2",
   "source-map": "0.6.1",
@@ -33,9 +33,9 @@ const expectedClosureRuntimeDependencies = Object.freeze({
   typescript: "6.0.3",
   effect: "3.22.1",
 });
-const reviewedKbDynamicModuleKeyFile = "dist/index-qry4vhxk.js";
+const reviewedKbDynamicModuleKeyFile = "dist/index-5vdj4pae.js";
 const reviewedKbDynamicModuleSha256 =
-  "da69a90f9cf1edbfe82443c5f73226fe9960103522e37a106ff4ec04e3325e97";
+  "107b59e5a662171180d098e30469457f8b2ceeb6ec9d22971fec7076d855704a";
 const archivedAdapterNamePattern =
   /^wrench(?:-web)?-adapter\.v([0-9]+\.[0-9]+\.[0-9]+)\.json$/u;
 const MAX_PACKED_ARCHIVED_UPGRADE_FAMILIES = 32;
@@ -339,9 +339,9 @@ async function resolveReviewedKbDynamicKeyFile(root: string): Promise<string> {
     "clean consumer @hraness/kb manifest",
     await Bun.file(join(root, "package.json")).json(),
   );
-  if (manifest.version !== "0.17.1") {
+  if (manifest.version !== "0.19.6") {
     throw new Error(
-      `clean consumer resolved @hraness/kb@${String(manifest.version)}, expected 0.17.1`,
+      `clean consumer resolved @hraness/kb@${String(manifest.version)}, expected 0.19.6`,
     );
   }
   const candidates: Readonly<{ keyFile: string; sha256: string }>[] = [];
@@ -372,7 +372,7 @@ async function resolveReviewedKbDynamicKeyFile(root: string): Promise<string> {
   }
   if (candidates.length !== 1) {
     throw new Error(
-      `clean consumer @hraness/kb@0.17.1 exposes ${String(candidates.length)} dynamic-resolution modules, expected exactly one`,
+      `clean consumer @hraness/kb@0.19.6 exposes ${String(candidates.length)} dynamic-resolution modules, expected exactly one`,
     );
   }
   const candidate = candidates[0];
@@ -382,7 +382,7 @@ async function resolveReviewedKbDynamicKeyFile(root: string): Promise<string> {
     || candidate.sha256 !== reviewedKbDynamicModuleSha256
   ) {
     throw new Error(
-      `clean consumer @hraness/kb@0.17.1 dynamic-resolution module ${candidate?.keyFile ?? "missing"} has sha256 ${candidate?.sha256 ?? "missing"}, expected ${reviewedKbDynamicModuleKeyFile} with sha256 ${reviewedKbDynamicModuleSha256}`,
+      `clean consumer @hraness/kb@0.19.6 dynamic-resolution module ${candidate?.keyFile ?? "missing"} has sha256 ${candidate?.sha256 ?? "missing"}, expected ${reviewedKbDynamicModuleKeyFile} with sha256 ${reviewedKbDynamicModuleSha256}`,
     );
   }
   return candidate.keyFile;
@@ -712,7 +712,7 @@ try {
         name: "@hraness/kb",
         root: installedKbRoot,
         sha256: reviewedKbDynamicModuleSha256,
-        version: "0.17.1",
+        version: "0.19.6",
       }),
       assertInstalledClosurePackage({
         keyFile: "dist/message-bundle-v1.js",

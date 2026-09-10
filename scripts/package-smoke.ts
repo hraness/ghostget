@@ -44,8 +44,8 @@ const packageDiscoveryKeywords = [
 const NPM_REGISTRY = "https://registry.npmjs.org";
 const stableVersionPattern = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
 const maximumSafeSemverComponent = BigInt(Number.MAX_SAFE_INTEGER);
-const sweetCookieVerificationUrl = "https://codeload.github.com/hraness/sweet-cookie/tar.gz/refs/tags/v0.4.2";
-const sweetCookieVerificationIntegrity = "sha512-HddZketABRWbHiLYqMbGlYuqEaWdtqAjES28eKHr2cPDdPvrXiF4JQxD4pl9WzSOre6p/B3zA4Z3uIsCHo/+uQ==";
+const sweetCookieVerificationVersion = "0.4.3";
+const sweetCookieVerificationIntegrity = "sha512-+ugAbvXMl/mzmRRpGeeK4ShjWDZVR4Ul5DouKnwjhaqdozAakDyHceyagkOxRG8DYbCaQhTsuaMUod2nA3EKWQ==";
 // Match the repository's qualified compiler/declaration tuple. Bun's wildcard
 // Node type dependency can otherwise select incompatible declarations.
 const verificationToolchain = Object.freeze({
@@ -55,7 +55,7 @@ const verificationToolchain = Object.freeze({
   "fast-check": "4.9.0",
 });
 const verificationPackages = [
-  `@steipete/sweet-cookie@${sweetCookieVerificationUrl}`,
+  `@steipete/sweet-cookie@${sweetCookieVerificationVersion}`,
   ...Object.entries(verificationToolchain).map(([name, version]) => `${name}@${version}`),
 ];
 
@@ -126,9 +126,9 @@ const inertRootImportProgram = `
 async function assertSweetCookieLock(lockPath: string, label: string): Promise<void> {
   const record = (await Bun.file(lockPath).text())
     .split(/\r?\n/u)
-    .find((line) => line.includes(`@steipete/sweet-cookie@${sweetCookieVerificationUrl}`));
+    .find((line) => line.includes(`@steipete/sweet-cookie@${sweetCookieVerificationVersion}`));
   if (record === undefined || !record.includes(sweetCookieVerificationIntegrity)) {
-    throw new Error(`${label} does not bind the immutable Sweet Cookie v0.4.2 codeload integrity`);
+    throw new Error(`${label} does not bind the Sweet Cookie v0.4.3 registry integrity`);
   }
 }
 

@@ -386,7 +386,7 @@ describe("retired DOM recipe boundary", () => {
 });
 
 describe("browser process isolation helpers", () => {
-  test("patched Chromium provider honors an explicit keychain for custom profile paths", async () => {
+  test("published Chromium provider honors an explicit keychain for custom profile paths", async () => {
     const sweetCookieRoot = dirname(
       createRequire(import.meta.url).resolve("@steipete/sweet-cookie/package.json"),
     );

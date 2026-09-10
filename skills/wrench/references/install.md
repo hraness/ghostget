@@ -17,20 +17,20 @@ If Bun is missing, stop and direct the user to the official
 [Bun installation guide](https://bun.sh/docs/installation). Do not switch
 package managers or pipe an unreviewed installer into a shell.
 
-This reference is authored for the exact v0.16.16 release coordinate. Use it
+This reference is authored for the exact v0.16.17 release coordinate. Use it
 only from the matching release-bound Agent Skill after its canonical archive and
 immutable GitHub Release exist. If the coordinate is not public, stop instead
 of substituting `main`, another tag, or a different package version. Install
 that exact release and its reviewed bundled adapter manifests:
 
 ```sh
-bun add --global https://github.com/hraness/wrench/releases/download/v0.16.16/hraness-wrench-0.16.16.tgz
+bun add --global https://github.com/hraness/wrench/releases/download/v0.16.17/hraness-wrench-0.16.17.tgz
 wrench adapter sync-bundled --json
 wrench --help
 wrench doctor --json
 ```
 
-The name stays `@hraness/wrench`; `@hraness/wrench@0.16.16` is an optional npm
+The name stays `@hraness/wrench`; `@hraness/wrench@0.16.17` is an optional npm
 mirror only after verified registry publication. Canonical installation does not
 wait for npm staging or two-factor promotion.
 
@@ -38,7 +38,7 @@ Do not clone the repository merely to run the CLI. Importing the SDK is a
 separate project dependency and does not install a global command:
 
 ```sh
-bun add https://github.com/hraness/wrench/releases/download/v0.16.16/hraness-wrench-0.16.16.tgz
+bun add https://github.com/hraness/wrench/releases/download/v0.16.17/hraness-wrench-0.16.17.tgz
 ```
 
 `wrench adapter sync-bundled` upgrades exact bundled baselines, including an
