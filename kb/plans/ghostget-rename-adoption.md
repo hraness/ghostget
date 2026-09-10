@@ -187,3 +187,27 @@ rediscover it.
   `v0.17.1` passes the flag for log reads only, bumps the version and
   documentation, and is the first canonical Ghostget release; the Jungle pin
   targets `github:hraness/ghostget#v0.17.1`.
+
+## v0.17.1 released and the domain cutover completed (documents-aa, 2026-09-10)
+
+- PR #213 merged as `b74ae2a`; tag `v0.17.1` pushed from a ref-free staging
+  checkout after fresh immutable-release and tag-ruleset readback. Release run
+  `34444796271` attempt 1 passed admission (the `--allow-escape-sequences`
+  fix), attestation, and publication: immutable release `386047282`,
+  `hraness-ghostget-0.17.1.tgz` 2,259,943 bytes, SHA-256
+  `b87b293075a8698c79d5d90615dbb9e59a8f2d152682f6878c8d8ec0423a3710`,
+  SRI `sha512-gvqaSQCFBp44ZYnk5gKxdm+MQRZ47bkuEIonmasQ9lxmnYCNMNY5VMkg2aYLLhq0cy6OQEiBeTDSSymYikFq1g==`.
+  The repository downloader verified all four signed subjects and the website
+  release verifier passed at that commit.
+- Promotion run `34445060834` advanced `website-production` through the
+  release App; `ghostget.com` serves the v0.17.1 marker and `www` returns the
+  exact 308.
+- `wrench.rip` and `www.wrench.rip` now return 308 to `ghostget.com` on the
+  same Vercel project, preserving path and query.
+- Downstream rename pull requests merged: rolodex #8, tiff #20; message-like-me
+  #61 and .github #12 follow their checks. The Jungle pin moved to
+  `github:hraness/ghostget#v0.17.1` in the Jungle lane.
+- Still owner-held: the Cloudflare Turnstile hostname for `ghostget.com` and
+  the Accounts mailing keyring hostname; the external directory submissions
+  are updated locally but not pushed; npm publication of `@hraness/ghostget`
+  remains held pending the dual-use classification decision.
