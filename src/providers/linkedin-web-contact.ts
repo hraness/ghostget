@@ -42,7 +42,28 @@ const MAX_CODE_TAGS = 256;
 const MAX_COMO_ASSIGNMENTS = 8;
 const MAX_COMO_DECODED_ROOTS = 256;
 const MAX_WALK_NODES = 500_000;
+const MAX_WALK_DEPTH = 128;
 const RSC_FLIGHT_ROW = /(?:^|\n)(\d+):/u;
+const PROFILE_ID = /^[A-Za-z0-9_-]{1,256}$/u;
+const DISTANCE_IN_TEXT =
+  /(?:^|["'\\{,])(?:networkDistance|memberDistance|distance)"?\s*:\s*"?(DISTANCE_[A-Z0-9]+|OUT_OF_NETWORK|SELF|[0-9]+)"?/gu;
+const PROFILE_URN_IN_TEXT = /urn:li:fsd_profile:[A-Za-z0-9_-]{1,256}/gu;
+const VIEWEE_PROFILE_ID_IN_TEXT = /vieweeProfileId"\s*:\s*"([A-Za-z0-9_-]{1,256})"/gu;
+const VANITY_IN_TEXT =
+  /(?:vanityName|publicIdentifier)"\s*:\s*"([A-Za-z0-9][A-Za-z0-9_-]{1,99})"/gu;
+const KEYED_IDENTITY_KEYS = new Set([
+  "distance",
+  "entityUrn",
+  "isSelfView",
+  "memberDistance",
+  "networkDistance",
+  "objectUrn",
+  "profileUrn",
+  "publicIdentifier",
+  "vanityName",
+  "vieweeMemberUrn",
+  "vieweeProfileId",
+]);
 const MAX_PHONES = 8;
 const MAX_WEBSITES = 8;
 const CONTACT_TYPE_SUFFIX = "ProfileContactInfo";
@@ -315,6 +336,99 @@ function looksLikeRscFlight(value: string): boolean {
   return RSC_FLIGHT_ROW.test(value);
 }
 
+function extractJsonString(source: string, start: number): string | undefined {
+  if (source[start] !== "\"") return undefined;
+  let escaped = false;
+  const limit = Math.min(source.length, start + MAX_HTML_BYTES);
+  for (let index = start + 1; index < limit; index += 1) {
+    const character = source[index];
+    if (character === undefined) break;
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (character === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (character === "\"") return source.slice(start, index + 1);
+  }
+  return undefined;
+}
+
+function breadcrumbRecordFromText(value: string): JsonRecord | null {
+  if (value.length < 8 || value.length > 1024 * 1024) return null;
+  const distances = [...value.matchAll(DISTANCE_IN_TEXT)]
+    .map((match) => match[1])
+    .filter((item): item is string => item !== undefined);
+  const urns = [...value.matchAll(PROFILE_URN_IN_TEXT)];
+  const vieweeIds = [...value.matchAll(VIEWEE_PROFILE_ID_IN_TEXT)]
+    .map((match) => match[1])
+    .filter((item): item is string => item !== undefined);
+  const vanities = [...value.matchAll(VANITY_IN_TEXT)]
+    .map((match) => match[1])
+    .filter((item): item is string => item !== undefined);
+  if (
+    distances.length === 0
+    && urns.length === 0
+    && vieweeIds.length === 0
+    && vanities.length === 0
+  ) return null;
+  const record: Record<string, unknown> = {};
+  if (distances.length === 1) {
+    const raw = distances[0]!;
+    record.networkDistance = /^[0-9]+$/u.test(raw) ? Number(raw) : raw;
+  } else if (distances.length > 1) {
+    const unique = [...new Set(distances)];
+    if (unique.length === 1) {
+      const raw = unique[0]!;
+      record.networkDistance = /^[0-9]+$/u.test(raw) ? Number(raw) : raw;
+    }
+  }
+  if (urns.length === 1) record.profileUrn = urns[0]![0];
+  if (vieweeIds.length === 1) record.vieweeProfileId = vieweeIds[0];
+  if (vanities.length === 1) record.vanityName = vanities[0];
+  return Object.keys(record).length > 0 ? Object.freeze(record) : null;
+}
+
+function stringLooksLikeBootstrap(value: string): boolean {
+  return value.includes("networkDistance")
+    || value.includes("memberDistance")
+    || value.includes("vieweeProfileId")
+    || value.includes("vieweeMemberUrn")
+    || value.includes("vanityName")
+    || value.includes("publicIdentifier")
+    || /"distance"\s*:/u.test(value);
+}
+
+function decodeStringBootstrap(value: string): unknown[] {
+  const trimmed = value.trim();
+  if (trimmed.length < 8 || trimmed.length > 1024 * 1024) return [];
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      return [JSON.parse(trimmed) as unknown];
+    } catch {
+      // Fall through to breadcrumb extraction from partial RSC string rows.
+    }
+  }
+  if (!stringLooksLikeBootstrap(trimmed)) return [];
+  const breadcrumb = breadcrumbRecordFromText(trimmed);
+  return breadcrumb === null ? [] : [breadcrumb];
+}
+
+function recordFromKeyedArray(value: readonly unknown[]): JsonRecord | null {
+  if (value.length < 2 || value.length % 2 !== 0 || value.length > 64) return null;
+  const record: Record<string, unknown> = {};
+  let recognized = 0;
+  for (let index = 0; index < value.length; index += 2) {
+    const key = value[index];
+    if (typeof key !== "string" || key.length < 1 || key.length > 128) return null;
+    record[key] = value[index + 1];
+    if (KEYED_IDENTITY_KEYS.has(key)) recognized += 1;
+  }
+  return recognized > 0 ? Object.freeze(record) : null;
+}
+
 function decodeRscFlightRecords(text: string): unknown[] {
   const records: unknown[] = [];
   let index = 0;
@@ -334,7 +448,28 @@ function decodeRscFlightRecords(text: string): unknown[] {
       index += json.length;
       continue;
     }
-    const nextRow = text.slice(index).search(/\n\d+:/u);
+    if (first === "\"") {
+      const json = extractJsonString(text, index);
+      if (json === undefined) {
+        index += 1;
+        continue;
+      }
+      try {
+        const decoded = JSON.parse(json) as unknown;
+        if (typeof decoded === "string") records.push(...decodeStringBootstrap(decoded));
+        else records.push(decoded);
+      } catch {
+        const breadcrumb = breadcrumbRecordFromText(json);
+        if (breadcrumb !== null) records.push(breadcrumb);
+      }
+      index += json.length;
+      continue;
+    }
+    const remainder = text.slice(index);
+    const nextRow = remainder.search(/\n\d+:/u);
+    const rowText = nextRow === -1 ? remainder : remainder.slice(0, nextRow);
+    const breadcrumb = breadcrumbRecordFromText(rowText);
+    if (breadcrumb !== null) records.push(breadcrumb);
     index = nextRow === -1 ? text.length : index + nextRow + 1;
   }
   return records;
@@ -433,13 +568,21 @@ function embeddedRecords(html: unknown): readonly JsonRecord[] {
   while (stack.length > 0) {
     const next = stack.pop()!;
     nodes += 1;
-    if (nodes > MAX_WALK_NODES || next.depth > 32) {
+    if (nodes > MAX_WALK_NODES || next.depth > MAX_WALK_DEPTH) {
       throw new Error("LinkedIn contact-info bootstrap exceeded its traversal bound");
+    }
+    if (typeof next.value === "string") {
+      for (const value of decodeStringBootstrap(next.value)) {
+        stack.push({ value, depth: next.depth + 1 });
+      }
+      continue;
     }
     if (Array.isArray(next.value)) {
       if (next.value.length > 20_000) {
         throw new Error("LinkedIn contact-info bootstrap array exceeded its reviewed bound");
       }
+      const keyed = recordFromKeyedArray(next.value);
+      if (keyed !== null) records.push(keyed);
       for (const value of next.value) stack.push({ value, depth: next.depth + 1 });
       continue;
     }
@@ -505,23 +648,101 @@ function vanityFromRecord(record: JsonRecord): string | null {
     ?? vanityFromHref(record.navigationUrl);
 }
 
-function profileUrnFromRecord(record: JsonRecord): string | null {
-  for (const key of ["entityUrn", "objectUrn", "profileUrn", "vieweeMemberUrn"] as const) {
-    const value = record[key];
-    if (typeof value !== "string") continue;
+function profileUrnFromIdentity(value: unknown): string | null {
+  if (typeof value !== "string" || value.length < 1 || value.length > 512) return null;
+  if (value.startsWith("urn:li:fsd_profile:")) {
     try {
       return profileUrn(value);
     } catch {
-      continue;
+      return null;
     }
   }
-  return null;
+  if (!PROFILE_ID.test(value)) return null;
+  try {
+    return profileUrn(`urn:li:fsd_profile:${value}`);
+  } catch {
+    return null;
+  }
+}
+
+function profileUrnFromRecord(record: JsonRecord): string | null {
+  for (const key of ["entityUrn", "objectUrn", "profileUrn", "vieweeMemberUrn"] as const) {
+    const urn = profileUrnFromIdentity(record[key]);
+    if (urn !== null) return urn;
+  }
+  return profileUrnFromIdentity(record.vieweeProfileId);
+}
+
+function recordIsSelfView(record: JsonRecord): boolean {
+  return record.isSelfView === true;
 }
 
 function selfProfileError(): Error {
   return new Error(
     "LinkedIn contacts.read reads one 1st-degree connection; use profiles.read for the signed-in self profile",
   );
+}
+
+function omittedDistanceError(): Error {
+  return new Error(
+    "LinkedIn contact-info profile page omitted or contradicted its relationship distance",
+  );
+}
+
+function uniqueDistances(values: readonly (string | number)[]): (string | number)[] {
+  const unique = [...new Set(values.map((value) => String(value)))];
+  return unique.map((value) => values.find((candidate) => String(candidate) === value)!);
+}
+
+function recordMatchesTarget(
+  record: JsonRecord,
+  slug: string,
+  urn: string,
+): boolean {
+  const vanity = vanityFromRecord(record);
+  const recordUrn = profileUrnFromRecord(record);
+  return vanity === slug || recordUrn === urn;
+}
+
+function recordContradictsTarget(
+  record: JsonRecord,
+  slug: string,
+  urn: string,
+): boolean {
+  const vanity = vanityFromRecord(record);
+  const recordUrn = profileUrnFromRecord(record);
+  return (vanity !== null && vanity !== slug) || (recordUrn !== null && recordUrn !== urn);
+}
+
+function relationshipDistance(
+  records: readonly JsonRecord[],
+  slug: string,
+  urn: string,
+  viewer: string,
+): string | number {
+  const bound = records
+    .filter((record) => recordMatchesTarget(record, slug, urn))
+    .map(distanceValue)
+    .filter((value): value is string | number => value !== null);
+  const boundOther = bound.filter((value) => !isSelfDistance(value));
+  const boundUnique = uniqueDistances(boundOther);
+  if (boundUnique.length === 1 && boundUnique[0] !== undefined) return boundUnique[0];
+  if (boundUnique.length > 1) throw omittedDistanceError();
+  if (bound.some(isSelfDistance) && urn === viewer) throw selfProfileError();
+
+  const breadcrumbs = records
+    .filter((record) => !recordContradictsTarget(record, slug, urn))
+    .map(distanceValue)
+    .filter((value): value is string | number => value !== null);
+  const breadcrumbOther = breadcrumbs.filter((value) => !isSelfDistance(value));
+  const breadcrumbUnique = uniqueDistances(breadcrumbOther);
+  if (breadcrumbUnique.length === 1 && breadcrumbUnique[0] !== undefined) {
+    return breadcrumbUnique[0];
+  }
+  if (breadcrumbs.some(isSelfDistance) && (urn === viewer || breadcrumbOther.length === 0)) {
+    throw selfProfileError();
+  }
+  throw omittedDistanceError();
 }
 
 export function projectLinkedInProfileContactBinding(input: {
@@ -536,6 +757,7 @@ export function projectLinkedInProfileContactBinding(input: {
   if (vanityRecords.length < 1) {
     throw new Error("LinkedIn contact-info profile page did not bind the requested vanity");
   }
+  if (vanityRecords.some(recordIsSelfView)) throw selfProfileError();
   const urns = new Set<string>();
   for (const record of vanityRecords) {
     const urn = profileUrnFromRecord(record);
@@ -547,7 +769,11 @@ export function projectLinkedInProfileContactBinding(input: {
     for (const record of records) {
       const urn = profileUrnFromRecord(record);
       const distance = distanceValue(record);
-      if (urn === viewer || (distance !== null && isSelfDistance(distance))) {
+      if (
+        recordIsSelfView(record)
+        || urn === viewer
+        || (distance !== null && isSelfDistance(distance))
+      ) {
         sawSelf = true;
       }
       if (urn === null || urn === viewer || distance === null) continue;
@@ -567,17 +793,7 @@ export function projectLinkedInProfileContactBinding(input: {
   }
   const urn = urns.values().next().value!;
   if (urn === viewer) throw selfProfileError();
-  const related = records.filter((record) =>
-    vanityFromRecord(record) === target.slug || profileUrnFromRecord(record) === urn
-  );
-  const distances = related
-    .map(distanceValue)
-    .filter((value): value is string | number => value !== null);
-  const unique = [...new Set(distances.map((value) => String(value)))];
-  if (unique.length !== 1 || distances[0] === undefined) {
-    throw new Error("LinkedIn contact-info profile page omitted or contradicted its relationship distance");
-  }
-  const distance = distances[0];
+  const distance = relationshipDistance(records, target.slug, urn, viewer);
   if (isSelfDistance(distance)) throw selfProfileError();
   if (!isFirstDegree(distance)) {
     throw new Error(
@@ -826,7 +1042,7 @@ function collectRecords(value: unknown): readonly JsonRecord[] {
   while (stack.length > 0) {
     const next = stack.pop()!;
     nodes += 1;
-    if (nodes > MAX_WALK_NODES || next.depth > 32) {
+    if (nodes > MAX_WALK_NODES || next.depth > MAX_WALK_DEPTH) {
       throw new Error("LinkedIn contact-info payload exceeded its traversal bound");
     }
     if (Array.isArray(next.value)) {

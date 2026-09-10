@@ -7,6 +7,15 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Read LinkedIn `contacts.read@1` Contact info from current SDUI profile pages:
+  Como rehydration walks stay bounded by node count and a depth ceiling of 128,
+  so legitimate trees around depth 60 no longer abort, and first-degree binding
+  joins `vieweeProfileId` plus vanity when classic URN keys are absent. Distance
+  may come from PROFILE_VIEW breadcrumb or RSC string rows (`networkDistance`,
+  `memberDistance`, or `distance`), not only from the same decoded object as the
+  identity. Self and non-first-degree profiles still fail closed, and no email
+  is ever invented. Adapter bundle 1.24.0.
+
 ## 0.17.5 - 2026-09-10
 
 - Read the main-branch CodeQL analyses as a bounded twenty-entry newest-first

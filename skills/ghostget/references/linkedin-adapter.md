@@ -233,11 +233,15 @@ SDUI/RSC and often omit classic `bpr-guid-*` Profile embeds. The binder
 therefore walks both those Voyager code payloads and `window.__como_rehydration__`.
 Current pages assign that global as either a JSON object (`= { … }`) or an RSC
 flight array (`= [ "1:I[…]\\n2:{…}" ]`). The binder accepts both, decodes
-flight rows that carry JSON objects or arrays, and treats
+flight rows that carry JSON objects, arrays, or JSON strings, and treats
 `memberDistance`, `networkDistance`, or `distance` of `DISTANCE_1`,
 `1`, or `"1"` as first-degree when that value is joined to the requested vanity
-or its profile URN (`entityUrn`, `objectUrn`, `profileUrn`, or `vieweeMemberUrn`).
-Empty, missing, or import-only bootstrap stays fail-closed.
+or its profile URN (`entityUrn`, `objectUrn`, `profileUrn`, `vieweeMemberUrn`,
+or `vieweeProfileId` plus vanity). Current Como trees can nest around depth 60,
+so the walk keeps a node ceiling and a depth ceiling of 128 instead of aborting
+at depth 32. Distance may appear on PROFILE_VIEW breadcrumb or RSC string rows
+rather than on the same decoded object as the identity. Empty, missing, or
+import-only bootstrap stays fail-closed.
 
 When the same page already embeds Contact-info fields, including a labeled
 Email row, the operation projects those fields and does not issue a second
@@ -272,6 +276,16 @@ string still carried vanity-joined `networkDistance: 1` next to
 `vieweeMemberUrn` / PROFILE_VIEW breadcrumbs. Adapter 1.23.0 accepts that
 array form and still uses `queryName` when the page embeds no decorated
 queryId.
+
+A 2026-09-10 signed-in capture of another 1st-degree profile still bound
+`profiles.read` and still omitted classic `entityUrn` / `objectUrn` /
+`profileUrn` keys on vanity records. Those records carried `vanityName`,
+`vieweeProfileId`, and `isSelfView` instead, and the live Como tree reached
+about depth 59 with far fewer than the node ceiling. The depth-32 abort treated
+that page as contract-drift. After a deeper walk, identity still failed because
+the binder required a classic URN on the vanity record and required
+`networkDistance` on a decoded object. Adapter 1.24.0 joins `vieweeProfileId`
+plus vanity and reads breadcrumb or RSC string-row distance.
 
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid
