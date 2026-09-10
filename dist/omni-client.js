@@ -2,7 +2,7 @@
 import {
   canonicalJson,
   sha256
-} from "./index-dqv16dt0.js";
+} from "./index-604sjk12.js";
 
 // src/omni-client.ts
 import { spawn, spawnSync } from "child_process";

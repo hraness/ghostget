@@ -8,7 +8,7 @@ import {
 import {
   canonicalJson,
   sha256
-} from "./index-dqv16dt0.js";
+} from "./index-604sjk12.js";
 
 // src/beeper-client.ts
 import { spawnSync } from "child_process";

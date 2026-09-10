@@ -31,6 +31,17 @@ export function canonicalJson(value: unknown): string {
   throw new Error("canonical JSON supports only JSON-compatible values");
 }
 
+/**
+ * Canonical JSON that is safe to embed as a JavaScript expression inside a
+ * generated page script. JSON permits raw U+2028, U+2029, and angle brackets
+ * inside strings; escaping them keeps the literal from terminating a script
+ * element or a JavaScript line. The escaped text parses to the same value.
+ */
+export function canonicalJsonScriptLiteral(value: unknown): string {
+  return canonicalJson(value).replace(/[<>\u2028\u2029]/gu, (character) =>
+    `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
+}
+
 export function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }

@@ -1,3 +1,14 @@
+// Ghostget 0.17.0, measured after escaping script-embedded canonical JSON in
+// the LinkedIn post provider: two Node 24.20.0 / npm 11.19.0 archives on
+// darwin arm64 are byte-identical, with 2,255,633 compressed and 12,431,760
+// payload bytes across exactly 501 files, SHA-256
+// c0a358711a0ee6566650cea3eef768ef596a68d1295589b6a1ee275287cc4f69.
+// The escaping helper and its call sites add 595 payload bytes compared with
+// the previous 0.17.0 measurement. Raise only the payload ceiling by that
+// measured delta, preserving 65 bytes of headroom, the existing compressed
+// allowance, and the exact inventory. Fresh Linux CI still checks its actual
+// canonical archive under the pinned release toolchain.
+//
 // Ghostget 0.17.0, measured after joining 0.16.17 and a clean Bun 1.3.14
 // build: two Node 24.20.0 / npm 11.19.0 archives on darwin arm64 (zlib 1.2.12)
 // are byte-identical, with 2,255,371 compressed and 12,431,165 payload bytes
@@ -218,7 +229,7 @@
 export const MAX_PACKED_BYTES = 2_259_302;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_431_230;
+export const MAX_UNPACKED_BYTES = 12_431_825;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

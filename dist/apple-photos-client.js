@@ -5,7 +5,7 @@ import {
 import {
   canonicalJson,
   sha256
-} from "./index-dqv16dt0.js";
+} from "./index-604sjk12.js";
 
 // src/apple-photos-client.ts
 import { spawnSync } from "child_process";
