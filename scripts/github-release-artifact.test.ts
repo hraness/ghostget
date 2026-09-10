@@ -20,7 +20,7 @@ const body = `wrench-release-source-v1 repository=hraness/wrench tag=${tag} sour
 const names = releaseAssetNames(tag);
 type Json = Record<string, any>;
 
-function sourceCiFixture(attempt = 1) {
+function sourceCiFixture(attempt = 1, prNumber = 50) {
   const input: SourceCiInput = { source: "1".repeat(40), tree: "2".repeat(40), main: "3".repeat(40),
     workflowSha256: "4".repeat(64), lockSha256: "5".repeat(64) };
   const prefix = "repos/hraness/wrench"; const head = "6".repeat(40);
@@ -54,13 +54,13 @@ function sourceCiFixture(attempt = 1) {
       responses[`${prefix}/actions/jobs/${job.id}/logs`] = `2026-09-09T01:00:01.123Z [command]/usr/bin/git log -1 --format=%H\n2026-09-09T01:00:01.124Z ${input.source}\n2026-09-09T01:00:02.000Z WRENCH_SOURCE_CI_IDENTITY=${JSON.stringify(identity)}\n`;
     }
   }
-  const pr = { id: 9000, number: 50, merged: true, merged_at: "2026-09-09T00:50:00Z", state: "closed", merge_commit_sha: input.source,
+  const pr = { id: 9000, number: prNumber, merged: true, merged_at: "2026-09-09T00:50:00Z", state: "closed", merge_commit_sha: input.source,
     base: { ref: "main", repo }, head: { sha: head, repo } };
   responses[`${prefix}/commits/${input.source}/pulls?per_page=100`] = [pr];
-  responses[`${prefix}/pulls/50`] = pr;
+  responses[`${prefix}/pulls/${prNumber}`] = pr;
   const associatedRepo = { id: repo.id, url: `https://api.github.com/${prefix}` };
   const securityCheck = { id: 700, head_sha: head, name: "CodeQL", app: { id: 57789 }, status: "completed", conclusion: "success",
-    pull_requests: [{ number: 50, id: 9000, url: `https://api.github.com/${prefix}/pulls/50`, head: { sha: head, repo: associatedRepo },
+    pull_requests: [{ number: prNumber, id: 9000, url: `https://api.github.com/${prefix}/pulls/${prNumber}`, head: { sha: head, repo: associatedRepo },
       base: { ref: "main", repo: associatedRepo } }] };
   responses[`${prefix}/commits/${head}/check-runs?per_page=100&filter=latest`] = { total_count: 1, check_runs: [securityCheck] };
   // The currently running Release is deliberately not a required source job.
@@ -92,6 +92,56 @@ describe("exact source CI admission", () => {
     const result = admitSourceCi(fixture.input, fixture.read, fixture.clock);
     expect(result.ci.attempt).toBe(2); expect(result.codeql.attempt).toBe(2);
     expect(result.security.exactAnalyses.map(value => value.id)).toEqual([800, 801]);
+  });
+  test("admits the observed closed PR CodeQL response with an empty association and exact provider summary", () => {
+    const fixture = sourceCiFixture(1, 203);
+    const checks = fixture.responses[`${fixture.prefix}/commits/${fixture.head}/check-runs?per_page=100&filter=latest`];
+    // Selected fields of GitHub's direct check 102698893117; only the source SHA is fixture-local.
+    checks.check_runs = [{ id: 102698893117, name: "CodeQL", app: { id: 57789 }, head_sha: fixture.head,
+      status: "completed", conclusion: "success", pull_requests: [], output: {
+        summary: "[View all branch alerts](/hraness/wrench/security/code-scanning?query=pr%3A203+tool%3ACodeQL+is%3Aopen).",
+      } }];
+    const result = admitSourceCi(fixture.input, fixture.read, fixture.clock);
+    expect(result.security.pullRequest).toBe(203);
+    expect(result.security.prComparison).toEqual([{ id: 102698893117, source: fixture.head, conclusion: "success" }]);
+    expect(result.security.sameMergedTree).toBe(fixture.input.tree);
+  });
+  test("refuses malformed summary fallback and never rescues contradictory nonempty associations", () => {
+    const summary = "[View all branch alerts](/hraness/wrench/security/code-scanning?query=pr%3A50+tool%3ACodeQL+is%3Aopen).";
+    const mutations: ((check: Json) => void)[] = [
+      check => { delete check.pull_requests; },
+      check => { check.pull_requests = null; },
+      check => { check.pull_requests = {}; },
+      check => { delete check.output; },
+      check => { delete check.output.summary; },
+      check => { check.output.summary = null; },
+      check => { check.output.summary = 50; },
+      ...[summary.replace("pr%3A50", "pr%3A51"), summary.replace("/hraness/", "/foreign/"),
+        summary.replace("/wrench/", "/other/"), summary.replace("tool%3ACodeQL", "tool%3AOther"),
+        summary.replace("is%3Aopen", "is%3Aclosed"), summary.replace("pr%3A50", "pr:50"),
+        summary.replace("](/", "](https://github.com/"), summary + "\n", summary + summary, "extra " + summary,
+      ].map(value => (check: Json) => { check.output.summary = value; }),
+    ];
+    for (const mutate of mutations) {
+      const fixture = sourceCiFixture();
+      const check = fixture.responses[`${fixture.prefix}/commits/${fixture.head}/check-runs?per_page=100&filter=latest`].check_runs[0];
+      check.pull_requests = []; check.output = { summary }; mutate(check);
+      expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow();
+    }
+    for (const mutate of [
+      (associated: Json) => { associated.number = 51; },
+      (associated: Json) => { associated.id = 1; },
+      (associated: Json) => { associated.url += "/other"; },
+      (associated: Json) => { associated.head.sha = "7".repeat(40); },
+      (associated: Json) => { associated.base.ref = "other"; },
+      (associated: Json) => { associated.head.repo.id = 1; },
+      (associated: Json) => { associated.base.repo.url = "https://api.github.com/repos/foreign/wrench"; },
+    ]) {
+      const fixture = sourceCiFixture();
+      const check = fixture.responses[`${fixture.prefix}/commits/${fixture.head}/check-runs?per_page=100&filter=latest`].check_runs[0];
+      check.output = { summary }; mutate(check.pull_requests[0]);
+      expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow();
+    }
   });
   test("requires terminal job evidence within 72 hours and the corresponding analysis interval", () => {
     const fixture = sourceCiFixture();

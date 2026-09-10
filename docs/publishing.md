@@ -28,6 +28,12 @@ before its frozen install. Admission also requires both successful exact-source
 CodeQL jobs and current main analyses, plus the successful security comparison
 on the merged PR's identical tree. Any present main comparison must succeed;
 analysis result counts are recorded without asserting that no alerts exist.
+The CodeQL app's check must identify that exact PR through its returned PR
+association. If GitHub returns an empty association array, only its exact
+repository-and-PR-specific `View all branch alerts` summary is accepted instead.
+A nonempty contradictory association never falls back to the summary. This
+observed provider format is matched literally; future formatting changes stop
+admission until reviewed, and do not justify skipping the security comparison.
 Every required CI and CodeQL job must have completed within 72 hours of admission,
 with valid start/completion times and no future completion. This permits normal
 overnight and multi-day delivery while bounding reuse; older source requires an

@@ -124,7 +124,14 @@ function comparison(read: SourceCiReader, source: string, pr?: ObjectValue) {
     requireValue(check.head_sha === source && check.status === "completed" && check.conclusion === "success",
       "CodeQL security comparison did not succeed");
     if (pr !== undefined) {
-      const associations = array(check.pull_requests).map(object).filter(value => value.number === pr.number);
+      const reported = array(check.pull_requests);
+      if (reported.length === 0) {
+        // GitHub may omit the association; only its exact CodeQL summary binds this case.
+        requireValue(object(check.output).summary === `[View all branch alerts](/${REPOSITORY}/security/code-scanning?query=pr%3A${integer(pr.number)}+tool%3ACodeQL+is%3Aopen).`,
+          "security comparison summary does not bind the pull request");
+        continue;
+      }
+      const associations = reported.map(object).filter(value => value.number === pr.number);
       requireValue(associations.length === 1, "security comparison belongs to another pull request");
       const associated = associations[0]!; const head = object(associated.head); const base = object(associated.base);
       requireValue(associated.id === integer(pr.id) && associated.url === `https://api.github.com/${PREFIX}/pulls/${integer(pr.number)}`
