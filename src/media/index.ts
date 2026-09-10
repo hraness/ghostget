@@ -4,7 +4,7 @@ export {
   runDoctor,
 } from "./doctor";
 
-// Keep a concrete binding so the Wrench runtime can lazy-load one stable media
+// Keep a concrete binding so the Ghostget runtime can lazy-load one stable media
 // module without depending on a separate package or executable boundary.
 export const runCli: typeof runCliImplementation = (argv, options) =>
   runCliImplementation(argv, options);

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
 import type { StrictCookie } from "@hraness/kb/clip/cookies";
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { WebSessionRecipe } from "../model";
 import {
   executeTikTokWebOperation,
@@ -21,7 +21,7 @@ const boundAuth = {
   source: "arc",
   profile: "Profile 1",
   subject: `tiktok:uid:${VIEWER_ID}/sec:${VIEWER_SEC_UID}`,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 type CapturedRequest = {
   readonly url: URL;
@@ -66,7 +66,7 @@ function viewerResponse(viewerId = VIEWER_ID): unknown {
         id: viewerId,
         secUid: VIEWER_SEC_UID,
         uniqueId: "wrench_test",
-        nickname: "Wrench Test",
+        nickname: "Ghostget Test",
       },
     },
   };
@@ -258,7 +258,7 @@ describe("TikTok authenticated internal-API runtime", () => {
         },
         metadata: {
           handle: "wrench_test",
-          displayName: "Wrench Test",
+          displayName: "Ghostget Test",
           bio: "Public profile bio",
           websiteUrl: "https://example.com/",
         },

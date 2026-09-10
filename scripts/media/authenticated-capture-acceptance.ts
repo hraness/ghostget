@@ -6,7 +6,7 @@ import { basename, join, relative } from "node:path";
 import { Database } from "bun:sqlite";
 
 import { mediaUrl, type MediaArchiveResult } from "../../src/media/archive";
-import { WRENCH_MEDIA_SCHEMA_VERSION, verifyMediaItem } from "../../src/media/manifest";
+import { GHOSTGET_MEDIA_SCHEMA_VERSION, verifyMediaItem } from "../../src/media/manifest";
 import {
   AUTH_CONTEXT_IDENTITY_PROFILE,
   authContextSha256,
@@ -19,7 +19,7 @@ const PERSONAL_CONTEXT = "PersonalRealmPrivate";
 const WORK_CONTEXT = "WorkRealmPrivate";
 const PERSONAL_COOKIE = "personal-cookie-private-8f37b1";
 const WORK_COOKIE = "work-cookie-private-4c29d6";
-const COOKIE_NAME = "wrench_media_session";
+const COOKIE_NAME = "ghostget_media_session";
 
 function invariant(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -136,7 +136,7 @@ function cookieValue(request: Request): string | null {
 
 function authenticatedIdentity(result: MediaArchiveResult) {
   const manifest = result.manifest;
-  invariant(manifest.schemaVersion === WRENCH_MEDIA_SCHEMA_VERSION, "acceptance must write the current schema");
+  invariant(manifest.schemaVersion === GHOSTGET_MEDIA_SCHEMA_VERSION, "acceptance must write the current schema");
   invariant(manifest.acquisition.adapter === "yt-dlp", "acceptance must use yt-dlp");
   invariant(
     manifest.acquisition.identity.profile === YT_DLP_AUTH_IDENTITY_PROFILE,
@@ -198,7 +198,7 @@ async function assertPrivateInputsAbsent(
 }
 
 async function main(): Promise<void> {
-  const root = await mkdtemp(join(tmpdir(), "wrench-media-authenticated-acceptance-"));
+  const root = await mkdtemp(join(tmpdir(), "ghostget-media-authenticated-acceptance-"));
   let server: ReturnType<typeof Bun.serve> | undefined;
   try {
     const [ffmpeg] = await Promise.all([
@@ -407,7 +407,7 @@ try {
 } catch (error) {
   await writeOutput(
     process.stderr,
-    `wrench media authenticated acceptance: ${error instanceof Error ? error.message : "failed"}\n`,
+    `ghostget media authenticated acceptance: ${error instanceof Error ? error.message : "failed"}\n`,
   );
   process.exitCode = 1;
 }

@@ -1,5 +1,6 @@
+// Stable analytics identity preserves the pre-rename traffic series.
 const SITE_ID = "wrench" as const;
-const CANONICAL_DOMAIN = "wrench.rip" as const;
+const CANONICAL_DOMAIN = "ghostget.com" as const;
 const CANONICAL_ORIGIN = `https://${CANONICAL_DOMAIN}` as const;
 const SCHEMA_VERSION = 1 as const;
 const NOT_FOUND_PATH = "/not-found" as const;
@@ -303,7 +304,7 @@ export function sanitizeCapture(
       analytics_schema_version: SCHEMA_VERSION,
       canonical_domain: CANONICAL_DOMAIN,
       canonical_path: route.canonicalPath,
-      content_group: "wrench",
+      content_group: "ghostget",
       page_kind: route.pageKind,
       site_id: SITE_ID,
       token,
@@ -378,13 +379,13 @@ function installPostHogQueue(documentValue: Document, windowValue: Window): Post
   const queue = (windowValue.posthog ?? []) as PostHogQueue;
   queue._i = queue._i ?? [];
   queue.init = (token, config, name) => {
-    if (documentValue.querySelector('script[data-wrench-posthog-sdk="true"]') === null) {
+    if (documentValue.querySelector('script[data-ghostget-posthog-sdk="true"]') === null) {
       const script = documentValue.createElement("script");
       const apiHost = typeof config.api_host === "string" ? config.api_host : "https://us.i.posthog.com";
       const assetHost = apiHost.replace(".i.posthog.com", "-assets.i.posthog.com");
       script.async = true;
       script.crossOrigin = "anonymous";
-      script.dataset.wrenchPosthogSdk = "true";
+      script.dataset.ghostgetPosthogSdk = "true";
       script.src = `${assetHost}/static/${POSTHOG_SDK_VERSION}/array.js`;
       documentValue.head.append(script);
     }
@@ -437,8 +438,8 @@ function metaContent(documentValue: Document, name: string): string {
 }
 
 function initializeBrowserAnalytics(): void {
-  const key = metaContent(document, "wrench-posthog-key");
-  const host = metaContent(document, "wrench-posthog-host");
+  const key = metaContent(document, "ghostget-posthog-key");
+  const host = metaContent(document, "ghostget-posthog-host");
   if (
     window.location.protocol !== "https:"
     || window.location.hostname.toLowerCase().replace(/\.$/u, "") !== CANONICAL_DOMAIN

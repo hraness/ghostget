@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { MediaArchiveError } from "./archive";
 import { runCli, type CliIo, type MediaCliDependencies } from "./cli";
 import {
-  WRENCH_MEDIA_SCHEMA_VERSION,
-  WRENCH_MEDIA_VERSION,
-  WRENCH_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
+  GHOSTGET_MEDIA_SCHEMA_VERSION,
+  GHOSTGET_MEDIA_VERSION,
+  GHOSTGET_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
   type MediaManifest,
 } from "./manifest";
 import { providerIdentitySha256, sourceAssetKey } from "./metadata";
@@ -20,8 +20,8 @@ import {
   type RuntimeClosureDependency,
 } from "./runtime-closure";
 import {
-  WRENCH_MEDIA_REVISION_CONTENT_PROFILE,
-  WRENCH_MEDIA_TRACKED_REVISION_PROFILE,
+  GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
+  GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE,
   trackedRevisionAssetKey,
   type MediaTrackedRevision,
 } from "./revision";
@@ -33,8 +33,8 @@ function captureIo(): { io: CliIo; stdout: string[]; stderr: string[] } {
 }
 
 const manifest: MediaManifest = {
-  schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
-  wrenchVersion: WRENCH_MEDIA_VERSION,
+  schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
+  wrenchVersion: GHOSTGET_MEDIA_VERSION,
   assetKey: sourceAssetKey("Youtube", "abcdefghijk"),
   capturedAt: "2026-07-21T00:00:00.000Z",
   mode: "archive",
@@ -59,26 +59,26 @@ const manifest: MediaManifest = {
 };
 
 const revision: MediaTrackedRevision = {
-  profile: WRENCH_MEDIA_TRACKED_REVISION_PROFILE,
+  profile: GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE,
   sequence: 2,
   subjectAssetKey: sourceAssetKey("Youtube", "abcdefghijk"),
   previousAssetKey: `revision-v1-${"4".repeat(64)}`,
   content: {
-    profile: WRENCH_MEDIA_REVISION_CONTENT_PROFILE,
+    profile: GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
     sha256: "5".repeat(64),
   },
 };
 
 const trackedManifest: MediaManifest = {
   ...manifest,
-  schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
-  wrenchVersion: WRENCH_MEDIA_VERSION,
+  schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
+  wrenchVersion: GHOSTGET_MEDIA_VERSION,
   assetKey: trackedRevisionAssetKey(revision),
   acquisition: {
     adapter: "yt-dlp",
     version: "2026.07.04",
     identity: {
-      profile: WRENCH_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
+      profile: GHOSTGET_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
       providerIdentitySha256: providerIdentitySha256("Youtube", "abcdefghijk"),
     },
   },
@@ -256,7 +256,7 @@ describe("runCli", () => {
       } else {
         expect(output.stderr).toEqual([
           "Archiving media from example.com…\n",
-          "wrench media: CANCELLED: capture was cancelled\n",
+          "ghostget media: CANCELLED: capture was cancelled\n",
         ]);
       }
     }
@@ -321,7 +321,7 @@ describe("runCli", () => {
       dependencies: failingDependencies,
     })).toBe(6);
     expect(human.stderr.join("")).not.toContain(homeDirectory);
-    expect(human.stderr.join("")).toContain("wrench media: CAPTURE_FAILED: capture failed in ~/.local/share/wrench/media/private-item\n");
+    expect(human.stderr.join("")).toContain("ghostget media: CAPTURE_FAILED: capture failed in ~/.local/share/wrench/media/private-item\n");
     expect(human.stderr.join("")).toContain("diagnostic staging: ~/.local/share/wrench/media/private-item\n");
   });
 
@@ -378,7 +378,7 @@ describe("runCli", () => {
         )),
       }),
     })).toBe(4);
-    expect(failure.stderr).toEqual(["Archiving media from example.com…\n", "wrench media: PROBE_FAILED: provider failed forged\n"]);
+    expect(failure.stderr).toEqual(["Archiving media from example.com…\n", "ghostget media: PROBE_FAILED: provider failed forged\n"]);
   });
 
   test("keeps JSON one-record output structurally escaped for terminal controls", async () => {

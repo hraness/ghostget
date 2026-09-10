@@ -6,51 +6,51 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#f5f3ed" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0e1113" media="(prefers-color-scheme: dark)">
-    <title>Provider support in Wrench</title>
-    <meta name="description" content="See which provider actions Wrench supports in the current release and how each service connects.">
+    <title>Provider support in Ghostget</title>
+    <meta name="description" content="See which provider actions Ghostget supports in the current release and how each service connects.">
     <meta name="robots" content="max-image-preview:large">
-    <link rel="canonical" href="https://wrench.rip/provider-capabilities/">
+    <link rel="canonical" href="https://ghostget.com/provider-capabilities/">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="{{CSS_ASSET}}">
     <link rel="sitemap" type="application/xml" href="/sitemap.xml">
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
-    <meta property="og:site_name" content="Wrench">
-    <meta property="og:title" content="Provider support in Wrench">
-    <meta property="og:description" content="See which provider actions Wrench supports in the current release and how each service connects.">
-    <meta property="og:url" content="https://wrench.rip/provider-capabilities/">
-    <meta property="og:image" content="https://wrench.rip/og.png">
-    <meta property="og:image:alt" content="Wrench: precise web capabilities for AI agents">
+    <meta property="og:site_name" content="Ghostget">
+    <meta property="og:title" content="Provider support in Ghostget">
+    <meta property="og:description" content="See which provider actions Ghostget supports in the current release and how each service connects.">
+    <meta property="og:url" content="https://ghostget.com/provider-capabilities/">
+    <meta property="og:image" content="https://ghostget.com/og.png">
+    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Provider support in Wrench">
-    <meta name="twitter:description" content="See which provider actions Wrench supports in the current release and how each service connects.">
-    <meta name="twitter:image" content="https://wrench.rip/og.png">
-    <meta name="twitter:image:alt" content="Wrench: precise web capabilities for AI agents">
-    <meta name="wrench-posthog-host" content="{{POSTHOG_HOST}}">
-    <meta name="wrench-posthog-key" content="{{POSTHOG_KEY}}">
+    <meta name="twitter:title" content="Provider support in Ghostget">
+    <meta name="twitter:description" content="See which provider actions Ghostget supports in the current release and how each service connects.">
+    <meta name="twitter:image" content="https://ghostget.com/og.png">
+    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
     <script type="module" src="{{ANALYTICS_ASSET}}"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="topbar guide-topbar">
-      <a aria-label="Wrench home" class="wordmark" href="/">Wrench</a>
+      <a aria-label="Ghostget home" class="wordmark" href="/">Ghostget</a>
       <nav aria-label="Primary">
         <a href="/getting-started/">Install</a>
         <a aria-current="page" href="/provider-capabilities/">Providers</a>
-        <a href="https://github.com/hraness/wrench">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
       </nav>
     </header>
     <main class="guide-main" id="main">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Wrench</a></li><li aria-current="page">Provider support</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li aria-current="page">Provider support</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero">
-          <p class="eyebrow">Provider support · Wrench {{WRENCH_VERSION}}</p>
+          <p class="eyebrow">Provider support · Ghostget {{GHOSTGET_VERSION}}</p>
           <h1>Choose a service. See what your agent can do.</h1>
-          <p class="answer-lede">This directory lists the actions supported by the current Wrench release and the access method each service uses. An action that is not listed is not available.</p>
-          <p class="review-note">Run <code>wrench capabilities --json</code> to see the exact support installed on your machine.</p>
+          <p class="answer-lede">This directory lists the actions supported by the current Ghostget release and the access method each service uses. An action that is not listed is not available.</p>
+          <p class="review-note">Run <code>ghostget capabilities --json</code> to see the exact support installed on your machine.</p>
         </header>
 
         <section aria-labelledby="directory">
@@ -58,12 +58,12 @@
           <div class="provider-directory provider-directory-guide">
             {{PROVIDER_OVERVIEW_CARDS}}
           </div>
-          <p class="provider-status-note">Provider names identify compatible services and do not imply endorsement. Wrench does not claim support for services or actions that are absent from this page.</p>
+          <p class="provider-status-note">Provider names identify compatible services and do not imply endorsement. Ghostget does not claim support for services or actions that are absent from this page.</p>
         </section>
 
         <section aria-labelledby="actions">
           <h2 id="actions">Supported actions by service</h2>
-          <p>The action name is the stable command surface your agent uses. The access label tells you whether Wrench connects through an official API, a signed-in session, a linked device, or a local app.</p>
+          <p>The action name is the stable command surface your agent uses. The access label tells you whether Ghostget connects through an official API, a signed-in session, a linked device, or a local app.</p>
           <div class="provider-attestation-groups">
             {{PROVIDER_ATTESTATION_GROUPS}}
           </div>
@@ -71,18 +71,18 @@
 
         <section aria-labelledby="local-source-exports">
           <h2 id="local-source-exports">Local source exports</h2>
-          <p><code>wrench apple-photos export-contact-evidence</code> reads bounded, transient full copies of the current macOS account's private Photos and Contacts SQLite databases. Those copies can include unselected columns and raw blobs. It returns exact person-to-contact identifiers, biometric-derived cluster counts, distinct <code>ZASSET</code>-row counts, linked-asset date bounds, component capture intervals, privacy declarations, and integrity evidence. The listed exclusions apply only to the returned JSON: names, paths, images, locations, raw blobs, faceprint templates, face crops, and unmatched people are excluded. The workflow performs no authentication, network request, synchronization, or mutation, and it does not open, copy, or ask Photos to materialize referenced photo or video asset files.</p>
+          <p><code>ghostget apple-photos export-contact-evidence</code> reads bounded, transient full copies of the current macOS account's private Photos and Contacts SQLite databases. Those copies can include unselected columns and raw blobs. It returns exact person-to-contact identifiers, biometric-derived cluster counts, distinct <code>ZASSET</code>-row counts, linked-asset date bounds, component capture intervals, privacy declarations, and integrity evidence. The listed exclusions apply only to the returned JSON: names, paths, images, locations, raw blobs, faceprint templates, face crops, and unmatched people are excluded. The workflow performs no authentication, network request, synchronization, or mutation, and it does not open, copy, or ask Photos to materialize referenced photo or video asset files.</p>
           <p>This workflow stays outside the provider-action table above because it does not connect to a service or enter the action catalog. Each local database is consistent within its recorded capture interval; no atomic instant across databases is claimed. Remote iCloud and Contacts synchronization are not asserted.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="provider-next">
           <h2 id="provider-next">Set up only the service you need</h2>
-          <p>Follow the <a href="/getting-started/">installation guide</a>, inspect <code>wrench capabilities PROVIDER --json</code>, then read the <a href="/security/">security and local-custody guide</a> before connecting an account. The <a href="/providers/beeper/">Beeper guide</a> documents its local app integration in detail.</p>
+          <p>Follow the <a href="/getting-started/">installation guide</a>, inspect <code>ghostget capabilities PROVIDER --json</code>, then read the <a href="/security/">security and local-custody guide</a> before connecting an account. The <a href="/providers/beeper/">Beeper guide</a> documents its local app integration in detail.</p>
         </aside>
       </article>
     </main>
-    <aside aria-label="Wrench project information" class="site-disclosure">
-      <p>Wrench {{WRENCH_VERSION}} · MIT · <a href="{{WRENCH_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
+    <aside aria-label="Ghostget project information" class="site-disclosure">
+      <p>Ghostget {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
       <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
     </aside>
     {{HRANESS_SITE_FOOTER}}

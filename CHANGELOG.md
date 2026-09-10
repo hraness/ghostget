@@ -7,6 +7,16 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.17.0 - 2026-09-09
+
+- Rename the project, CLI, SDK package, and public Agent Skill to Ghostget, with
+  `ghostget.com` as the canonical website and `@hraness/ghostget` as the package.
+- Preserve existing local state, encrypted records, receipts, and adapter
+  formats during the upgrade. New installations use Ghostget names; the
+  [migration guide](docs/ghostget-migration.md) lists compatibility names.
+- Keep historical release coordinates and the original first-capture recording
+  intact, with the recording identified as predating the rename.
+
 ## 0.16.17 - 2026-09-09
 
 - Adopt published Sweet Cookie 0.4.3 through KB 0.19.6 and the exact verification

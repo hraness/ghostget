@@ -15,7 +15,7 @@ import {
   canonicalJson,
   manifestHash,
   sha256,
-  type WrenchManifest,
+  type GhostgetManifest,
 } from "./model";
 import {
   createOmniContinuationGuard,
@@ -41,7 +41,7 @@ function state(): {
   chmodSync(directory, 0o700);
   return Object.freeze({
     directory,
-    environment: Object.freeze({ WRENCH_STATE_HOME: directory }),
+    environment: Object.freeze({ GHOSTGET_STATE_HOME: directory }),
   });
 }
 
@@ -90,7 +90,7 @@ function setupExact(
   const manifest = JSON.parse(readFileSync(
     new URL("./assets/adapters/reddit/wrench-web-adapter.json", import.meta.url),
     "utf8",
-  )) as WrenchManifest;
+  )) as GhostgetManifest;
   installManifest(manifest, {
     force: false,
     environment,

@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { LocalCliRecipe, OperationInput } from "../model";
 import { OperationDeadline } from "../operation-deadline";
 import { parseBeeperContactsListInputV3 } from "./beeper-local";
@@ -64,7 +64,7 @@ afterEach(() => {
   for (const deadline of deadlines.splice(0)) deadline.dispose();
 });
 
-function fixtureAuth(): WrenchAuth {
+function fixtureAuth(): GhostgetAuth {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-beeper-direct-read-")));
   roots.push(root);
   const targets = join(root, "targets");

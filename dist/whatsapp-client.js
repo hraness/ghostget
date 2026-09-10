@@ -2,7 +2,7 @@
 import {
   canonicalJson,
   sha256
-} from "./index-dqv16dt0.js";
+} from "./index-604sjk12.js";
 
 // src/whatsapp-client.ts
 import { spawnSync } from "child_process";
@@ -12,7 +12,7 @@ import { types as nodeTypes } from "util";
 
 // src/whatsapp-client-binding.ts
 function fail(message) {
-  throw new Error(`Wrench WhatsApp client: ${message}`);
+  throw new Error(`Ghostget WhatsApp client: ${message}`);
 }
 function requireWhatsAppMessageLikeMeReceiptRequestBinding(receipt, request) {
   if (receipt.auth.id !== request.authId) {
@@ -42,7 +42,7 @@ var MAX_V2_RECORDS = 500000;
 var PROCESS_TIMEOUT_MS = 6 * 60 * 60 * 1000 + 60000;
 var DIGEST_PATTERN = /^[a-f0-9]{64}$/u;
 function fail2(message) {
-  throw new Error(`Wrench WhatsApp client: ${message}`);
+  throw new Error(`Ghostget WhatsApp client: ${message}`);
 }
 function record(value, label) {
   if (typeof value !== "object" || value === null || Array.isArray(value) || nodeTypes.isProxy(value) || Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)
@@ -274,7 +274,7 @@ function cliSourcePath() {
   const packagedSource = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
   if (existsSync(packagedSource))
     return packagedSource;
-  return fail2("the installed Wrench CLI source is unavailable");
+  return fail2("the installed Ghostget CLI source is unavailable");
 }
 function preparedEnvironment(additions) {
   const environment = Object.create(null);
@@ -300,7 +300,7 @@ function preparedEnvironment(additions) {
 }
 function exportWhatsAppMessageLikeMeSync(requestValue, optionsValue = {}) {
   if (typeof process.versions.bun !== "string") {
-    return fail2("@hraness/wrench/whatsapp requires Bun");
+    return fail2("@hraness/ghostget/whatsapp requires Bun");
   }
   const request = record(requestValue, "request");
   exact(request, ["authId", "output"], "request");

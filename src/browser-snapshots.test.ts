@@ -30,7 +30,7 @@ function testState(): {
 } {
   const root = mkdtempSync(join(tmpdir(), "wrench-browser-snapshot-test-"));
   chmodSync(root, 0o700);
-  return { root, environment: { ...process.env, WRENCH_STATE_HOME: join(root, "io-state") } };
+  return { root, environment: { ...process.env, GHOSTGET_STATE_HOME: join(root, "io-state") } };
 }
 
 async function exitedPid(): Promise<number> {
@@ -44,7 +44,7 @@ describe("managed browser snapshots", () => {
     const state = testState();
     try {
       expect(() => purgeOrphanedBrowserSnapshots(state.environment, Number.NaN)).toThrow("GC time is invalid");
-      expect(existsSync(state.environment.WRENCH_STATE_HOME ?? "")).toBeFalse();
+      expect(existsSync(state.environment.GHOSTGET_STATE_HOME ?? "")).toBeFalse();
     } finally {
       rmSync(state.root, { recursive: true, force: true });
     }
@@ -54,7 +54,7 @@ describe("managed browser snapshots", () => {
     const state = testState();
     try {
       const snapshot = createBrowserSnapshotDirectory(state.environment, 1_000);
-      expect(dirname(snapshot.path)).toBe(realpathSync(join(state.environment.WRENCH_STATE_HOME ?? "", "browser-snapshots")));
+      expect(dirname(snapshot.path)).toBe(realpathSync(join(state.environment.GHOSTGET_STATE_HOME ?? "", "browser-snapshots")));
       expect(lstatSync(snapshot.path).mode & 0o777).toBe(0o700);
       const marker = join(snapshot.path, markerName);
       expect(lstatSync(marker).mode & 0o077).toBe(0);

@@ -109,7 +109,7 @@ describe("bound path helper traversal", () => {
         cwd: root,
         env: {
           NODE_ENV: "test",
-          WRENCH_TEST_REMOVE_DIRECTORY_FAULT: "pause-after-quarantine-fsync",
+          GHOSTGET_TEST_REMOVE_DIRECTORY_FAULT: "pause-after-quarantine-fsync",
         },
         stdin: "pipe",
         stdout: "pipe",
@@ -253,7 +253,7 @@ describe("bound path helper traversal", () => {
           segments: ["parent", "target"],
           directoryExpectations: [expectedParent, expectedTarget],
         },
-        { WRENCH_TEST_REMOVE_QUARANTINE_SCAN_MAXIMUM: "1" },
+        { GHOSTGET_TEST_REMOVE_QUARANTINE_SCAN_MAXIMUM: "1" },
       );
       expect(rejected.status).not.toBe(0);
       expect(rejected.stderr).toContain(
@@ -294,7 +294,7 @@ describe("bound path helper traversal", () => {
         cwd: root,
         env: {
           NODE_ENV: "test",
-          WRENCH_TEST_WRITE_TEMP_FAULT: "pause-after-temp-fsync",
+          GHOSTGET_TEST_WRITE_TEMP_FAULT: "pause-after-temp-fsync",
         },
         stdin: "pipe",
         stdout: "pipe",
@@ -372,7 +372,7 @@ describe("bound path helper traversal", () => {
         cwd: root,
         env: {
           NODE_ENV: "test",
-          WRENCH_TEST_PATH_MUTATION_FAULT: "pause-after-claim",
+          GHOSTGET_TEST_PATH_MUTATION_FAULT: "pause-after-claim",
         },
         stdin: "pipe",
         stdout: "pipe",

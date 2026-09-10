@@ -22,7 +22,7 @@ describe("linked-device lifecycle admission", () => {
       join(tmpdir(), "wrench-linked-device-claim-test-"),
     );
     chmodSync(directory, 0o700);
-    const environment = { WRENCH_STATE_HOME: directory };
+    const environment = { GHOSTGET_STATE_HOME: directory };
     const acquiredAt = "2026-07-25T12:00:00.000Z";
     const realmKey = "a".repeat(64);
     try {

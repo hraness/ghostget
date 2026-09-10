@@ -18,7 +18,7 @@ import {
   removePrivateStateFileIfUnchanged,
   snapshotPrivateStateDirectory,
   readPrivateStateFilesBatch,
-  wrenchStateHome,
+  ghostgetStateHome,
   writePrivateJsonIfUnchanged,
 } from "./storage";
 
@@ -352,7 +352,7 @@ function leaseRoot(
   environment: Readonly<Record<string, string | undefined>>,
 ): string {
   return join(
-    wrenchStateHome(environment),
+    ghostgetStateHome(environment),
     "recovery",
     "beeper-message-like-me-directory-leases",
   );
@@ -362,7 +362,7 @@ function exportAdmissionRoot(
   environment: Readonly<Record<string, string | undefined>>,
 ): string {
   return join(
-    wrenchStateHome(environment),
+    ghostgetStateHome(environment),
     "recovery",
     "beeper-message-like-me-export-admission",
   );

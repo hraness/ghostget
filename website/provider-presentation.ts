@@ -148,15 +148,15 @@ if (
 
 export const BEEPER_PAGE_METADATA = Object.freeze({
   description:
-    `Use ${BEEPER_LOCAL_OPERATION_NAMES.length} supported Wrench actions with one connected Beeper Desktop account: ${BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount} CLI-backed operations and ${BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount} fixed Desktop loopback reads.`,
+    `Use ${BEEPER_LOCAL_OPERATION_NAMES.length} supported Ghostget actions with one connected Beeper Desktop account: ${BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount} CLI-backed operations and ${BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount} fixed Desktop loopback reads.`,
   title:
-    `Beeper support in Wrench: ${BEEPER_LOCAL_OPERATION_NAMES.length} supported actions`,
+    `Beeper support in Ghostget: ${BEEPER_LOCAL_OPERATION_NAMES.length} supported actions`,
 } as const);
 
 export const WHATSAPP_PAGE_METADATA = Object.freeze({
   description:
     `Read four bounded local WhatsApp projections and export an existing Wacli ${WHATSAPP_PROTOCOL_PIN.version} store as a private Message Like Me bundle without pairing, syncing, or sending.`,
-  title: "WhatsApp support in Wrench: bounded local reads and private export",
+  title: "WhatsApp support in Ghostget: bounded local reads and private export",
 } as const);
 
 function capabilityLabel(operation: string): string {

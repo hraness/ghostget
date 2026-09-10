@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { CaptureArguments } from "@hraness/kb/capture";
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import {
   runGmailCapture,
   type GmailCaptureDependencies,
@@ -94,7 +94,7 @@ function captureOptions(
   };
 }
 
-function oauthAuth(root: string, subject = SUBJECT): WrenchAuth {
+function oauthAuth(root: string, subject = SUBJECT): GhostgetAuth {
   const path = join(root, "gmail-token.json");
   const scopes = ["https://www.googleapis.com/auth/gmail.readonly"];
   writeFileSync(path, `${JSON.stringify({
@@ -181,7 +181,7 @@ function dependencies(
 }
 
 function withFixture(
-  run: (root: string, outputRoot: string, auth: WrenchAuth) => Promise<void>,
+  run: (root: string, outputRoot: string, auth: GhostgetAuth) => Promise<void>,
 ): Promise<void> {
   const root = mkdtempSync(join(tmpdir(), "wrench-gmail-capture-test-"));
   chmodSync(root, 0o700);
@@ -1234,7 +1234,7 @@ describe("Gmail thread capture", () => {
   });
 
   test("rejects unsupported acquisition and media semantics before reading private auth state", async () => {
-    const missingAuth: WrenchAuth = {
+    const missingAuth: GhostgetAuth = {
       schemaVersion: 1,
       id: "gmail-missing",
       kind: "oauth-token-file",

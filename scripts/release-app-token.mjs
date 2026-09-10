@@ -4,8 +4,8 @@ import { createPrivateKey, sign } from "node:crypto";
 import { performance } from "node:perf_hooks";
 
 const EXPECTED_OWNER = "hraness";
-const EXPECTED_REPOSITORY = "hraness/wrench";
-export const WRENCH_REPOSITORY_ID = 1_316_443_113;
+const EXPECTED_REPOSITORY = "hraness/ghostget";
+export const GHOSTGET_REPOSITORY_ID = 1_316_443_113;
 const MAX_PRIVATE_KEY_BYTES = 64 * 1024;
 const MAX_TOKEN_BYTES = 4096;
 const MAX_RESPONSE_BYTES = 1024 * 1024;
@@ -139,7 +139,7 @@ export function parseReleaseAppConfiguration(environment) {
   if (
     repository !== EXPECTED_REPOSITORY ||
     repositoryOwner !== EXPECTED_OWNER ||
-    repositoryId !== WRENCH_REPOSITORY_ID
+    repositoryId !== GHOSTGET_REPOSITORY_ID
   ) {
     fail(`release App writer must run for exact repository ${EXPECTED_REPOSITORY}`);
   }
@@ -205,7 +205,7 @@ export function releaseAppTokenRequestBody() {
       metadata: "read",
       workflows: "write",
     }),
-    repository_ids: Object.freeze([WRENCH_REPOSITORY_ID]),
+    repository_ids: Object.freeze([GHOSTGET_REPOSITORY_ID]),
   });
 }
 
@@ -306,13 +306,13 @@ function parseInstallationRepositories(value) {
     response.repository_selection !== "selected" ||
     repositories.length !== 1
   ) {
-    fail("release App token repository read is not the exact selected Wrench repository set");
+    fail("release App token repository read is not the exact selected Ghostget repository set");
   }
   const repository = expectRecord(repositories[0], "release App token repository read");
   const owner = expectRecord(repository.owner, "release App token repository read owner");
   if (
-    repository.id !== WRENCH_REPOSITORY_ID ||
-    repository.name !== "wrench" ||
+    repository.id !== GHOSTGET_REPOSITORY_ID ||
+    repository.name !== "ghostget" ||
     repository.full_name !== EXPECTED_REPOSITORY ||
     owner.login !== EXPECTED_OWNER
   ) {
@@ -357,8 +357,8 @@ export function parseReleaseAppTokenResponse(value, serverDate) {
   const repository = expectRecord(repositories[0], "release App token repository");
   const owner = expectRecord(repository.owner, "release App token repository owner");
   if (
-    repository.id !== WRENCH_REPOSITORY_ID ||
-    repository.name !== "wrench" ||
+    repository.id !== GHOSTGET_REPOSITORY_ID ||
+    repository.name !== "ghostget" ||
     repository.full_name !== EXPECTED_REPOSITORY ||
     owner.login !== EXPECTED_OWNER
   ) {
@@ -371,7 +371,7 @@ export function parseReleaseAppTokenResponse(value, serverDate) {
       metadata: "read",
       workflows: "write",
     }),
-    repositoryId: WRENCH_REPOSITORY_ID,
+    repositoryId: GHOSTGET_REPOSITORY_ID,
     token,
   });
 }
@@ -518,7 +518,7 @@ function appRequestHeaders(credential, userAgent) {
 
 async function inspectWithFetch(input) {
   const response = await fetch(new URL("/app", input.apiUrl), {
-    headers: appRequestHeaders(`Bearer ${input.jwt}`, "wrench-release-writer"),
+    headers: appRequestHeaders(`Bearer ${input.jwt}`, "ghostget-release-writer"),
     method: "GET",
     redirect: "error",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MILLISECONDS),
@@ -529,7 +529,7 @@ async function inspectWithFetch(input) {
 
 async function inspectInstallationWithFetch(input) {
   const response = await fetch(new URL(`/app/installations/${String(input.installationId)}`, input.apiUrl), {
-    headers: appRequestHeaders(`Bearer ${input.jwt}`, "wrench-release-writer"),
+    headers: appRequestHeaders(`Bearer ${input.jwt}`, "ghostget-release-writer"),
     method: "GET",
     redirect: "error",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MILLISECONDS),
@@ -542,7 +542,7 @@ async function mintWithFetch(input) {
   const response = await fetch(new URL(`/app/installations/${String(input.installationId)}/access_tokens`, input.apiUrl), {
     body: JSON.stringify(input.body),
     headers: {
-      ...appRequestHeaders(`Bearer ${input.jwt}`, "wrench-release-writer"),
+      ...appRequestHeaders(`Bearer ${input.jwt}`, "ghostget-release-writer"),
       "Content-Type": "application/json",
     },
     method: "POST",
@@ -592,7 +592,7 @@ async function fetchRevocationDeletionResponse(input, request) {
   let response;
   try {
     response = await input.fetchImplementation(request.url, {
-      headers: appRequestHeaders(`Bearer ${input.token}`, "wrench-release-writer"),
+      headers: appRequestHeaders(`Bearer ${input.token}`, "ghostget-release-writer"),
       method: "DELETE",
       redirect: "error",
       signal: input.createTimeoutSignal(REQUEST_TIMEOUT_MILLISECONDS),
@@ -616,7 +616,7 @@ async function fetchRevocationObservationResponse(input, request) {
   let response;
   try {
     response = await input.fetchImplementation(request.url, {
-      headers: appRequestHeaders(`Bearer ${input.token}`, "wrench-release-writer"),
+      headers: appRequestHeaders(`Bearer ${input.token}`, "ghostget-release-writer"),
       method: request.method,
       redirect: "error",
       signal: input.createTimeoutSignal(timeoutMilliseconds),

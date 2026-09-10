@@ -399,8 +399,8 @@ if (
 }
 
 for (const expectedMessage of [
-  "Wrench live receipt auth does not match its request",
-  "Wrench live receipt public authority is malformed",
+  "Ghostget live receipt auth does not match its request",
+  "Ghostget live receipt public authority is malformed",
 ] as const) {
   let message = "";
   try {
@@ -498,6 +498,6 @@ try {
 } catch (error) {
   if (
     !(error instanceof Error)
-    || !error.message.includes("Wrench client operation ID is malformed")
+    || !error.message.includes("Ghostget client operation ID is malformed")
   ) throw error;
 }

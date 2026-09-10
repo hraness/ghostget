@@ -11,7 +11,7 @@ describe("Apple Photos public client", () => {
       { library: "/private/tmp/Photos.photoslibrary", sql: "SELECT *" },
     ]) {
       expect(() => exportApplePhotosContactEvidenceSync(request as never)).toThrow(
-        "Wrench Apple Photos client",
+        "Ghostget Apple Photos client",
       );
     }
   });

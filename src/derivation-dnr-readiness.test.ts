@@ -234,7 +234,7 @@ describe("contained derivation DNR readiness", () => {
           sessionId: workerSessionId,
           parameters: {
             awaitPromise: true,
-            expression: "globalThis.__wrenchCheckGuard()",
+            expression: "globalThis.__ghostgetCheckGuard()",
             returnByValue: true,
           },
         });

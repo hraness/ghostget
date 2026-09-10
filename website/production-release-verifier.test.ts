@@ -17,27 +17,28 @@ import {
   type BoundedChildProcess,
   type ProductionReleaseEvidence,
 } from "./production-release-verifier";
-import { parseReleaseAssetDescriptors, releaseAssetNames } from "./github-release-artifact.mjs";
+import { parseReleaseAssetDescriptors, releaseAssetNames, releaseIdentity } from "./github-release-artifact.mjs";
 
-test("canonical production admission binds immutable archive bytes without npm availability", async () => {
-  const tag = "v0.16.13";
+test.each(["v0.16.15", "v0.17.0"])("canonical %s admission binds immutable archive bytes without npm availability", async tag => {
+  const brand = releaseIdentity(tag);
+  const version = tag.slice(1);
   const archive = Buffer.from("exact tested archive fixture");
   const sourceSha = "a".repeat(40);
-  const manifest = Buffer.from(JSON.stringify({ schema: "hraness-github-release-v1", repository: "hraness/wrench", repositoryId: 1316443113,
-    package: "@hraness/wrench", version: "0.16.13", tag, sourceSha, workflowSha: "b".repeat(40), workflow: ".github/workflows/release.yml", runId: 123, runAttempt: 1,
-    archive: { name: "hraness-wrench-0.16.13.tgz", bytes: archive.length, sha256: createHash("sha256").update(archive).digest("hex"), sha512: createHash("sha512").update(archive).digest("hex") },
+  const manifest = Buffer.from(JSON.stringify({ schema: "hraness-github-release-v1", repository: brand.repository, repositoryId: 1316443113,
+    package: brand.package, version, tag, sourceSha, workflowSha: "b".repeat(40), workflow: ".github/workflows/release.yml", runId: 123, runAttempt: 1,
+    archive: { name: releaseAssetNames(tag)[0], bytes: archive.length, sha256: createHash("sha256").update(archive).digest("hex"), sha512: createHash("sha512").update(archive).digest("hex") },
   }));
   const assets = releaseAssetNames(tag).map((name, index) => {
     const bytes = name.endsWith(".tgz") ? archive : name === "release-manifest.json" ? manifest : Buffer.from("admitted metadata");
     return { id: index + 1, name, size: bytes.length, state: "uploaded", digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
-      url: `https://api.github.com/repos/hraness/wrench/releases/assets/${index + 1}`,
-      browser_download_url: `https://github.com/hraness/wrench/releases/download/${tag}/${name}` };
+      url: `https://api.github.com/repos/hraness/ghostget/releases/assets/${index + 1}`,
+      browser_download_url: `https://github.com/hraness/ghostget/releases/download/${tag}/${name}` };
   });
   const release = { id: 1, tag_name: tag, draft: false, prerelease: false, immutable: true, target_commitish: sourceSha,
-    author: { id: 41898282, type: "Bot" }, body: `wrench-release-source-v1 repository=hraness/wrench tag=${tag} source_sha=${sourceSha} workflow_run_id=123`, assets };
+    author: { id: 41898282, type: "Bot" }, body: `wrench-release-source-v1 repository=${brand.repository} tag=${tag} source_sha=${sourceSha} workflow_run_id=123`, assets };
   const evidence = { headSha: sourceSha, githubTagCommitSha: sourceSha, githubRelease: release, latestGithubRelease: release,
     canonicalAssets: { archive, manifest } };
-  const identity = { name: "@hraness/wrench", version: "0.16.13" };
+  const identity = { name: brand.package, version };
   expect(verifyProductionReleaseEvidence(identity, evidence).sourceSha).toBe(sourceSha);
   for (const changed of [
     { ...evidence, canonicalAssets: { archive: Buffer.from("corrupt"), manifest } },
@@ -73,11 +74,11 @@ const peeledCommitSha = "1234567890abcdef1234567890abcdef12345678";
 const headSha = peeledCommitSha;
 const tagObjectSha = "abcdef1234567890abcdef1234567890abcdef12";
 const tagCommitUrl =
-  "https://api.github.com/repos/hraness/wrench/commits/refs%2Ftags%2Fv0.16.2";
+  "https://api.github.com/repos/hraness/ghostget/commits/refs%2Ftags%2Fv0.16.2";
 const ambiguousTagCommitUrls = Object.freeze([
-  "https://api.github.com/repos/hraness/wrench/commits/v0.16.2",
-  "https://api.github.com/repos/hraness/wrench/commits/tags/v0.16.2",
-  "https://api.github.com/repos/hraness/wrench/commits/refs/tags/v0.16.2",
+  "https://api.github.com/repos/hraness/ghostget/commits/v0.16.2",
+  "https://api.github.com/repos/hraness/ghostget/commits/tags/v0.16.2",
+  "https://api.github.com/repos/hraness/ghostget/commits/refs/tags/v0.16.2",
 ]);
 const packageIntegrity = `sha512-${"A".repeat(86)}==`;
 
@@ -125,9 +126,16 @@ describe("production website release verification", () => {
       tag: "v0.16.2",
       version: "0.16.2",
     });
+    expect(parseProductionReleaseIdentity({ name: "@hraness/ghostget", version: "0.17.0" })).toEqual({
+      name: "@hraness/ghostget", tag: "v0.17.0", version: "0.17.0",
+    });
+    expect(() => parseProductionReleaseIdentity({ name: "@hraness/ghostget", version: "0.16.16" }))
+      .toThrow("must name @hraness/wrench");
+    expect(() => parseProductionReleaseIdentity({ name: "@hraness/wrench", version: "0.17.0" }))
+      .toThrow("must name @hraness/ghostget");
     expect(() => parseProductionReleaseIdentity({ ...packageValue, version: "0.16.2-rc.1" }))
       .toThrow("stable semantic version");
-    expect(() => parseProductionReleaseIdentity({ ...packageValue, name: "wrench" }))
+    expect(() => parseProductionReleaseIdentity({ ...packageValue, name: "ghostget" }))
       .toThrow("must name @hraness/wrench");
   });
 
@@ -376,8 +384,8 @@ describe("production website release verification", () => {
     expect(requested).toEqual([
       tagCommitUrl,
       "https://registry.npmjs.org/%40hraness%2Fwrench/0.16.2",
-      "https://api.github.com/repos/hraness/wrench/releases/tags/v0.16.2",
-      "https://api.github.com/repos/hraness/wrench/releases/latest",
+      "https://api.github.com/repos/hraness/ghostget/releases/tags/v0.16.2",
+      "https://api.github.com/repos/hraness/ghostget/releases/latest",
     ]);
     for (const ambiguousUrl of ambiguousTagCommitUrls) {
       expect(requested).not.toContain(ambiguousUrl);

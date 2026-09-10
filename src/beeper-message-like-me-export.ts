@@ -805,8 +805,8 @@ function parseRecord(value: unknown, index: number): ParsedRecord {
   try {
     contractRecord = parseLocalMessageBundleV1Record(value, kind, label);
   } catch {
-    // Preserve the legacy Wrench diagnostic when the legacy parser can name
-    // the same invalid field. A value that legacy Wrench accepted but the
+    // Preserve the legacy Ghostget diagnostic when the legacy parser can name
+    // the same invalid field. A value that legacy Ghostget accepted but the
     // shared v1 authority rejects still fails at the generic contract gate.
     parseRecordWithKind(candidate, kind, label);
     return fail(`${label} violates the Message Like Me bundle v1 contract`);

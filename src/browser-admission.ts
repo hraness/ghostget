@@ -23,7 +23,7 @@ import {
   ensurePrivateStateDirectory,
   readPrivateStateFileIfPresent,
   removePrivateStateFileIfUnchanged,
-  wrenchStateHome,
+  ghostgetStateHome,
 } from "./storage";
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -248,7 +248,7 @@ export function parseBrowserAdmissionClaim(
 
 function claimDirectory(environment: Environment): string {
   return join(
-    wrenchStateHome(environment),
+    ghostgetStateHome(environment),
     ...BROWSER_ADMISSION_STATE_DIRECTORY.split("/"),
   );
 }
@@ -795,7 +795,7 @@ export async function acquireBrowserAdmission(
         || status !== "different-or-dead"
       ) {
         // Same-boot, exact-live, and unverifiable owners all retain their slot.
-        // A same-boot browser daemon can outlive its Wrench owner process.
+        // A same-boot browser daemon can outlive its Ghostget owner process.
         continue;
       }
       let removed: boolean;

@@ -24,7 +24,7 @@ const DIGEST_PATTERN = /^[a-f0-9]{64}$/u;
 type JsonRecord = Readonly<Record<string, unknown>>;
 
 function fail(message: string): never {
-  throw new Error(`Wrench WhatsApp client: ${message}`);
+  throw new Error(`Ghostget WhatsApp client: ${message}`);
 }
 
 function record(value: unknown, label: string): JsonRecord {
@@ -311,7 +311,7 @@ function cliSourcePath(): string {
   if (existsSync(besideSource)) return besideSource;
   const packagedSource = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
   if (existsSync(packagedSource)) return packagedSource;
-  return fail("the installed Wrench CLI source is unavailable");
+  return fail("the installed Ghostget CLI source is unavailable");
 }
 
 function preparedEnvironment(
@@ -340,7 +340,7 @@ export function exportWhatsAppMessageLikeMeSync(
   optionsValue: WhatsAppMessageLikeMeClientOptions = {},
 ): WhatsAppMessageLikeMeExportReceipt {
   if (typeof process.versions.bun !== "string") {
-    return fail("@hraness/wrench/whatsapp requires Bun");
+    return fail("@hraness/ghostget/whatsapp requires Bun");
   }
   const request = record(requestValue, "request");
   exact(request, ["authId", "output"], "request");

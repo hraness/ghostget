@@ -27,7 +27,7 @@ function state() {
   const root = mkdtempSync(join(tmpdir(), "wrench-messaging-action-"));
   chmodSync(root, 0o700);
   roots.push(root);
-  return { root, environment: { WRENCH_STATE_HOME: root } };
+  return { root, environment: { GHOSTGET_STATE_HOME: root } };
 }
 
 function plan(): MessagingCompositeInvocationPlanV1 {

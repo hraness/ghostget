@@ -190,7 +190,7 @@ const defaultProcessDependencies: MediaProcessDependencies = {
 
 const defaultDerivativeDependencies: MediaDerivativeDependencies = defaultProcessDependencies;
 
-/** Parses the bounded JSON envelope emitted by Wrench media's ffprobe invocation. */
+/** Parses the bounded JSON envelope emitted by Ghostget media's ffprobe invocation. */
 export function parseFfprobeJson(input: unknown): FfprobeParseResult {
   let value: unknown = input;
   if (typeof input === "string") {
@@ -311,7 +311,7 @@ export function buildFfmpegDerivativeArgv(
   ];
 }
 
-/** Builds the complete, shell-free command for Wrench media's transcription PCM profile. */
+/** Builds the complete, shell-free command for Ghostget media's transcription PCM profile. */
 export function buildPcmNormalizationArgv(
   inputPath: string,
   outputPath: string,
@@ -354,7 +354,7 @@ export function buildPcmNormalizationArgv(
 }
 
 /**
- * Parses only the canonical seekable RIFF/WAVE envelope emitted by Wrench media's
+ * Parses only the canonical seekable RIFF/WAVE envelope emitted by Ghostget media's
  * fixed PCM command. Extra chunks and streaming/RF64 variants fail closed.
  */
 export function parseNormalizedPcmWaveHeader(
@@ -378,7 +378,7 @@ export function parseNormalizedPcmWaveHeader(
     || !asciiEquals(input, 12, "fmt ")
     || !asciiEquals(input, 36, "data")
   ) {
-    return pcmHeaderFailure("invalid-container", "Normalized PCM output is not Wrench media's canonical RIFF/WAVE envelope.");
+    return pcmHeaderFailure("invalid-container", "Normalized PCM output is not Ghostget media's canonical RIFF/WAVE envelope.");
   }
 
   const view = new DataView(input.buffer, input.byteOffset, input.byteLength);
@@ -549,7 +549,7 @@ export async function inspectMedia(
     return {
       ok: false,
       reason: "invalid-output",
-      diagnostic: "ffprobe output exceeded Wrench media's inspection limit.",
+      diagnostic: "ffprobe output exceeded Ghostget media's inspection limit.",
     };
   }
 

@@ -65,7 +65,7 @@ describe("yt-dlp argv", () => {
     expect(argv).not.toContain("--write-link");
   });
 
-  test("keeps Wrench media-owned probe policy when ambient config is explicitly inherited", () => {
+  test("keeps Ghostget media-owned probe policy when ambient config is explicitly inherited", () => {
     const argv = buildYtDlpProbeArgv({
       executable: "yt-dlp",
       url: "https://example.com/manifest.mpd",
@@ -353,7 +353,7 @@ describe("yt-dlp capture identity", () => {
     });
     expect(result).toEqual({
       ok: false,
-      diagnostic: "yt-dlp capture exceeded Wrench media's identity output limit",
+      diagnostic: "yt-dlp capture exceeded Ghostget media's identity output limit",
     });
   });
 

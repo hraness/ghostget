@@ -39,7 +39,7 @@ function stateEnvironment(): Readonly<Record<string, string | undefined>> {
   const root = mkdtempSync(join(tmpdir(), "wrench-marketplace-cursor-"));
   chmodSync(root, 0o700);
   stateRoots.push(root);
-  return { ...process.env, WRENCH_STATE_HOME: root };
+  return { ...process.env, GHOSTGET_STATE_HOME: root };
 }
 
 function preloader(

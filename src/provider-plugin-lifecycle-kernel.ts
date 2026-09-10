@@ -45,7 +45,7 @@ import {
 } from "./runtime";
 import {
   listInstalledDiagnosticManifestSnapshots,
-  wrenchStateHome,
+  ghostgetStateHome,
   snapshotPrivateStateDirectory,
   type PrivateStateDirectoryEntry,
 } from "./storage";
@@ -198,7 +198,7 @@ export function inspectPortableProviderPluginQuiescence(
     if (blockers.length < MAX_REPORTED_BLOCKERS) blockers.push(value);
   };
 
-  const root = wrenchStateHome(environment);
+  const root = ghostgetStateHome(environment);
   const directoryShapes = [
     {
       label: "plans",

@@ -1124,7 +1124,7 @@ describe("Beeper Message Like Me bundle recovery", () => {
     const parent = await privateTemporaryRoot();
     const outputRoot = join(parent, "recovery-success");
     const stateRoot = join(parent, "state");
-    const environment = { WRENCH_STATE_HOME: stateRoot };
+    const environment = { GHOSTGET_STATE_HOME: stateRoot };
 
     await exportBeeperMessageLikeMeBundle({
       outputRoot,
@@ -1149,7 +1149,7 @@ describe("Beeper Message Like Me bundle recovery", () => {
     const parent = await privateTemporaryRoot();
     const outputRoot = join(parent, "recovery-failure");
     const stateRoot = join(parent, "state");
-    const environment = { WRENCH_STATE_HOME: stateRoot };
+    const environment = { GHOSTGET_STATE_HOME: stateRoot };
     const fixture = source();
 
     await expect(exportBeeperMessageLikeMeBundle({
@@ -1178,7 +1178,7 @@ describe("Beeper Message Like Me bundle recovery", () => {
     const parent = await privateTemporaryRoot();
     const outputRoot = join(parent, "recovery-disposal-rollback");
     const stateRoot = join(parent, "state");
-    const environment = { WRENCH_STATE_HOME: stateRoot };
+    const environment = { GHOSTGET_STATE_HOME: stateRoot };
 
     await expect(exportBeeperMessageLikeMeBundle({
       outputRoot,

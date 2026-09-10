@@ -11,7 +11,7 @@ import {
   type StrictCookie,
 } from "@hraness/kb/clip/cookies";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { OperationDeadline, OperationDeadlineError } from "./operation-deadline";
 import { pinnedHttpsFetch } from "./pinned-https";
 import type { WebSessionOperationDeadline } from "./web-session-execution";
@@ -30,13 +30,13 @@ export type WebSessionNetworkDependencies = {
 };
 
 export type WebSessionCookieRotationEntry = {
-  /** Time at which wrench accepted this exact provider response value. */
+  /** Time at which ghostget accepted this exact provider response value. */
   readonly acceptedAtSeconds: number;
   readonly cookie: StrictCookie;
 };
 
 export type WebSessionCookieRotationTombstone = {
-  /** Time at which wrench accepted the provider's exact deletion response. */
+  /** Time at which ghostget accepted the provider's exact deletion response. */
   readonly acceptedAtSeconds: number;
   readonly domain: string;
   readonly hostOnly: boolean;
@@ -192,7 +192,7 @@ function remainingRequestTimeMs(
   return remaining;
 }
 
-function cookieSelection(auth: WrenchAuth, timeoutMs: number): CookieSelection {
+function cookieSelection(auth: GhostgetAuth, timeoutMs: number): CookieSelection {
   if (auth.kind === "cookie-source") {
     return {
       cookieSources: [auth.source],
@@ -460,14 +460,14 @@ export function webSessionCookie(cookies: readonly StrictCookie[], name: string)
   }
 }
 
-export function webSessionAuthSubject(auth: WrenchAuth): string | null {
+export function webSessionAuthSubject(auth: GhostgetAuth): string | null {
   if (!("subject" in auth) || typeof auth.subject !== "string" || auth.subject.length === 0) return null;
   return auth.subject;
 }
 
 export async function createWebSessionClient(
   origin: string,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs: number;
     readonly signal?: AbortSignal;

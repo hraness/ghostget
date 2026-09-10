@@ -17,7 +17,7 @@ import {
   filterCookies,
 } from "@hraness/kb/clip/cookies";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import {
   browserCleanupBarrier,
   type BrowserFileResolver,
@@ -145,12 +145,12 @@ export type LinkedInWebRuntimeDependencies = Partial<WebSessionNetworkDependenci
   readonly now?: () => number;
   /** Test seam for the auth-hash-bound encrypted LinkedIn rotation cache. */
   readonly loadCachedCookies?: (
-    auth: WrenchAuth,
+    auth: GhostgetAuth,
     authHash: string,
   ) => SessionSecretSnapshot | Promise<SessionSecretSnapshot>;
   /** Test seam for the auth-hash-bound encrypted LinkedIn rotation cache. */
   readonly saveCachedCookies?: (
-    auth: WrenchAuth,
+    auth: GhostgetAuth,
     authHash: string,
     value: unknown,
     expectedContentSha256: string | null,
@@ -435,7 +435,7 @@ function linkedInCacheHasOrderedProvenance(
 }
 
 async function loadLinkedInCookieSnapshot(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   authHash: string,
   dependencies: LinkedInWebRuntimeDependencies | undefined,
 ): Promise<SessionSecretSnapshot> {
@@ -457,7 +457,7 @@ async function loadLinkedInCookieSnapshot(
 }
 
 async function saveLinkedInCookieSnapshot(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   authHash: string,
   value: unknown,
   expectedContentSha256: string | null,
@@ -480,7 +480,7 @@ async function saveLinkedInCookieSnapshot(
 }
 
 async function createLinkedInClient(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   timeoutMs: number,
   dependencies: LinkedInWebRuntimeDependencies | undefined,
   budget: {
@@ -716,7 +716,7 @@ async function currentIdentity(
 }
 
 export async function probeLinkedInWebSubject(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs?: number;
     readonly dependencies?: LinkedInWebRuntimeDependencies;
@@ -768,7 +768,7 @@ export async function probeLinkedInWebSubject(
 }
 
 function boundLinkedInStatsIdentity(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   identity: Pick<LinkedInCurrentIdentity, "subject">,
 ): string {
   const expected = webSessionAuthSubject(auth);
@@ -833,7 +833,7 @@ function linkedInProfileStatsFailure(
 }
 
 async function createLinkedInStatsBrowserTransport(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   recipe: WebSessionRecipe,
   options: LinkedInWebExecutionOptions,
 ): Promise<LinkedInProfileBrowserTransport> {
@@ -854,7 +854,7 @@ async function createLinkedInStatsBrowserTransport(
 async function executeLinkedInContactInfoRead(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: LinkedInWebExecutionOptions,
 ): Promise<WebSessionExecution> {
   const target = linkedInContactInfoTarget(input.profile_url);
@@ -871,7 +871,7 @@ async function executeLinkedInContactInfoRead(
 async function executeLinkedInPersonalProfileRead(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: LinkedInWebExecutionOptions,
 ): Promise<WebSessionExecution> {
   const target = linkedInPersonalProfileTarget(input.profile_url);
@@ -896,7 +896,7 @@ async function executeLinkedInPersonalProfileRead(
 async function executeLinkedInOrganizationRead(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: LinkedInWebExecutionOptions,
 ): Promise<WebSessionExecution> {
   const target = linkedInOrganizationTarget(input.organization_url);
@@ -980,7 +980,7 @@ function linkedInArticleHeaders(
 }
 
 async function createDirectLinkedInArticleTransport(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   timeoutMs: number,
   options: LinkedInWebExecutionOptions,
 ): Promise<LinkedInArticleBrowserTransport> {
@@ -1081,7 +1081,7 @@ async function createDirectLinkedInArticleTransport(
 }
 
 async function createLinkedInArticleTransport(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   timeoutMs: number,
   options: LinkedInWebExecutionOptions,
 ): Promise<LinkedInArticleBrowserTransport> {
@@ -1219,7 +1219,7 @@ async function materializeLinkedInPostImage(
 }
 
 async function createLinkedInPostTransport(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   timeoutMs: number,
   options: LinkedInWebExecutionOptions,
 ): Promise<LinkedInPostBrowserTransport> {
@@ -1272,7 +1272,7 @@ function parseLinkedInAcceptedPostTarget(
 async function readLinkedInWebAcceptedPostTargetPresenceInternal(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   acceptedIdentifier: string,
   options: LinkedInWebExecutionOptions,
 ): Promise<Readonly<{
@@ -1337,7 +1337,7 @@ async function readLinkedInWebAcceptedPostTargetPresenceInternal(
 export function readLinkedInWebAcceptedPostTargetPresence(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   acceptedIdentifier: string,
   options: LinkedInWebExecutionOptions = {},
 ): Promise<Readonly<{
@@ -1465,7 +1465,7 @@ async function readLinkedInArticleDraftV2Metadata(
 
 function requireBoundLinkedInIdentity(
   identity: LinkedInCurrentIdentity,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
 ): string {
   const expectedSubject = webSessionAuthSubject(auth);
   if (expectedSubject === null || expectedSubject !== identity.subject) {
@@ -1490,7 +1490,7 @@ function articleDispatchEvent(
 export async function readLinkedInWebArticleDraftDesiredState(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly dependencies?: LinkedInWebRuntimeDependencies;
     readonly operationDeadline?: WebSessionOperationDeadline;
@@ -1545,7 +1545,7 @@ export async function readLinkedInWebArticleDraftDesiredState(
 async function executeLinkedInPostPublish(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: LinkedInWebExecutionOptions,
 ): Promise<WebSessionExecution> {
   if (
@@ -1679,7 +1679,7 @@ async function executeLinkedInPostPublish(
 async function executeLinkedInArticleDraftSave(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: LinkedInWebExecutionOptions,
 ): Promise<WebSessionExecution> {
   if (
@@ -1859,7 +1859,7 @@ async function executeLinkedInArticleDraftSave(
 async function executeLinkedInArticleDraftSaveV7(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: LinkedInWebExecutionOptions,
 ): Promise<WebSessionExecution> {
   if (
@@ -1890,7 +1890,7 @@ async function executeLinkedInArticleDraftSaveV7(
   }
   const fixtureAssets = Object.freeze(Array.from(
     { length: imageCount },
-    (_, index) => `urn:li:digitalmediaAsset:wrenchFixture${index}`,
+    (_, index) => `urn:li:digitalmediaAsset:ghostgetFixture${index}`,
   ));
   buildLinkedInArticleContentPatchV2(document, fixtureAssets);
   const requestedDraftId = input.draft_id === undefined
@@ -2112,7 +2112,7 @@ async function executeLinkedInArticleDraftSaveV7(
 async function executeLinkedInProfileActivityRead(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: LinkedInWebExecutionOptions,
 ): Promise<WebSessionExecution> {
   const feed = linkedInProfileActivityFeed(input.feed);
@@ -2153,7 +2153,7 @@ async function executeLinkedInProfileActivityRead(
 export async function executeLinkedInWebOperation(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: LinkedInWebExecutionOptions = {},
 ): Promise<WebSessionExecution> {
   if (

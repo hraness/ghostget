@@ -54,7 +54,7 @@ const PORTABLE_IDENTITY: PortableOperationIdentityV1 = Object.freeze({
 function state(): TestState {
   const directory = mkdtempSync(join(tmpdir(), "wrench-recovery-test-"));
   chmodSync(directory, 0o700);
-  return { directory, environment: { WRENCH_STATE_HOME: directory } };
+  return { directory, environment: { GHOSTGET_STATE_HOME: directory } };
 }
 
 function capsule(

@@ -12,7 +12,7 @@ must wait for a provider-owned immutable-spool transport.
 2. Stream it once into a private, quota-checked, mode-0600 staging file while
    computing SHA-256 and the provider-specific MP4 metadata. Verify the source
    file identity before and after that copy.
-3. Flush the completed staging file and atomically promote it to a Wrench-owned
+3. Flush the completed staging file and atomically promote it to a Ghostget-owned
    immutable spool entry. Reopen that exact entry without following symlinks and
    bind its device, inode, byte length, digest, media type, and metadata into the
    dispatch checkpoint.

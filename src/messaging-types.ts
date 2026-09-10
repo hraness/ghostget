@@ -9,40 +9,40 @@ import { types as nodeTypes } from "node:util";
 
 import { canonicalJson, sha256 } from "./canonical-json";
 import {
-  WRENCH_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_DESCRIPTOR,
-  WRENCH_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_HASH,
-  WRENCH_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_ID,
-  WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR,
-  WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH,
-  WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_ID,
-  WRENCH_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_DESCRIPTOR,
-  WRENCH_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_HASH,
-  WRENCH_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_ID,
-  WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR,
-  WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH,
-  WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID,
-  parseWrenchMessagingContextBindingV1,
-  parseWrenchMessagingContextBindingV2,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_ID,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_ID,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_ID,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID,
+  parseGhostgetMessagingContextBindingV1,
+  parseGhostgetMessagingContextBindingV2,
   type MessageLikeMeSourceConversationCoordinateBindingV1,
-  type WrenchMessagingContextBindingV1,
-  type WrenchMessagingContextBindingV2,
-  type WrenchMessagingReceiptBindingV1,
-  type WrenchMessagingReceiptBindingV2,
+  type GhostgetMessagingContextBindingV1,
+  type GhostgetMessagingContextBindingV2,
+  type GhostgetMessagingReceiptBindingV1,
+  type GhostgetMessagingReceiptBindingV2,
 } from "./message-like-me-agentic-messaging";
 
 export const MESSAGING_CONTEXT_BINDING_V1_CONTRACT_ID =
-  WRENCH_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_ID;
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_ID;
 export const MESSAGING_CONTEXT_BINDING_V1_CONTRACT_DESCRIPTOR =
-  WRENCH_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_DESCRIPTOR;
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_DESCRIPTOR;
 export const MESSAGING_CONTEXT_BINDING_V1_CONTRACT_HASH =
-  WRENCH_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_HASH;
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_HASH;
 
 export const MESSAGING_CONTEXT_BINDING_V2_CONTRACT_ID =
-  WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_ID;
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_ID;
 export const MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR =
-  WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR;
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR;
 export const MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH =
-  WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH;
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH;
 
 export const MESSAGING_CONTEXT_BINDING_CONTRACT_ID =
   MESSAGING_CONTEXT_BINDING_V2_CONTRACT_ID;
@@ -55,18 +55,18 @@ export const MESSAGING_CONTEXT_BINDING_CONTRACT_HASH =
   MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH;
 
 export const MESSAGING_RECEIPT_BINDING_V1_CONTRACT_ID =
-  WRENCH_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_ID;
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_ID;
 export const MESSAGING_RECEIPT_BINDING_V1_CONTRACT_DESCRIPTOR =
-  WRENCH_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_DESCRIPTOR;
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_DESCRIPTOR;
 export const MESSAGING_RECEIPT_BINDING_V1_CONTRACT_HASH =
-  WRENCH_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_HASH;
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_HASH;
 
 export const MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID =
-  WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID;
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID;
 export const MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR =
-  WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR;
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR;
 export const MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH =
-  WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH;
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH;
 
 export const MESSAGING_RECEIPT_BINDING_CONTRACT_ID =
   MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID;
@@ -123,7 +123,7 @@ export type MessagingRouteResolveRequestV1 = {
 export type MessagingRouteResolveRequestV2 = {
   readonly schemaVersion: 2;
   readonly format: "wrench.messaging-route-resolve-request";
-  /** Opaque reference to one checked list candidate in Wrench private state. */
+  /** Opaque reference to one checked list candidate in Ghostget private state. */
   readonly routeRef: string;
 };
 
@@ -207,13 +207,13 @@ export type MessagingContextRequestV1 = {
 };
 
 export type MessagingContextBindingV1 = {
-  readonly [Key in keyof WrenchMessagingContextBindingV1]:
-    WrenchMessagingContextBindingV1[Key];
+  readonly [Key in keyof GhostgetMessagingContextBindingV1]:
+    GhostgetMessagingContextBindingV1[Key];
 };
 
 export type MessagingContextBindingV2 = {
-  readonly [Key in keyof WrenchMessagingContextBindingV2]:
-    WrenchMessagingContextBindingV2[Key];
+  readonly [Key in keyof GhostgetMessagingContextBindingV2]:
+    GhostgetMessagingContextBindingV2[Key];
 };
 
 export type MessagingContextBinding =
@@ -296,13 +296,13 @@ export type MessagingPreviewV1 = {
 };
 
 export type MessagingReceiptBindingV1 = {
-  readonly [Key in keyof WrenchMessagingReceiptBindingV1]:
-    WrenchMessagingReceiptBindingV1[Key];
+  readonly [Key in keyof GhostgetMessagingReceiptBindingV1]:
+    GhostgetMessagingReceiptBindingV1[Key];
 };
 
 export type MessagingReceiptBindingV2 = {
-  readonly [Key in keyof WrenchMessagingReceiptBindingV2]:
-    WrenchMessagingReceiptBindingV2[Key];
+  readonly [Key in keyof GhostgetMessagingReceiptBindingV2]:
+    GhostgetMessagingReceiptBindingV2[Key];
 };
 
 export type MessagingReceiptBinding =
@@ -539,7 +539,7 @@ function id(value: unknown, label: string, maximum = 256): string {
 function routeRef(value: unknown, label: string): string {
   const result = id(value, label, 128);
   if (!/^wmroute_[A-Za-z0-9_-]{22}$/u.test(result)) {
-    return fail(label, "must be a Wrench messaging route reference");
+    return fail(label, "must be a Ghostget messaging route reference");
   }
   return result;
 }
@@ -547,7 +547,7 @@ function routeRef(value: unknown, label: string): string {
 function contextRef(value: unknown, label: string): string {
   const result = id(value, label, 128);
   if (!/^wmcontext_[A-Za-z0-9_-]{22}$/u.test(result)) {
-    return fail(label, "must be a Wrench messaging context reference");
+    return fail(label, "must be a Ghostget messaging context reference");
   }
   return result;
 }
@@ -555,7 +555,7 @@ function contextRef(value: unknown, label: string): string {
 function replyRef(value: unknown, label: string): string {
   const result = id(value, label, 128);
   if (!/^wmreply_[A-Za-z0-9_-]{22}$/u.test(result)) {
-    return fail(label, "must be a Wrench messaging reply reference");
+    return fail(label, "must be a Ghostget messaging reply reference");
   }
   return result;
 }
@@ -835,14 +835,14 @@ export function messagingTurnDigest(turn: MessagingTurnV1): string {
 }
 
 export function parseMessagingContextBindingV1(value: unknown): MessagingContextBindingV1 {
-  const parsed = parseWrenchMessagingContextBindingV1(value);
+  const parsed = parseGhostgetMessagingContextBindingV1(value);
   routeRef(parsed.routeRef, "messaging context binding.routeRef");
   contextRef(parsed.contextRef, "messaging context binding.contextRef");
   return parsed;
 }
 
 export function parseMessagingContextBindingV2(value: unknown): MessagingContextBindingV2 {
-  const parsed = parseWrenchMessagingContextBindingV2(value);
+  const parsed = parseGhostgetMessagingContextBindingV2(value);
   routeRef(parsed.routeRef, "messaging context binding.routeRef");
   contextRef(parsed.contextRef, "messaging context binding.contextRef");
   return parsed;

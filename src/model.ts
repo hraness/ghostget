@@ -33,14 +33,14 @@ export { canonicalJson, sha256 } from "./canonical-json";
 export { DOM_ACTION_TRANSPORT_DISABLED_MESSAGE } from "./transport-policy";
 export type { WebSessionSiteId } from "./web-session-sites";
 
-export const WRENCH_MANIFEST_SCHEMA_VERSION = 2 as const;
-export const WRENCH_PROVIDER_MANIFEST_SCHEMA_VERSION = 3 as const;
-export const WRENCH_WEB_SESSION_MANIFEST_SCHEMA_VERSION = 4 as const;
-export const WRENCH_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION = 5 as const;
-export const WRENCH_LOCAL_CLI_MANIFEST_SCHEMA_VERSION = 6 as const;
-export const WRENCH_LEGACY_MANIFEST_SCHEMA_VERSION = 1 as const;
+export const GHOSTGET_MANIFEST_SCHEMA_VERSION = 2 as const;
+export const GHOSTGET_PROVIDER_MANIFEST_SCHEMA_VERSION = 3 as const;
+export const GHOSTGET_WEB_SESSION_MANIFEST_SCHEMA_VERSION = 4 as const;
+export const GHOSTGET_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION = 5 as const;
+export const GHOSTGET_LOCAL_CLI_MANIFEST_SCHEMA_VERSION = 6 as const;
+export const GHOSTGET_LEGACY_MANIFEST_SCHEMA_VERSION = 1 as const;
 /** Canonical manifest hash of the sole schema-v1 LinkedIn migration fixture. */
-export const WRENCH_LEGACY_LINKEDIN_MANIFEST_HASH = "bbdd1f8c1a532d621a367776770c968fd06cb7cf3b343d64ccda4b53690bb42f";
+export const GHOSTGET_LEGACY_LINKEDIN_MANIFEST_HASH = "bbdd1f8c1a532d621a367776770c968fd06cb7cf3b343d64ccda4b53690bb42f";
 export const operationRisks = ["R1", "R2", "R3", "R4"] as const;
 export type OperationRisk = (typeof operationRisks)[number];
 export const idempotencyKinds = ["none", "local-at-most-once"] as const;
@@ -220,7 +220,7 @@ export type ReviewedTemplateRecipe =
       readonly template: WebSessionTemplate;
     };
 
-type WrenchOperationCommon = {
+type GhostgetOperationCommon = {
   readonly description: string;
   readonly risk: OperationRisk;
   readonly sideEffect: string;
@@ -229,7 +229,7 @@ type WrenchOperationCommon = {
   readonly input: InputSchema;
 };
 
-export type BrowserWrenchOperation = WrenchOperationCommon & {
+export type BrowserGhostgetOperation = GhostgetOperationCommon & {
   readonly browser: BrowserRecipe;
   readonly provider?: never;
   readonly webSession?: never;
@@ -237,7 +237,7 @@ export type BrowserWrenchOperation = WrenchOperationCommon & {
   readonly localCli?: never;
 };
 
-export type ProviderWrenchOperation = WrenchOperationCommon & {
+export type ProviderGhostgetOperation = GhostgetOperationCommon & {
   readonly browser?: never;
   readonly provider: ProviderRecipe;
   readonly webSession?: never;
@@ -245,7 +245,7 @@ export type ProviderWrenchOperation = WrenchOperationCommon & {
   readonly localCli?: never;
 };
 
-export type WebSessionWrenchOperation = WrenchOperationCommon & {
+export type WebSessionGhostgetOperation = GhostgetOperationCommon & {
   readonly browser?: never;
   readonly provider?: never;
   readonly webSession: WebSessionRecipe;
@@ -253,7 +253,7 @@ export type WebSessionWrenchOperation = WrenchOperationCommon & {
   readonly localCli?: never;
 };
 
-export type ReviewedTemplateWrenchOperation = WrenchOperationCommon & {
+export type ReviewedTemplateGhostgetOperation = GhostgetOperationCommon & {
   readonly browser?: never;
   readonly provider?: never;
   readonly webSession?: never;
@@ -261,7 +261,7 @@ export type ReviewedTemplateWrenchOperation = WrenchOperationCommon & {
   readonly localCli?: never;
 };
 
-export type LocalCliWrenchOperation = WrenchOperationCommon & {
+export type LocalCliGhostgetOperation = GhostgetOperationCommon & {
   readonly browser?: never;
   readonly provider?: never;
   readonly webSession?: never;
@@ -269,43 +269,43 @@ export type LocalCliWrenchOperation = WrenchOperationCommon & {
   readonly localCli: LocalCliRecipe;
 };
 
-export type WrenchOperation =
-  | BrowserWrenchOperation
-  | ProviderWrenchOperation
-  | WebSessionWrenchOperation
-  | ReviewedTemplateWrenchOperation
-  | LocalCliWrenchOperation;
+export type GhostgetOperation =
+  | BrowserGhostgetOperation
+  | ProviderGhostgetOperation
+  | WebSessionGhostgetOperation
+  | ReviewedTemplateGhostgetOperation
+  | LocalCliGhostgetOperation;
 
-export function isProviderOperation(operation: WrenchOperation): operation is ProviderWrenchOperation {
+export function isProviderOperation(operation: GhostgetOperation): operation is ProviderGhostgetOperation {
   return operation.provider !== undefined;
 }
 
-export function isWebSessionOperation(operation: WrenchOperation): operation is WebSessionWrenchOperation {
+export function isWebSessionOperation(operation: GhostgetOperation): operation is WebSessionGhostgetOperation {
   return operation.webSession !== undefined;
 }
 
-export function isReviewedTemplateOperation(operation: WrenchOperation): operation is ReviewedTemplateWrenchOperation {
+export function isReviewedTemplateOperation(operation: GhostgetOperation): operation is ReviewedTemplateGhostgetOperation {
   return operation.reviewedTemplate !== undefined;
 }
 
 export function isLocalCliOperation(
-  operation: WrenchOperation,
-): operation is LocalCliWrenchOperation {
+  operation: GhostgetOperation,
+): operation is LocalCliGhostgetOperation {
   return operation.localCli !== undefined;
 }
 
-export function isBrowserOperation(operation: WrenchOperation): operation is BrowserWrenchOperation {
+export function isBrowserOperation(operation: GhostgetOperation): operation is BrowserGhostgetOperation {
   return operation.browser !== undefined;
 }
 
-export type WrenchManifest = {
+export type GhostgetManifest = {
   readonly schemaVersion:
-    | typeof WRENCH_PROVIDER_MANIFEST_SCHEMA_VERSION
-    | typeof WRENCH_WEB_SESSION_MANIFEST_SCHEMA_VERSION
-    | typeof WRENCH_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION
-    | typeof WRENCH_LOCAL_CLI_MANIFEST_SCHEMA_VERSION
-    | typeof WRENCH_MANIFEST_SCHEMA_VERSION
-    | typeof WRENCH_LEGACY_MANIFEST_SCHEMA_VERSION;
+    | typeof GHOSTGET_PROVIDER_MANIFEST_SCHEMA_VERSION
+    | typeof GHOSTGET_WEB_SESSION_MANIFEST_SCHEMA_VERSION
+    | typeof GHOSTGET_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION
+    | typeof GHOSTGET_LOCAL_CLI_MANIFEST_SCHEMA_VERSION
+    | typeof GHOSTGET_MANIFEST_SCHEMA_VERSION
+    | typeof GHOSTGET_LEGACY_MANIFEST_SCHEMA_VERSION;
   readonly id: string;
   readonly version: string;
   readonly displayName: string;
@@ -313,7 +313,7 @@ export type WrenchManifest = {
   readonly surfaceId?: ProviderPluginSurfaceId;
   readonly origins: readonly string[];
   readonly browserDomains: readonly string[];
-  readonly operations: Readonly<Record<string, WrenchOperation>>;
+  readonly operations: Readonly<Record<string, GhostgetOperation>>;
 };
 
 export type ParseResult<T> =
@@ -416,7 +416,7 @@ function mediaTypeKinds(mediaType: string): readonly AttachmentKind[] {
 function validatePlatformCompositionSchema(
   surfaceId: PlatformSurfaceId,
   operationId: SemanticOperationName,
-  operation: WrenchOperation,
+  operation: GhostgetOperation,
   path: string,
   issues: string[],
 ): void {
@@ -516,7 +516,7 @@ function threadTextPolicy(surfaceId: PlatformSurfaceId): {
 
 function validatePlatformThreadSchema(
   surfaceId: PlatformSurfaceId,
-  operation: WrenchOperation,
+  operation: GhostgetOperation,
   path: string,
   issues: string[],
 ): void {
@@ -538,7 +538,7 @@ function validatePlatformThreadSchema(
   }
 }
 
-function validateGenericThreadSchema(operation: WrenchOperation, path: string, issues: string[]): void {
+function validateGenericThreadSchema(operation: GhostgetOperation, path: string, issues: string[]): void {
   const items = operation.input.properties.items;
   if (items?.type !== "array" || items.items.type !== "string") {
     issues.push(`${path}.input.properties.items must be an array of thread text strings`);
@@ -1297,7 +1297,7 @@ function parseOperation(
   issues: string[],
   schemaVersion: 1 | 2 | 3 | 4 | 5 | 6,
   allowedOrigins: readonly string[],
-): WrenchOperation | null {
+): GhostgetOperation | null {
   if (!isRecord(value)) {
     issues.push(`${path} must be an object`);
     return null;
@@ -1334,10 +1334,10 @@ function parseOperation(
     `${path}.input`,
     issues,
     (
-      schemaVersion === WRENCH_PROVIDER_MANIFEST_SCHEMA_VERSION
+      schemaVersion === GHOSTGET_PROVIDER_MANIFEST_SCHEMA_VERSION
       && value.provider !== undefined
     ) || (
-      schemaVersion === WRENCH_LOCAL_CLI_MANIFEST_SCHEMA_VERSION
+      schemaVersion === GHOSTGET_LOCAL_CLI_MANIFEST_SCHEMA_VERSION
       && value.localCli !== undefined
     ) ? 100 : 25,
   );
@@ -1852,9 +1852,9 @@ function validateManifestPluginOrigins(
 function validateManifestPluginSemantics(
   operationId: string,
   manifestOperation:
-    | ProviderWrenchOperation
-    | WebSessionWrenchOperation
-    | LocalCliWrenchOperation,
+    | ProviderGhostgetOperation
+    | WebSessionGhostgetOperation
+    | LocalCliGhostgetOperation,
   descriptor: ProviderPluginOperationV1,
   contractLabel: string,
   riskLabel: string,
@@ -1891,28 +1891,28 @@ function parseManifestWithContractValidation(
   value: unknown,
   requireCurrentCodeOwnedContracts: boolean,
   registry: ProviderPluginRegistry,
-): ParseResult<WrenchManifest> {
+): ParseResult<GhostgetManifest> {
   const issues: string[] = [];
   if (!isRecord(value)) return { ok: false, issues: ["manifest must be an object"] };
   exactKeys(value, ["schemaVersion", "id", "version", "displayName", "surfaceId", "origins", "browserDomains", "operations"], "manifest", issues);
-  const schemaVersion = value.schemaVersion === WRENCH_LEGACY_MANIFEST_SCHEMA_VERSION
-    ? WRENCH_LEGACY_MANIFEST_SCHEMA_VERSION
-    : value.schemaVersion === WRENCH_LOCAL_CLI_MANIFEST_SCHEMA_VERSION
-      ? WRENCH_LOCAL_CLI_MANIFEST_SCHEMA_VERSION
-    : value.schemaVersion === WRENCH_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION
-      ? WRENCH_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION
-    : value.schemaVersion === WRENCH_WEB_SESSION_MANIFEST_SCHEMA_VERSION
-      ? WRENCH_WEB_SESSION_MANIFEST_SCHEMA_VERSION
-    : value.schemaVersion === WRENCH_PROVIDER_MANIFEST_SCHEMA_VERSION
-      ? WRENCH_PROVIDER_MANIFEST_SCHEMA_VERSION
-      : WRENCH_MANIFEST_SCHEMA_VERSION;
+  const schemaVersion = value.schemaVersion === GHOSTGET_LEGACY_MANIFEST_SCHEMA_VERSION
+    ? GHOSTGET_LEGACY_MANIFEST_SCHEMA_VERSION
+    : value.schemaVersion === GHOSTGET_LOCAL_CLI_MANIFEST_SCHEMA_VERSION
+      ? GHOSTGET_LOCAL_CLI_MANIFEST_SCHEMA_VERSION
+    : value.schemaVersion === GHOSTGET_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION
+      ? GHOSTGET_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION
+    : value.schemaVersion === GHOSTGET_WEB_SESSION_MANIFEST_SCHEMA_VERSION
+      ? GHOSTGET_WEB_SESSION_MANIFEST_SCHEMA_VERSION
+    : value.schemaVersion === GHOSTGET_PROVIDER_MANIFEST_SCHEMA_VERSION
+      ? GHOSTGET_PROVIDER_MANIFEST_SCHEMA_VERSION
+      : GHOSTGET_MANIFEST_SCHEMA_VERSION;
   if (
-    value.schemaVersion !== WRENCH_LEGACY_MANIFEST_SCHEMA_VERSION
-    && value.schemaVersion !== WRENCH_MANIFEST_SCHEMA_VERSION
-    && value.schemaVersion !== WRENCH_PROVIDER_MANIFEST_SCHEMA_VERSION
-    && value.schemaVersion !== WRENCH_WEB_SESSION_MANIFEST_SCHEMA_VERSION
-    && value.schemaVersion !== WRENCH_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION
-    && value.schemaVersion !== WRENCH_LOCAL_CLI_MANIFEST_SCHEMA_VERSION
+    value.schemaVersion !== GHOSTGET_LEGACY_MANIFEST_SCHEMA_VERSION
+    && value.schemaVersion !== GHOSTGET_MANIFEST_SCHEMA_VERSION
+    && value.schemaVersion !== GHOSTGET_PROVIDER_MANIFEST_SCHEMA_VERSION
+    && value.schemaVersion !== GHOSTGET_WEB_SESSION_MANIFEST_SCHEMA_VERSION
+    && value.schemaVersion !== GHOSTGET_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION
+    && value.schemaVersion !== GHOSTGET_LOCAL_CLI_MANIFEST_SCHEMA_VERSION
   ) {
     issues.push("manifest.schemaVersion must be 1, 2, 3, 4, 5, or 6");
   }
@@ -1925,12 +1925,12 @@ function parseManifestWithContractValidation(
   const displayName = boundedString(value.displayName, "manifest.displayName", issues, 1, 100);
   let surfaceId: ProviderPluginSurfaceId | undefined;
   if (value.surfaceId !== undefined) {
-    if (schemaVersion === WRENCH_LEGACY_MANIFEST_SCHEMA_VERSION) {
+    if (schemaVersion === GHOSTGET_LEGACY_MANIFEST_SCHEMA_VERSION) {
       issues.push("manifest.surfaceId requires schemaVersion 2 or 3");
     } else if (
-      schemaVersion === WRENCH_PROVIDER_MANIFEST_SCHEMA_VERSION
-      || schemaVersion === WRENCH_WEB_SESSION_MANIFEST_SCHEMA_VERSION
-      || schemaVersion === WRENCH_LOCAL_CLI_MANIFEST_SCHEMA_VERSION
+      schemaVersion === GHOSTGET_PROVIDER_MANIFEST_SCHEMA_VERSION
+      || schemaVersion === GHOSTGET_WEB_SESSION_MANIFEST_SCHEMA_VERSION
+      || schemaVersion === GHOSTGET_LOCAL_CLI_MANIFEST_SCHEMA_VERSION
     ) {
       if (!isProviderPluginSurfaceId(value.surfaceId)) {
         issues.push("manifest.surfaceId must be a bounded lowercase kebab-case provider surface ID");
@@ -1980,7 +1980,7 @@ function parseManifestWithContractValidation(
       issues.push(`manifest.browserDomains must cover origin host ${hostname}`);
     }
   }
-  const operations: Record<string, WrenchOperation> = {};
+  const operations: Record<string, GhostgetOperation> = {};
   if (!isRecord(value.operations) || Object.keys(value.operations).length > 200) {
     issues.push("manifest.operations must be an object with at most 200 operations");
   } else {
@@ -1998,7 +1998,7 @@ function parseManifestWithContractValidation(
   // session route is installed and parseRuntimeManifest still rejects them.
   const retiredBeeperDiagnosticHash =
     !requireCurrentCodeOwnedContracts
-      && schemaVersion === WRENCH_WEB_SESSION_MANIFEST_SCHEMA_VERSION
+      && schemaVersion === GHOSTGET_WEB_SESSION_MANIFEST_SCHEMA_VERSION
       && id !== null
       && version !== null
       && displayName !== null
@@ -2020,7 +2020,7 @@ function parseManifestWithContractValidation(
       "7da2914ae8660108e31be2032c10678a5deee2129fd02186a2844329808754fa";
   const matchingKnownSurfaces = platformSurfaceIds.filter((candidate) =>
     origins.some((origin) => socialPlatformCatalog[candidate].originPolicy.exactOrigins.includes(origin as `https://${string}`)));
-  if (schemaVersion === WRENCH_LEGACY_MANIFEST_SCHEMA_VERSION && matchingKnownSurfaces.length > 0) {
+  if (schemaVersion === GHOSTGET_LEGACY_MANIFEST_SCHEMA_VERSION && matchingKnownSurfaces.length > 0) {
     const legacyLinkedIn = id === "linkedin"
       && matchingKnownSurfaces.length === 1
       && matchingKnownSurfaces[0] === "linkedin"
@@ -2033,12 +2033,12 @@ function parseManifestWithContractValidation(
     }
   }
   if (
-    schemaVersion === WRENCH_MANIFEST_SCHEMA_VERSION
-    || schemaVersion === WRENCH_PROVIDER_MANIFEST_SCHEMA_VERSION
-    || schemaVersion === WRENCH_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION
+    schemaVersion === GHOSTGET_MANIFEST_SCHEMA_VERSION
+    || schemaVersion === GHOSTGET_PROVIDER_MANIFEST_SCHEMA_VERSION
+    || schemaVersion === GHOSTGET_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION
   ) {
     const policyOperations = Object.entries(operations).filter(([, operation]) =>
-      schemaVersion !== WRENCH_PROVIDER_MANIFEST_SCHEMA_VERSION
+      schemaVersion !== GHOSTGET_PROVIDER_MANIFEST_SCHEMA_VERSION
       || isBrowserOperation(operation));
     if (surfaceId === undefined && matchingKnownSurfaces.length > 0) {
       issues.push(`manifest.surfaceId is required for reviewed platform origins (${matchingKnownSurfaces.join(", ")})`);
@@ -2062,7 +2062,7 @@ function parseManifestWithContractValidation(
       surfaceId !== undefined
       && isPlatformSurfaceId(surfaceId)
       && (
-        schemaVersion !== WRENCH_PROVIDER_MANIFEST_SCHEMA_VERSION
+        schemaVersion !== GHOSTGET_PROVIDER_MANIFEST_SCHEMA_VERSION
         || policyOperations.length > 0
       )
     ) {
@@ -2109,7 +2109,7 @@ function parseManifestWithContractValidation(
       }
     }
   }
-  if (schemaVersion === WRENCH_PROVIDER_MANIFEST_SCHEMA_VERSION) {
+  if (schemaVersion === GHOSTGET_PROVIDER_MANIFEST_SCHEMA_VERSION) {
     const hasProviderOperation = Object.values(operations).some(isProviderOperation);
     const hasBrowserOperation = Object.values(operations).some(isBrowserOperation);
     if (hasProviderOperation && surfaceId === undefined) {
@@ -2184,7 +2184,7 @@ function parseManifestWithContractValidation(
       }
     }
   }
-  if (schemaVersion === WRENCH_WEB_SESSION_MANIFEST_SCHEMA_VERSION) {
+  if (schemaVersion === GHOSTGET_WEB_SESSION_MANIFEST_SCHEMA_VERSION) {
     const hasWebSessionOperation = Object.values(operations).some(isWebSessionOperation);
     if (hasWebSessionOperation && surfaceId === undefined) {
       issues.push("manifest.surfaceId is required for schemaVersion 4 authenticated web-session adapters");
@@ -2237,7 +2237,7 @@ function parseManifestWithContractValidation(
       }
     }
   }
-  if (schemaVersion === WRENCH_LOCAL_CLI_MANIFEST_SCHEMA_VERSION) {
+  if (schemaVersion === GHOSTGET_LOCAL_CLI_MANIFEST_SCHEMA_VERSION) {
     const hasLocalCliOperation = Object.values(operations).some(isLocalCliOperation);
     if (hasLocalCliOperation && surfaceId === undefined) {
       issues.push("manifest.surfaceId is required for schemaVersion 6 local CLI adapters");
@@ -2289,7 +2289,7 @@ function parseManifestWithContractValidation(
       }
     }
   }
-  if (schemaVersion === WRENCH_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION) {
+  if (schemaVersion === GHOSTGET_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION) {
     for (const origin of origins) {
       const url = new URL(origin);
       if (url.port !== "") {
@@ -2314,7 +2314,7 @@ function parseManifestWithContractValidation(
     }
   }
   if (
-    schemaVersion === WRENCH_MANIFEST_SCHEMA_VERSION
+    schemaVersion === GHOSTGET_MANIFEST_SCHEMA_VERSION
     && Object.keys(operations).length > 0
   ) {
     const hasBrowserOperation = Object.values(operations).some(isBrowserOperation);
@@ -2343,7 +2343,7 @@ function parseManifestWithContractValidation(
     }
   }
   if (issues.length > 0 || id === null || version === null || displayName === null) return { ok: false, issues };
-  const manifest: WrenchManifest = {
+  const manifest: GhostgetManifest = {
     schemaVersion,
     id,
     version,
@@ -2354,9 +2354,9 @@ function parseManifestWithContractValidation(
     operations,
   };
   if (
-    schemaVersion === WRENCH_LEGACY_MANIFEST_SCHEMA_VERSION
+    schemaVersion === GHOSTGET_LEGACY_MANIFEST_SCHEMA_VERSION
     && id === "linkedin"
-    && sha256(canonicalJson(value)) !== WRENCH_LEGACY_LINKEDIN_MANIFEST_HASH
+    && sha256(canonicalJson(value)) !== GHOSTGET_LEGACY_LINKEDIN_MANIFEST_HASH
   ) {
     return {
       ok: false,
@@ -2366,11 +2366,11 @@ function parseManifestWithContractValidation(
   return { ok: true, value: manifest };
 }
 
-/** Parse a secret-free wrench adapter manifest and require every current code-owned contract. */
+/** Parse a secret-free ghostget adapter manifest and require every current code-owned contract. */
 export function parseManifest(
   value: unknown,
   registry: ProviderPluginRegistry,
-): ParseResult<WrenchManifest> {
+): ParseResult<GhostgetManifest> {
   return parseManifestWithContractValidation(value, true, registry);
 }
 
@@ -2384,7 +2384,7 @@ export function parseManifest(
 export function parseDiagnosticManifest(
   value: unknown,
   registry: ProviderPluginRegistry,
-): ParseResult<WrenchManifest> {
+): ParseResult<GhostgetManifest> {
   return parseManifestWithContractValidation(value, false, registry);
 }
 
@@ -2399,7 +2399,7 @@ export function parseDiagnosticManifest(
 export function parseRuntimeManifest(
   value: unknown,
   registry: ProviderPluginRegistry,
-): ParseResult<WrenchManifest> {
+): ParseResult<GhostgetManifest> {
   const parsed = parseManifest(value, registry);
   if (!parsed.ok) return parsed;
   const browserOperations = Object.entries(parsed.value.operations)
@@ -2533,7 +2533,7 @@ export function validateOperationInput(
 
 /** Enforce value-level text limits from a manifest's bound platform policy. */
 export function validatePlatformOperationInput(
-  manifest: WrenchManifest,
+  manifest: GhostgetManifest,
   operationId: string,
   input: OperationInput,
 ): ParseResult<OperationInput> {
@@ -2666,6 +2666,6 @@ export function expandBrowserRecipe(recipe: BrowserRecipe, input: OperationInput
   return { timeoutMs: recipe.timeoutMs, maxOutputBytes: recipe.maxOutputBytes, steps, dispatches };
 }
 
-export function manifestHash(manifest: WrenchManifest): string {
+export function manifestHash(manifest: GhostgetManifest): string {
   return sha256(canonicalJson(manifest));
 }

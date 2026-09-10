@@ -15,7 +15,7 @@ import {
   isWebSessionOperation,
   manifestHash,
   sha256,
-  type WrenchOperation,
+  type GhostgetOperation,
 } from "./model";
 import {
   getProviderContract,
@@ -36,7 +36,7 @@ import type {
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
 import { providerPluginRegistry } from "./provider-plugins";
 import {
-  wrenchStateHome,
+  ghostgetStateHome,
   listInstalledManifests,
 } from "./storage";
 import {
@@ -44,7 +44,7 @@ import {
   webSessionContractHash,
 } from "./web-session-contracts";
 
-export type WrenchCatalogCommand =
+export type GhostgetCatalogCommand =
   | {
       readonly command: "capabilities";
       readonly adapterId?: string;
@@ -57,7 +57,7 @@ export type WrenchCatalogCommand =
       readonly json: boolean;
     };
 
-export type WrenchCatalogOutput = {
+export type GhostgetCatalogOutput = {
   readonly stdout: (value: string) => void;
   readonly stderr: (value: string) => void;
 };
@@ -88,7 +88,7 @@ function safeJson(
 }
 
 function print(
-  output: WrenchCatalogOutput,
+  output: GhostgetCatalogOutput,
   value: unknown,
   json: boolean,
   reviewedPublicStrings: ReadonlySet<string> = new Set(),
@@ -115,7 +115,7 @@ function providerPluginTrustBoundary(): Record<string, unknown> {
     notice: PROVIDER_PLUGIN_TRUST_NOTICE,
     portableNotice: PORTABLE_PROVIDER_PLUGIN_TRUST_NOTICE,
     installationNotice: PROVIDER_PLUGIN_INSTALLATION_NOTICE,
-    installedCapabilitiesCommand: "wrench capabilities [adapter]",
+    installedCapabilitiesCommand: "ghostget capabilities [adapter]",
   };
 }
 
@@ -204,7 +204,7 @@ function renderProviderPluginListText(
   plugins: readonly ProviderPluginV1[],
 ): string {
   const lines = [
-    `Wrench trusted provider source plugins (${plugins.length})`,
+    `Ghostget trusted provider source plugins (${plugins.length})`,
     PROVIDER_PLUGIN_TRUST_NOTICE,
     PROVIDER_PLUGIN_INSTALLATION_NOTICE,
   ];
@@ -218,15 +218,15 @@ function renderProviderPluginListText(
     );
   }
   lines.push(
-    "Run 'wrench plugin show <id>' for routes and implementation ownership.",
-    "Run 'wrench capabilities [adapter]' for installed data manifests.",
+    "Run 'ghostget plugin show <id>' for routes and implementation ownership.",
+    "Run 'ghostget capabilities [adapter]' for installed data manifests.",
   );
   return `${lines.join("\n")}\n`;
 }
 
 function renderProviderPluginText(plugin: ProviderPluginV1): string {
   const lines = [
-    "Wrench provider source plugin",
+    "Ghostget provider source plugin",
     `${plugin.displayName} (${plugin.id})`,
     `  API/version: ${plugin.apiVersion}/${plugin.version}`,
     `  Source: ${plugin.sourceKind}; trusted in-process; not sandboxed`,
@@ -273,7 +273,7 @@ function renderProviderPluginText(plugin: ProviderPluginV1): string {
   }
   lines.push(
     PROVIDER_PLUGIN_INSTALLATION_NOTICE,
-    "Run 'wrench capabilities [adapter]' to inspect installed data manifests.",
+    "Run 'ghostget capabilities [adapter]' to inspect installed data manifests.",
   );
   return `${lines.join("\n")}\n`;
 }
@@ -282,7 +282,7 @@ function renderPortableProviderPluginListText(
   plugins: ReturnType<typeof listPortableProviderPlugins>,
 ): string {
   const lines = [
-    `Wrench installed portable provider plugins (${plugins.length})`,
+    `Ghostget installed portable provider plugins (${plugins.length})`,
     PORTABLE_PROVIDER_PLUGIN_TRUST_NOTICE,
   ];
   for (const plugin of plugins) {
@@ -291,7 +291,7 @@ function renderPortableProviderPluginListText(
     );
   }
   lines.push(
-    "Run 'wrench plugin doctor' to reverify every active package and trust record.",
+    "Run 'ghostget plugin doctor' to reverify every active package and trust record.",
   );
   return `${lines.join("\n")}\n`;
 }
@@ -300,7 +300,7 @@ function renderPortableProviderPluginText(
   plugin: NonNullable<ReturnType<typeof showPortableProviderPlugin>>,
 ): string {
   return [
-    "Wrench portable provider plugin",
+    "Ghostget portable provider plugin",
     `${plugin.summary.displayName} (${plugin.summary.id})`,
     `  Version: ${plugin.summary.version}`,
     `  Activation: ${plugin.summary.activation}`,
@@ -316,7 +316,7 @@ function renderPortableProviderPluginText(
 }
 
 function installedOperationTransport(
-  operation: WrenchOperation,
+  operation: GhostgetOperation,
 ): "provider-api" | "web-session-api" | "local-cli" | "reviewed-template-api" {
   if (isProviderOperation(operation)) return "provider-api";
   if (isWebSessionOperation(operation)) return "web-session-api";
@@ -326,7 +326,7 @@ function installedOperationTransport(
 }
 
 function reviewedTemplateHash(
-  recipe: Extract<WrenchOperation, { readonly reviewedTemplate: unknown }>["reviewedTemplate"],
+  recipe: Extract<GhostgetOperation, { readonly reviewedTemplate: unknown }>["reviewedTemplate"],
 ): string {
   return sha256(canonicalJson(recipe));
 }
@@ -460,9 +460,9 @@ function capabilitySummary(
 }
 
 export function runCapabilities(
-  command: Extract<WrenchCatalogCommand, { readonly command: "capabilities" }>,
+  command: Extract<GhostgetCatalogCommand, { readonly command: "capabilities" }>,
   environment: Readonly<Record<string, string | undefined>>,
-  output: WrenchCatalogOutput,
+  output: GhostgetCatalogOutput,
   registry: ProviderPluginRegistry,
 ): number {
   const reviewedPublicStrings = new Set<string>();
@@ -488,9 +488,9 @@ export function runCapabilities(
 }
 
 export async function runPluginList(
-  command: Extract<WrenchCatalogCommand, { readonly command: "plugin-list" }>,
+  command: Extract<GhostgetCatalogCommand, { readonly command: "plugin-list" }>,
   environment: Readonly<Record<string, string | undefined>>,
-  output: WrenchCatalogOutput,
+  output: GhostgetCatalogOutput,
   registry: ProviderPluginRegistry,
 ): Promise<number> {
   const { listPortableProviderPlugins } =
@@ -532,9 +532,9 @@ export async function runPluginList(
 }
 
 export async function runPluginShow(
-  command: Extract<WrenchCatalogCommand, { readonly command: "plugin-show" }>,
+  command: Extract<GhostgetCatalogCommand, { readonly command: "plugin-show" }>,
   environment: Readonly<Record<string, string | undefined>>,
-  output: WrenchCatalogOutput,
+  output: GhostgetCatalogOutput,
   registry: ProviderPluginRegistry,
 ): Promise<number> {
   const { showPortableProviderPlugin } =
@@ -557,8 +557,8 @@ export async function runPluginShow(
       }));
     } else {
       output.stdout(
-        `Wrench provider plugin ${safe(command.id)} was not found.\n`
-        + "Run 'wrench plugin list' to inspect source and portable plugins.\n",
+        `Ghostget provider plugin ${safe(command.id)} was not found.\n`
+        + "Run 'ghostget plugin list' to inspect source and portable plugins.\n",
       );
     }
     return 3;
@@ -591,15 +591,15 @@ export async function runPluginShow(
   return 0;
 }
 
-export async function runWrenchCatalogCommand(
-  command: WrenchCatalogCommand,
+export async function runGhostgetCatalogCommand(
+  command: GhostgetCatalogCommand,
   environment: Readonly<Record<string, string | undefined>>,
-  output: WrenchCatalogOutput,
+  output: GhostgetCatalogOutput,
 ): Promise<number> {
   try {
     if (command.command === "capabilities") {
       let registry = providerPluginRegistry;
-      const storeRoot = join(wrenchStateHome(environment), "provider-plugins");
+      const storeRoot = join(ghostgetStateHome(environment), "provider-plugins");
       if (existsSync(storeRoot)) {
         const { listInstalledPortableProviderPlugins } =
           await import("./provider-plugin-store");
@@ -631,7 +631,7 @@ export async function runWrenchCatalogCommand(
     );
   } catch (error) {
     output.stderr(
-      `wrench: ${safe(error instanceof Error ? error.message : String(error))}\n`,
+      `ghostget: ${safe(error instanceof Error ? error.message : String(error))}\n`,
     );
     return 3;
   }

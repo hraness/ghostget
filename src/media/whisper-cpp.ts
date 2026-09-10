@@ -30,10 +30,10 @@ export {
   whisperCppLanguageArgument,
 } from "./whisper-language";
 
-/** Pinned Wrench media invocation contract; changing it changes transcript provenance. */
+/** Pinned Ghostget media invocation contract; changing it changes transcript provenance. */
 export const WHISPER_CPP_PROFILE = "wrench-media-whisper-cpp-v1";
 
-/** Fixed PCM contract produced by Wrench media before invoking whisper.cpp. */
+/** Fixed PCM contract produced by Ghostget media before invoking whisper.cpp. */
 export const WHISPER_CPP_NORMALIZATION_PROFILE = "pcm-s16le-16000hz-mono-v1";
 
 const DEFAULT_TIMEOUT_MS = 2 * 60 * 60 * 1_000;
@@ -91,9 +91,9 @@ export type RunWhisperCppOptions = Readonly<{
   pcmPath: string;
   requestedLanguage: string;
   signal?: AbortSignal;
-  /** A fresh private directory owned by Wrench media's current transcription attempt. */
+  /** A fresh private directory owned by Ghostget media's current transcription attempt. */
   workDirectory: string;
-  /** Exact private runtime closure pinned by `wrench transcriber setup`. */
+  /** Exact private runtime closure pinned by `ghostget transcriber setup`. */
   runtimeClosure: RuntimeClosureRecord;
   timeoutMs?: number;
 }>;
@@ -115,7 +115,7 @@ const defaultDependencies: WhisperCppDependencies = {
  * an argv value rather than a path, so controls, separators, and tool grammar
  * are never admitted.
  */
-/** Builds Wrench media's complete whisper.cpp argv; `Bun.spawn` receives this directly. */
+/** Builds Ghostget media's complete whisper.cpp argv; `Bun.spawn` receives this directly. */
 export function buildWhisperCppArgv(
   options: Readonly<{
     executable: string;
@@ -218,7 +218,7 @@ export async function runWhisperCpp(
 
 /**
  * Parses already bounded whisper.cpp output. The public result contains only
- * Wrench media's canonical transcript derivatives, not the tool's JSON envelope.
+ * Ghostget media's canonical transcript derivatives, not the tool's JSON envelope.
  */
 export function parseWhisperCppOutputs(
   vttInput: unknown,
@@ -229,8 +229,8 @@ export function parseWhisperCppOutputs(
   if (language === null) return failure("invalid-request", "local transcription language is invalid");
   if (typeof vttInput !== "string") return failure("invalid-vtt", "local transcription did not produce WebVTT");
   if (typeof jsonInput !== "string") return failure("invalid-json", "local transcription did not produce JSON");
-  if (vttInput.length > MAX_VTT_BYTES) return failure("output-too-large", "local transcription WebVTT exceeds Wrench media's limit");
-  if (jsonInput.length > MAX_JSON_BYTES) return failure("output-too-large", "local transcription JSON exceeds Wrench media's limit");
+  if (vttInput.length > MAX_VTT_BYTES) return failure("output-too-large", "local transcription WebVTT exceeds Ghostget media's limit");
+  if (jsonInput.length > MAX_JSON_BYTES) return failure("output-too-large", "local transcription JSON exceeds Ghostget media's limit");
 
   const json = parseWhisperCppJson(jsonInput);
   if (!json.ok) return json.result;
@@ -460,5 +460,5 @@ function unsafeOutput(): Readonly<{ ok: false; result: WhisperCppResult }> {
 }
 
 function tooLargeOutput(): Readonly<{ ok: false; result: WhisperCppResult }> {
-  return { ok: false, result: failure("output-too-large", "local transcription output exceeds Wrench media's limit") };
+  return { ok: false, result: failure("output-too-large", "local transcription output exceeds Ghostget media's limit") };
 }

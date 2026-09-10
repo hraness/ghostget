@@ -7,10 +7,11 @@ import {
   requireLatestRelease,
   revalidateLatestReleaseProjection,
   releaseSourceReceipt,
+  releaseWorkflowRunIdFromPublishedRelease,
   releasePublicHostRequestBudget,
   validateMatchingPublishedReleases,
   waitForLatestRelease,
-  WrenchPublicSite,
+  GhostgetPublicSite,
 } from "./release-provider-outcome.mjs";
 import {
   createProductionReleaseMarker,
@@ -18,16 +19,18 @@ import {
   serializeProductionReleaseMarker,
 } from "../website/production-release-marker.mjs";
 
-const tag = "v0.16.5";
+const tag = "v0.17.0";
 const sourceSha = "2".repeat(40);
-const deploymentUrl = "https://wrench-release123-hraness.vercel.app";
+const deploymentUrl = "https://ghostget-release123-hraness.vercel.app";
 const markerBody = serializeProductionReleaseMarker(createProductionReleaseMarker({
   deploymentUrl,
-  name: "@hraness/wrench",
+  name: "@hraness/ghostget",
   sourceSha,
   tag,
   version: tag.slice(1),
 }));
+
+import { releaseAssetNames, usesGithubReleaseAssets } from "../website/github-release-artifact.mjs";
 
 type FetchCall = Readonly<{ init: RequestInit; url: string }>;
 
@@ -43,7 +46,7 @@ function responseAt(
 
 function siteWithFetch(
   implementation: (url: string, init: RequestInit) => Promise<Response> | Response,
-): Readonly<{ calls: FetchCall[]; site: WrenchPublicSite }> {
+): Readonly<{ calls: FetchCall[]; site: GhostgetPublicSite }> {
   const calls: FetchCall[] = [];
   let nonce = 0;
   const fetchImplementation = async (
@@ -57,7 +60,7 @@ function siteWithFetch(
   };
   return Object.freeze({
     calls,
-    site: new WrenchPublicSite({
+    site: new GhostgetPublicSite({
       fetchImplementation,
       nonce: () => `nonce-${String(++nonce).padStart(4, "0")}`,
     }),
@@ -93,26 +96,26 @@ function cancellableResponse(
 }
 
 function expectedMarkerUrl(nonce = "nonce-0001"): string {
-  return `https://wrench.rip/.well-known/wrench-release.json?release=${tag}&source=${sourceSha}&nonce=${nonce}`;
+  return `https://ghostget.com/.well-known/wrench-release.json?release=${tag}&source=${sourceSha}&nonce=${nonce}`;
 }
 
 describe("public production outcome transport", () => {
   test("uses bounded exact GET requests for the marker, health routes, and www redirect", async () => {
     const { calls, site } = siteWithFetch((url, init) => {
       const parsed = new URL(url);
-      if (parsed.hostname === "www.wrench.rip") {
+      if (parsed.hostname === "www.ghostget.com") {
         const requestsPlainText = (
           init.headers as Readonly<Record<string, string>> | undefined
         )?.Accept === "text/plain";
         return responseAt(url, requestsPlainText
           ? "Redirecting...\n"
           : `${JSON.stringify({
-            redirect: `https://wrench.rip${parsed.pathname}${parsed.search}`,
+            redirect: `https://ghostget.com${parsed.pathname}${parsed.search}`,
             status: "308",
           })}\n`, {
           headers: {
             "content-type": requestsPlainText ? "text/plain" : "application/json",
-            location: `https://wrench.rip${parsed.pathname}${parsed.search}`,
+            location: `https://ghostget.com${parsed.pathname}${parsed.search}`,
           },
           status: 308,
         });
@@ -127,14 +130,14 @@ describe("public production outcome transport", () => {
         });
       }
       if (parsed.pathname === "/llms.txt") {
-        return responseAt(url, "# Wrench\nExact public provider guide.\n", {
+        return responseAt(url, "# Ghostget\nExact public provider guide.\n", {
           headers: { "content-type": "text/plain; charset=utf-8" },
           status: 200,
         });
       }
       const canonical = parsed.pathname === "/"
-        ? "https://wrench.rip/"
-        : "https://wrench.rip/providers/beeper/";
+        ? "https://ghostget.com/"
+        : "https://ghostget.com/providers/beeper/";
       return responseAt(
         url,
         `<!doctype html>\n<link rel="canonical" href="${canonical}">\n`,
@@ -183,7 +186,7 @@ describe("public production outcome transport", () => {
     expect(calls.every((call) => call.init.signal instanceof AbortSignal)).toBe(true);
     expect(calls.every((call) => (
       call.init.headers as Record<string, string>
-    )["User-Agent"] === "wrench-production-outcome-verifier")).toBe(true);
+    )["User-Agent"] === "ghostget-production-outcome-verifier")).toBe(true);
     expect(calls.every((call) => {
       const headers = call.init.headers as Record<string, string>;
       return Object.keys(headers).sort().join(",") === "Accept,User-Agent"
@@ -315,7 +318,7 @@ describe("public production outcome transport", () => {
     }
 
     let calls = 0;
-    const reused = new WrenchPublicSite({
+    const reused = new GhostgetPublicSite({
       fetchImplementation: async (input: string | URL | Request) => {
         calls += 1;
         return responseAt(String(input), markerBody, {
@@ -342,12 +345,12 @@ describe("public production outcome transport", () => {
 
   test("bounds and validates each exact canonical health route", async () => {
     const canonicalBodies = new Map([
-      ["/", '<!doctype html>\n<link rel="canonical" href="https://wrench.rip/">\n'],
+      ["/", '<!doctype html>\n<link rel="canonical" href="https://ghostget.com/">\n'],
       [
         "/providers/beeper/",
-        '<!doctype html>\n<link rel="canonical" href="https://wrench.rip/providers/beeper/">\n',
+        '<!doctype html>\n<link rel="canonical" href="https://ghostget.com/providers/beeper/">\n',
       ],
-      ["/llms.txt", "# Wrench\nProvider documentation.\n"],
+      ["/llms.txt", "# Ghostget\nProvider documentation.\n"],
     ]);
     const valid = siteWithFetch((url) => {
       const path = new URL(url).pathname;
@@ -371,13 +374,13 @@ describe("public production outcome transport", () => {
     expect(valid.calls).toHaveLength(priorCalls);
 
     for (const [route, body, expected] of [
-      ["/", "not wrench", "not the canonical Wrench document"],
+      ["/", "not ghostget", "not the canonical Ghostget document"],
       [
         "/providers/beeper/",
-        '<!doctype html>\n<link rel="canonical" href="https://wrench.rip/">\n',
-        "not the canonical Wrench document",
+        '<!doctype html>\n<link rel="canonical" href="https://ghostget.com/">\n',
+        "not the canonical Ghostget document",
       ],
-      ["/llms.txt", "# Other\n", "not the canonical Wrench text document"],
+      ["/llms.txt", "# Other\n", "not the canonical Ghostget text document"],
     ] as const) {
       const invalid = siteWithFetch((url) => responseAt(url, body, {
         headers: {
@@ -417,7 +420,7 @@ describe("public production outcome transport", () => {
     const valid = siteWithFetch((url) => responseAt(url, "Redirecting...\n", {
       headers: {
         "content-type": "text/plain",
-        location: `https://wrench.rip${requestPath}`,
+        location: `https://ghostget.com${requestPath}`,
       },
       status: 308,
     }));
@@ -425,7 +428,7 @@ describe("public production outcome transport", () => {
       .resolves.toEqual({
         bodySha256: createHash("sha256").update("Redirecting...\n").digest("hex"),
         contentType: "text/plain",
-        location: `https://wrench.rip${requestPath}`,
+        location: `https://ghostget.com${requestPath}`,
         status: 308,
       });
     expect(valid.calls[0]?.init.redirect).toBe("manual");
@@ -448,7 +451,7 @@ describe("public production outcome transport", () => {
         expected: "preserve the exact HTTPS path and query",
         headers: {
           "content-type": "text/plain",
-          location: "https://wrench.rip/.well-known/wrench-release.json",
+          location: "https://ghostget.com/.well-known/wrench-release.json",
         },
         status: 308,
       },
@@ -468,7 +471,7 @@ describe("public production outcome transport", () => {
       const invalid = siteWithFetch((url) => responseAt(url, body, {
         headers: {
           "content-type": "text/plain",
-          location: `https://wrench.rip${requestPath}`,
+          location: `https://ghostget.com${requestPath}`,
         },
         status: 308,
       }));
@@ -491,7 +494,11 @@ describe("public production outcome transport", () => {
 
 function release(tagName: string, id: number): Readonly<Record<string, unknown>> {
   return Object.freeze({
-    assets: [],
+    assets: usesGithubReleaseAssets(tagName) ? releaseAssetNames(tagName).map((name, index) => ({
+      id: index + 1, name, size: 100, state: "uploaded", digest: `sha256:${"a".repeat(64)}`,
+      browser_download_url: `https://github.com/hraness/ghostget/releases/download/${tagName}/${name}`,
+      url: `https://api.github.com/repos/hraness/ghostget/releases/assets/${index + 1}`,
+    })) : [],
     draft: false,
     id,
     immutable: true,
@@ -512,7 +519,7 @@ describe("immutable Latest Release convergence", () => {
     const result = await waitForLatestRelease({
       api: {
         async get(endpoint: string, options: Readonly<{ timeoutMilliseconds: number }>) {
-          expect(endpoint).toBe("/repos/hraness/wrench/releases/latest");
+          expect(endpoint).toBe("/repos/hraness/ghostget/releases/latest");
           timeouts.push(options.timeoutMilliseconds);
           now += 1;
           return snapshots[Math.min(read++, snapshots.length - 1)];
@@ -520,7 +527,7 @@ describe("immutable Latest Release convergence", () => {
       },
       monotonicNow: () => now,
       predecessorRelease: release("v0.16.4", 9),
-      repository: "hraness/wrench",
+      repository: "hraness/ghostget",
       sleep: async (milliseconds: number) => {
         sleeps.push(milliseconds);
         now += milliseconds;
@@ -552,14 +559,14 @@ describe("immutable Latest Release convergence", () => {
         monotonicNow: () => now,
         pollIntervalMilliseconds: 0,
         predecessorRelease: release("v0.16.4", 9),
-        repository: "hraness/wrench",
+        repository: "hraness/ghostget",
         sleep: async () => {},
         targetRelease: release(tag, 10),
         verifiedTag: tag,
         ...overrides,
       });
     };
-    await expect(run([release("v0.16.6", 11)]))
+    await expect(run([release("v0.17.1", 11)]))
       .rejects.toThrow("changed from the pinned predecessor");
     await expect(run([release("v0.16.3", 8)]))
       .rejects.toThrow("changed from the pinned predecessor");
@@ -568,10 +575,10 @@ describe("immutable Latest Release convergence", () => {
     await expect(run([release(tag, 11)]))
       .rejects.toThrow("does not bind the immutable target Release");
     await expect(run([{ ...release(tag, 10), immutable: false }]))
-      .rejects.toThrow("is not exact, published, immutable, and asset-free");
+      .rejects.toThrow("is not exact, published, and immutable");
     await expect(run([release("v0.16.4", 9)]))
       .rejects.toThrow("bounded attempt budget");
-    await expect(run([release("v0.16.4-beta.1", 9)]))
+    await expect(run([{ ...release("v0.16.4", 9), tag_name: "v0.16.4-beta.1" }]))
       .rejects.toThrow("not one stable semantic-version tag");
   });
 
@@ -591,7 +598,7 @@ describe("immutable Latest Release convergence", () => {
       await expect(waitForLatestRelease({
         api,
         predecessorRelease: release("v0.16.4", 9),
-        repository: "hraness/wrench",
+        repository: "hraness/ghostget",
         targetRelease: release(tag, 10),
         verifiedTag: tag,
         ...options,
@@ -603,7 +610,7 @@ describe("immutable Latest Release convergence", () => {
       api,
       monotonicNow: () => [10, 10, 9][clockRead++] ?? 9,
       predecessorRelease: release("v0.16.4", 9),
-      repository: "hraness/wrench",
+      repository: "hraness/ghostget",
       targetRelease: release(tag, 10),
       verifiedTag: tag,
     })).rejects.toThrow("monotonic clock regressed");
@@ -618,7 +625,7 @@ describe("immutable Latest Release convergence", () => {
       },
       monotonicNow: () => now,
       predecessorRelease: release("v0.16.4", 9),
-      repository: "hraness/wrench",
+      repository: "hraness/ghostget",
       targetRelease: release(tag, 10),
       verifiedTag: tag,
     })).rejects.toThrow("did not converge as Latest within 60 seconds");
@@ -632,7 +639,7 @@ describe("immutable Latest Release convergence", () => {
       maxAttempts: 2,
       monotonicNow: () => 0,
       predecessorRelease: release("v0.16.4", 9),
-      repository: "hraness/wrench",
+      repository: "hraness/ghostget",
       sleep: async () => {},
       targetRelease: release(tag, 10),
       verifiedTag: tag,
@@ -654,7 +661,7 @@ describe("immutable Latest Release convergence", () => {
     });
     for (const predecessor of [
       release(tag, 10),
-      release("v0.16.6", 11),
+      release("v0.17.1", 11),
       { ...release("v0.16.4", 9), immutable: false },
     ]) {
       expect(() => exactLatestPredecessor(predecessor, tag)).toThrow();
@@ -669,23 +676,23 @@ describe("immutable Latest Release convergence", () => {
           return release(tag, 10);
         },
       },
-      repository: "hraness/wrench",
+      repository: "hraness/ghostget",
       targetRelease: release(tag, 10),
       verifiedTag: tag,
     });
     expect(exact).toEqual({ releaseId: 10, tag });
-    expect(calls).toEqual(["/repos/hraness/wrench/releases/latest"]);
+    expect(calls).toEqual(["/repos/hraness/ghostget/releases/latest"]);
 
     await expect(requireLatestRelease({
       api: { async get() { return release("v0.16.4", 9); } },
-      repository: "hraness/wrench",
+      repository: "hraness/ghostget",
       targetRelease: release(tag, 10),
       verifiedTag: tag,
     })).rejects.toThrow("is no longer Latest");
 
     const workflowRunId = "88001";
     const releaseCoordinates = {
-      repository: "hraness/wrench",
+      repository: "hraness/ghostget",
       verifiedSha: sourceSha,
       verifiedTag: tag,
       workflowRunId,
@@ -694,7 +701,7 @@ describe("immutable Latest Release convergence", () => {
       ...release(tag, 10),
       author: { id: 41898282, login: "github-actions[bot]", type: "Bot" },
       body: releaseSourceReceipt(releaseCoordinates),
-      name: `Wrench ${tag}`,
+      name: `Ghostget ${tag}`,
       target_commitish: "main",
     };
     expect(validateMatchingPublishedReleases(
@@ -719,24 +726,24 @@ describe("immutable Latest Release convergence", () => {
           return release(tag, 10);
         },
       },
-      repository: "hraness/wrench",
+      repository: "hraness/ghostget",
       targetRelease: release(tag, 10),
       verifiedTag: tag,
     });
     expect(result).toEqual({ releaseId: 10, tag });
     expect(calls).toEqual([
-      `/repos/hraness/wrench/releases/tags/${tag}`,
-      "/repos/hraness/wrench/releases/latest",
+      `/repos/hraness/ghostget/releases/tags/${tag}`,
+      "/repos/hraness/ghostget/releases/latest",
     ]);
 
     let read = 0;
     await expect(revalidateLatestReleaseProjection({
       api: {
         async get() {
-          return read++ === 0 ? release(tag, 10) : release("v0.16.6", 11);
+          return read++ === 0 ? release(tag, 10) : release("v0.17.1", 11);
         },
       },
-      repository: "hraness/wrench",
+      repository: "hraness/ghostget",
       targetRelease: release(tag, 10),
       verifiedTag: tag,
     })).rejects.toThrow("is no longer Latest");
@@ -747,9 +754,26 @@ describe("immutable Latest Release convergence", () => {
           return release(tag, 11);
         },
       },
-      repository: "hraness/wrench",
+      repository: "hraness/ghostget",
       targetRelease: release(tag, 10),
       verifiedTag: tag,
     })).rejects.toThrow("does not bind the immutable target Release");
   });
+});
+
+
+test("reads the historical immutable source receipt through the renamed repository coordinate", () => {
+  const oldTag = "v0.16.12";
+  const oldBody = `wrench-release-source-v1 repository=hraness/wrench tag=${oldTag} source_sha=${sourceSha} workflow_run_id=9001`;
+  const release = { id: 99, tag_name: oldTag, target_commitish: sourceSha, draft: false,
+    prerelease: false, immutable: true, assets: [], published_at: "2026-09-08T01:00:00Z",
+    author: { id: 41898282, type: "Bot" }, body: oldBody };
+  const coordinates = { repository: "hraness/ghostget", verifiedTag: oldTag, verifiedSha: sourceSha };
+  expect(releaseWorkflowRunIdFromPublishedRelease({ ...coordinates, value: release })).toBe("9001");
+  for (const body of [oldBody.replace("repository=hraness/wrench", "repository=hraness/ghostget"),
+    oldBody.replace("repository=hraness/wrench", "repository=attacker/wrench"), oldBody.replace(sourceSha, "f".repeat(40))]) {
+    expect(() => releaseWorkflowRunIdFromPublishedRelease({ ...coordinates, value: { ...release, body } })).toThrow();
+  }
+  expect(releaseSourceReceipt({ repository: "hraness/ghostget", verifiedSha: sourceSha,
+    verifiedTag: "v0.17.0", workflowRunId: "9001" })).toContain("repository=hraness/ghostget tag=v0.17.0");
 });

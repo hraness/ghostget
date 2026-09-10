@@ -27,20 +27,20 @@ first\r
 <v Alice><c.green>Hello &amp; welcome</c></v>\r
 \r
 00:00:01.250 --> 00:00:04.000 align:start position:0%\r
-hello &amp; welcome to <i>Wrench media.</i>\r
+hello &amp; welcome to <i>Ghostget media.</i>\r
 \r
 00:00:03.500 --> 00:00:06.000\r
-to Wrench media. Save &#x1F30D; locally.\r
+to Ghostget media. Save &#x1F30D; locally.\r
 `);
 
     expect(result.ok).toBeTrue();
     if (!result.ok) throw new Error(result.error.message);
     expect(result.cues).toEqual([
       { startMs: 0, endMs: 2_500, text: "Hello & welcome" },
-      { startMs: 1_250, endMs: 4_000, text: "to Wrench media." },
+      { startMs: 1_250, endMs: 4_000, text: "to Ghostget media." },
       { startMs: 3_500, endMs: 6_000, text: "Save 🌍 locally." },
     ]);
-    expect(result.text).toBe("Hello & welcome\nto Wrench media.\nSave 🌍 locally.\n");
+    expect(result.text).toBe("Hello & welcome\nto Ghostget media.\nSave 🌍 locally.\n");
     expect(JSON.parse(result.json)).toEqual({ version: 1, cues: result.cues });
     expect(result.json.endsWith("\n")).toBeTrue();
   });
@@ -168,7 +168,7 @@ describe("rolling-caption overlap", () => {
     expect(
       longestTokenOverlap(
         ["This", "is", "a", "test."],
-        ["A", "test", "of", "Wrench media"],
+        ["A", "test", "of", "Ghostget media"],
       ),
     ).toBe(2);
     expect(longestTokenOverlap(["one", "two"], ["three", "four"])).toBe(0);

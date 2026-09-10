@@ -98,7 +98,7 @@ function noSpeechJson(language = "en"): string {
 }
 
 describe("whisper.cpp argv", () => {
-  test("pins Wrench media's tool and PCM profiles", () => {
+  test("pins Ghostget media's tool and PCM profiles", () => {
     expect(WHISPER_CPP_PROFILE).toBe("wrench-media-whisper-cpp-v1");
     expect(WHISPER_CPP_NORMALIZATION_PROFILE).toBe("pcm-s16le-16000hz-mono-v1");
   });

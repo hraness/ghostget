@@ -83,12 +83,12 @@ jobs:
       - name: Check the canonical npm archive before tagging
         run: |
           set -euo pipefail
-          directory="$(mktemp -d "$RUNNER_TEMP/wrench-canonical-ci.XXXXXX")"
+          directory="$(mktemp -d "$RUNNER_TEMP/ghostget-canonical-ci.XXXXXX")"
           package_version="$(node -p 'require("./package.json").version')"
           npm pack --ignore-scripts --json --pack-destination "$directory" \
             --registry=https://registry.npmjs.org > "$directory/npm-pack.json"
           cat "$directory/npm-pack.json"
-          bun run ./scripts/package-artifact.ts "$directory/hraness-wrench-$package_version.tgz"
+          bun run ./scripts/package-artifact.ts "$directory/hraness-ghostget-$package_version.tgz"
 
   test:
     name: test ${{ matrix.shard }}/4
@@ -124,7 +124,7 @@ jobs:
       - name: Provision exact native fixture browser when selected
         run: |
           fixture_browser_root="$(bun run ./scripts/provision-derive-browser.ts --for-shard '${{ matrix.shard }}' 4)"
-          printf 'WRENCH_DERIVE_BROWSER_ROOT=%s\n' "$fixture_browser_root" >> "$GITHUB_ENV"
+          printf 'GHOSTGET_DERIVE_BROWSER_ROOT=%s\n' "$fixture_browser_root" >> "$GITHUB_ENV"
       - run: bun run ./scripts/ci-test-shard.ts ${{ matrix.shard }} 4
 
   test-omni:

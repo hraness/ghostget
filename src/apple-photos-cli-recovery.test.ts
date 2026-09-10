@@ -59,7 +59,7 @@ function blockingWorkerArgv(
     options.createLease === true
       ? [
           `const recovery = await import(${JSON.stringify(recoveryModule)});`,
-          "const parent = join(process.env.WRENCH_STATE_HOME, 'retained');",
+          "const parent = join(process.env.GHOSTGET_STATE_HOME, 'retained');",
           "const working = join(parent, 'snapshot-worker');",
           "mkdirSync(working, { recursive: true, mode: 0o700 });",
           "const lease = await recovery.createBeeperMessageLikeMeDirectoryLease({ role: 'raw-working', path: working, recoverAfterMs: Date.now() + 60_000, environment: process.env });",
@@ -93,7 +93,7 @@ describe("Apple Photos CLI recovery preflight", () => {
     const root = privateRoot("wrench-apple-photos-cli-platform-test-");
     const environment = {
       HOME: join(root, "missing-home"),
-      WRENCH_STATE_HOME: join(root, "must-not-exist"),
+      GHOSTGET_STATE_HOME: join(root, "must-not-exist"),
     };
     const phases: string[] = [];
     await expect(exportApplePhotosContactEvidenceForCli({
@@ -104,7 +104,7 @@ describe("Apple Photos CLI recovery preflight", () => {
     })).rejects.toThrow("requires macOS");
     expect(phases).toEqual(["platform-check"]);
     expect(existsSync(environment.HOME)).toBeFalse();
-    expect(existsSync(environment.WRENCH_STATE_HOME)).toBeFalse();
+    expect(existsSync(environment.GHOSTGET_STATE_HOME)).toBeFalse();
   });
 
   test("rejects an active private export before inspecting the Photos library", async () => {
@@ -115,7 +115,7 @@ describe("Apple Photos CLI recovery preflight", () => {
     mkdirSync(working, { mode: 0o700 });
     const environment = {
       HOME: join(root, "home"),
-      WRENCH_STATE_HOME: join(root, "state"),
+      GHOSTGET_STATE_HOME: join(root, "state"),
     };
     mkdirSync(environment.HOME, { mode: 0o700 });
     const nowMs = Date.now();
@@ -154,7 +154,7 @@ describe("Apple Photos CLI recovery preflight", () => {
     mkdirSync(home, { mode: 0o700 });
     const environment = {
       HOME: home,
-      WRENCH_STATE_HOME: join(root, "state"),
+      GHOSTGET_STATE_HOME: join(root, "state"),
     };
 
     await expect(exportApplePhotosContactEvidenceForCli({
@@ -172,7 +172,7 @@ describe("Apple Photos CLI recovery preflight", () => {
   test("honors a pre-aborted signal before admission, state, or worker launch", async () => {
     const root = privateRoot("wrench-apple-photos-cli-pre-abort-test-");
     const environment = {
-      WRENCH_STATE_HOME: join(root, "must-not-exist"),
+      GHOSTGET_STATE_HOME: join(root, "must-not-exist"),
     };
     const controller = new AbortController();
     controller.abort(new Error("fixture pre-abort"));
@@ -182,12 +182,12 @@ describe("Apple Photos CLI recovery preflight", () => {
       dependencies: { platform: "darwin" },
       supervisorDependencies: { argv: blockingWorkerArgv("photos-capture") },
     })).rejects.toThrow("fixture pre-abort");
-    expect(existsSync(environment.WRENCH_STATE_HOME)).toBeFalse();
+    expect(existsSync(environment.GHOSTGET_STATE_HOME)).toBeFalse();
   });
 
   test("rechecks abort immediately after listener registration", async () => {
     const root = privateRoot("wrench-apple-photos-cli-abort-race-test-");
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
     const controller = new AbortController();
     await expect(exportApplePhotosContactEvidenceForCli({
       environment,
@@ -206,7 +206,7 @@ describe("Apple Photos CLI recovery preflight", () => {
 
   test("binds the exact helper owner durably before sending worker input", async () => {
     const root = privateRoot("wrench-apple-photos-cli-helper-handoff-test-");
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
     const ready = join(root, "worker-ready");
     const controller = new AbortController();
     const operation = exportApplePhotosContactEvidenceForCli({
@@ -221,7 +221,7 @@ describe("Apple Photos CLI recovery preflight", () => {
     });
     await waitForPath(ready);
     const active = JSON.parse(readFileSync(join(
-      environment.WRENCH_STATE_HOME,
+      environment.GHOSTGET_STATE_HOME,
       "recovery",
       "beeper-message-like-me-export-admission",
       "active.json",
@@ -264,7 +264,7 @@ describe("Apple Photos CLI recovery preflight", () => {
 
   test("counts admission time against the single total deadline", async () => {
     const root = privateRoot("wrench-apple-photos-cli-admission-deadline-test-");
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
     const ready = join(root, "must-not-launch");
     await expect(exportApplePhotosContactEvidenceForCli({
       environment,
@@ -301,7 +301,7 @@ describe("Apple Photos CLI recovery preflight", () => {
       "try {",
       "  await runtime.exportApplePhotosContactEvidenceForCli({",
       `    library: ${JSON.stringify(join(home, "Missing.photoslibrary"))},`,
-      `    environment: { HOME: ${JSON.stringify(home)}, WRENCH_STATE_HOME: ${JSON.stringify(state)}, BUN_CONFIG_FILE: ${JSON.stringify(join(cwd, "bunfig.toml"))} },`,
+      `    environment: { HOME: ${JSON.stringify(home)}, GHOSTGET_STATE_HOME: ${JSON.stringify(state)}, BUN_CONFIG_FILE: ${JSON.stringify(join(cwd, "bunfig.toml"))} },`,
       "    dependencies: { platform: 'darwin' },",
       "  });",
       "  process.exitCode = 2;",
@@ -331,7 +331,7 @@ describe("Apple Photos CLI recovery preflight", () => {
 
   test("settles a child spawn error without waiting for the operation deadline", async () => {
     const root = privateRoot("wrench-apple-photos-cli-spawn-error-test-");
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
     const startedAt = performance.now();
     await expect(exportApplePhotosContactEvidenceForCli({
       environment,
@@ -354,7 +354,7 @@ describe("Apple Photos CLI recovery preflight", () => {
   ] as const) {
     test(`hard-kills a ${label} worker that ignores TERM under one total deadline`, async () => {
       const root = privateRoot(`wrench-apple-photos-cli-${phase}-test-`);
-      const environment = { WRENCH_STATE_HOME: join(root, "state") };
+      const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
       await expect(exportApplePhotosContactEvidenceForCli({
         environment,
         dependencies: { platform: "darwin" },
@@ -371,15 +371,15 @@ describe("Apple Photos CLI recovery preflight", () => {
 
   test("recovers a proven-KILL snapshot lease before the next source inspection", async () => {
     const root = privateRoot("wrench-apple-photos-cli-kill-recovery-test-");
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
-    const retained = join(environment.WRENCH_STATE_HOME, "retained", "snapshot-worker");
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
+    const retained = join(environment.GHOSTGET_STATE_HOME, "retained", "snapshot-worker");
     const leaseRoot = join(
-      environment.WRENCH_STATE_HOME,
+      environment.GHOSTGET_STATE_HOME,
       "recovery",
       "beeper-message-like-me-directory-leases",
     );
     const admissionPath = join(
-      environment.WRENCH_STATE_HOME,
+      environment.GHOSTGET_STATE_HOME,
       "recovery",
       "beeper-message-like-me-export-admission",
       "active.json",
@@ -422,7 +422,7 @@ describe("Apple Photos CLI recovery preflight", () => {
 
   test("terminates bounded-stream overflow without publishing partial stdout", async () => {
     const root = privateRoot("wrench-apple-photos-cli-overflow-test-");
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
     await expect(exportApplePhotosContactEvidenceForCli({
       environment,
       dependencies: { platform: "darwin" },
@@ -436,7 +436,7 @@ describe("Apple Photos CLI recovery preflight", () => {
 
   test("retains global admission when post-KILL process-group exit is unproven", async () => {
     const root = privateRoot("wrench-apple-photos-cli-unproven-test-");
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
     const ready = join(root, "worker-ready");
     const controller = new AbortController();
     const operation = exportApplePhotosContactEvidenceForCli({
@@ -461,15 +461,15 @@ describe("Apple Photos CLI recovery preflight", () => {
     expect(() => acquireBeeperMessageLikeMeExportAdmission({ environment }))
       .toThrow("another export is active");
     const leaseRoot = join(
-      environment.WRENCH_STATE_HOME,
+      environment.GHOSTGET_STATE_HOME,
       "recovery",
       "beeper-message-like-me-directory-leases",
     );
     expect(readdirSync(leaseRoot)).toHaveLength(1);
-    expect(existsSync(join(environment.WRENCH_STATE_HOME, "retained", "snapshot-worker")))
+    expect(existsSync(join(environment.GHOSTGET_STATE_HOME, "retained", "snapshot-worker")))
       .toBeTrue();
     const active = JSON.parse(readFileSync(join(
-      environment.WRENCH_STATE_HOME,
+      environment.GHOSTGET_STATE_HOME,
       "recovery",
       "beeper-message-like-me-export-admission",
       "active.json",

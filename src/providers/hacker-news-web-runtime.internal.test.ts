@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
 import type { StrictCookie } from "@hraness/kb/clip/cookies";
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { OperationInput, WebSessionRecipe } from "../model";
 import {
   OperationDeadline,
@@ -32,7 +32,7 @@ const hackerNewsAuth = {
   source: "arc",
   profile: "Profile 1",
   subject: SUBJECT,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 const unboundHackerNewsAuth = {
   schemaVersion: 1,
@@ -40,7 +40,7 @@ const unboundHackerNewsAuth = {
   kind: "cookie-source",
   source: "arc",
   profile: "Profile 1",
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 type CapturedRequest = {
   readonly url: URL;

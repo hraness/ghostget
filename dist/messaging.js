@@ -1,24 +1,24 @@
 // @bun
 import {
-  WRENCH_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_DESCRIPTOR,
-  WRENCH_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_HASH,
-  WRENCH_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_ID,
-  WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR,
-  WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH,
-  WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_ID,
-  WRENCH_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_DESCRIPTOR,
-  WRENCH_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_HASH,
-  WRENCH_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_ID,
-  WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR,
-  WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH,
-  WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID,
-  parseWrenchMessagingContextBindingV1,
-  parseWrenchMessagingContextBindingV2
-} from "./index-pa6wdsqj.js";
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_ID,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_ID,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_ID,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID,
+  parseGhostgetMessagingContextBindingV1,
+  parseGhostgetMessagingContextBindingV2
+} from "./index-7qyv64aa.js";
 import {
   canonicalJson,
   sha256
-} from "./index-dqv16dt0.js";
+} from "./index-604sjk12.js";
 
 // src/messaging.ts
 import { spawn } from "child_process";
@@ -35,21 +35,21 @@ import { fileURLToPath } from "url";
 
 // src/messaging-types.ts
 import { types as nodeTypes } from "util";
-var MESSAGING_CONTEXT_BINDING_V1_CONTRACT_ID = WRENCH_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_ID;
-var MESSAGING_CONTEXT_BINDING_V1_CONTRACT_DESCRIPTOR = WRENCH_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_DESCRIPTOR;
-var MESSAGING_CONTEXT_BINDING_V1_CONTRACT_HASH = WRENCH_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_HASH;
-var MESSAGING_CONTEXT_BINDING_V2_CONTRACT_ID = WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_ID;
-var MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR = WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR;
-var MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH = WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH;
+var MESSAGING_CONTEXT_BINDING_V1_CONTRACT_ID = GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_ID;
+var MESSAGING_CONTEXT_BINDING_V1_CONTRACT_DESCRIPTOR = GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_DESCRIPTOR;
+var MESSAGING_CONTEXT_BINDING_V1_CONTRACT_HASH = GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_HASH;
+var MESSAGING_CONTEXT_BINDING_V2_CONTRACT_ID = GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_ID;
+var MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR = GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR;
+var MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH = GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH;
 var MESSAGING_CONTEXT_BINDING_CONTRACT_ID = MESSAGING_CONTEXT_BINDING_V2_CONTRACT_ID;
 var MESSAGING_CONTEXT_BINDING_CONTRACT_DESCRIPTOR = MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR;
 var MESSAGING_CONTEXT_BINDING_CONTRACT_HASH = MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH;
-var MESSAGING_RECEIPT_BINDING_V1_CONTRACT_ID = WRENCH_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_ID;
-var MESSAGING_RECEIPT_BINDING_V1_CONTRACT_DESCRIPTOR = WRENCH_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_DESCRIPTOR;
-var MESSAGING_RECEIPT_BINDING_V1_CONTRACT_HASH = WRENCH_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_HASH;
-var MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID = WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID;
-var MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR = WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR;
-var MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH = WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH;
+var MESSAGING_RECEIPT_BINDING_V1_CONTRACT_ID = GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_ID;
+var MESSAGING_RECEIPT_BINDING_V1_CONTRACT_DESCRIPTOR = GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_DESCRIPTOR;
+var MESSAGING_RECEIPT_BINDING_V1_CONTRACT_HASH = GHOSTGET_MESSAGING_RECEIPT_BINDING_V1_CONTRACT_HASH;
+var MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID = GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID;
+var MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR = GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR;
+var MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH = GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH;
 var MESSAGING_RECEIPT_BINDING_CONTRACT_ID = MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID;
 var MESSAGING_RECEIPT_BINDING_CONTRACT_DESCRIPTOR = MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR;
 var MESSAGING_RECEIPT_BINDING_CONTRACT_HASH = MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH;
@@ -125,21 +125,21 @@ function id(value, label, maximum = 256) {
 function routeRef(value, label) {
   const result = id(value, label, 128);
   if (!/^wmroute_[A-Za-z0-9_-]{22}$/u.test(result)) {
-    return fail(label, "must be a Wrench messaging route reference");
+    return fail(label, "must be a Ghostget messaging route reference");
   }
   return result;
 }
 function contextRef(value, label) {
   const result = id(value, label, 128);
   if (!/^wmcontext_[A-Za-z0-9_-]{22}$/u.test(result)) {
-    return fail(label, "must be a Wrench messaging context reference");
+    return fail(label, "must be a Ghostget messaging context reference");
   }
   return result;
 }
 function replyRef(value, label) {
   const result = id(value, label, 128);
   if (!/^wmreply_[A-Za-z0-9_-]{22}$/u.test(result)) {
-    return fail(label, "must be a Wrench messaging reply reference");
+    return fail(label, "must be a Ghostget messaging reply reference");
   }
   return result;
 }
@@ -326,13 +326,13 @@ function messagingTurnDigest(turn) {
   }));
 }
 function parseMessagingContextBindingV1(value) {
-  const parsed = parseWrenchMessagingContextBindingV1(value);
+  const parsed = parseGhostgetMessagingContextBindingV1(value);
   routeRef(parsed.routeRef, "messaging context binding.routeRef");
   contextRef(parsed.contextRef, "messaging context binding.contextRef");
   return parsed;
 }
 function parseMessagingContextBindingV2(value) {
-  const parsed = parseWrenchMessagingContextBindingV2(value);
+  const parsed = parseGhostgetMessagingContextBindingV2(value);
   routeRef(parsed.routeRef, "messaging context binding.routeRef");
   contextRef(parsed.contextRef, "messaging context binding.contextRef");
   return parsed;
@@ -869,7 +869,7 @@ function cliSourcePath() {
   const packagedSource = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
   if (existsSync(packagedSource))
     return packagedSource;
-  throw new Error("the installed Wrench CLI source is unavailable");
+  throw new Error("the installed Ghostget CLI source is unavailable");
 }
 function environmentSnapshot(overrides) {
   const result = {};
@@ -879,15 +879,15 @@ function environmentSnapshot(overrides) {
   }
   if (overrides !== undefined) {
     if (typeof overrides !== "object" || overrides === null || Array.isArray(overrides) || Object.getPrototypeOf(overrides) !== Object.prototype)
-      throw new Error("Wrench messaging environment must be a plain object");
+      throw new Error("Ghostget messaging environment must be a plain object");
     for (const [key, value] of Object.entries(overrides)) {
       if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(key)) {
-        throw new Error("Wrench messaging environment contains an invalid name");
+        throw new Error("Ghostget messaging environment contains an invalid name");
       }
       if (value === undefined)
         delete result[key];
       else if (typeof value !== "string" || Buffer.byteLength(value, "utf8") > 128 * 1024 || value.includes("\x00"))
-        throw new Error("Wrench messaging environment contains an invalid value");
+        throw new Error("Ghostget messaging environment contains an invalid value");
       else
         result[key] = value;
     }
@@ -898,9 +898,9 @@ function options(value) {
   if (value === undefined)
     return Object.freeze({ environment: environmentSnapshot(undefined) });
   if (typeof value !== "object" || value === null || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype || Object.keys(value).some((key) => key !== "environment" && key !== "signal"))
-    throw new Error("Wrench messaging options are malformed");
+    throw new Error("Ghostget messaging options are malformed");
   if (value.signal !== undefined && !(value.signal instanceof AbortSignal)) {
-    throw new Error("Wrench messaging signal is malformed");
+    throw new Error("Ghostget messaging signal is malformed");
   }
   return Object.freeze({
     environment: environmentSnapshot(value.environment),
@@ -912,11 +912,11 @@ function boundedError(chunks) {
 }
 async function runCli(operation, request, clientOptions) {
   if (typeof process.versions.bun !== "string") {
-    throw new Error("@hraness/wrench/messaging requires Bun to run the installed Wrench CLI");
+    throw new Error("@hraness/ghostget/messaging requires Bun to run the installed Ghostget CLI");
   }
   const prepared = options(clientOptions);
   if (prepared.signal?.aborted === true) {
-    throw prepared.signal.reason instanceof Error ? prepared.signal.reason : new DOMException("Wrench messaging operation was aborted", "AbortError");
+    throw prepared.signal.reason instanceof Error ? prepared.signal.reason : new DOMException("Ghostget messaging operation was aborted", "AbortError");
   }
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "wrench-messaging-"));
   const privateOutput = join(temporaryDirectory, "artifact.json");
@@ -975,7 +975,7 @@ async function runCli(operation, request, clientOptions) {
       const rejectAfterOwnedTreeExit = () => {
         signalOwnedTree("SIGKILL");
         if (!ownedTreeIsAlive()) {
-          settleFailure(pendingError ?? new Error("Wrench messaging operation failed"));
+          settleFailure(pendingError ?? new Error("Ghostget messaging operation failed"));
           return;
         }
         setTimeout(rejectAfterOwnedTreeExit, 10);
@@ -993,10 +993,10 @@ async function runCli(operation, request, clientOptions) {
         terminationTimer.unref?.();
       };
       const abort = () => {
-        requestTermination(prepared.signal?.reason instanceof Error ? prepared.signal.reason : new DOMException("Wrench messaging operation was aborted", "AbortError"));
+        requestTermination(prepared.signal?.reason instanceof Error ? prepared.signal.reason : new DOMException("Ghostget messaging operation was aborted", "AbortError"));
       };
       const timer = setTimeout(() => {
-        requestTermination(new Error("Wrench messaging operation timed out"));
+        requestTermination(new Error("Ghostget messaging operation timed out"));
       }, COMMAND_TIMEOUT_MS);
       timer.unref?.();
       prepared.signal?.addEventListener("abort", abort, { once: true });
@@ -1004,7 +1004,7 @@ async function runCli(operation, request, clientOptions) {
       child.stdout.on("data", (chunk) => {
         stdoutBytes += chunk.byteLength;
         if (stdoutBytes > MAX_STDOUT_BYTES) {
-          requestTermination(new Error("Wrench messaging receipt exceeded its byte bound"));
+          requestTermination(new Error("Ghostget messaging receipt exceeded its byte bound"));
           return;
         }
         stdout.push(Buffer.from(chunk));
@@ -1012,7 +1012,7 @@ async function runCli(operation, request, clientOptions) {
       child.stderr.on("data", (chunk) => {
         stderrBytes += chunk.byteLength;
         if (stderrBytes > MAX_STDERR_BYTES) {
-          requestTermination(new Error("Wrench messaging diagnostic exceeded its byte bound"));
+          requestTermination(new Error("Ghostget messaging diagnostic exceeded its byte bound"));
           return;
         }
         stderr.push(Buffer.from(chunk));
@@ -1040,32 +1040,32 @@ async function runCli(operation, request, clientOptions) {
 `, "utf8");
     });
     if (result.code !== 0) {
-      throw new Error(boundedError(result.stderr) || `Wrench messaging exited ${result.code}`);
+      throw new Error(boundedError(result.stderr) || `Ghostget messaging exited ${result.code}`);
     }
     let receiptValue;
     try {
       receiptValue = JSON.parse(result.stdout.toString("utf8"));
     } catch {
-      throw new Error("Wrench messaging returned a malformed receipt");
+      throw new Error("Ghostget messaging returned a malformed receipt");
     }
     const receipt = parseMessagingPrivateOutputReceiptV1(receiptValue);
     const expectedFormat = operation === "routes" ? "wrench.messaging-routes" : operation === "resolve" ? "wrench.messaging-route" : operation === "context" ? "wrench.messaging-context" : "wrench.messaging-preview";
     if (receipt.artifactFormat !== expectedFormat) {
-      throw new Error("Wrench messaging returned another private artifact contract");
+      throw new Error("Ghostget messaging returned another private artifact contract");
     }
     const stats = lstatSync(privateOutput);
     const currentUid = process.getuid?.();
     if (!stats.isFile() || currentUid === undefined || stats.uid !== currentUid || (stats.mode & 511) !== 384 || stats.size > MAX_ARTIFACT_BYTES)
-      throw new Error("Wrench messaging private artifact is not an owned mode-0600 file");
+      throw new Error("Ghostget messaging private artifact is not an owned mode-0600 file");
     const artifactText = readFileSync(privateOutput, "utf8");
     let artifact;
     try {
       artifact = JSON.parse(artifactText);
     } catch {
-      throw new Error("Wrench messaging private artifact is malformed JSON");
+      throw new Error("Ghostget messaging private artifact is malformed JSON");
     }
     if (sha256(canonicalJson(artifact)) !== receipt.artifactSha256) {
-      throw new Error("Wrench messaging private artifact does not match its receipt");
+      throw new Error("Ghostget messaging private artifact does not match its receipt");
     }
     return artifact;
   } finally {

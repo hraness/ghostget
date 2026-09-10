@@ -31,7 +31,7 @@ function state() {
   roots.push(root);
   return {
     root,
-    environment: Object.freeze({ WRENCH_STATE_HOME: root }),
+    environment: Object.freeze({ GHOSTGET_STATE_HOME: root }),
   };
 }
 
@@ -183,17 +183,17 @@ describe("messaging private output state boundary", () => {
       runPath,
       snapshot.run,
       testState.environment,
-    )).toThrow("outside WRENCH_STATE_HOME");
+    )).toThrow("outside GHOSTGET_STATE_HOME");
     expect(() => writeMessagingPrivateOutput(
       keyPath,
       snapshot.run,
       testState.environment,
-    )).toThrow("outside WRENCH_STATE_HOME");
+    )).toThrow("outside GHOSTGET_STATE_HOME");
     expect(() => writeMessagingPrivateOutput(
       join(testState.root, "new-private-output.json"),
       snapshot.run,
       testState.environment,
-    )).toThrow("outside WRENCH_STATE_HOME");
+    )).toThrow("outside GHOSTGET_STATE_HOME");
 
     expect(readFileSync(runPath)).toEqual(runBytes);
     expect(readFileSync(keyPath)).toEqual(keyBytes);

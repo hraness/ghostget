@@ -1,12 +1,12 @@
 import { WebSessionReadTransportError } from "../web-session-read-errors";
 import { describe, expect, test } from "bun:test";
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
 import type { StrictCookie } from "@hraness/kb/clip/cookies";
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import { PreservedBrowserArtifactsError } from "../browser";
 import type { WebSessionRecipe } from "../model";
 import { canonicalJson } from "../canonical-json";
@@ -59,7 +59,7 @@ const linkedinAuth = {
   source: "arc",
   profile: "Default",
   subject: MEMBER_URN,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 const linkedinBrowserProfileAuth = {
   schemaVersion: 1,
@@ -68,7 +68,7 @@ const linkedinBrowserProfileAuth = {
   profile: "/private/tmp/linkedin-browser-profile-test",
   trustUnfilteredEgress: true,
   subject: MEMBER_URN,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 const unboundLinkedInBrowserProfileAuth = {
   schemaVersion: 1,
@@ -76,7 +76,7 @@ const unboundLinkedInBrowserProfileAuth = {
   kind: "browser-profile",
   profile: "/private/tmp/linkedin-browser-profile-unbound-test",
   trustUnfilteredEgress: true,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 type CapturedRequest = {
   readonly url: URL;
@@ -2077,6 +2077,8 @@ describe("LinkedIn authenticated internal-API runtime", () => {
   });
 
   test("uploads one plan-bound image and verifies exact LinkedIn image order, alt text, caption, and asset identity", async () => {
+    const imagePath = join(import.meta.dir, "..", "..", "website", "public", "og.png");
+    const imageByteLength = statSync(imagePath).size;
     const title = "Image-capable private draft";
     const documentValue = canonicalJson({
       schemaVersion: 2,
@@ -2085,8 +2087,8 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         {
           type: "image",
           imageIndex: 0,
-          altText: "Wrench logo on a dark background",
-          caption: "Wrench",
+          altText: "Ghostget logo on a dark background",
+          caption: "Ghostget",
         },
         { type: "paragraph", text: "After the image" },
       ],
@@ -2143,7 +2145,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
           filename: "inline-image-1.png",
           mediaType: "image/png",
         });
-        expect(image.bytes.byteLength).toBe(243_290);
+        expect(image.bytes.byteLength).toBe(imageByteLength);
         return Promise.resolve(assetUrn);
       },
       updateContentV2: (_draftId, receivedDocument, assets) => {
@@ -2193,9 +2195,7 @@ describe("LinkedIn authenticated internal-API runtime", () => {
           const file = files[0];
           if (file === undefined) throw new Error("expected one plan-bound Article image");
           expect(["fixture-cover", "fixture-image"]).toContain(file.reference);
-          return Promise.resolve([
-            join(import.meta.dir, "..", "..", "website", "public", "og.png"),
-          ]);
+          return Promise.resolve([imagePath]);
         },
         beforeDispatch: (event) => {
           dispatches.push(`start:${event.id}`);

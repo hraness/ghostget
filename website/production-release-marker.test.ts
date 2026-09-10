@@ -10,17 +10,26 @@ import {
 } from "./production-release-marker.mjs";
 
 const sourceSha = "2".repeat(40);
-const deploymentUrl = "https://wrench-release123-hraness.vercel.app";
+const deploymentUrl = "https://ghostget-release123-hraness.vercel.app";
 const marker = createProductionReleaseMarker({
   deploymentUrl,
-  name: "@hraness/wrench",
+  name: "@hraness/ghostget",
   sourceSha,
-  tag: "v0.16.5",
-  version: "0.16.5",
+  tag: "v0.17.0",
+  version: "0.17.0",
 });
-const canonical = `{"schemaVersion":"wrench-production-release-v1","name":"@hraness/wrench","repository":"hraness/wrench","tag":"v0.16.5","version":"0.16.5","sourceSha":"${sourceSha}","deploymentUrl":"${deploymentUrl}"}\n`;
+const canonical = `{"schemaVersion":"wrench-production-release-v1","name":"@hraness/ghostget","repository":"hraness/ghostget","tag":"v0.17.0","version":"0.17.0","sourceSha":"${sourceSha}","deploymentUrl":"${deploymentUrl}"}\n`;
 
 describe("production release marker", () => {
+  test("accepts exact legacy baseline bytes without accepting mixed brand or deployment identities", () => {
+    const legacy = { ...marker, name: "@hraness/wrench", repository: "hraness/wrench", tag: "v0.16.16", version: "0.16.16", deploymentUrl: "https://wrench-release123-hraness.vercel.app" };
+    const body = `${JSON.stringify(legacy)}\n`;
+    expect(parseProductionReleaseMarker(body)).toEqual(legacy);
+    expect(serializeProductionReleaseMarker(legacy)).toBe(body);
+    for (const change of [{ name: "@hraness/ghostget" }, { repository: "hraness/ghostget" }, { deploymentUrl }, { tag: "v0.17.0", version: "0.17.0" }]) {
+      expect(() => parseProductionReleaseMarker(`${JSON.stringify({ ...legacy, ...change })}\n`)).toThrow();
+    }
+  });
   test("keeps one exact bounded canonical seven-key wire contract", () => {
     expect(PRODUCTION_RELEASE_MARKER_PATH).toBe("/.well-known/wrench-release.json");
     expect(PRODUCTION_RELEASE_MARKER_SCHEMA).toBe("wrench-production-release-v1");
@@ -72,21 +81,21 @@ describe("production release marker", () => {
 
   test("rejects every release-identity and deployment-identity drift", () => {
     const cases = [
-      { schemaVersion: "wrench-production-release-v2" },
+      { schemaVersion: "ghostget-production-release-v2" },
       { schemaVersion: 1 },
-      { name: "wrench" },
-      { repository: "other/wrench" },
-      { tag: "0.16.5" },
-      { tag: "v0.16.5-beta.1" },
-      { version: "0.16.4" },
-      { version: "00.16.5" },
+      { name: "ghostget" },
+      { repository: "other/ghostget" },
+      { tag: "0.17.0" },
+      { tag: "v0.17.0-beta.1" },
+      { version: "0.16.16" },
+      { version: "00.17.0" },
       { sourceSha: "A".repeat(40) },
       { sourceSha: "2".repeat(39) },
-      { deploymentUrl: "http://wrench-release123-hraness.vercel.app" },
-      { deploymentUrl: "https://wrench-release123-hraness.vercel.app/" },
-      { deploymentUrl: "https://wrench-release_123-hraness.vercel.app" },
-      { deploymentUrl: "https://wrench-five.vercel.app" },
-      { deploymentUrl: "https://wrench.rip" },
+      { deploymentUrl: "http://ghostget-release123-hraness.vercel.app" },
+      { deploymentUrl: "https://ghostget-release123-hraness.vercel.app/" },
+      { deploymentUrl: "https://ghostget-release_123-hraness.vercel.app" },
+      { deploymentUrl: "https://ghostget-five.vercel.app" },
+      { deploymentUrl: "https://ghostget.com" },
     ] as const;
     for (const override of cases) {
       expect(() => parseProductionReleaseMarker(

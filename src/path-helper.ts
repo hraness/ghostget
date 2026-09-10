@@ -24,17 +24,17 @@ const MAX_REQUEST_BYTES = 4 * 1024 * 1024;
 const MAX_READ_BYTES = 128 * 1024 * 1024;
 const MAX_WRITE_BYTES = 2 * 1024 * 1024;
 const writeTemporaryFaultForTest = process.env.NODE_ENV === "test"
-  ? process.env.WRENCH_TEST_WRITE_TEMP_FAULT
+  ? (process.env.GHOSTGET_TEST_WRITE_TEMP_FAULT ?? process.env.WRENCH_TEST_WRITE_TEMP_FAULT)
   : undefined;
 const pathMutationFaultForTest = process.env.NODE_ENV === "test"
-  ? process.env.WRENCH_TEST_PATH_MUTATION_FAULT
+  ? (process.env.GHOSTGET_TEST_PATH_MUTATION_FAULT ?? process.env.WRENCH_TEST_PATH_MUTATION_FAULT)
   : undefined;
 const removeDirectoryFaultForTest = process.env.NODE_ENV === "test"
-  ? process.env.WRENCH_TEST_REMOVE_DIRECTORY_FAULT
+  ? (process.env.GHOSTGET_TEST_REMOVE_DIRECTORY_FAULT ?? process.env.WRENCH_TEST_REMOVE_DIRECTORY_FAULT)
   : undefined;
 const removeQuarantineScanMaximum = (() => {
   const testValue = process.env.NODE_ENV === "test"
-    ? process.env.WRENCH_TEST_REMOVE_QUARANTINE_SCAN_MAXIMUM
+    ? (process.env.GHOSTGET_TEST_REMOVE_QUARANTINE_SCAN_MAXIMUM ?? process.env.WRENCH_TEST_REMOVE_QUARANTINE_SCAN_MAXIMUM)
     : undefined;
   if (testValue === undefined) return 100_000;
   if (!/^[1-9][0-9]{0,5}$/u.test(testValue)) {

@@ -11,7 +11,7 @@ import {
 } from "./omni-request";
 
 function environment(): Readonly<Record<string, string | undefined>> {
-  return { ...process.env, WRENCH_HOME: mkdtempSync(join(tmpdir(), "wrench-omni-request-")) };
+  return { ...process.env, GHOSTGET_HOME: mkdtempSync(join(tmpdir(), "wrench-omni-request-")) };
 }
 
 const request = {

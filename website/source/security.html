@@ -6,57 +6,57 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#f5f3ed" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0e1113" media="(prefers-color-scheme: dark)">
-    <title>Wrench security: local custody and bounded provider contracts</title>
-    <meta name="description" content="Understand Wrench local custody, encrypted snapshots, exact account binding, fail-closed provider contracts, risk levels, and mutation recovery.">
+    <title>Ghostget security: local custody and bounded provider contracts</title>
+    <meta name="description" content="Understand Ghostget local custody, encrypted snapshots, exact account binding, fail-closed provider contracts, risk levels, and mutation recovery.">
     <meta name="robots" content="max-image-preview:large">
-    <link rel="canonical" href="https://wrench.rip/security/">
+    <link rel="canonical" href="https://ghostget.com/security/">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="{{CSS_ASSET}}">
     <link rel="sitemap" type="application/xml" href="/sitemap.xml">
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
-    <meta property="og:site_name" content="Wrench">
-    <meta property="og:title" content="Wrench security: local custody and bounded provider contracts">
-    <meta property="og:description" content="Understand Wrench local custody, encrypted snapshots, exact account binding, fail-closed provider contracts, risk levels, and mutation recovery.">
-    <meta property="og:url" content="https://wrench.rip/security/">
-    <meta property="og:image" content="https://wrench.rip/og.png">
-    <meta property="og:image:alt" content="Wrench: precise web capabilities for AI agents">
+    <meta property="og:site_name" content="Ghostget">
+    <meta property="og:title" content="Ghostget security: local custody and bounded provider contracts">
+    <meta property="og:description" content="Understand Ghostget local custody, encrypted snapshots, exact account binding, fail-closed provider contracts, risk levels, and mutation recovery.">
+    <meta property="og:url" content="https://ghostget.com/security/">
+    <meta property="og:image" content="https://ghostget.com/og.png">
+    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Wrench security: local custody and bounded provider contracts">
-    <meta name="twitter:description" content="Understand Wrench local custody, encrypted snapshots, exact account binding, fail-closed provider contracts, risk levels, and mutation recovery.">
-    <meta name="twitter:image" content="https://wrench.rip/og.png">
-    <meta name="twitter:image:alt" content="Wrench: precise web capabilities for AI agents">
-    <meta name="wrench-posthog-host" content="{{POSTHOG_HOST}}">
-    <meta name="wrench-posthog-key" content="{{POSTHOG_KEY}}">
+    <meta name="twitter:title" content="Ghostget security: local custody and bounded provider contracts">
+    <meta name="twitter:description" content="Understand Ghostget local custody, encrypted snapshots, exact account binding, fail-closed provider contracts, risk levels, and mutation recovery.">
+    <meta name="twitter:image" content="https://ghostget.com/og.png">
+    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
     <script type="module" src="{{ANALYTICS_ASSET}}"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="topbar guide-topbar">
-      <a aria-label="Wrench home" class="wordmark" href="/">Wrench</a>
+      <a aria-label="Ghostget home" class="wordmark" href="/">Ghostget</a>
       <nav aria-label="Primary">
         <a href="/getting-started/">Install</a>
         <a href="/provider-capabilities/">Providers</a>
-        <a href="https://github.com/hraness/wrench">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
       </nav>
     </header>
     <main class="guide-main" id="main">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Wrench</a></li><li aria-current="page">Security</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li aria-current="page">Security</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero">
-          <p class="eyebrow">Security model · Wrench {{WRENCH_VERSION}}</p>
-          <h1>Wrench limits authority before an agent reaches the web.</h1>
-          <p class="answer-lede">An authenticated Wrench operation binds one named outcome to an exact provider, transport, account realm, contract version, implementation, input, and risk. Credentials stay opaque to the caller. When those facts drift, the operation stops instead of changing transports or falling back to general browser control.</p>
-          <p class="review-note">This guide summarizes the public security contract for {{WRENCH_RELEASE}} and was checked against that immutable release. Report vulnerabilities through <a href="https://github.com/hraness/wrench/security/advisories/new">GitHub private vulnerability reporting</a>, never a public issue containing private material.</p>
+          <p class="eyebrow">Security model · Ghostget {{GHOSTGET_VERSION}}</p>
+          <h1>Ghostget limits authority before an agent reaches the web.</h1>
+          <p class="answer-lede">An authenticated Ghostget operation binds one named outcome to an exact provider, transport, account realm, contract version, implementation, input, and risk. Credentials stay opaque to the caller. When those facts drift, the operation stops instead of changing transports or falling back to general browser control.</p>
+          <p class="review-note">This guide summarizes the public security contract for {{GHOSTGET_RELEASE}} and was checked against that immutable release. Report vulnerabilities through <a href="https://github.com/hraness/ghostget/security/advisories/new">GitHub private vulnerability reporting</a>, never a public issue containing private material.</p>
         </header>
 
         <section aria-labelledby="threat-boundary">
           <h2 id="threat-boundary">Foreign data is parsed; authority is selected separately</h2>
-          <p>Wrench treats CLI input, URLs, manifests, packages, plugin messages, provider responses, browser output, files, durable state, and subprocess diagnostics as untrusted. Foreign values are strictly parsed and bounded, and sensitive values are redacted from terminal output, receipts, and diagnostics.</p>
-          <p>Operations expose semantic jobs such as <code>messaging.list</code>, not raw cookies, selectors, scripts, arbitrary HTTP, native command arguments, or every signed-in tab. The exact auth locator is bound to one provider account and transport. Wrench does not silently move between an official API, browser session, linked-device store, pinned local CLI, or portable plugin.</p>
+          <p>Ghostget treats CLI input, URLs, manifests, packages, plugin messages, provider responses, browser output, files, durable state, and subprocess diagnostics as untrusted. Foreign values are strictly parsed and bounded, and sensitive values are redacted from terminal output, receipts, and diagnostics.</p>
+          <p>Operations expose semantic jobs such as <code>messaging.list</code>, not raw cookies, selectors, scripts, arbitrary HTTP, native command arguments, or every signed-in tab. The exact auth locator is bound to one provider account and transport. Ghostget does not silently move between an official API, browser session, linked-device store, pinned local CLI, or portable plugin.</p>
         </section>
 
         <section aria-labelledby="custody">
@@ -73,7 +73,7 @@
             <div><dt>R3</dt><dd>An externally visible or consequential change.</dd></div>
             <div><dt>R4</dt><dd>Blocked.</dd></div>
           </dl>
-          <p>R2 and R3 operations create an exact, short-lived preview. The confirmation binds the adapter, transport, account realm, input, attachment hashes, side effect, contract hash, and dispatch schedule. If a request left the machine but its response was lost, Wrench retains the indeterminate result and does not retry or switch transport. A separate reconciliation needs exact external evidence.</p>
+          <p>R2 and R3 operations create an exact, short-lived preview. The confirmation binds the adapter, transport, account realm, input, attachment hashes, side effect, contract hash, and dispatch schedule. If a request left the machine but its response was lost, Ghostget retains the indeterminate result and does not retry or switch transport. A separate reconciliation needs exact external evidence.</p>
         </section>
 
         <section aria-labelledby="drift">
@@ -85,19 +85,19 @@
         <section aria-labelledby="native-cli">
           <h2 id="native-cli">A provider CLI is pinned bytes behind a semantic contract</h2>
           <p>A source plugin can use the <code>local-cli</code> transport only when it records the exact executable SHA-256 for every supported platform and binds every upstream archive or release-manifest artifact that the provider publishes. Each operation owns a fixed argument template and strict projection. Callers cannot select a command, flag, endpoint, target, environment variable, plugin, or output path.</p>
-          <p>Wrench starts the exact executable without a shell under private config, data, cache, and temporary roots. It strips ambient credentials and defaults, enforces its own deadline and byte bounds, and treats a lost or malformed post-dispatch response as indeterminate. A version range, package-manager channel, tag, launcher, or reported version cannot replace executable-byte identity.</p>
+          <p>Ghostget starts the exact executable without a shell under private config, data, cache, and temporary roots. It strips ambient credentials and defaults, enforces its own deadline and byte bounds, and treats a lost or malformed post-dispatch response as indeterminate. A version range, package-manager channel, tag, launcher, or reported version cannot replace executable-byte identity.</p>
         </section>
 
         <section aria-labelledby="plugins-boundary">
           <h2 id="plugins-boundary">Portable plugins are contained, not treated as hostile code</h2>
           <p>Source plugins ship as trusted in-process code. A portable plugin requires an explicit trust decision for one verified, content-addressed bundle and runs through a denied-by-default child-process protocol. The protocol limits the services a well-behaved plugin can request and contains ordinary crashes.</p>
-          <p>It is not a hostile native-code sandbox. Plugin code still runs with the ambient operating-system authority of the current account. Review code before trusting it, keep Wrench state on a trusted local filesystem protected for that account, and follow the <a href="/plugins/">plugin verification workflow</a>.</p>
+          <p>It is not a hostile native-code sandbox. Plugin code still runs with the ambient operating-system authority of the current account. Review code before trusting it, keep Ghostget state on a trusted local filesystem protected for that account, and follow the <a href="/plugins/">plugin verification workflow</a>.</p>
         </section>
 
         <section aria-labelledby="media-security">
           <h2 id="media-security">Archive integrity is verifiable, but local same-user processes remain trusted</h2>
-          <p>Completed media archives use versioned manifests and SHA-256 records that <code>wrench verify</code> recomputes. Wrench invokes media tools without a shell and does not persist cookies, request headers, signed media URLs, raw yt-dlp metadata, or transport fragments.</p>
-          <p>Archive locks and atomic same-volume publication coordinate Wrench processes. They are not a boundary against another process running as the same user. Keep archive roots and transcription configuration on a trusted local filesystem, obtain selected native tools and models from trusted sources, and use verification to detect later changes.</p>
+          <p>Completed media archives use versioned manifests and SHA-256 records that <code>ghostget verify</code> recomputes. Ghostget invokes media tools without a shell and does not persist cookies, request headers, signed media URLs, raw yt-dlp metadata, or transport fragments.</p>
+          <p>Archive locks and atomic same-volume publication coordinate Ghostget processes. They are not a boundary against another process running as the same user. Keep archive roots and transcription configuration on a trusted local filesystem, obtain selected native tools and models from trusted sources, and use verification to detect later changes.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="security-next">
@@ -106,8 +106,8 @@
         </aside>
       </article>
     </main>
-    <aside aria-label="Wrench project information" class="site-disclosure">
-      <p>Wrench {{WRENCH_VERSION}} · MIT · <a href="{{WRENCH_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
+    <aside aria-label="Ghostget project information" class="site-disclosure">
+      <p>Ghostget {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
       <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
     </aside>
     {{HRANESS_SITE_FOOTER}}

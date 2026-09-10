@@ -14,8 +14,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createAuth, removeAuth, saveAuth, type WrenchAuth } from "./auth";
-import { canonicalJson, manifestHash, sha256, type WrenchManifest } from "./model";
+import { createAuth, removeAuth, saveAuth, type GhostgetAuth } from "./auth";
+import { canonicalJson, manifestHash, sha256, type GhostgetManifest } from "./model";
 import { currentProcessStartIdentity } from "./process-identity";
 import { providerPluginRegistry } from "./provider-plugins";
 import {
@@ -51,17 +51,17 @@ const CHANGED_STARTED_AT = "2026-07-31T12:10:00.000Z";
 const CHANGED_FINISHED_AT = "2026-07-31T12:10:01.000Z";
 const TEST_CHILD_SIGNAL_TIMEOUT_MS = 45_000;
 
-function xManifest(): WrenchManifest {
+function xManifest(): GhostgetManifest {
   return JSON.parse(readFileSync(
     join(import.meta.dir, "assets", "adapters", "x", "wrench-adapter.json"),
     "utf8",
-  )) as WrenchManifest;
+  )) as GhostgetManifest;
 }
 
 function state(subject: string | null = "12345"): TestState {
   const directory = mkdtempSync(join(tmpdir(), "wrench-read-client-test-"));
   chmodSync(directory, 0o700);
-  const environment = { WRENCH_STATE_HOME: directory };
+  const environment = { GHOSTGET_STATE_HOME: directory };
   installManifest(xManifest(), {
     force: false,
     environment,
@@ -183,7 +183,7 @@ type CrossProcessAdmissionAction =
     }
   | {
       readonly kind: "replace-auth";
-      readonly replacements: readonly WrenchAuth[];
+      readonly replacements: readonly GhostgetAuth[];
     };
 
 async function startCrossProcessAdmissionHolder(
@@ -203,13 +203,13 @@ async function startCrossProcessAdmissionHolder(
       const { writeFileSync } = await import("node:fs");
       const projection = await import(${JSON.stringify(projectionModuleUrl)});
       const auth = await import(${JSON.stringify(authModuleUrl)});
-      const action = JSON.parse(process.env.WRENCH_TEST_ACTION);
+      const action = JSON.parse(process.env.GHOSTGET_TEST_ACTION);
       projection.withReadProjectionAuthAdmission(
-        process.env.WRENCH_TEST_AUTH_ID,
+        process.env.GHOSTGET_TEST_AUTH_ID,
         process.env,
         () => {
           writeFileSync(
-            process.env.WRENCH_TEST_READY_PATH,
+            process.env.GHOSTGET_TEST_READY_PATH,
             "ready\\n",
             { mode: 0o600 },
           );
@@ -228,7 +228,7 @@ async function startCrossProcessAdmissionHolder(
             new Int32Array(new SharedArrayBuffer(4)),
             0,
             0,
-            Number(process.env.WRENCH_TEST_HOLD_MS),
+            Number(process.env.GHOSTGET_TEST_HOLD_MS),
           );
         },
       );
@@ -236,11 +236,11 @@ async function startCrossProcessAdmissionHolder(
   ], {
     env: {
       ...process.env,
-      WRENCH_STATE_HOME: testState.directory,
-      WRENCH_TEST_AUTH_ID: testState.invocation.auth.id,
-      WRENCH_TEST_READY_PATH: readyPath,
-      WRENCH_TEST_HOLD_MS: String(holdForMs),
-      WRENCH_TEST_ACTION: JSON.stringify(action),
+      GHOSTGET_STATE_HOME: testState.directory,
+      GHOSTGET_TEST_AUTH_ID: testState.invocation.auth.id,
+      GHOSTGET_TEST_READY_PATH: readyPath,
+      GHOSTGET_TEST_HOLD_MS: String(holdForMs),
+      GHOSTGET_TEST_ACTION: JSON.stringify(action),
     },
     detached: true,
     stdout: "ignore",
@@ -568,7 +568,7 @@ describe("persistent read client", () => {
   test("retains the last good snapshot for a cleanup-blocked live read", async () => {
     const directory = mkdtempSync(join(tmpdir(), "wrench-read-client-public-test-"));
     chmodSync(directory, 0o700);
-    const environment = { WRENCH_STATE_HOME: directory };
+    const environment = { GHOSTGET_STATE_HOME: directory };
     try {
       const manifest = JSON.parse(readFileSync(join(
         import.meta.dir,
@@ -576,7 +576,7 @@ describe("persistent read client", () => {
         "adapters",
         "bluesky",
         "wrench-web-adapter.json",
-      ), "utf8")) as WrenchManifest;
+      ), "utf8")) as GhostgetManifest;
       const authority = publicWebSessionInvocationAuthority(
         manifest.id,
         "profiles.read",
@@ -715,7 +715,7 @@ describe("persistent read client", () => {
       expect(() => readCachedPreparedCapability(testState.invocation, {
         environment: testState.environment,
         registry: providerPluginRegistry,
-      })).toThrow("wrench auth bind x-messages");
+      })).toThrow("ghostget auth bind x-messages");
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }

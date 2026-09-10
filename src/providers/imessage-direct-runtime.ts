@@ -11,7 +11,7 @@ import { homedir, tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { types as nodeTypes } from "node:util";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import { canonicalJson } from "../canonical-json";
 import type { LocalCliRecipe, OperationInput } from "../model";
 import type {
@@ -68,7 +68,7 @@ const SUBJECT_PROBE_TIMEOUT_MS = 30_000;
 const OPERATION_LABEL = "direct iMessage local CLI operation";
 
 type JsonRecord = Readonly<Record<string, unknown>>;
-type ImsgAuth = Extract<WrenchAuth, { readonly kind: "linked-device-store" }>;
+type ImsgAuth = Extract<GhostgetAuth, { readonly kind: "linked-device-store" }>;
 
 export type ImsgChatProjection = Readonly<{
   id: number;
@@ -240,7 +240,7 @@ function timestamp(value: unknown, label: string): string {
   return new Date(milliseconds).toISOString();
 }
 
-function requireImsgAuth(auth: WrenchAuth): ImsgAuth {
+function requireImsgAuth(auth: GhostgetAuth): ImsgAuth {
   if (auth.kind !== "linked-device-store" || auth.provider !== "imessage") {
     throw new Error("direct iMessage requires an imessage linked-device-store auth locator");
   }
@@ -1165,7 +1165,7 @@ export async function inspectImsgDirectRuntime(
 }
 
 export async function probeImsgDirectSubject(
-  authValue: WrenchAuth,
+  authValue: GhostgetAuth,
   options: Readonly<{
     signal?: AbortSignal;
     environment?: Readonly<Record<string, string | undefined>>;
@@ -1262,7 +1262,7 @@ export function parseImsgPrivateIndeterminateOutcome(
 export async function executeImsgDirectOperation(
   recipe: LocalCliRecipe,
   inputValue: OperationInput,
-  authValue: WrenchAuth,
+  authValue: GhostgetAuth,
   options: LocalCliExecutionOptions & Readonly<{
     dependencies?: ImsgDirectRuntimeDependencies;
   }> = {},
@@ -1367,7 +1367,7 @@ export async function executeImsgDirectOperation(
 export async function executeImsgDirectMessagingPart(
   recipe: LocalCliRecipe,
   inputValue: OperationInput,
-  authValue: WrenchAuth,
+  authValue: GhostgetAuth,
   options: LocalCliExecutionOptions & Readonly<{
     dependencies?: ImsgDirectRuntimeDependencies;
     afterIndeterminateOutcome?: (
@@ -1439,7 +1439,7 @@ function parseAcceptedTarget(
 export async function reconcileImsgDirectOperation(
   operation: string,
   inputValue: OperationInput,
-  authValue: WrenchAuth,
+  authValue: GhostgetAuth,
   context?: ProviderPluginReconciliationContextV1,
   options: ProviderPluginReconciliationOptionsV1 & Readonly<{
     dependencies?: ImsgDirectRuntimeDependencies;

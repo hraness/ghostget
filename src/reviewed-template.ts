@@ -1,4 +1,4 @@
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import {
   canonicalJson,
   isReviewedTemplateOperation,
@@ -7,7 +7,7 @@ import {
   type OperationInput,
   type OperationRisk,
   type ReviewedTemplateRecipe,
-  type WrenchManifest,
+  type GhostgetManifest,
 } from "./model";
 import {
   executeWebSessionTemplate,
@@ -34,11 +34,11 @@ export type ReviewedTemplateDispatchEvent = {
 };
 
 export type ReviewedTemplateOperationExecutor = (
-  manifest: WrenchManifest,
+  manifest: GhostgetManifest,
   operationId: string,
   recipe: ReviewedTemplateRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly beforeDispatch?: (event: ReviewedTemplateDispatchEvent) => Promise<void>;
     readonly afterDispatchVerified?: (event: ReviewedTemplateDispatchEvent) => Promise<void>;
@@ -62,7 +62,7 @@ export function planReviewedTemplateDispatches(
   );
 }
 
-export function isCookieCapableWebAuth(auth: WrenchAuth): boolean {
+export function isCookieCapableWebAuth(auth: GhostgetAuth): boolean {
   return auth.kind === "cookie-source"
     || auth.kind === "cookies-file"
     || (auth.kind === "browser-profile" && auth.cookieSource !== undefined);

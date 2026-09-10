@@ -704,7 +704,7 @@ describe("Beeper pinned local-CLI provider plugin", () => {
     });
   });
 
-  test("separates upstream mutation reporting from reviewed effects and Wrench authority", () => {
+  test("separates upstream mutation reporting from reviewed effects and Ghostget authority", () => {
     const commands = BEEPER_CLI_V062_SURFACE_CONTRACT.commands;
     for (const command of commands) {
       if (command.upstreamReportedMutates === true) {

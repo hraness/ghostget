@@ -19,7 +19,7 @@ export const MACOS_TEST_FILES = Object.freeze([
 
 export const MACOS_PATTERNED_TESTS = Object.freeze([
   Object.freeze({
-    file: "src/wrench.test.ts",
+    file: "src/ghostget.test.ts",
     testNamePattern:
       "keeps public iMessage installer filesystem failures prompt and path-free",
   }),
@@ -79,7 +79,7 @@ async function runMacosCheck(): Promise<void> {
   await assertMacosCheckFilesExist(root);
   const concurrency = parseConcurrency(process.env.GOMAXPROCS);
   process.stderr.write(
-    `wrench check:macos: ${String(MACOS_TEST_FILES.length)} files plus `
+    `ghostget check:macos: ${String(MACOS_TEST_FILES.length)} files plus `
     + `${String(MACOS_PATTERNED_TESTS.length)} patterned canary\n`,
   );
   for (const arguments_ of macosCheckInvocations(concurrency)) {

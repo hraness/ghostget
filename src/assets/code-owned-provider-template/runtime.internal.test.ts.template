@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { WrenchAuth } from "../../auth";
+import type { GhostgetAuth } from "../../auth";
 import {
   authorize__PASCAL_NAME__Request,
   execute__PASCAL_NAME__WebOperation,
@@ -16,7 +16,7 @@ const auth = {
   id: "__SITE_ID__-scaffold",
   kind: "cookie-source",
   source: "chrome",
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 describe("__DISPLAY_NAME__ authenticated first-party runtime scaffold", () => {
   test("fails before account bootstrap or semantic execution", async () => {

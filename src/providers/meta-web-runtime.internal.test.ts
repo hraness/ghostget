@@ -10,7 +10,7 @@ import { join } from "node:path";
 
 import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
 import type { StrictCookie } from "@hraness/kb/clip/cookies";
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import { PreservedBrowserArtifactsError } from "../browser";
 import { sealCursorToken } from "../cursor-token";
 import { canonicalJson, sha256, type WebSessionRecipe } from "../model";
@@ -522,7 +522,7 @@ function stateEnvironment(): Readonly<Record<string, string | undefined>> {
   const root = mkdtempSync(join(tmpdir(), "wrench-meta-runtime-"));
   chmodSync(root, 0o700);
   stateRoots.push(root);
-  return { ...process.env, WRENCH_STATE_HOME: root };
+  return { ...process.env, GHOSTGET_STATE_HOME: root };
 }
 
 function pngFixture(width: number, height: number): Buffer {
@@ -673,7 +673,7 @@ function dependencies(
   return { acquireCookies, fetch };
 }
 
-function auth(site: "instagram" | "threads" | "facebook"): WrenchAuth {
+function auth(site: "instagram" | "threads" | "facebook"): GhostgetAuth {
   return {
     schemaVersion: 1,
     id: `${site}-test`,
@@ -833,7 +833,7 @@ async function executeThreadsVideoUploadFixture(
     recipe("threads", "media.publish"),
     {
       audience: "default",
-      body: "Wrench disposable Threads video fixture",
+      body: "Ghostget disposable Threads video fixture",
       media: { kind: "file", reference: "fixture" },
     },
     auth("threads"),
@@ -861,7 +861,7 @@ async function executeThreadsVideoUploadFixture(
             return new Response(JSON.stringify(threadsVideoCreateResponse(
               "987654322_12345",
               "VideoABC",
-              "Wrench disposable Threads video fixture",
+              "Ghostget disposable Threads video fixture",
             )), {
               status: 200,
               headers: { "content-type": "application/json" },
@@ -2157,7 +2157,7 @@ describe("Meta authenticated internal-data runtime", () => {
     const uploadId = "1786923725481";
     const postId = "987654322_12345";
     const postCode = "VideoABC";
-    const text = "Wrench disposable Threads video fixture";
+    const text = "Ghostget disposable Threads video fixture";
     const bootstrap = threadsHtml + script({
       require: [
         ["SprinkleConfig", [], {
@@ -2784,7 +2784,7 @@ describe("Meta authenticated internal-data runtime", () => {
   test("reconciles one accepted Threads video target without resolving or uploading the file", async () => {
     const postId = "987654322_12345";
     const postCode = "VideoABC";
-    const text = "Wrench disposable Threads video fixture";
+    const text = "Ghostget disposable Threads video fixture";
     const url = `https://www.threads.com/@viewer/post/${postCode}`;
     const identifier = canonicalJson({
       code: postCode,
@@ -2836,7 +2836,7 @@ describe("Meta authenticated internal-data runtime", () => {
   test("reads one accepted Instagram video target without resolving or uploading the file", async () => {
     const mediaId = "900_12345";
     const code = "VideoABC";
-    const caption = "Disposable Wrench Instagram video fixture";
+    const caption = "Disposable Ghostget Instagram video fixture";
     const url = `https://www.instagram.com/p/${code}/`;
     const identifier = canonicalJson({ code, mediaId, url });
     const calls: Call[] = [];
@@ -2888,7 +2888,7 @@ describe("Meta authenticated internal-data runtime", () => {
   test("proves one deleted Instagram video absent from its exact soft-200 permalink", async () => {
     const mediaId = "900_12345";
     const code = "VideoABC";
-    const caption = "Disposable Wrench Instagram video fixture";
+    const caption = "Disposable Ghostget Instagram video fixture";
     const url = `https://www.instagram.com/p/${code}/`;
     const identifier = canonicalJson({ code, mediaId, url });
     const calls: Call[] = [];
@@ -2926,7 +2926,7 @@ describe("Meta authenticated internal-data runtime", () => {
   test("does not claim deletion while authenticated media-info still exists", async () => {
     const mediaId = "900_12345";
     const code = "VideoABC";
-    const caption = "Disposable Wrench Instagram video fixture";
+    const caption = "Disposable Ghostget Instagram video fixture";
     const url = `https://www.instagram.com/p/${code}/`;
     const calls: Call[] = [];
     const network = dependencies("instagram", calls, (call) => {
@@ -2972,7 +2972,7 @@ describe("Meta authenticated internal-data runtime", () => {
   test("deletes one exact authored Instagram video and verifies the soft-200 tombstone", async () => {
     const mediaId = "900_12345";
     const code = "VideoABC";
-    const caption = "Disposable Wrench Instagram video fixture";
+    const caption = "Disposable Ghostget Instagram video fixture";
     const url = `https://www.instagram.com/p/${code}/`;
     const calls: Call[] = [];
     const callbacks: string[] = [];
@@ -3068,7 +3068,7 @@ describe("Meta authenticated internal-data runtime", () => {
   test("never retries an unverified Instagram delete and retains its bound target", async () => {
     const mediaId = "900_12345";
     const code = "VideoABC";
-    const caption = "Disposable Wrench Instagram video fixture";
+    const caption = "Disposable Ghostget Instagram video fixture";
     const url = `https://www.instagram.com/p/${code}/`;
     const calls: Call[] = [];
     const retainedTargets: string[] = [];
@@ -3137,7 +3137,7 @@ describe("Meta authenticated internal-data runtime", () => {
       url: "https://www.instagram.com/p/VideoABC/",
     } as const;
     const deleteInput = {
-      expected_caption: "Disposable Wrench Instagram video fixture",
+      expected_caption: "Disposable Ghostget Instagram video fixture",
       expected_media_kind: "video",
       media_id: target.mediaId,
     } as const;
@@ -3163,7 +3163,7 @@ describe("Meta authenticated internal-data runtime", () => {
   test("rejects Instagram video permalink marker and status drift before media readback", async () => {
     const mediaId = "900_12345";
     const code = "VideoABC";
-    const caption = "Disposable Wrench Instagram video fixture";
+    const caption = "Disposable Ghostget Instagram video fixture";
     const url = `https://www.instagram.com/p/${code}/`;
     const variants = [
       {
@@ -3218,7 +3218,7 @@ describe("Meta authenticated internal-data runtime", () => {
   test("rejects Instagram video media-info status, content-type, and output-bound drift", async () => {
     const mediaId = "900_12345";
     const code = "VideoABC";
-    const caption = "Disposable Wrench Instagram video fixture";
+    const caption = "Disposable Ghostget Instagram video fixture";
     const url = `https://www.instagram.com/p/${code}/`;
     const validBody = JSON.stringify({
       status: "ok",
@@ -3294,7 +3294,7 @@ describe("Meta authenticated internal-data runtime", () => {
   test("rejects drift in an existing Instagram video target's exact media-info readback", async () => {
     const mediaId = "900_12345";
     const code = "VideoABC";
-    const caption = "Disposable Wrench Instagram video fixture";
+    const caption = "Disposable Ghostget Instagram video fixture";
     const url = `https://www.instagram.com/p/${code}/`;
     const calls: Call[] = [];
     const network = dependencies("instagram", calls, (call) => {
@@ -3974,7 +3974,7 @@ describe("Meta authenticated internal-data runtime", () => {
       readonly site: MetaWebSite;
       readonly action: WebSessionRecipe["action"];
       readonly input: Record<string, string | number | boolean>;
-      readonly auth: WrenchAuth;
+      readonly auth: GhostgetAuth;
       readonly dependencySite: "instagram" | "threads" | "facebook";
     }[] = [
       {

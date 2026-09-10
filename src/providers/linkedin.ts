@@ -1866,7 +1866,7 @@ async function publishPost(context: ProviderActionContext): Promise<void> {
     contentKind: created.mediaKind,
     mediaIds: created.mediaIds,
   }, created.mediaKind === "video"
-    ? ["wrench validates the reviewed MP4 bytes, type, and size locally; LinkedIn validates its 3-second to 30-minute duration and supported codecs while processing it to AVAILABLE."]
+    ? ["ghostget validates the reviewed MP4 bytes, type, and size locally; LinkedIn validates its 3-second to 30-minute duration and supported codecs while processing it to AVAILABLE."]
     : []));
   context.setFinalUrl(url);
 }

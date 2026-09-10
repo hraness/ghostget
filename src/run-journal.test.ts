@@ -60,7 +60,7 @@ function environment(): Readonly<Record<string, string | undefined>> {
   const root = mkdtempSync(join(tmpdir(), "wrench-run-journal-"));
   chmodSync(root, 0o700);
   roots.push(root);
-  return { ...process.env, WRENCH_STATE_HOME: root };
+  return { ...process.env, GHOSTGET_STATE_HOME: root };
 }
 
 function initial(overrides: {
@@ -567,7 +567,7 @@ describe("run journal persistence", () => {
   test("stores no operation input or secret-bearing material", () => {
     const env = environment();
     const created = createRunJournal(initial(), env);
-    const root = env.WRENCH_STATE_HOME as string;
+    const root = env.GHOSTGET_STATE_HOME as string;
     const raw = readFileSync(
       join(root, "run-journals", `${created.journal.runId}.json`),
       "utf8",
@@ -619,7 +619,7 @@ describe("run journal persistence", () => {
     const env = environment();
     const created = createRunJournal(initial(), env);
     const path = join(
-      env.WRENCH_STATE_HOME as string,
+      env.GHOSTGET_STATE_HOME as string,
       "run-journals",
       `${created.journal.runId}.json`,
     );
@@ -669,7 +669,7 @@ describe("run journal persistence", () => {
     const invalidRunId = "22222222-2222-4222-8222-222222222222";
     writeFileSync(
       join(
-        env.WRENCH_STATE_HOME as string,
+        env.GHOSTGET_STATE_HOME as string,
         "run-journals",
         `${invalidRunId}.json`,
       ),

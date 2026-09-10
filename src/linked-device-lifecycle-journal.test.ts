@@ -85,7 +85,7 @@ function withState(
   const temporary = mkdtempSync(join(tmpdir(), "wrench-linked-lifecycle-test-"));
   const stateRoot = join(temporary, "state");
   try {
-    callback({ WRENCH_STATE_HOME: stateRoot }, stateRoot);
+    callback({ GHOSTGET_STATE_HOME: stateRoot }, stateRoot);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }

@@ -56,7 +56,7 @@ const unsignedIntegerPattern = /^\d{1,40}$/u;
 const derivationIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 
 /**
- * Keep Wrench's authenticated proxy control endpoint outside agent-browser's
+ * Keep Ghostget's authenticated proxy control endpoint outside agent-browser's
  * disposable socket namespace. The UUID-bounded name also stays below Unix
  * domain socket path limits on the supported macOS and Linux hosts.
  */
@@ -272,7 +272,7 @@ function readinessScript(
     regex: rule.condition.regexFilter,
   }));
   const policySha256 = readinessPolicySha256(rules, cases);
-  return `"use strict";\nconst extensionId=${JSON.stringify(DERIVATION_GUARD_EXTENSION_ID)};\nconst policySha256=${JSON.stringify(policySha256)};\nconst regexes=${JSON.stringify(regexes)};\nconst cases=${JSON.stringify(cases)};\nglobalThis.__wrenchCheckGuard=async()=>{let checks=0;try{if(chrome.runtime.id!==extensionId)throw new Error("id");checks+=1;const enabled=await chrome.declarativeNetRequest.getEnabledRulesets();if(!Array.isArray(enabled)||enabled.length!==1||enabled[0]!=="rules")throw new Error("ruleset");checks+=1;const disabled=await chrome.declarativeNetRequest.getDisabledRuleIds({rulesetId:"rules"});if(!Array.isArray(disabled)||disabled.length!==0)throw new Error("disabled");checks+=1;for(const item of regexes){const support=await chrome.declarativeNetRequest.isRegexSupported({isCaseSensitive:false,regex:item.regex});if(!support||support.isSupported!==true)throw new Error("regex");checks+=1}for(const item of cases){const result=await chrome.declarativeNetRequest.testMatchOutcome({type:item.type,url:item.url});if(!result||!Array.isArray(result.matchedRules)||result.matchedRules.length!==1)throw new Error("outcome");const match=result.matchedRules[0];if(!match||match.ruleId!==item.ruleId||match.rulesetId!=="rules")throw new Error("rule");checks+=1}return{schemaVersion:1,ok:true,extensionId,policySha256,checks}}catch{return{schemaVersion:1,ok:false,extensionId:"",policySha256:"",checks:0}}};\n`;
+  return `"use strict";\nconst extensionId=${JSON.stringify(DERIVATION_GUARD_EXTENSION_ID)};\nconst policySha256=${JSON.stringify(policySha256)};\nconst regexes=${JSON.stringify(regexes)};\nconst cases=${JSON.stringify(cases)};\nglobalThis.__ghostgetCheckGuard=async()=>{let checks=0;try{if(chrome.runtime.id!==extensionId)throw new Error("id");checks+=1;const enabled=await chrome.declarativeNetRequest.getEnabledRulesets();if(!Array.isArray(enabled)||enabled.length!==1||enabled[0]!=="rules")throw new Error("ruleset");checks+=1;const disabled=await chrome.declarativeNetRequest.getDisabledRuleIds({rulesetId:"rules"});if(!Array.isArray(disabled)||disabled.length!==0)throw new Error("disabled");checks+=1;for(const item of regexes){const support=await chrome.declarativeNetRequest.isRegexSupported({isCaseSensitive:false,regex:item.regex});if(!support||support.isSupported!==true)throw new Error("regex");checks+=1}for(const item of cases){const result=await chrome.declarativeNetRequest.testMatchOutcome({type:item.type,url:item.url});if(!result||!Array.isArray(result.matchedRules)||result.matchedRules.length!==1)throw new Error("outcome");const match=result.matchedRules[0];if(!match||match.ruleId!==item.ruleId||match.rulesetId!=="rules")throw new Error("rule");checks+=1}return{schemaVersion:1,ok:true,extensionId,policySha256,checks}}catch{return{schemaVersion:1,ok:false,extensionId:"",policySha256:"",checks:0}}};\n`;
 }
 
 export function derivationGuardExtensionFiles(
@@ -281,7 +281,7 @@ export function derivationGuardExtensionFiles(
   const rules = derivationGuardRules(browserDomains);
   const manifest = {
     manifest_version: 3,
-    name: "Wrench Derivation Network Guard",
+    name: "Ghostget Derivation Network Guard",
     version: "1.0.0",
     key: extensionPublicKey,
     background: { service_worker: "readiness.js" },

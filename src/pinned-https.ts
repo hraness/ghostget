@@ -153,7 +153,7 @@ function exactHttpsOrigin(value: string): string {
 /**
  * Create one exact-origin keep-alive scope for a bounded caller invocation.
  *
- * Every request still resolves and validates its target before dispatch. The underlying Wrench
+ * Every request still resolves and validates its target before dispatch. The underlying Ghostget
  * transport reuses a socket only when both this origin and the newly pinned address match.
  */
 export function createPinnedHttpsFetchScope(

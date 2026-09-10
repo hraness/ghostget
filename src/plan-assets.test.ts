@@ -82,7 +82,7 @@ function fixture(contents: Uint8Array = png): Fixture {
   return {
     root,
     source,
-    environment: { WRENCH_STATE_HOME: join(root, "state") },
+    environment: { GHOSTGET_STATE_HOME: join(root, "state") },
   };
 }
 
@@ -233,7 +233,7 @@ describe("plan-bound attachments", () => {
       const protectedBundle = commit(protectedDigest);
       const orphanBundle = commit(orphanDigest);
       const youngBundle = commit(youngDigest);
-      const assetRoot = join(value.environment.WRENCH_STATE_HOME as string, "plan-assets");
+      const assetRoot = join(value.environment.GHOSTGET_STATE_HOME as string, "plan-assets");
       const abandonedStage = join(assetRoot, ".stage-abandoned");
       mkdirSync(abandonedStage, { mode: 0o700 });
       writeFileSync(join(abandonedStage, "asset-01.tmp"), png, { mode: 0o600 });

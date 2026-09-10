@@ -46,18 +46,18 @@ import {
   type WhatsAppPresentationFacts,
 } from "./provider-presentation";
 
-export const SITE_ORIGIN = "https://wrench.rip" as const;
-export const SITE_TITLE = "Wrench: precise web capabilities for AI agents" as const;
+export const SITE_ORIGIN = "https://ghostget.com" as const;
+export const SITE_TITLE = "Ghostget: precise web capabilities for AI agents" as const;
 export const SITE_DESCRIPTION =
   "Open-source CLI and TypeScript SDK for precise web capabilities for AI agents: page capture, verified media archives, encrypted reads, and typed provider operations." as const;
-export const REPOSITORY_URL = "https://github.com/hraness/wrench" as const;
-export const GITHUB_RELEASES_URL = "https://github.com/hraness/wrench/releases" as const;
-export const SKILLS_URL = "https://skills.sh/hraness/wrench" as const;
+export const REPOSITORY_URL = "https://github.com/hraness/ghostget" as const;
+export const GITHUB_RELEASES_URL = "https://github.com/hraness/ghostget/releases" as const;
+export const SKILLS_URL = "https://skills.sh/hraness/ghostget" as const;
 export const PUBLISHER_URL = "https://github.com/hraness" as const;
-export const SKILL_REPOSITORY = "hraness/wrench" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.16.17" as const;
+export const SKILL_REPOSITORY = "hraness/ghostget" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.17.0" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
-export const WRENCH_MAILING_TURNSTILE_SITEKEY_ENV =
+export const GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV =
   "NEXT_PUBLIC_HRANESS_MAILING_TURNSTILE_SITEKEY" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",
@@ -78,10 +78,10 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/getting-started/",
     description:
-      "Install Wrench with Bun, verify local readiness, capture a first URL, and inspect the exact capabilities available on your machine.",
+      "Install Ghostget with Bun, verify local readiness, capture a first URL, and inspect the exact capabilities available on your machine.",
     outputFile: "getting-started/index.html",
     sourceFile: "getting-started.html",
-    title: "Install Wrench: CLI and TypeScript SDK getting started guide",
+    title: "Install Ghostget: CLI and TypeScript SDK getting started guide",
   },
   {
     canonicalPath: "/capture-and-archives/",
@@ -89,15 +89,15 @@ export const PUBLIC_PAGES = [
       "Capture public URLs as Markdown and preserve one authorized media item with manifests, transcripts, provenance, and SHA-256 verification.",
     outputFile: "capture-and-archives/index.html",
     sourceFile: "capture-and-archives.html",
-    title: "Capture URLs and create verified media archives with Wrench",
+    title: "Capture URLs and create verified media archives with Ghostget",
   },
   {
     canonicalPath: "/provider-capabilities/",
     description:
-      "See which provider actions Wrench supports in the current release and how each service connects.",
+      "See which provider actions Ghostget supports in the current release and how each service connects.",
     outputFile: "provider-capabilities/index.html",
     sourceFile: "provider-capabilities.html",
-    title: "Provider support in Wrench",
+    title: "Provider support in Ghostget",
   },
   {
     canonicalPath: "/providers/beeper/",
@@ -116,55 +116,55 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/security/",
     description:
-      "Understand Wrench local custody, encrypted snapshots, exact account binding, fail-closed provider contracts, risk levels, and mutation recovery.",
+      "Understand Ghostget local custody, encrypted snapshots, exact account binding, fail-closed provider contracts, risk levels, and mutation recovery.",
     outputFile: "security/index.html",
     sourceFile: "security.html",
-    title: "Wrench security: local custody and bounded provider contracts",
+    title: "Ghostget security: local custody and bounded provider contracts",
   },
   {
     canonicalPath: "/plugins/",
     description:
-      "Create, statically check, test, reproducibly pack, trust, and install a content-addressed Wrench provider plugin without weakening the kernel boundary.",
+      "Create, statically check, test, reproducibly pack, trust, and install a content-addressed Ghostget provider plugin without weakening the kernel boundary.",
     outputFile: "plugins/index.html",
     sourceFile: "plugins.html",
-    title: "Author and verify Wrench provider plugins",
+    title: "Author and verify Ghostget provider plugins",
   },
   {
     canonicalPath: "/about/",
     description:
-      "Wrench is an open-source CLI and TypeScript SDK that gives command-capable agents precise web capabilities with local custody.",
+      "Ghostget is an open-source CLI and TypeScript SDK that gives command-capable agents precise web capabilities with local custody.",
     outputFile: "about/index.html",
     sourceFile: "about.html",
-    title: "About Wrench: open-source web capabilities for AI agents",
+    title: "About Ghostget: open-source web capabilities for AI agents",
   },
   {
     canonicalPath: "/contact/",
     description:
-      "Contact Wrench through public GitHub issues or private vulnerability reporting. No telephone, postal address, or support inbox is published.",
+      "Contact Ghostget through public GitHub issues or private vulnerability reporting. No telephone, postal address, or support inbox is published.",
     outputFile: "contact/index.html",
     sourceFile: "contact.html",
-    title: "Contact Wrench maintainers and report security issues",
+    title: "Contact Ghostget maintainers and report security issues",
   },
   {
     canonicalPath: "/privacy/",
     description:
-      "How Wrench stores CLI and provider state locally, when requested work contacts third parties, how to remove data, and what wrench.rip measures.",
+      "How Ghostget stores CLI and provider state locally, when requested work contacts third parties, how to remove data, and what ghostget.com measures.",
     outputFile: "privacy/index.html",
     sourceFile: "privacy.html",
-    title: "Wrench privacy and data custody: CLI, providers, and website",
+    title: "Ghostget privacy and data custody: CLI, providers, and website",
   },
   {
     canonicalPath: "/compare/personal-agents-browser-use/",
     description:
-      "Compare persistent personal agents that use a general browser with Wrench's named, supported web operations and fail-closed boundaries.",
+      "Compare persistent personal agents that use a general browser with Ghostget's named, supported web operations and fail-closed boundaries.",
     outputFile: "compare/personal-agents-browser-use/index.html",
     sourceFile: "compare-personal-agents-browser-use.html",
-    title: "Browser-using personal agents, and which web operations Wrench attests",
+    title: "Browser-using personal agents, and which web operations Ghostget attests",
   },
   {
     canonicalPath: "/agentic-web-spoofing/",
     description:
-      "Known Agents measures inbound bot impersonation. That check does not establish a safe outbound Wrench operation or name its operator.",
+      "Known Agents measures inbound bot impersonation. That check does not establish a safe outbound Ghostget operation or name its operator.",
     outputFile: "agentic-web-spoofing/index.html",
     sourceFile: "agentic-web-spoofing.html",
     title: "Agentic-web index spoofing, and why attested operations still matter",
@@ -172,7 +172,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/vms-cannot-contain-agents/",
     description:
-      "The Wednesday 26 August 2026 rough.day tech edition ranked Trail of Bits' argument that VMs cannot reliably contain cyber-capable AI agents. A guest machine does not establish a safe Wrench operation.",
+      "The Wednesday 26 August 2026 rough.day tech edition ranked Trail of Bits' argument that VMs cannot reliably contain cyber-capable AI agents. A guest machine does not establish a safe Ghostget operation.",
     outputFile: "vms-cannot-contain-agents/index.html",
     sourceFile: "vms-cannot-contain-agents.html",
     title: "VMs cannot contain agents, and why attested web operations still matter",
@@ -180,7 +180,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/paypal-grapheneos-attestation/",
     description:
-      "The Thursday 27 August 2026 rough.day tech edition ranked PayPal crashing on GrapheneOS with a RootDetectionSecurityException. Device-policy attestation is not a named Wrench operation.",
+      "The Thursday 27 August 2026 rough.day tech edition ranked PayPal crashing on GrapheneOS with a RootDetectionSecurityException. Device-policy attestation is not a named Ghostget operation.",
     outputFile: "paypal-grapheneos-attestation/index.html",
     sourceFile: "paypal-grapheneos-attestation.html",
     title: "PayPal attested a hardened phone as rooted, and why named web operations still matter",
@@ -188,7 +188,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/rumour-is-the-exploit/",
     description:
-      "This Monday 31 August 2026 sourced take starts from Anil Madhavapeddy’s essay that a rumour of a bug is enough for agentic search. A search direction is not a named Wrench operation.",
+      "This Monday 31 August 2026 sourced take starts from Anil Madhavapeddy’s essay that a rumour of a bug is enough for agentic search. A search direction is not a named Ghostget operation.",
     outputFile: "rumour-is-the-exploit/index.html",
     sourceFile: "rumour-is-the-exploit.html",
     title: "A rumour is enough for agentic search, and why named web operations still matter",
@@ -196,7 +196,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/omarchy-root-escalation/",
     description:
-      "The Sunday 30 August 2026 rough.day tech edition ranked Omarchy’s default desktop allowing any user process to escalate to root. A host privilege grant is not a named Wrench operation.",
+      "The Sunday 30 August 2026 rough.day tech edition ranked Omarchy’s default desktop allowing any user process to escalate to root. A host privilege grant is not a named Ghostget operation.",
     outputFile: "omarchy-root-escalation/index.html",
     sourceFile: "omarchy-root-escalation.html",
     title: "Omarchy lets any user process escalate to root, and why named web operations still matter",
@@ -207,7 +207,7 @@ export type PublicPage = (typeof PUBLIC_PAGES)[number];
 
 export function renderAskAiAboutThis(canonicalUrl: string): string {
   return renderToStaticMarkup(createElement(AskAiAboutThis, {
-    className: "wrench-ask-ai",
+    className: "ghostget-ask-ai",
     url: canonicalUrl,
   }));
 }
@@ -284,9 +284,9 @@ const supportedPostHogHosts = new Set([
 export type PackageIdentity = Readonly<{
   description: typeof SITE_DESCRIPTION;
   homepage: typeof SITE_ORIGIN;
-  name: "@hraness/wrench";
+  name: "@hraness/ghostget";
   release: `v${string}`;
-  repositoryUrl: "git+https://github.com/hraness/wrench.git";
+  repositoryUrl: "git+https://github.com/hraness/ghostget.git";
   version: string;
 }>;
 
@@ -337,24 +337,24 @@ export function parsePackageIdentity(value: unknown): PackageIdentity {
   ) {
     throw new TypeError("package.json version must be a stable semantic version.");
   }
-  if (manifest.name !== "@hraness/wrench") {
-    throw new TypeError("The website can only describe @hraness/wrench.");
+  if (manifest.name !== "@hraness/ghostget") {
+    throw new TypeError("The website can only describe @hraness/ghostget.");
   }
   if (manifest.description !== SITE_DESCRIPTION) {
     throw new TypeError("The package and website descriptions must stay identical.");
   }
   if (manifest.homepage !== SITE_ORIGIN) {
-    throw new TypeError("The package homepage must be the canonical Wrench origin.");
+    throw new TypeError("The package homepage must be the canonical Ghostget origin.");
   }
-  if (repository.url !== "git+https://github.com/hraness/wrench.git") {
-    throw new TypeError("The package repository must be the canonical public Wrench repository.");
+  if (repository.url !== "git+https://github.com/hraness/ghostget.git") {
+    throw new TypeError("The package repository must be the canonical public Ghostget repository.");
   }
   return {
     description: SITE_DESCRIPTION,
     homepage: SITE_ORIGIN,
-    name: "@hraness/wrench",
+    name: "@hraness/ghostget",
     release: `v${version}`,
-    repositoryUrl: "git+https://github.com/hraness/wrench.git",
+    repositoryUrl: "git+https://github.com/hraness/ghostget.git",
     version,
   };
 }
@@ -438,7 +438,7 @@ function sharedJsonLd(identity: PackageIdentity): ReadonlyArray<Readonly<Record<
       "@type": "WebSite",
       description: SITE_DESCRIPTION,
       inLanguage: "en",
-      name: "Wrench",
+      name: "Ghostget",
       publisher: { "@id": `${SITE_ORIGIN}/#organization` },
       url: `${SITE_ORIGIN}/`,
     },
@@ -459,7 +459,7 @@ function sharedJsonLd(identity: PackageIdentity): ReadonlyArray<Readonly<Record<
       installUrl: `${SITE_ORIGIN}/getting-started/`,
       isAccessibleForFree: true,
       license: "https://opensource.org/license/mit",
-      name: "Wrench",
+      name: "Ghostget",
       offers: {
         "@type": "Offer",
         availability: "https://schema.org/InStock",
@@ -478,7 +478,7 @@ function sharedJsonLd(identity: PackageIdentity): ReadonlyArray<Readonly<Record<
       "@type": "SoftwareSourceCode",
       codeRepository: REPOSITORY_URL,
       license: "https://opensource.org/license/mit",
-      name: "Wrench source code",
+      name: "Ghostget source code",
       programmingLanguage: {
         "@type": "ComputerLanguage",
         name: "TypeScript",
@@ -498,17 +498,17 @@ function jsonLd(identity: PackageIdentity, page: PublicPage): Readonly<Record<st
     ? undefined
     : page.canonicalPath === "/providers/beeper/"
       ? [
-        { item: `${SITE_ORIGIN}/`, name: "Wrench" },
+        { item: `${SITE_ORIGIN}/`, name: "Ghostget" },
         { item: `${SITE_ORIGIN}/provider-capabilities/`, name: "Providers" },
         { item: url, name: "Beeper" },
       ]
       : page.canonicalPath === "/providers/whatsapp/"
         ? [
-          { item: `${SITE_ORIGIN}/`, name: "Wrench" },
+          { item: `${SITE_ORIGIN}/`, name: "Ghostget" },
           { item: `${SITE_ORIGIN}/provider-capabilities/`, name: "Providers" },
           { item: url, name: "WhatsApp" },
         ]
-        : [{ item: `${SITE_ORIGIN}/`, name: "Wrench" }, { item: url, name: page.title }];
+        : [{ item: `${SITE_ORIGIN}/`, name: "Ghostget" }, { item: url, name: page.title }];
   const pageGraph: Array<Readonly<Record<string, unknown>>> = [
     {
       "@id": pageId,
@@ -660,16 +660,16 @@ function renderTemplate(
     throw new Error("Unknown provider capability placeholder.");
   }
   const optionalValues = new Map([
-    ["{{WRENCH_DESCRIPTION}}", identity.description],
-    ["{{WRENCH_INSTALL_COMMAND}}", installCommand],
-    ["{{WRENCH_PACKAGE_ARTIFACT}}", versionedPackageArtifactUrl(identity)],
-    ["{{WRENCH_RELEASE}}", identity.release],
-    ["{{WRENCH_REPOSITORY}}", REPOSITORY_URL],
-    ["{{WRENCH_SKILLS}}", SKILLS_URL],
-    ["{{WRENCH_SKILL_INSTALL_ASSET}}", options.skillInstallAsset],
-    ["{{WRENCH_SKILL_INSTALL_COMMAND}}", skillInstallCommands.npx],
-    ["{{WRENCH_SKILL_INSTALL_COMMAND_BUNX}}", skillInstallCommands.bunx],
-    ["{{WRENCH_VERSION}}", identity.version],
+    ["{{GHOSTGET_DESCRIPTION}}", identity.description],
+    ["{{GHOSTGET_INSTALL_COMMAND}}", installCommand],
+    ["{{GHOSTGET_PACKAGE_ARTIFACT}}", versionedPackageArtifactUrl(identity)],
+    ["{{GHOSTGET_RELEASE}}", identity.release],
+    ["{{GHOSTGET_REPOSITORY}}", REPOSITORY_URL],
+    ["{{GHOSTGET_SKILLS}}", SKILLS_URL],
+    ["{{GHOSTGET_SKILL_INSTALL_ASSET}}", options.skillInstallAsset],
+    ["{{GHOSTGET_SKILL_INSTALL_COMMAND}}", skillInstallCommands.npx],
+    ["{{GHOSTGET_SKILL_INSTALL_COMMAND_BUNX}}", skillInstallCommands.bunx],
+    ["{{GHOSTGET_VERSION}}", identity.version],
     ["{{BEEPER_ADAPTER_VERSION}}", options.beeperFacts.adapterVersion],
     [
       "{{BEEPER_CLI_BACKED_OPERATION_COUNT}}",
@@ -764,22 +764,22 @@ function postHogEnvironment(environment: Readonly<Record<string, string | undefi
   return { host, key };
 }
 
-export function wrenchMailingListConfig(
+export function ghostgetMailingListConfig(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): HranessMailingListConfig {
   const turnstileSitekey =
-    environment[WRENCH_MAILING_TURNSTILE_SITEKEY_ENV];
+    environment[GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV];
   if (turnstileSitekey === undefined || turnstileSitekey === "") {
     if (environment.VERCEL_ENV === "production") {
       throw new Error(
-        `${WRENCH_MAILING_TURNSTILE_SITEKEY_ENV} must be configured for Vercel Production.`,
+        `${GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV} must be configured for Vercel Production.`,
       );
     }
     return { kind: "none" };
   }
   if (!/^[A-Za-z0-9_-]{20,100}$/u.test(turnstileSitekey)) {
     throw new Error(
-      `${WRENCH_MAILING_TURNSTILE_SITEKEY_ENV} must be a 20-100 character URL-safe public Cloudflare Turnstile sitekey.`,
+      `${GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV} must be a 20-100 character URL-safe public Cloudflare Turnstile sitekey.`,
     );
   }
   return {
@@ -870,7 +870,7 @@ export async function buildWebsite(
     beeperFacts,
     cssAsset,
     hranessSiteFooter: renderHranessSiteFooter({
-      mailingList: wrenchMailingListConfig(environment),
+      mailingList: ghostgetMailingListConfig(environment),
     }),
     packageIdentity: identity,
     postHogHost: postHog.host,

@@ -31,14 +31,14 @@ const shortcode = fc.array(
 function publishInput(): OperationInput {
   return {
     audience: "default",
-    caption: "Disposable Wrench Instagram video fixture",
+    caption: "Disposable Ghostget Instagram video fixture",
     media: { kind: "file", reference: "plan-video-1" },
   };
 }
 
 function deletionInput(): OperationInput {
   return {
-    expected_caption: "Disposable Wrench Instagram video fixture",
+    expected_caption: "Disposable Ghostget Instagram video fixture",
     expected_media_kind: "video",
     media_id: "900_12345",
   };

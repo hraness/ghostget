@@ -286,7 +286,7 @@ function environment(): Readonly<Record<string, string | undefined>> {
   const root = mkdtempSync(join(tmpdir(), "wrench-plugin-lifecycle-kernel-"));
   chmodSync(root, 0o700);
   roots.push(root);
-  return { WRENCH_STATE_HOME: join(root, "wrench-home"), HOME: root };
+  return { GHOSTGET_STATE_HOME: join(root, "wrench-home"), HOME: root };
 }
 
 afterEach(() => {

@@ -1,4 +1,4 @@
-import type { WrenchAuth } from "../../auth";
+import type { GhostgetAuth } from "../../auth";
 import type { WebSessionOperationExecutor } from "../../web-session";
 
 function captureRequired(reason: string): never {
@@ -36,7 +36,7 @@ export function normalize__PASCAL_NAME__Response(_value: unknown): never {
  * semantic read or action.
  */
 export async function probe__PASCAL_NAME__WebSubject(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
 ): Promise<string> {
   void auth;
   return captureRequired("current-account probe is not proven");

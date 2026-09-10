@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import type { OmniReadResultV1 } from "./omni-runtime";
 import { providerPluginRegistry } from "./provider-plugins";
-import { main } from "./wrench";
+import { main } from "./ghostget";
 
 function response(
   source: OmniReadResultV1["source"],

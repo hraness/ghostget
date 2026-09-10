@@ -1,11 +1,11 @@
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import {
   browserResultData,
   createBrowserSession,
   type BrowserSession,
   type CreateBrowserSessionOptions,
 } from "../browser";
-import type { WrenchManifest } from "../model";
+import type { GhostgetManifest } from "../model";
 import {
   LINKEDIN_MESSENGER_CONVERSATIONS_QUERY_PREFIX,
   assertLinkedInMessengerConversationsRequest,
@@ -16,7 +16,7 @@ const LINKEDIN_ORIGIN = "https://www.linkedin.com";
 const MAX_NETWORK_REQUESTS = 10_000;
 const MAX_REQUEST_URL_CHARACTERS = 64 * 1_024;
 
-const bootstrapManifest: WrenchManifest = Object.freeze({
+const bootstrapManifest: GhostgetManifest = Object.freeze({
   schemaVersion: 4,
   id: "linkedin-query-bootstrap",
   version: "1.0.0",
@@ -31,8 +31,8 @@ const bootstrapManifest: WrenchManifest = Object.freeze({
 
 export type LinkedInQueryBootstrapDependencies = {
   readonly createSession: (
-    manifest: WrenchManifest,
-    auth: WrenchAuth,
+    manifest: GhostgetManifest,
+    auth: GhostgetAuth,
     options: CreateBrowserSessionOptions,
   ) => Promise<BrowserSession>;
 };
@@ -89,7 +89,7 @@ function queryCandidates(value: unknown, expectedMailboxUrn: string): readonly s
  * semantic inbox read for wrench; direct pinned HTTPS does that separately.
  */
 export async function resolveLinkedInMessengerConversationsQueryId(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   expectedMailboxUrn: string,
   options: {
     readonly timeoutMs?: number;

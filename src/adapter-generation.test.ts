@@ -14,7 +14,7 @@ import {
   canonicalJson,
   parseRuntimeManifest,
   sha256,
-  type WrenchManifest,
+  type GhostgetManifest,
 } from "./model";
 import { providerPluginRegistry } from "./provider-plugins";
 import {
@@ -74,11 +74,11 @@ function fixture(): {
   roots.push(root);
   return {
     root,
-    environment: { WRENCH_STATE_HOME: join(root, "state") },
+    environment: { GHOSTGET_STATE_HOME: join(root, "state") },
   };
 }
 
-function currentManifest(surface: "linkedin" | "x"): WrenchManifest {
+function currentManifest(surface: "linkedin" | "x"): GhostgetManifest {
   const parsed = parseRuntimeManifest(
     JSON.parse(
       readFileSync(
@@ -92,14 +92,14 @@ function currentManifest(surface: "linkedin" | "x"): WrenchManifest {
   return parsed.value;
 }
 
-function versioned(manifest: WrenchManifest, version: string): WrenchManifest {
+function versioned(manifest: GhostgetManifest, version: string): GhostgetManifest {
   const candidate = { ...structuredClone(manifest), version };
   const parsed = parseRuntimeManifest(candidate, providerPluginRegistry);
   if (!parsed.ok) throw new Error(parsed.issues.join("; "));
   return parsed.value;
 }
 
-function selection(manifest: WrenchManifest): BundledAdapterGenerationSelection {
+function selection(manifest: GhostgetManifest): BundledAdapterGenerationSelection {
   return {
     id: manifest.id,
     state: "present",
@@ -140,7 +140,7 @@ describe("content-addressed adapter generations", () => {
     )).toBe(`${canonicalJson(x)}\n`);
 
     const index = JSON.parse(readFileSync(
-      join(state.environment.WRENCH_STATE_HOME!, "adapter-generations", "current.json"),
+      join(state.environment.GHOSTGET_STATE_HOME!, "adapter-generations", "current.json"),
       "utf8",
     )) as {
       readonly commitId: string;
@@ -152,7 +152,7 @@ describe("content-addressed adapter generations", () => {
     expect(index.entries).toHaveLength(2);
     for (const entry of index.entries) {
       const objectPath = join(
-        state.environment.WRENCH_STATE_HOME!,
+        state.environment.GHOSTGET_STATE_HOME!,
         "adapter-generations",
         "objects",
         `${entry.objectContentSha256}.json`,
@@ -236,7 +236,7 @@ describe("content-addressed adapter generations", () => {
       import { installBundledAdapterGeneration } from ${JSON.stringify(storageUrl)};
       import { canonicalJson, parseRuntimeManifest, sha256 } from ${JSON.stringify(modelUrl)};
       import { providerPluginRegistry } from ${JSON.stringify(pluginUrl)};
-      const value = parseRuntimeManifest(JSON.parse(readFileSync(process.env.WRENCH_TEST_MANIFEST, "utf8")), providerPluginRegistry);
+      const value = parseRuntimeManifest(JSON.parse(readFileSync(process.env.GHOSTGET_TEST_MANIFEST, "utf8")), providerPluginRegistry);
       if (!value.ok) throw new Error(value.issues.join("; "));
       installBundledAdapterGeneration([{
         id: value.value.id,
@@ -252,8 +252,8 @@ describe("content-addressed adapter generations", () => {
       env: {
         ...process.env,
         NODE_ENV: "test",
-        WRENCH_STATE_HOME: state.environment.WRENCH_STATE_HOME,
-        WRENCH_TEST_MANIFEST: manifestPath,
+        GHOSTGET_STATE_HOME: state.environment.GHOSTGET_STATE_HOME,
+        GHOSTGET_TEST_MANIFEST: manifestPath,
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -343,7 +343,7 @@ describe("content-addressed adapter generations", () => {
     const manifest = currentManifest("x");
     installBundledAdapterGeneration([selection(manifest)], state.environment);
     const index = JSON.parse(readFileSync(
-      join(state.environment.WRENCH_STATE_HOME!, "adapter-generations", "current.json"),
+      join(state.environment.GHOSTGET_STATE_HOME!, "adapter-generations", "current.json"),
       "utf8",
     )) as {
       readonly entries: readonly {
@@ -351,7 +351,7 @@ describe("content-addressed adapter generations", () => {
       }[];
     };
     const objectPath = join(
-      state.environment.WRENCH_STATE_HOME!,
+      state.environment.GHOSTGET_STATE_HOME!,
       "adapter-generations",
       "objects",
       `${index.entries[0]!.objectContentSha256}.json`,

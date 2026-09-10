@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { canonicalJson, sha256 } from "./canonical-json";
 import { localCliToolArtifactForCurrentRuntime } from "./local-cli-tool-identity";
 import type { LocalCliPluginBindingV1 } from "./provider-plugin";
@@ -45,7 +45,7 @@ function ownerForBinding(
 function cleanupAdmissionIdentity(
   registry: ProviderPluginRegistry,
   binding: LocalCliPluginBindingV1,
-  auth: WrenchAuth | null,
+  auth: GhostgetAuth | null,
   purpose: LocalCliCleanupAdmissionPurposeV1,
 ): WebSessionCleanupAdmissionIdentity {
   const plugin = ownerForBinding(registry, binding);
@@ -112,7 +112,7 @@ export function withLocalCliProviderCleanupAdmission<T>(
   input: {
     readonly registry: ProviderPluginRegistry;
     readonly binding: LocalCliPluginBindingV1;
-    readonly auth: WrenchAuth | null;
+    readonly auth: GhostgetAuth | null;
     readonly purpose: LocalCliCleanupAdmissionPurposeV1;
     readonly environment?: Environment;
     readonly now?: Date;

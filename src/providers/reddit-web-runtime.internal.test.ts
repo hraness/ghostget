@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
 import type { StrictCookie } from "@hraness/kb/clip/cookies";
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { OperationInput, WebSessionRecipe } from "../model";
 import {
   executeRedditWebOperation,
@@ -55,7 +55,7 @@ const redditAuth = {
   source: "arc",
   profile: "Profile 1",
   subject: SUBJECT,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 const unboundRedditAuth = {
   schemaVersion: 1,
@@ -63,7 +63,7 @@ const unboundRedditAuth = {
   kind: "cookie-source",
   source: "arc",
   profile: "Profile 1",
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 type CapturedRequest = {
   readonly url: URL;
@@ -167,7 +167,7 @@ function profileResponse(): unknown {
       total_karma: 4321,
       subreddit: {
         display_name_prefixed: "u/wrench_viewer",
-        title: "Wrench Viewer",
+        title: "Ghostget Viewer",
         public_description: "Public profile bio",
         subscribers: 8,
       },
@@ -307,7 +307,7 @@ function mediaLease(
 
 function videoPostThing(createdUtc = 1_800_000_000): unknown {
   return postThing({
-    title: "Wrench native video verification",
+    title: "Ghostget native video verification",
     selftext: "Verification body",
     author: "wrench_viewer",
     author_fullname: SUBJECT.slice("reddit:".length),
@@ -587,7 +587,7 @@ describe("Reddit authenticated internal API runtime", () => {
         },
         metadata: {
           handle: "wrench_viewer",
-          displayName: "Wrench Viewer",
+          displayName: "Ghostget Viewer",
           bio: "Public profile bio",
           contributionDefinition:
             "Distinct post and comment IDs in the complete authenticated profile overview listing.",
@@ -723,7 +723,7 @@ describe("Reddit authenticated internal API runtime", () => {
             operation: "media.read",
             post: {
               id: POST_ID,
-              title: "Wrench native video verification",
+              title: "Ghostget native video verification",
               author: "wrench_viewer",
               subreddit: "testingground4bots",
               createdUtc: 1_800_000_000,
@@ -811,7 +811,7 @@ describe("Reddit authenticated internal API runtime", () => {
         recipe("media.publish"),
         {
           community: "testingground4bots",
-          title: "Wrench native video verification",
+          title: "Ghostget native video verification",
           body: "Verification body",
           media: { kind: "file", reference: "video" },
           thumbnail: { kind: "file", reference: "poster" },
@@ -887,7 +887,7 @@ describe("Reddit authenticated internal API runtime", () => {
                   sendreplies: "true",
                   spoiler: "false",
                   sr: "testingground4bots",
-                  title: "Wrench native video verification",
+                  title: "Ghostget native video verification",
                   text: "Verification body",
                   validate_on_submit: "true",
                 });
@@ -1020,7 +1020,7 @@ describe("Reddit authenticated internal API runtime", () => {
       recipe("media.publish"),
       {
         community: "testingground4bots",
-        title: "Wrench native video verification",
+        title: "Ghostget native video verification",
         body: "Verification body",
         nsfw: false,
         spoiler: false,

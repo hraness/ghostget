@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { BrowserSession } from "../browser";
 import { canonicalJson } from "../canonical-json";
 import {
@@ -28,7 +28,7 @@ const auth = {
   browserExecutable: "/Applications/Chromium.app/Contents/MacOS/Chromium",
   trustUnfilteredEgress: true,
   subject: MEMBER_URN,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 type BrowserRequestBinding = {
   readonly method: "GET" | "POST";

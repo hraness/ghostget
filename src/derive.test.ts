@@ -869,9 +869,9 @@ function writeSessionFixture(
 
 async function createInterruptedProxyFixture(prefix: string) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), prefix)));
-  const wrenchState = join(root, "io-state");
+  const ghostgetState = join(root, "io-state");
   const id = crypto.randomUUID();
-  const directory = join(wrenchState, "derivations", id);
+  const directory = join(ghostgetState, "derivations", id);
   const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   mkdirSync(socketDirectory, { mode: 0o700 });
@@ -890,7 +890,7 @@ async function createInterruptedProxyFixture(prefix: string) {
   });
   return {
     root,
-    wrenchState,
+    ghostgetState,
     id,
     directory,
     socketDirectory,
@@ -899,20 +899,20 @@ async function createInterruptedProxyFixture(prefix: string) {
   };
 }
 
-async function leaveCrashedLifecycleGate(id: string, wrenchState: string): Promise<string> {
+async function leaveCrashedLifecycleGate(id: string, ghostgetState: string): Promise<string> {
   const modulePath = join(import.meta.dir, "derive.ts");
   const child = Bun.spawn([
     process.execPath,
     "--eval",
-    `const m = await import(${JSON.stringify(modulePath)}); m.acquireDerivationLifecycleGate(${JSON.stringify(id)}, { WRENCH_STATE_HOME: ${JSON.stringify(wrenchState)} });`,
+    `const m = await import(${JSON.stringify(modulePath)}); m.acquireDerivationLifecycleGate(${JSON.stringify(id)}, { GHOSTGET_STATE_HOME: ${JSON.stringify(ghostgetState)} });`,
   ], {
     cwd: import.meta.dir,
-    env: { ...process.env, WRENCH_STATE_HOME: wrenchState },
+    env: { ...process.env, GHOSTGET_STATE_HOME: ghostgetState },
     stdout: "pipe",
     stderr: "pipe",
   });
   expect(await child.exited).toBe(0);
-  return join(wrenchState, "derivations", `.lifecycle-${id}`);
+  return join(ghostgetState, "derivations", `.lifecycle-${id}`);
 }
 
 describe("derivation browser fixture cleanup", () => {
@@ -1507,7 +1507,7 @@ describe("derivation session path defenses", () => {
 
   test("rejects a named LinkedIn profile before creating derivation state", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-linkedin-named-profile-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     try {
       await expectRejectedWith(startDerivation(
         "linkedin-web",
@@ -1525,10 +1525,10 @@ describe("derivation session path defenses", () => {
           contentMode: "none",
           browserDomains: ["www.linkedin.com"],
           headed: false,
-          environment: { WRENCH_STATE_HOME: wrenchState },
+          environment: { GHOSTGET_STATE_HOME: ghostgetState },
         },
       ), "path-backed browser-profile");
-      expect(existsSync(wrenchState)).toBeFalse();
+      expect(existsSync(ghostgetState)).toBeFalse();
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -1675,7 +1675,7 @@ describe("derivation session path defenses", () => {
 
   test("rejects multi-origin cookie seeding unless the auth stays in a contained fresh browser", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-cookie-origins-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     try {
       await expectRejectedWith(startDerivation(
         "youtube-web",
@@ -1693,7 +1693,7 @@ describe("derivation session path defenses", () => {
           browserDomains: ["studio.example.com", "accounts.example.com"],
           cookieOrigins: ["https://accounts.example.com"],
           headed: false,
-          environment: { WRENCH_STATE_HOME: wrenchState },
+          environment: { GHOSTGET_STATE_HOME: ghostgetState },
         },
       ), "browser remains domain-contained");
       await expectRejectedWith(startDerivation(
@@ -1711,10 +1711,10 @@ describe("derivation session path defenses", () => {
           browserDomains: ["studio.example.com"],
           cookieOrigins: ["https://accounts.example.com"],
           headed: false,
-          environment: { WRENCH_STATE_HOME: wrenchState },
+          environment: { GHOSTGET_STATE_HOME: ghostgetState },
         },
       ), "covered by browser domains");
-      expect(existsSync(wrenchState)).toBeFalse();
+      expect(existsSync(ghostgetState)).toBeFalse();
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -2199,7 +2199,7 @@ describe("derivation session path defenses", () => {
 
   test("removes partial control and socket trees when profile initialization fails", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-init-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const beforeSockets = new Set(readdirSync(process.platform === "win32" ? tmpdir() : "/tmp").filter((name) => name.startsWith("io-derive-ab-")));
     try {
       await expectRejectedWith(startDerivation(
@@ -2217,12 +2217,12 @@ describe("derivation session path defenses", () => {
           contentMode: "none",
           browserDomains: ["example.com"],
           headed: false,
-          environment: { WRENCH_STATE_HOME: wrenchState },
+          environment: { GHOSTGET_STATE_HOME: ghostgetState },
         },
       ), "unavailable or unsafe");
-      const derivations = join(wrenchState, "derivations");
+      const derivations = join(ghostgetState, "derivations");
       expect(existsSync(derivations) ? readdirSync(derivations) : []).toEqual([]);
-      expect(JSON.parse(readFileSync(join(wrenchState, ".io-state.json"), "utf8")))
+      expect(JSON.parse(readFileSync(join(ghostgetState, ".io-state.json"), "utf8")))
         .toEqual({ schemaVersion: 1, kind: "io-state" });
       const newSockets = readdirSync(process.platform === "win32" ? tmpdir() : "/tmp")
         .filter((name) => name.startsWith("io-derive-ab-") && !beforeSockets.has(name));
@@ -2234,7 +2234,7 @@ describe("derivation session path defenses", () => {
 
   test("reports an active Chromium profile without retaining partial derivation state", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-active-profile-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const userData = join(root, "User Data");
     const profile = join(userData, "Profile 1");
     mkdirSync(profile, { recursive: true, mode: 0o700 });
@@ -2257,10 +2257,10 @@ describe("derivation session path defenses", () => {
           contentMode: "none",
           browserDomains: ["example.com"],
           headed: false,
-          environment: { WRENCH_STATE_HOME: wrenchState },
+          environment: { GHOSTGET_STATE_HOME: ghostgetState },
         },
       ), "fully quit the browser and retry");
-      const derivations = join(wrenchState, "derivations");
+      const derivations = join(ghostgetState, "derivations");
       expect(existsSync(derivations) ? readdirSync(derivations) : []).toEqual([]);
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -2269,9 +2269,9 @@ describe("derivation session path defenses", () => {
 
   test("reloads freshly persisted metadata with a hyphen-free session suffix", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-reload-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
@@ -2280,7 +2280,7 @@ describe("derivation session path defenses", () => {
       writeFileSync(join(expectedDirectory, "action-policy.json"), "{}\n", { mode: 0o600 });
       writeSessionFixture(id, expectedDirectory, { profilePath: "Work" });
 
-      expect(listDerivations({ WRENCH_STATE_HOME: wrenchState })).toEqual([{
+      expect(listDerivations({ GHOSTGET_STATE_HOME: ghostgetState })).toEqual([{
         id,
         adapterId: "example",
         targetOrigin,
@@ -2296,7 +2296,7 @@ describe("derivation session path defenses", () => {
       }]);
 
       await expectRejectedWith(
-        runDerivationBrowserCommand(id, ["eval"], { WRENCH_STATE_HOME: wrenchState }),
+        runDerivationBrowserCommand(id, ["eval"], { GHOSTGET_STATE_HOME: ghostgetState }),
         "does not allow eval",
       );
       expect(existsSync(expectedDirectory)).toBe(true);
@@ -2308,11 +2308,11 @@ describe("derivation session path defenses", () => {
 
   test("keeps init-only crashes visible and recoverable after their browser socket disappears", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-init-only-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
       mkdirSync(socketDirectory, { mode: 0o700 });
@@ -2344,7 +2344,7 @@ describe("derivation session path defenses", () => {
     try {
       rmSync(fixture.socketDirectory, { recursive: true });
       unlinkSync(fixture.controlPath);
-      expect(await discardDerivation(fixture.id, { WRENCH_STATE_HOME: fixture.wrenchState })).toBeTrue();
+      expect(await discardDerivation(fixture.id, { GHOSTGET_STATE_HOME: fixture.ghostgetState })).toBeTrue();
       helperDead = processOwnerStatus(fixture.guard.proxy.owner) === "different-or-dead";
       expect(helperDead).toBeTrue();
       expect(existsSync(fixture.directory)).toBeFalse();
@@ -2375,7 +2375,7 @@ describe("derivation session path defenses", () => {
     let helperDead = false;
     try {
       await expectRejectedWith(
-        discardDerivation(fixture.id, { WRENCH_STATE_HOME: fixture.wrenchState }),
+        discardDerivation(fixture.id, { GHOSTGET_STATE_HOME: fixture.ghostgetState }),
         "malformed",
       );
       expect(processOwnerStatus(fixture.guard.proxy.owner)).toBe("exact-live-owner");
@@ -2386,7 +2386,7 @@ describe("derivation session path defenses", () => {
       if (existsSync(fixture.controlPath)) unlinkSync(fixture.controlPath);
       expect(await discardDerivation(
         fixture.id,
-        { WRENCH_STATE_HOME: fixture.wrenchState },
+        { GHOSTGET_STATE_HOME: fixture.ghostgetState },
       )).toBeTrue();
       helperDead = processOwnerStatus(fixture.guard.proxy.owner) === "different-or-dead";
       if (helperDead) rmSync(fixture.root, { recursive: true, force: true });
@@ -2405,7 +2405,7 @@ describe("derivation session path defenses", () => {
     let helperDead = false;
     try {
       await expectRejectedWith(
-        discardDerivation(fixture.id, { WRENCH_STATE_HOME: fixture.wrenchState }),
+        discardDerivation(fixture.id, { GHOSTGET_STATE_HOME: fixture.ghostgetState }),
         "changed identity",
       );
       expect(processOwnerStatus(fixture.guard.proxy.owner)).toBe("exact-live-owner");
@@ -2413,7 +2413,7 @@ describe("derivation session path defenses", () => {
       writeFileSync(readyPath, originalReady, { mode: 0o600 });
       expect(await discardDerivation(
         fixture.id,
-        { WRENCH_STATE_HOME: fixture.wrenchState },
+        { GHOSTGET_STATE_HOME: fixture.ghostgetState },
       )).toBeTrue();
       helperDead = processOwnerStatus(fixture.guard.proxy.owner) === "different-or-dead";
       expect(helperDead).toBeTrue();
@@ -2435,10 +2435,10 @@ describe("derivation session path defenses", () => {
 
   test("recovers a directory-phase crash before any browser socket exists", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-directory-phase-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const expectedDirectory = join(ghostgetState, "derivations", id);
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
       writeDirectoryPhaseFixture(id, expectedDirectory);
@@ -2458,11 +2458,11 @@ describe("derivation session path defenses", () => {
 
   test("preserves an unknown live socket from a crash before the socket-bound init marker", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-pre-init-socket-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
       writeDirectoryPhaseFixture(id, expectedDirectory);
@@ -2489,11 +2489,11 @@ describe("derivation session path defenses", () => {
 
   test("does not recover a replaced directory through a copied phase marker", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-phase-replacement-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
-    const displacedDirectory = join(wrenchState, "derivations", `.displaced-session-${id}`);
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const expectedDirectory = join(ghostgetState, "derivations", id);
+    const displacedDirectory = join(ghostgetState, "derivations", `.displaced-session-${id}`);
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
       writeDirectoryPhaseFixture(id, expectedDirectory);
@@ -2514,10 +2514,10 @@ describe("derivation session path defenses", () => {
 
   test("recovers the empty markerless create-to-phase kill window by exact identity", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-empty-markerless-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const expectedDirectory = join(ghostgetState, "derivations", id);
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
 
@@ -2536,11 +2536,11 @@ describe("derivation session path defenses", () => {
 
   test("does not recover markerless state while an unknown socket exists", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-markerless-socket-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
       mkdirSync(socketDirectory, { mode: 0o700 });
@@ -2561,11 +2561,11 @@ describe("derivation session path defenses", () => {
 
   test("rechecks markerless state after list and preserves a nonempty replacement", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-markerless-replacement-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
-    const displacedDirectory = join(wrenchState, "derivations", `.displaced-markerless-${id}`);
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const expectedDirectory = join(ghostgetState, "derivations", id);
+    const displacedDirectory = join(ghostgetState, "derivations", `.displaced-markerless-${id}`);
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
       expect(listDerivations(environment)).toEqual([{
@@ -2588,9 +2588,9 @@ describe("derivation session path defenses", () => {
 
   test("atomically refuses markerless removal when insertion or replacement wins the helper race", () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-empty-remove-race-test-")));
-    const wrenchState = join(root, "io-state");
-    const derivations = join(wrenchState, "derivations");
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const ghostgetState = join(root, "io-state");
+    const derivations = join(ghostgetState, "derivations");
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     const identity = (path: string) => {
       const stats = lstatSync(path, { bigint: true });
       return { device: stats.dev.toString(), inode: stats.ino.toString() };
@@ -2670,10 +2670,10 @@ describe("derivation session path defenses", () => {
 
   test("leaves markerless UUID directories invalid instead of deleting unauthenticated state", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-markerless-state-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const expectedDirectory = join(ghostgetState, "derivations", id);
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
       writeFileSync(join(expectedDirectory, "sentinel"), "keep", { mode: 0o600 });
@@ -2688,12 +2688,12 @@ describe("derivation session path defenses", () => {
 
   test("keeps valid legacy and interrupted sessions non-executable until a metadata-bound ready marker exists", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-unready-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
     const outputDirectory = join(root, "must-not-exist");
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
       mkdirSync(socketDirectory, { mode: 0o700 });
@@ -2742,13 +2742,13 @@ describe("derivation session path defenses", () => {
 
   test("never executes a ready session after its final metadata file is replaced", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-ready-binding-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
     const metadataPath = join(expectedDirectory, "session.json");
     const displacedMetadataPath = join(expectedDirectory, "displaced-session.json");
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
       mkdirSync(socketDirectory, { mode: 0o700 });
@@ -2777,11 +2777,11 @@ describe("derivation session path defenses", () => {
 
   test("serializes browser and review windows while leaving list nonblocking", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-browser-review-gate-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
       mkdirSync(socketDirectory, { mode: 0o700 });
@@ -2818,12 +2818,12 @@ describe("derivation session path defenses", () => {
 
   test("serializes finish and review before output preflight or HAR sealing", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-finish-review-gate-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
     const outputDirectory = join(root, "must-not-exist");
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
       mkdirSync(socketDirectory, { mode: 0o700 });
@@ -2859,11 +2859,11 @@ describe("derivation session path defenses", () => {
 
   test("recovers crashed lifecycle owners only after the full heartbeat grace", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-crash-gate-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
-      await leaveCrashedLifecycleGate(id, wrenchState);
+      await leaveCrashedLifecycleGate(id, ghostgetState);
       expect(() => acquireDerivationLifecycleGate(id, environment)).toThrow("lifecycle is busy");
       const recovered = acquireDerivationLifecycleGate(id, environment, {
         nowMs: Date.now() + DERIVATION_LIFECYCLE_ORPHAN_GRACE_MS + 60_000,
@@ -2876,9 +2876,9 @@ describe("derivation session path defenses", () => {
 
   test("keeps the exact live lifecycle owner busy beyond the stale-heartbeat grace", () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-exact-owner-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       const gate = acquireDerivationLifecycleGate(id, environment);
       try {
@@ -2895,11 +2895,11 @@ describe("derivation session path defenses", () => {
 
   test("recovers a stale lock when its PID was reused by a different process start", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-pid-reuse-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
-      const lockPath = await leaveCrashedLifecycleGate(id, wrenchState);
+      const lockPath = await leaveCrashedLifecycleGate(id, ghostgetState);
       const ownerPath = join(lockPath, "owner.json");
       const owner = JSON.parse(readFileSync(ownerPath, "utf8")) as Record<string, unknown>;
       writeFileSync(ownerPath, JSON.stringify({ ...owner, pid: process.pid }), { mode: 0o600 });
@@ -2915,11 +2915,11 @@ describe("derivation session path defenses", () => {
 
   test("recovers a stale lock from a previous boot even when its PID is currently live", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-reboot-owner-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
-      const lockPath = await leaveCrashedLifecycleGate(id, wrenchState);
+      const lockPath = await leaveCrashedLifecycleGate(id, ghostgetState);
       const ownerPath = join(lockPath, "owner.json");
       const owner = JSON.parse(readFileSync(ownerPath, "utf8")) as Record<string, unknown>;
       const bootId = typeof owner.bootId === "string" ? owner.bootId : "";
@@ -2942,13 +2942,13 @@ describe("derivation session path defenses", () => {
 
   test("retains a markerless acquisition crash for the full recovery grace", () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-markerless-gate-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       const seed = acquireDerivationLifecycleGate(crypto.randomUUID(), environment);
       seed.release();
-      const lockPath = join(wrenchState, "derivations", `.lifecycle-${id}`);
+      const lockPath = join(ghostgetState, "derivations", `.lifecycle-${id}`);
       mkdirSync(lockPath, { mode: 0o700 });
       expect(() => acquireDerivationLifecycleGate(id, environment)).toThrow("lifecycle is busy");
       const recovered = acquireDerivationLifecycleGate(id, environment, {
@@ -2962,12 +2962,12 @@ describe("derivation session path defenses", () => {
 
   test("does not delete a replacement lifecycle lock during stale release", () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-lock-aba-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       const gate = acquireDerivationLifecycleGate(id, environment);
-      const displaced = join(wrenchState, "derivations", `.displaced-${id}`);
+      const displaced = join(ghostgetState, "derivations", `.displaced-${id}`);
       renameSync(gate.path, displaced);
       mkdirSync(gate.path, { mode: 0o700 });
       expect(() => gate.release()).toThrow("ownership was lost");
@@ -2980,12 +2980,12 @@ describe("derivation session path defenses", () => {
 
   test("lists and discards a retained derivation after its ephemeral socket disappears", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-missing-socket-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
     const outputDirectory = join(root, "must-not-be-created");
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
       mkdirSync(socketDirectory, { mode: 0o700 });
@@ -3034,12 +3034,12 @@ describe("derivation session path defenses", () => {
 
   test("quiesces a live bound proxy before discarding state after both socket endpoints disappear", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-missing-both-sockets-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
     const controlPath = derivationGuardControlSocketPath(id);
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     let helperDead = false;
     let guard: Awaited<ReturnType<typeof createDerivationNetworkBoundary>> | null = null;
     try {
@@ -3086,12 +3086,12 @@ describe("derivation session path defenses", () => {
 
   test("does not treat a replacement socket directory as recoverably missing", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-replaced-socket-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
     const replacementSocketDirectory = `${socketDirectory}-replacement`;
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
       mkdirSync(socketDirectory, { mode: 0o700 });
@@ -3119,9 +3119,9 @@ describe("derivation session path defenses", () => {
 
   test("reviews an identity-bound retained HAR without reopening the browser and rejects later tampering", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-review-state-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
     const harPath = join(expectedDirectory, "capture.har");
     const markerPath = join(expectedDirectory, "review.json");
@@ -3166,7 +3166,7 @@ describe("derivation session path defenses", () => {
           sha256: sha256(harText),
         },
       } as const;
-      const environment = { WRENCH_STATE_HOME: wrenchState };
+      const environment = { GHOSTGET_STATE_HOME: ghostgetState };
       const expectedStateParent = {
         device: directoryStats.dev.toString(),
         inode: directoryStats.ino.toString(),
@@ -3257,12 +3257,12 @@ describe("derivation session path defenses", () => {
 
   test("rejects invalid direct field probes without sealing an active recorder", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-review-field-preflight-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
     const markerPath = join(expectedDirectory, "review.json");
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
       mkdirSync(socketDirectory, { mode: 0o700 });
@@ -3306,9 +3306,9 @@ describe("derivation session path defenses", () => {
 
   test("reviews only an exact start-admitted origin and rejects undeclared origins before sealing", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-review-origin-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
     const markerPath = join(expectedDirectory, "review.json");
     const uploadOrigin = "https://upload.example.net";
@@ -3345,7 +3345,7 @@ describe("derivation session path defenses", () => {
         ],
       },
     });
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
       mkdirSync(socketDirectory, { mode: 0o700 });
@@ -3444,9 +3444,9 @@ describe("derivation session path defenses", () => {
 
   test("rejects invalid or unadmitted finish origins without partial output", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-finish-origin-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
     const harPath = join(expectedDirectory, "capture.har");
     const markerPath = join(expectedDirectory, "review.json");
@@ -3454,7 +3454,7 @@ describe("derivation session path defenses", () => {
     const preservedOutput = join(root, "preserved-output");
     const uploadOrigin = "https://upload.example.net";
     const unadmittedOrigin = "https://captured.example.org";
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     const harText = JSON.stringify({
       log: {
         entries: [
@@ -3513,13 +3513,13 @@ describe("derivation session path defenses", () => {
 
   test("uses one admitted finish origin for both analyzers and the scaffold target", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-admitted-finish-origin-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(process.platform === "win32" ? tmpdir() : "/tmp", `io-derive-ab-${id}`);
     const outputDirectory = join(root, "derived");
     const uploadOrigin = "https://upload.example.net";
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     const harText = JSON.stringify({
       log: {
         entries: [
@@ -3596,15 +3596,15 @@ describe("derivation session path defenses", () => {
     const root = realpathSync(mkdtempSync(
       join(tmpdir(), "wrench-derive-finish-registry-test-"),
     ));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const socketDirectory = join(
       process.platform === "win32" ? tmpdir() : "/tmp",
       `io-derive-ab-${id}`,
     );
     const outputDirectory = join(root, "derived");
-    const environment = { WRENCH_STATE_HOME: wrenchState };
+    const environment = { GHOSTGET_STATE_HOME: ghostgetState };
     const harText = JSON.stringify({ log: { entries: [] } });
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
@@ -3676,9 +3676,9 @@ describe("derivation session path defenses", () => {
     "rejects unsafe named profile metadata %j before launching or deleting",
     async (profilePath) => {
       const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-profile-test-")));
-      const wrenchState = join(root, "io-state");
+      const ghostgetState = join(root, "io-state");
       const id = crypto.randomUUID();
-      const expectedDirectory = join(wrenchState, "derivations", id);
+      const expectedDirectory = join(ghostgetState, "derivations", id);
       try {
         mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
         writeFileSync(join(expectedDirectory, "sentinel"), "keep me", { mode: 0o600 });
@@ -3688,7 +3688,7 @@ describe("derivation session path defenses", () => {
           { mode: 0o600 },
         );
 
-        await expectRejectedWith(discardDerivation(id, { WRENCH_STATE_HOME: wrenchState }), "paths do not match");
+        await expectRejectedWith(discardDerivation(id, { GHOSTGET_STATE_HOME: ghostgetState }), "paths do not match");
         expect(readFileSync(join(expectedDirectory, "sentinel"), "utf8")).toBe("keep me");
       } finally {
         rmSync(root, { recursive: true, force: true });
@@ -3698,9 +3698,9 @@ describe("derivation session path defenses", () => {
 
   test("rejects tampered deletion paths before deleting either tree", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-path-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const expectedDirectory = join(wrenchState, "derivations", id);
+    const expectedDirectory = join(ghostgetState, "derivations", id);
     const unrelatedDirectory = join(root, "must-survive");
     try {
       mkdirSync(expectedDirectory, { recursive: true, mode: 0o700 });
@@ -3712,7 +3712,7 @@ describe("derivation session path defenses", () => {
         { mode: 0o600 },
       );
 
-      await expectRejectedWith(discardDerivation(id, { WRENCH_STATE_HOME: wrenchState }), "paths do not match");
+      await expectRejectedWith(discardDerivation(id, { GHOSTGET_STATE_HOME: ghostgetState }), "paths do not match");
       expect(readFileSync(join(unrelatedDirectory, "sentinel"), "utf8")).toBe("keep me");
       expect(existsSync(expectedDirectory)).toBe(true);
     } finally {
@@ -3722,9 +3722,9 @@ describe("derivation session path defenses", () => {
 
   test("rejects a symlinked session directory without deleting its target", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-derive-symlink-test-")));
-    const wrenchState = join(root, "io-state");
+    const ghostgetState = join(root, "io-state");
     const id = crypto.randomUUID();
-    const derivations = join(wrenchState, "derivations");
+    const derivations = join(ghostgetState, "derivations");
     const linkedDirectory = join(derivations, id);
     const externalDirectory = join(root, "external-session");
     try {
@@ -3740,7 +3740,7 @@ describe("derivation session path defenses", () => {
       );
       symlinkSync(externalDirectory, linkedDirectory);
 
-      await expectRejectedWith(discardDerivation(id, { WRENCH_STATE_HOME: wrenchState }), "unsafe");
+      await expectRejectedWith(discardDerivation(id, { GHOSTGET_STATE_HOME: ghostgetState }), "unsafe");
       expect(readFileSync(join(externalDirectory, "sentinel"), "utf8")).toBe("keep me");
       expect(lstatSync(linkedDirectory).isSymbolicLink()).toBe(true);
     } finally {

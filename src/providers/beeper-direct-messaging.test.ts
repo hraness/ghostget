@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import { OperationDeadline } from "../operation-deadline";
 import {
   beeperSubjectFromAccountsAndTarget,
@@ -65,7 +65,7 @@ function boundedAttempt(signal?: AbortSignal): Readonly<{
   });
 }
 
-function fixtureAuth(): WrenchAuth {
+function fixtureAuth(): GhostgetAuth {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-beeper-direct-")));
   roots.push(root);
   const targets = join(root, "targets");

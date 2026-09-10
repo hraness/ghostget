@@ -11,17 +11,17 @@ const trackedNewWorktree = join(
   "local-dev",
   "new-worktree",
 );
-const trackedRunWrench = join(
+const trackedRunGhostget = join(
   repositoryRoot,
   "scripts",
   "local-dev",
-  "run-wrench",
+  "run-ghostget",
 );
 const trackedLauncher = join(
   repositoryRoot,
   "scripts",
   "local-dev",
-  "launch-wrench.ts",
+  "launch-ghostget.ts",
 );
 
 afterEach(async () => {
@@ -79,21 +79,21 @@ async function createFixtureControl(root: string): Promise<string> {
     writeFile(
       join(control, "src", "cli.ts"),
       [
-        "export async function runWrenchCliProcess(argv: string[]): Promise<void> {",
+        "export async function runGhostgetCliProcess(argv: string[]): Promise<void> {",
         "  const target = argv[0];",
         '  if (target === undefined) throw new Error("missing output");',
         "  await Bun.write(target, JSON.stringify({",
         "    cwd: process.cwd(),",
         "    io: process.env.IO_HOME,",
-        "    media: process.env.WRENCH_MEDIA_HOME,",
+        "    media: process.env.GHOSTGET_MEDIA_HOME,",
         "    oh: process.env.OH_STATE_HOME,",
-        "    poison: process.env.WRENCH_CALLER_ENV_POISON,",
+        "    poison: process.env.GHOSTGET_CALLER_ENV_POISON,",
         "    runtimeOverrides: [",
         "      process.env.BUN_CONFIG_FILE,",
         "      process.env.BUN_OPTIONS,",
         "      process.env.NODE_OPTIONS,",
         "    ],",
-        "    state: process.env.WRENCH_STATE_HOME,",
+        "    state: process.env.GHOSTGET_STATE_HOME,",
         "  }));",
         "}",
         "",
@@ -105,12 +105,12 @@ async function createFixtureControl(root: string): Promise<string> {
       { mode: 0o755 },
     ),
     writeFile(
-      join(control, "scripts", "local-dev", "run-wrench"),
-      await readFile(trackedRunWrench),
+      join(control, "scripts", "local-dev", "run-ghostget"),
+      await readFile(trackedRunGhostget),
       { mode: 0o755 },
     ),
     writeFile(
-      join(control, "scripts", "local-dev", "launch-wrench.ts"),
+      join(control, "scripts", "local-dev", "launch-ghostget.ts"),
       await readFile(trackedLauncher),
     ),
   ]);
@@ -130,7 +130,7 @@ async function createFixtureControl(root: string): Promise<string> {
   }
   git(control, ["add", "."]);
   git(control, [
-    "-c", "user.name=Wrench Test",
+    "-c", "user.name=Ghostget Test",
     "-c", "user.email=wrench-test@example.invalid",
     "commit", "-m", "fixture",
   ]);
@@ -142,7 +142,7 @@ test("local-development helpers reject unsafe task names", () => {
     stderr: "pipe",
     stdout: "pipe",
   });
-  const run = Bun.spawnSync(["sh", trackedRunWrench, "Bad_Name", "doctor"], {
+  const run = Bun.spawnSync(["sh", trackedRunGhostget, "Bad_Name", "doctor"], {
     stderr: "pipe",
     stdout: "pipe",
   });
@@ -155,20 +155,20 @@ test("local-development helpers reject unsafe task names", () => {
 
 test("local-development helpers reject relative override roots", () => {
   const create = Bun.spawnSync(["sh", trackedNewWorktree, "devtask"], {
-    env: { ...process.env, WRENCH_WORKTREE_ROOT: "relative/worktrees" },
+    env: { ...process.env, GHOSTGET_WORKTREE_ROOT: "relative/worktrees" },
     stderr: "pipe",
     stdout: "pipe",
   });
-  const run = Bun.spawnSync(["sh", trackedRunWrench, "devtask", "doctor"], {
-    env: { ...process.env, WRENCH_DEV_HOME: "relative/state" },
+  const run = Bun.spawnSync(["sh", trackedRunGhostget, "devtask", "doctor"], {
+    env: { ...process.env, GHOSTGET_DEV_HOME: "relative/state" },
     stderr: "pipe",
     stdout: "pipe",
   });
 
   expect(create.exitCode).toBe(64);
   expect(run.exitCode).toBe(64);
-  expect(output(create.stderr)).toContain("WRENCH_WORKTREE_ROOT must be an absolute path");
-  expect(output(run.stderr)).toContain("WRENCH_DEV_HOME must be an absolute path");
+  expect(output(create.stderr)).toContain("GHOSTGET_WORKTREE_ROOT must be an absolute path");
+  expect(output(run.stderr)).toContain("GHOSTGET_DEV_HOME must be an absolute path");
 });
 
 test("the worktree runner preserves caller paths and isolates runtime state", async () => {
@@ -184,21 +184,21 @@ test("the worktree runner preserves caller paths and isolates runtime state", as
   await Promise.all([
     writeFile(join(consumer, "bunfig.toml"), 'preload = ["./untrusted-preload.ts"]\n'),
     writeFile(join(consumer, "untrusted-preload.ts"), 'await Bun.write("preload-ran", "unexpected");\n'),
-    writeFile(join(consumer, ".env"), "WRENCH_CALLER_ENV_POISON=loaded\n"),
+    writeFile(join(consumer, ".env"), "GHOSTGET_CALLER_ENV_POISON=loaded\n"),
   ]);
   git(control, [
     "worktree", "add", "-b", "codex/devtask",
     join(worktreeRoot, "devtask"), "HEAD",
   ]);
-  const runner = join(control, "scripts", "local-dev", "run-wrench");
+  const runner = join(control, "scripts", "local-dev", "run-ghostget");
 
   const prohibitedDevHome = `/wrench-local-dev-home-${process.pid}`;
   const directRoot = Bun.spawnSync(["sh", runner, "devtask", "ignored.json"], {
     cwd: consumer,
     env: {
       ...process.env,
-      WRENCH_DEV_HOME: prohibitedDevHome,
-      WRENCH_WORKTREE_ROOT: worktreeRoot,
+      GHOSTGET_DEV_HOME: prohibitedDevHome,
+      GHOSTGET_WORKTREE_ROOT: worktreeRoot,
     },
     stderr: "pipe",
     stdout: "pipe",
@@ -214,8 +214,8 @@ test("the worktree runner preserves caller paths and isolates runtime state", as
       BUN_CONFIG_FILE: "/caller/bunfig.toml",
       BUN_OPTIONS: "--caller-option",
       NODE_OPTIONS: "--caller-node-option",
-      WRENCH_DEV_HOME: `${join(root, "outer")}/../state/`,
-      WRENCH_WORKTREE_ROOT: worktreeRoot,
+      GHOSTGET_DEV_HOME: `${join(root, "outer")}/../state/`,
+      GHOSTGET_WORKTREE_ROOT: worktreeRoot,
     },
     stderr: "pipe",
     stdout: "pipe",
@@ -244,7 +244,7 @@ test("the worktree creator uses HEAD and rejects root-level targets without muta
   const prohibitedRoot = `/wrench-worktree-root-${process.pid}`;
 
   const directRoot = Bun.spawnSync(["sh", creator, "unsafe-root"], {
-    env: { ...process.env, WRENCH_WORKTREE_ROOT: prohibitedRoot },
+    env: { ...process.env, GHOSTGET_WORKTREE_ROOT: prohibitedRoot },
     stderr: "pipe",
     stdout: "pipe",
   });
@@ -257,7 +257,7 @@ test("the worktree creator uses HEAD and rejects root-level targets without muta
     env: {
       ...process.env,
       BUN_INSTALL_CACHE_DIR: join(root, "bun-cache"),
-      WRENCH_WORKTREE_ROOT: worktreeRoot,
+      GHOSTGET_WORKTREE_ROOT: worktreeRoot,
     },
     stderr: "pipe",
     stdout: "pipe",

@@ -145,7 +145,7 @@ describe("YouTube web policy primitives", () => {
       metadata: {
         channelMetadataRenderer: {
           externalId: CHANNEL_ID,
-          title: "Wrench Test",
+          title: "Ghostget Test",
           description: "Public channel bio",
           vanityChannelUrl: "https://www.youtube.com/@wrench_test",
         },
@@ -180,7 +180,7 @@ describe("YouTube web policy primitives", () => {
       channelId: CHANNEL_ID,
       canonicalUrl: "https://www.youtube.com/@wrench_test",
       handle: "wrench_test",
-      displayName: "Wrench Test",
+      displayName: "Ghostget Test",
       bio: "Public channel bio",
       subscribers: 4,
       videos: 11,
@@ -229,7 +229,7 @@ describe("YouTube web policy primitives", () => {
       metadata: {
         channelMetadataRenderer: {
           externalId: CHANNEL_ID,
-          title: "Wrench Test",
+          title: "Ghostget Test",
         },
       },
     };

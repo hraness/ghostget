@@ -10,21 +10,21 @@ import { parseReleaseManifest, releaseAssetNames } from "../website/github-relea
 import { attestationVerifyArguments, verifyBuildHandoff, verifyReleaseDirectory } from "./github-release-artifact.js";
 import { publishCanonicalRelease, validateReleaseAssets } from "./github-release-publish.js";
 
-const tag = "v0.16.13";
+const tag = "v0.17.0";
 const sourceSha = "a".repeat(40);
 const workflowSha = "b".repeat(40);
-const manifest = parseReleaseManifest({ schema: "hraness-github-release-v1", repository: "hraness/wrench", repositoryId: 1316443113,
-  package: "@hraness/wrench", version: "0.16.13", tag, sourceSha, workflowSha, workflow: ".github/workflows/release.yml",
-  runId: 9001, runAttempt: 1, archive: { name: "hraness-wrench-0.16.13.tgz", bytes: 4, sha256: "c".repeat(64), sha512: "d".repeat(128) } });
-const body = `wrench-release-source-v1 repository=hraness/wrench tag=${tag} source_sha=${sourceSha} workflow_run_id=9001\n\nwrench-release-attempt-v1 run_attempt=1`;
+const manifest = parseReleaseManifest({ schema: "hraness-github-release-v1", repository: "hraness/ghostget", repositoryId: 1316443113,
+  package: "@hraness/ghostget", version: "0.17.0", tag, sourceSha, workflowSha, workflow: ".github/workflows/release.yml",
+  runId: 9001, runAttempt: 1, archive: { name: "hraness-ghostget-0.17.0.tgz", bytes: 4, sha256: "c".repeat(64), sha512: "d".repeat(128) } });
+const body = `wrench-release-source-v1 repository=hraness/ghostget tag=${tag} source_sha=${sourceSha} workflow_run_id=9001\n\nghostget-release-attempt-v1 run_attempt=1`;
 const names = releaseAssetNames(tag);
 type Json = Record<string, any>;
 
 function sourceCiFixture(attempt = 1, prNumber = 50) {
   const input: SourceCiInput = { source: "1".repeat(40), tree: "2".repeat(40), main: "3".repeat(40),
     workflowSha256: "4".repeat(64), lockSha256: "5".repeat(64) };
-  const prefix = "repos/hraness/wrench"; const head = "6".repeat(40);
-  const repo = { id: 1316443113, full_name: "hraness/wrench" };
+  const prefix = "repos/hraness/ghostget"; const head = "6".repeat(40);
+  const repo = { id: 1316443113, full_name: "hraness/ghostget" };
   const responses: Json = {};
   responses[`${prefix}/git/ref/heads/main`] = { ref: "refs/heads/main", object: { type: "commit", sha: input.main } };
   for (const sha of [input.source, head]) responses[`${prefix}/git/commits/${sha}`] = { sha, tree: { sha: input.tree } };
@@ -109,13 +109,14 @@ describe("exact source CI admission", () => {
     expect(result.ci.attempt).toBe(2); expect(result.codeql.attempt).toBe(2);
     expect(result.security.exactAnalyses.map(value => value.id)).toEqual([800, 801]);
   });
-  test("admits the observed closed PR CodeQL response with an empty association and exact provider summary", () => {
+  test("admits a current-repository closed PR CodeQL response with an empty association and exact provider summary", () => {
     const fixture = sourceCiFixture(1, 203);
     const checks = fixture.responses[`${fixture.prefix}/commits/${fixture.head}/check-runs?per_page=100&filter=latest`];
-    // Selected fields of GitHub's direct check 102698893117; only the source SHA is fixture-local.
+    // Response shape follows GitHub check 102698893117; repository and source identity are fixture-local.
+    // The historical Wrench summary is separately rejected below; it is not rewritten provider evidence.
     checks.check_runs = [{ id: 102698893117, name: "CodeQL", app: { id: 57789 }, head_sha: fixture.head,
       status: "completed", conclusion: "success", pull_requests: [], output: {
-        summary: "[View all branch alerts](/hraness/wrench/security/code-scanning?query=pr%3A203+tool%3ACodeQL+is%3Aopen).",
+        summary: "[View all branch alerts](/hraness/ghostget/security/code-scanning?query=pr%3A203+tool%3ACodeQL+is%3Aopen).",
       } }];
     const result = admitSourceCi(fixture.input, fixture.read, fixture.clock);
     expect(result.security.pullRequest).toBe(203);
@@ -123,7 +124,7 @@ describe("exact source CI admission", () => {
     expect(result.security.sameMergedTree).toBe(fixture.input.tree);
   });
   test("refuses malformed summary fallback and never rescues contradictory nonempty associations", () => {
-    const summary = "[View all branch alerts](/hraness/wrench/security/code-scanning?query=pr%3A50+tool%3ACodeQL+is%3Aopen).";
+    const summary = "[View all branch alerts](/hraness/ghostget/security/code-scanning?query=pr%3A50+tool%3ACodeQL+is%3Aopen).";
     const mutations: ((check: Json) => void)[] = [
       check => { delete check.pull_requests; },
       check => { check.pull_requests = null; },
@@ -133,7 +134,7 @@ describe("exact source CI admission", () => {
       check => { check.output.summary = null; },
       check => { check.output.summary = 50; },
       ...[summary.replace("pr%3A50", "pr%3A51"), summary.replace("/hraness/", "/foreign/"),
-        summary.replace("/wrench/", "/other/"), summary.replace("tool%3ACodeQL", "tool%3AOther"),
+        summary.replace("/ghostget/", "/other/"), summary.replace("/ghostget/", "/wrench/"), summary.replace("tool%3ACodeQL", "tool%3AOther"),
         summary.replace("is%3Aopen", "is%3Aclosed"), summary.replace("pr%3A50", "pr:50"),
         summary.replace("](/", "](https://github.com/"), summary + "\n", summary + summary, "extra " + summary,
       ].map(value => (check: Json) => { check.output.summary = value; }),
@@ -151,7 +152,7 @@ describe("exact source CI admission", () => {
       (associated: Json) => { associated.head.sha = "7".repeat(40); },
       (associated: Json) => { associated.base.ref = "other"; },
       (associated: Json) => { associated.head.repo.id = 1; },
-      (associated: Json) => { associated.base.repo.url = "https://api.github.com/repos/foreign/wrench"; },
+      (associated: Json) => { associated.base.repo.url = "https://api.github.com/repos/foreign/ghostget"; },
     ]) {
       const fixture = sourceCiFixture();
       const check = fixture.responses[`${fixture.prefix}/commits/${fixture.head}/check-runs?per_page=100&filter=latest`].check_runs[0];
@@ -194,7 +195,7 @@ describe("exact source CI admission", () => {
       f => { f.responses[`${f.prefix}/actions/runs/100`].event = "pull_request"; },
       f => { f.responses[`${f.prefix}/actions/runs/100`].head_branch = "other"; },
       f => { f.responses[`${f.prefix}/actions/runs/100`].head_repository.id = 1; },
-      f => { f.responses[`${f.prefix}/actions/runs/100`].repository.full_name = "foreign/wrench"; },
+      f => { f.responses[`${f.prefix}/actions/runs/100`].repository.full_name = "foreign/ghostget"; },
       f => { f.responses[`${f.prefix}/actions/runs/100`].run_attempt = 2; },
       f => { f.responses[`${f.prefix}/actions/runs/100/attempts/1`].run_attempt = 2; },
       f => { f.responses[`${f.prefix}/actions/runs/100/attempts/1`].status = "in_progress"; },
@@ -286,31 +287,40 @@ describe("exact source CI admission", () => {
 describe("canonical release publication and safe local input", () => {
   test("pins all documented cryptographic verifier coordinates", () => {
     const args = attestationVerifyArguments("/exact", manifest, "SHA256SUMS");
-    expect(args).toEqual(["attestation", "verify", "/exact/SHA256SUMS", "--repo", "hraness/wrench",
-      "--signer-workflow", "hraness/wrench/.github/workflows/release.yml", "--signer-digest", sourceSha,
+    expect(args).toEqual(["attestation", "verify", "/exact/SHA256SUMS", "--repo", "hraness/ghostget",
+      "--signer-workflow", "hraness/ghostget/.github/workflows/release.yml", "--signer-digest", sourceSha,
       "--source-digest", sourceSha, "--source-ref", `refs/tags/${tag}`, "--deny-self-hosted-runners",
       "--bundle", "/exact/provenance.jsonl", "--format=json"]);
     expect(() => attestationVerifyArguments("/exact", manifest, "../different")).toThrow();
   });
+  test("verifies historical certificates against Wrench while current API lookup remains Ghostget", () => {
+    const historical = parseReleaseManifest({ ...manifest, tag: "v0.16.16", version: "0.16.16",
+      package: "@hraness/wrench", repository: "hraness/wrench",
+      archive: { ...manifest.archive, name: "hraness-wrench-0.16.16.tgz" } });
+    const args = attestationVerifyArguments("/exact", historical, "SHA256SUMS");
+    expect(args[args.indexOf("--repo") + 1]).toBe("hraness/wrench");
+    expect(args[args.indexOf("--signer-workflow") + 1]).toBe("hraness/wrench/.github/workflows/release.yml");
+    expect(() => parseReleaseManifest({ ...historical, repository: "hraness/ghostget" })).toThrow();
+  });
   test("rejects a symlinked release directory before reading an artifact", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wrench-canonical-directory-"));
+    const root = await mkdtemp(join(tmpdir(), "ghostget-canonical-directory-"));
     try {
       await symlink(root, join(root, "link"));
       await expect(verifyReleaseDirectory(join(root, "link"), {})).rejects.toThrow("ordinary directory");
     } finally { await rm(root, { recursive: true, force: true }); }
   });
   test("publishes only the exact draft inventory and preserves mismatched or ambiguous drafts", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "wrench-canonical-publisher-"));
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-canonical-publisher-"));
     try {
       for (const name of names) await writeFile(join(directory, name), `fixture:${name}`);
       const assets = await Promise.all(names.map(async (name, index) => {
         const bytes = await readFile(join(directory, name));
         return { id: index + 10, name, size: bytes.length, digest: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
-          state: "uploaded", browser_download_url: `https://github.com/hraness/wrench/releases/download/${tag}/${name}`,
-          url: `https://api.github.com/repos/hraness/wrench/releases/assets/${index + 10}` };
+          state: "uploaded", browser_download_url: `https://github.com/hraness/ghostget/releases/download/${tag}/${name}`,
+          url: `https://api.github.com/repos/hraness/ghostget/releases/assets/${index + 10}` };
       }));
       const temporaryAssets = assets.map(asset => ({ ...asset,
-        browser_download_url: `https://github.com/hraness/wrench/releases/download/untagged-ef6c1bd779e9dd4032bb/${asset.name}` }));
+        browser_download_url: `https://github.com/hraness/ghostget/releases/download/untagged-ef6c1bd779e9dd4032bb/${asset.name}` }));
       const hashes = Object.fromEntries(assets.slice(0, 4).map(asset => [asset.name, asset.digest.slice(7)]));
       const bundleHash = assets[4]!.digest.slice(7);
       await verifyBuildHandoff(directory, tag, hashes, bundleHash);
@@ -319,7 +329,7 @@ describe("canonical release publication and safe local input", () => {
       await expect(verifyBuildHandoff(directory, tag, hashes, "b".repeat(64))).rejects.toThrow();
       const predecessor = { id: 99, tag_name: "v0.16.11", draft: false, prerelease: false, immutable: true,
         assets: [], published_at: "2026-09-08T01:00:00Z" };
-      const draft = (): Json => ({ id: 100, name: `Wrench ${tag}`, tag_name: tag, target_commitish: sourceSha, body,
+      const draft = (): Json => ({ id: 100, name: `Ghostget ${tag}`, tag_name: tag, target_commitish: sourceSha, body,
         draft: true, prerelease: false, immutable: false, author: { id: 41898282, type: "Bot" }, assets: [] });
       const execute = async (initial?: Json, fault = ""): Promise<{ writes: string[]; downloads: number[]; release: Json | undefined; error?: unknown }> => {
         let release = initial === undefined ? undefined : structuredClone(initial); const writes: string[] = [];
@@ -406,12 +416,12 @@ describe("canonical release publication and safe local input", () => {
       const temporaryReadback = await execute({ ...draft(), assets: temporaryAssets }, "published-temporary-url");
       expect(temporaryReadback.error).toBeDefined(); expect(temporaryReadback.writes).toEqual(["publish"]);
       for (const browser_download_url of [
-        `https://github.com/other/wrench/releases/download/untagged-ef6c1bd779e9dd4032bb/${names[0]}`,
-        "https://github.com/hraness/wrench/releases/download/untagged-ef6c1bd779e9dd4032bb/wrong-name",
-        `https://github.com/hraness/wrench/releases/download/untagged-EF6C1BD779E9DD4032BB/${names[0]}`,
-        `https://github.com/hraness/wrench/releases/download/untagged-ef6c1bd779e9dd4032b/${names[0]}`,
-        `https://github.com/hraness/wrench/releases/download/untagged-ef6c1bd779e9dd4032bb/${names[0]}?download=1`,
-        `https://github.com/hraness/wrench/releases/download/untagged-ef6c1bd779e9dd4032bb/nested/${names[0]}`,
+        `https://github.com/other/ghostget/releases/download/untagged-ef6c1bd779e9dd4032bb/${names[0]}`,
+        "https://github.com/hraness/ghostget/releases/download/untagged-ef6c1bd779e9dd4032bb/wrong-name",
+        `https://github.com/hraness/ghostget/releases/download/untagged-EF6C1BD779E9DD4032BB/${names[0]}`,
+        `https://github.com/hraness/ghostget/releases/download/untagged-ef6c1bd779e9dd4032b/${names[0]}`,
+        `https://github.com/hraness/ghostget/releases/download/untagged-ef6c1bd779e9dd4032bb/${names[0]}?download=1`,
+        `https://github.com/hraness/ghostget/releases/download/untagged-ef6c1bd779e9dd4032bb/nested/${names[0]}`,
       ]) {
         const denied = await execute({ ...draft(), assets: [{ ...assets[0], browser_download_url }] });
         expect(denied.error).toBeDefined(); expect(denied.writes).toEqual([]); expect(denied.downloads).toEqual([]);

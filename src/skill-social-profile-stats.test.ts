@@ -49,7 +49,7 @@ type CollectionManifest = Readonly<{
   accounts: readonly CollectionAccount[];
 }>;
 
-const skillRoot = join(import.meta.dir, "..", "skills", "wrench");
+const skillRoot = join(import.meta.dir, "..", "skills", "ghostget");
 const manifestPath = join(
   skillRoot,
   "references",

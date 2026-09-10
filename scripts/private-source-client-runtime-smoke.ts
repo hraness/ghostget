@@ -19,7 +19,7 @@ export const packedPrivateSourceClientRuntimeProgram = String.raw`
     throw new Error("runtime-smoke canonical JSON received an unsupported value");
   };
   const sha256 = (value) => createHash("sha256").update(value).digest("hex");
-  const output = "/private/tmp/wrench-packed-runtime-bound-output";
+  const output = "/private/tmp/ghostget-packed-runtime-bound-output";
   const projection = {
     schemaVersion: 1,
     format: "wrench.whatsapp-message-like-me-export-receipt",
@@ -67,7 +67,7 @@ export const packedPrivateSourceClientRuntimeProgram = String.raw`
   await mock.module("node:child_process", () => ({ ...childProcess, spawnSync }));
   await mock.module("child_process", () => ({ ...childProcess, spawnSync }));
 
-  const whatsapp = await import("@hraness/wrench/whatsapp");
+  const whatsapp = await import("@hraness/ghostget/whatsapp");
   assert.deepEqual(whatsapp.parseWhatsAppMessageLikeMeExportReceipt(receipt), receipt);
   const { sourcePaths: _sourcePaths, ...legacyPrivacy } = projection.privacy;
   const legacyProjection = { ...projection, privacy: { ...legacyPrivacy, paths: "excluded" } };
@@ -88,10 +88,10 @@ export const packedPrivateSourceClientRuntimeProgram = String.raw`
   );
   assert.equal(spawnCount, 1);
 
-  const applePhotos = await import("@hraness/wrench/apple-photos");
+  const applePhotos = await import("@hraness/ghostget/apple-photos");
   assert.throws(
     () => applePhotos.exportApplePhotosContactEvidenceSync({}, {
-      environment: { HOME: "/private/tmp/wrench-untrusted-packed-home" },
+      environment: { HOME: "/private/tmp/ghostget-untrusted-packed-home" },
     }),
     /HOME cannot override Apple Photos source authority/u,
   );

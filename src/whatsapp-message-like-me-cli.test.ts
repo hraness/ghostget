@@ -15,7 +15,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { canonicalJson } from "./canonical-json";
 import {
   acquireBeeperMessageLikeMeExportAdmission,
@@ -36,7 +36,7 @@ afterEach(() => {
   }
 });
 
-function boundAuth(path: string): WrenchAuth {
+function boundAuth(path: string): GhostgetAuth {
   return Object.freeze({
     schemaVersion: 1,
     id: "whatsapp-main",
@@ -62,7 +62,7 @@ describe("WhatsApp Message Like Me CLI recovery preflight", () => {
     chmodSync(join(store, "session.db"), 0o600);
     chmodSync(join(store, "wacli.db"), 0o600);
     const outputRoot = join(root, "bundle");
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
 
     await expect(exportWhatsAppMessageLikeMeFromAuth({
       auth: boundAuth(store),
@@ -100,7 +100,7 @@ describe("WhatsApp Message Like Me CLI recovery preflight", () => {
       chmodSync(join(store, name), 0o600);
     }
     const outputRoot = join(root, "bundle");
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
 
     await expect(exportWhatsAppMessageLikeMeFromAuth({
       auth: boundAuth(store),
@@ -174,7 +174,7 @@ describe("WhatsApp Message Like Me CLI recovery preflight", () => {
     mkdirSync(parent, { mode: 0o700 });
     const working = join(parent, "active-working");
     mkdirSync(working, { mode: 0o700 });
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
     const nowMs = Date.now();
     const activeLease = await createBeeperMessageLikeMeDirectoryLease({
       role: "raw-working",
@@ -220,7 +220,7 @@ describe("WhatsApp Message Like Me CLI recovery preflight", () => {
       writeFileSync(join(store, name), "fixed");
       chmodSync(join(store, name), 0o600);
     }
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
     await expect(exportWhatsAppMessageLikeMeFromAuth({
       auth: boundAuth(store),
       outputRoot: join(root, "bundle"),
@@ -247,7 +247,7 @@ describe("WhatsApp Message Like Me CLI recovery preflight", () => {
     const parent = join(root, "private-exports");
     mkdirSync(parent, { mode: 0o700 });
     const outputRoot = join(parent, "must-not-be-created");
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
     const progress: string[] = [];
 
     await expect(exportWhatsAppMessageLikeMeFromAuth({

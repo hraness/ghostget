@@ -23,8 +23,8 @@ await mock.module("node:child_process", () => ({
     const environment = options.env ?? {};
     return originalSpawn(process.execPath, [
       join(import.meta.dir, "messaging-client-process-helper.fixture.ts"),
-      String(environment.WRENCH_MESSAGING_LIFECYCLE_MODE),
-      String(environment.WRENCH_MESSAGING_LIFECYCLE_STATUS),
+      String(environment.GHOSTGET_MESSAGING_LIFECYCLE_MODE),
+      String(environment.GHOSTGET_MESSAGING_LIFECYCLE_STATUS),
       arguments_[outputIndex + 1]!,
     ], options);
   }) as typeof childProcess.spawn,
@@ -75,8 +75,8 @@ for (const mode of ["abort", "timeout", "stdout-overflow", "stderr-overflow"] as
   const controller = new AbortController();
   const operationOutcome = discoverMessagingRoutes(request, {
     environment: {
-      WRENCH_MESSAGING_LIFECYCLE_MODE: mode,
-      WRENCH_MESSAGING_LIFECYCLE_STATUS: status,
+      GHOSTGET_MESSAGING_LIFECYCLE_MODE: mode,
+      GHOSTGET_MESSAGING_LIFECYCLE_STATUS: status,
     },
     signal: controller.signal,
   }).then(

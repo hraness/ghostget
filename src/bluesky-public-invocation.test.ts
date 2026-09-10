@@ -25,7 +25,7 @@ import {
   isPublicWebSessionInvocationAuthority,
   publicWebSessionAuthorityIdentityHash,
 } from "./web-session-authentication-policy";
-import type { WrenchManifest } from "./model";
+import type { GhostgetManifest } from "./model";
 import { installManifest } from "./storage";
 
 function state(
@@ -36,14 +36,14 @@ function state(
   readonly environment: Readonly<Record<string, string | undefined>>;
 } {
   const directory = mkdtempSync(join(tmpdir(), "wrench-public-bluesky-"));
-  const environment = { WRENCH_STATE_HOME: directory } as const;
+  const environment = { GHOSTGET_STATE_HOME: directory } as const;
   let manifest = JSON.parse(readFileSync(join(
     import.meta.dir,
     "assets",
     "adapters",
     "bluesky",
     manifestFile,
-  ), "utf8")) as WrenchManifest;
+  ), "utf8")) as GhostgetManifest;
   if (onlyOperation !== undefined) {
     const operation = manifest.operations[onlyOperation];
     if (operation === undefined) {

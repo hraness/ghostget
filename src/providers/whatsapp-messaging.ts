@@ -127,6 +127,6 @@ export const whatsappMessagingDefinition = Object.freeze({
     state: "unavailable",
     reply: "unsupported",
     reason:
-      "capture-required: the official read runtime has no Wrench-qualified mutation transport",
+      "capture-required: the official read runtime has no Ghostget-qualified mutation transport",
   }),
 } satisfies ProviderPluginMessagingDefinitionV1);

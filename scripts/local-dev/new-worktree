@@ -64,18 +64,18 @@ validate_task_name "$task"
 
 script_directory=$(CDPATH= cd -P "$(dirname "$0")" && pwd)
 if ! control_repo=$(git -C "$script_directory" rev-parse --show-toplevel 2>/dev/null); then
-  echo "cannot derive the Wrench control repository from $script_directory" >&2
+  echo "cannot derive the Ghostget control repository from $script_directory" >&2
   exit 66
 fi
 
 control_parent=$(dirname "$control_repo")
 control_name=$(basename "$control_repo")
-worktree_root=${WRENCH_WORKTREE_ROOT:-"$control_parent/$control_name-worktrees"}
+worktree_root=${GHOSTGET_WORKTREE_ROOT:-"$control_parent/$control_name-worktrees"}
 
 case "$worktree_root" in
   /*) ;;
   *)
-    echo "WRENCH_WORKTREE_ROOT must be an absolute path" >&2
+    echo "GHOSTGET_WORKTREE_ROOT must be an absolute path" >&2
     exit 64
   ;;
 esac
@@ -93,16 +93,16 @@ if [ "$bun_version" != "$required_bun_version" ]; then
 fi
 
 worktree_root=$(resolve_dedicated_directory \
-  "$worktree_root" WRENCH_WORKTREE_ROOT)
+  "$worktree_root" GHOSTGET_WORKTREE_ROOT)
 mkdir -p "$worktree_root"
 
 branch=codex/$task
 target=$worktree_root/$task
-base=${WRENCH_WORKTREE_BASE:-HEAD}
+base=${GHOSTGET_WORKTREE_BASE:-HEAD}
 
 case "$base" in
   "" | -* | *[!A-Za-z0-9._/-]*)
-    echo "WRENCH_WORKTREE_BASE must be a locally known commit or ref" >&2
+    echo "GHOSTGET_WORKTREE_BASE must be a locally known commit or ref" >&2
     exit 64
     ;;
 esac
@@ -118,7 +118,7 @@ if git -C "$control_repo" show-ref --verify --quiet "refs/heads/$branch"; then
 fi
 
 base_commit=$(git -C "$control_repo" rev-parse --verify "$base^{commit}" 2>/dev/null) || {
-  echo "Wrench worktree base is unavailable: $base" >&2
+  echo "Ghostget worktree base is unavailable: $base" >&2
   exit 69
 }
 for required_file in \
@@ -127,10 +127,10 @@ for required_file in \
   bunfig.toml \
   tsconfig.json \
   src/cli.ts \
-  scripts/local-dev/launch-wrench.ts
+  scripts/local-dev/launch-ghostget.ts
 do
   if ! git -C "$control_repo" cat-file -e "$base_commit:$required_file" 2>/dev/null; then
-    echo "Wrench worktree base lacks local-development file: $required_file" >&2
+    echo "Ghostget worktree base lacks local-development file: $required_file" >&2
     exit 69
   fi
 done
@@ -145,4 +145,4 @@ fi
 echo "ready: $target"
 echo "branch: $branch"
 echo "base: $base_commit"
-echo "dev CLI: $control_repo/scripts/local-dev/run-wrench $task doctor --json"
+echo "dev CLI: $control_repo/scripts/local-dev/run-ghostget $task doctor --json"

@@ -599,9 +599,9 @@ function pauseAfterLockClaimReadForTest(
   ) {
     return;
   }
-  const readyPath = process.env.WRENCH_TEST_PLUGIN_LOCK_CLAIM_READ_READY;
-  const releasePath = process.env.WRENCH_TEST_PLUGIN_LOCK_CLAIM_READ_RELEASE;
-  const targetName = process.env.WRENCH_TEST_PLUGIN_LOCK_CLAIM_READ_TARGET;
+  const readyPath = (process.env.GHOSTGET_TEST_PLUGIN_LOCK_CLAIM_READ_READY ?? process.env.WRENCH_TEST_PLUGIN_LOCK_CLAIM_READ_READY);
+  const releasePath = (process.env.GHOSTGET_TEST_PLUGIN_LOCK_CLAIM_READ_RELEASE ?? process.env.WRENCH_TEST_PLUGIN_LOCK_CLAIM_READ_RELEASE);
+  const targetName = (process.env.GHOSTGET_TEST_PLUGIN_LOCK_CLAIM_READ_TARGET ?? process.env.WRENCH_TEST_PLUGIN_LOCK_CLAIM_READ_TARGET);
   if (
     readyPath === undefined
     || releasePath === undefined
@@ -832,8 +832,8 @@ function crashLockPublicationForTest(
   bytes: Uint8Array,
 ): void {
   if (process.env.NODE_ENV !== "test") return;
-  const fault = process.env.WRENCH_TEST_PLUGIN_LOCK_PUBLICATION_CRASH;
-  const targetName = process.env.WRENCH_TEST_PLUGIN_LOCK_PUBLICATION_TARGET;
+  const fault = (process.env.GHOSTGET_TEST_PLUGIN_LOCK_PUBLICATION_CRASH ?? process.env.WRENCH_TEST_PLUGIN_LOCK_PUBLICATION_CRASH);
+  const targetName = (process.env.GHOSTGET_TEST_PLUGIN_LOCK_PUBLICATION_TARGET ?? process.env.WRENCH_TEST_PLUGIN_LOCK_PUBLICATION_TARGET);
   if (
     targetName === undefined
     || basename(logicalLockPath) !== targetName
@@ -1235,9 +1235,9 @@ function acquireLockClaim(path: string): (() => void) | null {
 
 function pauseBeforeLockClaimForTest(path: string): void {
   if (process.env.NODE_ENV !== "test") return;
-  const readyPath = process.env.WRENCH_TEST_PLUGIN_LOCK_CLAIM_READY;
-  const releasePath = process.env.WRENCH_TEST_PLUGIN_LOCK_CLAIM_RELEASE;
-  const targetName = process.env.WRENCH_TEST_PLUGIN_LOCK_CLAIM_TARGET;
+  const readyPath = (process.env.GHOSTGET_TEST_PLUGIN_LOCK_CLAIM_READY ?? process.env.WRENCH_TEST_PLUGIN_LOCK_CLAIM_READY);
+  const releasePath = (process.env.GHOSTGET_TEST_PLUGIN_LOCK_CLAIM_RELEASE ?? process.env.WRENCH_TEST_PLUGIN_LOCK_CLAIM_RELEASE);
+  const targetName = (process.env.GHOSTGET_TEST_PLUGIN_LOCK_CLAIM_TARGET ?? process.env.WRENCH_TEST_PLUGIN_LOCK_CLAIM_TARGET);
   if (
     readyPath === undefined
     || releasePath === undefined
@@ -1259,9 +1259,9 @@ function pauseBeforeLockClaimForTest(path: string): void {
 
 function pauseAfterWaitingLockClaimForTest(path: string): void {
   if (process.env.NODE_ENV !== "test") return;
-  const readyPath = process.env.WRENCH_TEST_PLUGIN_LOCK_WAITING_READY;
-  const releasePath = process.env.WRENCH_TEST_PLUGIN_LOCK_WAITING_RELEASE;
-  const targetName = process.env.WRENCH_TEST_PLUGIN_LOCK_WAITING_TARGET;
+  const readyPath = (process.env.GHOSTGET_TEST_PLUGIN_LOCK_WAITING_READY ?? process.env.WRENCH_TEST_PLUGIN_LOCK_WAITING_READY);
+  const releasePath = (process.env.GHOSTGET_TEST_PLUGIN_LOCK_WAITING_RELEASE ?? process.env.WRENCH_TEST_PLUGIN_LOCK_WAITING_RELEASE);
+  const targetName = (process.env.GHOSTGET_TEST_PLUGIN_LOCK_WAITING_TARGET ?? process.env.WRENCH_TEST_PLUGIN_LOCK_WAITING_TARGET);
   if (
     readyPath === undefined
     || releasePath === undefined

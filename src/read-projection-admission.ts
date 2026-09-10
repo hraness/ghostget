@@ -13,7 +13,7 @@ import {
   ensurePrivateStateDirectory,
   readPrivateStateFileIfPresent,
   removePrivateStateFileIfUnchanged,
-  wrenchStateHome,
+  ghostgetStateHome,
   writePrivateJsonIfUnchanged,
 } from "./storage";
 
@@ -256,7 +256,7 @@ function incarnationRecord(value: unknown): ReadProjectionIncarnation {
 }
 
 function controlDirectory(environment: Environment): string {
-  return join(wrenchStateHome(environment), CONTROL_DIRECTORY);
+  return join(ghostgetStateHome(environment), CONTROL_DIRECTORY);
 }
 
 function admissionsDirectory(environment: Environment): string {
@@ -596,7 +596,7 @@ function withAcquiredReadProjectionAuthAdmission<T>(
   operation: () => T,
   acquire: () => ReadProjectionAuthAdmission,
 ): T {
-  const heldKey = `${wrenchStateHome(environment)}\0${id}`;
+  const heldKey = `${ghostgetStateHome(environment)}\0${id}`;
   const held = heldAdmissions.get(heldKey);
   if (held !== undefined) {
     assertAdmissionHeld(held.admission, environment);

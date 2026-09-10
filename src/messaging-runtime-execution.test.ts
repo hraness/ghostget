@@ -33,7 +33,7 @@ import {
 import { createProviderPluginRegistry } from "./provider-plugin-registry";
 import { confirmMessagingInvocation } from "./runtime";
 import { installManifest } from "./storage";
-import { main } from "./wrench";
+import { main } from "./ghostget";
 
 const roots: string[] = [];
 let sharedRoot: string | null = null;
@@ -382,7 +382,7 @@ async function harnessInternal(partCount: number, options: HarnessOptions = {}) 
     roots.push(root);
     sharedRoot = root;
   }
-  const environment = Object.freeze({ WRENCH_STATE_HOME: root });
+  const environment = Object.freeze({ GHOSTGET_STATE_HOME: root });
   const contextLimit = options.contextLimit ?? 3;
   const messages: ProviderMessageV1[] = [
     message("base-1", "older incoming", "2026-08-27T12:00:00.000Z", {

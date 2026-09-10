@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import { runReadEffect } from "../read-effect-runtime";
 import { GitHubReadPlatformLive } from "./github-read-platform";
 import { githubOrganizationReadProgram } from "./github-read-program";
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { OperationInput, WebSessionRecipe } from "../model";
 import { OperationDeadlineError } from "../operation-deadline";
 import { pinnedHttpsFetch, type PinnedHttpsFetch } from "../pinned-https";
@@ -307,7 +307,7 @@ export async function executeGitHubPublicOrganizationRead(
   ));
 }
 
-export function probeGitHubWebSubject(_auth: WrenchAuth): Promise<string> {
+export function probeGitHubWebSubject(_auth: GhostgetAuth): Promise<string> {
   return Promise.reject(
     new Error("GitHub public statistics reads do not use an auth realm"),
   );

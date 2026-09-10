@@ -1,4 +1,4 @@
-/** Shared, dependency-free bounds for the Wrench omni runtime and SDK. */
+/** Shared, dependency-free bounds for the Ghostget omni runtime and SDK. */
 export const OMNI_MAX_REQUEST_BYTES = 1024 * 1024;
 export const OMNI_MAX_RESPONSE_BYTES = 20 * 1024 * 1024;
 export const OMNI_MAX_REASON_BYTES = 8 * 1024;

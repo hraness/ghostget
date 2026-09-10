@@ -287,7 +287,7 @@ describe("provider-neutral local CLI surface contract", () => {
       .not.toBe(baseline.digests.classificationSha256);
   });
 
-  test("keeps upstream identity separate from Wrench-reviewed effect classification", () => {
+  test("keeps upstream identity separate from Ghostget-reviewed effect classification", () => {
     const baseline = defineLocalCliSurfaceContractV1(definition());
     const changed = definition();
     (changed.commands[0]! as unknown as {
@@ -362,14 +362,14 @@ describe("provider-neutral local CLI surface contract", () => {
       .toThrow("item operation differs from its command");
   });
 
-  test("keeps Wrench rationale and source discrepancy prose out of the upstream digest", () => {
+  test("keeps Ghostget rationale and source discrepancy prose out of the upstream digest", () => {
     const baseline = defineLocalCliSurfaceContractV1(definition());
     const changed = definition();
     mutableRecord(changed.source).versionDiscrepancy =
       "The reviewed source metadata differs from the executable release identity.";
     firstCommand(changed).decision = {
       ...supported,
-      rationale: "A differently worded Wrench classification rationale.",
+      rationale: "A differently worded Ghostget classification rationale.",
     };
     const contract = defineLocalCliSurfaceContractV1(changed);
     expect(contract.digests.upstreamSurfaceSha256).toBe(baseline.digests.upstreamSurfaceSha256);

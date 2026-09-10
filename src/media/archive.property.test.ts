@@ -6,9 +6,9 @@ import {
   revisionLineageIdentity,
 } from "./archive";
 import {
-  WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE,
-  WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE,
-  WRENCH_MEDIA_WHISPER_CPP_PROFILE,
+  GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE,
+  GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE,
+  GHOSTGET_MEDIA_WHISPER_CPP_PROFILE,
 } from "./manifest";
 import { parseProbeMetadata } from "./metadata";
 import { REVISION_CAPTURE_NAMESPACE } from "./revision";
@@ -184,13 +184,13 @@ test("property: every frozen local transcriber component participates in focused
         const metadata = metadataFor("local-transcript-source");
         const identity = {
           adapter: "whisper-cpp" as const,
-          profile: WRENCH_MEDIA_WHISPER_CPP_PROFILE,
+          profile: GHOSTGET_MEDIA_WHISPER_CPP_PROFILE,
           executableSha256,
-          runtimeProfile: WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE,
+          runtimeProfile: GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE,
           runtimeSha256,
           runtimeDependencyCount,
           modelSha256,
-          normalizationProfile: WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE,
+          normalizationProfile: GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE,
           requestedLanguage,
         };
         const first = captureIdentity(metadata, {

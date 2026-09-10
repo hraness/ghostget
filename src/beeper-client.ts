@@ -17,7 +17,7 @@ const MAX_STDERR_BYTES = 8 * 1024;
 const PROCESS_TIMEOUT_MS = 6 * 60 * 60 * 1_000 + 60_000;
 
 function fail(message: string): never {
-  throw new Error(`Wrench Beeper client: ${message}`);
+  throw new Error(`Ghostget Beeper client: ${message}`);
 }
 
 function cliSourcePath(): string {
@@ -25,12 +25,12 @@ function cliSourcePath(): string {
   if (existsSync(besideSource)) return besideSource;
   const packagedSource = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
   if (existsSync(packagedSource)) return packagedSource;
-  return fail("the installed Wrench CLI source is unavailable");
+  return fail("the installed Ghostget CLI source is unavailable");
 }
 
 function requireBunRuntime(): void {
   if (typeof process.versions.bun !== "string") {
-    fail("@hraness/wrench/beeper requires Bun to run the installed Wrench CLI");
+    fail("@hraness/ghostget/beeper requires Bun to run the installed Ghostget CLI");
   }
 }
 
@@ -164,7 +164,7 @@ function boundedError(value: unknown): string {
 }
 
 /**
- * Execute Wrench's installed, reviewed body-free Beeper export synchronously.
+ * Execute Ghostget's installed, reviewed body-free Beeper export synchronously.
  * The executable is package-owned, not caller-selected. Progress is inherited
  * on stderr and the returned value has passed the exact public artifact parser.
  */

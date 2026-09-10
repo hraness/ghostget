@@ -3,14 +3,14 @@ import { existsSync, lstatSync, unlinkSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const REPOSITORY = "hraness/wrench";
+const REPOSITORY = "hraness/ghostget";
 const REPOSITORY_URL = `https://github.com/${REPOSITORY}.git`;
 const MAIN_BRANCH = "main";
 const MAIN_REF = `refs/heads/${MAIN_BRANCH}`;
 const LOCAL_MAIN_REF = `refs/remotes/origin/${MAIN_BRANCH}`;
-const STAGE_MAIN_REF = "refs/wrench-release/stage-main";
-const PUBLICATION_MAIN_REF = "refs/wrench-release/publication-main";
-const PUBLICATION_TAG_REF = "refs/wrench-release/publication-tag";
+const STAGE_MAIN_REF = "refs/ghostget-release/stage-main";
+const PUBLICATION_MAIN_REF = "refs/ghostget-release/publication-main";
+const PUBLICATION_TAG_REF = "refs/ghostget-release/publication-tag";
 const MAXIMUM_SNAPSHOT_BYTES = 64 * 1_024;
 const MAXIMUM_SNAPSHOT_ROWS = 500;
 const MAXIMUM_GIT_OUTPUT_BYTES = 256 * 1_024;

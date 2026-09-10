@@ -20,9 +20,9 @@ import { Database } from "bun:sqlite";
 
 import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { sha256 } from "./canonical-json";
-import { wrenchStateHome } from "./storage";
+import { ghostgetStateHome } from "./storage";
 import { acquireWebSessionCookieRecords } from "./web-session-cookies";
 
 const CHROMIUM_EPOCH_OFFSET_MICROSECONDS = 11_644_473_600_000_000n;
@@ -81,12 +81,12 @@ function encryptMockKeychainCookie(hostKey: string, value: string): Buffer {
 }
 
 function managedProfileFixture(): {
-  readonly auth: WrenchAuth;
+  readonly auth: GhostgetAuth;
   readonly cleanup: () => void;
 } {
   const requestedRoot = mkdtempSync(join(tmpdir(), "wrench-managed-cookie-test-"));
   chmodSync(requestedRoot, 0o700);
-  const root = wrenchStateHome({ WRENCH_STATE_HOME: requestedRoot });
+  const root = ghostgetStateHome({ GHOSTGET_STATE_HOME: requestedRoot });
   const id = randomUUID();
   const directory = join(root, "derivations", id);
   const profile = join(directory, "profile");
@@ -201,7 +201,7 @@ function managedProfileFixture(): {
 }
 
 describe("managed Chromium web-session cookies", () => {
-  test("decrypts only an exact ready Wrench derivation profile with the fixed mock keychain", async () => {
+  test("decrypts only an exact ready Ghostget derivation profile with the fixed mock keychain", async () => {
     const fixture = managedProfileFixture();
     let fallbackCalls = 0;
     const fallback: CookieRecordReader = () => {

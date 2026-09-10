@@ -13,7 +13,7 @@ const DEFAULT_FILE_WEIGHT = 2;
 const MEASURED_FILE_WEIGHTS = Object.freeze({
   "src/messaging-runtime-execution.test.ts": 410,
   "src/runtime.test.ts": 265,
-  "src/wrench.test.ts": 208,
+  "src/ghostget.test.ts": 208,
   "src/read-projections.test.ts": 159,
   "src/read-client.test.ts": 115,
   "src/provider-plugin-portable-runtime.test.ts": 95,
@@ -211,7 +211,7 @@ async function runShardFromProcess(): Promise<void> {
   const root = process.cwd();
   const files = await filesForShard(root, request);
   process.stderr.write(
-    `wrench ci-test-shard ${String(request.shard)}/${String(request.shardCount)}: `
+    `ghostget ci-test-shard ${String(request.shard)}/${String(request.shardCount)}: `
     + `${String(files.length)} files\n`,
   );
   const child = Bun.spawn([process.execPath, ...bunUnitTestArguments(files, request.concurrency)], {

@@ -9,7 +9,7 @@ import { canonicalJson } from "./canonical-json";
 import {
   createPrivateJsonIfAbsent,
   readRegularFile,
-  wrenchStateHome,
+  ghostgetStateHome,
 } from "./storage";
 
 const TOKEN_VERSION = "smn1";
@@ -61,7 +61,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function keyPath(environment: Environment): string {
-  return join(wrenchStateHome(environment), KEY_FILE_NAME);
+  return join(ghostgetStateHome(environment), KEY_FILE_NAME);
 }
 
 function cursorEncryptionKey(

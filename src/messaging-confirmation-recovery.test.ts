@@ -47,7 +47,7 @@ function state() {
   roots.push(root);
   return {
     root,
-    environment: Object.freeze({ WRENCH_STATE_HOME: root }),
+    environment: Object.freeze({ GHOSTGET_STATE_HOME: root }),
   };
 }
 

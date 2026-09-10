@@ -966,7 +966,7 @@ if (import.meta.main) {
     );
   } catch (error) {
     process.stderr.write(
-      `wrench provider scaffold: ${error instanceof Error ? error.message : "unknown failure"}\n${usage()}\n`,
+      `ghostget provider scaffold: ${error instanceof Error ? error.message : "unknown failure"}\n${usage()}\n`,
     );
     process.exitCode = 1;
   }

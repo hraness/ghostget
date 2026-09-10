@@ -21,7 +21,7 @@ import { runCapabilities } from "../catalog-cli";
 import {
   manifestHash,
   parseRuntimeManifest,
-  type WrenchManifest,
+  type GhostgetManifest,
 } from "../model";
 import {
   initPortableProviderPlugin,
@@ -45,7 +45,7 @@ import {
 type SyncOptions = NonNullable<
   Parameters<typeof syncBundledAdapters>[0]
 >;
-type WrenchMain = NonNullable<SyncOptions["wrenchMain"]>;
+type GhostgetMain = NonNullable<SyncOptions["ghostgetMain"]>;
 type GenerationInstaller = NonNullable<SyncOptions["installGeneration"]>;
 
 const roots: string[] = [];
@@ -63,7 +63,7 @@ function temporaryState(): {
 } {
   const root = mkdtempSync(join(tmpdir(), "wrench-sync-generation-test-"));
   roots.push(root);
-  return { root, environment: { WRENCH_STATE_HOME: join(root, "state") } };
+  return { root, environment: { GHOSTGET_STATE_HOME: join(root, "state") } };
 }
 
 function copiedAssets(): {
@@ -99,9 +99,9 @@ function outputCapture(): {
 
 function writeSuccessfulValidation(
   arguments_: readonly string[],
-  output: Parameters<WrenchMain>[2],
+  output: Parameters<GhostgetMain>[2],
   registry: ProviderPluginRegistry = providerPluginRegistry,
-): WrenchManifest {
+): GhostgetManifest {
   const path = arguments_[2]!;
   const parsed = parseRuntimeManifest(
     JSON.parse(readFileSync(path, "utf8")) as unknown,
@@ -330,7 +330,7 @@ describe("single-process bundled adapter generation sync", () => {
       selections: null as readonly BundledAdapterGenerationSelection[] | null,
       validationsAtInstall: 0,
     };
-    const wrenchMain: WrenchMain = (
+    const ghostgetMain: GhostgetMain = (
       arguments_,
       _environment,
       output,
@@ -353,7 +353,7 @@ describe("single-process bundled adapter generation sync", () => {
     const result = await syncBundledAdapters({
       environment: state.environment,
       output: { stdout: () => undefined, stderr: () => undefined },
-      wrenchMain,
+      ghostgetMain,
       installGeneration: capturingInstaller(
         committed,
         () => validations,
@@ -392,7 +392,7 @@ describe("single-process bundled adapter generation sync", () => {
       await syncBundledAdapters({
         environment: state.environment,
         output: { stdout: () => undefined, stderr: () => undefined },
-        wrenchMain: (
+        ghostgetMain: (
           arguments_,
           environment,
           output,
@@ -440,7 +440,7 @@ describe("single-process bundled adapter generation sync", () => {
     for (const mode of ["status", "identity", "hash"] as const) {
       let publicationCalls = 0;
       let validations = 0;
-      const wrenchMain: WrenchMain = (arguments_, _environment, output) => {
+      const ghostgetMain: GhostgetMain = (arguments_, _environment, output) => {
         validations += 1;
         if (validations === 2 && mode !== "status") {
           const parsed = parseRuntimeManifest(
@@ -469,7 +469,7 @@ describe("single-process bundled adapter generation sync", () => {
         await syncBundledAdapters({
           environment: state.environment,
           output: { stdout: () => undefined, stderr: () => undefined },
-          wrenchMain,
+          ghostgetMain,
           installGeneration: () => {
             publicationCalls += 1;
             throw new Error("must not publish");
@@ -490,7 +490,7 @@ describe("single-process bundled adapter generation sync", () => {
     const copied = copiedAssets();
     let replacedSources = false;
     let committed: readonly BundledAdapterGenerationSelection[] = [];
-    const wrenchMain: WrenchMain = (arguments_, _environment, output) => {
+    const ghostgetMain: GhostgetMain = (arguments_, _environment, output) => {
       const staged = writeSuccessfulValidation(arguments_, output);
       if (!replacedSources) {
         replacedSources = true;
@@ -509,7 +509,7 @@ describe("single-process bundled adapter generation sync", () => {
       environment: state.environment,
       assetsDirectory: copied.assets,
       output: { stdout: () => undefined, stderr: () => undefined },
-      wrenchMain,
+      ghostgetMain,
       installGeneration: (selections) => {
         committed = selections;
         return {
@@ -553,7 +553,7 @@ describe("single-process bundled adapter generation sync", () => {
       await syncBundledAdapters({
         environment: state.environment,
         output: { stdout: () => undefined, stderr: () => undefined },
-        wrenchMain: (arguments_, _environment, output) => {
+        ghostgetMain: (arguments_, _environment, output) => {
           writeSuccessfulValidation(arguments_, output);
           return Promise.resolve(0);
         },
@@ -620,7 +620,7 @@ describe("single-process bundled adapter generation sync", () => {
       ...structuredClone(x.current.manifest),
       version: "9.9.9",
     };
-    mkdirSync(state.environment.WRENCH_STATE_HOME!, {
+    mkdirSync(state.environment.GHOSTGET_STATE_HOME!, {
       recursive: true,
       mode: 0o700,
     });
@@ -637,7 +637,7 @@ describe("single-process bundled adapter generation sync", () => {
     const result = await syncBundledAdapters({
       environment: state.environment,
       output: captured.output,
-      wrenchMain: (arguments_, _environment, output) => {
+      ghostgetMain: (arguments_, _environment, output) => {
         writeSuccessfulValidation(arguments_, output);
         return Promise.resolve(0);
       },
@@ -687,7 +687,7 @@ describe("single-process bundled adapter generation sync", () => {
         "content.delete": later.operations["content.delete"],
       },
     };
-    mkdirSync(state.environment.WRENCH_STATE_HOME!, {
+    mkdirSync(state.environment.GHOSTGET_STATE_HOME!, {
       recursive: true,
       mode: 0o700,
     });
@@ -699,7 +699,7 @@ describe("single-process bundled adapter generation sync", () => {
     const result = await syncBundledAdapters({
       environment: state.environment,
       output: captured.output,
-      wrenchMain: (arguments_, _environment, output) => {
+      ghostgetMain: (arguments_, _environment, output) => {
         writeSuccessfulValidation(arguments_, output);
         return Promise.resolve(0);
       },
@@ -733,7 +733,7 @@ describe("single-process bundled adapter generation sync", () => {
     const discovered = discoverBundledAdapters();
     const xWeb = discovered.find((adapter) => adapter.id === "x-web");
     if (xWeb === undefined) throw new Error("bundled x-web adapter is missing");
-    mkdirSync(state.environment.WRENCH_STATE_HOME!, {
+    mkdirSync(state.environment.GHOSTGET_STATE_HOME!, {
       recursive: true,
       mode: 0o700,
     });
@@ -749,7 +749,7 @@ describe("single-process bundled adapter generation sync", () => {
     const result = await syncBundledAdapters({
       environment: state.environment,
       output: captured.output,
-      wrenchMain: (arguments_, _environment, output) => {
+      ghostgetMain: (arguments_, _environment, output) => {
         writeSuccessfulValidation(arguments_, output);
         return Promise.resolve(0);
       },
@@ -839,7 +839,7 @@ describe("single-process bundled adapter generation sync", () => {
       throw new Error("Reddit media.read fixture omitted its web-session recipe");
     }
     futureMediaRead.webSession.contractVersion = 999;
-    mkdirSync(state.environment.WRENCH_STATE_HOME!, {
+    mkdirSync(state.environment.GHOSTGET_STATE_HOME!, {
       recursive: true,
       mode: 0o700,
     });
@@ -855,7 +855,7 @@ describe("single-process bundled adapter generation sync", () => {
     const result = await syncBundledAdapters({
       environment: state.environment,
       output: captured.output,
-      wrenchMain: (arguments_, _environment, output) => {
+      ghostgetMain: (arguments_, _environment, output) => {
         writeSuccessfulValidation(arguments_, output);
         return Promise.resolve(0);
       },
@@ -874,7 +874,7 @@ describe("single-process bundled adapter generation sync", () => {
       "repaired the incompatible installed reddit-web adapter",
     );
     expect(captured.stderr()).toContain(
-      "reinstall a newer Wrench release to restore newer contracts",
+      "reinstall a newer Ghostget release to restore newer contracts",
     );
     const selectedReddit = selections.find((selection) =>
       selection.id === "reddit-web"

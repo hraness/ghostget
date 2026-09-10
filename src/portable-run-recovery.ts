@@ -19,7 +19,7 @@ import {
 import {
   createPrivateJsonIfAbsent,
   ensurePrivateStateDirectory,
-  wrenchStateHome,
+  ghostgetStateHome,
   readPrivateStateFileIfPresent,
 } from "./storage";
 
@@ -201,7 +201,7 @@ function parseResolution(value: unknown): PortableRunResolutionV1 {
 }
 
 function resolutionDirectory(environment: Environment): string {
-  return join(wrenchStateHome(environment), ...RESOLUTION_DIRECTORY.split("/"));
+  return join(ghostgetStateHome(environment), ...RESOLUTION_DIRECTORY.split("/"));
 }
 
 function resolutionPath(runId: string, environment: Environment): string {

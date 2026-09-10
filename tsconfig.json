@@ -9,25 +9,25 @@
     "moduleResolution": "Bundler",
     "moduleDetection": "force",
     "paths": {
-      "@hraness/wrench": [
+      "@hraness/ghostget": [
         "./src/index.ts"
       ],
-      "@hraness/wrench/client": [
+      "@hraness/ghostget/client": [
         "./src/client.ts"
       ],
-      "@hraness/wrench/beeper": [
+      "@hraness/ghostget/beeper": [
         "./src/beeper-client.ts"
       ],
-      "@hraness/wrench/apple-photos": [
+      "@hraness/ghostget/apple-photos": [
         "./src/apple-photos-client.ts"
       ],
-      "@hraness/wrench/whatsapp": [
+      "@hraness/ghostget/whatsapp": [
         "./src/whatsapp-client.ts"
       ],
-      "@hraness/wrench/omni": [
+      "@hraness/ghostget/omni": [
         "./src/omni-client.ts"
       ],
-      "@hraness/wrench/messaging": [
+      "@hraness/ghostget/messaging": [
         "./src/messaging.ts"
       ]
     },

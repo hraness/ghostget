@@ -32,7 +32,7 @@ async function command(argv: readonly string[], cwd: string): Promise<string> {
 export async function provisionDeriveBrowser(): Promise<string> {
   if (process.env[deriveBrowserRootVariable]) return (await DeriveBrowserToolchain.load()).root;
   const artifact = deriveBrowserArtifact();
-  const root = await realpath(await mkdtemp(join(tmpdir(), "wrench-derive-toolchain-")));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "ghostget-derive-toolchain-")));
   await chmod(root, 0o700);
   const archive = join(root, "browser.zip");
   const payload = join(root, "payload");

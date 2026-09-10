@@ -30,7 +30,7 @@ import {
 } from "./browser-admission";
 import { canonicalJson, sha256 } from "./canonical-json";
 import { currentProcessStartIdentity } from "./process-identity";
-import { ensurePrivateStateDirectory, wrenchStateHome } from "./storage";
+import { ensurePrivateStateDirectory, ghostgetStateHome } from "./storage";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -42,7 +42,7 @@ function state(): {
 } {
   const directory = mkdtempSync(join(tmpdir(), "wrench-browser-admission-test-"));
   chmodSync(directory, 0o700);
-  return { directory, environment: { WRENCH_STATE_HOME: directory } };
+  return { directory, environment: { GHOSTGET_STATE_HOME: directory } };
 }
 
 function captureArguments(...extra: readonly string[]): CaptureArguments {
@@ -152,7 +152,7 @@ describe("local browser admission", () => {
   test("admits at most two of eight child processes on a warmed state root", async () => {
     const testState = state();
     ensurePrivateStateDirectory(
-      join(wrenchStateHome(testState.environment), "run-journals"),
+      join(ghostgetStateHome(testState.environment), "run-journals"),
       testState.environment,
     );
     expect(existsSync(join(testState.directory, "captures"))).toBeFalse();
@@ -175,14 +175,14 @@ describe("local browser admission", () => {
         }
         return value;
       };
-      writeFileSync(required("WRENCH_TEST_READY"), "ready\\n", { mode: 0o600 });
-      while (!existsSync(required("WRENCH_TEST_START"))) await Bun.sleep(5);
+      writeFileSync(required("GHOSTGET_TEST_READY"), "ready\\n", { mode: 0o600 });
+      while (!existsSync(required("GHOSTGET_TEST_START"))) await Bun.sleep(5);
       const admission = await acquireBrowserAdmission({
         timeoutMs: 30_000,
         environment: process.env,
       });
-      writeFileSync(required("WRENCH_TEST_ACQUIRED"), "acquired\\n", { mode: 0o600 });
-      while (!existsSync(required("WRENCH_TEST_RELEASE"))) await Bun.sleep(5);
+      writeFileSync(required("GHOSTGET_TEST_ACQUIRED"), "acquired\\n", { mode: 0o600 });
+      while (!existsSync(required("GHOSTGET_TEST_RELEASE"))) await Bun.sleep(5);
       admission.release();
       process.stdout.write(JSON.stringify({
         slot: admission.slot,
@@ -197,11 +197,11 @@ describe("local browser admission", () => {
           env: {
             ...process.env,
             NODE_ENV: "test",
-            WRENCH_STATE_HOME: testState.directory,
-            WRENCH_TEST_READY: readyPath,
-            WRENCH_TEST_START: startPath,
-            WRENCH_TEST_ACQUIRED: acquiredPath,
-            WRENCH_TEST_RELEASE: releasePath,
+            GHOSTGET_STATE_HOME: testState.directory,
+            GHOSTGET_TEST_READY: readyPath,
+            GHOSTGET_TEST_START: startPath,
+            GHOSTGET_TEST_ACQUIRED: acquiredPath,
+            GHOSTGET_TEST_RELEASE: releasePath,
           },
           stdout: "pipe",
           stderr: "pipe",
@@ -835,7 +835,7 @@ describe("local browser admission", () => {
             environment: process.env,
           });
           writeFileSync(
-            process.env.WRENCH_TEST_READY,
+            process.env.GHOSTGET_TEST_READY,
             JSON.stringify({ slot: admission.slot, owner: admission.owner }) + "\\n",
             { mode: 0o600 },
           );
@@ -847,8 +847,8 @@ describe("local browser admission", () => {
         env: {
           ...process.env,
           NODE_ENV: "test",
-          WRENCH_STATE_HOME: testState.directory,
-          WRENCH_TEST_READY: readyPath,
+          GHOSTGET_STATE_HOME: testState.directory,
+          GHOSTGET_TEST_READY: readyPath,
         },
         stdout: "ignore",
         stderr: "pipe",

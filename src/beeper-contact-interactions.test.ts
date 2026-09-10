@@ -26,7 +26,7 @@ import type {
 import type {
   BeeperMessageLikeMeSourceCoordinate,
 } from "./beeper-message-like-me-source";
-import { WRENCH_VERSION } from "./version";
+import { GHOSTGET_VERSION } from "./version";
 
 function localId(kind: string, ...parts: readonly string[]): string {
   return `${kind}:${sha256(canonicalJson(parts))}`;
@@ -421,13 +421,13 @@ describe("Beeper contact interaction summary", () => {
     const manifest = JSON.parse(
       readFileSync(join(import.meta.dir, "..", "package.json"), "utf8"),
     ) as { version?: string };
-    if (manifest.version !== WRENCH_VERSION) {
-      throw new Error("Wrench package and runtime versions diverged");
+    if (manifest.version !== GHOSTGET_VERSION) {
+      throw new Error("Ghostget package and runtime versions diverged");
     }
-    expect(manifest.version).toBe(WRENCH_VERSION);
+    expect(manifest.version).toBe(GHOSTGET_VERSION);
     expect(BEEPER_CONTACT_INTERACTION_IMPLEMENTATION.producer).toEqual({
-      package: "@hraness/wrench",
-      version: WRENCH_VERSION,
+      package: "@hraness/ghostget",
+      version: GHOSTGET_VERSION,
     });
   });
 

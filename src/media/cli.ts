@@ -3,7 +3,7 @@ import { MediaArchiveError, mediaUrl, type MediaArchiveOptions, type MediaArchiv
 import { parseArgs, USAGE } from "./args";
 import { renderDoctorReport, runDoctor, type DoctorOptions, type DoctorReport } from "./doctor";
 import {
-  WRENCH_MEDIA_VERSION,
+  GHOSTGET_MEDIA_VERSION,
   verifyMediaItem,
   type MediaManifest,
   type VerifyItemResult,
@@ -166,7 +166,7 @@ export async function runCli(argv: readonly string[], options: RunCliOptions = {
   const parsed = parseArgs(argv);
   if (!parsed.ok) {
     if (parsed.json) writeJson(io, "stderr", { ok: false, error: { code: "USAGE", message: parsed.message } });
-    else io.stderr(`wrench media: ${parsed.message}\n\n${USAGE}\n`);
+    else io.stderr(`ghostget media: ${parsed.message}\n\n${USAGE}\n`);
     return 2;
   }
   const { command } = parsed;
@@ -176,8 +176,8 @@ export async function runCli(argv: readonly string[], options: RunCliOptions = {
     return 0;
   }
   if (command.kind === "version") {
-    if (command.json) writeJson(io, "stdout", { ok: true, version: WRENCH_MEDIA_VERSION });
-    else io.stdout(`wrench media ${WRENCH_MEDIA_VERSION}\n`);
+    if (command.json) writeJson(io, "stdout", { ok: true, version: GHOSTGET_MEDIA_VERSION });
+    else io.stdout(`ghostget media ${GHOSTGET_MEDIA_VERSION}\n`);
     return 0;
   }
   if (command.kind === "doctor") {
@@ -190,7 +190,7 @@ export async function runCli(argv: readonly string[], options: RunCliOptions = {
     const result = await dependencies.verifyMediaItem(command.itemDirectory);
     if (command.json) writeJson(io, result.ok ? "stdout" : "stderr", { ok: result.ok, verification: result });
     else if (result.ok) io.stdout(`Verified ${sanitizeTerminalText(result.assetKey ?? command.itemDirectory)}: ${String(result.checkedArtifacts)} artifacts\n`);
-    else io.stderr(`wrench media: verification failed\n${result.failures.map((failure) => `- ${redactDiagnostic(failure, { homeDirectory })}`).join("\n")}\n`);
+    else io.stderr(`ghostget media: verification failed\n${result.failures.map((failure) => `- ${redactDiagnostic(failure, { homeDirectory })}`).join("\n")}\n`);
     return result.ok ? 0 : 8;
   }
   if (command.kind === "transcriber-setup") {
@@ -235,7 +235,7 @@ export async function runCli(argv: readonly string[], options: RunCliOptions = {
           error: { code: `TRANSCRIBER_${code}`, message },
         });
       } else {
-        io.stderr(`wrench media: TRANSCRIBER_${code}: ${message}\n`);
+        io.stderr(`ghostget media: TRANSCRIBER_${code}: ${message}\n`);
       }
       return 3;
     }
@@ -271,7 +271,7 @@ export async function runCli(argv: readonly string[], options: RunCliOptions = {
       if (command.json) {
         writeJson(io, "stderr", { ok: false, error: { code: error.code, message, details: safeDetails(error.details, homeDirectory, secrets) } });
       } else {
-        io.stderr(`wrench media: ${error.code}: ${message}\n`);
+        io.stderr(`ghostget media: ${error.code}: ${message}\n`);
         const staging = error.details["stagingDirectory"];
         if (typeof staging === "string") {
           io.stderr(`diagnostic staging: ${redactDiagnostic(staging, { homeDirectory, secrets })}\n`);
@@ -281,7 +281,7 @@ export async function runCli(argv: readonly string[], options: RunCliOptions = {
     }
     const message = redactDiagnostic(error instanceof Error ? error.message : "unexpected failure", { homeDirectory, secrets });
     if (command.json) writeJson(io, "stderr", { ok: false, error: { code: "INTERNAL", message } });
-    else io.stderr(`wrench media: INTERNAL: ${message}\n`);
+    else io.stderr(`ghostget media: INTERNAL: ${message}\n`);
     return 1;
   }
 }

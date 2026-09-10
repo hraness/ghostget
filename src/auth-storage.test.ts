@@ -36,7 +36,7 @@ import {
   initialLinkedDeviceLifecycleJournal,
   updateLinkedDeviceLifecycleJournal,
 } from "./linked-device-lifecycle-journal";
-import { canonicalJson, type WrenchManifest } from "./model";
+import { canonicalJson, type GhostgetManifest } from "./model";
 import {
   providerPluginPackageRoot,
   providerPluginRepositoryRoot,
@@ -63,7 +63,7 @@ import {
   readRegularFile,
   removeInstalledManifest,
   removePrivateStateFile,
-  wrenchStateHome,
+  ghostgetStateHome,
   writePrivateJson,
 } from "./storage";
 
@@ -99,10 +99,10 @@ const loadInstalledManifestSnapshot = (
 function state(): { readonly directory: string; readonly environment: Readonly<Record<string, string | undefined>> } {
   const directory = mkdtempSync(join(tmpdir(), "wrench-storage-test-"));
   chmodSync(directory, 0o700);
-  return { directory, environment: { WRENCH_STATE_HOME: directory } };
+  return { directory, environment: { GHOSTGET_STATE_HOME: directory } };
 }
 
-const manifest: WrenchManifest = {
+const manifest: GhostgetManifest = {
   schemaVersion: 1,
   id: "example",
   version: "1.0.0",
@@ -181,7 +181,7 @@ describe("auth locators", () => {
   test("loads and preserves a legacy linked-device locator without a stored realm key", () => {
     const outer = mkdtempSync(join(tmpdir(), "wrench-legacy-linked-auth-test-"));
     chmodSync(outer, 0o700);
-    const environment = { WRENCH_STATE_HOME: join(outer, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(outer, "state") };
     const store = join(outer, "device-store");
     mkdirSync(store, { mode: 0o700 });
     const legacy = {
@@ -193,7 +193,7 @@ describe("auth locators", () => {
       path: resolve(store),
     };
     try {
-      const path = join(wrenchStateHome(environment), "auth", "legacy-linked.json");
+      const path = join(ghostgetStateHome(environment), "auth", "legacy-linked.json");
       writePrivateJson(path, legacy, { privateParent: true });
 
       const snapshot = loadAuthSnapshot("legacy-linked", environment);
@@ -226,7 +226,7 @@ describe("auth locators", () => {
         join(tmpdir(), "wrench-legacy-linked-alias-auth-test-"),
       );
       chmodSync(outer, 0o700);
-      const environment = { WRENCH_STATE_HOME: join(outer, "state") };
+      const environment = { GHOSTGET_STATE_HOME: join(outer, "state") };
       const suffix = `wrench-legacy-device-${randomUUID()}`;
       const aliases = [
         {
@@ -251,7 +251,7 @@ describe("auth locators", () => {
             path: alias.path,
           };
           const path = join(
-            wrenchStateHome(environment),
+            ghostgetStateHome(environment),
             "auth",
             `${alias.id}.json`,
           );
@@ -978,7 +978,7 @@ describe("auth locators", () => {
         | ReturnType<typeof createReadProjectionQuery>
         | undefined;
       const racingEnvironment = Object.freeze({
-        get WRENCH_STATE_HOME(): string {
+        get GHOSTGET_STATE_HOME(): string {
           rootReads += 1;
           // The first four resolutions perform the initial absent snapshot.
           // The fifth begins admission acquisition, which is the exact window
@@ -1183,7 +1183,7 @@ describe("auth locators", () => {
 
       let postCommitFaultInjected = false;
       const faultingEnvironment = Object.freeze({
-        get WRENCH_STATE_HOME(): string {
+        get GHOSTGET_STATE_HOME(): string {
           if (
             !postCommitFaultInjected
             && !existsSync(authFile)
@@ -1309,7 +1309,7 @@ describe("auth locators", () => {
 describe("private state storage", () => {
   test("recovers only definitely orphaned state-write temporaries after SIGKILL", async () => {
     const testState = state();
-    const stateRoot = wrenchStateHome(testState.environment);
+    const stateRoot = ghostgetStateHome(testState.environment);
     const plans = join(stateRoot, "plans");
     let child: ReturnType<typeof Bun.spawn> | null = null;
     try {
@@ -1339,7 +1339,7 @@ describe("private state storage", () => {
         cwd: stateRoot,
         env: {
           NODE_ENV: "test",
-          WRENCH_TEST_WRITE_TEMP_FAULT: "pause-after-temp-fsync",
+          GHOSTGET_TEST_WRITE_TEMP_FAULT: "pause-after-temp-fsync",
         },
         stdin: "pipe",
         stdout: "pipe",
@@ -1404,21 +1404,21 @@ describe("private state storage", () => {
   ])("rejects a broad $label without creating or changing it", ({ path }) => {
     const existedBefore = existsSync(path);
     const modeBefore = existedBefore ? lstatSync(path).mode & 0o777 : null;
-    expect(() => wrenchStateHome({ WRENCH_STATE_HOME: path })).toThrow("WRENCH_STATE_HOME");
+    expect(() => ghostgetStateHome({ GHOSTGET_STATE_HOME: path })).toThrow("GHOSTGET_STATE_HOME");
     expect(existsSync(path)).toBe(existedBefore);
     if (modeBefore !== null) expect(lstatSync(path).mode & 0o777).toBe(modeBefore);
   });
 
-  test("defaults new state to Wrench while continuing either lone legacy state root", () => {
+  test("defaults new state to Ghostget while continuing either lone legacy state root", () => {
     const dataRoot = mkdtempSync(join(tmpdir(), "wrench-state-default-test-"));
     try {
-      const fresh = wrenchStateHome({ XDG_DATA_HOME: dataRoot });
-      expect(fresh).toBe(join(realpathSync(dataRoot), "wrench"));
+      const fresh = ghostgetStateHome({ XDG_DATA_HOME: dataRoot });
+      expect(fresh).toBe(join(realpathSync(dataRoot), "ghostget"));
 
-      for (const name of ["oh", "io"] as const) {
+      for (const name of ["wrench", "oh", "io"] as const) {
         const legacy = join(dataRoot, name);
         mkdirSync(legacy, { mode: 0o700 });
-        expect(wrenchStateHome({ XDG_DATA_HOME: dataRoot })).toBe(realpathSync(legacy));
+        expect(ghostgetStateHome({ XDG_DATA_HOME: dataRoot })).toBe(realpathSync(legacy));
         rmSync(legacy, { recursive: true });
       }
     } finally {
@@ -1429,13 +1429,13 @@ describe("private state storage", () => {
   test("recognizes populated unmarked predecessor state roots without rewriting them", () => {
     const dataRoot = mkdtempSync(join(tmpdir(), "wrench-populated-legacy-state-test-"));
     try {
-      for (const name of ["oh", "io"] as const) {
+      for (const name of ["wrench", "oh", "io"] as const) {
         const legacy = join(dataRoot, name);
         const plans = join(legacy, "plans");
         mkdirSync(plans, { recursive: true, mode: 0o700 });
         writeFileSync(join(plans, "legacy.json"), '{"legacy":true}\n', { mode: 0o600 });
 
-        expect(wrenchStateHome({ XDG_DATA_HOME: dataRoot })).toBe(realpathSync(legacy));
+        expect(ghostgetStateHome({ XDG_DATA_HOME: dataRoot })).toBe(realpathSync(legacy));
         expect(existsSync(join(legacy, ".io-state.json"))).toBeFalse();
         expect(readFileSync(join(plans, "legacy.json"), "utf8")).toBe('{"legacy":true}\n');
 
@@ -1451,8 +1451,8 @@ describe("private state storage", () => {
     try {
       mkdirSync(join(dataRoot, "wrench"), { mode: 0o700 });
       mkdirSync(join(dataRoot, "oh"), { mode: 0o700 });
-      expect(() => wrenchStateHome({ XDG_DATA_HOME: dataRoot }))
-        .toThrow("multiple Wrench and legacy state roots exist");
+      expect(() => ghostgetStateHome({ XDG_DATA_HOME: dataRoot }))
+        .toThrow("multiple Ghostget and legacy state roots exist");
     } finally {
       rmSync(dataRoot, { recursive: true, force: true });
     }
@@ -1463,20 +1463,26 @@ describe("private state storage", () => {
     const selected = join(outer, "selected");
     const other = join(outer, "other");
     try {
-      expect(wrenchStateHome({
+      expect(ghostgetStateHome({
+        GHOSTGET_STATE_HOME: selected,
         WRENCH_STATE_HOME: selected,
         OH_STATE_HOME: selected,
         IO_HOME: selected,
       }))
         .toBe(join(realpathSync(outer), "selected"));
-      expect(() => wrenchStateHome({ WRENCH_STATE_HOME: selected, OH_STATE_HOME: other }))
+      expect(() => ghostgetStateHome({ GHOSTGET_STATE_HOME: selected, WRENCH_STATE_HOME: other }))
         .toThrow("select different state roots");
-      expect(() => wrenchStateHome({ OH_STATE_HOME: selected, IO_HOME: other }))
-        .toThrow("select different state roots");
-      expect(wrenchStateHome({ OH_STATE_HOME: selected })).toBe(
+      expect(ghostgetStateHome({ WRENCH_STATE_HOME: selected })).toBe(
         join(realpathSync(outer), "selected"),
       );
-      expect(wrenchStateHome({ IO_HOME: selected })).toBe(
+      expect(() => ghostgetStateHome({ GHOSTGET_STATE_HOME: selected, OH_STATE_HOME: other }))
+        .toThrow("select different state roots");
+      expect(() => ghostgetStateHome({ OH_STATE_HOME: selected, IO_HOME: other }))
+        .toThrow("select different state roots");
+      expect(ghostgetStateHome({ OH_STATE_HOME: selected })).toBe(
+        join(realpathSync(outer), "selected"),
+      );
+      expect(ghostgetStateHome({ IO_HOME: selected })).toBe(
         join(realpathSync(outer), "selected"),
       );
     } finally {
@@ -1487,11 +1493,11 @@ describe("private state storage", () => {
   test("claims a recognizable dedicated root with a private ownership marker", () => {
     const testState = state();
     try {
-      writePrivateJson(join(wrenchStateHome(testState.environment), "plans", "claim.json"), { claimed: true }, { privateParent: true });
+      writePrivateJson(join(ghostgetStateHome(testState.environment), "plans", "claim.json"), { claimed: true }, { privateParent: true });
       const marker = join(testState.directory, ".io-state.json");
       expect(lstatSync(marker).mode & 0o777).toBe(0o600);
       expect(JSON.parse(readFileSync(marker, "utf8"))).toEqual({ schemaVersion: 1, kind: "io-state" });
-      expect(wrenchStateHome(testState.environment)).toBe(realpathSync(testState.directory));
+      expect(ghostgetStateHome(testState.environment)).toBe(realpathSync(testState.directory));
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }
@@ -1502,9 +1508,9 @@ describe("private state storage", () => {
     const root = join(outer, "io-state");
     const moved = join(outer, "original-state");
     mkdirSync(root, { mode: 0o700 });
-    const environment = { WRENCH_STATE_HOME: root } as const;
+    const environment = { GHOSTGET_STATE_HOME: root } as const;
     try {
-      const validatedRoot = wrenchStateHome(environment);
+      const validatedRoot = ghostgetStateHome(environment);
       expect(validatedRoot).toBe(realpathSync(root));
       renameSync(validatedRoot, moved);
       mkdirSync(validatedRoot, { mode: 0o755 });
@@ -1527,9 +1533,9 @@ describe("private state storage", () => {
     const lateParent = join(outer, "late-parent");
     const root = join(lateParent, "io-state");
     mkdirSync(external, { mode: 0o700 });
-    const environment = { WRENCH_STATE_HOME: root } as const;
+    const environment = { GHOSTGET_STATE_HOME: root } as const;
     try {
-      const validatedRoot = wrenchStateHome(environment);
+      const validatedRoot = ghostgetStateHome(environment);
       symlinkSync(external, lateParent);
 
       expect(() => writePrivateJson(join(validatedRoot, "plans", "claim.json"), { claimed: true }, { privateParent: true }))
@@ -1546,10 +1552,10 @@ describe("private state storage", () => {
     const root = join(outer, "io-state");
     const moved = join(outer, "original-state");
     const replacement = join(outer, "replacement-state");
-    const environment = { WRENCH_STATE_HOME: root } as const;
+    const environment = { GHOSTGET_STATE_HOME: root } as const;
     const originalRandomUUID = crypto.randomUUID.bind(crypto);
     try {
-      const validatedRoot = wrenchStateHome(environment);
+      const validatedRoot = ghostgetStateHome(environment);
       writePrivateJson(join(validatedRoot, "plans", "seed.json"), { seed: true }, { privateParent: true });
       mkdirSync(join(replacement, "plans"), { recursive: true, mode: 0o700 });
       writeFileSync(join(replacement, ".io-state.json"), '{"kind":"io-state","schemaVersion":1}\n', { mode: 0o600 });
@@ -1588,10 +1594,10 @@ describe("private state storage", () => {
     const outer = realpathSync(mkdtempSync(join(tmpdir(), "wrench-descendant-swap-test-")));
     const root = join(outer, "io-state");
     const movedPlans = join(outer, "original-plans");
-    const environment = { WRENCH_STATE_HOME: root } as const;
+    const environment = { GHOSTGET_STATE_HOME: root } as const;
     const originalRandomUUID = crypto.randomUUID.bind(crypto);
     try {
-      const validatedRoot = wrenchStateHome(environment);
+      const validatedRoot = ghostgetStateHome(environment);
       const plans = join(validatedRoot, "plans");
       writePrivateJson(join(plans, "seed.json"), { seed: true }, { privateParent: true });
 
@@ -1624,11 +1630,11 @@ describe("private state storage", () => {
   test("fails closed when a claimed root or trusted state ancestor becomes public", () => {
     const testState = state();
     try {
-      const path = join(wrenchStateHome(testState.environment), "plans", "claim.json");
+      const path = join(ghostgetStateHome(testState.environment), "plans", "claim.json");
       writePrivateJson(path, { claimed: true }, { privateParent: true });
 
       chmodSync(testState.directory, 0o777);
-      expect(() => wrenchStateHome(testState.environment)).toThrow("private");
+      expect(() => ghostgetStateHome(testState.environment)).toThrow("private");
       expect(lstatSync(testState.directory).mode & 0o777).toBe(0o777);
 
       chmodSync(testState.directory, 0o700);
@@ -1647,10 +1653,10 @@ describe("private state storage", () => {
     try {
       const stage = join(testState.directory, `.io-state.stage-99999999-${crypto.randomUUID()}.json`);
       writeFileSync(stage, "", { mode: 0o600 });
-      writePrivateJson(join(wrenchStateHome(testState.environment), "plans", "claim.json"), { claimed: true }, { privateParent: true });
+      writePrivateJson(join(ghostgetStateHome(testState.environment), "plans", "claim.json"), { claimed: true }, { privateParent: true });
       expect(JSON.parse(readFileSync(join(testState.directory, ".io-state.json"), "utf8")))
         .toEqual({ schemaVersion: 1, kind: "io-state" });
-      expect(wrenchStateHome(testState.environment)).toBe(realpathSync(testState.directory));
+      expect(ghostgetStateHome(testState.environment)).toBe(realpathSync(testState.directory));
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }
@@ -1660,21 +1666,21 @@ describe("private state storage", () => {
     const root = mkdtempSync(join(tmpdir(), "unrelated-state-"));
     try {
       writeFileSync(join(root, "sentinel"), "unchanged\n", { mode: 0o600 });
-      expect(() => wrenchStateHome({ WRENCH_STATE_HOME: root })).toThrow("not marked as wrench-owned");
+      expect(() => ghostgetStateHome({ GHOSTGET_STATE_HOME: root })).toThrow("not marked as wrench-owned");
       expect(readFileSync(join(root, "sentinel"), "utf8")).toBe("unchanged\n");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
-  test("does not infer Wrench ownership from an embedded path substring", () => {
+  test("does not infer Ghostget ownership from an embedded path substring", () => {
     const outer = mkdtempSync(join(tmpdir(), "unrelated-state-"));
     const root = join(outer, "cohort", "container", "state");
     try {
       mkdirSync(root, { recursive: true, mode: 0o700 });
       writeFileSync(join(root, "sentinel"), "unchanged\n", { mode: 0o600 });
 
-      expect(() => wrenchStateHome({ WRENCH_STATE_HOME: root })).toThrow("not marked as wrench-owned");
+      expect(() => ghostgetStateHome({ GHOSTGET_STATE_HOME: root })).toThrow("not marked as wrench-owned");
       expect(readFileSync(join(root, "sentinel"), "utf8")).toBe("unchanged\n");
     } finally {
       rmSync(outer, { recursive: true, force: true });
@@ -1685,7 +1691,7 @@ describe("private state storage", () => {
     const root = mkdtempSync(join(tmpdir(), "wrench-public-state-test-"));
     try {
       chmodSync(root, 0o777);
-      expect(() => wrenchStateHome({ WRENCH_STATE_HOME: root })).toThrow("group/world-writable");
+      expect(() => ghostgetStateHome({ GHOSTGET_STATE_HOME: root })).toThrow("group/world-writable");
       expect(lstatSync(root).mode & 0o777).toBe(0o777);
       expect(readdirWithoutDot(root)).toEqual([]);
     } finally {
@@ -1736,7 +1742,7 @@ describe("private state storage", () => {
   test("atomically creates private JSON only once and durably removes state files", () => {
     const testState = state();
     try {
-      const path = join(wrenchStateHome(testState.environment), "plans", "once.json");
+      const path = join(ghostgetStateHome(testState.environment), "plans", "once.json");
       let readerObservedUnpublishedPath = false;
       expect(createPrivateJsonIfAbsent(path, { version: 1 }, {
         beforePublish: (temporaryPath) => {
@@ -1768,8 +1774,8 @@ describe("private state storage", () => {
       expect(readJsonFile(path)).toEqual({ version: 1 });
       expect(lstatSync(path).mode & 0o777).toBe(0o600);
 
-      const racedPath = join(wrenchStateHome(testState.environment), "plans", "race.json");
-      const plansStats = lstatSync(join(wrenchStateHome(testState.environment), "plans"), { bigint: true });
+      const racedPath = join(ghostgetStateHome(testState.environment), "plans", "race.json");
+      const plansStats = lstatSync(join(ghostgetStateHome(testState.environment), "plans"), { bigint: true });
       const expectedStateParent = {
         device: plansStats.dev.toString(),
         inode: plansStats.ino.toString(),
@@ -1785,9 +1791,9 @@ describe("private state storage", () => {
         expectedStateParent,
       })).toEqual({ created: false });
       expect(readJsonFile(racedPath)).toEqual({ winner: "contender" });
-      expect(readdirWithoutDot(join(wrenchStateHome(testState.environment), "plans"))).toEqual(["once.json", "race.json"]);
+      expect(readdirWithoutDot(join(ghostgetStateHome(testState.environment), "plans"))).toEqual(["once.json", "race.json"]);
 
-      const rejectedPath = join(wrenchStateHome(testState.environment), "plans", "wrong-parent.json");
+      const rejectedPath = join(ghostgetStateHome(testState.environment), "plans", "wrong-parent.json");
       expect(() => createPrivateJsonIfAbsent(rejectedPath, { outside: false }, {
         environment: testState.environment,
         expectedStateParent: { ...expectedStateParent, inode: (BigInt(expectedStateParent.inode) + 1n).toString() },
@@ -1806,7 +1812,7 @@ describe("private state storage", () => {
     const external = mkdtempSync(join(tmpdir(), "wrench-storage-external-"));
     chmodSync(external, 0o700);
     try {
-      const stateRoot = wrenchStateHome(testState.environment);
+      const stateRoot = ghostgetStateHome(testState.environment);
       const externalPlans = join(external, "plans");
       mkdirSync(externalPlans, { mode: 0o700 });
       const externalFile = join(externalPlans, "once.json");
@@ -1837,7 +1843,7 @@ describe("private state storage", () => {
       mkdirSync(real);
       const linked = join(testState.directory, "linked");
       symlinkSync(real, linked);
-      expect(wrenchStateHome({ WRENCH_STATE_HOME: join(linked, "nested") })).toBe(join(realpathSync(real), "nested"));
+      expect(ghostgetStateHome({ GHOSTGET_STATE_HOME: join(linked, "nested") })).toBe(join(realpathSync(real), "nested"));
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }

@@ -46,7 +46,7 @@ export const readInvocationProgram: Effect.Effect<ReadInvocationOutcome, ReadEff
   const privateArtifactsPreserved = execution.privateArtifactsPreserved === true;
   const recoveryHandle = platform.recoveryHandle(execution.recoveryHandle);
   const recoveryMessage = privateArtifactsPreserved
-    ? `private browser artifacts were preserved; wrench doctor must prove and complete exact browser-session recovery before retry${recoveryHandle === null ? "" : `; recovery handle: ${recoveryHandle}`}`
+    ? `private browser artifacts were preserved; ghostget doctor must prove and complete exact browser-session recovery before retry${recoveryHandle === null ? "" : `; recovery handle: ${recoveryHandle}`}`
     : null;
   const finishedAt = yield* platform.now;
   const finalOrigin = yield* platform.finalOrigin(execution.finalUrl);

@@ -7,7 +7,7 @@ import {
   listPrivateStateDirectory,
   readPrivateStateFileIfPresent,
   removePrivateStateDirectoryTree,
-  wrenchStateHome,
+  ghostgetStateHome,
   type PrivateDirectoryIdentity,
   type PrivateStateDirectoryEntry,
 } from "./storage";
@@ -57,7 +57,7 @@ export type BrowserSnapshotGcHooks = {
 function ensureSnapshotRoot(
   environment: Readonly<Record<string, string | undefined>>,
 ): BrowserSnapshotRoot {
-  const path = join(wrenchStateHome(environment), snapshotDirectoryName);
+  const path = join(ghostgetStateHome(environment), snapshotDirectoryName);
   return { path, identity: ensurePrivateStateDirectory(path, environment) };
 }
 
@@ -94,7 +94,7 @@ function parseOwnerMarker(content: string): SnapshotOwner {
   try {
     value = JSON.parse(content) as unknown;
   } catch (error) {
-    throw new Error("wrench browser-snapshot owner marker is unreadable", { cause: error });
+    throw new Error("ghostget browser-snapshot owner marker is unreadable", { cause: error });
   }
   if (
     typeof value !== "object"
@@ -114,7 +114,7 @@ function parseOwnerMarker(content: string): SnapshotOwner {
     || !("nonce" in value)
     || typeof value.nonce !== "string"
     || !/^[0-9a-f]{32}$/u.test(value.nonce)
-  ) throw new Error("wrench browser-snapshot owner marker is malformed");
+  ) throw new Error("ghostget browser-snapshot owner marker is malformed");
   return value as SnapshotOwner;
 }
 
@@ -140,7 +140,7 @@ function processIsAlive(pid: number): boolean {
 
 function shouldRetain(owner: Readonly<RecoverableDirectoryOwner>, nowMs: number): boolean {
   if (owner.createdAtMs > nowMs + maximumFutureSkewMs) {
-    throw new Error("wrench browser-snapshot recovery metadata is from the future");
+    throw new Error("ghostget browser-snapshot recovery metadata is from the future");
   }
   if (nowMs - owner.createdAtMs < BROWSER_SNAPSHOT_GC_GRACE_MS) return true;
   return owner.pid === process.pid || processIsAlive(owner.pid);
@@ -152,7 +152,7 @@ function removeBoundDirectory(
   environment: Readonly<Record<string, string | undefined>>,
 ): boolean {
   if (entry.kind !== "directory" || entry.identity === undefined) {
-    throw new Error("wrench browser-snapshot root contains an unrecognized entry");
+    throw new Error("ghostget browser-snapshot root contains an unrecognized entry");
   }
   return removePrivateStateDirectoryTree(
     join(root.path, entry.name),
@@ -171,12 +171,12 @@ function purgeBoundBrowserSnapshots(
   hooks.beforeScan?.(root);
   const entries = listPrivateStateDirectory(root.path, environment, root.identity);
   if (entries.length > maximumSnapshotEntries) {
-    throw new Error(`wrench browser-snapshot root exceeds ${maximumSnapshotEntries} entries`);
+    throw new Error(`ghostget browser-snapshot root exceeds ${maximumSnapshotEntries} entries`);
   }
   let removed = 0;
   for (const entry of [...entries].sort((left, right) => left.name.localeCompare(right.name))) {
     if (entry.kind !== "directory" || entry.identity === undefined) {
-      throw new Error("wrench browser-snapshot root contains an unrecognized entry");
+      throw new Error("ghostget browser-snapshot root contains an unrecognized entry");
     }
     const quarantineOwner = quarantineOwnerFromName(entry.name);
     if (quarantineOwner !== null) {
@@ -184,7 +184,7 @@ function purgeBoundBrowserSnapshots(
       continue;
     }
     const nameOwner = snapshotOwnerFromName(entry.name);
-    if (nameOwner === null) throw new Error("wrench browser-snapshot root contains an unrecognized entry");
+    if (nameOwner === null) throw new Error("ghostget browser-snapshot root contains an unrecognized entry");
     hooks.beforeMarkerRead?.(root, entry);
     const marker = readPrivateStateFileIfPresent(
       join(root.path, entry.name, ownerMarkerName),
@@ -194,7 +194,7 @@ function purgeBoundBrowserSnapshots(
       [root.identity, entry.identity],
     );
     if (marker !== null && !sameOwner(parseOwnerMarker(marker), nameOwner)) {
-      throw new Error("wrench browser-snapshot owner marker does not match its directory");
+      throw new Error("ghostget browser-snapshot owner marker does not match its directory");
     }
     if (!shouldRetain(nameOwner, nowMs) && removeBoundDirectory(root, entry, environment)) removed += 1;
   }

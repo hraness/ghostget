@@ -3,7 +3,7 @@ import { lstat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import {
   beginBeeperMessageLikeMeHelperLaunch,
   bindBeeperMessageLikeMeHelperOwner,
@@ -52,7 +52,7 @@ const PAGE_TIMEOUT_MS = 5 * 60_000;
 const EXPORT_TIMEOUT_MS = 6 * 60 * 60_000;
 const MAX_STDERR_BYTES = 16 * 1024;
 
-type WhatsAppAuth = Extract<WrenchAuth, { readonly kind: "linked-device-store" }>;
+type WhatsAppAuth = Extract<GhostgetAuth, { readonly kind: "linked-device-store" }>;
 
 export type WhatsAppMessageLikeMeProgress =
   | Readonly<{ phase: "preparing" }>
@@ -84,7 +84,7 @@ export type WhatsAppMessageLikeMeSourceDependencies = Readonly<{
 }>;
 
 export type WhatsAppMessageLikeMeSourceRequest = Readonly<{
-  auth: WrenchAuth;
+  auth: GhostgetAuth;
   stateEnvironment?: Readonly<Record<string, string | undefined>>;
   /** Internal durable admission held by the native CLI. */
   admission?: BeeperMessageLikeMeExportAdmission;
@@ -118,7 +118,7 @@ function fail(message: string): never {
   throw new Error(`WhatsApp Message Like Me source: ${message}`);
 }
 
-function requireAuth(value: WrenchAuth): WhatsAppAuth & Readonly<{ subject: string }> {
+function requireAuth(value: GhostgetAuth): WhatsAppAuth & Readonly<{ subject: string }> {
   if (
     value.kind !== "linked-device-store"
     || value.provider !== "whatsapp"

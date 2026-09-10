@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
 import type { StrictCookie } from "@hraness/kb/clip/cookies";
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { OperationInput, WebSessionRecipe } from "../model";
 import {
   executeYouTubeWebOperation,
@@ -28,7 +28,7 @@ const youtubeAuth = {
   source: "arc",
   profile: "Profile 1",
   subject: `youtube:channel:${CHANNEL_ID}/gaia:${GAIA_ID}/delegate:${DELEGATE_ID}`,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 type CapturedRequest = {
   readonly url: URL;
@@ -282,7 +282,7 @@ function assertInnertubeEnvelope(request: CapturedRequest): void {
 describe("YouTube authenticated Innertube runtime", () => {
   test("probes the current channel through both exact account endpoints", async () => {
     const calls: CapturedRequest[] = [];
-    const unboundAuth: WrenchAuth = {
+    const unboundAuth: GhostgetAuth = {
       schemaVersion: 1,
       id: youtubeAuth.id,
       kind: youtubeAuth.kind,
@@ -403,7 +403,7 @@ describe("YouTube authenticated Innertube runtime", () => {
               metadata: {
                 channelMetadataRenderer: {
                   externalId: TARGET_CHANNEL_ID,
-                  title: "Wrench Test",
+                  title: "Ghostget Test",
                   description: "Public channel bio",
                 },
               },
@@ -436,7 +436,7 @@ describe("YouTube authenticated Innertube runtime", () => {
           },
           metadata: {
             handle: "wrench_test",
-            displayName: "Wrench Test",
+            displayName: "Ghostget Test",
             bio: "Public channel bio",
           },
         }),

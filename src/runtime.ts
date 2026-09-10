@@ -19,7 +19,7 @@ import { redactSensitiveText } from "@hraness/kb/clip/persist";
 import {
   loadAuth,
   parseAuth,
-  type WrenchAuth,
+  type GhostgetAuth,
 } from "./auth";
 import {
   createReadProjectionQuery,
@@ -47,7 +47,7 @@ import {
   type InputValue,
   type OperationInput,
   type OperationRisk,
-  type WrenchManifest,
+  type GhostgetManifest,
 } from "./model";
 import { OperationDeadlineError } from "./operation-deadline";
 import {
@@ -142,7 +142,7 @@ import {
   readJsonFile,
   removePrivateStateFile,
   removePrivateStateFileIfUnchanged,
-  wrenchStateHome,
+  ghostgetStateHome,
   snapshotPrivateStateDirectory,
   writePrivateJsonIfUnchanged,
   writePrivateJson,
@@ -185,7 +185,7 @@ type InvocationPlanCommon = {
   readonly auth: {
     readonly id: string;
     readonly hash: string;
-    readonly kind: WrenchAuth["kind"];
+    readonly kind: GhostgetAuth["kind"];
   };
   readonly duplicateRisk?: InvocationDuplicateRiskV1;
   readonly messagingComposite?: MessagingCompositeInvocationPlanV1;
@@ -382,7 +382,7 @@ export type RunReceipt = RunReceiptCommon & (
 );
 
 export type PreparedInvocation = {
-  readonly manifest: WrenchManifest;
+  readonly manifest: GhostgetManifest;
   readonly operationId: string;
   readonly input: OperationInput;
   /**
@@ -397,7 +397,7 @@ export type PreparedInvocation = {
 };
 
 function resolveCodeOwnedPluginOperation(
-  operation: WrenchManifest["operations"][string],
+  operation: GhostgetManifest["operations"][string],
   registry: ProviderPluginRegistry,
 ): ProviderPluginOperationResolutionV1 | null {
   if (isProviderOperation(operation)) {
@@ -431,7 +431,7 @@ function resolveCodeOwnedPluginOperation(
 function resolvedWebSessionAuthenticationPolicy(
   adapterId: string,
   operationId: string,
-  operation: WrenchManifest["operations"][string],
+  operation: GhostgetManifest["operations"][string],
   resolution: ProviderPluginOperationResolutionV1 | null,
 ): WebSessionAuthenticationPolicy {
   if (!isWebSessionOperation(operation)) return Object.freeze({ kind: "required" });
@@ -462,7 +462,7 @@ function resolvedWebSessionAuthenticationPolicy(
 }
 
 function assertCodeOwnedWriteSubject(
-  operation: WrenchManifest["operations"][string],
+  operation: GhostgetManifest["operations"][string],
   input: OperationInput,
   authority: InvocationAuthority,
   resolution: ProviderPluginOperationResolutionV1 | null,
@@ -491,9 +491,9 @@ function assertCodeOwnedWriteSubject(
 }
 
 function assertInvocationTransport(
-  manifest: WrenchManifest,
+  manifest: GhostgetManifest,
   operationId: string,
-  operation: WrenchManifest["operations"][string],
+  operation: GhostgetManifest["operations"][string],
   input: OperationInput,
   authority: InvocationAuthority,
   registry: ProviderPluginRegistry,
@@ -673,7 +673,7 @@ function revalidatePreparedInvocation(
   registry: ProviderPluginRegistry = providerPluginRegistry,
 ): {
   readonly invocation: PreparedInvocation;
-  readonly operation: WrenchManifest["operations"][string];
+  readonly operation: GhostgetManifest["operations"][string];
 } {
   const parsedManifest = parseRuntimeManifest(invocation.manifest, registry);
   if (!parsedManifest.ok) {
@@ -758,7 +758,7 @@ function revalidatePreparedInvocation(
 }
 
 function planDirectory(environment: Readonly<Record<string, string | undefined>>): string {
-  return join(wrenchStateHome(environment), "plans");
+  return join(ghostgetStateHome(environment), "plans");
 }
 
 function planPath(digest: string, environment: Readonly<Record<string, string | undefined>>): string {
@@ -798,7 +798,7 @@ export function invocationPlanDigest(plan: InvocationPlan): string {
 function portablePluginStoreRoot(
   environment: Readonly<Record<string, string | undefined>>,
 ): string {
-  return join(wrenchStateHome(environment), "provider-plugins");
+  return join(ghostgetStateHome(environment), "provider-plugins");
 }
 
 function assertPortableOperationIdentityIsActive(
@@ -1015,7 +1015,7 @@ function releaseConfirmationClaim(
 }
 
 function planKeyPath(environment: Readonly<Record<string, string | undefined>>): string {
-  return join(wrenchStateHome(environment), ".plan-encryption-key");
+  return join(ghostgetStateHome(environment), ".plan-encryption-key");
 }
 
 type PlanKey = {
@@ -1032,7 +1032,7 @@ function planKeyId(key: Uint8Array): string {
 
 function planKey(environment: Readonly<Record<string, string | undefined>>): PlanKey {
   const path = planKeyPath(environment);
-  ensurePrivateDirectory(wrenchStateHome(environment));
+  ensurePrivateDirectory(ghostgetStateHome(environment));
   if (!existsSync(path)) {
     const existingPlans = listPrivateStateDirectory(
       planDirectory(environment),
@@ -1170,7 +1170,7 @@ function decryptPlan(value: unknown, environment: Readonly<Record<string, string
 
 function receiptPath(runId: string, environment: Readonly<Record<string, string | undefined>>): string {
   if (!/^[0-9a-f-]{36}$/u.test(runId)) throw new Error("run ID is invalid");
-  return join(wrenchStateHome(environment), "runs", `${runId}.json`);
+  return join(ghostgetStateHome(environment), "runs", `${runId}.json`);
 }
 
 function authHash(auth: InvocationAuthority): string {
@@ -1311,7 +1311,7 @@ export function createReadProjectionQueryForInvocation(
   const subject = checked.invocation.auth.subject;
   if (subject === undefined) {
     throw new Error(
-      `auth locator ${checked.invocation.auth.id} must be bound to a verified subject before private read projections can be stored or served; run wrench auth bind ${checked.invocation.auth.id}`,
+      `auth locator ${checked.invocation.auth.id} must be bound to a verified subject before private read projections can be stored or served; run ghostget auth bind ${checked.invocation.auth.id}`,
     );
   }
   const pluginResolution = resolveCodeOwnedPluginOperation(operation, registry);
@@ -2683,7 +2683,7 @@ function protectedPlanAssetDigests(
     );
     if (match?.[1] !== undefined) protectedDigests.add(match[1]);
   }
-  const runDirectory = join(wrenchStateHome(environment), "runs");
+  const runDirectory = join(ghostgetStateHome(environment), "runs");
   for (const entry of listPrivateStateDirectory(runDirectory, environment)) {
     const match = /^([0-9a-f-]{36})\.json$/u.exec(entry.kind === "file" ? entry.name : "");
     if (match?.[1] === undefined) continue;
@@ -2757,7 +2757,7 @@ export type ListedInvocationPlan = {
   readonly adapter: { readonly id: string; readonly version: string };
   readonly operation: string;
   readonly risk: OperationRisk;
-  readonly auth: { readonly id: string; readonly kind: WrenchAuth["kind"] };
+  readonly auth: { readonly id: string; readonly kind: GhostgetAuth["kind"] };
 } | { readonly digest: string; readonly invalid: true };
 
 export function listInvocationPlans(
@@ -3021,7 +3021,7 @@ function ledgerPath(
       ? `${adapterHash}\0${authHashValue}\0${operationId}\0${inputHash}`
       : `${adapterHash}\0${authHashValue}\0${operationId}\0${inputHash}\0duplicate-intent-v1\0${duplicateIntentHash}`,
   );
-  return join(wrenchStateHome(environment), "idempotency", bucket.slice(0, 2), `${bucket}.json`);
+  return join(ghostgetStateHome(environment), "idempotency", bucket.slice(0, 2), `${bucket}.json`);
 }
 
 function parseLedger(value: unknown): LedgerEntry {
@@ -3379,14 +3379,14 @@ function relativeStatePath(
   path: string,
   environment: Readonly<Record<string, string | undefined>>,
 ): string {
-  const root = wrenchStateHome(environment);
+  const root = ghostgetStateHome(environment);
   const child = relative(root, path);
   if (
     child === ""
     || child === ".."
     || child.startsWith(`..${sep}`)
   ) {
-    throw new Error("run journal ledger path escaped WRENCH_STATE_HOME");
+    throw new Error("run journal ledger path escaped GHOSTGET_STATE_HOME");
   }
   return child.split(sep).join("/");
 }
@@ -3395,7 +3395,7 @@ function absoluteStatePath(
   path: string,
   environment: Readonly<Record<string, string | undefined>>,
 ): string {
-  return join(wrenchStateHome(environment), ...path.split("/"));
+  return join(ghostgetStateHome(environment), ...path.split("/"));
 }
 
 function readLedgerSnapshot(
@@ -4041,7 +4041,7 @@ export function boundedJsonOutput(value: unknown, maxBytes: number): unknown {
 }
 
 function executionOutputLimit(
-  operation: WrenchManifest["operations"][string],
+  operation: GhostgetManifest["operations"][string],
 ): number {
   if (isProviderOperation(operation)) return operation.provider.maxOutputBytes;
   if (isWebSessionOperation(operation)) return operation.webSession.maxOutputBytes;
@@ -4359,11 +4359,11 @@ async function runPreparedReadCore(invocation: PreparedInvocation, planDigest: s
       dispatchStarted: false,
       dispatch: durableReceipt.dispatch,
       error: preservedArtifactsError !== null
-        ? "provider browser cleanup could not be verified; private artifacts were preserved and durable cleanup admission requires wrench doctor before retry"
+        ? "provider browser cleanup could not be verified; private artifacts were preserved and durable cleanup admission requires ghostget doctor before retry"
         : cleanupRequired
           ? localCliOperation
-            ? "local CLI child/private-root cleanup could not be verified; durable cleanup admission blocks retry until wrench doctor proves every pinned process group quiescent and removes the exact private root"
-            : "authenticated web cleanup could not be verified; durable cleanup admission blocks retry until wrench doctor proves and completes exact browser-session recovery"
+            ? "local CLI child/private-root cleanup could not be verified; durable cleanup admission blocks retry until ghostget doctor proves every pinned process group quiescent and removes the exact private root"
+            : "authenticated web cleanup could not be verified; durable cleanup admission blocks retry until ghostget doctor proves and completes exact browser-session recovery"
           : boundedThrownExecutorReason(error),
       ...(cleanupRequired
         ? { readFailure: readFailureProjection("cleanup-required") }
@@ -4750,7 +4750,7 @@ export async function confirmMessagingInvocation(
   const journalRepair = repairInterruptedRunJournals(environment, observation);
   if (claimRepair.invalid > 0 || journalRepair.issues.length > 0) {
     throw new Error(
-      "local execution recovery has unresolved state; run wrench doctor before confirming",
+      "local execution recovery has unresolved state; run ghostget doctor before confirming",
     );
   }
   const runId = crypto.randomUUID();
@@ -4826,7 +4826,7 @@ export async function confirmMessagingInvocation(
     }
     if (run.state === "pending") {
       throw new Error(
-        "messaging execution remained pending; run wrench doctor before another write",
+        "messaging execution remained pending; run ghostget doctor before another write",
       );
     }
     const ordinaryReceipt = messagingReceiptForPlan(stored, run);
@@ -5086,7 +5086,7 @@ export type ListedRunReceipt = RunReceipt | { readonly runId: string; readonly i
 export function listRunReceipts(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): readonly ListedRunReceipt[] {
-  const directory = join(wrenchStateHome(environment), "runs");
+  const directory = join(ghostgetStateHome(environment), "runs");
   const snapshot = snapshotPrivateStateDirectory(directory, environment);
   if (snapshot.identity === null) return [];
   const names = snapshot.entries

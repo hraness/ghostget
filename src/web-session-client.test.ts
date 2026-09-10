@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
 import type { StrictCookie } from "@hraness/kb/clip/cookies";
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import {
   OperationDeadline,
   type OperationDeadlineClock,
@@ -58,7 +58,7 @@ const auth = {
   kind: "cookie-source",
   source: "arc",
   profile: "Profile 1",
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 const cookies: readonly StrictCookie[] = [{
   name: "auth_token",

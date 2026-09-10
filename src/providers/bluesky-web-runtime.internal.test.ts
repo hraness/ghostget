@@ -3,7 +3,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type {
   createBrowserSession,
   BrowserSession,
@@ -99,7 +99,7 @@ const blueskyAuth = {
   browserExecutable: "/Applications/Chromium.app/Contents/MacOS/Chromium",
   trustUnfilteredEgress: true,
   subject: VIEWER_DID,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 const unboundBlueskyAuth = {
   schemaVersion: 1,
@@ -110,7 +110,7 @@ const unboundBlueskyAuth = {
   trustUnfilteredEgress: true,
   cookieSource: "chromium",
   cookieProfile: "/private/chromium/Default",
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 const unsupportedCookieAuth = {
   schemaVersion: 1,
@@ -119,7 +119,7 @@ const unsupportedCookieAuth = {
   source: "arc",
   profile: "Profile 1",
   subject: VIEWER_DID,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 type CapturedRequest = {
   readonly url: URL;

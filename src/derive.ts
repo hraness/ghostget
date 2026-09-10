@@ -22,7 +22,7 @@ import {
 } from "@hraness/kb/clip/acquire";
 import { isPrivateAddress, isPrivateHostname } from "@hraness/kb/clip/network";
 import type { StrictCookie } from "@hraness/kb/clip/cookies";
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import {
   agentBrowserFailure,
   browserResultData,
@@ -98,7 +98,7 @@ import {
   removePrivateEmptyStateDirectory,
   removePrivateStateFile,
   removePrivateStateDirectoryTree,
-  wrenchStateHome,
+  ghostgetStateHome,
   writePrivateJson,
 } from "./storage";
 
@@ -449,7 +449,7 @@ function commandCanMutate(command: readonly string[]): boolean {
 
 function derivationDirectory(id: string, environment: Readonly<Record<string, string | undefined>>): string {
   if (!derivationIdPattern.test(id)) throw new Error("derivation ID is invalid");
-  return join(wrenchStateHome(environment), "derivations", id);
+  return join(ghostgetStateHome(environment), "derivations", id);
 }
 
 function metadataPath(id: string, environment: Readonly<Record<string, string | undefined>>): string {
@@ -461,7 +461,7 @@ function derivationLifecycleLockPath(
   environment: Readonly<Record<string, string | undefined>>,
 ): string {
   if (!derivationIdPattern.test(id)) throw new Error("derivation ID is invalid");
-  return join(wrenchStateHome(environment), "derivations", `.lifecycle-${id}`);
+  return join(ghostgetStateHome(environment), "derivations", `.lifecycle-${id}`);
 }
 
 type ProcessIdentityInspection =
@@ -690,7 +690,7 @@ export function acquireDerivationLifecycleGate(
     throw new Error("derivation lifecycle owner is invalid");
   }
   const processIdentity = currentLifecycleProcessIdentity();
-  const root = join(wrenchStateHome(environment), "derivations");
+  const root = join(ghostgetStateHome(environment), "derivations");
   const rootIdentity = ensurePrivateStateDirectory(root, environment);
   const path = derivationLifecycleLockPath(id, environment);
   for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -1511,7 +1511,7 @@ export type DerivationSummary = {
 export function listDerivations(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): readonly DerivationSummary[] {
-  const directory = join(wrenchStateHome(environment), "derivations");
+  const directory = join(ghostgetStateHome(environment), "derivations");
   return listPrivateStateDirectory(directory, environment)
     .filter((entry) => entry.kind === "directory" && derivationIdPattern.test(entry.name))
     .map((entry): DerivationSummary => {
@@ -3490,7 +3490,7 @@ function validateDerivationCookieOrigins(
   values: readonly string[],
   browserDomains: readonly string[],
   target: URL,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
 ): readonly URL[] {
   if (values.length > 16) {
     throw new Error("derivation accepts at most 16 cookie origins");
@@ -3546,7 +3546,7 @@ function sameCookie(left: StrictCookie, right: StrictCookie): boolean {
  * differing value or attribute fails before the browser receives a cookie.
  */
 export async function derivationCookieCommands(
-  auth: Extract<WrenchAuth, { readonly kind: "cookie-source" | "cookies-file" }>,
+  auth: Extract<GhostgetAuth, { readonly kind: "cookie-source" | "cookies-file" }>,
   target: URL,
   cookieOrigins: readonly URL[],
   reader: CookieRecordReader = acquireCookieRecords,
@@ -3592,7 +3592,7 @@ export async function derivationCookieCommands(
  * exact browser executable. Named agent-browser profiles are deliberately
  * rejected because they would be opened directly instead of cloned.
  */
-export function assertDerivationAuthCompatibility(target: URL, auth: WrenchAuth): void {
+export function assertDerivationAuthCompatibility(target: URL, auth: GhostgetAuth): void {
   const isArcExecutable = (path: string): boolean => {
     const hasArcExecutableName = (candidate: string): boolean =>
       ["arc", "arc.exe"].includes(basename(candidate).toLowerCase());
@@ -3628,7 +3628,7 @@ export function assertDerivationAuthCompatibility(target: URL, auth: WrenchAuth)
   }
   if (profilePath(auth.profile) === null) {
     throw new Error(
-      "LinkedIn managed derivation requires a path-backed browser-profile auth locator so wrench can clone it "
+      "LinkedIn managed derivation requires a path-backed browser-profile auth locator so ghostget can clone it "
       + "into the task-private derivation directory; named browser profiles would be opened directly",
     );
   }
@@ -3637,7 +3637,7 @@ export function assertDerivationAuthCompatibility(target: URL, auth: WrenchAuth)
 export async function startDerivation(
   adapterId: string,
   targetValue: string,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly allowRemoteActions: boolean;
     readonly contentMode: HarContentMode;
@@ -3860,7 +3860,7 @@ export async function startDerivation(
         removeSessionTrees(session, environment);
         throw error;
       }
-      throw new Error(`derivation ${id} failed to start and could not be closed; its private session was preserved for 'wrench derive discard ${id} --yes'`, { cause: error });
+      throw new Error(`derivation ${id} failed to start and could not be closed; its private session was preserved for 'ghostget derive discard ${id} --yes'`, { cause: error });
     }
   } finally {
     gate.release();
@@ -4231,7 +4231,7 @@ export async function runDerivationBrowserCommand(
       assertDerivationFixtureFile(session.directory, fixture);
       // The persistent browser daemon may outlive the short helper process
       // that launched it and therefore need not retain that helper's cwd.
-      // Resolve only Wrench-owned, identity-verified staged files here; raw
+      // Resolve only Ghostget-owned, identity-verified staged files here; raw
       // caller paths remain outside the browser command grammar and errors
       // redact the private derivation directory below.
       return join(session.directory, fixture.fileName);

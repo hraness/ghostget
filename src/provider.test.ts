@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { createAuth } from "./auth";
-import { isProviderOperation, type WrenchManifest } from "./model";
+import { isProviderOperation, type GhostgetManifest } from "./model";
 import {
   executeProviderOperation as executeProviderOperationWithRegistry,
   requireExecutableProviderOperation,
@@ -82,7 +82,7 @@ function requestUrl(input: string | URL | Request): URL {
 
 function fixture(scopes: readonly string[]): {
   readonly root: string;
-  readonly manifest: WrenchManifest;
+  readonly manifest: GhostgetManifest;
   readonly auth: ReturnType<typeof createAuth>;
   readonly token: string;
 } {
@@ -107,11 +107,11 @@ function fixture(scopes: readonly string[]): {
   const manifest = JSON.parse(readFileSync(
     join(import.meta.dir, "assets", "adapters", "x", "wrench-adapter.json"),
     "utf8",
-  )) as WrenchManifest;
+  )) as GhostgetManifest;
   return { root, manifest, auth, token };
 }
 
-function providerRecipe(manifest: WrenchManifest, operationId: string) {
+function providerRecipe(manifest: GhostgetManifest, operationId: string) {
   const operation = manifest.operations[operationId];
   if (operation === undefined || !isProviderOperation(operation)) throw new Error("expected provider operation");
   return operation.provider;
@@ -195,7 +195,7 @@ describe("official-provider execution boundary", () => {
     }
   });
 
-  test("routes the production default through the DNS-pinned Wrench transport", async () => {
+  test("routes the production default through the DNS-pinned Ghostget transport", async () => {
     const value = fixture(["tweet.read", "users.read"]);
     const calls: {
       readonly url: URL;

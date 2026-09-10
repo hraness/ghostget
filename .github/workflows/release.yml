@@ -22,7 +22,7 @@ jobs:
       - name: Verify immutable owner and public repository identity
         env:
           EXPECTED_ACTOR_ID: "894119"
-          EXPECTED_REPOSITORY: "hraness/wrench"
+          EXPECTED_REPOSITORY: "hraness/ghostget"
           EXPECTED_REPOSITORY_ID: "1316443113"
           REF_PROTECTED: ${{ github.ref_protected }}
         run: |
@@ -166,7 +166,7 @@ jobs:
           printf 'tag=%s\n' "$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
           printf 'sha=%s\n' "$tag_commit" >> "$GITHUB_OUTPUT"
           printf 'main_sha=%s\n' "$verified_main_sha" >> "$GITHUB_OUTPUT"
-          printf 'archive_name=hraness-wrench-%s.tgz\n' "$package_version" >> "$GITHUB_OUTPUT"
+          printf 'archive_name=hraness-ghostget-%s.tgz\n' "$package_version" >> "$GITHUB_OUTPUT"
       - name: Admit exact source CI and security
         env:
           GH_TOKEN: ${{ github.token }}
@@ -192,13 +192,13 @@ jobs:
           WORKFLOW_SHA: ${{ steps.identity.outputs.main_sha }}
         run: |
           set -euo pipefail
-          directory="$RUNNER_TEMP/wrench-canonical"
+          directory="$RUNNER_TEMP/ghostget-canonical"
           mkdir -m 700 "$directory"
           npm pack --ignore-scripts --json --pack-destination "$directory" \
             --registry=https://registry.npmjs.org > "$directory/npm-pack.json"
           bun run ./scripts/github-release-artifact.ts prepare "$directory"
           bun run ./scripts/package-smoke.ts \
-            --archive "$directory/hraness-wrench-${VERIFIED_TAG#v}.tgz" \
+            --archive "$directory/hraness-ghostget-${VERIFIED_TAG#v}.tgz" \
             --pack-json "$directory/npm-pack.json"
           DIRECTORY="$directory" node <<'NODE'
           const fs = require("node:fs"); const path = require("node:path"); const crypto = require("node:crypto");
@@ -209,7 +209,7 @@ jobs:
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: canonical-build-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/wrench-canonical
+          path: ${{ runner.temp }}/ghostget-canonical
           if-no-files-found: error
           retention-days: 30
 
@@ -234,7 +234,7 @@ jobs:
       - name: Reauthorize current release attempt
         env:
           EXPECTED_ACTOR_ID: "894119"
-          EXPECTED_REPOSITORY: "hraness/wrench"
+          EXPECTED_REPOSITORY: "hraness/ghostget"
           EXPECTED_REPOSITORY_ID: "1316443113"
           EXPECTED_WORKFLOW_ID: "323493609"
           EXPECTED_WORKFLOW_PATH: ".github/workflows/release.yml"
@@ -260,10 +260,10 @@ jobs:
             echo "::error::Current release attempt has an unsupported stable version"
             exit 1
           fi
-          attempt_json="$(mktemp "$RUNNER_TEMP/wrench-release-attempt.XXXXXX")"
-          workflow_json="$(mktemp "$RUNNER_TEMP/wrench-release-workflow.XXXXXX")"
-          repository_json="$(mktemp "$RUNNER_TEMP/wrench-release-repository.XXXXXX")"
-          tag_ref_json="$(mktemp "$RUNNER_TEMP/wrench-release-tag-ref.XXXXXX")"
+          attempt_json="$(mktemp "$RUNNER_TEMP/ghostget-release-attempt.XXXXXX")"
+          workflow_json="$(mktemp "$RUNNER_TEMP/ghostget-release-workflow.XXXXXX")"
+          repository_json="$(mktemp "$RUNNER_TEMP/ghostget-release-repository.XXXXXX")"
+          tag_ref_json="$(mktemp "$RUNNER_TEMP/ghostget-release-tag-ref.XXXXXX")"
           trap 'rm -f "$attempt_json" "$workflow_json" "$repository_json" "$tag_ref_json"' EXIT
           gh api --method GET \
             "/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
@@ -348,10 +348,10 @@ jobs:
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: canonical-build-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/wrench-canonical
+          path: ${{ runner.temp }}/ghostget-canonical
       - name: Bind source-free attestation input
         env:
-          DIRECTORY: ${{ runner.temp }}/wrench-canonical
+          DIRECTORY: ${{ runner.temp }}/ghostget-canonical
           EXPECTED_WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}
           EXPECTED_ARTIFACT_HASHES: ${{ needs.verify.outputs.artifact_hashes }}
         run: |
@@ -359,7 +359,7 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs'); const path = require('node:path'); const crypto = require('node:crypto');
           const directory = process.env.DIRECTORY;
-          const names = [`hraness-wrench-${process.env.VERIFIED_TAG.slice(1)}.tgz`, 'npm-pack.json', 'release-manifest.json', 'SHA256SUMS'];
+          const names = [`hraness-ghostget-${process.env.VERIFIED_TAG.slice(1)}.tgz`, 'npm-pack.json', 'release-manifest.json', 'SHA256SUMS'];
           if (fs.readdirSync(directory).sort().join(',') !== [...names].sort().join(',')) throw new Error('Attestation input inventory differs');
           const hashes = JSON.parse(process.env.EXPECTED_ARTIFACT_HASHES);
           if (hashes === null || typeof hashes !== 'object' || Array.isArray(hashes) || Object.keys(hashes).sort().join(',') !== [...names].sort().join(',')) throw new Error('Trusted build hashes are malformed');
@@ -369,7 +369,7 @@ jobs:
             if (typeof hashes[name] !== 'string' || !/^[a-f0-9]{64}$/u.test(hashes[name]) || crypto.createHash('sha256').update(fs.readFileSync(path.join(directory, name))).digest('hex') !== hashes[name]) throw new Error('Attestation input differs from verified build output');
           }
           const manifest = JSON.parse(fs.readFileSync(path.join(directory, 'release-manifest.json'), 'utf8'));
-          if (manifest.sourceSha !== process.env.VERIFIED_SHA || manifest.tag !== process.env.VERIFIED_TAG || manifest.workflowSha !== process.env.EXPECTED_WORKFLOW_SHA || manifest.runId !== Number(process.env.GITHUB_RUN_ID) || manifest.runAttempt !== Number(process.env.GITHUB_RUN_ATTEMPT) || manifest.repositoryId !== 1316443113 || manifest.package !== '@hraness/wrench') throw new Error('Attestation input belongs to another build');
+          if (manifest.sourceSha !== process.env.VERIFIED_SHA || manifest.tag !== process.env.VERIFIED_TAG || manifest.workflowSha !== process.env.EXPECTED_WORKFLOW_SHA || manifest.runId !== Number(process.env.GITHUB_RUN_ID) || manifest.runAttempt !== Number(process.env.GITHUB_RUN_ATTEMPT) || manifest.repositoryId !== 1316443113 || manifest.package !== '@hraness/ghostget') throw new Error('Attestation input belongs to another build');
           const expected = names.slice(0, 3).map(name => `${crypto.createHash('sha256').update(fs.readFileSync(path.join(directory, name))).digest('hex')}  ${name}\n`).join('');
           if (fs.readFileSync(path.join(directory, 'SHA256SUMS'), 'utf8') !== expected) throw new Error('Attestation input checksums differ');
           NODE
@@ -377,10 +377,10 @@ jobs:
         id: provenance
         with:
           subject-path: |
-            ${{ runner.temp }}/wrench-canonical/${{ needs.verify.outputs.archive_name }}
-            ${{ runner.temp }}/wrench-canonical/npm-pack.json
-            ${{ runner.temp }}/wrench-canonical/release-manifest.json
-            ${{ runner.temp }}/wrench-canonical/SHA256SUMS
+            ${{ runner.temp }}/ghostget-canonical/${{ needs.verify.outputs.archive_name }}
+            ${{ runner.temp }}/ghostget-canonical/npm-pack.json
+            ${{ runner.temp }}/ghostget-canonical/release-manifest.json
+            ${{ runner.temp }}/ghostget-canonical/SHA256SUMS
           push-to-registry: false
           create-storage-record: false
       - name: Retain verified provenance bundle
@@ -389,13 +389,13 @@ jobs:
           BUNDLE_PATH: ${{ steps.provenance.outputs.bundle-path }}
         run: |
           set -euo pipefail
-          cp -- "$BUNDLE_PATH" "$RUNNER_TEMP/wrench-canonical/provenance.jsonl"
-          bundle_sha256="$(sha256sum "$RUNNER_TEMP/wrench-canonical/provenance.jsonl" | awk '{ print $1 }')"
+          cp -- "$BUNDLE_PATH" "$RUNNER_TEMP/ghostget-canonical/provenance.jsonl"
+          bundle_sha256="$(sha256sum "$RUNNER_TEMP/ghostget-canonical/provenance.jsonl" | awk '{ print $1 }')"
           printf 'bundle_sha256=%s\n' "$bundle_sha256" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: canonical-attested-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/wrench-canonical
+          path: ${{ runner.temp }}/ghostget-canonical
           if-no-files-found: error
           retention-days: 30
 
@@ -420,7 +420,7 @@ jobs:
       - name: Reauthorize current release attempt
         env:
           EXPECTED_ACTOR_ID: "894119"
-          EXPECTED_REPOSITORY: "hraness/wrench"
+          EXPECTED_REPOSITORY: "hraness/ghostget"
           EXPECTED_REPOSITORY_ID: "1316443113"
           EXPECTED_WORKFLOW_ID: "323493609"
           EXPECTED_WORKFLOW_PATH: ".github/workflows/release.yml"
@@ -446,10 +446,10 @@ jobs:
             echo "::error::Current release attempt has an unsupported stable version"
             exit 1
           fi
-          attempt_json="$(mktemp "$RUNNER_TEMP/wrench-release-attempt.XXXXXX")"
-          workflow_json="$(mktemp "$RUNNER_TEMP/wrench-release-workflow.XXXXXX")"
-          repository_json="$(mktemp "$RUNNER_TEMP/wrench-release-repository.XXXXXX")"
-          tag_ref_json="$(mktemp "$RUNNER_TEMP/wrench-release-tag-ref.XXXXXX")"
+          attempt_json="$(mktemp "$RUNNER_TEMP/ghostget-release-attempt.XXXXXX")"
+          workflow_json="$(mktemp "$RUNNER_TEMP/ghostget-release-workflow.XXXXXX")"
+          repository_json="$(mktemp "$RUNNER_TEMP/ghostget-release-repository.XXXXXX")"
+          tag_ref_json="$(mktemp "$RUNNER_TEMP/ghostget-release-tag-ref.XXXXXX")"
           trap 'rm -f "$attempt_json" "$workflow_json" "$repository_json" "$tag_ref_json"' EXIT
           gh api --method GET \
             "/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
@@ -547,6 +547,6 @@ jobs:
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: canonical-attested-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/wrench-canonical
+          path: ${{ runner.temp }}/ghostget-canonical
       - name: Verify signed canonical assets and publish exact immutable Release
-        run: bun run ./scripts/github-release-publish.ts "$RUNNER_TEMP/wrench-canonical"
+        run: bun run ./scripts/github-release-publish.ts "$RUNNER_TEMP/ghostget-canonical"

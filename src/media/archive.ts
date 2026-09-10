@@ -1,7 +1,7 @@
 import { persistLocalTranscript } from "./transcript-persistence-runtime";
 import type { TranscriptArtifactsResult } from "./transcript-persistence-model";
 import { randomUUID } from "node:crypto";
-import type { Dirent } from "node:fs";
+import { existsSync, type Dirent } from "node:fs";
 import { chmod, lstat, mkdir, mkdtemp, open, opendir, readFile, readdir, realpath, rename, rm, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -9,10 +9,10 @@ import type { CaptureMode } from "./args";
 import { parseFfmpegVersion } from "./doctor";
 import { createMediaDerivatives, type CreateMediaDerivativesOptions, type MediaDerivativeReport, type MediaDerivativeRole } from "./ffmpeg";
 import {
-  WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE,
-  WRENCH_MEDIA_SCHEMA_VERSION,
-  WRENCH_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
-  WRENCH_MEDIA_VERSION,
+  GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE,
+  GHOSTGET_MEDIA_SCHEMA_VERSION,
+  GHOSTGET_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
+  GHOSTGET_MEDIA_VERSION,
   createMediaArtifact,
   localTranscriptVariantSegments,
   parseMediaDirectHttpProvenance,
@@ -107,8 +107,8 @@ import {
 import {
   MAX_REVISION_SEQUENCE,
   MAX_TRACKED_REVISION_ITEMS,
-  WRENCH_MEDIA_REVISION_CONTENT_PROFILE,
-  WRENCH_MEDIA_TRACKED_REVISION_PROFILE,
+  GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
+  GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE,
   REVISION_CAPTURE_NAMESPACE,
   parseRevisionItemLeaf,
   revisionContentSha256,
@@ -230,9 +230,22 @@ function isCancelled(signal: AbortSignal | undefined): boolean {
 
 function libraryDirectory(options: MediaArchiveOptions): string {
   if (options.libraryDirectory !== undefined) return resolve(options.libraryDirectory);
-  const configured = options.environment?.["WRENCH_MEDIA_HOME"];
-  if (configured !== undefined && configured.length > 0 && !configured.includes("\0")) return resolve(configured);
-  return resolve(options.homeDirectory ?? homedir(), ".local", "share", "wrench", "media");
+  const configured = [options.environment?.["GHOSTGET_MEDIA_HOME"], options.environment?.["WRENCH_MEDIA_HOME"]]
+    .filter((value): value is string => value !== undefined && value.length > 0 && !value.includes("\0"))
+    .map((value) => resolve(value));
+  if (new Set(configured).size > 1) throw new Error("GHOSTGET_MEDIA_HOME and WRENCH_MEDIA_HOME select different media libraries");
+  if (configured[0] !== undefined) return configured[0];
+  // Existing verified archives and interrupted locks stay in their original library.
+  const dataRoot = resolve(options.homeDirectory ?? homedir(), ".local", "share");
+  const parentRoots = ["ghostget", "wrench", "oh", "io"].map((name) => join(dataRoot, name));
+  const existing = parentRoots.map((path) => join(path, "media")).filter((path) => existsSync(path));
+  if (existing.length > 1) throw new Error("multiple Ghostget and legacy media libraries exist; set GHOSTGET_MEDIA_HOME explicitly");
+  if (existing[0] !== undefined) return existing[0];
+  // A first archive must not create a competing default root beside existing
+  // auth or dispatch journals, which would make later state discovery ambiguous.
+  const existingParents = parentRoots.filter((path) => existsSync(path));
+  if (existingParents.length > 1) throw new Error("multiple Ghostget and legacy state roots exist; set GHOSTGET_MEDIA_HOME explicitly");
+  return join(existingParents[0] ?? join(dataRoot, "ghostget"), "media");
 }
 
 async function requireExecutable(
@@ -244,7 +257,7 @@ async function requireExecutable(
     ...(options.environment === undefined ? {} : { env: options.environment }),
     ...(options.homeDirectory === undefined ? {} : { homeDirectory: options.homeDirectory }),
   });
-  if (executable === null) throw new MediaArchiveError("DEPENDENCY_MISSING", `${name} is required; run wrench doctor for setup guidance`, { tool: name });
+  if (executable === null) throw new MediaArchiveError("DEPENDENCY_MISSING", `${name} is required; run ghostget doctor for setup guidance`, { tool: name });
   return executable;
 }
 
@@ -421,7 +434,7 @@ async function loadLocalTranscriptionPlan(
       runtimeSha256: configured.transcriber.descriptor.runtimeSha256,
       runtimeDependencyCount: configured.transcriber.descriptor.runtimeDependencyCount,
       modelSha256: configured.transcriber.descriptor.modelSha256,
-      normalizationProfile: WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE,
+      normalizationProfile: GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE,
       requestedLanguage,
     },
   };
@@ -764,7 +777,7 @@ export async function organizeCaptureFiles(
   if (unclaimedFiles.length > 0) {
     throw new MediaArchiveError(
       "ARCHIVE_CONFLICT",
-      "capture staging contains files that are not owned by Wrench media's acquisition contract",
+      "capture staging contains files that are not owned by Ghostget media's acquisition contract",
       { files: unclaimedFiles },
     );
   }
@@ -1020,7 +1033,7 @@ function ytDlpManifestIdentity(metadata: ProbeMetadata): MediaYtDlpIdentity {
     return metadata.opaqueYtDlpIdentity;
   }
   return {
-    profile: WRENCH_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
+    profile: GHOSTGET_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
     providerIdentitySha256: providerIdentitySha256("Youtube", metadata.id),
   };
 }
@@ -1094,7 +1107,7 @@ async function trackedYtDlpHead(
     if (entries.length >= MAX_TRACKED_REVISION_ITEMS) {
       throw new MediaArchiveError(
         "ARCHIVE_INVALID",
-        "the revision history exceeds Wrench media's supported entry limit",
+        "the revision history exceeds Ghostget media's supported entry limit",
         {
           revisionParent: parent,
           maximumEntries: MAX_TRACKED_REVISION_ITEMS,
@@ -1731,8 +1744,8 @@ async function mediaDirectHttp(
       dependencies.ffmpegVersion(ffprobeExecutable),
     ]);
     const manifest: MediaManifest = {
-      schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
-      wrenchVersion: WRENCH_MEDIA_VERSION,
+      schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
+      wrenchVersion: GHOSTGET_MEDIA_VERSION,
       assetKey: identity.assetKey,
       capturedAt: dependencies.now().toISOString(),
       mode: route.mode,
@@ -2120,19 +2133,19 @@ async function mediaWithYtDlp(
     ) {
       throw new MediaArchiveError(
         "ARCHIVE_CONFLICT",
-        "the revision history has exhausted Wrench media's supported lineage capacity",
+        "the revision history has exhausted Ghostget media's supported lineage capacity",
         { maximumEntries: MAX_TRACKED_REVISION_ITEMS },
       );
     }
     const revision: MediaTrackedRevision = {
-      profile: WRENCH_MEDIA_TRACKED_REVISION_PROFILE,
+      profile: GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE,
       sequence: revisionSequence,
       subjectAssetKey: lineage.subjectAssetKey,
       ...(currentHead === null
         ? {}
         : { previousAssetKey: currentHead.manifest.assetKey }),
       content: {
-        profile: WRENCH_MEDIA_REVISION_CONTENT_PROFILE,
+        profile: GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
         sha256: contentSha256,
       },
     };
@@ -2142,8 +2155,8 @@ async function mediaWithYtDlp(
     const ffmpegVersion = ffmpegExecutable === null ? undefined : await dependencies.ffmpegVersion(ffmpegExecutable);
     const ffprobeVersion = ffprobeExecutable === null ? undefined : await dependencies.ffmpegVersion(ffprobeExecutable);
     const manifest: MediaManifest = {
-      schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
-      wrenchVersion: WRENCH_MEDIA_VERSION,
+      schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
+      wrenchVersion: GHOSTGET_MEDIA_VERSION,
       assetKey: revisionAssetKey,
       capturedAt: dependencies.now().toISOString(),
       mode: options.mode,

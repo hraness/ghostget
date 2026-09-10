@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { assertAsyncProperty, fc } from "../test-support";
 import {
-  WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE,
-  WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE,
-  WRENCH_MEDIA_WHISPER_CPP_PROFILE,
+  GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE,
+  GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE,
+  GHOSTGET_MEDIA_WHISPER_CPP_PROFILE,
   type MediaArtifact,
 } from "./manifest";
 import type { LocalTranscriptToPersist } from "./transcript-persistence-model";
@@ -21,12 +21,12 @@ const input: LocalTranscriptToPersist = {
   status: "transcribed", language: "en",
   transcript: { vtt: "WEBVTT\n", text: "words\n", json: "[]\n", cues: [] },
   provenance: {
-    adapter: "whisper-cpp", profile: WRENCH_MEDIA_WHISPER_CPP_PROFILE,
-    executableSha256: "a".repeat(64), runtimeProfile: WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE,
+    adapter: "whisper-cpp", profile: GHOSTGET_MEDIA_WHISPER_CPP_PROFILE,
+    executableSha256: "a".repeat(64), runtimeProfile: GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE,
     runtimeSha256: "b".repeat(64), runtimeDependencyCount: 1,
     modelSha256: "c".repeat(64), requestedLanguage: "en",
     input: { path: "audio.mka", bytes: 1, sha256: "d".repeat(64), normalized: {
-      profile: WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE, bytes: 2, sha256: "e".repeat(64),
+      profile: GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE, bytes: 2, sha256: "e".repeat(64),
     } },
   },
 };

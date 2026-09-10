@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import imsgManifest from "./assets/adapters/imessage/wrench-web-adapter.json";
 import type { LocalCliRecipe } from "./model";
 import { providerPluginRegistry } from "./provider-plugins";
@@ -64,7 +64,7 @@ function cleanupTemporaryRoots(): void {
 }
 
 function auth(storePath: string): Extract<
-  WrenchAuth,
+  GhostgetAuth,
   { readonly kind: "linked-device-store" }
 > {
   const databasePath = join(storePath, "chat.db");
@@ -691,9 +691,9 @@ describe("reviewed direct iMessage provider", () => {
         ? "reviewed digest"
         : `no artifact for ${process.platform}/${process.arch}`;
       await expect(installReviewedImsgBinary(source, {
-        WRENCH_STATE_HOME: state,
+        GHOSTGET_STATE_HOME: state,
       })).rejects.toThrow(expectedFailure);
-      expect(existsSync(imsgInstalledBinaryPath({ WRENCH_STATE_HOME: state })))
+      expect(existsSync(imsgInstalledBinaryPath({ GHOSTGET_STATE_HOME: state })))
         .toBeFalse();
     } finally {
       cleanupTemporaryRoots();

@@ -181,7 +181,7 @@ describe("runDoctor", () => {
       ["/tools/deno", "--version"],
     ]);
     const rendered = renderDoctorReport(report);
-    expect(rendered).toContain("Wrench media is ready.\n");
+    expect(rendered).toContain("Ghostget media is ready.\n");
     expect(rendered).toContain("1024 model bytes; 1 runtime dependency");
     expect(rendered).not.toContain("/private/");
     expect(rendered).not.toContain("libwhisper.dylib");

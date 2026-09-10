@@ -26,7 +26,7 @@ import {
   createAuth,
   loadAuthSnapshotIfPresent,
   saveAuth,
-  type WrenchAuth,
+  type GhostgetAuth,
 } from "./auth";
 import { canonicalJson } from "./canonical-json";
 import {
@@ -44,7 +44,7 @@ import {
   createPrivateJsonIfAbsent,
   readPrivateStateFileIfPresent,
   removePrivateStateFileIfUnchanged,
-  wrenchStateHome,
+  ghostgetStateHome,
   writePrivateJsonIfUnchanged,
 } from "./storage";
 
@@ -347,7 +347,7 @@ function callbackHtml(response: ServerResponse, status: number, message: string)
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
   });
-  response.end(`<!doctype html><meta charset="utf-8"><title>Wrench Google login</title><style>@font-face{font-family:"Nebula Sans";src:url("${GOOGLE_OAUTH_NEBULA_SANS_DATA_URL}") format("woff2");font-style:normal;font-weight:400;font-display:swap}body{font:18px/1.5 "Nebula Sans",ui-sans-serif,system-ui,sans-serif;max-width:36rem;margin:15vh auto;padding:2rem}</style><p>${message}</p>`);
+  response.end(`<!doctype html><meta charset="utf-8"><title>Ghostget Google login</title><style>@font-face{font-family:"Nebula Sans";src:url("${GOOGLE_OAUTH_NEBULA_SANS_DATA_URL}") format("woff2");font-style:normal;font-weight:400;font-display:swap}body{font:18px/1.5 "Nebula Sans",ui-sans-serif,system-ui,sans-serif;max-width:36rem;margin:15vh auto;padding:2rem}</style><p>${message}</p>`);
 }
 
 async function defaultAuthorize(
@@ -373,7 +373,7 @@ async function defaultAuthorize(
     };
     const server = createServer((incoming, response) => {
       if (incoming.method !== "GET" || redirectUri === "") {
-        callbackHtml(response, 405, "This request is not part of the Wrench login.");
+        callbackHtml(response, 405, "This request is not part of the Ghostget login.");
         return;
       }
       let callback: URL;
@@ -384,7 +384,7 @@ async function defaultAuthorize(
         return;
       }
       if (callback.pathname !== CALLBACK_PATH) {
-        callbackHtml(response, 404, "This is not the Wrench authorization callback.");
+        callbackHtml(response, 404, "This is not the Ghostget authorization callback.");
         return;
       }
       const allowed = new Set([
@@ -409,12 +409,12 @@ async function defaultAuthorize(
         issuers.length > 1
         || (issuers.length === 1 && issuers[0] !== "https://accounts.google.com")
       ) {
-        callbackHtml(response, 400, "The Google authorization issuer did not match. Return to Wrench and try again.");
+        callbackHtml(response, 400, "The Google authorization issuer did not match. Return to Ghostget and try again.");
         finish(new Error("Google authorization callback issuer did not match"));
         return;
       }
       if (callback.searchParams.get("state") !== request.state) {
-        callbackHtml(response, 400, "The Google authorization state did not match. Return to Wrench and try again.");
+        callbackHtml(response, 400, "The Google authorization state did not match. Return to Ghostget and try again.");
         return;
       }
       const providerError = callback.searchParams.get("error");
@@ -437,7 +437,7 @@ async function defaultAuthorize(
         finish(error instanceof Error ? error : new Error("Google returned an invalid authorization code"));
         return;
       }
-      callbackHtml(response, 200, "Google is connected. You can close this tab and return to Wrench.");
+      callbackHtml(response, 200, "Google is connected. You can close this tab and return to Ghostget.");
       finish(null, { code: validatedCode, redirectUri });
     });
     const timer = setTimeout(
@@ -702,7 +702,7 @@ export async function loginGoogleOAuth(
 function managedTokenDirectory(
   environment: Readonly<Record<string, string | undefined>>,
 ): string {
-  return join(wrenchStateHome(environment), "auth", "oauth-tokens");
+  return join(ghostgetStateHome(environment), "auth", "oauth-tokens");
 }
 
 function isManagedTokenPath(
@@ -716,7 +716,7 @@ function isManagedTokenPath(
 }
 
 function removeManagedTokenIfPresent(
-  auth: WrenchAuth | undefined,
+  auth: GhostgetAuth | undefined,
   environment: Readonly<Record<string, string | undefined>>,
 ): void {
   if (auth?.kind !== "oauth-token-file" || !isManagedTokenPath(auth, environment)) return;
@@ -834,7 +834,7 @@ export function resolveOAuthToken(
   if (
     refresh.refreshTokenExpiresAt !== null
     && Date.parse(refresh.refreshTokenExpiresAt) <= nowMs
-  ) throw new Error("the managed Google refresh credential expired; run wrench auth login again");
+  ) throw new Error("the managed Google refresh credential expired; run ghostget auth login again");
   return (async (): Promise<LoadedOAuthToken> => {
     const fetch_ = scopedFetch(
       options.fetch,

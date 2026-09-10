@@ -46,7 +46,7 @@ function workspace(): {
   return {
     root,
     clientFile,
-    environment: { WRENCH_STATE_HOME: state },
+    environment: { GHOSTGET_STATE_HOME: state },
   };
 }
 
@@ -208,7 +208,7 @@ describe("Google OAuth lifecycle", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("Content-Security-Policy"))
         .toBe("default-src 'none'; font-src data:; style-src 'unsafe-inline'");
-      expect(html).toContain("Google is connected. You can close this tab and return to Wrench.");
+      expect(html).toContain("Google is connected. You can close this tab and return to Ghostget.");
       expect(html).not.toContain("return to Codex");
       expect(html).toContain('font:18px/1.5 "Nebula Sans",ui-sans-serif,system-ui,sans-serif');
       expect(html).not.toContain("font:18px system-ui");

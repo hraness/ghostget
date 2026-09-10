@@ -17,11 +17,11 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import type { BrowserFileResolver } from "./browser";
 import {
   type FileInputValue,
-  type WrenchManifest,
+  type GhostgetManifest,
   type OperationInput,
   canonicalJson,
 } from "./model";
@@ -82,7 +82,7 @@ import {
 import { summarizePlanFile } from "./plan-assets";
 import {
   createPrivateJsonIfAbsent,
-  wrenchStateHome,
+  ghostgetStateHome,
   readPrivateStateFileIfPresent,
   removePrivateStateFile,
   removePrivateStateFileIfUnchanged,
@@ -245,7 +245,7 @@ export function isResolvedPortableProviderRuntimeDependencies(
 
 export type KernelPortableProviderPluginBindingProjection = {
   readonly adapterId: string;
-  readonly manifest: WrenchManifest;
+  readonly manifest: GhostgetManifest;
   readonly portableBinding: PortableProviderPluginBindingV1;
   readonly binding: ProviderPluginBindingDefinitionV1;
 };
@@ -358,7 +358,7 @@ function createPortableCapabilityActivity(): PortableCapabilityActivity {
 
 type CapabilityMaterial =
   | { readonly kind: "oauth-access-token"; readonly value: string }
-  | { readonly kind: "cookie-jar"; readonly auth: WrenchAuth };
+  | { readonly kind: "cookie-jar"; readonly auth: GhostgetAuth };
 
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -471,7 +471,7 @@ function freezePortableProjectionValue<T>(value: T): T {
 function operationManifest(
   binding: PortableProviderPluginBindingV1,
   operation: PortableProviderPluginOperationV1,
-): WrenchManifest["operations"][string] {
+): GhostgetManifest["operations"][string] {
   const common = {
     description: operation.implementation,
     risk: operation.risk,
@@ -506,7 +506,7 @@ function operationManifest(
 function virtualManifest(
   packageValue: VerifiedPortableProviderPluginPackage,
   binding: PortableProviderPluginBindingV1,
-): WrenchManifest {
+): GhostgetManifest {
   const operations = Object.fromEntries(
     binding.operations.map((operation) => [
       operation.name,
@@ -525,7 +525,7 @@ function virtualManifest(
   });
 }
 
-function cookieSelection(auth: WrenchAuth, timeoutMs: number): CookieSelection {
+function cookieSelection(auth: GhostgetAuth, timeoutMs: number): CookieSelection {
   if (auth.kind === "cookie-source") {
     return {
       cookieSources: [auth.source],
@@ -707,12 +707,12 @@ function responseBody(bytes: Uint8Array): {
 function statePath(
   packageValue: VerifiedPortableProviderPluginPackage,
   binding: PortableProviderPluginBindingV1,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   key: string,
   environment: Environment,
 ): string {
   return join(
-    wrenchStateHome(environment),
+    ghostgetStateHome(environment),
     "provider-plugin-state",
     packageValue.manifest.id,
     packageValue.bundleSha256,
@@ -902,7 +902,7 @@ async function injectCookieMaterials(
 function capabilityHost(options: {
   readonly package: VerifiedPortableProviderPluginPackage;
   readonly binding: PortableProviderPluginBindingV1;
-  readonly auth: WrenchAuth;
+  readonly auth: GhostgetAuth;
   readonly environment: Environment;
   readonly files: ReadonlyMap<string, BoundInvocationFile>;
   readonly beginDispatch: (dispatchId: string) => Promise<DispatchBoundary>;
@@ -1511,7 +1511,7 @@ async function runWebPortableHost(options: {
   readonly binding: PortableProviderPluginBindingV1;
   readonly operation: PortableProviderPluginOperationV1;
   readonly input: OperationInput;
-  readonly auth: WrenchAuth;
+  readonly auth: GhostgetAuth;
   readonly environment: Environment;
   readonly fileResolver?: BrowserFileResolver;
   readonly signal?: AbortSignal;
@@ -1968,7 +1968,7 @@ export function createKernelPortableProviderPluginBindingProjections(
         runtime: Object.freeze({
           loadRuntime: () => Promise.resolve(Object.freeze({
             probe: async (
-              auth: WrenchAuth,
+              auth: GhostgetAuth,
               options?: ProviderPluginSubjectProbeOptionsV1,
             ) => {
               const probe = binding.subject.probe;

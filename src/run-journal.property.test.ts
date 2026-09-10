@@ -90,7 +90,7 @@ test("a lost native acknowledgement never permits a stale journal write in a bou
     ({ planned, lostAt, staleAttempts, assets }) => {
       const root = mkdtempSync(join(tmpdir(), "wrench-journal-cas-property-"));
       chmodSync(root, 0o700);
-      const environment = { ...process.env, WRENCH_STATE_HOME: root };
+      const environment = { ...process.env, GHOSTGET_STATE_HOME: root };
       try {
         const events: RunJournalEvent[] = [
           { type: "confirmation-consumed", at: timestamp(0) },

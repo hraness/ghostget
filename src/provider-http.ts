@@ -12,13 +12,13 @@ import { createHash } from "node:crypto";
 import { isAbsolute, parse, resolve, sep } from "node:path";
 
 import { BoundedByteBuffer } from "@hraness/kb/clip/bounded-byte-buffer";
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import {
   OperationDeadline,
   OperationDeadlineError,
 } from "./operation-deadline";
 
-export type OAuthTokenAuth = Extract<WrenchAuth, { readonly kind: "oauth-token-file" }>;
+export type OAuthTokenAuth = Extract<GhostgetAuth, { readonly kind: "oauth-token-file" }>;
 
 export type LoadedOAuthToken = {
   readonly accessToken: string;
@@ -228,7 +228,7 @@ export function loadOAuthCredential(auth: OAuthTokenAuth): LoadedOAuthCredential
   const expiresAt = tokenExpiry(parsed.expiresAt);
   if (schemaVersion === 1) {
     if (auth.managed === true) {
-      throw new Error("Wrench-managed OAuth auth requires a renewable schema-version-2 credential");
+      throw new Error("Ghostget-managed OAuth auth requires a renewable schema-version-2 credential");
     }
     return Object.freeze({
       schemaVersion,
@@ -239,7 +239,7 @@ export function loadOAuthCredential(auth: OAuthTokenAuth): LoadedOAuthCredential
     });
   }
   if (auth.managed !== true || auth.provider !== "gmail") {
-    throw new Error("renewable OAuth credentials require a Wrench-managed Gmail auth locator");
+    throw new Error("renewable OAuth credentials require a Ghostget-managed Gmail auth locator");
   }
   if (expiresAt === null) {
     throw new Error("renewable OAuth credentials require an access-token expiry");

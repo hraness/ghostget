@@ -11,7 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { OperationInput, ProviderRecipe, WrenchManifest } from "../model";
+import type { OperationInput, ProviderRecipe, GhostgetManifest } from "../model";
 import type { ProviderActionContext, ProviderFile } from "../provider";
 import type { ProviderContract } from "../provider-contract-definitions";
 import { xProviderContractDefinitions } from "../provider-contract-definitions-x";
@@ -89,7 +89,7 @@ function createHarness(
     timeoutMs: options.timeoutMs ?? 30_000,
     maxOutputBytes: 1024 * 1024,
   };
-  const manifest: WrenchManifest = {
+  const manifest: GhostgetManifest = {
     schemaVersion: 3,
     id: "x-official-test",
     version: "1.0.0",

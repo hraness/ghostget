@@ -160,6 +160,7 @@ describe("WhatsApp linked-device protocol registry", () => {
     expect(WHATSAPP_WEB_OPERATIONS["messaging.list"].reason).toContain(
       "without opening a WhatsApp connection",
     );
+    // Preserve the existing runtime's historical policy wording.
     expect(WHATSAPP_WEB_OPERATIONS["messaging.send"].reason).toContain(
       "no Wrench-qualified mutation transport",
     );
