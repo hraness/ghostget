@@ -7947,7 +7947,7 @@ describe("automatic npm publication from the tag Release", () => {
     for (const [job, source] of [[publishNpm, publishNpmSource], [admitNpm, admitNpmSource]] as const) {
       const ids = new Set(job.steps.flatMap((step) => (step.id === undefined ? [] : [step.id])));
       const references = [...source.matchAll(/\$\{\{ steps\.([a-z_]+)\.outputs\.[a-z_]+ \}\}/gu)].map((match) => match[1]);
-      expect(references.length).toBeGreaterThan(0);
+      expect(references.length > 0).toBe(job === publishNpm);
       expect(references.filter((id) => !ids.has(id as string))).toEqual([]);
     }
     expect(admitNpmSource).not.toMatch(/id-token|npm publish|environment:/u);
