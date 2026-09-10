@@ -211,3 +211,16 @@ rediscover it.
   the Accounts mailing keyring hostname; the external directory submissions
   are updated locally but not pushed; npm publication of `@hraness/ghostget`
   remains held pending the dual-use classification decision.
+
+## v0.17.2 as the LinkedIn contacts.read release source (documents-aa, 2026-09-10)
+
+- PR #210 (branch `claude/linkedin-contacts-read-como-20260910`, superseding
+  #201) carries the reviewed `linkedin-web contacts.read@1` Como RSC
+  flight-array fix as adapter bundle 1.23.0, joined with `main` at the
+  v0.17.1 release. Live profile pages assign `window.__como_rehydration__` as
+  a flight array, so 1.22.0 failed closed as omitted bootstrap.
+- The same branch is the intended v0.17.2 release source: it bumps the
+  package, typed version literals, website content binding, installation
+  guidance, and changelog to 0.17.2 and re-measures the package budget. The
+  tag follows the normal admission path after `Required` CI and merge; nothing
+  is tagged or published from the branch itself.

@@ -1,11 +1,21 @@
-// LinkedIn contacts.read Como RSC flight-array extraction joined with the
-// 0.17.1 release on main: the reviewed adapter, tests, and skill growth add a
-// constant 3,570 payload bytes to every base they have been joined with
-// (12,437,872 to 12,441,442 and 12,438,525 to 12,442,095 on darwin arm64),
-// so the 12,438,857-byte 0.17.1 payload becomes 12,442,427 bytes across the
-// same 501 files. Keep the packed ceiling and exact file inventory; raise
-// only the unpacked bound to that size plus 65 bytes of allowance. Required
-// Linux CI independently checks the canonical archive.
+// Ghostget 0.17.2, measured after the LinkedIn contacts.read Como RSC
+// flight-array fix (adapter bundle 1.23.0) joined the 0.17.1 release and the
+// version bump: two Node 24.18.1 / npm 11.16.0 archives on darwin arm64 are
+// byte-identical, with 2,261,532 compressed and 12,442,954 payload bytes
+// across exactly 501 files, SHA-256
+// 90635d9f409288eb6d78297bacc6da4961760a1ab148c8cead73a7495a12639c.
+// The adapter, tests, skill references, and 0.17.2 changelog entry add 4,097
+// payload bytes compared with the 0.17.1 measurement; the 527 bytes beyond
+// the earlier joined projection are the changelog entry. Raise the payload
+// ceiling to the measurement plus 65 bytes of headroom and keep the exact
+// inventory. The packed measurement sits 2,181 bytes below the previous
+// 2,263,713 ceiling, less than the 2,802-byte spread the Linux release
+// toolchain (zlib 1.3.2.1-motley) showed against darwin arm64 for 0.17.0, so
+// the same tree is expected to pack near 2,264,334 bytes there. Raise the
+// packed ceiling to that projected Linux size plus the reviewed 4,096-byte
+// portability allowance (2,268,430). This is a projection from the last
+// measured spread, not a Linux measurement; required Linux CI still checks
+// the actual canonical archive under the pinned release toolchain.
 //
 // Ghostget 0.17.1, measured after the release-admission log-read fix and the
 // version bump: two Node 24.20.0 / npm 11.19.0 archives on darwin arm64 are
@@ -269,10 +279,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_263_713;
+export const MAX_PACKED_BYTES = 2_268_430;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_442_492;
+export const MAX_UNPACKED_BYTES = 12_443_019;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

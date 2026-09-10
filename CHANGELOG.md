@@ -7,6 +7,16 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.17.2 - 2026-09-10
+
+- Accept `window.__como_rehydration__` as either a JSON object or an RSC
+  flight array in LinkedIn `contacts.read@1`, decoding flight rows that carry
+  JSON objects or arrays. Bind first-degree when a `memberDistance`,
+  `networkDistance`, or `distance` of `DISTANCE_1`, `1`, or `"1"` joins the
+  requested vanity or profile URN; keep self and non-first-degree profiles
+  fail-closed; and still resolve Contact info by `queryName` when the page
+  embeds no decorated `queryId`. Adapter bundle 1.23.0.
+
 ## 0.17.1 - 2026-09-10
 
 - Read GitHub job logs with `--allow-escape-sequences` during release source
