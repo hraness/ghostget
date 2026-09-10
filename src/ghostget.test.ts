@@ -4476,7 +4476,7 @@ describe("CLI previews and exit semantics", () => {
 
   test("renders the canonical Ghostget command surface", async () => {
     const usage = renderGhostgetUsage();
-    expect(usage).toStartWith("Usage:\n  wrench ");
+    expect(usage).toStartWith("Usage:\n  ghostget ");
     expect(usage).toContain("ghostget invoke <adapter> <operation>");
     expect(usage).toContain("Shorthand for 'ghostget invoke'");
     expect(usage).toContain("ghostget plugin list [--json]");
@@ -4498,7 +4498,7 @@ describe("CLI previews and exit semantics", () => {
       process.env,
       output.output,
     )).toBe(2);
-    expect(output.stderr()).toStartWith("unknown command: unknown-command\n\nUsage:\n  wrench ");
+    expect(output.stderr()).toStartWith("unknown command: unknown-command\n\nUsage:\n  ghostget ");
   });
 
   test("keeps exact write inputs encrypted on disk after preview", async () => {

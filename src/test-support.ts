@@ -40,8 +40,12 @@ function isComputationallyBoundedFastCheckPath(path: string): boolean {
 export function propertyReplayParameters(
   environment: PropertyReplayEnvironment = process.env,
 ): PropertyReplayCoordinate {
-  const rawSeed = (environment.GHOSTGET_PROPERTY_SEED ?? environment.WRENCH_PROPERTY_SEED);
-  const rawPath = (environment.GHOSTGET_PROPERTY_PATH ?? environment.WRENCH_PROPERTY_PATH);
+  const rawSeed = environment.GHOSTGET_PROPERTY_SEED === undefined
+    ? environment.WRENCH_PROPERTY_SEED
+    : environment.GHOSTGET_PROPERTY_SEED;
+  const rawPath = environment.GHOSTGET_PROPERTY_PATH === undefined
+    ? environment.WRENCH_PROPERTY_PATH
+    : environment.GHOSTGET_PROPERTY_PATH;
   if (rawSeed === undefined && rawPath === undefined) return Object.freeze({});
   if (rawSeed === undefined) {
     throw new Error(

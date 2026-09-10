@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -2517,6 +2517,8 @@ describe("X authenticated internal-API runtime", () => {
   });
 
   test("uploads one plan-bound image, writes native MEDIA, and verifies exact private readback", async () => {
+    const imagePath = join(import.meta.dir, "..", "..", "website", "public", "og.png");
+    const imageByteLength = statSync(imagePath).size;
     const calls: CapturedRequest[] = [];
     const before: WebSessionDispatchEvent[] = [];
     const after: WebSessionDispatchEvent[] = [];
@@ -2591,7 +2593,7 @@ describe("X authenticated internal-API runtime", () => {
         if (command === "INIT") {
           expect(request.url.searchParams.get("media_category")).toBe("tweet_image");
           expect(request.url.searchParams.get("media_type")).toBe("image/png");
-          expect(request.url.searchParams.get("total_bytes")).toBe("243290");
+          expect(request.url.searchParams.get("total_bytes")).toBe(String(imageByteLength));
           return jsonResponse({ media_id_string: mediaId, expires_after_secs: 86_400 }, 202);
         }
         if (command === "APPEND") {
@@ -2653,9 +2655,7 @@ describe("X authenticated internal-API runtime", () => {
         dependencies: runtimeDependencies,
         fileResolver: (files) => {
           expect(files).toEqual([{ kind: "file", reference: "fixture-image" }]);
-          return Promise.resolve([
-            join(import.meta.dir, "..", "..", "website", "public", "og.png"),
-          ]);
+          return Promise.resolve([imagePath]);
         },
         beforeDispatch: (event) => {
           before.push(event);

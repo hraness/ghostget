@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const skillRoot = join(import.meta.dir, "..", "skills", "wrench");
+const skillRoot = join(import.meta.dir, "..", "skills", "ghostget");
 
 function readSkill(relativePath: string): string {
   return readFileSync(join(skillRoot, relativePath), "utf8");
