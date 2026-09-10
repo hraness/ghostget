@@ -1,17 +1,3 @@
-// Ghostget 0.17.3 source plus the unified npm publication change, measured
-// with no version bump: the changelog entry describing automatic OIDC
-// publication from the tag Release workflow adds 694 payload bytes to the
-// packed CHANGELOG.md, and nothing else in the inventory moves. A Bun 1.3.14
-// build and npm pack (Node 24.20.0 / npm 11.19.0, darwin arm64) measures
-// 12,442,916 payload bytes and 2,258,191 compressed bytes across exactly 500
-// files, SHA-256
-// 5ab2529dd83ed488101fdc72ad47bdf38e7b99d5eb287e2b452ead6a8b98a0d1.
-// Raise only the payload ceiling to the measured value plus 65 bytes of
-// headroom (12,442,981); the packed size stays 9,726 bytes under the existing
-// packed allowance and the 500-entry inventory is unchanged. Fresh Linux CI
-// still checks its actual canonical archive under the pinned release
-// toolchain.
-//
 // Ghostget 0.17.3, measured after the LinkedIn `contacts.read` Como RSC
 // flight-array fix (#217) joined the 0.17.2 release source and the version
 // bump: a Bun 1.3.14 build and npm pack (Node 24.18.1 / npm 11.16.0, darwin
@@ -320,7 +306,7 @@
 export const MAX_PACKED_BYTES = 2_267_917;
 export const MAX_PACKED_ENTRIES = 500;
 export const MAX_PACKED_FILES = 500;
-export const MAX_UNPACKED_BYTES = 12_442_981;
+export const MAX_UNPACKED_BYTES = 12_442_287;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
