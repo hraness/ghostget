@@ -2603,14 +2603,51 @@ body {
 
 .ghostget-product-hero {
   grid-column: 1 / -1;
+  align-items: center;
+  gap: clamp(2rem, 4vw, 3.5rem);
+  padding-block: clamp(2.5rem, 5vw, 4.5rem);
 }
 
 .ghostget-product-hero .hraness-marketing-hero__heading {
-  max-inline-size: 22ch;
+  max-inline-size: 18ch;
+  font-size: clamp(2.25rem, 4vw, 3.5rem);
 }
 
-.ghostget-product-hero .hraness-marketing-hero__example {
-  max-inline-size: 38rem;
+.ghostget-product-hero .hraness-marketing-hero__copy {
+  gap: 1.1rem;
+}
+
+.ghostget-product-hero .hero-explainer {
+  color: var(--muted);
+}
+
+.ghostget-product-hero .hraness-marketing-hero__frame {
+  min-inline-size: 0;
+  margin-block-start: 0;
+}
+
+@media (min-width: 62rem) {
+  .ghostget-product-hero {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  }
+}
+
+.hraness-marketing-header :where(a, button) {
+  min-block-size: 2.75rem;
+}
+
+.hraness-marketing-header__nav a {
+  display: inline-flex;
+  align-items: center;
+}
+
+.hraness-marketing-action[data-emphasis="primary"] {
+  color: var(--accent-ink);
+}
+
+.hraness-marketing-page ::selection {
+  background: var(--accent-soft);
+  color: var(--foreground);
 }
 
 .proof-transcript {

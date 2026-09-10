@@ -484,7 +484,7 @@ describe("ghostget.com static site", () => {
     expect(guidesSection).not.toContain('class="card editorial-card"');
     expect(html.indexOf(argumentsSection ?? "")).toBeLessThan(html.indexOf(guidesSection ?? ""));
     expect(html).toContain(
-      '<h1 class="hraness-marketing-hero__heading" id="brand-name">Give your coding agent bounded access to the web</h1>',
+      '<h1 class="hraness-marketing-hero__heading" id="brand-name">Read, archive, and act with your coding agent</h1>',
     );
     expect(html).not.toContain("Give your coding agent bounded access to the web.");
     const indeterminateWriteBoundary =
@@ -508,7 +508,10 @@ describe("ghostget.com static site", () => {
     expect(html).toContain('data-hraness-marketing="trust"');
     expect(html).toContain('data-hraness-marketing="questions"');
     expect(html).toContain('data-hraness-marketing="cta"');
-    expect(html).toContain("The same boundary from three surfaces.");
+    expect(html).toContain("Use an Agent Skill, CLI, or TypeScript SDK");
+    expect(html).not.toContain('class="hraness-marketing-hero__eyebrow"');
+    expect(html).toContain('data-align="start"');
+    expect(html).not.toContain('class="hraness-marketing-hero__example"');
     expect(html).toContain('import { isProviderPluginId } from "@hraness/ghostget"');
     expect(html).toMatch(/Reviewed operations across \d+ supported services\./u);
     expect(html).toContain('class="wordmark" href="/">Ghostget</a>');
@@ -613,11 +616,17 @@ describe("ghostget.com static site", () => {
     expect(builtCss).toContain("--hraness-site-footer-social-target");
     expect(builtCss).not.toContain('@import "./dist/stylex.css"');
     expect(builtCss).toContain(".hraness-marketing-hero {");
+    expect(sourceCss).toContain("grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr)");
+    expect(sourceCss).toContain("min-block-size: 2.75rem");
     expect(builtCss).toContain("@media (pointer: coarse)");
     for (const css of [sourceCss, builtCss]) {
       expect(css).toMatch(
         /\.ghostget-product-hero\s*\{[^{}]*\bgrid-column:\s*1\s*\/\s*-1\s*;/u,
       );
+      expect(cssPropertyValues(css, ".ghostget-product-hero .hero-explainer", "color").at(-1))
+        .toBe("var(--muted)");
+      expect(cssPropertyValues(css, '.hraness-marketing-action[data-emphasis="primary"]', "color").at(-1))
+        .toBe("var(--accent-ink)");
       const providerMarkDisplay = cssPropertyValues(css, ".provider-mark", "display");
       expect(providerMarkDisplay.length).toBeGreaterThan(0);
       expect(providerMarkDisplay).not.toContain("none");

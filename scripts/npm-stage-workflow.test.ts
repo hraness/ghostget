@@ -1653,6 +1653,105 @@ describe("npm publication contract", () => {
     }
   });
 
+  test("verifies canonical bytes without an npm listing and retains publication-only registry admission", async () => {
+    const workflow = await readFile(stageWorkflowUrl, "utf8");
+    const parsed = Bun.YAML.parse(workflow) as {
+      jobs: { verify: { steps: { name?: string; if?: string; run?: string }[] } };
+    };
+    const registryStep = parsed.jobs.verify.steps.find((step) => step.name === "Verify unpublished package identity");
+    const canonicalStep = parsed.jobs.verify.steps.find((step) => step.name === "Pack and smoke one exact npm artifact");
+    expect(registryStep?.if).toBe("inputs.publish_to_npm == true");
+    expect(canonicalStep?.if).toBeUndefined();
+    if (registryStep?.run === undefined || canonicalStep?.run === undefined) throw new Error("missing mirror admission step");
+    const nodeExecutable = Bun.which("node");
+    if (nodeExecutable === null) throw new Error("Node is required for workflow verification");
+    for (const [tag, archiveName] of [
+      ["v0.16.17", "hraness-wrench-0.16.17.tgz"],
+      ["v0.17.0", "hraness-ghostget-0.17.0.tgz"],
+    ] as const) {
+      const directory = await mkdtemp(join(tmpdir(), "ghostget-listing-independent-"));
+      const binaryDirectory = join(directory, "bin");
+      const commandLog = join(directory, "commands");
+      const output = join(directory, "output");
+      const fixture = join(directory, "canonical-fixture.tgz");
+      const source = "a".repeat(40); const workflowSha = "b".repeat(40);
+      const archiveBytes = new TextEncoder().encode("canonical archive fixture\n");
+      try {
+        await mkdir(binaryDirectory);
+        await writeFile(fixture, archiveBytes);
+        const stubs: Record<string, string> = {
+          npm: `printf 'npm %s\\n' "$*" >> "$COMMAND_LOG"\nprintf 'npm error code E404\\n' >&2\nexit 1`,
+          node: `printf 'node %s\\n' "$*" >> "$COMMAND_LOG"
+  case "\${1-}" in
+    --experimental-strip-types) [[ "$*" == "--experimental-strip-types ./scripts/release-ref-authority.ts promotion $VERIFIED_TAG $GITHUB_SHA $VERIFIED_SHA" ]] ;;
+    --input-type=module) exec "$FIXTURE_NODE_EXECUTABLE" "$@" ;;
+    -e) [[ "$PACKAGE_VERSION" == "\${VERIFIED_TAG#v}" ]] ;;
+    -p) [[ "\${3-}" == "$RUNNER_TEMP/ghostget-mirror-canonical/release-manifest.json" ]]; printf '4189' ;;
+    *) exit 97 ;;
+  esac`,
+          bun: `printf 'bun %s\\n' "$*" >> "$COMMAND_LOG"
+  case "$*" in
+    "run ./scripts/github-release-artifact.ts download $RUNNER_TEMP/ghostget-mirror-canonical")
+      mkdir "$RUNNER_TEMP/ghostget-mirror-canonical"
+      cp "$CANONICAL_FIXTURE" "$RUNNER_TEMP/ghostget-mirror-canonical/$FIXTURE_ARCHIVE_NAME"
+      printf '{}\\n' > "$RUNNER_TEMP/ghostget-mirror-canonical/npm-pack.json"
+      printf '{"runId":4189}\\n' > "$RUNNER_TEMP/ghostget-mirror-canonical/release-manifest.json" ;;
+    "install --frozen-lockfile --ignore-scripts") ;;
+    "run check") [[ "$GHOSTGET_DERIVE_BROWSER_ROOT" == "$RUNNER_TEMP/fixture-browser" && "$WRENCH_DERIVE_BROWSER_ROOT" == "$GHOSTGET_DERIVE_BROWSER_ROOT" ]] ;;
+    "run ./scripts/provision-derive-browser.ts") printf '%s\\n' "$RUNNER_TEMP/fixture-browser" ;;
+    "run ./scripts/package-smoke.ts --archive $RUNNER_TEMP/ghostget-npm-package/$FIXTURE_ARCHIVE_NAME --pack-json $RUNNER_TEMP/ghostget-npm-package/npm-pack.json")
+      cmp "$CANONICAL_FIXTURE" "$RUNNER_TEMP/ghostget-npm-package/$FIXTURE_ARCHIVE_NAME" ;;
+    *) exit 97 ;;
+  esac`,
+          git: `printf 'git %s\\n' "$*" >> "$COMMAND_LOG"
+  case "$*" in
+    "worktree add --detach $RUNNER_TEMP/ghostget-mirror-source $VERIFIED_SHA") mkdir "$RUNNER_TEMP/ghostget-mirror-source" ;;
+    "-C $RUNNER_TEMP/ghostget-mirror-source status --porcelain --untracked-files=all -- dist bun.lock") ;;
+    *) exit 97 ;;
+  esac`,
+          gh: `printf 'gh %s\\n' "$*" >> "$COMMAND_LOG"
+  [[ "$*" == "api repos/hraness/ghostget/releases/tags/$VERIFIED_TAG --jq .id" ]]
+  printf '4179'`,
+        };
+        for (const [command, body] of Object.entries(stubs)) {
+          const path = join(binaryDirectory, command);
+          await writeFile(path, `#!/bin/bash\nset -euo pipefail\n${body}\n`);
+          await chmod(path, 0o755);
+        }
+        const environment = {
+          CANONICAL_FIXTURE: fixture, FIXTURE_ARCHIVE_NAME: archiveName, FIXTURE_NODE_EXECUTABLE: nodeExecutable,
+          CANONICAL_TAG: tag, VERIFIED_TAG: tag, VERIFIED_SHA: source,
+          GITHUB_SHA: workflowSha, GITHUB_REPOSITORY: "hraness/ghostget", GITHUB_RUN_ID: "4190", GITHUB_RUN_ATTEMPT: "1",
+          DEFAULT_BRANCH: "main", INPUT_PUBLISH_TO_NPM: "false", RUNNER_TEMP: directory,
+          GITHUB_OUTPUT: output, COMMAND_LOG: commandLog, PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`,
+        };
+        // Execute the admitted verify steps using their actual workflow condition.
+        // The registry stub always returns E404; an unconditional lookup fails this flow.
+        for (const step of [registryStep, canonicalStep]) {
+          if (step.if !== undefined) {
+            expect(step.if).toBe("inputs.publish_to_npm == true");
+            if (environment.INPUT_PUBLISH_TO_NPM !== "true") continue;
+          }
+          const result = await runWorkflowScript(step.run!, environment);
+          expect(result.exitCode, result.stderr).toBe(0);
+        }
+        expect(await readFile(join(directory, "ghostget-npm-package", archiveName))).toEqual(Buffer.from(archiveBytes));
+        expect(await readFile(join(directory, "ghostget-npm-package", "npm-package.sha256"), "utf8"))
+          .toBe(`${createHash("sha256").update(archiveBytes).digest("hex")}\n`);
+        expect(await readFile(output, "utf8")).toContain(`version=${tag.slice(1)}\nrelease_id=4179\nrelease_run_id=4189\n`);
+        const verifiedCommands = await readFile(commandLog, "utf8");
+        expect(verifiedCommands).toContain("bun run ./scripts/github-release-artifact.ts download");
+        expect(verifiedCommands).toContain("bun run ./scripts/package-smoke.ts --archive");
+        expect(verifiedCommands).not.toMatch(/^npm /mu);
+        // A future approved publication path still cannot bypass registry bootstrap.
+        const publication = await runWorkflowScript(registryStep.run, { ...environment, INPUT_PUBLISH_TO_NPM: "true" });
+        expect(publication.exitCode).toBe(1);
+        expect(publication.stdout).toContain("must be bootstrapped interactively before staged publishing can run");
+        expect(await readFile(commandLog, "utf8")).toContain("npm view @hraness/ghostget name --json");
+      } finally { await rm(directory, { recursive: true, force: true }); }
+    }
+  });
+
   test("classifies protected-main verification dispatches and holds npm publication before side effects", async () => {
     const workflow = await readFile(stageWorkflowUrl, "utf8");
     const script = workflowStepScript(workflow, "Classify event-source package");
@@ -1691,7 +1790,8 @@ exit 97
         await rm(output, { force: true });
         await rm(commandLog, { force: true });
         return runWorkflowScript(script, { DEFAULT_BRANCH: "main", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
-          GITHUB_SHA: workflowSha, RELEASE_SHA: source, INPUT_RELEASE_TAG: "", INPUT_PUBLISH_TO_NPM: "false", RESOLVED_STAGE_VERSION: "",
+          GITHUB_SHA: workflowSha, GITHUB_REPOSITORY: "hraness/ghostget", GITHUB_REPOSITORY_ID: String(GHOSTGET_REPOSITORY_ID),
+          RELEASE_SHA: source, INPUT_RELEASE_TAG: "", INPUT_PUBLISH_TO_NPM: "false", RESOLVED_STAGE_VERSION: "",
           GITHUB_OUTPUT: output, COMMAND_LOG: commandLog, PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`, ...extra });
       };
       for (const input of [{}, { INPUT_RELEASE_TAG: "v0.16.13" }]) {

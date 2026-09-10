@@ -165,6 +165,7 @@ jobs:
           node --version
           test "$(npm --version)" = "11.19.0"
       - name: Verify unpublished package identity
+        if: inputs.publish_to_npm == true
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           CANONICAL_TAG: ${{ needs.classify.outputs.release_tag }}
@@ -216,7 +217,10 @@ jobs:
           artifact_directory="$RUNNER_TEMP/ghostget-npm-package"
           mkdir -m 700 "$artifact_directory"
           version="${VERIFIED_TAG#v}"
-          tarball_name="hraness-ghostget-$version.tgz"
+          tarball_name="$(node --input-type=module -e '
+            import { releaseAssetNames } from "./website/github-release-artifact.mjs";
+            console.log(releaseAssetNames(process.argv[1])[0]);
+          ' "$VERIFIED_TAG")"
           cp -- "$canonical_directory/$tarball_name" "$artifact_directory/$tarball_name"
           cp -- "$canonical_directory/npm-pack.json" "$artifact_directory/npm-pack.json"
           sha256sum "$artifact_directory/$tarball_name" | awk '{ print $1 }' > "$artifact_directory/npm-package.sha256"
@@ -227,7 +231,7 @@ jobs:
             cd "$smoke_source"
             bun install --frozen-lockfile --ignore-scripts
             fixture_browser_root="$(bun run ./scripts/provision-derive-browser.ts)"
-            GHOSTGET_DERIVE_BROWSER_ROOT="$fixture_browser_root" bun run check
+            WRENCH_DERIVE_BROWSER_ROOT="$fixture_browser_root" GHOSTGET_DERIVE_BROWSER_ROOT="$fixture_browser_root" bun run check
           )
           generated_status="$(git -C "$smoke_source" status --porcelain --untracked-files=all -- dist bun.lock)"
           if [[ -n "$generated_status" ]]; then

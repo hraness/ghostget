@@ -64,13 +64,11 @@
 
     <main id="main">
       <div class="hraness-marketing-page">
-        <header aria-labelledby="brand-name" class="hraness-marketing-hero ghostget-product-hero" data-align="center" data-hraness-marketing="hero" data-tone="paper">
+        <header aria-labelledby="brand-name" class="hraness-marketing-hero ghostget-product-hero" data-align="start" data-hraness-marketing="hero" data-tone="paper">
           <div class="hraness-marketing-hero__copy">
-            <p class="hraness-marketing-hero__eyebrow">Open-source CLI and TypeScript SDK</p>
             <p aria-hidden="true" class="hraness-marketing-hero__name">Ghostget</p>
-            <h1 class="hraness-marketing-hero__heading" id="brand-name">Give your coding agent bounded access to the web</h1>
-            <p class="hraness-marketing-hero__summary hero-explainer">Ghostget is a local CLI and TypeScript SDK that lets an agent read public pages, archive media, and take supported actions in the services you’ve signed into. You keep the model, the keys, and the browser.</p>
-            <p class="hraness-marketing-hero__example">Ask your agent to read this page as Markdown, archive one YouTube video with its transcript, and list your recent Beeper conversations.</p>
+            <h1 class="hraness-marketing-hero__heading" id="brand-name">Read, archive, and act with your coding agent</h1>
+            <p class="hraness-marketing-hero__summary hero-explainer">Read public pages, save media, and use supported actions in the services you’ve signed into. Ghostget is a local CLI and TypeScript SDK. You choose the agent and the accounts it can use.</p>
             <div class="hraness-marketing-hero__actions">
               <a class="hraness-marketing-action" data-emphasis="primary" href="#start">Install Ghostget</a>
               <a class="hraness-marketing-action" data-emphasis="secondary" href="#how-it-works">See how it works</a>
@@ -115,7 +113,6 @@ This domain is for use in documentation examples without needing permission. Avo
 
         <section aria-labelledby="start-heading" class="start-section hraness-marketing-install" data-hraness-marketing="install" id="start">
           <div class="hraness-marketing-install__heading-group">
-            <p class="hraness-marketing-install__eyebrow">Local release {{GHOSTGET_RELEASE}}</p>
             <h2 class="hraness-marketing-install__heading" id="start-heading">Install the verified local release.</h2>
             <p class="install-summary">Ghostget requires Bun 1.3.14 and runs on macOS and Linux. Install the CLI and SDK from the <a href="{{GHOSTGET_PACKAGE_ARTIFACT}}"><code>@hraness/ghostget</code> canonical release archive</a>, then run the doctor before you connect a service.</p>
           </div>
@@ -151,9 +148,8 @@ ghostget capabilities --json</code></pre>
 
         <section aria-labelledby="how-it-works-heading" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="split" id="how-it-works">
           <div class="hraness-marketing-section__heading-group">
-            <p class="hraness-marketing-section__label">How it works</p>
-            <h2 class="hraness-marketing-section__heading" id="how-it-works-heading">Your agent asks for an outcome, not a browser.</h2>
-            <p class="hraness-marketing-section__summary">Every request resolves to one named action with typed inputs and a typed result. The service session, cookies, and provider plumbing stay inside a local kernel the agent never touches.</p>
+            <h2 class="hraness-marketing-section__heading" id="how-it-works-heading">Each request has one named action</h2>
+            <p class="hraness-marketing-section__summary">Your agent requests a supported action, such as reading an inbox or saving a video. Ghostget checks the inputs and account, makes the request, and returns a structured result. Sign-in details stay inside Ghostget.</p>
           </div>
           <div class="hraness-marketing-section__body">
             <ol aria-label="One Ghostget request" class="hraness-marketing-flow" data-hraness-marketing="flow">
@@ -168,7 +164,6 @@ ghostget capabilities --json</code></pre>
 
         <section aria-labelledby="providers-title" class="hraness-marketing-section provider-section" data-hraness-marketing="section" data-layout="stack" id="providers">
           <div class="hraness-marketing-section__heading-group">
-            <p class="hraness-marketing-section__label">Provider support</p>
             <h2 id="providers-title">Reviewed operations across {{PROVIDER_SURFACE_COUNT}} supported services.</h2>
             <p class="hraness-marketing-section__summary">
               These cards summarize capability families and access methods, then link
@@ -191,8 +186,7 @@ ghostget capabilities --json</code></pre>
 
         <section aria-labelledby="interfaces-title" class="hraness-marketing-interfaces" data-hraness-marketing="interfaces" id="interfaces">
           <header class="hraness-marketing-interfaces__header">
-            <p class="hraness-marketing-interfaces__label">Interfaces</p>
-            <h2 class="hraness-marketing-interfaces__heading" id="interfaces-title">The same boundary from three surfaces.</h2>
+            <h2 class="hraness-marketing-interfaces__heading" id="interfaces-title">Use an Agent Skill, CLI, or TypeScript SDK</h2>
             <p>Ghostget does not publish a hosted API or MCP server. Its public interfaces stay local and versioned, so what your agent can do is the same from a skill, a terminal, or typed code.</p>
           </header>
           <div class="hraness-marketing-interface-grid">
@@ -204,7 +198,6 @@ ghostget capabilities --json</code></pre>
 
         <section aria-labelledby="local-by-design-title" class="hraness-marketing-trust" data-hraness-marketing="trust" id="local-by-design">
           <header class="hraness-marketing-trust__header">
-            <p class="hraness-marketing-trust__label">Local by design</p>
             <h2 class="hraness-marketing-trust__heading" id="local-by-design-title">Nothing leaves your machine unless you ask it to.</h2>
             <p>Ghostget is infrastructure around the accounts and tools you already have, not a service in front of them.</p>
           </header>
@@ -220,7 +213,6 @@ ghostget capabilities --json</code></pre>
 
         <section aria-labelledby="comparison-title" class="hraness-marketing-section" data-hraness-marketing="section" data-layout="stack" id="how-it-fits">
           <div class="hraness-marketing-section__heading-group">
-            <p class="hraness-marketing-section__label">How it fits</p>
             <h2 class="hraness-marketing-section__heading" id="comparison-title">Use Ghostget with the tools you already have.</h2>
             <p class="hraness-marketing-section__summary">Ghostget owns a narrow local layer: named actions and the records they leave behind. Hosted integration catalogs, cloud Actors, and managed browsers solve broader jobs at other layers.</p>
           </div>
@@ -241,7 +233,6 @@ ghostget capabilities --json</code></pre>
 
         <section aria-labelledby="faq-title" class="hraness-marketing-questions" data-hraness-marketing="questions" id="questions">
           <header class="hraness-marketing-questions__header">
-            <p class="hraness-marketing-questions__label">Questions</p>
             <h2 class="hraness-marketing-questions__heading" id="faq-title">Before you install.</h2>
           </header>
           <div class="hraness-marketing-question-list">
@@ -261,7 +252,6 @@ ghostget capabilities --json</code></pre>
 
         <section aria-labelledby="maker-title" class="hraness-marketing-maker" data-hraness-marketing="maker" id="maker">
           <header class="hraness-marketing-maker__header">
-            <p class="hraness-marketing-maker__label">Built by</p>
             <h2 class="hraness-marketing-maker__heading" id="maker-title">Ben Guo</h2>
           </header>
           <div class="hraness-marketing-maker__body">
