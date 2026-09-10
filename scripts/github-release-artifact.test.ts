@@ -70,7 +70,7 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
     commit_sha: input.source, category: `/language:${language}`, ref: "refs/heads/main", analysis_key: "dynamic/github-code-scanning/codeql:analyze",
     tool: { name: "CodeQL", version: "2.27.0" }, environment: JSON.stringify({ category: `/language:${language}`, language }),
     error: "", warning: "", created_at: "2026-09-09T01:10:00Z", url: `https://api.github.com/${prefix}/code-scanning/analyses/${800 + index}`, results_count: 41 }));
-  responses[`${prefix}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=100`] = analyses;
+  responses[`${prefix}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=20`] = analyses;
   const calls: string[] = [];
   const read = (path: string): unknown => { calls.push(path); if (!(path in responses)) throw new Error(`Unexpected fixture path: ${path}`); return structuredClone(responses[path]); };
   return { input, responses, read, calls, prefix, head, analyses, clock: () => Date.parse("2026-09-09T02:00:00Z") };
@@ -102,6 +102,22 @@ describe("exact source CI admission", () => {
     const foreign = renamed(1);
     expect(() => admitSourceCi(foreign.input, foreign.read, foreign.clock)).toThrow("foreign repository");
   });
+  test("admits the exact analyses at the top of a full newest-first window and rejects an oversized window", () => {
+    const path = (f: ReturnType<typeof sourceCiFixture>) => `${f.prefix}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=20`;
+    const older = (f: ReturnType<typeof sourceCiFixture>, count: number) => Array.from({ length: count }, (_, index) => ({
+      ...f.analyses[index % 2]!, id: 900 + index, commit_sha: "c".repeat(40), created_at: "2026-09-08T01:10:00Z" }));
+    const full = sourceCiFixture();
+    full.responses[path(full)] = [...full.analyses, ...older(full, 18)];
+    expect(full.responses[path(full)]).toHaveLength(20);
+    expect(admitSourceCi(full.input, full.read, full.clock).security.exactAnalyses.map(analysis => analysis.id)).toEqual([800, 801]);
+    const oversized = sourceCiFixture();
+    oversized.responses[path(oversized)] = [...oversized.analyses, ...older(oversized, 19)];
+    expect(() => admitSourceCi(oversized.input, oversized.read, oversized.clock)).toThrow("missing or oversized newest window");
+    const absent = sourceCiFixture();
+    absent.responses[path(absent)] = older(absent, 20);
+    expect(() => admitSourceCi(absent.input, absent.read, absent.clock)).toThrow("exact main CodeQL analyses are missing or ambiguous");
+  });
+
   test("admits only the current successful attempt while retaining older analyses", () => {
     const fixture = sourceCiFixture(2);
     fixture.analyses.push(...fixture.analyses.map(value => ({ ...value, id: value.id + 10, created_at: "2026-09-08T01:10:00Z" })));

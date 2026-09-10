@@ -1,6 +1,6 @@
 # Upgrade from Wrench to Ghostget
 
-Ghostget 0.17.4 continues Wrench with a new project name, package, command, and
+Ghostget 0.17.5 continues Wrench with a new project name, package, command, and
 website. Its provider, authorization, encrypted-state, and recovery boundaries
 continue to apply.
 

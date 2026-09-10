@@ -23,6 +23,7 @@ const JOBS = ["static", "package", "test 1/4", "test 2/4", "test 3/4", "test 4/4
 const CODEQL_JOBS = ["Analyze (javascript-typescript)", "Analyze (actions)"];
 const TOOLCHAIN = { node: "24.20.0", npm: "11.19.0", bun: "1.3.14" } as const;
 const MAXIMUM_EVIDENCE_AGE = 72 * 60 * 60 * 1000;
+const ANALYSES_WINDOW = 20;
 type ObjectValue = Record<string, unknown>;
 export type SourceCiInput = Readonly<{ source: string; tree: string; main: string; workflowSha256: string; lockSha256: string }>;
 export type SourceCiReader = (path: string, format?: "log") => unknown;
@@ -36,6 +37,11 @@ function object(value: unknown): ObjectValue {
 }
 function array(value: unknown): unknown[] {
   requireValue(Array.isArray(value) && value.length < 100, "missing or truncated inventory");
+  return value;
+}
+/** A newest-first provider page whose only required entries are the current main commit's; a full page is not truncation. */
+function newestWindow(value: unknown, size: number): unknown[] {
+  requireValue(Array.isArray(value) && value.length <= size, "missing or oversized newest window");
   return value;
 }
 function integer(value: unknown): number {
@@ -166,7 +172,10 @@ function security(read: SourceCiReader, input: SourceCiInput, codeql: ReturnType
   const mainComparison = comparison(read, input.source);
   const intervalStart = Math.min(...codeql.jobs.map(job => timestamp(job.started_at)));
   const intervalEnd = Math.max(...codeql.jobs.map(job => timestamp(job.completed_at)));
-  const analyses = array(read(`${PREFIX}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=100`))
+  // GitHub lists analyses newest first and main accumulates two per push, so the
+  // exact current-main analyses sit inside this bounded window; older history is
+  // not read and its growth cannot fail admission.
+  const analyses = newestWindow(read(`${PREFIX}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=${ANALYSES_WINDOW}`), ANALYSES_WINDOW)
     .map(object).filter(analysis => analysis.commit_sha === input.source
       && timestamp(analysis.created_at) >= intervalStart && timestamp(analysis.created_at) <= intervalEnd);
   requireValue(analyses.length === 2 && new Set(analyses.map(analysis => integer(analysis.id))).size === 2

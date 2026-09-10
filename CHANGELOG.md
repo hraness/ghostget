@@ -7,6 +7,16 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.17.5 - 2026-09-10
+
+- Read the main-branch CodeQL analyses as a bounded twenty-entry newest-first
+  window during release source-CI admission. The `v0.17.4` request failed
+  before building any asset because `main` had accumulated one hundred
+  analyses and the previous single-page read treated a full page as
+  truncation; `v0.17.4` stays an assetless tag and this version is the first
+  one published to npm by the tag Release workflow. No runtime behavior
+  changes.
+
 ## 0.17.4 - 2026-09-10
 
 - Publish `@hraness/ghostget` to npm automatically from the tag Release
