@@ -1,6 +1,6 @@
 # Publish Ghostget
 
-Ghostget starts at `@hraness/ghostget@0.17.3`, with command `ghostget` and the
+Ghostget starts at `@hraness/ghostget@0.17.4`, with command `ghostget` and the
 existing seven SDK subpaths. GitHub Releases became canonical under the former
 `@hraness/wrench` name at v0.16.13. Historical manifests, archive filenames, and
 signed provenance keep that original identity. npm carries the identical
@@ -151,7 +151,7 @@ first canonical Ghostget release.
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.17.3/hraness-ghostget-0.17.3.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.17.4/hraness-ghostget-0.17.4.tgz
 ghostget --version
 ghostget doctor --json
 ```
