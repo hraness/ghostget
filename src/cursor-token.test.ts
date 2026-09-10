@@ -42,7 +42,7 @@ function state(): TestState {
   roots.push(root);
   return {
     root,
-    environment: { ...process.env, WRENCH_STATE_HOME: root },
+    environment: { ...process.env, GHOSTGET_STATE_HOME: root },
   };
 }
 

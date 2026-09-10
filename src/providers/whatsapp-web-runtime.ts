@@ -23,14 +23,14 @@ import { fileURLToPath } from "node:url";
 
 import { BoundedByteBuffer } from "@hraness/kb/clip/bounded-byte-buffer";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import { canonicalJson } from "../canonical-json";
 import type { OperationInput, WebSessionRecipe } from "../model";
 import { OperationDeadline } from "../operation-deadline";
 import type {
   ProviderPluginLinkedDeviceAttemptBoundaryV1,
 } from "../provider-plugin";
-import { assertSafeStatePath, wrenchStateHome } from "../storage";
+import { assertSafeStatePath, ghostgetStateHome } from "../storage";
 import type {
   WebSessionExecution,
   WebSessionCleanupBarrierRegistrar,
@@ -84,7 +84,7 @@ const MESSAGE_EXPORT_SESSION_PRIVATE_FILE_MODE = 0o600;
 const WEB_SESSION_OPERATION_LABEL = "authenticated web operation deadline";
 
 type WhatsAppAuth = Extract<
-  WrenchAuth,
+  GhostgetAuth,
   { readonly kind: "linked-device-store" }
 >;
 
@@ -219,7 +219,7 @@ function isWhatsAppOperation(
   return (WHATSAPP_WEB_OPERATION_NAMES as readonly string[]).includes(value);
 }
 
-function requireWhatsAppAuth(auth: WrenchAuth): WhatsAppAuth {
+function requireWhatsAppAuth(auth: GhostgetAuth): WhatsAppAuth {
   if (
     auth.kind !== "linked-device-store"
     || auth.provider !== "whatsapp"
@@ -542,7 +542,7 @@ export async function resolvePinnedWacliBinary(
 ): Promise<string> {
   const candidates = [
     join(
-      wrenchStateHome(environment),
+      ghostgetStateHome(environment),
       "tools",
       "wacli",
       WHATSAPP_PROTOCOL_PIN.version,
@@ -915,7 +915,7 @@ async function authStatus(
 }
 
 async function boundRuntime(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   purpose: "probe" | "projection",
   timeoutMs: number,
   dependencies: WhatsAppWebRuntimeDependencies | undefined,
@@ -975,7 +975,7 @@ async function boundRuntime(
 }
 
 export async function probeWhatsAppWebSubject(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly dependencies?: WhatsAppWebRuntimeDependencies;
     readonly environment?: Readonly<Record<string, string | undefined>>;
@@ -2815,7 +2815,7 @@ async function executeLocalProjection(
 export async function executeWhatsAppWebOperation(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly dependencies?: WhatsAppWebRuntimeDependencies;
     readonly environment?: Readonly<Record<string, string | undefined>>;
@@ -2897,7 +2897,7 @@ export type WhatsAppPairingPlan = {
 };
 
 export async function planWhatsAppPairing(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly phone?: string;
     readonly dependencies?: WhatsAppWebRuntimeDependencies;
@@ -2954,7 +2954,7 @@ async function runInteractivePairing(
 }
 
 export async function pairWhatsAppAuth(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly phone?: string;
     readonly dependencies?: WhatsAppWebRuntimeDependencies;
@@ -2988,7 +2988,7 @@ export type WhatsAppSyncPlan = {
 };
 
 export async function planWhatsAppSyncOnce(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly dependencies?: WhatsAppWebRuntimeDependencies;
     readonly environment?: Readonly<Record<string, string | undefined>>;
@@ -3029,7 +3029,7 @@ export async function planWhatsAppSyncOnce(
 }
 
 export async function syncWhatsAppAuthOnce(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly dependencies?: WhatsAppWebRuntimeDependencies;
     readonly environment?: Readonly<Record<string, string | undefined>>;

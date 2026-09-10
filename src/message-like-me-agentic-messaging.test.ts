@@ -3,16 +3,16 @@ import { describe, expect, test } from "bun:test";
 import { canonicalJson, sha256 } from "./canonical-json";
 import {
   MESSAGE_LIKE_ME_SOURCE_CONVERSATION_COORDINATE_V1_CONTRACT_ID,
-  WRENCH_MESSAGING_CLIENT_INTENT_BINDING_V1_CONTRACT_ID,
-  WRENCH_MESSAGING_CLIENT_INTENT_BINDING_V1_FORMAT,
-  WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR,
-  WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH,
-  WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR,
-  WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_CLIENT_INTENT_BINDING_V1_CONTRACT_ID,
+  GHOSTGET_MESSAGING_CLIENT_INTENT_BINDING_V1_FORMAT,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR,
+  GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH,
   createBeeperMessageLikeMeContextBindingV2,
-  createWrenchMessagingReceiptBindingV2,
+  createGhostgetMessagingReceiptBindingV2,
   messageLikeMeSourceConversationCoordinateBindingV1,
-  wrenchMessagingContextBindingSha256V2,
+  ghostgetMessagingContextBindingSha256V2,
 } from "./message-like-me-agentic-messaging";
 
 const HASH_A = "a".repeat(64);
@@ -216,25 +216,25 @@ describe("Message Like Me agentic messaging contracts", () => {
   });
 
   test("pins context and receipt contracts and binds the coordinate into receipts", () => {
-    expect(sha256(canonicalJson(WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR)))
-      .toBe(WRENCH_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH);
-    expect(sha256(canonicalJson(WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR)))
-      .toBe(WRENCH_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH);
+    expect(sha256(canonicalJson(GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_DESCRIPTOR)))
+      .toBe(GHOSTGET_MESSAGING_CONTEXT_BINDING_V2_CONTRACT_HASH);
+    expect(sha256(canonicalJson(GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_DESCRIPTOR)))
+      .toBe(GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_HASH);
 
     const context = contextBinding();
     const clientIntent = {
       schemaVersion: 1,
-      format: WRENCH_MESSAGING_CLIENT_INTENT_BINDING_V1_FORMAT,
-      contractId: WRENCH_MESSAGING_CLIENT_INTENT_BINDING_V1_CONTRACT_ID,
+      format: GHOSTGET_MESSAGING_CLIENT_INTENT_BINDING_V1_FORMAT,
+      contractId: GHOSTGET_MESSAGING_CLIENT_INTENT_BINDING_V1_CONTRACT_ID,
       clientIntentSha256: HASH_A,
-      contextBindingSha256: wrenchMessagingContextBindingSha256V2(context),
+      contextBindingSha256: ghostgetMessagingContextBindingSha256V2(context),
       sourceConversationCoordinateSha256: context.sourceConversationCoordinate.sha256,
       routeRefSha256: sha256(context.routeRef),
       contextRefSha256: sha256(context.contextRef),
       turnDigest: HASH_B,
       partCount: 2,
     };
-    const receipt = createWrenchMessagingReceiptBindingV2({
+    const receipt = createGhostgetMessagingReceiptBindingV2({
       context,
       clientIntent,
       previewDigest: HASH_C,
@@ -255,7 +255,7 @@ describe("Message Like Me agentic messaging contracts", () => {
       { routeRefSha256: HASH_C },
       { contextRefSha256: HASH_A },
     ]) {
-      expect(() => createWrenchMessagingReceiptBindingV2({
+      expect(() => createGhostgetMessagingReceiptBindingV2({
         context,
         clientIntent: { ...clientIntent, ...changed },
         previewDigest: HASH_C,
@@ -271,7 +271,7 @@ describe("Message Like Me agentic messaging contracts", () => {
       { ...context, validatedAt: "2026-08-27T12:00:01.000Z" },
       { ...context, expiresAt: "2026-08-27T12:09:59.000Z" },
     ]) {
-      expect(() => createWrenchMessagingReceiptBindingV2({
+      expect(() => createGhostgetMessagingReceiptBindingV2({
         context: changedContext,
         clientIntent,
         previewDigest: HASH_C,
@@ -281,7 +281,7 @@ describe("Message Like Me agentic messaging contracts", () => {
         recordedAt: "2026-08-27T12:01:00.000Z",
       })).toThrow("does not bind the exact context instance");
     }
-    expect(() => createWrenchMessagingReceiptBindingV2({
+    expect(() => createGhostgetMessagingReceiptBindingV2({
       context: { ...context, contractHash: HASH_C },
       clientIntent,
       previewDigest: HASH_C,

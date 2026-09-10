@@ -77,26 +77,26 @@ function fixture(): {
 function canonicalPluginOutput(pluginId: string): string {
   const containedRoot = mkdtempSync(join(import.meta.dir, ".provider-scaffold-test-"));
   roots.push(containedRoot);
-  const wrenchRoot = join(containedRoot, "skills", "wrench");
-  const outputDirectory = join(wrenchRoot, "plugins", pluginId);
-  mkdirSync(wrenchRoot, { recursive: true });
+  const ghostgetRoot = join(containedRoot, "skills", "wrench");
+  const outputDirectory = join(ghostgetRoot, "plugins", pluginId);
+  mkdirSync(ghostgetRoot, { recursive: true });
   writeFileSync(
-    join(wrenchRoot, "provider-plugin.ts"),
+    join(ghostgetRoot, "provider-plugin.ts"),
     `export { defineProviderPlugin, lazyWebSessionRuntime } from ${JSON.stringify(
       join(import.meta.dir, "provider-plugin.ts"),
     )};\n`,
   );
-  writeFileSync(join(wrenchRoot, "auth.ts"), "export {};\n");
-  writeFileSync(join(wrenchRoot, "web-session.ts"), "export {};\n");
+  writeFileSync(join(ghostgetRoot, "auth.ts"), "export {};\n");
+  writeFileSync(join(ghostgetRoot, "web-session.ts"), "export {};\n");
   return outputDirectory;
 }
 
 describe("code-owned web provider scaffold", () => {
-  test("is exposed through the public wrench CLI without widening its authority", async () => {
+  test("is exposed through the public ghostget CLI without widening its authority", async () => {
     const value = fixture();
     const child = Bun.spawn([
       process.execPath,
-      join(import.meta.dir, "wrench.ts"),
+      join(import.meta.dir, "ghostget.ts"),
       "plugin",
       "scaffold",
       "--site", "acme",
@@ -133,7 +133,7 @@ describe("code-owned web provider scaffold", () => {
         "promotion-checklist.json",
       ],
       next:
-        "Review the source unit at src/plugins/acme-web, then run 'wrench plugin check src/plugins/acme-web'; the scaffold performs no request and contains no browser action.",
+        "Review the source unit at src/plugins/acme-web, then run 'ghostget plugin check src/plugins/acme-web'; the scaffold performs no request and contains no browser action.",
     });
     expect(stdout).not.toContain("/api/items");
   });
@@ -330,9 +330,9 @@ describe("code-owned web provider scaffold", () => {
         operations: [{ name: "feeds.read", contractVersions: [1] }],
       }],
     });
-    const checkedThroughWrench = Bun.spawn([
+    const checkedThroughGhostget = Bun.spawn([
       process.execPath,
-      join(import.meta.dir, "wrench.ts"),
+      join(import.meta.dir, "ghostget.ts"),
       "plugin",
       "check",
       outputDirectory,
@@ -342,12 +342,12 @@ describe("code-owned web provider scaffold", () => {
       stderr: "pipe",
     });
     const [checkExitCode, checkStdout, checkStderr] = await Promise.all([
-      checkedThroughWrench.exited,
-      new Response(checkedThroughWrench.stdout).text(),
-      new Response(checkedThroughWrench.stderr).text(),
+      checkedThroughGhostget.exited,
+      new Response(checkedThroughGhostget.stdout).text(),
+      new Response(checkedThroughGhostget.stderr).text(),
     ]);
     if (checkExitCode !== 0) {
-      throw new Error(`wrench plugin check failed:\n${checkStdout}\n${checkStderr}`);
+      throw new Error(`ghostget plugin check failed:\n${checkStdout}\n${checkStderr}`);
     }
     expect(JSON.parse(checkStdout)).toEqual({
       status: "capture-required",

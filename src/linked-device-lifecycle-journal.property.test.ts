@@ -414,8 +414,8 @@ test("the documented lifecycle replay coordinate remains executable", () => {
     endOnFailure: true,
     numRuns: 1,
   }, propertyReplayParameters({
-    WRENCH_PROPERTY_SEED: "-17",
-    WRENCH_PROPERTY_PATH: "3:0",
+    GHOSTGET_PROPERTY_SEED: "-17",
+    GHOSTGET_PROPERTY_PATH: "3:0",
   }));
 });
 

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@hraness/wrench",
+      "name": "@hraness/ghostget",
       "dependencies": {
         "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
         "@hraness/message-like-me": "github:hraness/message-like-me#v0.7.0",

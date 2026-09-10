@@ -20,11 +20,11 @@ import {
 
 import type { StrictCookie } from "@hraness/kb/clip/cookies";
 import { assertAsyncProperty, fc } from "./test-support";
-import { loadAuth, saveAuth, type WrenchAuth } from "./auth";
-import { main } from "./wrench";
+import { loadAuth, saveAuth, type GhostgetAuth } from "./auth";
+import { main } from "./ghostget";
 import {
   canonicalJson,
-  type WrenchManifest,
+  type GhostgetManifest,
   type OperationInput,
   type WebSessionRecipe,
 } from "./model";
@@ -503,7 +503,7 @@ function installPackage(
 ): void {
   const verified = verifyPortableProviderPluginPackageDirectory(packageRoot);
   installPortableProviderPluginPackage(packageRoot, {
-    storeRoot: join(environment.WRENCH_STATE_HOME ?? "", "provider-plugins"),
+    storeRoot: join(environment.GHOSTGET_STATE_HOME ?? "", "provider-plugins"),
     approval: {
       decision: "trust-executable-code",
       pluginId: verified.manifest.id,
@@ -521,7 +521,7 @@ function emptyRegistry() {
   return createProviderPluginRegistry([]);
 }
 
-function cookiesAuth(path: string): Extract<WrenchAuth, { readonly kind: "cookies-file" }> {
+function cookiesAuth(path: string): Extract<GhostgetAuth, { readonly kind: "cookies-file" }> {
   return {
     schemaVersion: 1,
     id: "portable-cookies",
@@ -532,7 +532,7 @@ function cookiesAuth(path: string): Extract<WrenchAuth, { readonly kind: "cookie
 }
 
 function webRecipe(
-  manifest: WrenchManifest,
+  manifest: GhostgetManifest,
   operation: string,
 ): WebSessionRecipe {
   const recipe = manifest.operations[operation]?.webSession;
@@ -583,7 +583,7 @@ beforeAll(() => {
   fixtureRoot = mkdtempSync(join(tmpdir(), "wrench-portable-runtime-"));
   chmodSync(fixtureRoot, 0o700);
   environment = {
-    WRENCH_STATE_HOME: join(fixtureRoot, "wrench-home"),
+    GHOSTGET_STATE_HOME: join(fixtureRoot, "wrench-home"),
     HOME: fixtureRoot,
   };
   cookiePath = join(fixtureRoot, "cookies.json");
@@ -604,7 +604,7 @@ describe("portable provider runtime catalog", () => {
     ));
     chmodSync(isolatedRoot, 0o700);
     const isolatedEnvironment = {
-      WRENCH_STATE_HOME: join(isolatedRoot, "wrench-home"),
+      GHOSTGET_STATE_HOME: join(isolatedRoot, "wrench-home"),
       HOME: isolatedRoot,
     };
     const isolatedCookiePath = join(isolatedRoot, "cookies.json");
@@ -789,7 +789,7 @@ describe("portable provider runtime catalog", () => {
       );
       chmodSync(isolatedRoot, 0o700);
       const isolatedEnvironment = {
-        WRENCH_STATE_HOME: join(isolatedRoot, "wrench-home"),
+        GHOSTGET_STATE_HOME: join(isolatedRoot, "wrench-home"),
         HOME: isolatedRoot,
       };
       const packageRoot = createPackage(isolatedRoot, mainIdentity, true);
@@ -836,7 +836,7 @@ describe("portable provider runtime catalog", () => {
         throw new Error("portable cleanup fixture is unavailable");
       }
       const controller = new AbortController();
-      const auth: WrenchAuth = transport === "web-session-api"
+      const auth: GhostgetAuth = transport === "web-session-api"
         ? cookiesAuth(join(isolatedRoot, "cookies.json"))
         : {
             schemaVersion: 1,
@@ -931,7 +931,7 @@ describe("portable provider runtime catalog", () => {
     );
     chmodSync(isolatedRoot, 0o700);
     const isolatedEnvironment = {
-      WRENCH_STATE_HOME: join(isolatedRoot, "wrench-home"),
+      GHOSTGET_STATE_HOME: join(isolatedRoot, "wrench-home"),
       HOME: isolatedRoot,
     };
     const packageRoot = createPackage(isolatedRoot, mainIdentity, true);
@@ -1007,7 +1007,7 @@ describe("portable provider runtime catalog", () => {
     );
     chmodSync(isolatedRoot, 0o700);
     const isolatedEnvironment = {
-      WRENCH_STATE_HOME: join(isolatedRoot, "wrench-home"),
+      GHOSTGET_STATE_HOME: join(isolatedRoot, "wrench-home"),
       HOME: isolatedRoot,
     };
     const packageRoot = createPackage(isolatedRoot, mainIdentity, true);
@@ -1100,7 +1100,7 @@ describe("portable provider runtime catalog", () => {
     );
     chmodSync(isolatedRoot, 0o700);
     const isolatedEnvironment = {
-      WRENCH_STATE_HOME: join(isolatedRoot, "wrench-home"),
+      GHOSTGET_STATE_HOME: join(isolatedRoot, "wrench-home"),
       HOME: isolatedRoot,
     };
     const packageRoot = createPackage(isolatedRoot, mainIdentity, true);
@@ -1204,7 +1204,7 @@ describe("portable provider runtime catalog", () => {
     );
     chmodSync(isolatedRoot, 0o700);
     const isolatedEnvironment = {
-      WRENCH_STATE_HOME: join(isolatedRoot, "wrench-home"),
+      GHOSTGET_STATE_HOME: join(isolatedRoot, "wrench-home"),
       HOME: isolatedRoot,
     };
     const packageRoot = createPackage(isolatedRoot, mainIdentity, true);
@@ -1315,7 +1315,7 @@ describe("portable provider runtime catalog", () => {
     );
     chmodSync(isolatedRoot, 0o700);
     const isolatedEnvironment = {
-      WRENCH_STATE_HOME: join(isolatedRoot, "wrench-home"),
+      GHOSTGET_STATE_HOME: join(isolatedRoot, "wrench-home"),
       HOME: isolatedRoot,
     };
     const packageRoot = createPackage(isolatedRoot, mainIdentity, true);
@@ -1360,14 +1360,14 @@ describe("portable provider runtime catalog", () => {
     );
     chmodSync(isolatedRoot, 0o700);
     const isolatedEnvironment = {
-      WRENCH_STATE_HOME: join(isolatedRoot, "wrench-home"),
+      GHOSTGET_STATE_HOME: join(isolatedRoot, "wrench-home"),
       HOME: isolatedRoot,
     };
     const packageRoot = createPackage(isolatedRoot, mainIdentity, true);
     const authPath = join(isolatedRoot, "cookies.json");
     writeFileSync(authPath, "[]", { mode: 0o600 });
     installPackage(packageRoot, isolatedEnvironment);
-    const unboundAuth: WrenchAuth = {
+    const unboundAuth: GhostgetAuth = {
       schemaVersion: 1,
       id: "portable-cookies",
       kind: "cookies-file",
@@ -1637,7 +1637,7 @@ describe("portable provider runtime catalog", () => {
     const isolatedRoot = mkdtempSync(join(fixtureRoot, "missing-journal-"));
     chmodSync(isolatedRoot, 0o700);
     const isolatedEnvironment = {
-      WRENCH_STATE_HOME: isolatedRoot,
+      GHOSTGET_STATE_HOME: isolatedRoot,
       HOME: fixtureRoot,
     };
     try {
@@ -1805,7 +1805,7 @@ describe("portable provider runtime catalog", () => {
     if (recipe === undefined) throw new Error("provider recipe is unavailable");
     let output: unknown;
     const controller = new AbortController();
-    const auth: Extract<WrenchAuth, { readonly kind: "oauth-token-file" }> = {
+    const auth: Extract<GhostgetAuth, { readonly kind: "oauth-token-file" }> = {
       schemaVersion: 1,
       id: "portable-oauth",
       kind: "oauth-token-file",
@@ -1923,7 +1923,7 @@ describe("portable provider runtime catalog", () => {
     chmodSync(collisionRoot, 0o700);
     try {
       const collisionEnvironment = {
-        WRENCH_STATE_HOME: join(collisionRoot, "wrench-home"),
+        GHOSTGET_STATE_HOME: join(collisionRoot, "wrench-home"),
         HOME: collisionRoot,
       };
       installPackage(
@@ -2020,7 +2020,7 @@ describe("portable provider runtime capability containment", () => {
     );
     chmodSync(isolatedRoot, 0o700);
     const isolatedEnvironment = {
-      WRENCH_STATE_HOME: join(isolatedRoot, "wrench-home"),
+      GHOSTGET_STATE_HOME: join(isolatedRoot, "wrench-home"),
       HOME: isolatedRoot,
     };
     installPackage(
@@ -2141,7 +2141,7 @@ describe("portable provider runtime capability containment", () => {
     );
     chmodSync(isolatedRoot, 0o700);
     const isolatedEnvironment = {
-      WRENCH_STATE_HOME: join(isolatedRoot, "wrench-home"),
+      GHOSTGET_STATE_HOME: join(isolatedRoot, "wrench-home"),
       HOME: isolatedRoot,
     };
     installPackage(
@@ -2242,7 +2242,7 @@ describe("portable provider runtime capability containment", () => {
     );
     chmodSync(isolatedRoot, 0o700);
     const isolatedEnvironment = {
-      WRENCH_STATE_HOME: join(isolatedRoot, "wrench-home"),
+      GHOSTGET_STATE_HOME: join(isolatedRoot, "wrench-home"),
       HOME: isolatedRoot,
     };
     installPackage(
@@ -2937,7 +2937,7 @@ describe("portable provider runtime capability containment", () => {
     ) throw new Error("portable provider projection is unavailable");
     const recipe = manifest.operations["records.read"]?.provider;
     if (recipe === undefined) throw new Error("provider recipe is unavailable");
-    const auth: Extract<WrenchAuth, { readonly kind: "oauth-token-file" }> = {
+    const auth: Extract<GhostgetAuth, { readonly kind: "oauth-token-file" }> = {
       schemaVersion: 1,
       id: "portable-oauth",
       kind: "oauth-token-file",
@@ -3018,7 +3018,7 @@ describe("portable provider runtime capability containment", () => {
     ) throw new Error("portable provider projection is unavailable");
     const recipe = manifest.operations["records.read"]?.provider;
     if (recipe === undefined) throw new Error("provider recipe is unavailable");
-    const auth: Extract<WrenchAuth, { readonly kind: "oauth-token-file" }> = {
+    const auth: Extract<GhostgetAuth, { readonly kind: "oauth-token-file" }> = {
       schemaVersion: 1,
       id: "portable-oauth",
       kind: "oauth-token-file",
@@ -3175,7 +3175,7 @@ describe("confirmed portable native ownership", () => {
   test("confirms through the real admission-gated host and releases only proven native custody", async () => {
     const isolatedRoot = mkdtempSync(join(tmpdir(), "wrench-confirmed-native-host-"));
     chmodSync(isolatedRoot, 0o700);
-    const isolatedEnvironment = { WRENCH_STATE_HOME: join(isolatedRoot, "wrench-home"), HOME: isolatedRoot };
+    const isolatedEnvironment = { GHOSTGET_STATE_HOME: join(isolatedRoot, "wrench-home"), HOME: isolatedRoot };
     const path = join(isolatedRoot, "cookies.json");
     try {
       writeFileSync(path, "[]", { mode: 0o600 });
@@ -3208,7 +3208,7 @@ describe("confirmed portable native ownership", () => {
   test("keeps the real confirmed lease through cancelled host settlement and late unsafe cleanup", async () => {
     const isolatedRoot = mkdtempSync(join(tmpdir(), "wrench-confirmed-held-native-host-"));
     chmodSync(isolatedRoot, 0o700);
-    const isolatedEnvironment = { WRENCH_STATE_HOME: join(isolatedRoot, "wrench-home"), HOME: isolatedRoot };
+    const isolatedEnvironment = { GHOSTGET_STATE_HOME: join(isolatedRoot, "wrench-home"), HOME: isolatedRoot };
     const path = join(isolatedRoot, "cookies.json");
     const started = Promise.withResolvers<void>();
     const finishHost = Promise.withResolvers<void>();

@@ -29,7 +29,7 @@ import type {
 import {
   ensurePrivateDirectory,
   removePrivateStateDirectoryTree,
-  wrenchStateHome,
+  ghostgetStateHome,
   type PrivateDirectoryIdentity,
 } from "./storage";
 
@@ -92,7 +92,7 @@ function digest(value: string): void {
 }
 
 function assetRoot(environment: Readonly<Record<string, string | undefined>>): string {
-  return join(wrenchStateHome(environment), "plan-assets");
+  return join(ghostgetStateHome(environment), "plan-assets");
 }
 
 function hasCode(error: unknown, code: string): boolean {

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { constants, type BigIntStats } from "node:fs";
+import { constants, existsSync, type BigIntStats } from "node:fs";
 import {
   access,
   chmod,
@@ -224,20 +224,20 @@ const defaultDependencies: WhisperCppTranscriberDependencies = {
 const INVALID_MESSAGES = {
   "invalid-location": "The transcriber configuration location is invalid.",
   "unsafe-config": "The transcriber configuration is not a private regular file.",
-  "config-too-large": "The transcriber configuration exceeds Wrench media's size limit.",
+  "config-too-large": "The transcriber configuration exceeds Ghostget media's size limit.",
   "config-permissions": "The transcriber configuration must have mode 0600.",
   "unstable-config": "The transcriber configuration changed while it was being read.",
-  "malformed-config": "The transcriber configuration does not match Wrench media's schema.",
+  "malformed-config": "The transcriber configuration does not match Ghostget media's schema.",
   "missing-executable": "The configured transcriber executable is missing.",
   "invalid-executable": "The configured transcriber executable is not a physical executable file.",
-  "executable-too-large": "The configured transcriber executable exceeds Wrench media's size limit.",
+  "executable-too-large": "The configured transcriber executable exceeds Ghostget media's size limit.",
   "executable-hash-mismatch": "The configured transcriber executable no longer matches its recorded identity.",
-  "capability-mismatch": "The configured executable does not provide Wrench media's required whisper.cpp capabilities.",
-  "runtime-attestation-failed": "Wrench media could not attest the configured executable's native runtime closure.",
+  "capability-mismatch": "The configured executable does not provide Ghostget media's required whisper.cpp capabilities.",
+  "runtime-attestation-failed": "Ghostget media could not attest the configured executable's native runtime closure.",
   "runtime-closure-mismatch": "The configured executable's native runtime closure no longer matches its recorded identity.",
   "missing-model": "The configured whisper.cpp model is missing.",
   "invalid-model": "The configured whisper.cpp model is not a physical regular file.",
-  "model-too-large": "The configured whisper.cpp model exceeds Wrench media's size limit.",
+  "model-too-large": "The configured whisper.cpp model exceeds Ghostget media's size limit.",
   "model-hash-mismatch": "The configured whisper.cpp model no longer matches its recorded identity.",
   "unstable-file": "A configured transcriber file changed while it was being verified.",
 } as const satisfies Readonly<Record<ConfiguredTranscriberInvalidReason, string>>;
@@ -284,11 +284,15 @@ function configurationPath(options: LoadConfiguredTranscriberOptions): string | 
   if (!isSafeAbsolutePath(homeDirectory)) return null;
   const env = options.env ?? process.env;
   const configuredRoot = env.XDG_CONFIG_HOME;
-  if (configuredRoot !== undefined && configuredRoot.length > 0) {
-    if (!isSafeAbsolutePath(configuredRoot)) return null;
-    return join(configuredRoot, "wrench", "media", "transcriber.json");
-  }
-  return join(homeDirectory, ".config", "wrench", "media", "transcriber.json");
+  if (configuredRoot !== undefined && configuredRoot.length > 0 && !isSafeAbsolutePath(configuredRoot)) return null;
+  const configRoot = configuredRoot !== undefined && configuredRoot.length > 0
+    ? configuredRoot : join(homeDirectory, ".config");
+  const current = join(configRoot, "ghostget", "media");
+  const legacy = join(configRoot, "wrench", "media");
+  // Keep an installed transcriber and its interrupted publication state in place.
+  const existing = [current, legacy].filter((path) => existsSync(path));
+  if (existing.length > 1) return null;
+  return join(existing[0] ?? current, "transcriber.json");
 }
 
 function fileIdentity(metadata: BigIntStats): FileIdentity {
@@ -610,7 +614,7 @@ async function createTemporaryConfig(
     } catch {
       throw new WhisperCppTranscriberSetupError(
         "CONFIG_WRITE_FAILED",
-        "Wrench media could not allocate a private transcriber configuration file.",
+        "Ghostget media could not allocate a private transcriber configuration file.",
       );
     }
     if (token.length === 0) continue;
@@ -626,7 +630,7 @@ async function createTemporaryConfig(
       if (isErrno(error, "EEXIST")) continue;
       throw new WhisperCppTranscriberSetupError(
         "CONFIG_WRITE_FAILED",
-        "Wrench media could not create the private transcriber configuration.",
+        "Ghostget media could not create the private transcriber configuration.",
       );
     }
     try {
@@ -642,7 +646,7 @@ async function createTemporaryConfig(
       }
       throw new WhisperCppTranscriberSetupError(
         "CONFIG_WRITE_FAILED",
-        "Wrench media could not write the private transcriber configuration.",
+        "Ghostget media could not write the private transcriber configuration.",
       );
     } finally {
       try {
@@ -654,7 +658,7 @@ async function createTemporaryConfig(
   }
   throw new WhisperCppTranscriberSetupError(
     "CONFIG_WRITE_FAILED",
-    "Wrench media could not allocate a private transcriber configuration file.",
+    "Ghostget media could not allocate a private transcriber configuration file.",
   );
 }
 
@@ -681,7 +685,7 @@ async function publishConfig(
   if (destination === null) {
     throw new WhisperCppTranscriberSetupError(
       "CONFIG_UNSAFE",
-      "Wrench media could not prepare a private transcriber configuration directory.",
+      "Ghostget media could not prepare a private transcriber configuration directory.",
     );
   }
   const source = configSource(document);
@@ -707,7 +711,7 @@ async function publishConfig(
           if (isErrno(error, "EEXIST")) continue;
           throw new WhisperCppTranscriberSetupError(
             "CONFIG_WRITE_FAILED",
-            "Wrench media could not publish the private transcriber configuration.",
+            "Ghostget media could not publish the private transcriber configuration.",
           );
         }
       } else {
@@ -717,7 +721,7 @@ async function publishConfig(
         } catch {
           throw new WhisperCppTranscriberSetupError(
             "CONFIG_WRITE_FAILED",
-            "Wrench media could not replace the private transcriber configuration.",
+            "Ghostget media could not replace the private transcriber configuration.",
           );
         }
       }
@@ -745,13 +749,13 @@ function setupFileError(role: VerifiedFileRole, reason: VerifiedFileFailureReaso
   if (reason === "too-large") {
     throw new WhisperCppTranscriberSetupError(
       "FILE_TOO_LARGE",
-      `The whisper.cpp ${role} exceeds Wrench media's size limit.`,
+      `The whisper.cpp ${role} exceeds Ghostget media's size limit.`,
     );
   }
   if (reason === "unstable") {
     throw new WhisperCppTranscriberSetupError(
       "UNSTABLE_FILE",
-      `The whisper.cpp ${role} changed while Wrench media verified it.`,
+      `The whisper.cpp ${role} changed while Ghostget media verified it.`,
     );
   }
   throw new WhisperCppTranscriberSetupError(
@@ -867,7 +871,7 @@ export async function setupWhisperCppTranscriber(
     if (executablePath === null) {
       throw new WhisperCppTranscriberSetupError(
         "EXECUTABLE_NOT_FOUND",
-        "Wrench media could not find a local whisper-cli executable.",
+        "Ghostget media could not find a local whisper-cli executable.",
       );
     }
   }
@@ -883,20 +887,20 @@ export async function setupWhisperCppTranscriber(
   if (runtimeBeforeProbe === null) {
     throw new WhisperCppTranscriberSetupError(
       "RUNTIME_ATTESTATION_FAILED",
-      "Wrench media could not attest the executable's native runtime closure.",
+      "Ghostget media could not attest the executable's native runtime closure.",
     );
   }
   if (!await verifiesWhisperCppCapabilities(executable.physicalPath, dependencies)) {
     throw new WhisperCppTranscriberSetupError(
       "CAPABILITY_MISMATCH",
-      "The executable does not provide Wrench media's required whisper.cpp CLI capabilities.",
+      "The executable does not provide Ghostget media's required whisper.cpp CLI capabilities.",
     );
   }
   const runtimeAfterProbe = await tryAttestRuntimeClosure(executable, dependencies);
   if (runtimeAfterProbe === null) {
     throw new WhisperCppTranscriberSetupError(
       "RUNTIME_ATTESTATION_FAILED",
-      "Wrench media could not attest the executable's native runtime closure.",
+      "Ghostget media could not attest the executable's native runtime closure.",
     );
   }
   const [executableAfterProbe, modelAfterProbe] = await Promise.all([
@@ -909,7 +913,7 @@ export async function setupWhisperCppTranscriber(
   ) {
     throw new WhisperCppTranscriberSetupError(
       "UNSTABLE_FILE",
-      "The whisper.cpp executable changed while Wrench media verified its capabilities.",
+      "The whisper.cpp executable changed while Ghostget media verified its capabilities.",
     );
   }
   if (
@@ -918,7 +922,7 @@ export async function setupWhisperCppTranscriber(
   ) {
     throw new WhisperCppTranscriberSetupError(
       "UNSTABLE_FILE",
-      "The whisper.cpp model changed while Wrench media verified the executable's capabilities.",
+      "The whisper.cpp model changed while Ghostget media verified the executable's capabilities.",
     );
   }
   if (!sameRuntimeClosure(runtimeBeforeProbe, runtimeAfterProbe)) {

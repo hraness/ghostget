@@ -7,18 +7,18 @@ import {
 } from "./source/analytics";
 
 const evidence = {
-  href: "https://wrench.rip/?utm_source=private#fragment",
+  href: "https://ghostget.com/?utm_source=private#fragment",
   referrer: "https://chatgpt.com/private/thread?token=private",
 } as const;
 
-describe("Wrench browser analytics", () => {
+describe("Ghostget browser analytics", () => {
   test("sends repository interest immediately with an unload-safe transport", () => {
     const captures: unknown[][] = [];
     const properties = {
       target_host: "github.com",
       target_id: "hero-github",
       target_kind: "repository",
-      target_path: "/hraness/wrench",
+      target_path: "/hraness/ghostget",
     } as const;
 
     captureProjectLink({
@@ -64,12 +64,12 @@ describe("Wrench browser analytics", () => {
     const capture = sanitizeCapture({
       event: "$pageview",
       properties: {
-        $current_url: "https://wrench.rip/?utm_campaign=private#private",
+        $current_url: "https://ghostget.com/?utm_campaign=private#private",
         $pathname: "/private-value",
         $referrer: "https://chatgpt.com/c/private?secret=value",
         nested: {
           email: "reader@example.com",
-          href: "https://wrench.rip/private?token=secret",
+          href: "https://ghostget.com/private?token=secret",
         },
         token: "phc_public_project_token",
         utm_campaign: "private",
@@ -79,13 +79,13 @@ describe("Wrench browser analytics", () => {
 
     expect(capture).not.toBeNull();
     expect(capture?.properties).toMatchObject({
-      $current_url: "https://wrench.rip/",
+      $current_url: "https://ghostget.com/",
       $pathname: "/",
       $process_person_profile: false,
       analytics_schema_version: 1,
-      canonical_domain: "wrench.rip",
+      canonical_domain: "ghostget.com",
       canonical_path: "/",
-      content_group: "wrench",
+      content_group: "ghostget",
       page_kind: "product_landing",
       referrer_host: "chatgpt.com",
       site_id: "wrench",
@@ -95,7 +95,7 @@ describe("Wrench browser analytics", () => {
     expect(capture?.properties).not.toHaveProperty("utm_campaign");
     expect(capture?.properties.nested).toEqual({
       email: "[email]",
-      href: "https://wrench.rip/",
+      href: "https://ghostget.com/",
     });
   });
 
@@ -103,12 +103,12 @@ describe("Wrench browser analytics", () => {
     const notFound = sanitizeCapture({
       event: "$pageview",
       properties: {
-        $current_url: "https://wrench.rip/private/path?query=secret",
+        $current_url: "https://ghostget.com/private/path?query=secret",
         token: "phc_public_project_token",
       },
     }, evidence);
     expect(notFound?.properties).toMatchObject({
-      $current_url: "https://wrench.rip/not-found",
+      $current_url: "https://ghostget.com/not-found",
       canonical_path: "/not-found",
       page_kind: "not_found",
     });
@@ -146,13 +146,13 @@ describe("Wrench browser analytics", () => {
       const capture = sanitizeCapture({
         event: "$pageview",
         properties: {
-          $current_url: `https://wrench.rip${path}?utm_source=private#private-fragment`,
+          $current_url: `https://ghostget.com${path}?utm_source=private#private-fragment`,
           $pathname: `${path}?private=query`,
           token: "phc_public_project_token",
         },
       }, evidence);
       expect(capture?.properties).toMatchObject({
-        $current_url: `https://wrench.rip${path}`,
+        $current_url: `https://ghostget.com${path}`,
         $pathname: path,
         canonical_path: path,
         page_kind: pageKind,
@@ -173,14 +173,14 @@ describe("Wrench browser analytics", () => {
         target_host: "github.com",
         target_id: "hero-github",
         target_kind: "repository",
-        target_path: "/hraness/wrench",
+        target_path: "/hraness/ghostget",
         token: "phc_public_project_token",
       },
     }, evidence)?.properties).toMatchObject({
       target_host: "github.com",
       target_id: "hero-github",
       target_kind: "repository",
-      target_path: "/hraness/wrench",
+      target_path: "/hraness/ghostget",
     });
     expect(sanitizeCapture({
       event: "$autocapture",

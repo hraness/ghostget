@@ -1,12 +1,12 @@
 /**
- * Self-contained data transfer types for the public Wrench client.
+ * Self-contained data transfer types for the public Ghostget client.
  *
  * Keep this module free of runtime and provider-kernel imports so TypeScript
- * consumers can inspect `@hraness/wrench/client` without loading Wrench's
+ * consumers can inspect `@hraness/ghostget/client` without loading Ghostget's
  * internal type graph.
  */
 
-export type WrenchClientEnvironment = Readonly<
+export type GhostgetClientEnvironment = Readonly<
   Record<string, string | undefined>
 >;
 
@@ -18,7 +18,7 @@ export type CapabilityReadRequest = {
 };
 
 export type ReadCapabilityOptions = {
-  readonly environment?: WrenchClientEnvironment;
+  readonly environment?: GhostgetClientEnvironment;
   readonly freshForMs?: number;
   readonly now?: Date;
 };
@@ -29,13 +29,13 @@ export type RevalidateCapabilityOptions = ReadCapabilityOptions & {
 };
 
 export type InvokeCapabilityOptions = Readonly<{
-  readonly environment?: WrenchClientEnvironment;
+  readonly environment?: GhostgetClientEnvironment;
   readonly headed?: boolean;
   readonly signal?: AbortSignal;
 }>;
 
 export type InvokeCapabilitySyncOptions = Readonly<{
-  readonly environment?: WrenchClientEnvironment;
+  readonly environment?: GhostgetClientEnvironment;
   readonly headed?: boolean;
 }>;
 
@@ -92,7 +92,7 @@ export type ReadProjectionCacheOutcome =
       readonly message: string;
     };
 
-export type WrenchClientPortableOperationIdentity = {
+export type GhostgetClientPortableOperationIdentity = {
   readonly pluginId: string;
   readonly pluginVersion: string;
   readonly hostApiVersion: 1;
@@ -106,7 +106,7 @@ export type WrenchClientPortableOperationIdentity = {
   readonly descriptorSha256: string;
 };
 
-export type WrenchClientLocalCliToolArtifactIdentity = {
+export type GhostgetClientLocalCliToolArtifactIdentity = {
   readonly platform: string;
   readonly arch: string;
   readonly executableSha256: string;
@@ -114,7 +114,7 @@ export type WrenchClientLocalCliToolArtifactIdentity = {
   readonly downloadUrl?: string;
 };
 
-export type WrenchClientLocalCliToolIdentity = {
+export type GhostgetClientLocalCliToolIdentity = {
   readonly schemaVersion: 1;
   readonly id: string;
   readonly implementation: string;
@@ -124,18 +124,18 @@ export type WrenchClientLocalCliToolIdentity = {
   readonly releaseManifestSha256?: string;
   readonly releaseManifestUrl?: string;
   readonly sourceUrl?: string;
-  readonly artifacts: readonly WrenchClientLocalCliToolArtifactIdentity[];
+  readonly artifacts: readonly GhostgetClientLocalCliToolArtifactIdentity[];
 };
 
-export type WrenchClientLocalCliContractIdentity = {
+export type GhostgetClientLocalCliContractIdentity = {
   readonly surface: string;
   readonly action: string;
   readonly version: number;
   readonly hash: string;
-  readonly tool: WrenchClientLocalCliToolIdentity;
+  readonly tool: GhostgetClientLocalCliToolIdentity;
 };
 
-export type WrenchClientRunReceiptCommon = {
+export type GhostgetClientRunReceiptCommon = {
   readonly runId: string;
   readonly planDigest: null;
   readonly adapter: {
@@ -170,7 +170,7 @@ export type WrenchClientRunReceiptCommon = {
   readonly error: string | null;
 };
 
-export type WrenchClientRunReceipt = WrenchClientRunReceiptCommon & (
+export type GhostgetClientRunReceipt = GhostgetClientRunReceiptCommon & (
   | {
       readonly schemaVersion: 2;
       readonly transport: "browser";
@@ -193,16 +193,16 @@ export type WrenchClientRunReceipt = WrenchClientRunReceiptCommon & (
   | {
       readonly schemaVersion: 6;
       readonly transport: "portable-provider-plugin";
-      readonly portablePluginContract: WrenchClientPortableOperationIdentity;
+      readonly portablePluginContract: GhostgetClientPortableOperationIdentity;
     }
   | {
       readonly schemaVersion: 7;
       readonly transport: "local-cli";
-      readonly localCliContract: WrenchClientLocalCliContractIdentity;
+      readonly localCliContract: GhostgetClientLocalCliContractIdentity;
     }
 );
 
-export type WrenchClientReadFailure =
+export type GhostgetClientReadFailure =
   | {
       readonly category: "target-unavailable";
       readonly retryDisposition: "do-not-retry";
@@ -226,24 +226,24 @@ export type WrenchClientReadFailure =
       readonly retryDisposition: "retry-once-after-60s";
     };
 
-type WrenchClientInvocationCommon = {
+type GhostgetClientInvocationCommon = {
   readonly replayed: boolean;
 };
 
-export type WrenchClientInvocationResult = WrenchClientInvocationCommon & (
+export type GhostgetClientInvocationResult = GhostgetClientInvocationCommon & (
   | {
       /** Receipt-bound top-level discriminant for ordinary control flow. */
       readonly status: "succeeded";
-      readonly receipt: WrenchClientRunReceipt & { readonly status: "succeeded" };
+      readonly receipt: GhostgetClientRunReceipt & { readonly status: "succeeded" };
       readonly output: unknown;
       readonly readFailure?: never;
     }
   | {
       /** Receipt-bound top-level discriminant for ordinary control flow. */
       readonly status: "failed";
-      readonly receipt: WrenchClientRunReceipt & { readonly status: "failed" };
+      readonly receipt: GhostgetClientRunReceipt & { readonly status: "failed" };
       readonly output: null;
-      readonly readFailure: WrenchClientReadFailure;
+      readonly readFailure: GhostgetClientReadFailure;
     }
 );
 
@@ -259,7 +259,7 @@ export type RevalidatedCapability = {
   readonly cachedBefore: ReadProjectionCacheResult | null;
   readonly cachedAfter: ReadProjectionCacheResult | null;
   readonly current: RevalidatedCapabilityCurrent;
-  readonly live: WrenchClientInvocationResult;
+  readonly live: GhostgetClientInvocationResult;
   readonly cache: ReadProjectionCacheOutcome;
 };
 
@@ -280,7 +280,7 @@ export declare function revalidateCapability(
 export declare function invokeCapability(
   request: CapabilityReadRequest,
   options?: InvokeCapabilityOptions,
-): Promise<WrenchClientInvocationResult>;
+): Promise<GhostgetClientInvocationResult>;
 
 /**
  * Synchronous form for local CLI applications that cannot make their command
@@ -290,7 +290,7 @@ export declare function invokeCapability(
 export declare function invokeCapabilitySync(
   request: CapabilityReadRequest,
   options?: InvokeCapabilitySyncOptions,
-): WrenchClientInvocationResult;
+): GhostgetClientInvocationResult;
 
 export declare function staleWhileRevalidateCapability(
   request: CapabilityReadRequest,

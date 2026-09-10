@@ -21,13 +21,13 @@ const productionEnvironment = Object.freeze({
   VERCEL_ENV: "production",
   VERCEL_GIT_COMMIT_REF: VERCEL_PRODUCTION_BRANCH,
   VERCEL_GIT_COMMIT_SHA: sourceSha,
-  VERCEL_URL: "wrench-release123-hraness.vercel.app",
+  VERCEL_URL: "ghostget-release123-hraness.vercel.app",
 });
 const verifiedIdentity = Object.freeze({
-  name: "@hraness/wrench" as const,
+  name: "@hraness/ghostget" as const,
   sourceSha,
-  tag: "v0.16.5" as const,
-  version: "0.16.5",
+  tag: "v0.17.0" as const,
+  version: "0.17.0",
 });
 
 describe("Vercel website build admission", () => {
@@ -50,7 +50,7 @@ describe("Vercel website build admission", () => {
     );
     expect(calls).toEqual(["verify", "build", "marker"]);
     expect(serializeProductionReleaseMarker(marker)).toBe(
-      `{"schemaVersion":"wrench-production-release-v1","name":"@hraness/wrench","repository":"hraness/wrench","tag":"v0.16.5","version":"0.16.5","sourceSha":"${sourceSha}","deploymentUrl":"https://wrench-release123-hraness.vercel.app"}\n`,
+      `{"schemaVersion":"wrench-production-release-v1","name":"@hraness/ghostget","repository":"hraness/ghostget","tag":"v0.17.0","version":"0.17.0","sourceSha":"${sourceSha}","deploymentUrl":"https://ghostget-release123-hraness.vercel.app"}\n`,
     );
     expect(new TextEncoder().encode(serializeProductionReleaseMarker(marker)).byteLength)
       .toBeLessThanOrEqual(1_024);
@@ -93,7 +93,7 @@ describe("Vercel website build admission", () => {
       [{ WRENCH_VERCEL_BUILD: undefined }, "WRENCH_VERCEL_BUILD must equal release-bound-v1"],
       [{ VERCEL: "1" }, "WRENCH_VERCEL_BUILD must equal release-bound-v1"],
       [{ VERCEL: undefined }, "WRENCH_VERCEL_BUILD must equal release-bound-v1"],
-      [{ VERCEL_URL: "wrench.example" }, "WRENCH_VERCEL_BUILD must equal release-bound-v1"],
+      [{ VERCEL_URL: "ghostget.example" }, "WRENCH_VERCEL_BUILD must equal release-bound-v1"],
       [{ ...releaseBoundEnvironment }, "Unsupported VERCEL_ENV: missing"],
       [
         { ...releaseBoundEnvironment, VERCEL_ENV: "preview" },
@@ -171,7 +171,7 @@ describe("Vercel website build admission", () => {
         VERCEL_ENV: "production",
         VERCEL_GIT_COMMIT_REF: "main",
         VERCEL_GIT_COMMIT_SHA: sourceSha,
-        VERCEL_URL: "wrench-release123-hraness.vercel.app",
+        VERCEL_URL: "ghostget-release123-hraness.vercel.app",
       },
     ] as const) {
       const calls: string[] = [];
@@ -213,9 +213,9 @@ describe("Vercel website build admission", () => {
         "VERCEL_GIT_COMMIT_SHA must be one lowercase 40-hex commit",
       ],
       [
-        { ...productionEnvironment, VERCEL_URL: "wrench.rip" },
+        { ...productionEnvironment, VERCEL_URL: "ghostget.com" },
         verifiedIdentity,
-        "VERCEL_URL must be one exact Wrench production deployment host",
+        "VERCEL_URL must be one exact Ghostget production deployment host",
       ],
       [
         productionEnvironment,

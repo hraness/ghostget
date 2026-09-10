@@ -549,7 +549,7 @@ describe("portable provider plugin manifest", () => {
     });
   });
 
-  test("parses strict Wrench input schemas and provider-api metadata", () => {
+  test("parses strict Ghostget input schemas and provider-api metadata", () => {
     const base = manifest();
     const providerManifest = manifest({
       capabilities: {
@@ -659,6 +659,22 @@ describe("portable provider plugin package verification", () => {
       expect(
         verifyPortableProviderPluginPackageDirectory(directory).bundleSha256,
       ).toBe(firstDigest);
+    });
+  });
+
+  test("reads the Ghostget manifest name with the same identity and rejects mixed names", () => {
+    withPackage((directory) => {
+      const predecessor = verifyPortableProviderPluginPackageDirectory(directory);
+      renameSync(join(directory, "wrench-plugin.json"), join(directory, "ghostget-plugin.json"));
+      const current = verifyPortableProviderPluginPackageDirectory(directory);
+      expect(current.manifestSha256).toBe(predecessor.manifestSha256);
+      expect(current.bundleSha256).toBe(predecessor.bundleSha256);
+      for (const legacyName of ["wrench-plugin.json", "oh-plugin.json"]) {
+        writeFileSync(join(directory, legacyName), current.manifestBytes);
+        expect(() => verifyPortableProviderPluginPackageDirectory(directory))
+          .toThrow("must contain exactly one");
+        rmSync(join(directory, legacyName));
+      }
     });
   });
 

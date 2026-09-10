@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import {
   PreservedBrowserArtifactsError,
   browserResultData,
@@ -8,8 +8,8 @@ import {
   type BrowserSession,
   type CreateBrowserSessionOptions,
 } from "../browser";
-import { canonicalJson } from "../canonical-json";
-import type { WrenchManifest } from "../model";
+import { canonicalJsonScriptLiteral } from "../canonical-json";
+import type { GhostgetManifest } from "../model";
 import type {
   WebSessionCleanupResourcePublisher,
   WebSessionOperationDeadline,
@@ -38,7 +38,7 @@ const MAX_IMAGE_STAGING_CHUNKS = Math.ceil(
   MAX_IMAGE_BASE64_CHARACTERS / IMAGE_STAGING_CHUNK_CHARACTERS,
 );
 
-const postBrowserManifest: WrenchManifest = Object.freeze({
+const postBrowserManifest: GhostgetManifest = Object.freeze({
   schemaVersion: 4,
   id: "linkedin-post-runtime",
   version: "1.0.0",
@@ -264,7 +264,7 @@ function browserEvaluationResult(
 }
 
 function commonEvaluationPrelude(input: Readonly<Record<string, unknown>>): string {
-  return `const input=${canonicalJson(input)};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");const raw=document.cookie.split("; ").find((part)=>part.startsWith("JSESSIONID="));if(typeof raw!=="string")throw new Error("missing LinkedIn browser CSRF cookie");const csrf=decodeURIComponent(raw.slice("JSESSIONID=".length)).replace(/^\"|\"$/g,"");if(!/^ajax:[A-Za-z0-9_-]{1,512}$/.test(csrf))throw new Error("invalid LinkedIn browser CSRF cookie");const baseHeaders={accept:"application/vnd.linkedin.normalized+json+2.1","csrf-token":csrf,"x-li-lang":"en_US","x-requested-with":"XMLHttpRequest","x-restli-protocol-version":"2.0.0"};const jsonTypes=new Set(["application/graphql","application/json","application/vnd.linkedin.normalized+json+2.1"]);const jsonResponse=async(response,label)=>{const contentType=(response.headers.get("content-type")||"").split(";",1)[0].trim().toLowerCase();if(!jsonTypes.has(contentType))throw new Error(label+" content type changed");if(response.status<200||response.status>=300)throw new Error(label+" status changed");return response.json()};const requestJson=async(path,init,label)=>jsonResponse(await fetch(path,{credentials:"include",redirect:"error",referrer:"${LINKEDIN_FEED_URL}",...init}),label);const identity=async()=>requestJson("/voyager/api/me",{headers:baseHeaders,method:"GET"},"LinkedIn current member");const assertIdentity=(body)=>{if(!body||typeof body!=="object"||Array.isArray(body)||!body.data||typeof body.data!=="object"||Array.isArray(body.data))throw new Error("LinkedIn current member changed shape");const plain=typeof body.data.plainId==="string"?body.data.plainId:Number.isSafeInteger(body.data.plainId)?String(body.data.plainId):"";if("urn:li:fsd_profile:"+plain!==input.expectedSubject)throw new Error("LinkedIn current member changed before dispatch");if(input.expectedProfileUrn!==undefined){const mini=body.data["*miniProfile"]??body.data.miniProfile;const suffix=typeof mini==="string"?/^urn:li:fs_miniProfile:([A-Za-z0-9_-]{1,256})$/.exec(mini)?.[1]:undefined;if("urn:li:fsd_profile:"+suffix!==input.expectedProfileUrn)throw new Error("LinkedIn current profile changed before dispatch")}};`;
+  return `const input=${canonicalJsonScriptLiteral(input)};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");const raw=document.cookie.split("; ").find((part)=>part.startsWith("JSESSIONID="));if(typeof raw!=="string")throw new Error("missing LinkedIn browser CSRF cookie");const csrf=decodeURIComponent(raw.slice("JSESSIONID=".length)).replace(/^\"|\"$/g,"");if(!/^ajax:[A-Za-z0-9_-]{1,512}$/.test(csrf))throw new Error("invalid LinkedIn browser CSRF cookie");const baseHeaders={accept:"application/vnd.linkedin.normalized+json+2.1","csrf-token":csrf,"x-li-lang":"en_US","x-requested-with":"XMLHttpRequest","x-restli-protocol-version":"2.0.0"};const jsonTypes=new Set(["application/graphql","application/json","application/vnd.linkedin.normalized+json+2.1"]);const jsonResponse=async(response,label)=>{const contentType=(response.headers.get("content-type")||"").split(";",1)[0].trim().toLowerCase();if(!jsonTypes.has(contentType))throw new Error(label+" content type changed");if(response.status<200||response.status>=300)throw new Error(label+" status changed");return response.json()};const requestJson=async(path,init,label)=>jsonResponse(await fetch(path,{credentials:"include",redirect:"error",referrer:"${LINKEDIN_FEED_URL}",...init}),label);const identity=async()=>requestJson("/voyager/api/me",{headers:baseHeaders,method:"GET"},"LinkedIn current member");const assertIdentity=(body)=>{if(!body||typeof body!=="object"||Array.isArray(body)||!body.data||typeof body.data!=="object"||Array.isArray(body.data))throw new Error("LinkedIn current member changed shape");const plain=typeof body.data.plainId==="string"?body.data.plainId:Number.isSafeInteger(body.data.plainId)?String(body.data.plainId):"";if("urn:li:fsd_profile:"+plain!==input.expectedSubject)throw new Error("LinkedIn current member changed before dispatch");if(input.expectedProfileUrn!==undefined){const mini=body.data["*miniProfile"]??body.data.miniProfile;const suffix=typeof mini==="string"?/^urn:li:fs_miniProfile:([A-Za-z0-9_-]{1,256})$/.exec(mini)?.[1]:undefined;if("urn:li:fsd_profile:"+suffix!==input.expectedProfileUrn)throw new Error("LinkedIn current profile changed before dispatch")}};`;
 }
 
 function identityEvaluationSource(): string {
@@ -284,7 +284,7 @@ function imageStagingInitializationSource(staging: LinkedInPostImageStaging): st
     stagingKey: staging.key,
     expectedChunkCount: staging.chunkCount,
   });
-  return `(async()=>{const input=${canonicalJson(input)};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");if(!/^__wrenchLinkedInPostImage_[a-f0-9]{32}$/.test(input.stagingKey)||!Number.isSafeInteger(input.expectedChunkCount)||input.expectedChunkCount<1||input.expectedChunkCount>${MAX_IMAGE_STAGING_CHUNKS})throw new Error("LinkedIn image staging input changed shape");if(Object.hasOwn(globalThis,input.stagingKey))throw new Error("LinkedIn image staging key collision");Object.defineProperty(globalThis,input.stagingKey,{configurable:true,enumerable:false,value:[],writable:false});return{ready:true}})()`;
+  return `(async()=>{const input=${canonicalJsonScriptLiteral(input)};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");if(!/^__ghostgetLinkedInPostImage_[a-f0-9]{32}$/.test(input.stagingKey)||!Number.isSafeInteger(input.expectedChunkCount)||input.expectedChunkCount<1||input.expectedChunkCount>${MAX_IMAGE_STAGING_CHUNKS})throw new Error("LinkedIn image staging input changed shape");if(Object.hasOwn(globalThis,input.stagingKey))throw new Error("LinkedIn image staging key collision");Object.defineProperty(globalThis,input.stagingKey,{configurable:true,enumerable:false,value:[],writable:false});return{ready:true}})()`;
 }
 
 function imageStagingChunkSource(
@@ -298,7 +298,7 @@ function imageStagingChunkSource(
     index,
     stagingKey: staging.key,
   });
-  const source = `(async()=>{const input=${canonicalJson(input)};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");const chunks=globalThis[input.stagingKey];if(!Array.isArray(chunks)||!Number.isSafeInteger(input.index)||input.index<0||input.index>=input.expectedChunkCount||input.expectedChunkCount<1||input.expectedChunkCount>${MAX_IMAGE_STAGING_CHUNKS}||chunks.length!==input.index)throw new Error("LinkedIn image staging order changed");if(typeof input.chunk!=="string"||input.chunk.length<1||input.chunk.length>${IMAGE_STAGING_CHUNK_CHARACTERS}||!/^[A-Za-z0-9+/]*={0,2}$/.test(input.chunk))throw new Error("LinkedIn image staging chunk changed shape");chunks.push(input.chunk);return{staged:chunks.length}})()`;
+  const source = `(async()=>{const input=${canonicalJsonScriptLiteral(input)};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");const chunks=globalThis[input.stagingKey];if(!Array.isArray(chunks)||!Number.isSafeInteger(input.index)||input.index<0||input.index>=input.expectedChunkCount||input.expectedChunkCount<1||input.expectedChunkCount>${MAX_IMAGE_STAGING_CHUNKS}||chunks.length!==input.index)throw new Error("LinkedIn image staging order changed");if(typeof input.chunk!=="string"||input.chunk.length<1||input.chunk.length>${IMAGE_STAGING_CHUNK_CHARACTERS}||!/^[A-Za-z0-9+/]*={0,2}$/.test(input.chunk))throw new Error("LinkedIn image staging chunk changed shape");chunks.push(input.chunk);return{staged:chunks.length}})()`;
   if (source.length > MAX_IMAGE_STAGING_COMMAND_CHARACTERS) {
     throw new Error("LinkedIn image staging command exceeded its reviewed bound");
   }
@@ -307,7 +307,7 @@ function imageStagingChunkSource(
 
 function imageStagingCleanupSource(stagingKey: string): string {
   const input = Object.freeze({ stagingKey });
-  return `(async()=>{const input=${canonicalJson(input)};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");const removed=Object.hasOwn(globalThis,input.stagingKey);delete globalThis[input.stagingKey];return{removed}})()`;
+  return `(async()=>{const input=${canonicalJsonScriptLiteral(input)};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");const removed=Object.hasOwn(globalThis,input.stagingKey);delete globalThis[input.stagingKey];return{removed}})()`;
 }
 
 function baseUploadEvaluationSource(
@@ -467,7 +467,7 @@ async function finalizeBrowserSession(session: BrowserSession): Promise<void> {
 }
 
 export async function createLinkedInPostBrowserTransport(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs: number;
     readonly operationDeadline?: WebSessionOperationDeadline;
@@ -552,7 +552,7 @@ export async function createLinkedInPostBrowserTransport(
       const encoded = Buffer.from(image).toString("base64");
       const chunkCount = Math.ceil(encoded.length / IMAGE_STAGING_CHUNK_CHARACTERS);
       const staging = Object.freeze({
-        key: `__wrenchLinkedInPostImage_${randomUUID().replaceAll("-", "")}`,
+        key: `__ghostgetLinkedInPostImage_${randomUUID().replaceAll("-", "")}`,
         byteLength: image.byteLength,
         base64Length: encoded.length,
         chunkCount,

@@ -59,7 +59,7 @@ const RESERVED_CAPTURE_EXTENSIONS: ReadonlySet<string> = new Set([
 ]);
 
 // yt-dlp loads ambient configuration before command-line arguments. These
-// Wrench media-owned negatives are therefore always emitted on the CLI, including
+// Ghostget media-owned negatives are therefore always emitted on the CLI, including
 // when the user explicitly inherits config, so config cannot weaken them.
 const OWNED_PROBE_BOUNDARY_ARGS = [
   "--no-remote-components",
@@ -249,7 +249,7 @@ export function buildYtDlpCaptureArgv(options: CaptureYtDlpOptions): CommandArgv
     "http:exp=1:20",
     "--retry-sleep",
     "fragment:exp=1:20",
-    // Probe JSON is parsed into Wrench media's owned metadata model. Explicitly disable
+    // Probe JSON is parsed into Ghostget media's owned metadata model. Explicitly disable
     // raw info sidecars even when an inherited yt-dlp config enables them.
     "--no-write-info-json",
     ...(options.persistDescriptiveMetadata
@@ -312,9 +312,9 @@ export function isSafeYtDlpCaptureExtension(value: unknown): value is string {
 }
 
 /**
- * Parses only Wrench media's prefixed, allowlisted completion record. Other stdout can
+ * Parses only Ghostget media's prefixed, allowlisted completion record. Other stdout can
  * be produced by an explicitly inherited yt-dlp config, but never crosses this
- * boundary. Exactly one Wrench media record is required.
+ * boundary. Exactly one Ghostget media record is required.
  */
 export function parseYtDlpCaptureIdentity(
   stdout: unknown,
@@ -387,7 +387,7 @@ export async function probeWithYtDlp(
       processReason: result.reason,
     };
   }
-  if (result.stdoutTruncated) return { ok: false, diagnostic: "yt-dlp probe exceeded Wrench media's metadata limit" };
+  if (result.stdoutTruncated) return { ok: false, diagnostic: "yt-dlp probe exceeded Ghostget media's metadata limit" };
   let value: unknown;
   try { value = JSON.parse(result.stdout); } catch { return { ok: false, diagnostic: "yt-dlp probe did not return valid JSON" }; }
   const parsed = parseProbeMetadata(value, options.url, authorizationIdentity(options));
@@ -419,7 +419,7 @@ export async function captureWithYtDlp(
     };
   }
   if (result.stdoutTruncated) {
-    return { ok: false, diagnostic: "yt-dlp capture exceeded Wrench media's identity output limit" };
+    return { ok: false, diagnostic: "yt-dlp capture exceeded Ghostget media's identity output limit" };
   }
   return parseYtDlpCaptureIdentity(result.stdout);
 }

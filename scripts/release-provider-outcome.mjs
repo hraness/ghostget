@@ -5,11 +5,11 @@ import { appendFileSync, readFileSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
-import { parseReleaseAssetDescriptors, usesGithubReleaseAssets } from "../website/github-release-artifact.mjs";
+import { parseReleaseAssetDescriptors, releaseIdentity, usesGithubReleaseAssets } from "../website/github-release-artifact.mjs";
 
 import {
   RELEASE_APP_REVOCATION_OBSERVATION_OFFSETS_MILLISECONDS,
-  WRENCH_REPOSITORY_ID,
+  GHOSTGET_REPOSITORY_ID,
   withReleaseAppTokenFromEnvironment,
 } from "./release-app-token.mjs";
 import { advanceWebsiteProductionRefFromEnvironment } from "./release-ref-writer.mjs";
@@ -61,17 +61,19 @@ const MAX_GRAPHQL_DEPLOYMENT_PAGES = 5;
 const MAX_GRAPHQL_COST_PER_REQUEST = 2;
 const GITHUB_GRAPHQL_POINT_LIMIT = 1_000;
 const GRAPHQL_ID = /^[\x21-\x7e]{1,512}$/u;
-const VERCEL_PRODUCTION_URL = /^https:\/\/wrench-[a-z0-9]+-hraness\.vercel\.app$/u;
-const PUBLIC_PRIMARY_ORIGIN = "https://wrench.rip";
-const PUBLIC_WWW_ORIGIN = "https://www.wrench.rip";
+// Production inventory includes immutable deployments made before the rebrand.
+// The marker parser still binds each deployment prefix to its release identity.
+const VERCEL_PRODUCTION_URL = /^https:\/\/(?:ghostget|wrench)-[a-z0-9]+-hraness\.vercel\.app$/u;
+const PUBLIC_PRIMARY_ORIGIN = "https://ghostget.com";
+const PUBLIC_WWW_ORIGIN = "https://www.ghostget.com";
 const PUBLIC_RELEASE_MARKER_FIRST_TAG = "v0.16.5";
 const PUBLIC_PROBE_NONCE = /^[A-Za-z0-9_-]{8,128}$/u;
 const PUBLIC_HTML_ROUTES = Object.freeze([
-  Object.freeze({ canonical: "https://wrench.rip/", path: "/" }),
-  Object.freeze({ canonical: "https://wrench.rip/providers/beeper/", path: "/providers/beeper/" }),
+  Object.freeze({ canonical: "https://ghostget.com/", path: "/" }),
+  Object.freeze({ canonical: "https://ghostget.com/providers/beeper/", path: "/providers/beeper/" }),
 ]);
 const PUBLIC_TEXT_ROUTES = Object.freeze([
-  Object.freeze({ prefix: "# Wrench\n", path: "/llms.txt" }),
+  Object.freeze({ prefix: "# Ghostget\n", path: "/llms.txt" }),
 ]);
 const STABLE_TAG = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u;
 const MAXIMUM_SAFE_SEMVER_COMPONENT = BigInt(Number.MAX_SAFE_INTEGER);
@@ -126,7 +128,7 @@ const COMPATIBLE_GRAPHQL_DEPLOYMENT_STATES = Object.freeze({
   SUCCESS: new Set(["ACTIVE", "SUCCESS"]),
   WAITING: new Set(["WAITING"]),
 });
-const PRODUCTION_DEPLOYMENTS_QUERY = `query WrenchProductionDeployments(
+const PRODUCTION_DEPLOYMENTS_QUERY = `query GhostgetProductionDeployments(
   $owner: String!
   $name: String!
   $after: String
@@ -377,7 +379,7 @@ function markerObservationFingerprint(observation) {
   return canonicalJson(markerObservationValue(observation));
 }
 
-export class WrenchPublicSite {
+export class GhostgetPublicSite {
   #fetch;
   #nonce;
   #usedNonces = new Set();
@@ -422,7 +424,7 @@ export class WrenchPublicSite {
       credentials: "omit",
       headers: {
         Accept: accept,
-        "User-Agent": "wrench-production-outcome-verifier",
+        "User-Agent": "ghostget-production-outcome-verifier",
       },
       method: "GET",
       redirect,
@@ -438,7 +440,7 @@ export class WrenchPublicSite {
       verifiedTag,
       verifiedSha,
     );
-    const label = "wrench.rip production release marker";
+    const label = "ghostget.com production release marker";
     const response = await this.#request(
       PUBLIC_PRIMARY_ORIGIN,
       requestPath,
@@ -492,7 +494,7 @@ export class WrenchPublicSite {
     const text = PUBLIC_TEXT_ROUTES.find((entry) => entry.path === route);
     if (html === undefined && text === undefined) fail("public health route is unsupported");
     const requestPath = this.#probePath(route, verifiedTag, verifiedSha);
-    const label = `wrench.rip health route ${route}`;
+    const label = `ghostget.com health route ${route}`;
     const response = await this.#request(
       PUBLIC_PRIMARY_ORIGIN,
       requestPath,
@@ -522,10 +524,10 @@ export class WrenchPublicSite {
         !body.startsWith("<!doctype html>\n")
         || !body.includes(`<link rel="canonical" href="${html.canonical}">`)
       ) {
-        fail(`${label} is not the canonical Wrench document`);
+        fail(`${label} is not the canonical Ghostget document`);
       }
     } else if (!body.startsWith(text.prefix)) {
-      fail(`${label} is not the canonical Wrench text document`);
+      fail(`${label} is not the canonical Ghostget text document`);
     }
     return Object.freeze({
       bodyBytes: new TextEncoder().encode(body).byteLength,
@@ -544,7 +546,7 @@ export class WrenchPublicSite {
     ) {
       fail("www redirect probe path is malformed");
     }
-    const label = "www.wrench.rip production release marker redirect";
+    const label = "www.ghostget.com production release marker redirect";
     const response = await this.#request(
       PUBLIC_WWW_ORIGIN,
       requestPath,
@@ -1021,7 +1023,7 @@ function expectGraphqlVercelCreator(value, label) {
 function canonicalVercelProductionUrl(value, label) {
   const url = expectString(value, label);
   if (!VERCEL_PRODUCTION_URL.test(url)) {
-    fail(`${label} is not the canonical Wrench Vercel Production URL`);
+    fail(`${label} is not the canonical Ghostget Vercel Production URL`);
   }
   return url;
 }
@@ -1861,6 +1863,13 @@ function expectWorkflowRunId(value, label = "workflow run id") {
   return text;
 }
 
+function sourceReceiptRepository(repository, tag) {
+  const coordinate = expectRepository(repository);
+  // GitHub serves old releases at the renamed API coordinate; immutable receipt
+  // text keeps the repository name that was authoritative when it was signed.
+  return coordinate === "hraness/ghostget" ? releaseIdentity(tag).repository : coordinate;
+}
+
 export function releaseSourceReceipt({ repository, verifiedSha, verifiedTag, workflowRunId }) {
   const coordinate = expectRepository(repository);
   const sha = expectSha(verifiedSha, "release receipt source SHA");
@@ -1868,7 +1877,7 @@ export function releaseSourceReceipt({ repository, verifiedSha, verifiedTag, wor
   const runId = expectWorkflowRunId(workflowRunId, "release receipt workflow run id");
   return [
     RELEASE_SOURCE_RECEIPT_SCHEMA,
-    `repository=${coordinate}`,
+    `repository=${sourceReceiptRepository(coordinate, tag)}`,
     `tag=${tag}`,
     `source_sha=${sha}`,
     `workflow_run_id=${runId}`,
@@ -1913,7 +1922,7 @@ export function releaseWorkflowRunIdFromPublishedRelease({
   const body = expectString(release.body, `${label}.body`);
   const prefix = [
     RELEASE_SOURCE_RECEIPT_SCHEMA,
-    `repository=${coordinate}`,
+    `repository=${sourceReceiptRepository(coordinate, tag)}`,
     `tag=${tag}`,
     `source_sha=${sha}`,
     "workflow_run_id=",
@@ -1949,11 +1958,11 @@ function expectReleaseOwner(value, label) {
 function expectReleaseRepository(value, repository, label) {
   const exact = expectRecord(value, label);
   if (
-    exact.id !== WRENCH_REPOSITORY_ID
+    exact.id !== GHOSTGET_REPOSITORY_ID
     || exact.full_name !== repository
     || exact.private !== false
   ) {
-    fail(`${label} is not the exact public Wrench repository`);
+    fail(`${label} is not the exact public Ghostget repository`);
   }
 }
 
@@ -2611,7 +2620,7 @@ function validateStableBaselineMarker(
 
 export async function createProviderBaseline({
   api,
-  publicSite = new WrenchPublicSite(),
+  publicSite = new GhostgetPublicSite(),
   releaseWorkflowRunId,
   repository,
   verifiedSha,
@@ -3225,7 +3234,7 @@ export async function waitForProviderOutcome({
   maxPolls = MAX_PROVIDER_POLLS,
   monotonicNow = () => performance.now(),
   promotionReceipt,
-  publicSite = new WrenchPublicSite(),
+  publicSite = new GhostgetPublicSite(),
   releaseWorkflowRunId,
   repository,
   sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
@@ -3759,12 +3768,12 @@ async function main() {
     return;
   }
   if (command === "wait") {
-    const testMode = process.env.WRENCH_PROVIDER_TEST_MODE === "1";
+    const testMode = process.env.GHOSTGET_PROVIDER_TEST_MODE === "1";
     const maxPolls = testMode
-      ? Number(process.env.WRENCH_PROVIDER_MAX_POLLS ?? String(MAX_PROVIDER_POLLS))
+      ? Number(process.env.GHOSTGET_PROVIDER_MAX_POLLS ?? String(MAX_PROVIDER_POLLS))
       : MAX_PROVIDER_POLLS;
     const pollIntervalMilliseconds = testMode
-      ? Number(process.env.WRENCH_PROVIDER_POLL_INTERVAL_MS ?? "0")
+      ? Number(process.env.GHOSTGET_PROVIDER_POLL_INTERVAL_MS ?? "0")
       : PROVIDER_POLL_INTERVAL_MILLISECONDS;
     const result = await waitForProviderOutcome({
       api,

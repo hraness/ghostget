@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export const GITHUB_RELEASE_REPOSITORY = "hraness/wrench";
+export const GITHUB_RELEASE_REPOSITORY = "hraness/ghostget";
 export const GITHUB_RELEASE_REPOSITORY_ID = 1316443113;
 export const GITHUB_RELEASE_WORKFLOW = ".github/workflows/release.yml";
 const shaPattern = /^[0-9a-f]{40}$/u;
@@ -45,10 +45,22 @@ export function usesGithubReleaseAssets(tag) {
   return major > 0n || minor > 16n || (minor === 16n && patch >= 13n);
 }
 
+// Immutable pre-rename archives and signed provenance retain their original
+// package and repository names. The repository itself keeps its numeric ID.
+export function releaseIdentity(tag) {
+  const [major, minor] = releaseVersion(tag).split(".").map(BigInt);
+  const renamed = major > 0n || minor >= 17n;
+  return Object.freeze({
+    package: renamed ? "@hraness/ghostget" : "@hraness/wrench",
+    repository: renamed ? GITHUB_RELEASE_REPOSITORY : "hraness/wrench",
+    archivePrefix: renamed ? "hraness-ghostget" : "hraness-wrench",
+  });
+}
+
 export function releaseAssetNames(tag) {
   const version = releaseVersion(tag);
   return Object.freeze([
-    `hraness-wrench-${version}.tgz`, "npm-pack.json", "release-manifest.json",
+    `${releaseIdentity(tag).archivePrefix}-${version}.tgz`, "npm-pack.json", "release-manifest.json",
     "SHA256SUMS", "provenance.jsonl",
   ]);
 }
@@ -63,10 +75,11 @@ export function parseReleaseManifest(value, expected = {}) {
     "sourceSha", "workflow", "workflowSha", "runId", "runAttempt", "archive",
   ], "GitHub release manifest");
   const version = releaseVersion(manifest.tag);
+  const identity = releaseIdentity(manifest.tag);
   if (manifest.schema !== "hraness-github-release-v1"
-    || manifest.repository !== GITHUB_RELEASE_REPOSITORY
+    || manifest.repository !== identity.repository
     || manifest.repositoryId !== GITHUB_RELEASE_REPOSITORY_ID
-    || manifest.package !== "@hraness/wrench" || manifest.version !== version
+    || manifest.package !== identity.package || manifest.version !== version
     || manifest.workflow !== GITHUB_RELEASE_WORKFLOW
     || typeof manifest.sourceSha !== "string" || !shaPattern.test(manifest.sourceSha)
     || typeof manifest.workflowSha !== "string" || !shaPattern.test(manifest.workflowSha)
@@ -123,6 +136,7 @@ export function verifyReleaseAssetBytes(bytes, descriptor) {
 // This accepts only the successful CLI verifier's parsed output, never a raw bundle.
 export function verifyAttestationResult(value, manifestValue, subjectName, subjectSha256) {
   const manifest = parseReleaseManifest(manifestValue);
+  const signedRepository = releaseIdentity(manifest.tag).repository;
   if (!Array.isArray(value) || value.length !== 1 || typeof subjectSha256 !== "string" || !sha256Pattern.test(subjectSha256)) {
     throw new Error("Expected one cryptographically verified GitHub attestation");
   }
@@ -130,20 +144,20 @@ export function verifyAttestationResult(value, manifestValue, subjectName, subje
   const cert = record(record(result.signature, "verified signature").certificate, "verified certificate");
   const expected = {
     issuer: "https://token.actions.githubusercontent.com",
-    buildSignerURI: `https://github.com/${GITHUB_RELEASE_REPOSITORY}/${GITHUB_RELEASE_WORKFLOW}@refs/tags/${manifest.tag}`,
+    buildSignerURI: `https://github.com/${signedRepository}/${GITHUB_RELEASE_WORKFLOW}@refs/tags/${manifest.tag}`,
     buildSignerDigest: manifest.sourceSha,
     runnerEnvironment: "github-hosted",
-    sourceRepositoryURI: `https://github.com/${GITHUB_RELEASE_REPOSITORY}`,
+    sourceRepositoryURI: `https://github.com/${signedRepository}`,
     sourceRepositoryIdentifier: String(GITHUB_RELEASE_REPOSITORY_ID),
     sourceRepositoryOwnerIdentifier: "307125679",
     sourceRepositoryOwnerURI: "https://github.com/hraness",
     sourceRepositoryVisibilityAtSigning: "public",
-    buildConfigURI: `https://github.com/${GITHUB_RELEASE_REPOSITORY}/${GITHUB_RELEASE_WORKFLOW}@refs/tags/${manifest.tag}`,
+    buildConfigURI: `https://github.com/${signedRepository}/${GITHUB_RELEASE_WORKFLOW}@refs/tags/${manifest.tag}`,
     buildConfigDigest: manifest.sourceSha,
     sourceRepositoryDigest: manifest.sourceSha,
     sourceRepositoryRef: `refs/tags/${manifest.tag}`,
     buildTrigger: "push",
-    runInvocationURI: `https://github.com/${GITHUB_RELEASE_REPOSITORY}/actions/runs/${manifest.runId}/attempts/${manifest.runAttempt}`,
+    runInvocationURI: `https://github.com/${signedRepository}/actions/runs/${manifest.runId}/attempts/${manifest.runAttempt}`,
   };
   for (const [key, expectedValue] of Object.entries(expected)) {
     if (cert[key] !== expectedValue) throw new Error(`Verified certificate has a different ${key}`);

@@ -34,7 +34,7 @@ type MessagingArguments = {
   };
 }[MessagingCommand];
 
-export type WrenchArguments =
+export type GhostgetArguments =
   | { readonly command: "help" }
   | { readonly command: "clip"; readonly arguments: readonly string[] }
   | { readonly command: "read"; readonly arguments: readonly string[] }
@@ -290,11 +290,11 @@ export type WrenchArguments =
   | { readonly command: "plans-list"; readonly json: boolean }
   | { readonly command: "plans-cancel"; readonly digest: string; readonly yes: boolean };
 
-export type ParseWrenchResult =
-  | { readonly ok: true; readonly value: WrenchArguments }
+export type ParseGhostgetResult =
+  | { readonly ok: true; readonly value: GhostgetArguments }
   | { readonly ok: false; readonly message: string };
 
-type ParseWrenchFailure = Extract<ParseWrenchResult, { readonly ok: false }>;
+type ParseGhostgetFailure = Extract<ParseGhostgetResult, { readonly ok: false }>;
 
 function validId(value: string, label: string): string | null {
   return /^[a-z][a-z0-9-]{0,47}$/u.test(value) ? null : `${label} must be lowercase kebab-case`;
@@ -326,7 +326,7 @@ function validRunId(value: string): string | null {
 
 function duplicateRiskRunIds(
   values: readonly string[],
-): ParseWrenchFailure | readonly string[] {
+): ParseGhostgetFailure | readonly string[] {
   if (values.length > 1) {
     return {
       ok: false,
@@ -353,7 +353,7 @@ function knownPlatformSurface(value: string): PlatformSurfaceId | null {
 function optionalPlatformSurface(
   raw: readonly string[],
   label: string,
-): ParseWrenchFailure | { readonly surfaceId?: PlatformSurfaceId; readonly json: boolean } {
+): ParseGhostgetFailure | { readonly surfaceId?: PlatformSurfaceId; readonly json: boolean } {
   const positional = raw.filter((argument) => !argument.startsWith("--"));
   const options = raw.filter((argument) => argument.startsWith("--"));
   if (positional.length > 1 || options.some((argument) => argument !== "--json") || options.length > 1) {
@@ -362,7 +362,7 @@ function optionalPlatformSurface(
   const requested = positional[0];
   if (requested === undefined) return { json: options.includes("--json") };
   const surfaceId = knownPlatformSurface(requested);
-  if (surfaceId === null) return { ok: false, message: `unknown platform surface: ${requested}; run 'wrench platforms' to list reviewed surfaces` };
+  if (surfaceId === null) return { ok: false, message: `unknown platform surface: ${requested}; run 'ghostget platforms' to list reviewed surfaces` };
   return { surfaceId, json: options.includes("--json") };
 }
 
@@ -371,7 +371,7 @@ type ParsedOptions = {
   readonly repeatedValues: Readonly<Record<string, readonly string[]>>;
   readonly booleans: ReadonlySet<string>;
 };
-type OptionValuesResult = ParseWrenchFailure | ParsedOptions;
+type OptionValuesResult = ParseGhostgetFailure | ParsedOptions;
 
 function optionValues(
   raw: readonly string[],
@@ -409,14 +409,14 @@ function optionValues(
   return { values, repeatedValues, booleans };
 }
 
-function isFailure(value: OptionValuesResult): value is ParseWrenchFailure {
+function isFailure(value: OptionValuesResult): value is ParseGhostgetFailure {
   return "ok" in value && value.ok === false;
 }
 
 function parseExactHttpsOriginOption(
   value: string | undefined,
   label: string,
-): ParseWrenchFailure | string | undefined {
+): ParseGhostgetFailure | string | undefined {
   if (value === undefined) return undefined;
   let origin: URL;
   try {
@@ -436,7 +436,7 @@ function parseExactHttpsOriginOption(
   return origin.origin;
 }
 
-function simpleJsonOptions(raw: readonly string[], label: string): ParseWrenchResult | boolean {
+function simpleJsonOptions(raw: readonly string[], label: string): ParseGhostgetResult | boolean {
   if (raw.some((argument) => argument !== "--json") || raw.filter((argument) => argument === "--json").length > 1) {
     return { ok: false, message: `${label} accepts only --json` };
   }
@@ -447,7 +447,7 @@ function optionalPositiveInteger(
   value: string | undefined,
   label: string,
   maximum: number,
-): ParseWrenchFailure | number | undefined {
+): ParseGhostgetFailure | number | undefined {
   if (value === undefined) return undefined;
   if (!/^[1-9][0-9]*$/u.test(value)) {
     return { ok: false, message: `${label} must be a positive integer` };
@@ -462,7 +462,7 @@ function optionalPositiveInteger(
   return parsed;
 }
 
-function parseMessagingArguments(raw: readonly string[]): ParseWrenchResult {
+function parseMessagingArguments(raw: readonly string[]): ParseGhostgetResult {
   const operation = raw[0];
   if (operation === "reconcile") {
     const runId = raw[1];
@@ -539,7 +539,7 @@ function parseMessagingArguments(raw: readonly string[]): ParseWrenchResult {
 function parsePluginScaffoldArguments(
   raw: readonly string[],
   label: "plugin scaffold" | "adapter scaffold",
-): ParseWrenchResult {
+): ParseGhostgetResult {
   const parsed = optionValues(
     raw,
     [
@@ -609,7 +609,7 @@ function parsePluginScaffoldArguments(
 function commaList(
   value: string,
   label: string,
-): ParseWrenchFailure | readonly string[] {
+): ParseGhostgetFailure | readonly string[] {
   const values = value.split(",").map((item) => item.trim());
   if (
     values.length < 1
@@ -630,7 +630,7 @@ function commaList(
 
 function parsePluginInitArguments(
   raw: readonly string[],
-): ParseWrenchResult {
+): ParseGhostgetResult {
   const id = raw[0];
   if (id === undefined || id.startsWith("--")) {
     return { ok: false, message: "plugin init requires a plugin ID" };
@@ -754,7 +754,7 @@ function parsePluginInitArguments(
 
 function validExpectedPluginDigest(
   value: string | undefined,
-): ParseWrenchFailure | string | undefined {
+): ParseGhostgetFailure | string | undefined {
   if (value === undefined || /^[a-f0-9]{64}$/u.test(value)) return value;
   return {
     ok: false,
@@ -762,7 +762,7 @@ function validExpectedPluginDigest(
   };
 }
 
-export function parseWrenchArguments(raw: readonly string[]): ParseWrenchResult {
+export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetResult {
   if (raw.length === 0) {
     return { ok: true, value: { command: "help" } };
   }
@@ -988,7 +988,7 @@ export function parseWrenchArguments(raw: readonly string[]): ParseWrenchResult 
     };
   }
   if (first === "messaging") return parseMessagingArguments(raw.slice(1));
-  if (first === "run") return parseWrenchArguments(["invoke", ...raw.slice(1)]);
+  if (first === "run") return parseGhostgetArguments(["invoke", ...raw.slice(1)]);
   if (first === "doctor") {
     const json = simpleJsonOptions(raw.slice(1), "doctor");
     return typeof json === "boolean" ? { ok: true, value: { command: "doctor", json } } : json;
@@ -1181,7 +1181,7 @@ export function parseWrenchArguments(raw: readonly string[]): ParseWrenchResult 
     const requested = raw[2];
     if (requested === undefined) return { ok: false, message: `thread ${raw[1]} requires a platform surface ID` };
     const surfaceId = knownPlatformSurface(requested);
-    if (surfaceId === null) return { ok: false, message: `unknown platform surface: ${requested}; run 'wrench platforms' to list reviewed surfaces` };
+    if (surfaceId === null) return { ok: false, message: `unknown platform surface: ${requested}; run 'ghostget platforms' to list reviewed surfaces` };
     const publishing = raw[1] === "publish";
     const parsed = optionValues(
       raw.slice(3),
@@ -1528,7 +1528,7 @@ export function parseWrenchArguments(raw: readonly string[]): ParseWrenchResult 
       }
       const surfaceId = knownPlatformSurface(requestedPlatform ?? "");
       if (surfaceId === null) {
-        return { ok: false, message: `unknown platform surface: ${requestedPlatform ?? ""}; run 'wrench platforms' to list reviewed surfaces` };
+        return { ok: false, message: `unknown platform surface: ${requestedPlatform ?? ""}; run 'ghostget platforms' to list reviewed surfaces` };
       }
       return {
         ok: true,
@@ -1772,7 +1772,7 @@ export function parseWrenchArguments(raw: readonly string[]): ParseWrenchResult 
       const requestedPlatform = parsed.values["--platform"];
       const surfaceId = requestedPlatform === undefined ? undefined : knownPlatformSurface(requestedPlatform);
       if (surfaceId === null) {
-        return { ok: false, message: `unknown platform surface: ${requestedPlatform}; run 'wrench platforms' to list reviewed surfaces` };
+        return { ok: false, message: `unknown platform surface: ${requestedPlatform}; run 'ghostget platforms' to list reviewed surfaces` };
       }
       return {
         ok: true,
@@ -1809,7 +1809,7 @@ export function parseWrenchArguments(raw: readonly string[]): ParseWrenchResult 
       const requestedPlatform = parsed.values["--platform"];
       const surfaceId = requestedPlatform === undefined ? undefined : knownPlatformSurface(requestedPlatform);
       if (surfaceId === null) {
-        return { ok: false, message: `unknown platform surface: ${requestedPlatform}; run 'wrench platforms' to list reviewed surfaces` };
+        return { ok: false, message: `unknown platform surface: ${requestedPlatform}; run 'ghostget platforms' to list reviewed surfaces` };
       }
       return {
         ok: true,
@@ -2045,9 +2045,9 @@ export function parseWrenchArguments(raw: readonly string[]): ParseWrenchResult 
     return { ok: false, message: "plans requires list or cancel" };
   }
   if (validId(first, "adapter ID") === null && raw[1] !== undefined && validOperation(raw[1]) === null) {
-    return parseWrenchArguments(["invoke", ...raw]);
+    return parseGhostgetArguments(["invoke", ...raw]);
   }
   return { ok: false, message: `unknown command: ${first}` };
 }
 
-export { wrenchUsage } from "./usage";
+export { ghostgetUsage } from "./usage";

@@ -28,8 +28,8 @@ import {
   SITE_TITLE,
   SKILLS_URL,
   versionedPackageArtifactUrl,
-  WRENCH_MAILING_TURNSTILE_SITEKEY_ENV,
-  wrenchMailingListConfig,
+  GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV,
+  ghostgetMailingListConfig,
   type UiStylesheetImport,
 } from "./build";
 import { handleDocumentNegotiation } from "../edge/negotiation";
@@ -76,8 +76,8 @@ function cssPropertyValues(css: string, selector: string, property: string): str
 
 test("Ask AI preserves product typography while retaining shared line-height and wrapping atoms", async () => {
   const css = await readFile(join(websiteRoot, "source/styles.css"), "utf8");
-  const label = '.wrench-ask-ai [data-slot="ask-ai-about-this-label"]';
-  const link = '.wrench-ask-ai [data-slot="ask-ai-about-this-link"]';
+  const label = '.ghostget-ask-ai [data-slot="ask-ai-about-this-label"]';
+  const link = '.ghostget-ask-ai [data-slot="ask-ai-about-this-link"]';
   for (const [selector, property, value] of [
     [label, "color", "inherit"], [label, "font-family", "inherit"],
     [label, "letter-spacing", "normal"], [label, "text-transform", "none"],
@@ -111,7 +111,7 @@ function lossyWebpDimensions(bytes: Uint8Array): Readonly<{ height: number; widt
   };
 }
 
-describe("wrench.rip static site", () => {
+describe("ghostget.com static site", () => {
   test("inlines the complete UI stylesheet after its layer declarations", () => {
     const imports = {
       "./tokens.css": ":root { --ui-foreground: CanvasText; }",
@@ -156,8 +156,8 @@ describe("wrench.rip static site", () => {
     expect(identity).toMatchObject({
       description: SITE_DESCRIPTION,
       homepage: SITE_ORIGIN,
-      name: "@hraness/wrench",
-      repositoryUrl: "git+https://github.com/hraness/wrench.git",
+      name: "@hraness/ghostget",
+      repositoryUrl: "git+https://github.com/hraness/ghostget.git",
     });
     expect(identity.version).toBe((manifest as { version: string }).version);
     expect(identity.release).toBe(`v${identity.version}`);
@@ -235,42 +235,42 @@ describe("wrench.rip static site", () => {
     const base = {
       description: SITE_DESCRIPTION,
       homepage: SITE_ORIGIN,
-      name: "@hraness/wrench",
-      repository: { url: "git+https://github.com/hraness/wrench.git" },
+      name: "@hraness/ghostget",
+      repository: { url: "git+https://github.com/hraness/ghostget.git" },
       version: "9.8.7",
     };
-    expect(() => parsePackageIdentity({ ...base, homepage: "https://hraness.com/wrench" }))
-      .toThrow("canonical Wrench origin");
+    expect(() => parsePackageIdentity({ ...base, homepage: "https://hraness.com/ghostget" }))
+      .toThrow("canonical Ghostget origin");
     expect(() => parsePackageIdentity({ ...base, version: "9.8.7-beta.1" }))
       .toThrow("stable semantic version");
     expect(() => parsePackageIdentity({ ...base, description: "drift" }))
       .toThrow("descriptions must stay identical");
   });
 
-  test("binds signup to Wrench and fails production closed without a key", () => {
+  test("binds signup to Ghostget and fails production closed without a key", () => {
     const turnstileSitekey = "1x00000000000000000000AA";
-    expect(wrenchMailingListConfig({
-      [WRENCH_MAILING_TURNSTILE_SITEKEY_ENV]: turnstileSitekey,
+    expect(ghostgetMailingListConfig({
+      [GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV]: turnstileSitekey,
     })).toEqual({
       audience: "wrench",
       kind: "signup",
       turnstileSitekey,
     });
-    expect(wrenchMailingListConfig({})).toEqual({ kind: "none" });
-    expect(wrenchMailingListConfig({
-      [WRENCH_MAILING_TURNSTILE_SITEKEY_ENV]: "",
+    expect(ghostgetMailingListConfig({})).toEqual({ kind: "none" });
+    expect(ghostgetMailingListConfig({
+      [GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV]: "",
     })).toEqual({ kind: "none" });
-    expect(wrenchMailingListConfig({ VERCEL_ENV: "preview" }))
+    expect(ghostgetMailingListConfig({ VERCEL_ENV: "preview" }))
       .toEqual({ kind: "none" });
     for (const turnstileSitekey of [undefined, ""]) {
-      expect(() => wrenchMailingListConfig({
-        [WRENCH_MAILING_TURNSTILE_SITEKEY_ENV]: turnstileSitekey,
+      expect(() => ghostgetMailingListConfig({
+        [GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV]: turnstileSitekey,
         VERCEL_ENV: "production",
-      })).toThrow(WRENCH_MAILING_TURNSTILE_SITEKEY_ENV);
+      })).toThrow(GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV);
     }
-    expect(() => wrenchMailingListConfig({
-      [WRENCH_MAILING_TURNSTILE_SITEKEY_ENV]: "not a public key",
-    })).toThrow(WRENCH_MAILING_TURNSTILE_SITEKEY_ENV);
+    expect(() => ghostgetMailingListConfig({
+      [GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV]: "not a public key",
+    })).toThrow(GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV);
   });
 
   test("builds canonical discovery, semantic content, and private-key-free analytics", async () => {
@@ -290,7 +290,7 @@ describe("wrench.rip static site", () => {
     await mkdir(join(websiteRoot, "dist/.well-known"), { recursive: true });
     await writeFile(staleMarkerPath, "stale marker must not survive preview/local output\n");
     await buildWebsite({
-      [WRENCH_MAILING_TURNSTILE_SITEKEY_ENV]: "1x00000000000000000000AA",
+      [GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV]: "1x00000000000000000000AA",
       NEXT_PUBLIC_POSTHOG_HOST: DEFAULT_POSTHOG_HOST,
       NEXT_PUBLIC_POSTHOG_KEY: "phc_public_project_token",
     });
@@ -413,26 +413,26 @@ describe("wrench.rip static site", () => {
     expect(preview).not.toContain('data-slot="ask-ai-about-this"');
     expect(notFound).not.toContain('data-slot="ask-ai-about-this"');
     expect(html).toContain(`<meta name="description" content="${SITE_DESCRIPTION}">`);
-    expect(html).toContain('<link rel="canonical" href="https://wrench.rip/">');
+    expect(html).toContain('<link rel="canonical" href="https://ghostget.com/">');
     expect(html).toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml">');
-    expect(html).toContain('<meta property="og:image" content="https://wrench.rip/og.png">');
+    expect(html).toContain('<meta property="og:image" content="https://ghostget.com/og.png">');
     expect(html).toContain('<meta property="og:image:width" content="1200">');
     expect(html).toContain('<meta property="og:image:height" content="630">');
     expect(html).toContain('<meta name="robots" content="max-image-preview:large">');
     expect(html).not.toContain('<meta name="keywords"');
-    expect(html).toContain(`hraness-wrench-${packageIdentity.version}.tgz`);
-    expect(html).toContain(`Install Wrench ${packageIdentity.release}`);
+    expect(html).toContain(`hraness-ghostget-${packageIdentity.version}.tgz`);
+    expect(html).toContain(`Install Ghostget ${packageIdentity.release}`);
     expect(html).toContain(`>${skillInstallCommands.npx}</code>`);
     expect(html).toContain(`<code>${skillInstallCommands.bunx}</code>`);
     expect(html).toContain(
-      `<a href="${SKILLS_URL}">View the Wrench Agent Skill on skills.sh.</a>`,
+      `<a href="${SKILLS_URL}">View the Ghostget Agent Skill on skills.sh.</a>`,
     );
     expect(html).toContain(
-      `<a href="${npmPackageUrl}"><code>@hraness/wrench</code> canonical release archive</a>`,
+      `<a href="${npmPackageUrl}"><code>@hraness/ghostget</code> canonical release archive</a>`,
     );
     expect(html).not.toContain(`value="${skillInstallCommands.npx}"`);
     expect(html).not.toContain(`href="${GITHUB_RELEASES_URL}"`);
-    expect(html).not.toContain("skills add hraness/wrench</code>");
+    expect(html).not.toContain("skills add hraness/ghostget</code>");
     expect(html).toContain('class="skill-install" data-skill-install');
     expect(html).toContain("data-skill-install-copy");
     expect(html).toMatch(/data-skill-install-copy\s+hidden/gu);
@@ -445,7 +445,7 @@ describe("wrench.rip static site", () => {
     );
     expect(html).not.toContain("{{");
     expect(html).not.toContain("@jungle/");
-    expect(html).not.toContain("hraness.com/wrench");
+    expect(html).not.toContain("hraness.com/ghostget");
     expect(html.match(/<h1\b/gu)).toHaveLength(1);
     expect(html.match(/<details\b/gu)).toHaveLength(11);
     expect(html).toContain('class="table-scroll" role="region" tabindex="0"');
@@ -484,7 +484,7 @@ describe("wrench.rip static site", () => {
     expect(guidesSection).not.toContain('class="card editorial-card"');
     expect(html.indexOf(argumentsSection ?? "")).toBeLessThan(html.indexOf(guidesSection ?? ""));
     expect(html).toContain(
-      '<h1 class="hraness-marketing-hero__heading" id="brand-name">Give your coding agent bounded access to the web</h1>',
+      '<h1 class="hraness-marketing-hero__heading" id="brand-name">Read, archive, and act with your coding agent</h1>',
     );
     expect(html).not.toContain("Give your coding agent bounded access to the web.");
     const indeterminateWriteBoundary =
@@ -499,7 +499,7 @@ describe("wrench.rip static site", () => {
     expect(html).toContain('data-hraness-marketing="pillars"');
     expect(html).toContain('data-hraness-marketing="maker"');
     expect(html).toContain('clipped: "2026-09-05"');
-    expect(html).toContain("Wrench public-page read, recorded on September 5, 2026");
+    expect(html).toContain("Public-page read recorded on September 5, 2026; command updated for Ghostget.");
     expect(html).toContain('<a href="https://hraness.com">hraness.com</a>');
     expect(html).toContain('<a href="https://x.com/hraness">@hraness</a>');
     expect(html).not.toMatch(/\bstyle="/u);
@@ -508,22 +508,25 @@ describe("wrench.rip static site", () => {
     expect(html).toContain('data-hraness-marketing="trust"');
     expect(html).toContain('data-hraness-marketing="questions"');
     expect(html).toContain('data-hraness-marketing="cta"');
-    expect(html).toContain("The same boundary from three surfaces.");
-    expect(html).toContain('import { isProviderPluginId } from "@hraness/wrench"');
+    expect(html).toContain("Use an Agent Skill, CLI, or TypeScript SDK");
+    expect(html).not.toContain('class="hraness-marketing-hero__eyebrow"');
+    expect(html).toContain('data-align="start"');
+    expect(html).not.toContain('class="hraness-marketing-hero__example"');
+    expect(html).toContain('import { isProviderPluginId } from "@hraness/ghostget"');
     expect(html).toMatch(/Reviewed operations across \d+ supported services\./u);
-    expect(html).toContain('class="wordmark" href="/">Wrench</a>');
+    expect(html).toContain('class="wordmark" href="/">Ghostget</a>');
     expect(html).not.toMatch(/hero-field|hero-orbit|hero-glyph/u);
     expect(html).not.toMatch(/observed provider operations|capture-required|unavailable reservations/iu);
     expect(html).not.toContain("🔧");
     expect(html).toContain(`href="${PUBLISHER_URL}">Hraness GitHub organization</a>`);
-    expect(preview).toContain("<title>Wrench preview</title>");
+    expect(preview).toContain("<title>Ghostget preview</title>");
     expect(preview).toContain('<meta name="robots" content="noindex, nofollow">');
-    expect(preview).toContain('<link rel="canonical" href="https://wrench.rip/">');
+    expect(preview).toContain('<link rel="canonical" href="https://ghostget.com/">');
     expect(preview).toContain(`<link rel="stylesheet" href="${cssAsset}">`);
     expect(preview).toContain('<body class="preview-body">');
     expect(preview).toContain("Give your coding agent bounded access to the web.");
     expect(preview).toContain("Capture pages, preserve media, and use supported provider actions");
-    expect(preview).toContain('class="preview-wordmark">Wrench</p>');
+    expect(preview).toContain('class="preview-wordmark">Ghostget</p>');
     expect(preview).not.toMatch(/preview-field|preview-orbit|src="\/favicon\.svg"/u);
     expect(preview.match(/<h1\b/gu)).toHaveLength(1);
     expect(preview).not.toContain("{{");
@@ -547,12 +550,12 @@ describe("wrench.rip static site", () => {
     expect(notFound).toContain('href="/getting-started/"');
     expect(notFound).not.toContain('type="application/ld+json"');
     expect(notFoundMarkdown).toContain("# This handle does not exist.");
-    expect(notFoundMarkdown).toContain("https://wrench.rip/llms.txt");
-    expect(notFoundMarkdown).toContain("https://wrench.rip/sitemap.xml");
-    expect(llms).toContain("# Wrench");
-    expect(llms).toContain("## When to use Wrench");
-    expect(llms).toContain("## Wrench developer resources");
-    expect(llms).toContain("Do not use Wrench as an AI agent");
+    expect(notFoundMarkdown).toContain("https://ghostget.com/llms.txt");
+    expect(notFoundMarkdown).toContain("https://ghostget.com/sitemap.xml");
+    expect(llms).toContain("# Ghostget");
+    expect(llms).toContain("## When to use Ghostget");
+    expect(llms).toContain("## Ghostget developer resources");
+    expect(llms).toContain("Do not use Ghostget as an AI agent");
     expect(llms).toContain(`${SITE_ORIGIN}/getting-started/`);
     expect(llms).toContain(`${SITE_ORIGIN}/compare/personal-agents-browser-use/`);
     expect(llms).toContain(`${SITE_ORIGIN}/paypal-grapheneos-attestation/`);
@@ -573,12 +576,12 @@ describe("wrench.rip static site", () => {
     expect(llms).toContain(`${SITE_ORIGIN}/providers/whatsapp/`);
     expect(llms).toContain("does not pair, sync, or send");
     expect(llms).toContain("submission is not a delivery claim");
-    expect(llms.replaceAll(/https:\/\/wrench\.rip\/[a-z0-9-/]+/gu, "")).not.toMatch(
+    expect(llms.replaceAll(/https:\/\/ghostget\.com\/[a-z0-9-/]+/gu, "")).not.toMatch(
       /observed|capture-required|reservation|attestation/iu,
     );
     expect(llms).toContain(skillInstallCommands.npx);
     expect(llms).toContain(skillInstallCommands.bunx);
-    expect(llms).not.toContain("skills add hraness/wrench`");
+    expect(llms).not.toContain("skills add hraness/ghostget`");
     expect(llms).toContain("Accept: text/markdown");
     expect(llms).not.toContain("{{");
     expect(robots).toBe(`User-agent: *\nAllow: /\n\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`);
@@ -613,11 +616,17 @@ describe("wrench.rip static site", () => {
     expect(builtCss).toContain("--hraness-site-footer-social-target");
     expect(builtCss).not.toContain('@import "./dist/stylex.css"');
     expect(builtCss).toContain(".hraness-marketing-hero {");
+    expect(sourceCss).toContain("grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr)");
+    expect(sourceCss).toContain("min-block-size: 2.75rem");
     expect(builtCss).toContain("@media (pointer: coarse)");
     for (const css of [sourceCss, builtCss]) {
       expect(css).toMatch(
-        /\.wrench-product-hero\s*\{[^{}]*\bgrid-column:\s*1\s*\/\s*-1\s*;/u,
+        /\.ghostget-product-hero\s*\{[^{}]*\bgrid-column:\s*1\s*\/\s*-1\s*;/u,
       );
+      expect(cssPropertyValues(css, ".ghostget-product-hero .hero-explainer", "color").at(-1))
+        .toBe("var(--muted)");
+      expect(cssPropertyValues(css, '.hraness-marketing-action[data-emphasis="primary"]', "color").at(-1))
+        .toBe("var(--accent-ink)");
       const providerMarkDisplay = cssPropertyValues(css, ".provider-mark", "display");
       expect(providerMarkDisplay.length).toBeGreaterThan(0);
       expect(providerMarkDisplay).not.toContain("none");
@@ -801,9 +810,9 @@ describe("wrench.rip static site", () => {
       expect.objectContaining({
         "@id": `${SITE_ORIGIN}/#software`,
         sameAs: [
-          "https://github.com/hraness/wrench",
+          "https://github.com/hraness/ghostget",
           npmPackageUrl,
-          "https://skills.sh/hraness/wrench",
+          "https://skills.sh/hraness/ghostget",
         ],
         softwareVersion: packageIdentity.version,
       }),
@@ -820,8 +829,8 @@ describe("wrench.rip static site", () => {
       const canonicalUrl = `${SITE_ORIGIN}${definition.canonicalPath}`;
       expect(pageHtml).toContain(`<title>${definition.title}</title>`);
       expect(pageHtml).toContain(`<meta name="description" content="${definition.description}">`);
-      expect(pageHtml).toContain('class="wordmark" href="/">Wrench</a>');
-      expect(pageHtml).not.toContain('class="wordmark" href="/">WRENCH</a>');
+      expect(pageHtml).toContain('class="wordmark" href="/">Ghostget</a>');
+      expect(pageHtml).not.toContain('class="wordmark" href="/">GHOSTGET</a>');
       expect(pageHtml).toContain(`<link rel="canonical" href="${canonicalUrl}">`);
       expect(pageHtml).toContain(`<meta property="og:title" content="${definition.title}">`);
       expect(pageHtml).toContain(`<meta property="og:description" content="${definition.description}">`);
@@ -852,7 +861,7 @@ describe("wrench.rip static site", () => {
         "utf8",
       );
       expect(markdown.startsWith("# ")).toBe(true);
-      expect(markdown).toContain("Wrench");
+      expect(markdown).toContain("Ghostget");
       expect(markdown).not.toMatch(/<\/[a-z]+>/i);
       expect(markdown.length).toBeGreaterThan(400);
 
@@ -946,7 +955,7 @@ describe("wrench.rip static site", () => {
       expect(page?.html).toContain(`alt="${image.alt}"`);
       expect(page?.html).toContain(image.caption);
       expect(page?.html).toContain(image.credit);
-      expect(image.credit).toBe("Editorial illustration generated for Wrench with Atet.");
+      expect(image.credit).toBe("Editorial illustration generated with Atet.");
       expect(page?.html).not.toContain("editorial-provenance/");
       expect(page?.html).not.toContain("gateway_");
       const answerLedeIndex = page?.html.indexOf('class="answer-lede"') ?? -1;
@@ -1039,12 +1048,12 @@ describe("wrench.rip static site", () => {
     );
 
     const gettingStarted = pages.find((page) => page.definition.canonicalPath === "/getting-started/");
-    expect(gettingStarted?.html).toContain("Wrench developer resources");
+    expect(gettingStarted?.html).toContain("Ghostget developer resources");
     expect(gettingStarted?.html).toContain(
-      `<a href="${npmPackageUrl}">Install the <code>@hraness/wrench</code> CLI and TypeScript SDK from GitHub Releases</a>`,
+      `<a href="${npmPackageUrl}">Install the <code>@hraness/ghostget</code> CLI and TypeScript SDK from GitHub Releases</a>`,
     );
     expect(gettingStarted?.html).toContain(
-      `<a href="${SKILLS_URL}">Install the Wrench Agent Skill from skills.sh</a>`,
+      `<a href="${SKILLS_URL}">Install the Ghostget Agent Skill from skills.sh</a>`,
     );
     expect(gettingStarted?.html).toContain(`<code>${skillInstallCommands.npx}</code>`);
     expect(gettingStarted?.html).toContain("does not publish a hosted API");
@@ -1056,14 +1065,15 @@ describe("wrench.rip static site", () => {
     expect(gettingStarted?.html).toContain('href="/wrench-first-capture.gif"');
     expect(gettingStarted?.html).not.toContain('class="editorial-figure"');
     expect(gettingStarted?.html).toContain("successful Wrench 0.13.5 run on August 25, 2026");
+    expect(gettingStarted?.html).toContain("before the project became Ghostget");
     expect(gettingStarted?.html).toContain("The terminal text is actual CLI output");
 
     const privacy = pages.find((page) => page.definition.canonicalPath === "/privacy/");
     expect(privacy?.html).toContain("The CLI stores state on the operator's machine");
     expect(privacy?.html).toContain("Local custody does not mean that every stored byte is encrypted");
-    expect(privacy?.html).toContain("Wrench-managed Gmail OAuth JSON file");
-    expect(privacy?.html).toContain("The CLI and SDK do not send wrench.rip analytics");
-    expect(privacy?.html).toContain("wrench auth remove ID --yes");
+    expect(privacy?.html).toContain("Ghostget-managed Gmail OAuth JSON file");
+    expect(privacy?.html).toContain("The CLI and SDK do not send ghostget.com analytics");
+    expect(privacy?.html).toContain("ghostget auth remove ID --yes");
     expect(privacy?.html).toContain("it is not a hostile native-code sandbox");
     expect(privacy?.html).toContain(
       "transient full copies of the private Photos and Contacts SQLite databases",
@@ -1079,7 +1089,7 @@ describe("wrench.rip static site", () => {
     );
     const mailingHtml = /<section aria-labelledby="website-mailing-list">[\s\S]*?<\/section>/u
       .exec(privacy?.html ?? "")?.[0];
-    const mailingMarkdown = /## Wrench mailing-list subscriptions are separate[\s\S]*?(?=\n\n## )/u
+    const mailingMarkdown = /## Ghostget mailing-list subscriptions are separate[\s\S]*?(?=\n\n## )/u
       .exec(privacyMarkdown)?.[0];
     const normalizeMailingCopy = (value: string | undefined): string =>
       (value ?? "")
@@ -1089,18 +1099,18 @@ describe("wrench.rip static site", () => {
         .replaceAll(/\s+([,.;:!?])/gu, "$1")
         .trim();
     const expectedMailingCopy = [
-      "Wrench mailing-list subscriptions are separate",
-      "The optional footer form loads Cloudflare Turnstile. When you submit it, Hraness Accounts processes the email address and Turnstile response at https://account.hraness.com/api/mailing/subscribe. Each request uses the fixed wrench audience and source=hraness-site-footer. An eligible request records a pending Wrench membership. Resend processes the email address to deliver a confirmation message from newsletter@news.hraness.com. The emailed link opens the Hraness Accounts confirmation page. Only the page's explicit Confirm subscription POST records consent and changes the membership to subscribed.",
-      "Subscribed members can receive later Wrench mail through Resend from news.hraness.com. Unsubscribing retains the Wrench membership and consent history, changes only that membership to unsubscribed, and leaves every other Hraness audience unchanged. The mailing list is optional: using the Wrench CLI, SDK, or wrench.rip does not require a subscription, and a Wrench subscription does not enroll the address in another Hraness audience.",
+      "Ghostget mailing-list subscriptions are separate",
+      "The optional footer form loads Cloudflare Turnstile. When you submit it, Hraness Accounts processes the email address and Turnstile response at https://account.hraness.com/api/mailing/subscribe. Each request uses the fixed wrench audience and source=hraness-site-footer. An eligible request records a pending Ghostget membership. Resend processes the email address to deliver a confirmation message from newsletter@news.hraness.com. The emailed link opens the Hraness Accounts confirmation page. Only the page's explicit Confirm subscription POST records consent and changes the membership to subscribed.",
+      "Subscribed members can receive later Ghostget mail through Resend from news.hraness.com. Unsubscribing retains the Ghostget membership and consent history, changes only that membership to unsubscribed, and leaves every other Hraness audience unchanged. The mailing list is optional: using the Ghostget CLI, SDK, or ghostget.com does not require a subscription, and a Ghostget subscription does not enroll the address in another Hraness audience.",
     ].join(" ");
     const normalizedMailingCopies = [mailingHtml, mailingMarkdown].map(normalizeMailingCopy);
     expect(normalizedMailingCopies).toEqual([expectedMailingCopy, expectedMailingCopy]);
     const lifecycleStages = [
-      "pending Wrench membership",
+      "pending Ghostget membership",
       "emailed link opens the Hraness Accounts confirmation page",
       "explicit Confirm subscription POST records consent",
       "membership to subscribed",
-      "retains the Wrench membership and consent history",
+      "retains the Ghostget membership and consent history",
       "membership to unsubscribed",
       "leaves every other Hraness audience unchanged",
     ];
@@ -1121,7 +1131,7 @@ describe("wrench.rip static site", () => {
       "utf8",
     );
     expect(providerCapabilities?.html).toContain(
-      "This directory lists the actions supported by the current Wrench release",
+      "This directory lists the actions supported by the current Ghostget release",
     );
     expect(html).toContain(providerCards);
     expect(providerCapabilities?.html).toContain(providerCards);
@@ -1209,7 +1219,7 @@ describe("wrench.rip static site", () => {
     );
     expect(beeper?.html).toContain(beeperFacts.artifactTable);
     expect(beeper?.html).toContain(
-      `&lt;WRENCH_STATE_HOME&gt;/tools/beeper/${beeperFacts.cliVersion}/beeper`,
+      `&lt;GHOSTGET_STATE_HOME&gt;/tools/beeper/${beeperFacts.cliVersion}/beeper`,
     );
     expect(beeper?.html).toContain('aria-current="location" href="/provider-capabilities/"');
     expect(beeper?.html).toContain("one fixed POST");
@@ -1279,7 +1289,7 @@ describe("wrench.rip static site", () => {
     expect(beeperBreadcrumb).toMatchObject({
       "@type": "BreadcrumbList",
       itemListElement: [
-        { name: "Wrench", position: 1, item: `${SITE_ORIGIN}/` },
+        { name: "Ghostget", position: 1, item: `${SITE_ORIGIN}/` },
         { name: "Providers", position: 2, item: `${SITE_ORIGIN}/provider-capabilities/` },
         { name: "Beeper", position: 3, item: `${SITE_ORIGIN}/providers/beeper/` },
       ],
@@ -1288,12 +1298,12 @@ describe("wrench.rip static site", () => {
       beeper?.html ?? "",
       readme,
       await readFile(
-        join(repositoryRoot, "skills/wrench/references/messaging.md"),
+        join(repositoryRoot, "skills/ghostget/references/messaging.md"),
         "utf8",
       ),
     ];
     for (const document of agentFacingMessagingDocs) {
-      expect(document).not.toContain("wrench beeper-local messaging.send");
+      expect(document).not.toContain("ghostget beeper-local messaging.send");
       expect(document).toContain(
         '{"schemaVersion":2,"format":"wrench.messaging-route-resolve-request"',
       );
@@ -1301,10 +1311,10 @@ describe("wrench.rip static site", () => {
         '{"schemaVersion":1,"format":"wrench.messaging-route-resolve-request"',
       );
       for (const command of [
-        "wrench messaging routes",
-        "wrench messaging resolve",
-        "wrench messaging context",
-        "wrench messaging preview",
+        "ghostget messaging routes",
+        "ghostget messaging resolve",
+        "ghostget messaging context",
+        "ghostget messaging preview",
       ]) expect(document).toContain(command);
     }
 
@@ -1333,8 +1343,8 @@ describe("wrench.rip static site", () => {
     expect(whatsapp?.html).toContain("Runtime reads do not claim to repeat online notarization");
     expect(whatsapp?.html).not.toMatch(/retains? reaction/iu);
     expect(whatsapp?.html).not.toContain("runtime notarization");
-    expect(whatsapp?.html).not.toContain("wrench auth pair");
-    expect(whatsapp?.html).not.toContain("wrench auth sync");
+    expect(whatsapp?.html).not.toContain("ghostget auth pair");
+    expect(whatsapp?.html).not.toContain("ghostget auth sync");
     const whatsappJsonMatch = /<script type="application\/ld\+json">([^<]+)<\/script>/u.exec(
       whatsapp?.html ?? "",
     );
@@ -1346,7 +1356,7 @@ describe("wrench.rip static site", () => {
     expect(whatsappBreadcrumb).toMatchObject({
       "@type": "BreadcrumbList",
       itemListElement: [
-        { name: "Wrench", position: 1, item: `${SITE_ORIGIN}/` },
+        { name: "Ghostget", position: 1, item: `${SITE_ORIGIN}/` },
         { name: "Providers", position: 2, item: `${SITE_ORIGIN}/provider-capabilities/` },
         { name: "WhatsApp", position: 3, item: `${SITE_ORIGIN}/providers/whatsapp/` },
       ],
@@ -1360,9 +1370,9 @@ describe("wrench.rip static site", () => {
     expect(personalAgents?.html).toContain(
       "https://hraness.com/reading/personal-agents-notes-instinct-grok-bots-chatgpt-work",
     );
-    expect(personalAgents?.html).toContain("https://wrench.rip/");
-    expect(personalAgents?.html).toContain("https://wrench.rip/provider-capabilities/");
-    expect(personalAgents?.html).toContain("https://wrench.rip/security/");
+    expect(personalAgents?.html).toContain("https://ghostget.com/");
+    expect(personalAgents?.html).toContain("https://ghostget.com/provider-capabilities/");
+    expect(personalAgents?.html).toContain("https://ghostget.com/security/");
     expect(personalAgents?.html).toContain(
       `The current release offers ${attestation.observedCount} supported provider actions.`,
     );
@@ -1371,8 +1381,8 @@ describe("wrench.rip static site", () => {
     expect(personalAgents?.html).toContain("Grok Bots");
     expect(personalAgents?.html).toContain("ChatGPT Work");
     expect(personalAgents?.html).toContain("never switches to a browser fallback silently");
-    expect(personalAgents?.html).toContain("https://wrench.rip/agentic-web-spoofing/");
-    expect(personalAgents?.html).toContain("https://wrench.rip/vms-cannot-contain-agents/");
+    expect(personalAgents?.html).toContain("https://ghostget.com/agentic-web-spoofing/");
+    expect(personalAgents?.html).toContain("https://ghostget.com/vms-cannot-contain-agents/");
     expect(personalAgents?.html).not.toContain("{{PROVIDER_CAPABILITY");
     expect(personalAgents?.html).not.toMatch(/capture-required|<code>observed<\/code>/iu);
 
@@ -1386,11 +1396,11 @@ describe("wrench.rip static site", () => {
       "https://hraness.com/reading/agentic-web-index-spoofing-and-security",
     );
     expect(agenticWebSpoofing?.html).toContain("https://hraness.com");
-    expect(agenticWebSpoofing?.html).toContain("https://wrench.rip/");
-    expect(agenticWebSpoofing?.html).toContain("https://wrench.rip/provider-capabilities/");
-    expect(agenticWebSpoofing?.html).toContain("https://wrench.rip/security/");
+    expect(agenticWebSpoofing?.html).toContain("https://ghostget.com/");
+    expect(agenticWebSpoofing?.html).toContain("https://ghostget.com/provider-capabilities/");
+    expect(agenticWebSpoofing?.html).toContain("https://ghostget.com/security/");
     expect(agenticWebSpoofing?.html).toContain(
-      "https://wrench.rip/compare/personal-agents-browser-use/",
+      "https://ghostget.com/compare/personal-agents-browser-use/",
     );
     expect(agenticWebSpoofing?.html).toContain(
       "A visit is considered spoofed when it claims a recognized agent identity but fails that agent's supported authentication method, such as verified IP or Web Bot Auth.",
@@ -1416,7 +1426,7 @@ describe("wrench.rip static site", () => {
     expect(agenticWebSpoofing?.html).toContain("Telegram is absent from those manifests");
     expect(agenticWebSpoofing?.html).toContain("this page does not invent those names");
     expect(agenticWebSpoofing?.html).toContain("The pages do not reprint one another.");
-    expect(agenticWebSpoofing?.html).toContain("https://wrench.rip/vms-cannot-contain-agents/");
+    expect(agenticWebSpoofing?.html).toContain("https://ghostget.com/vms-cannot-contain-agents/");
     expect(agenticWebSpoofing?.html).not.toContain("{{PROVIDER_CAPABILITY");
 
     const vmsCannotContainAgents = pages.find((page) =>
@@ -1433,11 +1443,11 @@ describe("wrench.rip static site", () => {
     expect(vmsCannotContainAgents?.html).toContain("Wednesday 26 August 2026");
     expect(vmsCannotContainAgents?.html).toContain("Trail of Bits argues VMs cannot reliably contain cyber-capable AI agents");
     expect(vmsCannotContainAgents?.html).toContain("https://hraness.com");
-    expect(vmsCannotContainAgents?.html).toContain("https://wrench.rip/");
-    expect(vmsCannotContainAgents?.html).toContain("https://wrench.rip/provider-capabilities/");
-    expect(vmsCannotContainAgents?.html).toContain("https://wrench.rip/agentic-web-spoofing/");
+    expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/");
+    expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/provider-capabilities/");
+    expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/agentic-web-spoofing/");
     expect(vmsCannotContainAgents?.html).toContain(
-      "https://wrench.rip/compare/personal-agents-browser-use/",
+      "https://ghostget.com/compare/personal-agents-browser-use/",
     );
     expect(vmsCannotContainAgents?.html).toContain(
       `The current release attests ${attestation.operationCount} operations across ${attestation.adapterCount} bundled public adapters.`,
@@ -1448,9 +1458,9 @@ describe("wrench.rip static site", () => {
     expect(vmsCannotContainAgents?.html).toContain("Telegram is absent from those manifests");
     expect(vmsCannotContainAgents?.html).toContain("does not sell a hypervisor, a microVM, or a hostile-code sandbox");
     expect(vmsCannotContainAgents?.html).toContain("The pages do not reprint one another.");
-    expect(vmsCannotContainAgents?.html).toContain("https://wrench.rip/paypal-grapheneos-attestation/");
-    expect(vmsCannotContainAgents?.html).toContain("https://wrench.rip/rumour-is-the-exploit/");
-    expect(vmsCannotContainAgents?.html).toContain("https://wrench.rip/omarchy-root-escalation/");
+    expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/paypal-grapheneos-attestation/");
+    expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/rumour-is-the-exploit/");
+    expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/omarchy-root-escalation/");
     expect(vmsCannotContainAgents?.html).not.toContain("{{PROVIDER_CAPABILITY");
     expect(vmsCannotContainAgents?.html).not.toContain("stripedex.com");
     expect(vmsCannotContainAgents?.html).not.toContain("spongeresearch.com");
@@ -1474,10 +1484,10 @@ describe("wrench.rip static site", () => {
       "com.paypal.oslo.app.rasp.RootDetectionSecurityException: Security policy violation: s=root",
     );
     expect(paypalGrapheneOsAttestation?.html).toContain("https://hraness.com");
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://wrench.rip/");
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://wrench.rip/provider-capabilities/");
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://wrench.rip/agentic-web-spoofing/");
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://wrench.rip/vms-cannot-contain-agents/");
+    expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/");
+    expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/provider-capabilities/");
+    expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/agentic-web-spoofing/");
+    expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/vms-cannot-contain-agents/");
     expect(paypalGrapheneOsAttestation?.html).toContain(
       `The current release attests ${attestation.operationCount} operations across ${attestation.adapterCount} bundled public adapters.`,
     );
@@ -1487,8 +1497,8 @@ describe("wrench.rip static site", () => {
     expect(paypalGrapheneOsAttestation?.html).toContain("Telegram is absent from those manifests");
     expect(paypalGrapheneOsAttestation?.html).toContain("does not invent a PayPal API");
     expect(paypalGrapheneOsAttestation?.html).toContain("The pages do not reprint one another.");
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://wrench.rip/rumour-is-the-exploit/");
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://wrench.rip/omarchy-root-escalation/");
+    expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/rumour-is-the-exploit/");
+    expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/omarchy-root-escalation/");
     expect(paypalGrapheneOsAttestation?.html).not.toContain("{{PROVIDER_CAPABILITY");
     expect(paypalGrapheneOsAttestation?.html).not.toContain("stripedex.com");
     expect(paypalGrapheneOsAttestation?.html).not.toContain("spongeresearch.com");
@@ -1511,10 +1521,10 @@ describe("wrench.rip static site", () => {
     expect(rumourIsTheExploit?.html).toContain("Monday 31 August 2026");
     expect(rumourIsTheExploit?.html).toContain("22 August 2026");
     expect(rumourIsTheExploit?.html).toContain("https://hraness.com");
-    expect(rumourIsTheExploit?.html).toContain("https://wrench.rip/");
-    expect(rumourIsTheExploit?.html).toContain("https://wrench.rip/provider-capabilities/");
-    expect(rumourIsTheExploit?.html).toContain("https://wrench.rip/vms-cannot-contain-agents/");
-    expect(rumourIsTheExploit?.html).toContain("https://wrench.rip/paypal-grapheneos-attestation/");
+    expect(rumourIsTheExploit?.html).toContain("https://ghostget.com/");
+    expect(rumourIsTheExploit?.html).toContain("https://ghostget.com/provider-capabilities/");
+    expect(rumourIsTheExploit?.html).toContain("https://ghostget.com/vms-cannot-contain-agents/");
+    expect(rumourIsTheExploit?.html).toContain("https://ghostget.com/paypal-grapheneos-attestation/");
     expect(rumourIsTheExploit?.html).toContain(
       `The current release attests ${attestation.operationCount} operations across ${attestation.adapterCount} bundled public adapters.`,
     );
@@ -1525,7 +1535,7 @@ describe("wrench.rip static site", () => {
     expect(rumourIsTheExploit?.html).toContain("does not reconstruct exploits");
     expect(rumourIsTheExploit?.html).toContain("does not reprint the essay");
     expect(rumourIsTheExploit?.html).toContain("The pages do not reprint one another.");
-    expect(rumourIsTheExploit?.html).toContain("https://wrench.rip/omarchy-root-escalation/");
+    expect(rumourIsTheExploit?.html).toContain("https://ghostget.com/omarchy-root-escalation/");
     expect(rumourIsTheExploit?.html).not.toContain("{{PROVIDER_CAPABILITY");
     expect(rumourIsTheExploit?.html).not.toContain("stripedex.com");
     expect(rumourIsTheExploit?.html).not.toContain("spongeresearch.com");
@@ -1546,11 +1556,11 @@ describe("wrench.rip static site", () => {
       "Omarchy desktop environment allows any user process to escalate to root",
     );
     expect(omarchyRootEscalation?.html).toContain("https://hraness.com");
-    expect(omarchyRootEscalation?.html).toContain("https://wrench.rip/");
-    expect(omarchyRootEscalation?.html).toContain("https://wrench.rip/provider-capabilities/");
-    expect(omarchyRootEscalation?.html).toContain("https://wrench.rip/vms-cannot-contain-agents/");
-    expect(omarchyRootEscalation?.html).toContain("https://wrench.rip/paypal-grapheneos-attestation/");
-    expect(omarchyRootEscalation?.html).toContain("https://wrench.rip/rumour-is-the-exploit/");
+    expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/");
+    expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/provider-capabilities/");
+    expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/vms-cannot-contain-agents/");
+    expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/paypal-grapheneos-attestation/");
+    expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/rumour-is-the-exploit/");
     expect(omarchyRootEscalation?.html).toContain(
       `The current release attests ${attestation.operationCount} operations across ${attestation.adapterCount} bundled public adapters.`,
     );
@@ -1603,7 +1613,7 @@ describe("wrench.rip static site", () => {
     expect(negotiated?.status).toBe(200);
     expect(negotiated?.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
     expect(negotiated?.headers.get("vary")).toBe("Accept");
-    expect(await negotiated?.text()).toContain("# Install Wrench and capture your first URL.");
+    expect(await negotiated?.text()).toContain("# Install Ghostget and capture your first URL.");
   });
 
   test("keeps every README release reference aligned with package identity", async () => {

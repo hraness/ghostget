@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { extname, isAbsolute, join } from "node:path";
 import { types as nodeTypes } from "node:util";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import { canonicalJson } from "../canonical-json";
 import type { LocalCliRecipe, OperationInput } from "../model";
 import type {
@@ -35,7 +35,7 @@ import {
   type LocalCliCleanupResourceIdentityV1,
 } from "../provider-plugin-cleanup-resource";
 import type { ProviderPluginCleanupProofController } from "../provider-plugin-cleanup-execution";
-import { removePrivateDirectoryTree, wrenchStateHome } from "../storage";
+import { removePrivateDirectoryTree, ghostgetStateHome } from "../storage";
 import type {
   ProviderPluginCleanupResourcePublisher,
   WebSessionOperationDeadline,
@@ -109,7 +109,7 @@ async function createBeeperOperationRoot(): Promise<string> {
   throw new Error("Beeper local CLI operation root allocation failed");
 }
 
-type BeeperAuth = Extract<WrenchAuth, { readonly kind: "linked-device-store" }>;
+type BeeperAuth = Extract<GhostgetAuth, { readonly kind: "linked-device-store" }>;
 type JsonRecord = Readonly<Record<string, unknown>>;
 
 function hasWellFormedUnicode(value: string): boolean {
@@ -1583,7 +1583,7 @@ function parseContacts(
   }));
 }
 
-function requireBeeperAuth(auth: WrenchAuth): BeeperAuth {
+function requireBeeperAuth(auth: GhostgetAuth): BeeperAuth {
   if (auth.kind !== "linked-device-store" || auth.provider !== "beeper") {
     throw new Error("Beeper local reads require a beeper linked-device-store auth locator");
   }
@@ -1634,7 +1634,7 @@ export async function resolvePinnedBeeperCliBinary(
       ? ["/usr/local/bin/beeper", "/usr/bin/beeper", "/opt/beeper/bin/beeper"]
       : [];
   const candidates = [
-    join(wrenchStateHome(environment), "tools", "beeper", BEEPER_CLI_PIN.version, "beeper"),
+    join(ghostgetStateHome(environment), "tools", "beeper", BEEPER_CLI_PIN.version, "beeper"),
     ...platformCandidates,
   ];
   for (const candidate of candidates) {
@@ -2297,7 +2297,7 @@ function beeperDirectUrl(
 }
 
 async function bindBeeperDirectRealm(
-  authValue: WrenchAuth,
+  authValue: GhostgetAuth,
   dependencies: BeeperDirectDependencies | undefined,
   signal: AbortSignal | undefined,
   enforceBoundSubject = true,
@@ -3023,7 +3023,7 @@ function directContactOutput(
 export async function executeBeeperDirectReadOperation(
   recipe: LocalCliRecipe,
   inputValue: OperationInput,
-  authValue: WrenchAuth,
+  authValue: GhostgetAuth,
   options: BeeperDirectReadOptions = {},
 ): Promise<LocalCliExecution> {
   if (
@@ -3206,7 +3206,7 @@ export async function executeBeeperDirectReadOperation(
  */
 export async function executeBeeperDirectMessagingPart(
   inputValue: OperationInput,
-  authValue: WrenchAuth,
+  authValue: GhostgetAuth,
   attempt: BeeperDirectMessagingAttempt,
 ): Promise<BeeperDirectMessagingAcceptance> {
   attempt.operationDeadline.throwIfUnavailable("Beeper direct messaging");
@@ -3629,7 +3629,7 @@ async function withRuntime<T>(
 }
 
 export async function probeBeeperLocalSubject(
-  authValue: WrenchAuth,
+  authValue: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly dependencies?: BeeperLocalRuntimeDependencies;
@@ -3743,7 +3743,7 @@ function requireObservedConversationState(
 export async function reconcileBeeperLocalOperation(
   operation: string,
   inputValue: OperationInput,
-  authValue: WrenchAuth,
+  authValue: GhostgetAuth,
   context?: ProviderPluginReconciliationContextV1,
   options: ProviderPluginReconciliationOptionsV1 & Readonly<{
     dependencies?: BeeperLocalRuntimeDependencies;
@@ -5316,7 +5316,7 @@ async function executeMutation(
 export async function executeBeeperLocalOperation(
   recipe: LocalCliRecipe,
   inputValue: OperationInput,
-  authValue: WrenchAuth,
+  authValue: GhostgetAuth,
   options: LocalCliExecutionOptions & Readonly<{
     dependencies?: BeeperLocalRuntimeDependencies;
     directDependencies?: BeeperDirectDependencies;

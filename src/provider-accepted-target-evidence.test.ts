@@ -40,7 +40,7 @@ function state(): TestState {
   chmodSync(directory, 0o700);
   return {
     directory,
-    environment: { WRENCH_STATE_HOME: directory },
+    environment: { GHOSTGET_STATE_HOME: directory },
   };
 }
 

@@ -6,7 +6,7 @@ import {
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import {
   canonicalJson,
   sha256,
@@ -35,7 +35,7 @@ import {
   readRegularFile,
   removePrivateStateDirectoryTree,
   removePrivateStateFile,
-  wrenchStateHome,
+  ghostgetStateHome,
   snapshotPrivateStateDirectory,
 } from "./storage";
 
@@ -103,7 +103,7 @@ export type RecoveryCapsule = {
   readonly auth: {
     readonly id: string;
     readonly hash: string;
-    readonly kind: WrenchAuth["kind"];
+    readonly kind: GhostgetAuth["kind"];
   };
   readonly contract: RecoveryContractIdentity;
 };
@@ -300,7 +300,7 @@ function assertTimestamp(value: unknown, label: string): asserts value is string
   }
 }
 
-function assertAuthKind(value: unknown): asserts value is WrenchAuth["kind"] {
+function assertAuthKind(value: unknown): asserts value is GhostgetAuth["kind"] {
   if (
     value !== "cookie-source"
     && value !== "cookies-file"
@@ -651,7 +651,7 @@ export function parseProviderAcceptedMutationTargetEvidence(
 }
 
 function recoveryRoot(environment: Environment): string {
-  return join(wrenchStateHome(environment), RECOVERY_DIRECTORY);
+  return join(ghostgetStateHome(environment), RECOVERY_DIRECTORY);
 }
 
 function capsuleDirectory(environment: Environment): string {
@@ -701,7 +701,7 @@ function observationRunDirectory(runId: string, environment: Environment): strin
 }
 
 function keyPath(environment: Environment): string {
-  return join(wrenchStateHome(environment), RECOVERY_KEY);
+  return join(ghostgetStateHome(environment), RECOVERY_KEY);
 }
 
 function parseRecoveryKey(text: string): Buffer {

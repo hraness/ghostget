@@ -667,8 +667,8 @@ describe("portable provider plugin store", () => {
         import { existsSync, writeFileSync } from "node:fs";
         import { installPortableProviderPluginPackage } from ${JSON.stringify(storeUrl)};
         import { verifyPortableProviderPluginPackageDirectory } from ${JSON.stringify(packageUrl)};
-        const source = process.env.WRENCH_TEST_PLUGIN_SOURCE;
-        const storeRoot = process.env.WRENCH_TEST_PLUGIN_STORE;
+        const source = process.env.GHOSTGET_TEST_PLUGIN_SOURCE;
+        const storeRoot = process.env.GHOSTGET_TEST_PLUGIN_STORE;
         const verified = verifyPortableProviderPluginPackageDirectory(source);
         const sleeper = new Int32Array(new SharedArrayBuffer(4));
         installPortableProviderPluginPackage(source, {
@@ -682,8 +682,8 @@ describe("portable provider plugin store", () => {
           expectedCurrentBundleSha256: null,
           assertCurrentQuiescent: () => undefined,
           assertActivatable: () => {
-            writeFileSync(process.env.WRENCH_TEST_PLUGIN_READY, "ready\\n", { flag: "wx" });
-            while (!existsSync(process.env.WRENCH_TEST_PLUGIN_RELEASE)) {
+            writeFileSync(process.env.GHOSTGET_TEST_PLUGIN_READY, "ready\\n", { flag: "wx" });
+            while (!existsSync(process.env.GHOSTGET_TEST_PLUGIN_RELEASE)) {
               Atomics.wait(sleeper, 0, 0, 10);
             }
           },
@@ -692,10 +692,10 @@ describe("portable provider plugin store", () => {
       const child = Bun.spawn([process.execPath, "-e", childScript], {
         env: {
           ...process.env,
-          WRENCH_TEST_PLUGIN_SOURCE: firstSource,
-          WRENCH_TEST_PLUGIN_STORE: storeRoot,
-          WRENCH_TEST_PLUGIN_READY: readyPath,
-          WRENCH_TEST_PLUGIN_RELEASE: releasePath,
+          GHOSTGET_TEST_PLUGIN_SOURCE: firstSource,
+          GHOSTGET_TEST_PLUGIN_STORE: storeRoot,
+          GHOSTGET_TEST_PLUGIN_READY: readyPath,
+          GHOSTGET_TEST_PLUGIN_RELEASE: releasePath,
         },
         stdout: "pipe",
         stderr: "pipe",
@@ -810,8 +810,8 @@ describe("portable provider plugin store", () => {
         import { existsSync, writeFileSync } from "node:fs";
         import { installPortableProviderPluginPackage } from ${JSON.stringify(storeUrl)};
         import { verifyPortableProviderPluginPackageDirectory } from ${JSON.stringify(packageUrl)};
-        const source = process.env.WRENCH_TEST_PLUGIN_SOURCE;
-        const storeRoot = process.env.WRENCH_TEST_PLUGIN_STORE;
+        const source = process.env.GHOSTGET_TEST_PLUGIN_SOURCE;
+        const storeRoot = process.env.GHOSTGET_TEST_PLUGIN_STORE;
         const verified = verifyPortableProviderPluginPackageDirectory(source);
         const sleeper = new Int32Array(new SharedArrayBuffer(4));
         let result;
@@ -828,11 +828,11 @@ describe("portable provider plugin store", () => {
             assertCurrentQuiescent: () => undefined,
             assertActivatable: () => {
               writeFileSync(
-                process.env.WRENCH_TEST_PLUGIN_HOOK_READY,
+                process.env.GHOSTGET_TEST_PLUGIN_HOOK_READY,
                 "entered\\n",
                 { flag: "wx", mode: 0o600 },
               );
-              while (!existsSync(process.env.WRENCH_TEST_PLUGIN_HOOK_RELEASE)) {
+              while (!existsSync(process.env.GHOSTGET_TEST_PLUGIN_HOOK_RELEASE)) {
                 Atomics.wait(sleeper, 0, 0, 10);
               }
             },
@@ -845,7 +845,7 @@ describe("portable provider plugin store", () => {
           };
         }
         writeFileSync(
-          process.env.WRENCH_TEST_PLUGIN_RESULT,
+          process.env.GHOSTGET_TEST_PLUGIN_RESULT,
           JSON.stringify(result) + "\\n",
           { flag: "wx", mode: 0o600 },
         );
@@ -858,17 +858,17 @@ describe("portable provider plugin store", () => {
           {
             env: {
               ...process.env,
-              WRENCH_TEST_PLUGIN_SOURCE: source,
-              WRENCH_TEST_PLUGIN_STORE:
+              GHOSTGET_TEST_PLUGIN_SOURCE: source,
+              GHOSTGET_TEST_PLUGIN_STORE:
                 index % 2 === 0 ? storeRoot : aliasedStoreRoot,
-              WRENCH_TEST_PLUGIN_LOCK_WAITING_READY:
+              GHOSTGET_TEST_PLUGIN_LOCK_WAITING_READY:
                 join(barrierReady, `${index}`),
-              WRENCH_TEST_PLUGIN_LOCK_WAITING_RELEASE: barrierRelease,
-              WRENCH_TEST_PLUGIN_LOCK_WAITING_TARGET:
+              GHOSTGET_TEST_PLUGIN_LOCK_WAITING_RELEASE: barrierRelease,
+              GHOSTGET_TEST_PLUGIN_LOCK_WAITING_TARGET:
                 ".catalog-mutation.lock",
-              WRENCH_TEST_PLUGIN_HOOK_READY: join(hookReady, `${index}`),
-              WRENCH_TEST_PLUGIN_HOOK_RELEASE: hookRelease,
-              WRENCH_TEST_PLUGIN_RESULT: join(results, `${index}.json`),
+              GHOSTGET_TEST_PLUGIN_HOOK_READY: join(hookReady, `${index}`),
+              GHOSTGET_TEST_PLUGIN_HOOK_RELEASE: hookRelease,
+              GHOSTGET_TEST_PLUGIN_RESULT: join(results, `${index}.json`),
             },
             stdin: "ignore",
             stdout: "ignore",
@@ -1010,12 +1010,12 @@ describe("portable provider plugin store", () => {
       const childScript = `
         import { installPortableProviderPluginPackage } from ${JSON.stringify(storeUrl)};
         import { verifyPortableProviderPluginPackageDirectory } from ${JSON.stringify(packageUrl)};
-        const source = process.env.WRENCH_TEST_PLUGIN_SOURCE;
+        const source = process.env.GHOSTGET_TEST_PLUGIN_SOURCE;
         const verified = verifyPortableProviderPluginPackageDirectory(source);
         let result;
         try {
           installPortableProviderPluginPackage(source, {
-            storeRoot: process.env.WRENCH_TEST_PLUGIN_STORE,
+            storeRoot: process.env.GHOSTGET_TEST_PLUGIN_STORE,
             approval: {
               decision: "trust-executable-code",
               pluginId: verified.manifest.id,
@@ -1038,11 +1038,11 @@ describe("portable provider plugin store", () => {
       const child = Bun.spawn([process.execPath, "-e", childScript], {
         env: {
           ...process.env,
-          WRENCH_TEST_PLUGIN_SOURCE: source,
-          WRENCH_TEST_PLUGIN_STORE: storeRoot,
-          WRENCH_TEST_PLUGIN_LOCK_CLAIM_READ_READY: readReady,
-          WRENCH_TEST_PLUGIN_LOCK_CLAIM_READ_RELEASE: readRelease,
-          WRENCH_TEST_PLUGIN_LOCK_CLAIM_READ_TARGET: waitingName,
+          GHOSTGET_TEST_PLUGIN_SOURCE: source,
+          GHOSTGET_TEST_PLUGIN_STORE: storeRoot,
+          GHOSTGET_TEST_PLUGIN_LOCK_CLAIM_READ_READY: readReady,
+          GHOSTGET_TEST_PLUGIN_LOCK_CLAIM_READ_RELEASE: readRelease,
+          GHOSTGET_TEST_PLUGIN_LOCK_CLAIM_READ_TARGET: waitingName,
         },
         stdin: "ignore",
         stdout: "pipe",
@@ -1112,8 +1112,8 @@ describe("portable provider plugin store", () => {
       const childScript = `
         import { installPortableProviderPluginPackage } from ${JSON.stringify(storeUrl)};
         import { verifyPortableProviderPluginPackageDirectory } from ${JSON.stringify(packageUrl)};
-        const source = process.env.WRENCH_TEST_PLUGIN_SOURCE;
-        const storeRoot = process.env.WRENCH_TEST_PLUGIN_STORE;
+        const source = process.env.GHOSTGET_TEST_PLUGIN_SOURCE;
+        const storeRoot = process.env.GHOSTGET_TEST_PLUGIN_STORE;
         const verified = verifyPortableProviderPluginPackageDirectory(source);
         installPortableProviderPluginPackage(source, {
           storeRoot,
@@ -1146,10 +1146,10 @@ describe("portable provider plugin store", () => {
         const child = Bun.spawn([process.execPath, "-e", childScript], {
           env: {
             ...process.env,
-            WRENCH_TEST_PLUGIN_SOURCE: source,
-            WRENCH_TEST_PLUGIN_STORE: storeRoot,
-            WRENCH_TEST_PLUGIN_LOCK_PUBLICATION_CRASH: fault.name,
-            WRENCH_TEST_PLUGIN_LOCK_PUBLICATION_TARGET:
+            GHOSTGET_TEST_PLUGIN_SOURCE: source,
+            GHOSTGET_TEST_PLUGIN_STORE: storeRoot,
+            GHOSTGET_TEST_PLUGIN_LOCK_PUBLICATION_CRASH: fault.name,
+            GHOSTGET_TEST_PLUGIN_LOCK_PUBLICATION_TARGET:
               ".catalog-mutation.lock",
           },
           stdin: "ignore",
@@ -1215,8 +1215,8 @@ describe("portable provider plugin store", () => {
       const childScript = `
         import { installPortableProviderPluginPackage } from ${JSON.stringify(storeUrl)};
         import { verifyPortableProviderPluginPackageDirectory } from ${JSON.stringify(packageUrl)};
-        const source = process.env.WRENCH_TEST_PLUGIN_SOURCE;
-        const storeRoot = process.env.WRENCH_TEST_PLUGIN_STORE;
+        const source = process.env.GHOSTGET_TEST_PLUGIN_SOURCE;
+        const storeRoot = process.env.GHOSTGET_TEST_PLUGIN_STORE;
         const verified = verifyPortableProviderPluginPackageDirectory(source);
         installPortableProviderPluginPackage(source, {
           storeRoot,
@@ -1234,8 +1234,8 @@ describe("portable provider plugin store", () => {
       const child = Bun.spawn([process.execPath, "-e", childScript], {
         env: {
           ...process.env,
-          WRENCH_TEST_PLUGIN_SOURCE: source,
-          WRENCH_TEST_PLUGIN_STORE: storeRoot,
+          GHOSTGET_TEST_PLUGIN_SOURCE: source,
+          GHOSTGET_TEST_PLUGIN_STORE: storeRoot,
         },
         stdout: "pipe",
         stderr: "pipe",

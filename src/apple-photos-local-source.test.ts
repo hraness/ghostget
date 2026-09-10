@@ -257,9 +257,9 @@ describe("Apple Photos local source", () => {
 
   test("reads exact WAL-backed contact matches without projecting private fields", async () => {
     const value = fixture();
-    const environment = { WRENCH_STATE_HOME: join(value.root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(value.root, "state") };
     const leaseRoot = join(
-      environment.WRENCH_STATE_HOME,
+      environment.GHOSTGET_STATE_HOME,
       "recovery",
       "beeper-message-like-me-directory-leases",
     );

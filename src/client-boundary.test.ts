@@ -24,7 +24,7 @@ describe("public client process boundary", () => {
       operationId: "messaging.list",
     }, {
       now: new Date(Number.NaN),
-    })).toThrow("Wrench client observation time is invalid");
+    })).toThrow("Ghostget client observation time is invalid");
   });
 
   test("validates asynchronous CLI output and rejects account or execution-contract swaps", async () => {
@@ -94,7 +94,7 @@ describe("public client process boundary", () => {
       adapterId: "x",
       operationId: "messaging.list",
       input,
-    })).toThrow("Wrench client request objects must contain only data properties");
+    })).toThrow("Ghostget client request objects must contain only data properties");
     expect(getterCalls).toBe(0);
   });
 
@@ -115,12 +115,12 @@ describe("public client process boundary", () => {
     expect(() => readCachedCapability(
       request,
       accessorOptions as never,
-    )).toThrow("Wrench client options must contain only data properties");
+    )).toThrow("Ghostget client options must contain only data properties");
     expect(optionGetterCalls).toBe(0);
 
     let environmentGetterCalls = 0;
     const accessorEnvironment: Record<string, unknown> = {};
-    Object.defineProperty(accessorEnvironment, "WRENCH_STATE_HOME", {
+    Object.defineProperty(accessorEnvironment, "GHOSTGET_STATE_HOME", {
       enumerable: true,
       get() {
         environmentGetterCalls += 1;
@@ -129,7 +129,7 @@ describe("public client process boundary", () => {
     });
     expect(() => readCachedCapability(request, {
       environment: accessorEnvironment as never,
-    })).toThrow("Wrench client environment must contain only data properties");
+    })).toThrow("Ghostget client environment must contain only data properties");
     expect(environmentGetterCalls).toBe(0);
 
     let proxyTrapCalls = 0;
@@ -141,7 +141,7 @@ describe("public client process boundary", () => {
     });
     expect(() => readCachedCapability(request, {
       environment: proxiedEnvironment,
-    })).toThrow("Wrench client environment must use a plain, non-proxy object");
+    })).toThrow("Ghostget client environment must use a plain, non-proxy object");
     expect(proxyTrapCalls).toBe(0);
 
     let optionsProxyTrapCalls = 0;
@@ -154,24 +154,24 @@ describe("public client process boundary", () => {
     expect(() => readCachedCapability(
       request,
       proxiedOptions,
-    )).toThrow("Wrench client options must use a plain, non-proxy object");
+    )).toThrow("Ghostget client options must use a plain, non-proxy object");
     expect(optionsProxyTrapCalls).toBe(0);
 
     const unsupportedOptions: Record<string, unknown> = { unexpected: true };
     expect(() => readCachedCapability(
       request,
       unsupportedOptions as never,
-    )).toThrow("Wrench client options contain an unsupported field");
+    )).toThrow("Ghostget client options contain an unsupported field");
     expect(() => readCachedCapability(
       request,
       { [Symbol("unexpected")]: true },
-    )).toThrow("Wrench client options have unsupported symbol fields");
+    )).toThrow("Ghostget client options have unsupported symbol fields");
     const inheritedOptions: Record<string, unknown> = {};
     Object.setPrototypeOf(inheritedOptions, { environment: {} });
     expect(() => readCachedCapability(
       request,
       inheritedOptions as never,
-    )).toThrow("Wrench client options must use a plain, non-proxy object");
+    )).toThrow("Ghostget client options must use a plain, non-proxy object");
   });
 
   test("keeps live invocation option allowlists exact", () => {
@@ -182,19 +182,19 @@ describe("public client process boundary", () => {
     expect(() => invokeCapability(
       request,
       { freshForMs: 1 } as never,
-    )).toThrow("Wrench client options contain an unsupported field");
+    )).toThrow("Ghostget client options contain an unsupported field");
     expect(() => invokeCapability(
       request,
       { now: new Date() } as never,
-    )).toThrow("Wrench client options contain an unsupported field");
+    )).toThrow("Ghostget client options contain an unsupported field");
     expect(() => invokeCapabilitySync(
       request,
       { signal: new AbortController().signal } as never,
-    )).toThrow("Wrench client options contain an unsupported field");
+    )).toThrow("Ghostget client options contain an unsupported field");
     expect(() => invokeCapabilitySync(
       request,
       { extra: true } as never,
-    )).toThrow("Wrench client options contain an unsupported field");
+    )).toThrow("Ghostget client options contain an unsupported field");
   });
 
   test("rejects nested proxies and unbranded platform options before traps run", () => {
@@ -227,7 +227,7 @@ describe("public client process boundary", () => {
       trapHandler<typeof proxiedRequestTarget>(),
     );
     expect(() => readCachedCapability(proxiedRequest)).toThrow(
-      "Wrench client request must not contain proxies",
+      "Ghostget client request must not contain proxies",
     );
     const proxiedInputTarget = { limit: 20 };
     const proxiedInput = new Proxy(
@@ -237,7 +237,7 @@ describe("public client process boundary", () => {
     expect(() => readCachedCapability({
       ...request,
       input: { query: proxiedInput },
-    })).toThrow("Wrench client request must not contain proxies");
+    })).toThrow("Ghostget client request must not contain proxies");
 
     const proxiedDate = new Proxy(
       new Date("2026-07-31T12:00:00.000Z"),
@@ -245,7 +245,7 @@ describe("public client process boundary", () => {
     );
     expect(() => readCachedCapability(request, {
       now: proxiedDate,
-    })).toThrow("Wrench client observation time is invalid");
+    })).toThrow("Ghostget client observation time is invalid");
 
     const controller = new AbortController();
     const proxiedSignal = new Proxy(
@@ -254,13 +254,13 @@ describe("public client process boundary", () => {
     );
     expect(() => revalidateCapability(request, {
       signal: proxiedSignal,
-    })).toThrow("Wrench client abort signal is malformed");
+    })).toThrow("Ghostget client abort signal is malformed");
     expect(proxyTrapCalls).toBe(0);
 
     const fakeSignal = Object.create(AbortSignal.prototype) as AbortSignal;
     expect(() => revalidateCapability(request, {
       signal: fakeSignal,
-    })).toThrow("Wrench client abort signal is malformed");
+    })).toThrow("Ghostget client abort signal is malformed");
   });
 
   test("rejects values that do not have an exact JSON representation", () => {

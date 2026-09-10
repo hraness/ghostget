@@ -24,7 +24,7 @@ import {
   createPrivateJsonIfAbsent,
   ensurePrivateStateDirectory,
   readPrivateStateFileIfPresent,
-  wrenchStateHome,
+  ghostgetStateHome,
   writePrivateJsonIfUnchanged,
 } from "./storage";
 
@@ -79,7 +79,7 @@ export type MessagingRunEventV1 =
     };
 
 function root(environment: Environment): string {
-  return join(wrenchStateHome(environment), "messaging", "runs");
+  return join(ghostgetStateHome(environment), "messaging", "runs");
 }
 
 function path(runId: string, environment: Environment): string {

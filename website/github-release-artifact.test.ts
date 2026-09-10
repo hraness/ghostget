@@ -3,37 +3,38 @@ import { createHash } from "node:crypto";
 import {
   parseReleaseAssetDescriptors, parseReleaseManifest, releaseArchiveUrl, releaseAssetNames,
   usesGithubReleaseAssets, verifyAttestationResult, verifyReleaseAssetBytes,
+  releaseIdentity,
 } from "./github-release-artifact.mjs";
 
-const tag = "v0.16.13";
+const tag = "v0.17.0";
 const sourceSha = "a".repeat(40);
 const hash = "b".repeat(64);
 const manifest = {
-  schema: "hraness-github-release-v1", repository: "hraness/wrench", repositoryId: 1316443113,
-  package: "@hraness/wrench", version: "0.16.13", tag, sourceSha, workflowSha: "c".repeat(40),
+  schema: "hraness-github-release-v1", repository: "hraness/ghostget", repositoryId: 1316443113,
+  package: "@hraness/ghostget", version: "0.17.0", tag, sourceSha, workflowSha: "c".repeat(40),
   workflow: ".github/workflows/release.yml", runId: 12345, runAttempt: 2,
-  archive: { name: "hraness-wrench-0.16.13.tgz", bytes: 100, sha256: hash, sha512: "d".repeat(128) },
+  archive: { name: "hraness-ghostget-0.17.0.tgz", bytes: 100, sha256: hash, sha512: "d".repeat(128) },
 };
 function descriptors() {
   return releaseAssetNames(tag).map((name, index) => ({
     id: index + 1, name, size: 100, state: "uploaded", digest: `sha256:${hash}`,
-    browser_download_url: `https://github.com/hraness/wrench/releases/download/${tag}/${name}`,
-    url: `https://api.github.com/repos/hraness/wrench/releases/assets/${index + 1}`,
+    browser_download_url: `https://github.com/hraness/ghostget/releases/download/${tag}/${name}`,
+    url: `https://api.github.com/repos/hraness/ghostget/releases/assets/${index + 1}`,
   }));
 }
 function verifierOutput() {
   return [{ verificationResult: {
     signature: { certificate: {
       issuer: "https://token.actions.githubusercontent.com",
-      buildSignerURI: `https://github.com/hraness/wrench/.github/workflows/release.yml@refs/tags/${tag}`,
+      buildSignerURI: `https://github.com/hraness/ghostget/.github/workflows/release.yml@refs/tags/${tag}`,
       buildSignerDigest: sourceSha, runnerEnvironment: "github-hosted",
-      sourceRepositoryURI: "https://github.com/hraness/wrench", sourceRepositoryIdentifier: "1316443113",
+      sourceRepositoryURI: "https://github.com/hraness/ghostget", sourceRepositoryIdentifier: "1316443113",
       sourceRepositoryOwnerIdentifier: "307125679", sourceRepositoryDigest: sourceSha,
       sourceRepositoryOwnerURI: "https://github.com/hraness", sourceRepositoryVisibilityAtSigning: "public",
-      buildConfigURI: `https://github.com/hraness/wrench/.github/workflows/release.yml@refs/tags/${tag}`,
+      buildConfigURI: `https://github.com/hraness/ghostget/.github/workflows/release.yml@refs/tags/${tag}`,
       buildConfigDigest: sourceSha,
       sourceRepositoryRef: `refs/tags/${tag}`, buildTrigger: "push",
-      runInvocationURI: "https://github.com/hraness/wrench/actions/runs/12345/attempts/2",
+      runInvocationURI: "https://github.com/hraness/ghostget/actions/runs/12345/attempts/2",
     } }, verifiedTimestamps: [{ type: "Tlog", uri: "https://rekor.sigstore.dev" }],
     statement: { _type: "https://in-toto.io/Statement/v1", predicateType: "https://slsa.dev/provenance/v1",
       subject: releaseAssetNames(tag).slice(0, 4).map(name => ({ name, digest: { sha256: hash } })),
@@ -42,18 +43,27 @@ function verifierOutput() {
 }
 
 describe("canonical GitHub artifact admission", () => {
+  test("keeps immutable Wrench package names and signed repository identity below the rename boundary", () => {
+    expect(releaseIdentity("v0.16.16")).toEqual({ package: "@hraness/wrench", repository: "hraness/wrench", archivePrefix: "hraness-wrench" });
+    expect(releaseIdentity("v0.17.0")).toEqual({ package: "@hraness/ghostget", repository: "hraness/ghostget", archivePrefix: "hraness-ghostget" });
+    expect(releaseAssetNames("v0.16.16")[0]).toBe("hraness-wrench-0.16.16.tgz");
+    const legacy = { ...manifest, repository: "hraness/wrench", package: "@hraness/wrench", tag: "v0.16.16", version: "0.16.16", archive: { ...manifest.archive, name: "hraness-wrench-0.16.16.tgz" } };
+    expect(parseReleaseManifest(legacy)).toEqual(legacy);
+    expect(() => parseReleaseManifest({ ...legacy, package: "@hraness/ghostget" })).toThrow();
+    expect(() => parseReleaseManifest({ ...manifest, repository: "hraness/wrench" })).toThrow();
+  });
   test("retains historical assetless releases and gives stable versioned installation URLs", () => {
     expect(usesGithubReleaseAssets("v0.16.11")).toBe(false);
     expect(usesGithubReleaseAssets("v0.16.12")).toBe(false);
     expect(usesGithubReleaseAssets(tag)).toBe(true);
-    expect(releaseArchiveUrl(tag)).toBe("https://github.com/hraness/wrench/releases/download/v0.16.13/hraness-wrench-0.16.13.tgz");
+    expect(releaseArchiveUrl(tag)).toBe("https://github.com/hraness/ghostget/releases/download/v0.17.0/hraness-ghostget-0.17.0.tgz");
   });
   test("binds strict manifest fields to the requested source and attempt", () => {
     expect(parseReleaseManifest(manifest, { sourceSha, runAttempt: 2 })).toEqual(manifest);
     for (const invalid of [
       { ...manifest, extra: true }, { ...manifest, sourceSha: 1e39 }, { ...manifest, repositoryId: "1316443113" },
       { ...manifest, workflow: ".github/workflows/npm-stage.yml" }, { ...manifest, runAttempt: 0 },
-      { ...manifest, tag: "v0.16.13-preview" }, { ...manifest, version: "0.16.14" },
+      { ...manifest, tag: "v0.17.0-preview" }, { ...manifest, version: "0.17.1" },
       { ...manifest, archive: { ...manifest.archive, name: "../archive.tgz" } },
       { ...manifest, archive: { ...manifest.archive, bytes: 8 * 1024 * 1024 + 1 } },
     ]) expect(() => parseReleaseManifest(invalid)).toThrow();

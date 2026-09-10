@@ -274,7 +274,7 @@ function canonicalSourceUrl(
   for (const value of candidateUrls) {
     const parsed = parsedSafeWebUrl(value);
     if (parsed === undefined) continue;
-    // Wrench media does not own the semantics or privacy of arbitrary URL paths.
+    // Ghostget media does not own the semantics or privacy of arbitrary URL paths.
     // Persist only the public origin until a provider-specific canonicalizer
     // can explicitly allowlist more.
     parsed.hash = "";
@@ -763,7 +763,7 @@ export function parseProbeMetadata(
   const extractorPath = sourceExtractorDirectory(projectedExtractor);
   const itemPath = sourceItemDirectory(projectedId);
   // Descriptive fields are provider-owned public metadata only when the source
-  // is on Wrench media's narrow ownership allowlist. Generic extractors frequently
+  // is on Ghostget media's narrow ownership allowlist. Generic extractors frequently
   // derive these strings from signed URL basenames.
   const title = projection === "youtube" ? boundedString(value, "title", 2_048) : undefined;
   const uploader = projection === "youtube" ? boundedString(value, "uploader", 1_024) : undefined;
@@ -808,7 +808,7 @@ export function parseProbeMetadata(
 }
 
 /**
- * Builds the complete provider metadata artifact from Wrench media's owned probe model.
+ * Builds the complete provider metadata artifact from Ghostget media's owned probe model.
  * Unknown yt-dlp fields never cross this boundary, including formats, fragment
  * URLs, request headers, cookies, and extractor-private state.
  */

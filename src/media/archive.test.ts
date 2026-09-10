@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import { ghostgetStateHome } from "../storage";
 import type { CaptureMode } from "./args";
 import {
   DIRECT_HTTP_CAPTURE_NAMESPACE,
@@ -22,10 +23,10 @@ import {
 import type { DirectHttpCaptureSink } from "./http-capture";
 import { DirectHttpProbeTransport, type DirectHttpProbe } from "./http-probe";
 import {
-  WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE,
-  WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE,
-  WRENCH_MEDIA_SCHEMA_VERSION,
-  WRENCH_MEDIA_WHISPER_CPP_PROFILE,
+  GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE,
+  GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE,
+  GHOSTGET_MEDIA_SCHEMA_VERSION,
+  GHOSTGET_MEDIA_WHISPER_CPP_PROFILE,
   createMediaArtifact,
   verifyMediaItem,
   writeMediaManifest,
@@ -104,16 +105,16 @@ const readyTranscriber: ReadyTranscriber = {
   modelPath: "/fake/ggml-model.bin",
   descriptor: {
     adapter: "whisper-cpp",
-    profile: WRENCH_MEDIA_WHISPER_CPP_PROFILE,
+    profile: GHOSTGET_MEDIA_WHISPER_CPP_PROFILE,
     executableSha256: "a".repeat(64),
-    runtimeProfile: WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE,
+    runtimeProfile: GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE,
     runtimeSha256: "c".repeat(64),
     runtimeDependencyCount: 1,
     modelSha256: "b".repeat(64),
     modelBytes: 1_024,
   },
   runtimeClosure: {
-    profile: WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE,
+    profile: GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE,
     platform: "darwin",
     evidence: "dynamic-loader",
     executableSha256: "a".repeat(64),
@@ -134,7 +135,7 @@ function localProvenance(
 ): MediaLocalTranscriptProvenance {
   return {
     adapter: "whisper-cpp",
-    profile: WRENCH_MEDIA_WHISPER_CPP_PROFILE,
+    profile: GHOSTGET_MEDIA_WHISPER_CPP_PROFILE,
     executableSha256: options.transcriber.descriptor.executableSha256,
     runtimeProfile: options.transcriber.descriptor.runtimeProfile,
     runtimeSha256: options.transcriber.descriptor.runtimeSha256,
@@ -146,7 +147,7 @@ function localProvenance(
       bytes: options.audioArtifact.bytes,
       sha256: options.audioArtifact.sha256,
       normalized: {
-        profile: WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE,
+        profile: GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE,
         bytes: 44_100,
         sha256: "c".repeat(64),
       },
@@ -236,6 +237,59 @@ function dependencies(
 }
 
 describe("mediaUrl", () => {
+  test.each(["wrench", "oh", "io"])("keeps the first media archive inside an existing legacy state parent %s", async (legacyName) => {
+    const homeDirectory = await realpath(await mkdtemp(join(tmpdir(), "ghostget-media-state-migration-")));
+    roots.push(homeDirectory);
+    const dataRoot = join(homeDirectory, ".local", "share");
+    const legacyRoot = join(dataRoot, legacyName);
+    await mkdir(legacyRoot, { recursive: true, mode: 0o700 });
+    const marker = '{"kind":"io-state","schemaVersion":1}\n';
+    await writeFile(join(legacyRoot, ".io-state.json"), marker, { mode: 0o600 });
+    const environment = { XDG_DATA_HOME: dataRoot };
+    expect(ghostgetStateHome(environment)).toBe(legacyRoot);
+    const captured = await mediaUrl({
+      url: metadata.canonicalUrl,
+      mode: "archive",
+      language: "en",
+      homeDirectory,
+      environment,
+      inheritYtDlpConfig: false,
+    }, dependencies({ value: 0 }));
+    expect(captured.itemDirectory.startsWith(join(legacyRoot, "media"))).toBeTrue();
+    expect(await readdir(dataRoot)).toEqual([legacyName]);
+    expect(ghostgetStateHome(environment)).toBe(legacyRoot);
+    expect(await readFile(join(legacyRoot, ".io-state.json"), "utf8")).toBe(marker);
+  });
+
+  test("uses a new Ghostget library and reopens an existing Wrench archive without recapture", async () => {
+    const homeDirectory = await realpath(await mkdtemp(join(tmpdir(), "ghostget-media-migration-")));
+    roots.push(homeDirectory);
+    const calls = { value: 0 };
+    const options = { url: metadata.canonicalUrl, mode: "archive" as const, language: "en", homeDirectory, inheritYtDlpConfig: false };
+    const deps = dependencies(calls);
+    const first = await mediaUrl(options, deps);
+    const dataRoot = join(homeDirectory, ".local", "share");
+    expect(first.itemDirectory.startsWith(join(dataRoot, "ghostget", "media"))).toBeTrue();
+    const manifestBytes = await readFile(join(first.itemDirectory, "wrench-media.json"));
+    await rename(join(dataRoot, "ghostget"), join(dataRoot, "wrench"));
+    const reopened = await mediaUrl(options, deps);
+    expect(reopened.status).toBe("existing");
+    expect(reopened.itemDirectory.startsWith(join(dataRoot, "wrench", "media"))).toBeTrue();
+    expect(await readFile(join(reopened.itemDirectory, "wrench-media.json"))).toEqual(manifestBytes);
+    expect(calls.value).toBe(1);
+    await mkdir(join(dataRoot, "ghostget", "media"), { recursive: true });
+    await expect(mediaUrl(options, deps)).rejects.toThrow("multiple Ghostget and legacy media libraries");
+    await expect(mediaUrl({ ...options, environment: {
+      GHOSTGET_MEDIA_HOME: join(dataRoot, "ghostget", "media"),
+      WRENCH_MEDIA_HOME: join(dataRoot, "wrench", "media"),
+    } }, deps)).rejects.toThrow("select different media libraries");
+    const explicit = await mediaUrl({ ...options, environment: {
+      WRENCH_MEDIA_HOME: join(dataRoot, "wrench", "media"),
+    } }, deps);
+    expect(explicit.status).toBe("existing");
+    expect(calls.value).toBe(1);
+  });
+
   test("atomically creates and verifies a complete archive", async () => {
     const root = await mkdtemp(join(tmpdir(), "media-archive-test-"));
     roots.push(root);
@@ -1245,7 +1299,7 @@ describe("mediaUrl", () => {
       language: "pt-br",
       provenance: {
         requestedLanguage: "pt-br",
-        runtimeProfile: WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE,
+        runtimeProfile: GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE,
         runtimeSha256: readyTranscriber.descriptor.runtimeSha256,
         runtimeDependencyCount: readyTranscriber.descriptor.runtimeDependencyCount,
       },
@@ -1364,13 +1418,13 @@ describe("mediaUrl", () => {
           kind: "local",
           identity: {
             adapter: "whisper-cpp",
-            profile: WRENCH_MEDIA_WHISPER_CPP_PROFILE,
+            profile: GHOSTGET_MEDIA_WHISPER_CPP_PROFILE,
             executableSha256: readyTranscriber.descriptor.executableSha256,
             runtimeProfile: readyTranscriber.descriptor.runtimeProfile,
             runtimeSha256: readyTranscriber.descriptor.runtimeSha256,
             runtimeDependencyCount: readyTranscriber.descriptor.runtimeDependencyCount,
             modelSha256: readyTranscriber.descriptor.modelSha256,
-            normalizationProfile: WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE,
+            normalizationProfile: GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE,
             requestedLanguage: "en",
           },
         },
@@ -2203,7 +2257,7 @@ function sha256(value: string | Uint8Array): string {
 async function expectMediaRejection(promise: Promise<unknown>, code: string): Promise<void> {
   try {
     await promise;
-    throw new Error("expected Wrench media archive rejection");
+    throw new Error("expected Ghostget media archive rejection");
   } catch (error) {
     expect(error).toMatchObject({ code });
   }
@@ -2304,7 +2358,7 @@ describe("direct HTTP archive routing", () => {
       "video",
     ]);
     expect(result.manifest).toMatchObject({
-      schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
+      schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
       source: { extractor: "External", canonicalUrl: "https://example.com/" },
       authentication: { mode: "public" },
       acquisition: {

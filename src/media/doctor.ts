@@ -38,7 +38,7 @@ export type DoctorReport = Readonly<{
   warnings: readonly string[];
   errors: readonly string[];
   capabilities: Readonly<{
-    /** Built into Wrench media; no external executable is required. */
+    /** Built into Ghostget media; no external executable is required. */
     directHttp: true;
     acquisition: boolean;
     mediaSeparation: boolean;
@@ -112,7 +112,7 @@ const defaultDoctorDependencies: DoctorDependencies = {
   loadConfiguredTranscriber: (options) => loadConfiguredTranscriber(options),
 };
 
-/** Inspects Wrench media's required tools and optional local-transcription helpers. */
+/** Inspects Ghostget media's required tools and optional local-transcription helpers. */
 export async function runDoctor(
   options: DoctorOptions = {},
   dependencies: DoctorDependencies = defaultDoctorDependencies,
@@ -162,7 +162,7 @@ export function renderDoctorReport(report: DoctorReport): string {
     const location = check.executable === null ? "" : ` (${check.executable})`;
     return `${marker} ${check.name}${version}${location} — ${check.message}`;
   });
-  lines.push(report.ok ? "Wrench media is ready." : "Wrench media needs the required tools listed above.");
+  lines.push(report.ok ? "Ghostget media is ready." : "Ghostget media needs the required tools listed above.");
   return `${lines.join("\n")}\n`;
 }
 
@@ -356,7 +356,7 @@ function optionalMissingMessage(name: DoctorToolName): string {
     case "deno":
       return "not installed; this optional yt-dlp JavaScript runtime is not required";
     case "transcriber":
-      return "not configured; run wrench transcriber setup with an existing whisper.cpp model";
+      return "not configured; run ghostget transcriber setup with an existing whisper.cpp model";
     case "yt-dlp":
     case "ffmpeg":
     case "ffprobe":

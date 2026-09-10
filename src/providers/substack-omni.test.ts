@@ -17,7 +17,7 @@ const thread = Object.freeze({
   },
   publication: {
     id: 7,
-    name: "Wrench Publication",
+    name: "Ghostget Publication",
     subdomain: "wrench",
     hostname: "wrench.substack.com",
     baseUrl: "https://wrench.substack.com/",

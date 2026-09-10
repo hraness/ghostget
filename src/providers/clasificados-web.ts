@@ -1,6 +1,6 @@
 /**
  * ClasificadosOnline public rental-list policy. Callers choose a locality and
- * optional bed/price bounds. Wrench owns the reviewed list URL, query names,
+ * optional bed/price bounds. Ghostget owns the reviewed list URL, query names,
  * card projection, and neighborhood verification.
  */
 

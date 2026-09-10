@@ -78,7 +78,7 @@ function canonicalAttestationUrl(value: unknown, name: string, version: string):
 export async function verifyNpmProvenanceIdentity(
   input: NpmProvenanceIdentityInput,
 ): Promise<VerifiedNpmProvenanceIdentity> {
-  if (input.expectedName !== "@hraness/wrench") throw new Error("Unexpected package name");
+  if (input.expectedName !== "@hraness/ghostget") throw new Error("Unexpected package name");
   const versionMatch = stableVersionPattern.exec(input.expectedVersion);
   if (
     versionMatch?.[1] === undefined

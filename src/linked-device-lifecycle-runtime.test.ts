@@ -23,7 +23,7 @@ import {
   removeAuth,
   replaceAuthIfUnchanged,
   saveAuth,
-  type WrenchAuth,
+  type GhostgetAuth,
 } from "./auth";
 import type {
   LinkedDeviceLifecycleAdmissionStore,
@@ -54,7 +54,7 @@ import type { LinkedDevicePluginBindingV1 } from "./provider-plugin";
 import { providerPluginRegistry } from "./provider-plugins";
 
 type LinkedDeviceAuth = Extract<
-  WrenchAuth,
+  GhostgetAuth,
   { readonly kind: "linked-device-store" }
 >;
 
@@ -660,7 +660,7 @@ describe("linked-device lifecycle runtime", () => {
       join(tmpdir(), "wrench-linked-device-store-replacement-test-"),
     );
     chmodSync(directory, 0o700);
-    const environment = { WRENCH_STATE_HOME: join(directory, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(directory, "state") };
     const store = join(realpathSync(directory), "store");
     const journalId = "00000000-0000-4000-8000-000000000012";
     mkdirSync(store, { mode: 0o700 });
@@ -722,7 +722,7 @@ describe("linked-device lifecycle runtime", () => {
     );
     chmodSync(directory, 0o700);
     const root = realpathSync(directory);
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
     const store = join(root, "new-device-store");
     const journalId = "00000000-0000-4000-8000-000000000021";
     try {
@@ -836,7 +836,7 @@ describe("linked-device lifecycle runtime", () => {
     );
     chmodSync(directory, 0o700);
     const root = realpathSync(directory);
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
     const original = join(root, "original");
     const alternate = join(root, "alternate");
     const alias = join(root, "alias");
@@ -1228,7 +1228,7 @@ describe("linked-device lifecycle runtime", () => {
       join(tmpdir(), "wrench-linked-device-alias-test-"),
     );
     chmodSync(directory, 0o700);
-    const environment = { WRENCH_STATE_HOME: directory };
+    const environment = { GHOSTGET_STATE_HOME: directory };
     const firstAuth = linkedAuth(SUBJECT);
     const aliasAuth = Object.freeze({
       ...firstAuth,
@@ -1340,7 +1340,7 @@ describe("linked-device lifecycle runtime", () => {
       join(tmpdir(), "wrench-linked-device-admission-test-"),
     );
     chmodSync(directory, 0o700);
-    const environment = { WRENCH_STATE_HOME: directory };
+    const environment = { GHOSTGET_STATE_HOME: directory };
     let markCrossed: (() => void) | undefined;
     let releaseFirst: (() => void) | undefined;
     const crossed = new Promise<void>((resolve) => {
@@ -1433,7 +1433,7 @@ describe("linked-device lifecycle runtime", () => {
     const pluginsModule = pathToFileURL(
       join(import.meta.dir, "provider-plugins.ts"),
     ).href;
-    const wrenchModule = pathToFileURL(join(import.meta.dir, "wrench.ts")).href;
+    const ghostgetModule = pathToFileURL(join(import.meta.dir, "ghostget.ts")).href;
     const repositoryRoot = process.cwd();
     const childScript = `
       import { mkdirSync, writeFileSync } from "node:fs";
@@ -1442,7 +1442,7 @@ describe("linked-device lifecycle runtime", () => {
         await import(${JSON.stringify(runtimeModule)});
       const { providerPluginRegistry } =
         await import(${JSON.stringify(pluginsModule)});
-      const environment = { WRENCH_STATE_HOME: ${JSON.stringify(state)} };
+      const environment = { GHOSTGET_STATE_HOME: ${JSON.stringify(state)} };
       mkdirSync(${JSON.stringify(deviceStore)}, {
         recursive: true,
         mode: 0o700,
@@ -1518,11 +1518,11 @@ describe("linked-device lifecycle runtime", () => {
         evidenceHash: "e".repeat(64),
       });
       const reconcileScript = `
-        const { main } = await import(${JSON.stringify(wrenchModule)});
+        const { main } = await import(${JSON.stringify(ghostgetModule)});
         process.exitCode = await main(
           ["runs", "reconcile", ${JSON.stringify(journalId)}, "--input",
             ${JSON.stringify(input)}, "--json"],
-          { WRENCH_STATE_HOME: ${JSON.stringify(state)} },
+          { GHOSTGET_STATE_HOME: ${JSON.stringify(state)} },
         );
       `;
       const spawnedReconciler = Bun.spawn(
@@ -1552,7 +1552,7 @@ describe("linked-device lifecycle runtime", () => {
         status: "safe-retry",
       });
       expect(
-        readLinkedDeviceLifecycleJournal(journalId, { WRENCH_STATE_HOME: state })
+        readLinkedDeviceLifecycleJournal(journalId, { GHOSTGET_STATE_HOME: state })
           ?.journal,
       ).toMatchObject({
         phase: "terminal",

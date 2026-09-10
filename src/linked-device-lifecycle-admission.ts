@@ -11,7 +11,7 @@ import { processOwnerStatus } from "./process-identity";
 import {
   createPrivateJsonIfAbsent,
   ensurePrivateStateDirectory,
-  wrenchStateHome,
+  ghostgetStateHome,
   listPrivateStateDirectory,
   readPrivateStateFileIfPresent,
   removePrivateStateFileIfUnchanged,
@@ -184,7 +184,7 @@ function parseClaim(value: unknown): LinkedDeviceLifecycleAdmissionClaim {
 
 function directory(environment: Environment): string {
   return join(
-    wrenchStateHome(environment),
+    ghostgetStateHome(environment),
     ...LINKED_DEVICE_LIFECYCLE_ADMISSION_STATE_DIRECTORY.split("/"),
   );
 }

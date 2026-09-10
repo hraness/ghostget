@@ -1,8 +1,8 @@
 /**
- * Dependency-free public data transfer types for `@hraness/wrench/omni`.
+ * Dependency-free public data transfer types for `@hraness/ghostget/omni`.
  *
  * Keep this module free of runtime, provider, Bun, and internal model imports
- * so consumers can inspect the SDK contract without loading Wrench internals.
+ * so consumers can inspect the SDK contract without loading Ghostget internals.
  */
 
 export type OmniClientEnvironment = Readonly<

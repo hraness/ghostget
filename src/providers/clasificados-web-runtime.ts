@@ -1,4 +1,4 @@
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { OperationInput, WebSessionRecipe } from "../model";
 import { OperationDeadlineError } from "../operation-deadline";
 import { pinnedHttpsFetch, type PinnedHttpsFetch } from "../pinned-https";
@@ -25,7 +25,7 @@ import {
 import { parseRentalListingsSearchInput } from "./rental-listings";
 
 const OPERATION_LABEL = "Clasificados public listings.search deadline";
-const USER_AGENT = "Mozilla/5.0 (compatible; Wrench/1.0; +https://wrench.rip)";
+const USER_AGENT = "Mozilla/5.0 (compatible; Ghostget/1.0; +https://ghostget.com)";
 
 export type ClasificadosWebRuntimeDependencies = {
   readonly fetch?: PinnedHttpsFetch;
@@ -239,7 +239,7 @@ export async function executeClasificadosPublicListingsSearch(
   }
 }
 
-export function probeClasificadosWebSubject(_auth: WrenchAuth): Promise<string> {
+export function probeClasificadosWebSubject(_auth: GhostgetAuth): Promise<string> {
   return Promise.reject(
     new Error("Clasificados public rental searches do not use an auth realm"),
   );

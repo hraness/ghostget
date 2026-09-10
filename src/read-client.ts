@@ -482,7 +482,7 @@ export async function revalidateCapability(
 /**
  * Return the current exact snapshot synchronously and start one explicit live
  * R1 revalidation. UI callers can render `cached` before awaiting
- * `revalidation`; Wrench never hides a transport refresh in a cache lookup.
+ * `revalidation`; Ghostget never hides a transport refresh in a cache lookup.
  */
 export function staleWhileRevalidateCapability(
   request: CapabilityReadRequest,

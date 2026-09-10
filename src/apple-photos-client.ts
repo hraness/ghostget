@@ -33,7 +33,7 @@ const SOURCE_AUTHORITY_ENVIRONMENT = new Set([
 ]);
 
 function fail(message: string): never {
-  throw new Error(`Wrench Apple Photos client: ${message}`);
+  throw new Error(`Ghostget Apple Photos client: ${message}`);
 }
 
 function cliSourcePath(): string {
@@ -41,12 +41,12 @@ function cliSourcePath(): string {
   if (existsSync(besideSource)) return besideSource;
   const packagedSource = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
   if (existsSync(packagedSource)) return packagedSource;
-  return fail("the installed Wrench CLI source is unavailable");
+  return fail("the installed Ghostget CLI source is unavailable");
 }
 
 function requireBunRuntime(): void {
   if (typeof process.versions.bun !== "string") {
-    return fail("@hraness/wrench/apple-photos requires Bun to run the installed Wrench CLI");
+    return fail("@hraness/ghostget/apple-photos requires Bun to run the installed Ghostget CLI");
   }
 }
 
@@ -144,7 +144,7 @@ function boundedError(value: unknown): string {
 }
 
 /**
- * Execute Wrench's installed, reviewed Apple Photos export synchronously.
+ * Execute Ghostget's installed, reviewed Apple Photos export synchronously.
  * The process owns every SQLite path, query, snapshot, and cleanup decision.
  */
 export function exportApplePhotosContactEvidenceSync(

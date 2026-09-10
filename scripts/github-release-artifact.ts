@@ -11,6 +11,7 @@ import {
   parseReleaseAssetDescriptors,
   parseReleaseManifest,
   releaseAssetNames,
+  releaseIdentity,
   releaseVersion,
   verifyAttestationResult,
   verifyReleaseAssetBytes,
@@ -49,10 +50,10 @@ export async function prepareReleaseDirectory(
   }
   const archive = await regularBytes(join(directory, archiveName));
   await regularBytes(join(directory, "npm-pack.json"), maximumJsonBytes);
-  await verifyPackArtifact(join(directory, archiveName), join(directory, "npm-pack.json"), "@hraness/wrench", version, "Canonical GitHub");
+  await verifyPackArtifact(join(directory, archiveName), join(directory, "npm-pack.json"), "@hraness/ghostget", version, "Canonical GitHub");
   const manifest = parseReleaseManifest({
     schema: "hraness-github-release-v1", repository: GITHUB_RELEASE_REPOSITORY,
-    repositoryId: GITHUB_RELEASE_REPOSITORY_ID, package: "@hraness/wrench",
+    repositoryId: GITHUB_RELEASE_REPOSITORY_ID, package: "@hraness/ghostget",
     version, workflow: GITHUB_RELEASE_WORKFLOW, ...input,
     archive: { name: archiveName, bytes: archive.byteLength, sha256: sha256(archive), sha512: createHash("sha512").update(archive).digest("hex") },
   });
@@ -65,8 +66,8 @@ export async function prepareReleaseDirectory(
 
 export function attestationVerifyArguments(directory: string, manifest: ReleaseManifest, name: string): string[] {
   if (!releaseAssetNames(manifest.tag).slice(0, 4).includes(name)) throw new Error("Unexpected attested filename");
-  return ["attestation", "verify", join(directory, name), "--repo", GITHUB_RELEASE_REPOSITORY,
-    "--signer-workflow", `${GITHUB_RELEASE_REPOSITORY}/${GITHUB_RELEASE_WORKFLOW}`,
+  return ["attestation", "verify", join(directory, name), "--repo", manifest.repository,
+    "--signer-workflow", `${manifest.repository}/${GITHUB_RELEASE_WORKFLOW}`,
     "--signer-digest", manifest.sourceSha, "--source-digest", manifest.sourceSha,
     "--source-ref", `refs/tags/${manifest.tag}`, "--deny-self-hosted-runners",
     "--bundle", join(directory, "provenance.jsonl"), "--format=json"];
@@ -118,7 +119,7 @@ export async function verifyReleaseDirectory(
     const verified: unknown = JSON.parse(runGh(attestationVerifyArguments(directory, manifest, name)));
     verifyAttestationResult(verified, manifest, name, sha256(files.get(name) as Buffer));
   }
-  await verifyPackArtifact(join(directory, manifest.archive.name), join(directory, "npm-pack.json"), "@hraness/wrench", manifest.version, "Canonical GitHub");
+  await verifyPackArtifact(join(directory, manifest.archive.name), join(directory, "npm-pack.json"), releaseIdentity(manifest.tag).package, manifest.version, "Canonical GitHub");
   return manifest;
 }
 

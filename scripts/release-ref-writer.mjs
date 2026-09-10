@@ -5,9 +5,9 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const EXPECTED_REPOSITORY = "hraness/wrench";
+const EXPECTED_REPOSITORY = "hraness/ghostget";
 const PRODUCTION_REF = "refs/heads/website-production";
-const FIXED_REMOTE = "https://github.com/hraness/wrench.git";
+const FIXED_REMOTE = "https://github.com/hraness/ghostget.git";
 const GIT_EXECUTABLE = "/usr/bin/git";
 const FIXED_PATH = "/usr/bin:/bin";
 const SHA = /^[0-9a-f]{40}$/u;
@@ -143,7 +143,7 @@ export function advanceWebsiteProductionRef(options) {
   const verifiedSha = exactSha(options.verifiedSha, "verified release SHA");
   const fetchArguments = verifiedReleaseFetchArguments(options.verifiedTag);
   const pushArguments = websiteProductionPushArguments(options.expectedOldSha, verifiedSha);
-  const temporaryDirectory = mkdtempSync(join(tmpdir(), "wrench-release-askpass-"));
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "ghostget-release-askpass-"));
   const askpassPath = join(temporaryDirectory, "askpass.sh");
   try {
     writeFileSync(askpassPath, ASKPASS, { encoding: "utf8", flag: "wx", mode: 0o700 });

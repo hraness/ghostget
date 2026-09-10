@@ -16,7 +16,7 @@ import {
 import {
   createPrivateJsonIfAbsent,
   ensurePrivateStateDirectory,
-  wrenchStateHome,
+  ghostgetStateHome,
   readPrivateStateFileIfPresent,
   readPrivateStateFilesBatched,
   snapshotPrivateStateDirectory,
@@ -1220,7 +1220,7 @@ export function transitionLinkedDeviceLifecycleJournal(
 
 function journalDirectory(environment: Environment): string {
   return join(
-    wrenchStateHome(environment),
+    ghostgetStateHome(environment),
     ...LINKED_DEVICE_LIFECYCLE_JOURNAL_STATE_DIRECTORY.split("/"),
   );
 }

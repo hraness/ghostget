@@ -1,7 +1,7 @@
 /**
  * Reviewed policy catalog for social-site adapters.
  *
- * `adapter-eligible` means that wrench may represent the operation after a
+ * `adapter-eligible` means that ghostget may represent the operation after a
  * site-specific adapter has been derived and reviewed. It does not mean that
  * an adapter, selector, or browser recipe currently exists.
  */

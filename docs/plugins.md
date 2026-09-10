@@ -1,14 +1,14 @@
 # Provider plugins
 
-Wrench has two plugin forms with one semantic catalog.
+Ghostget has two plugin forms with one semantic catalog.
 
-A source plugin ships with Wrench, loads in-process, and may implement a
+A source plugin ships with Ghostget, loads in-process, and may implement a
 reviewed provider transport. It is trusted application code. A portable plugin
 is an independently authored, content-addressed package installed into local
 state after an explicit code-trust decision. It runs in a child process through
 a versioned, denied-by-default host protocol.
 
-Neither form may redefine the kernel's custody rules. Wrench owns input
+Neither form may redefine the kernel's custody rules. Ghostget owns input
 resolution, auth selection, risk, preview and confirmation, dispatch journals,
 recovery, receipts, bounds, redaction, activation, and lifecycle serialization.
 A plugin owns exact provider identity, route and operation descriptors, request
@@ -17,8 +17,8 @@ and response contracts, account probes, execution, and reconciliation logic.
 A linked-device binding may either own an explicit `inspect`/`pair`/`syncOnce`
 lifecycle or attach read-only to an independently managed local source. The
 latter must omit the lifecycle declaration and all mutating surfaces. Its auth
-locator is established with `wrench auth add ... --linked-device ...
---device-store ...`, then account-bound with `wrench auth bind`; Wrench must not
+locator is established with `ghostget auth add ... --linked-device ...
+--device-store ...`, then account-bound with `ghostget auth bind`; Ghostget must not
 suggest pairing or syncing a lifecycle the plugin does not declare.
 
 A source plugin may also bind a reviewed native provider client through the
@@ -35,7 +35,7 @@ for the versioning and execution contract.
 Create a portable package with one `capture-required` reservation:
 
 ```sh
-wrench plugin init example-web \
+ghostget plugin init example-web \
   --display-name "Example" \
   --surface example \
   --origin https://www.example.com \
@@ -43,7 +43,7 @@ wrench plugin init example-web \
   --output /absolute/private/example-web
 ```
 
-The result has a strict `wrench-plugin.json`, one self-contained runtime,
+The result has a strict `ghostget-plugin.json`, one self-contained runtime,
 secret-free fixtures, and local guidance. `capture-required` means no request
 can be planned or executed. It is the correct state until authorized evidence
 proves the full contract.
@@ -69,11 +69,11 @@ recovery fallback.
 ## Validate and trust separately
 
 ```sh
-wrench plugin check /absolute/private/example-web --json
-wrench plugin test /absolute/private/example-web --trust-code --json
-wrench plugin pack /absolute/private/example-web \
+ghostget plugin check /absolute/private/example-web --json
+ghostget plugin test /absolute/private/example-web --trust-code --json
+ghostget plugin pack /absolute/private/example-web \
   --output /absolute/private/example-web.wrenchplugin --json
-wrench plugin install /absolute/private/example-web.wrenchplugin \
+ghostget plugin install /absolute/private/example-web.wrenchplugin \
   --trust-code --json
 ```
 
@@ -83,7 +83,7 @@ the fixed file set and produces reproducible bytes. `install` records trust for
 that exact identity and activates it only after catalog conflict checks.
 
 Updates, disable, and removal serialize with invocation leases, confirmations,
-run journals, recovery capsules, and linked-device lifecycles. Wrench refuses a
+run journals, recovery capsules, and linked-device lifecycles. Ghostget refuses a
 transition while the old bundle still owns live or unknown work.
 
 ## Host capabilities

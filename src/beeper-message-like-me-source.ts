@@ -16,7 +16,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { removePrivateDirectoryTree } from "./storage";
 import { canonicalJson, sha256 } from "./canonical-json";
 import {
@@ -202,7 +202,7 @@ export type BeeperMessageLikeMeSourceDependencies = Readonly<{
 }>;
 
 export type BeeperMessageLikeMeSourceRequest = Readonly<{
-  auth: WrenchAuth;
+  auth: GhostgetAuth;
   limits?: BeeperMessageLikeMeSourceLimits;
   signal?: AbortSignal;
   onProgress?: (progress: BeeperMessageLikeMeProgress) => void;
@@ -439,7 +439,7 @@ function parseLimits(value: BeeperMessageLikeMeSourceLimits | undefined): Parsed
   });
 }
 
-function requireAuth(auth: WrenchAuth): Extract<WrenchAuth, {
+function requireAuth(auth: GhostgetAuth): Extract<GhostgetAuth, {
   readonly kind: "linked-device-store";
 }> & Readonly<{ provider: "beeper"; subject: string }> {
   if (
@@ -448,7 +448,7 @@ function requireAuth(auth: WrenchAuth): Extract<WrenchAuth, {
     || auth.subject === undefined
     || !/^beeper:local:[a-f0-9]{64}$/u.test(auth.subject)
   ) return fail("export requires an account-bound Beeper linked-device-store auth locator");
-  return auth as Extract<WrenchAuth, {
+  return auth as Extract<GhostgetAuth, {
     readonly kind: "linked-device-store";
   }> & Readonly<{ provider: "beeper"; subject: string }>;
 }
@@ -2963,7 +2963,7 @@ async function removePrivateOwnedDirectory(
 
 /**
  * Creates a single-use source for the private bundle sink. The pinned official
- * CLI paginates one operation-private account shard at a time. Wrench validates
+ * CLI paginates one operation-private account shard at a time. Ghostget validates
  * every completed shard, reports only ordinal progress, and projects all shards
  * in one deterministic global conversation order.
  */

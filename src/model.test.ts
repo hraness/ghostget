@@ -16,13 +16,13 @@ import {
   parseManifest as parseManifestWithRegistry,
   parseRuntimeManifest as parseRuntimeManifestWithRegistry,
   sha256,
-  WRENCH_LEGACY_LINKEDIN_MANIFEST_HASH,
+  GHOSTGET_LEGACY_LINKEDIN_MANIFEST_HASH,
   validateOperationInput,
   validatePlatformOperationInput,
   type InputSchema,
   type OperationInput,
   type OperationRisk,
-  type WrenchManifest,
+  type GhostgetManifest,
 } from "./model";
 import {
   lazyProviderApiRuntime,
@@ -859,7 +859,7 @@ function issues(value: unknown): readonly string[] {
   return result.ok ? [] : result.issues;
 }
 
-describe("wrench manifest parsing", () => {
+describe("ghostget manifest parsing", () => {
   test("keeps the shipped LinkedIn adapter parseable during the managed provider migration", () => {
     const value = JSON.parse(readFileSync(join(import.meta.dir, "assets", "adapters", "linkedin", "wrench-adapter.json"), "utf8")) as unknown;
     const result = parseManifest(value);
@@ -1612,7 +1612,7 @@ describe("schemaVersion 3 transport and provider binding", () => {
     )) as Record<string, unknown>;
     const parsedLegacy = parseManifest(legacy);
     expect(parsedLegacy.ok).toBeTrue();
-    if (parsedLegacy.ok) expect(manifestHash(parsedLegacy.value)).toBe(WRENCH_LEGACY_LINKEDIN_MANIFEST_HASH);
+    if (parsedLegacy.ok) expect(manifestHash(parsedLegacy.value)).toBe(GHOSTGET_LEGACY_LINKEDIN_MANIFEST_HASH);
 
     const inventedLegacy = structuredClone(legacy);
     inventedLegacy.version = "0.4.1";
@@ -2232,7 +2232,7 @@ describe("canonical binding", () => {
     const parsed = parseManifest(manifest());
     expect(parsed.ok).toBeTrue();
     if (!parsed.ok) return;
-    const reordered: WrenchManifest = {
+    const reordered: GhostgetManifest = {
       operations: parsed.value.operations,
       origins: parsed.value.origins,
       displayName: parsed.value.displayName,

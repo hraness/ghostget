@@ -440,7 +440,7 @@ export function parseRuntimeLoaderTrace(
   }>,
 ): RuntimeTraceParseResult {
   if (Buffer.byteLength(trace, "utf8") > MAX_RUNTIME_TRACE_BYTES) {
-    return traceFailure("TRACE_MALFORMED", "The loader trace exceeds Wrench media's parse limit.");
+    return traceFailure("TRACE_MALFORMED", "The loader trace exceeds Ghostget media's parse limit.");
   }
   if (hasUnsafeControlCharacter(trace, true) || !isSafeAbsolutePath(options.executablePath)) {
     return traceFailure("TRACE_MALFORMED", "The loader trace contains unsafe input.");
@@ -551,7 +551,7 @@ async function verifyExecutableSnapshot(requestedPath: string): Promise<Verified
       || beforeMetadata.size > BigInt(MAX_RUNTIME_EXECUTABLE_BYTES)) {
       throw new RuntimeClosureError(
         "INVALID_EXECUTABLE",
-        "The executable exceeds Wrench media's runtime attestation limit.",
+        "The executable exceeds Ghostget media's runtime attestation limit.",
       );
     }
     const bytes = Number(beforeMetadata.size);
@@ -617,7 +617,7 @@ async function verifyDependency(requestedPath: string): Promise<VerifiedDependen
       || beforeMetadata.size > BigInt(MAX_RUNTIME_DEPENDENCY_BYTES)) {
       throw new RuntimeClosureError(
         "DEPENDENCY_TOO_LARGE",
-        "A runtime dependency exceeds Wrench media's per-file limit.",
+        "A runtime dependency exceeds Ghostget media's per-file limit.",
       );
     }
 
@@ -745,7 +745,7 @@ export function parseRuntimeClosureRecord(value: unknown): ParseRuntimeClosureRe
     "dependencies",
   ] as const;
   if (!isRecord(value) || !hasExactKeys(value, recordKeys)) {
-    return { ok: false, message: "The runtime closure record does not match Wrench media's schema." };
+    return { ok: false, message: "The runtime closure record does not match Ghostget media's schema." };
   }
   const platform = value["platform"];
   const evidence = value["evidence"];
@@ -802,7 +802,7 @@ export function parseRuntimeClosureRecord(value: unknown): ParseRuntimeClosureRe
     }
     countedBytes += bytes;
     if (countedBytes > MAX_RUNTIME_CLOSURE_BYTES) {
-      return { ok: false, message: "The runtime closure exceeds Wrench media's byte limit." };
+      return { ok: false, message: "The runtime closure exceeds Ghostget media's byte limit." };
     }
     logicalNames.add(logicalName);
     physicalPaths.add(physicalPath);
@@ -978,7 +978,7 @@ export async function runAttestedRuntimeProcess(
   if (requestedDependencies.length > MAX_RUNTIME_DEPENDENCIES) {
     throw new RuntimeClosureError(
       "DEPENDENCY_LIMIT",
-      "The runtime closure exceeds Wrench media's dependency-count limit.",
+      "The runtime closure exceeds Ghostget media's dependency-count limit.",
     );
   }
 
@@ -990,7 +990,7 @@ export async function runAttestedRuntimeProcess(
     if (dependencyBytes > MAX_RUNTIME_CLOSURE_BYTES) {
       throw new RuntimeClosureError(
         "DEPENDENCY_LIMIT",
-        "The runtime closure exceeds Wrench media's aggregate byte limit.",
+        "The runtime closure exceeds Ghostget media's aggregate byte limit.",
       );
     }
     verifiedDependencies.push(verified);

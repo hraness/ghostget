@@ -31,7 +31,7 @@ The patch rejects symlinks, file substitution, owner or mode changes, and
 in-place content changes. It reaps the child before removing known private
 files and the checked directory.
 
-The Wrench runtime adds an outer boundary. Every RPC child is a fresh detached
+The Ghostget runtime adds an outer boundary. Every RPC child is a fresh detached
 process group with fixed argv `imsg rpc`, bounded stdin/stdout/stderr, a fixed
 minimal environment, a total deadline, and durable cleanup admission. Each
 confirmed bubble produces one separately journaled send process and exactly one
@@ -41,7 +41,7 @@ The runtime never retries.
 
 `imsg rpc status` is the exact nonlaunching readiness probe. It retries the database open and
 probes only an already-running private bridge. It does not launch, kill, or
-relaunch Messages. Wrench requires protocol 1, imsg 0.14.1, a readable database,
+relaunch Messages. Ghostget requires protocol 1, imsg 0.14.1, a readable database,
 and the reviewed `chats.get`, read, and send methods. This proves the local contract is currently
 usable, not which Apple account Messages will choose.
 
@@ -57,7 +57,7 @@ not this reviewed transport, even if it prints version 0.14.1.
 Install only that byte sequence through the checked installer:
 
 ```sh
-wrench imessage transport install --binary /absolute/path/to/imsg --json
+ghostget imessage transport install --binary /absolute/path/to/imsg --json
 ```
 
 The installer supports only the declared current platform, reads the source
@@ -69,10 +69,10 @@ recovery remain operator workflows, not provider operations.
 Bind the local Messages store after the reviewed binary is installed:
 
 ```sh
-wrench adapter sync-bundled --json
-wrench auth add imessage-main --linked-device imessage \
+ghostget adapter sync-bundled --json
+ghostget auth add imessage-main --linked-device imessage \
   --device-store "${HOME}/Library/Messages"
-wrench auth bind imessage-main --site imessage
+ghostget auth bind imessage-main --site imessage
 ```
 
 macOS must grant the invoking terminal Full Disk Access for `chat.db` and
@@ -81,16 +81,16 @@ or subject binding.
 
 ## Outcome boundary
 
-Stock AppleScript does not return a message GUID. A Wrench result is
+Stock AppleScript does not return a message GUID. A Ghostget result is
 `submitted` only when the patched imsg process independently observes one
 matching outgoing `chat.db` row and returns the exact message GUID, chat GUID,
 row ID, `iMessage` service, and `applescript` transport. This is evidence of
 local Messages acceptance, not network delivery or recipient receipt.
 
 The transport preserves imsg's `not_started`, `may_have_completed`, and
-`still_in_flight` categories in encrypted provider output. Once Wrench has
+`still_in_flight` categories in encrypted provider output. Once Ghostget has
 started the confirmed child, every non-accepted result remains non-retryable at
-the Wrench boundary. The separately requested `messaging.delivery.read`
+the Ghostget boundary. The separately requested `messaging.delivery.read`
 operation can inspect only a GUID already obtained from exact accepted evidence.
 A missing row is not proof that an unobserved send did not happen.
 

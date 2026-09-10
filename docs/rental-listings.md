@@ -1,6 +1,6 @@
 # Rental listings
 
-Wrench exposes public Puerto Rico rental search as one named operation,
+Ghostget exposes public Puerto Rico rental search as one named operation,
 `listings.search`, on the built-in `clasificados-web` plugin.
 
 The operation is read-only. It takes a location plus optional bedroom and rent
@@ -21,7 +21,7 @@ Required key:
 Optional keys:
 
 - `beds_min` — keep listings with at least this many bedrooms. ClasificadosOnline
-  treats its own bedroom field as an exact match, so Wrench omits that field
+  treats its own bedroom field as an exact match, so Ghostget omits that field
   from the query and applies the bound locally.
 - `max_price` — keep listings at or below this monthly rent.
 
@@ -30,7 +30,7 @@ set are rejected.
 
 ## Neighborhood verification
 
-Listing text often lies. A Hato Rey tower can advertise Condado. Wrench resolves
+Listing text often lies. A Hato Rey tower can advertise Condado. Ghostget resolves
 neighborhood in this order:
 
 1. A reviewed street-plus-ZIP override for a known building.
@@ -69,7 +69,7 @@ Muñoz Rivera is covered by the recorded fixture: the override binds Hato Rey
 `00918` even when the title says Condado. Replay the live probe with:
 
 ```bash
-wrench clasificados-web listings.search \
+ghostget clasificados-web listings.search \
   --input '{"location":"San Juan, PR","beds_min":2,"max_price":5500}' \
   --json
 ```
@@ -82,7 +82,7 @@ list-card fixtures so CI does not depend on the site.
 Zillow-group HTML and first-party search endpoints from this environment
 returned PerimeterX or equivalent bot challenges on zillow.com, hotpads.com,
 trulia.com, apartments.com, and homes.com. No reviewed public search contract
-exists for those hosts, so Wrench does not ship a Zillow-group `listings.search`
+exists for those hosts, so Ghostget does not ship a Zillow-group `listings.search`
 and does not ship a DOM-click recipe.
 
 Puerto Rico MLS public search is also not shipped. londonfoster.com's search

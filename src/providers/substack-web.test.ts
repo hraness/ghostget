@@ -35,7 +35,7 @@ function preloadsHtml(overrides: Readonly<Record<string, unknown>> = {}): string
     user: {
       id: USER_ID,
       handle: "wrench-reader",
-      name: "Wrench Reader",
+      name: "Ghostget Reader",
       dashboard_pubs: [
         {
           id: PUBLICATION_ID,
@@ -285,7 +285,7 @@ describe("Substack exact request authorization", () => {
     expect(normalizeSubstackProfileStatsResponse({
       id: USER_ID,
       handle: "wrench-reader",
-      name: "Wrench Reader",
+      name: "Ghostget Reader",
       bio: "Reader bio",
       subscriberCount: 125,
       followerCount: 178,
@@ -305,7 +305,7 @@ describe("Substack exact request authorization", () => {
       },
       metadata: {
         handle: "wrench-reader",
-        displayName: "Wrench Reader",
+        displayName: "Ghostget Reader",
         bio: "Reader bio",
         websiteUrl: "https://example.com/profile",
       },
@@ -416,7 +416,7 @@ describe("Substack account and response projection", () => {
     expect(parseSubstackPreloadsHtml(preloadsHtml())).toEqual({
       id: USER_ID,
       handle: "wrench-reader",
-      name: "Wrench Reader",
+      name: "Ghostget Reader",
       publications: [
         {
           id: PUBLICATION_ID,

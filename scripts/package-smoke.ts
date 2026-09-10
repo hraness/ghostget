@@ -10,17 +10,17 @@ import {
 } from "./package-budget.js";
 import { packedPrivateSourceClientRuntimeProgram } from "./private-source-client-runtime-smoke.js";
 
-const packageName = "@hraness/wrench";
+const packageName = "@hraness/ghostget";
 const importSpecifiers = [
-  "@hraness/wrench",
-  "@hraness/wrench/client",
-  "@hraness/wrench/beeper",
-  "@hraness/wrench/apple-photos",
-  "@hraness/wrench/whatsapp",
-  "@hraness/wrench/omni",
-  "@hraness/wrench/messaging",
+  "@hraness/ghostget",
+  "@hraness/ghostget/client",
+  "@hraness/ghostget/beeper",
+  "@hraness/ghostget/apple-photos",
+  "@hraness/ghostget/whatsapp",
+  "@hraness/ghostget/omni",
+  "@hraness/ghostget/messaging",
 ];
-const binNames = ["wrench"];
+const binNames = ["ghostget"];
 const packageDiscoveryKeywords = [
   "ai-agents",
   "coding-agents",
@@ -246,7 +246,7 @@ function assertPackageDiscoveryKeywords(value: unknown, label: string): void {
     || value.some((keyword, index) => keyword !== packageDiscoveryKeywords[index])
   ) {
     throw new Error(
-      `${label}.keywords must exactly match the focused Wrench discovery keywords, including agent-skills, beeper, and messaging.`,
+      `${label}.keywords must exactly match the focused Ghostget discovery keywords, including agent-skills, beeper, and messaging.`,
     );
   }
 }
@@ -283,17 +283,17 @@ function parseExactNpmArtifact(args: readonly string[], repository: string): Exa
 function verifyPackageBounds(measure: PackageMeasure): void {
   if (measure.packedBytes > MAX_PACKED_BYTES) {
     throw new Error(
-      `Packed Wrench archive is ${String(measure.packedBytes)} bytes; limit is ${String(MAX_PACKED_BYTES)}.`,
+      `Packed Ghostget archive is ${String(measure.packedBytes)} bytes; limit is ${String(MAX_PACKED_BYTES)}.`,
     );
   }
   if (measure.fileCount > MAX_PACKED_FILES) {
     throw new Error(
-      `Packed Wrench has ${String(measure.fileCount)} files; limit is ${String(MAX_PACKED_FILES)}.`,
+      `Packed Ghostget has ${String(measure.fileCount)} files; limit is ${String(MAX_PACKED_FILES)}.`,
     );
   }
   if (measure.unpackedBytes > MAX_UNPACKED_BYTES) {
     throw new Error(
-      `Packed Wrench is ${String(measure.unpackedBytes)} unpacked bytes; limit is ${String(MAX_UNPACKED_BYTES)}.`,
+      `Packed Ghostget is ${String(measure.unpackedBytes)} unpacked bytes; limit is ${String(MAX_UNPACKED_BYTES)}.`,
     );
   }
 }
@@ -317,7 +317,7 @@ async function verifyExactNpmPackResult(
       `npm pack reported ${name}@${version}, expected ${packageName}@${expectedVersion}.`,
     );
   }
-  const expectedFilename = `hraness-wrench-${expectedVersion}.tgz`;
+  const expectedFilename = `hraness-ghostget-${expectedVersion}.tgz`;
   if (
     filename !== basename(filename)
     || filename !== basename(artifact.archive)
@@ -425,7 +425,7 @@ async function measurePackageFiles(root: string): Promise<Readonly<{
       fileCount += 1;
       unpackedBytes += (await stat(path)).size;
     } else {
-      throw new Error(`Packed Wrench contains an unsupported entry: ${path}`);
+      throw new Error(`Packed Ghostget contains an unsupported entry: ${path}`);
     }
   }
   return { fileCount, unpackedBytes };
@@ -472,7 +472,7 @@ async function verifyPackedArchivedAdapterInventory(
     "wrench-web-adapter.v1.1.0.json",
   );
   if (!actual.includes(requiredSubstackBaseline)) {
-    throw new Error("Packed Wrench omitted the Substack 1.1.0 upgrade baseline.");
+    throw new Error("Packed Ghostget omitted the Substack 1.1.0 upgrade baseline.");
   }
   for (const relativePath of expected) {
     const sourceBytes = await readFile(join(sourceRoot, relativePath));
@@ -492,7 +492,7 @@ async function verifyLocalMarkdownLinks(skillRoot: string): Promise<void> {
       const target = resolve(dirname(markdownPath), targetText);
       const skillRelative = relative(skillRoot, target);
       if (skillRelative.startsWith("..") || isAbsolute(skillRelative)) {
-        throw new Error(`Packed Wrench skill link escapes its bundle: ${targetText}`);
+        throw new Error(`Packed Ghostget skill link escapes its bundle: ${targetText}`);
       }
       await access(target);
     }
@@ -504,8 +504,8 @@ async function verifyPackagedSkill(
   consumer: string,
   expectedVersion: string,
 ): Promise<void> {
-  const packageRoot = join(consumer, "node_modules", "@hraness", "wrench");
-  const skillRoot = join(packageRoot, "skills", "wrench");
+  const packageRoot = join(consumer, "node_modules", "@hraness", "ghostget");
+  const skillRoot = join(packageRoot, "skills", "ghostget");
   const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
   const metadata = await readFile(join(skillRoot, "agents", "openai.yaml"), "utf8");
   const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8")) as {
@@ -520,28 +520,28 @@ async function verifyPackagedSkill(
     readonly scripts?: unknown;
   };
 
-  if (!skill.startsWith("---\nname: wrench\ndescription:")) {
-    throw new Error("Packed Wrench skill is missing valid discovery metadata.");
+  if (!skill.startsWith("---\nname: ghostget\ndescription:")) {
+    throw new Error("Packed Ghostget skill is missing valid discovery metadata.");
   }
-  if (!metadata.includes("$wrench")) {
-    throw new Error("Packed Wrench skill metadata must invoke $wrench explicitly.");
+  if (!metadata.includes("$ghostget")) {
+    throw new Error("Packed Ghostget skill metadata must invoke $ghostget explicitly.");
   }
 
   const publicSkills = (await readdir(join(packageRoot, "skills"), { withFileTypes: true }))
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name);
-  if (publicSkills.length !== 1 || publicSkills[0] !== "wrench") {
-    throw new Error(`Packed Wrench package must expose only skills/wrench; found ${publicSkills.join(", ")}.`);
+  if (publicSkills.length !== 1 || publicSkills[0] !== "ghostget") {
+    throw new Error(`Packed Ghostget package must expose only skills/ghostget; found ${publicSkills.join(", ")}.`);
   }
 
   const references = [...skill.matchAll(/\]\((references\/[^)#]+)(?:#[^)]+)?\)/g)]
     .map((match) => match[1])
     .filter((path): path is string => path !== undefined);
   if (!references.includes("references/install.md")) {
-    throw new Error("Packed Wrench skill must route missing-CLI work to references/install.md.");
+    throw new Error("Packed Ghostget skill must route missing-CLI work to references/install.md.");
   }
   if (!references.includes("references/x-ai-disclosure.md")) {
-    throw new Error("Packed Wrench skill must route X AI disclosure to references/x-ai-disclosure.md.");
+    throw new Error("Packed Ghostget skill must route X AI disclosure to references/x-ai-disclosure.md.");
   }
   const disclosure = await readFile(join(skillRoot, "references", "x-ai-disclosure.md"), "utf8");
   for (const required of [
@@ -556,7 +556,7 @@ async function verifyPackagedSkill(
   ] as const) {
     if (!disclosure.includes(required)) {
       throw new Error(
-        `Packed Wrench skill must fail closed on X AI disclosure; missing ${JSON.stringify(required)}.`,
+        `Packed Ghostget skill must fail closed on X AI disclosure; missing ${JSON.stringify(required)}.`,
       );
     }
   }
@@ -565,7 +565,7 @@ async function verifyPackagedSkill(
 
   if (manifest.name !== packageName || manifest.version !== expectedVersion) {
     throw new Error(
-      `Packed Wrench identity is ${String(manifest.name)}@${String(manifest.version)}, expected ${packageName}@${expectedVersion}.`,
+      `Packed Ghostget identity is ${String(manifest.name)}@${String(manifest.version)}, expected ${packageName}@${expectedVersion}.`,
     );
   }
   assertPackageDiscoveryKeywords(manifest.keywords, "Packed package.json");
@@ -575,7 +575,7 @@ async function verifyPackagedSkill(
     || !("class" in manifest.contentPolicy)
     || manifest.contentPolicy.class !== "dual-use"
   ) {
-    throw new Error("Packed Wrench must retain npm dual-use metadata.");
+    throw new Error("Packed Ghostget must retain npm dual-use metadata.");
   }
   if (
     typeof manifest.dependencies !== "object"
@@ -584,7 +584,7 @@ async function verifyPackagedSkill(
     || manifest.dependencies["@hraness/message-like-me"]
       !== "github:hraness/message-like-me#v0.7.0"
   ) {
-    throw new Error("Packed Wrench must pin the immutable Message Like Me v0.7.0 consumer contract.");
+    throw new Error("Packed Ghostget must pin the immutable Message Like Me v0.7.0 consumer contract.");
   }
   const messageLikeMeRoot = join(
     consumer,
@@ -596,7 +596,7 @@ async function verifyPackagedSkill(
     await readFile(join(messageLikeMeRoot, "package.json"), "utf8"),
   ) as Readonly<{ version?: unknown }>;
   if (messageLikeMeManifest.version !== "0.7.0") {
-    throw new Error("Clean Wrench consumer did not resolve Message Like Me v0.7.0.");
+    throw new Error("Clean Ghostget consumer did not resolve Message Like Me v0.7.0.");
   }
   const messageLikeMeContractSha256 = createHash("sha256")
     .update(await readFile(join(messageLikeMeRoot, "dist", "message-bundle-v2.js")))
@@ -605,7 +605,7 @@ async function verifyPackagedSkill(
     messageLikeMeContractSha256
       !== "aeab7249da34df33c4620b27b105fafdd19e9bfe74c92317ae61bf4d0291da21"
   ) {
-    throw new Error("Clean Wrench consumer resolved unreviewed Message Like Me v2 contract bytes.");
+    throw new Error("Clean Ghostget consumer resolved unreviewed Message Like Me v2 contract bytes.");
   }
   if (
     typeof manifest.engines !== "object"
@@ -613,7 +613,7 @@ async function verifyPackagedSkill(
     || !("bun" in manifest.engines)
     || manifest.engines.bun !== ">=1.3.14"
   ) {
-    throw new Error("Packed Wrench must declare its Bun runtime floor.");
+    throw new Error("Packed Ghostget must declare its Bun runtime floor.");
   }
   if (
     (Object.hasOwn(manifest, "private") && manifest.private !== false) ||
@@ -629,7 +629,7 @@ async function verifyPackagedSkill(
     || manifest.publishConfig.registry !== NPM_REGISTRY
   ) {
     throw new Error(
-      "Packed Wrench must remain public and publishConfig may contain only public access and the canonical npm registry.",
+      "Packed Ghostget must remain public and publishConfig may contain only public access and the canonical npm registry.",
     );
   }
   if (
@@ -637,7 +637,7 @@ async function verifyPackagedSkill(
     && manifest.scripts !== null
     && Object.hasOwn(manifest.scripts, "imessage:transport:install")
   ) {
-    throw new Error("Packed Wrench must expose only the path-safe public iMessage installer CLI.");
+    throw new Error("Packed Ghostget must expose only the path-safe public iMessage installer CLI.");
   }
   if (await Bun.file(join(
     packageRoot,
@@ -645,18 +645,18 @@ async function verifyPackagedSkill(
     "scripts",
     "install-imessage-direct-transport.ts",
   )).exists()) {
-    throw new Error("Packed Wrench retained the superseded iMessage installer script.");
+    throw new Error("Packed Ghostget retained the superseded iMessage installer script.");
   }
   const npmDisclosure = await readFile(join(packageRoot, "DISCLOSURE"), "utf8");
   for (const required of ["dual-use", "browser profile", "explicit confirmation", "authorized"] as const) {
     if (!npmDisclosure.includes(required)) {
-      throw new Error(`Packed Wrench dual-use disclosure is missing ${JSON.stringify(required)}.`);
+      throw new Error(`Packed Ghostget dual-use disclosure is missing ${JSON.stringify(required)}.`);
     }
   }
   const install = await readFile(join(skillRoot, "references", "install.md"), "utf8");
-  const canonicalArchive = `https://github.com/hraness/wrench/releases/download/v${expectedVersion}/hraness-wrench-${expectedVersion}.tgz`;
+  const canonicalArchive = `https://github.com/hraness/ghostget/releases/download/v${expectedVersion}/hraness-ghostget-${expectedVersion}.tgz`;
   if (!install.includes(canonicalArchive)) {
-    throw new Error("Packed Wrench skill install pin does not match the package version.");
+    throw new Error("Packed Ghostget skill install pin does not match the package version.");
   }
   const readme = await readFile(join(packageRoot, "README.md"), "utf8");
   if (
@@ -664,7 +664,7 @@ async function verifyPackagedSkill(
     || readme.includes("registries are not supported install paths")
     || !readme.includes(canonicalArchive)
   ) {
-    throw new Error("Packed Wrench README does not describe the exact canonical archive install path.");
+    throw new Error("Packed Ghostget README does not describe the exact canonical archive install path.");
   }
 
   await verifyPackedArchivedAdapterInventory(repository, packageRoot);
@@ -722,7 +722,7 @@ try {
     });
   }
   await verifyPackagedSkill(repository, consumer, packageVersion);
-  const packageRoot = join(consumer, "node_modules", "@hraness", "wrench");
+  const packageRoot = join(consumer, "node_modules", "@hraness", "ghostget");
   const packageMeasure = await measurePackageFiles(packageRoot);
   const measuredArchive = Object.freeze({
     fileCount: packageMeasure.fileCount,
@@ -745,7 +745,7 @@ try {
     await run([join(consumer, "node_modules", ".bin", binName), "--help"], consumer);
   }
   await runExpectingExactSuccess(
-    [join(consumer, "node_modules", ".bin", "wrench"), "--version"],
+    [join(consumer, "node_modules", ".bin", "ghostget"), "--version"],
     consumer,
     `${packageVersion}\n`,
   );
@@ -755,7 +755,7 @@ try {
     packedPrivateSourceClientRuntimeProgram,
   ], consumer);
   await runExpectingFailure([
-    join(consumer, "node_modules", ".bin", "wrench"),
+    join(consumer, "node_modules", ".bin", "ghostget"),
     "imessage",
     "transport",
     "install",
@@ -770,7 +770,7 @@ try {
   const imsgInstallerState = join(work, "imsg-installer-state");
   await mkdir(imsgInstallerState, { mode: 0o700 });
   await runExpectingFailure([
-    join(consumer, "node_modules", ".bin", "wrench"),
+    join(consumer, "node_modules", ".bin", "ghostget"),
     "imessage",
     "transport",
     "install",
@@ -780,12 +780,12 @@ try {
   ], consumer, 3, "imsg", [
     missingReviewedImsg,
     "private-missing-reviewed-imsg-canary",
-  ], { WRENCH_STATE_HOME: imsgInstallerState });
+  ], { GHOSTGET_STATE_HOME: imsgInstallerState });
   await access(join(
     consumer,
     "node_modules",
     "@hraness",
-    "wrench",
+    "ghostget",
     "src",
     "fixtures",
     "beeper-message-like-me-v1",
@@ -794,20 +794,20 @@ try {
   await run([
     process.execPath,
     "-e",
-    "await import('./node_modules/@hraness/wrench/src/beeper-message-like-me-cli.ts')",
+    "await import('./node_modules/@hraness/ghostget/src/beeper-message-like-me-cli.ts')",
   ], consumer);
   await run([
     process.execPath,
     "-e",
-    "await import('./node_modules/@hraness/wrench/src/whatsapp-message-like-me-cli.ts')",
+    "await import('./node_modules/@hraness/ghostget/src/whatsapp-message-like-me-cli.ts')",
   ], consumer);
   await run([
     process.execPath,
     "-e",
-    "const surface = await import('./node_modules/@hraness/wrench/src/local-cli-surface-contract.ts'); if (typeof surface.parseLocalCliSurfaceContractV1 !== 'function') process.exit(1)",
+    "const surface = await import('./node_modules/@hraness/ghostget/src/local-cli-surface-contract.ts'); if (typeof surface.parseLocalCliSurfaceContractV1 !== 'function') process.exit(1)",
   ], consumer);
   await runExpectingFailure([
-    join(consumer, "node_modules", ".bin", "wrench"),
+    join(consumer, "node_modules", ".bin", "ghostget"),
     "beeper",
     "export-message-like-me",
     "--auth",
@@ -816,7 +816,7 @@ try {
     "relative",
   ], consumer, 2, "normalized-absolute-directory");
   await runExpectingFailure([
-    join(consumer, "node_modules", ".bin", "wrench"),
+    join(consumer, "node_modules", ".bin", "ghostget"),
     "whatsapp",
     "export-message-like-me",
     "--auth",
@@ -835,13 +835,13 @@ try {
     `await Promise.all(${JSON.stringify(importSpecifiers)}.map((specifier) => import(specifier)))`,
   ], consumer);
   await writeFile(join(consumer, "index.ts"), `
-import * as surface0 from "@hraness/wrench";
-import * as surface1 from "@hraness/wrench/client";
-import * as surface2 from "@hraness/wrench/omni";
-import * as surface3 from "@hraness/wrench/beeper";
-import * as surface4 from "@hraness/wrench/apple-photos";
-import * as surface5 from "@hraness/wrench/whatsapp";
-import * as surface6 from "@hraness/wrench/messaging";
+import * as surface0 from "@hraness/ghostget";
+import * as surface1 from "@hraness/ghostget/client";
+import * as surface2 from "@hraness/ghostget/omni";
+import * as surface3 from "@hraness/ghostget/beeper";
+import * as surface4 from "@hraness/ghostget/apple-photos";
+import * as surface5 from "@hraness/ghostget/whatsapp";
+import * as surface6 from "@hraness/ghostget/messaging";
 import {
   discoverMessagingRoutes,
   parseMessagingRouteResolveRequestV1,
@@ -853,7 +853,7 @@ import {
   resolveMessagingRoute,
   type MessagingRouteV2,
   type MessagingRoutesV2,
-} from "@hraness/wrench/messaging";
+} from "@hraness/ghostget/messaging";
 
 const discovered: Promise<MessagingRoutesV2> = discoverMessagingRoutes({
   schemaVersion: 1,

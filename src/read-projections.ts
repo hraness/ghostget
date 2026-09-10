@@ -32,7 +32,7 @@ import {
   removePrivateStateDirectoryTree,
   removePrivateStateFile,
   snapshotPrivateStateDirectory,
-  wrenchStateHome,
+  ghostgetStateHome,
   writePrivateJsonIfUnchanged,
   type PrivateDirectoryIdentity,
 } from "./storage";
@@ -609,11 +609,11 @@ function authenticated(
 }
 
 function storeDirectory(environment: Environment): string {
-  return join(wrenchStateHome(environment), STORE_DIRECTORY);
+  return join(ghostgetStateHome(environment), STORE_DIRECTORY);
 }
 
 function omniStoreDirectory(environment: Environment): string {
-  return join(wrenchStateHome(environment), OMNI_STORE_DIRECTORY);
+  return join(ghostgetStateHome(environment), OMNI_STORE_DIRECTORY);
 }
 
 function storeDirectoryForClass(
@@ -626,11 +626,11 @@ function storeDirectoryForClass(
 }
 
 function keyPath(environment: Environment): string {
-  return join(wrenchStateHome(environment), KEY_FILE);
+  return join(ghostgetStateHome(environment), KEY_FILE);
 }
 
 function controlDirectory(environment: Environment): string {
-  return join(wrenchStateHome(environment), CONTROL_DIRECTORY);
+  return join(ghostgetStateHome(environment), CONTROL_DIRECTORY);
 }
 
 function storeKeyMarkerPath(environment: Environment): string {
@@ -1505,7 +1505,7 @@ function privatePayloadAdditionalData(keyId: string, domain: string): Buffer {
   }), "utf8");
 }
 
-/** Internal state primitive sharing Wrench's authenticated projection key. */
+/** Internal state primitive sharing Ghostget's authenticated projection key. */
 export function sealAuthenticatedPrivatePayload(
   value: unknown,
   domain: string,

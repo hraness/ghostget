@@ -17,7 +17,7 @@ import {
   listPrivateStateDirectory,
   readPrivateStateFileIfPresent,
   removePrivateStateFile,
-  wrenchStateHome,
+  ghostgetStateHome,
 } from "./storage";
 
 const MAX_RECORD_BYTES = 1024 * 1024;
@@ -94,7 +94,7 @@ export type MessagingContextRecordV1 = {
 function messagingRoot(
   environment: Readonly<Record<string, string | undefined>>,
 ): string {
-  return join(wrenchStateHome(environment), "messaging");
+  return join(ghostgetStateHome(environment), "messaging");
 }
 
 function ensureMessagingRecordDirectory(

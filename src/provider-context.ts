@@ -1,8 +1,8 @@
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import type { ProviderContract } from "./provider-contract-definitions";
 import type {
   FileInputValue,
-  WrenchManifest,
+  GhostgetManifest,
   OperationInput,
   ProviderRecipe,
 } from "./model";
@@ -45,7 +45,7 @@ export type ProviderFile = {
  * acquire the host's process-global catalog through its context types.
  */
 export type ProviderActionContext = {
-  readonly manifest: WrenchManifest;
+  readonly manifest: GhostgetManifest;
   readonly recipe: ProviderRecipe;
   readonly contract: ProviderContract;
   readonly input: OperationInput;
@@ -65,5 +65,5 @@ export type ProviderActionContext = {
   readonly setFinalUrl: (value: string) => void;
 };
 
-/** Compile-time proof that provider auth remains an owned Wrench auth variant. */
-export type ProviderContextAuth = Extract<WrenchAuth, { readonly kind: "oauth-token-file" }>;
+/** Compile-time proof that provider auth remains an owned Ghostget auth variant. */
+export type ProviderContextAuth = Extract<GhostgetAuth, { readonly kind: "oauth-token-file" }>;

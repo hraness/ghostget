@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { canonicalJson, sha256 } from "./canonical-json";
 import {
   exportWhatsAppMessageLikeMeBundle,
@@ -34,7 +34,7 @@ export type WhatsAppMessageLikeMeCliProgress =
     }>;
 
 export type WhatsAppMessageLikeMeCliRequest = Readonly<{
-  auth: WrenchAuth;
+  auth: GhostgetAuth;
   outputRoot: string;
   environment?: Readonly<Record<string, string | undefined>>;
   signal?: AbortSignal;

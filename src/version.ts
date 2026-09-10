@@ -1,2 +1,2 @@
-/** Canonical immutable Wrench package release identity. */
-export const WRENCH_VERSION = "0.16.17" as const;
+/** Canonical immutable Ghostget package release identity. */
+export const GHOSTGET_VERSION = "0.17.0" as const;

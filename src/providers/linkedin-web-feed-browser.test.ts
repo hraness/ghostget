@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { BrowserSession, CreateBrowserSessionOptions } from "../browser";
 import {
   createLinkedInFeedBrowserTransport,
@@ -25,7 +25,7 @@ const auth = {
   profile: "Persistent LinkedIn",
   trustUnfilteredEgress: true,
   subject: "urn:li:fsd_profile:123456789",
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 function bodyRecord(body: string): Readonly<Record<string, unknown>> {
   const bytes = Buffer.from(body, "utf8");
@@ -96,7 +96,7 @@ function createTransport(session: BrowserSession) {
     dependencies: {
       createBrowserSession: (
         _manifest: unknown,
-        _auth: WrenchAuth,
+        _auth: GhostgetAuth,
         options: CreateBrowserSessionOptions,
       ) => {
         expect(options.allowCodeOwnedEvaluation).toBeTrue();

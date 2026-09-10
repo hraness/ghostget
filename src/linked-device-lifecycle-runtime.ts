@@ -15,7 +15,7 @@ import {
   replaceAuthIfUnchanged,
   type AuthReplaceResult,
   type AuthSnapshot,
-  type WrenchAuth,
+  type GhostgetAuth,
 } from "./auth";
 import {
   linkedDeviceLifecycleAdmissionStore,
@@ -52,7 +52,7 @@ import type { ProviderPluginRegistry } from "./provider-plugin-registry";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 type LinkedDeviceAuth = Extract<
-  WrenchAuth,
+  GhostgetAuth,
   { readonly kind: "linked-device-store" }
 >;
 
@@ -198,7 +198,7 @@ export class LinkedDeviceLifecycleIndeterminateError extends Error {
 
   constructor(journalId: string, cause: unknown) {
     super(
-      `linked-device lifecycle attempt ${journalId} has an indeterminate external outcome; inspect it with wrench doctor before retrying`,
+      `linked-device lifecycle attempt ${journalId} has an indeterminate external outcome; inspect it with ghostget doctor before retrying`,
       { cause },
     );
     this.name = "LinkedDeviceLifecycleIndeterminateError";
@@ -477,7 +477,7 @@ async function withLifecycleAdmission<T>(
   const recovery = admissionStore.recover(environment);
   if (recovery.issues.length > 0) {
     throw new Error(
-      "linked-device lifecycle admissions contain unresolved state; inspect wrench doctor before continuing",
+      "linked-device lifecycle admissions contain unresolved state; inspect ghostget doctor before continuing",
     );
   }
   const admission = admissionStore.acquire(
@@ -771,7 +771,7 @@ function assertLifecycleMayStart(
   const recovery = recoverLinkedDeviceLifecycleJournals(options);
   if (recovery.invalid > 0) {
     throw new Error(
-      "linked-device lifecycle journals contain invalid state; inspect wrench doctor before continuing",
+      "linked-device lifecycle journals contain invalid state; inspect ghostget doctor before continuing",
     );
   }
   if (

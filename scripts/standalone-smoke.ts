@@ -41,18 +41,18 @@ const archivedAdapterNamePattern =
 const MAX_PACKED_ARCHIVED_UPGRADE_FAMILIES = 32;
 const PACKED_ARCHIVED_UPGRADE_COMMAND_TIMEOUT_MS = 30_000;
 const publicImportSpecifiers = Object.freeze([
-  "@hraness/wrench",
-  "@hraness/wrench/client",
-  "@hraness/wrench/beeper",
-  "@hraness/wrench/apple-photos",
-  "@hraness/wrench/whatsapp",
-  "@hraness/wrench/omni",
-  "@hraness/wrench/messaging",
+  "@hraness/ghostget",
+  "@hraness/ghostget/client",
+  "@hraness/ghostget/beeper",
+  "@hraness/ghostget/apple-photos",
+  "@hraness/ghostget/whatsapp",
+  "@hraness/ghostget/omni",
+  "@hraness/ghostget/messaging",
 ]);
 
 const packageRoot = resolve(import.meta.dir, "..");
 const cli = join(packageRoot, "src", "cli.ts");
-const work = await mkdtemp(join(tmpdir(), "wrench-standalone-smoke-"));
+const work = await mkdtemp(join(tmpdir(), "ghostget-standalone-smoke-"));
 const home = join(work, "home");
 const state = join(work, "state");
 const temporary = join(work, "tmp");
@@ -71,8 +71,8 @@ const environment: Record<string, string> = {
   PATH: process.env.PATH ?? "",
   TMPDIR: temporary,
   TZ: "UTC",
-  WRENCH_MEDIA_HOME: join(state, "media"),
-  WRENCH_STATE_HOME: state,
+  GHOSTGET_MEDIA_HOME: join(state, "media"),
+  GHOSTGET_STATE_HOME: state,
 };
 
 const inheritedProcessBudget = process.env.GOMAXPROCS;
@@ -188,7 +188,7 @@ async function packedArchivedAdapterInventory(
     "wrench-web-adapter.v1.1.0.json",
   );
   if (!actual.includes(requiredSubstackBaseline)) {
-    throw new Error("packed Wrench omitted the Substack 1.1.0 upgrade baseline");
+    throw new Error("packed Ghostget omitted the Substack 1.1.0 upgrade baseline");
   }
   for (const relativePath of expected) {
     const sourceBytes = Buffer.from(
@@ -258,8 +258,8 @@ async function exercisePackedArchivedAdapterUpgrades(
     }
   }
   const upgradeState = join(work, "packed-upgrade-state");
-  environment.WRENCH_STATE_HOME = upgradeState;
-  environment.WRENCH_MEDIA_HOME = join(upgradeState, "media");
+  environment.GHOSTGET_STATE_HOME = upgradeState;
+  environment.GHOSTGET_MEDIA_HOME = join(upgradeState, "media");
   await mkdir(upgradeState, { recursive: true, mode: 0o700 });
   const expectedUpgrades: Array<Readonly<{
     archivedId: string;
@@ -462,7 +462,7 @@ async function assertInstalledClosurePackage(
 
 function assertDoctorSchema(label: string, text: string): void {
   const report = parseJsonObject(label, text);
-  requireKeys(label, report, ["capture", "media", "oh", "ok", "wrench"]);
+  requireKeys(label, report, ["capture", "media", "oh", "ok", "ghostget", "wrench"]);
   if (typeof report.ok !== "boolean") {
     throw new Error(`${label}.ok is not a boolean`);
   }
@@ -484,16 +484,20 @@ function assertDoctorSchema(label: string, text: string): void {
     "ok",
   ]);
 
-  const wrench = requireJsonObject(`${label}.wrench`, report.wrench);
-  requireKeys(`${label}.wrench`, wrench, [
+  const ghostget = requireJsonObject(`${label}.ghostget`, report.ghostget);
+  requireKeys(`${label}.ghostget`, ghostget, [
     "home",
     "mediaArchiveReady",
     "mutationPolicy",
     "portablePlugins",
   ]);
+  const legacy = requireJsonObject(`${label}.wrench`, report.wrench);
+  if (!isDeepStrictEqual(legacy, ghostget)) {
+    throw new Error(`${label}.wrench diverged from the canonical ghostget envelope`);
+  }
   const predecessor = requireJsonObject(`${label}.oh`, report.oh);
-  if (!isDeepStrictEqual(predecessor, wrench)) {
-    throw new Error(`${label}.oh diverged from the canonical wrench envelope`);
+  if (!isDeepStrictEqual(predecessor, ghostget)) {
+    throw new Error(`${label}.oh diverged from the canonical ghostget envelope`);
   }
 }
 
@@ -543,7 +547,7 @@ async function exerciseCli(
   parseJsonObject(`${target.label} plugin list`, plugins.stdout);
 
   const authoringDirectory = join(work, `${artifactLabel}-example-web`);
-  const packageDirectory = join(work, `${artifactLabel}-example-web.wrenchplugin`);
+  const packageDirectory = join(work, `${artifactLabel}-example-web.ghostgetplugin`);
   const init = await runCli(target, "plugin init", [
     "plugin",
     "init",
@@ -603,7 +607,7 @@ function isPublicArtifact(value: unknown): boolean {
     && value !== null
     && !Array.isArray(value)
     && "name" in value
-    && value.name === "@hraness/wrench"
+    && value.name === "@hraness/ghostget"
     && (!("private" in value) || value.private === false);
 }
 
@@ -617,7 +621,7 @@ try {
 
   const manifest: unknown = await Bun.file(join(packageRoot, "package.json")).json();
   if (isPublicArtifact(manifest)) {
-    const archive = join(work, "wrench.tgz");
+    const archive = join(work, "ghostget.tgz");
     const consumer = join(work, "consumer");
     await mkdir(consumer, { recursive: true });
     await runCommand("pack public package", [
@@ -645,10 +649,10 @@ try {
       consumer,
       "node_modules",
       "@hraness",
-      "wrench",
+      "ghostget",
     );
     if (existsSync(join(installedPackageRoot, "bun.lock"))) {
-      throw new Error("packed Wrench unexpectedly contains its repository lock");
+      throw new Error("packed Ghostget unexpectedly contains its repository lock");
     }
     await runCommand(
       "import every packed public SDK entrypoint",
@@ -660,11 +664,11 @@ try {
       consumer,
     );
     const installedManifest = requireJsonObject(
-      "packed Wrench manifest",
+      "packed Ghostget manifest",
       await Bun.file(join(installedPackageRoot, "package.json")).json(),
     );
     const installedDependencies = requireJsonObject(
-      "packed Wrench runtime dependencies",
+      "packed Ghostget runtime dependencies",
       installedManifest.dependencies,
     );
     const installedDependencyNames = Object.keys(installedDependencies).sort();
@@ -673,7 +677,7 @@ try {
     ).sort();
     if (!isDeepStrictEqual(installedDependencyNames, expectedDependencyNames)) {
       throw new Error(
-        `packed Wrench runtime dependency names differ from the reviewed closure: ${JSON.stringify(installedDependencyNames)}`,
+        `packed Ghostget runtime dependency names differ from the reviewed closure: ${JSON.stringify(installedDependencyNames)}`,
       );
     }
     for (
@@ -683,7 +687,7 @@ try {
     ) {
       if (installedDependencies[name] !== spec) {
         throw new Error(
-          `packed Wrench must project closure dependency ${name}@${spec}, got ${String(installedDependencies[name])}`,
+          `packed Ghostget must project closure dependency ${name}@${spec}, got ${String(installedDependencies[name])}`,
         );
       }
     }
@@ -783,7 +787,7 @@ try {
       [
         process.execPath,
         "-e",
-        "import { invokeCapability, invokeCapabilitySync, readCachedCapability, revalidateCapability, staleWhileRevalidateCapability } from '@hraness/wrench/client'; if (![invokeCapability, invokeCapabilitySync, readCachedCapability, revalidateCapability, staleWhileRevalidateCapability].every((value) => typeof value === 'function')) process.exit(1);",
+        "import { invokeCapability, invokeCapabilitySync, readCachedCapability, revalidateCapability, staleWhileRevalidateCapability } from '@hraness/ghostget/client'; if (![invokeCapability, invokeCapabilitySync, readCachedCapability, revalidateCapability, staleWhileRevalidateCapability].every((value) => typeof value === 'function')) process.exit(1);",
       ],
       consumer,
     );
@@ -792,7 +796,7 @@ try {
       [
         process.execPath,
         "-e",
-        "import { exportBeeperContactInteractionsSync, parseBeeperContactInteractionExportResult } from '@hraness/wrench/beeper'; if (![exportBeeperContactInteractionsSync, parseBeeperContactInteractionExportResult].every((value) => typeof value === 'function')) process.exit(1);",
+        "import { exportBeeperContactInteractionsSync, parseBeeperContactInteractionExportResult } from '@hraness/ghostget/beeper'; if (![exportBeeperContactInteractionsSync, parseBeeperContactInteractionExportResult].every((value) => typeof value === 'function')) process.exit(1);",
       ],
       consumer,
     );
@@ -801,7 +805,7 @@ try {
       [
         process.execPath,
         "-e",
-        "import { exportApplePhotosContactEvidenceSync, parseApplePhotosContactEvidenceExportResult } from '@hraness/wrench/apple-photos'; if (![exportApplePhotosContactEvidenceSync, parseApplePhotosContactEvidenceExportResult].every((value) => typeof value === 'function')) process.exit(1);",
+        "import { exportApplePhotosContactEvidenceSync, parseApplePhotosContactEvidenceExportResult } from '@hraness/ghostget/apple-photos'; if (![exportApplePhotosContactEvidenceSync, parseApplePhotosContactEvidenceExportResult].every((value) => typeof value === 'function')) process.exit(1);",
       ],
       consumer,
     );
@@ -810,7 +814,7 @@ try {
       [
         process.execPath,
         "-e",
-        "import { exportWhatsAppMessageLikeMeSync, parseWhatsAppMessageLikeMeExportReceipt } from '@hraness/wrench/whatsapp'; if (![exportWhatsAppMessageLikeMeSync, parseWhatsAppMessageLikeMeExportReceipt].every((value) => typeof value === 'function')) process.exit(1);",
+        "import { exportWhatsAppMessageLikeMeSync, parseWhatsAppMessageLikeMeExportReceipt } from '@hraness/ghostget/whatsapp'; if (![exportWhatsAppMessageLikeMeSync, parseWhatsAppMessageLikeMeExportReceipt].every((value) => typeof value === 'function')) process.exit(1);",
       ],
       consumer,
     );
@@ -824,7 +828,7 @@ try {
       [
         process.execPath,
         "-e",
-        "import { readCachedOmniView, revalidateOmniView, staleWhileRevalidateOmniView } from '@hraness/wrench/omni'; if (![readCachedOmniView, revalidateOmniView, staleWhileRevalidateOmniView].every((value) => typeof value === 'function')) process.exit(1);",
+        "import { readCachedOmniView, revalidateOmniView, staleWhileRevalidateOmniView } from '@hraness/ghostget/omni'; if (![readCachedOmniView, revalidateOmniView, staleWhileRevalidateOmniView].every((value) => typeof value === 'function')) process.exit(1);",
       ],
       consumer,
     );
@@ -840,15 +844,15 @@ try {
         "  type CapabilityReadRequest,",
         "  type ReadProjectionCacheResult,",
         "  type RevalidatedCapability,",
-        "  type WrenchClientInvocationResult,",
-        "  type WrenchClientReadFailure,",
-        "} from '@hraness/wrench/client';",
+        "  type GhostgetClientInvocationResult,",
+        "  type GhostgetClientReadFailure,",
+        "} from '@hraness/ghostget/client';",
         "const request: CapabilityReadRequest = { adapterId: 'x', operationId: 'messaging.list' };",
         "const cachedReader: (request: CapabilityReadRequest) => ReadProjectionCacheResult = readCachedCapability;",
         "const revalidator: (request: CapabilityReadRequest) => Promise<RevalidatedCapability> = revalidateCapability;",
-        "function consumeInvocation(result: WrenchClientInvocationResult): void {",
+        "function consumeInvocation(result: GhostgetClientInvocationResult): void {",
         "  if (result.status === 'failed') {",
-        "    const failure: WrenchClientReadFailure = result.readFailure;",
+        "    const failure: GhostgetClientReadFailure = result.readFailure;",
         "    const output: null = result.output;",
         "    const receiptStatus: 'failed' = result.receipt.status;",
         "    void [failure, output, receiptStatus];",
@@ -872,7 +876,7 @@ try {
         "  exportBeeperContactInteractionsSync,",
         "  parseBeeperContactInteractionExportResult,",
         "  type BeeperContactInteractionExportResult,",
-        "} from '@hraness/wrench/beeper';",
+        "} from '@hraness/ghostget/beeper';",
         "const result: BeeperContactInteractionExportResult | undefined = undefined;",
         "void [result, exportBeeperContactInteractionsSync, parseBeeperContactInteractionExportResult];",
         "",
@@ -885,7 +889,7 @@ try {
         "  exportApplePhotosContactEvidenceSync,",
         "  parseApplePhotosContactEvidenceExportResult,",
         "  type ApplePhotosContactEvidenceExportResult,",
-        "} from '@hraness/wrench/apple-photos';",
+        "} from '@hraness/ghostget/apple-photos';",
         "const result: ApplePhotosContactEvidenceExportResult | undefined = undefined;",
         "void [result, exportApplePhotosContactEvidenceSync, parseApplePhotosContactEvidenceExportResult];",
         "",
@@ -898,7 +902,7 @@ try {
         "  exportWhatsAppMessageLikeMeSync,",
         "  parseWhatsAppMessageLikeMeExportReceipt,",
         "  type WhatsAppMessageLikeMeExportReceipt,",
-        "} from '@hraness/wrench/whatsapp';",
+        "} from '@hraness/ghostget/whatsapp';",
         "const result: WhatsAppMessageLikeMeExportReceipt | undefined = undefined;",
         "void [result, exportWhatsAppMessageLikeMeSync, parseWhatsAppMessageLikeMeExportReceipt];",
         "",
@@ -914,7 +918,7 @@ try {
         "  type OmniViewCacheResult,",
         "  type OmniViewRequest,",
         "  type RevalidatedOmniView,",
-        "} from '@hraness/wrench/omni';",
+        "} from '@hraness/ghostget/omni';",
         "const request: OmniViewRequest = {",
         "  schemaVersion: 1,",
         "  sources: [{",
@@ -965,14 +969,14 @@ try {
       consumer,
     );
     const packedCli = {
-      cliPath: join(consumer, "node_modules", ".bin", "wrench"),
+      cliPath: join(consumer, "node_modules", ".bin", "ghostget"),
       cwd: consumer,
       label: "packed",
     } as const;
     await exercisePackedArchivedAdapterUpgrades(packedCli, installedPackageRoot);
     const packedState = join(work, "packed-state");
-    environment.WRENCH_STATE_HOME = packedState;
-    environment.WRENCH_MEDIA_HOME = join(packedState, "media");
+    environment.GHOSTGET_STATE_HOME = packedState;
+    environment.GHOSTGET_MEDIA_HOME = join(packedState, "media");
     await mkdir(packedState, { recursive: true, mode: 0o700 });
     await runCli(packedCli, "install isolated omni adapter", [
       "adapter",
@@ -1001,7 +1005,7 @@ try {
         process.execPath,
         "-e",
         [
-          "import { readCachedOmniView } from '@hraness/wrench/omni';",
+          "import { readCachedOmniView } from '@hraness/ghostget/omni';",
           "const result = readCachedOmniView({ schemaVersion: 1, sources: [{ adapterId: 'reddit-web', operationId: 'messaging.list', authId: 'reddit-main', input: { folder: 'inbox', limit: 25 } }] });",
           "if (result.schemaVersion !== 1 || result.source !== 'omni-cache') throw new Error('packed omni cache result envelope is malformed');",
           "if (!/^[a-f0-9]{64}$/.test(result.identity.invocationDigest) || !/^[a-f0-9]{64}$/.test(result.identity.requestDigest) || !/^[a-f0-9]{64}$/.test(result.identity.sourceSetDigest)) throw new Error('packed omni cache identity is malformed');",

@@ -889,7 +889,7 @@ async function executeMessagingList(context: ProviderActionContext): Promise<voi
             : {}),
           limitation: view === "chat-conversations"
             ? "The official Chat index exposes conversation metadata and whether requests are pending, but not separate Requests/Priority/Hidden folder collections or plaintext messages."
-            : "Official Chat events contain signed encrypted envelopes; wrench returns the provider envelope without claiming to decrypt or verify its plaintext.",
+            : "Official Chat events contain signed encrypted envelopes; ghostget returns the provider envelope without claiming to decrypt or verify its plaintext.",
         }
       : {
           complete: false,

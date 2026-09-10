@@ -143,7 +143,7 @@ test("native fixture provisioning precedes every CI full or selected-shard gate"
   const enterSource = scopedCheck.indexOf('cd "$smoke_source"');
   const install = scopedCheck.indexOf("bun install --frozen-lockfile --ignore-scripts");
   const provision = scopedCheck.indexOf("bun run ./scripts/provision-derive-browser.ts");
-  const check = scopedCheck.indexOf('WRENCH_DERIVE_BROWSER_ROOT="$fixture_browser_root" bun run check');
+  const check = scopedCheck.indexOf('GHOSTGET_DERIVE_BROWSER_ROOT="$fixture_browser_root" bun run check');
   expect(enterSource).toBeGreaterThan(0);
   expect(install).toBeGreaterThan(enterSource);
   expect(provision).toBeGreaterThan(install);

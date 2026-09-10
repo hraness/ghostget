@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
 import { mediaUrl, type MediaArchiveResult } from "../../src/media/archive";
-import { WRENCH_MEDIA_SCHEMA_VERSION, verifyMediaItem } from "../../src/media/manifest";
+import { GHOSTGET_MEDIA_SCHEMA_VERSION, verifyMediaItem } from "../../src/media/manifest";
 import { findExecutable, runProcess } from "../../src/media/process";
 import type { MediaTrackedRevision } from "../../src/media/revision";
 
@@ -113,7 +113,7 @@ async function buildFixtures(root: string, ffmpeg: string): Promise<Readonly<{
   await copyFile(source, join(generic, "media.mp4"));
   await writeFile(
     join(generic, "index.html"),
-    "<!doctype html><meta charset=utf-8><title>Wrench media fixture</title><video controls src=/generic/media.mp4></video>\n",
+    "<!doctype html><meta charset=utf-8><title>Ghostget media fixture</title><video controls src=/generic/media.mp4></video>\n",
   );
   await runFixtureCommand([
     ffmpeg,
@@ -169,7 +169,7 @@ function opaqueIdentity(result: MediaArchiveResult): Readonly<{
   requestedUrlSha256: string;
 }> {
   const manifest = result.manifest;
-  invariant(manifest.schemaVersion === WRENCH_MEDIA_SCHEMA_VERSION, "acceptance must write the current schema");
+  invariant(manifest.schemaVersion === GHOSTGET_MEDIA_SCHEMA_VERSION, "acceptance must write the current schema");
   invariant(manifest.acquisition.adapter === "yt-dlp", "acceptance must use yt-dlp");
   invariant(
     manifest.acquisition.identity.profile === "yt-dlp-opaque-url-v1",
@@ -185,7 +185,7 @@ function trackedRevision(result: MediaArchiveResult): MediaTrackedRevision {
 }
 
 async function main(): Promise<void> {
-  const root = await mkdtemp(join(tmpdir(), "wrench-media-adaptive-acceptance-"));
+  const root = await mkdtemp(join(tmpdir(), "ghostget-media-adaptive-acceptance-"));
   let server: ReturnType<typeof Bun.serve> | undefined;
   try {
     const [ffmpeg] = await Promise.all([
@@ -333,7 +333,7 @@ try {
 } catch (error) {
   await writeOutput(
     process.stderr,
-    `wrench media adaptive acceptance: ${error instanceof Error ? error.message : "failed"}\n`,
+    `ghostget media adaptive acceptance: ${error instanceof Error ? error.message : "failed"}\n`,
   );
   process.exitCode = 1;
 }

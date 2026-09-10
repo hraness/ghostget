@@ -15,19 +15,19 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { runWrenchCliProcess } from "./cli";
+import { runGhostgetCliProcess } from "./cli";
 import { listRunReceipts } from "./runtime";
 import {
   ensurePrivateStateDirectory,
-  wrenchStateHome,
+  ghostgetStateHome,
 } from "./storage";
-import { wrenchUsage } from "./usage";
+import { ghostgetUsage } from "./usage";
 
 const repositoryRoot = process.cwd();
 const cliPath = join(import.meta.dir, "cli.ts");
 const localInstallerPath = join(import.meta.dir, "scripts", "install-local.sh");
 const sampleCount = 5;
-const strictPerformanceBudgets = process.env.WRENCH_STRICT_PERF === "1";
+const strictPerformanceBudgets = process.env.GHOSTGET_STRICT_PERF === "1";
 const warmCapabilitiesLimitMilliseconds = 2_500;
 const durableReceiptsLimitMilliseconds = strictPerformanceBudgets
   ? 1_000
@@ -71,7 +71,7 @@ function reportMedian(
   limitMilliseconds: number,
 ): number {
   const value = median(values);
-  if (process.env.WRENCH_PERFORMANCE_REPORT === "1") {
+  if (process.env.GHOSTGET_PERFORMANCE_REPORT === "1") {
     process.stdout.write(
       `[wrench-performance] ${label}: median ${value.toFixed(2)}ms `
       + `(n=${values.length}, limit=${limitMilliseconds}ms)\n`,
@@ -119,9 +119,9 @@ async function measureInstaller(
       cwd: repositoryRoot,
       env: {
         ...process.env,
-        WRENCH_BIN_DIR: binDirectory,
-        WRENCH_BUN: process.execPath,
-        WRENCH_STATE_HOME: stateDirectory,
+        GHOSTGET_BIN_DIR: binDirectory,
+        GHOSTGET_BUN: process.execPath,
+        GHOSTGET_STATE_HOME: stateDirectory,
         PATH: `${binDirectory}:${process.env.PATH ?? ""}`,
       },
       stdin: "ignore",
@@ -185,13 +185,13 @@ function receipt(index: number): Readonly<Record<string, unknown>> {
   };
 }
 
-describe("Wrench hardening performance gates", () => {
+describe("Ghostget hardening performance gates", () => {
   test("keeps static help and release identity lazy without provider or state initialization", async () => {
     const cliSource = readFileSync(cliPath, "utf8");
     const usageSource = readFileSync(join(import.meta.dir, "usage.ts"), "utf8");
     expect(runtimeImportDeclarations(cliSource)).toEqual([
-      'import { wrenchUsage } from "./usage";',
-      'import { WRENCH_VERSION } from "./version";',
+      'import { ghostgetUsage } from "./usage";',
+      'import { GHOSTGET_VERSION } from "./version";',
     ]);
     expect(runtimeImportDeclarations(usageSource)).toEqual([]);
 
@@ -199,7 +199,7 @@ describe("Wrench hardening performance gates", () => {
     let loaderCalls = 0;
     let directOutput = "";
     try {
-      await runWrenchCliProcess(
+      await runGhostgetCliProcess(
         ["--help"],
         { stdout: (value) => { directOutput += value; } },
         () => {
@@ -213,15 +213,15 @@ describe("Wrench hardening performance gates", () => {
       process.exitCode = previousExitCode;
     }
     expect(loaderCalls).toBe(0);
-    expect(directOutput).toBe(wrenchUsage);
+    expect(directOutput).toBe(ghostgetUsage);
 
     const statePath = join(privateRoot("help"), "must-remain-absent");
-    const environment = { ...process.env, WRENCH_STATE_HOME: statePath };
+    const environment = { ...process.env, GHOSTGET_STATE_HOME: statePath };
     const samples: number[] = [];
     for (let index = 0; index < sampleCount; index += 1) {
       const measurement = await measureCli(["--help"], environment);
       expectSuccessfulCli(measurement);
-      expect(measurement.stdout).toBe(wrenchUsage);
+      expect(measurement.stdout).toBe(ghostgetUsage);
       samples.push(measurement.elapsedMilliseconds);
     }
 
@@ -237,7 +237,7 @@ describe("Wrench hardening performance gates", () => {
     "starts a warm capabilities catalog within the CI budget",
     async () => {
       const statePath = join(privateRoot("capabilities"), "state");
-      const environment = { ...process.env, WRENCH_STATE_HOME: statePath };
+      const environment = { ...process.env, GHOSTGET_STATE_HOME: statePath };
 
       const warmup = await measureCli(["capabilities", "--json"], environment);
       expectSuccessfulCli(warmup);
@@ -276,8 +276,8 @@ describe("Wrench hardening performance gates", () => {
 
   test("lists 127 durable receipts within the CI budget", () => {
     const statePath = join(privateRoot("receipts"), "state");
-    const environment = { ...process.env, WRENCH_STATE_HOME: statePath };
-    const runsDirectory = join(wrenchStateHome(environment), "runs");
+    const environment = { ...process.env, GHOSTGET_STATE_HOME: statePath };
+    const runsDirectory = join(ghostgetStateHome(environment), "runs");
     ensurePrivateStateDirectory(runsDirectory, environment);
     for (let index = 0; index < 127; index += 1) {
       const value = receipt(index);
@@ -320,14 +320,14 @@ describe("Wrench hardening performance gates", () => {
     const stateDirectory = join(root, "state");
     const cold = await measureInstaller(binDirectory, stateDirectory);
     expectSuccessfulCli(cold);
-    expect(cold.stdout).toContain(`Installed wrench at ${join(binDirectory, "wrench")}`);
+    expect(cold.stdout).toContain(`Installed ghostget at ${join(binDirectory, "wrench")}`);
 
     const samples: number[] = [];
     for (let index = 0; index < 3; index += 1) {
       const warm = await measureInstaller(binDirectory, stateDirectory);
       expectSuccessfulCli(warm);
       expect(warm.stdout).toContain(
-        `wrench is already installed at ${join(binDirectory, "wrench")}`,
+        `ghostget is already installed at ${join(binDirectory, "wrench")}`,
       );
       samples.push(warm.elapsedMilliseconds);
     }

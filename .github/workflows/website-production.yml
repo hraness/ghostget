@@ -54,8 +54,8 @@ jobs:
           UPSTREAM_WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
         run: |
           set -euo pipefail
-          if [[ "$DEFAULT_BRANCH" != "main" || "$EVENT_REF" != "refs/heads/main" || "$EVENT_REPOSITORY" != "hraness/wrench" || "$EVENT_REPOSITORY_ID" != "1316443113" ]]; then
-            echo "::error::Website production promotion must originate from the Wrench main ref"
+          if [[ "$DEFAULT_BRANCH" != "main" || "$EVENT_REF" != "refs/heads/main" || "$EVENT_REPOSITORY" != "hraness/ghostget" || "$EVENT_REPOSITORY_ID" != "1316443113" ]]; then
+            echo "::error::Website production promotion must originate from the Ghostget main ref"
             exit 1
           fi
           if [[ ! "$EVENT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
@@ -207,7 +207,7 @@ jobs:
           set -euo pipefail
           canonical="$(node --input-type=module -e 'import { usesGithubReleaseAssets } from "./website/github-release-artifact.mjs"; process.stdout.write(String(usesGithubReleaseAssets(process.env.VERIFIED_TAG)))')"
           if [[ "$canonical" == true ]]; then
-            bun run ./scripts/github-release-artifact.ts download "$RUNNER_TEMP/wrench-promotion-canonical"
+            bun run ./scripts/github-release-artifact.ts download "$RUNNER_TEMP/ghostget-promotion-canonical"
           elif [[ "$canonical" != false ]]; then
             echo "::error::Canonical release version classification is malformed"
             exit 1

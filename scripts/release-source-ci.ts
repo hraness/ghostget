@@ -4,12 +4,11 @@ import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 
 // No package imports: both entry points run before the frozen dependency install.
-const REPOSITORY = "hraness/wrench";
-// GitHub renamed the repository to ghostget while retaining the same immutable
-// repository identity and redirecting the legacy API path. Accept both names
-// only with that exact numeric identity so source admission remains repository-bound.
-const CURRENT_REPOSITORY = "hraness/ghostget";
-const REPOSITORY_NAMES = new Set([REPOSITORY, CURRENT_REPOSITORY]);
+const REPOSITORY = "hraness/ghostget";
+// GitHub renamed the repository from wrench to ghostget while retaining the
+// same immutable repository identity. Source admission binds the current name
+// together with that exact numeric identity.
+const REPOSITORY_NAMES = new Set([REPOSITORY]);
 const REPOSITORY_ID = 1316443113;
 const PREFIX = `repos/${REPOSITORY}`;
 const MAIN_REF = "refs/heads/main";

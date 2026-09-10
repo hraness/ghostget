@@ -12,7 +12,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { exportBeeperMessageLikeMeFromAuth } from "./beeper-message-like-me-cli";
 import {
   acquireBeeperMessageLikeMeExportAdmission,
@@ -40,7 +40,7 @@ describe("Beeper Message Like Me CLI recovery preflight", () => {
     mkdirSync(parent, { mode: 0o700 });
     const working = join(parent, "active-working");
     mkdirSync(working, { mode: 0o700 });
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
     const nowMs = Date.now();
     const activeLease = await createBeeperMessageLikeMeDirectoryLease({
       role: "raw-working",
@@ -52,7 +52,7 @@ describe("Beeper Message Like Me CLI recovery preflight", () => {
     const deliberatelyInvalidAuth = {
       schemaVersion: 999,
       kind: "not-an-auth-kind",
-    } as unknown as WrenchAuth;
+    } as unknown as GhostgetAuth;
     const progress: string[] = [];
 
     try {
@@ -87,11 +87,11 @@ describe("Beeper Message Like Me CLI recovery preflight", () => {
     const parent = join(root, "private-exports");
     mkdirSync(parent, { mode: 0o700 });
     const outputRoot = join(parent, "must-not-be-created");
-    const environment = { WRENCH_STATE_HOME: join(root, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state") };
     const deliberatelyInvalidAuth = {
       schemaVersion: 999,
       kind: "not-an-auth-kind",
-    } as unknown as WrenchAuth;
+    } as unknown as GhostgetAuth;
     const progress: string[] = [];
 
     await expect(exportBeeperMessageLikeMeFromAuth({

@@ -202,7 +202,7 @@ function abortReason(signal: AbortSignal, timedOut: boolean): DirectHttpTranspor
       );
 }
 
-/** Performs one closed, manually redirected request with Wrench media-owned headers only. */
+/** Performs one closed, manually redirected request with Ghostget media-owned headers only. */
 export async function fetchWithDirectRedirects(
   value: string,
   request: DirectHttpOwnedRequest,

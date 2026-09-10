@@ -45,7 +45,7 @@ function environment(): {
   roots.push(root);
   return {
     root,
-    value: { ...process.env, WRENCH_STATE_HOME: root },
+    value: { ...process.env, GHOSTGET_STATE_HOME: root },
   };
 }
 
@@ -497,29 +497,29 @@ describe("encrypted provider-session cache", () => {
         if (value === undefined) throw new Error("missing worker setting");
         return value;
       };
-      const environment = { ...process.env, WRENCH_STATE_HOME: required("WRENCH_TEST_HOME") };
-      while (!existsSync(required("WRENCH_TEST_START"))) await Bun.sleep(5);
+      const environment = { ...process.env, GHOSTGET_STATE_HOME: required("GHOSTGET_TEST_HOME") };
+      while (!existsSync(required("GHOSTGET_TEST_START"))) await Bun.sleep(5);
       const snapshot = readSessionSecretSnapshot(
         "linkedin",
         "linkedin-main",
         ${JSON.stringify(authHash)},
         environment,
       );
-      writeFileSync(required("WRENCH_TEST_READY"), "ready\\n");
-      while (!existsSync(required("WRENCH_TEST_GATE"))) await Bun.sleep(5);
+      writeFileSync(required("GHOSTGET_TEST_READY"), "ready\\n");
+      while (!existsSync(required("GHOSTGET_TEST_GATE"))) await Bun.sleep(5);
       const result = writeSessionSecretIfUnchanged(
         "linkedin",
         "linkedin-main",
         ${JSON.stringify(authHash)},
         {
-          generation: Number(required("WRENCH_TEST_GENERATION")),
-          tombstones: [required("WRENCH_TEST_TOMBSTONE")],
+          generation: Number(required("GHOSTGET_TEST_GENERATION")),
+          tombstones: [required("GHOSTGET_TEST_TOMBSTONE")],
         },
         snapshot.contentSha256,
         environment,
       );
       writeFileSync(
-        required("WRENCH_TEST_RESULT"),
+        required("GHOSTGET_TEST_RESULT"),
         JSON.stringify(result) + "\\n",
       );
     `;
@@ -542,13 +542,13 @@ describe("encrypted provider-session cache", () => {
           {
             env: {
               ...process.env,
-              WRENCH_TEST_HOME: state.root,
-              WRENCH_TEST_START: start,
-              WRENCH_TEST_READY: ready,
-              WRENCH_TEST_GATE: gate,
-              WRENCH_TEST_RESULT: result,
-              WRENCH_TEST_GENERATION: String(generation),
-              WRENCH_TEST_TOMBSTONE: tombstone,
+              GHOSTGET_TEST_HOME: state.root,
+              GHOSTGET_TEST_START: start,
+              GHOSTGET_TEST_READY: ready,
+              GHOSTGET_TEST_GATE: gate,
+              GHOSTGET_TEST_RESULT: result,
+              GHOSTGET_TEST_GENERATION: String(generation),
+              GHOSTGET_TEST_TOMBSTONE: tombstone,
             },
             stdout: "pipe",
             stderr: "pipe",

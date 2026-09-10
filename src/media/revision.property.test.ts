@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import fc from "fast-check";
 import {
   MAX_REVISION_SEQUENCE,
-  WRENCH_MEDIA_REVISION_CONTENT_PROFILE,
-  WRENCH_MEDIA_TRACKED_REVISION_PROFILE,
+  GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
+  GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE,
   parseRevisionItemLeaf,
   revisionContentSha256,
   revisionItemLeaf,
@@ -61,12 +61,12 @@ test("property: every canonical revision leaf round-trips", () => {
           ? undefined
           : `revision-v1-${predecessorDigest}`;
         const revision = {
-          profile: WRENCH_MEDIA_TRACKED_REVISION_PROFILE,
+          profile: GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE,
           sequence,
           subjectAssetKey,
           ...(previousAssetKey === undefined ? {} : { previousAssetKey }),
           content: {
-            profile: WRENCH_MEDIA_REVISION_CONTENT_PROFILE,
+            profile: GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
             sha256: contentDigest,
           },
         } as const;
@@ -109,11 +109,11 @@ test("property: every tracked chronology component participates in its key", () 
         fc.pre(subject !== otherSubject);
         fc.pre(content !== otherContent);
         const base = {
-          profile: WRENCH_MEDIA_TRACKED_REVISION_PROFILE,
+          profile: GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE,
           sequence,
           subjectAssetKey: `source-v3-${subject}`,
           content: {
-            profile: WRENCH_MEDIA_REVISION_CONTENT_PROFILE,
+            profile: GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
             sha256: content,
           },
         } as const;
@@ -123,7 +123,7 @@ test("property: every tracked chronology component participates in its key", () 
           trackedRevisionAssetKey({ ...base, subjectAssetKey: `source-v3-${otherSubject}` }),
           trackedRevisionAssetKey({
             ...base,
-            content: { profile: WRENCH_MEDIA_REVISION_CONTENT_PROFILE, sha256: otherContent },
+            content: { profile: GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE, sha256: otherContent },
           }),
           trackedRevisionAssetKey({
             ...base,

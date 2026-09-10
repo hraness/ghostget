@@ -1,13 +1,13 @@
 import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import {
   browserResultData,
   createBrowserSession,
   PreservedBrowserArtifactsError,
   type BrowserSession,
 } from "../browser";
-import type { WrenchManifest } from "../model";
+import type { GhostgetManifest } from "../model";
 import type {
   WebSessionCleanupResourcePublisher,
   WebSessionOperationDeadline,
@@ -24,11 +24,11 @@ const xTransactionBrowserManifest = Object.freeze({
   schemaVersion: 2,
   id: "wrench-x-transaction-bootstrap",
   version: "1.0.0",
-  displayName: "Wrench X transaction bootstrap",
+  displayName: "Ghostget X transaction bootstrap",
   origins: Object.freeze([X_ORIGIN]),
   browserDomains: Object.freeze(["x.com", "*.x.com", "abs.twimg.com"]),
   operations: Object.freeze({}),
-} satisfies WrenchManifest);
+} satisfies GhostgetManifest);
 
 export type XTransactionRuntimeIds = {
   readonly wrapperModuleId: number;
@@ -134,7 +134,7 @@ function exactMainBundlePath(value: string | URL): string {
   return url.pathname;
 }
 
-function containedBrowserAuth(auth: WrenchAuth): WrenchAuth {
+function containedBrowserAuth(auth: GhostgetAuth): GhostgetAuth {
   if (auth.kind === "cookie-source" || auth.kind === "cookies-file") return auth;
   if (auth.kind === "browser-profile" && auth.cookieSource !== undefined) {
     return {
@@ -271,7 +271,7 @@ function finalizeBrowserSessionWithoutBlocking(session: BrowserSession): void {
 
 /** Generate one ephemeral value. The caller may place it only on this exact in-origin mutation request. */
 export async function generateXClientTransactionId(input: {
-  readonly auth: WrenchAuth;
+  readonly auth: GhostgetAuth;
   readonly mainBundleText: string;
   readonly mainBundleUrl: string | URL;
   readonly method: "POST";

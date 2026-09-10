@@ -1,9 +1,9 @@
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import type {
   FileInputValue,
   LocalCliRecipe,
   OperationInput,
-  WrenchManifest,
+  GhostgetManifest,
 } from "./model";
 import type {
   OperationDeadline,
@@ -77,10 +77,10 @@ export type LocalCliExecutionOptions = {
 };
 
 export type LocalCliOperationExecutor = (
-  manifest: WrenchManifest,
+  manifest: GhostgetManifest,
   recipe: LocalCliRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: LocalCliExecutionOptions,
 ) => Promise<LocalCliExecution>;
 

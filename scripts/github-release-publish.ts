@@ -10,7 +10,7 @@ import {
   waitForLatestRelease, revalidateLatestReleaseProjection,
 } from "./release-provider-outcome.mjs";
 
-const repository = "hraness/wrench";
+const repository = "hraness/ghostget";
 const prefix = `/repos/${repository}`;
 type CommandResult = { status: number; stdout: string };
 type Runner = (args: readonly string[], input?: string) => CommandResult;
@@ -116,7 +116,7 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
   const api = { get };
   const coordinates = { repository, verifiedSha: manifest.sourceSha, verifiedTag: manifest.tag, workflowRunId: String(manifest.runId) };
   const receipt = releaseSourceReceipt(coordinates);
-  const body = `${receipt}\n\nwrench-release-attempt-v1 run_attempt=${manifest.runAttempt}`;
+  const body = `${receipt}\n\nghostget-release-attempt-v1 run_attempt=${manifest.runAttempt}`;
   const endpoint = `${prefix}/releases/tags/${manifest.tag}`;
   const lookup = run(["gh", "api", "--include", endpoint]);
   const response = parseOptionalIncludedGitHubResponse(lookup.stdout, "exact canonical release lookup");
@@ -155,13 +155,13 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
     const author = object(value.author);
     if (!Number.isSafeInteger(value.id) || Number(value.id) <= 0 || value.draft !== true || value.prerelease !== false
       || value.immutable === true || value.tag_name !== manifest.tag || value.target_commitish !== manifest.sourceSha
-      || value.name !== `Wrench ${manifest.tag}` || value.body !== body || author.id !== 41898282 || author.type !== "Bot") {
+      || value.name !== `Ghostget ${manifest.tag}` || value.body !== body || author.id !== 41898282 || author.type !== "Bot") {
       throw new Error("Existing draft is not this exact verified run attempt; preserve it for diagnosis");
     }
   };
   await authority("prewrite");
   if (release === undefined) release = mutate("POST", `${prefix}/releases`, {
-    tag_name: manifest.tag, target_commitish: manifest.sourceSha, name: `Wrench ${manifest.tag}`,
+    tag_name: manifest.tag, target_commitish: manifest.sourceSha, name: `Ghostget ${manifest.tag}`,
     body, draft: true, prerelease: false, make_latest: "false",
   });
   validateDraft(release);

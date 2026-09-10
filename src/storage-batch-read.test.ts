@@ -18,7 +18,7 @@ import {
   MAX_PRIVATE_STATE_BATCH_FILES,
   MAX_PRIVATE_STATE_BATCH_TOTAL_BYTES,
   ensurePrivateStateDirectory,
-  wrenchStateHome,
+  ghostgetStateHome,
   readPrivateStateChildFilesBatch,
   readPrivateStateFilesBatch,
   type PrivateDirectoryIdentity,
@@ -43,8 +43,8 @@ function state(): TestState {
   const root = mkdtempSync(join(tmpdir(), "wrench-storage-batch-"));
   chmodSync(root, 0o700);
   roots.push(root);
-  const environment = { ...process.env, WRENCH_STATE_HOME: root };
-  const canonicalRoot = wrenchStateHome(environment);
+  const environment = { ...process.env, GHOSTGET_STATE_HOME: root };
+  const canonicalRoot = ghostgetStateHome(environment);
   const directory = join(canonicalRoot, "runs");
   const identity = ensurePrivateStateDirectory(directory, environment);
   return { root: canonicalRoot, directory, identity, environment };

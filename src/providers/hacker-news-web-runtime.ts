@@ -1,4 +1,4 @@
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { OperationInput, WebSessionRecipe } from "../model";
 import {
   createWebSessionClient,
@@ -81,7 +81,7 @@ async function readNews(
   });
 }
 
-function assertBoundViewer(auth: WrenchAuth, username: string): string {
+function assertBoundViewer(auth: GhostgetAuth, username: string): string {
   const expected = webSessionAuthSubject(auth);
   if (
     expected === null
@@ -96,7 +96,7 @@ function assertBoundViewer(auth: WrenchAuth, username: string): string {
 }
 
 export async function probeHackerNewsWebSubject(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs?: number;
     readonly dependencies?: HackerNewsWebRuntimeDependencies;
@@ -141,7 +141,7 @@ async function readItemPage(
 export async function executeHackerNewsWebOperation(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;

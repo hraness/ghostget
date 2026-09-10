@@ -1,8 +1,10 @@
-# Publish Wrench
+# Publish Ghostget
 
-GitHub Releases are canonical starting with `@hraness/wrench@0.16.13`.
-The package name, CLI, seven SDK exports, and reviewed dependency pins stay the
-same. npm is an optional mirror of the identical canonical archive. A delayed
+Ghostget starts at `@hraness/ghostget@0.17.0`, with command `ghostget` and the
+existing seven SDK subpaths. GitHub Releases became canonical under the former
+`@hraness/wrench` name at v0.16.13. Historical manifests, archive filenames, and
+signed provenance keep that original identity. npm is an optional mirror of
+the identical canonical archive. A delayed
 npm stage or two-factor approval does not block a GitHub Release or its website
 promotion. Historical versions and assetless Releases through v0.16.12 remain
 unchanged.
@@ -68,12 +70,12 @@ the residual control-plane setting-toggle window remains explicit. Create one
 direct lightweight `v<version>` tag on the admitted package commit and push only
 that exact ref. Do not overwrite, annotate-convert, move, or delete a historical
 tag to recover a run. Both the actor and triggering actor must be exact User
-`894119`; the protected tag, public repository `hraness/wrench` / `1316443113`,
+`894119`; the protected tag, public repository `hraness/ghostget` / `1316443113`,
 and Release workflow `323493609` remain bound at each capability boundary.
 
 The canonical asset set is exactly:
 
-- `hraness-wrench-<version>.tgz`, packed once with `npm pack --ignore-scripts`.
+- `hraness-ghostget-<version>.tgz`, packed once with `npm pack --ignore-scripts`.
 - `npm-pack.json`, the receipt for those exact bytes.
 - `release-manifest.json`, the strict `hraness-github-release-v1` identity,
   including repository/name/version/tag, source `C`, reviewed workflow authority
@@ -81,7 +83,7 @@ The canonical asset set is exactly:
 - `SHA256SUMS`, covering the preceding three files in that order.
 - `provenance.jsonl`, the GitHub attestation bundle for all four build files.
 
-Wrench has no separate platform-native release assets. Its optional native
+Ghostget has no separate platform-native release assets. Its optional native
 providers retain their existing installation, identity, and live admission
 requirements. Publishing the CLI does not establish live provider qualification.
 
@@ -139,13 +141,13 @@ installation or mirror commands.
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/wrench/releases/download/v0.16.17/hraness-wrench-0.16.17.tgz
-wrench --version
-wrench doctor --json
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.17.0/hraness-ghostget-0.17.0.tgz
+ghostget --version
+ghostget doctor --json
 ```
 
 For the SDK, use the same URL without `--global`. Package imports remain
-`@hraness/wrench` and the existing exported subpaths. npm consumers may use
+`@hraness/ghostget` and the existing exported subpaths. npm consumers may use
 `npm install` with that exact tarball URL. Do not add a private registry or a
 curl-to-shell installer. Verify the immutable release, complete asset set,
 checksums, signed provenance, and a clean consumer install before reporting a
@@ -154,15 +156,31 @@ candidate coordinate; publication must complete before those commands work.
 
 ## Optional npm mirror
 
-The existing npm listing is retained. Its `contentPolicy.class` remains
+The existing `@hraness/wrench` npm listing is retained. Its `contentPolicy.class` remains
 `dual-use`; npm support has been asked to review unattended stable publication,
 but a submitted request is not approval. Until approved, only stage-only OIDC
 is permitted and human inspection and two-factor approval of the exact npm
 stage remain mandatory before that mirror becomes public. Never scrape an MFA
 code, add an automation token, remove the declaration, or bypass that policy.
-The interactive v0.15.1 bootstrap is already complete and is not repeated.
+The interactive Wrench v0.15.1 bootstrap is already complete and is not repeated.
+It does not bootstrap the new `@hraness/ghostget` coordinate. The rename request
+requires a Ghostget npm package without dual-use metadata; no Ghostget npm
+publication is authorized with that declaration. Keep registry publication
+pending npm's classification review and a reviewed corresponding package and
+workflow update. Do not create a replacement coordinate to bypass a required
+provider approval. Canonical GitHub publication and the domain migration remain
+independent of this npm boundary.
 
-`npm-stage.yml` is dispatch-only. A default dispatch verifies an already
+`npm-stage.yml` is dispatch-only. While classification remains unresolved,
+its environment-free classifier rejects every `publish_to_npm=true` request
+before release-authority or registry reads and before writing admission outputs.
+This includes requests with `resolved_stage_version`; recovery inputs cannot
+lift the hold. The failed classification prevents verification and the
+write-capable `npm-stage` environment from being admitted. Lifting the hold
+requires completed classification review and a reviewed package/workflow change;
+the existing declaration and provider controls remain in place.
+
+A default dispatch with `publish_to_npm=false` verifies an already
 published canonical release and uploads a uniquely named mirror handoff without
 entering the environment, requesting OIDC, or mutating npm. To choose an older
 canonical release while a newer GitHub Release exists, set `release_tag` to its
@@ -172,8 +190,8 @@ The canonical version must still be newer than public npm `latest`; never move
 npm's default tag backward.
 
 ```sh
-gh workflow run npm-stage.yml --repo hraness/wrench --ref main \
-  -f release_tag=v0.16.17
+gh workflow run npm-stage.yml --repo hraness/ghostget --ref main \
+  -f release_tag=v0.17.0
 ```
 
 The read-only verify job downloads the five immutable assets, verifies their
@@ -184,14 +202,10 @@ against the exact canonical archive. It
 copies only those same archive and receipt bytes into the existing bounded
 three-file mirror handoff; it does not rebuild or repack the package.
 
-An explicit owner-authorized dispatch may then stage the mirror:
-
-```sh
-gh workflow run npm-stage.yml --repo hraness/wrench --ref main \
-  -f release_tag=v0.16.17 -f publish_to_npm=true
-```
-
-The minimal checkout-free terminal job retains exact actor/repository/run
+The staging path below remains dormant while the classification hold is in
+place. After the reviewed hold-removal change, an explicit owner-authorized
+`publish_to_npm=true` dispatch may stage the mirror. The minimal checkout-free
+terminal job retains exact actor/repository/run
 reauthorization, the main-only stage environment, clean npm configuration,
 archive hashing and unsafe packed configuration rejection, OIDC provenance,
 and the retained Actions-history intent lock. `Record exclusive stable-stage
@@ -213,15 +227,16 @@ clearance step. Ambiguous writes are readback and diagnosis work, never blind
 retries. Run `npm stage publish` without `--tag`; preserve npm's monotonic
 `latest` protection and required two-factor promotion. After npm promotion,
 verify the public tarball bytes and npm provenance against the canonical asset
-before advertising `@hraness/wrench@<version>` as an available registry mirror.
+before advertising `@hraness/ghostget@<version>` as an available registry mirror.
 
 ## Configure stage-only trusted publishing
 
-Create a GitHub environment named `npm-stage` after the first package is public.
+After classification review and the reviewed hold-removal change, create a
+GitHub environment named `npm-stage` after the first package is public.
 Disable administrator bypass. Its sole protection rule must be `branch_policy`,
 and its sole deployment policy must select branch `main` with type `branch`.
 Configure no required deployment reviewers and no environment secrets. The
-environment is entered only when a current-`main` manual dispatch explicitly
+environment can be entered only after the hold is removed and a current-`main` manual dispatch explicitly
 sets `publish_to_npm=true`; a default manual dispatch stops after
 uploading the exact canonical mirror handoff and never requests an OIDC token or
 mutate npm. Only the minimal staging job may reference this environment or
@@ -233,11 +248,11 @@ workflow identity and active state. A disabled workflow cannot provide either
 candidate recovery or staging authority:
 
 ```sh
-gh workflow enable npm-stage.yml --repo hraness/wrench
-wrench_stage_workflow="$(gh api \
-  /repos/hraness/wrench/actions/workflows/npm-stage.yml)"
-WRENCH_STAGE_WORKFLOW="$wrench_stage_workflow" node <<'NODE'
-const value = JSON.parse(process.env.WRENCH_STAGE_WORKFLOW ?? "null");
+gh workflow enable npm-stage.yml --repo hraness/ghostget
+ghostget_stage_workflow="$(gh api \
+  /repos/hraness/ghostget/actions/workflows/npm-stage.yml)"
+GHOSTGET_STAGE_WORKFLOW="$ghostget_stage_workflow" node <<'NODE'
+const value = JSON.parse(process.env.GHOSTGET_STAGE_WORKFLOW ?? "null");
 if (
   value?.id !== 344213783 ||
   value.path !== ".github/workflows/npm-stage.yml" ||
@@ -251,10 +266,10 @@ If the current npm trust relationship does not name that environment, inspect
 and revoke it before creating the replacement:
 
 ```sh
-npm trust list @hraness/wrench \
+npm trust list @hraness/ghostget \
   --json \
   --registry=https://registry.npmjs.org
-npm trust revoke @hraness/wrench \
+npm trust revoke @hraness/ghostget \
   --id <trust-id> \
   --registry=https://registry.npmjs.org
 ```
@@ -262,21 +277,21 @@ npm trust revoke @hraness/wrench \
 Configure the exact GitHub Actions identity:
 
 ```sh
-npm trust github @hraness/wrench \
+npm trust github @hraness/ghostget \
   --file npm-stage.yml \
-  --repo hraness/wrench \
+  --repo hraness/ghostget \
   --environment npm-stage \
   --allow-stage-publish \
   --registry=https://registry.npmjs.org
-npm trust list @hraness/wrench \
+npm trust list @hraness/ghostget \
   --json \
   --registry=https://registry.npmjs.org
-npm access set mfa=publish @hraness/wrench \
+npm access set mfa=publish @hraness/ghostget \
   --registry=https://registry.npmjs.org
 ```
 
 Complete each interactive two-factor authentication prompt. The trust
-relationship must name `hraness/wrench`, the exact `npm-stage.yml` filename, the
+relationship must name `hraness/ghostget`, the exact `npm-stage.yml` filename, the
 `npm-stage` environment, and only `npm stage publish`. The package access setting
 must require two-factor authentication and disallow traditional publishing
 tokens. Do not add an npm token to GitHub.
@@ -320,7 +335,7 @@ with `link.productionBranch=website-production`,
 `autoExposeSystemEnvs=true`, and `autoAssignCustomDomains=true`. The last
 setting is a persistent project invariant, not a per-release switch. When it is
 false, Vercel can report a READY/STAGED deployment and GitHub success without
-moving `wrench.rip` or `www.wrench.rip`; the public marker gate must reject or
+moving `ghostget.com` or `www.ghostget.com`; the public marker gate must reject or
 time out on that state.
 
 Before the one-time false-to-true correction, require the marker patch on
@@ -389,7 +404,7 @@ reconfirm the exact permanent rulesets and target refs and the sole App
 `4783991` `Integration` bypass. It must prove that the App registration still
 grants exactly `metadata:read`, `contents:write`, and `workflows:write` with no
 other permission, and that installation `158077029` still selects exactly
-repository `hraness/wrench` at ID `1316443113`. The
+repository `hraness/ghostget` at ID `1316443113`. The
 `production-ref-writer-key` environment still has `deployment=false`, a
 main-only branch policy, no required deployment reviewers or wait timer,
 `prevent_self_review=false`, administrator bypass disabled, exactly the four variables
@@ -406,7 +421,7 @@ workflow, Release helper, and publishing policy paths. It does not claim live or
 independent review enforcement. Live Protect-main ruleset `20921911` has no
 bypass actors, retains the pull-request path and exact Required integration
 check, requires no approving review, and does not require code-owner review.
-Wrench currently has one eligible maintainer, so
+Ghostget currently has one eligible maintainer, so
 `require_code_owner_review` must remain `false` and the approval minimum must
 remain zero until a second eligible independent code owner exists. Enabling it
 now would make the repository unreviewable rather than safer. Repository Actions
@@ -476,7 +491,7 @@ diagnostic without granting the workflow Administration:
 immutable_release_state="$(gh api \
   --header 'Accept: application/vnd.github+json' \
   --header 'X-GitHub-Api-Version: 2026-03-10' \
-  /repos/hraness/wrench/immutable-releases \
+  /repos/hraness/ghostget/immutable-releases \
   --jq '{enabled: .enabled, enforced_by_owner: .enforced_by_owner}')"
 IMMUTABLE_RELEASE_STATE="$immutable_release_state" node <<'NODE'
 const value = JSON.parse(process.env.IMMUTABLE_RELEASE_STATE ?? "null");
@@ -490,12 +505,12 @@ if (
 ) process.exit(1);
 process.stdout.write(`${JSON.stringify(value)}\n`);
 NODE
-wrench_tag_create_ruleset_id=22311815
-wrench_tag_immutable_ruleset_id=19989752
+ghostget_tag_create_ruleset_id=22311815
+ghostget_tag_immutable_ruleset_id=19989752
 tag_create_ruleset_state="$(gh api \
   --header 'Accept: application/vnd.github+json' \
   --header 'X-GitHub-Api-Version: 2026-03-10' \
-  "/repos/hraness/wrench/rulesets/$wrench_tag_create_ruleset_id")"
+  "/repos/hraness/ghostget/rulesets/$ghostget_tag_create_ruleset_id")"
 TAG_CREATE_RULESET_STATE="$tag_create_ruleset_state" node <<'NODE'
 const value = JSON.parse(process.env.TAG_CREATE_RULESET_STATE ?? "null");
 const refName = value?.conditions?.ref_name;
@@ -509,7 +524,7 @@ if (
   Array.isArray(value) ||
   value.target !== "tag" ||
   value.source_type !== "Repository" ||
-  value.source !== "hraness/wrench" ||
+  value.source !== "hraness/ghostget" ||
   value.enforcement !== "active" ||
   bypass.length !== 1 ||
   bypass[0]?.actor_id !== 894119 ||
@@ -538,7 +553,7 @@ NODE
 tag_immutable_ruleset_state="$(gh api \
   --header 'Accept: application/vnd.github+json' \
   --header 'X-GitHub-Api-Version: 2026-03-10' \
-  "/repos/hraness/wrench/rulesets/$wrench_tag_immutable_ruleset_id")"
+  "/repos/hraness/ghostget/rulesets/$ghostget_tag_immutable_ruleset_id")"
 TAG_IMMUTABLE_RULESET_STATE="$tag_immutable_ruleset_state" node <<'NODE'
 const value = JSON.parse(process.env.TAG_IMMUTABLE_RULESET_STATE ?? "null");
 const refName = value?.conditions?.ref_name;
@@ -551,7 +566,7 @@ if (
   Array.isArray(value) ||
   value.target !== "tag" ||
   value.source_type !== "Repository" ||
-  value.source !== "hraness/wrench" ||
+  value.source !== "hraness/ghostget" ||
   value.enforcement !== "active" ||
   !Array.isArray(value.bypass_actors) ||
   value.bypass_actors.length !== 0 ||
@@ -605,7 +620,7 @@ run to have one positive current attempt. The initial verification job reads tha
 Actions run exactly once. It binds workflow ID `323493609`, path
 `.github/workflows/release.yml`, tag push, head tag and SHA, completed success,
 stable numeric IDs and types for the owner actor and triggering actor, and the
-exact public Wrench repository and head repository. Mutable actor logins, the
+exact public Ghostget repository and head repository. Mutable actor logins, the
 run display name, and the Release display title are presentation, not authority.
 The body receipt is mutable GitHub control-plane data, so each accepted Release
 read samples and validates it exactly; the protected tag and stable numeric
@@ -623,7 +638,7 @@ The separate **Promote website production** workflow is loaded from current
 default-branch `main`. GitHub starts it after **Release** completes, and manual
 recovery dispatches this workflow directly from current `main` with an untrusted
 stable-tag input. The automatic path treats the entire `workflow_run` payload as
-foreign data. It requires repository `hraness/wrench` with numeric ID
+foreign data. It requires repository `hraness/ghostget` with numeric ID
 `1316443113`, Release workflow ID `323493609`, exact workflow path, a
 tag `push`, first attempt, successful conclusion, and this repository as the head
 repository. The reviewed workflow source `W` originates from `main`; the
@@ -682,7 +697,7 @@ workflow-authority changes, and during drift recovery. The agent performs it
 programmatically through already-authorized access and retains fresh evidence
 with each control change. Routine promotions do not wait for another census.
 Every run still checks immutable artifact and source identity, the configured
-App and installation, exact token permissions and the single Wrench repository,
+App and installation, exact token permissions and the single Ghostget repository,
 the existing ref and fast-forward relationship, lease, and revocation. Live
 GitHub rules enforce ref restrictions, and provider and public readbacks bind
 the delivered result. The retained canary supports the established writer
@@ -700,7 +715,7 @@ the minted token response to name only that repository. That runtime token
 proof does not prove the installation-wide selected-repository set. Before
 admitting the key, privileged setup must exhaustively read every repository
 selected for the installation with the administrator identity, prove that the
-unique result is `hraness/wrench` at ID `1316443113`, and retain the exact
+unique result is `hraness/ghostget` at ID `1316443113`, and retain the exact
 readback with the canary evidence.
 
 The single-use permission and writer proof completed on 2026-09-02 from exact
@@ -769,12 +784,12 @@ administrator ruleset projections, ordinary-denial and App-bypass Rule Suites,
 canonical evidence, and SHA-256 digests. After this cleanup is merged and its
 merged-source CI is green, delete the six temporary lifecycle, update, and freeze
 ruleset fingerprint variables by exact name:
-`WRENCH_RELEASE_LIFECYCLE_RULESET_ID`,
-`WRENCH_RELEASE_LIFECYCLE_RULESET_UPDATED_AT`,
-`WRENCH_RELEASE_UPDATE_RULESET_ID`,
-`WRENCH_RELEASE_UPDATE_RULESET_UPDATED_AT`,
-`WRENCH_RELEASE_PRODUCTION_FREEZE_RULESET_ID`, and
-`WRENCH_RELEASE_PRODUCTION_FREEZE_RULESET_UPDATED_AT`. Read the environment back and
+`GHOSTGET_RELEASE_LIFECYCLE_RULESET_ID`,
+`GHOSTGET_RELEASE_LIFECYCLE_RULESET_UPDATED_AT`,
+`GHOSTGET_RELEASE_UPDATE_RULESET_ID`,
+`GHOSTGET_RELEASE_UPDATE_RULESET_UPDATED_AT`,
+`GHOSTGET_RELEASE_PRODUCTION_FREEZE_RULESET_ID`, and
+`GHOSTGET_RELEASE_PRODUCTION_FREEZE_RULESET_UPDATED_AT`. Read the environment back and
 require exactly the four reviewed App ID, client ID, slug, and installation ID
 variables plus the single private key secret, with its main-only branch policy,
 absence of deployment reviewers or wait timers, `prevent_self_review` setting,
@@ -813,7 +828,7 @@ then capped at the lesser of ten seconds and that sample's remaining window.
 Request,
 body, and sleep latency are charged to the same window. A missed absolute slot
 is skipped instead of triggering a burst or sliding later observations. An HTTP
-200 before denial must still name the exact singleton selected Wrench
+200 before denial must still name the exact singleton selected Ghostget
 repository. Acceptance requires HTTP 401 on two distinct scheduled reads; a
 later 200 after a 401, only one 401, any other status, a redirect, malformed or
 oversized authority data, transport or sleep failure, clock drift, or deadline
@@ -828,7 +843,7 @@ precedes the final two stable 401 observations. An advanced
 `releaseAppRevocation`; the no-write `already-exact` path must instead bind the
 field to `null` and never mint a token.
 This operational ceiling is a
-Wrench fail-closed policy, not a GitHub revocation-propagation SLA. No action is
+Ghostget fail-closed policy, not a GitHub revocation-propagation SLA. No action is
 retried, and operation and revocation failures are both retained when they
 coincide. The exact production-ref post-read begins only after convergence.
 Every read-only `gh api` child receives `GH_TOKEN` but has every
@@ -866,7 +881,7 @@ inactive row rejects the candidate even when a newer row says success. GraphQL
 `latestStatus.id` must equal the REST status `node_id`; that current status must
 keep its exact GitHub
 deployment URL, Production environment, pinned Vercel creator, and one shared
-canonical `https://wrench-<id>-hraness.vercel.app` target, environment, and log
+canonical `https://ghostget-<id>-hraness.vercel.app` target, environment, and log
 URL. Same-second status rows are resolved only by that cross-API node identity.
 The build's exact seven-key `/.well-known/wrench-release.json` binds schema,
 package, repository, tag, version, verifier-proven local HEAD, and the strict
@@ -884,8 +899,8 @@ readbacks, repeats the complete deployment inventory after the final status
 read, and sandwiches terminal state with exact tag, Release, Latest, ref,
 workflow-source, and canonical-host authority reads. Each public readback
 requires the target marker plus bounded canonical responses from
-`https://wrench.rip/`, `/providers/beeper/`, and `/llms.txt`; it also requires
-`https://www.wrench.rip` to return one no-follow 308 whose `Location` preserves
+`https://ghostget.com/`, `/providers/beeper/`, and `/llms.txt`; it also requires
+`https://www.ghostget.com` to return one no-follow 308 whose `Location` preserves
 the marker path and query exactly. The project-domain aliases are not release
 authorities. The two complete public readbacks must be byte-stable by digest.
 Release/source/nonce query values and `cache: no-store` are propagation and race
@@ -979,7 +994,7 @@ returned by GitHub's bounded public commit API, requires canonical GitHub artifa
 contain that version with SHA-512 integrity, and requires the matching immutable
 GitHub Release to be non-draft, non-prerelease, and Latest. It also requires
 Vercel's system commit SHA to equal that verifier-proven local HEAD and its
-deployment host to match the strict Wrench Production URL grammar. Public JSON
+deployment host to match the strict Ghostget Production URL grammar. Public JSON
 response bodies and the fixed local `git rev-parse HEAD` child output are
 streamed under fixed byte bounds. Only then does the build derive the public
 release identity and provider capability attestation from that exact source

@@ -50,7 +50,7 @@ import {
   isWebSessionOperation,
   parseDiagnosticManifest,
   parseRuntimeManifest,
-  type WrenchManifest,
+  type GhostgetManifest,
 } from "./model";
 
 const inertExecution = Object.freeze({
@@ -3377,10 +3377,10 @@ describe("provider plugin definition and registry", () => {
 
     expect(() => defineProviderPlugin(
       pluginDefinition("outside-source", undefined, pathToFileURL("/etc/hosts")),
-    )).toThrow("regular file under the Wrench source root");
+    )).toThrow("regular file under the Ghostget source root");
   });
 
-  test("classifies installed Wrench sources relative to their package root", () => {
+  test("classifies installed Ghostget sources relative to their package root", () => {
     const installedRoot = join(
       tmpdir(),
       "consumer",
@@ -3934,7 +3934,7 @@ describe("provider plugin definition and registry", () => {
     try {
       for (const override of [
         "--import=./ambient-preload.ts",
-        "-d=WRENCH_REVIEW_VALUE:true",
+        "-d=GHOSTGET_REVIEW_VALUE:true",
         "--ignore-dce-annotations",
         "--jsx-side-effects",
         "--preserve-symlinks",
@@ -4319,7 +4319,7 @@ describe("provider plugin definition and registry", () => {
       const parsed = parseDiagnosticManifest(raw, providerPluginRegistry);
       expect(parsed.ok, path).toBeTrue();
       if (!parsed.ok) throw new Error(`${path}: ${parsed.issues.join("; ")}`);
-      const manifest: WrenchManifest = parsed.value;
+      const manifest: GhostgetManifest = parsed.value;
       const retiredIssue = retiredDiagnosticOnlyManifests.get(path);
       if (retiredIssue !== undefined) {
         expect(parseRuntimeManifest(raw, providerPluginRegistry), path).toEqual({

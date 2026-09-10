@@ -1,3 +1,5 @@
+import { releaseIdentity } from "./github-release-artifact.mjs";
+
 const MARKER_KEYS = Object.freeze([
   "schemaVersion",
   "name",
@@ -10,13 +12,16 @@ const MARKER_KEYS = Object.freeze([
 
 export const PRODUCTION_RELEASE_MARKER_SCHEMA = "wrench-production-release-v1";
 export const PRODUCTION_RELEASE_MARKER_PATH = "/.well-known/wrench-release.json";
+// Keep the original probe URL available across the atomic domain transition.
+export const PRODUCTION_RELEASE_MARKER_CANONICAL_PATH = "/.well-known/ghostget-release.json";
 export const PRODUCTION_RELEASE_MARKER_MAX_BYTES = 1_024;
-export const PRODUCTION_RELEASE_MARKER_NAME = "@hraness/wrench";
-export const PRODUCTION_RELEASE_MARKER_REPOSITORY = "hraness/wrench";
+export const PRODUCTION_RELEASE_MARKER_NAME = "@hraness/ghostget";
+export const PRODUCTION_RELEASE_MARKER_REPOSITORY = "hraness/ghostget";
 
 const STABLE_VERSION = /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$/u;
 const COMMIT_SHA = /^[0-9a-f]{40}$/u;
-const DEPLOYMENT_URL = /^https:\/\/wrench-[a-z0-9]+-hraness\.vercel\.app$/u;
+const DEPLOYMENT_URL = /^https:\/\/ghostget-[a-z0-9]+-hraness\.vercel\.app$/u;
+const LEGACY_DEPLOYMENT_URL = /^https:\/\/wrench-[a-z0-9]+-hraness\.vercel\.app$/u;
 
 function fail(message) {
   throw new TypeError(message);
@@ -54,11 +59,12 @@ function exactMarker(value) {
   if (schemaVersion !== PRODUCTION_RELEASE_MARKER_SCHEMA) {
     fail("Production release marker schemaVersion is unsupported.");
   }
-  if (name !== PRODUCTION_RELEASE_MARKER_NAME) {
-    fail("Production release marker name is not @hraness/wrench.");
+  const identity = releaseIdentity(tag);
+  if (name !== identity.package) {
+    fail("Production release marker name is not @hraness/ghostget.");
   }
-  if (repository !== PRODUCTION_RELEASE_MARKER_REPOSITORY) {
-    fail("Production release marker repository is not hraness/wrench.");
+  if (repository !== identity.repository) {
+    fail("Production release marker repository is not hraness/ghostget.");
   }
   if (!STABLE_VERSION.test(version) || tag !== `v${version}`) {
     fail("Production release marker tag and version are not one exact stable release.");
@@ -66,8 +72,10 @@ function exactMarker(value) {
   if (!COMMIT_SHA.test(sourceSha)) {
     fail("Production release marker sourceSha is not one lowercase 40-hex commit.");
   }
-  if (!DEPLOYMENT_URL.test(deploymentUrl)) {
-    fail("Production release marker deploymentUrl is not one exact Wrench deployment URL.");
+  const deploymentPattern = identity.package === PRODUCTION_RELEASE_MARKER_NAME
+    ? DEPLOYMENT_URL : LEGACY_DEPLOYMENT_URL;
+  if (!deploymentPattern.test(deploymentUrl)) {
+    fail("Production release marker deploymentUrl is not one exact Ghostget deployment URL.");
   }
   return Object.freeze({
     schemaVersion,
@@ -90,7 +98,7 @@ export function createProductionReleaseMarker({
   return exactMarker({
     schemaVersion: PRODUCTION_RELEASE_MARKER_SCHEMA,
     name,
-    repository: PRODUCTION_RELEASE_MARKER_REPOSITORY,
+    repository: releaseIdentity(tag).repository,
     tag,
     version,
     sourceSha,

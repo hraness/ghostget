@@ -50,7 +50,7 @@ function state(): TestState {
   chmodSync(directory, 0o700);
   return {
     directory,
-    environment: { WRENCH_STATE_HOME: directory },
+    environment: { GHOSTGET_STATE_HOME: directory },
   };
 }
 
@@ -209,25 +209,25 @@ async function crossProcessAdmissionHolder(
       const { writeFileSync } = await import("node:fs");
       const { acquireReadProjectionAuthAdmission } = await import(${JSON.stringify(admissionModuleUrl)});
       const admission = acquireReadProjectionAuthAdmission(
-        process.env.WRENCH_TEST_AUTH_ID,
+        process.env.GHOSTGET_TEST_AUTH_ID,
         process.env,
       );
-      writeFileSync(process.env.WRENCH_TEST_READY_PATH, "ready\\n", { mode: 0o600 });
+      writeFileSync(process.env.GHOSTGET_TEST_READY_PATH, "ready\\n", { mode: 0o600 });
       Atomics.wait(
         new Int32Array(new SharedArrayBuffer(4)),
         0,
         0,
-        Number(process.env.WRENCH_TEST_HOLD_MS),
+        Number(process.env.GHOSTGET_TEST_HOLD_MS),
       );
       admission.release();
     `,
   ], {
     env: {
       ...process.env,
-      WRENCH_STATE_HOME: testState.directory,
-      WRENCH_TEST_AUTH_ID: authId,
-      WRENCH_TEST_READY_PATH: readyPath,
-      WRENCH_TEST_HOLD_MS: String(holdForMs),
+      GHOSTGET_STATE_HOME: testState.directory,
+      GHOSTGET_TEST_AUTH_ID: authId,
+      GHOSTGET_TEST_READY_PATH: readyPath,
+      GHOSTGET_TEST_HOLD_MS: String(holdForMs),
     },
     detached: true,
     stdout: "ignore",
@@ -278,7 +278,7 @@ async function initializeProjectionStoreInChild(
     `
       const { createReadProjectionQuery } = await import(${JSON.stringify(projectionModuleUrl)});
       const query = createReadProjectionQuery(
-        JSON.parse(process.env.WRENCH_TEST_QUERY_IDENTITY),
+        JSON.parse(process.env.GHOSTGET_TEST_QUERY_IDENTITY),
         process.env,
       );
       console.log(JSON.stringify({ key: query.key, realmKey: query.realmKey }));
@@ -286,8 +286,8 @@ async function initializeProjectionStoreInChild(
   ], {
     env: {
       ...process.env,
-      WRENCH_STATE_HOME: testState.directory,
-      WRENCH_TEST_QUERY_IDENTITY: JSON.stringify(identity()),
+      GHOSTGET_STATE_HOME: testState.directory,
+      GHOSTGET_TEST_QUERY_IDENTITY: JSON.stringify(identity()),
     },
     stdout: "pipe",
     stderr: "pipe",

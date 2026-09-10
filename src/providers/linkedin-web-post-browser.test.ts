@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { BrowserSession } from "../browser";
 import {
   createLinkedInPostBrowserTransport,
@@ -15,7 +15,7 @@ const auth = {
   browserExecutable: "/Applications/Chromium.app/Contents/MacOS/Chromium",
   trustUnfilteredEgress: true,
   subject: "urn:li:fsd_profile:123456789",
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 const FIRST_PAGE_INSTANCE =
   "urn:li:page:d_flagship3_feed_first;fixture==";

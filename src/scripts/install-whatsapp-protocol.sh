@@ -20,7 +20,7 @@ script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 state_home_resolver=$script_directory/resolve-state-home.ts
 
 fail() {
-  printf '%s\n' "Wrench WhatsApp runtime installer: $1" >&2
+  printf '%s\n' "Ghostget WhatsApp runtime installer: $1" >&2
   exit 1
 }
 
@@ -127,7 +127,9 @@ if [ ! -f "$state_home_resolver" ] || [ -L "$state_home_resolver" ]; then
   fail "state-home resolver is not a real file"
 fi
 
-if [ -n "${WRENCH_BUN:-}" ]; then
+if [ -n "${GHOSTGET_BUN:-}" ]; then
+  bun_path=$GHOSTGET_BUN
+elif [ -n "${WRENCH_BUN:-}" ]; then
   bun_path=$WRENCH_BUN
 elif [ -n "${OH_BUN:-}" ]; then
   bun_path=$OH_BUN
@@ -136,7 +138,7 @@ elif command -v bun >/dev/null 2>&1; then
 elif [ -x "${HOME:?HOME is required}/.bun/bin/bun" ]; then
   bun_path="$HOME/.bun/bin/bun"
 else
-  fail "Bun 1.3.14 was not found; set WRENCH_BUN to its absolute executable path"
+  fail "Bun 1.3.14 was not found; set GHOSTGET_BUN to its absolute executable path"
 fi
 case "$bun_path" in
   /*) ;;

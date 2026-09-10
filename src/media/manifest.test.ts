@@ -4,10 +4,10 @@ import { lstat, mkdir, mkdtemp, readFile, rename, rm, symlink, unlink, writeFile
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
-  WRENCH_MEDIA_SCHEMA_VERSION,
-  WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE,
-  WRENCH_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
-  WRENCH_MEDIA_VERSION,
+  GHOSTGET_MEDIA_SCHEMA_VERSION,
+  GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE,
+  GHOSTGET_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
+  GHOSTGET_MEDIA_VERSION,
   createMediaArtifact,
   localTranscriptVariantAssetKey,
   localTranscriptVariantSegments,
@@ -33,8 +33,8 @@ import {
   YT_DLP_OPAQUE_IDENTITY_PROFILE,
 } from "./metadata";
 import {
-  WRENCH_MEDIA_REVISION_CONTENT_PROFILE,
-  WRENCH_MEDIA_TRACKED_REVISION_PROFILE,
+  GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
+  GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE,
   revisionContentSha256,
   trackedRevisionAssetKey,
   type MediaTrackedRevision,
@@ -62,8 +62,8 @@ async function fixture(): Promise<{ root: string; manifest: MediaManifest }> {
   ]);
   const youtubeId = "abcdefghijk";
   const parsed = parseMediaManifest(trackedYtDlpManifest({
-    schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
-    wrenchVersion: WRENCH_MEDIA_VERSION,
+    schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
+    wrenchVersion: GHOSTGET_MEDIA_VERSION,
     assetKey: sourceAssetKey("Youtube", youtubeId),
     capturedAt: "2026-07-21T00:00:00.000Z",
     mode: "archive",
@@ -77,7 +77,7 @@ async function fixture(): Promise<{ root: string; manifest: MediaManifest }> {
       adapter: "yt-dlp",
       version: "2026.07.04",
       identity: {
-        profile: WRENCH_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
+        profile: GHOSTGET_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
         providerIdentitySha256: providerIdentitySha256("Youtube", youtubeId),
       },
     },
@@ -138,8 +138,8 @@ function directManifest(
   overrides: Readonly<Record<string, unknown>> = {},
 ): Readonly<Record<string, unknown>> {
   return {
-    schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
-    wrenchVersion: WRENCH_MEDIA_VERSION,
+    schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
+    wrenchVersion: GHOSTGET_MEDIA_VERSION,
     assetKey: defaultDirectIdentity.assetKey,
     capturedAt: "2026-07-21T14:00:01.000Z",
     mode: "video",
@@ -165,7 +165,7 @@ const localNormalizedDigest = "d".repeat(64);
 const localYoutubeId = "abcdefghijk";
 const localSourceAssetKey = sourceAssetKey("Youtube", localYoutubeId);
 const localYtDlpIdentity = {
-  profile: WRENCH_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
+  profile: GHOSTGET_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
   providerIdentitySha256: providerIdentitySha256("Youtube", localYoutubeId),
 } as const;
 
@@ -173,7 +173,7 @@ const localIdentity: MediaLocalTranscriptIdentity = {
   adapter: "whisper-cpp",
   profile: "wrench-media-whisper-cpp-v1",
   executableSha256: localExecutableDigest,
-  runtimeProfile: WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE,
+  runtimeProfile: GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE,
   runtimeSha256: localRuntimeDigest,
   runtimeDependencyCount: 3,
   modelSha256: localModelDigest,
@@ -188,7 +188,7 @@ function localTranscriptProvenance(
     adapter: "whisper-cpp",
     profile: "wrench-media-whisper-cpp-v1",
     executableSha256: localExecutableDigest,
-    runtimeProfile: WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE,
+    runtimeProfile: GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE,
     runtimeSha256: localRuntimeDigest,
     runtimeDependencyCount: 3,
     modelSha256: localModelDigest,
@@ -246,8 +246,8 @@ function localYtDlpSubjectManifest(
   overrides: Readonly<Record<string, unknown>> = {},
 ): Readonly<Record<string, unknown>> {
   return {
-    schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
-    wrenchVersion: WRENCH_MEDIA_VERSION,
+    schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
+    wrenchVersion: GHOSTGET_MEDIA_VERSION,
     assetKey: mode === "archive"
       ? localSourceAssetKey
       : localTranscriptVariantAssetKey(localSourceAssetKey, localIdentity),
@@ -287,8 +287,8 @@ function directLocalTranscriptManifest(
     bodySha256: digest,
   });
   return {
-    schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
-    wrenchVersion: WRENCH_MEDIA_VERSION,
+    schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
+    wrenchVersion: GHOSTGET_MEDIA_VERSION,
     assetKey: localTranscriptVariantAssetKey(metadata.assetKey, localIdentity),
     capturedAt: "2026-07-21T15:00:00.000Z",
     mode: "transcript",
@@ -387,8 +387,8 @@ function focusedYtDlpMediaManifest(
   mode: "audio" | "video",
 ): Readonly<Record<string, unknown>> {
   return trackedYtDlpManifest({
-    schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
-    wrenchVersion: WRENCH_MEDIA_VERSION,
+    schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
+    wrenchVersion: GHOSTGET_MEDIA_VERSION,
     assetKey: variantAssetKey(localSourceAssetKey, [mode]),
     capturedAt: "2026-07-21T15:00:00.000Z",
     mode,
@@ -439,14 +439,14 @@ function trackedYtDlpManifest(
     throw new TypeError("tracked manifest fixture is malformed");
   }
   const revision: MediaTrackedRevision = {
-    profile: WRENCH_MEDIA_TRACKED_REVISION_PROFILE,
+    profile: GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE,
     sequence: revisionOverrides.sequence ?? 1,
     subjectAssetKey,
     ...(revisionOverrides.previousAssetKey === undefined
       ? {}
       : { previousAssetKey: revisionOverrides.previousAssetKey }),
     content: {
-      profile: WRENCH_MEDIA_REVISION_CONTENT_PROFILE,
+      profile: GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
       sha256: revisionOverrides.contentSha256
         ?? revisionContentSha256(artifacts as RevisionArtifactInput[]),
     },
@@ -455,17 +455,17 @@ function trackedYtDlpManifest(
   void ignoredRevision;
   return {
     ...manifestBase,
-    schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
-    wrenchVersion: WRENCH_MEDIA_VERSION,
+    schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
+    wrenchVersion: GHOSTGET_MEDIA_VERSION,
     assetKey: trackedRevisionAssetKey(revision),
     revision,
   };
 }
 
-describe("Wrench media manifest", () => {
-  test("uses one Wrench-owned schema and transcriber identity", () => {
-    expect(WRENCH_MEDIA_SCHEMA_VERSION).toBe(1);
-    expect(WRENCH_MEDIA_VERSION).toBe("0.16.17");
+describe("Ghostget media manifest", () => {
+  test("uses one Ghostget-owned schema and transcriber identity", () => {
+    expect(GHOSTGET_MEDIA_SCHEMA_VERSION).toBe(1);
+    expect(GHOSTGET_MEDIA_VERSION).toBe("0.17.0");
     expect(localTranscriptVariantSegments(localIdentity)).toEqual([
       "transcript",
       "local",
@@ -484,7 +484,7 @@ describe("Wrench media manifest", () => {
         "version" in packageMetadata
         ? packageMetadata.version
         : undefined,
-    ).toBe(WRENCH_MEDIA_VERSION);
+    ).toBe(GHOSTGET_MEDIA_VERSION);
   });
 
   test("parses one exact direct HTTP acquisition", () => {
@@ -710,7 +710,7 @@ describe("Wrench media manifest", () => {
       assetKey: opaqueLocalYtDlpManifest("8".repeat(64))["assetKey"],
     })).toEqual({
       ok: false,
-      message: "Wrench media tracked revision identity projection is inconsistent",
+      message: "Ghostget media tracked revision identity projection is inconsistent",
     });
     expect(parseMediaManifest({
       ...opaque,
@@ -741,7 +741,7 @@ describe("Wrench media manifest", () => {
     expect(parseMediaManifest(manifest).ok).toBeTrue();
     expect(parseMediaManifest({ ...manifest, assetKey: "variant-v1-wrong" })).toEqual({
       ok: false,
-      message: "Wrench media tracked revision identity projection is inconsistent",
+      message: "Ghostget media tracked revision identity projection is inconsistent",
     });
   });
 
@@ -751,7 +751,7 @@ describe("Wrench media manifest", () => {
       assetKey: "variant-v1-wrong",
     }))).toEqual({
       ok: false,
-      message: "Wrench media tracked revision identity projection is inconsistent",
+      message: "Ghostget media tracked revision identity projection is inconsistent",
     });
 
   });
@@ -895,14 +895,14 @@ describe("Wrench media manifest", () => {
         }),
       }))).toEqual({
         ok: false,
-        message: "Wrench media local transcript provenance does not match its audio artifact",
+        message: "Ghostget media local transcript provenance does not match its audio artifact",
       });
     }
     expect(parseMediaManifest(localYtDlpManifest("transcript", {
       tools: { ffmpeg: "8.1.2" },
     }))).toEqual({
       ok: false,
-      message: "Wrench media local transcript requires FFmpeg and ffprobe provenance",
+      message: "Ghostget media local transcript requires FFmpeg and ffprobe provenance",
     });
   });
 
@@ -968,7 +968,7 @@ describe("Wrench media manifest", () => {
       transcript: { status: "unavailable", reason: "audio_not_present" },
     }))).toEqual({
       ok: false,
-      message: "Wrench media local transcript requires FFmpeg and ffprobe provenance",
+      message: "Ghostget media local transcript requires FFmpeg and ffprobe provenance",
     });
     expect(parseMediaManifest(localYtDlpManifest("archive", {
       artifacts: unavailableArtifacts,
@@ -982,7 +982,7 @@ describe("Wrench media manifest", () => {
       assetKey: "variant-v1-wrong",
     }))).toEqual({
       ok: false,
-      message: "Wrench media direct HTTP identity or media projection is inconsistent",
+      message: "Ghostget media direct HTTP identity or media projection is inconsistent",
     });
     expect(parseMediaManifest(directLocalTranscriptManifest({
       source: {
@@ -1039,11 +1039,11 @@ describe("Wrench media manifest", () => {
       },
     }))).toEqual({
       ok: false,
-      message: "Wrench media direct HTTP source URL must be an origin-only public projection",
+      message: "Ghostget media direct HTTP source URL must be an origin-only public projection",
     });
     expect(parseMediaManifest(directManifest({ authentication: { mode: "browser" } }))).toEqual({
       ok: false,
-      message: "Wrench media manifest has an invalid top-level contract",
+      message: "Ghostget media manifest has an invalid top-level contract",
     });
   });
 
@@ -1076,7 +1076,7 @@ describe("Wrench media manifest", () => {
       },
     }))).toEqual({
       ok: false,
-      message: "Wrench media direct HTTP provenance does not match its capture artifact",
+      message: "Ghostget media direct HTTP provenance does not match its capture artifact",
     });
     expect(parseMediaManifest(directManifest({
       acquisition: {
@@ -1085,13 +1085,13 @@ describe("Wrench media manifest", () => {
       },
     }))).toEqual({
       ok: false,
-      message: "Wrench media direct HTTP provenance does not match its capture artifact",
+      message: "Ghostget media direct HTTP provenance does not match its capture artifact",
     });
     expect(parseMediaManifest(directLocalTranscriptManifest({
       artifacts: localTranscriptArtifacts().filter((artifact) => artifact["role"] !== "capture"),
     }))).toEqual({
       ok: false,
-      message: "Wrench media manifest artifacts do not satisfy its capture mode",
+      message: "Ghostget media manifest artifacts do not satisfy its capture mode",
     });
   });
 
@@ -1121,7 +1121,7 @@ describe("Wrench media manifest", () => {
     ]) {
       expect(parseMediaManifest(invalid)).toEqual({
         ok: false,
-        message: "Wrench media direct HTTP identity or media projection is inconsistent",
+        message: "Ghostget media direct HTTP identity or media projection is inconsistent",
       });
     }
   });
@@ -1204,8 +1204,8 @@ describe("Wrench media manifest", () => {
     void ignoredRevision;
     const direct: MediaDirectHttpManifest = {
       ...manifestBase,
-      schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
-      wrenchVersion: WRENCH_MEDIA_VERSION,
+      schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
+      wrenchVersion: GHOSTGET_MEDIA_VERSION,
       assetKey: directMetadata.assetKey,
       source: {
         extractor: directMetadata.extractor,
@@ -1402,7 +1402,7 @@ describe("Wrench media manifest", () => {
     expect((await lstat(staleSymlink)).isSymbolicLink()).toBeTrue();
   });
 
-  test("leaves near-match temp names outside Wrench media's cleanup grammar", async () => {
+  test("leaves near-match temp names outside Ghostget media's cleanup grammar", async () => {
     const { root, manifest } = await fixture();
     const nearMatch = join(root, "wrench-media.json.tmp-not-an-owned-uuid");
     await writeFile(nearMatch, "caller-owned\n");
@@ -1422,7 +1422,7 @@ describe("Wrench media manifest", () => {
         mediaType: "application/json",
       }],
       transcript: { status: "available", source: "manual", language: "en", timedPath: "a", textPath: "b", cuesPath: "c" },
-    }))).toEqual({ ok: false, message: "Wrench media transcript references an unrecorded artifact" });
+    }))).toEqual({ ok: false, message: "Ghostget media transcript references an unrecorded artifact" });
   });
 
   test("requires available transcript paths to be distinct and map to exact roles", async () => {
@@ -1446,10 +1446,10 @@ describe("Wrench media manifest", () => {
 
     expect(parseMediaManifest(invalid)).toEqual({
       ok: false,
-      message: "Wrench media transcript paths do not map to their exact artifact roles",
+      message: "Ghostget media transcript paths do not map to their exact artifact roles",
     });
     expect(writeMediaManifest(root, invalid)).rejects.toThrow(
-      "Wrench media transcript paths do not map to their exact artifact roles",
+      "Ghostget media transcript paths do not map to their exact artifact roles",
     );
 
     await writeFile(join(root, "wrench-media.json"), `${JSON.stringify(invalid)}\n`);
@@ -1457,7 +1457,7 @@ describe("Wrench media manifest", () => {
     expect(verification.ok).toBeFalse();
     expect(verification.checkedArtifacts).toBe(0);
     expect(verification.failures).toContain(
-      "Wrench media transcript paths do not map to their exact artifact roles",
+      "Ghostget media transcript paths do not map to their exact artifact roles",
     );
   });
 
@@ -1507,20 +1507,20 @@ describe("Wrench media manifest", () => {
     expect(parseMediaManifest(base).ok).toBeTrue();
     expect(parseMediaManifest({ ...base, artifacts: validArtifacts.slice(0, 2) })).toEqual({
       ok: false,
-      message: "Wrench media manifest must contain exactly one provider metadata artifact",
+      message: "Ghostget media manifest must contain exactly one provider metadata artifact",
     });
     expect(parseMediaManifest({
       ...base,
       artifacts: [...validArtifacts, artifact("audio", "data/derivatives/second.mka")],
-    })).toEqual({ ok: false, message: "Wrench media manifest has duplicate singleton artifact roles" });
+    })).toEqual({ ok: false, message: "Ghostget media manifest has duplicate singleton artifact roles" });
     expect(parseMediaManifest({
       ...base,
       artifacts: [...validArtifacts, artifact("transcript_text", "data/captions/transcript.txt")],
-    })).toEqual({ ok: false, message: "Wrench media unavailable transcript must not have transcript artifacts" });
+    })).toEqual({ ok: false, message: "Ghostget media unavailable transcript must not have transcript artifacts" });
     expect(parseMediaManifest({
       ...base,
       transcript: { status: "unavailable", reason: "provider_has_no_captions" },
       artifacts: validArtifacts,
-    })).toEqual({ ok: false, message: "Wrench media manifest artifacts do not satisfy its capture mode" });
+    })).toEqual({ ok: false, message: "Ghostget media manifest artifacts do not satisfy its capture mode" });
   });
 });

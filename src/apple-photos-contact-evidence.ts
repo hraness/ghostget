@@ -11,7 +11,7 @@ import type {
   ApplePhotosContactEvidenceExportResult,
   ApplePhotosContactEvidencePrivacy,
 } from "./apple-photos-client-types";
-import { WRENCH_VERSION } from "./version";
+import { GHOSTGET_VERSION } from "./version";
 
 export const APPLE_PHOTOS_CONTACT_EVIDENCE_SCHEMA_VERSION = 1 as const;
 export const APPLE_PHOTOS_CONTACT_EVIDENCE_FORMAT =
@@ -614,8 +614,8 @@ function receiptWithoutIntegrity(
     transport: "local-sqlite-vacuum-capture" as const,
     implementation: Object.freeze({
       producer: Object.freeze({
-        package: "@hraness/wrench" as const,
-        version: WRENCH_VERSION,
+        package: "@hraness/ghostget" as const,
+        version: GHOSTGET_VERSION,
       }),
       source: APPLE_PHOTOS_LOCAL_SOURCE,
     }),
@@ -742,12 +742,12 @@ export function parseApplePhotosContactEvidenceExportResult(
   exactKeys(producer, ["package", "version"], "receipt.implementation.producer");
   exactString(
     producer.package,
-    "@hraness/wrench",
+    "@hraness/ghostget",
     "receipt.implementation.producer.package",
   );
   exactString(
     producer.version,
-    WRENCH_VERSION,
+    GHOSTGET_VERSION,
     "receipt.implementation.producer.version",
   );
   const implementationSource = dataRecord(

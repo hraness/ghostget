@@ -1,22 +1,22 @@
 import { resolve } from "node:path";
 
-export const USAGE = `usage: wrench media [archive|audio|video|transcript] URL [options]
-       wrench doctor [--json]
-       wrench transcriber setup --engine whisper-cpp --model FILE [options]
-       wrench verify ITEM_DIRECTORY [--json]
+export const USAGE = `usage: ghostget media [archive|audio|video|transcript] URL [options]
+       ghostget doctor [--json]
+       ghostget transcriber setup --engine whisper-cpp --model FILE [options]
+       ghostget verify ITEM_DIRECTORY [--json]
 
 commands:
-  wrench media URL                 save media, separate audio/video, and get a transcript
-  wrench archive URL               explicit form of the default command
-  wrench audio URL                 save the source and an audio-only stream-copy derivative
-  wrench video URL                 save the source and a video-only stream-copy derivative
-  wrench transcript URL            save a provider transcript, or make one locally when configured
-  wrench transcriber setup         register an existing local whisper.cpp executable and model
-  wrench doctor                    inspect built-in HTTP and external media capabilities
-  wrench verify PATH               recompute and verify every artifact recorded in wrench-media.json
+  ghostget media URL                 save media, separate audio/video, and get a transcript
+  ghostget archive URL               explicit form of the default command
+  ghostget audio URL                 save the source and an audio-only stream-copy derivative
+  ghostget video URL                 save the source and a video-only stream-copy derivative
+  ghostget transcript URL            save a provider transcript, or make one locally when configured
+  ghostget transcriber setup         register an existing local whisper.cpp executable and model
+  ghostget doctor                    inspect built-in HTTP and external media capabilities
+  ghostget verify PATH               recompute and verify every artifact recorded in wrench-media.json
 
 capture options:
-  --output DIRECTORY       library root (default: WRENCH_MEDIA_HOME or ~/.local/share/wrench/media)
+  --output DIRECTORY       library root (default: GHOSTGET_MEDIA_HOME or ~/.local/share/ghostget/media)
   --lang LANGUAGE          preferred transcript language (default: en)
   --browser SPEC           explicit yt-dlp browser-cookie source
   --auth-context NAME      stable private-access realm (required with browser/config)
@@ -31,7 +31,7 @@ transcriber setup options:
   --replace                replace a different existing transcriber configuration
   --json                   emit a stable JSON record
 
-Wrench media archives material you are authorized to access. It does not bypass DRM or access controls.`;
+Ghostget media archives material you are authorized to access. It does not bypass DRM or access controls.`;
 
 export type CaptureMode = "archive" | "audio" | "video" | "transcript";
 

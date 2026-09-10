@@ -32,7 +32,7 @@ function environment(): Readonly<Record<string, string | undefined>> {
   const root = mkdtempSync(join(tmpdir(), "wrench-portable-recovery-"));
   chmodSync(root, 0o700);
   roots.push(root);
-  return { ...process.env, WRENCH_STATE_HOME: root };
+  return { ...process.env, GHOSTGET_STATE_HOME: root };
 }
 
 function resolution() {
@@ -68,8 +68,8 @@ function writeResolution(
   value: unknown,
   environmentValue: Readonly<Record<string, string | undefined>>,
 ): string {
-  const root = environmentValue.WRENCH_STATE_HOME;
-  if (root === undefined) throw new Error("test WRENCH_STATE_HOME is unavailable");
+  const root = environmentValue.GHOSTGET_STATE_HOME;
+  if (root === undefined) throw new Error("test GHOSTGET_STATE_HOME is unavailable");
   const recovery = join(root, "recovery");
   const directory = join(recovery, "portable-resolutions");
   mkdirSync(recovery, { mode: 0o700, recursive: true });
@@ -149,8 +149,8 @@ test("rejects malformed run coordinates before touching local state", () => {
 
 test("never releases a verified dispatch for retry", () => {
   const environmentValue = environment();
-  const root = environmentValue.WRENCH_STATE_HOME;
-  if (root === undefined) throw new Error("test WRENCH_STATE_HOME is unavailable");
+  const root = environmentValue.GHOSTGET_STATE_HOME;
+  if (root === undefined) throw new Error("test GHOSTGET_STATE_HOME is unavailable");
   const runs = join(root, "runs");
   mkdirSync(runs, { mode: 0o700 });
   writeFileSync(join(runs, `${runId}.json`), `${canonicalJson({

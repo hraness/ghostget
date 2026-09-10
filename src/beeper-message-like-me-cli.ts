@@ -1,4 +1,4 @@
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import {
   exportBeeperMessageLikeMeBundle,
   type BeeperMessageLikeMeExportResult,
@@ -15,7 +15,7 @@ import {
 } from "./beeper-message-like-me-recovery";
 
 export type BeeperMessageLikeMeCliRequest = Readonly<{
-  auth: WrenchAuth;
+  auth: GhostgetAuth;
   outputRoot: string;
   limits?: BeeperMessageLikeMeSourceLimits;
   environment?: Readonly<Record<string, string | undefined>>;

@@ -15,7 +15,7 @@ test("catalogs the installed local CLI capability with its exact contract and to
   const stdout: string[] = [];
   const stderr: string[] = [];
   try {
-    const environment = { WRENCH_STATE_HOME: join(root, "state"), HOME: root };
+    const environment = { GHOSTGET_STATE_HOME: join(root, "state"), HOME: root };
     const parsed = parseRuntimeManifest(JSON.parse(readFileSync(join(
       import.meta.dir,
       "assets/adapters/beeper/wrench-web-adapter.json",

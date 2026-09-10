@@ -61,18 +61,18 @@ const stateDirectories = new Set([
 const markerName = ".io-state.json";
 const markerText = '{"kind":"io-state","schemaVersion":1}\n';
 const emptyDirectoryRemovalRaceForTest = process.env.NODE_ENV === "test"
-  ? process.env.WRENCH_TEST_EMPTY_DIRECTORY_REMOVAL_RACE
+  ? (process.env.GHOSTGET_TEST_EMPTY_DIRECTORY_REMOVAL_RACE ?? process.env.WRENCH_TEST_EMPTY_DIRECTORY_REMOVAL_RACE)
   : undefined;
 const batchReadFaultForTest = process.env.NODE_ENV === "test"
-  ? process.env.WRENCH_TEST_BATCH_READ_FAULT
+  ? (process.env.GHOSTGET_TEST_BATCH_READ_FAULT ?? process.env.WRENCH_TEST_BATCH_READ_FAULT)
   : undefined;
 const casOverlapFaultForTest = process.env.NODE_ENV === "test"
-  ? process.env.WRENCH_TEST_CAS_FAULT
+  ? (process.env.GHOSTGET_TEST_CAS_FAULT ?? process.env.WRENCH_TEST_CAS_FAULT)
   : undefined;
 const TEST_BARRIER_TIMEOUT_MS = 90_000;
 let pausedAfterStateMutationClaimReadForTest = false;
 const writeTemporaryFaultForTest = process.env.NODE_ENV === "test"
-  ? process.env.WRENCH_TEST_WRITE_TEMP_FAULT
+  ? (process.env.GHOSTGET_TEST_WRITE_TEMP_FAULT ?? process.env.WRENCH_TEST_WRITE_TEMP_FAULT)
   : undefined;
 const writeTemporaryNamePattern =
   /^\.io-write-([1-9][0-9]{0,9})-([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.tmp$/u;

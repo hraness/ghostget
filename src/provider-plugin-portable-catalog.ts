@@ -23,7 +23,7 @@ import {
   listInstalledPortableProviderPlugins,
   type InstalledPortableProviderPlugin,
 } from "./provider-plugin-store";
-import { wrenchStateHome } from "./storage";
+import { ghostgetStateHome } from "./storage";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -80,7 +80,7 @@ export function createPortableProviderPluginCatalog(
     dependencyOverrides,
   );
   const installed = listInstalledPortableProviderPlugins(
-    join(wrenchStateHome(environment), "provider-plugins"),
+    join(ghostgetStateHome(environment), "provider-plugins"),
   );
   const portable = installed.map((entry) =>
     projectWithResolvedDependencies(entry.package, environment, dependencies));

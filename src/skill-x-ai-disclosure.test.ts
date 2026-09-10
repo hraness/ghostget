@@ -2,13 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const skillRoot = join(import.meta.dir, "..", "skills", "wrench");
+const skillRoot = join(import.meta.dir, "..", "skills", "ghostget");
 
 function readSkill(relativePath: string): string {
   return readFileSync(join(skillRoot, relativePath), "utf8");
 }
 
-describe("packaged Wrench skill", () => {
+describe("packaged Ghostget skill", () => {
   test("states the split Beeper runtime boundary in its discovery summary", () => {
     const skill = readSkill("SKILL.md");
     const description = skill.slice(0, skill.indexOf("\n---", 4));
@@ -32,7 +32,7 @@ describe("packaged Wrench skill", () => {
     expect(disclosure).toContain("live permalink");
     expect(disclosure).toContain("the publish failed");
     expect(disclosure).toContain("Do not delete or repost unless the user asks");
-    expect(disclosure).toContain("Prefer a Wrench transport");
+    expect(disclosure).toContain("Prefer a Ghostget transport");
     expect(disclosure).toContain("semantic_annotation_ids");
     expect(disclosure).toContain("explicitly authorized `made_with_ai: true`");
     expect(disclosure).toContain("outside this workflow");

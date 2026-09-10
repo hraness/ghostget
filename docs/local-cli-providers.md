@@ -14,8 +14,8 @@ pinned official `@beeper/cli` 0.6.2 executable into 26 CLI-backed operations
 and adds six fixed Beeper Desktop loopback reads, for 32 named operations in
 all. The source plugin owns executable and endpoint verification, Desktop-target
 and account binding, strict projections, process bounds, and mutation recovery.
-See the public [Beeper provider guide](https://wrench.rip/providers/beeper/) and
-the current release's [supported-action directory](https://wrench.rip/provider-capabilities/#provider-beeper).
+See the public [Beeper provider guide](https://ghostget.com/providers/beeper/) and
+the current release's [supported-action directory](https://ghostget.com/provider-capabilities/#provider-beeper).
 
 The selected operation set is 25 operations at contract version 1, five at
 version 2, and two at version 3: `contacts.list` and `messaging.read`. The six
@@ -77,7 +77,7 @@ endpoint, target, environment variable, header, shell fragment, or output
 path.
 
 Keep a checked coverage ledger for the reviewed upstream command inventory.
-Map every canonical command to one semantic Wrench operation or one explicit
+Map every canonical command to one semantic Ghostget operation or one explicit
 unavailable reason. Aliases do not create additional authority. Commands for
 raw requests, shells, plugin installation, software installation, account
 recovery, arbitrary filesystem output, or caller-selected network destinations
@@ -116,7 +116,7 @@ plugins, isolate or reject that user-plugin state so unbound code cannot add or
 override commands.
 
 The temporary filesystem must expose a nonzero immutable directory birth time
-for operation-private roots. Wrench checks this during local-CLI readiness and
+for operation-private roots. Ghostget checks this during local-CLI readiness and
 reports the transport unavailable before staging credentials or starting a
 child when the filesystem cannot provide that generation identity. Device and
 inode plus mutable ctime are not a safe crash-recovery substitute.
@@ -147,7 +147,7 @@ the effect. If the provider returns an accepted pending target, record that
 exact target before later verification.
 
 For this transport, one dispatch item is one fixed child invocation. A reviewed
-CLI command may perform multiple internal provider calls that Wrench cannot
+CLI command may perform multiple internal provider calls that Ghostget cannot
 fence separately—for example, upload an attachment and then send it. Declare
 that opaque sequence and its possible intermediate effects in the operation
 contract and preview. Once the child starts, failure at any internal stage is
@@ -157,7 +157,7 @@ Never retry a mutation after the child may have reached the provider. A
 timeout, signal, malformed response, lost response, or noncategorical failure
 after dispatch is indeterminate. Reconcile only through a separately obtained
 exact read supported by the operation contract. Upstream retry flags and
-claimed idempotency do not replace Wrench's at-most-once evidence.
+claimed idempotency do not replace Ghostget's at-most-once evidence.
 
 The Beeper messaging facade has a separate agentic text-send path. After route
 and context preflight it performs one fixed POST to the bound Desktop loopback
@@ -169,7 +169,7 @@ cursor from a terminal message ID.
 
 Use R4 for destructive, administrative, account-recovery, software-lifecycle,
 or insufficiently observable operations. The presence of a CLI command does
-not make that command a safe Wrench capability.
+not make that command a safe Ghostget capability.
 
 ## Review checklist
 

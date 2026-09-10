@@ -12,7 +12,7 @@ import { isAbsolute, join } from "node:path";
 
 import {
   ensurePrivateStateDirectory,
-  wrenchStateHome,
+  ghostgetStateHome,
 } from "../storage";
 import {
   IMSG_REVIEWED_VERSION,
@@ -107,7 +107,7 @@ export function imsgInstalledBinaryPath(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): string {
   return join(
-    wrenchStateHome(environment),
+    ghostgetStateHome(environment),
     "tools",
     "imsg",
     IMSG_REVIEWED_VERSION,
@@ -260,7 +260,7 @@ export async function installReviewedImsgBinary(
   const artifact = imsgArtifactForCurrentRuntime();
   let stateHome: string;
   try {
-    stateHome = wrenchStateHome(environment);
+    stateHome = ghostgetStateHome(environment);
   } catch {
     throw installFailure("imsg install state directory is unavailable or unsafe");
   }

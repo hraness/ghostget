@@ -105,10 +105,10 @@ describe("WhatsApp Message Like Me v2 bundle publication", () => {
     const output = resolve(parent, "bundle");
     try {
       const recoveryEnvironment = Object.freeze({
-        WRENCH_STATE_HOME: join(parent, "state"),
+        GHOSTGET_STATE_HOME: join(parent, "state"),
       });
       const leaseRoot = join(
-        recoveryEnvironment.WRENCH_STATE_HOME,
+        recoveryEnvironment.GHOSTGET_STATE_HOME,
         "recovery",
         "beeper-message-like-me-directory-leases",
       );
@@ -339,9 +339,9 @@ describe("WhatsApp Message Like Me v2 bundle publication", () => {
   test("preserves a replacement stage and keeps its lease bound to the displaced inode", async () => {
     const parent = privateParent();
     const output = resolve(parent, "stage-swap-bundle");
-    const recoveryEnvironment = Object.freeze({ WRENCH_STATE_HOME: join(parent, "state") });
+    const recoveryEnvironment = Object.freeze({ GHOSTGET_STATE_HOME: join(parent, "state") });
     const leaseRoot = join(
-      recoveryEnvironment.WRENCH_STATE_HOME,
+      recoveryEnvironment.GHOSTGET_STATE_HOME,
       "recovery",
       "beeper-message-like-me-directory-leases",
     );
@@ -431,9 +431,9 @@ describe("WhatsApp Message Like Me v2 bundle publication", () => {
     const parent = privateParent();
     const output = resolve(parent, "post-rename-replacement-bundle");
     const displacedOutput = `${output}.displaced`;
-    const recoveryEnvironment = Object.freeze({ WRENCH_STATE_HOME: join(parent, "state") });
+    const recoveryEnvironment = Object.freeze({ GHOSTGET_STATE_HOME: join(parent, "state") });
     const leaseRoot = join(
-      recoveryEnvironment.WRENCH_STATE_HOME,
+      recoveryEnvironment.GHOSTGET_STATE_HOME,
       "recovery",
       "beeper-message-like-me-directory-leases",
     );

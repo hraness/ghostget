@@ -39,7 +39,7 @@ import {
 import {
   createPrivateJsonIfAbsent,
   ensurePrivateStateDirectory,
-  wrenchStateHome,
+  ghostgetStateHome,
 } from "./storage";
 
 const hashA = "a".repeat(64);
@@ -126,7 +126,7 @@ function installPortableTestPackage(
   );
   const verified = verifyPortableProviderPluginPackageDirectory(packageRoot);
   installPortableProviderPluginPackage(packageRoot, {
-    storeRoot: join(wrenchStateHome(environment), "provider-plugins"),
+    storeRoot: join(ghostgetStateHome(environment), "provider-plugins"),
     approval: {
       decision: "trust-executable-code",
       pluginId: verified.manifest.id,
@@ -191,15 +191,15 @@ describe("portable provider plugin invocation lease admission", () => {
     const root = mkdtempSync(join(tmpdir(), "wrench-portable-lease-admission-"));
     chmodSync(root, 0o700);
     const requestedEnvironment = {
-      WRENCH_STATE_HOME: join(root, "wrench-home"),
+      GHOSTGET_STATE_HOME: join(root, "wrench-home"),
       HOME: root,
     };
     const environment = {
       ...requestedEnvironment,
-      WRENCH_STATE_HOME: wrenchStateHome(requestedEnvironment),
+      GHOSTGET_STATE_HOME: ghostgetStateHome(requestedEnvironment),
     };
     const directory = join(
-      environment.WRENCH_STATE_HOME,
+      environment.GHOSTGET_STATE_HOME,
       "provider-plugin-state",
       ".invocations",
     );
@@ -383,15 +383,15 @@ describe("portable provider plugin invocation lease repair", () => {
     const root = mkdtempSync(join(tmpdir(), "wrench-portable-lease-repair-"));
     chmodSync(root, 0o700);
     const requestedEnvironment = {
-      WRENCH_STATE_HOME: join(root, "wrench-home"),
+      GHOSTGET_STATE_HOME: join(root, "wrench-home"),
       HOME: root,
     };
     const environment = {
       ...requestedEnvironment,
-      WRENCH_STATE_HOME: wrenchStateHome(requestedEnvironment),
+      GHOSTGET_STATE_HOME: ghostgetStateHome(requestedEnvironment),
     };
     const directory = join(
-      environment.WRENCH_STATE_HOME,
+      environment.GHOSTGET_STATE_HOME,
       "provider-plugin-state",
       ".invocations",
     );
@@ -472,15 +472,15 @@ describe("portable provider plugin invocation lease repair", () => {
     const root = mkdtempSync(join(tmpdir(), "wrench-portable-lease-complete-"));
     chmodSync(root, 0o700);
     const requestedEnvironment = {
-      WRENCH_STATE_HOME: join(root, "wrench-home"),
+      GHOSTGET_STATE_HOME: join(root, "wrench-home"),
       HOME: root,
     };
     const environment = {
       ...requestedEnvironment,
-      WRENCH_STATE_HOME: wrenchStateHome(requestedEnvironment),
+      GHOSTGET_STATE_HOME: ghostgetStateHome(requestedEnvironment),
     };
     const directory = join(
-      environment.WRENCH_STATE_HOME,
+      environment.GHOSTGET_STATE_HOME,
       "provider-plugin-state",
       ".invocations",
     );
@@ -590,15 +590,15 @@ describe("portable provider plugin invocation lease repair", () => {
     const root = mkdtempSync(join(tmpdir(), "wrench-portable-lease-containment-"));
     chmodSync(root, 0o700);
     const requestedEnvironment = {
-      WRENCH_STATE_HOME: join(root, "wrench-home"),
+      GHOSTGET_STATE_HOME: join(root, "wrench-home"),
       HOME: root,
     };
     const environment = {
       ...requestedEnvironment,
-      WRENCH_STATE_HOME: wrenchStateHome(requestedEnvironment),
+      GHOSTGET_STATE_HOME: ghostgetStateHome(requestedEnvironment),
     };
     const directory = join(
-      environment.WRENCH_STATE_HOME,
+      environment.GHOSTGET_STATE_HOME,
       "provider-plugin-state",
       ".invocations",
     );

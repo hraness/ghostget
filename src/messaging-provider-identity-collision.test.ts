@@ -258,7 +258,7 @@ async function harness(partCount: number, options: HarnessOptions = {}) {
   const root = mkdtempSync(join(tmpdir(), "wrench-messaging-identity-"));
   chmodSync(root, 0o700);
   roots.push(root);
-  const environment = Object.freeze({ WRENCH_STATE_HOME: root });
+  const environment = Object.freeze({ GHOSTGET_STATE_HOME: root });
   const contextLimit = options.contextLimit ?? 3;
   const messages: ProviderMessageV1[] = [
     message("base-1", "older incoming", "2026-08-27T12:00:00.000Z", {

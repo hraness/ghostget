@@ -18,7 +18,7 @@ import { join } from "node:path";
 
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import { canonicalJson } from "../canonical-json";
 import type { LocalCliRecipe, OperationInput } from "../model";
 import { OperationDeadline } from "../operation-deadline";
@@ -292,7 +292,7 @@ function privateStore(): string {
   return path;
 }
 
-function auth(path: string): Extract<WrenchAuth, { readonly kind: "linked-device-store" }> {
+function auth(path: string): Extract<GhostgetAuth, { readonly kind: "linked-device-store" }> {
   return {
     schemaVersion: 1,
     id: "beeper-fixture",
@@ -561,7 +561,7 @@ const MATRIX_SUBJECT = beeperSubjectFromAccountsAndTarget(
   "4.2.0-fixture",
 );
 
-function mutationAuth(path: string): Extract<WrenchAuth, { readonly kind: "linked-device-store" }> {
+function mutationAuth(path: string): Extract<GhostgetAuth, { readonly kind: "linked-device-store" }> {
   return { ...auth(path), subject: MATRIX_SUBJECT };
 }
 

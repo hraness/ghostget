@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { parseWrenchArguments } from "./args";
+import { parseGhostgetArguments } from "./args";
 
-describe("wrench CLI grammar", () => {
+describe("ghostget CLI grammar", () => {
   test("parses only one normalized reviewed iMessage transport install source", () => {
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "imessage",
       "transport",
       "install",
@@ -26,12 +26,12 @@ describe("wrench CLI grammar", () => {
       ["imessage", "send"],
       ["imessage", "transport", "install", "--binary", "/tmp/imsg", "--force"],
     ]) {
-      expect(parseWrenchArguments(raw).ok).toBeFalse();
+      expect(parseGhostgetArguments(raw).ok).toBeFalse();
     }
   });
 
   test("keeps messaging capability data out of argv and requires private output", () => {
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "messaging",
       "resolve",
       "--input",
@@ -48,7 +48,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "messaging",
       "context",
       "--input",
@@ -61,7 +61,7 @@ describe("wrench CLI grammar", () => {
       "@relative.json",
       "wmroute_private",
     ]) {
-      expect(parseWrenchArguments([
+      expect(parseGhostgetArguments([
         "messaging",
         "context",
         "--input",
@@ -70,7 +70,7 @@ describe("wrench CLI grammar", () => {
         "/tmp/wrench-private/context.json",
       ]).ok).toBeFalse();
     }
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "messaging",
       "routes",
       "--input",
@@ -86,7 +86,7 @@ describe("wrench CLI grammar", () => {
   ] as const)(
     "accepts only the exact help form: %j",
     ({ raw }) => {
-      expect(parseWrenchArguments(raw)).toEqual({
+      expect(parseGhostgetArguments(raw)).toEqual({
         ok: true,
         value: { command: "help" },
       });
@@ -94,21 +94,21 @@ describe("wrench CLI grammar", () => {
   );
 
   test("keeps capture ergonomic for direct URLs and explicit commands", () => {
-    expect(parseWrenchArguments(["https://example.com/post", "named-clip", "--force"])).toEqual({
+    expect(parseGhostgetArguments(["https://example.com/post", "named-clip", "--force"])).toEqual({
       ok: true,
       value: {
         command: "clip",
         arguments: ["https://example.com/post", "named-clip", "--force"],
       },
     });
-    expect(parseWrenchArguments(["clip", "https://example.com/post", "--stdout"])).toEqual({
+    expect(parseGhostgetArguments(["clip", "https://example.com/post", "--stdout"])).toEqual({
       ok: true,
       value: {
         command: "clip",
         arguments: ["https://example.com/post", "--stdout"],
       },
     });
-    expect(parseWrenchArguments(["read", "https://example.com/post", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["read", "https://example.com/post", "--json"])).toEqual({
       ok: true,
       value: {
         command: "read",
@@ -119,29 +119,29 @@ describe("wrench CLI grammar", () => {
 
   test("routes verified media commands through the owned media runtime without changing bare URL clipping", () => {
     const url = "https://media.example/video";
-    expect(parseWrenchArguments(["archive", url, "--refresh", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["archive", url, "--refresh", "--json"])).toEqual({
       ok: true,
       value: { command: "media", arguments: ["archive", url, "--refresh", "--json"] },
     });
-    expect(parseWrenchArguments(["media", url, "--output", "/tmp/library"])).toEqual({
+    expect(parseGhostgetArguments(["media", url, "--output", "/tmp/library"])).toEqual({
       ok: true,
       value: { command: "media", arguments: ["archive", url, "--output", "/tmp/library"] },
     });
-    expect(parseWrenchArguments(["media", "transcript", url, "--lang", "de"])).toEqual({
+    expect(parseGhostgetArguments(["media", "transcript", url, "--lang", "de"])).toEqual({
       ok: true,
       value: { command: "media", arguments: ["transcript", url, "--lang", "de"] },
     });
     for (const mode of ["audio", "video", "transcript"] as const) {
-      expect(parseWrenchArguments([mode, url])).toEqual({
+      expect(parseGhostgetArguments([mode, url])).toEqual({
         ok: true,
         value: { command: "media", arguments: [mode, url] },
       });
     }
-    expect(parseWrenchArguments(["verify", "/tmp/wrench-media/item", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["verify", "/tmp/wrench-media/item", "--json"])).toEqual({
       ok: true,
       value: { command: "media", arguments: ["verify", "/tmp/wrench-media/item", "--json"] },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "transcriber", "setup", "--engine", "whisper-cpp", "--model", "/tmp/model.bin",
     ])).toEqual({
       ok: true,
@@ -150,14 +150,14 @@ describe("wrench CLI grammar", () => {
         arguments: ["transcriber", "setup", "--engine", "whisper-cpp", "--model", "/tmp/model.bin"],
       },
     });
-    expect(parseWrenchArguments([url])).toEqual({
+    expect(parseGhostgetArguments([url])).toEqual({
       ok: true,
       value: { command: "clip", arguments: [url] },
     });
   });
 
   test("parses the bounded Beeper Message Like Me export command", () => {
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "beeper",
       "export-message-like-me",
       "--auth",
@@ -199,12 +199,12 @@ describe("wrench CLI grammar", () => {
         "--output", "/tmp/export", "--max-participants", "2001",
       ],
     ]) {
-      expect(parseWrenchArguments(raw).ok).toBeFalse();
+      expect(parseGhostgetArguments(raw).ok).toBeFalse();
     }
   });
 
   test("parses only the transparent one-account WhatsApp Message Like Me export", () => {
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "whatsapp",
       "export-message-like-me",
       "--auth",
@@ -231,11 +231,11 @@ describe("wrench CLI grammar", () => {
       ["whatsapp", "export-message-like-me", "--auth", "whatsapp-main", "--output", "/tmp/export\nother"],
       ["whatsapp", "export-message-like-me", "--auth", "whatsapp-main", "--output", `/tmp/${"é".repeat(2_046)}`],
       ["whatsapp", "export-message-like-me", "--auth", "whatsapp-main", "--output", "/tmp/export", "--limit-messages", "1"],
-    ]) expect(parseWrenchArguments(raw).ok).toBeFalse();
+    ]) expect(parseGhostgetArguments(raw).ok).toBeFalse();
   });
 
   test("parses the path-free Beeper contact interaction export", () => {
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "beeper",
       "export-contact-interactions",
       "--auth",
@@ -258,7 +258,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "beeper",
       "export-contact-interactions",
       "--auth",
@@ -270,14 +270,14 @@ describe("wrench CLI grammar", () => {
       message:
         "beeper export-contact-interactions writes its body-free artifact to stdout and does not accept --output",
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "beeper", "export-contact-interactions", "--auth", "beeper-main",
       "--max-participants", "2001",
     ]).ok).toBeFalse();
   });
 
   test("parses only the bounded Apple Photos contact-evidence export", () => {
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "apple-photos",
       "export-contact-evidence",
       "--library",
@@ -291,7 +291,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "apple-photos",
       "export-contact-evidence",
     ])).toEqual({
@@ -307,15 +307,15 @@ describe("wrench CLI grammar", () => {
       ["apple-photos", "export-contact-evidence", "--library", "/private/tmp/Photos.sqlite"],
       ["apple-photos", "export-contact-evidence", "--output", "/private/output"],
       ["apple-photos", "export-contact-evidence", "--json", "--json"],
-    ]) expect(parseWrenchArguments(raw).ok).toBeFalse();
+    ]) expect(parseGhostgetArguments(raw).ok).toBeFalse();
   });
 
   test("parses adapter and capability management", () => {
-    expect(parseWrenchArguments(["capabilities", "linkedin", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["capabilities", "linkedin", "--json"])).toEqual({
       ok: true,
       value: { command: "capabilities", adapterId: "linkedin", json: true },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "adapter",
       "scaffold",
       "--site",
@@ -350,7 +350,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "adapter",
       "init",
       "linkedin",
@@ -369,7 +369,7 @@ describe("wrench CLI grammar", () => {
         force: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "adapter",
       "init",
       "youtube-publisher",
@@ -387,7 +387,7 @@ describe("wrench CLI grammar", () => {
         force: false,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "adapter", "init", "substack-reader", "--platform", "substack", "--output", "./substack-adapter",
     ])).toEqual({
       ok: true,
@@ -399,19 +399,19 @@ describe("wrench CLI grammar", () => {
         force: false,
       },
     });
-    expect(parseWrenchArguments(["adapter", "validate", "./wrench-adapter.json", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["adapter", "validate", "./wrench-adapter.json", "--json"])).toEqual({
       ok: true,
       value: { command: "adapter-validate", path: "./wrench-adapter.json", json: true },
     });
-    expect(parseWrenchArguments(["adapter", "sync-bundled", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["adapter", "sync-bundled", "--json"])).toEqual({
       ok: true,
       value: { command: "adapter-sync-bundled", json: true },
     });
-    expect(parseWrenchArguments(["adapter", "install", "./wrench-adapter.json", "--force"])).toEqual({
+    expect(parseGhostgetArguments(["adapter", "install", "./wrench-adapter.json", "--force"])).toEqual({
       ok: true,
       value: { command: "adapter-install", path: "./wrench-adapter.json", force: true },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "adapter",
       "install",
       "./wrench-adapter.json",
@@ -431,7 +431,7 @@ describe("wrench CLI grammar", () => {
         force: false,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "adapter",
       "install",
       "./wrench-adapter.json",
@@ -442,11 +442,11 @@ describe("wrench CLI grammar", () => {
       ok: false,
       message: "adapter install accepts --force or --upgrade-from, not both",
     });
-    expect(parseWrenchArguments(["adapter", "remove", "linkedin", "--yes"])).toEqual({
+    expect(parseGhostgetArguments(["adapter", "remove", "linkedin", "--yes"])).toEqual({
       ok: true,
       value: { command: "adapter-remove", id: "linkedin", yes: true },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "adapter",
       "scaffold",
       "--site",
@@ -472,28 +472,28 @@ describe("wrench CLI grammar", () => {
   });
 
   test("parses source plugin discovery through singular and plural command names", () => {
-    expect(parseWrenchArguments(["plugin", "list"])).toEqual({
+    expect(parseGhostgetArguments(["plugin", "list"])).toEqual({
       ok: true,
       value: { command: "plugin-list", json: false },
     });
-    expect(parseWrenchArguments(["plugins", "list", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["plugins", "list", "--json"])).toEqual({
       ok: true,
       value: { command: "plugin-list", json: true },
     });
-    expect(parseWrenchArguments(["plugin", "show", "meta-web", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["plugin", "show", "meta-web", "--json"])).toEqual({
       ok: true,
       value: { command: "plugin-show", id: "meta-web", json: true },
     });
-    expect(parseWrenchArguments(["plugins", "show", "x"])).toEqual({
+    expect(parseGhostgetArguments(["plugins", "show", "x"])).toEqual({
       ok: true,
       value: { command: "plugin-show", id: "x", json: false },
     });
     const longestPluginId = `a${"b".repeat(62)}`;
-    expect(parseWrenchArguments(["plugin", "show", longestPluginId])).toEqual({
+    expect(parseGhostgetArguments(["plugin", "show", longestPluginId])).toEqual({
       ok: true,
       value: { command: "plugin-show", id: longestPluginId, json: false },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "plugin",
       "scaffold",
       "--site",
@@ -528,7 +528,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments(["plugins", "check", "src/plugins/acme-web", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["plugins", "check", "src/plugins/acme-web", "--json"])).toEqual({
       ok: true,
       value: {
         command: "plugin-check",
@@ -537,7 +537,7 @@ describe("wrench CLI grammar", () => {
       },
     });
     const longestSiteId = `a${"b".repeat(58)}`;
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "plugin", "scaffold",
       "--site", longestSiteId,
       "--display-name", "Longest valid site",
@@ -554,7 +554,7 @@ describe("wrench CLI grammar", () => {
   });
 
   test("parses the portable plugin lifecycle with explicit code trust and CAS identities", () => {
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "plugin",
       "init",
       "acme-api",
@@ -596,7 +596,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "plugin", "init", "acme-web",
       "--display-name", "Acme web",
       "--surface", "acme",
@@ -610,7 +610,7 @@ describe("wrench CLI grammar", () => {
         transport: "web-session-api",
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "plugin", "test", "./acme-plugin", "--trust-code", "--json",
     ])).toEqual({
       ok: true,
@@ -621,7 +621,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "plugin", "test", "./acme-plugin",
     ])).toEqual({
       ok: true,
@@ -632,7 +632,7 @@ describe("wrench CLI grammar", () => {
         json: false,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "plugin", "pack", "./acme-plugin",
       "--output", "./acme.wrenchplugin",
     ])).toEqual({
@@ -645,7 +645,7 @@ describe("wrench CLI grammar", () => {
       },
     });
     const digest = "a".repeat(64);
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "plugin", "install", "./acme.wrenchplugin",
       "--trust-code", "--expected-current", digest, "--json",
     ])).toEqual({
@@ -658,7 +658,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "plugin", "disable", "acme-api",
       "--expected-current", digest,
     ])).toEqual({
@@ -670,7 +670,7 @@ describe("wrench CLI grammar", () => {
         json: false,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "plugin", "remove", "acme-api",
       "--expected-current", digest, "--yes", "--json",
     ])).toEqual({
@@ -683,11 +683,11 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments(["plugin", "doctor", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["plugin", "doctor", "--json"])).toEqual({
       ok: true,
       value: { command: "plugin-doctor", json: true },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "plugin", "init", "acme-api",
       "--display-name", "Acme",
       "--surface", "acme",
@@ -703,15 +703,15 @@ describe("wrench CLI grammar", () => {
   });
 
   test("parses reviewed policy inspection and local thread splitting", () => {
-    expect(parseWrenchArguments(["platforms", "x", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["platforms", "x", "--json"])).toEqual({
       ok: true,
       value: { command: "platforms", surfaceId: "x", json: true },
     });
-    expect(parseWrenchArguments(["platforms"])).toEqual({
+    expect(parseGhostgetArguments(["platforms"])).toEqual({
       ok: true,
       value: { command: "platforms", json: false },
     });
-    expect(parseWrenchArguments(["thread", "split", "bluesky", "--text", "one post", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["thread", "split", "bluesky", "--text", "one post", "--json"])).toEqual({
       ok: true,
       value: {
         command: "thread-split",
@@ -720,7 +720,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments(["thread", "split", "threads", "--text", "@draft.txt"])).toEqual({
+    expect(parseGhostgetArguments(["thread", "split", "threads", "--text", "@draft.txt"])).toEqual({
       ok: true,
       value: {
         command: "thread-split",
@@ -729,11 +729,11 @@ describe("wrench CLI grammar", () => {
         json: false,
       },
     });
-    expect(parseWrenchArguments(["thread", "split", "x", "--text", "-"])).toMatchObject({
+    expect(parseGhostgetArguments(["thread", "split", "x", "--text", "-"])).toMatchObject({
       ok: true,
       value: { command: "thread-split", textSource: "-" },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "thread", "publish", "x",
       "--adapter", "x-main",
       "--text", "@draft.txt",
@@ -757,7 +757,7 @@ describe("wrench CLI grammar", () => {
   });
 
   test("parses secret-free auth locators and explicit removal", () => {
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "auth", "login", "gmail-main",
       "--client-file", "/private/google-desktop-client.json",
       "--json",
@@ -773,7 +773,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "auth", "login", "gmail-main",
       "--provider", "gmail",
       "--client-file", "/private/google-desktop-client.json",
@@ -783,7 +783,7 @@ describe("wrench CLI grammar", () => {
       ok: true,
       value: { openBrowser: false, force: true },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "auth",
       "add",
       "linkedin",
@@ -805,7 +805,7 @@ describe("wrench CLI grammar", () => {
         force: false,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "auth",
       "add",
       "linkedin-live",
@@ -825,7 +825,7 @@ describe("wrench CLI grammar", () => {
         force: false,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "auth", "add", "arc-main", "--cookie-source", "arc", "--cookie-profile", "Default", "--force",
     ])).toEqual({
       ok: true,
@@ -838,7 +838,7 @@ describe("wrench CLI grammar", () => {
         force: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "auth", "add", "whatsapp-main",
       "--browser-profile", "/private/Arc/User Data/Profile 1",
       "--trust-profile-egress",
@@ -858,7 +858,7 @@ describe("wrench CLI grammar", () => {
         force: false,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "auth", "add", "cookies-file", "--cookies-file", "./private-cookies.json", "--subject", "viewer_123",
     ])).toEqual({
       ok: true,
@@ -871,7 +871,7 @@ describe("wrench CLI grammar", () => {
         force: false,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "auth", "add", "x-api",
       "--oauth-provider", "x",
       "--token-file", "./secrets/x-access-token",
@@ -891,7 +891,7 @@ describe("wrench CLI grammar", () => {
         force: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "auth", "add", "mastodon-api",
       "--oauth-provider", "mastodon",
       "--token-file", "./secrets/mastodon-access-token",
@@ -908,7 +908,7 @@ describe("wrench CLI grammar", () => {
         force: false,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "auth", "add", "whatsapp-protocol", "--linked-device", "whatsapp",
     ])).toEqual({
       ok: true,
@@ -920,7 +920,7 @@ describe("wrench CLI grammar", () => {
         force: false,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "auth", "add", "whatsapp-custom",
       "--linked-device", "whatsapp",
       "--device-store", "/private/whatsapp-store",
@@ -937,7 +937,7 @@ describe("wrench CLI grammar", () => {
         force: false,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "auth", "add", "signal-custom",
       "--linked-device", "signal",
       "--device-store", "/private/signal-store",
@@ -952,7 +952,7 @@ describe("wrench CLI grammar", () => {
         force: false,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "auth", "pair", "whatsapp-protocol", "--phone", "+15551234567",
     ])).toEqual({
       ok: true,
@@ -962,7 +962,7 @@ describe("wrench CLI grammar", () => {
         phone: "+15551234567",
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "auth", "sync", "whatsapp-protocol", "--once", "--json",
     ])).toEqual({
       ok: true,
@@ -973,7 +973,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "auth", "add", "linkedin-api",
       "--oauth-provider", "linkedin",
       "--token-file", "/private/linkedin-token",
@@ -990,23 +990,23 @@ describe("wrench CLI grammar", () => {
         force: false,
       },
     });
-    expect(parseWrenchArguments(["auth", "remove", "linkedin", "--yes"])).toEqual({
+    expect(parseGhostgetArguments(["auth", "remove", "linkedin", "--yes"])).toEqual({
       ok: true,
       value: { command: "auth-remove", id: "linkedin", yes: true },
     });
-    expect(parseWrenchArguments(["auth", "bind", "arc-main", "--site", "x", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["auth", "bind", "arc-main", "--site", "x", "--json"])).toEqual({
       ok: true,
       value: { command: "auth-bind", id: "arc-main", site: "x", force: false, json: true },
     });
-    expect(parseWrenchArguments(["auth", "bind", "arc-main", "--site", "linkedin", "--force"])).toEqual({
+    expect(parseGhostgetArguments(["auth", "bind", "arc-main", "--site", "linkedin", "--force"])).toEqual({
       ok: true,
       value: { command: "auth-bind", id: "arc-main", site: "linkedin", force: true, json: false },
     });
-    expect(parseWrenchArguments(["auth", "bind", "arc-main", "--site", "facebook"])).toEqual({
+    expect(parseGhostgetArguments(["auth", "bind", "arc-main", "--site", "facebook"])).toEqual({
       ok: true,
       value: { command: "auth-bind", id: "arc-main", site: "facebook", force: false, json: false },
     });
-    expect(parseWrenchArguments(["auth", "bind", "arc-main", "--site", "example-social"])).toEqual({
+    expect(parseGhostgetArguments(["auth", "bind", "arc-main", "--site", "example-social"])).toEqual({
       ok: true,
       value: {
         command: "auth-bind",
@@ -1019,11 +1019,11 @@ describe("wrench CLI grammar", () => {
   });
 
   test("parses the derive lifecycle without swallowing browser arguments", () => {
-    expect(parseWrenchArguments(["derive", "list", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["derive", "list", "--json"])).toEqual({
       ok: true,
       value: { command: "derive-list", json: true },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "derive",
       "start",
       "linkedin",
@@ -1058,7 +1058,7 @@ describe("wrench CLI grammar", () => {
         headed: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "derive",
       "browser",
       "derive-123",
@@ -1077,7 +1077,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "derive", "review", "derive-123", "--offset", "50", "--limit", "25", "--json",
     ])).toEqual({
       ok: true,
@@ -1088,7 +1088,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "derive", "review", "derive-123", "--entry", "42", "--fixtures", "-", "--json",
     ])).toEqual({
       ok: true,
@@ -1099,7 +1099,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "derive", "review", "derive-123", "--entry", "7", "--field-names", "-", "--json",
     ])).toEqual({
       ok: true,
@@ -1110,7 +1110,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "derive", "review", "derive-123", "--entry", "8", "--json",
     ])).toEqual({
       ok: true,
@@ -1121,7 +1121,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "derive", "review", "derive-123", "--review-origin", "https://upload.example.com", "--limit", "25", "--json",
     ])).toEqual({
       ok: true,
@@ -1133,7 +1133,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "derive",
       "finish",
       "derive-123",
@@ -1157,7 +1157,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "derive", "analyze", "capture.har",
       "--adapter", "facebook-page",
       "--origin", "https://www.facebook.com",
@@ -1198,13 +1198,13 @@ describe("wrench CLI grammar", () => {
     [["derive", "finish", "derive-123", "--output", "./derived", "--review-origin", "https://upload.example.com", "--review-origin", "https://upload.example.com"], "more than once"],
     [["derive", "finish", "derive-123", "--output", "./derived", "--review-origin"], "requires a value"],
   ])("rejects unsafe derive origin grammar %#", (arguments_, message) => {
-    const parsed = parseWrenchArguments(arguments_);
+    const parsed = parseGhostgetArguments(arguments_);
     expect(parsed.ok).toBeFalse();
     if (!parsed.ok) expect(parsed.message).toContain(message);
   });
 
   test("parses invocation preview, confirmation, and receipts", () => {
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "invoke",
       "linkedin",
       "messaging.send",
@@ -1231,7 +1231,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments(["confirm", "a".repeat(64), "--json"])).toEqual({
+    expect(parseGhostgetArguments(["confirm", "a".repeat(64), "--json"])).toEqual({
       ok: true,
       value: {
         command: "confirm",
@@ -1240,7 +1240,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "confirm",
       "a".repeat(64),
       "--private-output",
@@ -1260,7 +1260,7 @@ describe("wrench CLI grammar", () => {
       },
     });
     const runId = "00000000-0000-4000-8000-000000000000";
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "messaging",
       "reconcile",
       runId,
@@ -1273,12 +1273,12 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments(["messaging", "reconcile", runId, "--private-output"]))
+    expect(parseGhostgetArguments(["messaging", "reconcile", runId, "--private-output"]))
       .toEqual({
         ok: false,
         message: "messaging reconcile accepts only --json",
       });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "runs",
       "show",
       runId,
@@ -1297,7 +1297,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "confirm",
       "a".repeat(64),
       "--private-output",
@@ -1306,8 +1306,8 @@ describe("wrench CLI grammar", () => {
       ok: false,
       message: "confirm --private-output must be a normalized absolute path",
     });
-    expect(parseWrenchArguments(["confirm", "a".repeat(64), "--idempotency-key", "new-key"]).ok).toBeFalse();
-    expect(parseWrenchArguments(["linkedin", "messaging.send", "--input", "{}"])).toEqual({
+    expect(parseGhostgetArguments(["confirm", "a".repeat(64), "--idempotency-key", "new-key"]).ok).toBeFalse();
+    expect(parseGhostgetArguments(["linkedin", "messaging.send", "--input", "{}"])).toEqual({
       ok: true,
       value: {
         command: "invoke",
@@ -1322,11 +1322,11 @@ describe("wrench CLI grammar", () => {
         json: false,
       },
     });
-    expect(parseWrenchArguments(["run", "linkedin", "messaging.send", "--preview"])).toMatchObject({
+    expect(parseGhostgetArguments(["run", "linkedin", "messaging.send", "--preview"])).toMatchObject({
       ok: true,
       value: { command: "invoke", adapterId: "linkedin", operationId: "messaging.send", preview: true },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "invoke",
       "linkedin",
       "messaging.list",
@@ -1344,7 +1344,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "invoke",
       "linkedin",
       "messaging.list",
@@ -1354,7 +1354,7 @@ describe("wrench CLI grammar", () => {
       ok: false,
       message: "invoke --cache-only cannot be combined with --preview",
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "invoke",
       "linkedin",
       "messaging.list",
@@ -1364,7 +1364,7 @@ describe("wrench CLI grammar", () => {
       ok: false,
       message: "invoke --cache-only never opens a browser and cannot be combined with --headed",
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "invoke",
       "linkedin",
       "messaging.list",
@@ -1381,7 +1381,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "invoke",
       "linkedin",
       "messaging.list",
@@ -1391,7 +1391,7 @@ describe("wrench CLI grammar", () => {
       ok: false,
       message: "invoke --projection-identity-only cannot be combined with --preview or --cache-only",
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "invoke",
       "linkedin",
       "messaging.list",
@@ -1401,7 +1401,7 @@ describe("wrench CLI grammar", () => {
       ok: false,
       message: "invoke --projection-identity-only never opens a browser and cannot be combined with --headed",
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "omni",
       "read",
       "--input",
@@ -1420,7 +1420,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "omni",
       "read",
       "--input",
@@ -1434,23 +1434,23 @@ describe("wrench CLI grammar", () => {
         fromExactCache: true,
       },
     });
-    expect(parseWrenchArguments(["omni", "read"])).toEqual({
+    expect(parseGhostgetArguments(["omni", "read"])).toEqual({
       ok: false,
       message: "omni read requires --input <json|@file|->",
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "omni", "read", "--input", "-", "--cache-only", "--identity-only",
     ])).toEqual({
       ok: false,
       message: "omni read accepts only one of --cache-only, --identity-only, or --from-exact-cache",
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "omni", "read", "--input", "-", "--from-exact-cache", "--headed",
     ])).toEqual({
       ok: false,
       message: "omni read cache, identity, and exact-cache rebuild modes never open a browser and cannot use --headed",
     });
-    expect(parseWrenchArguments(["runs", "show", "00000000-0000-4000-8000-000000000000", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["runs", "show", "00000000-0000-4000-8000-000000000000", "--json"])).toEqual({
       ok: true,
       value: {
         command: "runs-show",
@@ -1458,11 +1458,11 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments(["runs", "list", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["runs", "list", "--json"])).toEqual({
       ok: true,
       value: { command: "runs-list", json: true },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "runs",
       "reconcile",
       "00000000-0000-4000-8000-000000000000",
@@ -1478,7 +1478,7 @@ describe("wrench CLI grammar", () => {
         json: true,
       },
     });
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "runs",
       "reconcile",
       "00000000-0000-4000-8000-000000000000",
@@ -1490,11 +1490,11 @@ describe("wrench CLI grammar", () => {
         json: false,
       },
     });
-    expect(parseWrenchArguments(["plans", "list", "--json"])).toEqual({
+    expect(parseGhostgetArguments(["plans", "list", "--json"])).toEqual({
       ok: true,
       value: { command: "plans-list", json: true },
     });
-    expect(parseWrenchArguments(["plans", "cancel", "a".repeat(64), "--yes"])).toEqual({
+    expect(parseGhostgetArguments(["plans", "cancel", "a".repeat(64), "--yes"])).toEqual({
       ok: true,
       value: { command: "plans-cancel", digest: "a".repeat(64), yes: true },
     });
@@ -1503,7 +1503,7 @@ describe("wrench CLI grammar", () => {
   test("parses bounded explicit duplicate-risk source runs", () => {
     const first = "11111111-1111-4111-8111-111111111111";
     const second = "22222222-2222-4222-8222-222222222222";
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "invoke", "x-web", "posts.publish",
       "--input", "{}", "--auth", "x-main", "--preview",
       "--duplicate-risk-of", first,
@@ -1522,9 +1522,9 @@ describe("wrench CLI grammar", () => {
         "invoke", "x-web", "posts.publish", "--preview",
         ...values.flatMap((value) => ["--duplicate-risk-of", value]),
       ];
-      expect(parseWrenchArguments(raw).ok).toBeFalse();
+      expect(parseGhostgetArguments(raw).ok).toBeFalse();
     }
-    expect(parseWrenchArguments([
+    expect(parseGhostgetArguments([
       "thread", "publish", "x", "--adapter", "x-web", "--text", "hello",
       "--auth", "x-main", "--preview", "--duplicate-risk-of", first,
     ])).toEqual({
@@ -1534,19 +1534,19 @@ describe("wrench CLI grammar", () => {
   });
 
   test("preserves compatible action aliases", () => {
-    expect(parseWrenchArguments(["capture", "https://example.com"])).toEqual({
+    expect(parseGhostgetArguments(["capture", "https://example.com"])).toEqual({
       ok: true,
       value: { command: "clip", arguments: ["https://example.com"] },
     });
-    expect(parseWrenchArguments(["inspect", "https://example.com"])).toEqual({
+    expect(parseGhostgetArguments(["inspect", "https://example.com"])).toEqual({
       ok: true,
       value: { command: "read", arguments: ["https://example.com"] },
     });
-    expect(parseWrenchArguments(["auth", "forget", "linkedin", "--yes"])).toEqual({
+    expect(parseGhostgetArguments(["auth", "forget", "linkedin", "--yes"])).toEqual({
       ok: true,
       value: { command: "auth-remove", id: "linkedin", yes: true },
     });
-    expect(parseWrenchArguments(["derive", "begin", "linkedin", "https://www.linkedin.com"])).toEqual({
+    expect(parseGhostgetArguments(["derive", "begin", "linkedin", "https://www.linkedin.com"])).toEqual({
       ok: true,
       value: {
         command: "derive-start",
@@ -1749,13 +1749,13 @@ describe("wrench CLI grammar", () => {
       message: "unknown option",
     },
   ])("rejects invalid or ambiguous grammar: $arguments", ({ arguments: raw, message }) => {
-    const result = parseWrenchArguments(raw);
+    const result = parseGhostgetArguments(raw);
     expect(result.ok).toBeFalse();
     if (!result.ok) expect(result.message).toContain(message);
   });
 
   test("requires explicit profile-egress trust at the CLI boundary", () => {
-    const result = parseWrenchArguments([
+    const result = parseGhostgetArguments([
       "auth",
       "add",
       "linkedin-live",

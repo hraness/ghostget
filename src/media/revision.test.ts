@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import {
-  WRENCH_MEDIA_REVISION_CONTENT_PROFILE,
-  WRENCH_MEDIA_TRACKED_REVISION_PROFILE,
+  GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
+  GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE,
   parseRevisionItemLeaf,
   revisionContentSha256,
   revisionItemLeaf,
@@ -23,11 +23,11 @@ const artifact = (
 });
 
 const baseRevision = (overrides: Partial<MediaTrackedRevision> = {}): MediaTrackedRevision => ({
-  profile: WRENCH_MEDIA_TRACKED_REVISION_PROFILE,
+  profile: GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE,
   sequence: 1,
   subjectAssetKey: `source-v3-${"1".repeat(64)}`,
   content: {
-    profile: WRENCH_MEDIA_REVISION_CONTENT_PROFILE,
+    profile: GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
     sha256: "2".repeat(64),
   },
   ...overrides,
@@ -57,7 +57,7 @@ test("fingerprints retained provider inputs independent of order and derivatives
   ])).not.toBe(first);
 });
 
-test("fingerprints Wrench media's canonical UTF-8 text media type", () => {
+test("fingerprints Ghostget media's canonical UTF-8 text media type", () => {
   expect(revisionContentSha256([
     artifact("transcript_text", "7".repeat(64), {
       mediaType: "text/plain; charset=utf-8",
@@ -90,7 +90,7 @@ test("revision keys include sequence, predecessor presence, subject, and content
     subjectAssetKey: `variant-v1-${"3".repeat(64)}`,
   }))).not.toBe(key);
   expect(trackedRevisionAssetKey(baseRevision({
-    content: { profile: WRENCH_MEDIA_REVISION_CONTENT_PROFILE, sha256: "4".repeat(64) },
+    content: { profile: GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE, sha256: "4".repeat(64) },
   }))).not.toBe(key);
 });
 

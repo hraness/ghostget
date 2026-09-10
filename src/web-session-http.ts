@@ -4,7 +4,7 @@ import {
   type CookieSelection,
 } from "@hraness/kb/clip/acquire";
 import { renderCookieHeader, type StrictCookie } from "@hraness/kb/clip/cookies";
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import type { OperationInput } from "./model";
 import { pinnedHttpsFetch } from "./pinned-https";
 import {
@@ -61,7 +61,7 @@ function requestInputUrl(input: string | URL | Request): URL {
   return new URL(input);
 }
 
-function cookieSelection(auth: WrenchAuth, timeoutMs: number): CookieSelection {
+function cookieSelection(auth: GhostgetAuth, timeoutMs: number): CookieSelection {
   if (auth.kind === "cookie-source") {
     return {
       cookieSources: [auth.source],
@@ -297,7 +297,7 @@ function parseProjectedResponse(
 export async function executeWebSessionTemplate(
   template: WebSessionTemplate,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs: number;
     readonly dependencies?: Partial<WebSessionHttpDependencies>;

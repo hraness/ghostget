@@ -1,4 +1,4 @@
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import type { BrowserFileResolver } from "./browser";
 import {
   getProviderContract,
@@ -15,7 +15,7 @@ import type {
   FileInputValue,
   OperationInput,
   ProviderRecipe,
-  WrenchManifest,
+  GhostgetManifest,
 } from "./model";
 import {
   OperationDeadline,
@@ -87,10 +87,10 @@ export function requireExecutableProviderOperation(
 
 /** Execute one fixed, code-owned official-provider contract. */
 export async function executeProviderOperation(
-  manifest: WrenchManifest,
+  manifest: GhostgetManifest,
   recipe: ProviderRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly fetch?: ProviderFetch;
     /** Deterministic seam for the production DNS-pinned default transport. */

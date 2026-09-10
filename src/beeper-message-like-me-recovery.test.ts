@@ -56,7 +56,7 @@ function recoveryFixture(name: string): Readonly<{
   const target = join(parent, "working");
   mkdirSync(target, { mode: 0o700 });
   return Object.freeze({
-    environment: Object.freeze({ WRENCH_STATE_HOME: join(root, "state") }),
+    environment: Object.freeze({ GHOSTGET_STATE_HOME: join(root, "state") }),
     outputRoot: join(parent, "published"),
     parent,
     root,
@@ -295,7 +295,7 @@ describe("Beeper Message Like Me export admission", () => {
         markBeeperMessageLikeMeHelperCleanupUnsafe,
       } from ${JSON.stringify(moduleUrl)};
       const environment = Object.freeze({
-        WRENCH_STATE_HOME: ${JSON.stringify(fixture.environment.WRENCH_STATE_HOME)},
+        GHOSTGET_STATE_HOME: ${JSON.stringify(fixture.environment.GHOSTGET_STATE_HOME)},
       });
       const admission = acquireBeeperMessageLikeMeExportAdmission({ environment });
       beginBeeperMessageLikeMeHelperLaunch(admission);
@@ -460,7 +460,7 @@ describe("Beeper Message Like Me export admission", () => {
           releaseBeeperMessageLikeMeExportAdmission,
         } from ${JSON.stringify(moduleUrl)};
         const environment = Object.freeze({
-          WRENCH_STATE_HOME: ${JSON.stringify(fixture.environment.WRENCH_STATE_HOME)},
+          GHOSTGET_STATE_HOME: ${JSON.stringify(fixture.environment.GHOSTGET_STATE_HOME)},
         });
         writeFileSync(${JSON.stringify(ready)}, "ready\\n", { mode: 0o600 });
         while (!existsSync(${JSON.stringify(barrier)})) await Bun.sleep(5);

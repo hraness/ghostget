@@ -1,6 +1,6 @@
 /** Self-contained DTO types for the side-effect-free Apple Photos client. */
 
-import type { WRENCH_VERSION } from "./version";
+import type { GHOSTGET_VERSION } from "./version";
 
 export type ApplePhotosContactEvidence = Readonly<{
   photosPersonId: string;
@@ -104,8 +104,8 @@ export type ApplePhotosContactEvidenceExportReceipt = Readonly<{
   transport: "local-sqlite-vacuum-capture";
   implementation: Readonly<{
     producer: Readonly<{
-      package: "@hraness/wrench";
-      version: typeof WRENCH_VERSION;
+      package: "@hraness/ghostget";
+      version: typeof GHOSTGET_VERSION;
     }>;
     source: Readonly<{
       id: "apple-photos-local";

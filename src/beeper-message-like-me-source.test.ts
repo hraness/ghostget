@@ -19,7 +19,7 @@ import { join } from "node:path";
 
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { exportBeeperMessageLikeMeBundle } from "./beeper-message-like-me-export";
 import {
   assertUniqueOfficialAccountSelector,
@@ -78,7 +78,7 @@ function configStore(parent: string): string {
   return path;
 }
 
-function auth(path: string): WrenchAuth {
+function auth(path: string): GhostgetAuth {
   return {
     schemaVersion: 1,
     id: "beeper-export-fixture",
@@ -691,7 +691,7 @@ describe("Beeper Message Like Me source", () => {
     const parent = privateDirectory("wrench-beeper-fast-child-test.");
     const working = join(parent, "working");
     mkdirSync(working, { mode: 0o700 });
-    const environment = { WRENCH_STATE_HOME: join(parent, "state") };
+    const environment = { GHOSTGET_STATE_HOME: join(parent, "state") };
     const nowMs = Date.now();
     const lease = await createBeeperMessageLikeMeDirectoryLease({
       role: "raw-working",

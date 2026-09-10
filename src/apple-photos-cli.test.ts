@@ -6,7 +6,7 @@ import {
   type ApplePhotosContactEvidenceProgressEvent,
 } from "./apple-photos-cli";
 import { createApplePhotosContactEvidenceExportResult } from "./apple-photos-contact-evidence";
-import { main } from "./wrench";
+import { main } from "./ghostget";
 
 function capture() {
   const stdout: string[] = [];

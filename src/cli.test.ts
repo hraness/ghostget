@@ -16,19 +16,19 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  isImmediateWrenchHelpRequest,
-  isImmediateWrenchVersionRequest,
-  isPublicWrenchCommand,
-  routedWrenchCatalogCommand,
-  runWrenchCliProcess,
+  isImmediateGhostgetHelpRequest,
+  isImmediateGhostgetVersionRequest,
+  isPublicGhostgetCommand,
+  routedGhostgetCatalogCommand,
+  runGhostgetCliProcess,
 } from "./cli";
-import { wrenchUsage } from "./usage";
-import { WRENCH_VERSION } from "./version";
+import { ghostgetUsage } from "./usage";
+import { GHOSTGET_VERSION } from "./version";
 
 const repositoryRoot = process.cwd();
 const sourcePackageRoot = join(import.meta.dir, "..");
 const cliPath = join(import.meta.dir, "cli.ts");
-const wrenchPath = join(import.meta.dir, "wrench.ts");
+const ghostgetPath = join(import.meta.dir, "ghostget.ts");
 
 function exactPathPattern(path: string): string {
   return `^${path.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}$`;
@@ -64,14 +64,14 @@ async function runProcess(
   return { exitCode, stdout, stderr };
 }
 
-describe("lazy wrench CLI entrypoint", () => {
-  test("renders every valid top-level help spelling without loading wrench.ts", async () => {
+describe("lazy ghostget CLI entrypoint", () => {
+  test("renders every valid top-level help spelling without loading ghostget.ts", async () => {
     const previousExitCode = process.exitCode;
     try {
       for (const rawArguments of [[], ["help"], ["--help"], ["-h"]]) {
         let loaded = 0;
         let stdout = "";
-        await runWrenchCliProcess(
+        await runGhostgetCliProcess(
           rawArguments,
           { stdout: (value) => { stdout += value; } },
           () => {
@@ -79,7 +79,7 @@ describe("lazy wrench CLI entrypoint", () => {
             throw new Error("the full CLI graph must stay lazy for help");
           },
         );
-        expect(stdout).toBe(wrenchUsage);
+        expect(stdout).toBe(ghostgetUsage);
         expect(loaded).toBe(0);
       }
     } finally {
@@ -96,27 +96,27 @@ describe("lazy wrench CLI entrypoint", () => {
         loaded += 1;
         throw new Error("the command graph must stay lazy for --version");
       };
-      await runWrenchCliProcess(
+      await runGhostgetCliProcess(
         ["--version"],
         { stdout: (value) => { stdout += value; } },
         forbiddenLoader,
         forbiddenLoader,
         forbiddenLoader,
       );
-      expect(stdout).toBe(`${WRENCH_VERSION}\n`);
+      expect(stdout).toBe(`${GHOSTGET_VERSION}\n`);
       expect(loaded).toBe(0);
       expect(process.exitCode).toBe(0);
-      expect(isImmediateWrenchVersionRequest(["--version"])).toBeTrue();
+      expect(isImmediateGhostgetVersionRequest(["--version"])).toBeTrue();
       for (const rawArguments of [
         ["version"],
         ["-V"],
         ["--version", "extra"],
-      ]) expect(isImmediateWrenchVersionRequest(rawArguments)).toBeFalse();
+      ]) expect(isImmediateGhostgetVersionRequest(rawArguments)).toBeFalse();
 
       const packageJson = JSON.parse(
         readFileSync(join(sourcePackageRoot, "package.json"), "utf8"),
       ) as { readonly version?: unknown };
-      expect(packageJson.version).toBe(WRENCH_VERSION);
+      expect(packageJson.version).toBe(GHOSTGET_VERSION);
 
       const rejected = await runProcess(cliPath, ["--version", "extra"], process.env);
       expect(rejected).toMatchObject({ exitCode: 2, stdout: "" });
@@ -135,11 +135,11 @@ describe("lazy wrench CLI entrypoint", () => {
         ["doctor", "--json"],
         ["operator", "doctor", "--json"],
       ]) {
-        await runWrenchCliProcess(
+        await runGhostgetCliProcess(
           rawArguments,
           { stdout: () => undefined },
           () => Promise.resolve({
-            runWrenchProcess: (overrides) => {
+            runGhostgetProcess: (overrides) => {
               runs += 1;
               received.push([...(overrides?.rawArguments ?? [])]);
               return Promise.resolve();
@@ -158,7 +158,7 @@ describe("lazy wrench CLI entrypoint", () => {
         ["doctor", "--json"],
         ["doctor", "--json"],
       ]);
-      expect(isImmediateWrenchHelpRequest(["help", "extra"])).toBeFalse();
+      expect(isImmediateGhostgetHelpRequest(["help", "extra"])).toBeFalse();
     } finally {
       process.exitCode = previousExitCode;
     }
@@ -173,7 +173,7 @@ describe("lazy wrench CLI entrypoint", () => {
         ["adapters", "--json"],
         ["url-metadata", "--help"],
       ] as const) {
-        await runWrenchCliProcess(
+        await runGhostgetCliProcess(
           rawArguments,
           { stdout: () => undefined, stderr: () => undefined },
           () => {
@@ -199,12 +199,12 @@ describe("lazy wrench CLI entrypoint", () => {
         ["url-metadata", "--help"],
       ]);
       expect(process.exitCode).toBe(6);
-      expect(isPublicWrenchCommand(["doctor"])).toBeFalse();
-      expect(isPublicWrenchCommand(["inspect"])).toBeFalse();
-      expect(isPublicWrenchCommand(["operator", "doctor"])).toBeFalse();
-      expect(isPublicWrenchCommand(["url-metadata", "backfill"])).toBeTrue();
-      expect(wrenchUsage).toContain(
-        "wrench url-metadata backfill [metadata-options]",
+      expect(isPublicGhostgetCommand(["doctor"])).toBeFalse();
+      expect(isPublicGhostgetCommand(["inspect"])).toBeFalse();
+      expect(isPublicGhostgetCommand(["operator", "doctor"])).toBeFalse();
+      expect(isPublicGhostgetCommand(["url-metadata", "backfill"])).toBeTrue();
+      expect(ghostgetUsage).toContain(
+        "ghostget url-metadata backfill [metadata-options]",
       );
     } finally {
       process.exitCode = previousExitCode ?? 0;
@@ -212,16 +212,16 @@ describe("lazy wrench CLI entrypoint", () => {
   });
 
   test("routes only complete capabilities and plugin inspection shapes", async () => {
-    expect(routedWrenchCatalogCommand(["capabilities", "--json"])).toEqual({
+    expect(routedGhostgetCatalogCommand(["capabilities", "--json"])).toEqual({
       command: "capabilities",
       json: true,
     });
-    expect(routedWrenchCatalogCommand(["adapters", "example", "--json"])).toBeNull();
-    expect(routedWrenchCatalogCommand(["plugins", "list"])).toEqual({
+    expect(routedGhostgetCatalogCommand(["adapters", "example", "--json"])).toBeNull();
+    expect(routedGhostgetCatalogCommand(["plugins", "list"])).toEqual({
       command: "plugin-list",
       json: false,
     });
-    expect(routedWrenchCatalogCommand([
+    expect(routedGhostgetCatalogCommand([
       "plugin",
       "show",
       "x-official",
@@ -238,7 +238,7 @@ describe("lazy wrench CLI entrypoint", () => {
       ["plugin", "list", "extra"],
       ["plugin", "doctor", "--json"],
     ]) {
-      expect(routedWrenchCatalogCommand(arguments_)).toBeNull();
+      expect(routedGhostgetCatalogCommand(arguments_)).toBeNull();
     }
 
     const previousExitCode = process.exitCode;
@@ -246,17 +246,17 @@ describe("lazy wrench CLI entrypoint", () => {
       let processLoads = 0;
       let catalogLoads = 0;
       let routedCommand: unknown;
-      await runWrenchCliProcess(
+      await runGhostgetCliProcess(
         ["plugin", "list", "--json"],
         { stdout: () => undefined },
         () => {
           processLoads += 1;
-          throw new Error("catalog inspection must not load wrench.ts");
+          throw new Error("catalog inspection must not load ghostget.ts");
         },
         () => {
           catalogLoads += 1;
           return Promise.resolve({
-            runWrenchCatalogCommand: (command) => {
+            runGhostgetCatalogCommand: (command) => {
               routedCommand = command;
               return Promise.resolve(7);
             },
@@ -292,18 +292,18 @@ describe("lazy wrench CLI entrypoint", () => {
 
 const commands = ${JSON.stringify(commands)};
 const stateRoot = ${JSON.stringify(root)};
-const { runWrenchCliProcess } = await import(${JSON.stringify(cliPath)});
-const { runWrenchProcess } = await import(${JSON.stringify(wrenchPath)});
+const { runGhostgetCliProcess } = await import(${JSON.stringify(cliPath)});
+const { runGhostgetProcess } = await import(${JSON.stringify(ghostgetPath)});
 const previousExitCode = process.exitCode;
-const previousStateHome = process.env.WRENCH_STATE_HOME;
+const previousStateHome = process.env.GHOSTGET_STATE_HOME;
 const results = [];
 try {
   for (const [index, arguments_] of commands.entries()) {
     let stdout = "";
     let stderr = "";
-    process.env.WRENCH_STATE_HOME = join(stateRoot, "routed-state-" + index);
+    process.env.GHOSTGET_STATE_HOME = join(stateRoot, "routed-state-" + index);
     process.exitCode = 0;
-    await runWrenchCliProcess(arguments_, {
+    await runGhostgetCliProcess(arguments_, {
       stdout: (value) => { stdout += value; },
       stderr: (value) => { stderr += value; },
     });
@@ -316,9 +316,9 @@ try {
     stdout = "";
     stderr = "";
     let canonicalExitCode;
-    process.env.WRENCH_STATE_HOME = join(stateRoot, "canonical-state-" + index);
+    process.env.GHOSTGET_STATE_HOME = join(stateRoot, "canonical-state-" + index);
     process.exitCode = 0;
-    await runWrenchProcess({
+    await runGhostgetProcess({
       rawArguments: arguments_,
       environment: process.env,
       output: {
@@ -328,7 +328,7 @@ try {
       setExitCode: (value) => { canonicalExitCode = value; },
     });
     if (canonicalExitCode === undefined) {
-      throw new Error("canonical Wrench process did not publish an exit code");
+      throw new Error("canonical Ghostget process did not publish an exit code");
     }
     results.push({
       arguments: arguments_,
@@ -339,8 +339,8 @@ try {
   process.stdout.write(JSON.stringify(results));
 } finally {
   process.exitCode = previousExitCode ?? 0;
-  if (previousStateHome === undefined) delete process.env.WRENCH_STATE_HOME;
-  else process.env.WRENCH_STATE_HOME = previousStateHome;
+  if (previousStateHome === undefined) delete process.env.GHOSTGET_STATE_HOME;
+  else process.env.GHOSTGET_STATE_HOME = previousStateHome;
 }
 `,
         { mode: 0o600 },
@@ -431,18 +431,18 @@ Bun.plugin({
   name: "wrench-private-module-sentinel",
   setup(build) {
     build.onLoad({ filter: forbidden }, ({ path }) => {
-      throw new Error(\`forbidden eager Wrench module loaded: \${path}\`);
+      throw new Error(\`forbidden eager Ghostget module loaded: \${path}\`);
     });
   },
 });
-const { runWrenchCliProcess } = await import(${JSON.stringify(cliPath)});
+const { runGhostgetCliProcess } = await import(${JSON.stringify(cliPath)});
 const output = { stdout: () => undefined, stderr: () => undefined };
-await runWrenchCliProcess(["plugin", "show", "x-official", "--json"], output);
+await runGhostgetCliProcess(["plugin", "show", "x-official", "--json"], output);
 if (process.exitCode !== 0) {
   throw new Error("routed catalog command failed before the loader sentinel completed");
 }
 console.error("routed catalog graph stayed isolated");
-await runWrenchCliProcess(["operator", "doctor", "--json"], output);
+await runGhostgetCliProcess(["operator", "doctor", "--json"], output);
 throw new Error("private fallback did not load a forbidden module");
 `,
         { mode: 0o600 },
@@ -457,13 +457,13 @@ throw new Error("private fallback did not load a forbidden module");
         [],
         {
           ...process.env,
-          WRENCH_STATE_HOME: join(root, "sentinel-state"),
+          GHOSTGET_STATE_HOME: join(root, "sentinel-state"),
         },
       );
       expect(result.exitCode).not.toBe(0);
       expect(result.stderr).toContain("routed catalog graph stayed isolated");
       expect(result.stderr)
-        .toContain("forbidden eager Wrench module loaded");
+        .toContain("forbidden eager Ghostget module loaded");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -471,15 +471,15 @@ throw new Error("private fallback did not load a forbidden module");
 
   test("has only static help and release identity as eager dependencies and bounds startup CPU work", async () => {
     const source = readFileSync(cliPath, "utf8");
-    expect(source).toContain('import { wrenchUsage } from "./usage"');
-    expect(source).toContain('import { WRENCH_VERSION } from "./version"');
-    expect(source).toContain('import("./wrench")');
+    expect(source).toContain('import { ghostgetUsage } from "./usage"');
+    expect(source).toContain('import { GHOSTGET_VERSION } from "./version"');
+    expect(source).toContain('import("./ghostget")');
     expect(source).toContain('import("./catalog-cli")');
-    expect(source).not.toContain('from "./wrench"');
+    expect(source).not.toContain('from "./ghostget"');
     const packageJson = JSON.parse(
       readFileSync(join(sourcePackageRoot, "package.json"), "utf8"),
     ) as { readonly bin?: Readonly<Record<string, string>> };
-    expect(packageJson.bin?.wrench).toMatch(/^\.?\/src\/cli\.ts$/u);
+    expect(packageJson.bin?.ghostget).toMatch(/^\.?\/src\/cli\.ts$/u);
 
     const child = Bun.spawn([process.execPath, cliPath, "--help"], {
       cwd: repositoryRoot,
@@ -493,7 +493,7 @@ throw new Error("private fallback did not load a forbidden module");
     ]);
     const resourceUsage = child.resourceUsage();
     expect(exitCode).toBe(0);
-    expect(stdout).toBe(wrenchUsage);
+    expect(stdout).toBe(ghostgetUsage);
     expect(stderr).toBe("");
     expect(resourceUsage).toBeDefined();
     expect(Number(resourceUsage?.cpuTime.total ?? Number.POSITIVE_INFINITY))

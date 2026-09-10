@@ -95,8 +95,8 @@ export type BeeperContactInteractionExportReceipt = Readonly<{
   transport: "linked-device";
   implementation: Readonly<{
     producer: Readonly<{
-      package: "@hraness/wrench";
-      version: "0.16.17";
+      package: "@hraness/ghostget";
+      version: "0.17.0";
     }>;
     officialCli: Readonly<{
       implementation: "github.com/beeper/cli";

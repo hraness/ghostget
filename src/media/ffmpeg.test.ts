@@ -170,7 +170,7 @@ describe("parseFfprobeJson", () => {
 });
 
 describe("parseNormalizedPcmWaveHeader", () => {
-  test("accepts only Wrench media's exact nonempty 16 kHz mono signed-16-bit WAV envelope", () => {
+  test("accepts only Ghostget media's exact nonempty 16 kHz mono signed-16-bit WAV envelope", () => {
     const wave = normalizedPcmWave(8);
     expect(parseNormalizedPcmWaveHeader(wave.subarray(0, 44), wave.byteLength)).toEqual({
       ok: true,

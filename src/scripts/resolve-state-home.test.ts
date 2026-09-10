@@ -73,7 +73,7 @@ async function runResolver(
 describe("installer state-home resolver", () => {
   test("claims a fresh root, creates the private runtime path, and reopens it", async () => {
     const value = fixture();
-    const stateRoot = join(value.dataRoot, "wrench");
+    const stateRoot = join(value.dataRoot, "ghostget");
     const runtimeRoot = join(stateRoot, "tools", "wacli", runtimeVersion);
 
     const first = await runResolver(value.environment);
@@ -92,7 +92,7 @@ describe("installer state-home resolver", () => {
   });
 
   test("continues each lone populated predecessor root without rewriting its data", async () => {
-    for (const name of ["oh", "io"] as const) {
+    for (const name of ["wrench", "oh", "io"] as const) {
       const value = fixture();
       const legacyRoot = join(value.dataRoot, name);
       const plans = join(legacyRoot, "plans");
@@ -163,7 +163,7 @@ describe("installer state-home resolver", () => {
 
   test("fails closed without mutation when current and predecessor defaults coexist", async () => {
     const value = fixture();
-    const currentRoot = join(value.dataRoot, "wrench");
+    const currentRoot = join(value.dataRoot, "ghostget");
     const legacyRoot = join(value.dataRoot, "oh");
     mkdirSync(currentRoot, { mode: 0o700 });
     mkdirSync(legacyRoot, { mode: 0o700 });
@@ -173,7 +173,7 @@ describe("installer state-home resolver", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
-    expect(result.stderr).toContain("multiple Wrench and legacy state roots exist");
+    expect(result.stderr).toContain("multiple Ghostget and legacy state roots exist");
     expect(readdirSync(value.dataRoot).sort()).toEqual(before);
     expect(readdirSync(currentRoot)).toEqual([]);
     expect(readdirSync(legacyRoot)).toEqual([]);
@@ -199,7 +199,7 @@ describe("installer state-home resolver", () => {
       ...value.environment,
       IO_HOME: selected,
       OH_STATE_HOME: selected,
-      WRENCH_STATE_HOME: selected,
+      GHOSTGET_STATE_HOME: selected,
     });
     expect(matching).toEqual({ exitCode: 0, stderr: "", stdout: `${selected}\n` });
     expect(readFileSync(join(selected, ".io-state.json"), "utf8"))

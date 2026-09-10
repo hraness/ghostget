@@ -12,7 +12,7 @@ import {
   materializeArticleDraftImages,
   type BoundArticleDraftImage,
 } from "../article-draft-images";
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import {
   browserCleanupBarrier,
   type BrowserFileResolver,
@@ -116,7 +116,7 @@ export type XWebRuntimeDependencies = Partial<WebSessionNetworkDependencies>
     };
 
 type XBootstrap = {
-  readonly auth: WrenchAuth;
+  readonly auth: GhostgetAuth;
   readonly client: WebSessionClient;
   readonly html: string;
   readonly mainUrl: URL;
@@ -626,7 +626,7 @@ function currentFeatureConfig(html: string): ReadonlyMap<string, unknown> {
 }
 
 async function bootstrapX(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   recipe: WebSessionRecipe,
   dependencies?: XWebRuntimeDependencies,
   budget: {
@@ -975,7 +975,7 @@ async function viewer(bootstrap: XBootstrap): Promise<Viewer> {
 }
 
 export async function probeXWebSubject(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs?: number;
     readonly dependencies?: XWebRuntimeDependencies;
@@ -994,7 +994,7 @@ export async function probeXWebSubject(
   return (await viewer(bootstrap)).id;
 }
 
-async function requireBoundViewer(bootstrap: XBootstrap, auth: WrenchAuth): Promise<Viewer> {
+async function requireBoundViewer(bootstrap: XBootstrap, auth: GhostgetAuth): Promise<Viewer> {
   const expected = webSessionAuthSubject(auth);
   if (expected === null) {
     throw new Error("X personalized operations require an auth locator bound to the exact viewer subject");
@@ -1287,7 +1287,7 @@ function parseXWebPublishedMutationTarget(
 export async function readXWebPublishedMutationTarget(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   identifier: string,
   options: {
     readonly dependencies?: XWebRuntimeDependencies;
@@ -1350,7 +1350,7 @@ async function desiredStateReadback(
 export async function readXWebDesiredState(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly dependencies?: XWebRuntimeDependencies;
   } = {},
@@ -1372,7 +1372,7 @@ export async function readXWebDesiredState(
 export async function readXWebArticleDraftDesiredState(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly dependencies?: XWebRuntimeDependencies;
   } = {},
@@ -2270,7 +2270,7 @@ function createTweetVariables(
   mediaId: string | null,
 ): Readonly<Record<string, unknown>> {
   // The reviewed CreateTweet contract has no made_with_ai or content_disclosure
-  // input. Keep semantic_annotation_ids empty so the Wrench-owned transport
+  // input. Keep semantic_annotation_ids empty so the Ghostget-owned transport
   // cannot inherit a composer AI annotation.
   return {
     tweet_text: text,
@@ -2773,7 +2773,7 @@ async function executePrivateArticleDraftRead(
   bootstrap: XBootstrap,
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
 ): Promise<WebSessionExecution> {
   if (
     recipe.site !== "x"
@@ -2920,7 +2920,7 @@ async function executePublish(
   bootstrap: XBootstrap,
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;
@@ -3057,7 +3057,7 @@ async function executeArticleDraftSave(
   bootstrap: XBootstrap,
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly beforeDispatch?: (event: WebSessionDispatchEvent) => Promise<void>;
     readonly afterDispatchVerified?: (event: WebSessionDispatchEvent) => Promise<void>;
@@ -3282,7 +3282,7 @@ async function executeDesiredState(
   bootstrap: XBootstrap,
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;
@@ -3367,7 +3367,7 @@ async function executeDesiredState(
 export async function executeXWebOperation(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;

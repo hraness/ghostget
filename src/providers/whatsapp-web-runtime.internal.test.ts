@@ -21,7 +21,7 @@ import { Database } from "bun:sqlite";
 import {
   createAuth,
   parseAuth,
-  type WrenchAuth,
+  type GhostgetAuth,
 } from "../auth";
 import type { OperationInput, WebSessionRecipe } from "../model";
 import {
@@ -215,7 +215,7 @@ function createContactStore(): string {
   chmodSync(databasePath, 0o600);
   return path;
 }
-function auth(path: string, subject?: string): WrenchAuth {
+function auth(path: string, subject?: string): GhostgetAuth {
   return {
     schemaVersion: 1,
     id: "whatsapp-test",
@@ -320,7 +320,7 @@ describe("WhatsApp linked-device auth storage", () => {
     const stateHome = mkdtempSync(join(tmpdir(), "wrench-whatsapp-runtime-status-"));
     try {
       const status = await inspectWhatsAppProtocolRuntime({
-        WRENCH_STATE_HOME: stateHome,
+        GHOSTGET_STATE_HOME: stateHome,
       });
       expect(status.ready).toBe(false);
       expect(status.integrity).toBe(

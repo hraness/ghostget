@@ -29,7 +29,7 @@ const TEST_REQUEST_DESCRIPTOR = defineMetaOperationDescriptor({
   platform: "facebook",
   kind: "query",
   operationType: "query",
-  friendlyName: "WrenchTestProofQuery",
+  friendlyName: "GhostgetTestProofQuery",
   docId: "12345678901234567",
   origin: META_RELAY_ORIGINS.facebook,
   method: "POST",
@@ -344,7 +344,7 @@ describe("Facebook Comet bootstrap proof model", () => {
     const subsetDescriptor = defineMetaOperationDescriptor({
       ...TEST_REQUEST_DESCRIPTOR,
       id: "facebook.test-proof-subset-query",
-      friendlyName: "WrenchTestProofSubsetQuery",
+      friendlyName: "GhostgetTestProofSubsetQuery",
       docId: "12345678901234568",
       proofs: TEST_REQUEST_DESCRIPTOR.proofs.filter(({ kind }) =>
         kind === "viewer" || kind === "actor"),

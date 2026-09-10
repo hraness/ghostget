@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { canonicalJson, sha256 } from "./canonical-json";
 import {
   createBeeperContactInteractionExportResult,
@@ -31,7 +31,7 @@ export type BeeperContactInteractionCliProgress =
   | BeeperContactInteractionProgress;
 
 export type BeeperContactInteractionCliRequest = Readonly<{
-  auth: WrenchAuth;
+  auth: GhostgetAuth;
   limits?: BeeperMessageLikeMeSourceLimits;
   environment?: Readonly<Record<string, string | undefined>>;
   signal?: AbortSignal;

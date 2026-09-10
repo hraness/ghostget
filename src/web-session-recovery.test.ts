@@ -15,7 +15,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createAuth, saveAuth, type WrenchAuth } from "./auth";
+import { createAuth, saveAuth, type GhostgetAuth } from "./auth";
 import { canonicalJson, sha256, type OperationInput, type WebSessionRecipe } from "./model";
 import {
   listReconciliationObservations,
@@ -82,10 +82,10 @@ type RecoveryOperation =
 function state(): TestState {
   const directory = mkdtempSync(join(tmpdir(), "wrench-web-recovery-test-"));
   chmodSync(directory, 0o700);
-  return { directory, environment: { WRENCH_STATE_HOME: directory } };
+  return { directory, environment: { GHOSTGET_STATE_HOME: directory } };
 }
 
-function xAuth(profile = "Profile 1"): WrenchAuth {
+function xAuth(profile = "Profile 1"): GhostgetAuth {
   return createAuth("x-main", {
     source: "arc",
     profile,
@@ -134,7 +134,7 @@ function desiredInput(operation: RecoveryOperation): OperationInput {
 }
 
 function receipt(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly operation?: RecoveryOperation;
     readonly legacy?: boolean;
@@ -235,7 +235,7 @@ function installCurrentRun(
   testState: TestState,
   operation: RecoveryOperation = "content.save",
 ): {
-  readonly auth: WrenchAuth;
+  readonly auth: GhostgetAuth;
   readonly input: OperationInput;
   readonly receipt: Extract<RunReceipt, { readonly schemaVersion: 4 }>;
   readonly receiptPath: string;
@@ -1040,7 +1040,7 @@ describe("web-session run reconciliation", () => {
       const calls: Array<{
         readonly recipe: WebSessionRecipe;
         readonly input: OperationInput;
-        readonly auth: WrenchAuth;
+        readonly auth: GhostgetAuth;
       }> = [];
 
       const result = await reconcileWebSessionRun(RUN_ID, undefined, {
@@ -1833,7 +1833,7 @@ describe("web-session run reconciliation", () => {
 
       expect(message).toContain("unsupported authenticated session contract hash");
       expect(message).toContain("were retained");
-      expect(message).toContain("`wrench doctor`");
+      expect(message).toContain("`ghostget doctor`");
       expect(message).toContain("exact predecessor build");
       expect(message).toContain("manual evidence review");
       expect(reads).toBe(0);

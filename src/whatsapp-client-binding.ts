@@ -4,7 +4,7 @@ import type {
 } from "./whatsapp-client-types";
 
 function fail(message: string): never {
-  throw new Error(`Wrench WhatsApp client: ${message}`);
+  throw new Error(`Ghostget WhatsApp client: ${message}`);
 }
 
 export function requireWhatsAppMessageLikeMeReceiptRequestBinding(

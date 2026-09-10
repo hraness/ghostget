@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { BrowserSession, CreateBrowserSessionOptions, createBrowserSession } from "../browser";
-import type { WrenchManifest } from "../model";
+import type { GhostgetManifest } from "../model";
 import {
   OperationDeadline,
   type OperationDeadlineClock,
@@ -29,7 +29,7 @@ const cookieAuth = {
   source: "arc",
   profile: "Profile 1",
   subject: "123456789012345678",
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 class FakeMonotonicClock implements OperationDeadlineClock {
   #nowMs = 0;
@@ -77,8 +77,8 @@ function fakeBrowser(options: FakeBrowserOptions = {}): {
   readonly batchTimeouts: number[];
   readonly lifecycle: { created: number; closed: number; cleaned: number; evaluations: number };
   readonly creation: {
-    manifest: WrenchManifest | null;
-    auth: WrenchAuth | null;
+    manifest: GhostgetManifest | null;
+    auth: GhostgetAuth | null;
     options: CreateBrowserSessionOptions | null;
   };
 } {
@@ -86,8 +86,8 @@ function fakeBrowser(options: FakeBrowserOptions = {}): {
   const batchTimeouts: number[] = [];
   const lifecycle = { created: 0, closed: 0, cleaned: 0, evaluations: 0 };
   const creation: {
-    manifest: WrenchManifest | null;
-    auth: WrenchAuth | null;
+    manifest: GhostgetManifest | null;
+    auth: GhostgetAuth | null;
     options: CreateBrowserSessionOptions | null;
   } = { manifest: null, auth: null, options: null };
   const createSession: typeof createBrowserSession = (manifest, auth, sessionOptions) => {
@@ -140,7 +140,7 @@ function fakeBrowser(options: FakeBrowserOptions = {}): {
 }
 
 function generate(fake: ReturnType<typeof fakeBrowser>, overrides: Partial<{
-  readonly auth: WrenchAuth;
+  readonly auth: GhostgetAuth;
   readonly mainBundleText: string;
   readonly mainBundleUrl: string;
   readonly method: "POST";
@@ -377,7 +377,7 @@ describe("X client transaction browser bootstrap", () => {
 
   test("converts a hybrid profile to target-filtered cookie auth", async () => {
     const fake = fakeBrowser();
-    const auth: WrenchAuth = {
+    const auth: GhostgetAuth = {
       schemaVersion: 1,
       id: "x-hybrid",
       kind: "browser-profile",
@@ -399,7 +399,7 @@ describe("X client transaction browser bootstrap", () => {
   });
 
   test("rejects unsupported auth, method, path, and asset origin before launch", async () => {
-    const unsupportedAuth: WrenchAuth = {
+    const unsupportedAuth: GhostgetAuth = {
       schemaVersion: 1,
       id: "profile-only",
       kind: "browser-profile",

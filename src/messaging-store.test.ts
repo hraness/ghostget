@@ -35,7 +35,7 @@ function state(): {
   const root = mkdtempSync(join(tmpdir(), "wrench-messaging-store-"));
   chmodSync(root, 0o700);
   roots.push(root);
-  return { root, environment: { ...process.env, WRENCH_STATE_HOME: root } };
+  return { root, environment: { ...process.env, GHOSTGET_STATE_HOME: root } };
 }
 
 function route(reference = "wmroute_ABCDEFGHIJKLMNOPQRSTUV"): MessagingRouteRecordV1 {

@@ -39,7 +39,7 @@ export function normalizeWhisperCppLanguage(value: unknown): string | null {
 
 /**
  * whisper.cpp accepts its own short language identifiers, not regional BCP-47
- * tags. Wrench media keeps the complete requested tag in provenance and cache identity,
+ * tags. Ghostget media keeps the complete requested tag in provenance and cache identity,
  * while the native CLI receives only its normalized primary language subtag.
  */
 export function whisperCppLanguageArgument(value: unknown): string | null {

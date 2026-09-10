@@ -6,98 +6,99 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#f5f3ed" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0e1113" media="(prefers-color-scheme: dark)">
-    <title>Install Wrench: CLI and TypeScript SDK getting started guide</title>
-    <meta name="description" content="Install Wrench with Bun, verify local readiness, capture a first URL, and inspect the exact capabilities available on your machine.">
+    <title>Install Ghostget: CLI and TypeScript SDK getting started guide</title>
+    <meta name="description" content="Install Ghostget with Bun, verify local readiness, capture a first URL, and inspect the exact capabilities available on your machine.">
     <meta name="robots" content="max-image-preview:large">
-    <link rel="canonical" href="https://wrench.rip/getting-started/">
+    <link rel="canonical" href="https://ghostget.com/getting-started/">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="{{CSS_ASSET}}">
     <link rel="sitemap" type="application/xml" href="/sitemap.xml">
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
-    <meta property="og:site_name" content="Wrench">
-    <meta property="og:title" content="Install Wrench: CLI and TypeScript SDK getting started guide">
-    <meta property="og:description" content="Install Wrench with Bun, verify local readiness, capture a first URL, and inspect the exact capabilities available on your machine.">
-    <meta property="og:url" content="https://wrench.rip/getting-started/">
-    <meta property="og:image" content="https://wrench.rip/og.png">
-    <meta property="og:image:alt" content="Wrench: precise web capabilities for AI agents">
+    <meta property="og:site_name" content="Ghostget">
+    <meta property="og:title" content="Install Ghostget: CLI and TypeScript SDK getting started guide">
+    <meta property="og:description" content="Install Ghostget with Bun, verify local readiness, capture a first URL, and inspect the exact capabilities available on your machine.">
+    <meta property="og:url" content="https://ghostget.com/getting-started/">
+    <meta property="og:image" content="https://ghostget.com/og.png">
+    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Install Wrench: CLI and TypeScript SDK getting started guide">
-    <meta name="twitter:description" content="Install Wrench with Bun, verify local readiness, capture a first URL, and inspect the exact capabilities available on your machine.">
-    <meta name="twitter:image" content="https://wrench.rip/og.png">
-    <meta name="twitter:image:alt" content="Wrench: precise web capabilities for AI agents">
-    <meta name="wrench-posthog-host" content="{{POSTHOG_HOST}}">
-    <meta name="wrench-posthog-key" content="{{POSTHOG_KEY}}">
+    <meta name="twitter:title" content="Install Ghostget: CLI and TypeScript SDK getting started guide">
+    <meta name="twitter:description" content="Install Ghostget with Bun, verify local readiness, capture a first URL, and inspect the exact capabilities available on your machine.">
+    <meta name="twitter:image" content="https://ghostget.com/og.png">
+    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
     <script type="module" src="{{ANALYTICS_ASSET}}"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="topbar guide-topbar">
-      <a aria-label="Wrench home" class="wordmark" href="/">Wrench</a>
+      <a aria-label="Ghostget home" class="wordmark" href="/">Ghostget</a>
       <nav aria-label="Primary">
         <a aria-current="page" href="/getting-started/">Install</a>
         <a href="/provider-capabilities/">Providers</a>
-        <a href="https://github.com/hraness/wrench">GitHub <span aria-hidden="true">↗</span></a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
       </nav>
     </header>
     <main class="guide-main" id="main">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Wrench</a></li><li aria-current="page">Getting started</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li aria-current="page">Getting started</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero">
-          <p class="eyebrow">Getting started · Wrench {{WRENCH_VERSION}}</p>
-          <h1>Install Wrench and capture your first URL.</h1>
-          <p class="answer-lede">Wrench is an open-source CLI and TypeScript SDK for command-capable AI agents. Install the immutable release with Bun 1.3.14, synchronize its reviewed adapter manifests, run the local readiness doctor, then start with a public URL.</p>
-          <p class="review-note">This guide describes {{WRENCH_RELEASE}} and was checked against the public source for that immutable release.</p>
+          <p class="eyebrow">Getting started · Ghostget {{GHOSTGET_VERSION}}</p>
+          <h1>Install Ghostget and capture your first URL.</h1>
+          <p class="answer-lede">Ghostget is an open-source CLI and TypeScript SDK for command-capable AI agents. Install the immutable release with Bun 1.3.14, synchronize its reviewed adapter manifests, run the local readiness doctor, then start with a public URL.</p>
+          <p class="review-note">This guide describes {{GHOSTGET_RELEASE}} and was checked against the public source for that immutable release.</p>
         </header>
 
         <section aria-labelledby="requirements">
           <h2 id="requirements">What you need</h2>
-          <p>Wrench runs on macOS and Linux and requires Bun 1.3.14. The CLI does not include an AI model, planner, approval interface, or application shell. It supplies a capability and custody layer for an agent or application that can invoke commands.</p>
-          <p>A public page capture is the smallest useful first run. Authenticated providers add separate dependencies, account bindings, and contract requirements, so their commands remain unavailable until <code>wrench doctor</code> and the relevant capability report say they are ready.</p>
+          <p>Ghostget runs on macOS and Linux and requires Bun 1.3.14. The CLI does not include an AI model, planner, approval interface, or application shell. It supplies a capability and custody layer for an agent or application that can invoke commands.</p>
+          <p>A public page capture is the smallest useful first run. Authenticated providers add separate dependencies, account bindings, and contract requirements, so their commands remain unavailable until <code>ghostget doctor</code> and the relevant capability report say they are ready.</p>
         </section>
 
         <section aria-labelledby="install">
           <h2 id="install">1. Install the immutable release</h2>
           <div class="command-panel">
-            <div class="command-label"><span>terminal</span><span>{{WRENCH_RELEASE}}</span></div>
-            <pre><code>{{WRENCH_INSTALL_COMMAND}}
-wrench adapter sync-bundled --json
-wrench doctor</code></pre>
+            <div class="command-label"><span>terminal</span><span>{{GHOSTGET_RELEASE}}</span></div>
+            <pre><code>{{GHOSTGET_INSTALL_COMMAND}}
+ghostget adapter sync-bundled --json
+ghostget doctor</code></pre>
           </div>
           <p>The global install pins the canonical GitHub archive to the release version shown above. <code>adapter sync-bundled</code> atomically installs the reviewed data manifests shipped by that exact package version. It upgrades an exact bundled baseline, including an older generation whose bytes later drifted, and preserves an independently modified current or newer install.</p>
           <p>The matching GitHub tag and immutable Release bind the same checked source and package version. The Agent Skill remains available through skills.sh.</p>
+          <p>Upgrading from Wrench? Follow the <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/ghostget-migration.md">Ghostget migration guide</a> to keep existing local state, adapter manifests, and recovery records in place.</p>
         </section>
 
         <section aria-labelledby="first-read">
           <h2 id="first-read">2. Inspect a page before saving it</h2>
-          <div class="command-panel"><pre><code>wrench read https://example.com/article</code></pre></div>
-          <p><code>wrench read</code> returns a readable page result without persisting it. To save the page as durable Markdown in a configured knowledge base, pass the URL directly:</p>
-          <div class="command-panel"><pre><code>wrench https://example.com/article</code></pre></div>
-          <p>Use only material you are authorized to access. Wrench does not bypass login, payment, access controls, or DRM. The <a href="/capture-and-archives/">capture and archives guide</a> explains the difference between page capture and a verified media archive.</p>
+          <div class="command-panel"><pre><code>ghostget read https://example.com/article</code></pre></div>
+          <p><code>ghostget read</code> returns a readable page result without persisting it. To save the page as durable Markdown in a configured knowledge base, pass the URL directly:</p>
+          <div class="command-panel"><pre><code>ghostget https://example.com/article</code></pre></div>
+          <p>Use only material you are authorized to access. Ghostget does not bypass login, payment, access controls, or DRM. The <a href="/capture-and-archives/">capture and archives guide</a> explains the difference between page capture and a verified media archive.</p>
         </section>
 
         <section aria-labelledby="inspect-capabilities">
           <h2 id="inspect-capabilities">3. Ask the installed system what it can do</h2>
-          <div class="command-panel"><pre><code>wrench capabilities --json
-wrench plugin list --json
-wrench platforms --json
-wrench plugin doctor --json</code></pre></div>
-          <p><code>wrench capabilities</code> is the local source of truth. It reports the semantic operations that are installed and observed on this machine. A <code>capture-required</code> operation is an inert reservation, not partial support and not permission to improvise with a browser fallback.</p>
+          <div class="command-panel"><pre><code>ghostget capabilities --json
+ghostget plugin list --json
+ghostget platforms --json
+ghostget plugin doctor --json</code></pre></div>
+          <p><code>ghostget capabilities</code> is the local source of truth. It reports the semantic operations that are installed and observed on this machine. A <code>capture-required</code> operation is an inert reservation, not partial support and not permission to improvise with a browser fallback.</p>
           <p>Review the <a href="/provider-capabilities/">provider capability attestation</a> before adding account credentials. It lists every bundled adapter operation and the reviewed completeness of that contract.</p>
         </section>
 
         <section id="demo" aria-labelledby="first-capture-demo">
           <h2 id="first-capture-demo">Watch one complete read</h2>
-          <p>This silent 12-second demo typesets the output from a successful Wrench 0.13.5 run on August 25, 2026. <code>wrench read</code> fetches the public page, prints bounded Markdown, and does not add the result to a vault.</p>
+          <p>This historical 12-second demo typesets the output from a successful Wrench 0.13.5 run on August 25, 2026, before the project became Ghostget. The current command is <code>ghostget read</code>. It fetches the public page, prints bounded Markdown, and does not add the result to a vault. The silent recording and transcript retain the original command.</p>
           <figure class="demo-media">
-            <video aria-label="Wrench first capture demo" controls height="720" poster="/wrench-first-capture.png" preload="metadata" width="1280">
+            <video aria-label="Historical Wrench first capture demo" controls height="720" poster="/wrench-first-capture.png" preload="metadata" width="1280">
               <source src="/wrench-first-capture.webm" type="video/webm">
               <source src="/wrench-first-capture.mp4" type="video/mp4">
               <track kind="captions" label="English" src="/wrench-first-capture.vtt" srclang="en">
-              <a href="/wrench-first-capture.gif">View the animated Wrench first capture demo.</a>
+              <a href="/wrench-first-capture.gif">View the historical first capture demo.</a>
             </video>
             <figcaption>The terminal text is actual CLI output. The presentation is typeset for legibility and contains no private state, account data, or provider credentials.</figcaption>
           </figure>
@@ -124,47 +125,47 @@ This domain is for use in documentation examples without needing permission. Avo
         </section>
 
         <section aria-labelledby="sdk">
-          <h2 id="sdk">4. Use Wrench from TypeScript</h2>
+          <h2 id="sdk">4. Use Ghostget from TypeScript</h2>
           <p>Applications can pin the same release and import its side-effect-free package entrypoints:</p>
-          <div class="command-panel"><pre><code>bun add {{WRENCH_PACKAGE_ARTIFACT}}</code></pre></div>
+          <div class="command-panel"><pre><code>bun add {{GHOSTGET_PACKAGE_ARTIFACT}}</code></pre></div>
           <div class="command-panel"><pre><code>import {
   isProviderPluginId,
   type ProviderPluginDefinitionV1,
-} from "@hraness/wrench"
+} from "@hraness/ghostget"
 
 if (!isProviderPluginId(candidate.id)) {
   throw new Error("invalid plugin ID")
 }
 
 const plugin = candidate satisfies ProviderPluginDefinitionV1</code></pre></div>
-          <p>The package has seven public TypeScript entrypoints: <code>@hraness/wrench</code> for plugin types and bounded validators, <code>@hraness/wrench/client</code> for persistent reads and strict live invocation, <code>@hraness/wrench/beeper</code> for body-free contact interactions, <code>@hraness/wrench/apple-photos</code> for local Photos contact evidence, <code>@hraness/wrench/whatsapp</code> for the bounded private Message Like Me export, <code>@hraness/wrench/omni</code> for normalized cross-provider reads, and <code>@hraness/wrench/messaging</code> for agentic route discovery and resolution. Importing any entrypoint does not start the CLI. Importing the package root also does not inspect local state.</p>
+          <p>The package has seven public TypeScript entrypoints: <code>@hraness/ghostget</code> for plugin types and bounded validators, <code>@hraness/ghostget/client</code> for persistent reads and strict live invocation, <code>@hraness/ghostget/beeper</code> for body-free contact interactions, <code>@hraness/ghostget/apple-photos</code> for local Photos contact evidence, <code>@hraness/ghostget/whatsapp</code> for the bounded private Message Like Me export, <code>@hraness/ghostget/omni</code> for normalized cross-provider reads, and <code>@hraness/ghostget/messaging</code> for agentic route discovery and resolution. Importing any entrypoint does not start the CLI. Importing the package root also does not inspect local state.</p>
         </section>
 
         <section aria-labelledby="developer-resources">
-          <h2 id="developer-resources">Wrench developer resources</h2>
-          <p>These are the current public Wrench developer resources for the CLI, TypeScript SDK, Agent Skill, and provider plugin workflow. Wrench does not publish a hosted API, OpenAPI description, OAuth developer portal, webhook catalog, or MCP server.</p>
+          <h2 id="developer-resources">Ghostget developer resources</h2>
+          <p>These are the current public Ghostget developer resources for the CLI, TypeScript SDK, Agent Skill, and provider plugin workflow. Ghostget does not publish a hosted API, OpenAPI description, OAuth developer portal, webhook catalog, or MCP server.</p>
           <ul class="guide-list">
-            <li><a href="{{WRENCH_PACKAGE_ARTIFACT}}">Install the <code>@hraness/wrench</code> CLI and TypeScript SDK from GitHub Releases</a></li>
-            <li><a href="{{WRENCH_SKILLS}}">Install the Wrench Agent Skill from skills.sh</a> with <code>{{WRENCH_SKILL_INSTALL_COMMAND}}</code></li>
+            <li><a href="{{GHOSTGET_PACKAGE_ARTIFACT}}">Install the <code>@hraness/ghostget</code> CLI and TypeScript SDK from GitHub Releases</a></li>
+            <li><a href="{{GHOSTGET_SKILLS}}">Install the Ghostget Agent Skill from skills.sh</a> with <code>{{GHOSTGET_SKILL_INSTALL_COMMAND}}</code></li>
             <li><a href="/capture-and-archives/">Capture URLs and create verified media archives</a></li>
             <li><a href="/getting-started/#demo">Watch and download the first-capture demo</a></li>
             <li><a href="/provider-capabilities/">Provider capability attestation</a></li>
             <li><a href="/security/">Security and local custody</a></li>
             <li><a href="/plugins/">Author and verify provider plugins</a></li>
-            <li><a href="{{WRENCH_REPOSITORY}}">Source, issues, and release tags</a></li>
-            <li><a href="{{WRENCH_REPOSITORY}}/blob/{{WRENCH_RELEASE}}/docs/plugins.md">Plugin protocol guide for {{WRENCH_RELEASE}}</a></li>
+            <li><a href="{{GHOSTGET_REPOSITORY}}">Source, issues, and release tags</a></li>
+            <li><a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/plugins.md">Plugin protocol guide for {{GHOSTGET_RELEASE}}</a></li>
             <li><a href="/llms.txt">Agent site guide (llms.txt)</a></li>
           </ul>
         </section>
 
         <aside class="guide-callout" aria-labelledby="next-step">
           <h2 id="next-step">Choose the next boundary</h2>
-          <p>Learn how Wrench keeps credentials opaque and provider changes visible in the <a href="/security/">security guide</a>, or start an inert integration with the <a href="/plugins/">plugin authoring guide</a>.</p>
+          <p>Learn how Ghostget keeps credentials opaque and provider changes visible in the <a href="/security/">security guide</a>, or start an inert integration with the <a href="/plugins/">plugin authoring guide</a>.</p>
         </aside>
       </article>
     </main>
-    <aside aria-label="Wrench project information" class="site-disclosure">
-      <p>Wrench {{WRENCH_VERSION}} · MIT · <a href="{{WRENCH_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
+    <aside aria-label="Ghostget project information" class="site-disclosure">
+      <p>Ghostget {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
       <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
     </aside>
     {{HRANESS_SITE_FOOTER}}

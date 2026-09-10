@@ -3,7 +3,7 @@
  *
  * The source HTML comes from a direct authenticated GET of
  * `/groups/{numeric-id}/`. Ordinary provider access logs may record the GET,
- * but wrench sends no client-interaction or mutation request and never retries
+ * but ghostget sends no client-interaction or mutation request and never retries
  * an indeterminate read. This module parses inert JSON only; it never executes
  * page JavaScript or performs a request.
  */

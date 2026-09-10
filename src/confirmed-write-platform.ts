@@ -7,7 +7,7 @@ import { ConfirmedWriteFailure, confirmedWriteAttempt, type ConfirmedWritePhase 
 import { redactSensitiveText } from "@hraness/kb/clip/persist";
 
 import { executeBrowserRecipe, PreservedBrowserArtifactsError, type BrowserDispatchEvent } from "./browser";
-import { canonicalJson, DOM_ACTION_TRANSPORT_DISABLED_MESSAGE, expandBrowserRecipe, isLocalCliOperation, isProviderOperation, isReviewedTemplateOperation, isWebSessionOperation, manifestHash, sha256, type FileInputValue, type InputValue, type WrenchManifest } from "./model";
+import { canonicalJson, DOM_ACTION_TRANSPORT_DISABLED_MESSAGE, expandBrowserRecipe, isLocalCliOperation, isProviderOperation, isReviewedTemplateOperation, isWebSessionOperation, manifestHash, sha256, type FileInputValue, type InputValue, type GhostgetManifest } from "./model";
 
 import { localCliContractIdentity } from "./local-cli-contracts";
 import type { LocalCliDispatchEvent, LocalCliExecutionOptions } from "./local-cli-execution";
@@ -62,11 +62,11 @@ import { loadInstalledManifest, removePrivateStateFile } from "./storage";
 export interface ConfirmedWriteKernel {
   readonly isInputArray: (value: InputValue) => value is readonly (string | number | boolean | FileInputValue)[];
   readonly isFileInputValue: (value: unknown) => value is FileInputValue;
-  readonly resolveCodeOwnedPluginOperation: (operation: WrenchManifest["operations"][string], registry: ProviderPluginRegistry) => ProviderPluginOperationResolutionV1 | null;
+  readonly resolveCodeOwnedPluginOperation: (operation: GhostgetManifest["operations"][string], registry: ProviderPluginRegistry) => ProviderPluginOperationResolutionV1 | null;
   readonly hasExactKeys: (value: Record<string, unknown>, keys: readonly string[]) => boolean;
   readonly revalidatePreparedInvocation: (invocation: PreparedInvocation, registry: ProviderPluginRegistry) => {
     readonly invocation: PreparedInvocation;
-    readonly operation: WrenchManifest["operations"][string];
+    readonly operation: GhostgetManifest["operations"][string];
   };
   readonly planPath: (digest: string, environment: Readonly<Record<string, string | undefined>>) => string;
   readonly acquireConfirmationClaim: (digest: string, runId: string, environment: Readonly<Record<string, string | undefined>>, now: Date) => ConfirmationClaimSnapshot;
@@ -91,7 +91,7 @@ export interface ConfirmedWriteKernel {
   readonly repairInterruptedConfirmationClaims: (environment: Readonly<Record<string, string | undefined>>) => ConfirmationClaimRepairReport;
   readonly repairInterruptedRunJournals: (environment: Readonly<Record<string, string | undefined>>, now: Date) => RunJournalRepairReport;
   readonly foreignDataRecord: (value: unknown) => Record<string, unknown> | null;
-  readonly executionOutputLimit: (operation: WrenchManifest["operations"][string]) => number;
+  readonly executionOutputLimit: (operation: GhostgetManifest["operations"][string]) => number;
   readonly boundedThrownExecutorReason: (error: unknown) => string;
   readonly boundedExecutionResult: (value: unknown, kind: | "browser"
     | "provider"
@@ -820,11 +820,11 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
             dispatchStarted: started > 0,
             dispatch: durableReceipt.dispatch,
             error: preservedArtifactsError !== null
-              ? "provider browser cleanup could not be verified; private artifacts were preserved and durable cleanup admission requires wrench doctor before retry"
+              ? "provider browser cleanup could not be verified; private artifacts were preserved and durable cleanup admission requires ghostget doctor before retry"
               : cleanupRequired
                 ? localCliOperation
-                  ? "local CLI child/private-root cleanup could not be verified; durable cleanup admission blocks retry until wrench doctor proves every pinned process group quiescent and removes the exact private root"
-                  : "authenticated web cleanup could not be verified; durable cleanup admission blocks retry until wrench doctor proves and completes exact browser-session recovery"
+                  ? "local CLI child/private-root cleanup could not be verified; durable cleanup admission blocks retry until ghostget doctor proves every pinned process group quiescent and removes the exact private root"
+                  : "authenticated web cleanup could not be verified; durable cleanup admission blocks retry until ghostget doctor proves and completes exact browser-session recovery"
                 : boundedThrownExecutorReason(error),
             ...(preservedArtifactsError === null
               ? {}
@@ -879,7 +879,7 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
           && execution.privateArtifactsPreserved === true;
         const recoveryHandle = boundedRecoveryHandle("recoveryHandle" in execution ? execution.recoveryHandle : undefined);
         const privateArtifactRecoveryMessage = privateArtifactsPreserved
-          ? `private browser artifacts were preserved; wrench doctor must prove and complete exact browser-session recovery before retry${recoveryHandle === null
+          ? `private browser artifacts were preserved; ghostget doctor must prove and complete exact browser-session recovery before retry${recoveryHandle === null
             ? ""
             : `; recovery handle: ${recoveryHandle}`}`
           : null;
@@ -953,7 +953,7 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
                 ...pending,
                 error: `${execution.dispatch.started > 0
                   ? `${transportLabel} execution crossed dispatch, but its final run journal could not be stored; reconcile this run before any retry`
-                  : `${transportLabel} execution ended before dispatch, but its final run journal could not be stored; run wrench doctor before retrying`}${privateArtifactRecoveryMessage === null
+                  : `${transportLabel} execution ended before dispatch, but its final run journal could not be stored; run ghostget doctor before retrying`}${privateArtifactRecoveryMessage === null
                     ? ""
                     : `; ${privateArtifactRecoveryMessage}`}`,
               },
