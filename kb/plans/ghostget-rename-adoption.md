@@ -211,3 +211,37 @@ rediscover it.
   the Accounts mailing keyring hostname; the external directory submissions
   are updated locally but not pushed; npm publication of `@hraness/ghostget`
   remains held pending the dual-use classification decision.
+
+## Jungle adopted the rename and pinned v0.17.1 (documents-3f, 2026-09-10)
+
+- Jungle `main` `5d293820009b429b9ff23dd49ffe639be3a12ac4` (06:43 UTC) carries
+  the full rename across Jungle (portfolio, docs, skills, installed SDK and
+  CLI imports, workflow names, a `skills/ghostget` loader, old public routes
+  redirecting to ghostget.com, `GHOSTGET_BIN` with `WRENCH_BIN` as an alias)
+  and the dependency `@hraness/ghostget` at `github:hraness/ghostget#v0.17.1`.
+  Stable project, node, activity, analytics, and visitor identifiers remain
+  `wrench`; the Ghostget badge is 👻 in the portfolio catalog, the homepage,
+  the reading projection, and the projects index note.
+- The lock resolves the tag to `b74ae2a` with the integrity of GitHub's API
+  source tarball for that commit, verified against an independent download,
+  and the frozen install passes. An independent download of
+  `hraness-ghostget-0.17.1.tgz` matched the published SHA-256 and
+  documents-aa's canonical verification on every field.
+- Delivery went through the Jungle merge queue on the full route with
+  production verification for project `hraness`. Four earlier attempts were
+  blocked by the queue's gate rather than by the pin: a replay conflict with
+  the concurrent Slopcamera rename (resolved keeping both renames), a stale
+  generated reading module, the projects index note still naming the
+  `wrench` row Wrench, and a badge whose icon query said ghost while its
+  emoji stayed the wrench. Each was fixed forward in the task worktree and
+  replaced in the queue; none required weakening a check.
+- Readback: Vercel deployment `dpl_8udYM1TxkJLW52ZY2uM33pEzT1Lp` verified at
+  the exact merged SHA with hraness.com returning 200, the homepage renders
+  Ghostget with no remaining Wrench text, and `/wrench` returns 308 to
+  ghostget.com. Push CI run `34446911156` on the merged commit completed
+  green.
+- Step 5 remains a scheduled-collection verification: the interim pin at
+  `1ca41f4a` and now v0.17.1 both carry the cleanup convergence fix, and the
+  next `chore(hraness): publish social stats` commit on Jungle `main` is the
+  evidence that LinkedIn personal, LinkedIn company, and Instagram return
+  exact observations again.
