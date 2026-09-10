@@ -5,10 +5,14 @@
 // 501 files, SHA-256
 // 33a15400af2a0acb9eb5b4c3457b153d3898ef8f3295efeb89c948fb07eed6a0.
 // The joined browser source delta and the escaping helper add 6,707 payload
-// bytes compared with the previous 0.17.0 measurement. Raise only the payload
-// ceiling by that measured delta, preserving 65 bytes of headroom, the existing
-// compressed allowance, and the exact inventory. Fresh Linux CI still checks
-// its actual canonical archive under the pinned release toolchain.
+// bytes compared with the previous 0.17.0 measurement. Raise the payload
+// ceiling by that measured delta, preserving 65 bytes of headroom and the
+// exact inventory. Required Linux CI packed the identical payload to
+// 2,259,617 bytes under its zlib, 315 bytes above the previous packed ceiling
+// and a 2,802-byte spread from macOS. Allow 4,096 bytes above that largest
+// measured compression, matching the existing bounded portability allowance;
+// fresh Linux CI still checks its actual canonical archive under the pinned
+// release toolchain.
 //
 // Ghostget 0.17.0, measured after joining 0.16.17 and a clean Bun 1.3.14
 // build: two Node 24.20.0 / npm 11.19.0 archives on darwin arm64 (zlib 1.2.12)
@@ -233,7 +237,7 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_259_302;
+export const MAX_PACKED_BYTES = 2_263_713;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
 export const MAX_UNPACKED_BYTES = 12_437_937;
