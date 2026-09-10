@@ -1163,7 +1163,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_952_576);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_951_040);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1276,18 +1276,18 @@ describe("npm publication contract", () => {
     expect(budget).toContain("leaves 4,266 bytes");
     expect(budget).toContain("635 unpacked bytes of headroom");
     expect(MAX_PACKED_BYTES).toBe(2_263_713);
-    expect(MAX_PACKED_ENTRIES).toBe(501);
-    expect(MAX_PACKED_FILES).toBe(501);
-    expect(MAX_UNPACKED_BYTES).toBe(12_438_922);
+    expect(MAX_PACKED_ENTRIES).toBe(500);
+    expect(MAX_PACKED_FILES).toBe(500);
+    expect(MAX_UNPACKED_BYTES).toBe(12_438_088);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 501, max: 501 },
-      fileCount: { min: 501, max: 501 },
+      entryCount: { min: 500, max: 500 },
+      fileCount: { min: 500, max: 500 },
       packedBytes: { min: 1_600_000, max: 2_263_713 },
-      unpackedBytes: { min: 9_000_000, max: 12_438_922 },
+      unpackedBytes: { min: 9_000_000, max: 12_438_088 },
     });
   });
 
@@ -1356,6 +1356,7 @@ describe("npm publication contract", () => {
     const unreleasedHeader = "## Unreleased\n";
     const candidateHeader = "## 0.16.12 - 2026-09-08\n";
     const canonicalHeader = "## 0.16.13 - 2026-09-09\n";
+    const listingHeader = "## 0.17.2 - 2026-09-10\n";
     const fixHeader = "## 0.17.1 - 2026-09-10\n";
     const renameHeader = "## 0.17.0 - 2026-09-09\n";
     const cookieHeader = "## 0.16.17 - 2026-09-09\n";
@@ -1374,6 +1375,7 @@ describe("npm publication contract", () => {
     const unreleasedStart = changelog.indexOf(unreleasedHeader);
     const candidateStart = changelog.indexOf(candidateHeader);
     const canonicalStart = changelog.indexOf(canonicalHeader);
+    const listingStart = changelog.indexOf(listingHeader);
     const fixStart = changelog.indexOf(fixHeader);
     const renameStart = changelog.indexOf(renameHeader);
     const cookieStart = changelog.indexOf(cookieHeader);
@@ -1426,7 +1428,11 @@ describe("npm publication contract", () => {
     expect(markerStart).toBeGreaterThan(consumedStart);
     expect(releaseStart).toBeGreaterThan(markerStart);
     expect(incidentStart).toBeGreaterThan(releaseStart);
-    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, fixStart).trim()).toBe("");
+    expect(changelog.match(/^## 0\.17\.2 - 2026-09-10$/gmu) ?? []).toHaveLength(1);
+    expect(listingStart).toBeGreaterThan(unreleasedStart);
+    expect(listingStart).toBeLessThan(fixStart);
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, listingStart).trim()).toBe("");
+    expect(changelog.slice(listingStart, fixStart)).toContain("contentPolicy");
     expect(changelog.slice(fixStart, renameStart)).toContain("--allow-escape-sequences");
 
     const cookieReleaseEnd = changelog.indexOf("\n## ", cookieStart + cookieHeader.length);
@@ -1628,11 +1634,11 @@ describe("npm publication contract", () => {
     expect(verify).toContain('github-release-artifact.ts download');
     expect(verify).toContain('bun run check');
     expect(verify).toContain('package-smoke.ts');
-    expect(verify).not.toMatch(/npm pack|npm stage publish|id-token: write/u);
+    expect(verify).not.toMatch(/npm pack|npm publish|id-token: write/u);
     expect(stage).not.toMatch(/actions\/checkout|setup-bun|\bbun\b|\.\/scripts\//u);
     expect(stage).toContain("inputs.publish_to_npm == true");
     expect(stage).toContain("github.event_name == 'workflow_dispatch'");
-    expect(stage.match(/npm stage publish/gu)).toHaveLength(1);
+    expect(stage.match(/npm publish/gu)).toHaveLength(1);
     expect(stage.match(/git ls-remote --sort=refname --refs/gu)).toHaveLength(2);
     expect(stage).not.toContain("--tag");
     expect(stage).not.toContain("NPM_TOKEN");
@@ -1643,7 +1649,7 @@ describe("npm publication contract", () => {
     expect(stage.slice(intent, terminal).match(/^      - name:/gmu)).toHaveLength(1);
     const lastSnapshot = stage.lastIndexOf('git ls-remote --sort=refname --refs');
     const equality = stage.indexOf('cmp --silent', lastSnapshot);
-    const mutation = stage.indexOf('npm stage publish "$TARBALL"');
+    const mutation = stage.indexOf('npm publish "$TARBALL"');
     expect(stage.indexOf('Canonical Release changed before optional npm staging')).toBeLessThan(lastSnapshot);
     expect(equality).toBeGreaterThan(lastSnapshot); expect(mutation).toBeGreaterThan(equality);
     expect(stage.slice(equality, mutation)).not.toMatch(/^\s*(?:gh|git|npm)\b/gmu);
@@ -1812,16 +1818,13 @@ exit 97
         expect(await readFile(output, "utf8")).toBe(`should_prepare=true\nsource_sha=${workflowSha}\nrelease_sha=${source}\nrelease_tag=v0.16.13\n`);
         expect(await readFile(commandLog, "utf8")).toContain("release-ref-authority.ts promotion");
       }
-      for (const input of [{}, { INPUT_RELEASE_TAG: "v0.16.13" },
-        { RESOLVED_STAGE_VERSION: "0.16.11" }, { INPUT_RELEASE_TAG: "v0.16.13\npoison" }]) {
-        const held = await runCase({ ...input, INPUT_PUBLISH_TO_NPM: "true" });
-        expect(held.exitCode).toBe(1);
-        expect(held.stdout).toContain("Ghostget npm publication is on hold pending classification review");
-        expect(held.stdout).toContain("use publish_to_npm=false for verification only");
-        expect(held.stderr).toBe("");
-        expect(await Bun.file(output).exists()).toBe(false);
-        expect(await Bun.file(commandLog).exists()).toBe(false);
+      for (const input of [{}, { INPUT_RELEASE_TAG: "v0.16.13" }, { RESOLVED_STAGE_VERSION: "0.16.11" }]) {
+        const publishing = await runCase({ ...input, INPUT_PUBLISH_TO_NPM: "true" });
+        expect(publishing.exitCode, publishing.stderr).toBe(0);
+        expect(await readFile(output, "utf8")).toBe(`should_prepare=true\nsource_sha=${workflowSha}\nrelease_sha=${source}\nrelease_tag=v0.16.13\n`);
       }
+      const poisoned = await runCase({ INPUT_RELEASE_TAG: "v0.16.13\npoison", INPUT_PUBLISH_TO_NPM: "true" });
+      expect(poisoned.exitCode).not.toBe(0); expect(await Bun.file(output).exists()).toBe(false);
       for (const input of [{ GITHUB_EVENT_NAME: "push" }, { GITHUB_REF: "refs/heads/preview" }, { DEFAULT_BRANCH: "preview" },
         { INPUT_RELEASE_TAG: "v0.16.13\npoison" }, { INPUT_RELEASE_TAG: "v0.16.13-preview" }, { RESOLVED_STAGE_VERSION: "0.16.11" }]) {
         const denied = await runCase(input); expect(denied.exitCode).not.toBe(0); expect(await Bun.file(output).exists()).toBe(false);
@@ -2670,7 +2673,7 @@ case "$*" in
   "view @hraness/ghostget dist-tags.latest --json --registry=https://registry.npmjs.org")
     printf '"%s"\n' "$NPM_LATEST_VERSION"
     ;;
-  "stage publish "*) printf 'published\n' > "$PUBLISH_MARKER" ;;
+  "publish "*) printf 'published\n' > "$PUBLISH_MARKER" ;;
   *) echo "unexpected npm command: $*" >&2; exit 1 ;;
 esac
 `, "utf8");
@@ -2729,7 +2732,7 @@ esac
         const latestIndex = commands.indexOf(
           "npm view @hraness/ghostget dist-tags.latest --json --registry=https://registry.npmjs.org",
         );
-        const publishIndex = commands.indexOf("npm stage publish");
+        const publishIndex = commands.indexOf("npm publish");
         expect(combinedIndexes).toHaveLength(2);
         expect(combinedIndexes[0]).toBeGreaterThan(-1);
         expect(combinedIndexes[1]).toBeGreaterThan(combinedIndexes[0] ?? -1);
@@ -3164,7 +3167,7 @@ esac
     expect(workflow).toContain("ref: refs/tags/${{ steps.request.outputs.tag }}");
     expect(workflow).toContain("fetch-depth: 1");
     expect(workflow).toContain("persist-credentials: false");
-    expect(workflow).not.toMatch(/npm view|npm audit signatures|npm stage publish/u);
+    expect(workflow).not.toMatch(/npm view|npm audit signatures|npm publish/u);
     expect(workflow).toContain("github-release-artifact.ts prepare");
     expect(workflow).toContain("github-release-publish.ts");
 
@@ -3752,7 +3755,7 @@ fi
     expect(attest).toContain("EXPECTED_WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}");
     expect(publish).toContain("canonical-attested-${{ github.run_id }}-${{ github.run_attempt }}");
     expect(publish).toContain("github-release-publish.ts");
-    expect(workflow).not.toMatch(/npm view|npm audit signatures|npm stage publish|WRENCH_RELEASE_APP_|website-production/u);
+    expect(workflow).not.toMatch(/npm view|npm audit signatures|npm publish|WRENCH_RELEASE_APP_|website-production/u);
   });
 
   test("keeps provider verification read-only, terminal, and release-authoritative", async () => {

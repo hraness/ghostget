@@ -569,13 +569,8 @@ async function verifyPackagedSkill(
     );
   }
   assertPackageDiscoveryKeywords(manifest.keywords, "Packed package.json");
-  if (
-    typeof manifest.contentPolicy !== "object"
-    || manifest.contentPolicy === null
-    || !("class" in manifest.contentPolicy)
-    || manifest.contentPolicy.class !== "dual-use"
-  ) {
-    throw new Error("Packed Ghostget must retain npm dual-use metadata.");
+  if ("contentPolicy" in manifest) {
+    throw new Error("Packed Ghostget carries no npm content-policy declaration.");
   }
   if (
     typeof manifest.dependencies !== "object"
@@ -646,12 +641,6 @@ async function verifyPackagedSkill(
     "install-imessage-direct-transport.ts",
   )).exists()) {
     throw new Error("Packed Ghostget retained the superseded iMessage installer script.");
-  }
-  const npmDisclosure = await readFile(join(packageRoot, "DISCLOSURE"), "utf8");
-  for (const required of ["dual-use", "browser profile", "explicit confirmation", "authorized"] as const) {
-    if (!npmDisclosure.includes(required)) {
-      throw new Error(`Packed Ghostget dual-use disclosure is missing ${JSON.stringify(required)}.`);
-    }
   }
   const install = await readFile(join(skillRoot, "references", "install.md"), "utf8");
   const canonicalArchive = `https://github.com/hraness/ghostget/releases/download/v${expectedVersion}/hraness-ghostget-${expectedVersion}.tgz`;

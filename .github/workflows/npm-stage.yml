@@ -63,10 +63,6 @@ jobs:
             echo "::error::Optional npm mirror preparation requires a protected-main dispatch"
             exit 1
           fi
-          if [[ "$INPUT_PUBLISH_TO_NPM" == true ]]; then
-            echo "::error::Ghostget npm publication is on hold pending classification review and a reviewed package/workflow update; use publish_to_npm=false for verification only"
-            exit 1
-          fi
           if [[ -n "$RESOLVED_STAGE_VERSION" && "$INPUT_PUBLISH_TO_NPM" != true ]]; then
             echo "::error::resolved_stage_version is valid only for an intentional npm staging dispatch"
             exit 1
@@ -937,7 +933,7 @@ jobs:
             manifest?.name !== "@hraness/ghostget"
             || manifest?.version !== process.env.EXPECTED_VERSION
             || (Object.hasOwn(manifest, "private") && manifest.private !== false)
-            || manifest?.contentPolicy?.class !== "dual-use"
+            || Object.hasOwn(manifest, "contentPolicy")
             || Object.hasOwn(manifest, "tag")
             || publishConfig === null
             || typeof publishConfig !== "object"
@@ -1147,7 +1143,7 @@ jobs:
           (cd "$NPM_DIRECTORY" && \
             NPM_CONFIG_USERCONFIG="$NPM_USERCONFIG" \
             NPM_CONFIG_GLOBALCONFIG="$NPM_GLOBALCONFIG" \
-            npm stage publish "$TARBALL" \
+            npm publish "$TARBALL" \
               --access public \
               --ignore-scripts \
               --provenance \

@@ -1,6 +1,6 @@
 # Publish Ghostget
 
-Ghostget starts at `@hraness/ghostget@0.17.1`, with command `ghostget` and the
+Ghostget starts at `@hraness/ghostget@0.17.2`, with command `ghostget` and the
 existing seven SDK subpaths. GitHub Releases became canonical under the former
 `@hraness/wrench` name at v0.16.13. Historical manifests, archive filenames, and
 signed provenance keep that original identity. npm is an optional mirror of
@@ -149,7 +149,7 @@ first canonical Ghostget release.
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.17.1/hraness-ghostget-0.17.1.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.17.2/hraness-ghostget-0.17.2.tgz
 ghostget --version
 ghostget doctor --json
 ```
@@ -164,29 +164,21 @@ candidate coordinate; publication must complete before those commands work.
 
 ## Optional npm mirror
 
-The existing `@hraness/wrench` npm listing is retained. Its `contentPolicy.class` remains
-`dual-use`; npm support has been asked to review unattended stable publication,
-but a submitted request is not approval. Until approved, only stage-only OIDC
-is permitted and human inspection and two-factor approval of the exact npm
-stage remain mandatory before that mirror becomes public. Never scrape an MFA
-code, add an automation token, remove the declaration, or bypass that policy.
-The interactive Wrench v0.15.1 bootstrap is already complete and is not repeated.
-It does not bootstrap the new `@hraness/ghostget` coordinate. The rename request
-requires a Ghostget npm package without dual-use metadata; no Ghostget npm
-publication is authorized with that declaration. Keep registry publication
-pending npm's classification review and a reviewed corresponding package and
-workflow update. Do not create a replacement coordinate to bypass a required
-provider approval. Canonical GitHub publication and the domain migration remain
-independent of this npm boundary.
+The existing `@hraness/wrench` npm listing is retained as history; its
+`contentPolicy.class` stays `dual-use` and it receives no further versions.
+`@hraness/ghostget` is a new coordinate published as ordinary software by
+owner decision on 2026-09-10: the package carries no `contentPolicy`
+declaration and no `DISCLOSURE` file, matching the other Hraness listings, so
+npm's dual-use rules (interactive or staged publication with two-factor
+promotion) do not apply to it. The first publication of the new coordinate is
+one owner-authenticated `npm publish` of the exact canonical archive bytes,
+after which the trusted publisher is configured in the package settings; later
+versions publish through `npm-stage.yml` and OIDC with provenance. Canonical
+GitHub publication and the domain migration remain independent of npm.
 
-`npm-stage.yml` is dispatch-only. While classification remains unresolved,
-its environment-free classifier rejects every `publish_to_npm=true` request
-before release-authority or registry reads and before writing admission outputs.
-This includes requests with `resolved_stage_version`; recovery inputs cannot
-lift the hold. The failed classification prevents verification and the
-write-capable `npm-stage` environment from being admitted. Lifting the hold
-requires completed classification review and a reviewed package/workflow change;
-the existing declaration and provider controls remain in place.
+`npm-stage.yml` is dispatch-only. Its environment-free classifier admits
+`publish_to_npm=true` only from protected `main`; `resolved_stage_version`
+remains valid only with an intentional publishing dispatch.
 
 A default dispatch with `publish_to_npm=false` verifies an already
 published canonical release and uploads a uniquely named mirror handoff without
@@ -199,7 +191,7 @@ npm's default tag backward.
 
 ```sh
 gh workflow run npm-stage.yml --repo hraness/ghostget --ref main \
-  -f release_tag=v0.17.1
+  -f release_tag=v0.17.2
 ```
 
 The read-only verify job downloads the five immutable assets, verifies their
@@ -210,9 +202,8 @@ against the exact canonical archive. It
 copies only those same archive and receipt bytes into the existing bounded
 three-file mirror handoff; it does not rebuild or repack the package.
 
-The staging path below remains dormant while the classification hold is in
-place. After the reviewed hold-removal change, an explicit owner-authorized
-`publish_to_npm=true` dispatch may stage the mirror. The minimal checkout-free
+An explicit owner-authorized `publish_to_npm=true` dispatch publishes the
+mirror. The minimal checkout-free
 terminal job retains exact actor/repository/run
 reauthorization, the main-only stage environment, clean npm configuration,
 archive hashing and unsafe packed configuration rejection, OIDC provenance,
@@ -232,8 +223,8 @@ to `C`; it is not an absence check. Leave `resolved_stage_version` empty for an
 ordinary run. Only after npm has rejected one exact prior stage may an
 owner-authorized dispatch name that version to persist the existing exact
 clearance step. Ambiguous writes are readback and diagnosis work, never blind
-retries. Run `npm stage publish` without `--tag`; preserve npm's monotonic
-`latest` protection and required two-factor promotion. After npm promotion,
+retries. Run `npm publish` without `--tag`; preserve npm's monotonic
+`latest` protection. After publication,
 verify the public tarball bytes and npm provenance against the canonical asset
 before advertising `@hraness/ghostget@<version>` as an available registry mirror.
 

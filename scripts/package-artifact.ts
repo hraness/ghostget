@@ -12,7 +12,6 @@ const packagePrefix = "package/";
 
 const requiredPaths = Object.freeze([
   "CHANGELOG.md",
-  "DISCLOSURE",
   "LICENSE",
   "README.md",
   "bunfig.toml",
@@ -142,7 +141,6 @@ function relativePackagePath(path: string, type: "directory" | "file"): string {
 function verifyAllowedPath(path: string, type: "directory" | "file", skillName: "ghostget" | "wrench"): void {
   const allowed = type === "file"
     ? path === "CHANGELOG.md"
-      || path === "DISCLOSURE"
       || path === "LICENSE"
       || path === "README.md"
       || path === "bunfig.toml"

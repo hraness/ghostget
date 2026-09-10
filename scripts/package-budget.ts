@@ -1,3 +1,16 @@
+// Ghostget 0.17.2, measured after publishing the npm coordinate as ordinary
+// software: the package manifest drops its content-policy field and the
+// disclosure file leaves the inventory, which now holds exactly 500 files. Two
+// Node 24.20.0 / npm 11.19.0 archives on darwin arm64 are byte-identical,
+// with 2,256,564 compressed and 12,438,023 payload bytes, SHA-256
+// 069ec0c6183d3a9348a58e14f64eb9d8c863b931a7f59b061c1219b3fe7c6413.
+// The inventory and changelog changes move the payload by -834 bytes
+// compared with the 0.17.1 measurement. Set the payload ceiling to the
+// measured value plus 65 bytes of headroom, keep the existing packed
+// allowance, and derive the tar bound from the 500-entry inventory. Fresh
+// Linux CI still checks its actual canonical archive under the pinned release
+// toolchain.
+//
 // Ghostget 0.17.1, measured after the release-admission log-read fix and the
 // version bump: two Node 24.20.0 / npm 11.19.0 archives on darwin arm64 are
 // byte-identical, with 2,257,105 compressed and 12,438,857 payload bytes
@@ -261,9 +274,9 @@
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
 export const MAX_PACKED_BYTES = 2_263_713;
-export const MAX_PACKED_ENTRIES = 501;
-export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_438_922;
+export const MAX_PACKED_ENTRIES = 500;
+export const MAX_PACKED_FILES = 500;
+export const MAX_UNPACKED_BYTES = 12_438_088;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

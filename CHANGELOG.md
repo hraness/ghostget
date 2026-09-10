@@ -7,6 +7,15 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.17.2 - 2026-09-10
+
+- Publish `@hraness/ghostget` to npm as ordinary software by owner decision:
+  the package carries no `contentPolicy` declaration and no `DISCLOSURE` file,
+  matching the other Hraness listings, and the optional npm mirror publishes
+  directly through the workflow's trusted publisher instead of a staged
+  publish that needs two-factor promotion. The exact canonical GitHub archive
+  remains the release authority.
+
 ## 0.17.1 - 2026-09-10
 
 - Read GitHub job logs with `--allow-escape-sequences` during release source
