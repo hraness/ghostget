@@ -1072,8 +1072,12 @@ jobs:
           expected_integrity="$(TARBALL="$TARBALL" node -e 'process.stdout.write(`sha512-${require("node:crypto").createHash("sha512").update(require("node:fs").readFileSync(process.env.TARBALL)).digest("base64")}`)')"
           published_identity="$(PUBLISH_RESULT="$publish_result" EXPECTED_INTEGRITY="$expected_integrity" node <<'NODE'
           const { readFileSync } = require("node:fs");
-          const output = JSON.parse(readFileSync(process.env.PUBLISH_RESULT, "utf8"));
+          const result = JSON.parse(readFileSync(process.env.PUBLISH_RESULT, "utf8"));
           const expectedName = "@hraness/ghostget";
+          // npm 11 keys its --json publish receipt by package name.
+          if (result === null || typeof result !== "object" || Array.isArray(result)
+            || JSON.stringify(Object.keys(result)) !== JSON.stringify([expectedName])) throw new Error("npm did not return the one exact published Ghostget identity");
+          const output = result[expectedName];
           if (
             output === null || typeof output !== "object" || Array.isArray(output)
             || output.name !== expectedName || output.version !== process.env.EXPECTED_VERSION
