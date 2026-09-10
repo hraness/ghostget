@@ -782,8 +782,8 @@ jobs:
       - name: Bind downloaded artifact
         id: artifact
         env:
-          EXPECTED_TARBALL_NAME: ${{ steps.package_identity.outputs.tarball_name }}
-          EXPECTED_VERSION: ${{ steps.package_identity.outputs.version }}
+          EXPECTED_TARBALL_NAME: ${{ steps.canonical.outputs.tarball_name }}
+          EXPECTED_VERSION: ${{ steps.canonical.outputs.version }}
         run: |
           set -euo pipefail
           artifact_directory="$RUNNER_TEMP/ghostget-npm-package"
@@ -950,7 +950,11 @@ jobs:
           if NPM_CONFIG_USERCONFIG="$NPM_USERCONFIG" NPM_CONFIG_GLOBALCONFIG="$NPM_GLOBALCONFIG" \
             npm view "@hraness/ghostget@$EXPECTED_VERSION" --json \
               --registry=https://registry.npmjs.org > "$version_json" 2> "$version_error"; then
-            npm_state=published
+            if [[ -z "$(tr -d '[:space:]' < "$version_json")" ]]; then
+              npm_state=absent
+            else
+              npm_state=published
+            fi
           elif grep -q 'E404' "$version_error"; then
             npm_state=absent
           else

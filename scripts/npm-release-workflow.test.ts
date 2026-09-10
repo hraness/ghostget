@@ -7944,6 +7944,12 @@ describe("automatic npm publication from the tag Release", () => {
     expect(publishNpmSource).toContain('EXPECTED_WORKFLOW_ID: "323493609"');
     expect(publishNpmSource).toContain('EXPECTED_WORKFLOW_PATH: ".github/workflows/release.yml"');
 
+    for (const [job, source] of [[publishNpm, publishNpmSource], [admitNpm, admitNpmSource]] as const) {
+      const ids = new Set(job.steps.flatMap((step) => (step.id === undefined ? [] : [step.id])));
+      const references = [...source.matchAll(/\$\{\{ steps\.([a-z_]+)\.outputs\.[a-z_]+ \}\}/gu)].map((match) => match[1]);
+      expect(references.length).toBeGreaterThan(0);
+      expect(references.filter((id) => !ids.has(id as string))).toEqual([]);
+    }
     expect(admitNpmSource).not.toMatch(/id-token|npm publish|environment:/u);
     expect(admitNpmSource).toContain("artifact-ids: ${{ needs.attest.outputs.artifact_id }}");
     expect(admitNpmSource).toContain("bun run ./scripts/npm-package-identity.ts");
@@ -8059,6 +8065,7 @@ printf 'npm %s\\n' "$*" >> "$COMMAND_LOG"
 if [[ "$1" == view && "$2" == "@hraness/ghostget@${version}" ]]; then
   case "$REGISTRY_MODE" in
     absent) echo 'npm error code E404' >&2; exit 1 ;;
+    empty) printf '\n' ;;
     exact) printf '{"name":"@hraness/ghostget","version":"%s","dist":{"integrity":"%s","tarball":"https://registry.npmjs.org/@hraness/ghostget/-/ghostget-%s.tgz"}}\\n' "${version}" "$REGISTRY_INTEGRITY" "${version}" ;;
     outage) echo 'npm error code ECONNRESET' >&2; exit 1 ;;
     *) exit 99 ;;
@@ -8082,6 +8089,8 @@ fi
       };
       const absent = await runCase({});
       expect(absent.exitCode, absent.stderr).toBe(0); expect(absent.output).toBe("npm_state=absent\n");
+      const empty = await runCase({ REGISTRY_MODE: "empty" });
+      expect(empty.exitCode, empty.stderr).toBe(0); expect(empty.output).toBe("npm_state=absent\n");
       const exact = await runCase({ REGISTRY_MODE: "exact", REGISTRY_LATEST: version });
       expect(exact.exitCode, exact.stderr).toBe(0); expect(exact.output).toBe("npm_state=exact\n");
       const exactBehindLatest = await runCase({ REGISTRY_MODE: "exact", REGISTRY_LATEST: "0.17.10" });
