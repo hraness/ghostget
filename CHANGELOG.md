@@ -7,6 +7,17 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.17.3 - 2026-09-10
+
+- Read LinkedIn `contacts.read@1` Contact info from current profile pages:
+  `window.__como_rehydration__` is accepted as either a JSON object or an RSC
+  flight array, flight rows that carry JSON objects or arrays are decoded, and
+  the first-degree relationship binds when `memberDistance`, `networkDistance`,
+  or `distance` of `DISTANCE_1`, `1`, or `"1"` joins the requested vanity or
+  profile URN. Self and non-first-degree profiles still fail closed, Contact
+  info still resolves by `queryName` when the page embeds no decorated
+  `queryId`, and no email is ever invented. Adapter bundle 1.23.0.
+
 ## 0.17.2 - 2026-09-10
 
 - Publish `@hraness/ghostget` to npm as ordinary software by owner decision:
