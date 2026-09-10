@@ -3,10 +3,12 @@
 Ghostget starts at `@hraness/ghostget@0.17.3`, with command `ghostget` and the
 existing seven SDK subpaths. GitHub Releases became canonical under the former
 `@hraness/wrench` name at v0.16.13. Historical manifests, archive filenames, and
-signed provenance keep that original identity. npm is an optional mirror of
-the identical canonical archive. A delayed
-npm stage or two-factor approval does not block a GitHub Release or its website
-promotion. Historical versions and assetless Releases through v0.16.12 remain
+signed provenance keep that original identity. npm carries the identical
+canonical archive: the same tag Release workflow publishes it through OIDC
+trusted publishing immediately after the immutable GitHub Release, with no
+dispatch, staged approval, or two-factor prompt. An npm failure never unpublishes
+or blocks the GitHub Release or its website promotion; it is rerun from the
+same run. Historical versions and assetless Releases through v0.16.12 remain
 unchanged.
 
 ## Admit the canonical GitHub artifact
@@ -162,7 +164,7 @@ checksums, signed provenance, and a clean consumer install before reporting a
 new release as delivered. Preview commands describe the checked source's
 candidate coordinate; publication must complete before those commands work.
 
-## Optional npm mirror
+## Publish the same bytes to npm
 
 The existing `@hraness/wrench` npm listing is retained as history; its
 `contentPolicy.class` stays `dual-use` and it receives no further versions.
@@ -170,148 +172,97 @@ The existing `@hraness/wrench` npm listing is retained as history; its
 owner decision on 2026-09-10: the package carries no `contentPolicy`
 declaration and no `DISCLOSURE` file, matching the other Hraness listings, so
 npm's dual-use rules (interactive or staged publication with two-factor
-promotion) do not apply to it. The first publication of the new coordinate is
+promotion) do not apply to it. The first publication of the new coordinate was
 one owner-authenticated `npm publish` of the exact canonical archive bytes,
-after which the trusted publisher is configured in the package settings; later
-versions publish through `npm-stage.yml` and OIDC with provenance. Canonical
-GitHub publication and the domain migration remain independent of npm.
+after which the trusted publisher was configured in the package settings. Every
+later version publishes automatically from the tag Release workflow, unified
+with the other Hraness packages (owner decision 2026-09-10): no separate
+dispatch workflow, no staged publish, no token, and no human step after the tag
+push. Canonical GitHub publication and the domain migration remain independent
+of npm.
 
-`npm-stage.yml` is dispatch-only. Its environment-free classifier admits
-`publish_to_npm=true` only from protected `main`; `resolved_stage_version`
-remains valid only with an intentional publishing dispatch.
+`publish_npm` runs after the immutable GitHub Release exists and needs the
+verify, attest, and publish jobs. It is checkout-free, runs no product source or
+`bun install`, declares only `actions: read`, `contents: read`, and
+`id-token: write`, and enters the `npm-release` environment. In order it:
 
-A default dispatch with `publish_to_npm=false` verifies an already
-published canonical release and uploads a uniquely named mirror handoff without
-entering the environment, requesting OIDC, or mutating npm. To choose an older
-canonical release while a newer GitHub Release exists, set `release_tag` to its
-exact stable tag. The reviewed main-origin workflow source `W` stays distinct
-from canonical package source `C`, with `C<=W<=M` under protected current main.
-The canonical version must still be newer than public npm `latest`; never move
-npm's default tag backward.
+1. Reauthorizes the current attempt exactly like the GitHub publisher: owner
+   User `894119` as actor and triggering actor, public repository ID
+   `1316443113`, Release workflow `323493609` at its exact path, the protected
+   tag ref and verified source SHA, and current-main ancestry.
+2. Pins npm 11.19.0 and establishes clean publication defaults: empty user and
+   global configuration files, a clean working directory, no ambient
+   `npm_config_tag`, and a proven default tag of `latest`.
+3. Downloads the attested canonical artifact by its numeric artifact ID, so a
+   failed job can be rerun from the same run without rebuilding. It binds all
+   five files to the verify job's recorded SHA-256 hashes and the attestation
+   bundle hash, binds `release-manifest.json` to the verified source, tag,
+   workflow authority, run, and package, and copies only the archive and
+   packing receipt into the three-file handoff.
+4. Independently parses the bounded USTAR archive and its packed manifest:
+   omitted or `false` `private`, no `contentPolicy`, no top-level `tag`, and a
+   `publishConfig` of exactly `access=public` plus the canonical registry.
+5. Admits the public registry state. `@hraness/ghostget@<version>` absent and
+   public `latest` older than the candidate proceeds to publication. The
+   version already public with the exact canonical `dist.integrity` is an
+   idempotent rerun and is skipped. Any other state, including the same
+   version with different bytes, fails closed; a published version is never
+   overwritten.
+6. Immediately before mutation, re-reads the immutable canonical Release by
+   tag: immutable, not draft or prerelease, Actions-bot author, the exact
+   source and attempt receipt, exactly five uploaded assets, and an archive
+   digest and size equal to the handed-off tarball. Then it runs one
+   `npm publish <tarball> --access public --ignore-scripts --json --provenance`
+   from the clean directory without `--tag`, so npm's monotonic default-tag
+   guard stays active, and requires the returned identity and integrity to
+   match the tarball.
 
-```sh
-gh workflow run npm-stage.yml --repo hraness/ghostget --ref main \
-  -f release_tag=v0.17.3
-```
+`admit_npm` then checks out the verified source read-only, downloads the
+registry tarball and metadata, and runs `scripts/npm-package-identity.ts`
+against the canonical asset plus `npm audit signatures --include-attestations`
+through `scripts/npm-provenance-identity.ts`, which binds the registry publish
+and SLSA attestations to the tag push, the verified commit, and
+`.github/workflows/release.yml`. Only after that admission is
+`@hraness/ghostget@<version>` an available registry coordinate.
 
-The read-only verify job downloads the five immutable assets, verifies their
-signed original Release run and safe package identity, and retains the full
-source gate and clean generated-tree check in an isolated tagged `C` checkout.
-It runs that tagged source's isolated install contract from the same checkout
-against the exact canonical archive. It
-copies only those same archive and receipt bytes into the existing bounded
-three-file mirror handoff; it does not rebuild or repack the package.
+An ambiguous npm write is readback and diagnosis work, never a blind retry.
+Rerun the failed jobs of the same run: the registry-state step recognizes the
+exact prior publication and completes without a second write. The workflow's
+`stable-release` concurrency group and npm's version immutability serialize
+publication; no separate intent ledger or recovery input exists.
 
-An explicit owner-authorized `publish_to_npm=true` dispatch publishes the
-mirror. The minimal checkout-free
-terminal job retains exact actor/repository/run
-reauthorization, the main-only stage environment, clean npm configuration,
-archive hashing and unsafe packed configuration rejection, OIDC provenance,
-and the retained Actions-history intent lock. `Record exclusive stable-stage
-intent` is a durable reservation even if the enclosing job fails or the npm
-write is ambiguous; whole-job success is not the lock. Scan the complete bounded
-retained dispatch/job history and current-run attempts. A queued or in-progress
-non-current rerun, an unexplained terminal staging step, or an unresolved intent
-newer than public npm latest blocks another stage. Historical generic jobs keep
-their exact checked run/job/step allowlist; they never authorize new staging.
+## Configure trusted publishing
 
-Immediately before staging, hash the handed-off archive again, check the exact
-immutable canonical release and its archive digest, and observe two identical
-bounded combined `main` plus exact canonical-tag advertisements around the
-ancestry and clean-default/public-latest checks. The existing tag must resolve
-to `C`; it is not an absence check. Leave `resolved_stage_version` empty for an
-ordinary run. Only after npm has rejected one exact prior stage may an
-owner-authorized dispatch name that version to persist the existing exact
-clearance step. Ambiguous writes are readback and diagnosis work, never blind
-retries. Run `npm publish` without `--tag`; preserve npm's monotonic
-`latest` protection. After publication,
-verify the public tarball bytes and npm provenance against the canonical asset
-before advertising `@hraness/ghostget@<version>` as an available registry mirror.
+Keep a GitHub environment named `npm-release`. Disable administrator bypass.
+Its sole protection rule must be `branch_policy`, with the single custom
+deployment policy `tag` `v*`; no branch may enter it. Configure no required
+deployment reviewers and no environment secrets. Only `publish_npm` may
+reference this environment or request an OIDC token for npm; `attest` holds the
+only other `id-token: write`, for GitHub attestation.
 
-## Configure stage-only trusted publishing
-
-After classification review and the reviewed hold-removal change, create a
-GitHub environment named `npm-stage` after the first package is public.
-Disable administrator bypass. Its sole protection rule must be `branch_policy`,
-and its sole deployment policy must select branch `main` with type `branch`.
-Configure no required deployment reviewers and no environment secrets. The
-environment can be entered only after the hold is removed and a current-`main` manual dispatch explicitly
-sets `publish_to_npm=true`; a default manual dispatch stops after
-uploading the exact canonical mirror handoff and never requests an OIDC token or
-mutate npm. Only the minimal staging job may reference this environment or
-request an OIDC token. npm's separate human inspection and two-factor approval
-remain mandatory before a staged version becomes public.
-
-Enable the checked workflow after it reaches `main`, then require the exact live
-workflow identity and active state. A disabled workflow cannot provide either
-candidate recovery or staging authority:
-
-```sh
-gh workflow enable npm-stage.yml --repo hraness/ghostget
-ghostget_stage_workflow="$(gh api \
-  /repos/hraness/ghostget/actions/workflows/npm-stage.yml)"
-GHOSTGET_STAGE_WORKFLOW="$ghostget_stage_workflow" node <<'NODE'
-const value = JSON.parse(process.env.GHOSTGET_STAGE_WORKFLOW ?? "null");
-if (
-  value?.id !== 344213783 ||
-  value.path !== ".github/workflows/npm-stage.yml" ||
-  value.state !== "active"
-) process.exit(1);
-process.stdout.write(`${JSON.stringify({ id: value.id, state: value.state })}\n`);
-NODE
-```
-
-If the current npm trust relationship does not name that environment, inspect
-and revoke it before creating the replacement:
-
-```sh
-npm trust list @hraness/ghostget \
-  --json \
-  --registry=https://registry.npmjs.org
-npm trust revoke @hraness/ghostget \
-  --id <trust-id> \
-  --registry=https://registry.npmjs.org
-```
-
-Configure the exact GitHub Actions identity:
+Configure the exact GitHub Actions identity once (interactive passkey), then
+read it back:
 
 ```sh
 npm trust github @hraness/ghostget \
-  --file npm-stage.yml \
   --repo hraness/ghostget \
-  --environment npm-stage \
-  --allow-stage-publish \
+  --file release.yml \
+  --environment npm-release \
+  --allow-publish \
+  --yes \
   --registry=https://registry.npmjs.org
 npm trust list @hraness/ghostget \
   --json \
   --registry=https://registry.npmjs.org
-npm access set mfa=publish @hraness/ghostget \
-  --registry=https://registry.npmjs.org
 ```
 
-Complete each interactive two-factor authentication prompt. The trust
-relationship must name `hraness/ghostget`, the exact `npm-stage.yml` filename, the
-`npm-stage` environment, and only `npm stage publish`. The package access setting
-must require two-factor authentication and disallow traditional publishing
-tokens. Do not add an npm token to GitHub.
-
-Keep only one pending stable stage for this package. Every OIDC stage job
-includes its exact version in the job name. Immediately before the terminal npm
-mutation, the job records a successful `Record exclusive stable-stage intent`
-step. That version-bound step is the durable reservation even when the job later
-fails or its npm write result is ambiguous. The source-free OIDC job inspects all
-attempts of its current run plus the complete bounded retained dispatch/job
-history. A queued or in-progress non-current rerun is an ambiguity and fails
-closed; completed runs retain all prior-attempt intents. The job rejects another
-submission while any uncleared intent remains newer than public
-`latest`; whole-job success is not the lock. It scrubs ambient and file-backed npm
-tag configuration, proves pinned npm's clean default remains `latest`, re-reads
-public `latest` at the terminal boundary, and intentionally omits `--tag` so npm
-retains its own monotonic default-tag guard. Before approving a stage, reject any
-superseded pending stage and confirm the inspected version is greater than the
-current `latest`. Release
-verification requires that exact version to remain `dist-tags.latest` before it
-can create the corresponding GitHub Release.
+The trust relationship must name `hraness/ghostget`, the exact `release.yml`
+filename, the `npm-release` environment, and `npm publish`. Revoke any earlier
+relationship that names another workflow file or environment with
+`npm trust revoke @hraness/ghostget --id <trust-id>`. Keep package publishing
+access on **Require two-factor authentication and disallow tokens**; the
+trusted publisher is exempt from that prompt. Do not add an npm token to
+GitHub.
 
 ## Deploy the release-bound website
 

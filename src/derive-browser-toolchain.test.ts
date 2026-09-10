@@ -131,23 +131,11 @@ test("native fixture provisioning precedes every CI full or selected-shard gate"
   const root = join(import.meta.dir, "..");
   const release = readFileSync(join(root, ".github", "workflows", "release.yml"), "utf8");
   // Release admits the complete exact-source CI union, including the provisioned
-  // derive shard; the optional mirror still executes its own tagged full check.
+  // derive shard, before building the canonical archive; npm publication reuses
+  // those exact bytes without a second source gate.
   expect(release).toContain("bun run ./scripts/release-source-ci.ts admit");
   expect(release.indexOf("bun run ./scripts/release-source-ci.ts admit")).toBeLessThan(release.indexOf("- run: bun run build"));
-  const stage = readFileSync(join(root, ".github", "workflows", "npm-stage.yml"), "utf8");
-  const taggedSource = stage.indexOf('git worktree add --detach "$smoke_source" "$VERIFIED_SHA"');
-  expect(taggedSource).toBeGreaterThan(0);
-  const checkEnd = stage.indexOf("          )", taggedSource);
-  expect(checkEnd).toBeGreaterThan(taggedSource);
-  const scopedCheck = stage.slice(taggedSource, checkEnd);
-  const enterSource = scopedCheck.indexOf('cd "$smoke_source"');
-  const install = scopedCheck.indexOf("bun install --frozen-lockfile --ignore-scripts");
-  const provision = scopedCheck.indexOf("bun run ./scripts/provision-derive-browser.ts");
-  const check = scopedCheck.indexOf('GHOSTGET_DERIVE_BROWSER_ROOT="$fixture_browser_root" bun run check');
-  expect(enterSource).toBeGreaterThan(0);
-  expect(install).toBeGreaterThan(enterSource);
-  expect(provision).toBeGreaterThan(install);
-  expect(check).toBeGreaterThan(provision);
+  expect(release).not.toContain("provision-derive-browser.ts");
   const ci = readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8");
   expect(ci.indexOf("bun run ./scripts/provision-derive-browser.ts")).toBeGreaterThan(0);
   expect(ci).toContain("--for-shard '${{ matrix.shard }}' 4");

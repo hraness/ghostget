@@ -62,7 +62,7 @@ describe("canonical GitHub artifact admission", () => {
     expect(parseReleaseManifest(manifest, { sourceSha, runAttempt: 2 })).toEqual(manifest);
     for (const invalid of [
       { ...manifest, extra: true }, { ...manifest, sourceSha: 1e39 }, { ...manifest, repositoryId: "1316443113" },
-      { ...manifest, workflow: ".github/workflows/npm-stage.yml" }, { ...manifest, runAttempt: 0 },
+      { ...manifest, workflow: ".github/workflows/ci.yml" }, { ...manifest, runAttempt: 0 },
       { ...manifest, tag: "v0.17.0-preview" }, { ...manifest, version: "0.17.1" },
       { ...manifest, archive: { ...manifest.archive, name: "../archive.tgz" } },
       { ...manifest, archive: { ...manifest.archive, bytes: 8 * 1024 * 1024 + 1 } },

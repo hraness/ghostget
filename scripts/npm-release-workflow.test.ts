@@ -73,7 +73,6 @@ import {
 
 import { releaseIdentity } from "../website/github-release-artifact.mjs";
 
-const stageWorkflowUrl = new URL("../.github/workflows/npm-stage.yml", import.meta.url);
 const ciWorkflowUrl = new URL("../.github/workflows/ci.yml", import.meta.url);
 const releaseWorkflowUrl = new URL("../.github/workflows/release.yml", import.meta.url);
 const websiteProductionWorkflowUrl = new URL(
@@ -1578,1348 +1577,6 @@ describe("npm publication contract", () => {
     expect(incidentSection).not.toContain("WhatsApp Message Like Me");
   });
 
-  test("non-main dispatch cannot admit either source-checkout job", async () => {
-    const workflow = await readFile(stageWorkflowUrl, "utf8");
-    const jobs = ["classify", "verify"].map((name) => {
-      const start = workflow.indexOf(`\n  ${name}:\n`);
-      expect(start).toBeGreaterThan(-1);
-      const end = workflow.indexOf(name === "classify" ? "\n  verify:\n" : "\n  stage:\n", start + 1);
-      expect(end).toBeGreaterThan(start);
-      const job = workflow.slice(start, end);
-      const guards = [...job.matchAll(/^    if: (.+)$/gmu)].map((match) => match[1]);
-      expect(guards).toHaveLength(1);
-      const guard = guards[0];
-      expect(guard).toBe(name === "classify" ? "github.ref == 'refs/heads/main'"
-        : "github.ref == 'refs/heads/main' && needs.classify.outputs.should_prepare == 'true'");
-      expect(job.indexOf("\n    if:")).toBeLessThan(job.indexOf("\n    steps:"));
-      if (guard === undefined) throw new Error("missing source-checkout guard");
-      return guard.split(" && ").map((term) => {
-        const comparison = /^(github\.ref|needs\.classify\.outputs\.should_prepare) == '([^']+)'$/u.exec(term);
-        const key = comparison?.[1];
-        const value = comparison?.[2];
-        if (key === undefined || value === undefined) throw new Error("unexpected source-checkout guard grammar");
-        return { key, value };
-      });
-    });
-    for (const ref of ["refs/heads/main", "refs/heads/candidate", "refs/heads/main-candidate",
-      "refs/tags/main", "refs/pull/197/merge", "", "refs/heads/main "]) {
-      for (const shouldPrepare of ["true", "false", ""]) {
-        const values: Record<string, string> = { "github.ref": ref,
-          "needs.classify.outputs.should_prepare": shouldPrepare };
-        const admitted = jobs.map((guard) => guard.every(({ key, value }) =>
-          values[key]?.toLowerCase() === value.toLowerCase()));
-        expect(admitted).toEqual([ref === "refs/heads/main",
-          ref === "refs/heads/main" && shouldPrepare === "true"]);
-      }
-    }
-  });
-
-  test("separates canonical mirror verification from checkout-free stage capability", async () => {
-    const workflow = await readFile(stageWorkflowUrl, "utf8");
-    const parsed = Bun.YAML.parse(workflow) as { on: Record<string, unknown>; jobs: Record<string, { permissions: Record<string, string>; environment?: string; needs?: string; if?: string; steps: Record<string, unknown>[] }> };
-    expect(Object.keys(parsed.on)).toEqual(["workflow_dispatch"]);
-    expect(Object.keys(parsed.jobs)).toEqual(["classify", "verify", "stage"]);
-    expect(parsed.jobs.classify!.permissions).toEqual({ contents: "read" });
-    expect(parsed.jobs.verify!.permissions).toEqual({ actions: "read", contents: "read" });
-    expect(parsed.jobs.stage!.permissions).toEqual({ actions: "read", contents: "read", "id-token": "write" });
-    expect(parsed.jobs.classify!.environment).toBeUndefined();
-    expect(parsed.jobs.verify!.environment).toBeUndefined();
-    expect(parsed.jobs.stage!.environment).toBe("npm-stage");
-    expect(parsed.jobs.verify!.needs).toBe("classify");
-    expect(parsed.jobs.stage!.needs).toBe("verify");
-    expect(parsed.jobs.stage!.if).toBe("needs.verify.result == 'success' && github.event_name == 'workflow_dispatch' && inputs.publish_to_npm == true");
-    expect(workflow.match(/ref: \$\{\{ github\.sha \}\}/gu) ?? []).toHaveLength(2);
-    expect(workflow).not.toContain("ref: ${{ needs.classify.outputs.source_sha }}");
-    const verifyCheckout = parsed.jobs.verify!.steps.find((step) => String(step.uses).startsWith("actions/checkout@"));
-    expect(verifyCheckout?.with).toEqual({
-      "fetch-depth": 1, "fetch-tags": false, "persist-credentials": false, ref: "${{ github.sha }}",
-    });
-    const classify = workflow.slice(workflow.indexOf("  classify:"), workflow.indexOf("  verify:"));
-    const verify = workflow.slice(workflow.indexOf("  verify:"), workflow.indexOf("  stage:"));
-    const stage = workflow.slice(workflow.indexOf("  stage:"));
-    expect(classify).toContain('release-ref-authority.ts promotion');
-    expect(verify).toContain('github-release-artifact.ts download');
-    expect(verify).toContain('bun run check');
-    expect(verify).toContain('package-smoke.ts');
-    expect(verify).not.toMatch(/npm pack|npm publish|id-token: write/u);
-    expect(stage).not.toMatch(/actions\/checkout|setup-bun|\bbun\b|\.\/scripts\//u);
-    expect(stage).toContain("inputs.publish_to_npm == true");
-    expect(stage).toContain("github.event_name == 'workflow_dispatch'");
-    expect(stage.match(/npm publish/gu)).toHaveLength(1);
-    expect(stage.match(/git ls-remote --sort=refname --refs/gu)).toHaveLength(2);
-    expect(stage).not.toContain("--tag");
-    expect(stage).not.toContain("NPM_TOKEN");
-    expect(stage).toContain('EXPECTED_RELEASE_SHA: ${{ needs.verify.outputs.release_sha }}');
-    const intent = stage.indexOf('      - name: Record exclusive stable-stage intent');
-    const terminal = stage.indexOf('      - name: Revalidate protected-main ancestry and stage exact package');
-    expect(intent).toBeGreaterThan(-1); expect(terminal).toBeGreaterThan(intent);
-    expect(stage.slice(intent, terminal).match(/^      - name:/gmu)).toHaveLength(1);
-    const lastSnapshot = stage.lastIndexOf('git ls-remote --sort=refname --refs');
-    const equality = stage.indexOf('cmp --silent', lastSnapshot);
-    const mutation = stage.indexOf('npm publish "$TARBALL"');
-    expect(stage.indexOf('Canonical Release changed before optional npm staging')).toBeLessThan(lastSnapshot);
-    expect(equality).toBeGreaterThan(lastSnapshot); expect(mutation).toBeGreaterThan(equality);
-    expect(stage.slice(equality, mutation)).not.toMatch(/^\s*(?:gh|git|npm)\b/gmu);
-  });
-
-  test("passes default-branch context to every mirror ref-authority invocation", async () => {
-    const workflow = Bun.YAML.parse(await readFile(stageWorkflowUrl, "utf8")) as {
-      jobs: Record<string, { steps: { name?: string; run?: string; env?: Record<string, string> }[] }>;
-    };
-    const authoritySteps = Object.values(workflow.jobs).flatMap((job) =>
-      job.steps.filter((step) => step.run?.includes("./scripts/release-ref-authority.ts")));
-    expect(authoritySteps.map((step) => step.name)).toEqual([
-      "Classify event-source package",
-      "Verify admitted source and protected-main ancestry",
-      "Pack and smoke one exact npm artifact",
-    ]);
-    for (const step of authoritySteps) {
-      expect(step.env?.DEFAULT_BRANCH, step.name)
-        .toBe("${{ github.event.repository.default_branch }}");
-    }
-  });
-
-  test("verifies canonical bytes without an npm listing and retains publication-only registry admission", async () => {
-    const workflow = await readFile(stageWorkflowUrl, "utf8");
-    const parsed = Bun.YAML.parse(workflow) as {
-      jobs: { verify: { steps: { name?: string; if?: string; run?: string }[] } };
-    };
-    const registryStep = parsed.jobs.verify.steps.find((step) => step.name === "Verify unpublished package identity");
-    const canonicalStep = parsed.jobs.verify.steps.find((step) => step.name === "Pack and smoke one exact npm artifact");
-    expect(registryStep?.if).toBe("inputs.publish_to_npm == true");
-    expect(canonicalStep?.if).toBeUndefined();
-    if (registryStep?.run === undefined || canonicalStep?.run === undefined) throw new Error("missing mirror admission step");
-    const nodeExecutable = Bun.which("node");
-    if (nodeExecutable === null) throw new Error("Node is required for workflow verification");
-    for (const [tag, archiveName] of [
-      ["v0.16.17", "hraness-wrench-0.16.17.tgz"],
-      ["v0.17.0", "hraness-ghostget-0.17.0.tgz"],
-    ] as const) {
-      const directory = await mkdtemp(join(tmpdir(), "ghostget-listing-independent-"));
-      const binaryDirectory = join(directory, "bin");
-      const commandLog = join(directory, "commands");
-      const output = join(directory, "output");
-      const fixture = join(directory, "canonical-fixture.tgz");
-      const source = "a".repeat(40); const workflowSha = "b".repeat(40);
-      const archiveBytes = new TextEncoder().encode("canonical archive fixture\n");
-      try {
-        await mkdir(binaryDirectory);
-        await writeFile(fixture, archiveBytes);
-        const stubs: Record<string, string> = {
-          npm: `printf 'npm %s\\n' "$*" >> "$COMMAND_LOG"\nprintf 'npm error code E404\\n' >&2\nexit 1`,
-          node: `printf 'node %s\\n' "$*" >> "$COMMAND_LOG"
-  case "\${1-}" in
-    --experimental-strip-types) [[ "$*" == "--experimental-strip-types ./scripts/release-ref-authority.ts promotion $VERIFIED_TAG $GITHUB_SHA $VERIFIED_SHA" ]] ;;
-    --input-type=module) exec "$FIXTURE_NODE_EXECUTABLE" "$@" ;;
-    -e) [[ "$PACKAGE_VERSION" == "\${VERIFIED_TAG#v}" ]] ;;
-    -p) [[ "\${3-}" == "$RUNNER_TEMP/ghostget-mirror-canonical/release-manifest.json" ]]; printf '4189' ;;
-    *) exit 97 ;;
-  esac`,
-          bun: `printf 'bun %s\\n' "$*" >> "$COMMAND_LOG"
-  case "$*" in
-    "run ./scripts/github-release-artifact.ts download $RUNNER_TEMP/ghostget-mirror-canonical")
-      mkdir "$RUNNER_TEMP/ghostget-mirror-canonical"
-      cp "$CANONICAL_FIXTURE" "$RUNNER_TEMP/ghostget-mirror-canonical/$FIXTURE_ARCHIVE_NAME"
-      printf '{}\\n' > "$RUNNER_TEMP/ghostget-mirror-canonical/npm-pack.json"
-      printf '{"runId":4189}\\n' > "$RUNNER_TEMP/ghostget-mirror-canonical/release-manifest.json" ;;
-    "install --frozen-lockfile --ignore-scripts") ;;
-    "run check") [[ "$GHOSTGET_DERIVE_BROWSER_ROOT" == "$RUNNER_TEMP/fixture-browser" && "$WRENCH_DERIVE_BROWSER_ROOT" == "$GHOSTGET_DERIVE_BROWSER_ROOT" ]] ;;
-    "run ./scripts/provision-derive-browser.ts") printf '%s\\n' "$RUNNER_TEMP/fixture-browser" ;;
-    "run ./scripts/package-smoke.ts --archive $RUNNER_TEMP/ghostget-npm-package/$FIXTURE_ARCHIVE_NAME --pack-json $RUNNER_TEMP/ghostget-npm-package/npm-pack.json")
-      cmp "$CANONICAL_FIXTURE" "$RUNNER_TEMP/ghostget-npm-package/$FIXTURE_ARCHIVE_NAME" ;;
-    *) exit 97 ;;
-  esac`,
-          git: `printf 'git %s\\n' "$*" >> "$COMMAND_LOG"
-  case "$*" in
-    "worktree add --detach $RUNNER_TEMP/ghostget-mirror-source $VERIFIED_SHA") mkdir "$RUNNER_TEMP/ghostget-mirror-source" ;;
-    "-C $RUNNER_TEMP/ghostget-mirror-source status --porcelain --untracked-files=all -- dist bun.lock") ;;
-    *) exit 97 ;;
-  esac`,
-          gh: `printf 'gh %s\\n' "$*" >> "$COMMAND_LOG"
-  [[ "$*" == "api repos/hraness/ghostget/releases/tags/$VERIFIED_TAG --jq .id" ]]
-  printf '4179'`,
-        };
-        for (const [command, body] of Object.entries(stubs)) {
-          const path = join(binaryDirectory, command);
-          await writeFile(path, `#!/bin/bash\nset -euo pipefail\n${body}\n`);
-          await chmod(path, 0o755);
-        }
-        const environment = {
-          CANONICAL_FIXTURE: fixture, FIXTURE_ARCHIVE_NAME: archiveName, FIXTURE_NODE_EXECUTABLE: nodeExecutable,
-          CANONICAL_TAG: tag, VERIFIED_TAG: tag, VERIFIED_SHA: source,
-          GITHUB_SHA: workflowSha, GITHUB_REPOSITORY: "hraness/ghostget", GITHUB_RUN_ID: "4190", GITHUB_RUN_ATTEMPT: "1",
-          DEFAULT_BRANCH: "main", INPUT_PUBLISH_TO_NPM: "false", RUNNER_TEMP: directory,
-          GITHUB_OUTPUT: output, COMMAND_LOG: commandLog, PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`,
-        };
-        // Execute the admitted verify steps using their actual workflow condition.
-        // The registry stub always returns E404; an unconditional lookup fails this flow.
-        for (const step of [registryStep, canonicalStep]) {
-          if (step.if !== undefined) {
-            expect(step.if).toBe("inputs.publish_to_npm == true");
-            if (environment.INPUT_PUBLISH_TO_NPM !== "true") continue;
-          }
-          const result = await runWorkflowScript(step.run!, environment);
-          expect(result.exitCode, result.stderr).toBe(0);
-        }
-        expect(await readFile(join(directory, "ghostget-npm-package", archiveName))).toEqual(Buffer.from(archiveBytes));
-        expect(await readFile(join(directory, "ghostget-npm-package", "npm-package.sha256"), "utf8"))
-          .toBe(`${createHash("sha256").update(archiveBytes).digest("hex")}\n`);
-        expect(await readFile(output, "utf8")).toContain(`version=${tag.slice(1)}\nrelease_id=4179\nrelease_run_id=4189\n`);
-        const verifiedCommands = await readFile(commandLog, "utf8");
-        expect(verifiedCommands).toContain("bun run ./scripts/github-release-artifact.ts download");
-        expect(verifiedCommands).toContain("bun run ./scripts/package-smoke.ts --archive");
-        expect(verifiedCommands).not.toMatch(/^npm /mu);
-        // A future approved publication path still cannot bypass registry bootstrap.
-        const publication = await runWorkflowScript(registryStep.run, { ...environment, INPUT_PUBLISH_TO_NPM: "true" });
-        expect(publication.exitCode).toBe(1);
-        expect(publication.stdout).toContain("must be bootstrapped interactively before staged publishing can run");
-        expect(await readFile(commandLog, "utf8")).toContain("npm view @hraness/ghostget name --json");
-      } finally { await rm(directory, { recursive: true, force: true }); }
-    }
-  });
-
-  test("classifies protected-main verification dispatches and holds npm publication before side effects", async () => {
-    const workflow = await readFile(stageWorkflowUrl, "utf8");
-    const script = workflowStepScript(workflow, "Classify event-source package");
-    const directory = await mkdtemp(join(tmpdir(), "ghostget-canonical-classify-"));
-    const binaryDirectory = join(directory, "bin"); const output = join(directory, "output");
-    const commandLog = join(directory, "commands");
-    const source = "a".repeat(40); const workflowSha = "b".repeat(40);
-    try {
-      await mkdir(binaryDirectory);
-      await writeFile(join(binaryDirectory, "node"), `#!/bin/bash
-set -euo pipefail
-printf 'node %s\n' "$*" >> "$COMMAND_LOG"
-if [[ "\${1-}" == --experimental-strip-types ]]; then
-  case "\${3-}" in
-    stage-current) printf 'source_sha=%s\n' "$GITHUB_SHA" ;;
-    promotion)
-      [[ "\${4-}" == v0.16.13 && "\${5-}" == "$GITHUB_SHA" && -z "\${6-}" ]]
-      printf 'sha=%s\ntag=v0.16.13\nmain_sha=%s\n' "$RELEASE_SHA" "$GITHUB_SHA"
-      ;;
-    *) exit 1 ;;
-  esac
-else
-  printf '0.16.13'
-fi
-`);
-      await chmod(join(binaryDirectory, "node"), 0o755);
-      for (const command of ["gh", "git", "npm"]) {
-        await writeFile(join(binaryDirectory, command), `#!/bin/bash
-set -euo pipefail
-printf '%s\n' "\${0##*/}" >> "$COMMAND_LOG"
-exit 97
-`);
-        await chmod(join(binaryDirectory, command), 0o755);
-      }
-      const runCase = async (extra: Record<string, string> = {}) => {
-        await rm(output, { force: true });
-        await rm(commandLog, { force: true });
-        return runWorkflowScript(script, { DEFAULT_BRANCH: "main", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
-          GITHUB_SHA: workflowSha, GITHUB_REPOSITORY: "hraness/ghostget", GITHUB_REPOSITORY_ID: String(GHOSTGET_REPOSITORY_ID),
-          RELEASE_SHA: source, INPUT_RELEASE_TAG: "", INPUT_PUBLISH_TO_NPM: "false", RESOLVED_STAGE_VERSION: "",
-          GITHUB_OUTPUT: output, COMMAND_LOG: commandLog, PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`, ...extra });
-      };
-      for (const input of [{}, { INPUT_RELEASE_TAG: "v0.16.13" }]) {
-        const accepted = await runCase(input); expect(accepted.exitCode, accepted.stderr).toBe(0);
-        expect(await readFile(output, "utf8")).toBe(`should_prepare=true\nsource_sha=${workflowSha}\nrelease_sha=${source}\nrelease_tag=v0.16.13\n`);
-        expect(await readFile(commandLog, "utf8")).toContain("release-ref-authority.ts promotion");
-      }
-      for (const input of [{}, { INPUT_RELEASE_TAG: "v0.16.13" }, { RESOLVED_STAGE_VERSION: "0.16.11" }]) {
-        const publishing = await runCase({ ...input, INPUT_PUBLISH_TO_NPM: "true" });
-        expect(publishing.exitCode, publishing.stderr).toBe(0);
-        expect(await readFile(output, "utf8")).toBe(`should_prepare=true\nsource_sha=${workflowSha}\nrelease_sha=${source}\nrelease_tag=v0.16.13\n`);
-      }
-      const poisoned = await runCase({ INPUT_RELEASE_TAG: "v0.16.13\npoison", INPUT_PUBLISH_TO_NPM: "true" });
-      expect(poisoned.exitCode).not.toBe(0); expect(await Bun.file(output).exists()).toBe(false);
-      for (const input of [{ GITHUB_EVENT_NAME: "push" }, { GITHUB_REF: "refs/heads/preview" }, { DEFAULT_BRANCH: "preview" },
-        { INPUT_RELEASE_TAG: "v0.16.13\npoison" }, { INPUT_RELEASE_TAG: "v0.16.13-preview" }, { RESOLVED_STAGE_VERSION: "0.16.11" }]) {
-        const denied = await runCase(input); expect(denied.exitCode).not.toBe(0); expect(await Bun.file(output).exists()).toBe(false);
-      }
-    } finally { await rm(directory, { recursive: true, force: true }); }
-  });
-
-  test("rejects delegated or replayed npm stage attempts before OIDC setup", async () => {
-    const workflow = await readFile(stageWorkflowUrl, "utf8");
-    const script = workflowStepScript(workflow, "Reauthorize current npm stage attempt");
-    const directory = await mkdtemp(join(tmpdir(), "ghostget-stage-attempt-"));
-    const binaryDirectory = join(directory, "bin");
-    const ghStub = join(binaryDirectory, "gh");
-    const attemptFixture = join(directory, "attempt.json");
-    const workflowFixture = join(directory, "workflow.json");
-    const repositoryFixture = join(directory, "repository.json");
-    const sourceSha = "a".repeat(40);
-    const validAttempt = Object.freeze({
-      id: 8001,
-      run_attempt: 2,
-      workflow_id: 344213783,
-      name: "Stage npm package",
-      path: ".github/workflows/npm-stage.yml",
-      event: "workflow_dispatch",
-      head_branch: "main",
-      head_sha: sourceSha,
-      status: "in_progress",
-      conclusion: null,
-      actor: { id: 894119, type: "User" },
-      triggering_actor: { id: 894119, type: "User" },
-      repository: { id: GHOSTGET_REPOSITORY_ID, full_name: providerRepository, private: false },
-    });
-    try {
-      await mkdir(binaryDirectory, { recursive: true });
-      await Promise.all([
-        writeFile(workflowFixture, `${JSON.stringify({
-          id: 344213783,
-          name: "Stage npm package",
-          path: ".github/workflows/npm-stage.yml",
-          state: "active",
-        })}\n`, "utf8"),
-        writeFile(repositoryFixture, `${JSON.stringify({
-          id: GHOSTGET_REPOSITORY_ID,
-          full_name: providerRepository,
-          visibility: "public",
-          private: false,
-          default_branch: "main",
-        })}\n`, "utf8"),
-      ]);
-      await writeFile(ghStub, `#!/bin/bash
-set -euo pipefail
-case "$*" in
-  "api --method GET /repos/hraness/ghostget/actions/runs/8001/attempts/2") cat "$ATTEMPT_FIXTURE" ;;
-  "api --method GET /repos/hraness/ghostget/actions/workflows/344213783") cat "$WORKFLOW_FIXTURE" ;;
-  "api --method GET /repos/hraness/ghostget") cat "$REPOSITORY_FIXTURE" ;;
-  *) echo "unexpected gh command: $*" >&2; exit 1 ;;
-esac
-`, "utf8");
-      await chmod(ghStub, 0o755);
-      const baseEnvironment = Object.freeze({
-        ATTEMPT_FIXTURE: attemptFixture,
-        EXPECTED_ACTOR_ID: "894119",
-        EXPECTED_REPOSITORY: providerRepository,
-        EXPECTED_REPOSITORY_ID: String(GHOSTGET_REPOSITORY_ID),
-        EXPECTED_WORKFLOW_ID: "344213783",
-        EXPECTED_WORKFLOW_PATH: ".github/workflows/npm-stage.yml",
-        GITHUB_EVENT_NAME: "workflow_dispatch",
-        GITHUB_REF: "refs/heads/main",
-        GITHUB_REPOSITORY: providerRepository,
-        GITHUB_REPOSITORY_ID: String(GHOSTGET_REPOSITORY_ID),
-        GITHUB_RUN_ATTEMPT: "2",
-        GITHUB_RUN_ID: "8001",
-        GITHUB_SHA: sourceSha,
-        INPUT_PUBLISH_TO_NPM: "true",
-        PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`,
-        REF_PROTECTED: "true",
-        RESOLVED_STAGE_VERSION: "",
-        REPOSITORY_FIXTURE: repositoryFixture,
-        RUNNER_TEMP: directory,
-        WORKFLOW_FIXTURE: workflowFixture,
-      });
-      const runCase = async (
-        attempt: Readonly<Record<string, unknown>>,
-        overrides: Readonly<Record<string, string>> = {},
-      ) => {
-        await writeFile(attemptFixture, `${JSON.stringify(attempt)}\n`, "utf8");
-        return runWorkflowScript(script, { ...baseEnvironment, ...overrides });
-      };
-
-      const accepted = await runCase(validAttempt);
-      if (accepted.exitCode !== 0) {
-        throw new Error(`Valid npm stage attempt failed:\n${accepted.stdout}${accepted.stderr}`);
-      }
-      expect(accepted.exitCode).toBe(0);
-      await writeFile(workflowFixture, `${JSON.stringify({
-        id: 344213783,
-        name: "Renamed stage workflow presentation",
-        path: ".github/workflows/npm-stage.yml",
-        state: "active",
-      })}\n`, "utf8");
-      const presentationDrift = await runCase({
-        ...validAttempt,
-        name: "Renamed stage run presentation",
-      });
-      expect(presentationDrift.exitCode).toBe(0);
-      for (const [attempt, overrides] of [
-        [{ ...validAttempt, actor: { id: 7, type: "User" } }, {}],
-        [{ ...validAttempt, triggering_actor: { id: 7, type: "User" } }, {}],
-        [{ ...validAttempt, run_attempt: 1 }, {}],
-        [{ ...validAttempt, workflow_id: 7 }, {}],
-        [{ ...validAttempt, path: ".github/workflows/other.yml" }, {}],
-        [{ ...validAttempt, status: "completed", conclusion: "success" }, {}],
-        [validAttempt, { INPUT_PUBLISH_TO_NPM: "false" }],
-        [validAttempt, { REF_PROTECTED: "false" }],
-        [validAttempt, { RESOLVED_STAGE_VERSION: "9007199254740992.0.0" }],
-      ] as const) {
-        expect((await runCase(attempt, overrides)).exitCode).not.toBe(0);
-      }
-    } finally {
-      await rm(directory, { force: true, recursive: true });
-    }
-  });
-
-  test("the durable stage-intent lock survives failed jobs and same-run ambiguous reruns", async () => {
-    const workflow = await readFile(stageWorkflowUrl, "utf8");
-    const script = workflowStepScript(workflow, "Reject unresolved stable-stage intent");
-    const directory = await mkdtemp(join(tmpdir(), "ghostget-stage-history-"));
-    const binaryDirectory = join(directory, "bin");
-    const npmStub = join(binaryDirectory, "npm");
-    const ghStub = join(binaryDirectory, "gh");
-    const ghCommandLog = join(directory, "gh-commands.log");
-    const runsFixture = join(directory, "runs.json");
-    const currentJobsFixture = join(directory, "current-jobs.json");
-    const firstJobsFixture = join(directory, "first-jobs.json");
-    const legacyJobsFixture = join(directory, "legacy-jobs.json");
-    const resolutionJobsFixture = join(directory, "resolution-jobs.json");
-    const legacyAttemptFixture = join(directory, "legacy-attempt.json");
-    const historicalSha = "c".repeat(40);
-    const legacySha = "2292db1323e2d1a1c94e2fb7d8731b0c8ce97fc2";
-    const resolutionSha = "e".repeat(40);
-    const currentSha = "d".repeat(40);
-    const currentInProgressJob = Object.freeze({
-      conclusion: null,
-      head_sha: currentSha,
-      id: 8101,
-      name: "Stage exact package v0.15.2",
-      run_attempt: 2,
-      run_id: 8001,
-      status: "in_progress",
-      steps: [{
-        conclusion: null,
-        name: "Reject unresolved stable-stage intent",
-      }],
-    });
-    const failedIntentJob = Object.freeze({
-      conclusion: "failure",
-      head_sha: historicalSha,
-      id: 7101,
-      name: "Stage exact package v0.15.1",
-      run_attempt: 1,
-      run_id: 7001,
-      status: "completed",
-      steps: [{
-        conclusion: "success",
-        name: "Record exclusive stable-stage intent",
-        number: 7,
-      }, {
-        conclusion: "failure",
-        name: "Revalidate protected-main ancestry and stage exact package",
-        number: 8,
-      }],
-    });
-    const persistedResolutionJob = Object.freeze({
-      conclusion: "failure",
-      head_sha: resolutionSha,
-      id: 7201,
-      name: "Stage exact package v0.15.2",
-      run_attempt: 1,
-      run_id: 7002,
-      status: "completed",
-      steps: [{
-        conclusion: "success",
-        name: "Record cleared stable-stage intent v0.15.1",
-      }, {
-        conclusion: "failure",
-        name: "Bind verified artifact identity",
-      }],
-    });
-    const sealedLegacyJob = Object.freeze({
-      conclusion: "success",
-      head_sha: legacySha,
-      id: 101350099282,
-      name: "Stage exact package",
-      run_attempt: 1,
-      run_id: 33980252754,
-      status: "completed",
-      steps: [{
-        conclusion: "success",
-        name: "Revalidate protected-main ancestry and stage exact package",
-        number: 7,
-      }],
-    });
-
-    try {
-      await mkdir(binaryDirectory, { recursive: true });
-      await Promise.all([
-        writeFile(npmStub, `#!/bin/bash
-set -euo pipefail
-if [[ "\${1-}" == config && "\${2-}" == get && "\${3-}" == tag ]]; then
-  printf 'latest\n'
-elif [[ "\${1-}" == view && "\${2-}" == @hraness/ghostget && \
-        "\${3-}" == dist-tags.latest && "\${4-}" == --json ]]; then
-  printf '"%s"\n' "$NPM_LATEST_VERSION"
-else
-  echo "unexpected npm command: $*" >&2
-  exit 1
-fi
-`, "utf8"),
-        writeFile(ghStub, `#!/bin/bash
-set -euo pipefail
-printf '%s\n' "$*" >> "$GH_COMMAND_LOG"
-case "$*" in
-  "api --method GET /repos/hraness/ghostget/actions/workflows/344213783/runs?event=workflow_dispatch&branch=main&per_page=100") cat "$RUNS_FIXTURE" ;;
-  "api --method GET /repos/hraness/ghostget/actions/runs/8001/jobs?filter=all&per_page=100") cat "$CURRENT_JOBS_FIXTURE" ;;
-  "api --method GET /repos/hraness/ghostget/actions/runs/7001/jobs?filter=all&per_page=100") cat "$FIRST_JOBS_FIXTURE" ;;
-  "api --method GET /repos/hraness/ghostget/actions/runs/7002/jobs?filter=all&per_page=100") cat "$RESOLUTION_JOBS_FIXTURE" ;;
-  "api --method GET /repos/hraness/ghostget/actions/runs/33980252754/jobs?filter=all&per_page=100") cat "$LEGACY_JOBS_FIXTURE" ;;
-  "api --method GET /repos/hraness/ghostget/actions/runs/33980252754/attempts/1") cat "$LEGACY_ATTEMPT_FIXTURE" ;;
-  *) echo "unexpected gh command: $*" >&2; exit 1 ;;
-esac
-`, "utf8"),
-        writeFile(firstJobsFixture, `${JSON.stringify({
-          total_count: 1,
-          jobs: [failedIntentJob],
-        })}\n`, "utf8"),
-        writeFile(resolutionJobsFixture, `${JSON.stringify({
-          total_count: 1,
-          jobs: [persistedResolutionJob],
-        })}\n`, "utf8"),
-        writeFile(legacyJobsFixture, `${JSON.stringify({
-          total_count: 1,
-          jobs: [sealedLegacyJob],
-        })}\n`, "utf8"),
-        writeFile(join(directory, "global.npmrc"), "", "utf8"),
-        writeFile(join(directory, "user.npmrc"), "", "utf8"),
-      ]);
-      await Promise.all([chmod(npmStub, 0o755), chmod(ghStub, 0o755)]);
-      const emptyHistory = Object.freeze({ total_count: 0, workflow_runs: [] });
-      const failedIntentHistory = Object.freeze({
-        total_count: 1,
-        workflow_runs: [{
-          conclusion: "failure",
-          event: "workflow_dispatch",
-          head_branch: "main",
-          head_sha: historicalSha,
-          id: 7001,
-          repository: {
-            full_name: providerRepository,
-            id: GHOSTGET_REPOSITORY_ID,
-            private: false,
-          },
-          run_attempt: 1,
-          status: "completed",
-          workflow_id: 344213783,
-        }],
-      });
-      const resolvedHistory = Object.freeze({
-        total_count: 2,
-        workflow_runs: [
-          ...failedIntentHistory.workflow_runs,
-          {
-            conclusion: "failure",
-            event: "workflow_dispatch",
-            head_branch: "main",
-            head_sha: resolutionSha,
-            id: 7002,
-            repository: {
-              full_name: providerRepository,
-              id: GHOSTGET_REPOSITORY_ID,
-              private: false,
-            },
-            run_attempt: 1,
-            status: "completed",
-            workflow_id: 344213783,
-          },
-        ],
-      });
-      const sealedLegacyRun = Object.freeze({
-        actor: { id: 894119, type: "User" },
-        conclusion: "success",
-        event: "workflow_dispatch",
-        head_branch: "main",
-        head_sha: legacySha,
-        id: 33980252754,
-        repository: {
-          full_name: providerRepository,
-          id: GHOSTGET_REPOSITORY_ID,
-          private: false,
-        },
-        run_attempt: 1,
-        status: "completed",
-        triggering_actor: { id: 894119, type: "User" },
-        workflow_id: 344213783,
-      });
-      await writeFile(
-        legacyAttemptFixture,
-        `${JSON.stringify(sealedLegacyRun)}\n`,
-        "utf8",
-      );
-      const baseEnvironment = Object.freeze({
-        CURRENT_JOBS_FIXTURE: currentJobsFixture,
-        EXPECTED_REPOSITORY: providerRepository,
-        EXPECTED_REPOSITORY_ID: String(GHOSTGET_REPOSITORY_ID),
-        EXPECTED_VERSION: "0.15.2",
-        EXPECTED_WORKFLOW_ID: "344213783",
-        FIRST_JOBS_FIXTURE: firstJobsFixture,
-        GH_COMMAND_LOG: ghCommandLog,
-        GH_TOKEN: "read-only-token",
-        GITHUB_REPOSITORY: providerRepository,
-        GITHUB_RUN_ID: "8001",
-        GITHUB_SHA: currentSha,
-        LEGACY_JOBS_FIXTURE: legacyJobsFixture,
-        LEGACY_ATTEMPT_FIXTURE: legacyAttemptFixture,
-        NPM_DIRECTORY: directory,
-        NPM_GLOBALCONFIG: join(directory, "global.npmrc"),
-        NPM_USERCONFIG: join(directory, "user.npmrc"),
-        PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`,
-        RESOLVED_STAGE_VERSION: "",
-        RESOLUTION_JOBS_FIXTURE: resolutionJobsFixture,
-        RUNS_FIXTURE: runsFixture,
-        RUNNER_TEMP: directory,
-      });
-      const runHistory = async (
-        history: Readonly<Record<string, unknown>>,
-        currentJobs: Readonly<Record<string, unknown>>,
-        overrides: Readonly<Record<string, string>> = {},
-      ) => {
-        await Promise.all([
-          rm(ghCommandLog, { force: true }),
-          writeFile(runsFixture, `${JSON.stringify(history)}\n`, "utf8"),
-          writeFile(currentJobsFixture, `${JSON.stringify(currentJobs)}\n`, "utf8"),
-        ]);
-        return runWorkflowScript(script, { ...baseEnvironment, ...overrides });
-      };
-      const currentWithoutIntent = Object.freeze({
-        total_count: 1,
-        jobs: [currentInProgressJob],
-      });
-      const currentRunRecord = Object.freeze({
-        conclusion: null,
-        event: "workflow_dispatch",
-        head_branch: "main",
-        head_sha: currentSha,
-        id: 8001,
-        repository: {
-          full_name: providerRepository,
-          id: GHOSTGET_REPOSITORY_ID,
-          private: false,
-        },
-        run_attempt: 2,
-        status: "in_progress",
-        workflow_id: 344213783,
-      });
-      const runSealedLegacy = async (
-        runRecord: Readonly<Record<string, unknown>> = sealedLegacyRun,
-        jobRecord: Readonly<Record<string, unknown>> = sealedLegacyJob,
-        latest = "0.16.6",
-        attemptRecord: Readonly<Record<string, unknown>> = sealedLegacyRun,
-      ) => {
-        await Promise.all([
-          writeFile(legacyJobsFixture, `${JSON.stringify({
-            total_count: 1,
-            jobs: [jobRecord],
-          })}\n`, "utf8"),
-          writeFile(legacyAttemptFixture, `${JSON.stringify(attemptRecord)}\n`, "utf8"),
-        ]);
-        return runHistory({ total_count: 1, workflow_runs: [runRecord] }, currentWithoutIntent, {
-          EXPECTED_VERSION: "0.16.7",
-          NPM_LATEST_VERSION: latest,
-        });
-      };
-
-      const first = await runHistory(emptyHistory, currentWithoutIntent, {
-        NPM_LATEST_VERSION: "0.15.0",
-      });
-      expect(first.exitCode, `${first.stdout}\n${first.stderr}`).toBe(0);
-
-      const pending = await runHistory(failedIntentHistory, currentWithoutIntent, {
-        NPM_LATEST_VERSION: "0.15.0",
-      });
-      expect(pending.exitCode).not.toBe(0);
-      expect(`${pending.stdout}${pending.stderr}`).toContain(
-        "7001/attempt-1/job-7101 already reserved stable stage 0.15.1",
-      );
-
-      const currentInventory = await runHistory(
-        { total_count: 1, workflow_runs: [currentRunRecord] },
-        currentWithoutIntent,
-        { NPM_LATEST_VERSION: "0.15.0" },
-      );
-      expect(
-        currentInventory.exitCode,
-        `${currentInventory.stdout}\n${currentInventory.stderr}`,
-      ).toBe(0);
-      expect(
-        (await readFile(ghCommandLog, "utf8")).match(
-          /actions\/runs\/8001\/jobs\?filter=all&per_page=100/gu,
-        ) ?? [],
-      ).toHaveLength(1);
-
-      for (const status of ["queued", "in_progress"] as const) {
-        const priorRerun = {
-          ...failedIntentHistory.workflow_runs[0],
-          conclusion: null,
-          run_attempt: 2,
-          status,
-        };
-        const activeHistory = await runHistory({
-          total_count: 2,
-          workflow_runs: [currentRunRecord, priorRerun],
-        }, currentWithoutIntent, { NPM_LATEST_VERSION: "0.15.0" });
-        expect(activeHistory.exitCode).not.toBe(0);
-        expect(`${activeHistory.stdout}${activeHistory.stderr}`).toContain(
-          `Retained npm-stage run 7001 is still ${status}`,
-        );
-        expect(
-          (await readFile(ghCommandLog, "utf8")).match(
-            /actions\/runs\/8001\/jobs\?filter=all&per_page=100/gu,
-          ) ?? [],
-        ).toHaveLength(1);
-      }
-
-      for (const malformedHistory of [
-        {
-          total_count: 1,
-          workflow_runs: [{ ...currentRunRecord, conclusion: "success" }],
-        },
-        {
-          total_count: 2,
-          workflow_runs: [currentRunRecord, currentRunRecord],
-        },
-        { total_count: 101, workflow_runs: [] },
-      ] as const) {
-        expect((await runHistory(
-          malformedHistory,
-          currentWithoutIntent,
-          { NPM_LATEST_VERSION: "0.15.0" },
-        )).exitCode).not.toBe(0);
-      }
-
-      const advanced = await runHistory(failedIntentHistory, currentWithoutIntent, {
-        NPM_LATEST_VERSION: "0.15.1",
-      });
-      expect(advanced.exitCode, `${advanced.stdout}\n${advanced.stderr}`).toBe(0);
-
-      const rejectedStageRecovery = await runHistory(failedIntentHistory, currentWithoutIntent, {
-        NPM_LATEST_VERSION: "0.15.0",
-        RESOLVED_STAGE_VERSION: "0.15.1",
-      });
-      expect(
-        rejectedStageRecovery.exitCode,
-        `${rejectedStageRecovery.stdout}\n${rejectedStageRecovery.stderr}`,
-      ).toBe(0);
-
-      const wrongRecovery = await runHistory(failedIntentHistory, currentWithoutIntent, {
-        NPM_LATEST_VERSION: "0.15.0",
-        RESOLVED_STAGE_VERSION: "0.15.2",
-      });
-      expect(wrongRecovery.exitCode).not.toBe(0);
-
-      const sameRunPriorAttempt = Object.freeze({
-        total_count: 2,
-        jobs: [{
-          ...failedIntentJob,
-          head_sha: currentSha,
-          id: 8100,
-          run_id: 8001,
-        }, currentInProgressJob],
-      });
-      const blockedRerun = await runHistory(emptyHistory, sameRunPriorAttempt, {
-        NPM_LATEST_VERSION: "0.15.0",
-      });
-      expect(blockedRerun.exitCode).not.toBe(0);
-      expect(`${blockedRerun.stdout}${blockedRerun.stderr}`).toContain(
-        "8001/attempt-1/job-8100 already reserved stable stage 0.15.1",
-      );
-      const recoveredRerun = await runHistory(emptyHistory, sameRunPriorAttempt, {
-        NPM_LATEST_VERSION: "0.15.0",
-        RESOLVED_STAGE_VERSION: "0.15.1",
-      });
-      expect(recoveredRerun.exitCode, `${recoveredRerun.stdout}\n${recoveredRerun.stderr}`)
-        .toBe(0);
-
-      const persistedResolution = await runHistory(resolvedHistory, currentWithoutIntent, {
-        NPM_LATEST_VERSION: "0.15.0",
-      });
-      expect(persistedResolution.exitCode, `${persistedResolution.stdout}\n${persistedResolution.stderr}`)
-        .toBe(0);
-      const reusedResolution = await runHistory(resolvedHistory, currentWithoutIntent, {
-        NPM_LATEST_VERSION: "0.15.0",
-        RESOLVED_STAGE_VERSION: "0.15.1",
-      });
-      expect(reusedResolution.exitCode).not.toBe(0);
-      expect(`${reusedResolution.stdout}${reusedResolution.stderr}`).toContain(
-        "does not identify a blocking intent",
-      );
-
-      const sealedLegacy = await runSealedLegacy();
-      expect(sealedLegacy.exitCode, `${sealedLegacy.stdout}\n${sealedLegacy.stderr}`).toBe(0);
-
-      const completedLegacyRerun = await runSealedLegacy({
-        ...sealedLegacyRun,
-        run_attempt: 2,
-      });
-      expect(
-        completedLegacyRerun.exitCode,
-        `${completedLegacyRerun.stdout}\n${completedLegacyRerun.stderr}`,
-      ).toBe(0);
-
-      const uncoveredLegacy = await runSealedLegacy(sealedLegacyRun, sealedLegacyJob, "0.16.5");
-      expect(uncoveredLegacy.exitCode).not.toBe(0);
-      expect(`${uncoveredLegacy.stdout}${uncoveredLegacy.stderr}`).toContain(
-        "Legacy stage 0.16.6 from run 33980252754 is not covered by public npm latest",
-      );
-
-      for (const runOverride of [
-        { event: "push" },
-        { head_sha: "f".repeat(40) },
-      ] as const) {
-        const rejected = await runSealedLegacy({ ...sealedLegacyRun, ...runOverride });
-        expect(rejected.exitCode).not.toBe(0);
-      }
-      for (const attemptOverride of [
-        { run_attempt: 2 },
-        { status: "in_progress", conclusion: null },
-        { actor: { id: 7, type: "User" } },
-        { triggering_actor: { id: 7, type: "User" } },
-        { workflow_id: 7 },
-        { event: "push" },
-        { head_sha: "f".repeat(40) },
-      ] as const) {
-        const rejected = await runSealedLegacy(
-          sealedLegacyRun,
-          sealedLegacyJob,
-          "0.16.6",
-          { ...sealedLegacyRun, ...attemptOverride },
-        );
-        expect(rejected.exitCode).not.toBe(0);
-      }
-      for (const jobOverride of [
-        { id: 101350099283 },
-        { run_attempt: 2 },
-        { head_sha: "f".repeat(40) },
-        { status: "in_progress" },
-        { conclusion: "failure" },
-        { steps: [{
-          conclusion: "success",
-          name: "Revalidate protected-main ancestry and stage exact package",
-          number: 8,
-        }] },
-        { steps: [{
-          conclusion: "success",
-          name: "Revalidate current main and stage exact package",
-          number: 7,
-        }] },
-        { steps: [{
-          conclusion: "failure",
-          name: "Revalidate protected-main ancestry and stage exact package",
-          number: 7,
-        }] },
-      ] as const) {
-        const rejected = await runSealedLegacy(sealedLegacyRun, {
-          ...sealedLegacyJob,
-          ...jobOverride,
-        });
-        expect(rejected.exitCode).not.toBe(0);
-      }
-
-      await writeFile(firstJobsFixture, `${JSON.stringify({
-        total_count: 1,
-        jobs: [{
-          ...failedIntentJob,
-          conclusion: "success",
-          name: "Stage exact package",
-          steps: [],
-        }],
-      })}\n`, "utf8");
-      const unknownGeneric = await runHistory(failedIntentHistory, currentWithoutIntent, {
-        NPM_LATEST_VERSION: "0.15.0",
-      });
-      expect(unknownGeneric.exitCode).not.toBe(0);
-      expect(`${unknownGeneric.stdout}${unknownGeneric.stderr}`).toContain(
-        "contains an unsealed successful generic stage job",
-      );
-
-      for (const terminalConclusion of ["failure", "cancelled", "timed_out"] as const) {
-        await writeFile(firstJobsFixture, `${JSON.stringify({
-          total_count: 1,
-          jobs: [{
-            ...failedIntentJob,
-            conclusion: terminalConclusion,
-            steps: [{
-              conclusion: terminalConclusion,
-              name: "Revalidate protected-main ancestry and stage exact package",
-            }],
-          }],
-        })}\n`, "utf8");
-        const unreservedMutation = await runHistory(
-          failedIntentHistory,
-          currentWithoutIntent,
-          { NPM_LATEST_VERSION: "0.15.0" },
-        );
-        expect(unreservedMutation.exitCode).not.toBe(0);
-        expect(`${unreservedMutation.stdout}${unreservedMutation.stderr}`).toContain(
-          "has a terminal write without one durable intent",
-        );
-      }
-
-      await writeFile(firstJobsFixture, `${JSON.stringify({
-        total_count: 1,
-        jobs: [{
-          ...failedIntentJob,
-          name: "Renamed terminal npm writer",
-        }],
-      })}\n`, "utf8");
-      const renamedTerminalJob = await runHistory(
-        failedIntentHistory,
-        currentWithoutIntent,
-        { NPM_LATEST_VERSION: "0.15.0" },
-      );
-      expect(renamedTerminalJob.exitCode).not.toBe(0);
-      expect(`${renamedTerminalJob.stdout}${renamedTerminalJob.stderr}`).toContain(
-        "lacks a version-bound stage job",
-      );
-
-      await writeFile(firstJobsFixture, `${JSON.stringify({
-        total_count: 1,
-        jobs: [{
-          ...failedIntentJob,
-          steps: [{
-            conclusion: "failure",
-            name: "Revalidate protected-main ancestry and stage exact package",
-            number: 7,
-          }, {
-            conclusion: "success",
-            name: "Record exclusive stable-stage intent",
-            number: 8,
-          }],
-        }],
-      })}\n`, "utf8");
-      const reversedIntent = await runHistory(
-        failedIntentHistory,
-        currentWithoutIntent,
-        { NPM_LATEST_VERSION: "0.15.0" },
-      );
-      expect(reversedIntent.exitCode).not.toBe(0);
-      expect(`${reversedIntent.stdout}${reversedIntent.stderr}`).toContain(
-        "terminal write is not immediately preceded by its durable intent",
-      );
-    } finally {
-      await rm(directory, { force: true, recursive: true });
-    }
-  });
-
-  test("rejects unsafe or cross-run npm artifact outputs before download", async () => {
-    const workflow = await readFile(stageWorkflowUrl, "utf8");
-    const script = workflowStepScript(workflow, "Bind verified artifact identity");
-    const directory = await mkdtemp(join(tmpdir(), "ghostget-stage-identity-"));
-    const sourceSha = "a".repeat(40);
-    const baseEnvironment = Object.freeze({
-      EXPECTED_ARTIFACT_NAME: `npm-package-0.15.1-${sourceSha}-123456-2`,
-      EXPECTED_SOURCE_SHA: sourceSha,
-      EXPECTED_TARBALL_NAME: "hraness-ghostget-0.15.1.tgz",
-      EXPECTED_VERSION: "0.15.1",
-      GITHUB_OUTPUT: join(directory, "github-output.txt"),
-      GITHUB_RUN_ATTEMPT: "2",
-      GITHUB_RUN_ID: "123456",
-      GITHUB_SHA: sourceSha,
-    });
-
-    try {
-      const accepted = await runWorkflowScript(script, baseEnvironment);
-      expect(accepted.exitCode).toBe(0);
-      expect(await readFile(baseEnvironment.GITHUB_OUTPUT, "utf8")).toBe(
-        `artifact_name=${baseEnvironment.EXPECTED_ARTIFACT_NAME}\n`
-        + `tarball_name=${baseEnvironment.EXPECTED_TARBALL_NAME}\n`
-        + `version=${baseEnvironment.EXPECTED_VERSION}\n`
-        + `source_sha=${baseEnvironment.EXPECTED_SOURCE_SHA}\n`,
-      );
-
-      for (const environment of [
-        { ...baseEnvironment, EXPECTED_VERSION: "0.15.1/../../escape" },
-        { ...baseEnvironment, EXPECTED_VERSION: "9007199254740992.0.0" },
-        { ...baseEnvironment, EXPECTED_TARBALL_NAME: "../../escape.tgz" },
-        { ...baseEnvironment, EXPECTED_SOURCE_SHA: "../unsafe-source" },
-        { ...baseEnvironment, EXPECTED_ARTIFACT_NAME: `${baseEnvironment.EXPECTED_ARTIFACT_NAME}-other` },
-        { ...baseEnvironment, GITHUB_RUN_ID: "123456/other" },
-        { ...baseEnvironment, GITHUB_RUN_ATTEMPT: "0" },
-      ] as const) {
-        const rejected = await runWorkflowScript(script, environment);
-        expect(rejected.exitCode).not.toBe(0);
-        expect(`${rejected.stdout}${rejected.stderr}`).toContain("::error::");
-      }
-    } finally {
-      await rm(directory, { force: true, recursive: true });
-    }
-  });
-
-  type TerminalAdvertisementScenario =
-    | "publication"
-    | "governed-ref-rejection"
-    | "non-descendant-comparison"
-    | "malformed-comparison"
-    | "malformed-ref-set"
-    | "malformed-ref-row"
-    | "excessive-advertisement";
-
-  async function assertTerminalAdvertisementScenario(
-    scenario: TerminalAdvertisementScenario,
-  ): Promise<void> {
-    const workflow = await readFile(stageWorkflowUrl, "utf8");
-    const script = workflowStepScript(
-      workflow,
-      "Revalidate protected-main ancestry and stage exact package",
-    );
-    const directory = await mkdtemp(join(tmpdir(), "ghostget-stage-tag-"));
-    const binaryDirectory = join(directory, "bin");
-    const commandLog = join(directory, "commands.log");
-    const publishMarker = join(directory, "published.txt");
-    const tarball = join(directory, "hraness-ghostget-0.16.13.tgz");
-    const sourceSha = "b".repeat(40);
-    const driftSha = "d".repeat(40);
-    const tarballSha256 = "c".repeat(64);
-    const gitCallCount = join(directory, "git-call-count.txt");
-    const gitStub = join(binaryDirectory, "git");
-    const ghStub = join(binaryDirectory, "gh");
-    const npmStub = join(binaryDirectory, "npm");
-    const sha256Stub = join(binaryDirectory, "sha256sum");
-
-    try {
-      await mkdir(binaryDirectory, { recursive: true });
-      await writeFile(tarball, "reviewed tarball fixture\n", "utf8");
-      await writeFile(gitStub, `#!/bin/bash
-set -euo pipefail
-printf 'git %s\n' "$*" >> "$COMMAND_LOG"
-if [[ "$*" != "ls-remote --sort=refname --refs https://github.com/hraness/ghostget.git refs/heads/main refs/tags/v0.16.13" ]]; then
-  echo "unexpected git command: $*" >&2
-  exit 1
-fi
-call_count=0
-if [[ -f "$GIT_CALL_COUNT" ]]; then read -r call_count < "$GIT_CALL_COUNT"; fi
-call_count=$((call_count + 1))
-printf '%s\n' "$call_count" > "$GIT_CALL_COUNT"
-case "$GIT_SNAPSHOT_STATUS" in
-  exact) printf '%s\trefs/heads/main\n%s\trefs/tags/v0.16.13\n' "$GITHUB_SHA" "$EXPECTED_RELEASE_SHA" ;;
-  missing-tag) printf '%s\trefs/heads/main\n' "$GITHUB_SHA" ;;
-  failure) echo 'simulated remote lookup failure' >&2; exit 128 ;;
-  main-drift)
-    if [[ "$call_count" == "1" ]]; then
-      printf '%s\trefs/heads/main\n' "$GITHUB_SHA"
-    else
-      printf '%s\trefs/heads/main\n' "$DRIFT_SHA"
-    fi
-    printf '%s\trefs/tags/v0.16.13\n' "$EXPECTED_RELEASE_SHA"
-    ;;
-  descendant) printf '%s\trefs/heads/main\n%s\trefs/tags/v0.16.13\n' "$DRIFT_SHA" "$EXPECTED_RELEASE_SHA" ;;
-  tag-drift)
-    printf '%s\trefs/heads/main\n' "$GITHUB_SHA"
-    if [[ "$call_count" == "2" ]]; then
-      printf '%s\trefs/tags/v0.16.13\n' "$DRIFT_SHA"
-    else
-      printf '%s\trefs/tags/v0.16.13\n' "$EXPECTED_RELEASE_SHA"
-    fi
-    ;;
-  empty) ;;
-  missing-main) printf '%s\trefs/tags/v0.16.11\n' "$GITHUB_SHA" ;;
-  duplicate-main-same)
-    printf '%s\trefs/heads/main\n' "$GITHUB_SHA"
-    printf '%s\trefs/heads/main\n' "$GITHUB_SHA"
-    ;;
-  duplicate-main-different)
-    printf '%s\trefs/heads/main\n' "$GITHUB_SHA"
-    printf '%s\trefs/heads/main\n' "$DRIFT_SHA"
-    ;;
-  duplicate-tag)
-    printf '%s\trefs/heads/main\n' "$GITHUB_SHA"
-    printf '%s\trefs/tags/v0.16.13\n' "$GITHUB_SHA"
-    printf '%s\trefs/tags/v0.16.13\n' "$GITHUB_SHA"
-    ;;
-  unexpected-ref)
-    printf '%s\trefs/heads/main\n' "$GITHUB_SHA"
-    printf '%s\trefs/heads/unexpected\n' "$GITHUB_SHA"
-    ;;
-  short-sha) printf '%s\trefs/heads/main\n' "\${GITHUB_SHA%?}" ;;
-  uppercase-sha) printf '%s\trefs/heads/main\n' "\${GITHUB_SHA^^}" ;;
-  bad-sha) printf '%040d\trefs/heads/main\n' 0 | tr '0' z ;;
-  space-row) printf '%s refs/heads/main\n' "$GITHUB_SHA" ;;
-  no-tab) printf '%srefs/heads/main\n' "$GITHUB_SHA" ;;
-  crlf) printf '%s\trefs/heads/main\r\n' "$GITHUB_SHA" ;;
-  nul) printf '%s\trefs/heads/main\\0\n' "$GITHUB_SHA" ;;
-  invalid-utf8) printf '\\377\n' ;;
-  no-final-newline) printf '%s\trefs/heads/main' "$GITHUB_SHA" ;;
-  too-large)
-    printf '%s\trefs/heads/main\n' "$GITHUB_SHA"
-    head -c 65537 /dev/zero | tr '\\0' x
-    ;;
-  too-many)
-    for ((index = 0; index < 501; index += 1)); do
-      printf '%s\trefs/heads/main-%03d\n' "$GITHUB_SHA" "$index"
-    done
-    ;;
-  *) echo "unexpected snapshot status: $GIT_SNAPSHOT_STATUS" >&2; exit 1 ;;
-esac
-`, "utf8");
-      await writeFile(ghStub, `#!/bin/bash
-set -euo pipefail
-printf 'gh %s\n' "$*" >> "$COMMAND_LOG"
-if [[ "$*" == "api --method GET /repos/$GITHUB_REPOSITORY/releases/tags/v$EXPECTED_VERSION" ]]; then
-  cat "$CANONICAL_RELEASE_JSON_FIXTURE"
-  exit 0
-fi
-expected="api /repos/$GITHUB_REPOSITORY/compare/$EXPECTED_SOURCE_SHA...$DRIFT_SHA --jq [.status, .ahead_by, .behind_by, .base_commit.sha, .merge_base_commit.sha, .commits[-1].sha] | @tsv"
-if [[ "$*" != "$expected" ]]; then
-  echo "unexpected gh command: $*" >&2
-  exit 1
-fi
-case "$COMPARISON_STATUS" in
-  valid) printf 'ahead\t1\t0\t%s\t%s\t%s\n' "$EXPECTED_SOURCE_SHA" "$EXPECTED_SOURCE_SHA" "$DRIFT_SHA" ;;
-  behind) printf 'behind\t0\t1\t%s\t%s\t%s\n' "$DRIFT_SHA" "$DRIFT_SHA" "$EXPECTED_SOURCE_SHA" ;;
-  divergent) printf 'diverged\t1\t1\t%s\t%s\t%s\n' "$EXPECTED_SOURCE_SHA" "$EXPECTED_SOURCE_SHA" "$DRIFT_SHA" ;;
-  zero-ahead) printf 'ahead\t0\t0\t%s\t%s\t%s\n' "$EXPECTED_SOURCE_SHA" "$EXPECTED_SOURCE_SHA" "$DRIFT_SHA" ;;
-  wrong-base) printf 'ahead\t1\t0\t%s\t%s\t%s\n' "$DRIFT_SHA" "$EXPECTED_SOURCE_SHA" "$DRIFT_SHA" ;;
-  wrong-merge-base) printf 'ahead\t1\t0\t%s\t%s\t%s\n' "$EXPECTED_SOURCE_SHA" "$DRIFT_SHA" "$DRIFT_SHA" ;;
-  wrong-terminal) printf 'ahead\t1\t0\t%s\t%s\t%s\n' "$EXPECTED_SOURCE_SHA" "$EXPECTED_SOURCE_SHA" "$EXPECTED_SOURCE_SHA" ;;
-  malformed) printf 'ahead\tnot-a-count\t0\t%s\t%s\t%s\n' "$EXPECTED_SOURCE_SHA" "$EXPECTED_SOURCE_SHA" "$DRIFT_SHA" ;;
-  failure) echo 'simulated comparison failure' >&2; exit 1 ;;
-  *) echo "unexpected comparison status: $COMPARISON_STATUS" >&2; exit 1 ;;
-esac
-`, "utf8");
-      await writeFile(sha256Stub, `#!/bin/bash\nset -euo pipefail\nprintf 'sha256sum %s\\n' "$*" >> "$COMMAND_LOG"\nprintf '%s  %s\\n' "$EXPECTED_TARBALL_SHA256" "$1"\n`, "utf8");
-      await writeFile(npmStub, `#!/bin/bash
-set -euo pipefail
-printf 'npm %s\n' "$*" >> "$COMMAND_LOG"
-case "$*" in
-  "config get tag") printf 'latest\n' ;;
-  "view @hraness/ghostget dist-tags.latest --json --registry=https://registry.npmjs.org")
-    printf '"%s"\n' "$NPM_LATEST_VERSION"
-    ;;
-  "publish "*) printf 'published\n' > "$PUBLISH_MARKER" ;;
-  *) echo "unexpected npm command: $*" >&2; exit 1 ;;
-esac
-`, "utf8");
-      await Promise.all([
-        chmod(ghStub, 0o755),
-        chmod(gitStub, 0o755),
-        chmod(npmStub, 0o755),
-        chmod(sha256Stub, 0o755),
-      ]);
-
-      await writeFile(join(directory, "canonical.json"), JSON.stringify({
-        id: 123, tag_name: "v0.16.13", target_commitish: "a".repeat(40), draft: false, prerelease: false, immutable: true,
-        author: { id: 41898282, type: "Bot" },
-        body: `wrench-release-source-v1 repository=hraness/ghostget tag=v0.16.13 source_sha=${"a".repeat(40)} workflow_run_id=456`,
-        assets: ["hraness-ghostget-0.16.13.tgz", "npm-pack.json", "release-manifest.json", "SHA256SUMS", "provenance.jsonl"]
-          .map(name => ({ name, state: "uploaded", digest: `sha256:${tarballSha256}`, size: Buffer.byteLength("reviewed tarball fixture\n") })),
-      }));
-      const baseEnvironment = Object.freeze({
-        COMMAND_LOG: commandLog,
-        COMPARISON_STATUS: "valid",
-        DEFAULT_BRANCH: "main",
-        DRIFT_SHA: driftSha,
-        EXPECTED_SOURCE_SHA: sourceSha,
-        EXPECTED_RELEASE_SHA: "a".repeat(40),
-        EXPECTED_RELEASE_ID: "123",
-        EXPECTED_RELEASE_RUN_ID: "456",
-        CANONICAL_RELEASE_JSON_FIXTURE: join(directory, "canonical.json"),
-        EXPECTED_TARBALL_SHA256: tarballSha256,
-        EXPECTED_VERSION: "0.16.13",
-        GITHUB_REPOSITORY: "hraness/ghostget",
-        GITHUB_SHA: sourceSha,
-        GH_TOKEN: "read-only-token",
-        GIT_CALL_COUNT: gitCallCount,
-        PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`,
-        NPM_DIRECTORY: directory,
-        NPM_GLOBALCONFIG: join(directory, "global.npmrc"),
-        NPM_LATEST_VERSION: "0.16.11",
-        NPM_USERCONFIG: join(directory, "user.npmrc"),
-        PUBLISH_MARKER: publishMarker,
-        RUNNER_TEMP: directory,
-        TARBALL: tarball,
-      });
-
-      if (scenario === "publication") {
-        const absent = await runWorkflowScript(script, {
-          ...baseEnvironment,
-          GIT_SNAPSHOT_STATUS: "exact",
-        });
-        expect(absent.exitCode, `${absent.stdout}\n${absent.stderr}`).toBe(0);
-        expect(await readFile(publishMarker, "utf8")).toBe("published\n");
-        const commands = await readFile(commandLog, "utf8");
-        const combinedCommand = "git ls-remote --sort=refname --refs https://github.com/hraness/ghostget.git refs/heads/main refs/tags/v0.16.13";
-        const combinedIndexes = [...commands.matchAll(new RegExp(combinedCommand, "gu"))]
-          .map((match) => match.index);
-        const hashIndex = commands.indexOf("sha256sum");
-        const latestIndex = commands.indexOf(
-          "npm view @hraness/ghostget dist-tags.latest --json --registry=https://registry.npmjs.org",
-        );
-        const publishIndex = commands.indexOf("npm publish");
-        expect(combinedIndexes).toHaveLength(2);
-        expect(combinedIndexes[0]).toBeGreaterThan(-1);
-        expect(combinedIndexes[1]).toBeGreaterThan(combinedIndexes[0] ?? -1);
-        expect(hashIndex).toBeLessThan(combinedIndexes[0] ?? -1);
-        expect(latestIndex).toBeGreaterThan(combinedIndexes[0] ?? -1);
-        expect(combinedIndexes[1]).toBeGreaterThan(latestIndex);
-        expect(publishIndex).toBeGreaterThan(combinedIndexes[1] ?? -1);
-        expect(commands.slice((combinedIndexes[1] ?? -1) + combinedCommand.length, publishIndex))
-          .not.toMatch(/^(?:gh|git|npm)\b/gmu);
-        expect(commands).not.toContain("--tag");
-
-        await rm(commandLog, { force: true });
-        await rm(gitCallCount, { force: true });
-        await rm(publishMarker, { force: true });
-        const frontRun = await runWorkflowScript(script, {
-          ...baseEnvironment,
-          GIT_SNAPSHOT_STATUS: "exact",
-          NPM_LATEST_VERSION: "0.16.14",
-        });
-        expect(frontRun.exitCode).not.toBe(0);
-        expect(`${frontRun.stdout}${frontRun.stderr}`).toContain(
-          "Candidate 0.16.13 is older than public npm latest 0.16.14",
-        );
-        expect(await Bun.file(publishMarker).exists()).toBe(false);
-
-        await rm(commandLog, { force: true });
-        await rm(gitCallCount, { force: true });
-        await rm(publishMarker, { force: true });
-        const descendant = await runWorkflowScript(script, {
-          ...baseEnvironment,
-          GIT_SNAPSHOT_STATUS: "descendant",
-        });
-        expect(descendant.exitCode, `${descendant.stdout}\n${descendant.stderr}`).toBe(0);
-        expect(await readFile(publishMarker, "utf8")).toBe("published\n");
-        expect(await readFile(commandLog, "utf8")).toContain(
-          `gh api /repos/hraness/ghostget/compare/${sourceSha}...${driftSha}`,
-        );
-      }
-
-      if (scenario === "governed-ref-rejection") {
-        for (const snapshotStatus of ["missing-tag", "failure", "main-drift", "tag-drift"] as const) {
-          await rm(commandLog, { force: true });
-          await rm(gitCallCount, { force: true });
-          await rm(publishMarker, { force: true });
-          const rejected = await runWorkflowScript(script, {
-            ...baseEnvironment,
-            GIT_SNAPSHOT_STATUS: snapshotStatus,
-          });
-          expect(rejected.exitCode).not.toBe(0);
-          const output = `${rejected.stdout}${rejected.stderr}`;
-          if (snapshotStatus === "missing-tag") {
-            expect(output).toContain("Canonical tag or current main differs at the terminal staging boundary");
-          } else if (snapshotStatus === "failure") {
-            expect(output).toContain("simulated remote lookup failure");
-          } else {
-            expect(output).toContain("Governed refs changed between terminal staging advertisements");
-          }
-          expect(await Bun.file(publishMarker).exists()).toBe(false);
-        }
-      }
-
-      if (scenario === "non-descendant-comparison") {
-        for (const comparisonStatus of [
-          "behind",
-          "divergent",
-          "zero-ahead",
-        ] as const) {
-          await rm(commandLog, { force: true });
-          await rm(gitCallCount, { force: true });
-          await rm(publishMarker, { force: true });
-          const rejected = await runWorkflowScript(script, {
-            ...baseEnvironment,
-            COMPARISON_STATUS: comparisonStatus,
-            GIT_SNAPSHOT_STATUS: "descendant",
-          });
-          expect(rejected.exitCode).not.toBe(0);
-          expect(await Bun.file(publishMarker).exists()).toBe(false);
-        }
-      }
-
-      if (scenario === "malformed-comparison") {
-        for (const comparisonStatus of [
-          "wrong-base",
-          "wrong-merge-base",
-          "wrong-terminal",
-          "malformed",
-          "failure",
-        ] as const) {
-          await rm(commandLog, { force: true });
-          await rm(gitCallCount, { force: true });
-          await rm(publishMarker, { force: true });
-          const rejected = await runWorkflowScript(script, {
-            ...baseEnvironment,
-            COMPARISON_STATUS: comparisonStatus,
-            GIT_SNAPSHOT_STATUS: "descendant",
-          });
-          expect(rejected.exitCode).not.toBe(0);
-          expect(await Bun.file(publishMarker).exists()).toBe(false);
-        }
-      }
-
-      if (scenario === "malformed-ref-set") {
-        for (const snapshotStatus of [
-          "empty",
-          "missing-main",
-          "duplicate-main-same",
-          "duplicate-main-different",
-          "duplicate-tag",
-          "unexpected-ref",
-        ] as const) {
-          await rm(commandLog, { force: true });
-          await rm(gitCallCount, { force: true });
-          await rm(publishMarker, { force: true });
-          const rejected = await runWorkflowScript(script, {
-            ...baseEnvironment,
-            GIT_SNAPSHOT_STATUS: snapshotStatus,
-          });
-          expect(rejected.exitCode).not.toBe(0);
-          expect(await Bun.file(publishMarker).exists()).toBe(false);
-        }
-      }
-
-      if (scenario === "malformed-ref-row") {
-        for (const snapshotStatus of [
-          "short-sha",
-          "uppercase-sha",
-          "bad-sha",
-          "space-row",
-          "no-tab",
-          "crlf",
-          "nul",
-          "invalid-utf8",
-          "no-final-newline",
-        ] as const) {
-          await rm(commandLog, { force: true });
-          await rm(gitCallCount, { force: true });
-          await rm(publishMarker, { force: true });
-          const rejected = await runWorkflowScript(script, {
-            ...baseEnvironment,
-            GIT_SNAPSHOT_STATUS: snapshotStatus,
-          });
-          expect(rejected.exitCode).not.toBe(0);
-          expect(await Bun.file(publishMarker).exists()).toBe(false);
-        }
-      }
-
-      if (scenario === "excessive-advertisement") {
-        for (const snapshotStatus of [
-          "too-large",
-          "too-many",
-        ] as const) {
-          await rm(commandLog, { force: true });
-          await rm(gitCallCount, { force: true });
-          await rm(publishMarker, { force: true });
-          const rejected = await runWorkflowScript(script, {
-            ...baseEnvironment,
-            GIT_SNAPSHOT_STATUS: snapshotStatus,
-          });
-          expect(rejected.exitCode).not.toBe(0);
-          expect(await Bun.file(publishMarker).exists()).toBe(false);
-        }
-      }
-    } finally {
-      await rm(directory, { force: true, recursive: true });
-    }
-  }
-
-  test.each([
-    { label: "successful publication", scenario: "publication" },
-    { label: "governed-ref rejection", scenario: "governed-ref-rejection" },
-    { label: "non-descendant protected-main rejection", scenario: "non-descendant-comparison" },
-    { label: "malformed protected-main comparison rejection", scenario: "malformed-comparison" },
-    { label: "malformed ref-set rejection", scenario: "malformed-ref-set" },
-    { label: "malformed ref-row rejection", scenario: "malformed-ref-row" },
-    { label: "excessive advertisement rejection", scenario: "excessive-advertisement" },
-  ] as const)(
-    "rechecks main and exact-tag authority through two combined terminal advertisements: $label",
-    ({ scenario }) => assertTerminalAdvertisementScenario(scenario),
-  );
-
   test("validates and npm-installs the exact reported tarball", async () => {
     const smoke = await readFile(packageSmokeUrl, "utf8");
 
@@ -2947,7 +1604,7 @@ esac
   });
 
   test("accepts omitted private and rejects a packed top-level npm tag before OIDC publication", async () => {
-    const workflow = await readFile(stageWorkflowUrl, "utf8");
+    const workflow = await readFile(releaseWorkflowUrl, "utf8");
     const script = workflowStepScript(workflow, "Bind downloaded artifact");
     const manifest = JSON.parse(await readFile(manifestUrl, "utf8")) as {
       readonly name: string;
@@ -3084,7 +1741,7 @@ esac
   });
 
   test("keeps both tar consumers aligned on hostile USTAR version and prefix headers", async () => {
-    const workflow = await readFile(stageWorkflowUrl, "utf8");
+    const workflow = await readFile(releaseWorkflowUrl, "utf8");
     const script = workflowStepScript(workflow, "Bind downloaded artifact");
     const manifest = JSON.parse(await readFile(manifestUrl, "utf8")) as {
       readonly name: string;
@@ -3174,7 +1831,7 @@ esac
     expect(workflow).toContain("ref: refs/tags/${{ steps.request.outputs.tag }}");
     expect(workflow).toContain("fetch-depth: 1");
     expect(workflow).toContain("persist-credentials: false");
-    expect(workflow).not.toMatch(/npm view|npm audit signatures|npm publish/u);
+    expect(workflow.slice(0, workflow.indexOf("  publish_npm:\n"))).not.toMatch(/npm view|npm audit signatures|npm publish/u);
     expect(workflow).toContain("github-release-artifact.ts prepare");
     expect(workflow).toContain("github-release-publish.ts");
 
@@ -3743,14 +2400,14 @@ fi
   test("gates canonical publication on exact archive and source-free signed provenance", async () => {
     const workflow = await readFile(releaseWorkflowUrl, "utf8");
     const parsed = Bun.YAML.parse(workflow) as { jobs: Record<string, { needs?: string | string[]; permissions: Record<string, string> }> };
-    expect(Object.keys(parsed.jobs)).toEqual(["authorize", "verify", "attest", "publish"]);
+    expect(Object.keys(parsed.jobs)).toEqual(["authorize", "verify", "attest", "publish", "publish_npm", "admit_npm"]);
     expect(parsed.jobs.verify!.permissions).toEqual({ actions: "read", contents: "read", checks: "read", "pull-requests": "read", "security-events": "read" });
     expect(parsed.jobs.attest!.permissions).toEqual({ actions: "read", contents: "read", "id-token": "write", attestations: "write" });
     expect(parsed.jobs.publish!.permissions).toEqual({ actions: "read", contents: "write" });
     expect(parsed.jobs.publish!.needs).toEqual(["verify", "attest"]);
     const verify = workflow.slice(workflow.indexOf("  verify:"), workflow.indexOf("  attest:"));
     const attest = workflow.slice(workflow.indexOf("  attest:"), workflow.indexOf("  publish:"));
-    const publish = workflow.slice(workflow.indexOf("  publish:"));
+    const publish = workflow.slice(workflow.indexOf("  publish:"), workflow.indexOf("  publish_npm:"));
     expect(verify).toContain("bun run ./scripts/release-source-ci.ts admit");
     expect(verify).toContain("bun run build"); expect(verify).toContain("package-smoke.ts");
     expect(verify).not.toContain("- run: bun run check");
@@ -3762,7 +2419,8 @@ fi
     expect(attest).toContain("EXPECTED_WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}");
     expect(publish).toContain("canonical-attested-${{ github.run_id }}-${{ github.run_attempt }}");
     expect(publish).toContain("github-release-publish.ts");
-    expect(workflow).not.toMatch(/npm view|npm audit signatures|npm publish|WRENCH_RELEASE_APP_|website-production/u);
+    expect(workflow.slice(0, workflow.indexOf("  publish_npm:"))).not.toMatch(/npm view|npm audit signatures|npm publish/u);
+    expect(workflow).not.toMatch(/WRENCH_RELEASE_APP_|website-production/u);
   });
 
   test("keeps provider verification read-only, terminal, and release-authoritative", async () => {
@@ -9083,7 +7741,7 @@ describe("canonical npm package identity", () => {
 });
 
 describe("verified npm provenance identity", () => {
-  test("binds cryptographically audited publish and SLSA attestations to the stage workflow", async () => {
+  test("binds cryptographically audited publish and SLSA attestations to the tag Release workflow", async () => {
     const work = await mkdtemp(join(tmpdir(), "ghostget-provenance-identity-test-"));
     const auditJson = join(work, "npm-audit.json");
     const registryArchive = join(work, "hraness-ghostget-0.16.6.tgz");
@@ -9105,13 +7763,13 @@ describe("verified npm provenance identity", () => {
       },
     });
     const auditFixture = ({
-      event = "workflow_dispatch",
+      event = "push",
       includePublish = true,
       invalid = [] as readonly unknown[],
       invocation = "https://github.com/hraness/ghostget/actions/runs/123456/attempts/2",
       source = sourceSha,
       subjectDigest = archiveSha512,
-      workflowPath = ".github/workflows/npm-stage.yml",
+      workflowPath = ".github/workflows/release.yml",
     } = {}) => {
       const provenanceStatement = {
         _type: "https://in-toto.io/Statement/v1",
@@ -9122,7 +7780,7 @@ describe("verified npm provenance identity", () => {
             buildType: "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1",
             externalParameters: {
               workflow: {
-                ref: "refs/heads/main",
+                ref: `refs/tags/v${version}`,
                 repository: "https://github.com/hraness/ghostget",
                 path: workflowPath,
               },
@@ -9135,7 +7793,7 @@ describe("verified npm provenance identity", () => {
               },
             },
             resolvedDependencies: [{
-              uri: "git+https://github.com/hraness/ghostget@refs/heads/main",
+              uri: `git+https://github.com/hraness/ghostget@refs/tags/v${version}`,
               digest: { gitCommit: source },
             }],
           },
@@ -9179,15 +7837,15 @@ describe("verified npm provenance identity", () => {
     };
     const input: NpmProvenanceIdentityInput = Object.freeze({
       auditJson,
-      expectedEvent: "workflow_dispatch",
+      expectedEvent: "push",
       expectedName: "@hraness/ghostget",
       expectedOwnerId: "307125679",
-      expectedRef: "refs/heads/main",
+      expectedRef: `refs/tags/v${version}`,
       expectedRepository: "hraness/ghostget",
       expectedRepositoryId: "1316443113",
       expectedSourceSha: sourceSha,
       expectedVersion: version,
-      expectedWorkflowPath: ".github/workflows/npm-stage.yml",
+      expectedWorkflowPath: ".github/workflows/release.yml",
       registryArchive,
     });
     try {
@@ -9203,10 +7861,10 @@ describe("verified npm provenance identity", () => {
       })).rejects.toThrow("Expected version is not stable semver");
 
       for (const [fixture, message] of [
-        [auditFixture({ event: "push" }), "Verified SLSA event"],
-        [auditFixture({ source: "b".repeat(40) }), "does not bind the staged commit"],
+        [auditFixture({ event: "workflow_dispatch" }), "Verified SLSA event"],
+        [auditFixture({ source: "b".repeat(40) }), "does not bind the released commit"],
         [auditFixture({ subjectDigest: "0".repeat(128) }), "does not bind the registry archive"],
-        [auditFixture({ workflowPath: ".github/workflows/release.yml" }), "Verified SLSA workflow path"],
+        [auditFixture({ workflowPath: ".github/workflows/npm-stage.yml" }), "Verified SLSA workflow path"],
         [auditFixture({ includePublish: false }), "must verify one registry publish bundle"],
         [auditFixture({ invalid: [{}] }), "contains invalid entries"],
         [auditFixture({ invocation: "https://github.com/hraness/ghostget/actions/runs/9007199254740992/attempts/2" }), "unsafe numeric identity"],
@@ -9216,6 +7874,339 @@ describe("verified npm provenance identity", () => {
       }
     } finally {
       await rm(work, { force: true, recursive: true });
+    }
+  });
+});
+
+describe("automatic npm publication from the tag Release", () => {
+  const releaseStepScript = (workflow: string, name: string, fromIndex: number): string => {
+    const stepStart = workflow.indexOf(`      - name: ${name}\n`, fromIndex);
+    if (stepStart < 0) throw new Error(`Workflow step not found after offset: ${name}`);
+    return workflowStepScript(workflow.slice(stepStart), name);
+  };
+
+  test("publishes the attested canonical bytes through one environment-bound OIDC job after the immutable Release", async () => {
+    const workflow = await readFile(releaseWorkflowUrl, "utf8");
+    const parsed = Bun.YAML.parse(workflow) as {
+      jobs: Record<string, {
+        environment?: string; needs?: string | string[]; outputs?: Record<string, string>;
+        permissions: Record<string, string>; steps: { id?: string; name?: string; uses?: string; with?: Record<string, unknown> }[];
+      }>;
+    };
+    const publishNpm = parsed.jobs.publish_npm; const admitNpm = parsed.jobs.admit_npm;
+    if (publishNpm === undefined || admitNpm === undefined) throw new Error("missing npm jobs");
+    expect(publishNpm.permissions).toEqual({ actions: "read", contents: "read", "id-token": "write" });
+    expect(publishNpm.environment).toBe("npm-release");
+    expect(publishNpm.needs).toEqual(["verify", "attest", "publish"]);
+    expect(admitNpm.permissions).toEqual({ contents: "read" });
+    expect(admitNpm.needs).toEqual(["verify", "attest", "publish_npm"]);
+    expect(admitNpm.environment).toBeUndefined();
+    expect(workflow.match(/id-token: write/gu)).toHaveLength(2);
+    expect(workflow.match(/^    environment:/gmu)).toHaveLength(1);
+    expect(parsed.jobs.verify!.outputs?.build_artifact_id).toBe("${{ steps.build_artifact.outputs.artifact-id }}");
+    expect(parsed.jobs.attest!.outputs?.artifact_id).toBe("${{ steps.attested_artifact.outputs.artifact-id }}");
+    expect(parsed.jobs.verify!.steps.find((step) => step.id === "build_artifact")?.uses).toStartWith("actions/upload-artifact@");
+    expect(parsed.jobs.attest!.steps.find((step) => step.id === "attested_artifact")?.uses).toStartWith("actions/upload-artifact@");
+
+    const publishNpmSource = workflow.slice(workflow.indexOf("  publish_npm:\n"), workflow.indexOf("  admit_npm:\n"));
+    const admitNpmSource = workflow.slice(workflow.indexOf("  admit_npm:\n"));
+    expect(publishNpmSource).not.toMatch(/actions\/checkout|setup-bun|\bbun\b|\.\/scripts\/|NPM_TOKEN|NODE_AUTH_TOKEN|--tag\b|resolved_stage_version|stable-stage/u);
+    expect(publishNpmSource.match(/npm publish/gu)).toHaveLength(1);
+    expect(publishNpmSource).toContain("artifact-ids: ${{ needs.attest.outputs.artifact_id }}");
+    expect(publishNpmSource).not.toContain("canonical-attested-${{ github.run_id }}");
+    expect(publishNpmSource).toContain("--provenance");
+    expect(publishNpmSource).toContain("--access public");
+    expect(publishNpmSource).toContain("--ignore-scripts");
+    const order = [
+      "      - name: Reauthorize current release attempt\n",
+      "      - uses: actions/setup-node@",
+      "      - name: Pin npm\n",
+      "      - name: Establish clean npm publication defaults\n",
+      "      - uses: actions/download-artifact@",
+      "      - name: Bind attested canonical artifact\n",
+      "      - name: Bind downloaded artifact\n",
+      "      - name: Admit absent or exact public registry state\n",
+      "      - name: Publish exact canonical archive through npm trusted publishing\n",
+    ].map((marker) => publishNpmSource.indexOf(marker));
+    expect(order.every((index) => index > -1)).toBe(true);
+    expect([...order].sort((left, right) => left - right)).toEqual(order);
+    expect(publishNpm.steps.map((step) => step.name ?? step.uses?.split("@")[0])).toEqual([
+      "Reauthorize current release attempt", "actions/setup-node", "Pin npm", "Establish clean npm publication defaults",
+      "actions/download-artifact", "Bind attested canonical artifact", "Bind downloaded artifact",
+      "Admit absent or exact public registry state", "Publish exact canonical archive through npm trusted publishing",
+    ]);
+    const publishReauthorize = releaseStepScript(workflow, "Reauthorize current release attempt", workflow.indexOf("  publish:\n"));
+    const npmReauthorize = releaseStepScript(workflow, "Reauthorize current release attempt", workflow.indexOf("  publish_npm:\n"));
+    expect(npmReauthorize).toBe(publishReauthorize);
+    expect(npmReauthorize).toContain('EXPECTED_WORKFLOW_ID="$EXPECTED_WORKFLOW_ID"');
+    expect(publishNpmSource).toContain('EXPECTED_WORKFLOW_ID: "323493609"');
+    expect(publishNpmSource).toContain('EXPECTED_WORKFLOW_PATH: ".github/workflows/release.yml"');
+
+    for (const [job, source] of [[publishNpm, publishNpmSource], [admitNpm, admitNpmSource]] as const) {
+      const ids = new Set(job.steps.flatMap((step) => (step.id === undefined ? [] : [step.id])));
+      const references = [...source.matchAll(/\$\{\{ steps\.([a-z_]+)\.outputs\.[a-z_]+ \}\}/gu)].map((match) => match[1]);
+      expect(references.length > 0).toBe(job === publishNpm);
+      expect(references.filter((id) => !ids.has(id as string))).toEqual([]);
+    }
+    expect(admitNpmSource).not.toMatch(/id-token|npm publish|environment:/u);
+    expect(admitNpmSource).toContain("artifact-ids: ${{ needs.attest.outputs.artifact_id }}");
+    expect(admitNpmSource).toContain("bun run ./scripts/npm-package-identity.ts");
+    expect(admitNpmSource).toContain("bun run ./scripts/npm-provenance-identity.ts");
+    expect(admitNpmSource).toContain("--expected-event push");
+    expect(admitNpmSource).toContain('--expected-ref "refs/tags/$VERIFIED_TAG"');
+    expect(admitNpmSource).toContain("--expected-workflow-path .github/workflows/release.yml");
+    expect(admitNpmSource).toContain("npm audit signatures --json --include-attestations --omit=dev");
+    expect(existsSync(fileURLToPath(new URL("../.github/workflows/npm-stage.yml", import.meta.url)))).toBe(false);
+  });
+
+  test("binds the attested five-file canonical artifact before handing off the exact archive and receipt", async () => {
+    const workflow = await readFile(releaseWorkflowUrl, "utf8");
+    const script = workflowStepScript(workflow, "Bind attested canonical artifact");
+    const root = await mkdtemp(join(tmpdir(), "ghostget-attested-bind-"));
+    const version = "0.17.9"; const tag = `v${version}`; const archiveName = `hraness-ghostget-${version}.tgz`;
+    const sourceSha = "a".repeat(40); const workflowSha = "b".repeat(40);
+    const sha256 = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
+    const archive = Buffer.from("canonical ghostget archive bytes\n", "utf8");
+    const baseManifest = {
+      schema: "hraness-github-release-v1", repository: "hraness/ghostget", repositoryId: GHOSTGET_REPOSITORY_ID,
+      package: "@hraness/ghostget", version, tag, sourceSha, workflow: ".github/workflows/release.yml", workflowSha,
+      runId: 123456, runAttempt: 1,
+      archive: { name: archiveName, bytes: archive.byteLength, sha256: sha256(archive), sha512: createHash("sha512").update(archive).digest("hex") },
+    };
+    const bundle = Buffer.from("{\"attestation\":true}\n", "utf8");
+    let caseIndex = 0;
+    const runCase = async (
+      mutate: (files: Map<string, Buffer>, environment: Record<string, string>) => void,
+    ): Promise<Readonly<{ exitCode: number; handoff: string; output: string; stderr: string; stdout: string }>> => {
+      caseIndex += 1;
+      const directory = join(root, `canonical-${String(caseIndex)}`); const handoff = join(root, `handoff-${String(caseIndex)}`);
+      const output = join(root, `output-${String(caseIndex)}.txt`);
+      await mkdir(directory);
+      const packJson = Buffer.from(JSON.stringify([{ name: "@hraness/ghostget", version, filename: archiveName }]), "utf8");
+      const files = new Map<string, Buffer>([
+        [archiveName, archive], ["npm-pack.json", packJson], ["release-manifest.json", Buffer.from(JSON.stringify(baseManifest), "utf8")],
+        ["provenance.jsonl", bundle],
+      ]);
+      const sums = (): Buffer => Buffer.from([archiveName, "npm-pack.json", "release-manifest.json"]
+        .map((name) => `${sha256(files.get(name) as Buffer)}  ${name}\n`).join(""), "utf8");
+      files.set("SHA256SUMS", sums());
+      const hashes = Object.fromEntries([archiveName, "npm-pack.json", "release-manifest.json", "SHA256SUMS"]
+        .map((name) => [name, sha256(files.get(name) as Buffer)]));
+      const environment: Record<string, string> = {
+        DIRECTORY: directory, HANDOFF_DIRECTORY: handoff, EXPECTED_ARTIFACT_ID: "77", EXPECTED_BUNDLE_SHA256: sha256(bundle),
+        EXPECTED_ARTIFACT_HASHES: JSON.stringify(hashes), VERIFIED_SHA: sourceSha, WORKFLOW_SHA: workflowSha, VERIFIED_TAG: tag,
+        GITHUB_RUN_ID: "123456", GITHUB_RUN_ATTEMPT: "2", GITHUB_OUTPUT: output, RUNNER_TEMP: root,
+      };
+      mutate(files, environment);
+      for (const [name, bytes] of files) await writeFile(join(directory, name), bytes);
+      const result = await runWorkflowScript(script, environment);
+      return { ...result, handoff, output: existsSync(output) ? await readFile(output, "utf8") : "" };
+    };
+    try {
+      const accepted = await runCase(() => {});
+      expect(accepted.exitCode, accepted.stderr).toBe(0);
+      expect(accepted.output).toBe(`tarball_name=${archiveName}\nversion=${version}\nrelease_attempt=1\narchive_sha256=${sha256(archive)}\n`);
+      expect((await readdir(accepted.handoff)).sort()).toEqual([archiveName, "npm-pack.json", "npm-package.sha256"]);
+      expect(await readFile(join(accepted.handoff, archiveName))).toEqual(archive);
+      expect(await readFile(join(accepted.handoff, "npm-package.sha256"), "utf8")).toBe(`${sha256(archive)}\n`);
+
+      const rejected: [(files: Map<string, Buffer>, environment: Record<string, string>) => void, string][] = [
+        [(files) => { files.set(archiveName, Buffer.concat([archive, Buffer.from("x")])); }, "differs from verified build output"],
+        [(files) => { files.set("provenance.jsonl", Buffer.from("{}\n")); }, "differs from verified build output"],
+        [(files) => { files.set("extra.txt", Buffer.from("x")); }, "inventory differs"],
+        [(files) => { files.delete("provenance.jsonl"); }, "inventory differs"],
+        [(files, environment) => {
+          const manifest = { ...baseManifest, runId: 654321 };
+          files.set("release-manifest.json", Buffer.from(JSON.stringify(manifest), "utf8"));
+          const sums = [archiveName, "npm-pack.json", "release-manifest.json"].map((name) => `${sha256(files.get(name) as Buffer)}  ${name}\n`).join("");
+          files.set("SHA256SUMS", Buffer.from(sums, "utf8"));
+          environment.EXPECTED_ARTIFACT_HASHES = JSON.stringify(Object.fromEntries([archiveName, "npm-pack.json", "release-manifest.json", "SHA256SUMS"].map((name) => [name, sha256(files.get(name) as Buffer)])));
+        }, "belongs to another build"],
+        [(files, environment) => {
+          const manifest = { ...baseManifest, runAttempt: 3 };
+          files.set("release-manifest.json", Buffer.from(JSON.stringify(manifest), "utf8"));
+          const sums = [archiveName, "npm-pack.json", "release-manifest.json"].map((name) => `${sha256(files.get(name) as Buffer)}  ${name}\n`).join("");
+          files.set("SHA256SUMS", Buffer.from(sums, "utf8"));
+          environment.EXPECTED_ARTIFACT_HASHES = JSON.stringify(Object.fromEntries([archiveName, "npm-pack.json", "release-manifest.json", "SHA256SUMS"].map((name) => [name, sha256(files.get(name) as Buffer)])));
+        }, "belongs to another build"],
+        [(_files, environment) => { environment.VERIFIED_TAG = "v0.17.10"; }, "inventory differs"],
+        [(_files, environment) => { environment.EXPECTED_ARTIFACT_ID = "0"; }, "no exact immutable identity"],
+        [(_files, environment) => { environment.EXPECTED_BUNDLE_SHA256 = "z".repeat(64); }, "no exact immutable identity"],
+      ];
+      for (const [mutate, message] of rejected) {
+        const result = await runCase(mutate);
+        expect(result.exitCode).not.toBe(0);
+        expect(`${result.stdout}${result.stderr}`).toContain(message);
+        expect(result.output).toBe("");
+      }
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+
+  test("admits only an absent newer version or the exact prior publication before mutating npm", async () => {
+    const workflow = await readFile(releaseWorkflowUrl, "utf8");
+    const script = workflowStepScript(workflow, "Admit absent or exact public registry state");
+    const root = await mkdtemp(join(tmpdir(), "ghostget-registry-state-"));
+    const binaryDirectory = join(root, "bin"); const npmDirectory = join(root, "clean");
+    const version = "0.17.9"; const tarball = join(root, `hraness-ghostget-${version}.tgz`);
+    const archive = Buffer.from("canonical ghostget archive bytes\n", "utf8");
+    const expectedIntegrity = `sha512-${createHash("sha512").update(archive).digest("base64")}`;
+    const output = join(root, "github-output.txt");
+    try {
+      await mkdir(binaryDirectory); await mkdir(npmDirectory);
+      await writeFile(tarball, archive);
+      await writeFile(join(root, "userconfig"), ""); await writeFile(join(root, "globalconfig"), "");
+      await writeFile(join(binaryDirectory, "npm"), `#!/bin/bash
+set -euo pipefail
+printf 'npm %s\\n' "$*" >> "$COMMAND_LOG"
+if [[ "$1" == view && "$2" == "@hraness/ghostget@${version}" ]]; then
+  case "$REGISTRY_MODE" in
+    absent) echo 'npm error code E404' >&2; exit 1 ;;
+    empty) printf '\n' ;;
+    exact) printf '{"name":"@hraness/ghostget","version":"%s","dist":{"integrity":"%s","tarball":"https://registry.npmjs.org/@hraness/ghostget/-/ghostget-%s.tgz"}}\\n' "${version}" "$REGISTRY_INTEGRITY" "${version}" ;;
+    outage) echo 'npm error code ECONNRESET' >&2; exit 1 ;;
+    *) exit 99 ;;
+  esac
+elif [[ "$1" == view && "$2" == "@hraness/ghostget" && "$3" == dist-tags.latest ]]; then
+  printf '"%s"\\n' "$REGISTRY_LATEST"
+else
+  exit 98
+fi
+`);
+      await chmod(join(binaryDirectory, "npm"), 0o755);
+      const runCase = async (extra: Record<string, string>) => {
+        await rm(output, { force: true }); const commandLog = join(root, "commands"); await rm(commandLog, { force: true });
+        const result = await runWorkflowScript(script, {
+          COMMAND_LOG: commandLog, EXPECTED_TARBALL_SHA256: createHash("sha256").update(archive).digest("hex"),
+          EXPECTED_VERSION: version, GITHUB_OUTPUT: output, NPM_DIRECTORY: npmDirectory, NPM_GLOBALCONFIG: join(root, "globalconfig"),
+          NPM_USERCONFIG: join(root, "userconfig"), PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`, RUNNER_TEMP: root,
+          REGISTRY_INTEGRITY: expectedIntegrity, REGISTRY_LATEST: "0.17.8", REGISTRY_MODE: "absent", TARBALL: tarball, ...extra,
+        });
+        return { ...result, output: existsSync(output) ? await readFile(output, "utf8") : "" };
+      };
+      const absent = await runCase({});
+      expect(absent.exitCode, absent.stderr).toBe(0); expect(absent.output).toBe("npm_state=absent\n");
+      const empty = await runCase({ REGISTRY_MODE: "empty" });
+      expect(empty.exitCode, empty.stderr).toBe(0); expect(empty.output).toBe("npm_state=absent\n");
+      const exact = await runCase({ REGISTRY_MODE: "exact", REGISTRY_LATEST: version });
+      expect(exact.exitCode, exact.stderr).toBe(0); expect(exact.output).toBe("npm_state=exact\n");
+      const exactBehindLatest = await runCase({ REGISTRY_MODE: "exact", REGISTRY_LATEST: "0.17.10" });
+      expect(exactBehindLatest.exitCode, exactBehindLatest.stderr).toBe(0); expect(exactBehindLatest.output).toBe("npm_state=exact\n");
+      for (const [extra, message] of [
+        [{ REGISTRY_LATEST: version }, "is not newer than public npm latest"],
+        [{ REGISTRY_LATEST: "0.18.0" }, "is not newer than public npm latest"],
+        [{ REGISTRY_MODE: "exact", REGISTRY_INTEGRITY: "sha512-AAAA" }, "different bytes"],
+        [{ REGISTRY_MODE: "exact", REGISTRY_LATEST: "0.17.8" }, "is older than the already published"],
+        [{ REGISTRY_MODE: "outage" }, "Could not prove the public registry state"],
+        [{ EXPECTED_TARBALL_SHA256: "0".repeat(64) }, "changed before registry admission"],
+        [{ REGISTRY_LATEST: "0.17.8-beta.1" }, "not a supported stable semantic version"],
+      ] as const) {
+        const rejected = await runCase(extra);
+        expect(rejected.exitCode).not.toBe(0);
+        expect(`${rejected.stdout}${rejected.stderr}`).toContain(message);
+        expect(rejected.output).toBe("");
+      }
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+
+  test("publishes once through trusted publishing only after the immutable Release binds the exact bytes", async () => {
+    const workflow = await readFile(releaseWorkflowUrl, "utf8");
+    const script = workflowStepScript(workflow, "Publish exact canonical archive through npm trusted publishing");
+    const root = await mkdtemp(join(tmpdir(), "ghostget-npm-publish-"));
+    const binaryDirectory = join(root, "bin"); const npmDirectory = join(root, "clean");
+    const version = "0.17.9"; const tag = `v${version}`; const sourceSha = "a".repeat(40);
+    const archive = Buffer.from("canonical ghostget archive bytes\n", "utf8");
+    const tarball = join(root, `hraness-ghostget-${version}.tgz`);
+    const archiveSha256 = createHash("sha256").update(archive).digest("hex");
+    const expectedIntegrity = `sha512-${createHash("sha512").update(archive).digest("base64")}`;
+    const releaseFixture = join(root, "release.json"); const output = join(root, "github-output.txt"); const commandLog = join(root, "commands");
+    const release = {
+      id: 9001, tag_name: tag, target_commitish: sourceSha, draft: false, prerelease: false, immutable: true,
+      author: { id: 41898282, type: "Bot" },
+      body: `wrench-release-source-v1 repository=hraness/ghostget tag=${tag} source_sha=${sourceSha} workflow_run_id=123456\n\nghostget-release-attempt-v1 run_attempt=1`,
+      assets: [
+        { name: `hraness-ghostget-${version}.tgz`, state: "uploaded", digest: `sha256:${archiveSha256}`, size: archive.byteLength },
+        { name: "npm-pack.json", state: "uploaded", digest: `sha256:${"1".repeat(64)}`, size: 10 },
+        { name: "release-manifest.json", state: "uploaded", digest: `sha256:${"2".repeat(64)}`, size: 10 },
+        { name: "SHA256SUMS", state: "uploaded", digest: `sha256:${"3".repeat(64)}`, size: 10 },
+        { name: "provenance.jsonl", state: "uploaded", digest: `sha256:${"4".repeat(64)}`, size: 10 },
+      ],
+    };
+    try {
+      await mkdir(binaryDirectory); await mkdir(npmDirectory); await writeFile(tarball, archive);
+      await writeFile(join(root, "userconfig"), ""); await writeFile(join(root, "globalconfig"), "");
+      await writeFile(join(binaryDirectory, "gh"), `#!/bin/bash
+set -euo pipefail
+printf 'gh %s\\n' "$*" >> "$COMMAND_LOG"
+[[ "$1" == api && "$2" == --method && "$3" == GET && "$4" == "/repos/hraness/ghostget/releases/tags/${tag}" ]] || exit 97
+cat "$RELEASE_FIXTURE"
+`);
+      await writeFile(join(binaryDirectory, "npm"), `#!/bin/bash
+set -euo pipefail
+printf 'npm %s\\n' "$*" >> "$COMMAND_LOG"
+if [[ "$1" == config && "$2" == get && "$3" == tag ]]; then printf '%s\\n' "$CLEAN_TAG"; exit 0; fi
+if [[ "$1" == publish ]]; then
+  [[ -z "\${NPM_CONFIG_TAG-}" && -z "\${npm_config_tag-}" ]] || exit 96
+  printf '{"id":"@hraness/ghostget@%s","name":"@hraness/ghostget","version":"%s","integrity":"%s"}\\n' "${version}" "${version}" "$PUBLISHED_INTEGRITY"
+  exit 0
+fi
+exit 98
+`);
+      await chmod(join(binaryDirectory, "gh"), 0o755); await chmod(join(binaryDirectory, "npm"), 0o755);
+      const runCase = async (extra: Record<string, string>, fixture: unknown = release) => {
+        await rm(output, { force: true }); await rm(commandLog, { force: true });
+        await writeFile(releaseFixture, JSON.stringify(fixture));
+        const result = await runWorkflowScript(script, {
+          CLEAN_TAG: "latest", COMMAND_LOG: commandLog, DEFAULT_BRANCH: "main", EXPECTED_ARCHIVE_SHA256: archiveSha256,
+          EXPECTED_RELEASE_ATTEMPT: "1", EXPECTED_TARBALL_SHA256: archiveSha256, EXPECTED_VERSION: version,
+          GITHUB_OUTPUT: output, GITHUB_REF: `refs/tags/${tag}`, GITHUB_REPOSITORY: "hraness/ghostget", GITHUB_RUN_ID: "123456",
+          GITHUB_SHA: sourceSha, NPM_DIRECTORY: npmDirectory, NPM_GLOBALCONFIG: join(root, "globalconfig"), NPM_STATE: "absent",
+          NPM_USERCONFIG: join(root, "userconfig"), PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`, PUBLISHED_INTEGRITY: expectedIntegrity,
+          RELEASE_FIXTURE: releaseFixture, RUNNER_TEMP: root, TARBALL: tarball, VERIFIED_SHA: sourceSha, VERIFIED_TAG: tag, ...extra,
+        });
+        return { ...result, commands: existsSync(commandLog) ? await readFile(commandLog, "utf8") : "", output: existsSync(output) ? await readFile(output, "utf8") : "" };
+      };
+      const published = await runCase({});
+      expect(published.exitCode, published.stderr).toBe(0);
+      expect(published.output).toBe(`published_identity=@hraness/ghostget@${version} ${expectedIntegrity}\n`);
+      const publishLine = published.commands.split("\n").find((line) => line.startsWith("npm publish"));
+      expect(publishLine).toBe(`npm publish ${tarball} --access public --ignore-scripts --json --provenance --registry=https://registry.npmjs.org`);
+      expect(published.commands.match(/^npm publish/gmu)).toHaveLength(1);
+      expect(published.commands.indexOf("gh api")).toBeLessThan(published.commands.indexOf("npm publish"));
+
+      const skipped = await runCase({ NPM_STATE: "exact" });
+      expect(skipped.exitCode, skipped.stderr).toBe(0);
+      expect(skipped.output).toBe(`published_identity=@hraness/ghostget@${version} exact-prior-publication\n`);
+      expect(skipped.commands).toBe("");
+
+      const rejections: [Record<string, string>, unknown, string][] = [
+        [{ NPM_STATE: "" }, release, "did not record an exact npm state"],
+        [{ NPM_STATE: "published" }, release, "did not record an exact npm state"],
+        [{ GITHUB_SHA: "b".repeat(40) }, release, "exact Ghostget release tag context"],
+        [{ GITHUB_REF: "refs/heads/main" }, release, "exact Ghostget release tag context"],
+        [{ EXPECTED_ARCHIVE_SHA256: "0".repeat(64) }, release, "changed before npm publication"],
+        [{ CLEAN_TAG: "next" }, release, "Clean npm publication default moved"],
+        [{}, { ...release, immutable: false }, "not the exact publication authority"],
+        [{}, { ...release, draft: true }, "not the exact publication authority"],
+        [{}, { ...release, author: { id: 894119, type: "User" } }, "not the exact publication authority"],
+        [{}, { ...release, body: release.body.replace("run_attempt=1", "run_attempt=2") }, "not the exact publication authority"],
+        [{}, { ...release, assets: release.assets.slice(0, 4) }, "not the exact publication authority"],
+        [{}, { ...release, assets: [{ ...release.assets[0], digest: `sha256:${"9".repeat(64)}` }, ...release.assets.slice(1)] }, "not the exact canonical archive bytes"],
+        [{}, { ...release, assets: [{ ...release.assets[0], size: archive.byteLength + 1 }, ...release.assets.slice(1)] }, "not the exact canonical archive bytes"],
+        [{ PUBLISHED_INTEGRITY: "sha512-AAAA" }, release, "one exact published Ghostget identity"],
+      ];
+      for (const [extra, fixture, message] of rejections) {
+        const rejected = await runCase(extra, fixture);
+        expect(rejected.exitCode).not.toBe(0);
+        expect(`${rejected.stdout}${rejected.stderr}`).toContain(message);
+        if (message !== "one exact published Ghostget identity") expect(rejected.commands).not.toContain("npm publish");
+        expect(rejected.output).toBe("");
+      }
+    } finally {
+      await rm(root, { force: true, recursive: true });
     }
   });
 });

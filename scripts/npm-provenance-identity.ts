@@ -12,10 +12,10 @@ const maximumSafeSemverComponent = BigInt(Number.MAX_SAFE_INTEGER);
 
 export type NpmProvenanceIdentityInput = Readonly<{
   auditJson: string;
-  expectedEvent: "workflow_dispatch";
+  expectedEvent: "push";
   expectedName: string;
   expectedOwnerId: string;
-  expectedRef: "refs/heads/main";
+  expectedRef: string;
   expectedRepository: string;
   expectedRepositoryId: string;
   expectedSourceSha: string;
@@ -87,6 +87,8 @@ export async function verifyNpmProvenanceIdentity(
     || versionMatch.slice(1).some(component => BigInt(component) > maximumSafeSemverComponent)
   ) throw new Error("Expected version is not stable semver");
   if (!shaPattern.test(input.expectedSourceSha)) throw new Error("Expected source SHA is malformed");
+  if (input.expectedRef !== `refs/tags/v${input.expectedVersion}`) throw new Error("Expected ref is not the exact stable release tag");
+  if (input.expectedWorkflowPath !== ".github/workflows/release.yml") throw new Error("Expected workflow path is not the Release workflow");
   positiveId(input.expectedRepositoryId, "Expected repository ID");
   positiveId(input.expectedOwnerId, "Expected repository owner ID");
 
@@ -195,7 +197,7 @@ export async function verifyNpmProvenanceIdentity(
   );
   const sourceDigest = record(dependency.digest, "Verified SLSA source digest");
   if (Object.keys(sourceDigest).length !== 1 || sourceDigest.gitCommit !== input.expectedSourceSha) {
-    throw new Error("Verified SLSA source does not bind the staged commit");
+    throw new Error("Verified SLSA source does not bind the released commit");
   }
   const details = record(predicate.runDetails, "Verified SLSA run details");
   const builder = record(details.builder, "Verified SLSA builder");
@@ -324,8 +326,8 @@ function parseArguments(args: readonly string[]): NpmProvenanceIdentityInput {
   };
   const expectedEvent = get("--expected-event");
   const expectedRef = get("--expected-ref");
-  if (expectedEvent !== "workflow_dispatch" || expectedRef !== "refs/heads/main") {
-    throw new Error("npm provenance identity requires the reviewed manual main workflow");
+  if (expectedEvent !== "push" || !/^refs\/tags\/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.test(expectedRef)) {
+    throw new Error("npm provenance identity requires the protected stable-tag push of the Release workflow");
   }
   return Object.freeze({
     auditJson: get("--audit-json"),
