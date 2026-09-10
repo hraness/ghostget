@@ -1,8 +1,32 @@
-// Unreleased LinkedIn contacts.read Como RSC-array extraction, measured from
-// the 0.16.15 payload plus the reviewed packaged source and skill growth:
-// 12,418,556 + 3,570 = 12,422,126 payload bytes after keeping Unreleased empty.
-// Keep the same 501 files and packed ceiling. Leave 458 unpacked bytes of
-// headroom.
+// Same-boot post-close convergence on canonical GitHub 0.16.17 composes the
+// exact 12,419,404-byte release archive with the byte-identical 6,112-byte
+// browser source delta, yielding 12,425,516 unpacked bytes across the same
+// 501 files. Preserve 26 bytes of unpacked allowance and the existing packed
+// portability bound; this source-only candidate does not claim a new release.
+//
+// Canonical GitHub 0.16.17 with KB 0.19.6 and upstream Sweet Cookie 0.4.3:
+// two identical official Node 24.20.0 / npm 11.19.0 archives on darwin-arm64
+// with zlib 1.3.2.1-motley-42c2f19 measure 2,255,577 packed and
+// 12,419,404 payload bytes across exactly 501 files, SHA-256
+// a0cfd266754f674499face82f8e3a9ef60d9113ddea861012626d6272cb550e3.
+// Every archived byte/mode matches source. Same-toolchain main 6940c85
+// measures 2,255,428 packed / 12,419,056 payload bytes; the dependency
+// and changelog changes add 348 payload bytes. Keep the packed ceiling,
+// add only that measured payload delta, retain 65 payload bytes of headroom,
+// and preserve the exact 501-file/entry inventory and derived tar bound.
+// Required Linux CI independently checks its actual canonical npm archive.
+//
+// Canonical GitHub 0.16.16, measured after exact browser-claim drift recovery:
+// two identical Node 24.20.0 / npm 11.19.0 archives have 2,253,071 compressed
+// and 12,419,056 payload bytes across exactly 501 files, SHA-256
+// a5195435e2d9a524e66a9e72b99b5472d8680c9467ee1bb54898a0e4dd01d401.
+// Every file/mode matches source; 491 files are unchanged from published .15.
+// Browser admission adds 255 bytes and the changelog 245; other edits only
+// project the new version. Identical raw tar recompresses to 2,255,428 bytes
+// under the available motley build. Keep the 2,259,302 compressed ceiling;
+// increase only payload by the measured 500 bytes, retaining 65 bytes of
+// headroom, exactly 501 files/entries and the derived 12,933,120 tar ceiling.
+// Fresh Linux CI must still verify its actual canonical npm archive.
 //
 // Canonical GitHub 0.16.15, measured after the qualified consumer-type repair:
 // two identical Node 24.20.0 / npm 11.19.0 archives have 2,252,952 compressed
@@ -189,7 +213,7 @@
 export const MAX_PACKED_BYTES = 2_259_302;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_422_584;
+export const MAX_UNPACKED_BYTES = 12_425_542;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

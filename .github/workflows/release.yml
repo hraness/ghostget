@@ -57,6 +57,9 @@ jobs:
     permissions:
       actions: read
       contents: read
+      checks: read
+      pull-requests: read
+      security-events: read
     runs-on: ubuntu-latest
     timeout-minutes: 75
     outputs:
@@ -164,12 +167,15 @@ jobs:
           printf 'sha=%s\n' "$tag_commit" >> "$GITHUB_OUTPUT"
           printf 'main_sha=%s\n' "$verified_main_sha" >> "$GITHUB_OUTPUT"
           printf 'archive_name=hraness-wrench-%s.tgz\n' "$package_version" >> "$GITHUB_OUTPUT"
+      - name: Admit exact source CI and security
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          VERIFIED_SOURCE_SHA: ${{ steps.identity.outputs.sha }}
+          VERIFIED_MAIN_SHA: ${{ steps.identity.outputs.main_sha }}
+        run: bun run ./scripts/release-source-ci.ts admit
       - run: bun install --frozen-lockfile --ignore-scripts
-      - name: Provision exact native fixture browser
-        run: |
-          fixture_browser_root="$(bun run ./scripts/provision-derive-browser.ts)"
-          printf 'WRENCH_DERIVE_BROWSER_ROOT=%s\n' "$fixture_browser_root" >> "$GITHUB_ENV"
-      - run: bun run check
+      - run: bun run build
       - run: |
           generated_status="$(git status --porcelain --untracked-files=all -- dist bun.lock)"
           if [[ -n "$generated_status" ]]; then

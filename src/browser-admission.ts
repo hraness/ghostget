@@ -86,6 +86,8 @@ export type BrowserAdmissionDependencies = {
     milliseconds: number,
     signals: readonly AbortSignal[],
   ) => Promise<void>;
+  /** Test-only seam invoked immediately before an absent-slot create. */
+  readonly beforeCreateForTest?: (slot: BrowserAdmissionSlot) => void;
   /** Test-only seam invoked after a durable create and before it is returned. */
   readonly afterCreateCommitForTest?: () => void;
   /** Test-only seam invoked before the first read of a slot in one attempt. */
@@ -699,6 +701,7 @@ export async function acquireBrowserAdmission(
         const proposed = newClaim(slot, acquiredAt, owner);
         let created = false;
         try {
+          dependencies.beforeCreateForTest?.(slot);
           created = createPrivateJsonIfAbsent(
             claimPath(slot, environment),
             proposed.claim,
@@ -744,7 +747,9 @@ export async function acquireBrowserAdmission(
               dependencies.releaseWaitForTest,
             );
           }
-          if (!isActiveStateFileMutation(error)) throw error;
+          if (!isActiveStateFileMutation(error) && !isStateFileReadDrift(error)) {
+            throw error;
+          }
           storageContention = true;
           existing = committed;
         }

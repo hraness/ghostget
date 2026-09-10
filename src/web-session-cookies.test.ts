@@ -27,6 +27,37 @@ import { acquireWebSessionCookieRecords } from "./web-session-cookies";
 
 const CHROMIUM_EPOCH_OFFSET_MICROSECONDS = 11_644_473_600_000_000n;
 
+test("cookie-file web sessions reject opaque partition metadata before request replay", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "wrench-cookie-file-scope-"));
+  const path = join(directory, "cookies.json");
+  const cookie = {
+    value: "synthetic-session",
+    domain: "www.example.com",
+    hostOnly: true,
+    path: "/",
+    secure: true,
+  };
+  writeFileSync(path, JSON.stringify([
+    { ...cookie, name: "unpartitioned", partitionKeyOpaque: false },
+    { ...cookie, name: "opaque", partitionKeyOpaque: true },
+    { ...cookie, name: "opaque-null-key", partitionKey: null, partitionKeyOpaque: true },
+    { ...cookie, name: "malformed-opaque", partitionKeyOpaque: "false" },
+  ]), { mode: 0o600 });
+  try {
+    const result = await acquireWebSessionCookieRecords(
+      { schemaVersion: 1, id: "file-scope-test", kind: "cookies-file", path },
+      new URL("https://www.example.com/"),
+      5_000,
+    );
+    expect(result.cookies.map(({ name }) => name)).toEqual(["unpartitioned"]);
+    expect(result.warnings).toEqual([
+      "Ignored 3 malformed, expired, or out-of-scope cookie record(s).",
+    ]);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 function directoryIdentity(path: string): { readonly device: string; readonly inode: string } {
   const stats = lstatSync(path, { bigint: true });
   return { device: stats.dev.toString(), inode: stats.ino.toString() };

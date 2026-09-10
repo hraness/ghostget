@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import fc from "fast-check";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 
 import {
   MACOS_PATTERNED_TESTS,
@@ -130,6 +131,97 @@ describe("macOS PR check subset", () => {
 });
 
 describe("complete local and release check composition", () => {
+  test("records the aligned toolchain in every source job before frozen installation", async () => {
+    type Step = { name?: string; uses?: string; if?: unknown; "continue-on-error"?: unknown; run?: string; with?: Record<string, unknown> };
+    type Job = { name: string; "runs-on": string; "timeout-minutes": number; if?: unknown; "continue-on-error"?: unknown; strategy?: unknown; steps: Step[] };
+    type Workflow = { jobs: Record<string, Job> };
+    const workflow = Bun.YAML.parse(await readFile(ciWorkflowUrl, "utf8")) as Workflow;
+    const sourceJobs = {
+      static: ["static", "ubuntu-latest", 15],
+      package: ["package", "ubuntu-latest", 20],
+      test: ["test ${{ matrix.shard }}/4", "ubuntu-latest", 40],
+      "test-omni": ["test-omni", "ubuntu-latest", 25],
+      standalone: ["standalone", "ubuntu-latest", 20],
+      macos: ["macOS", "macos-15", 25],
+    } as const;
+    const expectedNode = {
+      uses: "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+      with: { "node-version": "24.20.0", "registry-url": "https://registry.npmjs.org", "package-manager-cache": false },
+    };
+    const expectedBun = {
+      uses: "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+      with: { "bun-version": "1.3.14" },
+    };
+    const expectedPin = {
+      name: "Pin npm",
+      run: [
+        "set -euo pipefail",
+        "npm install --global npm@11.19.0 \\",
+        "  --ignore-scripts \\",
+        "  --registry=https://registry.npmjs.org",
+        'test "$(npm --version)" = "11.19.0"',
+        "node -p 'JSON.stringify({ node: process.version, zlib: process.versions.zlib, platform: process.platform, arch: process.arch })'",
+        "",
+      ].join("\n"),
+    };
+    const record = { name: "Record exact source CI identity", run: "bun run ./scripts/release-source-ci.ts record" };
+    const install = { run: "bun install --frozen-lockfile --ignore-scripts" };
+    const validate = (candidate: Workflow): void => {
+      if (!isDeepStrictEqual(Object.keys(candidate.jobs).sort(), [...Object.keys(sourceJobs), "required"].sort())) {
+        throw new Error("Source CI job inventory changed");
+      }
+      for (const [id, metadata] of Object.entries(sourceJobs)) {
+        const job = candidate.jobs[id];
+        if (job === undefined || !isDeepStrictEqual([job.name, job["runs-on"], job["timeout-minutes"]], metadata)
+          || job.if !== undefined || job["continue-on-error"] !== undefined
+          || job.steps.some(step => step.if !== undefined || step["continue-on-error"] !== undefined)) {
+          throw new Error(`Source CI job ${id} is conditional or changed its execution boundary`);
+        }
+        const findOne = (predicate: (step: Step) => boolean, expected: Step): number => {
+          const indices = job.steps.flatMap((step, index) => predicate(step) ? [index] : []);
+          if (indices.length !== 1 || !isDeepStrictEqual(job.steps[indices[0]!], expected)) {
+            throw new Error(`Source CI job ${id} changed a required setup or identity step`);
+          }
+          return indices[0]!;
+        };
+        const nodeIndex = findOne(step => step.uses?.startsWith("actions/setup-node@") === true, expectedNode);
+        const bunIndex = findOne(step => step.uses?.startsWith("oven-sh/setup-bun@") === true, expectedBun);
+        const pinIndex = findOne(step => step.name === expectedPin.name, expectedPin);
+        const recordIndex = findOne(step => step.name === record.name || step.run?.includes("release-source-ci.ts") === true, record);
+        const installIndex = findOne(step => step.run?.includes("bun install") === true, install);
+        if (nodeIndex >= pinIndex || Math.max(nodeIndex, bunIndex, pinIndex) >= recordIndex || recordIndex + 1 !== installIndex) {
+          throw new Error(`Source CI job ${id} records before setup or after installation`);
+        }
+      }
+      if (!isDeepStrictEqual(candidate.jobs.test?.strategy, { "fail-fast": false, matrix: { shard: [1, 2, 3, 4] } })) {
+        throw new Error("Source CI no longer expands to all nine work jobs");
+      }
+    };
+    expect(() => validate(workflow)).not.toThrow();
+    const mutations: ((candidate: Workflow) => void)[] = [
+      candidate => { delete candidate.jobs.macos; },
+      candidate => { candidate.jobs.test!.strategy = { "fail-fast": false, matrix: { shard: [1, 2, 3] } }; },
+      candidate => { candidate.jobs.static!["timeout-minutes"] = 5; },
+      candidate => { candidate.jobs.static!.if = "always()"; },
+      candidate => { candidate.jobs.static!["continue-on-error"] = true; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.uses?.startsWith("actions/setup-node@"))!.with!["node-version"] = "24"; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.uses?.startsWith("oven-sh/setup-bun@"))!.with!["bun-version"] = "latest"; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.name === expectedPin.name)!.run = "npm install --global npm@latest"; },
+      candidate => { candidate.jobs.static!.steps = candidate.jobs.static!.steps.filter(step => step.name !== record.name); },
+      candidate => { candidate.jobs.static!.steps.push({ ...record }); },
+      candidate => { candidate.jobs.static!.steps.find(step => step.name === record.name)!.if = "always()"; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.name === record.name)!["continue-on-error"] = true; },
+      candidate => { candidate.jobs.static!.steps.find(step => step.name === record.name)!.run = `${record.run} || true`; },
+      candidate => { const steps = candidate.jobs.static!.steps; const index = steps.findIndex(step => step.name === record.name); steps.splice(1, 0, ...steps.splice(index, 1)); },
+      candidate => { const steps = candidate.jobs.static!.steps; const index = steps.findIndex(step => step.name === record.name); steps.push(...steps.splice(index, 1)); },
+    ];
+    for (const mutate of mutations) {
+      const changed = structuredClone(workflow);
+      mutate(changed);
+      expect(() => validate(changed)).toThrow();
+    }
+  });
+
   test("checks the release npm compressor and strict archive parser before tagging", async () => {
     type Step = { name?: string; uses?: string; if?: unknown; "continue-on-error"?: unknown; run?: string; with?: Record<string, unknown> };
     type Job = { if?: unknown; "continue-on-error"?: unknown; needs?: string[]; steps: Step[] };
