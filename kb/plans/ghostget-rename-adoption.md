@@ -245,3 +245,18 @@ rediscover it.
   next `chore(hraness): publish social stats` commit on Jungle `main` is the
   evidence that LinkedIn personal, LinkedIn company, and Instagram return
   exact observations again.
+
+## npm publication unified with the tag Release (2026-09-10)
+
+- Owner decision: every Hraness npm package publishes automatically from its
+  tag Release workflow through OIDC trusted publishing, like
+  `@hraness/message-like-me`, `@hraness/oh`, and `@hraness/peopleblade`.
+  Ghostget's `release.yml` gained `publish_npm` (environment `npm-release`,
+  tag policy `v*`, artifact by numeric ID, idempotent registry admission, one
+  `npm publish --provenance`) and `admit_npm` (registry identity and
+  provenance against the canonical asset). `npm-stage.yml`, its retained
+  stage-intent ledger, and the `npm-stage` environment are retired.
+- Owner follow-up before the next tag: rebind the npm trusted publisher to
+  `release.yml` and `npm-release` with `npm trust github @hraness/ghostget
+  --repo hraness/ghostget --file release.yml --environment npm-release
+  --allow-publish --yes`, and revoke the `npm-stage.yml` relationship.
