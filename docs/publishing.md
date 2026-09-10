@@ -606,7 +606,14 @@ automatic head SHA must instead equal the peeled immutable tag commit `C`.
 Manual recovery carries no upstream SHA, run ID, or run attempt. Both paths
 check out exact `W`, bind the package version from `C`, verify the immutable
 asset-free Latest Release and its exact initial Actions run, and prove `C<=W<=M`
-for protected current main `M` before any provider or ref work. Only the initial
+for protected current main `M` before any provider or ref work. The canonical
+download binds the receipt attempt: a successful attempt is admitted outright,
+and an attempt that published the Release and then failed a later npm job is
+admitted only when its complete job inventory shows the four canonical jobs
+(authorize, verify, attest, publish) succeeded in that attempt. A rerun that
+completes npm makes the run's latest attempt successful, but automatic
+promotion still requires the first attempt, so that release is promoted through
+the manual recovery dispatch. Only the initial
 verification job has `actions: read`; baseline, both promotion paths,
 receipt selection, and provider outcome carry the verified run ID but cannot
 read Actions.

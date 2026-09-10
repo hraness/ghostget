@@ -1966,7 +1966,39 @@ function expectReleaseRepository(value, repository, label) {
   }
 }
 
+/** The jobs that build, attest, and publish the canonical GitHub Release; later npm jobs cannot revoke a published Release. */
+export const CANONICAL_RELEASE_JOBS = Object.freeze([
+  "Authorize owner release tag",
+  "Verify",
+  "Attest exact canonical build files",
+  "Publish immutable GitHub Release",
+]);
+
+function exactCanonicalReleaseJobs(value, { runId, runAttempt, sha }, label) {
+  const payload = expectRecord(value, label);
+  const jobs = payload.jobs;
+  if (!Array.isArray(jobs) || jobs.length > 20 || payload.total_count !== jobs.length) {
+    fail(`${label} is not one complete bounded job inventory`);
+  }
+  const records = jobs.map((job, index) => expectRecord(job, `${label}.jobs[${index}]`));
+  for (const name of CANONICAL_RELEASE_JOBS) {
+    const matches = records.filter((job) => job.name === name);
+    if (matches.length !== 1) fail(`${label} does not contain exactly one ${name} job`);
+    const job = matches[0];
+    if (
+      job.run_id !== Number(runId)
+      || job.run_attempt !== runAttempt
+      || job.head_sha !== sha
+      || job.status !== "completed"
+      || job.conclusion !== "success"
+    ) {
+      fail(`${label} ${name} job did not succeed in the receipt attempt`);
+    }
+  }
+}
+
 export function exactReleaseWorkflowRun({
+  canonicalJobs,
   expectedRunAttempt = "",
   repository,
   value,
@@ -1999,9 +2031,17 @@ export function exactReleaseWorkflowRun({
     || run.head_branch !== tag
     || run.head_sha !== sha
     || run.status !== "completed"
-    || run.conclusion !== "success"
   ) {
     fail(`${label} does not have the exact successful Release workflow identity`);
+  }
+  if (run.conclusion !== "success") {
+    // A receipt attempt whose four canonical jobs succeeded published the
+    // immutable Release even when a later npm job failed that attempt; the
+    // caller must supply that attempt's job inventory to admit it.
+    if (canonicalJobs === undefined) {
+      fail(`${label} does not have the exact successful Release workflow identity`);
+    }
+    exactCanonicalReleaseJobs(canonicalJobs, { runId, runAttempt, sha }, `${label} jobs`);
   }
   return run;
 }
