@@ -1269,7 +1269,7 @@ describe("npm publication contract", () => {
     expect(MAX_PACKED_BYTES).toBe(2_259_302);
     expect(MAX_PACKED_ENTRIES).toBe(501);
     expect(MAX_PACKED_FILES).toBe(501);
-    expect(MAX_UNPACKED_BYTES).toBe(12_419_121);
+    expect(MAX_UNPACKED_BYTES).toBe(12_419_469);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
@@ -1278,7 +1278,7 @@ describe("npm publication contract", () => {
       entryCount: { min: 501, max: 501 },
       fileCount: { min: 501, max: 501 },
       packedBytes: { min: 1_600_000, max: 2_259_302 },
-      unpackedBytes: { min: 9_000_000, max: 12_419_121 },
+      unpackedBytes: { min: 9_000_000, max: 12_419_469 },
     });
   });
 
@@ -1342,11 +1342,12 @@ describe("npm publication contract", () => {
     }
   });
 
-  test("keeps separate truthful Wrench 0.16.3 through 0.16.16 changelog sections", async () => {
+  test("keeps separate truthful Wrench 0.16.3 through 0.16.17 changelog sections", async () => {
     const changelog = await readFile(changelogUrl, "utf8");
     const unreleasedHeader = "## Unreleased\n";
     const candidateHeader = "## 0.16.12 - 2026-09-08\n";
     const canonicalHeader = "## 0.16.13 - 2026-09-09\n";
+    const cookieHeader = "## 0.16.17 - 2026-09-09\n";
     const admissionHeader = "## 0.16.16 - 2026-09-09\n";
     const typingHeader = "## 0.16.15 - 2026-09-09\n";
     const packingHeader = "## 0.16.14 - 2026-09-09\n";
@@ -1362,6 +1363,7 @@ describe("npm publication contract", () => {
     const unreleasedStart = changelog.indexOf(unreleasedHeader);
     const candidateStart = changelog.indexOf(candidateHeader);
     const canonicalStart = changelog.indexOf(canonicalHeader);
+    const cookieStart = changelog.indexOf(cookieHeader);
     const admissionStart = changelog.indexOf(admissionHeader);
     const typingStart = changelog.indexOf(typingHeader);
     const packingStart = changelog.indexOf(packingHeader);
@@ -1376,6 +1378,7 @@ describe("npm publication contract", () => {
     const incidentStart = changelog.indexOf(incidentHeader);
 
     expect(changelog.match(/^## Unreleased$/gmu) ?? []).toHaveLength(1);
+    expect(changelog.match(/^## 0\.16\.17 - 2026-09-09$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.13 - 2026-09-09$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.12 - 2026-09-08$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.11 - 2026-09-07$/gmu) ?? []).toHaveLength(1);
@@ -1392,7 +1395,8 @@ describe("npm publication contract", () => {
     expect(currentStart).toBeGreaterThan(candidateStart);
     expect(currentStart).toBeGreaterThan(unreleasedStart);
     expect(canonicalStart).toBeGreaterThan(unreleasedStart);
-    expect(admissionStart).toBeGreaterThan(unreleasedStart);
+    expect(cookieStart).toBeGreaterThan(unreleasedStart);
+    expect(admissionStart).toBeGreaterThan(cookieStart);
     expect(typingStart).toBeGreaterThan(admissionStart);
     expect(packingStart).toBeGreaterThan(typingStart);
     expect(canonicalStart).toBeGreaterThan(packingStart);
@@ -1405,7 +1409,19 @@ describe("npm publication contract", () => {
     expect(markerStart).toBeGreaterThan(consumedStart);
     expect(releaseStart).toBeGreaterThan(markerStart);
     expect(incidentStart).toBeGreaterThan(releaseStart);
-    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, admissionStart).trim()).toBe("");
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, cookieStart).trim()).toBe("");
+
+    const cookieReleaseEnd = changelog.indexOf("\n## ", cookieStart + cookieHeader.length);
+    expect(cookieReleaseEnd).toBe(admissionStart - 1);
+    const cookieSection = changelog.slice(cookieStart, cookieReleaseEnd);
+    for (const requiredFact of [
+      "Sweet Cookie 0.4.3 through KB 0.19.6",
+      "explicit browser keychain selection for custom profiles",
+      "opaque partition metadata in cookie-file web sessions",
+      "malformed flags and opaque records without a partition key",
+    ] as const) {
+      expect(cookieSection).toContain(requiredFact);
+    }
 
     const candidateReleaseEnd = changelog.indexOf("\n## ", candidateStart + candidateHeader.length);
     expect(candidateReleaseEnd).toBe(currentStart - 1);
