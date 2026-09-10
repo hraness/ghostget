@@ -7,6 +7,20 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.17.4 - 2026-09-10
+
+- Publish `@hraness/ghostget` to npm automatically from the tag Release
+  workflow, unified with the other Hraness packages by owner decision: after
+  the immutable GitHub Release, the checkout-free `publish_npm` job in the
+  `npm-release` environment binds the attested canonical artifact by numeric
+  ID, admits an absent registry version (or recognizes the exact prior
+  publication on a rerun), and runs one `npm publish --provenance` through OIDC
+  trusted publishing; `admit_npm` then verifies the registry bytes and npm
+  provenance against the canonical asset. The dispatch-only `npm-stage.yml`,
+  its stage-intent ledger, and the `npm-stage` environment are retired, so a
+  release needs no second workflow, staged approval, token, or two-factor step.
+  No runtime behavior changes.
+
 ## 0.17.3 - 2026-09-10
 
 - Read LinkedIn `contacts.read@1` Contact info from current profile pages:
