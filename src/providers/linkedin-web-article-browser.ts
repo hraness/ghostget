@@ -13,7 +13,7 @@ import {
   type BrowserSession,
   type CreateBrowserSessionOptions,
 } from "../browser";
-import { canonicalJson } from "../canonical-json";
+import { canonicalJson, jsonScriptLiteral } from "../canonical-json";
 import type { GhostgetManifest } from "../model";
 import type {
   WebSessionCleanupResourcePublisher,
@@ -288,7 +288,7 @@ function exactRequestPath(url: URL): string {
 }
 
 function requestEvaluationSource(binding: RequestBinding): string {
-  const bound = JSON.stringify(binding);
+  const bound = jsonScriptLiteral(binding);
   return `(async()=>{const input=${bound};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");const raw=document.cookie.split("; ").find((part)=>part.startsWith("JSESSIONID="));if(typeof raw!=="string")throw new Error("missing LinkedIn browser CSRF cookie");const csrf=decodeURIComponent(raw.slice("JSESSIONID=".length)).replace(/^\"|\"$/g,"");if(!/^ajax:[A-Za-z0-9_-]{1,512}$/.test(csrf))throw new Error("invalid LinkedIn browser CSRF cookie");const headers=input.response==="page"?{accept:"text/html"}:{accept:"application/vnd.linkedin.normalized+json+2.1","csrf-token":csrf,"x-li-lang":"en_US","x-restli-protocol-version":"2.0.0"};if(input.body!==null){if(!/^urn:li:page:[A-Za-z0-9_:-]{1,128};[A-Za-z0-9+/=_-]{1,512}$/.test(input.pageInstance||""))throw new Error("missing LinkedIn browser page instance");if(typeof input.track!=="string"||input.track.length<1||input.track.length>4096||/[\\0\\r\\n]/u.test(input.track))throw new Error("missing LinkedIn browser track binding");if(input.pemMetadata!==null&&input.pemMetadata!=="article-autosave")throw new Error("invalid LinkedIn browser PEM binding");headers["x-li-page-instance"]=input.pageInstance;if(input.pemMetadata==="article-autosave")headers["x-li-pem-metadata"]="${LINKEDIN_ARTICLE_AUTOSAVE_PEM_METADATA}";headers["x-li-track"]=input.track;headers["content-type"]="application/json; charset=UTF-8"}else if(input.pemMetadata!==null)throw new Error("invalid LinkedIn browser PEM binding");const response=await fetch(input.path,{body:input.body===null?undefined:input.body,credentials:"include",headers,method:input.method,redirect:"error",referrer:input.referrer});const contentType=(response.headers.get("content-type")||"").split(";",1)[0].trim().toLowerCase();if(input.response==="page"){const payloads=[];if(response.status===200&&contentType==="text/html"){if(response.body===null)throw new Error("missing LinkedIn Article page body");const reader=response.body.getReader();const decoder=new TextDecoder();const chunks=[];let bytes=0;while(true){const part=await reader.read();if(part.done)break;bytes+=part.value.byteLength;if(bytes>${LINKEDIN_ARTICLE_PAGE_MAX_CHARACTERS}){await reader.cancel();throw new Error("LinkedIn Article page exceeded its reviewed bound")}chunks.push(decoder.decode(part.value,{stream:true}))}chunks.push(decoder.decode());const html=chunks.join("");const id=new RegExp("^/article/edit/([0-9]{1,32})/$","u").exec(input.path)?.[1];if(typeof id!=="string")throw new Error("invalid LinkedIn Article page path");const urn="urn:li:fsd_firstPartyArticle:"+id;for(const match of html.matchAll(/<code\\b([^>]*)>([\\s\\S]*?)<\\/code>/giu)){const attributes=match[1]||"";const body=match[2]||"";if(!body.includes(urn))continue;payloads.push({attributes,body});if(payloads.length>20)throw new Error("LinkedIn Article page returned too many matching payloads")}}return{contentType,payloads,status:response.status}}if(input.response==="json"){let body=null;if(contentType==="application/vnd.linkedin.normalized+json+2.1"||contentType==="application/json")body=await response.json();return{body,contentType,status:response.status}}if(input.response==="created")return{contentType,responseId:response.headers.get("x-restli-id"),status:response.status};return{contentType,status:response.status}})()`;
 }
 
@@ -323,7 +323,7 @@ function linkedInArticleImageUploadEvaluationSource(input: {
   readonly uploadHeaders: Readonly<Record<string, string>>;
   readonly uploadUrl: string;
 }): string {
-  const bound = JSON.stringify(input);
+  const bound = jsonScriptLiteral(input);
   return `(async()=>{const input=${bound};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");if(!Number.isSafeInteger(input.expectedBase64Length)||input.expectedBase64Length<1||!Number.isSafeInteger(input.expectedByteLength)||input.expectedByteLength<1||!Number.isSafeInteger(input.expectedChunkCount)||input.expectedChunkCount<1||input.expectedChunkCount>256)throw new Error("invalid LinkedIn image byte binding");const chunks=globalThis[input.key];delete globalThis[input.key];if(!Array.isArray(chunks)||chunks.length!==input.expectedChunkCount)throw new Error("missing bounded LinkedIn image bytes");let encoded="";for(const chunk of chunks){if(typeof chunk!=="string"||chunk.length<1||chunk.length>49152||!/^[A-Za-z0-9+/]*={0,2}$/.test(chunk))throw new Error("invalid LinkedIn image bytes");encoded+=chunk}if(encoded.length!==input.expectedBase64Length)throw new Error("LinkedIn image changed encoded size");const binary=atob(encoded);encoded="";if(binary.length!==input.expectedByteLength)throw new Error("LinkedIn image changed size");const bytes=new Uint8Array(binary.length);for(let index=0;index<binary.length;index+=1)bytes[index]=binary.charCodeAt(index);const image=new Blob([bytes],{type:input.mediaType});if(image.size!==input.expectedByteLength||image.type!==input.mediaType)throw new Error("LinkedIn image blob changed shape");const raw=document.cookie.split("; ").find((part)=>part.startsWith("JSESSIONID="));if(typeof raw!=="string")throw new Error("missing LinkedIn browser CSRF cookie");const csrf=decodeURIComponent(raw.slice("JSESSIONID=".length)).replace(/^"|"$/g,"");if(!/^ajax:[A-Za-z0-9_-]{1,512}$/.test(csrf))throw new Error("invalid LinkedIn browser CSRF cookie");const upload=await fetch(input.uploadUrl,{body:image,credentials:"include",headers:{...input.uploadHeaders,"content-type":input.mediaType,"csrf-token":csrf},method:"PUT",redirect:"error",referrer:input.referrer});return{uploadStatus:upload.status}})()`;
 }
 
@@ -333,14 +333,14 @@ async function stageLinkedInArticleImageBytes(
   image: BoundArticleDraftImage,
   timeoutMs: number,
 ): Promise<void> {
-  const init = `(async()=>{const key=${JSON.stringify(key)};if(Object.hasOwn(globalThis,key))throw new Error("LinkedIn image staging key collision");globalThis[key]=[];return true})()`;
+  const init = `(async()=>{const key=${jsonScriptLiteral(key)};if(Object.hasOwn(globalThis,key))throw new Error("LinkedIn image staging key collision");globalThis[key]=[];return true})()`;
   await session.runBatch([["eval", init]], timeoutMs, MAX_BROWSER_OUTPUT_BYTES);
   const encoded = Buffer.from(image.bytes).toString("base64");
   try {
     const commands: (readonly string[])[] = [];
     for (let offset = 0; offset < encoded.length; offset += 48 * 1_024) {
       const chunk = encoded.slice(offset, offset + 48 * 1_024);
-      const source = `(async()=>{const key=${JSON.stringify(key)};const chunks=globalThis[key];if(!Array.isArray(chunks)||chunks.length>=256)throw new Error("LinkedIn image staging changed shape");chunks.push(${JSON.stringify(chunk)});return true})()`;
+      const source = `(async()=>{const key=${jsonScriptLiteral(key)};const chunks=globalThis[key];if(!Array.isArray(chunks)||chunks.length>=256)throw new Error("LinkedIn image staging changed shape");chunks.push(${JSON.stringify(chunk)});return true})()`;
       commands.push(["eval", source]);
     }
     for (
@@ -357,7 +357,7 @@ async function stageLinkedInArticleImageBytes(
   } catch (error) {
     try {
       await session.runBatch(
-        [["eval", `(async()=>{delete globalThis[${JSON.stringify(key)}];return true})()`]],
+        [["eval", `(async()=>{delete globalThis[${jsonScriptLiteral(key)}];return true})()`]],
         timeoutMs,
         MAX_BROWSER_OUTPUT_BYTES,
       );
@@ -579,7 +579,7 @@ export async function createLinkedInArticleBrowserTransport(
     } catch (error) {
       try {
         await session.runBatch(
-          [["eval", `(async()=>{delete globalThis[${JSON.stringify(key)}];return true})()`]],
+          [["eval", `(async()=>{delete globalThis[${jsonScriptLiteral(key)}];return true})()`]],
           options.operationDeadline?.remainingTimeMs() ?? options.timeoutMs,
           MAX_BROWSER_OUTPUT_BYTES,
         );
