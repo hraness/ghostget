@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import {
   requireProviderPluginAuth,
   type ProviderPluginAuthBinding,
 } from "./provider-plugin-auth";
 
-const hashlessOAuthAuth: WrenchAuth = {
+const hashlessOAuthAuth: GhostgetAuth = {
   schemaVersion: 1,
   id: "mastodon-main",
   kind: "oauth-token-file",
@@ -36,7 +36,7 @@ describe("provider plugin auth binding", () => {
       surfaceId: "signal",
       authKinds: ["linked-device-store"],
     };
-    const auth: WrenchAuth = {
+    const auth: GhostgetAuth = {
       schemaVersion: 1,
       id: "signal-main",
       kind: "linked-device-store",
@@ -57,7 +57,7 @@ describe("provider plugin auth binding", () => {
       surfaceId: "example-social",
       authKinds: ["cookie-source"],
     };
-    const auth: WrenchAuth = {
+    const auth: GhostgetAuth = {
       schemaVersion: 1,
       id: "example-profile",
       kind: "cookies-file",

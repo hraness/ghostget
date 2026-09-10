@@ -21,7 +21,7 @@ import type {
   BeeperMessageLikeMeSourceCoordinate,
 } from "./beeper-message-like-me-source";
 import { BEEPER_CLI_PIN } from "./providers/beeper-local";
-import { WRENCH_VERSION } from "./version";
+import { GHOSTGET_VERSION } from "./version";
 
 export const BEEPER_CONTACT_INTERACTION_SCHEMA_VERSION = 1 as const;
 export const BEEPER_CONTACT_INTERACTION_FORMAT =
@@ -35,8 +35,8 @@ export const BEEPER_CONTACT_INTERACTION_TRANSFORM = Object.freeze({
 });
 export const BEEPER_CONTACT_INTERACTION_IMPLEMENTATION = Object.freeze({
   producer: Object.freeze({
-    package: "@hraness/wrench" as const,
-    version: WRENCH_VERSION,
+    package: "@hraness/ghostget" as const,
+    version: GHOSTGET_VERSION,
   }),
   officialCli: Object.freeze({
     implementation: BEEPER_CLI_PIN.implementation,

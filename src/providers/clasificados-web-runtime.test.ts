@@ -42,7 +42,7 @@ function page(pueblo: string, id: string): string {
 }
 
 describe("Clasificados public listings runtime", () => {
-  test("GETs each reviewed San Juan pueblo with the honest Wrench user agent", async () => {
+  test("GETs each reviewed San Juan pueblo with the honest Ghostget user agent", async () => {
     const urls: string[] = [];
     const fetch: PinnedHttpsFetch = (url, init, timeoutMs) => {
       urls.push(url.href);

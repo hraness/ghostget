@@ -45,7 +45,7 @@ function cliSourcePath(): string {
   if (existsSync(besideSource)) return besideSource;
   const packagedSource = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
   if (existsSync(packagedSource)) return packagedSource;
-  throw new Error("the installed Wrench CLI source is unavailable");
+  throw new Error("the installed Ghostget CLI source is unavailable");
 }
 
 function environmentSnapshot(
@@ -61,17 +61,17 @@ function environmentSnapshot(
       || overrides === null
       || Array.isArray(overrides)
       || Object.getPrototypeOf(overrides) !== Object.prototype
-    ) throw new Error("Wrench messaging environment must be a plain object");
+    ) throw new Error("Ghostget messaging environment must be a plain object");
     for (const [key, value] of Object.entries(overrides)) {
       if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(key)) {
-        throw new Error("Wrench messaging environment contains an invalid name");
+        throw new Error("Ghostget messaging environment contains an invalid name");
       }
       if (value === undefined) delete result[key];
       else if (
         typeof value !== "string"
         || Buffer.byteLength(value, "utf8") > 128 * 1024
         || value.includes("\0")
-      ) throw new Error("Wrench messaging environment contains an invalid value");
+      ) throw new Error("Ghostget messaging environment contains an invalid value");
       else result[key] = value;
     }
   }
@@ -91,9 +91,9 @@ function options(
     || Array.isArray(value)
     || Object.getPrototypeOf(value) !== Object.prototype
     || Object.keys(value).some((key) => key !== "environment" && key !== "signal")
-  ) throw new Error("Wrench messaging options are malformed");
+  ) throw new Error("Ghostget messaging options are malformed");
   if (value.signal !== undefined && !(value.signal instanceof AbortSignal)) {
-    throw new Error("Wrench messaging signal is malformed");
+    throw new Error("Ghostget messaging signal is malformed");
   }
   return Object.freeze({
     environment: environmentSnapshot(value.environment),
@@ -111,13 +111,13 @@ async function runCli(
   clientOptions: MessagingClientOptions | undefined,
 ): Promise<unknown> {
   if (typeof process.versions.bun !== "string") {
-    throw new Error("@hraness/wrench/messaging requires Bun to run the installed Wrench CLI");
+    throw new Error("@hraness/ghostget/messaging requires Bun to run the installed Ghostget CLI");
   }
   const prepared = options(clientOptions);
   if (prepared.signal?.aborted === true) {
     throw prepared.signal.reason instanceof Error
       ? prepared.signal.reason
-      : new DOMException("Wrench messaging operation was aborted", "AbortError");
+      : new DOMException("Ghostget messaging operation was aborted", "AbortError");
   }
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "wrench-messaging-"));
   const privateOutput = join(temporaryDirectory, "artifact.json");
@@ -179,7 +179,7 @@ async function runCli(
       const rejectAfterOwnedTreeExit = (): void => {
         signalOwnedTree("SIGKILL");
         if (!ownedTreeIsAlive()) {
-          settleFailure(pendingError ?? new Error("Wrench messaging operation failed"));
+          settleFailure(pendingError ?? new Error("Ghostget messaging operation failed"));
           return;
         }
         setTimeout(rejectAfterOwnedTreeExit, 10);
@@ -199,11 +199,11 @@ async function runCli(
         requestTermination(
           prepared.signal?.reason instanceof Error
             ? prepared.signal.reason
-            : new DOMException("Wrench messaging operation was aborted", "AbortError"),
+            : new DOMException("Ghostget messaging operation was aborted", "AbortError"),
         );
       };
       const timer = setTimeout(() => {
-        requestTermination(new Error("Wrench messaging operation timed out"));
+        requestTermination(new Error("Ghostget messaging operation timed out"));
       }, COMMAND_TIMEOUT_MS);
       timer.unref?.();
       prepared.signal?.addEventListener("abort", abort, { once: true });
@@ -211,7 +211,7 @@ async function runCli(
       child.stdout.on("data", (chunk: Buffer) => {
         stdoutBytes += chunk.byteLength;
         if (stdoutBytes > MAX_STDOUT_BYTES) {
-          requestTermination(new Error("Wrench messaging receipt exceeded its byte bound"));
+          requestTermination(new Error("Ghostget messaging receipt exceeded its byte bound"));
           return;
         }
         stdout.push(Buffer.from(chunk));
@@ -219,7 +219,7 @@ async function runCli(
       child.stderr.on("data", (chunk: Buffer) => {
         stderrBytes += chunk.byteLength;
         if (stderrBytes > MAX_STDERR_BYTES) {
-          requestTermination(new Error("Wrench messaging diagnostic exceeded its byte bound"));
+          requestTermination(new Error("Ghostget messaging diagnostic exceeded its byte bound"));
           return;
         }
         stderr.push(Buffer.from(chunk));
@@ -244,13 +244,13 @@ async function runCli(
       child.stdin.end(`${canonicalJson(request)}\n`, "utf8");
     });
     if (result.code !== 0) {
-      throw new Error(boundedError(result.stderr) || `Wrench messaging exited ${result.code}`);
+      throw new Error(boundedError(result.stderr) || `Ghostget messaging exited ${result.code}`);
     }
     let receiptValue: unknown;
     try {
       receiptValue = JSON.parse(result.stdout.toString("utf8")) as unknown;
     } catch {
-      throw new Error("Wrench messaging returned a malformed receipt");
+      throw new Error("Ghostget messaging returned a malformed receipt");
     }
     const receipt = parseMessagingPrivateOutputReceiptV1(receiptValue);
     const expectedFormat = operation === "routes"
@@ -261,7 +261,7 @@ async function runCli(
           ? "wrench.messaging-context"
           : "wrench.messaging-preview";
     if (receipt.artifactFormat !== expectedFormat) {
-      throw new Error("Wrench messaging returned another private artifact contract");
+      throw new Error("Ghostget messaging returned another private artifact contract");
     }
     const stats = lstatSync(privateOutput);
     const currentUid = process.getuid?.();
@@ -271,16 +271,16 @@ async function runCli(
       || stats.uid !== currentUid
       || (stats.mode & 0o777) !== 0o600
       || stats.size > MAX_ARTIFACT_BYTES
-    ) throw new Error("Wrench messaging private artifact is not an owned mode-0600 file");
+    ) throw new Error("Ghostget messaging private artifact is not an owned mode-0600 file");
     const artifactText = readFileSync(privateOutput, "utf8");
     let artifact: unknown;
     try {
       artifact = JSON.parse(artifactText) as unknown;
     } catch {
-      throw new Error("Wrench messaging private artifact is malformed JSON");
+      throw new Error("Ghostget messaging private artifact is malformed JSON");
     }
     if (sha256(canonicalJson(artifact)) !== receipt.artifactSha256) {
-      throw new Error("Wrench messaging private artifact does not match its receipt");
+      throw new Error("Ghostget messaging private artifact does not match its receipt");
     }
     return artifact;
   } finally {

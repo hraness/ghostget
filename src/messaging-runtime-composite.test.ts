@@ -27,7 +27,7 @@ import {
   type InvocationPlan,
   type StoredPlan,
 } from "./runtime";
-import { main } from "./wrench";
+import { main } from "./ghostget";
 
 const routeRef = "wmroute_ABCDEFGHIJKLMNOPQRSTUV";
 const contextRef = "wmcontext_ABCDEFGHIJKLMNOPQRSTUV";
@@ -41,7 +41,7 @@ function state(): Readonly<Record<string, string | undefined>> {
   const root = mkdtempSync(join(tmpdir(), "wrench-messaging-preview-"));
   chmodSync(root, 0o700);
   roots.push(root);
-  return { ...process.env, WRENCH_STATE_HOME: root };
+  return { ...process.env, GHOSTGET_STATE_HOME: root };
 }
 
 function storedPlan(): StoredPlan {

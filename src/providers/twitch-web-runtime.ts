@@ -1,4 +1,4 @@
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import { canonicalJson } from "../canonical-json";
 import type { OperationInput, WebSessionRecipe } from "../model";
 import {
@@ -103,7 +103,7 @@ function viewerSubject(viewer: TwitchViewer): string {
   return `twitch:${viewer.id}`;
 }
 
-function requireBoundViewer(auth: WrenchAuth, viewer: TwitchViewer): void {
+function requireBoundViewer(auth: GhostgetAuth, viewer: TwitchViewer): void {
   const expected = webSessionAuthSubject(auth);
   if (expected === null || !/^twitch:[1-9][0-9]{0,31}$/u.test(expected)) {
     throw new Error(
@@ -132,7 +132,7 @@ function observedAt(
 }
 
 export async function probeTwitchWebSubject(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs?: number;
     readonly dependencies?: TwitchWebRuntimeDependencies;
@@ -152,7 +152,7 @@ export async function probeTwitchWebSubject(
 export async function executeTwitchWebOperation(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;

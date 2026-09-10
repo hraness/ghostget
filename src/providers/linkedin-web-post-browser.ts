@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import {
   PreservedBrowserArtifactsError,
   browserResultData,
@@ -9,7 +9,7 @@ import {
   type CreateBrowserSessionOptions,
 } from "../browser";
 import { canonicalJson } from "../canonical-json";
-import type { WrenchManifest } from "../model";
+import type { GhostgetManifest } from "../model";
 import type {
   WebSessionCleanupResourcePublisher,
   WebSessionOperationDeadline,
@@ -38,7 +38,7 @@ const MAX_IMAGE_STAGING_CHUNKS = Math.ceil(
   MAX_IMAGE_BASE64_CHARACTERS / IMAGE_STAGING_CHUNK_CHARACTERS,
 );
 
-const postBrowserManifest: WrenchManifest = Object.freeze({
+const postBrowserManifest: GhostgetManifest = Object.freeze({
   schemaVersion: 4,
   id: "linkedin-post-runtime",
   version: "1.0.0",
@@ -284,7 +284,7 @@ function imageStagingInitializationSource(staging: LinkedInPostImageStaging): st
     stagingKey: staging.key,
     expectedChunkCount: staging.chunkCount,
   });
-  return `(async()=>{const input=${canonicalJson(input)};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");if(!/^__wrenchLinkedInPostImage_[a-f0-9]{32}$/.test(input.stagingKey)||!Number.isSafeInteger(input.expectedChunkCount)||input.expectedChunkCount<1||input.expectedChunkCount>${MAX_IMAGE_STAGING_CHUNKS})throw new Error("LinkedIn image staging input changed shape");if(Object.hasOwn(globalThis,input.stagingKey))throw new Error("LinkedIn image staging key collision");Object.defineProperty(globalThis,input.stagingKey,{configurable:true,enumerable:false,value:[],writable:false});return{ready:true}})()`;
+  return `(async()=>{const input=${canonicalJson(input)};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");if(!/^__ghostgetLinkedInPostImage_[a-f0-9]{32}$/.test(input.stagingKey)||!Number.isSafeInteger(input.expectedChunkCount)||input.expectedChunkCount<1||input.expectedChunkCount>${MAX_IMAGE_STAGING_CHUNKS})throw new Error("LinkedIn image staging input changed shape");if(Object.hasOwn(globalThis,input.stagingKey))throw new Error("LinkedIn image staging key collision");Object.defineProperty(globalThis,input.stagingKey,{configurable:true,enumerable:false,value:[],writable:false});return{ready:true}})()`;
 }
 
 function imageStagingChunkSource(
@@ -467,7 +467,7 @@ async function finalizeBrowserSession(session: BrowserSession): Promise<void> {
 }
 
 export async function createLinkedInPostBrowserTransport(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs: number;
     readonly operationDeadline?: WebSessionOperationDeadline;
@@ -552,7 +552,7 @@ export async function createLinkedInPostBrowserTransport(
       const encoded = Buffer.from(image).toString("base64");
       const chunkCount = Math.ceil(encoded.length / IMAGE_STAGING_CHUNK_CHARACTERS);
       const staging = Object.freeze({
-        key: `__wrenchLinkedInPostImage_${randomUUID().replaceAll("-", "")}`,
+        key: `__ghostgetLinkedInPostImage_${randomUUID().replaceAll("-", "")}`,
         byteLength: image.byteLength,
         base64Length: encoded.length,
         chunkCount,

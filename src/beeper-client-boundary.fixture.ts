@@ -88,7 +88,7 @@ try {
 }
 if (
   overBoundMessage
-    !== "Wrench Beeper client: maxParticipants must be an integer from 1 through 2000"
+    !== "Ghostget Beeper client: maxParticipants must be an integer from 1 through 2000"
   || observedArgumentCount() !== 0
 ) throw new Error("public Beeper client changed its released participant bound");
 
@@ -106,8 +106,8 @@ if (
 ) throw new Error("public Beeper client did not return its exact request-bound result");
 
 for (const expectedMessage of [
-  "Wrench Beeper client: summary receipt auth does not match its request",
-  "Wrench Beeper client: summary receipt bounds do not match its request",
+  "Ghostget Beeper client: summary receipt auth does not match its request",
+  "Ghostget Beeper client: summary receipt bounds do not match its request",
 ] as const) {
   let message = "";
   try {

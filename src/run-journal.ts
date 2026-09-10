@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { canonicalJson } from "./canonical-json";
 import type { OperationRisk } from "./model";
 import {
@@ -19,7 +19,7 @@ import {
 import {
   createPrivateJsonIfAbsent,
   ensurePrivateStateDirectory,
-  wrenchStateHome,
+  ghostgetStateHome,
   readPrivateStateFilesBatched,
   readPrivateStateFileIfPresent,
   snapshotPrivateStateDirectory,
@@ -93,7 +93,7 @@ export type RunJournal = {
   readonly auth: {
     readonly id: string;
     readonly hash: string;
-    readonly kind: WrenchAuth["kind"];
+    readonly kind: GhostgetAuth["kind"];
   };
   readonly contract: RunJournalContract;
   readonly duplicateIntent?: DuplicateIntentV1;
@@ -349,7 +349,7 @@ function parseAdapter(value: unknown): RunJournal["adapter"] {
   return { id, version, hash: digest(record.hash, "run journal adapter hash") };
 }
 
-const authKinds = new Set<WrenchAuth["kind"]>([
+const authKinds = new Set<GhostgetAuth["kind"]>([
   "browser-profile",
   "cookie-source",
   "cookies-file",
@@ -361,13 +361,13 @@ function parseAuth(value: unknown): RunJournal["auth"] {
   const record = dataRecord(value, "run journal auth");
   exactKeys(record, ["id", "hash", "kind"], "run journal auth");
   const id = boundedString(record.id, "run journal auth ID", 48);
-  if (!/^[a-z][a-z0-9-]{0,47}$/u.test(id) || !authKinds.has(record.kind as WrenchAuth["kind"])) {
+  if (!/^[a-z][a-z0-9-]{0,47}$/u.test(id) || !authKinds.has(record.kind as GhostgetAuth["kind"])) {
     throw new Error("run journal auth is malformed");
   }
   return {
     id,
     hash: digest(record.hash, "run journal auth hash"),
-    kind: record.kind as WrenchAuth["kind"],
+    kind: record.kind as GhostgetAuth["kind"],
   };
 }
 
@@ -1141,7 +1141,7 @@ export function transitionRunJournal(
 }
 
 function journalDirectory(environment: Environment): string {
-  return join(wrenchStateHome(environment), RUN_JOURNAL_DIRECTORY);
+  return join(ghostgetStateHome(environment), RUN_JOURNAL_DIRECTORY);
 }
 
 function journalPath(runId: string, environment: Environment): string {

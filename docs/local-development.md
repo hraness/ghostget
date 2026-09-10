@@ -1,13 +1,13 @@
-# Local Wrench development
+# Local Ghostget development
 
 Use a stable lane for real work and a separate worktree lane for development.
 This keeps local source edits, dependencies, builds, and private state from
-changing underneath another chat or the installed `wrench` command.
+changing underneath another chat or the installed `ghostget` command.
 
 ## Stable and development lanes
 
 Keep the control checkout on `main` and use it to create and retire worktrees.
-Keep the normally installed `wrench` command and its normal state for trusted
+Keep the normally installed `ghostget` command and its normal state for trusted
 day-to-day work, especially provider mutations. Do not globally link a changing
 development checkout over that command.
 
@@ -26,13 +26,13 @@ git fetch --prune origin # optional: refresh the local base first
 ./scripts/local-dev/new-worktree codex-20260814-example
 ```
 
-The helper does not fetch or merge implicitly. `WRENCH_WORKTREE_BASE` may select
+The helper does not fetch or merge implicitly. `GHOSTGET_WORKTREE_BASE` may select
 another locally known commit or ref. By default it creates the worktree in a
 sibling directory named `<control-checkout>-worktrees`. Set an absolute
-`WRENCH_WORKTREE_ROOT` to put worktrees elsewhere:
+`GHOSTGET_WORKTREE_ROOT` to put worktrees elsewhere:
 
 ```sh
-WRENCH_WORKTREE_ROOT=/absolute/path/wrench-worktrees \
+GHOSTGET_WORKTREE_ROOT=/absolute/path/ghostget-worktrees \
   ./scripts/local-dev/new-worktree codex-20260814-example
 ```
 
@@ -47,7 +47,7 @@ cleanup.
 Invoke the task's source CLI through the control checkout's runner:
 
 ```sh
-./scripts/local-dev/run-wrench codex-20260814-example doctor --json
+./scripts/local-dev/run-ghostget codex-20260814-example doctor --json
 ```
 
 The runner starts a new Bun process against that worktree's source on every
@@ -62,35 +62,35 @@ runner also disables caller `.env` loading and verifies the exact registered
 `BUN_OPTIONS`, and `NODE_OPTIONS` runtime hooks are discarded as part of that
 boundary.
 
-The runner briefly enters the Wrench worktree to bind Bun configuration; the
+The runner briefly enters the Ghostget worktree to bind Bun configuration; the
 tracked launcher restores the caller directory before the CLI loads. Relative
 CLI inputs and outputs therefore continue to resolve from the caller's
 directory:
 
 ```sh
 cd /absolute/path/to/a/caller-project
-/absolute/path/to/wrench/scripts/local-dev/run-wrench \
+/absolute/path/to/ghostget/scripts/local-dev/run-ghostget \
   codex-20260814-example doctor --json
 ```
 
 Each task uses these private roots by default:
 
 ```text
-$HOME/.local/share/wrench-dev/<task>/state
-$HOME/.local/share/wrench-dev/<task>/media
+$HOME/.local/share/ghostget-dev/<task>/state
+$HOME/.local/share/ghostget-dev/<task>/media
 ```
 
-Move that development root with an absolute `WRENCH_DEV_HOME`. Use the same
+Move that development root with an absolute `GHOSTGET_DEV_HOME`. Use the same
 overrides for every invocation of a task:
 
 ```sh
-WRENCH_WORKTREE_ROOT=/absolute/path/wrench-worktrees \
-WRENCH_DEV_HOME=/absolute/private/path/wrench-dev \
-  /absolute/path/to/wrench/scripts/local-dev/run-wrench \
+GHOSTGET_WORKTREE_ROOT=/absolute/path/ghostget-worktrees \
+GHOSTGET_DEV_HOME=/absolute/private/path/ghostget-dev \
+  /absolute/path/to/ghostget/scripts/local-dev/run-ghostget \
   codex-20260814-example doctor --json
 ```
 
-Never point a development task at the stable Wrench state or media roots, and
+Never point a development task at the stable Ghostget state or media roots, and
 never symlink state, media, auth, browser profiles, `node_modules`, or `dist`
 between tasks.
 
@@ -99,47 +99,47 @@ between tasks.
 State isolation also isolates confirmation, dispatch, and at-most-once
 evidence. Separate task ledgers cannot coordinate with each other or with the
 stable installation. Do not submit the same real R2 or R3 provider mutation
-from multiple lanes. Route real mutations through one stable Wrench
+from multiple lanes. Route real mutations through one stable Ghostget
 installation and its normal state. Use development roots for reads, local
 fixtures, and deliberately isolated test accounts or targets.
 
 ## Refresh the Agent Skill
 
-The repository's `skills/wrench/` directory is the skill source; an agent does
+The repository's `skills/ghostget/` directory is the skill source; an agent does
 not automatically read edits from that directory. Keep the normally installed
-skill pinned to the same stable release as plain `wrench`; CLI worktree
+skill pinned to the same stable release as plain `ghostget`; CLI worktree
 iteration does not require replacing it.
 
 Skill replacement is a serialized maintenance boundary, not hot reload. When
-no active task may still discover or use the installed Wrench skill, validate
+no active task may still discover or use the installed Ghostget skill, validate
 the revision, stage a complete copy on the same filesystem but outside Codex's
 skill-discovery directory, and publish that complete tree with rollback. Then
 refresh Codex and start a new task. Do not run `rsync --delete` directly into
 the live installed directory, and do not switch one user-level skill between
 parallel worktrees.
 
-For example, after quiescing Wrench tasks:
+For example, after quiescing Ghostget tasks:
 
 ```sh
 (
   set -eu
   CODEX_ROOT="${CODEX_HOME:-$HOME/.codex}"
   CODEX_SKILLS_HOME="$CODEX_ROOT/skills"
-  SKILL_SWAP_ROOT="$CODEX_ROOT/local-skill-snapshots/wrench"
+  SKILL_SWAP_ROOT="$CODEX_ROOT/local-skill-snapshots/ghostget"
   mkdir -p "$SKILL_SWAP_ROOT"
   SKILL_SWAP="$(mktemp -d "$SKILL_SWAP_ROOT/swap.XXXXXX")"
   SKILL_STAGE="$SKILL_SWAP/stage"
   SKILL_BACKUP="$SKILL_SWAP/previous"
-  cp -R ./skills/wrench "$SKILL_STAGE"
-  mv "$CODEX_SKILLS_HOME/wrench" "$SKILL_BACKUP"
-  if ! mv "$SKILL_STAGE" "$CODEX_SKILLS_HOME/wrench"; then
-    mv "$SKILL_BACKUP" "$CODEX_SKILLS_HOME/wrench"
+  cp -R ./skills/ghostget "$SKILL_STAGE"
+  mv "$CODEX_SKILLS_HOME/ghostget" "$SKILL_BACKUP"
+  if ! mv "$SKILL_STAGE" "$CODEX_SKILLS_HOME/ghostget"; then
+    mv "$SKILL_BACKUP" "$CODEX_SKILLS_HOME/ghostget"
     exit 1
   fi
 )
 ```
 
-The preserved `local-skill-snapshots/wrench/swap.*/previous` directory is an
+The preserved `local-skill-snapshots/ghostget/swap.*/previous` directory is an
 explicit rollback candidate outside live skill discovery; inspect and retire it
 manually only after the new skill is accepted. The quiesced replacement has a
 brief gap between moving the prior directory aside and publishing the complete
@@ -147,8 +147,8 @@ staged tree, and the snippet restores the prior directory if publication fails.
 Adjust the destination if the agent host uses a different skills directory.
 Existing tasks may have already loaded instructions, so the safe guarantee is
 only that new tasks started after the refresh see the new complete snapshot.
-When testing local code, tell the new task the absolute `run-wrench` command and
-task name so it does not fall back to the stable `wrench` executable.
+When testing local code, tell the new task the absolute `run-ghostget` command and
+task name so it does not fall back to the stable `ghostget` executable.
 
 ## Verify and retire a task
 
@@ -160,7 +160,7 @@ macOS suite; preserve its executable phase-composition and disjoint source
 coverage contracts:
 
 ```sh
-cd /absolute/path/wrench-worktrees/codex-20260814-example
+cd /absolute/path/ghostget-worktrees/codex-20260814-example
 bun test scripts/ci-pr-gate.test.ts
 ```
 
@@ -192,13 +192,13 @@ otherwise preserve wanted changes. Then remove the exact worktree through Git,
 delete its branch only after Git accepts the removal, and prune stale metadata:
 
 ```sh
-git -C /absolute/path/to/wrench worktree remove \
-  /absolute/path/wrench-worktrees/codex-20260814-example
-git -C /absolute/path/to/wrench branch -d codex/codex-20260814-example
-git -C /absolute/path/to/wrench worktree prune
+git -C /absolute/path/to/ghostget worktree remove \
+  /absolute/path/ghostget-worktrees/codex-20260814-example
+git -C /absolute/path/to/ghostget branch -d codex/codex-20260814-example
+git -C /absolute/path/to/ghostget worktree prune
 ```
 
-Review the exact `<WRENCH_DEV_HOME>/<task>` directory separately before
+Review the exact `<GHOSTGET_DEV_HOME>/<task>` directory separately before
 deleting it. It can contain private auth, provider, plugin, and media state. Do
 not use a broad glob or remove the worktree directory directly.
 

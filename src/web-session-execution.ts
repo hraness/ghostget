@@ -1,12 +1,12 @@
 import { trackWebSessionCleanupBarrier, awaitWebSessionCleanupBarriers, type TrackedWebSessionCleanupBarrier } from "./web-session-cleanup-join";
 import { types as nodeTypes } from "node:util";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import type {
   BrowserFileResolver,
 } from "./browser";
 import type {
-  WrenchManifest,
+  GhostgetManifest,
   OperationInput,
   WebSessionRecipe,
 } from "./model";
@@ -37,7 +37,7 @@ export const WEB_SESSION_CLEANUP_JOIN_TIMEOUT_MS = 30_000;
 export class WebSessionCleanupUnverifiedError extends Error {
   constructor(cause?: unknown) {
     super(
-      "provider resource cleanup could not be verified within its bounded join; retry is unsafe until wrench doctor proves and completes exact resource recovery",
+      "provider resource cleanup could not be verified within its bounded join; retry is unsafe until ghostget doctor proves and completes exact resource recovery",
       cause === undefined ? undefined : { cause },
     );
     this.name = "WebSessionCleanupUnverifiedError";
@@ -248,15 +248,15 @@ export type WebSessionExecutionOptions = {
 };
 
 export type WebSessionOperationExecutor = (
-  manifest: WrenchManifest,
+  manifest: GhostgetManifest,
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: WebSessionExecutionOptions,
 ) => Promise<WebSessionExecution>;
 
 export type PublicWebSessionOperationExecutor = (
-  manifest: WrenchManifest,
+  manifest: GhostgetManifest,
   recipe: WebSessionRecipe,
   input: OperationInput,
   options: WebSessionExecutionOptions,

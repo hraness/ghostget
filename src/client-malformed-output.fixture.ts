@@ -602,7 +602,7 @@ async function invocationOutcome(): Promise<{
 const outcome = await invocationOutcome();
 if (
   outcome.status !== "rejected"
-  || outcome.message !== "Wrench live response is malformed"
+  || outcome.message !== "Ghostget live response is malformed"
 ) {
   throw new Error(`unexpected malformed-output outcome: ${JSON.stringify(outcome)}`);
 }
@@ -611,7 +611,7 @@ const malformedReceiptOutcome = await invocationOutcome();
 if (
   malformedReceiptOutcome.status !== "rejected"
   || malformedReceiptOutcome.message
-    !== "Wrench live receipt schema and transport are malformed"
+    !== "Ghostget live receipt schema and transport are malformed"
 ) {
   throw new Error(
     `unexpected malformed-receipt outcome: ${JSON.stringify(malformedReceiptOutcome)}`,
@@ -815,7 +815,7 @@ const swappedUnbound = await invocationOutcome();
 if (
   swappedUnbound.status !== "rejected"
   || swappedUnbound.message
-    !== "Wrench projection identity changed while revalidation was running; the live result was discarded"
+    !== "Ghostget projection identity changed while revalidation was running; the live result was discarded"
 ) {
   throw new Error(
     `unbound auth incarnation drift was accepted: ${JSON.stringify(swappedUnbound)}`,
@@ -890,7 +890,7 @@ for (const pair of illegalReceiptCachePairs) {
   if (
     pairOutcome.status !== "rejected"
     || pairOutcome.message
-      !== "Wrench live cache outcome is inconsistent with its receipt"
+      !== "Ghostget live cache outcome is inconsistent with its receipt"
   ) {
     throw new Error(
       `illegal receipt/cache pair ${pair.label} was accepted: ${JSON.stringify(pairOutcome)}`,
@@ -940,7 +940,7 @@ const swappedRevalidation = await invocationOutcome();
 if (
   swappedRevalidation.status !== "rejected"
   || swappedRevalidation.message
-    !== "Wrench projection identity changed while revalidation was running; the live result was discarded"
+    !== "Ghostget projection identity changed while revalidation was running; the live result was discarded"
 ) {
   throw new Error(
     `cross-process revalidation mixed account identities: ${JSON.stringify(swappedRevalidation)}`,
@@ -959,7 +959,7 @@ const abaRevalidation = await invocationOutcome();
 if (
   abaRevalidation.status !== "rejected"
   || abaRevalidation.message
-    !== "Wrench projection identity changed while revalidation was running; the live result was discarded"
+    !== "Ghostget projection identity changed while revalidation was running; the live result was discarded"
 ) {
   throw new Error(
     `cross-process A-to-B-to-A auth drift was accepted: ${JSON.stringify(abaRevalidation)}`,
@@ -1002,7 +1002,7 @@ const swappedSWROutcome = await swappedSWR.revalidation.then(
 if (
   swappedSWROutcome.status !== "rejected"
   || swappedSWROutcome.message
-    !== "Wrench projection identity changed while revalidation was running; the live result was discarded"
+    !== "Ghostget projection identity changed while revalidation was running; the live result was discarded"
 ) {
   throw new Error(
     `cross-process SWR mixed account identities: ${JSON.stringify(swappedSWROutcome)}`,
@@ -1012,7 +1012,7 @@ if (
 const stateHomeA = "/tmp/wrench-client-environment-a";
 const stateHomeB = "/tmp/wrench-client-environment-b";
 const mutableEnvironment: Record<string, string | undefined> = {
-  WRENCH_STATE_HOME: stateHomeA,
+  GHOSTGET_STATE_HOME: stateHomeA,
 };
 const firstAbort = new AbortController();
 const secondAbort = new AbortController();
@@ -1030,8 +1030,8 @@ const accountAFailedReceipt = {
   error: "account A provider unavailable",
 };
 liveResponses.push((environment) => {
-  const observedStateHome = environment.WRENCH_STATE_HOME;
-  mutableEnvironment.WRENCH_STATE_HOME = stateHomeA;
+  const observedStateHome = environment.GHOSTGET_STATE_HOME;
+  mutableEnvironment.GHOSTGET_STATE_HOME = stateHomeA;
   if (observedStateHome === stateHomeA) {
     return liveEnvelope(accountAFailedReceipt);
   }
@@ -1046,10 +1046,10 @@ identityResponseOverrides.push(
 );
 cacheResponseOverrides.push(
   (environment) => {
-    if (environment.WRENCH_STATE_HOME !== stateHomeA) {
+    if (environment.GHOSTGET_STATE_HOME !== stateHomeA) {
       throw new Error("pre-cache process did not receive account A's state home");
     }
-    mutableEnvironment.WRENCH_STATE_HOME = stateHomeB;
+    mutableEnvironment.GHOSTGET_STATE_HOME = stateHomeB;
     mutableOptions.freshForMs = 0;
     mutableOptions.headed = true;
     mutableOptions.now.setTime(new Date("2026-07-31T12:01:01.000Z").getTime());
@@ -1057,7 +1057,7 @@ cacheResponseOverrides.push(
     return { status: 0, stdout: cachedEnvelope(accountAKey, "A") };
   },
   (environment) => {
-    if (environment.WRENCH_STATE_HOME !== stateHomeA) {
+    if (environment.GHOSTGET_STATE_HOME !== stateHomeA) {
       throw new Error("post-cache process did not retain account A's state home");
     }
     return { status: 0, stdout: cachedEnvelope(accountAKey, "A") };
@@ -1117,7 +1117,7 @@ try {
     operationId: "messaging.list",
     authId: "x-main",
   }, {
-    environment: { WRENCH_STATE_HOME: "relative-state" },
+    environment: { GHOSTGET_STATE_HOME: "relative-state" },
   });
   if (
     cwdBound.cache.status !== "retained"
@@ -1296,13 +1296,13 @@ if (
 const liveCommandsBeforeCacheErrors = liveArguments.length;
 const liveResponseIndexBeforeCacheErrors = liveResponseIndex;
 const failingEnvironment: Record<string, string | undefined> = {
-  WRENCH_STATE_HOME: stateHomeA,
+  GHOSTGET_STATE_HOME: stateHomeA,
 };
 const failBoundACache = (environment: FixtureEnvironment): CacheResponse => {
-  if (environment.WRENCH_STATE_HOME !== stateHomeA) {
+  if (environment.GHOSTGET_STATE_HOME !== stateHomeA) {
     throw new Error("failing pre-cache process was not bound to account A");
   }
-  failingEnvironment.WRENCH_STATE_HOME = stateHomeB;
+  failingEnvironment.GHOSTGET_STATE_HOME = stateHomeB;
   return { status: 2, stdout: "" };
 };
 identityResponseOverrides.push(
@@ -1322,7 +1322,7 @@ try {
 }
 if (
   cacheErrorMessage
-    !== "Wrench projection identity changed while revalidation was running; the live result was discarded"
+    !== "Ghostget projection identity changed while revalidation was running; the live result was discarded"
   || liveArguments.length !== liveCommandsBeforeCacheErrors + 1
   || liveResponseIndex !== liveResponseIndexBeforeCacheErrors + 1
 ) {
@@ -1331,7 +1331,7 @@ if (
   );
 }
 
-failingEnvironment.WRENCH_STATE_HOME = stateHomeA;
+failingEnvironment.GHOSTGET_STATE_HOME = stateHomeA;
 identityResponseOverrides.push(
   { status: 0, stdout: projectionIdentityEnvelope(accountAKey) },
   { status: 0, stdout: projectionIdentityEnvelope(accountBKey) },
@@ -1351,7 +1351,7 @@ try {
 if (
   failedCacheSWR.cached !== null
   || cacheErrorMessage
-    !== "Wrench projection identity changed while revalidation was running; the live result was discarded"
+    !== "Ghostget projection identity changed while revalidation was running; the live result was discarded"
   || liveArguments.length !== liveCommandsBeforeCacheErrors + 2
   || liveResponseIndex !== liveResponseIndexBeforeCacheErrors + 2
 ) {
@@ -1361,7 +1361,7 @@ if (
 }
 
 const executionFenceError =
-  "Wrench execution identity changed while revalidation was running; the live result was discarded";
+  "Ghostget execution identity changed while revalidation was running; the live result was discarded";
 const stableExecutionAuthIdentity = "8".repeat(64);
 const changedExecutionDigest = "7".repeat(64);
 const providerExecutionIdentity = validReceipts[1]!;

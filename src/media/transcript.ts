@@ -167,7 +167,7 @@ export function parseWebVtt(input: unknown): TranscriptParseResult {
 }
 
 /**
- * Parses the exact WebVTT subset emitted by Wrench media's whisper.cpp profile. Unlike
+ * Parses the exact WebVTT subset emitted by Ghostget media's whisper.cpp profile. Unlike
  * provider caption recovery, every nonblank block must be one complete cue;
  * malformed or excess output fails the whole local attempt.
  */
@@ -188,7 +188,7 @@ export function parseStrictLocalWebVtt(input: unknown): StrictLocalWebVttResult 
   }
   const lines = input.replace(/^\uFEFF/u, "").replace(/\r\n?/gu, "\n").split("\n");
   if (lines[0] !== "WEBVTT" || lines[1] === undefined || !isBlank(lines[1])) {
-    return strictVttFailure("invalid-header", "Local WebVTT must use Wrench media's exact WEBVTT envelope.");
+    return strictVttFailure("invalid-header", "Local WebVTT must use Ghostget media's exact WEBVTT envelope.");
   }
 
   const cues: TranscriptCue[] = [];
@@ -364,7 +364,7 @@ export function renderTranscriptJson(cues: readonly TranscriptCue[]): string {
  * Validates the stricter cue contract used for locally generated transcripts.
  * Provider WebVTT remains recoverable cue-by-cue; output from a configured
  * local engine must instead be complete, ordered, exact, and independently
- * renderable before Wrench media can promote an archive.
+ * renderable before Ghostget media can promote an archive.
  */
 export function validateTranscriptCues(input: unknown): TranscriptCueValidationResult {
   if (!Array.isArray(input)) {

@@ -31,7 +31,7 @@ import {
   sanitizeTerminalText,
 } from "@hraness/kb/clip/terminal";
 import {
-  type WrenchAuth,
+  type GhostgetAuth,
 } from "./auth";
 import {
   ProviderHttpClient,
@@ -73,7 +73,7 @@ const GMAIL_STORED_ATTACHMENT_EXTENSION = "bin";
 const GMAIL_STORED_ATTACHMENT_MIME_TYPE = "application/octet-stream";
 
 type GmailOAuthAuth = Extract<
-  WrenchAuth,
+  GhostgetAuth,
   { readonly kind: "oauth-token-file" }
 > & {
   readonly provider: "gmail";
@@ -170,7 +170,7 @@ export type GmailCaptureDependencies = {
 
 export type GmailCaptureRunner = (
   options: CaptureArguments,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   environment: Readonly<Record<string, string | undefined>>,
   output: GmailCaptureOutput,
   dependencies?: GmailCaptureDependencies,
@@ -216,7 +216,7 @@ function safeInteger(value: unknown, label: string): number {
   return value as number;
 }
 
-function requireGmailAuth(auth: WrenchAuth): asserts auth is GmailOAuthAuth {
+function requireGmailAuth(auth: GhostgetAuth): asserts auth is GmailOAuthAuth {
   if (auth.kind !== "oauth-token-file" || auth.provider !== "gmail") {
     throw publicFailure("Gmail thread capture requires a stored Gmail OAuth auth locator");
   }

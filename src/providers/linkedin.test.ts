@@ -19,7 +19,7 @@ import type { ProviderActionContext, ProviderFile } from "../provider";
 import type {
   OperationInput,
   ProviderRecipe,
-  WrenchManifest,
+  GhostgetManifest,
 } from "../model";
 import { executeLinkedInProvider } from "./linkedin";
 
@@ -115,7 +115,7 @@ function fakeFetch(entries: readonly QueuedResponse[]): {
   return { fetch: fetch_, requests };
 }
 
-function manifest(): WrenchManifest {
+function manifest(): GhostgetManifest {
   return {
     schemaVersion: 3,
     id: "linkedin-official",

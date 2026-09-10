@@ -2,10 +2,10 @@ import { expect, test } from "bun:test";
 import fc from "fast-check";
 import { directHttpMediaForContainer } from "./http";
 import {
-  WRENCH_MEDIA_SCHEMA_VERSION,
-  WRENCH_MEDIA_VERSION,
-  WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE,
-  WRENCH_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
+  GHOSTGET_MEDIA_SCHEMA_VERSION,
+  GHOSTGET_MEDIA_VERSION,
+  GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE,
+  GHOSTGET_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
   localTranscriptVariantAssetKey,
   localTranscriptVariantSegments,
   parseMediaManifest,
@@ -26,8 +26,8 @@ import {
   YT_DLP_OPAQUE_IDENTITY_PROFILE,
 } from "./metadata";
 import {
-  WRENCH_MEDIA_REVISION_CONTENT_PROFILE,
-  WRENCH_MEDIA_TRACKED_REVISION_PROFILE,
+  GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
+  GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE,
   revisionContentSha256,
   trackedRevisionAssetKey,
   type MediaTrackedRevision,
@@ -53,8 +53,8 @@ function directManifest(
 ): unknown {
   const digest = "0".repeat(64);
   return {
-    schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
-    wrenchVersion: WRENCH_MEDIA_VERSION,
+    schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
+    wrenchVersion: GHOSTGET_MEDIA_VERSION,
     assetKey: projection.assetKey,
     capturedAt: "2026-07-21T14:00:01.000Z",
     mode: "video",
@@ -80,18 +80,18 @@ function trackedManifest(
     throw new TypeError("tracked property fixture is malformed");
   }
   const revision: MediaTrackedRevision = {
-    profile: WRENCH_MEDIA_TRACKED_REVISION_PROFILE,
+    profile: GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE,
     sequence: 1,
     subjectAssetKey,
     content: {
-      profile: WRENCH_MEDIA_REVISION_CONTENT_PROFILE,
+      profile: GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
       sha256: revisionContentSha256(artifacts as RevisionArtifactInput[]),
     },
   };
   return {
     ...base,
-    schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
-    wrenchVersion: WRENCH_MEDIA_VERSION,
+    schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
+    wrenchVersion: GHOSTGET_MEDIA_VERSION,
     assetKey: trackedRevisionAssetKey(revision),
     revision,
   };
@@ -106,8 +106,8 @@ function localSubjectManifest(
   const youtubeId = "abcdefghijk";
   const baseSourceAssetKey = sourceAssetKey("Youtube", youtubeId);
   return {
-    schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
-    wrenchVersion: WRENCH_MEDIA_VERSION,
+    schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
+    wrenchVersion: GHOSTGET_MEDIA_VERSION,
     assetKey: baseSourceAssetKey,
     capturedAt: "2026-07-21T14:00:01.000Z",
     mode: "archive",
@@ -121,7 +121,7 @@ function localSubjectManifest(
       adapter: "yt-dlp",
       version: "2026.07.20",
       identity: {
-        profile: WRENCH_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
+        profile: GHOSTGET_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
         providerIdentitySha256: providerIdentitySha256("Youtube", youtubeId),
       },
         },
@@ -145,7 +145,7 @@ function localSubjectManifest(
         adapter: "whisper-cpp",
         profile: "wrench-media-whisper-cpp-v1",
         executableSha256: "1".repeat(64),
-        runtimeProfile: WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE,
+        runtimeProfile: GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE,
         runtimeSha256: "3".repeat(64),
         runtimeDependencyCount: 4,
         modelSha256: "2".repeat(64),
@@ -469,7 +469,7 @@ test("property: every mutable local-transcriber identity component changes its v
           adapter: "whisper-cpp",
           profile: "wrench-media-whisper-cpp-v1",
           executableSha256,
-          runtimeProfile: WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE,
+          runtimeProfile: GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE,
           runtimeSha256,
           runtimeDependencyCount,
           modelSha256,

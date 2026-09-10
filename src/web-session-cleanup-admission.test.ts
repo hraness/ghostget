@@ -43,7 +43,7 @@ import {
 import {
   createPrivateJsonIfAbsent,
   ensurePrivateStateDirectory,
-  wrenchStateHome,
+  ghostgetStateHome,
 } from "./storage";
 import {
   startProviderPluginCleanupTrackedOperation,
@@ -67,7 +67,7 @@ async function withState(
   );
   chmodSync(root, 0o700);
   const environment = {
-    WRENCH_STATE_HOME: join(root, "wrench-home"),
+    GHOSTGET_STATE_HOME: join(root, "wrench-home"),
     HOME: root,
   };
   try {
@@ -153,7 +153,7 @@ function writeAdmissionFixture(
       : {}),
   });
   const admissionDirectory = join(
-    wrenchStateHome(environment),
+    ghostgetStateHome(environment),
     WEB_SESSION_CLEANUP_ADMISSION_STATE_DIRECTORY,
   );
   ensurePrivateStateDirectory(admissionDirectory, environment);
@@ -1667,7 +1667,7 @@ describe("web-session cleanup admission", () => {
   test("ignores exact storage-helper artifacts but reports near-matches", async () => {
     await withState((environment) => {
       const directory = join(
-        wrenchStateHome(environment),
+        ghostgetStateHome(environment),
         WEB_SESSION_CLEANUP_ADMISSION_STATE_DIRECTORY,
       );
       ensurePrivateStateDirectory(directory, environment);
@@ -1713,7 +1713,7 @@ describe("web-session cleanup admission", () => {
   test("acquires one realm without parsing one thousand unrelated entries", async () => {
     await withState((environment) => {
       const directory = join(
-        wrenchStateHome(environment),
+        ghostgetStateHome(environment),
         WEB_SESSION_CLEANUP_ADMISSION_STATE_DIRECTORY,
       );
       ensurePrivateStateDirectory(directory, environment);
@@ -1737,7 +1737,7 @@ describe("web-session cleanup admission", () => {
   test("fails closed on malformed requested state and diagnoses unexpected state", async () => {
     await withState(async (environment) => {
       const directory = join(
-        wrenchStateHome(environment),
+        ghostgetStateHome(environment),
         WEB_SESSION_CLEANUP_ADMISSION_STATE_DIRECTORY,
       );
       ensurePrivateStateDirectory(directory, environment);
@@ -1772,7 +1772,7 @@ describe("web-session cleanup admission", () => {
     await withState((environment) => {
       const selectedIdentity = identity();
       const directory = join(
-        wrenchStateHome(environment),
+        ghostgetStateHome(environment),
         WEB_SESSION_CLEANUP_ADMISSION_STATE_DIRECTORY,
       );
       ensurePrivateStateDirectory(directory, environment);

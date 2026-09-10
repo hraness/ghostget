@@ -226,7 +226,7 @@ function snapshotJson(value, label) {
   return visit(value, 0);
 }
 function parseRequestSource(value, index) {
-  const label = `Wrench omni request.sources[${index}]`;
+  const label = `Ghostget omni request.sources[${index}]`;
   const source = record(value, label);
   exactKeys(source, ["adapterId", "operationId", "authId"], ["input"], label);
   const operationId = oneOf(source.operationId, ["messaging.list", "messaging.read"], `${label}.operationId`);
@@ -240,33 +240,33 @@ function parseRequestSource(value, index) {
   });
 }
 function prepareRequest(requestValue) {
-  const snapshot = snapshotJson(requestValue, "Wrench omni request");
-  const request = record(snapshot, "Wrench omni request");
-  exactKeys(request, ["schemaVersion", "sources"], ["filter", "page"], "Wrench omni request");
+  const snapshot = snapshotJson(requestValue, "Ghostget omni request");
+  const request = record(snapshot, "Ghostget omni request");
+  exactKeys(request, ["schemaVersion", "sources"], ["filter", "page"], "Ghostget omni request");
   if (request.schemaVersion !== 1)
-    return fail("Wrench omni request.schemaVersion", "must be 1");
-  const sources = denseArray(request.sources, "Wrench omni request.sources", OMNI_MAX_SOURCES).map(parseRequestSource).sort((left, right) => canonicalJson(left).localeCompare(canonicalJson(right)));
+    return fail("Ghostget omni request.schemaVersion", "must be 1");
+  const sources = denseArray(request.sources, "Ghostget omni request.sources", OMNI_MAX_SOURCES).map(parseRequestSource).sort((left, right) => canonicalJson(left).localeCompare(canonicalJson(right)));
   if (sources.length === 0)
-    return fail("Wrench omni request.sources", "must not be empty");
+    return fail("Ghostget omni request.sources", "must not be empty");
   const sourceKeys = sources.map((source) => canonicalJson(source));
   if (new Set(sourceKeys).size !== sourceKeys.length) {
-    return fail("Wrench omni request.sources", "must not repeat an exact source request");
+    return fail("Ghostget omni request.sources", "must not repeat an exact source request");
   }
   let filter;
   if (request.filter !== undefined) {
-    const value = record(request.filter, "Wrench omni request.filter");
-    exactKeys(value, [], ["kinds", "conversationId", "unread"], "Wrench omni request.filter");
+    const value = record(request.filter, "Ghostget omni request.filter");
+    exactKeys(value, [], ["kinds", "conversationId", "unread"], "Ghostget omni request.filter");
     let kinds;
     if (value.kinds !== undefined) {
-      const parsed = denseArray(value.kinds, "Wrench omni request.filter.kinds", 3).map((kind, index) => oneOf(kind, ["conversation", "message", "notification"], `Wrench omni request.filter.kinds[${index}]`));
+      const parsed = denseArray(value.kinds, "Ghostget omni request.filter.kinds", 3).map((kind, index) => oneOf(kind, ["conversation", "message", "notification"], `Ghostget omni request.filter.kinds[${index}]`));
       if (parsed.length === 0 || new Set(parsed).size !== parsed.length) {
-        return fail("Wrench omni request.filter.kinds", "must be non-empty and unique");
+        return fail("Ghostget omni request.filter.kinds", "must be non-empty and unique");
       }
       kinds = Object.freeze([...parsed].sort());
     }
-    const conversationId = value.conversationId === undefined ? undefined : digest(value.conversationId, "Wrench omni request.filter.conversationId");
+    const conversationId = value.conversationId === undefined ? undefined : digest(value.conversationId, "Ghostget omni request.filter.conversationId");
     if (value.unread !== undefined && typeof value.unread !== "boolean") {
-      return fail("Wrench omni request.filter.unread", "must be boolean");
+      return fail("Ghostget omni request.filter.unread", "must be boolean");
     }
     filter = Object.freeze({
       ...kinds === undefined ? {} : { kinds },
@@ -276,10 +276,10 @@ function prepareRequest(requestValue) {
   }
   let page;
   if (request.page !== undefined) {
-    const value = record(request.page, "Wrench omni request.page");
-    exactKeys(value, [], ["limit", "cursor"], "Wrench omni request.page");
-    const limit = value.limit === undefined ? 100 : integer(value.limit, "Wrench omni request.page.limit", 1, 500);
-    const cursor = value.cursor === undefined ? undefined : localCursor(value.cursor, "Wrench omni request.page.cursor");
+    const value = record(request.page, "Ghostget omni request.page");
+    exactKeys(value, [], ["limit", "cursor"], "Ghostget omni request.page");
+    const limit = value.limit === undefined ? 100 : integer(value.limit, "Ghostget omni request.page.limit", 1, 500);
+    const cursor = value.cursor === undefined ? undefined : localCursor(value.cursor, "Ghostget omni request.page.cursor");
     page = Object.freeze({
       limit,
       ...cursor === undefined ? {} : { cursor }
@@ -293,7 +293,7 @@ function prepareRequest(requestValue) {
   });
   const json = canonicalJson(normalized);
   if (Buffer.byteLength(json, "utf8") > OMNI_MAX_REQUEST_BYTES) {
-    return fail("Wrench omni request", "exceeds its byte bound");
+    return fail("Ghostget omni request", "exceeds its byte bound");
   }
   const cursorIndependentRequest = Object.freeze({
     schemaVersion: 1,
@@ -321,7 +321,7 @@ function prepareRequest(requestValue) {
 }
 function environmentName(value) {
   if (value.length === 0 || value.includes("=") || value.includes("\x00")) {
-    return fail("Wrench omni client environment name", "is malformed");
+    return fail("Ghostget omni client environment name", "is malformed");
   }
   return value;
 }
@@ -342,13 +342,13 @@ function snapshotEnvironment(value) {
   }
   if (value === undefined)
     return Object.freeze(result);
-  const overrides = record(value, "Wrench omni client environment");
+  const overrides = record(value, "Ghostget omni client environment");
   for (const [key, environmentValue] of Object.entries(overrides)) {
     const name = environmentName(key);
     if (environmentValue === undefined) {
       delete result[name];
     } else if (typeof environmentValue !== "string" || environmentValue.includes("\x00")) {
-      return fail("Wrench omni client environment value", "is malformed");
+      return fail("Ghostget omni client environment value", "is malformed");
     } else {
       defineEnvironmentValue(result, name, environmentValue);
     }
@@ -365,15 +365,15 @@ function isBrandedAbortSignal(value) {
   }
 }
 function snapshotOptions(optionsValue, revalidation) {
-  const options = record(optionsValue, "Wrench omni client options");
-  exactKeys(options, [], revalidation ? ["environment", "headed", "signal"] : ["environment"], "Wrench omni client options");
+  const options = record(optionsValue, "Ghostget omni client options");
+  exactKeys(options, [], revalidation ? ["environment", "headed", "signal"] : ["environment"], "Ghostget omni client options");
   const headedValue = options.headed;
   const signalValue = options.signal;
   if (headedValue !== undefined && typeof headedValue !== "boolean") {
-    return fail("Wrench omni client headed option", "is malformed");
+    return fail("Ghostget omni client headed option", "is malformed");
   }
   if (signalValue !== undefined && !isBrandedAbortSignal(signalValue)) {
-    return fail("Wrench omni client abort signal", "is malformed");
+    return fail("Ghostget omni client abort signal", "is malformed");
   }
   return Object.freeze({
     cwd: process.cwd(),
@@ -396,7 +396,7 @@ function abortError(signal) {
   const reason = signal.reason;
   if (reason instanceof Error)
     return reason;
-  const error = new Error("Wrench omni revalidation was aborted");
+  const error = new Error("Ghostget omni revalidation was aborted");
   error.name = "AbortError";
   return error;
 }
@@ -407,11 +407,11 @@ function cliSourcePath() {
   const packagedSource = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
   if (existsSync(packagedSource))
     return packagedSource;
-  throw new Error("the installed Wrench CLI source is unavailable");
+  throw new Error("the installed Ghostget CLI source is unavailable");
 }
 function requireBunRuntime() {
   if (typeof process.versions.bun !== "string") {
-    throw new Error("@hraness/wrench/omni requires Bun to run the installed Wrench CLI");
+    throw new Error("@hraness/ghostget/omni requires Bun to run the installed Ghostget CLI");
   }
 }
 function preparedCommand(request, mode, options) {
@@ -638,7 +638,7 @@ function notificationEntity(source, label) {
   return verifyEntityRevision(semantic, source.revision, label);
 }
 function entity(value, index) {
-  const label = `Wrench omni view.entities[${index}]`;
+  const label = `Ghostget omni view.entities[${index}]`;
   const source = record(value, label);
   const kind = oneOf(source.kind, ["conversation", "message", "notification"], `${label}.kind`);
   if (kind === "conversation")
@@ -692,7 +692,7 @@ function coverage(value, label) {
   });
 }
 function sourceStatus(value, index) {
-  const label = `Wrench omni view.sources[${index}]`;
+  const label = `Ghostget omni view.sources[${index}]`;
   const source = record(value, label);
   exactKeys(source, [
     "adapterId",
@@ -894,45 +894,45 @@ function compareEntities(left, right) {
   return rightTime.localeCompare(leftTime) || left.id.localeCompare(right.id);
 }
 function view(value, request) {
-  const source = record(value, "Wrench omni view");
-  exactKeys(source, ["schemaVersion", "viewRevision", "entities", "nextCursor", "sources"], [], "Wrench omni view");
+  const source = record(value, "Ghostget omni view");
+  exactKeys(source, ["schemaVersion", "viewRevision", "entities", "nextCursor", "sources"], [], "Ghostget omni view");
   if (source.schemaVersion !== 1)
-    return fail("Wrench omni view.schemaVersion", "must be 1");
-  const entities = Object.freeze(denseArray(source.entities, "Wrench omni view.entities", OMNI_MAX_VIEW_ENTITIES).map(entity));
+    return fail("Ghostget omni view.schemaVersion", "must be 1");
+  const entities = Object.freeze(denseArray(source.entities, "Ghostget omni view.entities", OMNI_MAX_VIEW_ENTITIES).map(entity));
   if (new Set(entities.map((entry) => entry.id)).size !== entities.length) {
-    return fail("Wrench omni view.entities", "must not repeat entity identities");
+    return fail("Ghostget omni view.entities", "must not repeat entity identities");
   }
   for (let index = 1;index < entities.length; index += 1) {
     const prior = entities[index - 1];
     const current = entities[index];
     if (prior !== undefined && current !== undefined && compareEntities(prior, current) > 0) {
-      return fail("Wrench omni view.entities", "must use deterministic newest-first order");
+      return fail("Ghostget omni view.entities", "must use deterministic newest-first order");
     }
   }
   if (entities.length > request.pageLimit) {
-    return fail("Wrench omni view.entities", "exceeds the requested page limit");
+    return fail("Ghostget omni view.entities", "exceeds the requested page limit");
   }
   for (const entry of entities) {
     if (request.filter.kinds !== null && !request.filter.kinds.includes(entry.kind)) {
-      return fail("Wrench omni view.entities", "contains a kind excluded by the request");
+      return fail("Ghostget omni view.entities", "contains a kind excluded by the request");
     }
     if (request.filter.conversationId !== null && entry.conversationId !== request.filter.conversationId) {
-      return fail("Wrench omni view.entities", "contains an entity outside the requested conversation");
+      return fail("Ghostget omni view.entities", "contains an entity outside the requested conversation");
     }
     if (request.filter.unread !== null) {
       const unread = entry.kind === "conversation" ? entry.unread ?? (entry.unreadCount === null ? null : entry.unreadCount > 0) : entry.unread;
       if (unread !== request.filter.unread) {
-        return fail("Wrench omni view.entities", "contains an entity outside the requested unread state");
+        return fail("Ghostget omni view.entities", "contains an entity outside the requested unread state");
       }
     }
   }
-  const nextCursor = source.nextCursor === null ? null : localCursor(source.nextCursor, "Wrench omni view.nextCursor");
+  const nextCursor = source.nextCursor === null ? null : localCursor(source.nextCursor, "Ghostget omni view.nextCursor");
   if (nextCursor !== null && entities.length !== request.pageLimit) {
-    return fail("Wrench omni view.nextCursor", "requires a full requested page");
+    return fail("Ghostget omni view.nextCursor", "requires a full requested page");
   }
-  const sources = Object.freeze(denseArray(source.sources, "Wrench omni view.sources", OMNI_MAX_SOURCES).map(sourceStatus));
+  const sources = Object.freeze(denseArray(source.sources, "Ghostget omni view.sources", OMNI_MAX_SOURCES).map(sourceStatus));
   if (sources.length === 0)
-    return fail("Wrench omni view.sources", "must not be empty");
+    return fail("Ghostget omni view.sources", "must not be empty");
   const sourceKeys = sources.map((entry) => canonicalJson({
     adapterId: entry.adapterId,
     operationId: entry.operationId,
@@ -940,12 +940,12 @@ function view(value, request) {
     requestInputHash: entry.requestInputHash
   }));
   if (new Set(sourceKeys).size !== sourceKeys.length) {
-    return fail("Wrench omni view.sources", "must not repeat source identities");
+    return fail("Ghostget omni view.sources", "must not repeat source identities");
   }
   const expectedSourceKeys = request.sources.map(sourceCoordinateKey);
   const actualSourceKeys = sources.map(sourceCoordinateKey);
   if (expectedSourceKeys.length !== actualSourceKeys.length || expectedSourceKeys.some((key, index) => key !== actualSourceKeys[index])) {
-    return fail("Wrench omni view.sources", "must exactly match the requested source coordinates and order");
+    return fail("Ghostget omni view.sources", "must exactly match the requested source coordinates and order");
   }
   const returnedEntitySources = new Set(sources.map((entry) => canonicalJson({ authId: entry.authId, surfaceId: entry.surfaceId })));
   for (const entry of entities) {
@@ -954,45 +954,45 @@ function view(value, request) {
       surfaceId: entry.source.surfaceId
     });
     if (!returnedEntitySources.has(sourceKey)) {
-      return fail("Wrench omni view.entities", "must belong to one returned requested source");
+      return fail("Ghostget omni view.entities", "must belong to one returned requested source");
     }
   }
   return Object.freeze({
     schemaVersion: 1,
-    viewRevision: digest(source.viewRevision, "Wrench omni view.viewRevision"),
+    viewRevision: digest(source.viewRevision, "Ghostget omni view.viewRevision"),
     entities,
     nextCursor,
     sources
   });
 }
 function identity(value) {
-  const source = record(value, "Wrench omni response identity");
-  exactKeys(source, ["invocationDigest", "requestDigest", "sourceSetDigest"], [], "Wrench omni response identity");
+  const source = record(value, "Ghostget omni response identity");
+  exactKeys(source, ["invocationDigest", "requestDigest", "sourceSetDigest"], [], "Ghostget omni response identity");
   return Object.freeze({
-    invocationDigest: digest(source.invocationDigest, "Wrench omni response invocation digest"),
-    requestDigest: digest(source.requestDigest, "Wrench omni response request digest"),
-    sourceSetDigest: digest(source.sourceSetDigest, "Wrench omni response source-set digest")
+    invocationDigest: digest(source.invocationDigest, "Ghostget omni response invocation digest"),
+    requestDigest: digest(source.requestDigest, "Ghostget omni response request digest"),
+    sourceSetDigest: digest(source.sourceSetDigest, "Ghostget omni response source-set digest")
   });
 }
 function envelope(value, request) {
-  const source = record(value, "Wrench omni response");
-  exactKeys(source, ["ok", "schemaVersion", "source", "identity", "view"], [], "Wrench omni response");
+  const source = record(value, "Ghostget omni response");
+  exactKeys(source, ["ok", "schemaVersion", "source", "identity", "view"], [], "Ghostget omni response");
   if (source.ok !== true)
-    return fail("Wrench omni response.ok", "must be true");
+    return fail("Ghostget omni response.ok", "must be true");
   if (source.schemaVersion !== 1) {
-    return fail("Wrench omni response.schemaVersion", "must be 1");
+    return fail("Ghostget omni response.schemaVersion", "must be 1");
   }
   const parsedIdentity = identity(source.identity);
   if (parsedIdentity.invocationDigest !== request.invocationDigest) {
-    return fail("Wrench omni response identity.invocationDigest", "does not match the exact canonical invocation");
+    return fail("Ghostget omni response identity.invocationDigest", "does not match the exact canonical invocation");
   }
   if (parsedIdentity.requestDigest !== request.requestDigest) {
-    return fail("Wrench omni response identity.requestDigest", "does not match the cursor-independent canonical request");
+    return fail("Ghostget omni response identity.requestDigest", "does not match the cursor-independent canonical request");
   }
-  const parsedSource = oneOf(source.source, ["omni-cache", "omni-live", "omni-exact-cache", "omni-identity"], "Wrench omni response.source");
+  const parsedSource = oneOf(source.source, ["omni-cache", "omni-live", "omni-exact-cache", "omni-identity"], "Ghostget omni response.source");
   if (parsedSource === "omni-identity") {
     if (source.view !== null)
-      return fail("Wrench omni response.view", "must be null for identity-only output");
+      return fail("Ghostget omni response.view", "must be null for identity-only output");
     return Object.freeze({
       source: parsedSource,
       identity: parsedIdentity,
@@ -1000,7 +1000,7 @@ function envelope(value, request) {
     });
   }
   if (source.view === null)
-    return fail("Wrench omni response.view", "is required");
+    return fail("Ghostget omni response.view", "is required");
   return Object.freeze({
     source: parsedSource,
     identity: parsedIdentity,
@@ -1187,7 +1187,7 @@ function runAsynchronousCommand(command, options, label, timeoutMs) {
   });
 }
 function runLiveCommand(command, options) {
-  return runAsynchronousCommand(command, options, "Wrench omni live read");
+  return runAsynchronousCommand(command, options, "Ghostget omni live read");
 }
 function runAsynchronousControlCommand(command, options, label) {
   return runAsynchronousCommand(command, options, label, ASYNC_CONTROL_COMMAND_TIMEOUT_MS);
@@ -1198,7 +1198,7 @@ function requireEnvelopeSource(value, expected, label) {
   return value;
 }
 function cacheResult(value) {
-  const parsed = requireEnvelopeSource(value, "omni-cache", "Wrench omni cache response");
+  const parsed = requireEnvelopeSource(value, "omni-cache", "Ghostget omni cache response");
   return Object.freeze({
     schemaVersion: 1,
     source: parsed.source,
@@ -1207,7 +1207,7 @@ function cacheResult(value) {
   });
 }
 function liveResult(value) {
-  const parsed = requireEnvelopeSource(value, "omni-live", "Wrench omni live response");
+  const parsed = requireEnvelopeSource(value, "omni-live", "Ghostget omni live response");
   return Object.freeze({
     schemaVersion: 1,
     source: parsed.source,
@@ -1217,20 +1217,20 @@ function liveResult(value) {
 }
 async function observeIdentity(request, options) {
   throwIfAborted(options.signal);
-  return requireEnvelopeSource(await runAsynchronousControlCommand(preparedCommand(request, "identity", options), options, "Wrench omni identity preflight"), "omni-identity", "Wrench omni identity response").identity;
+  return requireEnvelopeSource(await runAsynchronousControlCommand(preparedCommand(request, "identity", options), options, "Ghostget omni identity preflight"), "omni-identity", "Ghostget omni identity response").identity;
 }
 function readCachedPrepared(request, options) {
-  return cacheResult(runSynchronousCommand(preparedCommand(request, "cache", options), options, "Wrench omni cache read"));
+  return cacheResult(runSynchronousCommand(preparedCommand(request, "cache", options), options, "Ghostget omni cache read"));
 }
 async function readCachedPreparedAsynchronously(request, options) {
-  return cacheResult(await runAsynchronousControlCommand(preparedCommand(request, "cache", options), options, "Wrench omni cache read"));
+  return cacheResult(await runAsynchronousControlCommand(preparedCommand(request, "cache", options), options, "Ghostget omni cache read"));
 }
 function identitiesMatch(left, right) {
   return left.invocationDigest === right.invocationDigest && left.requestDigest === right.requestDigest && left.sourceSetDigest === right.sourceSetDigest;
 }
 function assertIdentity(expected, actual, phase) {
   if (!identitiesMatch(expected, actual)) {
-    throw new Error(`Wrench omni identity changed ${phase}; the live result was discarded`);
+    throw new Error(`Ghostget omni identity changed ${phase}; the live result was discarded`);
   }
 }
 function viewsHaveSameEntities(left, right) {

@@ -24,6 +24,7 @@ import {
   LEGACY_PORTABLE_PROVIDER_PLUGIN_MANIFEST_NAME,
   parsePortableProviderPluginManifest,
   PORTABLE_PROVIDER_PLUGIN_MANIFEST_NAME,
+  WRENCH_PORTABLE_PROVIDER_PLUGIN_MANIFEST_NAME,
   renderPortableProviderPluginManifest,
   verifyPortableProviderPluginPackageDirectory,
   type PortableProviderPluginFileV1,
@@ -80,7 +81,7 @@ import {
 import {
   readRegularFile,
   removePrivateDirectoryTree,
-  wrenchStateHome,
+  ghostgetStateHome,
 } from "./storage";
 
 const MAX_AUTHORING_MANIFEST_BYTES = 256 * 1024;
@@ -154,7 +155,7 @@ function exactKeys(
 }
 
 function pluginStoreRoot(environment: Environment): string {
-  return join(wrenchStateHome(environment), "provider-plugins");
+  return join(ghostgetStateHome(environment), "provider-plugins");
 }
 
 export function portableProviderPluginStoreRoot(
@@ -431,7 +432,7 @@ function pauseAfterAuthoringStageForTest(
 ): void {
   if (
     process.env.NODE_ENV !== "test"
-    || process.env.WRENCH_TEST_PLUGIN_AUTHORING_STAGE_FAULT !== kind
+    || (process.env.GHOSTGET_TEST_PLUGIN_AUTHORING_STAGE_FAULT ?? process.env.WRENCH_TEST_PLUGIN_AUTHORING_STAGE_FAULT) !== kind
   ) return;
   const signal = new Int32Array(new SharedArrayBuffer(4));
   if (Atomics.wait(signal, 0, 0, 60_000) === "timed-out") {
@@ -464,7 +465,7 @@ const send = (value) => process.stdout.write(\`\${JSON.stringify(value)}\\n\`);
 
 async function invoke(context) {
   // Replace this inert reservation only after capturing authorized provider
-  // evidence and updating wrench-plugin.json to state "observed".
+  // evidence and updating ghostget-plugin.json to state "observed".
   throw Object.assign(new Error("operation remains capture-required"), {
     code: "CAPTURE_REQUIRED",
   });
@@ -564,18 +565,18 @@ function guideTemplate(
 ): string {
   return `# Contents
 
-- \`wrench-plugin.json\` – strict static identity, capability ceiling, adapter, and operation descriptor.
-- \`dist/plugin.mjs\` – self-contained child-process runtime; it may use only the versioned Wrench message protocol.
+- \`ghostget-plugin.json\` – strict static identity, capability ceiling, adapter, and operation descriptor.
+- \`dist/plugin.mjs\` – self-contained child-process runtime; it may use only the versioned Ghostget message protocol.
 - \`fixtures/\` – secret-free deterministic invocation fixtures.
 
 # Guidelines
 
 - Keep ${id}/${surfaceId}/${operation} capture-required until authorized evidence proves its exact request, response, account, and reconciliation semantics.
 - Parse every foreign value from unknown and reject extra fields.
-- Ask Wrench for declared capabilities; never read WRENCH_STATE_HOME, browser profiles, token files, or arbitrary filesystem paths.
+- Ask Ghostget for declared capabilities; never read GHOSTGET_STATE_HOME, browser profiles, token files, or arbitrary filesystem paths.
 - Give each observed operation fixture bounded \`files\` metadata and an exact ordered \`capabilityTranscript\`. Each step contains one bounded \`request\` and \`result\`, including explicit failure statuses and malformed response shapes; plugin tests never use live credentials or the network.
 - A child process isolates crashes and dependencies but is not a hostile-code sandbox. Testing and installation require explicit executable-code trust.
-- Run \`wrench plugin check .\`, \`wrench plugin test . --trust-code\`, and \`wrench plugin pack . --output ../${id}.wrenchplugin\` after each change.
+- Run \`ghostget plugin check .\`, \`ghostget plugin test . --trust-code\`, and \`ghostget plugin pack . --output ../${id}.ghostgetplugin\` after each change.
 `;
 }
 
@@ -810,7 +811,7 @@ export function initPortableProviderPlugin(options: {
     writePrivateAuthoringFile(join(stage, "dist", "plugin.mjs"), runtime);
     writePrivateAuthoringFile(join(stage, ...fixtureName.split("/")), fixture);
     writePrivateAuthoringFile(
-      join(stage, "wrench-plugin.json"),
+      join(stage, "ghostget-plugin.json"),
       renderPortableProviderPluginManifest(manifest),
     );
     const verified = verifyPortableProviderPluginPackageDirectory(stage);
@@ -842,6 +843,7 @@ function fileRecord(
 function sourceManifestName(source: string): string {
   const names = [
     PORTABLE_PROVIDER_PLUGIN_MANIFEST_NAME,
+    WRENCH_PORTABLE_PROVIDER_PLUGIN_MANIFEST_NAME,
     LEGACY_PORTABLE_PROVIDER_PLUGIN_MANIFEST_NAME,
   ].filter((name) => existsSync(join(source, name)));
   if (names.length === 0) {
@@ -994,7 +996,7 @@ export function packPortableProviderPlugin(
       writePrivateAuthoringFile(destination, bytes);
     }
     writePrivateAuthoringFile(
-      join(stage, "wrench-plugin.json"),
+      join(stage, "ghostget-plugin.json"),
       renderPortableProviderPluginManifest(refreshed),
     );
     const verified = verifyPortableProviderPluginPackageDirectory(stage);

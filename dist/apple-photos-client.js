@@ -1,7 +1,7 @@
 // @bun
 import {
-  WRENCH_VERSION
-} from "./index-y4mczbjx.js";
+  GHOSTGET_VERSION
+} from "./index-5azft87a.js";
 import {
   canonicalJson,
   sha256
@@ -429,8 +429,8 @@ function receiptWithoutIntegrity(input, output) {
     transport: "local-sqlite-vacuum-capture",
     implementation: Object.freeze({
       producer: Object.freeze({
-        package: "@hraness/wrench",
-        version: WRENCH_VERSION
+        package: "@hraness/ghostget",
+        version: GHOSTGET_VERSION
       }),
       source: APPLE_PHOTOS_LOCAL_SOURCE
     }),
@@ -523,8 +523,8 @@ function parseApplePhotosContactEvidenceExportResult(value) {
   exactKeys(implementation, ["producer", "source"], "receipt.implementation");
   const producer = dataRecord(implementation.producer, "receipt.implementation.producer");
   exactKeys(producer, ["package", "version"], "receipt.implementation.producer");
-  exactString(producer.package, "@hraness/wrench", "receipt.implementation.producer.package");
-  exactString(producer.version, WRENCH_VERSION, "receipt.implementation.producer.version");
+  exactString(producer.package, "@hraness/ghostget", "receipt.implementation.producer.package");
+  exactString(producer.version, GHOSTGET_VERSION, "receipt.implementation.producer.version");
   const implementationSource = dataRecord(implementation.source, "receipt.implementation.source");
   exactKeys(implementationSource, ["id", "version"], "receipt.implementation.source");
   exactString(implementationSource.id, APPLE_PHOTOS_LOCAL_SOURCE.id, "receipt.implementation.source.id");
@@ -583,7 +583,7 @@ var SOURCE_AUTHORITY_ENVIRONMENT = new Set([
   "TEMP"
 ]);
 function fail2(message) {
-  throw new Error(`Wrench Apple Photos client: ${message}`);
+  throw new Error(`Ghostget Apple Photos client: ${message}`);
 }
 function cliSourcePath() {
   const besideSource = fileURLToPath(new URL("./cli.ts", import.meta.url));
@@ -592,11 +592,11 @@ function cliSourcePath() {
   const packagedSource = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
   if (existsSync(packagedSource))
     return packagedSource;
-  return fail2("the installed Wrench CLI source is unavailable");
+  return fail2("the installed Ghostget CLI source is unavailable");
 }
 function requireBunRuntime() {
   if (typeof process.versions.bun !== "string") {
-    return fail2("@hraness/wrench/apple-photos requires Bun to run the installed Wrench CLI");
+    return fail2("@hraness/ghostget/apple-photos requires Bun to run the installed Ghostget CLI");
   }
 }
 function dataDescriptors(value, label) {

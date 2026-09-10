@@ -6,7 +6,7 @@ Provisioning is separate from native startup and never counts toward its deadlin
 
 ```sh
 fixture_browser_root="$(bun run ./scripts/provision-derive-browser.ts)"
-WRENCH_DERIVE_BROWSER_ROOT="$fixture_browser_root" bun run check
+GHOSTGET_DERIVE_BROWSER_ROOT="$fixture_browser_root" bun run check
 ```
 
 The same environment applies to a focused native test command. A later provisioner invocation may reuse the root only after rechecking its exact archive, executable, complete payload, and private receipt. It never repairs or replaces an invalid retained root automatically. Each native test still creates fresh sessions and browser profiles. No test-time download, warm-up, action retry, configuration exception, or timeout increase is permitted.

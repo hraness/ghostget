@@ -1,4 +1,4 @@
-# Contributing to Wrench
+# Contributing to Ghostget
 
 Issues and focused pull requests are welcome. Open an issue before changing a
 durable wire format, trust boundary, confirmation rule, or compatibility
@@ -42,7 +42,7 @@ coverage; edited coverage assertions alone cannot certify a weakened workflow.
 
 For parallel chats or other concurrent local work, follow the
 [isolated worktree workflow](docs/local-development.md). It keeps changing
-source and development state separate from the stable Wrench installation.
+source and development state separate from the stable Ghostget installation.
 
 Provider changes must keep semantic operations separate from transport
 mechanics. Add deterministic tests for strict parsing, account and target
@@ -59,8 +59,8 @@ Fast-check reports a seed and shrink path for failures. Replay the exact
 coordinate and only the named property before changing code:
 
 ```sh
-WRENCH_PROPERTY_SEED=-17 \
-WRENCH_PROPERTY_PATH=3:0 \
+GHOSTGET_PROPERTY_SEED=-17 \
+GHOSTGET_PROPERTY_PATH=3:0 \
 bun test src/linked-device-lifecycle-journal.property.test.ts \
   --test-name-pattern '^bounded action and fault workloads terminalize with supplied evidence$'
 ```
@@ -86,7 +86,7 @@ state, serialized lifecycle transitions, and immutable run identity. Include a
 secret-free fixture for each executable operation.
 
 Built-in source plugins retain a separate exact source/dependency closure
-check. Wrench derives that identity from the current tree, snapshots it at
+check. Ghostget derives that identity from the current tree, snapshots it at
 registry startup, and revalidates it immediately before and after lazy runtime
 load. There is no manual closure allowlist or hash-approval step: durable
 contract identity remains the reviewed semantic boundary, while automatic

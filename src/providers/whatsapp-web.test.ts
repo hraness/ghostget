@@ -161,7 +161,7 @@ describe("WhatsApp linked-device protocol registry", () => {
       "without opening a WhatsApp connection",
     );
     expect(WHATSAPP_WEB_OPERATIONS["messaging.send"].reason).toContain(
-      "no Wrench-qualified mutation transport",
+      "no Ghostget-qualified mutation transport",
     );
     expect(WHATSAPP_WEB_OPERATIONS["messaging.send"].reason).toContain(
       "sending remains unavailable",

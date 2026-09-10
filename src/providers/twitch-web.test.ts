@@ -167,7 +167,7 @@ describe("Twitch profile response binding", () => {
 
 test("accepts only exact lowercase Twitch logins", () => {
   expect(twitchLogin("wrench_test")).toBe("wrench_test");
-  for (const login of ["Wrench_Test", "abc", "has-dash", "", "a".repeat(26)]) {
+  for (const login of ["Ghostget_Test", "abc", "has-dash", "", "a".repeat(26)]) {
     expect(() => twitchLogin(login)).toThrow(
       "must be one exact lowercase Twitch login",
     );

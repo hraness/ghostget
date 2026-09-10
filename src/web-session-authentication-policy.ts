@@ -1,4 +1,4 @@
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { canonicalJson, sha256 } from "./canonical-json";
 import type { WebSessionRecipe } from "./model";
 
@@ -15,7 +15,7 @@ export type PublicWebSessionInvocationAuthority = {
   readonly subject: string;
 };
 
-export type InvocationAuthority = WrenchAuth | PublicWebSessionInvocationAuthority;
+export type InvocationAuthority = GhostgetAuth | PublicWebSessionInvocationAuthority;
 
 export type WebSessionAuthenticationPolicy =
   | { readonly kind: "required" }
@@ -128,7 +128,7 @@ export function publicWebSessionAuthorityIdentityHash(
 export function persistedAuthAuthority(
   authority: InvocationAuthority,
   message = "operation requires a persisted auth locator",
-): WrenchAuth {
+): GhostgetAuth {
   if (isPublicWebSessionInvocationAuthority(authority)) {
     throw new Error(message);
   }

@@ -27,9 +27,9 @@ const requiredPaths = Object.freeze([
   "dist/messaging.js",
   "dist/omni-client.js",
   "dist/whatsapp-client.js",
-  "skills/wrench/SKILL.md",
-  "skills/wrench/agents/openai.yaml",
-  "skills/wrench/references/install.md",
+  "skills/ghostget/SKILL.md",
+  "skills/ghostget/agents/openai.yaml",
+  "skills/ghostget/references/install.md",
   "src/apple-photos-cli.ts",
   "src/assets/adapters/beeper/wrench-web-adapter.v2.2.0.json",
   "src/assets/adapters/beeper/wrench-web-adapter.v2.3.0.json",
@@ -41,7 +41,7 @@ const requiredPaths = Object.freeze([
   "src/providers/imessage-direct-install.ts",
   "src/provider-plugin-registry.ts",
   "src/whatsapp-message-like-me-cli.ts",
-  "src/wrench.ts",
+  "src/ghostget.ts",
 ]);
 
 export type PackageArtifactEntry = Readonly<{
@@ -139,7 +139,7 @@ function relativePackagePath(path: string, type: "directory" | "file"): string {
   return relative;
 }
 
-function verifyAllowedPath(path: string, type: "directory" | "file"): void {
+function verifyAllowedPath(path: string, type: "directory" | "file", skillName: "ghostget" | "wrench"): void {
   const allowed = type === "file"
     ? path === "CHANGELOG.md"
       || path === "DISCLOSURE"
@@ -151,21 +151,21 @@ function verifyAllowedPath(path: string, type: "directory" | "file"): void {
       || path === "package.json"
       || path === "tsconfig.json"
       || path.startsWith("dist/")
-      || path.startsWith("skills/wrench/")
+      || path.startsWith(`skills/${skillName}/`)
       || path.startsWith("src/")
     : path === "dist"
       || path.startsWith("dist/")
       || path === "docs"
       || path === "skills"
-      || path === "skills/wrench"
-      || path.startsWith("skills/wrench/")
+      || path === `skills/${skillName}`
+      || path.startsWith(`skills/${skillName}/`)
       || path === "src"
       || path.startsWith("src/");
   if (!allowed) throw new Error(`Unexpected package path: ${path}`);
   if (type === "file" && /\.(?:property\.)?test\.[cm]?[jt]sx?$/u.test(path)) {
     throw new Error(`Test source entered the package: ${path}`);
   }
-  if (type === "file" && path.endsWith("/AGENTS.md") && path !== "skills/wrench/AGENTS.md") {
+  if (type === "file" && path.endsWith("/AGENTS.md") && path !== `skills/${skillName}/AGENTS.md`) {
     throw new Error(`Repository guidance entered the package: ${path}`);
   }
   if (/(?:^|\/)(?:\.env(?:\.|$)|\.git(?:\/|$)|node_modules(?:\/|$))/u.test(path)) {
@@ -201,7 +201,17 @@ function verifyTrailer(tar: Buffer, offset: number): void {
 
 export async function inspectPackageArtifact(
   archive: string,
+  expectedName = "@hraness/ghostget",
 ): Promise<PackageArtifactInventory> {
+  if (expectedName !== "@hraness/ghostget" && expectedName !== "@hraness/wrench") {
+    throw new Error("Package inventory requires one exact current or historical package name");
+  }
+  // The receipt verifier supplies the version-bound package identity. Immutable
+  // historical archives retain their original skill and source entry paths.
+  const skillName = expectedName === "@hraness/wrench" ? "wrench" : "ghostget";
+  const expectedPaths = expectedName === "@hraness/wrench"
+    ? requiredPaths.map(path => path.replace("skills/ghostget/", "skills/wrench/").replace("src/ghostget.ts", "src/wrench.ts"))
+    : requiredPaths;
   const compressed = await readFile(archive);
   verifyBound("packed byte count", compressed.byteLength, packageArtifactBudget.packedBytes);
 
@@ -273,7 +283,7 @@ export async function inspectPackageArtifact(
     }
 
     const relative = relativePackagePath(path, type);
-    verifyAllowedPath(relative, type);
+    verifyAllowedPath(relative, type, skillName);
     verifyMode(relative, type, mode);
     if (seen.has(relative)) throw new Error(`Duplicate package path: ${relative}`);
     seen.add(relative);
@@ -301,7 +311,7 @@ export async function inspectPackageArtifact(
   entries.sort((left, right) => compareUtf8(left.path, right.path) || compareUtf8(left.type, right.type));
   files.sort((left, right) => compareUtf8(left.path, right.path));
   directories.sort((left, right) => compareUtf8(left.path, right.path));
-  for (const path of requiredPaths) {
+  for (const path of expectedPaths) {
     if (!files.some((file) => file.path === path)) {
       throw new Error(`Required package path is missing: ${path}`);
     }

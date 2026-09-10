@@ -28,10 +28,13 @@ export {
 
 export const PORTABLE_PROVIDER_PLUGIN_MANIFEST_SCHEMA_VERSION = 1 as const;
 export const PORTABLE_PROVIDER_PLUGIN_HOST_API_VERSION = 1 as const;
-export const PORTABLE_PROVIDER_PLUGIN_MANIFEST_NAME = "wrench-plugin.json";
+export const PORTABLE_PROVIDER_PLUGIN_MANIFEST_NAME = "ghostget-plugin.json";
+// Historical verified bundles retain their exact manifest name and bytes.
+export const WRENCH_PORTABLE_PROVIDER_PLUGIN_MANIFEST_NAME = "wrench-plugin.json";
 export const LEGACY_PORTABLE_PROVIDER_PLUGIN_MANIFEST_NAME = "oh-plugin.json";
 const portableProviderPluginManifestNames = new Set([
   PORTABLE_PROVIDER_PLUGIN_MANIFEST_NAME,
+  WRENCH_PORTABLE_PROVIDER_PLUGIN_MANIFEST_NAME,
   LEGACY_PORTABLE_PROVIDER_PLUGIN_MANIFEST_NAME,
 ]);
 

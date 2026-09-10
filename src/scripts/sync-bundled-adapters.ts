@@ -16,7 +16,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
-import { main as defaultWrenchMain, type WrenchDependencies } from "../wrench";
+import { main as defaultGhostgetMain, type GhostgetDependencies } from "../ghostget";
 import {
   isLocalCliOperation,
   isProviderOperation,
@@ -24,7 +24,7 @@ import {
   manifestHash,
   parseDiagnosticManifest,
   parseRuntimeManifest,
-  type WrenchManifest,
+  type GhostgetManifest,
 } from "../model";
 import type { ProviderPluginRegistry } from "../provider-plugin-registry";
 import {
@@ -50,14 +50,14 @@ type SyncOutput = {
   readonly stderr: (value: string) => void;
 };
 
-type WrenchMain = (
+type GhostgetMain = (
   rawArguments: readonly string[],
   environment: Readonly<Record<string, string | undefined>>,
   output: {
     readonly stdout: (value: string) => void;
     readonly stderr: (value: string) => void;
   },
-  dependencyOverrides?: Partial<WrenchDependencies>,
+  dependencyOverrides?: Partial<GhostgetDependencies>,
 ) => Promise<number>;
 
 type GenerationInstaller = (
@@ -78,9 +78,9 @@ type SourceSnapshot = {
 
 export type DiscoveredBundledAdapter = {
   readonly id: string;
-  readonly current: SourceSnapshot & { readonly manifest: WrenchManifest };
+  readonly current: SourceSnapshot & { readonly manifest: GhostgetManifest };
   readonly upgradeFrom: readonly (
-    SourceSnapshot & { readonly manifest: WrenchManifest }
+    SourceSnapshot & { readonly manifest: GhostgetManifest }
   )[];
   readonly routeKey: string;
 };
@@ -200,7 +200,7 @@ function routeKey(transport: string, surfaceId: string): string {
 }
 
 function manifestRouteKey(
-  manifest: WrenchManifest,
+  manifest: GhostgetManifest,
   registry: ProviderPluginRegistry,
 ): string {
   if (manifest.surfaceId === undefined) {
@@ -407,11 +407,11 @@ async function validateSnapshotWithCli(
   adapter: DiscoveredBundledAdapter,
   stagedPath: string,
   environment: Readonly<Record<string, string | undefined>>,
-  wrenchMain: WrenchMain,
+  ghostgetMain: GhostgetMain,
   registry: ProviderPluginRegistry,
 ): Promise<void> {
   const captured = captureOutput();
-  const status = await wrenchMain(
+  const status = await ghostgetMain(
     ["adapter", "validate", stagedPath, "--json"],
     environment,
     captured.output,
@@ -580,12 +580,12 @@ function publishBundledAdapterGeneration(
   }
   for (const id of preservedIds) {
     output.stderr(
-      `wrench installer: preserved the installed ${id} adapter because it differs from the bundled version; inspect it or replace it with wrench adapter install of this release's bundled manifest and --force\n`,
+      `ghostget installer: preserved the installed ${id} adapter because it differs from the bundled version; inspect it or replace it with ghostget adapter install of this release's bundled manifest and --force\n`,
     );
   }
   for (const id of repairedIds) {
     output.stderr(
-      `wrench installer: repaired the incompatible installed ${id} adapter with this Wrench release's bundled contract; reinstall a newer Wrench release to restore newer contracts\n`,
+      `ghostget installer: repaired the incompatible installed ${id} adapter with this Ghostget release's bundled contract; reinstall a newer Ghostget release to restore newer contracts\n`,
     );
   }
   return Object.freeze({
@@ -599,7 +599,7 @@ export async function syncBundledAdapters(
   options: {
     readonly environment?: Readonly<Record<string, string | undefined>>;
     readonly output?: SyncOutput;
-    readonly wrenchMain?: WrenchMain;
+    readonly ghostgetMain?: GhostgetMain;
     readonly installGeneration?: GenerationInstaller;
     readonly assetsDirectory?: string;
     readonly registry?: ProviderPluginRegistry;
@@ -611,7 +611,7 @@ export async function syncBundledAdapters(
 }> {
   const environment = options.environment ?? process.env;
   const output = options.output ?? defaultOutput;
-  const wrenchMain = options.wrenchMain ?? defaultWrenchMain;
+  const ghostgetMain = options.ghostgetMain ?? defaultGhostgetMain;
   const registry = options.registry ?? providerPluginRegistry;
   const bundledAdapters = discoverBundledAdapters(
     options.assetsDirectory ?? defaultAssetsDirectory,
@@ -650,7 +650,7 @@ export async function syncBundledAdapters(
         adapter,
         stagedPath,
         environment,
-        wrenchMain,
+        ghostgetMain,
         initialCatalog.registry,
       );
     }
@@ -688,7 +688,7 @@ if (import.meta.main) {
     await syncBundledAdapters();
   } catch (error) {
     process.stderr.write(
-      `wrench installer: ${error instanceof Error ? error.message : "unknown bundled adapter sync failure"}\n`,
+      `ghostget installer: ${error instanceof Error ? error.message : "unknown bundled adapter sync failure"}\n`,
     );
     process.exitCode = 1;
   }

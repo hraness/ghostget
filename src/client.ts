@@ -15,12 +15,12 @@ import type {
   RevalidateCapabilityOptions,
   RevalidatedCapability,
   RevalidatedCapabilityCurrent,
-  WrenchClientInvocationResult,
-  WrenchClientLocalCliContractIdentity,
-  WrenchClientLocalCliToolIdentity,
-  WrenchClientPortableOperationIdentity,
-  WrenchClientReadFailure,
-  WrenchClientRunReceipt,
+  GhostgetClientInvocationResult,
+  GhostgetClientLocalCliContractIdentity,
+  GhostgetClientLocalCliToolIdentity,
+  GhostgetClientPortableOperationIdentity,
+  GhostgetClientReadFailure,
+  GhostgetClientRunReceipt,
 } from "./client-types";
 import {
   isProviderPluginOperationName,
@@ -101,7 +101,7 @@ function expectedRequestAuthId(
 ): string {
   if (authKind === PUBLIC_WEB_SESSION_AUTHORITY_KIND) {
     if (request.authId !== undefined) {
-      throw new Error("Wrench public invocation unexpectedly accepted an auth locator");
+      throw new Error("Ghostget public invocation unexpectedly accepted an auth locator");
     }
     return publicWebSessionAuthority(request).id;
   }
@@ -169,12 +169,12 @@ type ExecutionIdentity = {
   | {
       readonly schemaVersion: 6;
       readonly transport: "portable-provider-plugin";
-      readonly portablePluginContract: WrenchClientPortableOperationIdentity;
+      readonly portablePluginContract: GhostgetClientPortableOperationIdentity;
     }
   | {
       readonly schemaVersion: 7;
       readonly transport: "local-cli";
-      readonly localCliContract: WrenchClientLocalCliContractIdentity;
+      readonly localCliContract: GhostgetClientLocalCliContractIdentity;
     }
 );
 
@@ -189,7 +189,7 @@ type PreviewExecutionIdentity = {
   | { readonly transport: "local-cli" }
   | {
       readonly transport: "portable-provider-plugin";
-      readonly portablePluginContract: WrenchClientPortableOperationIdentity;
+      readonly portablePluginContract: GhostgetClientPortableOperationIdentity;
     }
 );
 
@@ -253,30 +253,30 @@ const clientReadFailureRetryDisposition = Object.freeze({
   "contract-drift": "do-not-retry",
   "cleanup-required": "do-not-retry",
 } as const satisfies Readonly<Record<
-  WrenchClientReadFailure["category"],
-  WrenchClientReadFailure["retryDisposition"]
+  GhostgetClientReadFailure["category"],
+  GhostgetClientReadFailure["retryDisposition"]
 >>);
 
-function parseClientReadFailure(value: unknown): WrenchClientReadFailure {
-  const failure = record(value, "Wrench read failure");
+function parseClientReadFailure(value: unknown): GhostgetClientReadFailure {
+  const failure = record(value, "Ghostget read failure");
   assertExactKeys(
     failure,
     ["category", "retryDisposition"],
     [],
-    "Wrench read failure",
+    "Ghostget read failure",
   );
   const category = failure.category;
   if (
     typeof category !== "string"
     || !Object.hasOwn(clientReadFailureRetryDisposition, category)
-  ) throw new Error("Wrench read failure category is malformed");
+  ) throw new Error("Ghostget read failure category is malformed");
   const retryDisposition = clientReadFailureRetryDisposition[
-    category as WrenchClientReadFailure["category"]
+    category as GhostgetClientReadFailure["category"]
   ];
   if (failure.retryDisposition !== retryDisposition) {
-    throw new Error("Wrench read failure retry disposition is inconsistent");
+    throw new Error("Ghostget read failure retry disposition is inconsistent");
   }
-  return Object.freeze({ category, retryDisposition }) as WrenchClientReadFailure;
+  return Object.freeze({ category, retryDisposition }) as GhostgetClientReadFailure;
 }
 
 /**
@@ -473,18 +473,18 @@ function cliSourcePath(): string {
   if (existsSync(besideSource)) return besideSource;
   const packagedSource = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
   if (existsSync(packagedSource)) return packagedSource;
-  throw new Error("the installed Wrench CLI source is unavailable");
+  throw new Error("the installed Ghostget CLI source is unavailable");
 }
 
 function requireBunRuntime(): void {
   if (typeof process.versions.bun !== "string") {
-    throw new Error("@hraness/wrench/client requires Bun to run the installed Wrench CLI");
+    throw new Error("@hraness/ghostget/client requires Bun to run the installed Ghostget CLI");
   }
 }
 
 function environmentName(value: string): string {
   if (value.length < 1 || value.includes("=") || value.includes("\0")) {
-    throw new Error("Wrench client environment name is malformed");
+    throw new Error("Ghostget client environment name is malformed");
   }
   return value;
 }
@@ -519,25 +519,25 @@ function snapshotChildEnvironment(
     )
   ) {
     throw new Error(
-      "Wrench client environment must use a plain, non-proxy object",
+      "Ghostget client environment must use a plain, non-proxy object",
     );
   }
   const descriptors = Object.getOwnPropertyDescriptors(overrides);
   const keys = Reflect.ownKeys(descriptors);
   if (keys.some((key) => typeof key !== "string")) {
-    throw new Error("Wrench client environment has unsupported symbol fields");
+    throw new Error("Ghostget client environment has unsupported symbol fields");
   }
   for (const key of (keys as string[]).sort((left, right) =>
     left.localeCompare(right))) {
     const descriptor = descriptors[key];
     if (descriptor === undefined || !("value" in descriptor)) {
       throw new Error(
-        "Wrench client environment must contain only data properties",
+        "Ghostget client environment must contain only data properties",
       );
     }
     if (!descriptor.enumerable) {
       throw new Error(
-        "Wrench client environment properties must be enumerable",
+        "Ghostget client environment properties must be enumerable",
       );
     }
     const name = environmentName(key);
@@ -547,7 +547,7 @@ function snapshotChildEnvironment(
       typeof descriptor.value !== "string"
       || descriptor.value.includes("\0")
     ) {
-      throw new Error("Wrench client environment value is malformed");
+      throw new Error("Ghostget client environment value is malformed");
     } else {
       defineEnvironmentValue(environment, name, descriptor.value);
     }
@@ -583,11 +583,11 @@ function snapshotClientOptions(
       Object.getPrototypeOf(optionsValue) !== Object.prototype
       && Object.getPrototypeOf(optionsValue) !== null
     )
-  ) throw new Error("Wrench client options must use a plain, non-proxy object");
+  ) throw new Error("Ghostget client options must use a plain, non-proxy object");
   const descriptors = Object.getOwnPropertyDescriptors(optionsValue);
   const keys = Reflect.ownKeys(descriptors);
   if (keys.some((key) => typeof key !== "string")) {
-    throw new Error("Wrench client options have unsupported symbol fields");
+    throw new Error("Ghostget client options have unsupported symbol fields");
   }
   const allowed = new Set(mode === "read"
     ? ["environment", "freshForMs", "now"]
@@ -599,10 +599,10 @@ function snapshotClientOptions(
   for (const key of keys as string[]) {
     const descriptor = descriptors[key];
     if (descriptor === undefined || !allowed.has(key)) {
-      throw new Error("Wrench client options contain an unsupported field");
+      throw new Error("Ghostget client options contain an unsupported field");
     }
     if (!("value" in descriptor)) {
-      throw new Error("Wrench client options must contain only data properties");
+      throw new Error("Ghostget client options must contain only data properties");
     }
   }
   const option = (key: string): unknown => descriptors[key]?.value;
@@ -614,7 +614,7 @@ function snapshotClientOptions(
     ? undefined
     : safeInteger(
         freshForMsValue,
-        "Wrench client freshness window",
+        "Ghostget client freshness window",
         0,
         MAX_FRESH_FOR_MS,
       );
@@ -624,25 +624,25 @@ function snapshotClientOptions(
       nodeTypes.isProxy(nowValue)
       || !(nowValue instanceof Date)
       || Object.getPrototypeOf(nowValue) !== Date.prototype
-    ) throw new Error("Wrench client observation time is invalid");
+    ) throw new Error("Ghostget client observation time is invalid");
     let time: number;
     try {
       time = Date.prototype.getTime.call(nowValue);
     } catch {
-      throw new Error("Wrench client observation time is invalid");
+      throw new Error("Ghostget client observation time is invalid");
     }
     if (!Number.isFinite(time)) {
-      throw new Error("Wrench client observation time is invalid");
+      throw new Error("Ghostget client observation time is invalid");
     }
     now = new Date(time);
   }
   if (headedValue !== undefined && typeof headedValue !== "boolean") {
-    throw new Error("Wrench client headed option is malformed");
+    throw new Error("Ghostget client headed option is malformed");
   }
   if (
     signalValue !== undefined
     && !isBrandedAbortSignal(signalValue)
-  ) throw new Error("Wrench client abort signal is malformed");
+  ) throw new Error("Ghostget client abort signal is malformed");
   return Object.freeze({
     cwd: process.cwd(),
     environment: snapshotChildEnvironment(option("environment")),
@@ -656,32 +656,32 @@ function snapshotClientOptions(
 function prepareRequest(requestValue: CapabilityReadRequest): PreparedRequest {
   const snapshot = snapshotJson(
     requestValue,
-    "Wrench client request",
+    "Ghostget client request",
   );
-  const request = record(snapshot, "Wrench client request");
+  const request = record(snapshot, "Ghostget client request");
   assertExactKeys(
     request,
     ["adapterId", "operationId"],
     ["authId", "input"],
-    "Wrench client request",
+    "Ghostget client request",
   );
   const adapterId = safeString(
     request.adapterId,
-    "Wrench client adapter ID",
+    "Ghostget client adapter ID",
     64,
   );
   const operationId = providerOperationName(
     request.operationId,
-    "Wrench client operation ID",
+    "Ghostget client operation ID",
   );
   const authId = Object.hasOwn(request, "authId")
-    ? safeString(request.authId, "Wrench client auth ID", 64)
+    ? safeString(request.authId, "Ghostget client auth ID", 64)
     : undefined;
   const rawInput = Object.hasOwn(request, "input") ? request.input : {};
   if (!isRecord(rawInput)) throw new Error("input must be a JSON object");
   const input = canonicalJson(rawInput);
   if (Buffer.byteLength(input, "utf8") > MAX_INPUT_BYTES) {
-    throw new Error("Wrench client input exceeds its byte bound");
+    throw new Error("Ghostget client input exceeds its byte bound");
   }
   return Object.freeze({
     adapterId,
@@ -763,17 +763,17 @@ function runCacheCommand(
   const stderr = String(result.stderr ?? "");
   if (stdout.trim().length === 0) {
     throw new Error(
-      boundedMessage(stderr) || `Wrench cache lookup exited ${code}`,
+      boundedMessage(stderr) || `Ghostget cache lookup exited ${code}`,
     );
   }
   if (code !== 0 && code !== 3) {
     throw new Error(
-      boundedMessage(stderr) || `Wrench cache lookup exited ${code}`,
+      boundedMessage(stderr) || `Ghostget cache lookup exited ${code}`,
     );
   }
   return Object.freeze({
     code,
-    output: parseOutput(stdout, "Wrench cache response"),
+    output: parseOutput(stdout, "Ghostget cache response"),
   });
 }
 
@@ -811,8 +811,8 @@ function runProjectionIdentityCommand(
   return runIdentityCommand(
     command,
     options,
-    "Wrench projection identity preflight",
-    "Wrench projection identity response",
+    "Ghostget projection identity preflight",
+    "Ghostget projection identity response",
   );
 }
 
@@ -831,7 +831,7 @@ function observeProjectionIdentity(
   if (
     value.ok !== true
     || value.source !== "projection-identity"
-  ) throw new Error("Wrench projection identity response is malformed");
+  ) throw new Error("Ghostget projection identity response is malformed");
   if (value.status === "ready") {
     assertExactKeys(
       value,
@@ -845,29 +845,29 @@ function observeProjectionIdentity(
         "projection",
       ],
       [],
-      "Wrench projection identity response",
+      "Ghostget projection identity response",
     );
     const projection = record(
       value.projection,
-      "Wrench projection identity",
+      "Ghostget projection identity",
     );
     assertExactKeys(
       projection,
       ["key"],
       [],
-      "Wrench projection identity",
+      "Ghostget projection identity",
     );
     return Object.freeze({
       status: "ready",
-      key: digest(projection.key, "Wrench projection identity key"),
+      key: digest(projection.key, "Ghostget projection identity key"),
       authIdentity: digest(
         value.authIdentity,
-        "Wrench projection auth identity",
+        "Ghostget projection auth identity",
       ),
-      authHash: digest(value.authHash, "Wrench projection auth hash"),
+      authHash: digest(value.authHash, "Ghostget projection auth hash"),
       inputHash: digest(
         value.inputHash,
-        "Wrench projection validated input hash",
+        "Ghostget projection validated input hash",
       ),
     });
   }
@@ -883,22 +883,22 @@ function observeProjectionIdentity(
         "inputHash",
       ],
       [],
-      "Wrench projection identity response",
+      "Ghostget projection identity response",
     );
     return Object.freeze({
       status: "unbound",
       authIdentity: digest(
         value.authIdentity,
-        "Wrench projection auth identity",
+        "Ghostget projection auth identity",
       ),
-      authHash: digest(value.authHash, "Wrench projection auth hash"),
+      authHash: digest(value.authHash, "Ghostget projection auth hash"),
       inputHash: digest(
         value.inputHash,
-        "Wrench projection validated input hash",
+        "Ghostget projection validated input hash",
       ),
     });
   }
-  throw new Error("Wrench projection identity response is malformed");
+  throw new Error("Ghostget projection identity response is malformed");
 }
 
 function projectionIdentitiesMatch(
@@ -939,80 +939,80 @@ function parseExecutionPreview(
       ...(portable ? ["portablePluginContract"] : []),
     ],
     [],
-    "Wrench execution identity preview",
+    "Ghostget execution identity preview",
   );
   if (
     value.ok !== true
     || value.status !== "preview"
     || value.requiresConfirmation !== false
     || value.risk !== "R1"
-  ) throw new Error("Wrench execution identity preview is malformed");
+  ) throw new Error("Ghostget execution identity preview is malformed");
   const adapterValue = record(
     value.adapter,
-    "Wrench execution identity preview adapter",
+    "Ghostget execution identity preview adapter",
   );
-  const auth = record(value.auth, "Wrench execution identity preview auth");
+  const auth = record(value.auth, "Ghostget execution identity preview auth");
   const binding = record(
     value.identityBinding,
-    "Wrench execution identity preview binding",
+    "Ghostget execution identity preview binding",
   );
   assertExactKeys(
     adapterValue,
     ["id", "version", "hash"],
     [],
-    "Wrench execution identity preview adapter",
+    "Ghostget execution identity preview adapter",
   );
   assertExactKeys(
     auth,
     ["id", "kind", "realmFingerprint"],
     [],
-    "Wrench execution identity preview auth",
+    "Ghostget execution identity preview auth",
   );
   assertExactKeys(
     binding,
     ["status", "subject", "accountActor", "requestedActor"],
     [],
-    "Wrench execution identity preview binding",
+    "Ghostget execution identity preview binding",
   );
   const adapter = Object.freeze({
     id: safeString(
       adapterValue.id,
-      "Wrench execution identity preview adapter ID",
+      "Ghostget execution identity preview adapter ID",
       64,
     ),
     version: safeString(
       adapterValue.version,
-      "Wrench execution identity preview adapter version",
+      "Ghostget execution identity preview adapter version",
       64,
     ),
     hash: digest(
       adapterValue.hash,
-      "Wrench execution identity preview adapter hash",
+      "Ghostget execution identity preview adapter hash",
     ),
   });
   const operation = providerOperationName(
     value.operation,
-    "Wrench execution identity preview operation",
+    "Ghostget execution identity preview operation",
   );
   if (adapter.id !== request.adapterId || operation !== request.operationId) {
-    throw new Error("Wrench execution identity preview route is malformed");
+    throw new Error("Ghostget execution identity preview route is malformed");
   }
   const authKind = safeString(
     auth.kind,
-    "Wrench execution identity preview auth kind",
+    "Ghostget execution identity preview auth kind",
     64,
   );
   if (
-    safeString(auth.id, "Wrench execution identity preview auth ID", 64)
+    safeString(auth.id, "Ghostget execution identity preview auth ID", 64)
       !== expectedRequestAuthId(request, authKind)
-  ) throw new Error("Wrench execution identity preview auth is malformed");
+  ) throw new Error("Ghostget execution identity preview auth is malformed");
   const realmFingerprint = safeString(
     auth.realmFingerprint,
-    "Wrench execution identity preview auth fingerprint",
+    "Ghostget execution identity preview auth fingerprint",
     16,
   );
   if (!/^[a-f0-9]{16}$/u.test(realmFingerprint)) {
-    throw new Error("Wrench execution identity preview auth fingerprint is malformed");
+    throw new Error("Ghostget execution identity preview auth fingerprint is malformed");
   }
   if (authKind === PUBLIC_WEB_SESSION_AUTHORITY_KIND) {
     const authority = publicWebSessionAuthority(request);
@@ -1026,13 +1026,13 @@ function parseExecutionPreview(
       || binding.requestedActor !== null
     ) {
       throw new Error(
-        "Wrench execution identity preview public authority is malformed",
+        "Ghostget execution identity preview public authority is malformed",
       );
     }
   }
   safeString(
     value.sideEffect,
-    "Wrench execution identity preview side effect",
+    "Ghostget execution identity preview side effect",
     64,
   );
   const transport = value.transport;
@@ -1043,7 +1043,7 @@ function parseExecutionPreview(
     if (
       portablePluginContract.adapterId !== adapter.id
       || portablePluginContract.operation !== operation
-    ) throw new Error("Wrench execution identity preview route is malformed");
+    ) throw new Error("Ghostget execution identity preview route is malformed");
     return Object.freeze({
       adapter,
       operation,
@@ -1057,7 +1057,7 @@ function parseExecutionPreview(
     && transport !== "web-session-api"
     && transport !== "reviewed-template-api"
     && transport !== "local-cli"
-  ) throw new Error("Wrench execution identity preview transport is malformed");
+  ) throw new Error("Ghostget execution identity preview transport is malformed");
   return Object.freeze({ adapter, operation, transport });
 }
 
@@ -1073,17 +1073,17 @@ function parseCatalogExecutionIdentity(
     value,
     ["ok", "adapters"],
     [],
-    "Wrench execution identity catalog",
+    "Ghostget execution identity catalog",
   );
   if (value.ok !== true || !isUnknownArray(value.adapters)) {
-    throw new Error("Wrench execution identity catalog is malformed");
+    throw new Error("Ghostget execution identity catalog is malformed");
   }
   if (value.adapters.length !== 1) {
-    throw new Error("Wrench execution identity catalog is ambiguous");
+    throw new Error("Ghostget execution identity catalog is ambiguous");
   }
   const adapterValue = record(
     value.adapters[0],
-    "Wrench execution identity catalog adapter",
+    "Ghostget execution identity catalog adapter",
   );
   assertExactKeys(
     adapterValue,
@@ -1097,22 +1097,22 @@ function parseCatalogExecutionIdentity(
       "operations",
     ],
     [],
-    "Wrench execution identity catalog adapter",
+    "Ghostget execution identity catalog adapter",
   );
   const adapter = Object.freeze({
     id: safeString(
       adapterValue.id,
-      "Wrench execution identity catalog adapter ID",
+      "Ghostget execution identity catalog adapter ID",
       64,
     ),
     version: safeString(
       adapterValue.version,
-      "Wrench execution identity catalog adapter version",
+      "Ghostget execution identity catalog adapter version",
       64,
     ),
     hash: digest(
       adapterValue.manifestHash,
-      "Wrench execution identity catalog adapter hash",
+      "Ghostget execution identity catalog adapter hash",
     ),
   });
   if (
@@ -1121,14 +1121,14 @@ function parseCatalogExecutionIdentity(
     || adapter.version !== preview.adapter.version
     || adapter.hash !== preview.adapter.hash
     || !isUnknownArray(adapterValue.operations)
-  ) throw new Error("Wrench execution identity preflights disagreed");
+  ) throw new Error("Ghostget execution identity preflights disagreed");
   const operations = adapterValue.operations.filter(
     (candidate): candidate is JsonRecord => (
       isRecord(candidate) && candidate.id === request.operationId
     ),
   );
   if (operations.length !== 1) {
-    throw new Error("Wrench execution identity catalog operation is ambiguous");
+    throw new Error("Ghostget execution identity catalog operation is ambiguous");
   }
   const operation = operations[0]!;
   const commonKeys = [
@@ -1144,7 +1144,7 @@ function parseCatalogExecutionIdentity(
   if (
     operation.risk !== "R1"
     || operation.transport !== preview.transport
-  ) throw new Error("Wrench execution identity preflights disagreed");
+  ) throw new Error("Ghostget execution identity preflights disagreed");
   const common = Object.freeze({
     adapter,
     operation: preview.operation,
@@ -1163,37 +1163,37 @@ function parseCatalogExecutionIdentity(
         "implementation",
       ],
       [],
-      "Wrench execution identity provider capability",
+      "Ghostget execution identity provider capability",
     );
     const catalogSurface = providerSurfaceId(
       adapterValue.surfaceId,
-      "Wrench execution identity catalog surface",
+      "Ghostget execution identity catalog surface",
     );
     const provider = providerSurfaceId(
       operation.provider,
-      "Wrench execution identity provider surface",
+      "Ghostget execution identity provider surface",
     );
     const providerAction = providerOperationName(
       operation.providerAction,
-      "Wrench execution identity provider action",
+      "Ghostget execution identity provider action",
     );
     safeInteger(
       operation.providerContractVersion,
-      "Wrench execution identity provider contract version",
+      "Ghostget execution identity provider contract version",
       1,
       1_000_000,
     );
     if (
       provider !== catalogSurface
       || providerAction !== preview.operation
-    ) throw new Error("Wrench execution identity provider route is malformed");
+    ) throw new Error("Ghostget execution identity provider route is malformed");
     return Object.freeze({
       ...common,
       schemaVersion: 3 as const,
       transport: "provider-api" as const,
       providerContractHash: digest(
         operation.providerContractHash,
-        "Wrench execution identity provider contract hash",
+        "Ghostget execution identity provider contract hash",
       ),
     });
   }
@@ -1210,37 +1210,37 @@ function parseCatalogExecutionIdentity(
         "implementation",
       ],
       [],
-      "Wrench execution identity web-session capability",
+      "Ghostget execution identity web-session capability",
     );
     const catalogSurface = providerSurfaceId(
       adapterValue.surfaceId,
-      "Wrench execution identity catalog surface",
+      "Ghostget execution identity catalog surface",
     );
     const site = providerSurfaceId(
       operation.site,
-      "Wrench execution identity web-session surface",
+      "Ghostget execution identity web-session surface",
     );
     const webSessionAction = providerOperationName(
       operation.webSessionAction,
-      "Wrench execution identity web-session action",
+      "Ghostget execution identity web-session action",
     );
     safeInteger(
       operation.webSessionContractVersion,
-      "Wrench execution identity web-session contract version",
+      "Ghostget execution identity web-session contract version",
       1,
       1_000_000,
     );
     if (
       site !== catalogSurface
       || webSessionAction !== preview.operation
-    ) throw new Error("Wrench execution identity web-session route is malformed");
+    ) throw new Error("Ghostget execution identity web-session route is malformed");
     return Object.freeze({
       ...common,
       schemaVersion: 4 as const,
       transport: "web-session-api" as const,
       webSessionContractHash: digest(
         operation.webSessionContractHash,
-        "Wrench execution identity web-session contract hash",
+        "Ghostget execution identity web-session contract hash",
       ),
     });
   }
@@ -1258,11 +1258,11 @@ function parseCatalogExecutionIdentity(
         "implementation",
       ],
       [],
-      "Wrench execution identity local CLI capability",
+      "Ghostget execution identity local CLI capability",
     );
     const catalogSurface = providerSurfaceId(
       adapterValue.surfaceId,
-      "Wrench execution identity catalog surface",
+      "Ghostget execution identity catalog surface",
     );
     const localCliContract = parseLocalCliContractIdentity({
       surface: operation.surface,
@@ -1275,7 +1275,7 @@ function parseCatalogExecutionIdentity(
       localCliContract.surface !== catalogSurface
       || localCliContract.action !== preview.operation
     ) {
-      throw new Error("Wrench execution identity local CLI route is malformed");
+      throw new Error("Ghostget execution identity local CLI route is malformed");
     }
     return Object.freeze({
       ...common,
@@ -1293,11 +1293,11 @@ function parseCatalogExecutionIdentity(
       "reviewedTemplateContractHash",
     ],
     ["instructions", "reviewedAt", "evidenceSha256", "origin"],
-    "Wrench execution identity reviewed-template capability",
+    "Ghostget execution identity reviewed-template capability",
   );
   safeInteger(
     operation.reviewedTemplateContractVersion,
-    "Wrench execution identity reviewed-template contract version",
+    "Ghostget execution identity reviewed-template contract version",
     1,
     Number.MAX_SAFE_INTEGER,
   );
@@ -1307,7 +1307,7 @@ function parseCatalogExecutionIdentity(
     transport: "reviewed-template-api" as const,
     reviewedTemplateContractHash: digest(
       operation.reviewedTemplateContractHash,
-      "Wrench execution identity reviewed-template contract hash",
+      "Ghostget execution identity reviewed-template contract hash",
     ),
   });
 }
@@ -1329,7 +1329,7 @@ function observeExecutionIdentity(
         headed: false,
       }),
       options,
-      "Wrench execution identity preview",
+      "Ghostget execution identity preview",
     ),
     request,
   );
@@ -1354,7 +1354,7 @@ function observeExecutionIdentity(
     runIdentityCommand(
       preparedCapabilitiesCommand(request),
       options,
-      "Wrench execution identity catalog preflight",
+      "Ghostget execution identity catalog preflight",
     ),
     request,
     preview,
@@ -1362,7 +1362,7 @@ function observeExecutionIdentity(
 }
 
 function receiptExecutionIdentity(
-  receipt: WrenchClientRunReceipt,
+  receipt: GhostgetClientRunReceipt,
 ): ExecutionIdentity {
   const common = Object.freeze({
     adapter: receipt.adapter,
@@ -1447,7 +1447,7 @@ function runLiveCommand(
       stdoutBytes += chunk.byteLength;
       if (stdoutBytes > MAX_OUTPUT_BYTES) {
         child.kill();
-        fail(new Error("Wrench live response exceeds its byte bound"));
+        fail(new Error("Ghostget live response exceeds its byte bound"));
         return;
       }
       stdout.push(chunk);
@@ -1463,16 +1463,16 @@ function runLiveCommand(
       const output = Buffer.concat(stdout).toString("utf8");
       const error = boundedMessage(Buffer.concat(stderr).toString("utf8"));
       if (output.trim().length === 0) {
-        fail(new Error(error || `Wrench live invocation exited ${code ?? signal ?? "unknown"}`));
+        fail(new Error(error || `Ghostget live invocation exited ${code ?? signal ?? "unknown"}`));
         return;
       }
       if (code !== 0 && code !== 3 && code !== 5) {
-        fail(new Error(error || `Wrench live invocation exited ${code ?? signal ?? "unknown"}`));
+        fail(new Error(error || `Ghostget live invocation exited ${code ?? signal ?? "unknown"}`));
         return;
       }
       let parsed: JsonRecord;
       try {
-        parsed = parseOutput(output, "Wrench live response");
+        parsed = parseOutput(output, "Ghostget live response");
       } catch (parseError) {
         fail(parseError);
         return;
@@ -1504,16 +1504,16 @@ function runLiveCommandSync(
   if (stdout.trim().length === 0) {
     throw new Error(
       boundedMessage(stderr)
-        || `Wrench live invocation exited ${String(code)}`,
+        || `Ghostget live invocation exited ${String(code)}`,
     );
   }
   if (code !== 0 && code !== 3 && code !== 5) {
     throw new Error(
       boundedMessage(stderr)
-        || `Wrench live invocation exited ${String(code)}`,
+        || `Ghostget live invocation exited ${String(code)}`,
     );
   }
-  return parseOutput(stdout, "Wrench live response");
+  return parseOutput(stdout, "Ghostget live response");
 }
 
 function parseFreshness(
@@ -1521,26 +1521,26 @@ function parseFreshness(
   options: PreparedClientOptions,
   ageMs: number,
 ): ReadProjectionCacheHit["freshness"] {
-  const freshnessValue = record(value, "Wrench cache freshness");
+  const freshnessValue = record(value, "Ghostget cache freshness");
   assertExactKeys(
     freshnessValue,
     ["state", "freshForMs"],
     [],
-    "Wrench cache freshness",
+    "Ghostget cache freshness",
   );
   const childState = freshnessValue.state;
   if (childState !== "fresh" && childState !== "stale" && childState !== "unclassified") {
-    throw new Error("Wrench cache freshness state is malformed");
+    throw new Error("Ghostget cache freshness state is malformed");
   }
   if (options.freshForMs === undefined) {
     if (freshnessValue.freshForMs !== null) {
-      throw new Error("Wrench cache freshness window is malformed");
+      throw new Error("Ghostget cache freshness window is malformed");
     }
     return Object.freeze({ state: childState, freshForMs: null });
   }
   const freshForMs = safeInteger(
     options.freshForMs,
-    "Wrench client freshness window",
+    "Ghostget client freshness window",
     0,
     MAX_FRESH_FOR_MS,
   );
@@ -1553,12 +1553,12 @@ function parseFreshness(
 function validateReadOptions(options: PreparedClientOptions): Date {
   const now = options.now ?? new Date();
   if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {
-    throw new Error("Wrench client observation time is invalid");
+    throw new Error("Ghostget client observation time is invalid");
   }
   if (options.freshForMs !== undefined) {
     safeInteger(
       options.freshForMs,
-      "Wrench client freshness window",
+      "Ghostget client freshness window",
       0,
       MAX_FRESH_FOR_MS,
     );
@@ -1571,33 +1571,33 @@ function parseCacheResult(
   options: PreparedClientOptions,
   now: Date,
 ): ReadProjectionCacheResult {
-  if (value.source !== "cache") throw new Error("Wrench cache response has the wrong source");
-  const projection = record(value.projection, "Wrench cache projection");
+  if (value.source !== "cache") throw new Error("Ghostget cache response has the wrong source");
+  const projection = record(value.projection, "Ghostget cache projection");
   if (value.status === "cache-miss") {
     assertExactKeys(
       value,
       ["ok", "source", "status", "projection"],
       [],
-      "Wrench cache miss",
+      "Ghostget cache miss",
     );
     assertExactKeys(
       projection,
       ["key"],
       [],
-      "Wrench cache miss projection",
+      "Ghostget cache miss projection",
     );
-    if (value.ok !== false) throw new Error("Wrench cache miss has the wrong success state");
-    const key = digest(projection.key, "Wrench cache key");
+    if (value.ok !== false) throw new Error("Ghostget cache miss has the wrong success state");
+    const key = digest(projection.key, "Ghostget cache key");
     return Object.freeze({ status: "miss", key });
   }
   if (value.status !== "cached" || value.ok !== true || !("output" in value)) {
-    throw new Error("Wrench cache response has an unsupported outcome");
+    throw new Error("Ghostget cache response has an unsupported outcome");
   }
   assertExactKeys(
     value,
     ["ok", "source", "status", "projection", "output"],
     [],
-    "Wrench cache response",
+    "Ghostget cache response",
   );
   assertExactKeys(
     projection,
@@ -1612,11 +1612,11 @@ function parseCacheResult(
       "freshness",
     ],
     [],
-    "Wrench cache projection",
+    "Ghostget cache projection",
   );
-  const key = digest(projection.key, "Wrench cache key");
-  const validatedAt = timestamp(projection.validatedAt, "Wrench cache validation time");
-  const childAgeMs = safeInteger(projection.ageMs, "Wrench cache age", 0, Number.MAX_SAFE_INTEGER);
+  const key = digest(projection.key, "Ghostget cache key");
+  const validatedAt = timestamp(projection.validatedAt, "Ghostget cache validation time");
+  const childAgeMs = safeInteger(projection.ageMs, "Ghostget cache age", 0, Number.MAX_SAFE_INTEGER);
   const ageMs = options.now === undefined
     ? childAgeMs
     : Math.max(0, now.getTime() - new Date(validatedAt).getTime());
@@ -1625,23 +1625,23 @@ function parseCacheResult(
     source: "cache" as const,
     key,
     output: value.output,
-    dataRevision: digest(projection.dataRevision, "Wrench cache data revision"),
-    createdAt: timestamp(projection.createdAt, "Wrench cache creation time"),
-    dataChangedAt: timestamp(projection.dataChangedAt, "Wrench cache data-change time"),
+    dataRevision: digest(projection.dataRevision, "Ghostget cache data revision"),
+    createdAt: timestamp(projection.createdAt, "Ghostget cache creation time"),
+    dataChangedAt: timestamp(projection.dataChangedAt, "Ghostget cache data-change time"),
     validatedAt,
-    runId: safeString(projection.runId, "Wrench cache run ID", 64),
+    runId: safeString(projection.runId, "Ghostget cache run ID", 64),
     ageMs,
     freshness: parseFreshness(projection.freshness, options, ageMs),
   });
 }
 
 function parsePublication(value: unknown): ReadProjectionPublication {
-  const publication = record(value, "Wrench cache publication");
+  const publication = record(value, "Ghostget cache publication");
   assertExactKeys(
     publication,
     ["key", "dataRevision", "validatedAt", "dataChangedAt", "disposition"],
     ["currentDataRevision"],
-    "Wrench cache publication",
+    "Ghostget cache publication",
   );
   const disposition = publication.disposition;
   if (
@@ -1649,79 +1649,79 @@ function parsePublication(value: unknown): ReadProjectionPublication {
     && disposition !== "changed"
     && disposition !== "unchanged"
     && disposition !== "superseded"
-  ) throw new Error("Wrench cache publication disposition is malformed");
+  ) throw new Error("Ghostget cache publication disposition is malformed");
   if (
     (disposition === "superseded")
     !== Object.hasOwn(publication, "currentDataRevision")
-  ) throw new Error("Wrench cache publication current revision is malformed");
+  ) throw new Error("Ghostget cache publication current revision is malformed");
   return Object.freeze({
-    key: digest(publication.key, "Wrench cache publication key"),
-    dataRevision: digest(publication.dataRevision, "Wrench cache publication data revision"),
-    validatedAt: timestamp(publication.validatedAt, "Wrench cache publication validation time"),
-    dataChangedAt: timestamp(publication.dataChangedAt, "Wrench cache publication data-change time"),
+    key: digest(publication.key, "Ghostget cache publication key"),
+    dataRevision: digest(publication.dataRevision, "Ghostget cache publication data revision"),
+    validatedAt: timestamp(publication.validatedAt, "Ghostget cache publication validation time"),
+    dataChangedAt: timestamp(publication.dataChangedAt, "Ghostget cache publication data-change time"),
     disposition,
     ...(publication.currentDataRevision === undefined
       ? {}
       : {
           currentDataRevision: digest(
             publication.currentDataRevision,
-            "Wrench current cache data revision",
+            "Ghostget current cache data revision",
           ),
         }),
   });
 }
 
 function parseCacheOutcome(value: unknown): ReadProjectionCacheOutcome {
-  const outcome = record(value, "Wrench cache outcome");
+  const outcome = record(value, "Ghostget cache outcome");
   if (outcome.status === "stored") {
     assertExactKeys(
       outcome,
       ["status", "publication"],
       [],
-      "Wrench cache outcome",
+      "Ghostget cache outcome",
     );
     return Object.freeze({ status: "stored", publication: parsePublication(outcome.publication) });
   }
   if (outcome.status === "retained" && outcome.reason === "live-read-failed") {
-    assertExactKeys(outcome, ["status", "reason"], [], "Wrench cache outcome");
+    assertExactKeys(outcome, ["status", "reason"], [], "Ghostget cache outcome");
     return Object.freeze({ status: "retained", reason: "live-read-failed" });
   }
   if (outcome.status === "miss" && outcome.reason === "no-cached-snapshot") {
-    assertExactKeys(outcome, ["status", "reason"], [], "Wrench cache outcome");
+    assertExactKeys(outcome, ["status", "reason"], [], "Ghostget cache outcome");
     return Object.freeze({ status: "miss", reason: "no-cached-snapshot" });
   }
   if (
     outcome.status === "skipped"
     && outcome.reason === "auth-subject-unbound"
   ) {
-    assertExactKeys(outcome, ["status", "reason"], [], "Wrench cache outcome");
+    assertExactKeys(outcome, ["status", "reason"], [], "Ghostget cache outcome");
     return Object.freeze({ status: "skipped", reason: outcome.reason });
   }
   if (outcome.status === "error") {
-    assertExactKeys(outcome, ["status", "message"], [], "Wrench cache outcome");
-    return Object.freeze({ status: "error", message: safeString(outcome.message, "Wrench cache error", MAX_ERROR_BYTES) });
+    assertExactKeys(outcome, ["status", "message"], [], "Ghostget cache outcome");
+    return Object.freeze({ status: "error", message: safeString(outcome.message, "Ghostget cache error", MAX_ERROR_BYTES) });
   }
-  throw new Error("Wrench cache outcome is malformed");
+  throw new Error("Ghostget cache outcome is malformed");
 }
 
 function parseReceiptStatus(
   value: unknown,
-): WrenchClientRunReceipt["status"] {
+): GhostgetClientRunReceipt["status"] {
   if (value !== "succeeded" && value !== "failed") {
-    throw new Error("Wrench live receipt status is malformed");
+    throw new Error("Ghostget live receipt status is malformed");
   }
   return value;
 }
 
 function parsePortableOperationIdentity(
   value: unknown,
-): WrenchClientPortableOperationIdentity {
+): GhostgetClientPortableOperationIdentity {
   return parsePortableOperationIdentityV1(value);
 }
 
 function parseLocalCliToolIdentity(
   value: unknown,
-): WrenchClientLocalCliToolIdentity {
+): GhostgetClientLocalCliToolIdentity {
   const strictRecord = (candidate: unknown, label: string): JsonRecord => {
     if (
       typeof candidate !== "object"
@@ -1806,7 +1806,7 @@ function parseLocalCliToolIdentity(
     }
     return parsed;
   };
-  const tool = strictRecord(value, "Wrench local CLI tool identity");
+  const tool = strictRecord(value, "Ghostget local CLI tool identity");
   assertExactKeys(
     tool,
     [
@@ -1823,56 +1823,56 @@ function parseLocalCliToolIdentity(
       "releaseManifestSha256",
       "releaseManifestUrl",
     ],
-    "Wrench local CLI tool identity",
+    "Ghostget local CLI tool identity",
   );
   const artifactValues = strictArray(
     tool.artifacts,
-    "Wrench local CLI tool artifact table",
+    "Ghostget local CLI tool artifact table",
   );
   if (tool.schemaVersion !== 1) {
-    throw new Error("Wrench local CLI tool identity is malformed");
+    throw new Error("Ghostget local CLI tool identity is malformed");
   }
   if (artifactValues.length < 1) {
-    throw new Error("Wrench local CLI tool artifact table is malformed");
+    throw new Error("Ghostget local CLI tool artifact table is malformed");
   }
   const artifacts = artifactValues.map((artifactValue, index) => {
     const artifact = strictRecord(
       artifactValue,
-      `Wrench local CLI tool artifact ${index}`,
+      `Ghostget local CLI tool artifact ${index}`,
     );
     assertExactKeys(
       artifact,
       ["platform", "arch", "executableSha256"],
       ["archiveSha256", "downloadUrl"],
-      `Wrench local CLI tool artifact ${index}`,
+      `Ghostget local CLI tool artifact ${index}`,
     );
     const archiveSha256 = artifact.archiveSha256 === undefined
       ? undefined
       : digest(
           artifact.archiveSha256,
-          `Wrench local CLI tool artifact ${index} archive hash`,
+          `Ghostget local CLI tool artifact ${index} archive hash`,
         );
     const downloadUrl = artifact.downloadUrl === undefined
       ? undefined
       : exactHttpsUrl(
           artifact.downloadUrl,
-          `Wrench local CLI tool artifact ${index} download URL`,
+          `Ghostget local CLI tool artifact ${index} download URL`,
         );
     if ((archiveSha256 === undefined) !== (downloadUrl === undefined)) {
-      throw new Error("Wrench local CLI tool artifact archive provenance is malformed");
+      throw new Error("Ghostget local CLI tool artifact archive provenance is malformed");
     }
     return Object.freeze({
       platform: token(
         artifact.platform,
-        `Wrench local CLI tool artifact ${index} platform`,
+        `Ghostget local CLI tool artifact ${index} platform`,
       ),
       arch: token(
         artifact.arch,
-        `Wrench local CLI tool artifact ${index} architecture`,
+        `Ghostget local CLI tool artifact ${index} architecture`,
       ),
       executableSha256: digest(
         artifact.executableSha256,
-        `Wrench local CLI tool artifact ${index} executable hash`,
+        `Ghostget local CLI tool artifact ${index} executable hash`,
       ),
       ...(archiveSha256 === undefined ? {} : { archiveSha256 }),
       ...(downloadUrl === undefined ? {} : { downloadUrl }),
@@ -1884,34 +1884,34 @@ function parseLocalCliToolIdentity(
     new Set(coordinates).size !== coordinates.length
     || coordinates.some((coordinate, index) =>
       index > 0 && coordinates[index - 1]! >= coordinate)
-  ) throw new Error("Wrench local CLI tool artifact table is not canonical");
+  ) throw new Error("Ghostget local CLI tool artifact table is not canonical");
   const sourceUrl = tool.sourceUrl === undefined
     ? undefined
-    : exactHttpsUrl(tool.sourceUrl, "Wrench local CLI tool source URL");
+    : exactHttpsUrl(tool.sourceUrl, "Ghostget local CLI tool source URL");
   const releaseManifestSha256 = tool.releaseManifestSha256 === undefined
     ? undefined
     : digest(
         tool.releaseManifestSha256,
-        "Wrench local CLI tool release manifest hash",
+        "Ghostget local CLI tool release manifest hash",
       );
   const releaseManifestUrl = tool.releaseManifestUrl === undefined
     ? undefined
     : exactHttpsUrl(
         tool.releaseManifestUrl,
-        "Wrench local CLI tool release manifest URL",
+        "Ghostget local CLI tool release manifest URL",
       );
   if (
     (releaseManifestSha256 === undefined)
       !== (releaseManifestUrl === undefined)
-  ) throw new Error("Wrench local CLI tool release manifest provenance is malformed");
+  ) throw new Error("Ghostget local CLI tool release manifest provenance is malformed");
   if (tool.versionScheme !== "semver" && tool.versionScheme !== "opaque") {
-    throw new Error("Wrench local CLI tool version scheme is malformed");
+    throw new Error("Ghostget local CLI tool version scheme is malformed");
   }
   if (
     typeof tool.version !== "string"
     || tool.version.length < 1
     || tool.version.length > 128
-  ) throw new Error("Wrench local CLI tool version is malformed");
+  ) throw new Error("Ghostget local CLI tool version is malformed");
   const version = tool.version;
   if (
     !wellFormedVisible(version)
@@ -1920,31 +1920,31 @@ function parseLocalCliToolIdentity(
       && !/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u.test(version)
     )
   ) {
-    throw new Error("Wrench local CLI tool version is malformed");
+    throw new Error("Ghostget local CLI tool version is malformed");
   }
   const hasReleaseCommit = tool.releaseCommit !== undefined;
   const releaseCommit = hasReleaseCommit
     ? safeString(
         tool.releaseCommit,
-        "Wrench local CLI tool release commit",
+        "Ghostget local CLI tool release commit",
         40,
       )
     : undefined;
   if (
     releaseCommit !== undefined
     && !/^[a-f0-9]{40}$/u.test(releaseCommit)
-  ) throw new Error("Wrench local CLI tool release commit is malformed");
+  ) throw new Error("Ghostget local CLI tool release commit is malformed");
   const implementation = safeString(
     tool.implementation,
-    "Wrench local CLI tool implementation",
+    "Ghostget local CLI tool implementation",
     256,
   );
   if (!/^[A-Za-z0-9](?:[A-Za-z0-9._/+:-]{0,254}[A-Za-z0-9])?$/u.test(implementation)) {
-    throw new Error("Wrench local CLI tool implementation is malformed");
+    throw new Error("Ghostget local CLI tool implementation is malformed");
   }
   return Object.freeze({
     schemaVersion: 1,
-    id: token(tool.id, "Wrench local CLI tool ID"),
+    id: token(tool.id, "Ghostget local CLI tool ID"),
     implementation,
     versionScheme: tool.versionScheme,
     version,
@@ -1959,32 +1959,32 @@ function parseLocalCliToolIdentity(
 
 function parseLocalCliContractIdentity(
   value: unknown,
-): WrenchClientLocalCliContractIdentity {
-  const identity = record(value, "Wrench local CLI contract identity");
+): GhostgetClientLocalCliContractIdentity {
+  const identity = record(value, "Ghostget local CLI contract identity");
   assertExactKeys(
     identity,
     ["surface", "action", "version", "hash", "tool"],
     [],
-    "Wrench local CLI contract identity",
+    "Ghostget local CLI contract identity",
   );
   const surface = providerSurfaceId(
     identity.surface,
-    "Wrench local CLI surface",
+    "Ghostget local CLI surface",
   );
   const action = providerOperationName(
     identity.action,
-    "Wrench local CLI action",
+    "Ghostget local CLI action",
   );
   return Object.freeze({
     surface,
     action,
     version: safeInteger(
       identity.version,
-      "Wrench local CLI contract version",
+      "Ghostget local CLI contract version",
       1,
       1_000_000,
     ),
-    hash: digest(identity.hash, "Wrench local CLI contract hash"),
+    hash: digest(identity.hash, "Ghostget local CLI contract hash"),
     tool: parseLocalCliToolIdentity(identity.tool),
   });
 }
@@ -1993,8 +1993,8 @@ function parseLiveReceipt(
   value: unknown,
   request: PreparedRequest,
   expectedInputHash: string,
-): WrenchClientRunReceipt {
-  const receipt = record(value, "Wrench live receipt");
+): GhostgetClientRunReceipt {
+  const receipt = record(value, "Ghostget live receipt");
   const commonKeys = [
     "schemaVersion",
     "runId",
@@ -2014,7 +2014,7 @@ function parseLiveReceipt(
     "error",
   ] as const;
   if (receipt.schemaVersion === 2 && receipt.transport === "browser") {
-    assertExactKeys(receipt, commonKeys, [], "Wrench live receipt");
+    assertExactKeys(receipt, commonKeys, [], "Ghostget live receipt");
   } else if (
     receipt.schemaVersion === 3
     && receipt.transport === "provider-api"
@@ -2023,7 +2023,7 @@ function parseLiveReceipt(
       receipt,
       [...commonKeys, "providerContractHash"],
       [],
-      "Wrench live receipt",
+      "Ghostget live receipt",
     );
   } else if (
     receipt.schemaVersion === 4
@@ -2033,7 +2033,7 @@ function parseLiveReceipt(
       receipt,
       [...commonKeys, "webSessionContractHash"],
       [],
-      "Wrench live receipt",
+      "Ghostget live receipt",
     );
   } else if (
     receipt.schemaVersion === 5
@@ -2043,7 +2043,7 @@ function parseLiveReceipt(
       receipt,
       [...commonKeys, "reviewedTemplateContractHash"],
       [],
-      "Wrench live receipt",
+      "Ghostget live receipt",
     );
   } else if (
     receipt.schemaVersion === 6
@@ -2053,7 +2053,7 @@ function parseLiveReceipt(
       receipt,
       [...commonKeys, "portablePluginContract"],
       [],
-      "Wrench live receipt",
+      "Ghostget live receipt",
     );
   } else if (
     receipt.schemaVersion === 7
@@ -2063,34 +2063,34 @@ function parseLiveReceipt(
       receipt,
       [...commonKeys, "localCliContract"],
       [],
-      "Wrench live receipt",
+      "Ghostget live receipt",
     );
   } else {
-    throw new Error("Wrench live receipt schema and transport are malformed");
+    throw new Error("Ghostget live receipt schema and transport are malformed");
   }
-  const adapter = record(receipt.adapter, "Wrench live receipt adapter");
-  const auth = record(receipt.auth, "Wrench live receipt auth");
-  const dispatch = record(receipt.dispatch, "Wrench live receipt dispatch");
+  const adapter = record(receipt.adapter, "Ghostget live receipt adapter");
+  const auth = record(receipt.auth, "Ghostget live receipt auth");
+  const dispatch = record(receipt.dispatch, "Ghostget live receipt dispatch");
   assertExactKeys(
     adapter,
     ["id", "version", "hash"],
     [],
-    "Wrench live receipt adapter",
+    "Ghostget live receipt adapter",
   );
   assertExactKeys(
     auth,
     ["id", "hash", "kind"],
     [],
-    "Wrench live receipt auth",
+    "Ghostget live receipt auth",
   );
   assertExactKeys(
     dispatch,
     ["planned", "started", "verified"],
     [],
-    "Wrench live receipt dispatch",
+    "Ghostget live receipt dispatch",
   );
   if (receipt.risk !== "R1") {
-    throw new Error("Wrench live receipt risk is malformed");
+    throw new Error("Ghostget live receipt risk is malformed");
   }
   const authKind = auth.kind;
   if (
@@ -2100,67 +2100,67 @@ function parseLiveReceipt(
     && authKind !== "linked-device-store"
     && authKind !== "oauth-token-file"
     && authKind !== PUBLIC_WEB_SESSION_AUTHORITY_KIND
-  ) throw new Error("Wrench live receipt auth kind is malformed");
+  ) throw new Error("Ghostget live receipt auth kind is malformed");
   if (receipt.dispatchStarted !== false) {
-    throw new Error("Wrench live receipt dispatch state is malformed");
+    throw new Error("Ghostget live receipt dispatch state is malformed");
   }
   const planned = safeInteger(
     dispatch.planned,
-    "Wrench live receipt planned dispatch count",
+    "Ghostget live receipt planned dispatch count",
     0,
     Number.MAX_SAFE_INTEGER,
   );
   const started = safeInteger(
     dispatch.started,
-    "Wrench live receipt started dispatch count",
+    "Ghostget live receipt started dispatch count",
     0,
     Number.MAX_SAFE_INTEGER,
   );
   const verified = safeInteger(
     dispatch.verified,
-    "Wrench live receipt verified dispatch count",
+    "Ghostget live receipt verified dispatch count",
     0,
     Number.MAX_SAFE_INTEGER,
   );
   if (planned !== 0 || started !== 0 || verified !== 0) {
-    throw new Error("Wrench live receipt dispatch counts are inconsistent");
+    throw new Error("Ghostget live receipt dispatch counts are inconsistent");
   }
   const status = parseReceiptStatus(receipt.status);
   const finalOrigin = receipt.finalOrigin === null
     ? null
-    : safeString(receipt.finalOrigin, "Wrench live receipt final origin", 4_096);
+    : safeString(receipt.finalOrigin, "Ghostget live receipt final origin", 4_096);
   const error = receipt.error === null
     ? null
     : boundedUtf8String(
         receipt.error,
-        "Wrench live receipt error",
+        "Ghostget live receipt error",
         MAX_RUN_RECEIPT_ERROR_BYTES,
       );
   if (receipt.planDigest !== null) {
-    throw new Error("Wrench live receipt plan digest is malformed");
+    throw new Error("Ghostget live receipt plan digest is malformed");
   }
-  const startedAt = timestamp(receipt.startedAt, "Wrench live receipt start time");
-  const finishedAt = timestamp(receipt.finishedAt, "Wrench live receipt finish time");
+  const startedAt = timestamp(receipt.startedAt, "Ghostget live receipt start time");
+  const finishedAt = timestamp(receipt.finishedAt, "Ghostget live receipt finish time");
   if (startedAt > finishedAt) {
-    throw new Error("Wrench live receipt finished before it started");
+    throw new Error("Ghostget live receipt finished before it started");
   }
   const common = Object.freeze({
-    runId: safeString(receipt.runId, "Wrench live receipt run ID", 64),
+    runId: safeString(receipt.runId, "Ghostget live receipt run ID", 64),
     planDigest: null,
     adapter: Object.freeze({
-      id: safeString(adapter.id, "Wrench live receipt adapter ID", 64),
-      version: safeString(adapter.version, "Wrench live receipt adapter version", 64),
-      hash: digest(adapter.hash, "Wrench live receipt adapter hash"),
+      id: safeString(adapter.id, "Ghostget live receipt adapter ID", 64),
+      version: safeString(adapter.version, "Ghostget live receipt adapter version", 64),
+      hash: digest(adapter.hash, "Ghostget live receipt adapter hash"),
     }),
     operation: providerOperationName(
       receipt.operation,
-      "Wrench live receipt operation",
+      "Ghostget live receipt operation",
     ),
     risk: "R1" as const,
-    inputHash: digest(receipt.inputHash, "Wrench live receipt input hash"),
+    inputHash: digest(receipt.inputHash, "Ghostget live receipt input hash"),
     auth: Object.freeze({
-      id: safeString(auth.id, "Wrench live receipt auth ID", 64),
-      hash: digest(auth.hash, "Wrench live receipt auth hash"),
+      id: safeString(auth.id, "Ghostget live receipt auth ID", 64),
+      hash: digest(auth.hash, "Ghostget live receipt auth hash"),
       kind: authKind,
     }),
     status,
@@ -2178,11 +2178,11 @@ function parseLiveReceipt(
   if (
     common.adapter.id !== request.adapterId
     || common.operation !== request.operationId
-  ) throw new Error("Wrench live receipt route does not match its request");
+  ) throw new Error("Ghostget live receipt route does not match its request");
   if (
     common.auth.id !== expectedRequestAuthId(request, common.auth.kind)
   ) {
-    throw new Error("Wrench live receipt auth does not match its request");
+    throw new Error("Ghostget live receipt auth does not match its request");
   }
   if (common.auth.kind === PUBLIC_WEB_SESSION_AUTHORITY_KIND) {
     const authority = publicWebSessionAuthority(request);
@@ -2191,11 +2191,11 @@ function parseLiveReceipt(
       || receipt.transport !== "web-session-api"
       || common.auth.hash !== sha256(canonicalJson(authority))
     ) {
-      throw new Error("Wrench live receipt public authority is malformed");
+      throw new Error("Ghostget live receipt public authority is malformed");
     }
   }
   if (common.inputHash !== expectedInputHash) {
-    throw new Error("Wrench live receipt input does not match its request");
+    throw new Error("Ghostget live receipt input does not match its request");
   }
   if (receipt.schemaVersion === 2 && receipt.transport === "browser") {
     return Object.freeze({ ...common, schemaVersion: 2 as const, transport: "browser" as const });
@@ -2207,7 +2207,7 @@ function parseLiveReceipt(
       transport: "provider-api" as const,
       providerContractHash: digest(
         receipt.providerContractHash,
-        "Wrench live receipt provider contract hash",
+        "Ghostget live receipt provider contract hash",
       ),
     });
   }
@@ -2218,7 +2218,7 @@ function parseLiveReceipt(
       transport: "web-session-api" as const,
       webSessionContractHash: digest(
         receipt.webSessionContractHash,
-        "Wrench live receipt web-session contract hash",
+        "Ghostget live receipt web-session contract hash",
       ),
     });
   }
@@ -2232,7 +2232,7 @@ function parseLiveReceipt(
       transport: "reviewed-template-api" as const,
       reviewedTemplateContractHash: digest(
         receipt.reviewedTemplateContractHash,
-        "Wrench live receipt reviewed-template contract hash",
+        "Ghostget live receipt reviewed-template contract hash",
       ),
     });
   }
@@ -2247,7 +2247,7 @@ function parseLiveReceipt(
       portablePluginContract.adapterId !== common.adapter.id
       || portablePluginContract.operation !== common.operation
     ) {
-      throw new Error("Wrench live portable contract route is malformed");
+      throw new Error("Ghostget live portable contract route is malformed");
     }
     return Object.freeze({
       ...common,
@@ -2261,7 +2261,7 @@ function parseLiveReceipt(
       receipt.localCliContract,
     );
     if (localCliContract.action !== common.operation) {
-      throw new Error("Wrench live local CLI contract route is malformed");
+      throw new Error("Ghostget live local CLI contract route is malformed");
     }
     return Object.freeze({
       ...common,
@@ -2270,7 +2270,7 @@ function parseLiveReceipt(
       localCliContract,
     });
   }
-  throw new Error("Wrench live receipt schema and transport are malformed");
+  throw new Error("Ghostget live receipt schema and transport are malformed");
 }
 
 function parseLiveResult(
@@ -2278,29 +2278,29 @@ function parseLiveResult(
   request: PreparedRequest,
   expectedInputHash: string,
 ): {
-  readonly live: WrenchClientInvocationResult;
+  readonly live: GhostgetClientInvocationResult;
   readonly cache: ReadProjectionCacheOutcome;
 } {
   assertExactKeys(
     value,
     ["ok", "source", "status", "runId", "replayed", "receipt", "output", "cache"],
     ["readFailure"],
-    "Wrench live response",
+    "Ghostget live response",
   );
-  if (value.source !== "live") throw new Error("Wrench live response has the wrong source");
+  if (value.source !== "live") throw new Error("Ghostget live response has the wrong source");
   const receipt = parseLiveReceipt(value.receipt, request, expectedInputHash);
-  const status = safeString(value.status, "Wrench live status", 32);
-  const responseRunId = safeString(value.runId, "Wrench live run ID", 64);
+  const status = safeString(value.status, "Ghostget live status", 32);
+  const responseRunId = safeString(value.runId, "Ghostget live run ID", 64);
   const expectedOk = receipt.status === "succeeded";
   if (
     status !== receipt.status
     || receipt.runId !== responseRunId
     || value.ok !== expectedOk
   ) {
-    throw new Error("Wrench live response is not bound to its receipt");
+    throw new Error("Ghostget live response is not bound to its receipt");
   }
   if (typeof value.replayed !== "boolean" || !("output" in value)) {
-    throw new Error("Wrench live response is incomplete");
+    throw new Error("Ghostget live response is incomplete");
   }
   const cache = parseCacheOutcome(value.cache);
   const cacheMatchesReceipt = receipt.status === "succeeded"
@@ -2313,17 +2313,17 @@ function parseLiveResult(
       || cache.status === "skipped";
   if (!cacheMatchesReceipt) {
     throw new Error(
-      "Wrench live cache outcome is inconsistent with its receipt",
+      "Ghostget live cache outcome is inconsistent with its receipt",
     );
   }
-  const live: WrenchClientInvocationResult = receipt.status === "failed"
+  const live: GhostgetClientInvocationResult = receipt.status === "failed"
     ? (() => {
         if (value.output !== null) {
-          throw new Error("Wrench failed live response retained an output");
+          throw new Error("Ghostget failed live response retained an output");
         }
         return Object.freeze({
           status: "failed" as const,
-          receipt: receipt as WrenchClientRunReceipt & {
+          receipt: receipt as GhostgetClientRunReceipt & {
             readonly status: "failed";
           },
           output: null,
@@ -2333,11 +2333,11 @@ function parseLiveResult(
       })()
     : (() => {
         if (value.readFailure !== undefined) {
-          throw new Error("Wrench successful live response included a read failure");
+          throw new Error("Ghostget successful live response included a read failure");
         }
         return Object.freeze({
           status: "succeeded" as const,
-          receipt: receipt as WrenchClientRunReceipt & {
+          receipt: receipt as GhostgetClientRunReceipt & {
             readonly status: "succeeded";
           },
           output: value.output,
@@ -2356,7 +2356,7 @@ function assertLiveInvocationFences(
   executionIdentityBefore: ExecutionIdentity,
   identityBefore: ProjectionIdentity,
   parsed: Readonly<{
-    live: WrenchClientInvocationResult;
+    live: GhostgetClientInvocationResult;
     cache: ReadProjectionCacheOutcome;
   }>,
   activity: "invocation" | "revalidation",
@@ -2364,7 +2364,7 @@ function assertLiveInvocationFences(
   const identityAfter = observeProjectionIdentity(request, options);
   if (!projectionIdentitiesMatch(identityBefore, identityAfter)) {
     throw new Error(
-      `Wrench projection identity changed while ${activity} was running; the live result was discarded`,
+      `Ghostget projection identity changed while ${activity} was running; the live result was discarded`,
     );
   }
   if (!executionIdentitiesMatch(
@@ -2372,18 +2372,18 @@ function assertLiveInvocationFences(
     receiptExecutionIdentity(parsed.live.receipt),
   )) {
     throw new Error(
-      `Wrench execution identity changed while ${activity} was running; the live result was discarded`,
+      `Ghostget execution identity changed while ${activity} was running; the live result was discarded`,
     );
   }
   if (parsed.live.receipt.auth.hash !== identityBefore.authHash) {
     throw new Error(
-      `Wrench projection identity changed while ${activity} was running; the live result was discarded`,
+      `Ghostget projection identity changed while ${activity} was running; the live result was discarded`,
     );
   }
   if (identityBefore.status === "unbound") {
     if (parsed.cache.status !== "skipped") {
       throw new Error(
-        `Wrench projection identity changed while ${activity} was running; the live result was discarded`,
+        `Ghostget projection identity changed while ${activity} was running; the live result was discarded`,
       );
     }
     return;
@@ -2396,7 +2396,7 @@ function assertLiveInvocationFences(
     )
   ) {
     throw new Error(
-      `Wrench projection identity changed while ${activity} was running; the live result was discarded`,
+      `Ghostget projection identity changed while ${activity} was running; the live result was discarded`,
     );
   }
 }
@@ -2477,7 +2477,7 @@ async function runRevalidation(
   // Identity preflights do not decode projection payloads, so corrupt local
   // data can still be repaired by a live read. Every process receives one
   // frozen options/environment snapshot. Both the projection key and unbound
-  // auth token include Wrench's auth incarnation and detect A-to-B-to-A
+  // auth token include Ghostget's auth incarnation and detect A-to-B-to-A
   // mutations.
   assertLiveInvocationFences(
     request,
@@ -2511,7 +2511,7 @@ async function runRevalidation(
     || (cachedAfter !== null && cachedAfter.key !== identityBefore.key)
   ) {
     throw new Error(
-      "Wrench projection identity changed while revalidation was running; the live result was discarded",
+      "Ghostget projection identity changed while revalidation was running; the live result was discarded",
     );
   }
   return Object.freeze({
@@ -2564,7 +2564,7 @@ function scheduleRevalidation(
       )
     ) {
       throw new Error(
-        "Wrench projection identity changed before revalidation started",
+        "Ghostget projection identity changed before revalidation started",
       );
     }
     return runRevalidation(
@@ -2586,7 +2586,7 @@ function scheduleRevalidation(
 export function invokeCapability(
   request: CapabilityReadRequest,
   options: InvokeCapabilityOptions = {},
-): Promise<WrenchClientInvocationResult> {
+): Promise<GhostgetClientInvocationResult> {
   const preparedOptions = snapshotClientOptions(options, "invoke-async");
   const prepared = prepareRequest(request);
   return Promise.resolve().then(async () => {
@@ -2627,7 +2627,7 @@ export function invokeCapability(
 export function invokeCapabilitySync(
   request: CapabilityReadRequest,
   options: InvokeCapabilitySyncOptions = {},
-): WrenchClientInvocationResult {
+): GhostgetClientInvocationResult {
   const preparedOptions = snapshotClientOptions(options, "invoke-sync");
   const prepared = prepareRequest(request);
   const executionIdentityBefore = observeExecutionIdentity(
@@ -2674,7 +2674,7 @@ export function revalidateCapability(
 }
 
 /**
- * Read the current exact projection synchronously through Wrench's installed
+ * Read the current exact projection synchronously through Ghostget's installed
  * cache-only command, then start one semantic R1 revalidation through the same
  * CLI safety kernel. No provider runtime is bundled into this client module.
  */
@@ -2717,10 +2717,10 @@ export type {
   RevalidateCapabilityOptions,
   RevalidatedCapability,
   RevalidatedCapabilityCurrent,
-  WrenchClientEnvironment,
-  WrenchClientInvocationResult,
-  WrenchClientPortableOperationIdentity,
-  WrenchClientReadFailure,
-  WrenchClientRunReceipt,
-  WrenchClientRunReceiptCommon,
+  GhostgetClientEnvironment,
+  GhostgetClientInvocationResult,
+  GhostgetClientPortableOperationIdentity,
+  GhostgetClientReadFailure,
+  GhostgetClientRunReceipt,
+  GhostgetClientRunReceiptCommon,
 } from "./client-types";

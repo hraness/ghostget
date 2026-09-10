@@ -1,6 +1,6 @@
 {
-  "name": "@hraness/wrench",
-  "version": "0.16.17",
+  "name": "@hraness/ghostget",
+  "version": "0.17.0",
   "description": "Open-source CLI and TypeScript SDK for precise web capabilities for AI agents: page capture, verified media archives, encrypted reads, and typed provider operations.",
   "license": "MIT",
   "type": "module",
@@ -23,11 +23,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hraness/wrench.git"
+    "url": "git+https://github.com/hraness/ghostget.git"
   },
-  "homepage": "https://wrench.rip",
+  "homepage": "https://ghostget.com",
   "bugs": {
-    "url": "https://github.com/hraness/wrench/issues"
+    "url": "https://github.com/hraness/ghostget/issues"
   },
   "keywords": [
     "ai-agents",
@@ -80,7 +80,7 @@
     }
   },
   "bin": {
-    "wrench": "./src/cli.ts"
+    "ghostget": "./src/cli.ts"
   },
   "main": "./dist/index.js",
   "types": "./src/index.ts",
@@ -510,7 +510,7 @@
     "src/web-session-sites.ts",
     "src/web-session-template.ts",
     "src/web-session.ts",
-    "src/wrench.ts",
+    "src/ghostget.ts",
     "skills",
     "README.md",
     "CHANGELOG.md",

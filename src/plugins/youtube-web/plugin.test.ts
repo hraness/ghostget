@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "../../auth";
+import type { GhostgetAuth } from "../../auth";
 import { youtubeWebPlugin } from "./plugin";
 
 const binding = youtubeWebPlugin.bindings[0];
@@ -15,7 +15,7 @@ const auth = {
   source: "arc",
   profile: "Profile 1",
   subject: `youtube:channel:UC${"a".repeat(22)}`,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 describe("YouTube provider plugin", () => {
   test("versions the narrowed MP4 and authored-video delete reservations", () => {

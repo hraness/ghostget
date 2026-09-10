@@ -26,7 +26,7 @@ import {
 } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import type { MessageLikeMeSourceConversationCoordinateBindingV1 } from "./message-like-me-agentic-messaging";
 import type {
   BrowserDispatchPlan,
@@ -37,7 +37,7 @@ import type {
   InputSchema,
   OperationInput,
   OperationRisk,
-  WrenchManifest,
+  GhostgetManifest,
   ScalarInputField,
 } from "./model";
 import type { ProviderActionContext } from "./provider-context";
@@ -90,7 +90,7 @@ export const providerPluginTransports = [
 ] as const;
 
 export type ProviderPluginTransport = (typeof providerPluginTransports)[number];
-export type ProviderPluginAuthKind = WrenchAuth["kind"];
+export type ProviderPluginAuthKind = GhostgetAuth["kind"];
 export type ProviderPluginContractStateV1 = "observed" | "capture-required";
 
 type ProviderPluginOperationDefinitionBaseV1 = {
@@ -177,7 +177,7 @@ export type ProviderPluginMessagingTargetV1 = Readonly<
 >;
 
 export type ProviderPluginMessagingRouteCandidateV1 = {
-  /** Exact provider coordinates retained only in Wrench private state. */
+  /** Exact provider coordinates retained only in Ghostget private state. */
   readonly target: ProviderPluginMessagingTargetV1;
   /** Exact provider conversation identity used to bind normalized reads. */
   readonly conversationProviderId: string;
@@ -284,7 +284,7 @@ export type ProviderPluginMessagingActionAttemptV1 = {
 export type ProviderPluginMessagingActionExecutorV1 = (
   operation: string,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   attempt: ProviderPluginMessagingActionAttemptV1,
 ) => Promise<unknown>;
 
@@ -776,7 +776,7 @@ export type ProviderPluginReconciliationOptionsV1 = {
 export type ProviderPluginSubjectV1 = ProviderPluginSubjectDefinitionV1 & {
   /** Lazy compatibility hook synthesized from the binding runtime. */
   readonly probe?: (
-    auth: WrenchAuth,
+    auth: GhostgetAuth,
     options?: ProviderPluginSubjectProbeOptionsV1,
   ) => Promise<string>;
 };
@@ -791,7 +791,7 @@ export type ProviderPluginImplementationSourceDefinitionV1 = {
 export type ProviderPluginImplementationSourceV1 = {
   /** Stable plugin-relative identity included in implementation hashes. */
   readonly label: string;
-  /** Canonical immutable path validated under Wrench's source root. */
+  /** Canonical immutable path validated under Ghostget's source root. */
   readonly path: string;
 };
 
@@ -858,7 +858,7 @@ export type ProviderPluginLinkedDeviceLifecycleRuntimeV1 = {
     environment: Readonly<Record<string, string | undefined>>,
   ) => Promise<ProviderPluginLinkedDeviceRuntimeStatusV1>;
   readonly pair: (
-    auth: WrenchAuth,
+    auth: GhostgetAuth,
     options: {
       readonly phone?: string;
       readonly environment: Readonly<Record<string, string | undefined>>;
@@ -866,7 +866,7 @@ export type ProviderPluginLinkedDeviceLifecycleRuntimeV1 = {
     },
   ) => Promise<string>;
   readonly syncOnce: (
-    auth: WrenchAuth,
+    auth: GhostgetAuth,
     options: {
       readonly environment: Readonly<Record<string, string | undefined>>;
       readonly attempt: ProviderPluginLinkedDeviceAttemptBoundaryV1;
@@ -876,7 +876,7 @@ export type ProviderPluginLinkedDeviceLifecycleRuntimeV1 = {
 
 export type WebSessionPluginRuntimeV1 = {
   readonly probe: (
-    auth: WrenchAuth,
+    auth: GhostgetAuth,
     options?: ProviderPluginSubjectProbeOptionsV1,
   ) => Promise<string>;
   readonly execute: WebSessionOperationExecutor;
@@ -885,7 +885,7 @@ export type WebSessionPluginRuntimeV1 = {
   readonly reconcile?: (
     operation: string,
     input: OperationInput,
-    auth: WrenchAuth,
+    auth: GhostgetAuth,
     context?: ProviderPluginReconciliationContextV1,
   ) => Promise<ProviderPluginReconciliationReadbackV1>;
   readonly linkedDeviceLifecycle?: ProviderPluginLinkedDeviceLifecycleRuntimeV1;
@@ -899,7 +899,7 @@ export type LocalCliPluginRuntimeV1 = {
     },
   ) => Promise<LocalCliPluginRuntimeStatusV1>;
   readonly probe: (
-    auth: WrenchAuth,
+    auth: GhostgetAuth,
     options?: ProviderPluginSubjectProbeOptionsV1,
   ) => Promise<string>;
   readonly execute: LocalCliOperationExecutor;
@@ -907,7 +907,7 @@ export type LocalCliPluginRuntimeV1 = {
   readonly reconcile?: (
     operation: string,
     input: OperationInput,
-    auth: WrenchAuth,
+    auth: GhostgetAuth,
     context?: ProviderPluginReconciliationContextV1,
     options?: ProviderPluginReconciliationOptionsV1,
   ) => Promise<ProviderPluginReconciliationReadbackV1>;
@@ -1023,7 +1023,7 @@ export type PortableProviderPluginProjectionDefinitionV1 = {
   readonly package: VerifiedPortableProviderPluginPackage;
   readonly bindings: readonly {
     readonly adapterId: string;
-    readonly manifest: WrenchManifest;
+    readonly manifest: GhostgetManifest;
     readonly portableBinding: PortablePackageBindingV1;
     readonly binding: ProviderPluginBindingDefinitionV1;
   }[];
@@ -1108,7 +1108,7 @@ const validatedProviderPlugins = new WeakSet<object>();
 const portableProviderPluginArtifacts = new WeakMap<object, string>();
 const portableProviderPluginAdapters = new WeakMap<
   ProviderPluginBindingV1,
-  { readonly adapterId: string; readonly manifest: WrenchManifest }
+  { readonly adapterId: string; readonly manifest: GhostgetManifest }
 >();
 const portableProviderPluginOperationIdentities = new WeakMap<
   ProviderPluginBindingV1,
@@ -1171,7 +1171,7 @@ function enclosingWorkspaceRoot(packageRoot: string): string {
     }
     const parent = dirname(candidate);
     if (parent === candidate) {
-      throw new Error("Wrench workspace dependencies have no enclosing workspace root");
+      throw new Error("Ghostget workspace dependencies have no enclosing workspace root");
     }
     candidate = parent;
   }
@@ -1273,9 +1273,9 @@ export function isProviderPluginRepositorySourcePath(
 }
 
 /**
- * Classify a real module path without confusing an installed Wrench package's
+ * Classify a real module path without confusing an installed Ghostget package's
  * own outer `node_modules` segments with one of its dependencies. Standalone
- * dependencies may be hoisted beside Wrench, while development dependencies
+ * dependencies may be hoisted beside Ghostget, while development dependencies
  * remain constrained to the checked repository.
  */
 export function classifyProviderPluginPhysicalPath(
@@ -2423,7 +2423,7 @@ export function portableProviderPluginArtifactSha256(
 /** Kernel-only virtual adapter owned by one validated portable binding. */
 export function portableProviderPluginAdapter(
   binding: ProviderPluginBindingV1,
-): { readonly adapterId: string; readonly manifest: WrenchManifest } | null {
+): { readonly adapterId: string; readonly manifest: GhostgetManifest } | null {
   return portableProviderPluginAdapters.get(binding) ?? null;
 }
 
@@ -4020,7 +4020,7 @@ function freezeBinding(
             executeMessagingPart: async (
               operation: string,
               input: OperationInput,
-              auth: WrenchAuth,
+              auth: GhostgetAuth,
               attempt: ProviderPluginMessagingActionAttemptV1,
             ) => {
               const hook = (await loadRuntime()).executeMessagingPart;
@@ -4121,7 +4121,7 @@ function freezeBinding(
       subject: Object.freeze({
         ...binding.subject,
         probe: async (
-          auth: WrenchAuth,
+          auth: GhostgetAuth,
           options?: ProviderPluginSubjectProbeOptionsV1,
         ) => {
           const subject = await (await loadRuntime()).probe(auth, options);
@@ -4223,7 +4223,7 @@ function freezeBinding(
             executeMessagingPart: async (
               operation: string,
               input: OperationInput,
-              auth: WrenchAuth,
+              auth: GhostgetAuth,
               attempt: ProviderPluginMessagingActionAttemptV1,
             ) => {
               const hook = (await loadRuntime()).executeMessagingPart;
@@ -4460,7 +4460,7 @@ function freezeBinding(
     subject: Object.freeze({
       ...binding.subject,
       probe: async (
-        auth: WrenchAuth,
+        auth: GhostgetAuth,
         options?: ProviderPluginSubjectProbeOptionsV1,
       ) => {
         const subject = await (await loadRuntime()).probe(auth, options);
@@ -4481,7 +4481,7 @@ function freezeBinding(
           executeMessagingPart: async (
             operation: string,
             input: OperationInput,
-            auth: WrenchAuth,
+            auth: GhostgetAuth,
             attempt: ProviderPluginMessagingActionAttemptV1,
           ) => {
             const hook = (await loadRuntime()).executeMessagingPart;
@@ -4570,7 +4570,7 @@ export function defineProviderPlugin(
       || isAbsolute(relativePath)
     ) {
       throw new Error(
-        `provider plugin ${plugin.id} implementation source ${source.label} must be a regular file under the Wrench source root`,
+        `provider plugin ${plugin.id} implementation source ${source.label} must be a regular file under the Ghostget source root`,
       );
     }
     return Object.freeze({ label: source.label, path: realPath });
@@ -4745,7 +4745,7 @@ export function definePortableProviderPluginProjection(
       );
     }
     const adapterId = adapterIdValue;
-    const manifest = manifestValue as WrenchManifest;
+    const manifest = manifestValue as GhostgetManifest;
     const portableBinding =
       portableBindingValue as PortablePackageBindingV1;
     const bindingDefinition =

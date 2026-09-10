@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -57,7 +58,7 @@ function withRoot(
   chmodSync(root, 0o700);
   const environment = {
     ...process.env,
-    WRENCH_STATE_HOME: join(root, "io-state"),
+    GHOSTGET_STATE_HOME: join(root, "io-state"),
   };
   return Promise.resolve(callback(root, environment))
     .finally(() => rmSync(root, { recursive: true, force: true }));
@@ -68,7 +69,7 @@ function replaceManifestText(
   before: string,
   after: string,
 ): void {
-  const path = join(root, "wrench-plugin.json");
+  const path = join(root, "ghostget-plugin.json");
   const content = readFileSync(path, "utf8");
   if (!content.includes(before)) {
     throw new Error(`portable plugin manifest fixture is missing ${before}`);
@@ -101,7 +102,7 @@ async function interruptAuthoringStage(
     env: {
       ...process.env,
       NODE_ENV: "test",
-      WRENCH_TEST_PLUGIN_AUTHORING_STAGE_FAULT: kind,
+      GHOSTGET_TEST_PLUGIN_AUTHORING_STAGE_FAULT: kind,
     },
     stdout: "pipe",
     stderr: "pipe",
@@ -146,7 +147,7 @@ async function interruptAuthoringStage(
 }
 
 describe("portable provider plugin lifecycle", () => {
-  test("recovers SIGKILL-abandoned Wrench and predecessor init and pack stages", async () => {
+  test("recovers SIGKILL-abandoned Ghostget and predecessor init and pack stages", async () => {
     await withRoot(async (root) => {
       const source = join(root, "recovered-plugin");
       const interruptedInit = await interruptAuthoringStage("init", source);
@@ -252,7 +253,7 @@ describe("portable provider plugin lifecycle", () => {
       expect(initialized.manifest.bindings[0]?.operations[0]?.state)
         .toBe("capture-required");
       expect(statSync(source).mode & 0o777).toBe(0o700);
-      expect(statSync(join(source, "wrench-plugin.json")).mode & 0o777).toBe(0o600);
+      expect(statSync(join(source, "ghostget-plugin.json")).mode & 0o777).toBe(0o600);
 
       const checked = checkPortableProviderPlugin(source);
       expect(checked).toMatchObject({
@@ -278,8 +279,8 @@ describe("portable provider plugin lifecycle", () => {
       const second = packPortableProviderPlugin(source, secondPackage);
       expect(first.bundleSha256).toBe(second.bundleSha256);
       expect(
-        readFileSync(join(firstPackage, "wrench-plugin.json")),
-      ).toEqual(readFileSync(join(secondPackage, "wrench-plugin.json")));
+        readFileSync(join(firstPackage, "ghostget-plugin.json")),
+      ).toEqual(readFileSync(join(secondPackage, "ghostget-plugin.json")));
 
       expect(() =>
         installPortableProviderPlugin(firstPackage, {
@@ -421,7 +422,7 @@ describe("portable provider plugin lifecycle", () => {
         bindings: [observedBinding],
       };
       writeFileSync(
-        join(source, "wrench-plugin.json"),
+        join(source, "ghostget-plugin.json"),
         renderPortableProviderPluginManifest(manifest),
         { mode: 0o600 },
       );
@@ -707,7 +708,7 @@ describe("portable provider plugin lifecycle", () => {
         }],
       };
       writeFileSync(
-        join(source, "wrench-plugin.json"),
+        join(source, "ghostget-plugin.json"),
         renderPortableProviderPluginManifest({
           ...initialized.manifest,
           bindings: [observedBinding],
@@ -927,7 +928,7 @@ describe("portable provider plugin lifecycle", () => {
         }
         expect(operation.risk).toBe(fixture.risk);
         writeFileSync(
-          join(source, "wrench-plugin.json"),
+          join(source, "ghostget-plugin.json"),
           renderPortableProviderPluginManifest({
             ...initialized.manifest,
             bindings: [{
@@ -1098,6 +1099,38 @@ describe("portable provider plugin lifecycle", () => {
     });
   });
 
+  test("packs each historical manifest name and rejects ambiguous authoring identities", async () => {
+    await withRoot((root) => {
+      for (const name of ["ghostget-plugin.json", "wrench-plugin.json", "oh-plugin.json"]) {
+        const source = join(root, name);
+        initPortableProviderPlugin({
+          id: "example-web",
+          displayName: "Example web",
+          surfaceId: "example",
+          origin: "https://www.example.com",
+          operation: "feeds.read",
+          output: source,
+        });
+        if (name !== "ghostget-plugin.json") {
+          renameSync(join(source, "ghostget-plugin.json"), join(source, name));
+        }
+        const originalBytes = readFileSync(join(source, name));
+        const output = join(root, `${name}.ghostgetplugin`);
+        const packed = packPortableProviderPlugin(source, output);
+        expect(checkPortableProviderPlugin(output).bundleSha256).toBe(packed.bundleSha256);
+        expect(readFileSync(join(output, "ghostget-plugin.json"))).toEqual(originalBytes);
+        expect(readFileSync(join(source, name))).toEqual(originalBytes);
+        for (const other of ["ghostget-plugin.json", "wrench-plugin.json", "oh-plugin.json"]) {
+          if (other === name) continue;
+          writeFileSync(join(source, other), originalBytes, { mode: 0o600 });
+          expect(() => packPortableProviderPlugin(source, join(root, `${name}-${other}`)))
+            .toThrow("must contain exactly one");
+          rmSync(join(source, other));
+        }
+      }
+    });
+  });
+
   test("packing refreshes declared hashes but refuses undeclared files and existing outputs", async () => {
     await withRoot((root) => {
       const source = join(root, "example-plugin");
@@ -1221,7 +1254,7 @@ describe("portable provider plugin lifecycle", () => {
         bindings: [linkedBinding, webBinding],
       } satisfies PortableProviderPluginManifestV1;
       writeFileSync(
-        join(source, "wrench-plugin.json"),
+        join(source, "ghostget-plugin.json"),
         renderPortableProviderPluginManifest(manifest),
         { mode: 0o600 },
       );

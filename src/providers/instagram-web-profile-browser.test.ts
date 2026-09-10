@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import {
   PreservedBrowserArtifactsError,
   type BrowserSession,
@@ -28,7 +28,7 @@ const profileAuth = {
   browserExecutable: "/Applications/Chromium.app/Contents/MacOS/Chromium",
   trustUnfilteredEgress: true,
   subject: `instagram:${VIEWER_ID}`,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 const cookieSourceAuth = {
   schemaVersion: 1,
@@ -37,7 +37,7 @@ const cookieSourceAuth = {
   source: "chrome",
   profile: "Profile 9",
   subject: `instagram:${VIEWER_ID}`,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 const cookiesFileAuth = {
   schemaVersion: 1,
@@ -45,7 +45,7 @@ const cookiesFileAuth = {
   kind: "cookies-file",
   path: "/private/instagram-cookies.txt",
   subject: `instagram:${VIEWER_ID}`,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 type BrowserReadBinding = {
   readonly kind: "html" | "json";
@@ -283,7 +283,7 @@ describe("Instagram profile stats contained-browser transport", () => {
 
   test("accepts each browser-session auth realm and rejects non-browser realms before startup", async () => {
     for (const auth of [profileAuth, cookieSourceAuth, cookiesFileAuth]) {
-      const receivedAuth: WrenchAuth[] = [];
+      const receivedAuth: GhostgetAuth[] = [];
       const transport = await createInstagramProfileBrowserTransport(auth, {
         timeoutMs: 1_000,
         maxOutputBytes: 1_024,
@@ -305,7 +305,7 @@ describe("Instagram profile stats contained-browser transport", () => {
       provider: "instagram",
       path: "/private/token.json",
       scopes: [],
-    } as const satisfies WrenchAuth;
+    } as const satisfies GhostgetAuth;
     await expect(createInstagramProfileBrowserTransport(oauthAuth, {
       timeoutMs: 1_000,
       maxOutputBytes: 1_024,

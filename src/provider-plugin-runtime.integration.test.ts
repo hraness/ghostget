@@ -12,7 +12,7 @@ import { createAuth, saveAuth } from "./auth";
 import {
   isProviderOperation,
   parseRuntimeManifest,
-  type WrenchManifest,
+  type GhostgetManifest,
   type OperationInput,
 } from "./model";
 import {
@@ -53,13 +53,13 @@ function state(): {
 } {
   const directory = mkdtempSync(join(tmpdir(), "wrench-plugin-runtime-test-"));
   chmodSync(directory, 0o700);
-  return { directory, environment: { WRENCH_STATE_HOME: directory } };
+  return { directory, environment: { GHOSTGET_STATE_HOME: directory } };
 }
 
 function parseCustomManifest(
   value: unknown,
   registry: ReturnType<typeof createProviderPluginRegistry>,
-): WrenchManifest {
+): GhostgetManifest {
   const parsed = parseRuntimeManifest(value, registry);
   if (!parsed.ok) throw new Error(parsed.issues.join("; "));
   return parsed.value;

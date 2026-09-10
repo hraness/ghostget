@@ -30,7 +30,7 @@ function viewerResponse(id = VIEWER_ID, secUid = VIEWER_SEC_UID): unknown {
         id,
         secUid,
         uniqueId: "wrench_test",
-        nickname: "Wrench Test",
+        nickname: "Ghostget Test",
         signature: "A bounded public profile bio",
         bioLink: { link: "https://example.com/about" },
       },
@@ -330,7 +330,7 @@ describe("TikTok current-profile projection", () => {
       id: VIEWER_ID,
       secUid: VIEWER_SEC_UID,
       handle: "wrench_test",
-      displayName: "Wrench Test",
+      displayName: "Ghostget Test",
       bio: "A bounded public profile bio",
       websiteUrl: "https://example.com/about",
       followers: 123,
@@ -406,7 +406,7 @@ describe("TikTok bounded response normalization", () => {
       id: VIEWER_ID,
       secUid: VIEWER_SEC_UID,
       handle: "wrench_test",
-      displayName: "Wrench Test",
+      displayName: "Ghostget Test",
     });
     expect(() => parseTikTokWebViewerResponse(viewerResponse("bad"))).toThrow("decimal TikTok identifier");
     expect(() => parseTikTokWebViewerResponse(viewerResponse(VIEWER_ID, "short"))).toThrow("exact TikTok secUid");

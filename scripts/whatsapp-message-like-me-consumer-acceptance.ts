@@ -55,7 +55,7 @@ function fixtureRecords(): readonly LocalMessageBundleV2Record[] {
       accountId: ACCOUNT_ID,
       network: "whatsapp",
       provenance: provenance(SELF_JID),
-      displayName: "Wrench acceptance account",
+      displayName: "Ghostget acceptance account",
       handle: "+15551234567",
       selfParticipantId: SELF_PARTICIPANT_ID,
     }),
@@ -71,7 +71,7 @@ function fixtureRecords(): readonly LocalMessageBundleV2Record[] {
       direction: "incoming",
       sentAt: OBSERVED_AT,
       sortKey: "0000000000000000001",
-      body: "Wrench WhatsApp consumer acceptance incoming",
+      body: "Ghostget WhatsApp consumer acceptance incoming",
       bodyTruncated: false,
       replyTo: null,
       edit: null,
@@ -90,7 +90,7 @@ function fixtureRecords(): readonly LocalMessageBundleV2Record[] {
       direction: "outgoing",
       sentAt: "2026-08-28T12:01:00.000Z",
       sortKey: "0000000000000000002",
-      body: "Wrench WhatsApp consumer acceptance outgoing",
+      body: "Ghostget WhatsApp consumer acceptance outgoing",
       bodyTruncated: false,
       replyTo: Object.freeze({
         messageId: "whatsapp:fixture:message:incoming",
@@ -107,7 +107,7 @@ function fixtureRecords(): readonly LocalMessageBundleV2Record[] {
       accountId: ACCOUNT_ID,
       network: "whatsapp",
       provenance: provenance(SELF_JID),
-      displayName: "Wrench acceptance self",
+      displayName: "Ghostget acceptance self",
       handle: "+15551234567",
       isSelf: true,
     }),
@@ -118,7 +118,7 @@ function fixtureRecords(): readonly LocalMessageBundleV2Record[] {
       accountId: ACCOUNT_ID,
       network: "whatsapp",
       provenance: provenance(PEER_JID),
-      displayName: "Wrench acceptance peer",
+      displayName: "Ghostget acceptance peer",
       handle: "+15557654321",
       isSelf: false,
     }),
@@ -130,7 +130,7 @@ function fixtureRecords(): readonly LocalMessageBundleV2Record[] {
       network: "whatsapp",
       provenance: provenance(PEER_JID),
       type: "direct",
-      title: "Wrench acceptance direct conversation",
+      title: "Ghostget acceptance direct conversation",
       participantIds: Object.freeze([SELF_PARTICIPANT_ID, PEER_PARTICIPANT_ID]),
       participantsComplete: true,
       startedAt: OBSERVED_AT,
@@ -202,13 +202,13 @@ async function runCliJson(
   ]);
   if (exitCode !== 0) {
     throw new Error(
-      `Message Like Me ${version} rejected the Wrench fixture (${String(exitCode)}): ${stderr.trim() || stdout.trim() || "no diagnostic"}`,
+      `Message Like Me ${version} rejected the Ghostget fixture (${String(exitCode)}): ${stderr.trim() || stdout.trim() || "no diagnostic"}`,
     );
   }
   for (const privateValue of [
     parent,
-    "Wrench WhatsApp consumer acceptance incoming",
-    "Wrench WhatsApp consumer acceptance outgoing",
+    "Ghostget WhatsApp consumer acceptance incoming",
+    "Ghostget WhatsApp consumer acceptance outgoing",
   ]) {
     if (stdout.includes(privateValue) || stderr.includes(privateValue)) {
       throw new Error(`Message Like Me ${version} exposed private fixture data`);
@@ -362,7 +362,7 @@ export async function runWhatsAppMessageLikeMeConsumerAcceptance(): Promise<void
   }
 
   const parent = await realpath(
-    await mkdtemp(join(tmpdir(), "wrench-whatsapp-mlm-acceptance-")),
+    await mkdtemp(join(tmpdir(), "ghostget-whatsapp-mlm-acceptance-")),
   );
   await chmod(parent, 0o700);
   const outputRoot = join(parent, "bundle");
@@ -381,7 +381,7 @@ export async function runWhatsAppMessageLikeMeConsumerAcceptance(): Promise<void
     if (
       actualFiles.length !== expectedFiles.length
       || actualFiles.some((file, index) => file !== expectedFiles[index])
-    ) throw new Error("Wrench did not generate the exact seven-file WhatsApp bundle");
+    ) throw new Error("Ghostget did not generate the exact seven-file WhatsApp bundle");
     parseLocalMessageBundleV2Manifest(
       JSON.parse(await readFile(bundle.manifestPath, "utf8")) as unknown,
     );

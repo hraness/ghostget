@@ -29,7 +29,7 @@ import {
   parseRuntimeManifest,
   sha256,
   type ParseResult,
-  type WrenchManifest,
+  type GhostgetManifest,
 } from "./model";
 import {
   currentProcessStartIdentity,
@@ -123,7 +123,7 @@ const stateMarkerText = '{"kind":"io-state","schemaVersion":1}\n';
 const stateHelperPath = join(dirname(fileURLToPath(import.meta.url)), "state-helper.ts");
 const stateHelperConfigPath = join(dirname(fileURLToPath(import.meta.url)), "state-helper.bunfig.toml");
 const pathHelperPath = join(dirname(fileURLToPath(import.meta.url)), "path-helper.ts");
-const wrenchSourcePackageRoot = realpathSync(
+const ghostgetSourcePackageRoot = realpathSync(
   resolve(dirname(fileURLToPath(import.meta.url)), ".."),
 );
 
@@ -394,12 +394,12 @@ function stateRootFor(path: string): string | null {
   return selected;
 }
 
-/** True when a path resolves at or below the selected, validated Wrench state root. */
-export function isWrenchStatePath(
+/** True when a path resolves at or below the selected, validated Ghostget state root. */
+export function isGhostgetStatePath(
   path: string,
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
-  const root = wrenchStateHome(environment);
+  const root = ghostgetStateHome(environment);
   return stateRootFor(path) === root;
 }
 
@@ -750,12 +750,12 @@ function runStateHelper(
           NODE_ENV: "test",
           ...(faultForTest === "insert-after-quarantine"
             || faultForTest === "replace-target-after-validation"
-            ? { WRENCH_TEST_EMPTY_DIRECTORY_REMOVAL_RACE: faultForTest }
+            ? { GHOSTGET_TEST_EMPTY_DIRECTORY_REMOVAL_RACE: faultForTest }
             : faultForTest === "pause-after-cas-claim"
                 || faultForTest === "pause-after-mutation-claim-read"
                 || faultForTest === "fail-after-cas-commit"
-              ? { WRENCH_TEST_CAS_FAULT: faultForTest }
-              : { WRENCH_TEST_BATCH_READ_FAULT: faultForTest }),
+              ? { GHOSTGET_TEST_CAS_FAULT: faultForTest }
+              : { GHOSTGET_TEST_BATCH_READ_FAULT: faultForTest }),
         },
     input: JSON.stringify({ schemaVersion: 1, requestId, expected, operation }),
     maxBuffer: operation.kind === "batch-read-files"
@@ -770,7 +770,7 @@ function runStateHelper(
     windowsHide: true,
   });
   const current = inspectRealDirectoryIdentity(directory);
-  if (!sameIdentity(current, expected)) throw new Error(`WRENCH_STATE_HOME changed identity after validation: ${directory}`);
+  if (!sameIdentity(current, expected)) throw new Error(`GHOSTGET_STATE_HOME changed identity after validation: ${directory}`);
   if (child.error !== undefined) throw new Error("bound state helper failed to start", { cause: child.error });
   if (child.status !== 0) {
     const detail = child.stderr.trim().slice(0, 512);
@@ -870,7 +870,7 @@ function captureStateDirectoryExpectations(
       || !ownedByCurrentUser(stats)
       || (stats.mode & 0o777n) !== 0o700n
     ) {
-      throw new Error(`wrench state directory must be an owned real directory with mode 0700: ${current}`);
+      throw new Error(`ghostget state directory must be an owned real directory with mode 0700: ${current}`);
     }
     expectations.push({ device: stats.dev.toString(), inode: stats.ino.toString() });
   }
@@ -886,7 +886,7 @@ function inspectStateRootIdentity(root: string): StateRootIdentity | null {
     throw error;
   }
   if (!stats.isDirectory() || stats.isSymbolicLink() || !ownedByCurrentUser(stats)) {
-    throw new Error(`WRENCH_STATE_HOME must be an owned real directory: ${root}`);
+    throw new Error(`GHOSTGET_STATE_HOME must be an owned real directory: ${root}`);
   }
   return { device: stats.dev.toString(), inode: stats.ino.toString() };
 }
@@ -913,7 +913,7 @@ function findCreationAnchor(root: string): NonNullable<StateRootRecord["creation
     } catch (error) {
       if (!hasCode(error, "ENOENT")) throw error;
       const parent = dirname(current);
-      if (parent === current) throw new Error(`WRENCH_STATE_HOME has no real existing creation anchor: ${root}`);
+      if (parent === current) throw new Error(`GHOSTGET_STATE_HOME has no real existing creation anchor: ${root}`);
       segments.unshift(basename(current));
       current = parent;
       continue;
@@ -924,7 +924,7 @@ function findCreationAnchor(root: string): NonNullable<StateRootRecord["creation
       || !ownedByCurrentUser(stats)
       || (stats.mode & 0o022n) !== 0n
     ) {
-      throw new Error(`WRENCH_STATE_HOME creation path contains a non-owned real directory: ${current}`);
+      throw new Error(`GHOSTGET_STATE_HOME creation path contains a non-owned real directory: ${current}`);
     }
     return {
       identity: { device: stats.dev.toString(), inode: stats.ino.toString() },
@@ -936,10 +936,10 @@ function findCreationAnchor(root: string): NonNullable<StateRootRecord["creation
 
 function assertStateRootIdentity(root: string): StateRootRecord {
   const expected = knownStateRoots.get(root);
-  if (expected === undefined) throw new Error(`wrench state root has not been validated: ${root}`);
+  if (expected === undefined) throw new Error(`ghostget state root has not been validated: ${root}`);
   const actual = inspectStateRootIdentity(root);
   if (!sameIdentity(actual, expected.identity)) {
-    throw new Error(`WRENCH_STATE_HOME changed identity after validation: ${root}`);
+    throw new Error(`GHOSTGET_STATE_HOME changed identity after validation: ${root}`);
   }
   if (expected.identity === null) {
     const anchor = findCreationAnchor(root);
@@ -948,12 +948,12 @@ function assertStateRootIdentity(root: string): StateRootRecord {
       || anchor.path !== expected.creationAnchor.path
       || !sameIdentity(anchor.identity, expected.creationAnchor.identity)
       || anchor.segments.join("\u0000") !== expected.creationAnchor.segments.join("\u0000")
-    ) throw new Error(`WRENCH_STATE_HOME creation path changed after validation: ${root}`);
+    ) throw new Error(`GHOSTGET_STATE_HOME creation path changed after validation: ${root}`);
   }
   if (expected.claimed) {
-    if (actual === null) throw new Error(`WRENCH_STATE_HOME disappeared after validation: ${root}`);
+    if (actual === null) throw new Error(`GHOSTGET_STATE_HOME disappeared after validation: ${root}`);
     const stats = lstatSync(root);
-    if ((stats.mode & 0o777) !== 0o700) throw new Error(`WRENCH_STATE_HOME must remain private (mode 0700): ${root}`);
+    if ((stats.mode & 0o777) !== 0o700) throw new Error(`GHOSTGET_STATE_HOME must remain private (mode 0700): ${root}`);
     readStateMarker(join(root, stateMarkerName));
   }
   return expected;
@@ -984,12 +984,12 @@ function assertNoSymbolicLinks(
       if (hasCode(error, "ENOENT")) return;
       throw error;
     }
-    if (stats.isSymbolicLink()) throw new Error(`wrench state path contains a symbolic link: ${path}`);
+    if (stats.isSymbolicLink()) throw new Error(`ghostget state path contains a symbolic link: ${path}`);
     if (stats.isDirectory() && requirePrivateDirectories && (!ownedByCurrentUser(stats) || (stats.mode & 0o777) !== 0o700)) {
-      throw new Error(`wrench state directory must be owned and private (mode 0700): ${path}`);
+      throw new Error(`ghostget state directory must be owned and private (mode 0700): ${path}`);
     }
     if (index < paths.length - 1 && !stats.isDirectory()) {
-      throw new Error(`wrench state ancestor is not a directory: ${path}`);
+      throw new Error(`ghostget state ancestor is not a directory: ${path}`);
     }
   }
 }
@@ -1009,7 +1009,7 @@ export function assertSafeStatePath(
   environment: Readonly<Record<string, string | undefined>> = process.env,
   includeTarget = true,
 ): void {
-  const root = wrenchStateHome(environment);
+  const root = ghostgetStateHome(environment);
   assertStateRootIdentity(root);
   assertNoSymbolicLinks(root, path, includeTarget, true);
   assertStateRootIdentity(root);
@@ -1041,13 +1041,13 @@ function readStateMarker(path: string): void {
   try {
     const stats = fstatSync(descriptor);
     if (!stats.isFile() || stats.size > 256 || !ownedByCurrentUser(stats) || (stats.mode & 0o077) !== 0) {
-      throw new Error("wrench state marker must be a private, owned regular file");
+      throw new Error("ghostget state marker must be a private, owned regular file");
     }
     const content = new TextDecoder("utf-8", {
       fatal: true,
       ignoreBOM: true,
     }).decode(readDescriptorBounded(descriptor, 256));
-    if (content !== stateMarkerText) throw new Error("wrench state marker is malformed");
+    if (content !== stateMarkerText) throw new Error("ghostget state marker is malformed");
     const value = JSON.parse(content) as unknown;
     if (
       typeof value !== "object"
@@ -1058,25 +1058,25 @@ function readStateMarker(path: string): void {
       || value.schemaVersion !== 1
       || !("kind" in value)
       || value.kind !== "io-state"
-    ) throw new Error("wrench state marker is malformed");
+    ) throw new Error("ghostget state marker is malformed");
   } finally {
     closeSync(descriptor);
   }
 }
 
-function hasWrenchPathIdentity(path: string): boolean {
+function hasGhostgetPathIdentity(path: string): boolean {
   return resolve(path)
     .split(sep)
     .filter((segment) => segment !== "")
     .slice(-3)
     .some((segment) =>
-      /(?:^|[^a-z0-9])(?:wrench|oh|io)(?:[^a-z0-9]|$)/iu.test(segment),
+      /(?:^|[^a-z0-9])(?:ghostget|wrench|oh|io)(?:[^a-z0-9]|$)/iu.test(segment),
     );
 }
 
 function validateUnmarkedStateRoot(root: string): boolean {
-  if (!hasWrenchPathIdentity(root)) {
-    throw new Error(`WRENCH_STATE_HOME is not marked as wrench-owned and its path does not identify dedicated wrench state: ${root}`);
+  if (!hasGhostgetPathIdentity(root)) {
+    throw new Error(`GHOSTGET_STATE_HOME is not marked as wrench-owned and its path does not identify dedicated ghostget state: ${root}`);
   }
   const allowed = new Set<string>([
     ...stateDirectoryNames,
@@ -1092,9 +1092,9 @@ function validateUnmarkedStateRoot(root: string): boolean {
     for (;;) {
       const entry = directory.readSync();
       if (entry === null) break;
-      if (entries.length >= 10_000) throw new Error("WRENCH_STATE_HOME contains more than 10000 entries");
+      if (entries.length >= 10_000) throw new Error("GHOSTGET_STATE_HOME contains more than 10000 entries");
       if (entry.name.includes("\uFFFD") || Buffer.byteLength(entry.name, "utf8") > 255) {
-        throw new Error("WRENCH_STATE_HOME contains an unsafe entry name");
+        throw new Error("GHOSTGET_STATE_HOME contains an unsafe entry name");
       }
       entries.push(entry);
     }
@@ -1102,19 +1102,19 @@ function validateUnmarkedStateRoot(root: string): boolean {
     directory.closeSync();
   }
   for (const entry of entries) {
-    if (entry.isSymbolicLink()) throw new Error(`WRENCH_STATE_HOME contains a symbolic link: ${join(root, entry.name)}`);
+    if (entry.isSymbolicLink()) throw new Error(`GHOSTGET_STATE_HOME contains a symbolic link: ${join(root, entry.name)}`);
     if (/^\.io-state\.stage-\d+-[0-9a-f-]{36}\.json$/u.test(entry.name)) {
       const stats = lstatSync(join(root, entry.name));
       if (!stats.isFile() || !ownedByCurrentUser(stats) || (stats.mode & 0o077) !== 0 || stats.size > 256) {
-        throw new Error(`WRENCH_STATE_HOME contains an invalid interrupted state-marker stage: ${entry.name}`);
+        throw new Error(`GHOSTGET_STATE_HOME contains an invalid interrupted state-marker stage: ${entry.name}`);
       }
       continue;
     }
     if (!allowed.has(entry.name)) {
-      throw new Error(`WRENCH_STATE_HOME is not an empty or recognizable dedicated wrench state directory: ${root}`);
+      throw new Error(`GHOSTGET_STATE_HOME is not an empty or recognizable dedicated ghostget state directory: ${root}`);
     }
     if (stateDirectoryNames.includes(entry.name as typeof stateDirectoryNames[number]) && !entry.isDirectory()) {
-      throw new Error(`WRENCH_STATE_HOME contains an invalid state entry: ${entry.name}`);
+      throw new Error(`GHOSTGET_STATE_HOME contains an invalid state entry: ${entry.name}`);
     }
     if (
       (
@@ -1126,14 +1126,14 @@ function validateUnmarkedStateRoot(root: string): boolean {
       )
       && !entry.isFile()
     ) {
-      throw new Error("WRENCH_STATE_HOME contains an invalid encryption key entry");
+      throw new Error("GHOSTGET_STATE_HOME contains an invalid encryption key entry");
     }
     const stats = lstatSync(join(root, entry.name));
     const hasPrivateMode = entry.isDirectory()
       ? (stats.mode & 0o777) === 0o700
       : (stats.mode & 0o077) === 0;
     if (!ownedByCurrentUser(stats) || !hasPrivateMode) {
-      throw new Error(`WRENCH_STATE_HOME contains a state entry that is not owned and private: ${entry.name}`);
+      throw new Error(`GHOSTGET_STATE_HOME contains a state entry that is not owned and private: ${entry.name}`);
     }
   }
   return entries.length > 0;
@@ -1143,23 +1143,24 @@ function validateStateRoot(root: string): StateRootRecord {
   if (!existsSync(root)) return { claimed: false, creationAnchor: findCreationAnchor(root), identity: null };
   const stats = lstatSync(root, { bigint: true });
   if (!stats.isDirectory() || stats.isSymbolicLink() || !ownedByCurrentUser(stats)) {
-    throw new Error(`WRENCH_STATE_HOME must be an owned real directory: ${root}`);
+    throw new Error(`GHOSTGET_STATE_HOME must be an owned real directory: ${root}`);
   }
   const marker = join(root, stateMarkerName);
   const claimed = existsSync(marker);
   const hasUnmarkedState = claimed ? false : validateUnmarkedStateRoot(root);
   if (claimed) readStateMarker(marker);
   if (!claimed && !hasUnmarkedState && (stats.mode & 0o022n) !== 0n) {
-    throw new Error(`an unclaimed WRENCH_STATE_HOME must not be group/world-writable: ${root}`);
+    throw new Error(`an unclaimed GHOSTGET_STATE_HOME must not be group/world-writable: ${root}`);
   }
   if ((claimed || hasUnmarkedState) && (stats.mode & 0o777n) !== 0o700n) {
-    throw new Error(`WRENCH_STATE_HOME must be private (mode 0700) before trusted state is read: ${root}`);
+    throw new Error(`GHOSTGET_STATE_HOME must be private (mode 0700) before trusted state is read: ${root}`);
   }
   return { claimed, creationAnchor: null, identity: { device: stats.dev.toString(), inode: stats.ino.toString() } };
 }
 
-export function wrenchStateHome(environment: Readonly<Record<string, string | undefined>> = process.env): string {
+export function ghostgetStateHome(environment: Readonly<Record<string, string | undefined>> = process.env): string {
   const configuredRoots = [
+    ["GHOSTGET_STATE_HOME", environment.GHOSTGET_STATE_HOME],
     ["WRENCH_STATE_HOME", environment.WRENCH_STATE_HOME],
     ["OH_STATE_HOME", environment.OH_STATE_HOME],
     ["IO_HOME", environment.IO_HOME],
@@ -1178,8 +1179,11 @@ export function wrenchStateHome(environment: Readonly<Record<string, string | un
       && environment.XDG_DATA_HOME.trim() !== ""
     ? resolve(environment.XDG_DATA_HOME)
     : join(homedir(), ".local", "share");
-  const currentDefault = canonicalPotentialPath(join(dataRoot, "wrench"));
+  const currentDefault = canonicalPotentialPath(join(dataRoot, "ghostget"));
+  // Reuse existing state in place: ciphertext, auth, and dispatch journals
+  // retain their original directory and wire identities across the rename.
   const legacyDefaults = [
+    canonicalPotentialPath(join(dataRoot, "wrench")),
     canonicalPotentialPath(join(dataRoot, "oh")),
     canonicalPotentialPath(join(dataRoot, "io")),
   ] as const;
@@ -1190,7 +1194,7 @@ export function wrenchStateHome(environment: Readonly<Record<string, string | un
     );
     if (existingDefaults.length > 1) {
       throw new Error(
-        `multiple Wrench and legacy state roots exist; set WRENCH_STATE_HOME explicitly after reconciling ${existingDefaults.join(", ")}`,
+        `multiple Ghostget and legacy state roots exist; set GHOSTGET_STATE_HOME explicitly after reconciling ${existingDefaults.join(", ")}`,
       );
     }
     root = existingDefaults[0] ?? currentDefault;
@@ -1208,14 +1212,14 @@ export function wrenchStateHome(environment: Readonly<Record<string, string | un
       ? []
       : [canonicalPotentialPath(environment.XDG_DATA_HOME)]),
   ]);
-  if (forbiddenRoots.has(root) || isWithinPath(wrenchSourcePackageRoot, root)) {
-    throw new Error(`WRENCH_STATE_HOME must be a dedicated child directory, not a filesystem, home, temporary, repository, or shared data root: ${root}`);
+  if (forbiddenRoots.has(root) || isWithinPath(ghostgetSourcePackageRoot, root)) {
+    throw new Error(`GHOSTGET_STATE_HOME must be a dedicated child directory, not a filesystem, home, temporary, repository, or shared data root: ${root}`);
   }
   const inspected = validateStateRoot(root);
   const remembered = knownStateRoots.get(root);
   if (remembered !== undefined) {
     if (!sameIdentity(remembered.identity, inspected.identity)) {
-      throw new Error(`WRENCH_STATE_HOME changed identity after validation: ${root}`);
+      throw new Error(`GHOSTGET_STATE_HOME changed identity after validation: ${root}`);
     }
     if (
       remembered.identity === null
@@ -1226,9 +1230,9 @@ export function wrenchStateHome(environment: Readonly<Record<string, string | un
         || !sameIdentity(remembered.creationAnchor.identity, inspected.creationAnchor.identity)
         || remembered.creationAnchor.segments.join("\u0000") !== inspected.creationAnchor.segments.join("\u0000")
       )
-    ) throw new Error(`WRENCH_STATE_HOME creation path changed after validation: ${root}`);
+    ) throw new Error(`GHOSTGET_STATE_HOME creation path changed after validation: ${root}`);
     if (remembered.claimed && !inspected.claimed) {
-      throw new Error(`WRENCH_STATE_HOME lost its ownership marker after validation: ${root}`);
+      throw new Error(`GHOSTGET_STATE_HOME lost its ownership marker after validation: ${root}`);
     }
     knownStateRoots.set(root, { ...inspected, claimed: remembered.claimed || inspected.claimed });
   } else {
@@ -1242,7 +1246,7 @@ function ensureClaimedStateRoot(root: string): StateRootIdentity {
   let remembered = assertStateRootIdentity(root);
   if (remembered.identity === null) {
     const anchor = remembered.creationAnchor;
-    if (anchor === null) throw new Error(`WRENCH_STATE_HOME has no validated creation anchor: ${root}`);
+    if (anchor === null) throw new Error(`GHOSTGET_STATE_HOME has no validated creation anchor: ${root}`);
     const response = runStateHelper(
       anchor.path,
       anchor.identity,
@@ -1250,7 +1254,7 @@ function ensureClaimedStateRoot(root: string): StateRootIdentity {
       true,
     );
     const current = inspectStateRootIdentity(root);
-    if (!sameIdentity(current, response.identity)) throw new Error(`WRENCH_STATE_HOME changed identity while being created: ${root}`);
+    if (!sameIdentity(current, response.identity)) throw new Error(`GHOSTGET_STATE_HOME changed identity while being created: ${root}`);
     remembered = { claimed: true, creationAnchor: null, identity: response.identity };
     knownStateRoots.set(root, remembered);
   } else if (!remembered.claimed) {
@@ -1265,7 +1269,7 @@ function ensureClaimedStateRoot(root: string): StateRootIdentity {
       const stats = fstatSync(descriptor, { bigint: true });
       const actual = { device: stats.dev.toString(), inode: stats.ino.toString() };
       if (!sameIdentity(actual, remembered.identity) || !ownedByCurrentUser(stats)) {
-        throw new Error(`WRENCH_STATE_HOME changed identity while being claimed: ${root}`);
+        throw new Error(`GHOSTGET_STATE_HOME changed identity while being claimed: ${root}`);
       }
       fchmodSync(descriptor, 0o700);
       fsyncSync(descriptor);
@@ -1273,16 +1277,16 @@ function ensureClaimedStateRoot(root: string): StateRootIdentity {
       closeSync(descriptor);
     }
     if (!sameIdentity(inspectStateRootIdentity(root), remembered.identity)) {
-      throw new Error(`WRENCH_STATE_HOME changed identity while being claimed: ${root}`);
+      throw new Error(`GHOSTGET_STATE_HOME changed identity while being claimed: ${root}`);
     }
     runStateHelper(root, remembered.identity, { kind: "claim" });
     if (!sameIdentity(inspectStateRootIdentity(root), remembered.identity)) {
-      throw new Error(`WRENCH_STATE_HOME changed identity while being claimed: ${root}`);
+      throw new Error(`GHOSTGET_STATE_HOME changed identity while being claimed: ${root}`);
     }
     remembered = { claimed: true, creationAnchor: null, identity: remembered.identity };
     knownStateRoots.set(root, remembered);
   }
-  if (remembered.identity === null) throw new Error(`WRENCH_STATE_HOME is unavailable after being claimed: ${root}`);
+  if (remembered.identity === null) throw new Error(`GHOSTGET_STATE_HOME is unavailable after being claimed: ${root}`);
   assertStateRootIdentity(root);
   return remembered.identity;
 }
@@ -1426,7 +1430,7 @@ export function ensurePrivateStateDirectory(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): PrivateDirectoryIdentity {
   assertSafeStatePath(path, environment);
-  const root = wrenchStateHome(environment);
+  const root = ghostgetStateHome(environment);
   const identity = ensureClaimedStateRoot(root);
   const segments = stateSegments(root, path);
   if (segments.length === 0) return identity;
@@ -1447,10 +1451,10 @@ export function createPrivateStateDirectory(
   expectedParent?: Readonly<PrivateDirectoryIdentity>,
 ): PrivateDirectoryIdentity {
   assertSafeStatePath(path, environment, false);
-  const root = wrenchStateHome(environment);
+  const root = ghostgetStateHome(environment);
   const identity = ensureClaimedStateRoot(root);
   const segments = stateSegments(root, path);
-  if (segments.length < 2) throw new Error("only a nested wrench state directory can be created exclusively");
+  if (segments.length < 2) throw new Error("only a nested ghostget state directory can be created exclusively");
   const directoryExpectations = [...captureStateDirectoryExpectations(root, segments)];
   if (directoryExpectations.at(-1) !== null) throw new Error("private state directory already exists");
   if (expectedParent !== undefined) {
@@ -1475,10 +1479,10 @@ export function readPrivateStateFileBytesIfPresent(
   expectedStateDirectories?: readonly Readonly<PrivateDirectoryIdentity>[],
 ): Buffer | null {
   assertSafeStatePath(path, environment);
-  const root = wrenchStateHome(environment);
+  const root = ghostgetStateHome(environment);
   const identity = ensureClaimedStateRoot(root);
   const segments = stateSegments(root, path);
-  if (segments.length < 2) throw new Error(`${label} must be nested inside an wrench state directory`);
+  if (segments.length < 2) throw new Error(`${label} must be nested inside an ghostget state directory`);
   const directoryExpectations = [...captureStateDirectoryExpectations(root, segments.slice(0, -1))];
   if (expectedStateDirectories !== undefined) {
     if (expectedStateDirectories.length !== directoryExpectations.length) {
@@ -1557,7 +1561,7 @@ export function readRegularFile(
   if (stateRoot !== null) {
     ensurePrivateDirectory(stateRoot);
     const record = assertStateRootIdentity(stateRoot);
-    if (record.identity === null || !record.claimed) throw new Error("wrench state root is not claimed");
+    if (record.identity === null || !record.claimed) throw new Error("ghostget state root is not claimed");
     const segments = stateSegments(stateRoot, path);
     if (segments.length === 0) {
       throw new Error(`${label} must be a regular file no larger than ${maximumBytes} bytes`);
@@ -1677,9 +1681,9 @@ export function writePrivateJson(path: string, value: unknown, options: { readon
  * The content hash includes the canonical trailing newline written by this
  * module. A false result is an ordinary compare-and-swap conflict; every
  * filesystem, ownership, permission, or helper failure still throws. State
- * and non-state Wrench writers participate in the helper's per-leaf mutation
+ * and non-state Ghostget writers participate in the helper's per-leaf mutation
  * claim. As with the state helper, arbitrary same-UID writes made outside the
- * bounded Wrench helper are outside that cooperative serialization boundary.
+ * bounded Ghostget helper are outside that cooperative serialization boundary.
  */
 export function writePrivateJsonIfUnchanged(
   path: string,
@@ -1730,7 +1734,7 @@ export function writePrivateJsonIfUnchanged(
       || options.pauseAfterMutationClaimReadForTest === true
       || options.failAfterCommitForTest === true
     ) {
-      throw new Error("compare-and-swap fault injection requires a WRENCH_STATE_HOME path");
+      throw new Error("compare-and-swap fault injection requires a GHOSTGET_STATE_HOME path");
     }
     const parentParts = ensureBoundNonStateDirectory(
       dirname(path),
@@ -1815,9 +1819,9 @@ export function createPrivateJsonIfAbsent(
   } = {},
 ): { readonly created: boolean } {
   const parent = dirname(path);
-  // An explicit environment means the caller intends a dedicated Wrench state path.
+  // An explicit environment means the caller intends a dedicated Ghostget state path.
   // Register and validate that root before classifying the destination.
-  if (options.environment !== undefined) wrenchStateHome(options.environment);
+  if (options.environment !== undefined) ghostgetStateHome(options.environment);
   const stateRoot = stateRootFor(path);
   if (stateRoot !== null) {
     const identity = ensureClaimedStateRoot(stateRoot);
@@ -1867,7 +1871,7 @@ export function createPrivateJsonIfAbsent(
     return { created: response.created === true };
   }
   if (options.expectedStateParent !== undefined || options.expectedStateDirectories !== undefined) {
-    throw new Error("state-directory identity expectations require an wrench state path");
+    throw new Error("state-directory identity expectations require an ghostget state path");
   }
   if (options.environment !== undefined) assertSafeStatePath(path, options.environment);
   if (options.beforePublish !== undefined) {
@@ -1899,10 +1903,10 @@ export function removePrivateStateFile(
   expectedStateParent?: Readonly<PrivateDirectoryIdentity>,
 ): boolean {
   assertSafeStatePath(path, environment);
-  const root = wrenchStateHome(environment);
+  const root = ghostgetStateHome(environment);
   ensurePrivateDirectory(root);
   const record = assertStateRootIdentity(root);
-  if (record.identity === null || !record.claimed) throw new Error("wrench state root is not claimed");
+  if (record.identity === null || !record.claimed) throw new Error("ghostget state root is not claimed");
   const segments = stateSegments(root, path);
   const directoryExpectations = [...captureStateDirectoryExpectations(root, segments.slice(0, -1))];
   if (expectedStateParent !== undefined && directoryExpectations.length > 0 && directoryExpectations.at(-1) !== null) {
@@ -1927,7 +1931,7 @@ export function removePrivateStateFileIfUnchanged(
     throw new Error("expected private state content hash is invalid");
   }
   assertSafeStatePath(path, environment);
-  const root = wrenchStateHome(environment);
+  const root = ghostgetStateHome(environment);
   const identity = ensureClaimedStateRoot(root);
   const segments = stateSegments(root, path);
   if (segments.length < 2) {
@@ -1969,10 +1973,10 @@ export function snapshotPrivateStateDirectory(
     readonly recoverOrphanedMutationClaims?: boolean;
   } = {},
 ): PrivateStateDirectorySnapshot {
-  const root = wrenchStateHome(environment);
+  const root = ghostgetStateHome(environment);
   const identity = ensureClaimedStateRoot(root);
   const segments = stateSegments(root, path);
-  if (segments.length === 0) throw new Error("the wrench state root cannot be listed as a state collection");
+  if (segments.length === 0) throw new Error("the ghostget state root cannot be listed as a state collection");
   const directoryExpectations = [...captureStateDirectoryExpectations(root, segments)];
   if (expectedTarget !== undefined && directoryExpectations.at(-1) !== null) {
     directoryExpectations[directoryExpectations.length - 1] = expectedTarget;
@@ -2055,7 +2059,7 @@ export function readPrivateStateFilesBatch(
   let directoryExpectations: StateDirectoryExpectation[];
   try {
     assertSafeStatePath(path, environment);
-    root = wrenchStateHome(environment);
+    root = ghostgetStateHome(environment);
     identity = ensureClaimedStateRoot(root);
     segments = stateSegments(root, path);
     if (segments.length === 0) {
@@ -2297,7 +2301,7 @@ export function readPrivateStateChildFilesBatch(
   let directoryExpectations: StateDirectoryExpectation[];
   try {
     assertSafeStatePath(path, environment);
-    root = wrenchStateHome(environment);
+    root = ghostgetStateHome(environment);
     identity = ensureClaimedStateRoot(root);
     segments = stateSegments(root, path);
     if (segments.length === 0) {
@@ -2494,10 +2498,10 @@ export function removePrivateStateDirectoryTree(
   expectedTarget?: Readonly<StateRootIdentity>,
   expectedParent?: Readonly<StateRootIdentity>,
 ): boolean {
-  const root = wrenchStateHome(environment);
+  const root = ghostgetStateHome(environment);
   const identity = ensureClaimedStateRoot(root);
   const segments = stateSegments(root, path);
-  if (segments.length < 2) throw new Error("only a nested wrench state directory can be recursively removed");
+  if (segments.length < 2) throw new Error("only a nested ghostget state directory can be recursively removed");
   const captured = [...captureStateDirectoryExpectations(root, segments)];
   if (expectedTarget !== undefined && captured.at(-1) !== null) captured[captured.length - 1] = expectedTarget;
   if (expectedParent !== undefined && captured.length > 1 && captured.at(-2) !== null) {
@@ -2524,10 +2528,10 @@ export function removePrivateEmptyStateDirectory(
   if (options.raceForTest !== undefined && process.env.NODE_ENV !== "test") {
     throw new Error("empty-directory race injection is available only under the test runtime");
   }
-  const root = wrenchStateHome(environment);
+  const root = ghostgetStateHome(environment);
   const identity = ensureClaimedStateRoot(root);
   const segments = stateSegments(root, path);
-  if (segments.length < 2) throw new Error("only a nested wrench state directory can be removed");
+  if (segments.length < 2) throw new Error("only a nested ghostget state directory can be removed");
   const captured = [...captureStateDirectoryExpectations(root, segments)];
   if (expectedTarget !== undefined && captured.at(-1) !== null) captured[captured.length - 1] = expectedTarget;
   if (expectedParent !== undefined && captured.length > 1 && captured.at(-2) !== null) {
@@ -2542,14 +2546,14 @@ export function removePrivateEmptyStateDirectory(
 }
 
 export function adapterDirectory(environment: Readonly<Record<string, string | undefined>> = process.env): string {
-  return join(wrenchStateHome(environment), "adapters");
+  return join(ghostgetStateHome(environment), "adapters");
 }
 
 export function adapterManifestPath(id: string, environment: Readonly<Record<string, string | undefined>> = process.env): string {
   if (!/^[a-z][a-z0-9-]{0,47}$/u.test(id)) throw new Error("adapter ID must be lowercase kebab-case");
   // This filename is persisted state, not product copy. Keep the schema-v1
   // spelling byte-stable so interrupted upgrades and existing installations
-  // remain readable after the Wrench rename. Source/scaffold manifests use the new
+  // remain readable after the Ghostget rename. Source/scaffold manifests use the new
   // `wrench-adapter.json` name and are normalized into this compatibility mirror.
   return join(adapterDirectory(environment), id, "io-adapter.json");
 }
@@ -2611,7 +2615,7 @@ export type BundledAdapterGenerationSelection =
       readonly id: string;
       readonly state: "present";
       /** Runtime-valid current or diagnostic-only preserved manifest. */
-      readonly manifest: WrenchManifest;
+      readonly manifest: GhostgetManifest;
       /** Hash of the exact source bytes parsed to produce `manifest`. */
       readonly sourceContentSha256: string;
       /**
@@ -2652,7 +2656,7 @@ function isAdapterId(value: unknown): value is string {
 function adapterGenerationDirectory(
   environment: Readonly<Record<string, string | undefined>>,
 ): string {
-  return join(wrenchStateHome(environment), "adapter-generations");
+  return join(ghostgetStateHome(environment), "adapter-generations");
 }
 
 function adapterGenerationIndexPath(
@@ -2989,7 +2993,7 @@ function writeAdapterGenerationIndex(
 }
 
 function publishAdapterGenerationObject(
-  manifest: WrenchManifest,
+  manifest: GhostgetManifest,
   sourceContentSha256: string,
   environment: Readonly<Record<string, string | undefined>>,
   registry: ProviderPluginRegistry,
@@ -3038,7 +3042,7 @@ function publishAdapterGenerationObject(
 function readAdapterGenerationObject(
   entry: AdapterGenerationPresentEntry,
   environment: Readonly<Record<string, string | undefined>>,
-  parseInstalled: (value: unknown) => ParseResult<WrenchManifest>,
+  parseInstalled: (value: unknown) => ParseResult<GhostgetManifest>,
 ): InstalledManifestSnapshot {
   let content: string | null;
   try {
@@ -3064,7 +3068,7 @@ function readAdapterGenerationObject(
 function parseAdapterGenerationObjectContent(
   entry: AdapterGenerationPresentEntry,
   content: string | null,
-  parseInstalled: (value: unknown) => ParseResult<WrenchManifest>,
+  parseInstalled: (value: unknown) => ParseResult<GhostgetManifest>,
 ): InstalledManifestSnapshot {
   if (content === null || sha256(content) !== entry.objectContentSha256) {
     return {
@@ -3354,7 +3358,7 @@ export function installBundledAdapterGeneration(
 
     // Keep the historical flat layout as a compatibility mirror. The atomic
     // generation index is already authoritative, so interruption here cannot
-    // expose a mixed generation to Wrench readers.
+    // expose a mixed generation to Ghostget readers.
     for (const selection of selections) {
       if (
         selection.state !== "present"
@@ -3375,7 +3379,7 @@ export function installBundledAdapterGeneration(
 export function readManifestFile(
   path: string,
   registry?: ProviderPluginRegistry,
-): ParseResult<WrenchManifest> {
+): ParseResult<GhostgetManifest> {
   try {
     return parseRuntimeManifest(readJsonFile(path), requireManifestRegistry(registry));
   } catch (error) {
@@ -3392,7 +3396,7 @@ export function readManifestFile(
 export function readDiagnosticManifestFile(
   path: string,
   registry?: ProviderPluginRegistry,
-): ParseResult<WrenchManifest> {
+): ParseResult<GhostgetManifest> {
   try {
     return parseDiagnosticManifest(
       readJsonFile(path),
@@ -3404,7 +3408,7 @@ export function readDiagnosticManifestFile(
 }
 
 export type InstalledManifestSnapshot = {
-  readonly result: ParseResult<WrenchManifest>;
+  readonly result: ParseResult<GhostgetManifest>;
   readonly availability: "absent" | "present" | "unsafe";
   /** Hash of the exact private file bytes read for this snapshot. */
   readonly contentSha256: string | null;
@@ -3413,7 +3417,7 @@ export type InstalledManifestSnapshot = {
 function loadInstalledManifestSnapshotWith(
   id: string,
   environment: Readonly<Record<string, string | undefined>>,
-  parseInstalled: (value: unknown) => ParseResult<WrenchManifest>,
+  parseInstalled: (value: unknown) => ParseResult<GhostgetManifest>,
 ): InstalledManifestSnapshot {
   let index: AdapterGenerationIndex | null;
   try {
@@ -3644,12 +3648,12 @@ export function loadInstalledManifest(
   id: string,
   environment: Readonly<Record<string, string | undefined>> = process.env,
   registry?: ProviderPluginRegistry,
-): ParseResult<WrenchManifest> {
+): ParseResult<GhostgetManifest> {
   return loadInstalledManifestSnapshot(id, environment, registry).result;
 }
 
 export function installManifest(
-  manifest: WrenchManifest,
+  manifest: GhostgetManifest,
   options: {
     readonly force: boolean;
     readonly environment?: Readonly<Record<string, string | undefined>>;
@@ -3766,7 +3770,7 @@ export function installManifest(
         `adapter ${manifest.id} is already installed and differs; pass --force to replace it`,
       );
     }
-    const root = wrenchStateHome(environment);
+    const root = ghostgetStateHome(environment);
     const identity = ensureClaimedStateRoot(root);
     const segments = stateSegments(root, path);
     const directoryExpectations = captureStateDirectoryExpectations(
@@ -3821,7 +3825,7 @@ export function removeInstalledManifest(
 export function listInstalledManifests(
   environment: Readonly<Record<string, string | undefined>> = process.env,
   registry?: ProviderPluginRegistry,
-): readonly { readonly id: string; readonly result: ParseResult<WrenchManifest> }[] {
+): readonly { readonly id: string; readonly result: ParseResult<GhostgetManifest> }[] {
   return Object.freeze(
     listInstalledDiagnosticManifestSnapshots(environment, registry).map(
       ({ id, snapshot }) => Object.freeze({

@@ -1,3 +1,4 @@
+import { releaseIdentity } from "../website/github-release-artifact.mjs";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename, isAbsolute, resolve } from "node:path";
@@ -108,9 +109,6 @@ function hasControlCharacters(value: string): boolean {
 }
 
 function expectedFilename(name: string, version: string): string {
-  if (name !== "@hraness/wrench") {
-    throw new Error(`Expected package name must be @hraness/wrench, received ${name}`);
-  }
   const match = stableVersionPattern.exec(version);
   if (
     match?.[1] === undefined
@@ -120,7 +118,9 @@ function expectedFilename(name: string, version: string): string {
   ) {
     throw new Error(`Expected package version is not stable semantic version: ${version}`);
   }
-  return `hraness-wrench-${version}.tgz`;
+  const identity = releaseIdentity(`v${version}`);
+  if (name !== identity.package) throw new Error(`Expected package name for ${version} must be ${identity.package}, received ${name}`);
+  return `${identity.archivePrefix}-${version}.tgz`;
 }
 
 function canonicalRegistryTarball(name: string, version: string): string {
@@ -177,7 +177,7 @@ export async function verifyPackArtifact(
   const [archiveBytes, metadataBytes, inventory] = await Promise.all([
     readFile(archive),
     readFile(packJson),
-    inspectPackageArtifact(archive),
+    inspectPackageArtifact(archive, expectedName),
   ]);
   let parsed: unknown;
   try {
@@ -240,7 +240,6 @@ export async function verifyPackArtifact(
     || identity.id !== `${expectedName}@${expectedVersion}`
     || identity.version !== expectedVersion
     || identity.filename !== filename
-    || !/^hraness-wrench-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.tgz$/u.test(identity.filename)
   ) {
     throw new Error(`${label} npm pack identity does not match ${expectedName}@${expectedVersion}`);
   }

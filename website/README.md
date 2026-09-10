@@ -1,8 +1,8 @@
-# wrench.rip
+# ghostget.com
 
-This directory owns the public Wrench landing page. It is a deterministic,
+This directory owns the public Ghostget landing page. It is a deterministic,
 dependency-free static build whose release facts come from the repository-root
-package metadata. The published `@hraness/wrench` package excludes this entire
+package metadata. The published `@hraness/ghostget` package excludes this entire
 directory through its explicit `files` allowlist.
 
 The page is fully readable without JavaScript. A small progressive enhancement
@@ -14,11 +14,13 @@ two explicit repository links. Set `NEXT_PUBLIC_POSTHOG_KEY` to the shared
 project's public `phc_` token; `NEXT_PUBLIC_POSTHOG_HOST` defaults to
 `https://us.i.posthog.com`. Set
 `NEXT_PUBLIC_HRANESS_MAILING_TURNSTILE_SITEKEY` to the public Cloudflare
-Turnstile sitekey registered for `wrench.rip` to enable the product-specific
-Wrench mailing-list form. Production builds require a valid key and fail closed
+Turnstile sitekey registered for `ghostget.com` to enable the product-specific
+Ghostget mailing-list form. Production builds require a valid key and fail closed
 when it is absent or malformed. Local and Preview builds may omit it; in those
 environments the shared footer stays visible without rendering a signup form.
 The private Turnstile secret remains in the central Accounts service.
+The form retains the existing internal `wrench` audience ID so its subscribers
+remain attached to the same list; the public name and origin are Ghostget.
 No personal API key is used by the runtime build.
 
 ```sh
@@ -67,7 +69,7 @@ refs. A second update rule denies every updater except exact App `4783991` as an
 removed by captured numeric ID during the audited v0.16.4 production promotion;
 it is historical, not a live control. The retained privileged setup proof
 establishes that private Hraness App `4783991`, through installation
-`158077029`, is installed only on exact repository `hraness/wrench`. The App
+`158077029`, is installed only on exact repository `hraness/ghostget`. The App
 registration and each separately repository-narrowed runtime token use exactly
 `metadata:read`, `contents:write`, and `workflows:write`; the main-only
 writer environment holds the key and admits verified releases automatically.
@@ -86,7 +88,7 @@ Retained evidence is not standing mutation authority. At setup, after a control-
 and during drift recovery, fresh administrator readback must reconfirm the permanent
 rulesets and target refs, the sole App `4783991` `Integration` bypass, the
 App's exact permission set, and that installation `158077029` still selects
-only Wrench repository ID `1316443113`. It must also reconfirm the main-only
+only Ghostget repository ID `1316443113`. It must also reconfirm the main-only
 `production-ref-writer-key` environment, no required deployment reviewers or
 wait timer, `prevent_self_review=false`, disabled administrator bypass, exactly four App
 identity variables and the one private-key secret. Control changes include

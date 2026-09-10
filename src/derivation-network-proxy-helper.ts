@@ -28,7 +28,7 @@ import { captureProcessOwnerIdentity, processOwnerStatus } from "./process-ident
 const MAX_CONFIG_BYTES = 128 * 1024;
 const MAX_CONTROL_BYTES = 8 * 1024;
 const ADOPTION_TIMEOUT_MS = 30_000;
-const helperFailureEnvironmentKey = "WRENCH_DERIVATION_PROXY_FAIL_FOR_TEST";
+const helperFailureEnvironmentKey = "GHOSTGET_DERIVATION_PROXY_FAIL_FOR_TEST";
 
 type HelperFailureStage = "after-proxy" | "after-control-listen" | "after-ready-write";
 

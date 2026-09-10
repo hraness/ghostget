@@ -24,7 +24,7 @@ import { pathToFileURL } from "node:url";
 
 import {
   ensurePrivateStateDirectory,
-  wrenchStateHome,
+  ghostgetStateHome,
   readPrivateStateFileIfPresent,
   removePrivateStateFileIfUnchanged,
   writePrivateJson,
@@ -67,8 +67,8 @@ function state(): {
   const root = mkdtempSync(join(tmpdir(), "wrench-storage-cas-"));
   chmodSync(root, 0o700);
   roots.push(root);
-  const environment = { ...process.env, WRENCH_STATE_HOME: root };
-  const canonicalRoot = wrenchStateHome(environment);
+  const environment = { ...process.env, GHOSTGET_STATE_HOME: root };
+  const canonicalRoot = ghostgetStateHome(environment);
   ensurePrivateStateDirectory(join(canonicalRoot, "session-secrets"), environment);
   return { root: canonicalRoot, environment };
 }
@@ -129,14 +129,14 @@ function spawnPausedMutationClaimRead(
 } {
   const storageUrl = pathToFileURL(join(import.meta.dir, "storage.ts")).href;
   const childScript = `
-    import { wrenchStateHome, writePrivateJsonIfUnchanged } from ${JSON.stringify(storageUrl)};
-    const environment = { ...process.env, WRENCH_STATE_HOME: process.env.WRENCH_TEST_HOME };
-    wrenchStateHome(environment);
+    import { ghostgetStateHome, writePrivateJsonIfUnchanged } from ${JSON.stringify(storageUrl)};
+    const environment = { ...process.env, GHOSTGET_STATE_HOME: process.env.GHOSTGET_TEST_HOME };
+    ghostgetStateHome(environment);
     const written = writePrivateJsonIfUnchanged(
-      process.env.WRENCH_TEST_PATH,
+      process.env.GHOSTGET_TEST_PATH,
       { version: 2 },
       {
-        expectedCurrentContentSha256: process.env.WRENCH_TEST_EXPECTED,
+        expectedCurrentContentSha256: process.env.GHOSTGET_TEST_EXPECTED,
         pauseAfterMutationClaimReadForTest: true,
       },
     );
@@ -146,9 +146,9 @@ function spawnPausedMutationClaimRead(
     env: {
       ...process.env,
       NODE_ENV: "test",
-      WRENCH_TEST_HOME: root,
-      WRENCH_TEST_PATH: path,
-      WRENCH_TEST_EXPECTED: expected,
+      GHOSTGET_TEST_HOME: root,
+      GHOSTGET_TEST_PATH: path,
+      GHOSTGET_TEST_EXPECTED: expected,
     },
     stdout: "pipe",
     stderr: "pipe",
@@ -229,15 +229,15 @@ describe("private state compare-and-swap writes", () => {
     const releasePath = join(directory, ".wrench-test-cas-release");
     const storageUrl = pathToFileURL(join(import.meta.dir, "storage.ts")).href;
     const childScript = `
-      import { wrenchStateHome, writePrivateJsonIfUnchanged } from ${JSON.stringify(storageUrl)};
-      const environment = { ...process.env, WRENCH_STATE_HOME: process.env.WRENCH_TEST_HOME };
-      wrenchStateHome(environment);
+      import { ghostgetStateHome, writePrivateJsonIfUnchanged } from ${JSON.stringify(storageUrl)};
+      const environment = { ...process.env, GHOSTGET_STATE_HOME: process.env.GHOSTGET_TEST_HOME };
+      ghostgetStateHome(environment);
       const written = writePrivateJsonIfUnchanged(
-        process.env.WRENCH_TEST_PATH,
-        { version: Number(process.env.WRENCH_TEST_VERSION) },
+        process.env.GHOSTGET_TEST_PATH,
+        { version: Number(process.env.GHOSTGET_TEST_VERSION) },
         {
-          expectedCurrentContentSha256: process.env.WRENCH_TEST_EXPECTED,
-          pauseAfterClaimForTest: process.env.WRENCH_TEST_PAUSE === "1",
+          expectedCurrentContentSha256: process.env.GHOSTGET_TEST_EXPECTED,
+          pauseAfterClaimForTest: process.env.GHOSTGET_TEST_PAUSE === "1",
         },
       );
       process.stdout.write(written ? "true" : "false");
@@ -246,11 +246,11 @@ describe("private state compare-and-swap writes", () => {
       env: {
         ...process.env,
         NODE_ENV: "test",
-        WRENCH_TEST_HOME: root,
-        WRENCH_TEST_PATH: path,
-        WRENCH_TEST_EXPECTED: expected,
-        WRENCH_TEST_VERSION: "2",
-        WRENCH_TEST_PAUSE: "1",
+        GHOSTGET_TEST_HOME: root,
+        GHOSTGET_TEST_PATH: path,
+        GHOSTGET_TEST_EXPECTED: expected,
+        GHOSTGET_TEST_VERSION: "2",
+        GHOSTGET_TEST_PAUSE: "1",
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -269,11 +269,11 @@ describe("private state compare-and-swap writes", () => {
         env: {
           ...process.env,
           NODE_ENV: "test",
-          WRENCH_TEST_HOME: root,
-          WRENCH_TEST_PATH: path,
-          WRENCH_TEST_EXPECTED: expected,
-          WRENCH_TEST_VERSION: "3",
-          WRENCH_TEST_PAUSE: "0",
+          GHOSTGET_TEST_HOME: root,
+          GHOSTGET_TEST_PATH: path,
+          GHOSTGET_TEST_EXPECTED: expected,
+          GHOSTGET_TEST_VERSION: "3",
+          GHOSTGET_TEST_PAUSE: "0",
         },
         stdout: "pipe",
         stderr: "pipe",

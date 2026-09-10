@@ -218,8 +218,8 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
       kind: "plugin.result",
       invocationId,
       output: {
-        envLoaded: process.env.WRENCH_PORTABLE_PLUGIN_ENV_POISON === "loaded",
-        preloadLoaded: globalThis.__wrenchPortablePluginPreloadPoison === true,
+        envLoaded: process.env.GHOSTGET_PORTABLE_PLUGIN_ENV_POISON === "loaded",
+        preloadLoaded: globalThis.__ghostgetPortablePluginPreloadPoison === true,
       },
       finalUrl: null,
     });
@@ -694,11 +694,11 @@ describe("portable provider plugin child-process host", () => {
               ).toBe(0o400);
               writeFileSync(
                 join(packageValue.root, ".env"),
-                "WRENCH_PORTABLE_PLUGIN_ENV_POISON=loaded\n",
+                "GHOSTGET_PORTABLE_PLUGIN_ENV_POISON=loaded\n",
               );
               writeFileSync(
                 join(packageValue.root, "preload.mjs"),
-                "globalThis.__wrenchPortablePluginPreloadPoison = true;\n",
+                "globalThis.__ghostgetPortablePluginPreloadPoison = true;\n",
               );
               writeFileSync(
                 join(packageValue.root, "bunfig.toml"),

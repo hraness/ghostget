@@ -1813,6 +1813,8 @@ function surfaceDecision(
   return Object.freeze({ disposition, rationale, operation, replacement, fixedValue });
 }
 
+// This reviewed surface includes historical Wrench wording in signed digest
+// inputs. Preserve it verbatim across the Ghostget branding migration.
 const BEEPER_CLI_V062_GLOBAL_FLAGS = Object.freeze([
   Object.freeze({
     name: "--base-url", aliases: Object.freeze([]), source: "global" as const,

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import {
   PreservedBrowserArtifactsError,
   browserResultData,
@@ -9,7 +9,7 @@ import {
   type BrowserSession,
   type CreateBrowserSessionOptions,
 } from "../browser";
-import type { WrenchManifest } from "../model";
+import type { GhostgetManifest } from "../model";
 import type {
   WebSessionCleanupResourcePublisher,
   WebSessionOperationDeadline,
@@ -33,7 +33,7 @@ const MAX_VIEWER_HTML_BYTES = 12 * 1024 * 1024;
 const MAX_PROFILE_JSON_BYTES = 8 * 1024 * 1024;
 const BROWSER_ENVELOPE_BYTES = 64 * 1024;
 
-const profileBrowserManifest: WrenchManifest = Object.freeze({
+const profileBrowserManifest: GhostgetManifest = Object.freeze({
   schemaVersion: 4,
   id: "instagram-profile-runtime",
   version: "1.0.0",
@@ -301,7 +301,7 @@ function classifiedBrowserCommandFailure(
 
 function instagramProfileBrowserCommandRunner(
   execute: typeof runCommand,
-  authKind: WrenchAuth["kind"],
+  authKind: GhostgetAuth["kind"],
 ): typeof runCommand {
   let initialBatchPending = true;
   return (command, options) => {
@@ -354,7 +354,7 @@ async function finalizeBrowserSession(session: BrowserSession): Promise<void> {
   );
 }
 
-function assertSupportedAuth(auth: WrenchAuth): void {
+function assertSupportedAuth(auth: GhostgetAuth): void {
   if (
     auth.kind !== "cookie-source"
     && auth.kind !== "cookies-file"
@@ -365,7 +365,7 @@ function assertSupportedAuth(auth: WrenchAuth): void {
 }
 
 export async function createInstagramProfileBrowserTransport(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs: number;
     readonly maxOutputBytes: number;

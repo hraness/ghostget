@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { canonicalJson, sha256 } from "../canonical-json";
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { ProviderMessageV1 } from "../omni-model";
 import { OperationDeadline } from "../operation-deadline";
 import { beeperLinkedDevicePlugin } from "../plugins/beeper-linked-device/plugin";
@@ -524,7 +524,7 @@ describe("provider messaging coordinate codecs", () => {
     const binding = beeperLinkedDevicePlugin.bindings[0]!;
     const runtime = await binding.loadRuntime();
     expect(typeof runtime.executeMessagingPart).toBe("function");
-    const auth: WrenchAuth = Object.freeze({
+    const auth: GhostgetAuth = Object.freeze({
       schemaVersion: 1,
       id: "beeper-main",
       kind: "linked-device-store",
@@ -654,7 +654,7 @@ describe("provider messaging coordinate codecs", () => {
       state: "unavailable",
       reply: "unsupported",
       reason:
-        "capture-required: the official read runtime has no Wrench-qualified mutation transport",
+        "capture-required: the official read runtime has no Ghostget-qualified mutation transport",
     });
   });
 });

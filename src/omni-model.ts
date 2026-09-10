@@ -173,7 +173,7 @@ export type OmniPageProvenanceV1 = {
 };
 
 export type OmniEntityV1 = ProviderMaterializedEntityV1 & {
-  /** Account-lifetime-scoped opaque Wrench identity. */
+  /** Account-lifetime-scoped opaque Ghostget identity. */
   readonly id: string;
   /** Canonical revision of the normalized semantic bytes. */
   readonly revision: string;

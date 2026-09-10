@@ -30,13 +30,13 @@ import {
 import { startNetworkProxy, type LocalNetworkProxy } from "@hraness/kb/clip/network-proxy";
 import { redactSensitiveText } from "@hraness/kb/clip/persist";
 import { sanitizeTerminalLine } from "@hraness/kb/clip/terminal";
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import type { OperationDeadline } from "./operation-deadline";
 import type {
   BrowserRecipe,
   FileInputValue,
   OperationInput,
-  WrenchManifest,
+  GhostgetManifest,
 } from "./model";
 import { localBrowserCdpUrl } from "./derivation-file-chooser";
 import { DOM_ACTION_TRANSPORT_DISABLED_MESSAGE } from "./transport-policy";
@@ -51,7 +51,7 @@ type JsonRecord = Record<string, unknown>;
 
 /** Browser recipes are never an action transport for registered signed-in sites. */
 export function assertBrowserManifestOriginPolicy(
-  manifest: WrenchManifest,
+  manifest: GhostgetManifest,
   isProtectedHostname: (hostname: string) => boolean,
 ): void {
   for (const domain of manifest.browserDomains) {
@@ -156,7 +156,7 @@ export type CreateBrowserSessionOptions = {
   /**
    * Persists the exact private roots before a proxy or browser can launch.
    * The durable registrar reconciles an ambiguous commit before returning.
-   * Any other throw is still treated as potentially committed, so Wrench
+   * Any other throw is still treated as potentially committed, so Ghostget
    * preserves the roots instead of destroying recovery evidence.
    */
   readonly publishCleanupResource?: ((
@@ -1018,8 +1018,8 @@ const reviewedOwnedChromeArguments = new Set([
 ]);
 
 /**
- * Build one pinned --args value for a Wrench-owned fresh or cloned Chrome.
- * Callers supply only code-owned arguments; Wrench never accepts raw launch
+ * Build one pinned --args value for a Ghostget-owned fresh or cloned Chrome.
+ * Callers supply only code-owned arguments; Ghostget never accepts raw launch
  * arguments from manifests, operation input, auth locators, or the CLI.
  */
 export function ownedChromeLaunchArguments(
@@ -1061,7 +1061,7 @@ export function ownedBrowserProxyArguments(
 }
 
 /**
- * Add the one Wrench-owned MV3 guard to the already reviewed proxy launch.
+ * Add the one Ghostget-owned MV3 guard to the already reviewed proxy launch.
  * The path is derived from a private derivation root; caller-selected Chrome
  * arguments remain impossible.
  */
@@ -3028,8 +3028,8 @@ function cleanupFailureCause(
 }
 
 export async function createBrowserSession(
-  manifest: WrenchManifest,
-  auth: WrenchAuth,
+  manifest: GhostgetManifest,
+  auth: GhostgetAuth,
   options: CreateBrowserSessionOptions,
 ): Promise<BrowserSession> {
   if (process.platform === "win32") {
@@ -3675,10 +3675,10 @@ export async function createBrowserSession(
 
 /** Retired DOM-action boundary. Browsers remain capture/bootstrap-only. */
 export function executeBrowserRecipe(
-  manifest: WrenchManifest,
+  manifest: GhostgetManifest,
   recipe: BrowserRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly headed: boolean;
     readonly createSession?: typeof createBrowserSession;

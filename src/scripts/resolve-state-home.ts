@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { ensurePrivateStateDirectory, wrenchStateHome } from "../storage";
+import { ensurePrivateStateDirectory, ghostgetStateHome } from "../storage";
 
 const runtimeVersionPattern = /^(?:0|[1-9][0-9]{0,8})\.(?:0|[1-9][0-9]{0,8})\.(?:0|[1-9][0-9]{0,8})$/u;
 
@@ -11,7 +11,7 @@ export function prepareStateHome(
   if (!runtimeVersionPattern.test(runtimeVersion)) {
     throw new Error("the WhatsApp runtime version must be a canonical numeric semantic version");
   }
-  const root = wrenchStateHome(environment);
+  const root = ghostgetStateHome(environment);
   ensurePrivateStateDirectory(join(root, "tools", "wacli", runtimeVersion), environment);
   return root;
 }
@@ -23,7 +23,7 @@ if (import.meta.main) {
     process.stdout.write(`${prepareStateHome(arguments_[0] ?? "")}\n`);
   } catch (error) {
     process.stderr.write(
-      `wrench state-home resolver: ${error instanceof Error ? error.message : "unknown failure"}\n`,
+      `ghostget state-home resolver: ${error instanceof Error ? error.message : "unknown failure"}\n`,
     );
     process.exitCode = 1;
   }

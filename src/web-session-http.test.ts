@@ -5,7 +5,7 @@ import type {
   CookieSelection,
 } from "@hraness/kb/clip/acquire";
 import type { StrictCookie } from "@hraness/kb/clip/cookies";
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import type { OperationInput } from "./model";
 import {
   executeWebSessionTemplate,
@@ -20,7 +20,7 @@ const auth = {
   kind: "cookie-source",
   source: "arc",
   profile: "Profile 1",
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 const input = {
   post_id: "post é?value",
@@ -657,7 +657,7 @@ describe("reviewed authenticated web-session HTTP", () => {
   });
 
   test("accepts only cookie-capable auth locators and never asks for cookies with OAuth auth", async () => {
-    const unsupported: readonly WrenchAuth[] = [
+    const unsupported: readonly GhostgetAuth[] = [
       {
         schemaVersion: 1,
         id: "profile-only",
@@ -690,7 +690,7 @@ describe("reviewed authenticated web-session HTTP", () => {
   });
 
   test("maps cookies-file and hybrid browser-profile locators to exact cookie selections", async () => {
-    const cases: readonly [WrenchAuth, CookieSelection][] = [
+    const cases: readonly [GhostgetAuth, CookieSelection][] = [
       [
         { schemaVersion: 1, id: "file", kind: "cookies-file", path: "/private/cookies.json" },
         { cookieSources: [], cookiesFile: "/private/cookies.json", cookieProfile: undefined, timeoutMs: 2_000 },

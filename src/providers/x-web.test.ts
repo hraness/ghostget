@@ -128,11 +128,11 @@ describe("X query descriptor revision evidence", () => {
       observedOn: "2026-09-09",
     });
     expect(bookmarks.queryId).not.toBe("iblrFnKr6PZUR-dWpfXG6g");
-    expect(bookmarks.queryId).not.toBe("LoLaMO4GuHLEPJWrenchH9kjAw");
+    expect(bookmarks.queryId).not.toBe("LoLaMO4GuHLEPJGhostgetH9kjAw");
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
       .not.toContain("iblrFnKr6PZUR-dWpfXG6g");
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
-      .not.toContain("LoLaMO4GuHLEPJWrenchH9kjAw");
+      .not.toContain("LoLaMO4GuHLEPJGhostgetH9kjAw");
   });
 
   test("records the current reviewed UserTweets and SearchTimeline observations", () => {
@@ -393,7 +393,7 @@ describe("X browser-session header sink policy", () => {
     expect(authorized.values.authorization).toBeUndefined();
   });
 
-  test("allows only Wrench-owned deterministic multipart boundaries for image upload", () => {
+  test("allows only Ghostget-owned deterministic multipart boundaries for image upload", () => {
     expect(enforceXWebHeaderSinkPolicy({
       source: "code",
       sink: "network-request",

@@ -11,12 +11,12 @@ import { join } from "node:path";
 import {
   createAuth,
   saveAuth,
-  type WrenchAuth,
+  type GhostgetAuth,
 } from "./auth";
 import {
   parseRuntimeManifest,
   type BrowserDispatchPlan,
-  type WrenchManifest,
+  type GhostgetManifest,
   type OperationInput,
   type OperationRisk,
 } from "./model";
@@ -46,8 +46,8 @@ type UnsafePlanner = (input: OperationInput) => unknown;
 
 type RuntimeHarness = {
   readonly registry: ProviderPluginRegistry;
-  readonly manifest: WrenchManifest;
-  readonly auth: WrenchAuth;
+  readonly manifest: GhostgetManifest;
+  readonly auth: GhostgetAuth;
   readonly invocation: PreparedInvocation;
   readonly executions: () => number;
 };
@@ -62,7 +62,7 @@ function state(): TestState {
   chmodSync(directory, 0o700);
   return {
     directory,
-    environment: { WRENCH_STATE_HOME: directory },
+    environment: { GHOSTGET_STATE_HOME: directory },
   };
 }
 

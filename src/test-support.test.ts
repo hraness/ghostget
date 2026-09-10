@@ -19,30 +19,30 @@ describe("property replay coordinates", () => {
 
   test("accepts one exact seed with an optional shrink path", () => {
     expect(propertyReplayParameters({
-      WRENCH_PROPERTY_SEED: "-17",
+      GHOSTGET_PROPERTY_SEED: "-17",
     })).toEqual({ seed: -17 });
     expect(propertyReplayParameters({
-      WRENCH_PROPERTY_SEED: "2147483647",
-      WRENCH_PROPERTY_PATH: "3:0",
+      GHOSTGET_PROPERTY_SEED: "2147483647",
+      GHOSTGET_PROPERTY_PATH: "3:0",
     })).toEqual({ seed: 2_147_483_647, path: "3:0" });
     expect(propertyReplayParameters({
-      WRENCH_PROPERTY_SEED: "1",
-      WRENCH_PROPERTY_PATH: "0:1:10000",
+      GHOSTGET_PROPERTY_SEED: "1",
+      GHOSTGET_PROPERTY_PATH: "0:1:10000",
     })).toEqual({ seed: 1, path: "0:1:10000" });
   });
 
   test("fails closed on ambiguous, noncanonical, or unbounded input", () => {
     expect(() => propertyReplayParameters({
-      WRENCH_PROPERTY_PATH: "1:0",
-    })).toThrow("requires WRENCH_PROPERTY_SEED");
+      GHOSTGET_PROPERTY_PATH: "1:0",
+    })).toThrow("requires GHOSTGET_PROPERTY_SEED");
     for (const seed of ["-0", "01", "+1", "2147483648", "1.5", "seed"]) {
       expect(() => propertyReplayParameters({
-        WRENCH_PROPERTY_SEED: seed,
+        GHOSTGET_PROPERTY_SEED: seed,
       })).toThrow("canonical 32-bit integer");
     }
     for (const seed of [null, 1, true, {}]) {
       expect(() => propertyReplayParameters({
-        WRENCH_PROPERTY_SEED: seed,
+        GHOSTGET_PROPERTY_SEED: seed,
       })).toThrow("canonical 32-bit integer");
     }
     for (const path of [
@@ -59,14 +59,14 @@ describe("property replay coordinates", () => {
       `1:${"2".repeat(513)}`,
     ]) {
       expect(() => propertyReplayParameters({
-        WRENCH_PROPERTY_SEED: "1",
-        WRENCH_PROPERTY_PATH: path,
+        GHOSTGET_PROPERTY_SEED: "1",
+        GHOSTGET_PROPERTY_PATH: path,
       })).toThrow("bounded fast-check path");
     }
     for (const path of [null, 1, true, {}]) {
       expect(() => propertyReplayParameters({
-        WRENCH_PROPERTY_SEED: "1",
-        WRENCH_PROPERTY_PATH: path,
+        GHOSTGET_PROPERTY_SEED: "1",
+        GHOSTGET_PROPERTY_PATH: path,
       })).toThrow("bounded fast-check path");
     }
   });

@@ -1855,7 +1855,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 
-/* Premium surface. Wrench binds the shared Hraness product-marketing grammar:
+/* Premium surface. Ghostget binds the shared Hraness product-marketing grammar:
  * one text face, one amber accent, hairline chrome, and soft radii. The rules
  * below restyle the shared page chrome and then bind the homepage roles. Site
  * CSS sits outside the design-kit cascade layers, so link color stays scoped
@@ -2520,7 +2520,7 @@ body {
 }
 
 /* Server-rendered public discovery links from @hraness/ui. */
-.wrench-ask-ai {
+.ghostget-ask-ai {
   width: min(calc(100% - 2 * var(--page-inline)), 72rem);
   margin: 2.5rem auto 0;
   padding: 1.25rem 0;
@@ -2528,7 +2528,7 @@ body {
   color: var(--muted);
 }
 
-.wrench-ask-ai [data-slot="ask-ai-about-this-label"] {
+.ghostget-ask-ai [data-slot="ask-ai-about-this-label"] {
   color: inherit;
   font-family: inherit;
   font-size: 0.85rem;
@@ -2537,15 +2537,15 @@ body {
   text-transform: none;
 }
 
-.wrench-ask-ai,
-.wrench-ask-ai [data-slot="ask-ai-about-this-links"] {
+.ghostget-ask-ai,
+.ghostget-ask-ai [data-slot="ask-ai-about-this-links"] {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.wrench-ask-ai [data-slot="ask-ai-about-this-link"] {
+.ghostget-ask-ai [data-slot="ask-ai-about-this-link"] {
   background-color: transparent;
   display: inline-flex;
   align-items: center;
@@ -2563,29 +2563,29 @@ body {
   text-decoration: none;
 }
 
-.wrench-ask-ai [data-slot="ask-ai-about-this-link"]:hover {
+.ghostget-ask-ai [data-slot="ask-ai-about-this-link"]:hover {
   background-color: transparent;
   border-color: currentColor;
   color: var(--foreground);
 }
 
-.wrench-ask-ai [data-slot="ask-ai-about-this-link"]:focus-visible {
+.ghostget-ask-ai [data-slot="ask-ai-about-this-link"]:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
-.wrench-ask-ai [data-slot="ask-ai-about-this-icon"] {
+.ghostget-ask-ai [data-slot="ask-ai-about-this-icon"] {
   display: block;
   flex: 0 0 auto;
 }
 
 @media (pointer: coarse) {
-  .wrench-ask-ai [data-slot="ask-ai-about-this-link"] {
+  .ghostget-ask-ai [data-slot="ask-ai-about-this-link"] {
     min-height: 3rem;
   }
 }
 
-/* Homepage: the shared marketing grammar bound to Wrench content. */
+/* Homepage: the shared marketing grammar bound to Ghostget content. */
 .hraness-marketing-page {
   --hraness-marketing-measure: 72rem;
   padding-block-end: clamp(2rem, 6vw, 4rem);
@@ -2601,15 +2601,15 @@ body {
   font-size: 0.85em;
 }
 
-.wrench-product-hero {
+.ghostget-product-hero {
   grid-column: 1 / -1;
 }
 
-.wrench-product-hero .hraness-marketing-hero__heading {
+.ghostget-product-hero .hraness-marketing-hero__heading {
   max-inline-size: 22ch;
 }
 
-.wrench-product-hero .hraness-marketing-hero__example {
+.ghostget-product-hero .hraness-marketing-hero__example {
   max-inline-size: 38rem;
 }
 

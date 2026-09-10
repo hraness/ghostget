@@ -40,7 +40,7 @@ function prepareAndExecute(
     const claims = yield* platform.repairClaims;
     const journals = yield* platform.repairJournals(yield* platform.currentTime(options));
     if (claims.invalid > 0 || journals.issues.length > 0) {
-      return yield* refuse("confirmation", "local execution recovery has unresolved state; run wrench doctor before starting another write");
+      return yield* refuse("confirmation", "local execution recovery has unresolved state; run ghostget doctor before starting another write");
     }
     const state = yield* platform.execution(checked, digest, options);
     const requestJournal = yield* state.journalRequest;
@@ -57,13 +57,13 @@ function prepareAndExecute(
     }
     const consumed = yield* Effect.either(state.record({ type: "confirmation-consumed", at: state.startedAt }));
     if (Either.isLeft(consumed)) return yield* wrapped(consumed.left,
-      "confirmation plan was consumed, but its run journal could not claim ownership; run wrench doctor before retrying");
+      "confirmation plan was consumed, but its run journal could not claim ownership; run ghostget doctor before retrying");
     if (!(yield* state.releaseClaim)) {
       yield* Effect.either(Effect.gen(function*() {
         yield* state.record({ type: "finished", status: "failed", finalOrigin: null, error: "confirmation ownership claim changed before release", at: state.startedAt });
         yield* state.projectJournal;
       })).pipe(Effect.asVoid);
-      return yield* refuse("confirmation", "confirmation ownership claim changed unexpectedly; run wrench doctor before retrying");
+      return yield* refuse("confirmation", "confirmation ownership claim changed unexpectedly; run ghostget doctor before retrying");
     }
     yield* state.refreshReceipt;
     const provisional = yield* Effect.either(state.persistProvisional);
@@ -91,7 +91,7 @@ function prepareAndExecute(
       if (acquired.existing.status === "succeeded") return {
         receipt: yield* state.readReceipt(acquired.existing.runId), output: null, replayed: true, privateArtifactsPreserved: false,
       };
-      return yield* refuse("journal", `a prior attempt (${acquired.existing.runId}) may have reached the provider; inspect 'wrench runs show ${acquired.existing.runId}' and reconcile it before retrying`);
+      return yield* refuse("journal", `a prior attempt (${acquired.existing.runId}) may have reached the provider; inspect 'ghostget runs show ${acquired.existing.runId}' and reconcile it before retrying`);
     }
     const claimed = yield* Effect.either(Effect.gen(function*() {
       yield* state.record({ type: "ledger-claimed", ledgerRelativePath: yield* state.ledgerRelativePath(acquired.snapshot.path), at: yield* state.clock() });
@@ -183,7 +183,7 @@ export function confirmedWriteProgram(digest: string): Effect.Effect<InvocationR
     const claims = yield* platform.repairClaims;
     const journals = yield* platform.repairJournals(configured.observedAt);
     if (claims.invalid > 0 || journals.issues.length > 0) return yield* refuse("confirmation",
-      "local execution recovery has unresolved state; run wrench doctor before confirming");
+      "local execution recovery has unresolved state; run ghostget doctor before confirming");
     const runId = yield* platform.newRunId;
     const claim = yield* platform.claim(digest, runId, configured.observedAt);
     let stored: StoredPlan | null = null;

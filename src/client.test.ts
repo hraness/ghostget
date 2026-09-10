@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { createAuth, saveAuth } from "./auth";
 import { readCachedCapability } from "./client";
-import { type WrenchManifest } from "./model";
+import { type GhostgetManifest } from "./model";
 import { providerPluginRegistry } from "./provider-plugins";
 import { publishReadProjection } from "./read-projections";
 import {
@@ -25,11 +25,11 @@ describe("public persistent-read client", () => {
   beforeAll(() => {
     directory = mkdtempSync(join(tmpdir(), "wrench-public-client-test-"));
     chmodSync(directory, 0o700);
-    environment = Object.freeze({ WRENCH_STATE_HOME: directory });
+    environment = Object.freeze({ GHOSTGET_STATE_HOME: directory });
     const manifest = JSON.parse(readFileSync(
       join(import.meta.dir, "assets", "adapters", "x", "wrench-adapter.json"),
       "utf8",
-    )) as WrenchManifest;
+    )) as GhostgetManifest;
     installManifest(manifest, {
       force: false,
       environment,

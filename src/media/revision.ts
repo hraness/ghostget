@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { compareUtf8 } from "./utf8-order";
 
 export const REVISION_CAPTURE_NAMESPACE = ".wrench-media-revisions" as const;
-export const WRENCH_MEDIA_TRACKED_REVISION_PROFILE = "wrench-media-tracked-revision-v1" as const;
-export const WRENCH_MEDIA_REVISION_CONTENT_PROFILE = "wrench-media-retained-input-set-v1" as const;
+export const GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE = "wrench-media-tracked-revision-v1" as const;
+export const GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE = "wrench-media-retained-input-set-v1" as const;
 export const MAX_REVISION_SEQUENCE = Number.MAX_SAFE_INTEGER;
 export const MAX_TRACKED_REVISION_ITEMS = 4_096 as const;
 
@@ -40,12 +40,12 @@ export interface RevisionArtifactInput {
 }
 
 export interface MediaTrackedRevision {
-  readonly profile: typeof WRENCH_MEDIA_TRACKED_REVISION_PROFILE;
+  readonly profile: typeof GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE;
   readonly sequence: number;
   readonly subjectAssetKey: string;
   readonly previousAssetKey?: string;
   readonly content: {
-    readonly profile: typeof WRENCH_MEDIA_REVISION_CONTENT_PROFILE;
+    readonly profile: typeof GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE;
     readonly sha256: string;
   };
 }
@@ -80,7 +80,7 @@ function assertAssetKey(value: string, label: string): void {
 }
 
 /**
- * Fingerprints retained provider inputs, not Wrench media's audio/video derivatives.
+ * Fingerprints retained provider inputs, not Ghostget media's audio/video derivatives.
  * Paths and input ordering are intentionally excluded from equivalence.
  */
 export function revisionContentSha256(
@@ -94,7 +94,7 @@ export function revisionContentSha256(
   if (new Set(selected.map((artifact) => artifact.role)).size !== selected.length) {
     throw new TypeError("revision content has duplicate singleton roles");
   }
-  const components: string[] = [WRENCH_MEDIA_REVISION_CONTENT_PROFILE];
+  const components: string[] = [GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE];
   for (const artifact of selected) {
     if (
       !Number.isSafeInteger(artifact.bytes)
@@ -117,8 +117,8 @@ export function revisionContentSha256(
 /** Reconstructs the immutable key for one occurrence in a revision chain. */
 export function trackedRevisionAssetKey(revision: MediaTrackedRevision): string {
   if (
-    revision.profile !== WRENCH_MEDIA_TRACKED_REVISION_PROFILE
-    || revision.content.profile !== WRENCH_MEDIA_REVISION_CONTENT_PROFILE
+    revision.profile !== GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE
+    || revision.content.profile !== GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE
     || !SHA256_PATTERN.test(revision.content.sha256)
   ) {
     throw new TypeError("tracked revision identity is malformed");

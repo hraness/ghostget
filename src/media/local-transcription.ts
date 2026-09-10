@@ -135,8 +135,8 @@ const defaultDependencies: LocalTranscriptionDependencies = {
 const FAILURE_DIAGNOSTICS = {
   cancelled: "The local transcription attempt was cancelled.",
   preflight: "The local transcription request or private attempt directory is invalid.",
-  normalization: "Audio normalization did not produce Wrench media's canonical PCM input.",
-  hash: "Wrench media could not verify the normalized PCM input.",
+  normalization: "Audio normalization did not produce Ghostget media's canonical PCM input.",
+  hash: "Ghostget media could not verify the normalized PCM input.",
   transcriber: "The local whisper.cpp transcription attempt did not produce a valid result.",
 } as const satisfies Readonly<Record<LocalTranscriptionFailureStage, string>>;
 

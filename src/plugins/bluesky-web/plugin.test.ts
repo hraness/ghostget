@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "../../auth";
+import type { GhostgetAuth } from "../../auth";
 import { blueskyWebPlugin } from "./plugin";
 
 const binding = blueskyWebPlugin.bindings[0];
@@ -15,7 +15,7 @@ const auth = {
   profile: "Test Profile",
   trustUnfilteredEgress: true,
   subject: `did:plc:${"a".repeat(24)}`,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 describe("Bluesky provider plugin", () => {
   test("versions the public profile-read source closure independently", () => {

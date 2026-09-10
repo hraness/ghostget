@@ -1,3 +1,14 @@
+// Ghostget 0.17.0, measured after joining 0.16.17 and a clean Bun 1.3.14
+// build: two Node 24.20.0 / npm 11.19.0 archives on darwin arm64 (zlib 1.2.12)
+// are byte-identical, with 2,255,371 compressed and 12,431,165 payload bytes
+// across exactly 501 files, SHA-256
+// a12827c27f171db30424232c9222630bd4934faa30ecb7e3a985f33b8c8a3e2a.
+// Canonical branding and backward-compatible state/plugin discovery add
+// 11,761 payload bytes compared with 0.16.17. Raise only the payload ceiling
+// by that measured delta, preserving 65 bytes of headroom, the existing
+// compressed allowance, and the exact inventory. Fresh Linux CI still checks
+// its actual canonical archive under the pinned release toolchain.
+//
 // Canonical GitHub 0.16.17 with KB 0.19.6 and upstream Sweet Cookie 0.4.3:
 // two identical official Node 24.20.0 / npm 11.19.0 archives on darwin-arm64
 // with zlib 1.3.2.1-motley-42c2f19 measure 2,255,577 packed and
@@ -207,7 +218,7 @@
 export const MAX_PACKED_BYTES = 2_259_302;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_419_469;
+export const MAX_UNPACKED_BYTES = 12_431_230;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

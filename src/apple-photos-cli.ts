@@ -25,7 +25,7 @@ import {
   type BeeperMessageLikeMeExportAdmission,
 } from "./beeper-message-like-me-recovery";
 import { canonicalJson } from "./canonical-json";
-import { wrenchStateHome } from "./storage";
+import { ghostgetStateHome } from "./storage";
 
 const APPLE_PHOTOS_WORKER_TIMEOUT_MS = 15 * 60 * 1_000;
 const APPLE_PHOTOS_WORKER_TERMINATION_GRACE_MS = 1_000;
@@ -117,7 +117,7 @@ function minimalWorkerEnvironment(
     const value = environment[key];
     if (typeof value === "string" && !value.includes("\0")) selected[key] = value;
   }
-  selected.WRENCH_STATE_HOME = canonicalStateHome;
+  selected.GHOSTGET_STATE_HOME = canonicalStateHome;
   selected.NODE_ENV = "production";
   return Object.freeze(selected);
 }
@@ -493,7 +493,7 @@ export async function exportApplePhotosContactEvidenceForCli(
   }
   if (request.signal?.aborted === true) throw abortError(request.signal);
   const environment = request.environment ?? process.env;
-  const canonicalStateHome = wrenchStateHome(environment);
+  const canonicalStateHome = ghostgetStateHome(environment);
   reportProgress(request, { phase: "private-export-admission" });
   const admission = acquireBeeperMessageLikeMeExportAdmission({ environment });
   let releaseAdmission: boolean = true;

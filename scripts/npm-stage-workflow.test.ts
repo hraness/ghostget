@@ -33,7 +33,7 @@ import {
   RELEASE_APP_REVOCATION_OBSERVATION_OFFSETS_MILLISECONDS,
   releaseAppTokenRequestBody,
   revokeReleaseAppTokenWithConvergence,
-  WRENCH_REPOSITORY_ID,
+  GHOSTGET_REPOSITORY_ID,
   withReleaseAppToken,
   withReleaseAppTokenFromEnvironment,
 } from "./release-app-token.mjs";
@@ -57,7 +57,7 @@ import {
   resolveReleaseAuthority,
   scrubReadOnlyGithubEnvironment,
   waitForProviderOutcome as waitForProviderOutcomeRaw,
-  WrenchPublicSite,
+  GhostgetPublicSite,
 } from "./release-provider-outcome.mjs";
 import {
   createProductionReleaseMarker,
@@ -70,6 +70,8 @@ import {
   verifiedReleaseFetchArguments,
   websiteProductionPushArguments,
 } from "./release-ref-writer.mjs";
+
+import { releaseIdentity } from "../website/github-release-artifact.mjs";
 
 const stageWorkflowUrl = new URL("../.github/workflows/npm-stage.yml", import.meta.url);
 const ciWorkflowUrl = new URL("../.github/workflows/ci.yml", import.meta.url);
@@ -93,7 +95,7 @@ const tsconfigUrl = new URL("../tsconfig.json", import.meta.url);
 const publishingGuideUrl = new URL("../docs/publishing.md", import.meta.url);
 const readmeUrl = new URL("../README.md", import.meta.url);
 const changelogUrl = new URL("../CHANGELOG.md", import.meta.url);
-const skillInstallGuideUrl = new URL("../skills/wrench/references/install.md", import.meta.url);
+const skillInstallGuideUrl = new URL("../skills/ghostget/references/install.md", import.meta.url);
 const npmRegistry = "https://registry.npmjs.org";
 const repository = fileURLToPath(new URL("../", import.meta.url));
 const publicExportKeys = Object.freeze([
@@ -106,13 +108,13 @@ const publicExportKeys = Object.freeze([
   "./messaging",
 ]);
 const publicImportSpecifiers = Object.freeze([
-  "@hraness/wrench",
-  "@hraness/wrench/client",
-  "@hraness/wrench/beeper",
-  "@hraness/wrench/apple-photos",
-  "@hraness/wrench/whatsapp",
-  "@hraness/wrench/omni",
-  "@hraness/wrench/messaging",
+  "@hraness/ghostget",
+  "@hraness/ghostget/client",
+  "@hraness/ghostget/beeper",
+  "@hraness/ghostget/apple-photos",
+  "@hraness/ghostget/whatsapp",
+  "@hraness/ghostget/omni",
+  "@hraness/ghostget/messaging",
 ]);
 const publicDistEntrypoints = Object.freeze([
   "dist/index.js",
@@ -196,7 +198,7 @@ function packJson(
   return `${JSON.stringify([{
     bundled: [],
     entryCount: inventory.fileCount,
-    filename: `hraness-wrench-${version}.tgz`,
+    filename: `hraness-ghostget-${version}.tgz`,
     files: files.map((file) => ({
       mode: file.mode,
       path: file.path,
@@ -231,7 +233,7 @@ function registryView(
         keyid: "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
         sig: "MEUCIQD0ZXN0LXNpZ25hdHVyZS1ieXRlcy1mb3Itd29ya2Zsb3cCIQDjZXN0LXNpZ25hdHVyZS1ieXRlcy1mb3Itd29ya2Zsb3c=",
       }],
-      tarball: `${npmRegistry}/${name}/-/wrench-${version}.tgz`,
+      tarball: `${npmRegistry}/${name}/-/ghostget-${version}.tgz`,
       unpackedSize: inventory.unpackedBytes,
     },
     name,
@@ -291,7 +293,7 @@ function writeHeaderChecksum(tar: Buffer, offset: number): void {
 }
 
 
-const providerRepository = "hraness/wrench";
+const providerRepository = "hraness/ghostget";
 const providerPreviousSha = "1".repeat(40);
 const providerVerifiedSha = "2".repeat(40);
 const providerTagObjectSha = "3".repeat(40);
@@ -329,8 +331,8 @@ function providerMarker(
   deploymentId: number,
 ): ProviderMarker {
   return createProductionReleaseMarker({
-    deploymentUrl: `https://wrench-${String(deploymentId)}-hraness.vercel.app`,
-    name: "@hraness/wrench",
+    deploymentUrl: `https://${releaseIdentity(tag).package === "@hraness/ghostget" ? "ghostget" : "wrench"}-${String(deploymentId)}-hraness.vercel.app`,
+    name: releaseIdentity(tag).package,
     sourceSha,
     tag,
     version: tag.slice(1),
@@ -444,7 +446,7 @@ class ProviderPublicSiteFixture {
     return Object.freeze({
       bodySha256,
       contentType: "text/plain",
-      location: `https://wrench.rip${requestPath}`,
+      location: `https://ghostget.com${requestPath}`,
       status: 308,
     });
   }
@@ -699,7 +701,7 @@ function providerRelease(overrides: Readonly<Record<string, ProviderJson>> = {})
     draft: false,
     id: 10,
     immutable: true,
-    name: `Wrench ${providerTag}`,
+    name: `Ghostget ${providerTag}`,
     prerelease: false,
     published_at: providerReleasePublishedAt,
     tag_name: providerTag,
@@ -717,7 +719,7 @@ function providerReleaseWorkflowRun(
 ): ProviderJson {
   const repository = {
     full_name: providerRepository,
-    id: WRENCH_REPOSITORY_ID,
+    id: GHOSTGET_REPOSITORY_ID,
     private: false,
   };
   return {
@@ -881,8 +883,8 @@ class ProviderApiFixture {
     }
     this.readHook?.(options?.timeoutMilliseconds);
     expect(input.owner).toBe("hraness");
-    expect(input.name).toBe("wrench");
-    expect(input.query).toContain("query WrenchProductionDeployments");
+    expect(input.name).toBe("ghostget");
+    expect(input.query).toContain("query GhostgetProductionDeployments");
     this.graphqlCalls.push(`after=${input.after ?? ""}`);
     const response = this.graphqlResponses[
       Math.min(this.#graphqlResponseRead, this.graphqlResponses.length - 1)
@@ -1161,7 +1163,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_933_120);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_943_872);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1269,7 +1271,7 @@ describe("npm publication contract", () => {
     expect(MAX_PACKED_BYTES).toBe(2_259_302);
     expect(MAX_PACKED_ENTRIES).toBe(501);
     expect(MAX_PACKED_FILES).toBe(501);
-    expect(MAX_UNPACKED_BYTES).toBe(12_419_469);
+    expect(MAX_UNPACKED_BYTES).toBe(12_431_230);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
@@ -1278,7 +1280,7 @@ describe("npm publication contract", () => {
       entryCount: { min: 501, max: 501 },
       fileCount: { min: 501, max: 501 },
       packedBytes: { min: 1_600_000, max: 2_259_302 },
-      unpackedBytes: { min: 9_000_000, max: 12_419_469 },
+      unpackedBytes: { min: 9_000_000, max: 12_431_230 },
     });
   });
 
@@ -1328,13 +1330,13 @@ describe("npm publication contract", () => {
         readonly compilerOptions?: { readonly paths?: Record<string, unknown> };
       }).compilerOptions?.paths,
     ).toEqual({
-      "@hraness/wrench": ["./src/index.ts"],
-      "@hraness/wrench/client": ["./src/client.ts"],
-      "@hraness/wrench/beeper": ["./src/beeper-client.ts"],
-      "@hraness/wrench/apple-photos": ["./src/apple-photos-client.ts"],
-      "@hraness/wrench/whatsapp": ["./src/whatsapp-client.ts"],
-      "@hraness/wrench/omni": ["./src/omni-client.ts"],
-      "@hraness/wrench/messaging": ["./src/messaging.ts"],
+      "@hraness/ghostget": ["./src/index.ts"],
+      "@hraness/ghostget/client": ["./src/client.ts"],
+      "@hraness/ghostget/beeper": ["./src/beeper-client.ts"],
+      "@hraness/ghostget/apple-photos": ["./src/apple-photos-client.ts"],
+      "@hraness/ghostget/whatsapp": ["./src/whatsapp-client.ts"],
+      "@hraness/ghostget/omni": ["./src/omni-client.ts"],
+      "@hraness/ghostget/messaging": ["./src/messaging.ts"],
     });
     for (const specifier of publicImportSpecifiers) {
       expect(packageSmoke).toContain(`"${specifier}"`);
@@ -1342,11 +1344,12 @@ describe("npm publication contract", () => {
     }
   });
 
-  test("keeps separate truthful Wrench 0.16.3 through 0.16.17 changelog sections", async () => {
+  test("preserves Wrench release history and adds Ghostget 0.17.0", async () => {
     const changelog = await readFile(changelogUrl, "utf8");
     const unreleasedHeader = "## Unreleased\n";
     const candidateHeader = "## 0.16.12 - 2026-09-08\n";
     const canonicalHeader = "## 0.16.13 - 2026-09-09\n";
+    const renameHeader = "## 0.17.0 - 2026-09-09\n";
     const cookieHeader = "## 0.16.17 - 2026-09-09\n";
     const admissionHeader = "## 0.16.16 - 2026-09-09\n";
     const typingHeader = "## 0.16.15 - 2026-09-09\n";
@@ -1363,6 +1366,7 @@ describe("npm publication contract", () => {
     const unreleasedStart = changelog.indexOf(unreleasedHeader);
     const candidateStart = changelog.indexOf(candidateHeader);
     const canonicalStart = changelog.indexOf(canonicalHeader);
+    const renameStart = changelog.indexOf(renameHeader);
     const cookieStart = changelog.indexOf(cookieHeader);
     const admissionStart = changelog.indexOf(admissionHeader);
     const typingStart = changelog.indexOf(typingHeader);
@@ -1395,7 +1399,8 @@ describe("npm publication contract", () => {
     expect(currentStart).toBeGreaterThan(candidateStart);
     expect(currentStart).toBeGreaterThan(unreleasedStart);
     expect(canonicalStart).toBeGreaterThan(unreleasedStart);
-    expect(cookieStart).toBeGreaterThan(unreleasedStart);
+    expect(renameStart).toBeGreaterThan(unreleasedStart);
+    expect(cookieStart).toBeGreaterThan(renameStart);
     expect(admissionStart).toBeGreaterThan(cookieStart);
     expect(typingStart).toBeGreaterThan(admissionStart);
     expect(packingStart).toBeGreaterThan(typingStart);
@@ -1409,7 +1414,7 @@ describe("npm publication contract", () => {
     expect(markerStart).toBeGreaterThan(consumedStart);
     expect(releaseStart).toBeGreaterThan(markerStart);
     expect(incidentStart).toBeGreaterThan(releaseStart);
-    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, cookieStart).trim()).toBe("");
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, renameStart).trim()).toBe("");
 
     const cookieReleaseEnd = changelog.indexOf("\n## ", cookieStart + cookieHeader.length);
     expect(cookieReleaseEnd).toBe(admissionStart - 1);
@@ -1585,7 +1590,7 @@ describe("npm publication contract", () => {
 
   test("separates canonical mirror verification from checkout-free stage capability", async () => {
     const workflow = await readFile(stageWorkflowUrl, "utf8");
-    const parsed = Bun.YAML.parse(workflow) as { on: Record<string, unknown>; jobs: Record<string, { permissions: Record<string, string>; environment?: string; steps: Record<string, unknown>[] }> };
+    const parsed = Bun.YAML.parse(workflow) as { on: Record<string, unknown>; jobs: Record<string, { permissions: Record<string, string>; environment?: string; needs?: string; if?: string; steps: Record<string, unknown>[] }> };
     expect(Object.keys(parsed.on)).toEqual(["workflow_dispatch"]);
     expect(Object.keys(parsed.jobs)).toEqual(["classify", "verify", "stage"]);
     expect(parsed.jobs.classify!.permissions).toEqual({ contents: "read" });
@@ -1594,6 +1599,9 @@ describe("npm publication contract", () => {
     expect(parsed.jobs.classify!.environment).toBeUndefined();
     expect(parsed.jobs.verify!.environment).toBeUndefined();
     expect(parsed.jobs.stage!.environment).toBe("npm-stage");
+    expect(parsed.jobs.verify!.needs).toBe("classify");
+    expect(parsed.jobs.stage!.needs).toBe("verify");
+    expect(parsed.jobs.stage!.if).toBe("needs.verify.result == 'success' && github.event_name == 'workflow_dispatch' && inputs.publish_to_npm == true");
     expect(workflow.match(/ref: \$\{\{ github\.sha \}\}/gu) ?? []).toHaveLength(2);
     expect(workflow).not.toContain("ref: ${{ needs.classify.outputs.source_sha }}");
     const verifyCheckout = parsed.jobs.verify!.steps.find((step) => String(step.uses).startsWith("actions/checkout@"));
@@ -1645,16 +1653,18 @@ describe("npm publication contract", () => {
     }
   });
 
-  test("classifies only exact protected-main canonical mirror dispatches", async () => {
+  test("classifies protected-main verification dispatches and holds npm publication before side effects", async () => {
     const workflow = await readFile(stageWorkflowUrl, "utf8");
     const script = workflowStepScript(workflow, "Classify event-source package");
-    const directory = await mkdtemp(join(tmpdir(), "wrench-canonical-classify-"));
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-canonical-classify-"));
     const binaryDirectory = join(directory, "bin"); const output = join(directory, "output");
+    const commandLog = join(directory, "commands");
     const source = "a".repeat(40); const workflowSha = "b".repeat(40);
     try {
       await mkdir(binaryDirectory);
       await writeFile(join(binaryDirectory, "node"), `#!/bin/bash
 set -euo pipefail
+printf 'node %s\n' "$*" >> "$COMMAND_LOG"
 if [[ "\${1-}" == --experimental-strip-types ]]; then
   case "\${3-}" in
     stage-current) printf 'source_sha=%s\n' "$GITHUB_SHA" ;;
@@ -1669,15 +1679,35 @@ else
 fi
 `);
       await chmod(join(binaryDirectory, "node"), 0o755);
+      for (const command of ["gh", "git", "npm"]) {
+        await writeFile(join(binaryDirectory, command), `#!/bin/bash
+set -euo pipefail
+printf '%s\n' "\${0##*/}" >> "$COMMAND_LOG"
+exit 97
+`);
+        await chmod(join(binaryDirectory, command), 0o755);
+      }
       const runCase = async (extra: Record<string, string> = {}) => {
         await rm(output, { force: true });
+        await rm(commandLog, { force: true });
         return runWorkflowScript(script, { DEFAULT_BRANCH: "main", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
           GITHUB_SHA: workflowSha, RELEASE_SHA: source, INPUT_RELEASE_TAG: "", INPUT_PUBLISH_TO_NPM: "false", RESOLVED_STAGE_VERSION: "",
-          GITHUB_OUTPUT: output, PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`, ...extra });
+          GITHUB_OUTPUT: output, COMMAND_LOG: commandLog, PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`, ...extra });
       };
-      for (const input of [{}, { INPUT_RELEASE_TAG: "v0.16.13" }, { INPUT_RELEASE_TAG: "v0.16.13", INPUT_PUBLISH_TO_NPM: "true" }]) {
+      for (const input of [{}, { INPUT_RELEASE_TAG: "v0.16.13" }]) {
         const accepted = await runCase(input); expect(accepted.exitCode, accepted.stderr).toBe(0);
         expect(await readFile(output, "utf8")).toBe(`should_prepare=true\nsource_sha=${workflowSha}\nrelease_sha=${source}\nrelease_tag=v0.16.13\n`);
+        expect(await readFile(commandLog, "utf8")).toContain("release-ref-authority.ts promotion");
+      }
+      for (const input of [{}, { INPUT_RELEASE_TAG: "v0.16.13" },
+        { RESOLVED_STAGE_VERSION: "0.16.11" }, { INPUT_RELEASE_TAG: "v0.16.13\npoison" }]) {
+        const held = await runCase({ ...input, INPUT_PUBLISH_TO_NPM: "true" });
+        expect(held.exitCode).toBe(1);
+        expect(held.stdout).toContain("Ghostget npm publication is on hold pending classification review");
+        expect(held.stdout).toContain("use publish_to_npm=false for verification only");
+        expect(held.stderr).toBe("");
+        expect(await Bun.file(output).exists()).toBe(false);
+        expect(await Bun.file(commandLog).exists()).toBe(false);
       }
       for (const input of [{ GITHUB_EVENT_NAME: "push" }, { GITHUB_REF: "refs/heads/preview" }, { DEFAULT_BRANCH: "preview" },
         { INPUT_RELEASE_TAG: "v0.16.13\npoison" }, { INPUT_RELEASE_TAG: "v0.16.13-preview" }, { RESOLVED_STAGE_VERSION: "0.16.11" }]) {
@@ -1689,7 +1719,7 @@ fi
   test("rejects delegated or replayed npm stage attempts before OIDC setup", async () => {
     const workflow = await readFile(stageWorkflowUrl, "utf8");
     const script = workflowStepScript(workflow, "Reauthorize current npm stage attempt");
-    const directory = await mkdtemp(join(tmpdir(), "wrench-stage-attempt-"));
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-stage-attempt-"));
     const binaryDirectory = join(directory, "bin");
     const ghStub = join(binaryDirectory, "gh");
     const attemptFixture = join(directory, "attempt.json");
@@ -1709,7 +1739,7 @@ fi
       conclusion: null,
       actor: { id: 894119, type: "User" },
       triggering_actor: { id: 894119, type: "User" },
-      repository: { id: WRENCH_REPOSITORY_ID, full_name: providerRepository, private: false },
+      repository: { id: GHOSTGET_REPOSITORY_ID, full_name: providerRepository, private: false },
     });
     try {
       await mkdir(binaryDirectory, { recursive: true });
@@ -1721,7 +1751,7 @@ fi
           state: "active",
         })}\n`, "utf8"),
         writeFile(repositoryFixture, `${JSON.stringify({
-          id: WRENCH_REPOSITORY_ID,
+          id: GHOSTGET_REPOSITORY_ID,
           full_name: providerRepository,
           visibility: "public",
           private: false,
@@ -1731,9 +1761,9 @@ fi
       await writeFile(ghStub, `#!/bin/bash
 set -euo pipefail
 case "$*" in
-  "api --method GET /repos/hraness/wrench/actions/runs/8001/attempts/2") cat "$ATTEMPT_FIXTURE" ;;
-  "api --method GET /repos/hraness/wrench/actions/workflows/344213783") cat "$WORKFLOW_FIXTURE" ;;
-  "api --method GET /repos/hraness/wrench") cat "$REPOSITORY_FIXTURE" ;;
+  "api --method GET /repos/hraness/ghostget/actions/runs/8001/attempts/2") cat "$ATTEMPT_FIXTURE" ;;
+  "api --method GET /repos/hraness/ghostget/actions/workflows/344213783") cat "$WORKFLOW_FIXTURE" ;;
+  "api --method GET /repos/hraness/ghostget") cat "$REPOSITORY_FIXTURE" ;;
   *) echo "unexpected gh command: $*" >&2; exit 1 ;;
 esac
 `, "utf8");
@@ -1742,13 +1772,13 @@ esac
         ATTEMPT_FIXTURE: attemptFixture,
         EXPECTED_ACTOR_ID: "894119",
         EXPECTED_REPOSITORY: providerRepository,
-        EXPECTED_REPOSITORY_ID: String(WRENCH_REPOSITORY_ID),
+        EXPECTED_REPOSITORY_ID: String(GHOSTGET_REPOSITORY_ID),
         EXPECTED_WORKFLOW_ID: "344213783",
         EXPECTED_WORKFLOW_PATH: ".github/workflows/npm-stage.yml",
         GITHUB_EVENT_NAME: "workflow_dispatch",
         GITHUB_REF: "refs/heads/main",
         GITHUB_REPOSITORY: providerRepository,
-        GITHUB_REPOSITORY_ID: String(WRENCH_REPOSITORY_ID),
+        GITHUB_REPOSITORY_ID: String(GHOSTGET_REPOSITORY_ID),
         GITHUB_RUN_ATTEMPT: "2",
         GITHUB_RUN_ID: "8001",
         GITHUB_SHA: sourceSha,
@@ -1805,7 +1835,7 @@ esac
   test("the durable stage-intent lock survives failed jobs and same-run ambiguous reruns", async () => {
     const workflow = await readFile(stageWorkflowUrl, "utf8");
     const script = workflowStepScript(workflow, "Reject unresolved stable-stage intent");
-    const directory = await mkdtemp(join(tmpdir(), "wrench-stage-history-"));
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-stage-history-"));
     const binaryDirectory = join(directory, "bin");
     const npmStub = join(binaryDirectory, "npm");
     const ghStub = join(binaryDirectory, "gh");
@@ -1889,7 +1919,7 @@ esac
 set -euo pipefail
 if [[ "\${1-}" == config && "\${2-}" == get && "\${3-}" == tag ]]; then
   printf 'latest\n'
-elif [[ "\${1-}" == view && "\${2-}" == @hraness/wrench && \
+elif [[ "\${1-}" == view && "\${2-}" == @hraness/ghostget && \
         "\${3-}" == dist-tags.latest && "\${4-}" == --json ]]; then
   printf '"%s"\n' "$NPM_LATEST_VERSION"
 else
@@ -1901,12 +1931,12 @@ fi
 set -euo pipefail
 printf '%s\n' "$*" >> "$GH_COMMAND_LOG"
 case "$*" in
-  "api --method GET /repos/hraness/wrench/actions/workflows/344213783/runs?event=workflow_dispatch&branch=main&per_page=100") cat "$RUNS_FIXTURE" ;;
-  "api --method GET /repos/hraness/wrench/actions/runs/8001/jobs?filter=all&per_page=100") cat "$CURRENT_JOBS_FIXTURE" ;;
-  "api --method GET /repos/hraness/wrench/actions/runs/7001/jobs?filter=all&per_page=100") cat "$FIRST_JOBS_FIXTURE" ;;
-  "api --method GET /repos/hraness/wrench/actions/runs/7002/jobs?filter=all&per_page=100") cat "$RESOLUTION_JOBS_FIXTURE" ;;
-  "api --method GET /repos/hraness/wrench/actions/runs/33980252754/jobs?filter=all&per_page=100") cat "$LEGACY_JOBS_FIXTURE" ;;
-  "api --method GET /repos/hraness/wrench/actions/runs/33980252754/attempts/1") cat "$LEGACY_ATTEMPT_FIXTURE" ;;
+  "api --method GET /repos/hraness/ghostget/actions/workflows/344213783/runs?event=workflow_dispatch&branch=main&per_page=100") cat "$RUNS_FIXTURE" ;;
+  "api --method GET /repos/hraness/ghostget/actions/runs/8001/jobs?filter=all&per_page=100") cat "$CURRENT_JOBS_FIXTURE" ;;
+  "api --method GET /repos/hraness/ghostget/actions/runs/7001/jobs?filter=all&per_page=100") cat "$FIRST_JOBS_FIXTURE" ;;
+  "api --method GET /repos/hraness/ghostget/actions/runs/7002/jobs?filter=all&per_page=100") cat "$RESOLUTION_JOBS_FIXTURE" ;;
+  "api --method GET /repos/hraness/ghostget/actions/runs/33980252754/jobs?filter=all&per_page=100") cat "$LEGACY_JOBS_FIXTURE" ;;
+  "api --method GET /repos/hraness/ghostget/actions/runs/33980252754/attempts/1") cat "$LEGACY_ATTEMPT_FIXTURE" ;;
   *) echo "unexpected gh command: $*" >&2; exit 1 ;;
 esac
 `, "utf8"),
@@ -1937,7 +1967,7 @@ esac
           id: 7001,
           repository: {
             full_name: providerRepository,
-            id: WRENCH_REPOSITORY_ID,
+            id: GHOSTGET_REPOSITORY_ID,
             private: false,
           },
           run_attempt: 1,
@@ -1957,7 +1987,7 @@ esac
             id: 7002,
             repository: {
               full_name: providerRepository,
-              id: WRENCH_REPOSITORY_ID,
+              id: GHOSTGET_REPOSITORY_ID,
               private: false,
             },
             run_attempt: 1,
@@ -1975,7 +2005,7 @@ esac
         id: 33980252754,
         repository: {
           full_name: providerRepository,
-          id: WRENCH_REPOSITORY_ID,
+          id: GHOSTGET_REPOSITORY_ID,
           private: false,
         },
         run_attempt: 1,
@@ -1991,7 +2021,7 @@ esac
       const baseEnvironment = Object.freeze({
         CURRENT_JOBS_FIXTURE: currentJobsFixture,
         EXPECTED_REPOSITORY: providerRepository,
-        EXPECTED_REPOSITORY_ID: String(WRENCH_REPOSITORY_ID),
+        EXPECTED_REPOSITORY_ID: String(GHOSTGET_REPOSITORY_ID),
         EXPECTED_VERSION: "0.15.2",
         EXPECTED_WORKFLOW_ID: "344213783",
         FIRST_JOBS_FIXTURE: firstJobsFixture,
@@ -2035,7 +2065,7 @@ esac
         id: 8001,
         repository: {
           full_name: providerRepository,
-          id: WRENCH_REPOSITORY_ID,
+          id: GHOSTGET_REPOSITORY_ID,
           private: false,
         },
         run_attempt: 2,
@@ -2346,12 +2376,12 @@ esac
   test("rejects unsafe or cross-run npm artifact outputs before download", async () => {
     const workflow = await readFile(stageWorkflowUrl, "utf8");
     const script = workflowStepScript(workflow, "Bind verified artifact identity");
-    const directory = await mkdtemp(join(tmpdir(), "wrench-stage-identity-"));
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-stage-identity-"));
     const sourceSha = "a".repeat(40);
     const baseEnvironment = Object.freeze({
       EXPECTED_ARTIFACT_NAME: `npm-package-0.15.1-${sourceSha}-123456-2`,
       EXPECTED_SOURCE_SHA: sourceSha,
-      EXPECTED_TARBALL_NAME: "hraness-wrench-0.15.1.tgz",
+      EXPECTED_TARBALL_NAME: "hraness-ghostget-0.15.1.tgz",
       EXPECTED_VERSION: "0.15.1",
       GITHUB_OUTPUT: join(directory, "github-output.txt"),
       GITHUB_RUN_ATTEMPT: "2",
@@ -2404,11 +2434,11 @@ esac
       workflow,
       "Revalidate protected-main ancestry and stage exact package",
     );
-    const directory = await mkdtemp(join(tmpdir(), "wrench-stage-tag-"));
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-stage-tag-"));
     const binaryDirectory = join(directory, "bin");
     const commandLog = join(directory, "commands.log");
     const publishMarker = join(directory, "published.txt");
-    const tarball = join(directory, "hraness-wrench-0.16.13.tgz");
+    const tarball = join(directory, "hraness-ghostget-0.16.13.tgz");
     const sourceSha = "b".repeat(40);
     const driftSha = "d".repeat(40);
     const tarballSha256 = "c".repeat(64);
@@ -2424,7 +2454,7 @@ esac
       await writeFile(gitStub, `#!/bin/bash
 set -euo pipefail
 printf 'git %s\n' "$*" >> "$COMMAND_LOG"
-if [[ "$*" != "ls-remote --sort=refname --refs https://github.com/hraness/wrench.git refs/heads/main refs/tags/v0.16.13" ]]; then
+if [[ "$*" != "ls-remote --sort=refname --refs https://github.com/hraness/ghostget.git refs/heads/main refs/tags/v0.16.13" ]]; then
   echo "unexpected git command: $*" >&2
   exit 1
 fi
@@ -2524,7 +2554,7 @@ set -euo pipefail
 printf 'npm %s\n' "$*" >> "$COMMAND_LOG"
 case "$*" in
   "config get tag") printf 'latest\n' ;;
-  "view @hraness/wrench dist-tags.latest --json --registry=https://registry.npmjs.org")
+  "view @hraness/ghostget dist-tags.latest --json --registry=https://registry.npmjs.org")
     printf '"%s"\n' "$NPM_LATEST_VERSION"
     ;;
   "stage publish "*) printf 'published\n' > "$PUBLISH_MARKER" ;;
@@ -2541,8 +2571,8 @@ esac
       await writeFile(join(directory, "canonical.json"), JSON.stringify({
         id: 123, tag_name: "v0.16.13", target_commitish: "a".repeat(40), draft: false, prerelease: false, immutable: true,
         author: { id: 41898282, type: "Bot" },
-        body: `wrench-release-source-v1 repository=hraness/wrench tag=v0.16.13 source_sha=${"a".repeat(40)} workflow_run_id=456`,
-        assets: ["hraness-wrench-0.16.13.tgz", "npm-pack.json", "release-manifest.json", "SHA256SUMS", "provenance.jsonl"]
+        body: `wrench-release-source-v1 repository=hraness/ghostget tag=v0.16.13 source_sha=${"a".repeat(40)} workflow_run_id=456`,
+        assets: ["hraness-ghostget-0.16.13.tgz", "npm-pack.json", "release-manifest.json", "SHA256SUMS", "provenance.jsonl"]
           .map(name => ({ name, state: "uploaded", digest: `sha256:${tarballSha256}`, size: Buffer.byteLength("reviewed tarball fixture\n") })),
       }));
       const baseEnvironment = Object.freeze({
@@ -2557,7 +2587,7 @@ esac
         CANONICAL_RELEASE_JSON_FIXTURE: join(directory, "canonical.json"),
         EXPECTED_TARBALL_SHA256: tarballSha256,
         EXPECTED_VERSION: "0.16.13",
-        GITHUB_REPOSITORY: "hraness/wrench",
+        GITHUB_REPOSITORY: "hraness/ghostget",
         GITHUB_SHA: sourceSha,
         GH_TOKEN: "read-only-token",
         GIT_CALL_COUNT: gitCallCount,
@@ -2579,12 +2609,12 @@ esac
         expect(absent.exitCode, `${absent.stdout}\n${absent.stderr}`).toBe(0);
         expect(await readFile(publishMarker, "utf8")).toBe("published\n");
         const commands = await readFile(commandLog, "utf8");
-        const combinedCommand = "git ls-remote --sort=refname --refs https://github.com/hraness/wrench.git refs/heads/main refs/tags/v0.16.13";
+        const combinedCommand = "git ls-remote --sort=refname --refs https://github.com/hraness/ghostget.git refs/heads/main refs/tags/v0.16.13";
         const combinedIndexes = [...commands.matchAll(new RegExp(combinedCommand, "gu"))]
           .map((match) => match.index);
         const hashIndex = commands.indexOf("sha256sum");
         const latestIndex = commands.indexOf(
-          "npm view @hraness/wrench dist-tags.latest --json --registry=https://registry.npmjs.org",
+          "npm view @hraness/ghostget dist-tags.latest --json --registry=https://registry.npmjs.org",
         );
         const publishIndex = commands.indexOf("npm stage publish");
         expect(combinedIndexes).toHaveLength(2);
@@ -2622,7 +2652,7 @@ esac
         expect(descendant.exitCode, `${descendant.stdout}\n${descendant.stderr}`).toBe(0);
         expect(await readFile(publishMarker, "utf8")).toBe("published\n");
         expect(await readFile(commandLog, "utf8")).toContain(
-          `gh api /repos/hraness/wrench/compare/${sourceSha}...${driftSha}`,
+          `gh api /repos/hraness/ghostget/compare/${sourceSha}...${driftSha}`,
         );
       }
 
@@ -2787,7 +2817,7 @@ esac
       "Object.keys(manifest.publishConfig).sort()",
       'JSON.stringify(["access", "registry"])',
       "manifest.publishConfig.registry !== NPM_REGISTRY",
-      "Packed Wrench must remain public and publishConfig may contain only public access and the canonical npm registry",
+      "Packed Ghostget must remain public and publishConfig may contain only public access and the canonical npm registry",
     ] as const) {
       expect(smoke).toContain(required);
     }
@@ -2800,9 +2830,9 @@ esac
       readonly name: string;
       readonly version: string;
     };
-    const directory = await mkdtemp(join(tmpdir(), "wrench-packed-tag-"));
-    const artifactDirectory = join(directory, "wrench-npm-package");
-    const filename = `hraness-wrench-${manifest.version}.tgz`;
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-packed-tag-"));
+    const artifactDirectory = join(directory, "ghostget-npm-package");
+    const filename = `hraness-ghostget-${manifest.version}.tgz`;
     const archive = join(artifactDirectory, filename);
     try {
       await mkdir(artifactDirectory, { recursive: true });
@@ -2888,7 +2918,7 @@ esac
         } else {
           expect(result.exitCode).not.toBe(0);
           expect(`${result.stdout}${result.stderr}`).toContain(
-            "Packed Wrench can publish only to the canonical public npm registry",
+            "Packed Ghostget can publish only to the canonical public npm registry",
           );
         }
       };
@@ -2923,7 +2953,7 @@ esac
       });
       expect(result.exitCode).not.toBe(0);
       expect(`${result.stdout}${result.stderr}`).toContain(
-        "Packed Wrench can publish only to the canonical public npm registry",
+        "Packed Ghostget can publish only to the canonical public npm registry",
       );
     } finally {
       await rm(directory, { force: true, recursive: true });
@@ -2937,9 +2967,9 @@ esac
       readonly name: string;
       readonly version: string;
     };
-    const directory = await mkdtemp(join(tmpdir(), "wrench-hostile-ustar-"));
-    const artifactDirectory = join(directory, "wrench-npm-package");
-    const filename = `hraness-wrench-${manifest.version}.tgz`;
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-hostile-ustar-"));
+    const artifactDirectory = join(directory, "ghostget-npm-package");
+    const filename = `hraness-ghostget-${manifest.version}.tgz`;
     const archive = join(artifactDirectory, filename);
     try {
       await mkdir(artifactDirectory, { recursive: true });
@@ -3014,7 +3044,7 @@ esac
   test("accepts only exact tag pushes in the immutable Release workflow", async () => {
     const workflow = await readFile(releaseWorkflowUrl, "utf8");
     const script = workflowStepScript(workflow, "Resolve release request");
-    const directory = await mkdtemp(join(tmpdir(), "wrench-release-request-"));
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-release-request-"));
     const output = join(directory, "github-output.txt");
 
     expect(workflow).not.toContain("workflow_dispatch:");
@@ -3098,7 +3128,7 @@ esac
       expect(script).toContain(required);
     }
 
-    const directory = await mkdtemp(join(tmpdir(), "wrench-release-attempt-"));
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-release-attempt-"));
     const binaryDirectory = join(directory, "bin");
     const ghStub = join(binaryDirectory, "gh");
     const attemptFixture = join(directory, "attempt.json");
@@ -3120,7 +3150,7 @@ esac
       conclusion: null,
       actor: { id: 894119, type: "User" },
       triggering_actor: { id: 894119, type: "User" },
-      repository: { id: WRENCH_REPOSITORY_ID, full_name: providerRepository, private: false },
+      repository: { id: GHOSTGET_REPOSITORY_ID, full_name: providerRepository, private: false },
     });
     try {
       await mkdir(binaryDirectory, { recursive: true });
@@ -3132,7 +3162,7 @@ esac
           state: "active",
         })}\n`, "utf8"),
         writeFile(repositoryFixture, `${JSON.stringify({
-          id: WRENCH_REPOSITORY_ID,
+          id: GHOSTGET_REPOSITORY_ID,
           full_name: providerRepository,
           visibility: "public",
           private: false,
@@ -3143,12 +3173,12 @@ esac
       await writeFile(ghStub, `#!/bin/bash
 set -euo pipefail
 case "$*" in
-  "api --method GET /repos/hraness/wrench/actions/runs/9001/attempts/2") cat "$ATTEMPT_FIXTURE" ;;
-  "api --method GET /repos/hraness/wrench/actions/workflows/323493609") cat "$WORKFLOW_FIXTURE" ;;
-  "api --method GET /repos/hraness/wrench") cat "$REPOSITORY_FIXTURE" ;;
-  "api --method GET /repos/hraness/wrench/git/ref/tags/v0.16.6") cat "$TAG_FIXTURE" ;;
-  "api --method GET --jq .sha /repos/hraness/wrench/commits/main") printf '%s\\n' "$SOURCE_SHA" ;;
-  "api --method GET --jq .status /repos/hraness/wrench/compare/$SOURCE_SHA...$SOURCE_SHA") printf 'identical\\n' ;;
+  "api --method GET /repos/hraness/ghostget/actions/runs/9001/attempts/2") cat "$ATTEMPT_FIXTURE" ;;
+  "api --method GET /repos/hraness/ghostget/actions/workflows/323493609") cat "$WORKFLOW_FIXTURE" ;;
+  "api --method GET /repos/hraness/ghostget") cat "$REPOSITORY_FIXTURE" ;;
+  "api --method GET /repos/hraness/ghostget/git/ref/tags/v0.16.6") cat "$TAG_FIXTURE" ;;
+  "api --method GET --jq .sha /repos/hraness/ghostget/commits/main") printf '%s\\n' "$SOURCE_SHA" ;;
+  "api --method GET --jq .status /repos/hraness/ghostget/compare/$SOURCE_SHA...$SOURCE_SHA") printf 'identical\\n' ;;
   *) echo "unexpected gh command: $*" >&2; exit 1 ;;
 esac
 `, "utf8");
@@ -3158,13 +3188,13 @@ esac
         DEFAULT_BRANCH: "main",
         EXPECTED_ACTOR_ID: "894119",
         EXPECTED_REPOSITORY: providerRepository,
-        EXPECTED_REPOSITORY_ID: String(WRENCH_REPOSITORY_ID),
+        EXPECTED_REPOSITORY_ID: String(GHOSTGET_REPOSITORY_ID),
         EXPECTED_WORKFLOW_ID: "323493609",
         EXPECTED_WORKFLOW_PATH: ".github/workflows/release.yml",
         GITHUB_EVENT_NAME: "push",
         GITHUB_REF: `refs/tags/${releaseTag}`,
         GITHUB_REPOSITORY: providerRepository,
-        GITHUB_REPOSITORY_ID: String(WRENCH_REPOSITORY_ID),
+        GITHUB_REPOSITORY_ID: String(GHOSTGET_REPOSITORY_ID),
         GITHUB_RUN_ATTEMPT: "2",
         GITHUB_RUN_ID: "9001",
         GITHUB_SHA: sourceSha,
@@ -3256,7 +3286,7 @@ esac
     expect(requestScript).toContain('! "$current_main_sha" =~ ^[0-9a-f]{40}$');
     expect(requestScript).not.toContain('"$current_main_sha" != "$EVENT_SHA"');
 
-    const directory = await mkdtemp(join(tmpdir(), "wrench-website-request-"));
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-website-request-"));
     const binaryDirectory = join(directory, "bin");
     const ghStub = join(binaryDirectory, "gh");
     const output = join(directory, "github-output.txt");
@@ -3266,8 +3296,8 @@ esac
       await writeFile(ghStub, `#!/bin/bash
 set -euo pipefail
 case "$*" in
-  "api /repos/hraness/wrench --jq .default_branch") printf 'main\\n' ;;
-  "api /repos/hraness/wrench/git/ref/heads/main --jq .object.sha") printf '%s\\n' "$CURRENT_MAIN_SHA" ;;
+  "api /repos/hraness/ghostget --jq .default_branch") printf 'main\\n' ;;
+  "api /repos/hraness/ghostget/git/ref/heads/main --jq .object.sha") printf '%s\\n' "$CURRENT_MAIN_SHA" ;;
   *) echo "unexpected gh command: $*" >&2; exit 1 ;;
 esac
 `, "utf8");
@@ -3278,7 +3308,7 @@ esac
         EVENT_NAME: "workflow_run",
         EVENT_REF: "refs/heads/main",
         EVENT_REPOSITORY: providerRepository,
-        EVENT_REPOSITORY_ID: String(WRENCH_REPOSITORY_ID),
+        EVENT_REPOSITORY_ID: String(GHOSTGET_REPOSITORY_ID),
         EVENT_SHA: sourceSha,
         GITHUB_OUTPUT: output,
         GITHUB_REPOSITORY: providerRepository,
@@ -3449,7 +3479,7 @@ esac
       verifiedTag: providerTag,
     })).rejects.toThrow("changed during authority verification");
 
-    const directory = await mkdtemp(join(tmpdir(), "wrench-promotion-identity-"));
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-promotion-identity-"));
     const output = join(directory, "github-output.txt");
     const helperDirectory = join(directory, "scripts");
     const binaryDirectory = join(directory, "bin");
@@ -3465,7 +3495,7 @@ esac
     };
     try {
       checkedGit(["init", "--initial-branch=main"]);
-      checkedGit(["config", "user.name", "Wrench promotion test"]);
+      checkedGit(["config", "user.name", "Ghostget promotion test"]);
       checkedGit(["config", "user.email", "test@example.invalid"]);
       await mkdir(helperDirectory, { recursive: true });
       await mkdir(binaryDirectory, { recursive: true });
@@ -3474,7 +3504,7 @@ set -euo pipefail
 if [[ "\${1-}" == "--experimental-strip-types" && \
       "\${2-}" == "./scripts/release-ref-authority.ts" && \
       "\${3-}" == "promotion" ]]; then
-  [[ "$GITHUB_REPOSITORY" == "hraness/wrench" && "$DEFAULT_BRANCH" == "main" ]]
+  [[ "$GITHUB_REPOSITORY" == "hraness/ghostget" && "$DEFAULT_BRANCH" == "main" ]]
   tag="\${4-}"
   workflow_sha="\${5-}"
   expected_release_sha="\${6-}"
@@ -3496,7 +3526,7 @@ fi
       await chmod(nodeStub, 0o755);
       await writeFile(
         join(directory, "package.json"),
-        '{"name":"@hraness/wrench","version":"0.16.2"}\n',
+        '{"name":"@hraness/ghostget","version":"0.16.2"}\n',
         "utf8",
       );
       await writeFile(
@@ -3510,7 +3540,7 @@ fi
       checkedGit(["tag", providerTag]);
       await writeFile(
         join(directory, "package.json"),
-        '{"name":"@hraness/wrench","version":"9.9.9"}\n',
+        '{"name":"@hraness/ghostget","version":"9.9.9"}\n',
         "utf8",
       );
       await writeFile(join(directory, "control.txt"), "reviewed main workflow\n", "utf8");
@@ -3528,7 +3558,7 @@ fi
           DEFAULT_BRANCH: "main",
           EVENT_NAME: eventName,
           GITHUB_OUTPUT: output,
-          GITHUB_REPOSITORY: "hraness/wrench",
+          GITHUB_REPOSITORY: "hraness/ghostget",
           ORIGINAL_PATH: process.env.PATH ?? "",
           PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`,
           RECOVERY_WORKFLOW_SHA: recoveryWorkflowSha,
@@ -3572,7 +3602,7 @@ fi
       checkedGit(["switch", "--orphan", "unrelated"]);
       await writeFile(
         join(directory, "package.json"),
-        '{"name":"@hraness/wrench","version":"0.16.2"}\n',
+        '{"name":"@hraness/ghostget","version":"0.16.2"}\n',
         "utf8",
       );
       checkedGit(["add", "package.json"]);
@@ -3811,7 +3841,7 @@ fi
         .not.toContain(forbiddenControlEndpoint);
     }
     expect(workflow).not.toContain("WRENCH_RELEASE_APP_RULESET");
-    expect(appHelper).toContain("repository_ids: Object.freeze([WRENCH_REPOSITORY_ID])");
+    expect(appHelper).toContain("repository_ids: Object.freeze([GHOSTGET_REPOSITORY_ID])");
     expect(appHelper).toContain('["contents", "metadata", "workflows"]');
     expect(appHelper).toContain('workflows: "write"');
     expect(appHelper).toContain("MAX_RESPONSE_BYTES = 1024 * 1024");
@@ -3826,7 +3856,7 @@ fi
     expect(writerHelper).toContain('"FETCH_HEAD^{commit}"');
     expect(writerHelper).toContain('resolved.stdout !== `${verifiedSha}\\n`');
     expect(writerHelper).toContain("does not peel to the verified release SHA");
-    expect(writerHelper).toContain('const FIXED_REMOTE = "https://github.com/hraness/wrench.git"');
+    expect(writerHelper).toContain('const FIXED_REMOTE = "https://github.com/hraness/ghostget.git"');
     expect(writerHelper).toContain('GIT_ASKPASS_REQUIRE: "force"');
     expect(writerHelper).not.toContain("--force\"");
     expect(codeowners.trim().split("\n")).toEqual([
@@ -3863,10 +3893,10 @@ fi
     expect(releaseGraphqlRequestBudget.maxPoints).toBeLessThanOrEqual(250);
   });
 
-  test("mints only one exact Wrench release-App token and always revokes it", async () => {
+  test("mints only one exact Ghostget release-App token and always revokes it", async () => {
     const releaseAppTokenSource = await readFile(releaseAppTokenHelperUrl, "utf8");
     expect(createHash("sha256").update(releaseAppTokenSource).digest("hex")).toBe(
-      "56c89960c6cdfadd7e34cd2b64bfa022a3884aedf73187016f9e5b7cd6ac3cb6",
+      "3427942305e7284e65f42d70f0f12f4106fc28c1da06b0908ca1eef553605438",
     );
     const revokeWithFetchSource = `async function revokeWithFetch(input) {
   return revokeReleaseAppTokenWithConvergence({
@@ -3916,7 +3946,7 @@ fi
       revocationImplementationEnd,
     );
     expect(createHash("sha256").update(revocationImplementationSource).digest("hex")).toBe(
-      "d33def2bf83f6166d0048e5715eec79076c25ef92af602729a9e4d1bc3410cb4",
+      "d5bd6d4826c024eeda2c605fedcb5a223138674f2ea1cdfdee6d6534fd45350a",
     );
     expect(revocationImplementationSource.match(/input\.fetchImplementation/gu) ?? [])
       .toHaveLength(3);
@@ -3932,13 +3962,13 @@ fi
     const environment = Object.freeze({
       GITHUB_API_URL: "https://api.github.com",
       GITHUB_REPOSITORY: providerRepository,
-      GITHUB_REPOSITORY_ID: String(WRENCH_REPOSITORY_ID),
+      GITHUB_REPOSITORY_ID: String(GHOSTGET_REPOSITORY_ID),
       GITHUB_REPOSITORY_OWNER: "hraness",
-      WRENCH_RELEASE_APP_CLIENT_ID: "Iv23liWrenchWriter",
+      WRENCH_RELEASE_APP_CLIENT_ID: "Iv23liGhostgetWriter",
       WRENCH_RELEASE_APP_ID: "123456",
       WRENCH_RELEASE_APP_INSTALLATION_ID: "654321",
       WRENCH_RELEASE_APP_PRIVATE_KEY: privateKey,
-      WRENCH_RELEASE_APP_SLUG: "wrench-prod-ref-writer-1316443113",
+      WRENCH_RELEASE_APP_SLUG: "ghostget-prod-ref-writer-1316443113",
     });
     const configuration = parseReleaseAppConfiguration(environment);
     expect(configuration.repositoryId).toBe(1_316_443_113);
@@ -3960,7 +3990,7 @@ fi
     expect(JSON.parse(Buffer.from(payload ?? "", "base64url").toString("utf8"))).toEqual({
       exp: 1_788_052_080,
       iat: 1_788_051_540,
-      iss: "Iv23liWrenchWriter",
+      iss: "Iv23liGhostgetWriter",
     });
     expect(verify(
       "RSA-SHA256",
@@ -3985,14 +4015,14 @@ fi
       repository_selection: "selected",
       target_type: "Organization",
     };
-    const token = "ghs_exact-wrench-release-token";
+    const token = "ghs_exact-ghostget-release-token";
     const response = {
       expires_at: "2026-08-30T02:00:00Z",
       permissions: { contents: "write", metadata: "read", workflows: "write" },
       repositories: [{
         full_name: providerRepository,
-        id: WRENCH_REPOSITORY_ID,
-        name: "wrench",
+        id: GHOSTGET_REPOSITORY_ID,
+        name: "ghostget",
         owner: { login: "hraness" },
       }],
       repository_selection: "selected",
@@ -4031,7 +4061,7 @@ fi
     )).toEqual({
       expiresAt: "2026-08-30T02:00:00Z",
       permissions: { contents: "write", metadata: "read", workflows: "write" },
-      repositoryId: WRENCH_REPOSITORY_ID,
+      repositoryId: GHOSTGET_REPOSITORY_ID,
       token,
     });
     expect(parseReleaseAppTokenResponse({
@@ -4042,7 +4072,7 @@ fi
     }, "Sun, 30 Aug 2026 01:00:00 GMT")).toEqual({
       expiresAt: "2026-08-30T02:00:00Z",
       permissions: { contents: "write", metadata: "read", workflows: "write" },
-      repositoryId: WRENCH_REPOSITORY_ID,
+      repositoryId: GHOSTGET_REPOSITORY_ID,
       token,
     });
 
@@ -4073,7 +4103,7 @@ fi
       },
     }, async (value: string, receipt: Readonly<{ repositoryId: number }>) => {
       events.push(`operate:${value}`);
-      expect(receipt.repositoryId).toBe(WRENCH_REPOSITORY_ID);
+      expect(receipt.repositoryId).toBe(GHOSTGET_REPOSITORY_ID);
       return "advanced";
     });
     expect(result).toBe("advanced");
@@ -4089,8 +4119,8 @@ fi
     const repositoryBody = Object.freeze({
       repositories: [{
         full_name: providerRepository,
-        id: WRENCH_REPOSITORY_ID,
-        name: "wrench",
+        id: GHOSTGET_REPOSITORY_ID,
+        name: "ghostget",
         owner: { login: "hraness" },
       }],
       repository_selection: "selected",
@@ -4265,7 +4295,7 @@ fi
         expect(headers).toEqual({
           Accept: "application/vnd.github+json",
           Authorization: `Bearer ${token}`,
-          "User-Agent": "wrench-release-writer",
+          "User-Agent": "ghostget-release-writer",
           "X-GitHub-Api-Version": "2022-11-28",
         });
         expect(init?.redirect).toBe("error");
@@ -4370,7 +4400,7 @@ fi
       const headers = init?.headers as Readonly<Record<string, string>> | undefined;
       expect(headers?.Accept).toBe("application/vnd.github+json");
       expect(headers?.Authorization).toBe(`Bearer ${jwt}`);
-      expect(headers?.["User-Agent"]).toBe("wrench-release-writer");
+      expect(headers?.["User-Agent"]).toBe("ghostget-release-writer");
       expect(headers?.["X-GitHub-Api-Version"]).toBe("2022-11-28");
       const jsonResponse = (body: unknown, status: number, date?: string) => new Response(
         JSON.stringify(body),
@@ -4452,7 +4482,7 @@ fi
             clientId: configuration.clientId,
             expiresAt: response.expires_at,
             installationId: configuration.installationId,
-            repositoryId: WRENCH_REPOSITORY_ID,
+            repositoryId: GHOSTGET_REPOSITORY_ID,
           });
           return "environment-wrapper-advanced";
         },
@@ -5747,7 +5777,7 @@ fi
       "--no-tags",
       "--no-recurse-submodules",
       "--depth=1",
-      "https://github.com/hraness/wrench.git",
+      "https://github.com/hraness/ghostget.git",
       `refs/tags/${providerTag}`,
     ]);
     const pushArguments = websiteProductionPushArguments(providerPreviousSha, providerVerifiedSha);
@@ -5770,7 +5800,7 @@ fi
       "--no-signed",
       "--no-verify",
       "--recurse-submodules=no",
-      "https://github.com/hraness/wrench.git",
+      "https://github.com/hraness/ghostget.git",
       `${providerVerifiedSha}:refs/heads/website-production`,
     ]);
     expect(pushArguments).toContain(
@@ -5779,7 +5809,7 @@ fi
     expect(pushArguments).toContain(
       `${providerVerifiedSha}:refs/heads/website-production`,
     );
-    expect(pushArguments).toContain("https://github.com/hraness/wrench.git");
+    expect(pushArguments).toContain("https://github.com/hraness/ghostget.git");
     expect(pushArguments.filter((value) => value === "push")).toHaveLength(1);
     expect(pushArguments).not.toContain("--force");
     expect(pushArguments).not.toContain("--mirror");
@@ -5789,7 +5819,7 @@ fi
     expect(() => websiteProductionPushArguments(providerPreviousSha, providerPreviousSha))
       .toThrow("already exact");
 
-    const token = "ghs_secret-wrench-release-token";
+    const token = "ghs_secret-ghostget-release-token";
     let askpassPath = "";
     const calls: string[][] = [];
     advanceWebsiteProductionRef({
@@ -5895,7 +5925,7 @@ fi
   });
 
   test("rejects a stale explicit lease without moving the production ref", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "wrench-ref-lease-"));
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-ref-lease-"));
     const remote = join(directory, "remote.git");
     const source = join(directory, "source");
     const runGit = (arguments_: readonly string[], cwd = source) => {
@@ -5919,7 +5949,7 @@ fi
     try {
       checkedGit(["init", "--bare", remote], directory);
       checkedGit(["init", source], directory);
-      checkedGit(["config", "user.name", "Wrench lease test"]);
+      checkedGit(["config", "user.name", "Ghostget lease test"]);
       checkedGit(["config", "user.email", "test@example.invalid"]);
       const file = join(source, "value.txt");
       await writeFile(file, "one\n", "utf8");
@@ -5932,7 +5962,7 @@ fi
       checkedGit(["commit", "-am", "two"]);
       const second = checkedGit(["rev-parse", "HEAD"]);
       const firstAdvance = websiteProductionPushArguments(first, second).map((value) =>
-        value === "https://github.com/hraness/wrench.git" ? remote : value
+        value === "https://github.com/hraness/ghostget.git" ? remote : value
       );
       checkedGit(firstAdvance);
       expect(checkedGit([
@@ -5946,7 +5976,7 @@ fi
       checkedGit(["commit", "-am", "three"]);
       const third = checkedGit(["rev-parse", "HEAD"]);
       const staleAdvance = websiteProductionPushArguments(first, third).map((value) =>
-        value === "https://github.com/hraness/wrench.git" ? remote : value
+        value === "https://github.com/hraness/ghostget.git" ? remote : value
       );
       const stale = runGit(staleAdvance);
       expect(stale.exitCode).not.toBe(0);
@@ -6143,7 +6173,7 @@ fi
     const exactRelease = providerRelease({
       author: { id: 41898282, login: "github-actions[bot]", type: "Bot" },
       body: `${receipt}\n\n## What's Changed\nGenerated notes are not authority.`,
-      name: `Wrench ${providerTag}`,
+      name: `Ghostget ${providerTag}`,
       target_commitish: "main",
     });
     const coordinates = {
@@ -6227,7 +6257,7 @@ fi
 
     const repository = {
       full_name: providerRepository,
-      id: WRENCH_REPOSITORY_ID,
+      id: GHOSTGET_REPOSITORY_ID,
       private: false,
     };
     for (const overrides of [
@@ -8067,7 +8097,7 @@ fi
     for (const overrides of [
       { deployment_url: `https://api.github.com/repos/${providerRepository}/deployments/21` },
       { environment: "Preview" },
-      { environment_url: "http://wrench-20-hraness.vercel.app" },
+      { environment_url: "http://ghostget-20-hraness.vercel.app" },
       { environment_url: "https://wrench-20-hraness.vercel.app/" },
       { log_url: "https://wrench-other-hraness.vercel.app" },
       { target_url: "https://wrench-other-hraness.vercel.app" },
@@ -8733,7 +8763,7 @@ fi
 
   test("keeps installation coordinates aligned with the canonical source version", async () => {
     const manifest = JSON.parse(await readFile(manifestUrl, "utf8")) as { version: string };
-    const url = `https://github.com/hraness/wrench/releases/download/v${manifest.version}/hraness-wrench-${manifest.version}.tgz`;
+    const url = `https://github.com/hraness/ghostget/releases/download/v${manifest.version}/hraness-ghostget-${manifest.version}.tgz`;
     for (const source of [readmeUrl, skillInstallGuideUrl, publishingGuideUrl]) {
       const text = await readFile(source, "utf8"); expect(text).toContain(url);
     }
@@ -8748,8 +8778,8 @@ describe("canonical npm package identity", () => {
       readonly name: string;
       readonly version: string;
     };
-    const filename = `hraness-wrench-${manifest.version}.tgz`;
-    const work = await mkdtemp(join(tmpdir(), "wrench-package-identity-test-"));
+    const filename = `hraness-ghostget-${manifest.version}.tgz`;
+    const work = await mkdtemp(join(tmpdir(), "ghostget-package-identity-test-"));
     try {
       const sourceDirectory = join(work, "source");
       const registryDirectory = join(work, "registry");
@@ -8931,14 +8961,14 @@ describe("canonical npm package identity", () => {
 
 describe("verified npm provenance identity", () => {
   test("binds cryptographically audited publish and SLSA attestations to the stage workflow", async () => {
-    const work = await mkdtemp(join(tmpdir(), "wrench-provenance-identity-test-"));
+    const work = await mkdtemp(join(tmpdir(), "ghostget-provenance-identity-test-"));
     const auditJson = join(work, "npm-audit.json");
-    const registryArchive = join(work, "hraness-wrench-0.16.6.tgz");
-    const archive = Buffer.from("reviewed Wrench registry archive\n", "utf8");
+    const registryArchive = join(work, "hraness-ghostget-0.16.6.tgz");
+    const archive = Buffer.from("reviewed Ghostget registry archive\n", "utf8");
     const archiveSha512 = createHash("sha512").update(archive).digest("hex");
     const sourceSha = "a".repeat(40);
     const version = "0.16.6";
-    const purl = `pkg:npm/%40hraness/wrench@${version}`;
+    const purl = `pkg:npm/%40hraness/ghostget@${version}`;
     const bundle = (predicateType: string, statement: unknown) => ({
       predicateType,
       bundle: {
@@ -8955,7 +8985,7 @@ describe("verified npm provenance identity", () => {
       event = "workflow_dispatch",
       includePublish = true,
       invalid = [] as readonly unknown[],
-      invocation = "https://github.com/hraness/wrench/actions/runs/123456/attempts/2",
+      invocation = "https://github.com/hraness/ghostget/actions/runs/123456/attempts/2",
       source = sourceSha,
       subjectDigest = archiveSha512,
       workflowPath = ".github/workflows/npm-stage.yml",
@@ -8970,7 +9000,7 @@ describe("verified npm provenance identity", () => {
             externalParameters: {
               workflow: {
                 ref: "refs/heads/main",
-                repository: "https://github.com/hraness/wrench",
+                repository: "https://github.com/hraness/ghostget",
                 path: workflowPath,
               },
             },
@@ -8982,7 +9012,7 @@ describe("verified npm provenance identity", () => {
               },
             },
             resolvedDependencies: [{
-              uri: "git+https://github.com/hraness/wrench@refs/heads/main",
+              uri: "git+https://github.com/hraness/ghostget@refs/heads/main",
               digest: { gitCommit: source },
             }],
           },
@@ -9000,7 +9030,7 @@ describe("verified npm provenance identity", () => {
         subject: [{ name: purl, digest: { sha512: subjectDigest } }],
         predicateType: publishPredicate,
         predicate: {
-          name: "@hraness/wrench",
+          name: "@hraness/ghostget",
           version,
           registry: "https://registry.npmjs.org",
         },
@@ -9009,12 +9039,12 @@ describe("verified npm provenance identity", () => {
         invalid,
         missing: [],
         verified: [{
-          name: "@hraness/wrench",
+          name: "@hraness/ghostget",
           version,
-          location: "node_modules/@hraness/wrench",
+          location: "node_modules/@hraness/ghostget",
           registry: "https://registry.npmjs.org/",
           attestations: {
-            url: `https://registry.npmjs.org/-/npm/v1/attestations/%40hraness%2Fwrench@${version}`,
+            url: `https://registry.npmjs.org/-/npm/v1/attestations/%40hraness%2Fghostget@${version}`,
             provenance: { predicateType: "https://slsa.dev/provenance/v1" },
           },
           attestationBundles: [
@@ -9027,10 +9057,10 @@ describe("verified npm provenance identity", () => {
     const input: NpmProvenanceIdentityInput = Object.freeze({
       auditJson,
       expectedEvent: "workflow_dispatch",
-      expectedName: "@hraness/wrench",
+      expectedName: "@hraness/ghostget",
       expectedOwnerId: "307125679",
       expectedRef: "refs/heads/main",
-      expectedRepository: "hraness/wrench",
+      expectedRepository: "hraness/ghostget",
       expectedRepositoryId: "1316443113",
       expectedSourceSha: sourceSha,
       expectedVersion: version,
@@ -9056,7 +9086,7 @@ describe("verified npm provenance identity", () => {
         [auditFixture({ workflowPath: ".github/workflows/release.yml" }), "Verified SLSA workflow path"],
         [auditFixture({ includePublish: false }), "must verify one registry publish bundle"],
         [auditFixture({ invalid: [{}] }), "contains invalid entries"],
-        [auditFixture({ invocation: "https://github.com/hraness/wrench/actions/runs/9007199254740992/attempts/2" }), "unsafe numeric identity"],
+        [auditFixture({ invocation: "https://github.com/hraness/ghostget/actions/runs/9007199254740992/attempts/2" }), "unsafe numeric identity"],
       ] as const) {
         await writeFile(auditJson, `${JSON.stringify(fixture)}\n`, "utf8");
         await expect(verifyNpmProvenanceIdentity(input)).rejects.toThrow(message);

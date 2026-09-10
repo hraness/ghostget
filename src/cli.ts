@@ -1,29 +1,29 @@
 #!/usr/bin/env bun
 
-import { wrenchUsage } from "./usage";
-import { WRENCH_VERSION } from "./version";
+import { ghostgetUsage } from "./usage";
+import { GHOSTGET_VERSION } from "./version";
 import type {
-  WrenchCatalogCommand,
-  WrenchCatalogOutput,
+  GhostgetCatalogCommand,
+  GhostgetCatalogOutput,
 } from "./catalog-cli";
 
 type CliOutput = {
-  readonly stdout: WrenchCatalogOutput["stdout"];
-  readonly stderr?: WrenchCatalogOutput["stderr"];
+  readonly stdout: GhostgetCatalogOutput["stdout"];
+  readonly stderr?: GhostgetCatalogOutput["stderr"];
 };
 
-type WrenchProcessModule = {
-  readonly runWrenchProcess: (overrides?: {
+type GhostgetProcessModule = {
+  readonly runGhostgetProcess: (overrides?: {
     readonly rawArguments?: readonly string[];
     readonly output?: Required<CliOutput>;
   }) => Promise<void>;
 };
 
-type WrenchCatalogModule = {
-  readonly runWrenchCatalogCommand: (
-    command: WrenchCatalogCommand,
+type GhostgetCatalogModule = {
+  readonly runGhostgetCatalogCommand: (
+    command: GhostgetCatalogCommand,
     environment: Readonly<Record<string, string | undefined>>,
-    output: WrenchCatalogOutput,
+    output: GhostgetCatalogOutput,
   ) => Promise<number>;
 };
 
@@ -34,16 +34,16 @@ type PublicKbCliModule = {
   ) => Promise<number>;
 };
 
-const defaultOutput: WrenchCatalogOutput = {
+const defaultOutput: GhostgetCatalogOutput = {
   stdout: (value) => process.stdout.write(value),
   stderr: (value) => process.stderr.write(value),
 };
 
-const loadWrenchProcess = (): Promise<WrenchProcessModule> => import("./wrench");
-const loadWrenchCatalog = (): Promise<WrenchCatalogModule> => import("./catalog-cli");
+const loadGhostgetProcess = (): Promise<GhostgetProcessModule> => import("./ghostget");
+const loadGhostgetCatalog = (): Promise<GhostgetCatalogModule> => import("./catalog-cli");
 const loadPublicKbCli = (): Promise<PublicKbCliModule> => import("@hraness/kb/cli");
 
-const publicWrenchCommands = new Set([
+const publicGhostgetCommands = new Set([
   "adapters",
   "agents",
   "backlinks",
@@ -61,12 +61,12 @@ const publicWrenchCommands = new Set([
   "url-metadata",
 ]);
 
-export function isPublicWrenchCommand(rawArguments: readonly string[]): boolean {
+export function isPublicGhostgetCommand(rawArguments: readonly string[]): boolean {
   const command = rawArguments[0];
-  return command !== undefined && publicWrenchCommands.has(command);
+  return command !== undefined && publicGhostgetCommands.has(command);
 }
 
-export function isImmediateWrenchHelpRequest(
+export function isImmediateGhostgetHelpRequest(
   rawArguments: readonly string[],
 ): boolean {
   return rawArguments.length === 0
@@ -80,7 +80,7 @@ export function isImmediateWrenchHelpRequest(
     );
 }
 
-export function isImmediateWrenchVersionRequest(
+export function isImmediateGhostgetVersionRequest(
   rawArguments: readonly string[],
 ): boolean {
   return rawArguments.length === 1 && rawArguments[0] === "--version";
@@ -100,11 +100,11 @@ function isProviderPluginId(value: string): boolean {
 
 /**
  * Recognize only complete catalog command shapes. Malformed or broader plugin
- * commands retain the canonical parser and process boundary in wrench.ts.
+ * commands retain the canonical parser and process boundary in ghostget.ts.
  */
-export function routedWrenchCatalogCommand(
+export function routedGhostgetCatalogCommand(
   rawArguments: readonly string[],
-): WrenchCatalogCommand | null {
+): GhostgetCatalogCommand | null {
   const first = rawArguments[0];
   if (first === "capabilities") {
     const positional = rawArguments.slice(1).filter(
@@ -156,20 +156,20 @@ export function routedWrenchCatalogCommand(
  * Every other invocation delegates to the existing process boundary, which
  * retains its signal, exit-code, parsing, dependency, and error behavior.
  */
-export async function runWrenchCliProcess(
+export async function runGhostgetCliProcess(
   rawArguments: readonly string[] = process.argv.slice(2),
   output: CliOutput = defaultOutput,
-  loadProcess: () => Promise<WrenchProcessModule> = loadWrenchProcess,
-  loadCatalog: () => Promise<WrenchCatalogModule> = loadWrenchCatalog,
+  loadProcess: () => Promise<GhostgetProcessModule> = loadGhostgetProcess,
+  loadCatalog: () => Promise<GhostgetCatalogModule> = loadGhostgetCatalog,
   loadKnowledgeCli: () => Promise<PublicKbCliModule> = loadPublicKbCli,
 ): Promise<void> {
-  if (isImmediateWrenchHelpRequest(rawArguments)) {
-    output.stdout(wrenchUsage);
+  if (isImmediateGhostgetHelpRequest(rawArguments)) {
+    output.stdout(ghostgetUsage);
     process.exitCode = 0;
     return;
   }
-  if (isImmediateWrenchVersionRequest(rawArguments)) {
-    output.stdout(`${WRENCH_VERSION}\n`);
+  if (isImmediateGhostgetVersionRequest(rawArguments)) {
+    output.stdout(`${GHOSTGET_VERSION}\n`);
     process.exitCode = 0;
     return;
   }
@@ -181,15 +181,15 @@ export async function runWrenchCliProcess(
     stdout: output.stdout,
     stderr: output.stderr ?? defaultOutput.stderr,
   };
-  if (isPublicWrenchCommand(rawArguments)) {
+  if (isPublicGhostgetCommand(rawArguments)) {
     const knowledge = await loadKnowledgeCli();
     process.exitCode = await knowledge.main(rawArguments, resolvedOutput);
     return;
   }
-  const catalogCommand = routedWrenchCatalogCommand(providerArguments);
+  const catalogCommand = routedGhostgetCatalogCommand(providerArguments);
   if (catalogCommand !== null) {
     const catalog = await loadCatalog();
-    process.exitCode = await catalog.runWrenchCatalogCommand(
+    process.exitCode = await catalog.runGhostgetCatalogCommand(
       catalogCommand,
       process.env,
       resolvedOutput,
@@ -197,12 +197,12 @@ export async function runWrenchCliProcess(
     return;
   }
   const runtime = await loadProcess();
-  await runtime.runWrenchProcess({
+  await runtime.runGhostgetProcess({
     rawArguments: providerArguments,
     output: resolvedOutput,
   });
 }
 
 if (import.meta.main) {
-  await runWrenchCliProcess();
+  await runGhostgetCliProcess();
 }

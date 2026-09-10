@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import {
   PreservedBrowserArtifactsError,
   type BrowserSession,
@@ -40,7 +40,7 @@ const auth = {
   browserExecutable: "/Applications/Chromium.app/Contents/MacOS/Chromium",
   trustUnfilteredEgress: true,
   subject: `urn:li:fsd_profile:${MEMBER_ID}`,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 const cookieSourceAuth = {
   schemaVersion: 1,
@@ -49,7 +49,7 @@ const cookieSourceAuth = {
   source: "chrome",
   profile: "Profile 9",
   subject: `urn:li:fsd_profile:${MEMBER_ID}`,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 type BrowserReadBinding = {
   readonly kind: "html" | "json";
@@ -151,7 +151,7 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     async (proofTiming, action) => {
       const root = mkdtempSync(join(tmpdir(), "wrench-linkedin-cleanup-join-"));
       chmodSync(root, 0o700);
-      const environment = { WRENCH_STATE_HOME: join(root, "state"), HOME: root };
+      const environment = { GHOSTGET_STATE_HOME: join(root, "state"), HOME: root };
       const proof = Promise.withResolvers<void>();
       const cleanupStarted = Promise.withResolvers<void>();
       const joinScheduled = Promise.withResolvers<() => void>();
@@ -852,7 +852,7 @@ describe("LinkedIn profile stats contained-browser transport", () => {
       calls.push({ command, options });
       return Promise.resolve({ exitCode: 0, stderr: "", stdout: "{}" });
     };
-    const createWrapped = async (browserAuth: WrenchAuth): Promise<{
+    const createWrapped = async (browserAuth: GhostgetAuth): Promise<{
       readonly close: () => Promise<void>;
       readonly run: CommandRunner;
     }> => {

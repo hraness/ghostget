@@ -1,4 +1,4 @@
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { requireProviderPluginAuth } from "./provider-plugin-auth";
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
 import { getWebSessionContract, planWebSessionDispatches } from "./web-session-contracts";
@@ -26,7 +26,7 @@ export {
 
 export async function probeWebSessionSubject(
   site: WebSessionSiteId,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   registry: ProviderPluginRegistry,
 ): Promise<string> {
   const binding = registry.requireSessionRoute(site);

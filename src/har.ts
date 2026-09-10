@@ -19,10 +19,10 @@ import {
   canonicalJson,
   isReviewedTemplateProtectedHostname,
   sha256,
-  WRENCH_MANIFEST_SCHEMA_VERSION,
-  WRENCH_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION,
-  WRENCH_WEB_SESSION_MANIFEST_SCHEMA_VERSION,
-  type WrenchManifest,
+  GHOSTGET_MANIFEST_SCHEMA_VERSION,
+  GHOSTGET_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION,
+  GHOSTGET_WEB_SESSION_MANIFEST_SCHEMA_VERSION,
+  type GhostgetManifest,
 } from "./model";
 import {
   platformSurfaceIds,
@@ -421,7 +421,7 @@ export function emptyManifest(
   targetOrigin: string,
   browserDomains?: readonly string[],
   surfaceId?: PlatformSurfaceId,
-): WrenchManifest {
+): GhostgetManifest {
   if (!/^[a-z][a-z0-9-]{0,47}$/u.test(adapterId)) throw new Error("adapter ID must be lowercase kebab-case");
   const origin = new URL(targetOrigin);
   if (origin.protocol !== "https:" || origin.origin !== targetOrigin) throw new Error("target origin must be an exact HTTPS origin");
@@ -455,7 +455,7 @@ export function emptyManifest(
     }
   }
   return {
-    schemaVersion: WRENCH_MANIFEST_SCHEMA_VERSION,
+    schemaVersion: GHOSTGET_MANIFEST_SCHEMA_VERSION,
     id: adapterId,
     version: "0.1.0",
     displayName: adapterId.split("-").map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" "),
@@ -472,7 +472,7 @@ function derivedManifest(
   browserDomains: readonly string[],
   registry: ProviderPluginRegistry,
   surfaceId?: PlatformSurfaceId,
-): WrenchManifest {
+): GhostgetManifest {
   const base = emptyManifest(adapterId, targetOrigin, browserDomains, surfaceId);
   const protectedHostname = isReviewedTemplateProtectedHostname(
     new URL(targetOrigin).hostname,
@@ -481,13 +481,13 @@ function derivedManifest(
   return {
     ...base,
     schemaVersion: base.surfaceId === "linkedin" || base.surfaceId === "x" || protectedHostname
-      ? WRENCH_WEB_SESSION_MANIFEST_SCHEMA_VERSION
-      : WRENCH_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION,
+      ? GHOSTGET_WEB_SESSION_MANIFEST_SCHEMA_VERSION
+      : GHOSTGET_REVIEWED_TEMPLATE_MANIFEST_SCHEMA_VERSION,
   };
 }
 
-export function reviewedTemplateReservation(analysis: HarAnalysis, manifest: WrenchManifest): ReviewedTemplateReservation {
-  const codeOwned = manifest.schemaVersion === WRENCH_WEB_SESSION_MANIFEST_SCHEMA_VERSION;
+export function reviewedTemplateReservation(analysis: HarAnalysis, manifest: GhostgetManifest): ReviewedTemplateReservation {
+  const codeOwned = manifest.schemaVersion === GHOSTGET_WEB_SESSION_MANIFEST_SCHEMA_VERSION;
   return {
     schemaVersion: 1,
     state: "capture-required",

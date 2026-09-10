@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 
 import { renderAskAiAboutThis } from "./build";
 
-const subjectUrl = "https://wrench.rip/provider-capabilities/";
+const subjectUrl = "https://ghostget.com/provider-capabilities/";
 const prompt = `Tell me about ${subjectUrl}`;
 const expectedDestinations = [
   ["chatgpt", "https://chatgpt.com/", "q"],

@@ -1,4 +1,4 @@
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import type {
   ProviderPluginAuthKind,
   ProviderPluginBindingV1,
@@ -18,7 +18,7 @@ export type ProviderPluginAuthBinding = {
  */
 export function requireProviderPluginAuth(
   binding: ProviderPluginAuthBinding | ProviderPluginBindingV1,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
 ): void {
   if (!binding.authKinds.includes(auth.kind)) {
     throw new Error(

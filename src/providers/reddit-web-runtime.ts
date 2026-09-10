@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { BrowserFileResolver } from "../browser";
 import { canonicalJson } from "../canonical-json";
 import type { FileInputValue, OperationInput, WebSessionRecipe } from "../model";
@@ -499,7 +499,7 @@ async function currentViewer(
   return parseRedditWebViewerResponse(response);
 }
 
-function expectedSubject(auth: WrenchAuth): string {
+function expectedSubject(auth: GhostgetAuth): string {
   const subject = webSessionAuthSubject(auth);
   if (subject === null || !/^reddit:t2_[a-z0-9]{1,32}$/u.test(subject)) {
     throw new Error("Reddit authenticated operations require an auth locator bound to an exact reddit:t2_<id> subject");
@@ -507,7 +507,7 @@ function expectedSubject(auth: WrenchAuth): string {
   return subject;
 }
 
-function assertBoundViewer(auth: WrenchAuth, viewer: RedditWebViewer): string {
+function assertBoundViewer(auth: GhostgetAuth, viewer: RedditWebViewer): string {
   const expected = expectedSubject(auth);
   if (`reddit:${viewer.id}` !== expected) {
     throw new Error("Reddit browser session viewer no longer matches the confirmed auth subject");
@@ -517,7 +517,7 @@ function assertBoundViewer(auth: WrenchAuth, viewer: RedditWebViewer): string {
 
 async function requireBoundViewer(
   client: WebSessionClient,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
 ): Promise<RedditWebViewer> {
   const viewer = await currentViewer(client);
   assertBoundViewer(auth, viewer);
@@ -528,7 +528,7 @@ async function executeFlairChoices(
   client: WebSessionClient,
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;
@@ -594,7 +594,7 @@ async function executeFlairChoices(
 }
 
 export async function probeRedditWebSubject(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs?: number;
     readonly dependencies?: RedditWebRuntimeDependencies;
@@ -1109,7 +1109,7 @@ async function executeMediaPublish(
   client: WebSessionClient,
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly fileResolver?: BrowserFileResolver;
     readonly operationDeadline?: WebSessionOperationDeadline;
@@ -1349,7 +1349,7 @@ async function executeContentDelete(
   client: WebSessionClient,
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly beforeDispatch?: (event: WebSessionDispatchEvent) => Promise<void>;
     readonly afterDispatchVerified?: (event: WebSessionDispatchEvent) => Promise<void>;
@@ -1475,7 +1475,7 @@ async function prepareDesiredStateWithClient(
   client: WebSessionClient,
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
 ): Promise<{
   readonly viewer: RedditWebViewer;
   readonly preparation: RedditWebDesiredStatePreparation;
@@ -1531,7 +1531,7 @@ async function prepareDesiredStateWithClient(
 export async function prepareRedditWebDesiredState(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;
@@ -1567,7 +1567,7 @@ export async function prepareRedditWebDesiredState(
 export async function readRedditWebDesiredState(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;
@@ -1600,7 +1600,7 @@ export async function readRedditWebDesiredState(
 export async function readRedditWebContentDeleteDesiredState(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly dependencies?: RedditWebRuntimeDependencies;
@@ -1627,7 +1627,7 @@ export async function readRedditWebContentDeleteDesiredState(
 export async function readRedditWebPublishedMutationTarget(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   identifier: string,
   options: {
     readonly signal?: AbortSignal;
@@ -1698,7 +1698,7 @@ async function executeDesiredState(
   client: WebSessionClient,
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;
@@ -1790,7 +1790,7 @@ async function executeDesiredState(
 export async function executeRedditWebOperation(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly fileResolver?: BrowserFileResolver;
     readonly signal?: AbortSignal;

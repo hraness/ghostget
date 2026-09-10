@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import type {
   OperationInput,
   ReviewedTemplateRecipe,
-  WrenchManifest,
+  GhostgetManifest,
 } from "./model";
 import {
   executeReviewedTemplateOperation,
@@ -18,7 +18,7 @@ const auth = {
   kind: "cookie-source",
   source: "arc",
   profile: "Default",
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 const input = { target_id: "target-1", body: "hello" } as const satisfies OperationInput;
 
@@ -80,7 +80,7 @@ function recipe(
   };
 }
 
-function manifest(write: boolean, reviewedRecipe = recipe(write)): WrenchManifest {
+function manifest(write: boolean, reviewedRecipe = recipe(write)): GhostgetManifest {
   const operationId = write ? "messaging.send" : "content.read";
   return {
     schemaVersion: 5,

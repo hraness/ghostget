@@ -18,7 +18,7 @@ export interface DirectHttpMedia {
   readonly mediaType: string;
 }
 
-/** Returns Wrench media-owned media metadata for a recognized container. */
+/** Returns Ghostget media-owned media metadata for a recognized container. */
 export function directHttpMediaForContainer(
   container: MediaDirectHttpContainer,
 ): DirectHttpMedia {

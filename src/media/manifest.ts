@@ -30,19 +30,19 @@ import {
   RUNTIME_CLOSURE_PROFILE,
 } from "./runtime-closure";
 import {
-  WRENCH_MEDIA_REVISION_CONTENT_PROFILE,
-  WRENCH_MEDIA_TRACKED_REVISION_PROFILE,
+  GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
+  GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE,
   revisionContentSha256,
   trackedRevisionAssetKey,
   type MediaTrackedRevision,
 } from "./revision";
 import { compareUtf8 } from "./utf8-order";
-import { WRENCH_VERSION } from "../version";
+import { GHOSTGET_VERSION } from "../version";
 
-export const WRENCH_MEDIA_SCHEMA_VERSION = 1 as const;
-export const WRENCH_MEDIA_VERSION = WRENCH_VERSION;
-export const WRENCH_MEDIA_MANIFEST_FILE = "wrench-media.json" as const;
-export const WRENCH_MEDIA_CHECKSUM_FILE = "manifest-sha256.txt" as const;
+export const GHOSTGET_MEDIA_SCHEMA_VERSION = 1 as const;
+export const GHOSTGET_MEDIA_VERSION = GHOSTGET_VERSION;
+export const GHOSTGET_MEDIA_MANIFEST_FILE = "wrench-media.json" as const;
+export const GHOSTGET_MEDIA_CHECKSUM_FILE = "manifest-sha256.txt" as const;
 const MAX_ITEM_ENTRIES = 4_096;
 const MAX_ITEM_DEPTH = 32;
 const MAX_DIRECT_HTTP_BODY_BYTES = 64 * 1024 * 1024 * 1024;
@@ -55,10 +55,10 @@ const LOCAL_TRANSCRIBER_IDENTITY_DOMAIN = "wrench-media-local-transcriber-identi
 const LOCAL_TRANSCRIBER_IDENTITY_VERSION = 1 as const;
 const MAX_NORMALIZED_PCM_BYTES = (4 * 1024 * 1024 * 1024) - 1;
 
-export const WRENCH_MEDIA_WHISPER_CPP_PROFILE = "wrench-media-whisper-cpp-v1" as const;
-export const WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE = RUNTIME_CLOSURE_PROFILE;
-export const WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE = "pcm-s16le-16000hz-mono-v1" as const;
-export const WRENCH_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE = "yt-dlp-owned-youtube-v1" as const;
+export const GHOSTGET_MEDIA_WHISPER_CPP_PROFILE = "wrench-media-whisper-cpp-v1" as const;
+export const GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE = RUNTIME_CLOSURE_PROFILE;
+export const GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE = "pcm-s16le-16000hz-mono-v1" as const;
+export const GHOSTGET_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE = "yt-dlp-owned-youtube-v1" as const;
 
 export type ArtifactRole =
   | "capture"
@@ -93,9 +93,9 @@ export interface MediaControlFileDependencies {
 
 export interface MediaLocalTranscriptProvenance {
   readonly adapter: "whisper-cpp";
-  readonly profile: typeof WRENCH_MEDIA_WHISPER_CPP_PROFILE;
+  readonly profile: typeof GHOSTGET_MEDIA_WHISPER_CPP_PROFILE;
   readonly executableSha256: string;
-  readonly runtimeProfile: typeof WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE;
+  readonly runtimeProfile: typeof GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE;
   readonly runtimeSha256: string;
   readonly runtimeDependencyCount: number;
   readonly modelSha256: string;
@@ -105,7 +105,7 @@ export interface MediaLocalTranscriptProvenance {
     readonly bytes: number;
     readonly sha256: string;
     readonly normalized: {
-      readonly profile: typeof WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE;
+      readonly profile: typeof GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE;
       readonly bytes: number;
       readonly sha256: string;
     };
@@ -147,13 +147,13 @@ export type MediaTranscript =
 /** Public, path-free inputs that define one immutable local-transcriber variant. */
 export interface MediaLocalTranscriptIdentity {
   readonly adapter: "whisper-cpp";
-  readonly profile: typeof WRENCH_MEDIA_WHISPER_CPP_PROFILE;
+  readonly profile: typeof GHOSTGET_MEDIA_WHISPER_CPP_PROFILE;
   readonly executableSha256: string;
-  readonly runtimeProfile: typeof WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE;
+  readonly runtimeProfile: typeof GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE;
   readonly runtimeSha256: string;
   readonly runtimeDependencyCount: number;
   readonly modelSha256: string;
-  readonly normalizationProfile: typeof WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE;
+  readonly normalizationProfile: typeof GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE;
   readonly requestedLanguage: string;
 }
 
@@ -183,9 +183,9 @@ function boundedTranscriptLanguageSegment(value: string): string {
 function localTranscriptIdentityDigest(identity: MediaLocalTranscriptIdentity): string {
   if (
     identity.adapter !== "whisper-cpp"
-    || identity.profile !== WRENCH_MEDIA_WHISPER_CPP_PROFILE
-    || identity.runtimeProfile !== WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE
-    || identity.normalizationProfile !== WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE
+    || identity.profile !== GHOSTGET_MEDIA_WHISPER_CPP_PROFILE
+    || identity.runtimeProfile !== GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE
+    || identity.normalizationProfile !== GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE
     || !SHA256_PATTERN.test(identity.executableSha256)
     || !SHA256_PATTERN.test(identity.runtimeSha256)
     || !Number.isSafeInteger(identity.runtimeDependencyCount)
@@ -294,7 +294,7 @@ export interface MediaDirectHttpProvenance {
 }
 
 export interface MediaYtDlpYouTubeIdentity {
-  readonly profile: typeof WRENCH_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE;
+  readonly profile: typeof GHOSTGET_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE;
   readonly providerIdentitySha256: string;
 }
 
@@ -316,7 +316,7 @@ export interface MediaDirectHttpAcquisition {
 }
 
 interface MediaManifestBase {
-  readonly schemaVersion: typeof WRENCH_MEDIA_SCHEMA_VERSION;
+  readonly schemaVersion: typeof GHOSTGET_MEDIA_SCHEMA_VERSION;
   readonly wrenchVersion: string;
   readonly assetKey: string;
   readonly capturedAt: string;
@@ -414,7 +414,7 @@ interface ParsedLocalTranscriptInput {
   readonly bytes: number;
   readonly sha256: string;
   readonly normalized: {
-    readonly profile: typeof WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE;
+    readonly profile: typeof GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE;
     readonly bytes: number;
     readonly sha256: string;
   };
@@ -445,7 +445,7 @@ function parseLocalTranscriptInput(value: unknown): ParsedLocalTranscriptInput |
     || !Number.isSafeInteger(inputBytes)
     || inputBytes <= 0
     || inputSha256 === null
-    || normalized["profile"] !== WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE
+    || normalized["profile"] !== GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE
     || typeof normalizedBytes !== "number"
     || !Number.isSafeInteger(normalizedBytes)
     || normalizedBytes <= 0
@@ -457,7 +457,7 @@ function parseLocalTranscriptInput(value: unknown): ParsedLocalTranscriptInput |
     bytes: inputBytes,
     sha256: inputSha256,
     normalized: {
-      profile: WRENCH_MEDIA_PCM_NORMALIZATION_PROFILE,
+      profile: GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE,
       bytes: normalizedBytes,
       sha256: normalizedSha256,
     },
@@ -486,9 +486,9 @@ function parseLocalTranscriptProvenance(
   const input = parseLocalTranscriptInput(value["input"]);
   if (
     value["adapter"] !== "whisper-cpp"
-    || value["profile"] !== WRENCH_MEDIA_WHISPER_CPP_PROFILE
+    || value["profile"] !== GHOSTGET_MEDIA_WHISPER_CPP_PROFILE
     || executableSha256 === null
-    || value["runtimeProfile"] !== WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE
+    || value["runtimeProfile"] !== GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE
     || runtimeSha256 === null
     || typeof runtimeDependencyCount !== "number"
     || !Number.isSafeInteger(runtimeDependencyCount)
@@ -500,9 +500,9 @@ function parseLocalTranscriptProvenance(
   ) return null;
   return {
     adapter: "whisper-cpp",
-    profile: WRENCH_MEDIA_WHISPER_CPP_PROFILE,
+    profile: GHOSTGET_MEDIA_WHISPER_CPP_PROFILE,
     executableSha256,
-    runtimeProfile: WRENCH_MEDIA_RUNTIME_CLOSURE_PROFILE,
+    runtimeProfile: GHOSTGET_MEDIA_RUNTIME_CLOSURE_PROFILE,
     runtimeSha256,
     runtimeDependencyCount,
     modelSha256,
@@ -724,13 +724,13 @@ function parsePublicYtDlpIdentity(value: unknown): MediaYtDlpYouTubeIdentity | O
   const profile = value["profile"];
   const providerDigest = parseSha256(value["providerIdentitySha256"]);
   if (
-    profile === WRENCH_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE
+    profile === GHOSTGET_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE
     && hasExactKeys(value, ["profile", "providerIdentitySha256"])
   ) {
     return providerDigest === null
       ? null
       : {
-          profile: WRENCH_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
+          profile: GHOSTGET_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
           providerIdentitySha256: providerDigest,
         };
   }
@@ -836,7 +836,7 @@ function parseAuthentication(value: unknown): MediaAuthentication | null {
 function parseTrackedRevision(value: unknown): MediaTrackedRevision | null {
   if (
     !isRecord(value)
-    || value["profile"] !== WRENCH_MEDIA_TRACKED_REVISION_PROFILE
+    || value["profile"] !== GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE
     || !hasExactKeys(
       value,
       ["profile", "sequence", "subjectAssetKey", "content"],
@@ -860,17 +860,17 @@ function parseTrackedRevision(value: unknown): MediaTrackedRevision | null {
       ))
     || !isRecord(content)
     || !hasExactKeys(content, ["profile", "sha256"])
-    || content["profile"] !== WRENCH_MEDIA_REVISION_CONTENT_PROFILE
+    || content["profile"] !== GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE
   ) return null;
   const contentSha256 = parseSha256(content["sha256"]);
   if (contentSha256 === null) return null;
   const revision: MediaTrackedRevision = {
-    profile: WRENCH_MEDIA_TRACKED_REVISION_PROFILE,
+    profile: GHOSTGET_MEDIA_TRACKED_REVISION_PROFILE,
     sequence,
     subjectAssetKey,
     ...(previousAssetKey === undefined ? {} : { previousAssetKey }),
     content: {
-      profile: WRENCH_MEDIA_REVISION_CONTENT_PROFILE,
+      profile: GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
       sha256: contentSha256,
     },
   };
@@ -944,7 +944,7 @@ function currentYtDlpSourceAssetKey(
   source: MediaManifestSource,
   identity: MediaYtDlpIdentity,
 ): string | null {
-  if (identity.profile === WRENCH_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE) {
+  if (identity.profile === GHOSTGET_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE) {
     if (
       source.extractor !== "Youtube"
       || !OWNED_YOUTUBE_ID_PATTERN.test(source.id)
@@ -1061,8 +1061,8 @@ function sourceHasDescription(source: MediaManifestSource): boolean {
 }
 
 export function parseMediaManifest(value: unknown): ParseManifestResult {
-  if (!isRecord(value) || value["schemaVersion"] !== WRENCH_MEDIA_SCHEMA_VERSION) {
-    return { ok: false, message: "unsupported or missing Wrench media manifest schema" };
+  if (!isRecord(value) || value["schemaVersion"] !== GHOSTGET_MEDIA_SCHEMA_VERSION) {
+    return { ok: false, message: "unsupported or missing Ghostget media manifest schema" };
   }
   const acquisition = parseAcquisition(value["acquisition"]);
   const ytDlpAcquisition = acquisition?.adapter === "yt-dlp" ? acquisition : null;
@@ -1083,7 +1083,7 @@ export function parseMediaManifest(value: unknown): ParseManifestResult {
       "transcript",
       ...(ytDlpAcquisition === null ? [] : ["revision"]),
     ],
-  )) return { ok: false, message: "Wrench media manifest has an invalid top-level contract" };
+  )) return { ok: false, message: "Ghostget media manifest has an invalid top-level contract" };
   const wrenchVersion = stringValue(value, "wrenchVersion", 64);
   const assetKey = stringValue(value, "assetKey", 256);
   const capturedAt = stringValue(value, "capturedAt", 64);
@@ -1110,7 +1110,7 @@ export function parseMediaManifest(value: unknown): ParseManifestResult {
     || transcript === null
     || !Array.isArray(artifactValues)
     || artifactValues.length > 128
-  ) return { ok: false, message: "Wrench media manifest has an invalid top-level contract" };
+  ) return { ok: false, message: "Ghostget media manifest has an invalid top-level contract" };
   const ffmpeg = stringValue(tools, "ffmpeg", 256);
   const ffprobe = stringValue(tools, "ffprobe", 256);
   if (
@@ -1119,19 +1119,19 @@ export function parseMediaManifest(value: unknown): ParseManifestResult {
     || (Object.hasOwn(tools, "ffprobe") && ffprobe === undefined)
     || (ytDlpAcquisition !== null && trackedRevision === null)
   ) {
-    return { ok: false, message: "Wrench media manifest has an invalid acquisition contract" };
+    return { ok: false, message: "Ghostget media manifest has an invalid acquisition contract" };
   }
   if (directHttpAcquisition !== null && authentication.mode !== "public") {
-    return { ok: false, message: "Wrench media direct HTTP acquisition must use public authentication" };
+    return { ok: false, message: "Ghostget media direct HTTP acquisition must use public authentication" };
   }
   if (directHttpAcquisition !== null && !isOriginOnlyUrl(source.canonicalUrl)) {
-    return { ok: false, message: "Wrench media direct HTTP source URL must be an origin-only public projection" };
+    return { ok: false, message: "Ghostget media direct HTTP source URL must be an origin-only public projection" };
   }
   const artifacts: MediaArtifact[] = [];
   const paths = new Set<string>();
   for (const artifactValue of artifactValues) {
     const artifact = parseArtifact(artifactValue);
-    if (artifact === null || paths.has(artifact.path)) return { ok: false, message: "Wrench media manifest has an invalid or duplicate artifact" };
+    if (artifact === null || paths.has(artifact.path)) return { ok: false, message: "Ghostget media manifest has an invalid or duplicate artifact" };
     paths.add(artifact.path);
     artifacts.push(artifact);
   }
@@ -1139,16 +1139,16 @@ export function parseMediaManifest(value: unknown): ParseManifestResult {
   const roleCount = (role: ArtifactRole): number => artifacts.filter((artifact) => artifact.role === role).length;
   for (const role of artifactRoles) {
     if (roleCount(role) > 1) {
-      return { ok: false, message: "Wrench media manifest has duplicate singleton artifact roles" };
+      return { ok: false, message: "Ghostget media manifest has duplicate singleton artifact roles" };
     }
   }
   if (roleCount("provider_metadata") !== 1) {
-    return { ok: false, message: "Wrench media manifest must contain exactly one provider metadata artifact" };
+    return { ok: false, message: "Ghostget media manifest must contain exactly one provider metadata artifact" };
   }
   if (transcript.status === "available") {
     const references = [transcript.timedPath, transcript.textPath, transcript.cuesPath] as const;
     if (!references.every((path) => paths.has(path))) {
-      return { ok: false, message: "Wrench media transcript references an unrecorded artifact" };
+      return { ok: false, message: "Ghostget media transcript references an unrecorded artifact" };
     }
     if (
       new Set(references).size !== references.length
@@ -1156,20 +1156,20 @@ export function parseMediaManifest(value: unknown): ParseManifestResult {
       || artifactsByPath.get(transcript.textPath)?.role !== "transcript_text"
       || artifactsByPath.get(transcript.cuesPath)?.role !== "transcript_json"
     ) {
-      return { ok: false, message: "Wrench media transcript paths do not map to their exact artifact roles" };
+      return { ok: false, message: "Ghostget media transcript paths do not map to their exact artifact roles" };
     }
   } else if (
     roleCount("transcript_vtt") !== 0
     || roleCount("transcript_text") !== 0
     || roleCount("transcript_json") !== 0
   ) {
-    return { ok: false, message: "Wrench media unavailable transcript must not have transcript artifacts" };
+    return { ok: false, message: "Ghostget media unavailable transcript must not have transcript artifacts" };
   }
   const captureCount = roleCount("capture");
   const videoCount = roleCount("video");
   const audioCount = roleCount("audio");
   if (!transcriptModeIsValid(mode, transcript, captureCount, videoCount, audioCount)) {
-    return { ok: false, message: "Wrench media manifest artifacts do not satisfy its capture mode" };
+    return { ok: false, message: "Ghostget media manifest artifacts do not satisfy its capture mode" };
   }
 
   const localProvenance = localTranscriptProvenance(transcript);
@@ -1182,7 +1182,7 @@ export function parseMediaManifest(value: unknown): ParseManifestResult {
     ) {
       return {
         ok: false,
-        message: "Wrench media local transcript provenance does not match its audio artifact",
+        message: "Ghostget media local transcript provenance does not match its audio artifact",
       };
     }
   }
@@ -1191,7 +1191,7 @@ export function parseMediaManifest(value: unknown): ParseManifestResult {
   if (localAttempt && (ffmpeg === undefined || ffprobe === undefined)) {
     return {
       ok: false,
-      message: "Wrench media local transcript requires FFmpeg and ffprobe provenance",
+      message: "Ghostget media local transcript requires FFmpeg and ffprobe provenance",
     };
   }
   if (ytDlpAcquisition !== null && trackedRevision !== null) {
@@ -1234,7 +1234,7 @@ export function parseMediaManifest(value: unknown): ParseManifestResult {
     ) {
       return {
         ok: false,
-        message: "Wrench media tracked revision identity projection is inconsistent",
+        message: "Ghostget media tracked revision identity projection is inconsistent",
       };
     }
   }
@@ -1248,7 +1248,7 @@ export function parseMediaManifest(value: unknown): ParseManifestResult {
     ) {
       return {
         ok: false,
-        message: "Wrench media direct HTTP provenance does not match its capture artifact",
+        message: "Ghostget media direct HTTP provenance does not match its capture artifact",
       };
     }
     let expectedMetadata;
@@ -1259,7 +1259,7 @@ export function parseMediaManifest(value: unknown): ParseManifestResult {
         bodySha256: directHttpAcquisition.provenance.body.sha256,
       });
     } catch {
-      return { ok: false, message: "Wrench media direct HTTP identity projection is invalid" };
+      return { ok: false, message: "Ghostget media direct HTTP identity projection is invalid" };
     }
     let expectedAssetKey: string | null;
     try {
@@ -1272,7 +1272,7 @@ export function parseMediaManifest(value: unknown): ParseManifestResult {
             )
           : variantAssetKey(expectedMetadata.assetKey, [mode]);
     } catch {
-      return { ok: false, message: "Wrench media direct HTTP identity projection is invalid" };
+      return { ok: false, message: "Ghostget media direct HTTP identity projection is invalid" };
     }
     const expectedMedia = directHttpMediaForContainer(directHttpAcquisition.provenance.container);
     const transcriptIsValid = mode === "archive"
@@ -1293,7 +1293,7 @@ export function parseMediaManifest(value: unknown): ParseManifestResult {
       || ffprobe === undefined
       || !transcriptIsValid
     ) {
-      return { ok: false, message: "Wrench media direct HTTP identity or media projection is inconsistent" };
+      return { ok: false, message: "Ghostget media direct HTTP identity or media projection is inconsistent" };
     }
   }
 
@@ -1303,7 +1303,7 @@ export function parseMediaManifest(value: unknown): ParseManifestResult {
     ...(ffprobe === undefined ? {} : { ffprobe }),
   };
   const common = {
-    schemaVersion: WRENCH_MEDIA_SCHEMA_VERSION,
+    schemaVersion: GHOSTGET_MEDIA_SCHEMA_VERSION,
     wrenchVersion,
     assetKey,
     capturedAt,
@@ -1332,7 +1332,7 @@ export function parseMediaManifest(value: unknown): ParseManifestResult {
             revision: trackedRevision,
           },
         }
-      : { ok: false, message: "Wrench media manifest has an invalid acquisition contract" };
+      : { ok: false, message: "Ghostget media manifest has an invalid acquisition contract" };
 }
 
 function containedPath(root: string, relativePath: string): string {
@@ -1503,7 +1503,7 @@ export async function readMediaManifest(
   const itemDirectory = await realpath(requestedItemDirectory);
   return parseManifestSource(await readBoundedRegularFile(
     itemDirectory,
-    WRENCH_MEDIA_MANIFEST_FILE,
+    GHOSTGET_MEDIA_MANIFEST_FILE,
     1024 * 1024,
     dependencies,
   ));
@@ -1569,13 +1569,13 @@ export async function writeMediaManifest(itemRootInput: string, manifestInput: M
   };
   const manifestSource = `${JSON.stringify(manifest, null, 2)}\n`;
   await removeStaleControlTemps(itemRoot);
-  await atomicWrite(resolve(itemRoot, WRENCH_MEDIA_MANIFEST_FILE), manifestSource);
+  await atomicWrite(resolve(itemRoot, GHOSTGET_MEDIA_MANIFEST_FILE), manifestSource);
   const manifestDigest = createHash("sha256").update(manifestSource, "utf8").digest("hex");
   const lines = [
     ...manifest.artifacts.map((artifact) => checksumLine(artifact.sha256, artifact.path)),
-    checksumLine(manifestDigest, WRENCH_MEDIA_MANIFEST_FILE),
+    checksumLine(manifestDigest, GHOSTGET_MEDIA_MANIFEST_FILE),
   ].toSorted(compareUtf8);
-  await atomicWrite(resolve(itemRoot, WRENCH_MEDIA_CHECKSUM_FILE), `${lines.join("\n")}\n`);
+  await atomicWrite(resolve(itemRoot, GHOSTGET_MEDIA_CHECKSUM_FILE), `${lines.join("\n")}\n`);
   return manifest;
 }
 
@@ -1586,7 +1586,7 @@ function parseChecksumSource(source: string): ReadonlyMap<string, string> | null
     const match = /^([0-9a-f]{64}) {2}(.+)$/u.exec(line);
     const digest = match?.[1];
     const path = match?.[2];
-    if (digest === undefined || path === undefined || (!safeRelativePath(path) && path !== WRENCH_MEDIA_MANIFEST_FILE) || entries.has(path)) return null;
+    if (digest === undefined || path === undefined || (!safeRelativePath(path) && path !== GHOSTGET_MEDIA_MANIFEST_FILE) || entries.has(path)) return null;
     entries.set(path, digest);
   }
   return entries;
@@ -1649,26 +1649,26 @@ export async function verifyMediaItem(
     const itemDirectory = await realpath(requestedItemDirectory);
     const manifestSource = await readBoundedRegularFile(
       itemDirectory,
-      WRENCH_MEDIA_MANIFEST_FILE,
+      GHOSTGET_MEDIA_MANIFEST_FILE,
       1024 * 1024,
       dependencies,
     );
     const parsedManifest = parseManifestSource(manifestSource);
     const checksumSource = await readBoundedRegularFile(
       itemDirectory,
-      WRENCH_MEDIA_CHECKSUM_FILE,
+      GHOSTGET_MEDIA_CHECKSUM_FILE,
       64 * 1024,
       dependencies,
     );
     const checksums = parseChecksumSource(checksumSource);
     if (checksums === null) throw new Error("manifest-sha256.txt is invalid");
-    const expectedPaths = new Set([...parsedManifest.artifacts.map((artifact) => artifact.path), WRENCH_MEDIA_MANIFEST_FILE]);
+    const expectedPaths = new Set([...parsedManifest.artifacts.map((artifact) => artifact.path), GHOSTGET_MEDIA_MANIFEST_FILE]);
     if (checksums.size !== expectedPaths.size || [...expectedPaths].some((path) => !checksums.has(path))) {
       failures.push("checksum file does not name exactly the manifest and recorded artifacts");
     }
     const manifestHash = createHash("sha256").update(manifestSource, "utf8").digest("hex");
-    if (checksums.get(WRENCH_MEDIA_MANIFEST_FILE) !== manifestHash) failures.push("wrench-media.json checksum mismatch");
-    const expectedItemFiles = new Set([...expectedPaths, WRENCH_MEDIA_CHECKSUM_FILE]);
+    if (checksums.get(GHOSTGET_MEDIA_MANIFEST_FILE) !== manifestHash) failures.push("wrench-media.json checksum mismatch");
+    const expectedItemFiles = new Set([...expectedPaths, GHOSTGET_MEDIA_CHECKSUM_FILE]);
     const actualItemFiles = await itemFileSet(itemDirectory);
     if (
       actualItemFiles.size !== expectedItemFiles.size

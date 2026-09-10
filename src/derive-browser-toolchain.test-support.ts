@@ -4,7 +4,7 @@ import { lstat, open, readFile, readdir, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 
 export const deriveBrowserVersion = "152.0.7977.64";
-export const deriveBrowserRootVariable = "WRENCH_DERIVE_BROWSER_ROOT";
+export const deriveBrowserRootVariable = "GHOSTGET_DERIVE_BROWSER_ROOT";
 
 export type BrowserArtifact = Readonly<{
   platform: "linux64" | "mac-arm64" | "mac-x64";
@@ -157,7 +157,7 @@ export class DeriveBrowserToolchain {
   private constructor(readonly root: string, readonly artifact: BrowserArtifact,
     readonly receipt: BrowserToolchainReceipt) {}
 
-  static async load(root = process.env[deriveBrowserRootVariable]): Promise<DeriveBrowserToolchain> {
+  static async load(root = (process.env[deriveBrowserRootVariable] ?? process.env.WRENCH_DERIVE_BROWSER_ROOT)): Promise<DeriveBrowserToolchain> {
     if (typeof root !== "string" || root.length === 0) {
       throw new Error("provision the pinned native fixture browser before running derive native tests");
     }

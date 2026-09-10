@@ -218,7 +218,7 @@ async function checkWorker(
       try {
         readinessEvaluation(await client.send("Runtime.evaluate", {
           awaitPromise: true,
-          expression: "globalThis.__wrenchCheckGuard()",
+          expression: "globalThis.__ghostgetCheckGuard()",
           returnByValue: true,
         }, sessionId), derivationGuardReadinessCheckCount(browserDomains), expectedPolicySha256);
         break;

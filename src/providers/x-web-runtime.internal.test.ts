@@ -9,7 +9,7 @@ import {
   parseArticleDraftDocument,
   parseArticleDraftDocumentV2,
 } from "../article-draft-document";
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { BrowserSession } from "../browser";
 import { canonicalJson } from "../canonical-json";
 import type { WebSessionRecipe } from "../model";
@@ -55,7 +55,7 @@ const xAuth = {
   source: "arc",
   profile: "Profile 1",
   subject: VIEWER_ID,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 type CapturedRequest = {
   readonly url: URL;
@@ -1640,7 +1640,7 @@ describe("X authenticated internal-API runtime", () => {
     expect(result.error).toContain("Bookmarks:query");
     expect(result.error).toContain("reviewed evidence is stale");
     expect(result.error).not.toContain("ChangedQueryId_12345");
-    expect(result.error).not.toContain("LoLaMO4GuHLEPJWrenchH9kjAw");
+    expect(result.error).not.toContain("LoLaMO4GuHLEPJGhostgetH9kjAw");
   });
 
   test("classifies a public first-party Bookmarks asset transport failure as provider-temporary", async () => {

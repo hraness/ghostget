@@ -2,11 +2,10 @@ import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { parseReleaseAssetDescriptors, parseReleaseManifest, usesGithubReleaseAssets, verifyReleaseAssetBytes,
+import { parseReleaseAssetDescriptors, parseReleaseManifest, releaseIdentity, usesGithubReleaseAssets, verifyReleaseAssetBytes,
   type ReleaseAssetDescriptor } from "./github-release-artifact.mjs";
 
-const PACKAGE_NAME = "@hraness/wrench" as const;
-const REPOSITORY = "hraness/wrench" as const;
+const REPOSITORY = "hraness/ghostget" as const;
 const NPM_REGISTRY_ORIGIN = "https://registry.npmjs.org" as const;
 const GITHUB_API_ORIGIN = "https://api.github.com" as const;
 const NETWORK_DEADLINE_MS = 20_000;
@@ -27,7 +26,7 @@ const evidenceKeys = [
 ] as const;
 
 export type ProductionReleaseIdentity = Readonly<{
-  name: typeof PACKAGE_NAME;
+  name: "@hraness/ghostget" | "@hraness/wrench";
   tag: `v${string}`;
   version: string;
 }>;
@@ -210,17 +209,18 @@ export function parseProductionReleaseIdentity(
   value: unknown,
 ): ProductionReleaseIdentity {
   const manifest = unknownRecord(value, "package.json");
-  if (manifest.name !== PACKAGE_NAME) {
-    throw new TypeError(`package.json must name ${PACKAGE_NAME}.`);
-  }
   if (
     typeof manifest.version !== "string"
     || !stableVersionPattern.test(manifest.version)
   ) {
     throw new TypeError("package.json version must be a stable semantic version.");
   }
+  const identity = releaseIdentity(`v${manifest.version}`);
+  if (manifest.name !== identity.package) {
+    throw new TypeError(`package.json must name ${identity.package} for version ${manifest.version}.`);
+  }
   return Object.freeze({
-    name: PACKAGE_NAME,
+    name: identity.package,
     tag: `v${manifest.version}`,
     version: manifest.version,
   });
@@ -345,7 +345,7 @@ function verifyCanonicalAssets(identity: ProductionReleaseIdentity, evidence: Pr
   verifyReleaseAssetBytes(assets.archive, archiveDescriptor);
   if (manifest.archive.bytes !== archiveDescriptor.bytes || manifest.archive.sha256 !== archiveDescriptor.sha256
     || createHash("sha512").update(assets.archive).digest("hex") !== manifest.archive.sha512) throw new Error("Canonical archive differs from its admitted manifest.");
-  const receipt = `wrench-release-source-v1 repository=${REPOSITORY} tag=${identity.tag} source_sha=${evidence.headSha} workflow_run_id=${manifest.runId}`;
+  const receipt = `wrench-release-source-v1 repository=${releaseIdentity(identity.tag).repository} tag=${identity.tag} source_sha=${evidence.headSha} workflow_run_id=${manifest.runId}`;
   for (const value of [release, latest]) {
     const author = unknownRecord(value.author, "canonical release author");
     if (value.target_commitish !== evidence.headSha || author.id !== 41898282 || author.type !== "Bot"
@@ -381,7 +381,7 @@ export async function fetchPublicJson(
       Accept: url.startsWith(GITHUB_API_ORIGIN)
         ? "application/vnd.github+json"
         : "application/json",
-      "User-Agent": "wrench-production-release-verifier",
+      "User-Agent": "ghostget-production-release-verifier",
       ...(url.startsWith(GITHUB_API_ORIGIN)
         ? { "X-GitHub-Api-Version": "2022-11-28" }
         : {}),
@@ -432,7 +432,7 @@ export async function fetchGithubCommitSha(
   const response = await fetchImplementation(url, {
     headers: {
       Accept: "application/vnd.github.sha",
-      "User-Agent": "wrench-production-release-verifier",
+      "User-Agent": "ghostget-production-release-verifier",
       "X-GitHub-Api-Version": "2022-11-28",
     },
     redirect: "error",
@@ -558,6 +558,6 @@ export async function verifyCurrentProductionRelease(): Promise<VerifiedProducti
 if (import.meta.main) {
   const identity = await verifyCurrentProductionRelease();
   process.stdout.write(
-    `Verified production Wrench ${identity.tag} against exact HEAD, canonical npm, and immutable Latest GitHub Release.\n`,
+    `Verified production Ghostget ${identity.tag} against exact HEAD, canonical npm, and immutable Latest GitHub Release.\n`,
   );
 }

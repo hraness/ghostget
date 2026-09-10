@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import {
   defineProviderPlugin,
   lazyWebSessionRuntime,
@@ -17,7 +17,7 @@ const auth = Object.freeze({
   source: "arc",
   profile: "Profile 1",
   subject: "accepted-target:viewer",
-}) satisfies WrenchAuth;
+}) satisfies GhostgetAuth;
 
 const context = Object.freeze({
   schemaVersion: 1,

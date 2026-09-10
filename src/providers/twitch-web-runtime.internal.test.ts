@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
 import type { StrictCookie } from "@hraness/kb/clip/cookies";
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { WebSessionRecipe } from "../model";
 import { TWITCH_WEB_CLIENT_ID } from "./twitch-web";
 import {
@@ -23,7 +23,7 @@ const boundAuth = {
   source: "chrome",
   profile: "Profile 1",
   subject: `twitch:${VIEWER_ID}`,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 type CapturedRequest = Readonly<{
   url: URL;
@@ -380,7 +380,7 @@ describe("Twitch authenticated profile runtime", () => {
       {},
       { login: "wrench_test" },
       { profile: "wrench_test", url: "https://example.com" },
-      { profile: "Wrench_Test" },
+      { profile: "Ghostget_Test" },
     ]) {
       const calls: CapturedRequest[] = [];
       await expect(executeTwitchWebOperation(

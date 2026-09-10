@@ -17,7 +17,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import {
   adoptLiveLegacyBrowserCleanupResource,
   bindLiveAgentBrowserCleanupResource,
@@ -51,7 +51,7 @@ import {
   type BrowserCleanupResourceIdentityV1,
   type BrowserCleanupResourceIdentityV2,
 } from "./browser";
-import type { BrowserRecipe, WrenchManifest } from "./model";
+import type { BrowserRecipe, GhostgetManifest } from "./model";
 import {
   OperationDeadline,
   type OperationDeadlineClock,
@@ -178,7 +178,7 @@ function decodeBrowserRecoveryHandle(handle: string): Readonly<Record<
   >>;
 }
 
-const manifest: WrenchManifest = {
+const manifest: GhostgetManifest = {
   schemaVersion: 1,
   id: "example",
   version: "1.0.0",
@@ -188,7 +188,7 @@ const manifest: WrenchManifest = {
   operations: {},
 };
 
-const auth: WrenchAuth = {
+const auth: GhostgetAuth = {
   schemaVersion: 1,
   id: "example",
   kind: "cookie-source",
@@ -3217,7 +3217,7 @@ describe("browser process isolation helpers", () => {
       expect(failure.recoveryHandle).not.toContain("\\");
 
       const recovered = decodeBrowserRecoveryHandle(failure.recoveryHandle);
-      // Recovery handles retain their frozen pre-Wrench session identity.
+      // Recovery handles retain their frozen pre-Ghostget session identity.
       expect(recovered.session).toStartWith("io-");
       expect(recovered.artifacts).toStartWith(specialTempRoot);
       expect(recovered.artifacts).toContain("io-browser-");

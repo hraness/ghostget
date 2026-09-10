@@ -5,7 +5,7 @@ import type {
   ArticleDraftDocumentV2,
 } from "../article-draft-document";
 import type { BoundArticleDraftImage } from "../article-draft-images";
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import {
   PreservedBrowserArtifactsError,
   browserResultData,
@@ -14,7 +14,7 @@ import {
   type CreateBrowserSessionOptions,
 } from "../browser";
 import { canonicalJson } from "../canonical-json";
-import type { WrenchManifest } from "../model";
+import type { GhostgetManifest } from "../model";
 import type {
   WebSessionCleanupResourcePublisher,
   WebSessionOperationDeadline,
@@ -41,7 +41,7 @@ const LINKEDIN_ARTICLE_AUTOSAVE_PEM_METADATA =
 const MAX_BROWSER_OUTPUT_BYTES = 2 * 1024 * 1024;
 const LINKEDIN_IMAGE_STAGING_COMMANDS_PER_BATCH = 16;
 
-const articleBrowserManifest: WrenchManifest = Object.freeze({
+const articleBrowserManifest: GhostgetManifest = Object.freeze({
   schemaVersion: 4,
   id: "linkedin-article-runtime",
   version: "1.0.0",
@@ -404,7 +404,7 @@ async function finalizeBrowserSession(session: BrowserSession): Promise<void> {
 }
 
 export async function createLinkedInArticleBrowserTransport(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs: number;
     readonly operationDeadline?: WebSessionOperationDeadline;
@@ -552,7 +552,7 @@ export async function createLinkedInArticleBrowserTransport(
     const registration = normalizeLinkedInArticleImageUploadRegistration(
       registrationResult.body,
     );
-    const key = `__wrenchLinkedInArticleImage_${randomUUID().replaceAll("-", "")}`;
+    const key = `__ghostgetLinkedInArticleImage_${randomUUID().replaceAll("-", "")}`;
     const timeoutMs = options.operationDeadline?.remainingTimeMs() ?? options.timeoutMs;
     const encodedLength = Buffer.from(image.bytes).toString("base64").length;
     const chunkCount = Math.ceil(encodedLength / (48 * 1_024));

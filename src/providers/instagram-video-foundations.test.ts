@@ -98,7 +98,7 @@ function publishInput(
 ): OperationInput {
   return {
     audience: "default",
-    caption: "Disposable Wrench Instagram video fixture",
+    caption: "Disposable Ghostget Instagram video fixture",
     media: { kind: "file", reference: "plan-video-1" },
     thumbnail: { kind: "file", reference: "plan-thumbnail-1" },
     ...overrides,
@@ -114,7 +114,7 @@ function normalizedInstagramVideo(
     code: "VideoABC",
     media_type: 2,
     taken_at: 1_786_923_725,
-    caption: "Disposable Wrench Instagram video fixture",
+    caption: "Disposable Ghostget Instagram video fixture",
     user: Object.freeze({
       id: "12345",
       username: "viewer",
@@ -151,7 +151,7 @@ describe("Instagram video capture-neutral foundations", () => {
   test("validates one exact semantic publication plan", () => {
     expect(prepareInstagramVideoPublishInput(publishInput())).toEqual({
       audience: "default",
-      caption: "Disposable Wrench Instagram video fixture",
+      caption: "Disposable Ghostget Instagram video fixture",
       media: { kind: "file", reference: "plan-video-1" },
       thumbnail: { kind: "file", reference: "plan-thumbnail-1" },
     });
@@ -175,7 +175,7 @@ describe("Instagram video capture-neutral foundations", () => {
         audience: "default",
         byteLength: fixture.byteLength,
         bytes: undefined,
-        caption: "Disposable Wrench Instagram video fixture",
+        caption: "Disposable Ghostget Instagram video fixture",
         durationMilliseconds: 8_000,
         height: 540,
         mediaType: "video/mp4",
@@ -538,22 +538,22 @@ describe("Instagram video capture-neutral foundations", () => {
 
   test("requires an exact authored-video deletion confirmation", () => {
     expect(prepareInstagramAuthoredPostDeleteInput({
-      expected_caption: "Disposable Wrench Instagram video fixture",
+      expected_caption: "Disposable Ghostget Instagram video fixture",
       expected_media_kind: "video",
       media_id: "900_12345",
     })).toEqual({
-      expectedCaption: "Disposable Wrench Instagram video fixture",
+      expectedCaption: "Disposable Ghostget Instagram video fixture",
       expectedMediaKind: "video",
       mediaId: "900_12345",
     });
     for (const [input, message] of [
       [{
-        expected_caption: "Disposable Wrench Instagram video fixture",
+        expected_caption: "Disposable Ghostget Instagram video fixture",
         expected_media_kind: "video",
         media_id: "0900_12345",
       }, "full Instagram media ID"],
       [{
-        expected_caption: "Disposable Wrench Instagram video fixture",
+        expected_caption: "Disposable Ghostget Instagram video fixture",
         expected_media_kind: "image",
         media_id: "900_12345",
       }, "must be video"],
@@ -563,7 +563,7 @@ describe("Instagram video capture-neutral foundations", () => {
         media_id: "900_12345",
       }, "bounded UTF-16"],
       [{
-        expected_caption: "Disposable Wrench Instagram video fixture",
+        expected_caption: "Disposable Ghostget Instagram video fixture",
         expected_media_kind: "video",
         extra: true,
         media_id: "900_12345",
@@ -578,7 +578,7 @@ describe("Instagram video capture-neutral foundations", () => {
     const target = bindInstagramVideoMediaReadback(
       normalizedInstagramVideo(),
       {
-        expectedCaption: "Disposable Wrench Instagram video fixture",
+        expectedCaption: "Disposable Ghostget Instagram video fixture",
         mediaId: "900_12345",
         viewerId: "12345",
       },
@@ -598,7 +598,7 @@ describe("Instagram video capture-neutral foundations", () => {
 
   test("rejects drifted video readbacks and noncanonical accepted targets", () => {
     const expectation = {
-      expectedCaption: "Disposable Wrench Instagram video fixture",
+      expectedCaption: "Disposable Ghostget Instagram video fixture",
       expectedCode: "VideoABC",
       mediaId: "900_12345",
       viewerId: "12345",

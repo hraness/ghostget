@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "../../auth";
+import type { GhostgetAuth } from "../../auth";
 import { redditWebPlugin } from "./plugin";
 
 const binding = redditWebPlugin.bindings[0];
@@ -15,7 +15,7 @@ const auth = {
   source: "arc",
   profile: "Profile 1",
   subject: "reddit:t2_viewer1",
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 describe("Reddit provider plugin", () => {
   test("keeps the broad media reservation inert beside metadata-only hosted-video reads", () => {

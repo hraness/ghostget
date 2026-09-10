@@ -16,7 +16,7 @@ import {
   verifyStageSourceAuthority,
 } from "./release-ref-authority";
 
-const repositoryUrl = "https://github.com/hraness/wrench.git";
+const repositoryUrl = "https://github.com/hraness/ghostget.git";
 const temporaryRoots: string[] = [];
 const protectedReleaseRuntimePaths = Object.freeze([
   "scripts/release-ref-authority.ts",
@@ -83,7 +83,7 @@ function fixture(options: Readonly<{
   requestedTagKind?: "annotated" | "lightweight";
   workflowDrift?: boolean;
 }> = {}): Fixture {
-  const root = mkdtempSync(join(tmpdir(), "wrench-release-ref-authority-"));
+  const root = mkdtempSync(join(tmpdir(), "ghostget-release-ref-authority-"));
   temporaryRoots.push(root);
   const source = join(root, "source");
   const remote = join(root, "remote.git");
@@ -91,7 +91,7 @@ function fixture(options: Readonly<{
   git(root, ["init", "--initial-branch=main", source]);
   git(source, ["config", "user.email", "release-ref-authority@example.invalid"]);
   git(source, ["config", "user.name", "Release Ref Authority Fixture"]);
-  writeFileSync(join(source, "package.json"), '{"name":"@hraness/wrench","version":"1.0.0"}\n');
+  writeFileSync(join(source, "package.json"), '{"name":"@hraness/ghostget","version":"1.0.0"}\n');
   const releaseControlDriftPath = options.releaseControlDriftPath
     ?? (options.releaseControlDrift === true ? "scripts/release-provider-outcome.mjs" : undefined);
   if (releaseControlDriftPath !== undefined) {
@@ -224,7 +224,7 @@ function runnerFor(
   });
 }
 
-describe("bounded Wrench remote ref inventories", () => {
+describe("bounded Ghostget remote ref inventories", () => {
   const main = "1".repeat(40);
   const tag = "2".repeat(40);
 
@@ -311,7 +311,7 @@ describe("bounded Wrench remote ref inventories", () => {
   });
 });
 
-describe("Wrench release and promotion ref authority", () => {
+describe("Ghostget release and promotion ref authority", () => {
   test.each([undefined, "", "preview", "Main", "main ", "main"])(
     "requires exact workflow branch context before ref inspection (%s)",
     (defaultBranch) => {
@@ -322,7 +322,7 @@ describe("Wrench release and promotion ref authority", () => {
         encoding: "utf8",
         env: {
           PATH: process.env.PATH ?? "",
-          GITHUB_REPOSITORY: "hraness/wrench",
+          GITHUB_REPOSITORY: "hraness/ghostget",
           ...(defaultBranch === undefined ? {} : { DEFAULT_BRANCH: defaultBranch }),
         },
         stdio: ["ignore", "pipe", "pipe"],
@@ -334,7 +334,7 @@ describe("Wrench release and promotion ref authority", () => {
       expect(result.stdout).toBe("");
       expect(result.stderr).toContain(defaultBranch === "main"
         ? "Unsupported release-ref authority mode."
-        : "Release-ref authority must run for hraness/wrench on exact default branch main.");
+        : "Release-ref authority must run for hraness/ghostget on exact default branch main.");
     },
   );
 
@@ -554,7 +554,7 @@ describe("Wrench release and promotion ref authority", () => {
       "--no-ext-diff",
       "--no-textconv",
       input.releaseSha,
-      "refs/wrench-release/publication-main",
+      "refs/ghostget-release/publication-main",
       "--",
       ".github/workflows",
       "scripts/release-ref-authority.ts",
@@ -656,7 +656,7 @@ describe("Wrench release and promotion ref authority", () => {
   }
 });
 
-describe("Wrench staging ref authority", () => {
+describe("Ghostget staging ref authority", () => {
   test("accepts an artifact source at or below protected main and imports history without FETCH_HEAD", () => {
     const input = fixture();
     checkoutMain(input);
@@ -684,10 +684,10 @@ describe("Wrench staging ref authority", () => {
       "--no-recurse-submodules",
       "--unshallow",
       repositoryUrl,
-      "refs/heads/main:refs/wrench-release/stage-main",
+      "refs/heads/main:refs/ghostget-release/stage-main",
     ]);
     expect(text(pushedInput.work, ["for-each-ref", "--format=%(refname)"])).toBe("");
-    expect(text(pushedInput.work, ["show", `${pushedInput.previousSha}:package.json`])).toContain("@hraness/wrench");
+    expect(text(pushedInput.work, ["show", `${pushedInput.previousSha}:package.json`])).toContain("@hraness/ghostget");
 
     const advanced = fixture();
     checkoutSha(advanced, advanced.releaseSha);
@@ -780,11 +780,11 @@ describe("Wrench staging ref authority", () => {
         "--no-recurse-submodules",
         "--unshallow",
         repositoryUrl,
-        "refs/heads/main:refs/wrench-release/stage-main",
+        "refs/heads/main:refs/ghostget-release/stage-main",
       ],
       ["for-each-ref", "--format=%(refname)%00%(objectname)%00%(objecttype)%00%(*objectname)%00%(*objecttype)"],
-      ["merge-base", "--is-ancestor", input.mainSha, "refs/wrench-release/stage-main"],
-      ["update-ref", "-d", "refs/wrench-release/stage-main", input.mainSha],
+      ["merge-base", "--is-ancestor", input.mainSha, "refs/ghostget-release/stage-main"],
+      ["update-ref", "-d", "refs/ghostget-release/stage-main", input.mainSha],
       ["for-each-ref", "--format=%(refname)%00%(objectname)%00%(objecttype)%00%(*objectname)%00%(*objecttype)"],
       ["ls-remote", "--sort=refname", "--refs", repositoryUrl, "refs/heads/main", "refs/tags/v1.0.1"],
     ]);

@@ -35,14 +35,14 @@ export type EditorialImage = Readonly<{
   width: 1536;
 }>;
 
-const credit = "Editorial illustration generated for Wrench with Atet.";
+const credit = "Editorial illustration generated with Atet.";
 
 export const editorialImages = [
   {
     alt: "Many branching browser windows contrasted with one bounded operation path and receipt",
     canonicalPath: "/compare/personal-agents-browser-use/",
     caption: "General browser paths and one named operation solve different jobs.",
-    cardDescription: "Why Wrench exposes named operations instead of falling back to general browser control.",
+    cardDescription: "Why Ghostget exposes named operations instead of falling back to general browser control.",
     cardTitle: "Browser-using agents and named operations",
     credit,
     derivatives: [
@@ -68,7 +68,7 @@ export const editorialImages = [
       receipt: "editorial-provenance/personal-agents-browser-use/receipt.json",
     },
     src: "/images/editorial/personal-agents-browser-use.webp",
-    title: "Browser-using personal agents, and which web operations Wrench attests",
+    title: "Browser-using personal agents, and which web operations Ghostget attests",
     width: 1536,
   },
   {
@@ -151,7 +151,7 @@ export function editorialImage(path: string): EditorialImage | undefined {
 }
 
 export function editorialImageUrl(image: EditorialImage): string {
-  return `https://wrench.rip${image.src}`;
+  return `https://ghostget.com${image.src}`;
 }
 
 export function editorialImageSrcSet(image: EditorialImage): string {

@@ -3,7 +3,7 @@ import { open } from "node:fs/promises";
 
 import { BoundedByteBuffer } from "@hraness/kb/clip/bounded-byte-buffer";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import {
   browserCleanupBarrier,
   browserResultData,
@@ -15,7 +15,7 @@ import {
 import type {
   FileInputValue,
   OperationInput,
-  WrenchManifest,
+  GhostgetManifest,
   WebSessionRecipe,
 } from "../model";
 import { canonicalJson, sha256 } from "../canonical-json";
@@ -138,16 +138,16 @@ export type BlueskyWebRuntimeDependencies = {
    * before it can reach an authorization header.
    */
   readonly bootstrapAccount?: (
-    auth: WrenchAuth,
+    auth: GhostgetAuth,
   ) => Promise<unknown>;
   /** Test-only encrypted-session cache seam. */
   readonly loadCachedSession?: (
-    auth: WrenchAuth,
+    auth: GhostgetAuth,
     authHash: string,
   ) => SessionSecretSnapshot | Promise<SessionSecretSnapshot>;
   /** Test-only encrypted-session cache seam. */
   readonly saveCachedSession?: (
-    auth: WrenchAuth,
+    auth: GhostgetAuth,
     authHash: string,
     value: unknown,
     expectedContentSha256: string | null,
@@ -199,11 +199,11 @@ const blueskyBootstrapManifest = Object.freeze({
   schemaVersion: 2,
   id: "wrench-bluesky-session-bootstrap",
   version: "1.0.0",
-  displayName: "Wrench Bluesky session bootstrap",
+  displayName: "Ghostget Bluesky session bootstrap",
   origins: Object.freeze([BLUESKY_APP_ORIGIN]),
   browserDomains: Object.freeze(["bsky.app"]),
   operations: Object.freeze({}),
-} satisfies WrenchManifest);
+} satisfies GhostgetManifest);
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -332,7 +332,7 @@ async function finalizeBrowserSession(
 }
 
 async function bootstrapFromBrowser(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   timeoutMs: number,
   dependencies: BlueskyWebRuntimeDependencies | undefined,
   operationDeadline?: WebSessionOperationDeadline,
@@ -351,7 +351,7 @@ async function bootstrapFromBrowser(
       ? {}
       : { browserExecutable: auth.browserExecutable }),
     ...(auth.subject === undefined ? {} : { subject: auth.subject }),
-  } as const satisfies WrenchAuth;
+  } as const satisfies GhostgetAuth;
   const createSession = dependencies?.createBrowserSession ?? createBrowserSession;
   const createTimeoutMs = remainingTimeoutMs(
     timeoutMs,
@@ -445,7 +445,7 @@ type SelectedBlueskySession = {
 };
 
 async function loadBlueskySessionSnapshot(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   authHash: string,
   dependencies: BlueskyWebRuntimeDependencies | undefined,
 ): Promise<{
@@ -471,7 +471,7 @@ async function loadBlueskySessionSnapshot(
 }
 
 async function selectedSession(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   timeoutMs: number,
   dependencies: BlueskyWebRuntimeDependencies | undefined,
   operationDeadline?: WebSessionOperationDeadline,
@@ -571,7 +571,7 @@ function cachedSessionValue(session: BlueskySessionMaterial): Readonly<Record<st
 }
 
 async function writeBlueskySessionSnapshot(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   authHash: string,
   value: unknown,
   expectedContentSha256: string | null,
@@ -605,7 +605,7 @@ function blueskySessionIsAtLeastAsFresh(
 }
 
 async function saveSelectedSession(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   session: BlueskySessionMaterial,
   cache: SelectedBlueskySession["cache"],
   nowSeconds: number,
@@ -793,7 +793,7 @@ async function xrpc(
     body = JSON.stringify(options.jsonBody);
   } else if (options.blobBody !== undefined) {
     headers.set("content-type", options.blobBody.mediaType);
-    // Keep the upload body in the owned-byte form accepted by Wrench's
+    // Keep the upload body in the owned-byte form accepted by Ghostget's
     // DNS-pinned HTTPS transport. A Web Blob reaches custom fetch fixtures,
     // but the production transport deliberately rejects that body shape
     // before opening a socket.
@@ -987,7 +987,7 @@ async function currentSession(
   return current;
 }
 
-function requireBoundSubject(auth: WrenchAuth, session: BlueskySessionMaterial): string {
+function requireBoundSubject(auth: GhostgetAuth, session: BlueskySessionMaterial): string {
   const expected = webSessionAuthSubject(auth);
   if (expected === null) {
     throw new Error("Bluesky authenticated operations require an auth locator bound to an exact DID");
@@ -1000,7 +1000,7 @@ function requireBoundSubject(auth: WrenchAuth, session: BlueskySessionMaterial):
 }
 
 async function bootstrapClient(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   timeoutMs: number,
   maxOutputBytes: number,
   dependencies: BlueskyWebRuntimeDependencies | undefined,
@@ -1052,7 +1052,7 @@ async function bootstrapClient(
 }
 
 export async function probeBlueskyWebSubject(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs?: number;
     readonly dependencies?: BlueskyWebRuntimeDependencies;
@@ -1162,7 +1162,7 @@ async function authoritativePostPresence(
 export async function readBlueskyWebContentDeleteDesiredState(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly dependencies?: BlueskyWebRuntimeDependencies;
     readonly signal?: AbortSignal;
@@ -1329,7 +1329,7 @@ function parseBlueskyPublishedMutationTarget(
 export async function readBlueskyWebPublishedMutationTarget(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   identifier: string,
   options: {
     readonly dependencies?: BlueskyWebRuntimeDependencies;
@@ -1477,7 +1477,7 @@ async function getProfile(
 export async function readBlueskyWebDesiredState(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly dependencies?: BlueskyWebRuntimeDependencies;
     readonly signal?: AbortSignal;
@@ -2794,7 +2794,7 @@ async function executeMessageSend(
 export async function executeBlueskyWebOperation(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly fileResolver?: BrowserFileResolver;
     readonly signal?: AbortSignal;

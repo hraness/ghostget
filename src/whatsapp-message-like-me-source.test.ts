@@ -12,7 +12,7 @@ import { join } from "node:path";
 
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { canonicalJson } from "./canonical-json";
 import {
   WHATSAPP_MESSAGE_EXPORT_PROJECTION_SCHEMA_FINGERPRINT,
@@ -34,7 +34,7 @@ function privateStore(): string {
   return path;
 }
 
-function auth(path: string, subject = "whatsapp:pn:15551234567"): WrenchAuth {
+function auth(path: string, subject = "whatsapp:pn:15551234567"): GhostgetAuth {
   return {
     schemaVersion: 1,
     id: "personal-whatsapp",

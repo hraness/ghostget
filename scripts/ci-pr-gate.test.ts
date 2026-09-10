@@ -110,7 +110,7 @@ describe("macOS PR check subset", () => {
     expect(MACOS_TEST_FILES).toContain("src/provider-plugin-host.test.ts");
     expect(MACOS_PATTERNED_TESTS).toEqual([
       {
-        file: "src/wrench.test.ts",
+        file: "src/ghostget.test.ts",
         testNamePattern:
           "keeps public iMessage installer filesystem failures prompt and path-free",
       },
@@ -126,7 +126,7 @@ describe("macOS PR check subset", () => {
       ...MACOS_TEST_FILES,
     ]);
     expect(invocations[1]).toContain("--test-name-pattern");
-    expect(invocations[1]).toContain("src/wrench.test.ts");
+    expect(invocations[1]).toContain("src/ghostget.test.ts");
   });
 });
 
@@ -255,14 +255,14 @@ describe("complete local and release check composition", () => {
     expect(packed.run).toContain(packing);
     expect(releaseJob.steps.find(step => step.name === "Prepare and install the exact canonical archive")?.run)
       .toContain(packing);
-    expect(packed?.run).toContain('bun run ./scripts/package-artifact.ts "$directory/hraness-wrench-$package_version.tgz"');
+    expect(packed?.run).toContain('bun run ./scripts/package-artifact.ts "$directory/hraness-ghostget-$package_version.tgz"');
     expect(packed.run).toBe([
       "set -euo pipefail",
-      'directory="$(mktemp -d "$RUNNER_TEMP/wrench-canonical-ci.XXXXXX")"',
+      'directory="$(mktemp -d "$RUNNER_TEMP/ghostget-canonical-ci.XXXXXX")"',
       'package_version="$(node -p \'require("./package.json").version\')"',
       packing,
       'cat "$directory/npm-pack.json"',
-      'bun run ./scripts/package-artifact.ts "$directory/hraness-wrench-$package_version.tgz"',
+      'bun run ./scripts/package-artifact.ts "$directory/hraness-ghostget-$package_version.tgz"',
       "",
     ].join("\n"));
     expect(packageJob.steps.indexOf(packed)).toBeGreaterThan(

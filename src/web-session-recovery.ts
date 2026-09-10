@@ -1,4 +1,4 @@
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { loadAuth } from "./auth";
 import {
   canonicalJson,
@@ -77,13 +77,13 @@ export type WebSessionRecoveryDependencies = {
   readonly observeActualState?: (
     recipe: WebSessionRecipe,
     input: OperationInput,
-    auth: WrenchAuth,
+    auth: GhostgetAuth,
     context?: ProviderPluginReconciliationContextV1,
   ) => Promise<unknown>;
   readonly observeLocalCliActualState?: (
     recipe: LocalCliRecipe,
     input: OperationInput,
-    auth: WrenchAuth,
+    auth: GhostgetAuth,
     context?: ProviderPluginReconciliationContextV1,
     options?: ProviderPluginReconciliationOptionsV1,
   ) => Promise<unknown>;
@@ -572,14 +572,14 @@ function assertSupportedContract(
       );
   if (!compatible) {
     throw new Error(
-      "the unsettled run is bound to an unsupported authenticated session contract hash; its receipt, encrypted recovery capsule, and plan assets were retained. Run `wrench doctor`, then use the exact predecessor build or complete a manual evidence review before reconciliation",
+      "the unsettled run is bound to an unsupported authenticated session contract hash; its receipt, encrypted recovery capsule, and plan assets were retained. Run `ghostget doctor`, then use the exact predecessor build or complete a manual evidence review before reconciliation",
     );
   }
 }
 
 async function observeActualState(
   selected: SelectedReconciliation,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   dependency:
     | WebSessionRecoveryDependencies["observeActualState"]
     | undefined,

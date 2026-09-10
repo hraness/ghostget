@@ -34,7 +34,7 @@ import {
 import {
   createPrivateJsonIfAbsent,
   ensurePrivateStateDirectory,
-  wrenchStateHome,
+  ghostgetStateHome,
   readPrivateStateFileIfPresent,
   readPrivateStateFilesBatched,
   removePrivateDirectoryTree,
@@ -703,7 +703,7 @@ export function parseWebSessionCleanupAdmissionClaim(
 
 function directory(environment: Environment): string {
   return join(
-    wrenchStateHome(environment),
+    ghostgetStateHome(environment),
     WEB_SESSION_CLEANUP_ADMISSION_STATE_DIRECTORY,
   );
 }
@@ -822,7 +822,7 @@ function readWebSessionCleanupAdmission(
     );
   } catch (error) {
     throw new Error(
-      "requested web-session cleanup admission is unreadable or unsafe; run wrench doctor before continuing",
+      "requested web-session cleanup admission is unreadable or unsafe; run ghostget doctor before continuing",
       { cause: error },
     );
   }
@@ -845,7 +845,7 @@ function readWebSessionCleanupAdmission(
     });
   } catch (error) {
     throw new Error(
-      "requested web-session cleanup admission is invalid; run wrench doctor before continuing",
+      "requested web-session cleanup admission is invalid; run ghostget doctor before continuing",
       { cause: error },
     );
   }
@@ -1938,27 +1938,27 @@ function blockedAdmissionGuidance(
     return `${transport} auth realm ${realm} has active or cleanup-unsafe state still owned by an active run; wait for it to finish`;
   }
   if (recovery === "recovery-active") {
-    return `${transport} auth realm ${realm} cleanup recovery is active; wait for wrench doctor to finish`;
+    return `${transport} auth realm ${realm} cleanup recovery is active; wait for ghostget doctor to finish`;
   }
   if (recovery === "owner-unknown") {
-    return `${transport} auth realm ${realm} owner liveness cannot be proved; run wrench doctor again after process inspection becomes available`;
+    return `${transport} auth realm ${realm} owner liveness cannot be proved; run ghostget doctor again after process inspection becomes available`;
   }
   if (recovery === "artifact-conflict") {
     return `${transport} auth realm ${realm} has identity-changed private cleanup artifacts; retry is unsafe until exact session recovery succeeds`;
   }
   if (recovery === "claim-conflict") {
-    return `${transport} auth realm ${realm} cleanup recovery changed concurrently; run wrench doctor before retrying`;
+    return `${transport} auth realm ${realm} cleanup recovery changed concurrently; run ghostget doctor before retrying`;
   }
   if (
     claim.containment.status === "cleanup-unsafe"
     && recovery === "proof-unavailable"
   ) {
-    return `${transport} auth realm ${realm} has cleanup-unsafe state without exact quiescence evidence; run wrench doctor to recover the exact private session before retrying`;
+    return `${transport} auth realm ${realm} has cleanup-unsafe state without exact quiescence evidence; run ghostget doctor to recover the exact private session before retrying`;
   }
   if (claim.containment.status === "resource-active") {
-    return `${transport} auth realm ${realm} has a resource-active crash boundary; run wrench doctor to recover the exact private session before retrying`;
+    return `${transport} auth realm ${realm} has a resource-active crash boundary; run ghostget doctor to recover the exact private session before retrying`;
   }
-  return `${transport} auth realm ${realm} has active or cleanup-unsafe state; wait for the active run, or run wrench doctor before retrying`;
+  return `${transport} auth realm ${realm} has active or cleanup-unsafe state; wait for the active run, or run ghostget doctor before retrying`;
 }
 
 export class WebSessionCleanupAdmissionBlockedError extends Error {

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { BrowserSession, CreateBrowserSessionOptions } from "../browser";
-import type { WrenchManifest } from "../model";
+import type { GhostgetManifest } from "../model";
 import { linkedInMessengerConversationsUrl } from "./linkedin-web";
 import {
   resolveLinkedInMessengerConversationsQueryId,
@@ -19,12 +19,12 @@ const auth = {
   source: "arc",
   profile: "Profile 1",
   subject: "urn:li:fsd_profile:123456789",
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 type BootstrapFixture = {
   readonly dependencies: LinkedInQueryBootstrapDependencies;
   readonly commands: (readonly (readonly string[])[])[];
-  readonly manifests: WrenchManifest[];
+  readonly manifests: GhostgetManifest[];
   readonly options: CreateBrowserSessionOptions[];
   readonly closed: { value: boolean };
   readonly cleaned: { value: boolean };
@@ -32,7 +32,7 @@ type BootstrapFixture = {
 
 function fixture(requestUrls: readonly URL[]): BootstrapFixture {
   const commands: (readonly (readonly string[])[])[] = [];
-  const manifests: WrenchManifest[] = [];
+  const manifests: GhostgetManifest[] = [];
   const options: CreateBrowserSessionOptions[] = [];
   const closed = { value: false };
   const cleaned = { value: false };

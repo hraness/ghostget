@@ -3,7 +3,7 @@ import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { types as nodeTypes } from "node:util";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { BrowserFileResolver } from "../browser";
 import type { FileInputValue, OperationInput, WebSessionRecipe } from "../model";
 import {
@@ -530,7 +530,7 @@ function viewerSubject(viewer: TikTokWebViewer): string {
 }
 
 export async function probeTikTokWebSubject(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs?: number;
     readonly dependencies?: TikTokWebRuntimeDependencies;
@@ -548,14 +548,14 @@ export async function probeTikTokWebSubject(
 
 async function requireBoundViewer(
   client: WebSessionClient,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
 ): Promise<TikTokWebViewer> {
   const viewer = await currentViewer(client);
   assertBoundViewer(auth, viewer);
   return viewer;
 }
 
-function assertBoundViewer(auth: WrenchAuth, viewer: TikTokWebViewer): void {
+function assertBoundViewer(auth: GhostgetAuth, viewer: TikTokWebViewer): void {
   const expected = webSessionAuthSubject(auth);
   if (expected === null || !/^tiktok:uid:[0-9]{1,32}\/sec:[A-Za-z0-9._-]{16,256}$/u.test(expected)) {
     throw new Error("TikTok personalized operations require an auth locator bound to the exact viewer subject");
@@ -593,7 +593,7 @@ function exactCount(value: number): Readonly<Record<string, unknown>> {
 async function readProfile(
   client: WebSessionClient,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   dependencies: TikTokWebRuntimeDependencies | undefined,
 ): Promise<Readonly<Record<string, unknown>>> {
   const requestedProfile = profileInput(input);
@@ -682,7 +682,7 @@ async function readComments(
 export async function executeTikTokWebOperation(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;

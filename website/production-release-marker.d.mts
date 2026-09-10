@@ -1,7 +1,7 @@
 export type ProductionReleaseMarker = Readonly<{
   schemaVersion: "wrench-production-release-v1";
-  name: "@hraness/wrench";
-  repository: "hraness/wrench";
+  name: "@hraness/ghostget" | "@hraness/wrench";
+  repository: "hraness/ghostget" | "hraness/wrench";
   tag: `v${string}`;
   version: string;
   sourceSha: string;
@@ -10,9 +10,10 @@ export type ProductionReleaseMarker = Readonly<{
 
 export const PRODUCTION_RELEASE_MARKER_SCHEMA: "wrench-production-release-v1";
 export const PRODUCTION_RELEASE_MARKER_PATH: "/.well-known/wrench-release.json";
+export const PRODUCTION_RELEASE_MARKER_CANONICAL_PATH: "/.well-known/ghostget-release.json";
 export const PRODUCTION_RELEASE_MARKER_MAX_BYTES: 1_024;
-export const PRODUCTION_RELEASE_MARKER_NAME: "@hraness/wrench";
-export const PRODUCTION_RELEASE_MARKER_REPOSITORY: "hraness/wrench";
+export const PRODUCTION_RELEASE_MARKER_NAME: "@hraness/ghostget";
+export const PRODUCTION_RELEASE_MARKER_REPOSITORY: "hraness/ghostget";
 
 export function createProductionReleaseMarker(value: Readonly<{
   deploymentUrl: string;

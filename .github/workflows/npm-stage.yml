@@ -9,7 +9,7 @@ on:
         default: ""
         type: string
       publish_to_npm:
-        description: Submit the verified stable candidate to npm staging
+        description: Publication is on hold pending classification review; leave false to verify only
         required: false
         default: false
         type: boolean
@@ -61,6 +61,10 @@ jobs:
           set -euo pipefail
           if [[ "$GITHUB_EVENT_NAME" != workflow_dispatch || "$GITHUB_REF" != refs/heads/main || "$DEFAULT_BRANCH" != main ]]; then
             echo "::error::Optional npm mirror preparation requires a protected-main dispatch"
+            exit 1
+          fi
+          if [[ "$INPUT_PUBLISH_TO_NPM" == true ]]; then
+            echo "::error::Ghostget npm publication is on hold pending classification review and a reviewed package/workflow update; use publish_to_npm=false for verification only"
             exit 1
           fi
           if [[ -n "$RESOLVED_STAGE_VERSION" && "$INPUT_PUBLISH_TO_NPM" != true ]]; then
@@ -166,9 +170,9 @@ jobs:
           CANONICAL_TAG: ${{ needs.classify.outputs.release_tag }}
         run: |
           set -euo pipefail
-          package_name="@hraness/wrench"
+          package_name="@hraness/ghostget"
           package_version="${CANONICAL_TAG#v}"
-          if [[ "$package_name" != "@hraness/wrench" ]]; then
+          if [[ "$package_name" != "@hraness/ghostget" ]]; then
             echo "::error::Unexpected package name $package_name"
             exit 1
           fi
@@ -205,25 +209,25 @@ jobs:
           VERIFIED_TAG: ${{ needs.classify.outputs.release_tag }}
         run: |
           set -euo pipefail
-          canonical_directory="$RUNNER_TEMP/wrench-mirror-canonical"
+          canonical_directory="$RUNNER_TEMP/ghostget-mirror-canonical"
           node --experimental-strip-types ./scripts/release-ref-authority.ts promotion \
             "$VERIFIED_TAG" "$GITHUB_SHA" "$VERIFIED_SHA" >/dev/null
           bun run ./scripts/github-release-artifact.ts download "$canonical_directory"
-          artifact_directory="$RUNNER_TEMP/wrench-npm-package"
+          artifact_directory="$RUNNER_TEMP/ghostget-npm-package"
           mkdir -m 700 "$artifact_directory"
           version="${VERIFIED_TAG#v}"
-          tarball_name="hraness-wrench-$version.tgz"
+          tarball_name="hraness-ghostget-$version.tgz"
           cp -- "$canonical_directory/$tarball_name" "$artifact_directory/$tarball_name"
           cp -- "$canonical_directory/npm-pack.json" "$artifact_directory/npm-pack.json"
           sha256sum "$artifact_directory/$tarball_name" | awk '{ print $1 }' > "$artifact_directory/npm-package.sha256"
           # The tagged source owns this version's package contract; it executes only in this read-only job.
-          smoke_source="$RUNNER_TEMP/wrench-mirror-source"
+          smoke_source="$RUNNER_TEMP/ghostget-mirror-source"
           git worktree add --detach "$smoke_source" "$VERIFIED_SHA"
           (
             cd "$smoke_source"
             bun install --frozen-lockfile --ignore-scripts
             fixture_browser_root="$(bun run ./scripts/provision-derive-browser.ts)"
-            WRENCH_DERIVE_BROWSER_ROOT="$fixture_browser_root" bun run check
+            GHOSTGET_DERIVE_BROWSER_ROOT="$fixture_browser_root" bun run check
           )
           generated_status="$(git -C "$smoke_source" status --porcelain --untracked-files=all -- dist bun.lock)"
           if [[ -n "$generated_status" ]]; then
@@ -244,7 +248,7 @@ jobs:
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: ${{ steps.pack.outputs.artifact_name }}
-          path: ${{ runner.temp }}/wrench-npm-package
+          path: ${{ runner.temp }}/ghostget-npm-package
           if-no-files-found: error
           retention-days: 30
 
@@ -263,7 +267,7 @@ jobs:
       - name: Reauthorize current npm stage attempt
         env:
           EXPECTED_ACTOR_ID: "894119"
-          EXPECTED_REPOSITORY: "hraness/wrench"
+          EXPECTED_REPOSITORY: "hraness/ghostget"
           EXPECTED_REPOSITORY_ID: "1316443113"
           EXPECTED_WORKFLOW_ID: "344213783"
           EXPECTED_WORKFLOW_PATH: ".github/workflows/npm-stage.yml"
@@ -293,9 +297,9 @@ jobs:
             echo "::error::resolved_stage_version must be one stable semantic version within npm's safe numeric range"
             exit 1
           fi
-          attempt_json="$(mktemp "$RUNNER_TEMP/wrench-stage-attempt.XXXXXX")"
-          workflow_json="$(mktemp "$RUNNER_TEMP/wrench-stage-workflow.XXXXXX")"
-          repository_json="$(mktemp "$RUNNER_TEMP/wrench-stage-repository.XXXXXX")"
+          attempt_json="$(mktemp "$RUNNER_TEMP/ghostget-stage-attempt.XXXXXX")"
+          workflow_json="$(mktemp "$RUNNER_TEMP/ghostget-stage-workflow.XXXXXX")"
+          repository_json="$(mktemp "$RUNNER_TEMP/ghostget-stage-repository.XXXXXX")"
           trap 'rm -f "$attempt_json" "$workflow_json" "$repository_json"' EXIT
           gh api --method GET \
             "/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
@@ -374,9 +378,9 @@ jobs:
         id: npm_config
         run: |
           set -euo pipefail
-          clean_directory="$RUNNER_TEMP/wrench-clean-npm"
-          user_config="$RUNNER_TEMP/wrench-npm-userconfig"
-          global_config="$RUNNER_TEMP/wrench-npm-globalconfig"
+          clean_directory="$RUNNER_TEMP/ghostget-clean-npm"
+          user_config="$RUNNER_TEMP/ghostget-npm-userconfig"
+          global_config="$RUNNER_TEMP/ghostget-npm-globalconfig"
           mkdir -p "$clean_directory"
           : > "$user_config"
           : > "$global_config"
@@ -394,7 +398,7 @@ jobs:
             "$clean_directory" "$user_config" "$global_config" >> "$GITHUB_OUTPUT"
       - name: Reject unresolved stable-stage intent
         env:
-          EXPECTED_REPOSITORY: "hraness/wrench"
+          EXPECTED_REPOSITORY: "hraness/ghostget"
           EXPECTED_REPOSITORY_ID: "1316443113"
           EXPECTED_VERSION: ${{ needs.verify.outputs.package_version }}
           EXPECTED_WORKFLOW_ID: "344213783"
@@ -410,7 +414,7 @@ jobs:
           HISTORY_USER_CONFIG="$NPM_USERCONFIG" \
             HISTORY_GLOBAL_CONFIG="$NPM_GLOBALCONFIG" node <<'NODE'
           const { spawnSync } = require("node:child_process");
-          const expectedName = "@hraness/wrench";
+          const expectedName = "@hraness/ghostget";
           const expectedRepository = process.env.EXPECTED_REPOSITORY ?? "";
           const expectedVersion = process.env.EXPECTED_VERSION ?? "";
           const workflowId = process.env.EXPECTED_WORKFLOW_ID ?? "";
@@ -458,7 +462,7 @@ jobs:
           const currentRunNumber = positiveSafeInteger(currentRunId, "current run id");
           if (
             repository !== expectedRepository
-            || expectedRepository !== "hraness/wrench"
+            || expectedRepository !== "hraness/ghostget"
             || !/^[a-f0-9]{40}$/u.test(currentSha)
             || userConfig === ""
             || globalConfig === ""
@@ -762,7 +766,7 @@ jobs:
             echo "::error::Cleared stable-stage intent identity is invalid"
             exit 1
           fi
-          echo "Recorded the cleared retained-history intent for @hraness/wrench@$RESOLVED_STAGE_VERSION"
+          echo "Recorded the cleared retained-history intent for @hraness/ghostget@$RESOLVED_STAGE_VERSION"
       - name: Bind verified artifact identity
         id: package_identity
         env:
@@ -788,7 +792,7 @@ jobs:
             echo "::error::GitHub run identity is invalid"
             exit 1
           fi
-          tarball_name="hraness-wrench-$EXPECTED_VERSION.tgz"
+          tarball_name="hraness-ghostget-$EXPECTED_VERSION.tgz"
           if [[ "$EXPECTED_TARBALL_NAME" != "$tarball_name" ]]; then
             echo "::error::Verified tarball name does not match the package version"
             exit 1
@@ -803,7 +807,7 @@ jobs:
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: ${{ steps.package_identity.outputs.artifact_name }}
-          path: ${{ runner.temp }}/wrench-npm-package
+          path: ${{ runner.temp }}/ghostget-npm-package
       - name: Bind downloaded artifact
         id: artifact
         env:
@@ -811,7 +815,7 @@ jobs:
           EXPECTED_VERSION: ${{ steps.package_identity.outputs.version }}
         run: |
           set -euo pipefail
-          artifact_directory="$RUNNER_TEMP/wrench-npm-package"
+          artifact_directory="$RUNNER_TEMP/ghostget-npm-package"
           pack_json="$artifact_directory/npm-pack.json"
           sha256_file="$artifact_directory/npm-package.sha256"
           tarball="$artifact_directory/$EXPECTED_TARBALL_NAME"
@@ -838,10 +842,10 @@ jobs:
           const value = JSON.parse(fs.readFileSync(process.env.PACK_JSON, "utf8"));
           if (!Array.isArray(value) || value.length !== 1) throw new Error("npm-pack.json must contain exactly one package");
           const record = value[0];
-          if (record?.name !== "@hraness/wrench") throw new Error("npm-pack.json has the wrong package name");
+          if (record?.name !== "@hraness/ghostget") throw new Error("npm-pack.json has the wrong package name");
           if (record?.version !== process.env.EXPECTED_VERSION) throw new Error("npm-pack.json has the wrong package version");
           if (record?.filename !== process.env.EXPECTED_TARBALL_NAME) throw new Error("npm-pack.json has the wrong tarball name");
-          if (!/^hraness-wrench-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.tgz$/u.test(record.filename)) throw new Error("npm-pack.json has an unsafe tarball name");
+          if (!/^hraness-ghostget-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.tgz$/u.test(record.filename)) throw new Error("npm-pack.json has an unsafe tarball name");
           for (const field of ["entryCount", "size", "unpackedSize"]) {
             if (!Number.isSafeInteger(record[field]) || record[field] < 0) throw new Error(`npm-pack.json has invalid ${field}`);
           }
@@ -926,7 +930,7 @@ jobs:
           const manifest = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(manifestBytes));
           const publishConfig = manifest?.publishConfig;
           if (
-            manifest?.name !== "@hraness/wrench"
+            manifest?.name !== "@hraness/ghostget"
             || manifest?.version !== process.env.EXPECTED_VERSION
             || (Object.hasOwn(manifest, "private") && manifest.private !== false)
             || manifest?.contentPolicy?.class !== "dual-use"
@@ -937,7 +941,7 @@ jobs:
             || JSON.stringify(Object.keys(publishConfig).sort()) !== JSON.stringify(["access", "registry"])
             || publishConfig.access !== "public"
             || publishConfig.registry !== "https://registry.npmjs.org"
-          ) throw new Error("Packed Wrench can publish only to the canonical public npm registry");
+          ) throw new Error("Packed Ghostget can publish only to the canonical public npm registry");
           NODE
           expected_sha256="$(tr -d '\n' < "$sha256_file")"
           if [[ ! "$expected_sha256" =~ ^[a-f0-9]{64}$ ]]; then
@@ -965,7 +969,7 @@ jobs:
             echo "::error::Stable-stage intent identity is invalid"
             exit 1
           fi
-          echo "Reserved the exclusive retained-history intent for @hraness/wrench@$EXPECTED_VERSION in run $GITHUB_RUN_ID attempt $GITHUB_RUN_ATTEMPT"
+          echo "Reserved the exclusive retained-history intent for @hraness/ghostget@$EXPECTED_VERSION in run $GITHUB_RUN_ID attempt $GITHUB_RUN_ATTEMPT"
       - name: Revalidate protected-main ancestry and stage exact package
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -982,11 +986,11 @@ jobs:
           TARBALL: ${{ steps.artifact.outputs.tarball }}
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REPOSITORY" != "hraness/wrench" || "$DEFAULT_BRANCH" != "main" ]]; then
-            echo "::error::Terminal staging must run in the Wrench protected-main context"
+          if [[ "$GITHUB_REPOSITORY" != "hraness/ghostget" || "$DEFAULT_BRANCH" != "main" ]]; then
+            echo "::error::Terminal staging must run in the Ghostget protected-main context"
             exit 1
           fi
-          repository_url="https://github.com/hraness/wrench.git"
+          repository_url="https://github.com/hraness/ghostget.git"
           if [[ "$GITHUB_SHA" != "$EXPECTED_SOURCE_SHA" ]]; then
             echo "::error::Verified workflow source moved before staging"
             exit 1
@@ -1077,12 +1081,12 @@ jobs:
             echo "::error::Clean npm publication default moved at the terminal staging boundary"
             exit 1
           fi
-          final_latest_file="$(mktemp "$RUNNER_TEMP/wrench-terminal-latest.XXXXXX")"
+          final_latest_file="$(mktemp "$RUNNER_TEMP/ghostget-terminal-latest.XXXXXX")"
           trap 'rm -f "$final_latest_file"' EXIT
           (cd "$NPM_DIRECTORY" && \
             NPM_CONFIG_USERCONFIG="$NPM_USERCONFIG" \
             NPM_CONFIG_GLOBALCONFIG="$NPM_GLOBALCONFIG" \
-            npm view @hraness/wrench dist-tags.latest --json \
+            npm view @hraness/ghostget dist-tags.latest --json \
               --registry=https://registry.npmjs.org) > "$final_latest_file"
           LATEST_JSON="$final_latest_file" EXPECTED_VERSION="$EXPECTED_VERSION" node <<'NODE'
           const { readFileSync } = require("node:fs");
@@ -1106,14 +1110,14 @@ jobs:
           }
           throw new Error(`Candidate ${expectedValue} is already public as npm latest`);
           NODE
-          canonical_release_json="$RUNNER_TEMP/wrench-terminal-canonical-release.json"
+          canonical_release_json="$RUNNER_TEMP/ghostget-terminal-canonical-release.json"
           gh api --method GET "/repos/$GITHUB_REPOSITORY/releases/tags/v$EXPECTED_VERSION" > "$canonical_release_json"
           CANONICAL_RELEASE_JSON="$canonical_release_json" node <<'NODE'
           const fs = require("node:fs");
           const release = JSON.parse(fs.readFileSync(process.env.CANONICAL_RELEASE_JSON, "utf8"));
           const version = process.env.EXPECTED_VERSION;
-          const names = [`hraness-wrench-${version}.tgz`, "npm-pack.json", "release-manifest.json", "SHA256SUMS", "provenance.jsonl"];
-          const receipt = `wrench-release-source-v1 repository=hraness/wrench tag=v${version} source_sha=${process.env.EXPECTED_RELEASE_SHA} workflow_run_id=${process.env.EXPECTED_RELEASE_RUN_ID}`;
+          const names = [`hraness-ghostget-${version}.tgz`, "npm-pack.json", "release-manifest.json", "SHA256SUMS", "provenance.jsonl"];
+          const receipt = `wrench-release-source-v1 repository=hraness/ghostget tag=v${version} source_sha=${process.env.EXPECTED_RELEASE_SHA} workflow_run_id=${process.env.EXPECTED_RELEASE_RUN_ID}`;
           if (release.id !== Number(process.env.EXPECTED_RELEASE_ID) || release.target_commitish !== process.env.EXPECTED_RELEASE_SHA
             || release.tag_name !== `v${version}` || release.draft !== false || release.prerelease !== false || release.immutable !== true
             || release.author?.id !== 41898282 || release.author?.type !== "Bot" || release.body?.split("\n", 1)[0] !== receipt

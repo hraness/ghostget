@@ -41,7 +41,7 @@ const trustedBunConfigPath = join(
 const PROXY_START_TIMEOUT_MS = 15_000;
 const PROXY_CONTROL_TIMEOUT_MS = 5_000;
 const PROXY_CONTROL_MAX_BYTES = 64 * 1024;
-const helperFailureEnvironmentKey = "WRENCH_DERIVATION_PROXY_FAIL_FOR_TEST";
+const helperFailureEnvironmentKey = "GHOSTGET_DERIVATION_PROXY_FAIL_FOR_TEST";
 
 export type DerivationProxyHelperFailureForTest =
   | "after-proxy"
@@ -195,7 +195,7 @@ function assertPrivateDirectoryIdentity(
 
 /**
  * Return true only for an absent endpoint. An existing path must be the exact
- * private socket shape before Wrench will connect to it or consider fallback.
+ * private socket shape before Ghostget will connect to it or consider fallback.
  */
 function privateControlSocketIsAbsent(path: string): boolean {
   try {

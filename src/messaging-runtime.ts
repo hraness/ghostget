@@ -1,11 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { isAbsolute, resolve } from "node:path";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { canonicalJson, sha256 } from "./canonical-json";
 import {
   parseMessageLikeMeSourceConversationCoordinateBindingV1,
-  wrenchMessagingContextBindingSha256V2,
+  ghostgetMessagingContextBindingSha256V2,
 } from "./message-like-me-agentic-messaging";
 import {
   MESSAGING_CONTEXT_BINDING_CONTRACT_HASH,
@@ -83,7 +83,7 @@ import {
 } from "./messaging-action-store";
 import {
   createPrivateJsonIfAbsent,
-  isWrenchStatePath,
+  isGhostgetStatePath,
   writePrivateJson,
   writePrivateJsonIfUnchanged,
 } from "./storage";
@@ -253,7 +253,7 @@ function messagingResolution(
 function requireBoundAuth(
   binding: ProviderPluginBindingV1,
   auth: PreparedInvocation["auth"],
-): asserts auth is WrenchAuth & { readonly subject: string } {
+): asserts auth is GhostgetAuth & { readonly subject: string } {
   if (auth.kind === "public-web-session") {
     throw new Error("messaging requires one private account-bound auth realm");
   }
@@ -567,9 +567,9 @@ export function validateMessagingPrivateOutputPath(
     || Buffer.byteLength(path, "utf8") > 4_096
     || /[\0\r\n]/u.test(path)
   ) throw new Error("messaging private output path must be normalized and absolute");
-  if (isWrenchStatePath(path, environment)) {
+  if (isGhostgetStatePath(path, environment)) {
     throw new Error(
-      "messaging private output path must be outside WRENCH_STATE_HOME",
+      "messaging private output path must be outside GHOSTGET_STATE_HOME",
     );
   }
   return path;
@@ -1413,7 +1413,7 @@ export async function previewMessagingTurnInternal(
     expiresAt: context.expiresAt,
   });
   const contextBindingSha256 =
-    wrenchMessagingContextBindingSha256V2(exactContextBinding);
+    ghostgetMessagingContextBindingSha256V2(exactContextBinding);
   const baseRouteState = await currentMessagingRouteState(
     record,
     resolution,
@@ -2117,7 +2117,7 @@ export function reconcileMessagingRunInternal(
   ).run;
   if (run.state === "pending") {
     throw new Error(
-      "messaging run is pending; run wrench doctor before reconciliation",
+      "messaging run is pending; run ghostget doctor before reconciliation",
     );
   }
   const binding = messagingReceiptBinding(run);

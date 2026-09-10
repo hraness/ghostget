@@ -64,7 +64,7 @@ import {
   type ProviderPluginRuntimeLoadIdentityPhase,
   type WebSessionPluginOperationV1,
 } from "./provider-plugin";
-import type { WrenchManifest } from "./model";
+import type { GhostgetManifest } from "./model";
 import type {
   PortableOperationIdentityV1,
 } from "./provider-plugin-portable-identity";
@@ -157,8 +157,8 @@ export type ProviderPluginRegistry = {
     binding: ProviderPluginBindingV1,
   ) => string;
   readonly artifactSha256: (binding: ProviderPluginBindingV1) => string | null;
-  readonly listOwnedManifests: () => readonly WrenchManifest[];
-  readonly resolveOwnedManifest: (adapterId: string) => WrenchManifest | undefined;
+  readonly listOwnedManifests: () => readonly GhostgetManifest[];
+  readonly resolveOwnedManifest: (adapterId: string) => GhostgetManifest | undefined;
 };
 
 function routeKey(transport: ProviderPluginTransport, surfaceId: string): string {
@@ -595,7 +595,7 @@ const reviewedKbDynamicResolutionPolicy =
   "createRequire(parentUrl).resolve(`$" +
   "{packageName}/package.json`) is reached only by resolvePackageDirectory(\"agent-browser\") at module initialization";
 const reviewedDormantDynamicLoaderPolicy =
-  "reviewed dependency parser API is not called by the owning Wrench composition";
+  "reviewed dependency parser API is not called by the owning Ghostget composition";
 const reviewedDynamicInstalledModuleIdentities =
   reviewedMetaDynamicInstalledModuleIdentities;
 const reviewedKbDynamicInstalledPluginIds = new Set([
@@ -1790,7 +1790,7 @@ function providerPluginPackageDependencyIdentity(
       && invocationRoot !== providerPluginPackageRoot
     ) {
       throw new Error(
-        `provider plugin ${plugin.id} must start from the checked Wrench package or repository root`,
+        `provider plugin ${plugin.id} must start from the checked Ghostget package or repository root`,
       );
     }
     assertNoAmbientRuntimeOverrides();
@@ -3185,7 +3185,7 @@ function createProviderPluginRegistryInternal(
     }
     return portableProviderPluginArtifactSha256(plugin);
   };
-  const ownedManifests = new Map<string, WrenchManifest>();
+  const ownedManifests = new Map<string, GhostgetManifest>();
   for (const plugin of plugins) {
     for (const binding of plugin.bindings) {
       const portable = portableProviderPluginAdapter(binding);

@@ -19,7 +19,7 @@ import {
   readRegularFile,
   removePrivateStateFile,
   removePrivateStateFileIfUnchanged,
-  wrenchStateHome,
+  ghostgetStateHome,
   writePrivateJson,
   writePrivateJsonIfUnchanged,
 } from "./storage";
@@ -144,7 +144,7 @@ function validateCoordinate(namespace: string, authId: string, authHash: string)
 }
 
 function directory(environment: Environment): string {
-  return join(wrenchStateHome(environment), SESSION_SECRET_DIRECTORY);
+  return join(ghostgetStateHome(environment), SESSION_SECRET_DIRECTORY);
 }
 
 function secretPath(
@@ -305,7 +305,7 @@ function ensureCoordinateState(
 }
 
 function keyPath(environment: Environment): string {
-  return join(wrenchStateHome(environment), SESSION_SECRET_KEY);
+  return join(ghostgetStateHome(environment), SESSION_SECRET_KEY);
 }
 
 function sessionKeyId(key: Uint8Array): string {

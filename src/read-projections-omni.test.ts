@@ -41,7 +41,7 @@ function state(): TestState {
   chmodSync(directory, 0o700);
   return Object.freeze({
     directory,
-    environment: Object.freeze({ WRENCH_STATE_HOME: directory }),
+    environment: Object.freeze({ GHOSTGET_STATE_HOME: directory }),
   });
 }
 
@@ -398,12 +398,12 @@ describe("omni read projections", () => {
         "--eval",
         `
           const { reduceOmniProjection } = await import(${JSON.stringify(moduleUrl)});
-          const query = JSON.parse(process.env.WRENCH_TEST_QUERY);
+          const query = JSON.parse(process.env.GHOSTGET_TEST_QUERY);
           const result = reduceOmniProjection(
             query,
             (current) => {
               Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 75);
-              return { byId: { ...current.byId, [process.env.WRENCH_TEST_ID]: true } };
+              return { byId: { ...current.byId, [process.env.GHOSTGET_TEST_ID]: true } };
             },
             { environment: process.env },
           );
@@ -412,9 +412,9 @@ describe("omni read projections", () => {
       ], {
         env: {
           ...process.env,
-          WRENCH_STATE_HOME: testState.directory,
-          WRENCH_TEST_QUERY: JSON.stringify(query),
-          WRENCH_TEST_ID: id,
+          GHOSTGET_STATE_HOME: testState.directory,
+          GHOSTGET_TEST_QUERY: JSON.stringify(query),
+          GHOSTGET_TEST_ID: id,
         },
         stdout: "pipe",
         stderr: "pipe",

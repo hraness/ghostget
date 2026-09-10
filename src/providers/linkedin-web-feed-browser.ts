@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import {
   PreservedBrowserArtifactsError,
   browserResultData,
@@ -10,7 +10,7 @@ import {
   type CommandResult,
   type CreateBrowserSessionOptions,
 } from "../browser";
-import type { WrenchManifest } from "../model";
+import type { GhostgetManifest } from "../model";
 import type {
   WebSessionCleanupResourcePublisher,
   WebSessionOperationDeadline,
@@ -37,7 +37,7 @@ const BROWSER_ENVELOPE_BYTES = 64 * 1024;
 const MAX_NETWORK_REQUESTS = 10_000;
 const MAX_REQUEST_URL_CHARACTERS = 64 * 1_024;
 
-const feedBrowserManifest: WrenchManifest = Object.freeze({
+const feedBrowserManifest: GhostgetManifest = Object.freeze({
   schemaVersion: 4,
   id: "linkedin-profile-activity-runtime",
   version: "1.0.0",
@@ -323,7 +323,7 @@ function commandWasAborted(options: Parameters<typeof runCommand>[1]): boolean {
 function linkedInFeedBrowserCommandRunner(
   execute: typeof runCommand,
   settleContext: () => Promise<void>,
-  authKind: WrenchAuth["kind"],
+  authKind: GhostgetAuth["kind"],
 ): typeof runCommand {
   let initialBatchPending = true;
   return async (command, options) => {
@@ -477,7 +477,7 @@ function currentProfileActivityUrl(
 }
 
 export async function createLinkedInFeedBrowserTransport(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs: number;
     readonly maxOutputBytes: number;

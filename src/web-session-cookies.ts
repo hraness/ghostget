@@ -27,7 +27,7 @@ import {
   type StrictCookie,
 } from "@hraness/kb/clip/cookies";
 
-import type { WrenchAuth } from "./auth";
+import type { GhostgetAuth } from "./auth";
 import { listDerivations } from "./derive";
 
 const MAX_CHROMIUM_COOKIE_DB_BYTES = 256 * 1024 * 1024;
@@ -122,7 +122,7 @@ function inspectPrivateDirectory(path: string, label: string): void {
 }
 
 /**
- * Select only the exact ready profile layout created inside Wrench's private
+ * Select only the exact ready profile layout created inside Ghostget's private
  * derivation state. A path that merely resembles that layout cannot opt an
  * arbitrary Chromium profile into the fixed mock-keychain credential.
  */
@@ -151,11 +151,11 @@ function managedDerivationChromiumCookieDatabase(
     "managed Chromium derivation metadata",
   );
   const summaries = listDerivations({
-    WRENCH_STATE_HOME: dirname(derivationsDirectory),
+    GHOSTGET_STATE_HOME: dirname(derivationsDirectory),
   });
   const summary = summaries.find((candidate) => candidate.id === id);
   if (summary === undefined || summary.invalid === true || summary.ready !== true) {
-    throw new Error("managed Chromium profile is not bound to one ready Wrench derivation");
+    throw new Error("managed Chromium profile is not bound to one ready Ghostget derivation");
   }
   let metadata: unknown;
   try {
@@ -442,7 +442,7 @@ async function readManagedChromiumCookies(
 }
 
 export function webSessionCookieSelection(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   timeoutMs: number,
 ): CookieSelection {
   if (auth.kind === "cookie-source") {
@@ -479,7 +479,7 @@ export function webSessionCookieSelection(
 }
 
 export async function acquireWebSessionCookieRecords(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   target: URL,
   timeoutMs: number,
   reader: CookieRecordReader = acquireCookieRecords,

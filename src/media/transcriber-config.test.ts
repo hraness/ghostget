@@ -180,6 +180,27 @@ async function expectSetupError(
 }
 
 describe("whisper.cpp transcriber configuration", () => {
+  test("uses Ghostget for new configuration and preserves an installed Wrench configuration", async () => {
+    const item = await fixture();
+    const seams = dependencies(item);
+    const configRoot = join(item.root, "xdg");
+    await mkdir(configRoot, { mode: 0o700 });
+    const options = { homeDirectory: item.root, env: { XDG_CONFIG_HOME: configRoot } };
+    const configured = await setupWhisperCppTranscriber({
+      ...options, executablePath: item.executablePath, modelPath: item.modelPath,
+    }, seams);
+    const currentDirectory = join(configRoot, "ghostget");
+    const currentPath = join(currentDirectory, "media", "transcriber.json");
+    const original = await readFile(currentPath);
+    const legacyDirectory = join(configRoot, "wrench");
+    await rename(currentDirectory, legacyDirectory);
+    expect(await loadConfiguredTranscriber(options, seams)).toEqual({ kind: "ready", transcriber: configured });
+    expect(await readFile(join(legacyDirectory, "media", "transcriber.json"))).toEqual(original);
+    await mkdir(join(currentDirectory, "media"), { recursive: true, mode: 0o700 });
+    expect(await loadConfiguredTranscriber(options, seams)).toMatchObject({ kind: "invalid" });
+    expect(await readFile(join(legacyDirectory, "media", "transcriber.json"))).toEqual(original);
+  });
+
   test("reports an absent private configuration as not configured", async () => {
     const item = await fixture();
 

@@ -10,7 +10,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, test } from "bun:test";
 
-import { saveAuth, type WrenchAuth } from "./auth";
+import { saveAuth, type GhostgetAuth } from "./auth";
 import { canonicalJson, parseRuntimeManifest, sha256 } from "./model";
 import { parseLocalCliToolIdentityV1 } from "./local-cli-tool-identity";
 import type {
@@ -39,7 +39,7 @@ import {
 } from "./runtime";
 import {
   ensurePrivateStateDirectory,
-  wrenchStateHome,
+  ghostgetStateHome,
   writePrivateJson,
 } from "./storage";
 
@@ -55,7 +55,7 @@ function environment(): Readonly<Record<string, string | undefined>> {
   const root = mkdtempSync(join(tmpdir(), "wrench-local-durable-"));
   chmodSync(root, 0o700);
   roots.push(root);
-  return { WRENCH_STATE_HOME: root, HOME: root };
+  return { GHOSTGET_STATE_HOME: root, HOME: root };
 }
 
 function currentManifest() {
@@ -67,7 +67,7 @@ function currentManifest() {
   return parsed.value;
 }
 
-function authority(): WrenchAuth {
+function authority(): GhostgetAuth {
   return {
     schemaVersion: 1,
     id: "beeper-main",
@@ -203,7 +203,7 @@ describe("local CLI durable identity", () => {
   test("pins schema-7 plans and invalidates confirmation after tool drift", async () => {
     const selectedEnvironment = environment();
     const prepared = invocation();
-    saveAuth(prepared.auth as WrenchAuth, selectedEnvironment);
+    saveAuth(prepared.auth as GhostgetAuth, selectedEnvironment);
     const stored = createInvocationPlan(
       prepared,
       new Date("2026-08-26T12:00:00.000Z"),
@@ -296,7 +296,7 @@ describe("local CLI durable identity", () => {
   test("reads exact schema-7 and predecessor schema-4 receipts without transport confusion", () => {
     const selectedEnvironment = environment();
     const plan = localPlan();
-    const runs = join(wrenchStateHome(selectedEnvironment), "runs");
+    const runs = join(ghostgetStateHome(selectedEnvironment), "runs");
     ensurePrivateStateDirectory(runs, selectedEnvironment);
     const common = {
       runId: randomUUID(),

@@ -22,7 +22,7 @@ import type {
 import {
   createPrivateJsonIfAbsent,
   ensurePrivateStateDirectory,
-  wrenchStateHome,
+  ghostgetStateHome,
   readPrivateStateFilesBatched,
   removePrivateStateFileIfUnchanged,
   snapshotPrivateStateDirectory,
@@ -312,7 +312,7 @@ export function parsePortableProviderPluginInvocationLease(
 }
 
 function leaseDirectory(environment: Environment): string {
-  return join(wrenchStateHome(environment), "provider-plugin-state", ".invocations");
+  return join(ghostgetStateHome(environment), "provider-plugin-state", ".invocations");
 }
 
 function leasePath(
@@ -326,7 +326,7 @@ function leasePath(
 }
 
 function storeRoot(environment: Environment): string {
-  return join(wrenchStateHome(environment), "provider-plugins");
+  return join(ghostgetStateHome(environment), "provider-plugins");
 }
 
 function snapshot(
@@ -368,7 +368,7 @@ function assertPortableProviderPluginInvocationAdmitted(
   for (const entry of listPortableProviderPluginInvocationLeases(environment)) {
     if ("invalid" in entry) {
       throw new Error(
-        `portable provider plugin invocation is blocked by malformed lease ${entry.leaseId}; run wrench plugin doctor before retrying`,
+        `portable provider plugin invocation is blocked by malformed lease ${entry.leaseId}; run ghostget plugin doctor before retrying`,
       );
     }
     const existing = entry.lease;
@@ -384,7 +384,7 @@ function assertPortableProviderPluginInvocationAdmitted(
       && existing.containment.status === "cleanup-unsafe"
     ) {
       throw new Error(
-        `portable provider plugin ${identity.pluginId} invocation is blocked by cleanup-unsafe lease ${existing.leaseId}; run wrench plugin doctor before retrying`,
+        `portable provider plugin ${identity.pluginId} invocation is blocked by cleanup-unsafe lease ${existing.leaseId}; run ghostget plugin doctor before retrying`,
       );
     }
     if (
@@ -392,7 +392,7 @@ function assertPortableProviderPluginInvocationAdmitted(
       !== "exact-live-owner"
     ) {
       throw new Error(
-        `portable provider plugin ${identity.pluginId} invocation is blocked by unverifiable non-complete lease ${existing.leaseId}; run wrench plugin doctor before retrying`,
+        `portable provider plugin ${identity.pluginId} invocation is blocked by unverifiable non-complete lease ${existing.leaseId}; run ghostget plugin doctor before retrying`,
       );
     }
   }

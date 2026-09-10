@@ -28,7 +28,7 @@ import {
   readPrivateStateFilesBatched,
   readPrivateStateFileIfPresent,
   removePrivateStateFileIfUnchanged,
-  wrenchStateHome,
+  ghostgetStateHome,
   snapshotPrivateStateDirectory,
   writePrivateJsonIfUnchanged,
 } from "./storage";
@@ -54,7 +54,7 @@ export type OAuthProvider = ProviderPluginSurfaceId;
 
 export type LinkedDeviceProvider = ProviderPluginSurfaceId;
 
-export type WrenchAuth =
+export type GhostgetAuth =
   | {
       readonly schemaVersion: 1;
       readonly id: string;
@@ -88,7 +88,7 @@ export type WrenchAuth =
       readonly provider: OAuthProvider;
       readonly path: string;
       readonly scopes: readonly string[];
-      /** The credential lifecycle and token file are owned by Wrench. */
+      /** The credential lifecycle and token file are owned by Ghostget. */
       readonly managed?: true;
       readonly subject?: string;
     }
@@ -128,7 +128,7 @@ export type AuthInput =
     };
 
 export type AuthSnapshot = {
-  readonly auth: WrenchAuth;
+  readonly auth: GhostgetAuth;
   /** SHA-256 of the exact canonical file bytes, including the final LF. */
   readonly contentSha256: string;
 };
@@ -145,13 +145,13 @@ export type AuthReplaceAuthority = {
 };
 
 type LinkedDeviceAuth = Extract<
-  WrenchAuth,
+  GhostgetAuth,
   { readonly kind: "linked-device-store" }
 >;
 
 function authPath(id: string, environment: Readonly<Record<string, string | undefined>>): string {
   if (!/^[a-z][a-z0-9-]{0,47}$/u.test(id)) throw new Error("auth ID must be lowercase kebab-case");
-  return join(wrenchStateHome(environment), "auth", `${id}.json`);
+  return join(ghostgetStateHome(environment), "auth", `${id}.json`);
 }
 
 /**
@@ -239,7 +239,7 @@ function deriveLinkedDeviceRealmKey(
     .digest("hex");
 }
 
-export function createAuth(id: string, input: AuthInput): WrenchAuth {
+export function createAuth(id: string, input: AuthInput): GhostgetAuth {
   if (!/^[a-z][a-z0-9-]{0,47}$/u.test(id)) throw new Error("auth ID must be lowercase kebab-case");
   const subject = input.subject === undefined ? undefined : normalizeAuthSubject(input.subject);
   if ("linkedDeviceProvider" in input) {
@@ -339,7 +339,7 @@ export function createAuth(id: string, input: AuthInput): WrenchAuth {
 }
 
 export function saveAuth(
-  authValue: WrenchAuth,
+  authValue: GhostgetAuth,
   environment: Readonly<Record<string, string | undefined>> = process.env,
   options: { readonly force?: boolean } = {},
 ): string {
@@ -535,7 +535,7 @@ function exactKeys(value: Record<string, unknown>, expected: readonly string[]):
   return keys.length === allowed.length && keys.every((key, index) => key === allowed[index]);
 }
 
-export function parseAuth(value: unknown): WrenchAuth {
+export function parseAuth(value: unknown): GhostgetAuth {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("auth record must be an object");
   const record = value as Record<string, unknown>;
   if (record.schemaVersion !== 1 || !isSafeString(record.id, 48) || !/^[a-z][a-z0-9-]*$/u.test(record.id)) {
@@ -731,7 +731,7 @@ export function parseAuth(value: unknown): WrenchAuth {
 
 function canonicalAuthSnapshot(authValue: unknown): AuthSnapshot {
   const parsed = parseAuth(authValue);
-  const auth: WrenchAuth = parsed.kind === "oauth-token-file"
+  const auth: GhostgetAuth = parsed.kind === "oauth-token-file"
     ? Object.freeze({
         ...parsed,
         scopes: Object.freeze([...parsed.scopes]),
@@ -783,8 +783,8 @@ export function loadAuthSnapshotIfPresent(
 }
 
 function linkedDeviceMutationRealms(
-  current: WrenchAuth | undefined,
-  replacement: WrenchAuth | undefined,
+  current: GhostgetAuth | undefined,
+  replacement: GhostgetAuth | undefined,
   authIds: ReadonlySet<string>,
   journals: ReturnType<typeof listLinkedDeviceLifecycleJournalSnapshots>,
 ): readonly {
@@ -852,8 +852,8 @@ function assertLinkedDeviceMutationJournalsSettled(
 }
 
 function withLinkedDeviceAuthMutationAdmissions<T>(
-  current: WrenchAuth | undefined,
-  replacement: WrenchAuth | undefined,
+  current: GhostgetAuth | undefined,
+  replacement: GhostgetAuth | undefined,
   environment: Readonly<Record<string, string | undefined>>,
   operation: () => T,
 ): T {
@@ -951,7 +951,7 @@ export function loadAuthSnapshot(
 
 export function replaceAuthIfUnchanged(
   currentValue: AuthSnapshot,
-  replacementValue: WrenchAuth,
+  replacementValue: GhostgetAuth,
   environment: Readonly<Record<string, string | undefined>> = process.env,
   authority?: AuthReplaceAuthority,
 ): AuthReplaceResult {
@@ -1011,12 +1011,12 @@ export function replaceAuthIfUnchanged(
 export function loadAuth(
   id: string,
   environment: Readonly<Record<string, string | undefined>> = process.env,
-): WrenchAuth {
+): GhostgetAuth {
   return loadAuthSnapshot(id, environment).auth;
 }
 
-export function listAuth(environment: Readonly<Record<string, string | undefined>> = process.env): readonly WrenchAuth[] {
-  const directory = join(wrenchStateHome(environment), "auth");
+export function listAuth(environment: Readonly<Record<string, string | undefined>> = process.env): readonly GhostgetAuth[] {
+  const directory = join(ghostgetStateHome(environment), "auth");
   const snapshot = snapshotPrivateStateDirectory(directory, environment);
   if (snapshot.identity === null) return [];
   const names = snapshot.entries
@@ -1038,11 +1038,11 @@ export function listAuth(environment: Readonly<Record<string, string | undefined
 }
 
 function managedOAuthCredentialSnapshot(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   environment: Readonly<Record<string, string | undefined>>,
 ): Readonly<{ path: string; contentSha256: string }> | null {
   if (auth.kind !== "oauth-token-file" || auth.managed !== true) return null;
-  const expectedDirectory = join(wrenchStateHome(environment), "auth", "oauth-tokens");
+  const expectedDirectory = join(ghostgetStateHome(environment), "auth", "oauth-tokens");
   if (
     dirname(auth.path) !== expectedDirectory
     || !new RegExp(`^${auth.id}-[0-9a-f-]{36}\\.json$`, "u").test(basename(auth.path))

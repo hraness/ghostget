@@ -24,7 +24,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createAuth, saveAuth, type WrenchAuth } from "./auth";
+import { createAuth, saveAuth, type GhostgetAuth } from "./auth";
 import {
   PreservedBrowserArtifactsError,
   type BrowserExecution,
@@ -34,7 +34,7 @@ import {
   parseManifest,
   sha256,
   type FileInputValue,
-  type WrenchManifest,
+  type GhostgetManifest,
 } from "./model";
 import { OperationDeadlineError } from "./operation-deadline";
 import {
@@ -89,7 +89,7 @@ import { PLAN_ASSET_GC_GRACE_MS, planAssetBundlePath } from "./plan-assets";
 import {
   ensurePrivateStateDirectory,
   installManifest as installManifestWithRegistry,
-  wrenchStateHome,
+  ghostgetStateHome,
   writePrivateJson,
 } from "./storage";
 
@@ -111,7 +111,7 @@ type TestState = {
 function state(): TestState {
   const directory = mkdtempSync(join(tmpdir(), "wrench-runtime-test-"));
   chmodSync(directory, 0o700);
-  return { directory, environment: { WRENCH_STATE_HOME: directory } };
+  return { directory, environment: { GHOSTGET_STATE_HOME: directory } };
 }
 
 async function holdReadProjectionAdmissionInChild(
@@ -129,19 +129,19 @@ async function holdReadProjectionAdmissionInChild(
       const { writeFileSync } = await import("node:fs");
       const { acquireReadProjectionAuthAdmission } = await import(${JSON.stringify(admissionModuleUrl)});
       const admission = acquireReadProjectionAuthAdmission(
-        process.env.WRENCH_TEST_AUTH_ID,
+        process.env.GHOSTGET_TEST_AUTH_ID,
         process.env,
       );
-      writeFileSync(process.env.WRENCH_TEST_READY_PATH, "ready\\n", { mode: 0o600 });
+      writeFileSync(process.env.GHOSTGET_TEST_READY_PATH, "ready\\n", { mode: 0o600 });
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 750);
       admission.release();
     `,
   ], {
     env: {
       ...process.env,
-      WRENCH_STATE_HOME: testState.directory,
-      WRENCH_TEST_AUTH_ID: authId,
-      WRENCH_TEST_READY_PATH: readyPath,
+      GHOSTGET_STATE_HOME: testState.directory,
+      GHOSTGET_TEST_AUTH_ID: authId,
+      GHOSTGET_TEST_READY_PATH: readyPath,
     },
     detached: true,
     stdout: "ignore",
@@ -180,14 +180,14 @@ async function holdReadProjectionAdmissionInChild(
   return Object.freeze({ child, killAndReap, stderr });
 }
 
-function auth(source: "chrome" | "firefox" = "chrome"): WrenchAuth {
+function auth(source: "chrome" | "firefox" = "chrome"): GhostgetAuth {
   return { schemaVersion: 1, id: "example", kind: "cookie-source", source };
 }
 
 function manifest(
   risk: "R1" | "R2" | "R3" = "R2",
   options: { readonly version?: string; readonly dedupeWindowMs?: number } = {},
-): WrenchManifest {
+): GhostgetManifest {
   const mutating = risk === "R2" || risk === "R3";
   return {
     schemaVersion: 1,
@@ -245,25 +245,25 @@ function manifest(
 }
 
 
-function xProviderManifest(): WrenchManifest {
+function xProviderManifest(): GhostgetManifest {
   return JSON.parse(readFileSync(
     join(import.meta.dir, "assets", "adapters", "x", "wrench-adapter.json"),
     "utf8",
-  )) as WrenchManifest;
+  )) as GhostgetManifest;
 }
 
-function linkedinWebManifest(): WrenchManifest {
+function linkedinWebManifest(): GhostgetManifest {
   return JSON.parse(readFileSync(
     join(import.meta.dir, "assets", "adapters", "linkedin", "wrench-web-adapter.json"),
     "utf8",
-  )) as WrenchManifest;
+  )) as GhostgetManifest;
 }
 
-function xWebManifest(): WrenchManifest {
+function xWebManifest(): GhostgetManifest {
   return JSON.parse(readFileSync(
     join(import.meta.dir, "assets", "adapters", "x", "wrench-web-adapter.json"),
     "utf8",
-  )) as WrenchManifest;
+  )) as GhostgetManifest;
 }
 
 function providerBoundTargetTestRegistry(): ProviderPluginRegistry {
@@ -328,7 +328,7 @@ function providerBoundTargetTestRegistry(): ProviderPluginRegistry {
 function reviewedTemplateManifest(
   risk: "R1" | "R3",
   method: "GET" | "DELETE" | "POST" = risk === "R3" ? "POST" : "GET",
-): WrenchManifest {
+): GhostgetManifest {
   const write = risk === "R3";
   const operationId = write ? "messaging.send" : "content.read";
   return {
@@ -474,7 +474,7 @@ function forgedProtectedBrowserInvocation(
   risk: "R1" | "R3",
   origin: "https://api.x.com" | "https://api.linkedin.com",
 ) {
-  const protectedManifest: WrenchManifest = {
+  const protectedManifest: GhostgetManifest = {
     ...manifest(risk),
     schemaVersion,
     id: `forged-${schemaVersion}`,
@@ -693,7 +693,7 @@ describe("protected browser action boundaries", () => {
   });
 
   test("rejects a protected extra browser domain even when every declared origin is benign", () => {
-    const protectedManifest: WrenchManifest = {
+    const protectedManifest: GhostgetManifest = {
       ...manifest("R1"),
       schemaVersion: 2,
       browserDomains: ["example.com", "*.x.com"],
@@ -727,7 +727,7 @@ describe("protected browser action boundaries", () => {
   test("rejects a syntactically valid generic schema-v2 DOM read before every direct boundary", () => {
     const operation = manifest("R1").operations["messaging.send"];
     if (operation === undefined) throw new Error("missing retired fixture operation");
-    const retired: WrenchManifest = {
+    const retired: GhostgetManifest = {
       ...manifest("R1"),
       schemaVersion: 2,
       operations: { "content.read": operation },
@@ -796,7 +796,7 @@ describe("protected browser action boundaries", () => {
 
   test("rejects every generic profile recipe before an injected executor or browser session can start", () => {
     const testState = state();
-    const invocation = (selectedAuth: WrenchAuth) => ({
+    const invocation = (selectedAuth: GhostgetAuth) => ({
       manifest: manifest("R1"),
       operationId: "messaging.send",
       input: { message: "read-only-input" },
@@ -822,7 +822,7 @@ describe("protected browser action boundaries", () => {
           cookieProfile: "Profile 2",
           subject: "viewer-123",
         },
-      ] satisfies readonly WrenchAuth[]) {
+      ] satisfies readonly GhostgetAuth[]) {
         let executorCalls = 0;
         expect(executeReadInvocation(invocation(selectedAuth), {
           headed: false,
@@ -846,7 +846,7 @@ describe("encrypted confirmation plans", () => {
     const testState = state();
     try {
       const selectedManifest = linkedinWebManifest();
-      const selectedAuth: WrenchAuth = {
+      const selectedAuth: GhostgetAuth = {
         schemaVersion: 1,
         id: "linkedin-web-test",
         kind: "cookie-source",
@@ -964,7 +964,7 @@ describe("encrypted confirmation plans", () => {
     const linkedinManifest = JSON.parse(readFileSync(
       join(import.meta.dir, "assets", "adapters", "linkedin", "wrench-adapter.json"),
       "utf8",
-    )) as WrenchManifest;
+    )) as GhostgetManifest;
     const linkedinAuth = createAuth("linkedin-official", {
       oauthProvider: "linkedin",
       tokenFile: "/private/linkedin-token.json",
@@ -988,7 +988,7 @@ describe("encrypted confirmation plans", () => {
       const linkedinManifest = JSON.parse(readFileSync(
         join(import.meta.dir, "assets", "adapters", "linkedin", "wrench-adapter.json"),
         "utf8",
-      )) as WrenchManifest;
+      )) as GhostgetManifest;
       const linkedinAuth = createAuth("linkedin-official", {
         oauthProvider: "linkedin",
         tokenFile: "/private/linkedin-token.json",
@@ -1021,7 +1021,7 @@ describe("encrypted confirmation plans", () => {
       const selectedManifest = xProviderManifest();
       const selectedOperation = selectedManifest.operations["posts.publish"];
       if (selectedOperation === undefined) throw new Error("X provider fixture is missing posts.publish");
-      const forgedManifest: WrenchManifest = {
+      const forgedManifest: GhostgetManifest = {
         ...selectedManifest,
         operations: {
           ...selectedManifest.operations,
@@ -1117,7 +1117,7 @@ describe("encrypted confirmation plans", () => {
         source: "arc",
         profile: "Profile 1",
         subject: "123",
-      } as const satisfies WrenchAuth;
+      } as const satisfies GhostgetAuth;
       const invocation = {
         manifest: xWebManifest(),
         operationId: "content.save",
@@ -1260,7 +1260,7 @@ describe("encrypted confirmation plans", () => {
       });
       expect("readFailure" in result).toBeFalse();
       expect(result.receipt.error).toContain(
-        "private browser artifacts were preserved; wrench doctor must prove and complete exact browser-session recovery before retry",
+        "private browser artifacts were preserved; ghostget doctor must prove and complete exact browser-session recovery before retry",
       );
       expect(result.receipt.error).toContain(`recovery handle: ${recoveryHandle}`);
       expect(result.receipt.error).not.toContain("invalid dispatch progress");
@@ -1984,7 +1984,7 @@ describe("local at-most-once dispatch ledger", () => {
         throw new Error("test journal changed provider transport");
       }
       writePrivateJson(
-        join(wrenchStateHome(testState.environment), "runs", `${runId}.json`),
+        join(ghostgetStateHome(testState.environment), "runs", `${runId}.json`),
         {
           schemaVersion: 3,
           transport: "provider-api",
@@ -2024,7 +2024,7 @@ describe("local at-most-once dispatch ledger", () => {
         expiresAt: "2026-07-26T12:02:00.000Z",
       }, { privateParent: true });
       ensurePrivateStateDirectory(
-        join(wrenchStateHome(testState.environment), "recovery", "capsules"),
+        join(ghostgetStateHome(testState.environment), "recovery", "capsules"),
         testState.environment,
       );
       const successorBefore = readFileSync(ledgerPath, "utf8");
@@ -2761,7 +2761,7 @@ describe("local at-most-once dispatch ledger", () => {
           if (receipt.status !== "pending") {
             throw new Error("legacy terminal receipt projection must not run");
           }
-          writePrivateJson(join(environment.WRENCH_STATE_HOME as string, "runs", `${receipt.runId}.json`), receipt, { privateParent: true });
+          writePrivateJson(join(environment.GHOSTGET_STATE_HOME as string, "runs", `${receipt.runId}.json`), receipt, { privateParent: true });
         },
       });
       expect(receiptWrites).toBe(1);
@@ -3529,7 +3529,7 @@ describe("provider dispatch schedules and attachments", () => {
         environment: testState.environment,
         persistReceipt: (receipt, environment) => {
           progress.push(receipt.dispatch);
-          writePrivateJson(join(environment.WRENCH_STATE_HOME as string, "runs", `${receipt.runId}.json`), receipt, { privateParent: true });
+          writePrivateJson(join(environment.GHOSTGET_STATE_HOME as string, "runs", `${receipt.runId}.json`), receipt, { privateParent: true });
         },
         executeProvider: async (_manifest, _recipe, input, _auth, options) => {
           const media = firstBoundFile(input.media);
@@ -3806,7 +3806,7 @@ describe("reviewed authenticated-template plans and receipts", () => {
       const reviewed = reviewedTemplateManifest("R1");
       const captureOperation = reviewed.operations["content.read"];
       if (captureOperation === undefined || !("reviewedTemplate" in captureOperation)) throw new Error("missing fixture operation");
-      const capture: WrenchManifest = {
+      const capture: GhostgetManifest = {
         ...reviewed,
         operations: {
           "content.read": {
@@ -4310,7 +4310,7 @@ describe("receipts", () => {
   test("lists 127 durable receipts in under one second", () => {
     const testState = state();
     try {
-      const directory = join(wrenchStateHome(testState.environment), "runs");
+      const directory = join(ghostgetStateHome(testState.environment), "runs");
       ensurePrivateStateDirectory(directory, testState.environment);
       for (let index = 0; index < 127; index += 1) {
         const runId = `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
@@ -4518,7 +4518,7 @@ describe("receipts", () => {
         },
       });
       expect(result.receipt.error).toContain(
-        "private browser artifacts were preserved; wrench doctor must prove and complete exact browser-session recovery before retry",
+        "private browser artifacts were preserved; ghostget doctor must prove and complete exact browser-session recovery before retry",
       );
       expect(result.receipt.error).toContain(`recovery handle: ${recoveryHandle}`);
       expect(readRunReceipt(result.receipt.runId, testState.environment))
@@ -4594,7 +4594,7 @@ describe("receipts", () => {
             if (receipt.status === "pending") {
               writePrivateJson(
                 join(
-                  environment.WRENCH_STATE_HOME as string,
+                  environment.GHOSTGET_STATE_HOME as string,
                   "runs",
                   `${receipt.runId}.json`,
                 ),
@@ -4991,8 +4991,8 @@ describe("native confirmation rejection identity", () => {
       try {
         installFixture(testState);
         const stored = createAndSaveInvocationPlan(prepared(testState), testState.environment);
-        planPath = join(wrenchStateHome(testState.environment), "plans", `${stored.digest}.json`);
-        claimPath = join(wrenchStateHome(testState.environment), "plans", `${stored.digest}.claim.json`);
+        planPath = join(ghostgetStateHome(testState.environment), "plans", `${stored.digest}.json`);
+        claimPath = join(ghostgetStateHome(testState.environment), "plans", `${stored.digest}.claim.json`);
         const outcome = await confirmInvocation(stored.digest, {
           headed: false, environment: testState.environment,
           loadManifest: () => { primaryObserved = true; throw primary; },
@@ -5085,7 +5085,7 @@ describe("confirmed repairable projection", () => {
     const write = PrivateStorage.writePrivateJsonIfUnchanged;
     let refused = 0;
     const projection = spyOn(PrivateStorage, "writePrivateJsonIfUnchanged").mockImplementation((path, value, options) => {
-      if (path.startsWith(join(wrenchStateHome(testState.environment), "runs") + "/") && path.endsWith(".json")) {
+      if (path.startsWith(join(ghostgetStateHome(testState.environment), "runs") + "/") && path.endsWith(".json")) {
         const runId = path.slice(path.lastIndexOf("/") + 1, -5);
         if (readRunJournal(runId, testState.environment)?.journal.phase === "terminal") { refused += 1; throw failure; }
       }

@@ -4,7 +4,7 @@ import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { types as nodeTypes } from "node:util";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { BrowserFileResolver } from "../browser";
 import { canonicalJson } from "../canonical-json";
 import type { FileInputValue, OperationInput, WebSessionRecipe } from "../model";
@@ -267,7 +267,7 @@ export const YOUTUBE_VIDEO_CAPTURE_REQUIRED_REASONS = Object.freeze({
 } as const);
 
 type YouTubeBootstrap = {
-  readonly auth: WrenchAuth;
+  readonly auth: GhostgetAuth;
   readonly client: WebSessionClient;
   readonly config: YouTubeBootstrapConfig;
   readonly sapisid: string;
@@ -743,7 +743,7 @@ async function currentSubject(bootstrap: Omit<YouTubeBootstrap, "subject">): Pro
 }
 
 async function bootstrapYouTube(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs: number;
     readonly maxOutputBytes: number;
@@ -795,7 +795,7 @@ function requireBoundSubject(bootstrap: YouTubeBootstrap): string {
 }
 
 export async function probeYouTubeWebSubject(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs?: number;
     readonly dependencies?: YouTubeWebRuntimeDependencies;
@@ -1129,7 +1129,7 @@ async function prepareDesiredStateWithBootstrap(
 export async function prepareYouTubeWebDesiredState(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;
@@ -1161,7 +1161,7 @@ export async function prepareYouTubeWebDesiredState(
 export async function readYouTubeWebDesiredState(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;
@@ -1298,7 +1298,7 @@ async function executeDesiredState(
 export async function executeYouTubeWebOperation(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;

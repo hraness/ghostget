@@ -13,7 +13,7 @@ import { runInNewContext } from "node:vm";
 
 import type { CookieRecordReader } from "@hraness/kb/clip/acquire";
 import type { StrictCookie } from "@hraness/kb/clip/cookies";
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import { canonicalJson } from "../canonical-json";
 import type { OperationInput, WebSessionRecipe } from "../model";
 import type { WebSessionOperationDeadline } from "../web-session-execution";
@@ -69,7 +69,7 @@ const boundAuth = {
   source: "arc",
   profile: "Default",
   subject: SUBJECT,
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 const unboundAuth = {
   schemaVersion: 1,
@@ -77,7 +77,7 @@ const unboundAuth = {
   kind: "cookie-source",
   source: "arc",
   profile: "Default",
-} as const satisfies WrenchAuth;
+} as const satisfies GhostgetAuth;
 
 type CapturedRequest = {
   readonly url: URL;
@@ -150,7 +150,7 @@ function preloadHtml(
     user: {
       id: userId,
       handle: "wrench-reader",
-      name: "Wrench Reader",
+      name: "Ghostget Reader",
       dashboard_pubs: [
         {
           id: PUBLICATION_ID,
@@ -1489,7 +1489,7 @@ describe("Substack authenticated internal API runtime", () => {
                 return jsonResponse({
                   id: USER_ID,
                   handle: "wrench-reader",
-                  name: "Wrench Reader",
+                  name: "Ghostget Reader",
                   subscriberCount: 125,
                   followerCount: 178,
                 });
@@ -1534,7 +1534,7 @@ describe("Substack authenticated internal API runtime", () => {
             return jsonResponse({
               id: USER_ID + 1,
               handle: "wrench-reader",
-              name: "Wrench Reader",
+              name: "Ghostget Reader",
               followerCount: 178,
             });
           }

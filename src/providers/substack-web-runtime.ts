@@ -6,7 +6,7 @@ import { types as nodeTypes } from "node:util";
 
 import { renderCookieHeader } from "@hraness/kb/clip/cookies";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import type { BrowserFileResolver } from "../browser";
 import { canonicalJson } from "../canonical-json";
 import type { FileInputValue, OperationInput, WebSessionRecipe } from "../model";
@@ -1060,7 +1060,7 @@ function viewerSubject(viewer: SubstackWebViewer): string {
 }
 
 export async function probeSubstackWebSubject(
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs?: number;
     readonly dependencies?: SubstackWebRuntimeDependencies;
@@ -1077,7 +1077,7 @@ export async function probeSubstackWebSubject(
 
 async function requireBoundViewer(
   client: WebSessionClient,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   maximumBytes: number,
 ): Promise<SubstackWebViewer> {
   const expected = webSessionAuthSubject(auth);
@@ -1179,7 +1179,7 @@ async function readProfile(
 async function readOrganization(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   viewer: SubstackWebViewer,
   options: {
     readonly signal?: AbortSignal;
@@ -2267,7 +2267,7 @@ function parseSubstackAcceptedNoteTarget(
 export async function readSubstackWebAcceptedNoteTargetPresence(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   acceptedIdentifier: string,
   options: {
     readonly signal?: AbortSignal;
@@ -2621,7 +2621,7 @@ async function executeSubstackPersonalNoteDelete(
 export async function readSubstackWebContentDeleteDesiredState(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly signal?: AbortSignal;
     readonly operationDeadline?: WebSessionOperationDeadline;
@@ -2656,7 +2656,7 @@ export async function readSubstackWebContentDeleteDesiredState(
 export async function executeSubstackWebOperation(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly fileResolver?: BrowserFileResolver;
     readonly signal?: AbortSignal;

@@ -40,19 +40,19 @@ function isComputationallyBoundedFastCheckPath(path: string): boolean {
 export function propertyReplayParameters(
   environment: PropertyReplayEnvironment = process.env,
 ): PropertyReplayCoordinate {
-  const rawSeed = environment.WRENCH_PROPERTY_SEED;
-  const rawPath = environment.WRENCH_PROPERTY_PATH;
+  const rawSeed = (environment.GHOSTGET_PROPERTY_SEED ?? environment.WRENCH_PROPERTY_SEED);
+  const rawPath = (environment.GHOSTGET_PROPERTY_PATH ?? environment.WRENCH_PROPERTY_PATH);
   if (rawSeed === undefined && rawPath === undefined) return Object.freeze({});
   if (rawSeed === undefined) {
     throw new Error(
-      "WRENCH_PROPERTY_PATH requires WRENCH_PROPERTY_SEED",
+      "GHOSTGET_PROPERTY_PATH requires GHOSTGET_PROPERTY_SEED",
     );
   }
   if (
     typeof rawSeed !== "string"
     || !/^-?(?:0|[1-9]\d{0,9})$/u.test(rawSeed)
   ) {
-    throw new Error("WRENCH_PROPERTY_SEED must be a canonical 32-bit integer");
+    throw new Error("GHOSTGET_PROPERTY_SEED must be a canonical 32-bit integer");
   }
   const seed = Number(rawSeed);
   if (
@@ -61,7 +61,7 @@ export function propertyReplayParameters(
     || seed < MIN_FAST_CHECK_SEED
     || seed > MAX_FAST_CHECK_SEED
   ) {
-    throw new Error("WRENCH_PROPERTY_SEED must be a canonical 32-bit integer");
+    throw new Error("GHOSTGET_PROPERTY_SEED must be a canonical 32-bit integer");
   }
   if (rawPath === undefined) return Object.freeze({ seed });
   if (
@@ -69,7 +69,7 @@ export function propertyReplayParameters(
     || Buffer.byteLength(rawPath, "utf8") > MAX_FAST_CHECK_PATH_BYTES
     || !isComputationallyBoundedFastCheckPath(rawPath)
   ) {
-    throw new Error("WRENCH_PROPERTY_PATH must be a bounded fast-check path");
+    throw new Error("GHOSTGET_PROPERTY_PATH must be a bounded fast-check path");
   }
   return Object.freeze({ seed, path: rawPath });
 }

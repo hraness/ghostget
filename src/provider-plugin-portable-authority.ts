@@ -1,7 +1,7 @@
 import type {
   ProviderPluginBindingDefinitionV1,
 } from "./provider-plugin";
-import type { WrenchManifest } from "./model";
+import type { GhostgetManifest } from "./model";
 import {
   isVerifiedPortableProviderPluginPackage,
   type PortableProviderPluginBindingV1,
@@ -20,7 +20,7 @@ type PortableProjectionBindingAuthority = {
   readonly package: VerifiedPortableProviderPluginPackage;
   readonly portableBinding: PortableProviderPluginBindingV1;
   readonly adapterId: string;
-  readonly manifest: WrenchManifest;
+  readonly manifest: GhostgetManifest;
   readonly operations: ProviderPluginBindingDefinitionV1["operations"];
   readonly runtime: ProviderPluginBindingDefinitionV1["runtime"];
 };
@@ -84,7 +84,7 @@ export function assertKernelPortableProviderPluginBindingProjection(
   packageValue: VerifiedPortableProviderPluginPackage,
   portableBinding: PortableProviderPluginBindingV1,
   adapterId: string,
-  manifest: WrenchManifest,
+  manifest: GhostgetManifest,
 ): void {
   const authority = authorizedBindings.get(binding);
   if (

@@ -3,7 +3,7 @@ import { open } from "node:fs/promises";
 
 import { acquireCookieRecords } from "@hraness/kb/clip/acquire";
 
-import type { WrenchAuth } from "../auth";
+import type { GhostgetAuth } from "../auth";
 import {
   browserCleanupBarrier,
   PreservedBrowserArtifactsError,
@@ -161,7 +161,7 @@ export type MetaWebRuntimeDependencies = Partial<WebSessionNetworkDependencies> 
 
 function metaWebSessionDependencies(
   site: MetaWebSite,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   dependencies: MetaWebRuntimeDependencies | undefined,
 ): Partial<WebSessionNetworkDependencies> | undefined {
   if (site !== "threads" && site !== "instagram") return dependencies;
@@ -1780,7 +1780,7 @@ function parseThreadsPublishedMutationTarget(
 export async function readThreadsWebPublishedMutationTarget(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   identifier: string,
   options: {
     readonly dependencies?: MetaWebRuntimeDependencies;
@@ -1888,11 +1888,11 @@ export async function readThreadsWebPublishedMutationTarget(
   return Object.freeze({ present: true, postId: target.id });
 }
 
-function facebookMarketplaceAuthHash(auth: WrenchAuth): string {
+function facebookMarketplaceAuthHash(auth: GhostgetAuth): string {
   return sha256(canonicalJson(auth));
 }
 
-function expectedFacebookViewerId(auth: WrenchAuth): string {
+function expectedFacebookViewerId(auth: GhostgetAuth): string {
   const subject = webSessionAuthSubject(auth);
   const prefix = "facebook:user:";
   const id = subject?.startsWith(prefix) === true
@@ -1906,7 +1906,7 @@ function expectedFacebookViewerId(auth: WrenchAuth): string {
   return id;
 }
 
-function expectedMetaAuthSubject(site: MetaWebSite, auth: WrenchAuth): string {
+function expectedMetaAuthSubject(site: MetaWebSite, auth: GhostgetAuth): string {
   const subject = webSessionAuthSubject(auth);
   const prefix = site === "instagram"
     ? "instagram:"
@@ -1925,7 +1925,7 @@ function expectedMetaAuthSubject(site: MetaWebSite, auth: WrenchAuth): string {
 
 function openFacebookMarketplaceCursor(
   token: string,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   environment: Readonly<Record<string, string | undefined>>,
 ): FacebookMarketplacePaginationCursor {
   const cursor = reconstructFacebookMarketplacePaginationCursor(
@@ -1948,7 +1948,7 @@ function sealFacebookMarketplaceFeed(
   feed: FacebookMarketplaceFeed,
   html: string,
   viewerId: string,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   previous: FacebookMarketplacePaginationCursor | null,
   environment: Readonly<Record<string, string | undefined>>,
 ): FacebookMarketplaceFeed {
@@ -2013,7 +2013,7 @@ async function currentViewer(
 
 export async function probeMetaWebSubject(
   site: MetaWebSite,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly timeoutMs?: number;
     readonly dependencies?: MetaWebRuntimeDependencies;
@@ -2102,7 +2102,7 @@ export function instagramVideoPermalinkWasRemoved(html: unknown): boolean {
 export async function readInstagramVideoAcceptedMutationTargetPresence(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   identifier: string,
   options: {
     readonly dependencies?: MetaWebRuntimeDependencies;
@@ -2275,7 +2275,7 @@ type PreparedMetaRead =
 function prepareMetaRead(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   environment: Readonly<Record<string, string | undefined>>,
 ): PreparedMetaRead {
   if (recipe.site === "instagram") {
@@ -2561,7 +2561,7 @@ function instagramProfileBrowserFailure(error: unknown): unknown {
 async function executeInstagramProfileRead(
   recipe: WebSessionRecipe,
   prepared: Extract<PreparedMetaRead, { readonly kind: "instagram-profile" }>,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   expectedSubject: string,
   finalUrl: string,
   options: {
@@ -2683,7 +2683,7 @@ async function executeInstagramVideoPublish(
   viewer: BoundMetaViewer,
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: {
     readonly fileResolver?: BrowserFileResolver;
     readonly signal?: AbortSignal;
@@ -3011,7 +3011,7 @@ type MetaWebExecutionOptions = {
 async function executeMetaWebOperationInternal(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: MetaWebExecutionOptions = {},
 ): Promise<WebSessionExecution> {
   if (!isMetaSite(recipe.site)) {
@@ -3364,7 +3364,7 @@ async function executeMetaWebOperationInternal(
 export function executeMetaWebOperation(
   recipe: WebSessionRecipe,
   input: OperationInput,
-  auth: WrenchAuth,
+  auth: GhostgetAuth,
   options: MetaWebExecutionOptions = {},
 ): Promise<WebSessionExecution> {
   if (recipe.site === "instagram" && recipe.action === "profiles.read") {

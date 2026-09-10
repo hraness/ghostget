@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { WrenchManifest } from "./model";
+import type { GhostgetManifest } from "./model";
 import { providerPluginRegistry } from "./provider-plugins";
 import { prepareInvocation } from "./runtime";
 import { installManifest } from "./storage";
@@ -15,7 +15,7 @@ import {
 describe("Clasificados public listings.search invocation", () => {
   test("prepares the reviewed public descriptor without an auth locator", () => {
     const directory = mkdtempSync(join(tmpdir(), "wrench-public-clasificados-"));
-    const environment = { WRENCH_STATE_HOME: directory } as const;
+    const environment = { GHOSTGET_STATE_HOME: directory } as const;
     try {
       const manifest = JSON.parse(readFileSync(join(
         import.meta.dir,
@@ -23,7 +23,7 @@ describe("Clasificados public listings.search invocation", () => {
         "adapters",
         "clasificados",
         "wrench-web-adapter.json",
-      ), "utf8")) as WrenchManifest;
+      ), "utf8")) as GhostgetManifest;
       installManifest(manifest, {
         force: false,
         environment,
