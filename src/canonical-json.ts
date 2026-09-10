@@ -38,7 +38,20 @@ export function canonicalJson(value: unknown): string {
  * element or a JavaScript line. The escaped text parses to the same value.
  */
 export function canonicalJsonScriptLiteral(value: unknown): string {
-  return canonicalJson(value).replace(/[<>\u2028\u2029]/gu, (character) =>
+  return escapeScriptLiteral(canonicalJson(value));
+}
+
+/**
+ * Plain JSON with the same script-embedding escapes, for generated page
+ * scripts whose bindings keep their insertion order rather than the
+ * canonical ordering.
+ */
+export function jsonScriptLiteral(value: unknown): string {
+  return escapeScriptLiteral(JSON.stringify(value));
+}
+
+function escapeScriptLiteral(json: string): string {
+  return json.replace(/[<>\u2028\u2029]/gu, (character) =>
     `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
 

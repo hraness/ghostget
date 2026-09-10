@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
 
-import { canonicalJson, canonicalJsonScriptLiteral } from "./canonical-json";
+import { canonicalJson, canonicalJsonScriptLiteral, jsonScriptLiteral } from "./canonical-json";
 
 describe("canonicalJsonScriptLiteral", () => {
   test("escapes script-terminating characters and parses to the same value", () => {
@@ -24,6 +24,26 @@ describe("canonicalJsonScriptLiteral", () => {
         const literal = canonicalJsonScriptLiteral(value);
         expect(literal).not.toMatch(/[<>\u2028\u2029]/u);
         expect(canonicalJson(JSON.parse(literal))).toBe(canonicalJson(value));
+      }),
+    );
+  });
+});
+
+describe("jsonScriptLiteral", () => {
+  test("keeps insertion order while escaping script-terminating characters", () => {
+    const value = { z: "</script>", a: "\u2028<", n: 1 };
+    const literal = jsonScriptLiteral(value);
+    expect(literal).toBe('{"z":"\\u003c/script\\u003e","a":"\\u2028\\u003c","n":1}');
+    expect(JSON.parse(literal)).toEqual(value);
+    expect(jsonScriptLiteral("__key_0123")).toBe(JSON.stringify("__key_0123"));
+  });
+
+  test("never emits raw angle brackets or line separators and preserves the value", () => {
+    fc.assert(
+      fc.property(fc.jsonValue(), (value) => {
+        const literal = jsonScriptLiteral(value);
+        expect(literal).not.toMatch(/[<>\u2028\u2029]/u);
+        expect(JSON.stringify(JSON.parse(literal))).toBe(JSON.stringify(value));
       }),
     );
   });
