@@ -2,7 +2,7 @@
 import {
   canonicalJson,
   sha256
-} from "./index-604sjk12.js";
+} from "./index-gwk7rbyj.js";
 
 // src/whatsapp-client.ts
 import { spawnSync } from "child_process";

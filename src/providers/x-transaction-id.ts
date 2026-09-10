@@ -12,6 +12,7 @@ import type {
   WebSessionCleanupResourcePublisher,
   WebSessionOperationDeadline,
 } from "../web-session-execution";
+import { jsonScriptLiteral } from "../canonical-json";
 
 const X_ORIGIN = "https://x.com";
 const X_HOME = `${X_ORIGIN}/home`;
@@ -155,7 +156,7 @@ function transactionEvaluationSource(input: {
   readonly mainBundlePath: string;
   readonly runtime: XTransactionRuntimeIds;
 }): string {
-  const bound = JSON.stringify({
+  const bound = jsonScriptLiteral({
     method: input.method,
     path: exactMutationPath(input.path),
     mainBundlePath: input.mainBundlePath,
