@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.17.1 - 2026-09-10
+
+- Read GitHub job logs with `--allow-escape-sequences` during release source
+  admission; the hosted runner's current `gh` otherwise refuses logs that carry
+  terminal escape sequences, which failed the `v0.17.0` request before any
+  canonical asset was built. That tag and run are retained without assets.
+
 ## 0.17.0 - 2026-09-09
 
 - Rename the project, CLI, SDK package, and public Agent Skill to Ghostget, with

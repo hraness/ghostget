@@ -120,3 +120,94 @@ collection running. If PR #207 itself must be abandoned, `main` remains fully
 functional for pull-request and push CI under the new name via the PR #204
 compatibility fix; only canonical release and production promotion stay
 blocked until an equivalent rename adoption lands.
+
+## Execution log
+
+### 2026-09-10: repository rename invalidated every locked Wrench archive
+
+Decision and evidence from the Jungle-pin lane (Claude Code session
+`documents-3f`), recorded so the release lane and later agents do not
+rediscover it.
+
+- GitHub serves archives for pre-rename commits with the root directory
+  `hraness-ghostget-<sha>/` instead of `hraness-wrench-<sha>/`, so the bytes and
+  hashes changed. Bun locks the SHA-512 of the
+  `api.github.com/repos/<owner>/<repo>/tarball/<sha>` response, so every
+  `bun.lock` that resolves `github:hraness/wrench#<sha>` now fails
+  `IntegrityCheckFailed` on a clean install regardless of which name the
+  specifier uses. Verified by downloading the pinned commit under both names
+  (identical bytes, neither matching the old lock) and by matching the new lock
+  entry to a fresh API-tarball download.
+- Jungle `main` push CI failed for exactly this reason from 02:51 UTC (run
+  `34431084709`, "Integrity check failed for tarball: @hraness/wrench"),
+  which also blocked its merge queue and therefore the daily social-statistics
+  delivery. GitHub code search over the organization found only Jungle and
+  PeopleBlade manifests with `hraness/wrench#`; PeopleBlade's lock still
+  resolves `github:hraness/wrench#b0cf2ec` (Wrench 0.16.8) and belongs to its
+  own owner.
+- Step 4 executed as the interim exact-commit pin rather than waiting for the
+  release: Jungle `@hraness/wrench` moved from
+  `github:hraness/wrench#bb28af47` (0.16.9) to
+  `github:hraness/ghostget#1ca41f4acda6cc77616d43fe8f6a7303eaf1ff28`
+  (0.16.17, the `#204` cleanup fix), with `PINNED_WRENCH_VERSION` and the pin
+  assertions updated and `bun.lock` regenerated under Bun 1.3.14. The lock
+  diff is bounded to the Wrench entry, its nested `@hraness/kb` 0.17.1 →
+  0.19.6 release asset, `@hraness/oh`, Sweet Cookie 0.4.3, and `yallist`
+  hoisting. Evidence: frozen install from an empty download cache, the
+  standalone-tool, workspace, dependency-proposal, social-stat-manifest, and
+  refresh-social-stats tests (47 pass), and the Jungle merge queue's full
+  repository gate (item `mq_4cc09fa30b989474be39fe51`). Landed on Jungle
+  `main` as `87d663660` at 05:06 UTC; push CI run `34439771745` completed green, the first green `main` run since the rename.
+- Step 5 cannot run from the machine that did step 4: none of the manifest's
+  twelve authenticated realms exist there, and the collection skill binds the
+  other workstation's toolchain path. The daily collection fetches `origin/main`
+  fresh, so the pinned build is picked up by the next scheduled run without
+  further action. Verification of step 5 is the next
+  `chore(hraness): publish social stats` commit showing exact LinkedIn
+  personal, LinkedIn company, and Instagram observations (last exact points:
+  2026-09-05, 2026-09-04, 2026-09-01).
+- The 0.17.0 Jungle pin remains a separate follow-up after the canonical
+  release verifies: the Codex-prepared Jungle rename change (89 files, pin
+  `github:hraness/ghostget#v0.17.0`, lock deliberately not regenerated) waits
+  for the real archive so the lock resolves the immutable release asset.
+
+## v0.17.0 admission failure and the v0.17.1 decision (documents-aa, 2026-09-10)
+
+- PR #207 merged as `4e2a56a`; PR #209 (script-literal escaping for the
+  remaining page-script providers) merged as `7967214` and carried the
+  `v0.17.0` tag. Release run `34442137619` failed in Verify at "Admit exact
+  source CI and security" with only "bounded read-only command failed".
+- Local `admitSourceCi` from the exact checkout passed all 45 reads. A
+  branch-only diagnostic under the Verify job's exact permissions (run
+  `34442630921`) showed every JSON read succeeding and every job-log read
+  failing: the runner's `gh` 2.100.0 refuses output containing terminal escape
+  sequences unless `--allow-escape-sequences` is passed. This was the admit
+  step's first execution on a runner.
+- Tags are immutable, so `v0.17.0` stays an assetless failed request.
+  `v0.17.1` passes the flag for log reads only, bumps the version and
+  documentation, and is the first canonical Ghostget release; the Jungle pin
+  targets `github:hraness/ghostget#v0.17.1`.
+
+## v0.17.1 released and the domain cutover completed (documents-aa, 2026-09-10)
+
+- PR #213 merged as `b74ae2a`; tag `v0.17.1` pushed from a ref-free staging
+  checkout after fresh immutable-release and tag-ruleset readback. Release run
+  `34444796271` attempt 1 passed admission (the `--allow-escape-sequences`
+  fix), attestation, and publication: immutable release `386047282`,
+  `hraness-ghostget-0.17.1.tgz` 2,259,943 bytes, SHA-256
+  `b87b293075a8698c79d5d90615dbb9e59a8f2d152682f6878c8d8ec0423a3710`,
+  SRI `sha512-gvqaSQCFBp44ZYnk5gKxdm+MQRZ47bkuEIonmasQ9lxmnYCNMNY5VMkg2aYLLhq0cy6OQEiBeTDSSymYikFq1g==`.
+  The repository downloader verified all four signed subjects and the website
+  release verifier passed at that commit.
+- Promotion run `34445060834` advanced `website-production` through the
+  release App; `ghostget.com` serves the v0.17.1 marker and `www` returns the
+  exact 308.
+- `wrench.rip` and `www.wrench.rip` now return 308 to `ghostget.com` on the
+  same Vercel project, preserving path and query.
+- Downstream rename pull requests merged: rolodex #8, tiff #20; message-like-me
+  #61 and .github #12 follow their checks. The Jungle pin moved to
+  `github:hraness/ghostget#v0.17.1` in the Jungle lane.
+- Still owner-held: the Cloudflare Turnstile hostname for `ghostget.com` and
+  the Accounts mailing keyring hostname; the external directory submissions
+  are updated locally but not pushed; npm publication of `@hraness/ghostget`
+  remains held pending the dual-use classification decision.

@@ -266,7 +266,9 @@ if (import.meta.main) {
       const reader: SourceCiReader = (path, format) => {
         requireValue(path.startsWith(`${PREFIX}/`) && !/[\r\n#]/u.test(path) && ++requests <= 80, "read request exceeds authority or bound");
         const remaining = deadline - performance.now(); requireValue(remaining > 0, "read admission deadline expired");
-        const result = command("gh", ["api", "--method", "GET", "--hostname", "github.com", path],
+        // Job logs carry terminal escape sequences; current gh refuses to print them without this flag.
+        const args = ["api", "--method", "GET", "--hostname", "github.com", ...(format === "log" ? ["--allow-escape-sequences"] : []), path];
+        const result = command("gh", args,
           format === "log" ? 16 * 1024 * 1024 : 2 * 1024 * 1024, Math.min(60_000, Math.ceil(remaining)));
         return format === "log" ? result : JSON.parse(result) as unknown;
       };

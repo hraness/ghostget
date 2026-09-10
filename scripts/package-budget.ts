@@ -1,10 +1,22 @@
-// LinkedIn contacts.read Como RSC flight-array extraction joined with main
-// 7967214 (script-literal escaping): a clean Bun 1.3.14 build and npm pack on
-// darwin arm64 measures 12,442,095 unpacked bytes across the same 501 files,
-// 3,570 bytes above the previous 12,438,525 measurement from the reviewed
-// adapter, tests, and skill growth. Keep the packed ceiling and exact file
-// inventory; raise only the unpacked bound to the measured size plus 65 bytes
-// of allowance. Required Linux CI independently checks the canonical archive.
+// LinkedIn contacts.read Como RSC flight-array extraction joined with the
+// 0.17.1 release on main: the reviewed adapter, tests, and skill growth add a
+// constant 3,570 payload bytes to every base they have been joined with
+// (12,437,872 to 12,441,442 and 12,438,525 to 12,442,095 on darwin arm64),
+// so the 12,438,857-byte 0.17.1 payload becomes 12,442,427 bytes across the
+// same 501 files. Keep the packed ceiling and exact file inventory; raise
+// only the unpacked bound to that size plus 65 bytes of allowance. Required
+// Linux CI independently checks the canonical archive.
+//
+// Ghostget 0.17.1, measured after the release-admission log-read fix and the
+// version bump: two Node 24.20.0 / npm 11.19.0 archives on darwin arm64 are
+// byte-identical, with 2,257,105 compressed and 12,438,857 payload bytes
+// across exactly 501 files, SHA-256
+// dc47e826f2b771a9d054cbe39195b873277bb8b450644e4e8e54d462900f4c2e.
+// The changelog entry and version projections add 332 payload bytes compared
+// with the final 0.17.0 measurement. Raise only the payload ceiling by that
+// measured delta, preserving 65 bytes of headroom, the existing packed
+// allowance, and the exact inventory. Fresh Linux CI still checks its actual
+// canonical archive under the pinned release toolchain.
 //
 // Ghostget 0.17.0, measured after extending script-literal escaping to the
 // remaining LinkedIn article, feed, profile, Instagram profile, and X
@@ -260,7 +272,7 @@
 export const MAX_PACKED_BYTES = 2_263_713;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_442_160;
+export const MAX_UNPACKED_BYTES = 12_442_492;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

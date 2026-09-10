@@ -1278,7 +1278,7 @@ describe("npm publication contract", () => {
     expect(MAX_PACKED_BYTES).toBe(2_263_713);
     expect(MAX_PACKED_ENTRIES).toBe(501);
     expect(MAX_PACKED_FILES).toBe(501);
-    expect(MAX_UNPACKED_BYTES).toBe(12_442_160);
+    expect(MAX_UNPACKED_BYTES).toBe(12_442_492);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
@@ -1287,7 +1287,7 @@ describe("npm publication contract", () => {
       entryCount: { min: 501, max: 501 },
       fileCount: { min: 501, max: 501 },
       packedBytes: { min: 1_600_000, max: 2_263_713 },
-      unpackedBytes: { min: 9_000_000, max: 12_442_160 },
+      unpackedBytes: { min: 9_000_000, max: 12_442_492 },
     });
   });
 
@@ -1356,6 +1356,7 @@ describe("npm publication contract", () => {
     const unreleasedHeader = "## Unreleased\n";
     const candidateHeader = "## 0.16.12 - 2026-09-08\n";
     const canonicalHeader = "## 0.16.13 - 2026-09-09\n";
+    const fixHeader = "## 0.17.1 - 2026-09-10\n";
     const renameHeader = "## 0.17.0 - 2026-09-09\n";
     const cookieHeader = "## 0.16.17 - 2026-09-09\n";
     const admissionHeader = "## 0.16.16 - 2026-09-09\n";
@@ -1373,6 +1374,7 @@ describe("npm publication contract", () => {
     const unreleasedStart = changelog.indexOf(unreleasedHeader);
     const candidateStart = changelog.indexOf(candidateHeader);
     const canonicalStart = changelog.indexOf(canonicalHeader);
+    const fixStart = changelog.indexOf(fixHeader);
     const renameStart = changelog.indexOf(renameHeader);
     const cookieStart = changelog.indexOf(cookieHeader);
     const admissionStart = changelog.indexOf(admissionHeader);
@@ -1389,6 +1391,9 @@ describe("npm publication contract", () => {
     const incidentStart = changelog.indexOf(incidentHeader);
 
     expect(changelog.match(/^## Unreleased$/gmu) ?? []).toHaveLength(1);
+    expect(changelog.match(/^## 0\.17\.1 - 2026-09-10$/gmu) ?? []).toHaveLength(1);
+    expect(fixStart).toBeGreaterThan(unreleasedStart);
+    expect(fixStart).toBeLessThan(renameStart);
     expect(changelog.match(/^## 0\.16\.17 - 2026-09-09$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.13 - 2026-09-09$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.16\.12 - 2026-09-08$/gmu) ?? []).toHaveLength(1);
@@ -1421,7 +1426,8 @@ describe("npm publication contract", () => {
     expect(markerStart).toBeGreaterThan(consumedStart);
     expect(releaseStart).toBeGreaterThan(markerStart);
     expect(incidentStart).toBeGreaterThan(releaseStart);
-    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, renameStart).trim()).toBe("");
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, fixStart).trim()).toBe("");
+    expect(changelog.slice(fixStart, renameStart)).toContain("--allow-escape-sequences");
 
     const cookieReleaseEnd = changelog.indexOf("\n## ", cookieStart + cookieHeader.length);
     expect(cookieReleaseEnd).toBe(admissionStart - 1);
