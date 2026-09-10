@@ -1,3 +1,11 @@
+// LinkedIn contacts.read Como RSC flight-array extraction joined with current main
+// 1ca41f4 (post-close convergence): a clean Bun 1.3.14 build and npm pack on
+// darwin-arm64 measures 12,429,086 unpacked bytes across the same 501 files,
+// 3,544 bytes above the previous 12,425,542 bound from the reviewed adapter,
+// tests, and skill growth. Keep the packed ceiling and exact file inventory;
+// raise only the unpacked bound to the measured size plus 65 bytes of
+// allowance. Required Linux CI independently checks the canonical archive.
+//
 // Same-boot post-close convergence on canonical GitHub 0.16.17 composes the
 // exact 12,419,404-byte release archive with the byte-identical 6,112-byte
 // browser source delta, yielding 12,425,516 unpacked bytes across the same
@@ -213,7 +221,7 @@
 export const MAX_PACKED_BYTES = 2_259_302;
 export const MAX_PACKED_ENTRIES = 501;
 export const MAX_PACKED_FILES = 501;
-export const MAX_UNPACKED_BYTES = 12_425_542;
+export const MAX_UNPACKED_BYTES = 12_429_151;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
