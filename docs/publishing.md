@@ -59,8 +59,8 @@ not establish equal gzip bytes.
 Choose a new stable package version greater than every completed stable
 Release. A raw tag is a request, not a completed publication. Check the package
 version, `src/version.ts`, generated package bytes, installation examples,
-changelog, and asset filename together. Retain `@hraness/kb` at 0.17.1; this
-migration does not upgrade its native browser or cookie contracts.
+changelog, and asset filename together. Dependency upgrades must preserve the
+reviewed native browser and cookie contracts and pass their focused checks.
 
 Immediately before tag dispatch, require signed-in administrator readback that
 immutable Releases are enabled. Keep Administration out of workflow tokens;
@@ -139,7 +139,7 @@ installation or mirror commands.
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/wrench/releases/download/v0.16.16/hraness-wrench-0.16.16.tgz
+bun add --global https://github.com/hraness/wrench/releases/download/v0.16.17/hraness-wrench-0.16.17.tgz
 wrench --version
 wrench doctor --json
 ```
@@ -173,7 +173,7 @@ npm's default tag backward.
 
 ```sh
 gh workflow run npm-stage.yml --repo hraness/wrench --ref main \
-  -f release_tag=v0.16.16
+  -f release_tag=v0.16.17
 ```
 
 The read-only verify job downloads the five immutable assets, verifies their
@@ -188,7 +188,7 @@ An explicit owner-authorized dispatch may then stage the mirror:
 
 ```sh
 gh workflow run npm-stage.yml --repo hraness/wrench --ref main \
-  -f release_tag=v0.16.16 -f publish_to_npm=true
+  -f release_tag=v0.16.17 -f publish_to_npm=true
 ```
 
 The minimal checkout-free terminal job retains exact actor/repository/run

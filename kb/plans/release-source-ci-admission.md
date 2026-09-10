@@ -76,9 +76,22 @@ policy and site build. The changed native provisioning-order contract passed
 JavaScript date normalization could accept an invalid calendar date; the strict
 round-trip repair and all ten helper/publication tests passed with 207 assertions.
 Helper types, bounded KB percolation, refresh and the complete KB/21-guide check
-passed. All 501 packaged bytes and modes still equal the admitted `v0.16.16`
-archive and original clean source. Final review and current-candidate CI remain
-pending.
+passed. At that checkpoint, all 501 packaged bytes and modes equaled the admitted
+`v0.16.16` archive and original clean source.
+
+The later provider-shaped regression covers an exact CodeQL comparison whose
+PR association array is empty. It accepts only the complete provider-owned
+summary link for that verified PR; contradictory nonempty associations still
+fail. Independent review and the causal red/green fixture passed, with 21 focused
+tests and 455 assertions.
+
+Concurrent PR203 and PR206 were joined normally before final integration. PR206
+owns the 0.16.17 dependency and package changes; this workflow diff preserves all
+of its package bytes, modes, version and lockfile. The two shared documentation
+and release-contract files retain both changes. Frozen installation and the
+joined helper, CI and publication contracts passed: 69 tests and 6,970 assertions.
+Fresh current-base CI and completed outstanding release/mirror readback remain
+required before this source-only workflow change merges.
 
 GitHub documents the runner identity in its [variables reference](https://docs.github.com/en/actions/reference/workflows-and-actions/variables),
 the analysis read permission in the [code-scanning API](https://docs.github.com/en/rest/code-scanning/code-scanning#list-code-scanning-analyses-for-a-repository),
