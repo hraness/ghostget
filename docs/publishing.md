@@ -1,6 +1,6 @@
 # Publish Ghostget
 
-Ghostget starts at `@hraness/ghostget@0.17.0`, with command `ghostget` and the
+Ghostget starts at `@hraness/ghostget@0.17.1`, with command `ghostget` and the
 existing seven SDK subpaths. GitHub Releases became canonical under the former
 `@hraness/wrench` name at v0.16.13. Historical manifests, archive filenames, and
 signed provenance keep that original identity. npm is an optional mirror of
@@ -136,12 +136,20 @@ reconciliation, using the existing backoff and deadline. Retain the failed runs
 and immutable `v0.16.15`; admit and publish the new candidate before using its
 installation or mirror commands.
 
+The `v0.17.0` request, the first Ghostget tag, passed its owner, tag, and
+package identity checks but failed the new source-CI admission before any
+canonical asset was built: the hosted runner's `gh` 2.100 refuses to print job
+logs that carry terminal escape sequences unless `--allow-escape-sequences` is
+passed, and every job log does. The helper now passes that flag for log reads
+only. Retain the assetless `v0.17.0` tag and its failed run; `v0.17.1` is the
+first canonical Ghostget release.
+
 ## Install the canonical release
 
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.17.0/hraness-ghostget-0.17.0.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.17.1/hraness-ghostget-0.17.1.tgz
 ghostget --version
 ghostget doctor --json
 ```
@@ -191,7 +199,7 @@ npm's default tag backward.
 
 ```sh
 gh workflow run npm-stage.yml --repo hraness/ghostget --ref main \
-  -f release_tag=v0.17.0
+  -f release_tag=v0.17.1
 ```
 
 The read-only verify job downloads the five immutable assets, verifies their
