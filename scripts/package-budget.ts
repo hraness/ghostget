@@ -1,3 +1,17 @@
+// Ghostget 0.17.6 source plus the LinkedIn `contacts.read` deep Como SDUI
+// binding (adapter bundle 1.24.0), measured with no version bump: a Bun
+// 1.3.14 `pm pack` on Linux x64 shares
+// 12,452,611 payload bytes across exactly 500 files. The bun archive is
+// 2,122,424 compressed bytes, SHA-256
+// 6fdc9574102d2364548291891b8b81f9c1c1b442a95dfb13dce0d42f7e66944c.
+// The deeper walk, `vieweeProfileId` plus vanity identity join, breadcrumb
+// or RSC string-row distance, and skill-reference notes add 8,687 payload
+// bytes compared with the 0.17.6 measurement. Raise only the payload
+// ceiling to the measured value plus 65 bytes of headroom (12,452,676); the
+// packed size stays under the existing packed allowance and the 500-entry
+// inventory is unchanged. Theme CSS stays website-only. Fresh Linux CI
+// independently checks its actual canonical archive.
+//
 // Ghostget 0.17.6, measured after the shared Paper marketing theme and version
 // projections: two Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0
 // on darwin arm64 are byte-identical, with 2,258,514 compressed and 12,443,924
@@ -342,7 +356,7 @@
 export const MAX_PACKED_BYTES = 2_267_917;
 export const MAX_PACKED_ENTRIES = 500;
 export const MAX_PACKED_FILES = 500;
-export const MAX_UNPACKED_BYTES = 12_443_989;
+export const MAX_UNPACKED_BYTES = 12_452_676;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

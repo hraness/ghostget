@@ -247,6 +247,102 @@ describe("LinkedIn contacts.read 1st-degree binding", () => {
     });
   });
 
+  function nestDepth(leaf: unknown, depth: number): unknown {
+    let value = leaf;
+    for (let index = 0; index < depth; index += 1) {
+      value = [null, ["$", `$L${String(index)}`, null, value]];
+    }
+    return value;
+  }
+
+  test("binds a Como tree deeper than 32 when vanity joins vieweeProfileId", () => {
+    const html = comoFlightHtml([
+      'I["PROFILE_VIEW"]',
+      nestDepth({
+        vanityName: "example",
+        vieweeProfileId: "ACoAAFixtureProfile",
+        isSelfView: false,
+      }, 20),
+      JSON.stringify(JSON.stringify({ networkDistance: 1 })),
+    ]);
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: html,
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toEqual({
+      vanity: "example",
+      profileUrn: PROFILE_URN,
+      url: PROFILE_URL,
+      relationship: "first-degree",
+    });
+  });
+
+  test("joins vieweeProfileId and vanity when classic URN keys are absent", () => {
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([
+        'I["PROFILE_VIEW"]',
+        { vanityName: "example", vieweeProfileId: "ACoAAFixtureProfile", isSelfView: false },
+        { breadcrumb: "{\"networkDistance\":1}" },
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toMatchObject({
+      vanity: "example",
+      profileUrn: PROFILE_URN,
+      relationship: "first-degree",
+    });
+  });
+
+  test("reads first-degree distance from a PROFILE_VIEW breadcrumb string row", () => {
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([
+        'I["com.linkedin.sdui.flagshipnav.profile.ProfileView"]',
+        { vanityName: "example", vieweeProfileId: "ACoAAFixtureProfile", isSelfView: false },
+        'networkDistance":1',
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toMatchObject({
+      profileUrn: PROFILE_URN,
+      relationship: "first-degree",
+    });
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([
+        { vanityName: "example", vieweeProfileId: "ACoAAFixtureProfile" },
+        ["networkDistance", 1],
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toMatchObject({ relationship: "first-degree", profileUrn: PROFILE_URN });
+  });
+
+  test("fails closed for deep Como trees that are self or not first-degree", () => {
+    expect(() => projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([
+        nestDepth({
+          vanityName: "example",
+          vieweeProfileId: "ACoAAFixtureProfile",
+          isSelfView: false,
+        }, 20),
+        JSON.stringify(JSON.stringify({ networkDistance: 2 })),
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toThrow("not a 1st-degree connection");
+    expect(() => projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([
+        nestDepth({
+          vanityName: "example",
+          vieweeProfileId: "123456789",
+          isSelfView: true,
+        }, 20),
+        'networkDistance":0',
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toThrow("use profiles.read for the signed-in self profile");
+  });
+
   test("joins flight vanity to a sibling vieweeMemberUrn plus networkDistance", () => {
     expect(projectLinkedInProfileContactBinding({
       profileHtml: comoFlightHtml([
