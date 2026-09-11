@@ -9,8 +9,8 @@ const item: VaultItem = { id: "11111111-1111-4111-8111-111111111111", title: "Ex
 const grantId = "33333333-3333-4333-8333-333333333333";
 const fields = { title: "Read profile", url: "https://api.example.com/profile", fields: "/profile/name\n/profile/status", expiresAt: "2026-09-12T12:00:00.000Z", decision: "ask", reviewed: true };
 const vault: VaultView = { schema: 1, revision: 7, locked: false, available: true, storage: "macos-keychain", items: [item], connections: [], grants: [], pending: [] };
-function markup(value: VaultView): string {
-  const model = new PanelModel({ request: async () => { throw new Error("Static metadata rendering must never perform IO"); } }, { now: () => now, locale: "en-US", timeZone: "UTC" });
+function markup(value: VaultView, formatting = { locale: "en-US", timeZone: "UTC" }): string {
+  const model = new PanelModel({ request: async () => { throw new Error("Static metadata rendering must never perform IO"); } }, { now: () => now, ...formatting });
   try { return renderToStaticMarkup(<Vault model={model} vault={value} />); } finally { model.dispose(); }
 }
 
@@ -32,6 +32,17 @@ test("locked and unavailable vaults keep metadata visible and disable secret-ent
   expect(locked).toMatch(/<button[^>]*disabled=""[^>]*>Continue to secure entry<\/button>/u);
   const unavailable = markup({ ...vault, locked: true, available: false, storage: "unavailable" });
   expect(unavailable).toContain("Vault unavailable"); expect(unavailable).toMatch(/<button[^>]*disabled=""[^>]*>Unlock vault<\/button>/u);
+});
+
+test("vault expiry rendering honors the model locale and timezone used by inert scenes", () => {
+  const grant = grantFromFields(item, fields, now, grantId);
+  const value = { ...vault, grants: [grant] };
+  expect(markup(value)).toContain("Expires 9/12/2026, 12:00:00 PM");
+  expect(markup(value, { locale: "en-US", timeZone: "America/Puerto_Rico" })).toContain("Expires 9/12/2026, 8:00:00 AM");
+  expect(markup(value, { locale: "en-GB", timeZone: "UTC" })).toContain("Expires 12/09/2026, 12:00:00");
+  const expired = markup({ ...vault, grants: [{ ...grant, expiresAt: new Date(now).toISOString() }] });
+  expect(expired).toContain("Expired");
+  expect(expired).not.toContain("Expires ");
 });
 
 test("grant editor emits only the fixed retrieval contract and item-appropriate authentication", () => {

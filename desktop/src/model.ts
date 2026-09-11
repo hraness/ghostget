@@ -32,12 +32,15 @@ export class PanelModel {
   private commandAction: ControlRequest["action"] | null = null;
   readonly now: () => number;
   readonly formatTime: (value: string) => string;
+  readonly formatDateTime: (value: string) => string;
   readonly formatCount: (value: number) => string;
   constructor(readonly port: ControlPanelPort, options: { section?: ControlSection; snapshot?: ControlSnapshot; activity?: ActivityPage; now?: () => number; locale?: string; timeZone?: string } = {}) {
     this.now = options.now ?? Date.now;
     const time = new Intl.DateTimeFormat(options.locale, { hour: "2-digit", minute: "2-digit", hour12: false, ...(options.timeZone ? { timeZone: options.timeZone } : {}) });
+    const dateTime = new Intl.DateTimeFormat(options.locale, { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric", ...(options.timeZone ? { timeZone: options.timeZone } : {}) });
     const count = new Intl.NumberFormat(options.locale);
     this.formatTime = value => time.format(new Date(value));
+    this.formatDateTime = value => dateTime.format(new Date(value));
     this.formatCount = value => count.format(value);
     this.state = { section: options.section ?? "accounts", snapshot: options.snapshot ?? null, accountId: options.snapshot?.accountId ?? null, loading: false, busy: false, cancellingConnection: false, error: null, notice: null, output: null, connection: null, activity: options.activity ? { ...emptyActivity(initialQuery), ...options.activity, loaded: true } : emptyActivity(initialQuery) };
   }
