@@ -112,8 +112,12 @@ lock hashes, run/attempt, and exact archive name/size/SHA-256. Before any signin
 secrets enter a step, a Python stdlib parser checks every local and central ZIP
 record, CRC, file type, path, parent and byte/count limit. It rejects links,
 traversal, duplicate or case-alias paths, ZIP64, arbitrary extras and AppleDouble
-entries. It extracts only real `Ghostget.app` files/directories beneath runner
-scratch, outside checkout. The signer rechecks the receipt and extracted file
+entries. Artifact construction normalizes directory modes to `0755`, regular
+files with any execute bit to `0755`, and other regular files to `0644`; special
+permission bits are rejected. This preserves executable-versus-data intent,
+removes group/world write permissions, and leaves the source app untouched.
+It extracts only real `Ghostget.app` files/directories beneath runner scratch,
+outside checkout. The signer rechecks the receipt and extracted file
 inventory. Archive content is never imported as signing-job code.
 
 The signer uses a fresh temporary keychain with the selected Developer ID identity.

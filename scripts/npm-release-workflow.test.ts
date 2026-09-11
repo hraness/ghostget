@@ -2679,8 +2679,8 @@ fi
         if (writes.length === 1) workflowWriters.push(`${filename}:${name}`);
       }
     }
-    expect(workflowWriters).toEqual(["release.yml:publish"]);
-    expect(contentsWriteOccurrences).toBe(1);
+    expect(workflowWriters).toEqual(["desktop-release.yml:publish", "release.yml:publish"]);
+    expect(contentsWriteOccurrences).toBe(2);
     expect(workflow).not.toContain("VERCEL_TOKEN");
     expect(workflow).not.toContain("projectSettings");
     expect(workflow).not.toContain("redeploy");

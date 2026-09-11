@@ -260,7 +260,7 @@ test("strict source-bound handoffs prevent the executable verifier from substitu
 
 test("stdlib ZIP boundary rejects traversal, links, ambiguous metadata and preserves synthetic ditto xattrs", () => {
   const run = spawnSync("python3", ["-I", new URL("archive.test.py", import.meta.url).pathname], { timeout: 60_000, killSignal: "SIGKILL", maxBuffer: 64 * 1024, encoding: "utf8" });
-  expect(run.error).toBeUndefined(); expect(run.stderr).toContain("Ran 6 tests"); expect(run.status, run.stderr).toBe(0);
+  expect(run.error).toBeUndefined(); expect(run.stderr).toContain("Ran 7 tests"); expect(run.status, run.stderr).toBe(0);
 });
 
 

@@ -175,7 +175,7 @@ npm by the Release workflow.
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.0/hraness-ghostget-0.18.0.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.19.0/hraness-ghostget-0.19.0.tgz
 ghostget --version
 ghostget doctor --json
 ```

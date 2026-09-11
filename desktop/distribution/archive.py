@@ -127,6 +127,7 @@ def pack(app, destination):
     with zipfile.ZipFile(destination, "x", compression=zipfile.ZIP_DEFLATED, compresslevel=6, allowZip64=False) as archive:
         for path in paths:
             s = path.lstat(); directory = stat.S_ISDIR(s.st_mode)
+            need(s.st_mode & 0o7000 == 0)
             need(directory or stat.S_ISREG(s.st_mode) and s.st_nlink == 1 and s.st_size <= MAX_FILE)
             total += 0 if directory else s.st_size; need(total <= MAX_TOTAL)
             name = path.relative_to(app.parent).as_posix() + ("/" if directory else "")
@@ -151,7 +152,8 @@ def extract(path, destination):
     with zipfile.ZipFile(path) as archive:
         for entry in entries:
             target = root.joinpath(*entry.filename.rstrip("/").split("/"))
-            if entry.is_dir(): target.mkdir(mode=0o755)
+            if entry.is_dir():
+                target.mkdir(mode=0o755); target.chmod(0o755)
             else:
                 with target.open("xb") as output, archive.open(entry) as source:
                     while chunk := source.read(1024 * 1024): output.write(chunk)

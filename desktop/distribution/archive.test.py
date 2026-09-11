@@ -37,6 +37,38 @@ class ArchiveBoundary(unittest.TestCase):
         out = self.root / "out"; out.mkdir(); a.extract(archive, out)
         self.assertEqual((out / "Ghostget.app/Contents/executable").read_bytes(), payload.read_bytes())
         self.assertEqual((out / "Ghostget.app/Contents/executable").stat().st_mode & 0o777, 0o755)
+    def test_unsigned_modes_normalize_before_signing_without_changing_source_or_executable_intent(self):
+        app = self.root / "Ghostget.app"; app.mkdir(); app.chmod(0o777)
+        source_modes = [0o600, 0o644, 0o666, 0o700, 0o744, 0o755, 0o777, 0o604, 0o641]
+        for mode in source_modes:
+            path = app / oct(mode); path.write_bytes(b"exact payload"); path.chmod(mode)
+        archive = self.root / "normalized.zip"; a.pack(app, archive)
+        out = self.root / "out"; out.mkdir()
+        previous = os.umask(0o077)
+        try: a.extract(archive, out)
+        finally: os.umask(previous)
+        self.assertEqual(stat.S_IMODE((out / "Ghostget.app").stat().st_mode), 0o755)
+        self.assertEqual(stat.S_IMODE(app.stat().st_mode), 0o777)
+        for mode in source_modes:
+            source = app / oct(mode); restored = out / "Ghostget.app" / oct(mode)
+            actual = stat.S_IMODE(restored.stat().st_mode)
+            with self.subTest(mode=oct(mode)):
+                self.assertEqual(actual, 0o755 if mode & 0o111 else 0o644)
+                self.assertEqual(bool(actual & 0o111), bool(mode & 0o111))
+                self.assertEqual(actual & 0o022, 0)
+                self.assertEqual(restored.read_bytes(), source.read_bytes())
+                self.assertEqual(stat.S_IMODE(source.stat().st_mode), mode)
+        for kind in ("file", "directory"):
+            for special in (0o1000, 0o2000, 0o4000, 0o7000):
+                path = app / "special"
+                if kind == "directory": path.mkdir()
+                else: path.write_bytes(b"not admitted")
+                path.chmod(0o755 | special)
+                with self.subTest(kind=kind, special=oct(special)), self.assertRaises(Exception):
+                    a.pack(app, self.root / (kind + oct(special) + ".zip"))
+                if kind == "directory": path.rmdir()
+                else: path.unlink()
+
     def test_foreign_paths_links_permissions_extras_and_aliases_are_rejected(self):
         root = ("Ghostget.app/", stat.S_IFDIR | 0o755, b"")
         for name in ["../outside", "/absolute", "C:/drive", "Ghostget.app/../outside", "Ghostget.app/./file", "Ghostget.app//file", "Ghostget.app/evil\\path", "Ghostget.app/evil:fork", "Other.app/file", "Ghostget.app/control\n", "Ghostget.app/._file", "Ghostget.app/\x00tail", "Ghostget.app/e\u0301"]:

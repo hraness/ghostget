@@ -828,6 +828,70 @@ mod tests {
         format!("{{\"protocol\":\"{PROTOCOL}\",\"action\":\"{action}\",\"purpose\":\"credential\",\"id\":\"{ID}\"{extra}}}\n").into_bytes()
     }
     #[test]
+    fn production_create_frame_survives_bun_stdin_transport() {
+        const CHILD: &str = "GHOSTGET_NATIVE_FRAME_TEST_CHILD";
+        // This branch exists only in the Rust test binary, never the installed app.
+        if std::env::var_os(CHILD).is_some() {
+            let mut bytes = Vec::new();
+            std::io::stdin()
+                .lock()
+                .take((MAX_REQUEST + 1) as u64)
+                .read_to_end(&mut bytes)
+                .unwrap();
+            let parsed = parse_request(&bytes).unwrap();
+            assert!(matches!(
+                parsed,
+                Request::Create {
+                    purpose: Purpose::Credential,
+                    kind: Kind::Password,
+                    ref id,
+                    ..
+                } if id == "4b65388b-eb18-4f9f-af6f-63c03d0ffcdb"
+            ));
+            println!("NATIVE_FRAME_ACCEPTED");
+            return;
+        }
+        let script = r#"
+const child = Bun.spawn([process.argv[1], '--exact', 'vault::tests::production_create_frame_survives_bun_stdin_transport', '--nocapture'], {
+  env: { GHOSTGET_NATIVE_FRAME_TEST_CHILD: '1' }, stdin: 'pipe', stdout: 'pipe', stderr: 'pipe'
+});
+const joined = Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
+const settled = joined.then(() => true, () => true);
+const kill = () => { if (child.exitCode === null) { try { child.kill('SIGKILL'); } catch { /* Exit may win. */ } } };
+const operation = (async () => {
+  // Same serialization and delayed write as exchangeNativeCreate after receipt persistence.
+  await Bun.sleep(100);
+  const request = { id: '4b65388b-eb18-4f9f-af6f-63c03d0ffcdb', purpose: 'credential', kind: 'password' };
+  child.stdin.write(`${JSON.stringify({ protocol: 'ghostget.secret-store/1', action: 'create', ...request })}\n`);
+  await child.stdin.end();
+  const [code, out, err] = await joined;
+  if (code !== 0 || !out.includes('NATIVE_FRAME_ACCEPTED') || err !== '') throw new Error(`Native frame transport failed: ${out} ${err}`);
+})();
+let deadline;
+try {
+  await Promise.race([operation, new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('Native frame fixture exceeded its deadline')), 5000); })]);
+} finally {
+  kill();
+  let joinDeadline;
+  try {
+    const complete = await Promise.race([settled, new Promise(resolve => { joinDeadline = setTimeout(() => resolve(false), 3000); })]);
+    if (!complete) throw new Error('Native frame fixture custody could not be confirmed');
+  } finally { clearTimeout(joinDeadline); clearTimeout(deadline); }
+}
+"#;
+        let output = std::process::Command::new("bun")
+            .args(["--no-env-file", "--no-install", "-e", script])
+            .arg(std::env::current_exe().unwrap())
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    #[test]
     fn protocol_rejects_ambiguous_or_expanded_authority() {
         assert!(parse_request(&request("create", ",\"kind\":\"password\"")).is_ok());
         for action in ["read", "delete"] {

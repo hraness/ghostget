@@ -116,8 +116,12 @@ qualify live Keychain, 1Password, browser login or Apple notarization behavior.
   interrupted creation, and shutdown. Only synthetic credentials were used.
 - Isolated Rust Keychain and native ancestry suite passed ten focused tests.
   Native completion receipt tests passed eight tests with 171 assertions.
-  Packaged native ancestry and actual secure-entry cancellation remain separate
-  final integration checks; Direct does not substitute for those effects.
+  The combined packaged app passed native ancestry rejection. An additional
+  real Bun-to-Rust delayed-pipe regression passed, including a focused replay
+  after its cleanup hardening. The owner entered a synthetic password
+  through the genuine native prompt and its joined receipt and metadata showed
+  successful activation with no grants. Secure-entry cancellation remains a
+  separate final check; Direct does not substitute for native effects.
 - The revised distribution suite passed eleven tests with 494 assertions and
   six Python ZIP cases, including a synthetic macOS metadata round trip.
   Independent review accepted runner isolation and direct signer-to-publisher
@@ -126,12 +130,17 @@ qualify live Keychain, 1Password, browser login or Apple notarization behavior.
   replay exposed the browser driver's ineffective Meta+A selection; the final
   verifier uses Home, Shift+End and Backspace and checks the empty search value.
   All ten scenarios then passed. Final review hardened browser closure to retain
-  uncertain ownership across retries; the full updated verifier remains the final
-  UI admission gate.
+  uncertain ownership across retries; the full updated verifier passed all ten
+  scenarios, followed by all five opaque marketing frames and local-font checks.
 - A complete local preview built and passed packaged helper lifecycle and native
   ancestry rejection checks. Current main then advanced through PR 231, adding
   the LinkedIn adapter 1.26.0 fix. Preserve that change and rebuild the combined
-  candidate before final package and native artifact admission.
+  candidate before final package and native artifact admission. That combined
+  rebuild passed sealed-bundle verification, helper lifecycle, and native
+  ancestry checks. Its unsigned distribution round trip preserved all bytes,
+  paths and types across 32,525 entries, with 184 intentional permission
+  normalizations and an unchanged source app. Mode-policy regressions passed.
+  The combined package and clean standalone installation gates also passed.
 - The owner selected a dedicated 1Password vault and no agent-visible plaintext.
   No live service account was supplied; SDK/provider acceptance remains unclaimed.
 - The owner has no Apple Developer membership yet and is willing to enroll.
