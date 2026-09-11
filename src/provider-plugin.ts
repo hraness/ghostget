@@ -3485,6 +3485,20 @@ export function bindProviderPluginRuntimeLoadIdentity(
   );
 }
 
+/** Trusted extensions share the binding's complete source snapshot. They cannot
+ * load an independent provider runtime without the registry's pre/post checks. */
+export async function loadProviderPluginExtensionRuntime<T>(
+  loadRuntime: () => Promise<unknown>, loader: () => Promise<T>,
+): Promise<T> {
+  const identity = providerPluginRuntimeLoadIdentities.get(loadRuntime);
+  if (identity === undefined) throw new Error("Provider extension has no registered implementation identity");
+  providerPluginStartedRuntimeLoaders.add(loadRuntime);
+  await identity.verify("before");
+  const runtime = await loader();
+  await identity.verify("after");
+  return runtime;
+}
+
 export function lazyProviderApiRuntime(
   loader: () => Promise<ProviderApiPluginRuntimeV1>,
 ): ProviderApiPluginRuntimeHooksV1 {

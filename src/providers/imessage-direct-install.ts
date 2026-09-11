@@ -9,6 +9,7 @@ import {
   unlink,
 } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
+import { ensureImsgNativeResources, verifyImsgNativeResources } from "./messaging-native-install";
 
 import {
   ensurePrivateStateDirectory,
@@ -135,6 +136,11 @@ export async function resolvePinnedImsgBinary(
     throw new Error(
       `reviewed imsg transport ${IMSG_REVIEWED_VERSION} is unavailable or failed integrity verification`,
     );
+  }
+  try {
+    await verifyImsgNativeResources(join(ghostgetStateHome(environment), "tools", "imsg", IMSG_REVIEWED_VERSION));
+  } catch {
+    throw installFailure("reviewed imsg resources are unavailable or failed integrity verification");
   }
   return resolved;
 }
@@ -274,6 +280,7 @@ export async function installReviewedImsgBinary(
   try {
     ensurePrivateStateDirectory(installDirectory, environment);
     await validateInstallDirectory(installDirectory);
+    await ensureImsgNativeResources(installDirectory, environment);
   } catch (error) {
     if (error instanceof ImsgInstallFailure) throw error;
     throw installFailure("imsg install state directory is unavailable or unsafe");

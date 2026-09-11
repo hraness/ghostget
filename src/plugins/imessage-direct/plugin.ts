@@ -1,3 +1,4 @@
+import { automationOperationDefinitions } from "../../messaging-automation-descriptors";
 import {
   defineProviderPlugin,
   lazyLocalCliRuntime,
@@ -108,6 +109,12 @@ export const imessageDirectPlugin = defineProviderPlugin({
   sourceKind: "built-in",
   implementationSources: Object.freeze([
     ...providerImplementationEntry(import.meta.url),
+    Object.freeze({ label: "native/imsg-darwin-arm64.gz", url: new URL("../../assets/messaging-runtime/imsg-darwin-arm64.gz", import.meta.url) }),
+    Object.freeze({ label: "native/phone-number-metadata.json.gz", url: new URL("../../assets/messaging-runtime/phone-number-metadata.json.gz", import.meta.url) }),
+    Object.freeze({ label: "native/phone-number-privacy.plist.gz", url: new URL("../../assets/messaging-runtime/phone-number-privacy.plist.gz", import.meta.url) }),
+    Object.freeze({ label: "native/phone-number-info.plist.gz", url: new URL("../../assets/messaging-runtime/phone-number-info.plist.gz", import.meta.url) }),
+    Object.freeze({ label: "native/NOTICE.txt", url: new URL("../../assets/messaging-runtime/NOTICE.txt", import.meta.url) }),
+
     Object.freeze({
       label: "vendor/private-transport.patch",
       url: new URL(
@@ -143,7 +150,7 @@ export const imessageDirectPlugin = defineProviderPlugin({
       sourceUrl: IMSG_TOOL_PIN.sourceUrl,
       artifacts: IMSG_TOOL_PIN.artifacts,
     },
-    operations,
+    operations: [...operations, ...automationOperationDefinitions("imessage")],
     subject: {
       format: "imessage:device-default:<sha256-messages-store-coordinate>",
       matches: (value) => /^imessage:device-default:[a-f0-9]{64}$/u.test(value),

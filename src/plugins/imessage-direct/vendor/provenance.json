@@ -61,7 +61,11 @@
         "--product",
         "imsg"
       ]
-    }
+    },
+    "executableBytes": 5410056,
+    "compression": "gzip",
+    "compressedSha256": "50aea08e3f395be2c82f25b4e0e62e256628141a667e8d296d083093471b6018",
+    "compressedBytes": 1667784
   },
   "reviewBoundary": {
     "liveSendPerformed": false,
@@ -76,5 +80,29 @@
     "transport": "applescript",
     "smsFallback": false,
     "exactRouteLookup": "chats.get(chat_id) returns one exact current chat projection and rejects an unknown row"
+  },
+  "bundledResources": {
+    "repository": "https://github.com/marmelroy/PhoneNumberKit",
+    "version": "5.0.6",
+    "commit": "e18a029dbada1d8eb32e3f81a4eb72eba539ff75",
+    "files": [
+      {
+        "source": "Sources/PhoneNumberKit/Resources/PhoneNumberMetadata.json",
+        "installed": "PhoneNumberKit_PhoneNumberKit.bundle/Contents/Resources/PhoneNumberMetadata.json",
+        "sha256": "cbfe80ee5ee9901f46893a4d2c353d5eb513a21e62529ee5dfaa4e94b4460d83"
+      },
+      {
+        "source": "Sources/PhoneNumberKit/PrivacyInfo.xcprivacy",
+        "installed": "PhoneNumberKit_PhoneNumberKit.bundle/Contents/Resources/PrivacyInfo.xcprivacy",
+        "sha256": "561040f7a52952f75d02d4b6758382ff48c563d6f25c84a09f1a655f6dc60ff8"
+      },
+      {
+        "source": "Ghostget-generated macOS resource bundle metadata",
+        "installed": "PhoneNumberKit_PhoneNumberKit.bundle/Contents/Info.plist",
+        "sha256": "161f6c4a3ceaee9ab2ce30e33c80e605a11e196c53e9791f87341e01bf80d7e9"
+      }
+    ],
+    "notices": "src/assets/messaging-runtime/NOTICE.txt",
+    "installActivatesProvider": false
   }
 }

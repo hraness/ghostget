@@ -19,6 +19,7 @@ const importSpecifiers = [
   "@hraness/ghostget/whatsapp",
   "@hraness/ghostget/omni",
   "@hraness/ghostget/messaging",
+  "@hraness/ghostget/messaging-automation",
 ];
 const binNames = ["ghostget"];
 const packageDiscoveryKeywords = [
@@ -831,6 +832,7 @@ import * as surface3 from "@hraness/ghostget/beeper";
 import * as surface4 from "@hraness/ghostget/apple-photos";
 import * as surface5 from "@hraness/ghostget/whatsapp";
 import * as surface6 from "@hraness/ghostget/messaging";
+import * as surface7 from "@hraness/ghostget/messaging-automation";
 import {
   discoverMessagingRoutes,
   parseMessagingRouteResolveRequestV1,
@@ -862,6 +864,7 @@ void [
   surface4,
   surface5,
   surface6,
+  surface7,
   discovered,
   resolved,
   parseMessagingRouteResolveRequestV1,

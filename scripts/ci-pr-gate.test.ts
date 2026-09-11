@@ -369,6 +369,7 @@ describe("complete local and release check composition", () => {
       "dist/whatsapp-client.js",
       "dist/omni-client.js",
       "dist/messaging.js",
+      "dist/messaging-automation-api.js",
     ] as const) {
       expect(workflow).toContain(entrypoint);
     }

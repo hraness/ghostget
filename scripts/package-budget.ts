@@ -1,3 +1,17 @@
+// Ghostget messaging automation with bundled reviewed iMessage and WhatsApp
+// helpers, PhoneNumberKit resources, durable host and eighth public SDK entrypoint.
+// Two clean Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0 on
+// darwin arm64 are byte-identical: 12,715,931 compressed / 27,571,700 payload
+// bytes across exactly 618 files, SHA-256
+// a552f3a4081f5478ee80c9a0bd4ad433ba1297044901d0113a5ddd26850eb161.
+// The five pinned compressed helper/resource files contribute 9,402,391 payload
+// bytes; their source pins, licenses, patches, host, and generated SDK chunks
+// explain the remaining measured growth. No additional Release asset is added.
+// Preserve the existing 2,802-byte observed platform spread plus 4,096-byte
+// compression allowance, 65 payload bytes, and exact measured file inventory.
+// Required Linux CI independently admits its actual canonical package; this
+// local measurement does not qualify account activation or message delivery.
+//
 // Ghostget 0.18.0 source plus the LinkedIn `contacts.read` multi-escaped
 // PROFILE_VIEW breadcrumb peel (adapter bundle 1.26.0), measured with no
 // version bump: a Bun 1.3.14 `pm pack` on Linux x64 shares
@@ -446,10 +460,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_323_672;
-export const MAX_PACKED_ENTRIES = 524;
-export const MAX_PACKED_FILES = 524;
-export const MAX_UNPACKED_BYTES = 12_670_167;
+export const MAX_PACKED_BYTES = 12_722_829;
+export const MAX_PACKED_ENTRIES = 618;
+export const MAX_PACKED_FILES = 618;
+export const MAX_UNPACKED_BYTES = 27_571_765;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

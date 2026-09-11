@@ -16,6 +16,7 @@ const requiredPaths = Object.freeze([
   "README.md",
   "bunfig.toml",
   "docs/imessage-direct-provider.md",
+  "docs/messaging-automation.md",
   "docs/rental-listings.md",
   "package.json",
   "tsconfig.json",
@@ -24,6 +25,7 @@ const requiredPaths = Object.freeze([
   "dist/client.js",
   "dist/index.js",
   "dist/messaging.js",
+  "dist/messaging-automation-api.js",
   "dist/omni-client.js",
   "dist/whatsapp-client.js",
   "skills/ghostget/SKILL.md",
@@ -37,6 +39,26 @@ const requiredPaths = Object.freeze([
   "src/local-cli-surface-contract.ts",
   "src/message-like-me-agentic-messaging.ts",
   "src/messaging.ts",
+  "src/messaging-automation-api.ts",
+  "src/messaging-automation-descriptors.ts",
+  "src/messaging-automation-types.ts",
+  "src/messaging-automation-validation.ts",
+  "src/messaging-automation.ts",
+  "src/messaging-automation-factory.ts",
+  "src/messaging-automation-server.ts",
+  "src/providers/messaging-native-install.ts",
+  "src/providers/messaging-native-artifacts.ts",
+  "src/providers/imessage-automation.ts",
+  "src/providers/whatsapp-automation.ts",
+  "src/providers/whatsapp-automation-runtime.ts",
+  "src/assets/messaging-runtime/imsg-darwin-arm64.gz",
+  "src/assets/messaging-runtime/wacli-darwin-arm64.gz",
+  "src/assets/messaging-runtime/phone-number-metadata.json.gz",
+  "src/assets/messaging-runtime/phone-number-privacy.plist.gz",
+  "src/assets/messaging-runtime/phone-number-info.plist.gz",
+  "src/assets/messaging-runtime/NOTICE.txt",
+  "src/plugins/whatsapp-linked-device/vendor/0001-ghostget-private-messaging.patch",
+  "src/plugins/whatsapp-linked-device/vendor/provenance.json",
   "src/providers/imessage-direct-install.ts",
   "src/provider-plugin-registry.ts",
   "src/whatsapp-message-like-me-cli.ts",
@@ -176,6 +198,7 @@ function verifyAllowedPath(path: string, type: "directory" | "file", skillName: 
       || path === "docs/imessage-direct-provider.md"
       || path === "docs/rental-listings.md"
       || path === "docs/control-panel.md"
+      || path === "docs/messaging-automation.md"
       || path === "package.json"
       || path === "tsconfig.json"
       || path.startsWith("dist/")
