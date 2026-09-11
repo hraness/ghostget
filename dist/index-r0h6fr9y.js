@@ -548,7 +548,7 @@ class MessagingAutomationHost {
         this.checkFiles();
         const observed = checkedPage(await provider.events({ coordinates: [enrollment.conversation.coordinate], cursor: this.row(enrollment.id).cursor, limit: 200 }, signal), enrollment.identity, enrollment.conversation.coordinate);
         const ownMessages = new Set(accepted.flatMap((receipt) => receipt.messageId === null ? [] : [receipt.messageId]));
-        if (observed.gap || !observed.caughtUp || observed.messages.some((message) => message.direction !== "outgoing" || !ownMessages.has(message.id))) {
+        if (observed.gap || !observed.caughtUp || observed.messages.some((message) => message.direction !== "outgoing" || message.kind !== "message" || !ownMessages.has(message.id))) {
           state = accepted.length ? "partial" : "failed";
           reason = "Conversation changed before the next action.";
           break;

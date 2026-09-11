@@ -567,7 +567,7 @@ function decodeRscFlightRecords(text) {
 }
 function decodeComoRehydrationValue(value) {
   if (typeof value === "string") {
-    return looksLikeRscFlight(value) ? decodeRscFlightRecords(value) : [];
+    return looksLikeRscFlight(value) ? decodeRscFlightRecords(value) : decodeStringBootstrap(value);
   }
   if (Array.isArray(value)) {
     if (value.length > 20000) {

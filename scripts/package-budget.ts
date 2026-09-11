@@ -1,3 +1,13 @@
+// Messaging automation joined with main 9cc16e1 (LinkedIn non-flight bootstrap).
+// Two clean Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0 on
+// darwin arm64 are byte-identical: 12,716,885 compressed / 27,573,685 payload
+// bytes across exactly 618 files, SHA-256
+// 060a2a4b7eacf56e7399f29be241bfe611a7837c82a0d86c981c85d67a764f2a.
+// The joined source and generated provider chunk add 1,985 payload bytes over
+// the messaging-only measurement below. Preserve its exact inventory and
+// existing 2,802 + 4,096 compressed-byte and 65 payload-byte allowances.
+// Current Linux CI must still inspect the actual canonical artifact.
+//
 // Ghostget messaging automation with bundled reviewed iMessage and WhatsApp
 // helpers, PhoneNumberKit resources, durable host and eighth public SDK entrypoint.
 // Two clean Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0 on
@@ -11,6 +21,19 @@
 // compression allowance, 65 payload bytes, and exact measured file inventory.
 // Required Linux CI independently admits its actual canonical package; this
 // local measurement does not qualify account activation or message delivery.
+//
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` non-flight Como
+// string-slot bootstrap (adapter bundle 1.27.0), measured with no version
+// bump: a Bun 1.3.14 `pm pack` on Linux x64 shares
+// 12,672,001 payload bytes across exactly 524 files. The bun archive is
+// 2,179,081 compressed bytes, SHA-256
+// b35c1ba04ab3e7170668090a1d3fa8cfd4c48e8395765e1b1b93b4866e51c096.
+// The drop-before-peel repair, adapter notes, and changelog add
+// 1,899 payload bytes compared with the 1.26.0 measurement. Raise only the
+// payload ceiling to the measured value plus 65 bytes of headroom
+// (12,672,066); the packed size stays under the existing packed allowance
+// and the 524-entry inventory is unchanged. Theme CSS stays website-only.
+// Fresh Linux CI independently checks its actual canonical archive.
 //
 // Ghostget 0.18.0 source plus the LinkedIn `contacts.read` multi-escaped
 // PROFILE_VIEW breadcrumb peel (adapter bundle 1.26.0), measured with no
@@ -460,10 +483,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 12_722_829;
+export const MAX_PACKED_BYTES = 12_723_783;
 export const MAX_PACKED_ENTRIES = 618;
 export const MAX_PACKED_FILES = 618;
-export const MAX_UNPACKED_BYTES = 27_571_765;
+export const MAX_UNPACKED_BYTES = 27_573_750;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

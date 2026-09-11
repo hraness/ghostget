@@ -15489,7 +15489,7 @@ var wrench_web_adapter_default9 = {
 var wrench_web_adapter_default10 = {
   schemaVersion: 4,
   id: "linkedin-web",
-  version: "1.26.0",
+  version: "1.27.0",
   displayName: "LinkedIn (Authenticated Web API)",
   surfaceId: "linkedin",
   origins: [
@@ -27003,7 +27003,7 @@ var linkedinWebPlugin = defineProviderPlugin({
       matches: (value) => /^urn:li:fsd_profile:[0-9]{1,32}$/u.test(value)
     },
     runtime: lazyWebSessionRuntime(async () => {
-      const runtime3 = await import("./linkedin-web-runtime-6n0s4291.js");
+      const runtime3 = await import("./linkedin-web-runtime-bfvg7wdd.js");
       return {
         probe: runtime3.probeLinkedInWebSubject,
         execute: (_manifest, recipe, input, auth, options) => runtime3.executeLinkedInWebOperation(recipe, input, auth, options),
@@ -47295,7 +47295,7 @@ async function confirmMessagingInvocationCore(digest3, options = {}) {
     }
     const loadManifest = options.loadManifest ?? ((adapterId, selectedEnvironment = process.env) => loadInstalledManifestWithRegistry(adapterId, selectedEnvironment, registry));
     const invocation = validateFreshPlan(stored, environment, observation, registry, loadManifest);
-    const messagingRuntime = await import("./messaging-runtime-n32ajsrb.js");
+    const messagingRuntime = await import("./messaging-runtime-v6dfx699.js");
     let snapshot3 = messagingRuntime.initializeMessagingCompositeRunInternal(stored, runId2, { environment, now: observation });
     run = snapshot3.run;
     writeReceipt(messagingReceiptForPlan(stored, run), environment);

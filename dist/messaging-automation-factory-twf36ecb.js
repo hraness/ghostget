@@ -1,7 +1,7 @@
 // @bun
 import {
   MessagingAutomationHost
-} from "./index-6637gkm8.js";
+} from "./index-r0h6fr9y.js";
 import {
   acquireWebSessionCleanupAdmission,
   automationPermissionOperation,

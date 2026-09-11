@@ -1166,7 +1166,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(28_205_056);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(28_207_104);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1295,6 +1295,8 @@ describe("npm publication contract", () => {
     expect(budget).toContain("2,314,832 compressed and 12,654,071 payload");
     expect(budget).toContain("01abe7e7a0953670578777aa88e3c3dbe6d095fb2e46298154c37801db576c96");
     expect(budget).toContain("2,316,774 compressed");
+    expect(budget).toContain("12,672,001 payload bytes across exactly 524 files");
+    expect(budget).toContain("b35c1ba04ab3e7170668090a1d3fa8cfd4c48e8395765e1b1b93b4866e51c096");
     expect(budget).toContain("12,670,102 payload bytes across exactly 524 files");
     expect(budget).toContain("6c90a0e415f5b5d4e0466ad679d12167f370353da11f43c2208f5ed0a0780053");
     expect(budget).toContain("12,666,813 payload bytes across exactly 524 files");
@@ -1307,12 +1309,12 @@ describe("npm publication contract", () => {
     expect(budget).toContain("6fdc9574102d2364548291891b8b81f9c1c1b442a95dfb13dce0d42f7e66944c");
     expect(budget).toContain("2,802-byte Linux spread and the reviewed 4,096-byte portability allowance");
     expect(budget).toContain("This is a projection, not Linux evidence");
-    expect(MAX_PACKED_BYTES).toBe(12_722_829);
-    expect(MAX_PACKED_BYTES).toBe(12_715_931 + 2_802 + 4_096);
+    expect(MAX_PACKED_BYTES).toBe(12_723_783);
+    expect(MAX_PACKED_BYTES).toBe(12_716_885 + 2_802 + 4_096);
     expect(MAX_PACKED_ENTRIES).toBe(618);
     expect(MAX_PACKED_FILES).toBe(618);
-    expect(MAX_UNPACKED_BYTES).toBe(27_571_765);
-    expect(MAX_UNPACKED_BYTES).toBe(27_571_700 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(27_573_750);
+    expect(MAX_UNPACKED_BYTES).toBe(27_573_685 + 65);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
@@ -1320,8 +1322,8 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 618, max: 618 },
       fileCount: { min: 618, max: 618 },
-      packedBytes: { min: 1_600_000, max: 12_722_829 },
-      unpackedBytes: { min: 9_000_000, max: 27_571_765 },
+      packedBytes: { min: 1_600_000, max: 12_723_783 },
+      unpackedBytes: { min: 9_000_000, max: 27_573_750 },
     });
   });
 
@@ -1489,7 +1491,13 @@ describe("npm publication contract", () => {
     expect(contactStart).toBeLessThan(listingStart);
     expect(listingStart).toBeLessThan(fixStart);
     expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
+      "Adapter bundle 1.27.0",
+    );
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
       "Adapter bundle 1.26.0",
+    );
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
+      "non-flight",
     );
     expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
       "Adapter bundle 1.25.0",
