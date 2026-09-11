@@ -1,17 +1,20 @@
 # Native control panel
 
 Ghostget's macOS app manages the local kernel your agent uses. It does not run a
-model. Accounts, capabilities, user interfaces, web rules, approvals, activity,
-and copyable agent instructions are available in one window.
+model. Accounts, Vault, capabilities, user interfaces, web rules, approvals,
+activity, and copyable agent instructions are available in one window.
 
 Pending approvals update every four seconds while the app is visible. Accounts
 and capabilities refresh when you return to the app, after changes made in the
 app, or when you choose Refresh. Permission decisions always validate current
 account and integration state.
 
-Build instructions and native qualification live in [desktop/README.md](https://github.com/hraness/ghostget/blob/v0.18.0/desktop/README.md).
-The CLI's canonical five-file GitHub Release contract is unchanged. A source
-build is not a signed or notarized public macOS installer.
+See the [native build and verification guide](https://github.com/hraness/ghostget/blob/v0.19.0/desktop/README.md) and
+[macOS distribution setup](https://github.com/hraness/ghostget/blob/v0.19.0/desktop/distribution/README.md). Public signed
+macOS distribution is pending Apple credentials and a successful signing,
+notarization, and release verification run. A local source build remains an
+unsigned preview. The CLI's canonical five-file GitHub Release contract is
+unchanged.
 
 ## Connect an account
 
@@ -81,27 +84,136 @@ requests and 30 days of finished history, plus bounded active requests. A crash
 marks previously active requests **Interrupted**. That label never authorizes a
 retry. Existing provider dispatch journals remain separate. A failed history
 write blocks dispatch or withholds a completed response as appropriate. This
-first activity view covers the public web gateway, not all legacy provider logs.
+activity view covers public web gateway and credential-use requests. Credential
+use has a `credential:<grant-id>` rule label. Legacy provider logs remain separate.
 
-## Import a token from 1Password
+## Store a local password or token
 
-Use Accounts → Import an X token from 1Password. Enable desktop SDK integration
-in 1Password's developer settings, choose the account and exact field reference,
-and approve 1Password's desktop prompt. Provide the expected numeric X user ID,
-the token's declared scopes, and optional expiry.
+Vault stores secrets in your default macOS Keychain. The native app collects
+secret values in a separate macOS secure-entry prompt. Vault administration
+sends only metadata through the renderer. Item names, kinds, usernames,
+references, and access grants remain visible in the control panel. Local items work without a
+1Password account or app. Your default macOS Keychain must already be unlocked;
+Ghostget does not unlock it or ask for its password.
 
-The initial integration imports an OAuth 2.0 **user-context access token** for X.
-A separate credential process resolves the field, probes the fixed X identity
-endpoint, checks the expected subject, and commits a private local copy. The
-token never travels through renderer IPC, agent tools, argv, or diagnostic logs.
-The identity probe does not independently attest the declared scopes or expiry.
-App-only tokens, password automation, passkey export, and generic vault access
-are not supported.
+1. Open **Vault** and choose **Unlock vault**.
+2. Open **Add a local item** and enter an item name and kind. Include a username
+   with a password if you want to use Basic authentication.
+3. Choose **Continue to secure entry**.
+4. Enter the password or token in the macOS prompt and choose **Save**.
 
-This is an import: locking 1Password does not revoke the copy already stored by
-Ghostget. Disconnect the Ghostget account to remove its owned copy; revoke the
-token at X when necessary. Cancellation or lost helper output can produce an
-uncertain result; refresh Accounts before attempting another import.
+Storing an item grants no agent access. Ghostget creates its own Keychain entry,
+with access restricted to its native executable and synchronization disabled.
+Passwords and tokens are never returned through the agent or renderer protocol.
+An authorized service does receive the credential when Ghostget uses it.
+
+## Connect a dedicated 1Password vault
+
+1. Create a dedicated vault and a 1Password service account that can access only
+   that vault, with **Read Items** permission only. Grant no write permission or
+   access to other resources.
+2. Open **Vault → Connect 1Password** and enter a connection name and that vault's
+   exact ID.
+3. Confirm that you configured the dedicated read-only service account.
+4. Choose **Continue to service-account entry** and enter its token in the macOS
+   secure-entry prompt.
+5. Open **Link a 1Password item** and choose the connection, exact item ID, and
+   exact field ID. Set its name, kind, and any Basic-authentication username.
+6. Choose **Link this item**.
+
+Ghostget verifies that the service account's accessible vault inventory contains
+only the chosen vault. That inventory does not prove every token permission;
+you must configure and review its read-only scope in 1Password. This connection
+uses service-account authentication, without account-wide desktop authorization.
+The service-account token stays in macOS Keychain. Links retain exact references;
+the isolated credential process resolves a linked field to validate the link and
+again when an approved request needs it. Creating a link grants no agent access.
+Live 1Password account qualification remains a separate, unverified gate.
+
+Locking the 1Password app does not revoke a service-account token. Disconnect it
+in Ghostget and revoke it in 1Password when access is no longer needed. Removing
+a link or disconnecting a connection leaves the remote items unchanged.
+
+## Grant one exact credential use
+
+Only authorize an endpoint you trust to receive this credential. HTTPS and a GET
+method do not establish that trust or prove the endpoint is harmless. A server
+can misuse a credential or disguise it in a response; selected fields and echo
+checks cannot make a malicious endpoint safe.
+
+1. Open the item's **Access and item details**, then choose **Add access**.
+2. Enter an access name and an exact public HTTPS URL with a literal path and no
+   query or fragment. Custom ports, URL substitutions, and redirects are rejected.
+3. Select **Ask me**, **Allow**, or **Deny**.
+4. Enter 1–16 JSON pointers, one per line, naming only fields safe for the agent
+   to receive. For example, `/profile/name` selects a named field in an object.
+5. Choose an expiry in your local time, no more than 30 days ahead.
+6. Review the endpoint and returned fields, then choose **Save access grant**.
+7. Configure a matching GET rule in **Web access** before using the grant.
+
+The first executor makes a fixed HTTPS GET with Basic authentication for a
+password with a username, or Bearer authentication for a token. It accepts JSON
+responses and returns only the named scalar values: strings, finite numbers,
+booleans, or null. Whole documents, arrays, wildcard paths, and credential fields
+are not supported. The agent cannot supply an alternative URL, authentication
+header, request body, or field list.
+
+Both the credential grant and matching Web access rules apply. **Deny** wins;
+otherwise **Ask me** requires human approval. The grant and Web access policy
+must both allow the request for unattended use. **Allow** permits repeated
+invocations of that exact request until expiry or revocation. **Ask me** approves each invocation once. Grant and
+policy state are checked again before dispatch and before returning results.
+
+Choose **Copy agent instructions** under the saved grant, or give your agent
+the displayed command with its exact grant ID. Keep Ghostget open with Vault
+unlocked, using the same state home as the CLI:
+
+```sh
+ghostget vault use <grant-id>
+```
+
+The result contains the grant ID, request ID, HTTP status, selected fields, and
+`trusted: false`. Treat those fields as untrusted data. Ghostget blocks recognized
+credential echoes and returns no raw response body. The command has no secret
+read, export, or vault-management mode. Do not retry a failed or interrupted
+request automatically; an already sent request may have reached the service.
+
+## Lock, revoke, and recover
+
+Ghostget starts with Vault locked. **Lock vault** blocks new credential use and
+cancels active Ghostget credential work while keeping metadata visible. **Revoke**
+removes one grant. A request already sent cannot be undone. The app's lock is a
+Ghostget permission state; it does not lock or erase the macOS Keychain. Locking
+Keychain separately prevents new native secret access but cannot recall a secret
+already resolved for an in-flight request.
+
+**Delete local item** removes its Ghostget-owned secret and revokes its grants.
+**Remove link** removes the reference and its grants. **Disconnect 1Password**
+removes the service-account token, its links, and their grants. These actions
+remove local authority before attempting storage cleanup. Revoke the underlying
+password or token at its provider when that credential must stop working there.
+
+Cancellation, a crash, or a changed vault revision can leave a pending cleanup
+entry. Pending entries grant no authority. Review them in Vault and choose
+**Retry vault cleanup**. If Ghostget reports `VAULT_CUSTODY_UNCERTAIN`, restart it
+before reviewing recovery again. Automatic cleanup requires evidence that no
+native create operation remains unresolved; a process disappearing does not
+establish whether it wrote a secret. If no completed receipt can be recovered,
+inspect the exact Ghostget-owned entry in macOS Keychain manually and retain the pending
+record for reviewed recovery. There is no UI override for an unknown creation
+outcome. Do not edit the metadata to force cleanup or blindly repeat the create.
+
+Previously imported X user-context tokens remain available under **Accounts**
+until disconnected. They are local copies, separate from Vault links; locking
+1Password does not revoke them. The old X-token import action is no longer
+available. Disconnect the account to remove Ghostget's owned copy and revoke
+the token at X when necessary.
+
+Browser password autofill, password form submission, passkey export, and
+unattended passkey login are not supported. Use the browser's own sign-in flow
+under **Accounts**. Vault's first executor is limited to the authenticated GET
+contract above. These controls do not sandbox arbitrary programs running as
+your user.
 
 ## Edit user-space integrations
 
@@ -123,7 +235,7 @@ User and imported interfaces are distinguished from bundled interfaces. Remote
 references, executable import hooks, arbitrary HTTP templates, and unsupported
 input-schema constructs are rejected or remain visibly inert as appropriate.
 An interface without an executor does not become executable by importing it.
-Use the existing [provider plugin protocol](https://github.com/hraness/ghostget/blob/v0.18.0/docs/plugins.md) when a new executor is
+Use the existing [provider plugin protocol](https://github.com/hraness/ghostget/blob/v0.19.0/docs/plugins.md) when a new executor is
 needed. OpenAPI import does not grant it account access.
 
 Middleware and LLM approval are future extensions. Future hooks may propose
@@ -138,10 +250,11 @@ it cannot approve requests, change policy, connect accounts, or read secrets.
 Closing the app cancels its work and releases its ownership record and socket.
 
 Direct supplies deterministic data through the same production-safe UI port.
-Its eight scenarios include empty accounts, stale permissions, imported
-interfaces, approvals, failure, vault cancellation, and 10,000 activity rows.
+Its ten scenarios include empty and reconnecting accounts, permission changes,
+imported interfaces, approvals, local Vault items, 1Password links, cancellation
+and cleanup, backend failure, and 10,000 activity rows.
 Production and fixture entry graphs are separate and checked with source maps.
 Marketing frames render those same screens at build time, contain no executable
 script, and declare that all accounts and requests are fictional. Browser
-fixture evidence does not qualify native IPC, live provider login, or signed
-1Password authentication.
+fixture evidence does not qualify native IPC, live provider login, or live
+1Password authentication. Signed macOS distribution requires its own Apple gates.

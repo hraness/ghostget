@@ -447,9 +447,9 @@ describe("ghostget.com static site", () => {
     expect(html).not.toContain("@jungle/");
     expect(html).not.toContain("hraness.com/ghostget");
     expect(html.match(/<h1\b/gu)).toHaveLength(1);
-    expect(html.match(/<details\b/gu)).toHaveLength(15);
-    expect(html.match(/<iframe\b/gu)).toHaveLength(4);
-    for (const scene of ["accounts", "capabilities", "activity", "approvals"]) {
+    expect(html.match(/<details\b/gu)).toHaveLength(16);
+    expect(html.match(/<iframe\b/gu)).toHaveLength(5);
+    for (const scene of ["accounts", "vault", "capabilities", "activity", "approvals"]) {
       expect(html).toContain(`src="/control/${scene}.html"`);
       const frame = await readFile(join(websiteRoot, `dist/control/${scene}.html`), "utf8");
       expect(frame).toContain("<div inert");

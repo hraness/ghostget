@@ -16,21 +16,31 @@ import type { ApprovalTarget, CapabilityView, ControlData, ControlRequest, Contr
 import { ControlError } from "./validation";
 import { checkWebRequest, readWebPolicy, saveWebPolicy, type ControlEnvironment } from "./web-policy";
 import { WebGateway } from "./web-gateway";
+import { CredentialGateway } from "./credential-gateway";
+import { checkCredentialGrant } from "./credential-executor";
+import { VaultStore } from "./vault-store";
+import { runVaultHelper } from "./vault-process";
+import { basename } from "node:path";
 
 export class ControlService {
   readonly approvals:ApprovalBroker;
   readonly activity:ActivityStore;
   readonly gateway:WebGateway;
+  readonly credentials:CredentialGateway;
   private readonly connections:Connections;
   private readonly shutdownController=new AbortController();
-  constructor(readonly environment:ControlEnvironment=process.env) {
-    this.approvals=new ApprovalBroker(target=>this.check(target),undefined,async(target,checked)=>target.kind==="web"?checkWebRequest(target.method,target.url,environment).approval:await recheckProviderApproval(target,checked,{environment,registry:this.registry()}));
+  private vaultManager:AbortController|null=null;
+  private vaultCustodyFailed=false;
+  constructor(readonly environment:ControlEnvironment=process.env,private readonly vaultHelper:typeof runVaultHelper=runVaultHelper) {
+    this.approvals=new ApprovalBroker(target=>this.check(target),undefined,async(target,checked)=>target.kind==="web"?checkWebRequest(target.method,target.url,environment).approval:target.kind==="credential"?checkCredentialGrant(target.grantId,environment).approval:await recheckProviderApproval(target,checked,{environment,registry:this.registry()}));
     this.activity=new ActivityStore(environment);
     this.gateway=new WebGateway(this.activity,this.approvals,environment);
+    this.credentials=new CredentialGateway(this.activity,this.approvals,environment);
+    new VaultStore(environment).lock();
     this.connections=new Connections(environment,()=>this.registry());
   }
   private registry(){return createPortableProviderPluginCatalog(providerPluginRegistry,this.environment).registry;}
-  private async check(target:ApprovalTarget){return target.kind==="web"?checkWebRequest(target.method,target.url,this.environment).approval:await checkProviderApproval(target,{environment:this.environment,registry:this.registry()});}
+  private async check(target:ApprovalTarget){return target.kind==="web"?checkWebRequest(target.method,target.url,this.environment).approval:target.kind==="credential"?checkCredentialGrant(target.grantId,this.environment).approval:await checkProviderApproval(target,{environment:this.environment,registry:this.registry()});}
   snapshot(accountId:string|null):ControlSnapshot {
     const registry=this.registry();const context={environment:this.environment,registry};
     const accounts=listAuth(this.environment).map(auth=>({id:auth.id,provider:"provider" in auth?auth.provider:null,kind:auth.kind,subject:auth.subject??null,revision:connectionAccountRevision(loadAuthSnapshot(auth.id,this.environment),this.environment),status:"configured" as const,source:auth.kind==="cookie-source"?auth.source:auth.kind==="browser-profile"?"Browser profile":null,tokenStorage:auth.kind==="oauth-token-file"?(auth.managed===true?"managed-oauth" as const:auth.ownedImport===true?"ghostget-import" as const:"external" as const):null}));
@@ -57,7 +67,9 @@ export class ControlService {
       }
     }
     const policy=readOperationPolicy(this.environment);const web=readWebPolicy(this.environment);
-    return {version:GHOSTGET_VERSION,accountId,accounts,capabilities,interfaces,policy:{managed:policy.managed,revision:policy.revision},web:{revision:web.revision,gatewayOnly:web.gatewayOnly,rules:web.rules},approvals:this.approvals.list(),connectionProviders,vault:{provider:"1password",available:process.platform==="darwin",purpose:"x-user-token-import"}};
+    const available=process.platform==="darwin"&&basename(process.execPath)==="ghostget-bun";
+    const vault=new VaultStore(this.environment).read();
+    return {version:GHOSTGET_VERSION,accountId,accounts,capabilities,interfaces,policy:{managed:policy.managed,revision:policy.revision},web:{revision:web.revision,gatewayOnly:web.gatewayOnly,rules:web.rules},approvals:this.approvals.list(),connectionProviders,vault:{...vault,pending:vault.pending.map(({id,purpose})=>({id,purpose})),available,storage:available?"macos-keychain":"unavailable"}};
   }
   async request(request:ControlRequest):Promise<ControlResponse> {
     try {return {ok:true,data:await this.execute(request)};} catch(error){return controlFailure(error);}
@@ -81,11 +93,25 @@ export class ControlService {
       case "connection.commit":this.connections.commit(request.attemptId,request.expectedSubject);return success("Account connected.");
       case "connection.cancel":this.connections.cancel(request.attemptId);return success("Connection cancelled.");
       case "connection.disconnect":this.connections.disconnect(request.id,request.expectedRevision);return success("Account disconnected from Ghostget.");
-      case "vault.import": {const {importVaultToken}=await import("./vault");await importVaultToken(request,this.environment,this.shutdownController.signal);return success("Verified X account token imported. Ghostget stores a private local copy.");}
+      case "vault.import": throw new ControlError("VAULT_IMPORT_REPLACED","Add a local credential or connect a dedicated 1Password vault in Vault. Previously imported account tokens remain available until disconnected.");
+      case "vault.lock": case "vault.grant": case "vault.revoke": case "vault.local.add": case "vault.connect": case "vault.link": case "vault.remove": case "vault.cleanup": {
+        const revocation=request.action==="vault.revoke"||request.action==="vault.lock"&&request.locked;
+        if(!revocation&&(this.vaultManager!==null||this.vaultCustodyFailed))throw new ControlError("VAULT_CUSTODY_UNCERTAIN","A credential change is still active or cannot be verified. Wait for it to finish before changing storage.");
+        const manager=new AbortController();
+        if(revocation)this.vaultManager?.abort();else this.vaultManager=manager;
+        this.credentials.pause();
+        try {
+          if(request.action==="vault.lock")new VaultStore(this.environment).update(request.expectedRevision,state=>({...state,locked:request.locked}));
+          else if(request.action==="vault.revoke")new VaultStore(this.environment).update(request.expectedRevision,state=>({...state,grants:state.grants.filter(grant=>grant.id!==request.id)}));
+          else {const result=await this.vaultHelper({action:"manage",request},this.environment,AbortSignal.any([this.shutdownController.signal,manager.signal]));if(JSON.stringify(result)!==JSON.stringify({ok:true}))throw new Error("Invalid vault result");}
+          return success(request.action==="vault.lock"?(request.locked?"Vault locked. New credential use is blocked.":"Vault unlocked for your configured grants."):"Vault updated.");
+        } catch(error){if(error instanceof ControlError&&error.code==="VAULT_CUSTODY_UNCERTAIN"&&!this.vaultCustodyFailed){this.vaultCustodyFailed=true;this.credentials.pause();}throw error;}
+        finally {if(this.vaultManager===manager)this.vaultManager=null;this.credentials.resume();}
+      }
       case "prompt":return {kind:"prompt",text:agentPrompt(request.kind,request.adapterId)};
     }
   }
-  beginShutdown():void {this.shutdownController.abort();this.connections.close();this.approvals.close();}
+  beginShutdown():void {this.shutdownController.abort();this.credentials.cancel();this.connections.close();this.approvals.close();}
   close():void {this.beginShutdown();this.activity.close();}
 }
 export function controlFailure(error:unknown):Extract<ControlResponse,{ok:false}> {

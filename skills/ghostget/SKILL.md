@@ -34,7 +34,7 @@ automation.
 
 ## Choose the smallest path
 
-- Use the native app for accounts, operation permissions, and human approvals; follow [native control and the web gateway](references/control-panel.md) for gateway-only harnesses, 1Password import, and user-space OpenAPI drafts.
+- Use the native app for accounts, operation permissions, and human approvals; follow [native control and the web gateway](references/control-panel.md) for gateway-only harnesses, local Vault items, optional 1Password links, credential-use grants, and user-space OpenAPI drafts.
 
 - Capture a URL: `ghostget <url>` or `ghostget clip <url>`.
 - Read without persistence: `ghostget read <url>`.

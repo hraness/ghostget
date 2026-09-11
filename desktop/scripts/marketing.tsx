@@ -8,6 +8,7 @@ import { buildDesktop, desktopRoot } from "./build.ts";
 
 export const marketingScenes = [
   { id: "accounts", scenario: "activity.history", section: "accounts", title: "Connected accounts", description: "The real Ghostget account screen, with fictional accounts." },
+  { id: "vault", scenario: "vault.connected", section: "vault", title: "Credential vault", description: "Local credentials and optional 1Password links, with fictional metadata." },
   { id: "capabilities", scenario: "capabilities.policy", section: "capabilities", title: "Operation permissions", description: "Inspect capabilities and choose an operation's permission." },
   { id: "activity", scenario: "activity.history", section: "activity", title: "Web activity", description: "A virtualized view of fictional gateway request metadata." },
   { id: "approvals", scenario: "approvals.pending", section: "approvals", title: "Human approval", description: "Review an exact proposed action before allowing it once." },

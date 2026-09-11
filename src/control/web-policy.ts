@@ -51,6 +51,7 @@ export function assertGatewayCommandAllowed(args: readonly string[], environment
   if(!readWebPolicy(environment).gatewayOnly) return;
   const first=args[0];
   if(first==="web" || first==="capabilities" || first==="--version" || first==="help" || first==="--help" || first==="-h" || args.length===0) return;
+  if(first==="vault" && (args.length===1 || args.length===2&&args[1]==="--help" || args.length===3&&args[1]==="use")) return;
   if((first==="plugin"||first==="plugins") && ["list","show"].includes(args[1]??"")) return;
   throw new ControlError("GATEWAY_ONLY","This state home permits web gateway requests only. Use ghostget web request or change the mode in the native app.");
 }

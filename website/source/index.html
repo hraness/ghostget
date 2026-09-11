@@ -114,12 +114,16 @@ This domain is for use in documentation examples without needing permission. Avo
         <section aria-labelledby="control-heading" class="hraness-marketing-section control-preview" data-hraness-marketing="section" id="control-panel">
           <div class="hraness-marketing-section__heading-group">
             <h2 class="hraness-marketing-section__heading" id="control-heading">Your agent works. You choose its access.</h2>
-            <p class="hraness-marketing-section__summary">The macOS control panel brings accounts, operation permissions, human approvals, and searchable web request history together. <a href="https://github.com/hraness/ghostget/tree/v0.18.0/desktop">Build the native app from source.</a></p>
+            <p class="hraness-marketing-section__summary">The macOS control panel brings accounts, a local credential vault with optional 1Password links, permissions, human approvals, and searchable request history together. <a href="https://github.com/hraness/ghostget/tree/v{{GHOSTGET_VERSION}}/desktop">Build the native app from source.</a></p>
           </div>
           <div class="control-scenes">
             <details name="ghostget-control-scene" open>
               <summary>Accounts</summary>
               <figure><div class="control-frame"><iframe src="/control/accounts.html" title="Ghostget account screen with fictional accounts" sandbox referrerpolicy="no-referrer" loading="lazy" tabindex="-1"></iframe></div><figcaption>Connect a browser session and verify its account. <a href="/control/accounts.html" target="_blank" rel="noopener">Enlarge account screen</a></figcaption></figure>
+            </details>
+            <details name="ghostget-control-scene">
+              <summary>Vault</summary>
+              <figure><div class="control-frame"><iframe src="/control/vault.html" title="Ghostget local vault and optional 1Password links with fictional items" sandbox referrerpolicy="no-referrer" loading="lazy" tabindex="-1"></iframe></div><figcaption>Store a credential locally or link a chosen 1Password field. Grant exact authenticated requests; your agent receives selected results. <a href="/control/vault.html" target="_blank" rel="noopener">Enlarge vault screen</a></figcaption></figure>
             </details>
             <details name="ghostget-control-scene">
               <summary>Permissions</summary>

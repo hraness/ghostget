@@ -1,3 +1,22 @@
+// Final 0.19.0 CLI help ordering correction: the repeated Bun 1.3.14 /
+// npm 11.19.0 / Node 24.20.0 pair remains byte-identical on darwin arm64
+// (zlib 1.2.12): 2,337,268 compressed and 12,742,512 payload bytes across
+// exactly 532 files, SHA-256
+// f37cf3a326301db472f08e3ec56dc8dc14ef9897a85b1a51d95065abec4e28dd.
+// This adds exactly 21 compressed and 76 source bytes to the measurement
+// below; retain its exact inventory and all existing portability allowances.
+//
+// Ghostget 0.19.0 local Vault and scoped credential-use boundary: two fresh
+// Bun 1.3.14 builds and npm 11.19.0 ignore-scripts packs under Node 24.20.0
+// on darwin arm64 (zlib 1.2.12) are byte-identical: 2,337,247 compressed
+// and 12,742,436 payload bytes across exactly 532 files, SHA-256
+// 94d6d015620ae4a4a9f6c59a761c1d631ecb91a6df6ab3e606f041440d72929b.
+// Every archive byte and mode matches its source. Eight required control
+// modules account for the exact inventory increase; native app resources,
+// distribution scripts, tests and website files remain excluded. Preserve
+// the 65-byte payload allowance and the prior 2,802 + 4,096-byte compression
+// allowance. Required Linux CI still inspects its actual canonical archive.
+//
 // Ghostget 0.18.0 source plus the LinkedIn `contacts.read` vieweeMemberUrn
 // distance join (adapter bundle 1.25.0), measured with no version bump: a Bun
 // 1.3.14 `pm pack` on Linux x64 shares
@@ -433,10 +452,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_323_672;
-export const MAX_PACKED_ENTRIES = 524;
-export const MAX_PACKED_FILES = 524;
-export const MAX_UNPACKED_BYTES = 12_666_878;
+export const MAX_PACKED_BYTES = 2_344_166;
+export const MAX_PACKED_ENTRIES = 532;
+export const MAX_PACKED_FILES = 532;
+export const MAX_UNPACKED_BYTES = 12_742_577;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

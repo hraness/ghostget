@@ -32,6 +32,7 @@ export const ghostgetUsage = `Usage:
   ghostget capabilities [adapter] [--json]         List installed semantic capabilities
   ghostget web request <https-url> [--method GET|HEAD]
                                                  Retrieve public text through native web rules and approvals
+  ghostget vault use <grant-id>                    Use a granted credential and return selected JSON fields
   ghostget interface list                          List user and imported OpenAPI drafts
   ghostget interface export [adapter]              Export installed semantic interfaces as OpenAPI
   ghostget interface import <openapi.json> [--expected-digest <sha256>]

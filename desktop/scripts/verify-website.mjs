@@ -27,7 +27,7 @@ async function verifyWebsite() {
   const policyText = await readFile(join(repository, "vercel.json"), "utf8");
   const policy = JSON.parse(policyText);
   const controlFiles = (await readdir(join(root, "control"))).sort();
-  assert.deepEqual(controlFiles, ["NebulaSans-Book.woff2", "accounts.html", "activity.html", "app.css", "approvals.html", "capabilities.html", "scenes.json"].sort());
+  assert.deepEqual(controlFiles, ["NebulaSans-Book.woff2", "accounts.html", "activity.html", "app.css", "approvals.html", "capabilities.html", "vault.html", "scenes.json"].sort());
   const font = await readFile(join(root, "control/NebulaSans-Book.woff2"));
   assert.ok(font.equals(await readFile(join(repository, "src/assets/fonts/nebula-sans/NebulaSans-Book.woff2"))));
   const served = []; const blockedRequests = []; const errors = []; const consoleMessages = []; const responses = [];
@@ -64,7 +64,7 @@ async function verifyWebsite() {
     page.on("response", response => { if (response.url().startsWith(`${origin}/control/`)) responses.push({ path: new URL(response.url()).pathname, status: response.status(), headers: response.headers() }); });
     await page.goto(origin, { waitUntil: "networkidle" });
     const scenes = [];
-    for (const [index, scene] of ["accounts", "capabilities", "activity", "approvals"].entries()) {
+    for (const [index, scene] of ["accounts", "vault", "capabilities", "activity", "approvals"].entries()) {
       const details = page.locator(`.control-scenes details:nth-child(${index + 1})`);
       if (index > 0) await details.locator("summary").click();
       await details.scrollIntoViewIfNeeded();
@@ -92,11 +92,11 @@ async function verifyWebsite() {
     assert.ok(!served.some(row => row.path.startsWith("/control/") && row.status !== 200));
     const driverDiagnostics = errors.filter(error => error.name === "SecurityError" && error.message === sandboxServiceWorkerError);
     const pageErrors = errors.filter(error => !driverDiagnostics.includes(error));
-    assert.equal(driverDiagnostics.length, 4, "The pinned driver touches the denied serviceWorker getter once in each opaque frame");
+    assert.equal(driverDiagnostics.length, 5, "The pinned driver touches the denied serviceWorker getter once in each opaque frame");
     assert.deepEqual(pageErrors, []); assert.deepEqual(consoleMessages.filter(message => message.type === "error"), []); assert.deepEqual(blockedRequests, []); assert.equal(context.pages().length, 1);
     const sourceHead = await git(["rev-parse", "HEAD"]); const dirty = await git(["status", "--porcelain"]);
     await context.close(); await browser.close(); assert.equal(browser.isConnected(), false); closed = true; assert.equal(timedOut, false);
-    await writeFile(join(artifact, "receipt.json"), JSON.stringify({ schema: "ghostget.website-preview-verification/1", sourceHead, dirty: dirty.length > 0, driverVersion: driverMetadata.version, browserVersion, allowedOrigin: origin, custody: { browsers: 1, contexts: 1, pages: 1, wholeBrowserClosed: closed }, controls: { serviceWorkers: "block", websocket: "deny", webRTC: "constructor-deny", bypassCSP: false, requestMethods: ["GET", "HEAD"] }, controlFiles, scenes, controlRequests: served.filter(row => row.path.startsWith("/control/")), fontSha256: createHash("sha256").update(font).digest("hex"), headersSha256: createHash("sha256").update(policyText).digest("hex"), responses, pageErrors, driverDiagnostics: { reason: "The immutable Playwright service-worker blocking init script reads a getter already denied by each opaque sandbox. All four raw errors are retained; authored frame scripts are absent and denial is independently read back.", coreBundleSha256: createHash("sha256").update(driverSource).digest("hex"), source: serviceWorkerBlockSource, errors: driverDiagnostics }, consoleMessages, blockedRequests }, null, 2));
+    await writeFile(join(artifact, "receipt.json"), JSON.stringify({ schema: "ghostget.website-preview-verification/1", sourceHead, dirty: dirty.length > 0, driverVersion: driverMetadata.version, browserVersion, allowedOrigin: origin, custody: { browsers: 1, contexts: 1, pages: 1, wholeBrowserClosed: closed }, controls: { serviceWorkers: "block", websocket: "deny", webRTC: "constructor-deny", bypassCSP: false, requestMethods: ["GET", "HEAD"] }, controlFiles, scenes, controlRequests: served.filter(row => row.path.startsWith("/control/")), fontSha256: createHash("sha256").update(font).digest("hex"), headersSha256: createHash("sha256").update(policyText).digest("hex"), responses, pageErrors, driverDiagnostics: { reason: "The immutable Playwright service-worker blocking init script reads a getter already denied by each opaque sandbox. All five raw errors are retained; authored frame scripts are absent and denial is independently read back.", coreBundleSha256: createHash("sha256").update(driverSource).digest("hex"), source: serviceWorkerBlockSource, errors: driverDiagnostics }, consoleMessages, blockedRequests }, null, 2));
     process.stdout.write(`Website opaque iframe and local-font verification passed: ${artifact}\n`);
   } catch (error) { failure = error; throw error; }
   finally {

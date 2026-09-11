@@ -9,6 +9,12 @@
       "path": "accounts.html"
     },
     {
+      "id": "vault",
+      "title": "Credential vault",
+      "description": "Local credentials and optional 1Password links, with fictional metadata.",
+      "path": "vault.html"
+    },
+    {
       "id": "capabilities",
       "title": "Operation permissions",
       "description": "Inspect capabilities and choose an operation's permission.",

@@ -1,4 +1,5 @@
 import { CONTROL_PROTOCOL, type ActivityQuery, type ControlRequest, type ControlResponse, type PermissionDecision, type WebRule } from "./protocol";
+import { parseVaultControlRequest } from "./vault-store";
 
 /** Keep oversized catalog reads local to one request; never terminate approvals. */
 export function controlResponseLine(id: string, response: ControlResponse): string {
@@ -80,6 +81,7 @@ export function parseActivityQuery(value: unknown): ActivityQuery {
 }
 export function parseControlRequest(value: unknown): ControlRequest {
   const v=record(value); const action=string(v.action,32);
+  if (action.startsWith("vault.") && action !== "vault.import") return parseVaultControlRequest(value);
   const exact=(...fields: string[])=>keys(v,["action",...fields]);
   switch(action) {
     case "snapshot": exact("accountId"); return {action,accountId:nullable(v.accountId,128)};

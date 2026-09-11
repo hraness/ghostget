@@ -1154,6 +1154,17 @@ async function providerReceipts(mode: "advanced" | "already-exact"): Promise<Rea
   });
 }
 
+const requiredVaultSources = [
+  "src/control/vault-model.ts",
+  "src/control/vault-store.ts",
+  "src/control/vault-runtime.ts",
+  "src/control/vault-process.ts",
+  "src/control/vault-helper.ts",
+  "src/control/vault-custody.ts",
+  "src/control/credential-executor.ts",
+  "src/control/credential-gateway.ts",
+] as const;
+
 describe("npm publication contract", () => {
   test("derives the tar expansion ceiling from the reviewed package budget", async () => {
     const artifact = await readFile(packageArtifactUrl, "utf8");
@@ -1163,7 +1174,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(13_203_968);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(13_287_936);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1302,21 +1313,26 @@ describe("npm publication contract", () => {
     expect(budget).toContain("6fdc9574102d2364548291891b8b81f9c1c1b442a95dfb13dce0d42f7e66944c");
     expect(budget).toContain("2,802-byte Linux spread and the reviewed 4,096-byte portability allowance");
     expect(budget).toContain("This is a projection, not Linux evidence");
-    expect(MAX_PACKED_BYTES).toBe(2_323_672);
-    expect(MAX_PACKED_BYTES).toBe(2_316_774 + 2_802 + 4_096);
-    expect(MAX_PACKED_ENTRIES).toBe(524);
-    expect(MAX_PACKED_FILES).toBe(524);
-    expect(MAX_UNPACKED_BYTES).toBe(12_666_878);
-    expect(MAX_UNPACKED_BYTES).toBe(12_666_813 + 65);
+    expect(budget).toContain("2,337,247 compressed");
+    expect(budget).toContain("12,742,436 payload bytes across exactly 532 files");
+    expect(budget).toContain("94d6d015620ae4a4a9f6c59a761c1d631ecb91a6df6ab3e606f041440d72929b");
+    expect(budget).toContain("2,337,268 compressed and 12,742,512 payload bytes");
+    expect(budget).toContain("f37cf3a326301db472f08e3ec56dc8dc14ef9897a85b1a51d95065abec4e28dd");
+    expect(MAX_PACKED_BYTES).toBe(2_344_166);
+    expect(MAX_PACKED_BYTES).toBe(2_337_268 + 2_802 + 4_096);
+    expect(MAX_PACKED_ENTRIES).toBe(532);
+    expect(MAX_PACKED_FILES).toBe(532);
+    expect(MAX_UNPACKED_BYTES).toBe(12_742_577);
+    expect(MAX_UNPACKED_BYTES).toBe(12_742_512 + 65);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 524, max: 524 },
-      fileCount: { min: 524, max: 524 },
-      packedBytes: { min: 1_600_000, max: 2_323_672 },
-      unpackedBytes: { min: 9_000_000, max: 12_666_878 },
+      entryCount: { min: 532, max: 532 },
+      fileCount: { min: 532, max: 532 },
+      packedBytes: { min: 1_600_000, max: 2_344_166 },
+      unpackedBytes: { min: 9_000_000, max: 12_742_577 },
     });
   });
 
@@ -1674,11 +1690,13 @@ describe("npm publication contract", () => {
       const inventory = await inspectPackageArtifact(archive);
       expect(inventory.files.some(file => file.path === "docs/control-panel.md")).toBe(true);
       expect(inventory.files.some(file => file.path === "src/control/credential-helper.ts")).toBe(true);
+      for (const source of requiredVaultSources) expect(inventory.files.some(file => file.path === source)).toBe(true);
       expect(inventory.files.some(file => file.path === "src/provider-plugin-import-analysis.ts")).toBe(true);
       expect(inventory.files.some(file => file.path.startsWith("desktop/") || file.path.includes("/direct/"))).toBe(false);
       expect(inventory.files.some(file => file.path.includes("benchmark"))).toBe(false);
       const originalTar = gunzipSync(await readFile(archive));
       for (const [source, replacement, expected] of [
+        ...requiredVaultSources.map(source => [source, source.replace(".ts", "-missing.ts"), `Required package path is missing: ${source}`] as const),
         ["src/control/helper.ts", "src/control/absent-helper.ts", "Required package path is missing: src/control/helper.ts"],
         ["src/provider-plugin-import-analysis.ts", "src/absent-provider-analysis.ts", "Required package path is missing: src/provider-plugin-import-analysis.ts"],
         ["docs/control-panel.md", "src/control-guide.md", "Required package path is missing: docs/control-panel.md"],

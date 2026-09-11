@@ -10,9 +10,12 @@ import { CONTROL_PROTOCOL, type ApprovalTarget, type JsonValue } from "./protoco
 import { controlFailure, ControlService } from "./service";
 import { ControlError, controlResponseLine, digest, identifier, integer, keys, nullable, oneOf, parseControlRequest, record, string } from "./validation";
 import type { ControlEnvironment } from "./web-policy";
+import { vaultId } from "./vault-store";
+import { CREDENTIAL_REQUEST_TIMEOUT_MS } from "./vault-model";
 
 function parseTarget(value:unknown):ApprovalTarget {
   const v=record(value);
+  if(v.kind==="credential"){keys(v,["kind","grantId"]);return {kind:"credential",grantId:vaultId(v.grantId)};}
   if(v.kind==="web"){keys(v,["kind","method","url"]);return {kind:"web",method:oneOf(v.method,["GET","HEAD"]),url:string(v.url,8192)};}
   keys(v,["kind","adapterId","operationId","authId","input","planDigest"]);if(v.kind!=="provider")throw new Error("invalid target");
   // The kernel's operation input parser is authoritative; bound recursive JSON before calling it.
@@ -21,6 +24,7 @@ function parseTarget(value:unknown):ApprovalTarget {
 }
 async function handleAgent(value:unknown,service:ControlService,signal:AbortSignal):Promise<unknown> {
   const v=record(value);
+  if(v.protocol==="ghostget.credential/1"){keys(v,["protocol","action","grantId"]);if(v.action!=="use")throw new Error("invalid action");return await service.credentials.run(vaultId(v.grantId),signal);}
   if(v.protocol==="ghostget.web/1") {keys(v,["protocol","action","method","url"]);if(v.action!=="request")throw new Error("invalid action");return await service.gateway.run(oneOf(v.method,["GET","HEAD"]),string(v.url,8192),signal);}
   if(v.protocol!=="ghostget.approval/1")throw new Error("invalid protocol");
   if(v.action==="request"){keys(v,["protocol","action","id","target","expectedDigest"]);return await service.approvals.request(identifier(v.id),parseTarget(v.target),digest(v.expectedDigest));}
@@ -56,7 +60,7 @@ export async function runControlHelper(environment:ControlEnvironment=process.en
     socket.on("close",()=>{controller.abort();clients.delete(socket);});socket.on("error",()=>controller.abort());
     socket.on("data",chunk=>{
       if(started){socket.destroy();return;}buffer=Buffer.concat([buffer,typeof chunk==="string"?Buffer.from(chunk):chunk]);if(buffer.length>262144){socket.destroy();return;}const newline=buffer.indexOf(10);if(newline<0)return;
-      started=true;const work=(async()=>{let response:unknown;try{if(newline!==buffer.length-1)throw new Error();response=await handleAgent(JSON.parse(buffer.subarray(0,newline).toString("utf8")),service!,controller.signal);}catch(error){response=controlFailure(error);}if(!socket.destroyed)socket.end(`${JSON.stringify(response)}\n`);})();active.add(work);void work.then(()=>active.delete(work),()=>{active.delete(work);process.exitCode=1;process.stdin.destroy();});
+      started=true;const work=(async()=>{let response:unknown;try{if(newline!==buffer.length-1)throw new Error();const value:unknown=JSON.parse(buffer.subarray(0,newline).toString("utf8"));const frame=record(value);socket.setTimeout(frame.protocol==="ghostget.credential/1"?CREDENTIAL_REQUEST_TIMEOUT_MS:frame.protocol==="ghostget.web/1"?180_000:150_000);response=await handleAgent(value,service!,controller.signal);}catch(error){response=controlFailure(error);}if(!socket.destroyed)socket.end(`${JSON.stringify(response)}\n`);})();active.add(work);void work.then(()=>active.delete(work),()=>{active.delete(work);process.exitCode=1;process.stdin.destroy();});
     });
   });
   const shutdown=async()=>{if(closing)return;closing=true;for(const socket of clients)socket.destroy();service?.beginShutdown();await Promise.allSettled(active);service?.close();if(server.listening)await new Promise<void>(resolve=>server.close(()=>resolve()));if(ownedSocket!==undefined){snapshotPrivateStateDirectory(directory,environment,directoryIdentity);try{const stat=lstatSync(socketPath);if(stat.isSocket()&&stat.dev===ownedSocket.dev&&stat.ino===ownedSocket.ino)unlinkSync(socketPath);}catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}}releaseOwner();};

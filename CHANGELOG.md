@@ -7,6 +7,20 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.19.0 - 2026-09-11
+
+- Add a local macOS Keychain vault with native secure entry, optional links to
+  selected fields in a dedicated 1Password vault, and separately revocable
+  credential grants. Secrets remain inside the credential broker; agents use
+  an exact granted HTTPS GET and receive selected JSON fields only.
+- Add searchable Vault management, lock, cleanup, credential approvals, and
+  copyable agent instructions to the shared native and Direct UI. Record
+  authenticated request metadata in the existing local activity log.
+- Add an independent Developer ID signing, notarization and immutable desktop
+  release pipeline while preserving canonical CLI releases. Signed publication
+  requires Apple enrollment and protected credentials. Browser autofill and
+  passkey assertions are not implemented.
+
 - Join LinkedIn `contacts.read@1` first-degree distance when identity comes from
   `vieweeProfileId` plus vanity and `networkDistance` sits on a PROFILE_VIEW
   breadcrumb or `vieweeMemberUrn` record, including a member id or a different

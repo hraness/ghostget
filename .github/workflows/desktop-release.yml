@@ -1,0 +1,303 @@
+name: Desktop Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published canonical stable tag; owner-created matching desktop tag must already exist
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+env:
+  DESKTOP_CANONICAL_TAG: ${{ inputs.tag }}
+  DESKTOP_RELEASE_WORKFLOW_ID: ${{ vars.DESKTOP_RELEASE_WORKFLOW_ID }}
+
+jobs:
+  authorize:
+    if: github.repository_id == '1316443113' && github.repository == 'hraness/ghostget' && github.ref == 'refs/heads/main' && github.actor_id == '894119'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      pull-requests: read
+      security-events: read
+      attestations: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+      - name: Admit exact main source, canonical archive and both owner-created tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bun --no-env-file desktop/distribution/authority.ts source
+
+  build:
+    needs: authorize
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      artifact_id: ${{ steps.artifact.outputs.artifact-id }}
+      receipt_sha256: ${{ steps.pack.outputs.receipt_sha256 }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.20.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+      - name: Pin native toolchain
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = arm64
+          npm install --global npm@11.19.0
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+      - name: Revalidate before building
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bun --no-env-file desktop/distribution/authority.ts check
+      - name: Build on a runner that never receives Apple credentials
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile --ignore-scripts
+          bun run build
+          bun run desktop:check-native
+          cd desktop/src-tauri
+          bun ../../node_modules/@tauri-apps/cli/tauri.js build -- --locked
+      - name: Produce the bounded unsigned handoff
+        id: pack
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bun --no-env-file --no-install desktop/distribution/handoff.ts pack
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        id: artifact
+        with:
+          name: desktop-unsigned-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ghostget-desktop-unsigned
+          if-no-files-found: error
+          retention-days: 30
+
+  sign:
+    needs: build
+    runs-on: macos-15
+    timeout-minutes: 60
+    environment: desktop-signing
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      artifact_id: ${{ steps.artifact.outputs.artifact-id }}
+      receipt_sha256: ${{ steps.sign.outputs.receipt_sha256 }}
+      handoff: ${{ steps.sign.outputs.handoff }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          path: ${{ runner.temp }}/ghostget-desktop-input
+      - name: Validate and extract unsigned files outside checkout before credentials
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DESKTOP_INPUT_RECEIPT_SHA256: ${{ needs.build.outputs.receipt_sha256 }}
+        run: bun --no-env-file --no-install desktop/distribution/handoff.ts prepare
+      - name: Sign and notarize without installing dependencies or executing the app
+        id: sign
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DESKTOP_INPUT_RECEIPT_SHA256: ${{ needs.build.outputs.receipt_sha256 }}
+          DESKTOP_PREPARED_SHA256: ${{ steps.prepare.outputs.tree_sha256 }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          APPLE_SIGNING_IDENTITY_SHA1: ${{ vars.APPLE_SIGNING_IDENTITY_SHA1 }}
+          APPLE_API_KEY_ID: ${{ vars.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ vars.APPLE_API_ISSUER }}
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+        run: bun --no-env-file --no-install desktop/distribution/sign.ts
+      - name: Preserve submission identity for bounded failure reconciliation
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: desktop-notary-submission-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ghostget-desktop-tree/notary-submission.json
+          if-no-files-found: ignore
+          retention-days: 30
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        id: artifact
+        with:
+          name: desktop-signed-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ghostget-desktop-signed
+          if-no-files-found: error
+          retention-days: 30
+
+  verify:
+    needs: sign
+    runs-on: macos-15
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      artifact_id: ${{ steps.artifact.outputs.artifact-id }}
+      hashes: ${{ steps.verify.outputs.hashes }}
+      archive: ${{ steps.verify.outputs.archive }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          artifact-ids: ${{ needs.sign.outputs.artifact_id }}
+          path: ${{ runner.temp }}/ghostget-desktop-input
+      - name: Verify the signed download on a fresh credential-free runner
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DESKTOP_INPUT_RECEIPT_SHA256: ${{ needs.sign.outputs.receipt_sha256 }}
+        run: bun --no-env-file --no-install desktop/distribution/verify.ts
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        id: artifact
+        with:
+          name: desktop-verified-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ghostget-desktop-verified
+          if-no-files-found: error
+          retention-days: 30
+
+  attest:
+    needs: [sign, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+      attestations: write
+    outputs:
+      artifact_id: ${{ steps.artifact.outputs.artifact-id }}
+      provenance_sha256: ${{ steps.bundle.outputs.sha256 }}
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          artifact-ids: ${{ needs.verify.outputs.artifact_id }}
+          path: ${{ runner.temp }}/ghostget-desktop
+      - name: Reauthorize checkout-free attestation and exact build subjects
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIRECTORY: ${{ runner.temp }}/ghostget-desktop
+          EXPECTED_HASHES: ${{ needs.verify.outputs.hashes }}
+          SIGNED_HANDOFF: ${{ needs.sign.outputs.handoff }}
+          SIGNED_RECEIPT_SHA256: ${{ needs.sign.outputs.receipt_sha256 }}
+          ARCHIVE: ${{ needs.verify.outputs.archive }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs'),p=require('node:path'),c=require('node:crypto'),cp=require('node:child_process');
+          const e=process.env,repo='hraness/ghostget',prefix=`repos/${repo}`,sha=e.GITHUB_SHA,tag=e.DESKTOP_CANONICAL_TAG;
+          const need=(v)=>{if(!v)throw Error('Desktop attestation authority or artifact differs');};
+          const id=(v)=>{const n=Number(v);need(Number.isSafeInteger(n)&&n>0);return n;};
+          need(e.GITHUB_REPOSITORY===repo&&e.GITHUB_REPOSITORY_ID==='1316443113'&&e.GITHUB_EVENT_NAME==='workflow_dispatch'&&e.GITHUB_REF==='refs/heads/main'&&e.GITHUB_WORKFLOW_SHA===sha&&e.GITHUB_WORKFLOW_REF===`${repo}/.github/workflows/desktop-release.yml@refs/heads/main`&&e.GITHUB_ACTOR_ID==='894119'&&/^[a-f0-9]{40}$/.test(sha)&&/^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(tag));
+          const get=(path)=>JSON.parse(cp.execFileSync('gh',['api','--hostname','github.com','--method','GET',`${prefix}/${path}`],{timeout:30000,maxBuffer:2097152}));
+          const main=get('git/ref/heads/main');need(main.ref==='refs/heads/main'&&main.object.type==='commit'&&main.object.sha===sha);
+          for(const name of[tag,`desktop-${tag}-macos-arm64`]){const r=get(`git/ref/tags/${name}`);need(r.ref===`refs/tags/${name}`&&r.object.type==='commit'&&r.object.sha===sha);}
+          const workflow=get(`actions/workflows/${id(e.DESKTOP_RELEASE_WORKFLOW_ID)}`);need(workflow.id===id(e.DESKTOP_RELEASE_WORKFLOW_ID)&&workflow.path==='.github/workflows/desktop-release.yml'&&workflow.state==='active');
+          for(const path of[`actions/runs/${id(e.GITHUB_RUN_ID)}`,`actions/runs/${id(e.GITHUB_RUN_ID)}/attempts/${id(e.GITHUB_RUN_ATTEMPT)}`]){const r=get(path);need(r.id===id(e.GITHUB_RUN_ID)&&r.run_attempt===id(e.GITHUB_RUN_ATTEMPT)&&r.workflow_id===workflow.id&&r.path===workflow.path&&r.event==='workflow_dispatch'&&r.head_branch==='main'&&r.head_sha===sha&&r.status==='in_progress'&&r.conclusion===null&&r.actor.id===894119&&r.actor.type==='User'&&r.triggering_actor.id===894119&&r.triggering_actor.type==='User');for(const q of[r.repository,r.head_repository])need(q.id===1316443113&&q.full_name===repo&&q.private===false);}
+          const names=[`Ghostget-${tag.slice(1)}-macos-arm64.zip`,'desktop-manifest.json','SHA256SUMS'],hashes=JSON.parse(e.EXPECTED_HASHES),dir=e.DIRECTORY;
+          need(e.ARCHIVE===names[0]&&fs.readdirSync(dir).sort().join(',')===[...names].sort().join(',')&&Object.keys(hashes).sort().join(',')===[...names].sort().join(','));
+          for(const name of names){const path=p.join(dir,name),s=fs.lstatSync(path);need(s.isFile()&&!s.isSymbolicLink()&&s.size>0&&s.size<=(name===names[0]?1610612736:1048576));need(/^[a-f0-9]{64}$/.test(hashes[name])&&c.createHash('sha256').update(fs.readFileSync(path)).digest('hex')===hashes[name]);}
+          const m=JSON.parse(fs.readFileSync(p.join(dir,'desktop-manifest.json'),'utf8'));need(m.sourceSha===sha&&m.workflowSha===sha&&m.canonicalTag===tag&&m.desktopTag===`desktop-${tag}-macos-arm64`&&m.repository===repo&&m.repositoryId===1316443113&&m.workflow===workflow.path&&m.workflowId===workflow.id&&m.runId===id(e.GITHUB_RUN_ID)&&m.runAttempt===id(e.GITHUB_RUN_ATTEMPT)&&m.archive.sha256===hashes[names[0]]&&m.notarization.status==='Accepted'&&m.notarization.stapled===true);
+          const h=JSON.parse(e.SIGNED_HANDOFF);need(c.createHash('sha256').update(`${JSON.stringify(h)}\n`).digest('hex')===e.SIGNED_RECEIPT_SHA256&&h.schema==='ghostget.desktop-handoff/1'&&h.stage==='signed');
+          for(const key of['sourceSha','sourceTree','canonicalTag','repository','repositoryId','workflow','workflowId','runId','runAttempt'])need(h[key]===m[key]);
+          for(const key of['name','bytes','sha256'])need(h.archive[key]===m.archive[key]);
+          for(const key of['teamId','signingIdentitySha1','runtimeInventorySha256','signingInventorySha256'])need(h.signing[key]===m[key]);
+          for(const key of['id','status','stapled'])need(h.signing.notarization[key]===m.notarization[key]);
+          need(fs.readFileSync(p.join(dir,'SHA256SUMS'),'utf8')===`${hashes[names[0]]}  ${names[0]}\n${hashes[names[1]]}  ${names[1]}\n`);
+          need(get('git/ref/heads/main').object.sha===sha);
+          NODE
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        id: provenance
+        with:
+          subject-path: |
+            ${{ runner.temp }}/ghostget-desktop/${{ needs.verify.outputs.archive }}
+            ${{ runner.temp }}/ghostget-desktop/desktop-manifest.json
+            ${{ runner.temp }}/ghostget-desktop/SHA256SUMS
+          push-to-registry: false
+          create-storage-record: false
+      - name: Preserve exact provenance bundle
+        id: bundle
+        env:
+          BUNDLE: ${{ steps.provenance.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          cp -- "$BUNDLE" "$RUNNER_TEMP/ghostget-desktop/provenance.jsonl"
+          printf 'sha256=%s\n' "$(sha256sum "$RUNNER_TEMP/ghostget-desktop/provenance.jsonl" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        id: artifact
+        with:
+          name: desktop-attested-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ghostget-desktop
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: [sign, verify, attest]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+      attestations: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.14
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          artifact-ids: ${{ needs.attest.outputs.artifact_id }}
+          path: ${{ runner.temp }}/ghostget-desktop
+      - name: Verify signed provenance and publish the exact immutable desktop prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DESKTOP_BUILD_HASHES: ${{ needs.verify.outputs.hashes }}
+          DESKTOP_SIGNED_HANDOFF: ${{ needs.sign.outputs.handoff }}
+          DESKTOP_PROVENANCE_SHA256: ${{ needs.attest.outputs.provenance_sha256 }}
+        run: bun --no-env-file desktop/distribution/publish.ts "$RUNNER_TEMP/ghostget-desktop"

@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "description": "Open-source CLI and TypeScript SDK for precise web capabilities for AI agents: page capture, verified media archives, encrypted reads, and typed provider operations.",
   "license": "MIT",
   "type": "module",
@@ -563,7 +563,15 @@
     "src/control/credential-helper.ts",
     "src/control/account-revision.ts",
     "src/control/interface-cli.ts",
-    "src/control/bundled-interfaces.ts"
+    "src/control/bundled-interfaces.ts",
+    "src/control/vault-model.ts",
+    "src/control/vault-store.ts",
+    "src/control/vault-runtime.ts",
+    "src/control/vault-process.ts",
+    "src/control/vault-helper.ts",
+    "src/control/vault-custody.ts",
+    "src/control/credential-executor.ts",
+    "src/control/credential-gateway.ts"
   ],
   "scripts": {
     "check:theme": "bun scripts/check-paper-theme.mjs",
