@@ -239,9 +239,12 @@ flight rows that carry JSON objects, arrays, or JSON strings, and treats
 or its profile URN (`entityUrn`, `objectUrn`, `profileUrn`, `vieweeMemberUrn`,
 or `vieweeProfileId` plus vanity). Current Como trees can nest around depth 60,
 so the walk keeps a node ceiling and a depth ceiling of 128 instead of aborting
-at depth 32. Distance may appear on PROFILE_VIEW breadcrumb or RSC string rows
-rather than on the same decoded object as the identity. Empty, missing, or
-import-only bootstrap stays fail-closed.
+at depth 32. Distance may appear on PROFILE_VIEW breadcrumb or RSC string rows,
+including beside a `vieweeMemberUrn` or member id that is not the same
+`fsd_profile` URN bound from `vieweeProfileId`. A unique first-degree distance
+on that viewee join is accepted. Incidental viewer or other `fsd_profile` URNs
+in the same breadcrumb do not steal identity. Empty, missing, ambiguous, or
+contradictory distances stay fail-closed.
 
 When the same page already embeds Contact-info fields, including a labeled
 Email row, the operation projects those fields and does not issue a second
@@ -286,6 +289,15 @@ that page as contract-drift. After a deeper walk, identity still failed because
 the binder required a classic URN on the vanity record and required
 `networkDistance` on a decoded object. Adapter 1.24.0 joins `vieweeProfileId`
 plus vanity and reads breadcrumb or RSC string-row distance.
+
+A 2026-09-11 signed-in capture of another 1st-degree profile still bound
+`profiles.read` and still reached a unique `vieweeProfileId` profile URN after
+the 1.24.0 walk. `contacts.read` then failed closed because relationship
+distance sat on a PROFILE_VIEW breadcrumb next to `vieweeMemberUrn` / member
+ids, not on a vanity or `fsd_profile` record the binder treated as the same
+target. Adapter 1.25.0 joins that unique viewee distance, including when the
+breadcrumb also carries an incidental viewer URN, and still fails closed for
+self, non-first-degree, and contradictory distances.
 
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid
