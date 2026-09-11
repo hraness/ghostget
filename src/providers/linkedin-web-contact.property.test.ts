@@ -90,6 +90,24 @@ test("LinkedIn contact-info binding never invents a 1st-degree relationship", ()
       })).toThrow(distance === "SELF"
         ? "use profiles.read for the signed-in self profile"
         : "not a 1st-degree connection");
+      let nested: unknown = {
+        vanityName: slug,
+        vieweeProfileId: distance === "SELF" ? "123456789" : "ACoAAFixtureProfile",
+        isSelfView: distance === "SELF",
+      };
+      for (let index = 0; index < 36; index += 1) nested = [null, nested];
+      const deep = `<html><body><script>window.__como_rehydration__=${JSON.stringify([
+        `1:${JSON.stringify(nested)}\n2:${JSON.stringify(JSON.stringify({
+          networkDistance: distance === "SELF" ? 0 : distance === 2 || distance === "DISTANCE_2" ? 2 : 3,
+        }))}`,
+      ])}</script></body></html>`;
+      expect(() => projectLinkedInProfileContactBinding({
+        profileHtml: deep,
+        profileUrl: `https://www.linkedin.com/in/${slug}/`,
+        expectedViewerSubject: VIEWER,
+      })).toThrow(distance === "SELF"
+        ? "use profiles.read for the signed-in self profile"
+        : "not a 1st-degree connection");
     },
   ));
 });

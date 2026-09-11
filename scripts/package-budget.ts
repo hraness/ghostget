@@ -1,3 +1,13 @@
+// Ghostget 0.18.0 joined with main 959f9d2 (LinkedIn deep Como SDUI):
+// two fresh Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0
+// on darwin arm64 (zlib 1.2.12) are byte-identical: 2,316,774 compressed
+// and 12,662,758 payload bytes across exactly 524 files, SHA-256
+// 0940ba8e8e406f81093d360df8d6e7be9e972dbeba7b1c88ae51b961b7d0711d.
+// The main change contributes exactly 8,687 payload bytes to the prior
+// credential-repaired candidate. Preserve its 65-byte payload allowance,
+// exact inventory, and 2,802 + 4,096-byte compression allowance. These
+// are local measurements; required Linux CI checks its actual npm archive.
+//
 // Ghostget 0.18.0 final credential-custody repair: two fresh Bun 1.3.14
 // builds and npm 11.19.0 packs under Node 24.20.0 on darwin arm64 (zlib
 // 1.2.12) are byte-identical: 2,314,832 compressed and 12,654,071 payload
@@ -53,6 +63,20 @@
 // 2,802-byte Linux spread and the reviewed 4,096-byte portability allowance.
 // This is a projection, not Linux evidence: required CI checks its actual npm
 // archive under the pinned release toolchain. The five Release assets stay fixed.
+//
+// Ghostget 0.17.6 source plus the LinkedIn `contacts.read` deep Como SDUI
+// binding (adapter bundle 1.24.0), measured with no version bump: a Bun
+// 1.3.14 `pm pack` on Linux x64 shares
+// 12,452,611 payload bytes across exactly 500 files. The bun archive is
+// 2,122,424 compressed bytes, SHA-256
+// 6fdc9574102d2364548291891b8b81f9c1c1b442a95dfb13dce0d42f7e66944c.
+// The deeper walk, `vieweeProfileId` plus vanity identity join, breadcrumb
+// or RSC string-row distance, and skill-reference notes add 8,687 payload
+// bytes compared with the 0.17.6 measurement. Raise only the payload
+// ceiling to the measured value plus 65 bytes of headroom (12,452,676); the
+// packed size stays under the existing packed allowance and the 500-entry
+// inventory is unchanged. Theme CSS stays website-only. Fresh Linux CI
+// independently checks its actual canonical archive.
 //
 // Ghostget 0.17.6, measured after the shared Paper marketing theme and version
 // projections: two Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0
@@ -395,10 +419,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_321_730;
+export const MAX_PACKED_BYTES = 2_323_672;
 export const MAX_PACKED_ENTRIES = 524;
 export const MAX_PACKED_FILES = 524;
-export const MAX_UNPACKED_BYTES = 12_654_136;
+export const MAX_UNPACKED_BYTES = 12_662_823;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
