@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.17.6 - 2026-09-10
+
+- Align the marketing site with AICharts using the shared Paper colors, Nebula
+  Sans, and compact headings. Keep the existing component versions and vendor
+  an immutable, verified theme snapshot so visual updates stay independent of
+  UI and compiler upgrades. CLI and provider behavior is unchanged.
+
 ## 0.17.5 - 2026-09-10
 
 - Read the main-branch CodeQL analyses as a bounded twenty-entry newest-first
