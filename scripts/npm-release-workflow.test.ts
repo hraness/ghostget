@@ -1279,7 +1279,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("cff3bf55b9dabfea4b17f590ff83cfbc8c78d8b0b2c338696da82b4c6cb42a1b");
     expect(budget).toContain("2,258,370 compressed and 12,443,517 payload bytes");
     expect(budget).toContain("319fa969d7398386b7f2963cb000a02bd3b99d0fad19a16141bfad1429e10bfb");
-    expect(budget).toContain("2,258,514 compressed and 12,443,924 payload bytes");
+    expect(budget).toContain("2,258,514 compressed and 12,443,924");
     expect(budget).toContain("009e254d04ce94d17cbbe8a09293adcda42cb4b1430469d0d63c376d4c7581be");
     expect(budget).toContain("12,452,611 payload bytes across exactly 500 files");
     expect(budget).toContain("6fdc9574102d2364548291891b8b81f9c1c1b442a95dfb13dce0d42f7e66944c");

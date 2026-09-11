@@ -1,7 +1,8 @@
 // Ghostget 0.17.6 source plus the LinkedIn `contacts.read` deep Como SDUI
 // binding (adapter bundle 1.24.0), measured with no version bump: a Bun
-// 1.3.14 `pm pack` on Linux x64 shares 12,452,611 payload bytes across
-// exactly 500 files. The bun archive is 2,122,424 compressed bytes, SHA-256
+// 1.3.14 `pm pack` on Linux x64 shares
+// 12,452,611 payload bytes across exactly 500 files. The bun archive is
+// 2,122,424 compressed bytes, SHA-256
 // 6fdc9574102d2364548291891b8b81f9c1c1b442a95dfb13dce0d42f7e66944c.
 // The deeper walk, `vieweeProfileId` plus vanity identity join, breadcrumb
 // or RSC string-row distance, and skill-reference notes add 8,687 payload
