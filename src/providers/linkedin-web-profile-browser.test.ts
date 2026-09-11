@@ -21,7 +21,10 @@ import {
   type WebSessionExecution,
 } from "../web-session-execution";
 import { executeLinkedInWebOperation } from "./linkedin-web-runtime";
-import { buildLinkedInProfileContactInfoGraphqlPath } from "./linkedin-web-contact";
+import {
+  buildLinkedInProfileContactDetailsOverlayPath,
+  buildLinkedInProfileContactInfoGraphqlPath,
+} from "./linkedin-web-contact";
 import {
   createLinkedInProfileBrowserTransport,
   LinkedInProfileBrowserFailure,
@@ -52,7 +55,7 @@ const cookieSourceAuth = {
 } as const satisfies GhostgetAuth;
 
 type BrowserReadBinding = {
-  readonly kind: "html" | "json";
+  readonly kind: "html" | "json" | "rsc";
   readonly maxBytes: number;
   readonly path: string;
   readonly referrer: string;
@@ -534,6 +537,134 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         referrer: PROFILE_URL,
       },
     ]);
+    await transport.close();
+  });
+
+  test("performs one exact identity, profile, and Contact-info overlay sequence", async () => {
+    const requests: BrowserReadBinding[] = [];
+    const overlayBody = [
+      '1:I["com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay"]',
+      `2:${JSON.stringify({
+        fields: [
+          { label: "Email", value: "connection@example.test" },
+          { label: "Connected since", value: "October 3, 2023" },
+        ],
+      })}`,
+    ].join("\n");
+    const session: BrowserSession = {
+      runBatch: (commands) => {
+        const command = commands[0];
+        if (command?.[0] === "open" || command?.[0] === "wait") {
+          return Promise.resolve([{ success: true, result: {} }]);
+        }
+        if (command?.[0] !== "eval" || command[1] === undefined) {
+          throw new Error("unexpected LinkedIn contact-info overlay browser command");
+        }
+        const binding = requestBinding(command[1]);
+        requests.push(binding);
+        if (binding.path === "/voyager/api/me") {
+          return Promise.resolve([browserBodyRecord(identityResponse(), "application/json")]);
+        }
+        if (binding.path === "/in/0thernet/") {
+          return Promise.resolve([browserBodyRecord("<html>1st</html>", "text/html")]);
+        }
+        if (binding.path.startsWith("/flagship-web/rsc-action/actions/navigation")) {
+          expect(binding.kind).toBe("rsc");
+          expect(command[1]).toContain('accept:"text/x-component"');
+          expect(command[1]).toContain('RSC:"1"');
+          return Promise.resolve([browserBodyRecord(overlayBody, "text/x-component")]);
+        }
+        throw new Error(`unexpected LinkedIn contact-info overlay path ${binding.path}`);
+      },
+      close: () => Promise.resolve(),
+      cleanup: () => Promise.resolve(),
+    };
+    const transport = await createLinkedInProfileBrowserTransport(auth, {
+      timeoutMs: 1_000,
+      maxOutputBytes: 2 * 1024 * 1024,
+      dependencies: { createBrowserSession: () => Promise.resolve(session) },
+    });
+    const contactInput = {
+      profileUrl: PROFILE_URL,
+      profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+    };
+    expect(await transport.currentIdentityResponse()).toEqual(JSON.parse(identityResponse()));
+    expect(await transport.readProfileHtml(PROFILE_URL)).toBe("<html>1st</html>");
+    expect(await transport.readContactOverlayText(contactInput)).toBe(overlayBody);
+    await expect(transport.readContactInfoJson(contactInput)).rejects.toThrow("out of order");
+    expect(requests).toEqual([
+      {
+        kind: "json",
+        maxBytes: 2 * 1024 * 1024,
+        path: "/voyager/api/me",
+        referrer: "https://www.linkedin.com/feed/",
+      },
+      {
+        kind: "html",
+        maxBytes: 2 * 1024 * 1024,
+        path: "/in/0thernet/",
+        referrer: "https://www.linkedin.com/feed/",
+      },
+      {
+        kind: "rsc",
+        maxBytes: 2 * 1024 * 1024,
+        path: buildLinkedInProfileContactDetailsOverlayPath({
+          profileUrn: contactInput.profileUrn,
+        }),
+        referrer: PROFILE_URL,
+      },
+    ]);
+    await transport.close();
+  });
+
+  test("keeps Contact-info GraphQL rejection in profile state so overlay can follow", async () => {
+    const session: BrowserSession = {
+      runBatch: (commands) => {
+        const command = commands[0];
+        if (command?.[0] === "open" || command?.[0] === "wait") {
+          return Promise.resolve([{ success: true, result: {} }]);
+        }
+        if (command?.[0] !== "eval" || command[1] === undefined) {
+          throw new Error("unexpected LinkedIn contact-info fallback browser command");
+        }
+        const binding = requestBinding(command[1]);
+        if (binding.path === "/voyager/api/me") {
+          return Promise.resolve([browserBodyRecord(identityResponse(), "application/json")]);
+        }
+        if (binding.path === "/in/0thernet/") {
+          return Promise.resolve([browserBodyRecord("<html>1st</html>", "text/html")]);
+        }
+        if (binding.path.startsWith("/voyager/api/graphql")) {
+          return Promise.resolve([browserRejectionRecord(403, "text/html")]);
+        }
+        if (binding.path.startsWith("/flagship-web/rsc-action/actions/navigation")) {
+          return Promise.resolve([browserBodyRecord(
+            '1:{"emailAddress":"connection@example.test"}',
+            "text/x-component",
+          )]);
+        }
+        throw new Error(`unexpected LinkedIn contact-info fallback path ${binding.path}`);
+      },
+      close: () => Promise.resolve(),
+      cleanup: () => Promise.resolve(),
+    };
+    const transport = await createLinkedInProfileBrowserTransport(auth, {
+      timeoutMs: 1_000,
+      maxOutputBytes: 2 * 1024 * 1024,
+      dependencies: { createBrowserSession: () => Promise.resolve(session) },
+    });
+    const contactInput = {
+      profileUrl: PROFILE_URL,
+      profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+    };
+    await transport.currentIdentityResponse();
+    await transport.readProfileHtml(PROFILE_URL);
+    await expect(transport.readContactInfoJson(contactInput)).rejects.toBeInstanceOf(
+      LinkedInProfileBrowserResponseRejectedError,
+    );
+    expect(await transport.readContactOverlayText(contactInput)).toBe(
+      '1:{"emailAddress":"connection@example.test"}',
+    );
     await transport.close();
   });
 

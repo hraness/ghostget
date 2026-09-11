@@ -16,6 +16,27 @@ export class LinkedInContactIdentityMismatch extends Error {
   }
 }
 
+export function isLinkedInContactGraphqlUnavailable(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 8 && current !== undefined; depth += 1) {
+    if (current instanceof LinkedInProfileBrowserResponseRejectedError) {
+      return current.status === 403
+        || current.contentType === "text/html"
+        || current.contentType === "missing";
+    }
+    if (
+      current instanceof Error
+      && "cause" in current
+      && current.cause !== current
+    ) {
+      current = current.cause;
+      continue;
+    }
+    break;
+  }
+  return false;
+}
+
 export function linkedInContactReadFailure(
   error: unknown,
   stage: LinkedInContactStage,

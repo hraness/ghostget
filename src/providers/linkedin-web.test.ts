@@ -106,11 +106,11 @@ describe("LinkedIn internal-web operation registry", () => {
       expect(contract.state).toBe(observed.has(operation) ? "observed" : "capture-required");
       expect(contract.requests).toHaveLength(
         operation === "posts.publish" ? 5
-          : operation === "profiles.read"
-            || operation === "organizations.read"
-            || operation === "feeds.read"
-            || operation === "contacts.read" ? 1
-            : 0,
+          : operation === "contacts.read" ? 2
+            : operation === "profiles.read"
+              || operation === "organizations.read"
+              || operation === "feeds.read" ? 1
+              : 0,
       );
     }
     expect(LINKEDIN_WEB_OPERATIONS["reactions.set"].risk).toBe("R2");

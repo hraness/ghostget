@@ -4,6 +4,7 @@ import { readAttempt, type ReadEffectFailure, withReadResource } from "../read-e
 import type { WebSessionExecution } from "../web-session-execution";
 import { LinkedInContactPlatform } from "./linkedin-contact-platform";
 import {
+  isLinkedInContactGraphqlUnavailable,
   linkedInContactDiagnostic,
   linkedInContactReadFailure,
   type LinkedInContactStage,
@@ -51,11 +52,19 @@ export function linkedInContactReadProgram(
         } else {
           stage = "contact";
           const queryId = resolveLinkedInProfileContactInfoQueryId(profileHtml);
-          contactPayload = yield* platform.contactPayload(browser, {
+          const contactInput = {
             profileUrl: target.url,
             profileUrn: binding.profileUrn,
             ...(queryId === undefined ? {} : { queryId }),
-          });
+          };
+          contactPayload = queryId === undefined
+            ? yield* platform.contactOverlay(browser, contactInput)
+            : yield* platform.contactPayload(browser, contactInput).pipe(
+              Effect.catchIf(
+                (error) => isLinkedInContactGraphqlUnavailable(error),
+                () => platform.contactOverlay(browser, contactInput),
+              ),
+            );
         }
         stage = "projection";
         const observedAt = yield* platform.observedAt;
