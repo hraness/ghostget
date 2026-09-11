@@ -11,9 +11,9 @@ Historical entries retain their original delivery coordinates.
   `vieweeProfileId` plus vanity and `networkDistance` sits on a PROFILE_VIEW
   breadcrumb or `vieweeMemberUrn` record, including a member id or a different
   `fsd_profile` encoding than the bound URN. Self, non-first-degree, and
-  contradictory distances still fail closed, and no email is invented. Adapter
-  bundle 1.25.0. This is the third live Contact-info drift after the 1.23.0
-  flight-array parse and the 1.24.0 deep-walk / `vieweeProfileId` join.
+  contradictory distances still fail closed, and no email is invented.
+  Adapter bundle 1.25.0. This is the third live Contact-info drift after the
+  1.23.0 flight-array parse and the 1.24.0 deep-walk / `vieweeProfileId` join.
 
 ## 0.18.0 - 2026-09-11
 
