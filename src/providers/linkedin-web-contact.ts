@@ -49,6 +49,9 @@ const DISTANCE_IN_TEXT =
   /(?:^|["'\\{,])(?:networkDistance|memberDistance|distance)"?\s*:\s*"?(DISTANCE_[A-Z0-9]+|OUT_OF_NETWORK|SELF|[0-9]+)"?/gu;
 const PROFILE_URN_IN_TEXT = /urn:li:fsd_profile:[A-Za-z0-9_-]{1,256}/gu;
 const VIEWEE_PROFILE_ID_IN_TEXT = /vieweeProfileId"\s*:\s*"([A-Za-z0-9_-]{1,256})"/gu;
+const VIEWEE_MEMBER_URN_IN_TEXT =
+  /vieweeMemberUrn\\?"?\s*:\s*\\?"?(urn:li:(?:fsd_profile|member):[A-Za-z0-9_-]{1,256}|[0-9]{1,32})/gu;
+const MEMBER_URN = /^urn:li:member:[0-9]{1,32}$/u;
 const VANITY_IN_TEXT =
   /(?:vanityName|publicIdentifier)"\s*:\s*"([A-Za-z0-9][A-Za-z0-9_-]{1,99})"/gu;
 const KEYED_IDENTITY_KEYS = new Set([
@@ -356,13 +359,23 @@ function extractJsonString(source: string, start: number): string | undefined {
   return undefined;
 }
 
+function uniqueTextCapture(values: readonly string[]): string | null {
+  const unique = [...new Set(values)];
+  return unique.length === 1 ? unique[0]! : null;
+}
+
 function breadcrumbRecordFromText(value: string): JsonRecord | null {
   if (value.length < 8 || value.length > 1024 * 1024) return null;
   const distances = [...value.matchAll(DISTANCE_IN_TEXT)]
     .map((match) => match[1])
     .filter((item): item is string => item !== undefined);
-  const urns = [...value.matchAll(PROFILE_URN_IN_TEXT)];
+  const urns = [...value.matchAll(PROFILE_URN_IN_TEXT)]
+    .map((match) => match[0])
+    .filter((item): item is string => item !== undefined);
   const vieweeIds = [...value.matchAll(VIEWEE_PROFILE_ID_IN_TEXT)]
+    .map((match) => match[1])
+    .filter((item): item is string => item !== undefined);
+  const vieweeMembers = [...value.matchAll(VIEWEE_MEMBER_URN_IN_TEXT)]
     .map((match) => match[1])
     .filter((item): item is string => item !== undefined);
   const vanities = [...value.matchAll(VANITY_IN_TEXT)]
@@ -372,20 +385,20 @@ function breadcrumbRecordFromText(value: string): JsonRecord | null {
     distances.length === 0
     && urns.length === 0
     && vieweeIds.length === 0
+    && vieweeMembers.length === 0
     && vanities.length === 0
   ) return null;
   const record: Record<string, unknown> = {};
-  if (distances.length === 1) {
-    const raw = distances[0]!;
-    record.networkDistance = /^[0-9]+$/u.test(raw) ? Number(raw) : raw;
-  } else if (distances.length > 1) {
-    const unique = [...new Set(distances)];
-    if (unique.length === 1) {
-      const raw = unique[0]!;
-      record.networkDistance = /^[0-9]+$/u.test(raw) ? Number(raw) : raw;
-    }
+  const distance = uniqueTextCapture(distances);
+  if (distance !== null) {
+    record.networkDistance = /^[0-9]+$/u.test(distance) ? Number(distance) : distance;
   }
-  if (urns.length === 1) record.profileUrn = urns[0]![0];
+  const vieweeMemberUrn = uniqueTextCapture(vieweeMembers);
+  if (vieweeMemberUrn !== null) record.vieweeMemberUrn = vieweeMemberUrn;
+  else {
+    const incidental = uniqueTextCapture(urns);
+    if (incidental !== null) record.profileUrn = incidental;
+  }
   if (vieweeIds.length === 1) record.vieweeProfileId = vieweeIds[0];
   if (vanities.length === 1) record.vanityName = vanities[0];
   return Object.keys(record).length > 0 ? Object.freeze(record) : null;
@@ -673,6 +686,32 @@ function profileUrnFromRecord(record: JsonRecord): string | null {
   return profileUrnFromIdentity(record.vieweeProfileId);
 }
 
+function durableProfileUrnFromRecord(record: JsonRecord): string | null {
+  for (const key of ["entityUrn", "objectUrn", "profileUrn"] as const) {
+    const urn = profileUrnFromIdentity(record[key]);
+    if (urn !== null) return urn;
+  }
+  const viewee = profileUrnFromIdentity(record.vieweeMemberUrn);
+  if (viewee !== null && !VIEWER_SUBJECT.test(viewee)) return viewee;
+  return profileUrnFromIdentity(record.vieweeProfileId);
+}
+
+function classicProfileUrnFromRecord(record: JsonRecord): string | null {
+  for (const key of ["entityUrn", "objectUrn", "profileUrn"] as const) {
+    const urn = profileUrnFromIdentity(record[key]);
+    if (urn !== null) return urn;
+  }
+  return null;
+}
+
+function vieweeMemberIdentity(record: JsonRecord): string | null {
+  const value = record.vieweeMemberUrn;
+  if (typeof value !== "string" || value.length < 1 || value.length > 512) return null;
+  return profileUrnFromIdentity(value)
+    ?? (MEMBER_URN.test(value) ? value : null)
+    ?? (PROFILE_ID.test(value) ? value : null);
+}
+
 function recordIsSelfView(record: JsonRecord): boolean {
   return record.isSelfView === true;
 }
@@ -710,8 +749,26 @@ function recordContradictsTarget(
   urn: string,
 ): boolean {
   const vanity = vanityFromRecord(record);
-  const recordUrn = profileUrnFromRecord(record);
-  return (vanity !== null && vanity !== slug) || (recordUrn !== null && recordUrn !== urn);
+  const classicUrn = classicProfileUrnFromRecord(record);
+  return (vanity !== null && vanity !== slug)
+    || (classicUrn !== null && classicUrn !== urn);
+}
+
+function recordIsViewerViewee(
+  record: JsonRecord,
+  viewer: string,
+): boolean {
+  const member = vieweeMemberIdentity(record);
+  return member === viewer || profileUrnFromIdentity(member) === viewer;
+}
+
+function uniqueNonSelfDistance(
+  values: readonly (string | number)[],
+): string | number | undefined {
+  const other = values.filter((value) => !isSelfDistance(value));
+  const unique = uniqueDistances(other);
+  if (unique.length > 1) throw omittedDistanceError();
+  return unique[0];
 }
 
 function relationshipDistance(
@@ -724,22 +781,35 @@ function relationshipDistance(
     .filter((record) => recordMatchesTarget(record, slug, urn))
     .map(distanceValue)
     .filter((value): value is string | number => value !== null);
-  const boundOther = bound.filter((value) => !isSelfDistance(value));
-  const boundUnique = uniqueDistances(boundOther);
-  if (boundUnique.length === 1 && boundUnique[0] !== undefined) return boundUnique[0];
-  if (boundUnique.length > 1) throw omittedDistanceError();
+  const boundDistance = uniqueNonSelfDistance(bound);
+  if (boundDistance !== undefined) return boundDistance;
   if (bound.some(isSelfDistance) && urn === viewer) throw selfProfileError();
 
-  const breadcrumbs = records
-    .filter((record) => !recordContradictsTarget(record, slug, urn))
+  const vieweeJoined = records
+    .filter((record) => (
+      !recordContradictsTarget(record, slug, urn)
+      && !recordIsViewerViewee(record, viewer)
+      && vieweeMemberIdentity(record) !== null
+    ))
     .map(distanceValue)
     .filter((value): value is string | number => value !== null);
-  const breadcrumbOther = breadcrumbs.filter((value) => !isSelfDistance(value));
-  const breadcrumbUnique = uniqueDistances(breadcrumbOther);
-  if (breadcrumbUnique.length === 1 && breadcrumbUnique[0] !== undefined) {
-    return breadcrumbUnique[0];
+  const vieweeDistance = uniqueNonSelfDistance(vieweeJoined);
+  if (vieweeDistance !== undefined) return vieweeDistance;
+  if (vieweeJoined.some(isSelfDistance) && (urn === viewer || !vieweeJoined.some((value) => !isSelfDistance(value)))) {
+    throw selfProfileError();
   }
-  if (breadcrumbs.some(isSelfDistance) && (urn === viewer || breadcrumbOther.length === 0)) {
+
+  const breadcrumbs = records
+    .filter((record) => (
+      !recordContradictsTarget(record, slug, urn)
+      && !recordMatchesTarget(record, slug, urn)
+      && vieweeMemberIdentity(record) === null
+    ))
+    .map(distanceValue)
+    .filter((value): value is string | number => value !== null);
+  const breadcrumbDistance = uniqueNonSelfDistance(breadcrumbs);
+  if (breadcrumbDistance !== undefined) return breadcrumbDistance;
+  if (breadcrumbs.some(isSelfDistance) && (urn === viewer || !breadcrumbs.some((value) => !isSelfDistance(value)))) {
     throw selfProfileError();
   }
   throw omittedDistanceError();
@@ -760,14 +830,14 @@ export function projectLinkedInProfileContactBinding(input: {
   if (vanityRecords.some(recordIsSelfView)) throw selfProfileError();
   const urns = new Set<string>();
   for (const record of vanityRecords) {
-    const urn = profileUrnFromRecord(record);
+    const urn = durableProfileUrnFromRecord(record);
     if (urn !== null) urns.add(urn);
   }
   if (urns.size < 1) {
     const joined = new Set<string>();
     let sawSelf = false;
     for (const record of records) {
-      const urn = profileUrnFromRecord(record);
+      const urn = durableProfileUrnFromRecord(record);
       const distance = distanceValue(record);
       if (
         recordIsSelfView(record)

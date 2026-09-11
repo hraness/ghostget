@@ -316,6 +316,117 @@ describe("LinkedIn contacts.read 1st-degree binding", () => {
     })).toMatchObject({ relationship: "first-degree", profileUrn: PROFILE_URN });
   });
 
+  test("joins vieweeProfileId identity to distance on a sibling vieweeMemberUrn record", () => {
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([
+        'I["PROFILE_VIEW"]',
+        { vanityName: "example", vieweeProfileId: "ACoAAFixtureProfile", isSelfView: false },
+        { vieweeMemberUrn: "urn:li:member:987654321", networkDistance: 1 },
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toMatchObject({
+      vanity: "example",
+      profileUrn: PROFILE_URN,
+      relationship: "first-degree",
+    });
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([
+        { vanityName: "example", vieweeProfileId: "ACoAAFixtureProfile", isSelfView: false },
+        { vieweeMemberUrn: "urn:li:fsd_profile:987654321", networkDistance: 1 },
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toMatchObject({
+      profileUrn: PROFILE_URN,
+      relationship: "first-degree",
+    });
+  });
+
+  test("joins unique breadcrumb distance beside vieweeMemberUrn that is not the bound fsd_profile URN", () => {
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([
+        'I["com.linkedin.sdui.flagshipnav.profile.ProfileView"]',
+        { vanityName: "example", vieweeProfileId: "ACoAAFixtureProfile", isSelfView: false },
+        'networkDistance":1,"vieweeMemberUrn":"urn:li:member:987654321"',
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toMatchObject({
+      profileUrn: PROFILE_URN,
+      relationship: "first-degree",
+    });
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([
+        { vanityName: "example", vieweeProfileId: "ACoAAFixtureProfile" },
+        'networkDistance":1,"vieweeMemberUrn":"urn:li:member:987654321","extra":"urn:li:fsd_profile:123456789"',
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toMatchObject({
+      profileUrn: PROFILE_URN,
+      relationship: "first-degree",
+    });
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([
+        { vanityName: "example", vieweeProfileId: "ACoAAFixtureProfile" },
+        'networkDistance":1,"vieweeMemberUrn":"urn:li:fsd_profile:987654321"',
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toMatchObject({
+      profileUrn: PROFILE_URN,
+      relationship: "first-degree",
+    });
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([
+        { vanityName: "example", vieweeProfileId: "ACoAAFixtureProfile" },
+        'networkDistance":1,"vieweeMemberUrn":"urn:li:fsd_profile:987654321","vanityName":"example"',
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toMatchObject({
+      profileUrn: PROFILE_URN,
+      relationship: "first-degree",
+    });
+  });
+
+  test("prefers a unique vieweeMemberUrn distance over an identity-free breadcrumb", () => {
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([
+        { vanityName: "example", vieweeProfileId: "ACoAAFixtureProfile" },
+        { vieweeMemberUrn: "urn:li:member:987654321", networkDistance: 1 },
+        'networkDistance":2',
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toMatchObject({
+      profileUrn: PROFILE_URN,
+      relationship: "first-degree",
+    });
+  });
+
+  test("fails closed when vieweeMemberUrn or breadcrumb distances contradict", () => {
+    expect(() => projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([
+        { vanityName: "example", vieweeProfileId: "ACoAAFixtureProfile" },
+        { vieweeMemberUrn: "urn:li:member:111", networkDistance: 1 },
+        { vieweeMemberUrn: "urn:li:member:222", networkDistance: 2 },
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toThrow("omitted or contradicted its relationship distance");
+    expect(() => projectLinkedInProfileContactBinding({
+      profileHtml: comoFlightHtml([
+        { vanityName: "example", vieweeProfileId: "ACoAAFixtureProfile" },
+        'networkDistance":1',
+        'networkDistance":2',
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toThrow("omitted or contradicted its relationship distance");
+  });
+
   test("fails closed for deep Como trees that are self or not first-degree", () => {
     expect(() => projectLinkedInProfileContactBinding({
       profileHtml: comoFlightHtml([

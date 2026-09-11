@@ -3737,6 +3737,62 @@ describe("LinkedIn contacts.read runtime", () => {
     expect(queryIds).toEqual([undefined]);
   });
 
+  test("joins vieweeProfileId identity to unique breadcrumb vieweeMemberUrn distance", async () => {
+    const browserCalls: string[] = [];
+    const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify([
+      `1:I["PROFILE_VIEW"]\n2:${JSON.stringify({
+        vanityName: "example",
+        vieweeProfileId: "ACoAAFixtureProfile",
+        isSelfView: false,
+      })}\n3:networkDistance":1,"vieweeMemberUrn":"urn:li:member:987654321","extra":"urn:li:fsd_profile:123456789"`,
+    ])}</script></body></html>`;
+    const result = await executeLinkedInWebOperation(contactInfoRecipe(), {
+      profile_url: "https://www.linkedin.com/in/example/",
+    }, linkedinBrowserProfileAuth, {
+      dependencies: {
+        now: () => Date.parse("2026-09-08T18:00:00.000Z"),
+        createProfileBrowserTransport: () => Promise.resolve({
+          currentIdentityResponse: () => {
+            browserCalls.push("identity");
+            return Promise.resolve(currentIdentityResponse());
+          },
+          readProfileHtml: () => {
+            browserCalls.push("profile");
+            return Promise.resolve(html);
+          },
+          readConnectionsHtml: () => Promise.reject(new Error("breadcrumb crossed connections")),
+          readContactInfoJson: (input) => {
+            browserCalls.push(`contact:${input.profileUrn}`);
+            return Promise.resolve({
+              $type: "com.linkedin.voyager.identity.profile.ProfileContactInfo",
+              emailAddress: "connection@example.test",
+              connectedAt: Date.parse("2023-10-03T00:00:00.000Z"),
+            });
+          },
+          readOrganizationHtml: () => Promise.reject(new Error("breadcrumb crossed company")),
+          close: () => {
+            browserCalls.push("close");
+            return Promise.resolve();
+          },
+        }),
+      },
+    });
+    expect(result).toMatchObject({
+      status: "succeeded",
+      output: {
+        contact: { email: "connection@example.test" },
+        profile: { relationship: "first-degree", vanity: "example" },
+      },
+    });
+    expect(browserCalls).toEqual([
+      "identity",
+      "profile",
+      "contact:urn:li:fsd_profile:ACoAAFixtureProfile",
+      "close",
+    ]);
+    expect(JSON.stringify(result)).not.toContain("@gmail.com");
+  });
+
   test("binds Como networkDistance and skips GraphQL when the page already embeds Email", async () => {
     const browserCalls: string[] = [];
     const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify({

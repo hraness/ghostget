@@ -108,8 +108,46 @@ test("LinkedIn contact-info binding never invents a 1st-degree relationship", ()
       })).toThrow(distance === "SELF"
         ? "use profiles.read for the signed-in self profile"
         : "not a 1st-degree connection");
+      const memberFlight = `<html><body><script>window.__como_rehydration__=${JSON.stringify([
+        `1:I["ProfileView"]\n2:${JSON.stringify({
+          vanityName: slug,
+          vieweeProfileId: distance === "SELF" ? "123456789" : "ACoAAFixtureProfile",
+          isSelfView: distance === "SELF",
+        })}\n3:${JSON.stringify({
+          vieweeMemberUrn: distance === "SELF" ? VIEWER : "urn:li:member:987654321",
+          networkDistance: distance === "SELF" ? 0 : distance === 2 || distance === "DISTANCE_2" ? 2 : 3,
+        })}`,
+      ])}</script></body></html>`;
+      expect(() => projectLinkedInProfileContactBinding({
+        profileHtml: memberFlight,
+        profileUrl: `https://www.linkedin.com/in/${slug}/`,
+        expectedViewerSubject: VIEWER,
+      })).toThrow(distance === "SELF"
+        ? "use profiles.read for the signed-in self profile"
+        : "not a 1st-degree connection");
     },
   ));
+});
+
+test("LinkedIn contact-info binding joins unique vieweeMemberUrn distance to vieweeProfileId identity", () => {
+  assertProperty(fc.property(vanity, (slug) => {
+    const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify([
+      `1:I["ProfileView"]\n2:${JSON.stringify({
+        vanityName: slug,
+        vieweeProfileId: "ACoAAFixtureProfile",
+        isSelfView: false,
+      })}\n3:networkDistance":1,"vieweeMemberUrn":"urn:li:member:987654321","extra":"${VIEWER}"`,
+    ])}</script></body></html>`;
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: html,
+      profileUrl: `https://www.linkedin.com/in/${slug}/`,
+      expectedViewerSubject: VIEWER,
+    })).toMatchObject({
+      vanity: slug.toLowerCase(),
+      profileUrn: PROFILE_URN,
+      relationship: "first-degree",
+    });
+  }));
 });
 
 test("LinkedIn contact-info projection never invents an email", () => {
