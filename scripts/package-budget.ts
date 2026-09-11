@@ -1,3 +1,16 @@
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` multi-escaped
+// PROFILE_VIEW breadcrumb peel (adapter bundle 1.26.0), measured with no
+// version bump: a Bun 1.3.14 `pm pack` on Linux x64 shares
+// 12,670,102 payload bytes across exactly 524 files. The bun archive is
+// 2,178,602 compressed bytes, SHA-256
+// 6c90a0e415f5b5d4e0466ad679d12167f370353da11f43c2208f5ed0a0780053.
+// The escape-tolerant distance capture, adapter notes, and changelog add
+// 3,289 payload bytes compared with the 1.25.0 measurement. Raise only the
+// payload ceiling to the measured value plus 65 bytes of headroom
+// (12,670,167); the packed size stays under the existing packed allowance
+// and the 524-entry inventory is unchanged. Theme CSS stays website-only.
+// Fresh Linux CI independently checks its actual canonical archive.
+//
 // Ghostget 0.18.0 source plus the LinkedIn `contacts.read` vieweeMemberUrn
 // distance join (adapter bundle 1.25.0), measured with no version bump: a Bun
 // 1.3.14 `pm pack` on Linux x64 shares
@@ -436,7 +449,7 @@
 export const MAX_PACKED_BYTES = 2_323_672;
 export const MAX_PACKED_ENTRIES = 524;
 export const MAX_PACKED_FILES = 524;
-export const MAX_UNPACKED_BYTES = 12_666_878;
+export const MAX_UNPACKED_BYTES = 12_670_167;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
