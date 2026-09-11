@@ -47,6 +47,7 @@ const requiredPaths = Object.freeze([
 // package identity. Keep them mandatory for the current Ghostget artifact.
 const controlPaths = Object.freeze([
   "docs/control-panel.md",
+  "docs/agent-setup.md",
   "skills/ghostget/references/control-panel.md",
   "src/control/account-revision.ts",
   "src/control/activity.ts",
@@ -71,6 +72,13 @@ const controlPaths = Object.freeze([
   "src/control/interfaces.ts",
   "src/control/protocol.ts",
   "src/control/service.ts",
+  "src/control/setup-model.ts",
+  "src/control/setup.ts",
+  "src/control/setup-cli.ts",
+  "src/control/discovery.ts",
+  "src/control/discovery-process.ts",
+  "src/control/discovery-helper.ts",
+  "src/control/discovery-reader.ts",
   "src/control/validation.ts",
   "src/control/vault.ts",
   "src/control/web-gateway.ts",
@@ -184,6 +192,7 @@ function verifyAllowedPath(path: string, type: "directory" | "file", skillName: 
       || path === "docs/imessage-direct-provider.md"
       || path === "docs/rental-listings.md"
       || path === "docs/control-panel.md"
+      || path === "docs/agent-setup.md"
       || path === "package.json"
       || path === "tsconfig.json"
       || path.startsWith("dist/")

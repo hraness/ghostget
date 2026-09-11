@@ -1705,6 +1705,11 @@ describe("npm publication contract", () => {
   });
 
   test("requires the shipped control surface and rejects unreviewed documentation or test sources", async () => {
+    const setupSources = [
+      "docs/agent-setup.md", "src/control/setup-model.ts", "src/control/setup.ts",
+      "src/control/setup-cli.ts", "src/control/discovery.ts", "src/control/discovery-process.ts",
+      "src/control/discovery-helper.ts", "src/control/discovery-reader.ts",
+    ];
     const directory = await mkdtemp(join(tmpdir(), "ghostget-control-artifact-"));
     const archive = join(directory, "package.tgz");
     try {
@@ -1712,13 +1717,14 @@ describe("npm publication contract", () => {
       const inventory = await inspectPackageArtifact(archive);
       expect(inventory.files.some(file => file.path === "docs/control-panel.md")).toBe(true);
       expect(inventory.files.some(file => file.path === "src/control/credential-helper.ts")).toBe(true);
-      for (const source of requiredVaultSources) expect(inventory.files.some(file => file.path === source)).toBe(true);
+      for (const source of [...requiredVaultSources, ...setupSources]) expect(inventory.files.some(file => file.path === source)).toBe(true);
       expect(inventory.files.some(file => file.path === "src/provider-plugin-import-analysis.ts")).toBe(true);
       expect(inventory.files.some(file => file.path.startsWith("desktop/") || file.path.includes("/direct/"))).toBe(false);
       expect(inventory.files.some(file => file.path.includes("benchmark"))).toBe(false);
       const originalTar = gunzipSync(await readFile(archive));
       for (const [source, replacement, expected] of [
         ...requiredVaultSources.map(source => [source, source.replace(".ts", "-missing.ts"), `Required package path is missing: ${source}`] as const),
+        ...setupSources.map((source, index) => [source, `src/absent-setup-${index}.ts`, `Required package path is missing: ${source}`] as const),
         ["src/control/helper.ts", "src/control/absent-helper.ts", "Required package path is missing: src/control/helper.ts"],
         ["src/provider-plugin-import-analysis.ts", "src/absent-provider-analysis.ts", "Required package path is missing: src/provider-plugin-import-analysis.ts"],
         ["docs/control-panel.md", "src/control-guide.md", "Required package path is missing: docs/control-panel.md"],
