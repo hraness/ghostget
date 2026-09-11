@@ -59,6 +59,28 @@ function comoFlightHtml(rows: readonly unknown[]): string {
   return comoHtml([flight]);
 }
 
+const RSC_FLIGHT_ROW = /(?:^|\n)(\d+):/u;
+
+function nonFlightComoSlotArray(
+  slot6: string,
+  identity: Readonly<Record<string, unknown>> = {
+    vanityName: "example",
+    vieweeProfileId: "ACoAAFixtureProfile",
+    isSelfView: false,
+  },
+): unknown[] {
+  return [null, null, null, null, null, identity, slot6];
+}
+
+function multiEscapedProfileViewSlot(options: {
+  readonly distance?: string;
+  readonly memberUrn?: string;
+} = {}): string {
+  const distance = options.distance ?? "1";
+  const memberUrn = options.memberUrn ?? "urn:li:member:987654321";
+  return `networkDistance\\":${distance},\\"vieweeMemberUrn\\":\\"${memberUrn}\\",\\"breadcrumbType\\":\\"PROFILE_VIEW\\"`;
+}
+
 const CONTACT_QUERY_ID =
   "voyagerIdentityDashProfileContactInfo.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const GRAPHQL_PATH = buildLinkedInProfileContactInfoGraphqlPath({
@@ -430,6 +452,77 @@ describe("LinkedIn contacts.read 1st-degree binding", () => {
       profileUrn: PROFILE_URN,
       relationship: "first-degree",
     });
+  });
+
+  test("binds 1st-degree from a non-flight Como string slot carrying multi-escaped PROFILE_VIEW distance", () => {
+    const slot6 = multiEscapedProfileViewSlot();
+    expect(RSC_FLIGHT_ROW.test(slot6)).toBe(false);
+    const slots = nonFlightComoSlotArray(slot6);
+    expect(slots).toHaveLength(7);
+    expect(slots[6]).toBe(slot6);
+    const html = comoHtml(slots);
+    expect(html).toContain("__como_rehydration__=[");
+    expect(html).not.toContain("bpr-guid-");
+    expect(html).not.toMatch(/__como_rehydration__=\["\d+:/u);
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: html,
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toEqual({
+      vanity: "example",
+      profileUrn: PROFILE_URN,
+      url: PROFILE_URL,
+      relationship: "first-degree",
+    });
+    const parsedSlot = JSON.stringify({
+      networkDistance: 1,
+      vieweeMemberUrn: "urn:li:member:987654321",
+      vanityName: "example",
+      breadcrumbType: "PROFILE_VIEW",
+    }).replaceAll("\"", "\\\"");
+    expect(RSC_FLIGHT_ROW.test(parsedSlot)).toBe(false);
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: comoHtml(nonFlightComoSlotArray(parsedSlot)),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toMatchObject({
+      vanity: "example",
+      profileUrn: PROFILE_URN,
+      relationship: "first-degree",
+    });
+  });
+
+  test("fails closed when a non-flight Como string slot is self, non-1st, or contradictory", () => {
+    expect(() => projectLinkedInProfileContactBinding({
+      profileHtml: comoHtml(nonFlightComoSlotArray(multiEscapedProfileViewSlot({ distance: "2" }))),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toThrow("not a 1st-degree connection");
+    expect(() => projectLinkedInProfileContactBinding({
+      profileHtml: comoHtml(nonFlightComoSlotArray(
+        multiEscapedProfileViewSlot({
+          distance: "0",
+          memberUrn: "urn:li:fsd_profile:123456789",
+        }),
+        { vanityName: "example", vieweeProfileId: "123456789", isSelfView: false },
+      )),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toThrow("use profiles.read for the signed-in self profile");
+    expect(() => projectLinkedInProfileContactBinding({
+      profileHtml: comoHtml([
+        null,
+        null,
+        null,
+        null,
+        null,
+        { vanityName: "example", vieweeProfileId: "ACoAAFixtureProfile", isSelfView: false },
+        multiEscapedProfileViewSlot({ distance: "1", memberUrn: "urn:li:member:111" }),
+        multiEscapedProfileViewSlot({ distance: "2", memberUrn: "urn:li:member:222" }),
+      ]),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    })).toThrow("omitted or contradicted its relationship distance");
   });
 
   test("prefers a unique vieweeMemberUrn distance over an identity-free breadcrumb", () => {

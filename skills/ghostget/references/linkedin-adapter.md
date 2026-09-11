@@ -232,8 +232,11 @@ relationship on that vanity from the profile page. Current LinkedIn pages are
 SDUI/RSC and often omit classic `bpr-guid-*` Profile embeds. The binder
 therefore walks both those Voyager code payloads and `window.__como_rehydration__`.
 Current pages assign that global as either a JSON object (`= { … }`) or an RSC
-flight array (`= [ "1:I[…]\\n2:{…}" ]`). The binder accepts both, decodes
-flight rows that carry JSON objects, arrays, or JSON strings, and treats
+flight array (`= [ "1:I[…]\\n2:{…}" ]`). Some current arrays also carry a
+non-flight SDUI string slot (not `1:…` rows) that still contains
+`networkDistance` and `vieweeMemberUrn`. The binder accepts both assignment
+shapes, decodes flight rows that carry JSON objects, arrays, or JSON strings,
+feeds non-flight string slots through the same bootstrap decoder, and treats
 `memberDistance`, `networkDistance`, or `distance` of `DISTANCE_1`,
 `1`, or `"1"` as first-degree when that value is joined to the requested vanity
 or its profile URN (`entityUrn`, `objectUrn`, `profileUrn`, `vieweeMemberUrn`,
@@ -308,6 +311,17 @@ walk. `contacts.read` then failed closed because PROFILE_VIEW breadcrumbs kept
 viewee join. Adapter 1.26.0 peels those JSON string escapes and reads the
 escaped key/value form. Self, non-first-degree, and contradictory distances
 still fail closed.
+
+A later 2026-09-11 signed-in capture of another 1st-degree profile still bound
+`profiles.read` and still joined `vieweeProfileId` identity after the 1.26.0
+walk. `contacts.read` then failed closed because distance lived in Como
+rehydration array slot `[6]`, a ~25KB SDUI string with `networkDistance` and
+`vieweeMemberUrn`. That slot was not an RSC flight, so
+`decodeComoRehydrationValue` discarded it (`[]`) before the 1.26.0 peel.
+`decodeStringBootstrap` already recovered the distance record from the same
+string. Adapter 1.27.0 feeds non-flight Como string slots through that
+decoder and still routes true RSC flights through `decodeRscFlightRecords`.
+Self, non-first-degree, and contradictory distances still fail closed.
 
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid

@@ -125,6 +125,30 @@ test("LinkedIn contact-info binding never invents a 1st-degree relationship", ()
       })).toThrow(distance === "SELF"
         ? "use profiles.read for the signed-in self profile"
         : "not a 1st-degree connection");
+      const slotDistance = distance === "SELF" ? "0" : distance === 2 || distance === "DISTANCE_2" ? "2" : "3";
+      const slotMember = distance === "SELF" ? VIEWER : "urn:li:member:987654321";
+      const slot6 =
+        `networkDistance\\":${slotDistance},\\"vieweeMemberUrn\\":\\"${slotMember}\\",\\"breadcrumbType\\":\\"PROFILE_VIEW\\"`;
+      const nonFlight = `<html><body><script>window.__como_rehydration__=${JSON.stringify([
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          vanityName: slug,
+          vieweeProfileId: distance === "SELF" ? "123456789" : "ACoAAFixtureProfile",
+          isSelfView: distance === "SELF",
+        },
+        slot6,
+      ])}</script></body></html>`;
+      expect(() => projectLinkedInProfileContactBinding({
+        profileHtml: nonFlight,
+        profileUrl: `https://www.linkedin.com/in/${slug}/`,
+        expectedViewerSubject: VIEWER,
+      })).toThrow(distance === "SELF"
+        ? "use profiles.read for the signed-in self profile"
+        : "not a 1st-degree connection");
     },
   ));
 });
@@ -156,6 +180,31 @@ test("LinkedIn contact-info binding joins unique vieweeMemberUrn distance to vie
     ])}</script></body></html>`;
     expect(projectLinkedInProfileContactBinding({
       profileHtml: escaped,
+      profileUrl: `https://www.linkedin.com/in/${slug}/`,
+      expectedViewerSubject: VIEWER,
+    })).toMatchObject({
+      vanity: slug.toLowerCase(),
+      profileUrn: PROFILE_URN,
+      relationship: "first-degree",
+    });
+    const slot6 =
+      'networkDistance\\":1,\\"vieweeMemberUrn\\":\\"urn:li:member:987654321\\",\\"breadcrumbType\\":\\"PROFILE_VIEW\\"';
+    expect(/(?:^|\n)(\d+):/u.test(slot6)).toBe(false);
+    const nonFlight = `<html><body><script>window.__como_rehydration__=${JSON.stringify([
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        vanityName: slug,
+        vieweeProfileId: "ACoAAFixtureProfile",
+        isSelfView: false,
+      },
+      slot6,
+    ])}</script></body></html>`;
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: nonFlight,
       profileUrl: `https://www.linkedin.com/in/${slug}/`,
       expectedViewerSubject: VIEWER,
     })).toMatchObject({
