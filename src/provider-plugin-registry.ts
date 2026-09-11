@@ -24,6 +24,7 @@ import {
   sep,
 } from "node:path";
 import ts from "typescript";
+import { scanProviderPluginValueImports } from "./provider-plugin-import-analysis";
 import {
   hasNonLiteralModuleLoad,
   providerPluginScriptKind,
@@ -540,10 +541,6 @@ function readDependencySourceFromDisk(path: string): Buffer {
   );
 }
 
-const providerPluginImportScanners = Object.freeze({
-  js: new Bun.Transpiler({ loader: "js" }),
-  ts: new Bun.Transpiler({ loader: "ts" }),
-});
 const providerPluginModuleExtensions = new Set([
   ".cjs",
   ".cts",
@@ -698,11 +695,10 @@ function valueImports(source: string, path: string): readonly {
       `provider plugin implementation module ${path} uses configuration-dependent JSX or TSX; publish deterministic JavaScript or TypeScript instead`,
     );
   }
-  const scanner =
+  const loader =
     extension === ".ts" || extension === ".mts" || extension === ".cts"
-      ? providerPluginImportScanners.ts
-      : providerPluginImportScanners.js;
-  return scanner.scanImports(moduleSource);
+      ? "ts" : "js";
+  return scanProviderPluginValueImports(moduleSource, loader);
 }
 
 

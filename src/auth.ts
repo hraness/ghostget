@@ -90,6 +90,8 @@ export type GhostgetAuth =
       readonly scopes: readonly string[];
       /** The credential lifecycle and token file are owned by Ghostget. */
       readonly managed?: true;
+      /** An immutable local token copy owned by Ghostget; no renewal or vault link. */
+      readonly ownedImport?: true;
       readonly subject?: string;
     }
   | {
@@ -119,6 +121,7 @@ export type AuthInput =
       readonly tokenFile: string;
       readonly scopes: readonly string[];
       readonly managed?: true;
+      readonly ownedImport?: true;
       readonly subject?: string;
     }
   | {
@@ -268,6 +271,9 @@ export function createAuth(id: string, input: AuthInput): GhostgetAuth {
       throw new Error("OAuth token-file auth has an invalid provider");
     }
     if (!isSafeOAuthTokenPath(input.tokenFile)) throw new Error("OAuth token-file auth has an invalid path");
+    if (input.ownedImport === true && (input.managed === true || input.oauthProvider !== "x" || subject === undefined || !/^[0-9]{1,19}$/u.test(subject))) {
+      throw new Error("owned token imports require an exact X subject and cannot be renewable");
+    }
     return {
       schemaVersion: 1,
       id,
@@ -276,6 +282,7 @@ export function createAuth(id: string, input: AuthInput): GhostgetAuth {
       path: resolve(input.tokenFile),
       scopes: normalizeOAuthScopes(input.scopes),
       ...(input.managed === true ? { managed: true as const } : {}),
+      ...(input.ownedImport === true ? { ownedImport: true as const } : {}),
       ...(subject === undefined ? {} : { subject }),
     };
   }
@@ -399,6 +406,7 @@ export function saveAuth(
           `auth locator ${auth.id} changed concurrently before replacement`,
         );
       }
+      const priorCredential = replacementCredentialSnapshot(current.auth, auth, environment);
       rotateReadProjectionAuthIncarnation(auth.id, environment);
       removePrivateAuthState(auth.id, environment);
       if (!writePrivateJsonIfUnchanged(
@@ -410,6 +418,7 @@ export function saveAuth(
           `auth locator ${auth.id} changed concurrently before replacement`,
         );
       }
+      removeReplacedCredential(priorCredential, environment);
       return path;
     }),
   );
@@ -635,6 +644,7 @@ export function parseAuth(value: unknown): GhostgetAuth {
   if (record.kind === "oauth-token-file") {
     const expected = ["schemaVersion", "id", "kind", "provider", "path", "scopes"];
     if (record.managed !== undefined) expected.push("managed");
+    if (record.ownedImport !== undefined) expected.push("ownedImport");
     if (record.subject !== undefined) expected.push("subject");
     if (!exactKeys(record, expected)) throw new Error("auth record has unsupported fields");
     if (!isProviderPluginSurfaceId(record.provider)) {
@@ -645,6 +655,9 @@ export function parseAuth(value: unknown): GhostgetAuth {
     }
     if (record.managed !== undefined && record.managed !== true) {
       throw new Error("auth record has an invalid managed OAuth lifecycle marker");
+    }
+    if (record.ownedImport !== undefined && (record.ownedImport !== true || record.managed !== undefined || record.provider !== "x" || typeof record.subject !== "string" || !/^[0-9]{1,19}$/u.test(record.subject))) {
+      throw new Error("auth record has an invalid owned token import marker");
     }
     const rawScopes = record.scopes;
     if (!Array.isArray(rawScopes) || !rawScopes.every((scope) => typeof scope === "string")) {
@@ -666,6 +679,7 @@ export function parseAuth(value: unknown): GhostgetAuth {
       path: record.path,
       scopes,
       ...(record.managed === true ? { managed: true as const } : {}),
+      ...(record.ownedImport === true ? { ownedImport: true as const } : {}),
       ...(subject === undefined ? {} : { subject }),
     };
   }
@@ -967,6 +981,7 @@ export function replaceAuthIfUnchanged(
         observed === null
         || observed.contentSha256 !== current.contentSha256
       ) return Object.freeze({ replaced: false as const });
+      const priorCredential = replacementCredentialSnapshot(current.auth, replacement.auth, environment);
       rotateReadProjectionAuthIncarnation(current.auth.id, environment);
       removePrivateAuthState(current.auth.id, environment);
       const replaced = writePrivateJsonIfUnchanged(
@@ -975,6 +990,7 @@ export function replaceAuthIfUnchanged(
         { expectedCurrentContentSha256: current.contentSha256 },
       );
       if (!replaced) return Object.freeze({ replaced: false as const });
+      removeReplacedCredential(priorCredential, environment);
       return Object.freeze({ replaced: true as const, snapshot: replacement });
     });
   const linkedMutation = current.auth.kind === "linked-device-store"
@@ -1041,7 +1057,7 @@ function managedOAuthCredentialSnapshot(
   auth: GhostgetAuth,
   environment: Readonly<Record<string, string | undefined>>,
 ): Readonly<{ path: string; contentSha256: string }> | null {
-  if (auth.kind !== "oauth-token-file" || auth.managed !== true) return null;
+  if (auth.kind !== "oauth-token-file" || (auth.managed !== true && auth.ownedImport !== true)) return null;
   const expectedDirectory = join(ghostgetStateHome(environment), "auth", "oauth-tokens");
   if (
     dirname(auth.path) !== expectedDirectory
@@ -1059,6 +1075,24 @@ function managedOAuthCredentialSnapshot(
         path: auth.path,
         contentSha256: createHash("sha256").update(content, "utf8").digest("hex"),
       });
+}
+
+function replacementCredentialSnapshot(
+  previous: GhostgetAuth,
+  replacement: GhostgetAuth,
+  environment: Readonly<Record<string, string | undefined>>,
+): Readonly<{ path: string; contentSha256: string }> | null {
+  if (previous.kind === "oauth-token-file" && replacement.kind === "oauth-token-file" && previous.path === replacement.path) return null;
+  return managedOAuthCredentialSnapshot(previous, environment);
+}
+
+function removeReplacedCredential(
+  credential: Readonly<{ path: string; contentSha256: string }> | null,
+  environment: Readonly<Record<string, string | undefined>>,
+): void {
+  if (credential !== null && !removePrivateStateFileIfUnchanged(credential.path, { expectedCurrentContentSha256: credential.contentSha256 }, environment)) {
+    throw new Error("the account was replaced but its prior owned credential changed before cleanup");
+  }
 }
 
 export function removeAuth(id: string, environment: Readonly<Record<string, string | undefined>> = process.env): boolean {

@@ -1163,7 +1163,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(12_965_376);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(13_200_384);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1225,7 +1225,7 @@ describe("npm publication contract", () => {
     expect(timeoutValues(testJob)).toEqual([40]);
     expect(timeoutValues(testOmniJob)).toEqual([25]);
     expect(timeoutValues(standaloneJob)).toEqual([20]);
-    expect(timeoutValues(macosJob)).toEqual([25]);
+    expect(timeoutValues(macosJob)).toEqual([45]);
     expect(timeoutValues(requiredJob)).toEqual([5]);
     expect(staticJob.match(/^      - run: bun run check:static$/gmu) ?? []).toHaveLength(1);
     expect(packageJob.match(/^      - run: bun run check:package$/gmu) ?? []).toHaveLength(1);
@@ -1236,6 +1236,9 @@ describe("npm publication contract", () => {
     expect(testOmniJob.match(/^      - run: bun run test:omni$/gmu) ?? []).toHaveLength(1);
     expect(standaloneJob.match(/^      - run: bun run test:standalone$/gmu) ?? []).toHaveLength(1);
     expect(macosJob.match(/^      - run: bun run check:macos$/gmu) ?? []).toHaveLength(1);
+    expect(macosJob).toContain("rustup toolchain install 1.97.1 --profile minimal && rustup default 1.97.1");
+    expect(macosJob.match(/^      - run: bun run desktop:check-native$/gmu) ?? []).toHaveLength(1);
+    expect(macosJob.indexOf("bun run desktop:check-native")).toBeGreaterThan(macosJob.indexOf("bun run check:macos"));
     expect(macosJob.match(/^      - run: bun run check$/gmu) ?? []).toHaveLength(0);
     expect(requiredJob.match(/^      - run: bun run check$/gmu) ?? []).toHaveLength(0);
     expect(requiredJob.match(
@@ -1279,23 +1282,39 @@ describe("npm publication contract", () => {
     expect(budget).toContain("cff3bf55b9dabfea4b17f590ff83cfbc8c78d8b0b2c338696da82b4c6cb42a1b");
     expect(budget).toContain("2,258,370 compressed and 12,443,517 payload bytes");
     expect(budget).toContain("319fa969d7398386b7f2963cb000a02bd3b99d0fad19a16141bfad1429e10bfb");
+    expect(budget).toContain("2,312,026 compressed and 12,644,368 payload");
+    expect(budget).toContain("82364442728547e0ea3c6a2fb105ea58e461f5bab2346e8b8244bf68e4596d54");
+    expect(budget).toContain("2,313,628 compressed and");
+    expect(budget).toContain("12,648,898 payload bytes across exactly 524 files");
+    expect(budget).toContain("6a18ddbf45c787ab22a206eccc75159e745700bab5cbdf34e159f0a240e135a9");
+    expect(budget).toContain("2,314,828 compressed and 12,654,022 payload bytes");
+    expect(budget).toContain("e1b7edca283b667a1caa7f38d34c7d0b4c677380b464dc4e11ef3e6827f72dbf");
+    expect(budget).toContain("2,314,832 compressed and 12,654,071 payload");
+    expect(budget).toContain("01abe7e7a0953670578777aa88e3c3dbe6d095fb2e46298154c37801db576c96");
+    expect(budget).toContain("2,316,774 compressed");
+    expect(budget).toContain("12,662,758 payload bytes across exactly 524 files");
+    expect(budget).toContain("0940ba8e8e406f81093d360df8d6e7be9e972dbeba7b1c88ae51b961b7d0711d");
     expect(budget).toContain("2,258,514 compressed and 12,443,924");
     expect(budget).toContain("009e254d04ce94d17cbbe8a09293adcda42cb4b1430469d0d63c376d4c7581be");
     expect(budget).toContain("12,452,611 payload bytes across exactly 500 files");
     expect(budget).toContain("6fdc9574102d2364548291891b8b81f9c1c1b442a95dfb13dce0d42f7e66944c");
-    expect(MAX_PACKED_BYTES).toBe(2_267_917);
-    expect(MAX_PACKED_ENTRIES).toBe(500);
-    expect(MAX_PACKED_FILES).toBe(500);
-    expect(MAX_UNPACKED_BYTES).toBe(12_452_676);
+    expect(budget).toContain("2,802-byte Linux spread and the reviewed 4,096-byte portability allowance");
+    expect(budget).toContain("This is a projection, not Linux evidence");
+    expect(MAX_PACKED_BYTES).toBe(2_323_672);
+    expect(MAX_PACKED_BYTES).toBe(2_316_774 + 2_802 + 4_096);
+    expect(MAX_PACKED_ENTRIES).toBe(524);
+    expect(MAX_PACKED_FILES).toBe(524);
+    expect(MAX_UNPACKED_BYTES).toBe(12_662_823);
+    expect(MAX_UNPACKED_BYTES).toBe(12_662_758 + 65);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 500, max: 500 },
-      fileCount: { min: 500, max: 500 },
-      packedBytes: { min: 1_600_000, max: 2_267_917 },
-      unpackedBytes: { min: 9_000_000, max: 12_452_676 },
+      entryCount: { min: 524, max: 524 },
+      fileCount: { min: 524, max: 524 },
+      packedBytes: { min: 1_600_000, max: 2_323_672 },
+      unpackedBytes: { min: 9_000_000, max: 12_662_823 },
     });
   });
 
@@ -1359,11 +1378,12 @@ describe("npm publication contract", () => {
     }
   });
 
-  test("preserves Wrench release history and adds Ghostget 0.17.0", async () => {
+  test("preserves Wrench release history and adds Ghostget 0.18.0", async () => {
     const changelog = await readFile(changelogUrl, "utf8");
     const unreleasedHeader = "## Unreleased\n";
     const candidateHeader = "## 0.16.12 - 2026-09-08\n";
     const canonicalHeader = "## 0.16.13 - 2026-09-09\n";
+    const controlHeader = "## 0.18.0 - 2026-09-11\n";
     const paperHeader = "## 0.17.6 - 2026-09-10\n";
     const windowHeader = "## 0.17.5 - 2026-09-10\n";
     const automationHeader = "## 0.17.4 - 2026-09-10\n";
@@ -1387,6 +1407,7 @@ describe("npm publication contract", () => {
     const unreleasedStart = changelog.indexOf(unreleasedHeader);
     const candidateStart = changelog.indexOf(candidateHeader);
     const canonicalStart = changelog.indexOf(canonicalHeader);
+    const controlStart = changelog.indexOf(controlHeader);
     const paperStart = changelog.indexOf(paperHeader);
     const windowStart = changelog.indexOf(windowHeader);
     const automationStart = changelog.indexOf(automationHeader);
@@ -1449,6 +1470,9 @@ describe("npm publication contract", () => {
     expect(changelog.match(/^## 0\.17\.4 - 2026-09-10$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.17\.5 - 2026-09-10$/gmu) ?? []).toHaveLength(1);
     expect(changelog.match(/^## 0\.17\.6 - 2026-09-10$/gmu) ?? []).toHaveLength(1);
+    expect(changelog.match(/^## 0\.18\.0 - 2026-09-11$/gmu) ?? []).toHaveLength(1);
+    expect(controlStart).toBeGreaterThan(unreleasedStart);
+    expect(controlStart).toBeLessThan(paperStart);
     expect(paperStart).toBeGreaterThan(unreleasedStart);
     expect(paperStart).toBeLessThan(windowStart);
     expect(windowStart).toBeGreaterThan(unreleasedStart);
@@ -1456,7 +1480,11 @@ describe("npm publication contract", () => {
     expect(automationStart).toBeLessThan(contactStart);
     expect(contactStart).toBeLessThan(listingStart);
     expect(listingStart).toBeLessThan(fixStart);
-    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, paperStart).trim()).toBe("");
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart).trim()).toBe("");
+    const controlSection = changelog.slice(controlStart, paperStart);
+    for (const fact of ["Tauri control panel", "existing Bun kernel", "human approval", "local SQLite", "1Password X token import", "source build", "separate qualification", "OpenAPI imports inert", "no model runtime in the kernel"]) {
+      expect(controlSection).toContain(fact);
+    }
     expect(changelog.slice(paperStart, windowStart)).toContain("shared Paper colors");
     expect(changelog.slice(windowStart, automationStart)).toContain("newest-first");
     expect(changelog.slice(windowStart, automationStart)).toContain("`v0.17.4`");
@@ -1628,6 +1656,38 @@ describe("npm publication contract", () => {
       "Packed Ghostget must remain public and publishConfig may contain only public access and the canonical npm registry",
     ] as const) {
       expect(smoke).toContain(required);
+    }
+  });
+
+  test("requires the shipped control surface and rejects unreviewed documentation or test sources", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-control-artifact-"));
+    const archive = join(directory, "package.tgz");
+    try {
+      await run([process.execPath, "pm", "pack", "--filename", archive, "--ignore-scripts", "--quiet"], repository);
+      const inventory = await inspectPackageArtifact(archive);
+      expect(inventory.files.some(file => file.path === "docs/control-panel.md")).toBe(true);
+      expect(inventory.files.some(file => file.path === "src/control/credential-helper.ts")).toBe(true);
+      expect(inventory.files.some(file => file.path === "src/provider-plugin-import-analysis.ts")).toBe(true);
+      expect(inventory.files.some(file => file.path.startsWith("desktop/") || file.path.includes("/direct/"))).toBe(false);
+      expect(inventory.files.some(file => file.path.includes("benchmark"))).toBe(false);
+      const originalTar = gunzipSync(await readFile(archive));
+      for (const [source, replacement, expected] of [
+        ["src/control/helper.ts", "src/control/absent-helper.ts", "Required package path is missing: src/control/helper.ts"],
+        ["src/provider-plugin-import-analysis.ts", "src/absent-provider-analysis.ts", "Required package path is missing: src/provider-plugin-import-analysis.ts"],
+        ["docs/control-panel.md", "src/control-guide.md", "Required package path is missing: docs/control-panel.md"],
+        ["docs/control-panel.md", "docs/unreviewed.md", "Unexpected package path: docs/unreviewed.md"],
+        ["src/control/helper.ts", "src/control/helper.test.ts", "Test source entered the package"],
+      ] as const) {
+        const tar = Buffer.from(originalTar);
+        const entry = exactTarEntry(tar, `package/${source}`);
+        tar.fill(0, entry.headerOffset, entry.headerOffset + 100);
+        tar.write(`package/${replacement}`, entry.headerOffset, "utf8");
+        writeHeaderChecksum(tar, entry.headerOffset);
+        await writeFile(archive, gzipSync(tar, { level: 9 }));
+        await expect(inspectPackageArtifact(archive)).rejects.toThrow(expected);
+      }
+    } finally {
+      await rm(directory, { force: true, recursive: true });
     }
   });
 

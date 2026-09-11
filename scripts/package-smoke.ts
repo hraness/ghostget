@@ -756,7 +756,7 @@ try {
     consumer,
     "private-missing-reviewed-imsg-canary",
   );
-  const imsgInstallerState = join(work, "imsg-installer-state");
+  const imsgInstallerState = join(work, "ghostget-imsg-installer-state");
   await mkdir(imsgInstallerState, { mode: 0o700 });
   await runExpectingFailure([
     join(consumer, "node_modules", ".bin", "ghostget"),

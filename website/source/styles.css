@@ -2850,6 +2850,18 @@ body {
 
 /* Local compositions read the portable type scale without requiring a
  * coordinated component-library upgrade. */
+.control-preview { display: block; }
+.control-preview .hraness-marketing-section__heading-group { max-width: 48rem; margin-bottom: 2rem; }
+.control-scenes { border-top: 1px solid var(--line); }
+.control-scenes details { border-bottom: 1px solid var(--line); }
+.control-scenes summary { padding: 1rem .25rem; cursor: pointer; font-weight: 600; }
+.control-scenes summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.control-scenes figure { margin: 0 0 1.5rem; }
+.control-frame { overflow: auto; border: 1px solid var(--line); border-radius: .65rem; background: var(--background); }
+.control-frame iframe { display: block; width: 100%; min-width: 700px; height: 720px; border: 0; }
+.control-scenes figcaption { display: flex; gap: 1rem; justify-content: space-between; padding: .9rem 0 0; font-size: .875rem; }
+.control-disclosure { max-width: 60rem; font-size: .85rem; line-height: 1.6; }
+@media (max-width: 44rem) { .control-scenes figcaption { display: block; } .control-scenes figcaption a { display: block; margin-top: .5rem; } }
 [data-hraness-theme="paper"] .hraness-marketing-hero__heading {
   font-weight: var(--hraness-marketing-heading-weight);
   line-height: var(--hraness-paper-heading-leading);

@@ -30,6 +30,12 @@ export const ghostgetUsage = `Usage:
   ghostget transcriber setup --engine whisper-cpp --model <file> [media-options]
   ghostget doctor [--json]                         Check capture, media, auth, and action dependencies
   ghostget capabilities [adapter] [--json]         List installed semantic capabilities
+  ghostget web request <https-url> [--method GET|HEAD]
+                                                 Retrieve public text through native web rules and approvals
+  ghostget interface list                          List user and imported OpenAPI drafts
+  ghostget interface export [adapter]              Export installed semantic interfaces as OpenAPI
+  ghostget interface import <openapi.json> [--expected-digest <sha256>]
+                                                 Save an inert draft; review and activate it in the native app
   ghostget imessage transport install --binary <absolute-reviewed-imsg-file> [--json]
                                                  Install only the current reviewed iMessage transport bytes
   ghostget plugin list [--json]                    List trusted source and installed portable plugins

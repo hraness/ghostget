@@ -181,6 +181,24 @@ export async function runGhostgetCliProcess(
     stdout: output.stdout,
     stderr: output.stderr ?? defaultOutput.stderr,
   };
+  try {
+    const { assertGatewayCommandAllowed } = await import("./control/web-policy");
+    assertGatewayCommandAllowed(rawArguments, process.env);
+    if (rawArguments[0] === "web") {
+      const { runWebCommand } = await import("./control/cli");
+      process.exitCode = await runWebCommand(rawArguments, process.env, resolvedOutput);
+      return;
+    }
+    if (rawArguments[0] === "interface") {
+      const { runInterfaceCommand } = await import("./control/interface-cli");
+      process.exitCode = runInterfaceCommand(rawArguments, process.env, resolvedOutput);
+      return;
+    }
+  } catch {
+    resolvedOutput.stderr("Ghostget gateway-only policy blocks this command, or its policy state is unavailable. Review the native app.\n");
+    process.exitCode = 1;
+    return;
+  }
   if (isPublicGhostgetCommand(rawArguments)) {
     const knowledge = await loadKnowledgeCli();
     process.exitCode = await knowledge.main(rawArguments, resolvedOutput);

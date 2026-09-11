@@ -15,6 +15,7 @@ export type PinnedHttpsResponse = PinnedNetworkResponse;
 export type PinnedHttpsDependencies = {
   readonly resolveTarget: typeof resolveSafeNetworkTarget;
   readonly request: NetworkTransport;
+  readonly beforeRequest?: () => void;
 };
 
 export type PinnedHttpsFetch = (
@@ -103,14 +104,18 @@ export async function pinnedHttpsFetch(
     throw new Error("authenticated request timeout is invalid");
   }
   const resolved = { ...defaultDependencies, ...dependencies };
+  init.signal.throwIfAborted();
   const addresses = await resolved.resolveTarget(url, {
     allowPrivateNetwork: false,
     timeoutMs,
   });
+  init.signal.throwIfAborted();
   const address = addresses[0];
   if (address === undefined) throw new Error("authenticated HTTPS origin did not resolve to a safe address");
   const headers = new Headers(init.headers);
   const body = requestBody(init.body);
+  resolved.beforeRequest?.();
+  init.signal.throwIfAborted();
   const response = await resolved.request({
     url,
     address,

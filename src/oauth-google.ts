@@ -756,6 +756,7 @@ export function installManagedGoogleOAuth(
     managed: true,
   });
   if (auth.kind !== "oauth-token-file") throw new Error("managed OAuth login created the wrong auth kind");
+  const { contentSha256 } = loadOAuthCredential(auth, { expectedContent: content });
   let path: string;
   try {
     path = saveAuth(
@@ -764,11 +765,16 @@ export function installManagedGoogleOAuth(
       options.force === undefined ? {} : { force: options.force },
     );
   } catch (error) {
-    removePrivateStateFileIfUnchanged(
-      tokenPath,
-      { expectedCurrentContentSha256: createHash("sha256").update(content, "utf8").digest("hex") },
-      environment,
-    );
+    // Auth publication can succeed before prior-credential cleanup fails. Never
+    // delete the new live credential when reconciling that uncertain outcome.
+    const observed = loadAuthSnapshotIfPresent(id, environment)?.auth;
+    if (observed?.kind !== "oauth-token-file" || observed.path !== tokenPath) {
+      removePrivateStateFileIfUnchanged(
+        tokenPath,
+        { expectedCurrentContentSha256: contentSha256 },
+        environment,
+      );
+    }
     throw error;
   }
   if (

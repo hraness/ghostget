@@ -2,6 +2,7 @@ import { types as nodeTypes } from "node:util";
 
 import { canonicalJson, sha256 } from "./canonical-json";
 import { loadAuthSnapshotIfPresent } from "./auth";
+import { assertOperationPermission, withOperationPermissions, withUnmanagedOperationPermission, readOperationPolicy } from "./operation-permission";
 import {
   isProviderOperation,
   isLocalCliOperation,
@@ -1573,7 +1574,10 @@ export function readCachedOmniViewInternal(
   options: OmniRuntimeOptions = {},
 ): OmniReadResultV1 {
   const prepared = prepareSources(requestValue, options);
-  return result("omni-cache", prepared, view(prepared, options));
+  for (const source of prepared.sources) assertOperationPermission(source.invocation, { environment: options.environment ?? process.env, registry: prepared.registry });
+  const output = result("omni-cache", prepared, view(prepared, options));
+  for (const source of prepared.sources) assertOperationPermission(source.invocation, { environment: options.environment ?? process.env, registry: prepared.registry });
+  return output;
 }
 
 export function rebuildOmniViewFromExactCache(
@@ -1581,6 +1585,7 @@ export function rebuildOmniViewFromExactCache(
   options: OmniRuntimeOptions = {},
 ): OmniReadResultV1 {
   const prepared = prepareSources(requestValue, options);
+  for (const source of prepared.sources) assertOperationPermission(source.invocation, { environment: options.environment ?? process.env, registry: prepared.registry });
   const errors = new Map<string, OmniSourceUpdateError>();
   for (const source of prepared.sources) {
     if (source.omni?.state !== "supported") continue;
@@ -1596,10 +1601,12 @@ export function rebuildOmniViewFromExactCache(
       );
     }
   }
-  return result("omni-exact-cache", prepared, view(prepared, options, errors));
+  const output = result("omni-exact-cache", prepared, view(prepared, options, errors));
+  for (const source of prepared.sources) assertOperationPermission(source.invocation, { environment: options.environment ?? process.env, registry: prepared.registry });
+  return output;
 }
 
-export async function revalidateOmniViewInternal(
+async function revalidateOmniViewCore(
   requestValue: unknown,
   options: OmniLiveRuntimeOptions = {},
 ): Promise<OmniReadResultV1> {
@@ -1629,4 +1636,12 @@ export async function revalidateOmniViewInternal(
   const selectedView = view(prepared, options, errors);
   throwIfAborted(options.signal);
   return result("omni-live", prepared, selectedView);
+}
+
+export async function revalidateOmniViewInternal(requestValue: unknown, options: OmniLiveRuntimeOptions = {}): Promise<OmniReadResultV1> {
+  const environment = options.environment ?? process.env;
+  if (!readOperationPolicy(environment).managed) return withUnmanagedOperationPermission(environment, () => revalidateOmniViewCore(requestValue, options));
+  const prepared = prepareSources(requestValue, options);
+  return withOperationPermissions(prepared.sources.map(source => source.invocation), { environment, registry: prepared.registry,
+    ...(options.signal === undefined ? {} : { signal: options.signal }) }, () => revalidateOmniViewCore(requestValue, options));
 }

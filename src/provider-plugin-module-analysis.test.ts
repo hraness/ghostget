@@ -87,3 +87,17 @@ test("retains literal module edges for the ordinary dependency scanner", () => {
   expect(analyze('export const value = import("./value.js");')).toBe(false);
   expect(analyze('export const value = require("./value.js");')).toBe(false);
 });
+
+test("never carries a prior syntax verdict across changed source at the same path", () => {
+  const path = "/memo-fresh-source.ts";
+  const literal = 'export const value = import("./value.js");';
+  const dynamic = 'export const value = import(moduleName);';
+  expect(hasNonLiteralModuleLoad(literal, path)).toBe(false);
+  expect(hasNonLiteralModuleLoad(dynamic, path)).toBe(true);
+  expect(hasNonLiteralModuleLoad(literal, path)).toBe(false);
+  expect(hasNonLiteralModuleLoad(dynamic, path)).toBe(true);
+  // Source-local callback proofs are recomputed for changed call-site ownership.
+  const admitted = `${factory} factory({eval(){return 1}});`;
+  expect(hasNonLiteralModuleLoad(admitted, path)).toBe(false);
+  expect(hasNonLiteralModuleLoad(`${admitted} export { factory };`, path)).toBe(true);
+});

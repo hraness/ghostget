@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { checkOperationPermission } from "./operation-permission";
 import { isAbsolute, resolve } from "node:path";
 
 import type { GhostgetAuth } from "./auth";
@@ -1717,6 +1718,7 @@ export async function executeMessagingCompositeInternal(
   const environment = options.environment ?? process.env;
   const registry = options.registry ?? providerPluginRegistry;
   const actionResolution = messagingResolution(invocation, registry, "action");
+  await checkOperationPermission(invocation, { environment, registry, ...(options.signal === undefined ? {} : { signal: options.signal }) });
   const action = actionResolution.messaging.action;
   if (action.state !== "supported") {
     throw new Error("messaging action support disappeared after confirmation");
@@ -1889,6 +1891,7 @@ export async function executeMessagingCompositeInternal(
             );
           };
           const beforeExternalBegin = async (): Promise<void> => {
+            await checkOperationPermission({ ...invocation, input: composite.parts[index]!.input }, { environment, registry, ...(options.signal === undefined ? {} : { signal: options.signal }) });
             operationDeadline.throwIfUnavailable("messaging provider action");
             if (crossedExternalBoundary) {
               throw new Error(
