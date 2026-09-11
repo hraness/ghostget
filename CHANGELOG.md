@@ -7,6 +7,24 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.0 - 2026-09-11
+
+- Add a macOS-first Tauri control panel for accounts, semantic capabilities,
+  permissions, human approval, user OpenAPI interfaces, and copyable agent
+  instructions. Keep the existing Bun kernel and a narrow Rust host. Direct
+  drives the real shared UI; the website embeds inert renders of its scenarios.
+- Add exact account and implementation-bound operation grants and a public
+  HTTPS web gateway with domain/path rules, human approval, and local SQLite
+  request metadata. Activity has search, filters, a virtualized table, and
+  cursor-based infinite scrolling.
+- Add browser connection and subject verification for X, LinkedIn, and Reddit,
+  plus an isolated 1Password X token import sink. Password and passkey login
+  remains in the system browser. The native app is a source build; signed
+  desktop authentication and installer distribution are separate qualification.
+- Make user-space OpenAPI imports inert, reviewable drafts with exact semantic
+  executor bindings and explicit activation. Future middleware and automatic
+  approval remain extension boundaries, with no model runtime in the kernel.
+
 ## 0.17.6 - 2026-09-10
 
 - Align the marketing site with AICharts using the shared Paper colors, Nebula

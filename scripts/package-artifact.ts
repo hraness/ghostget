@@ -43,6 +43,35 @@ const requiredPaths = Object.freeze([
   "src/ghostget.ts",
 ]);
 
+// These public control-plane sources were added after the historical Wrench
+// package identity. Keep them mandatory for the current Ghostget artifact.
+const controlPaths = Object.freeze([
+  "docs/control-panel.md",
+  "skills/ghostget/references/control-panel.md",
+  "src/control/account-revision.ts",
+  "src/control/activity.ts",
+  "src/control/approval-broker.ts",
+  "src/control/approval-client.ts",
+  "src/control/bundled-interfaces.ts",
+  "src/control/cli.ts",
+  "src/control/connections.ts",
+  "src/control/credential-helper.ts",
+  "src/control/helper.ts",
+  "src/control/interface-cli.ts",
+  "src/control/interface-json.ts",
+  "src/control/interface-schema.ts",
+  "src/control/interfaces.ts",
+  "src/control/protocol.ts",
+  "src/control/service.ts",
+  "src/control/validation.ts",
+  "src/control/vault.ts",
+  "src/control/web-gateway.ts",
+  "src/control/web-policy.ts",
+  "src/operation-permission-store.ts",
+  "src/operation-permission.ts",
+  "src/provider-plugin-import-analysis.ts",
+]);
+
 export type PackageArtifactEntry = Readonly<{
   contentSha256?: string;
   contentSha512?: string;
@@ -146,6 +175,7 @@ function verifyAllowedPath(path: string, type: "directory" | "file", skillName: 
       || path === "bunfig.toml"
       || path === "docs/imessage-direct-provider.md"
       || path === "docs/rental-listings.md"
+      || path === "docs/control-panel.md"
       || path === "package.json"
       || path === "tsconfig.json"
       || path.startsWith("dist/")
@@ -209,7 +239,7 @@ export async function inspectPackageArtifact(
   const skillName = expectedName === "@hraness/wrench" ? "wrench" : "ghostget";
   const expectedPaths = expectedName === "@hraness/wrench"
     ? requiredPaths.map(path => path.replace("skills/ghostget/", "skills/wrench/").replace("src/ghostget.ts", "src/wrench.ts"))
-    : requiredPaths;
+    : [...requiredPaths, ...controlPaths];
   const compressed = await readFile(archive);
   verifyBound("packed byte count", compressed.byteLength, packageArtifactBudget.packedBytes);
 

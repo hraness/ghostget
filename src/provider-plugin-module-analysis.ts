@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { extname } from "node:path";
 import ts from "typescript";
 
@@ -7,6 +8,12 @@ const opaqueModuleLoaderNames = new Set([
   "Function",
   "getBuiltinModule",
 ]);
+
+// Only a boolean is retained, keyed by the freshly supplied source and every
+// parser input. Filename is included because the source-local binding proof
+// creates a TypeScript program. No AST, path resolution, or authority is cached.
+const nonLiteralLoadMemo = new Map<string, boolean>();
+const MAX_NON_LITERAL_LOAD_MEMO_ENTRIES = 4_096;
 
 function hasOneLiteralModuleArgument(node: ts.CallExpression): boolean {
   const [argument] = node.arguments;
@@ -244,12 +251,20 @@ function localEvalCallbackProof(sourceFile: ts.SourceFile): (node: ts.Node) => b
  * rather than attempting to sandbox deliberately obfuscated JavaScript.
  */
 export function hasNonLiteralModuleLoad(source: string, path: string): boolean {
+  const scriptKind = providerPluginScriptKind(path);
+  const key = createHash("sha256")
+    .update(JSON.stringify([path, scriptKind]))
+    .update("\0")
+    .update(source)
+    .digest("hex");
+  const cached = nonLiteralLoadMemo.get(key);
+  if (cached !== undefined) return cached;
   const sourceFile = ts.createSourceFile(
     path,
     source,
     ts.ScriptTarget.ESNext,
     false,
-    providerPluginScriptKind(path),
+    scriptKind,
   );
   let callbackProof: ((node: ts.Node) => boolean) | undefined;
   const isLocalCallback = (node: ts.Node): boolean => {
@@ -332,5 +347,10 @@ export function hasNonLiteralModuleLoad(source: string, path: string): boolean {
     node.forEachChild((child) => visit(child, node));
   };
   visit(sourceFile);
+  if (nonLiteralLoadMemo.size >= MAX_NON_LITERAL_LOAD_MEMO_ENTRIES) {
+    const oldest = nonLiteralLoadMemo.keys().next().value;
+    if (oldest !== undefined) nonLiteralLoadMemo.delete(oldest);
+  }
+  nonLiteralLoadMemo.set(key, found);
   return found;
 }

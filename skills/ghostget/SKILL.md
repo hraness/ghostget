@@ -22,7 +22,7 @@ description: >-
 
 # Ghostget
 
-Ghostget supplies bounded CLI and SDK capabilities, not an agent runtime or application. Use it from the caller's own agent loop.
+Ghostget supplies bounded CLI and SDK capabilities with a native human control panel. Use it from the caller's own agent loop; Ghostget does not run a model.
 
 ## Install or verify Ghostget
 
@@ -33,6 +33,8 @@ Ghostget. Never guess a source-tree command or substitute general browser
 automation.
 
 ## Choose the smallest path
+
+- Use the native app for accounts, operation permissions, and human approvals; follow [native control and the web gateway](references/control-panel.md) for gateway-only harnesses, 1Password import, and user-space OpenAPI drafts.
 
 - Capture a URL: `ghostget <url>` or `ghostget clip <url>`.
 - Read without persistence: `ghostget read <url>`.

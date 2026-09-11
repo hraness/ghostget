@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "disclosure": "Real Ghostget interface, fictional accounts and requests. These examples cannot sign in, approve requests or change a machine.",
+  "scenes": [
+    {
+      "id": "accounts",
+      "title": "Connected accounts",
+      "description": "The real Ghostget account screen, with fictional accounts.",
+      "path": "accounts.html"
+    },
+    {
+      "id": "capabilities",
+      "title": "Operation permissions",
+      "description": "Inspect capabilities and choose an operation's permission.",
+      "path": "capabilities.html"
+    },
+    {
+      "id": "activity",
+      "title": "Web activity",
+      "description": "A virtualized view of fictional gateway request metadata.",
+      "path": "activity.html"
+    },
+    {
+      "id": "approvals",
+      "title": "Human approval",
+      "description": "Review an exact proposed action before allowing it once.",
+      "path": "approvals.html"
+    }
+  ]
+}

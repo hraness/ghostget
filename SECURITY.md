@@ -10,6 +10,36 @@ responses, browser output, files, durable state, and subprocess diagnostics as
 untrusted. Foreign values are strictly parsed and bounded. Sensitive values are
 redacted from terminal output, receipts, and diagnostics.
 
+The native control panel has a private administrative stdio channel to its
+owned helper. Its owner-only agent socket accepts bounded web requests and
+approval requests, checks, and cancellation; it cannot grant approval, change
+permissions, or import credentials. Enabling operation permissions establishes
+a persistent managed marker: missing or corrupt policy then denies access.
+Grants bind the exact account incarnation, manifest, contract, and executable
+closure. A changed account, interface, implementation, or approval invalidates
+the prior grant. Existing saved write plans and confirmation remain required.
+
+The public web gateway accepts only bounded HTTPS GET and HEAD requests under
+explicit domain, path, and query-key rules. It pins public DNS answers, rechecks
+policy after DNS and before dispatch, and rejects redirects, authentication,
+request bodies, and private addresses. Its local SQLite log records request
+metadata, never response bodies, query strings, credentials, or a URL digest.
+Gateway-only mode restricts Ghostget command routing; it is not an operating
+system network sandbox. A process with the same user's filesystem or network
+authority can bypass application policy. Restrict the agent's other tools at
+the harness or operating system boundary when that guarantee is needed.
+
+OpenAPI imports are inert semantic drafts until explicitly activated. They
+cannot create an arbitrary authenticated HTTP executor. The first 1Password
+sink is an X user-context token: a separate credential process resolves the
+selected field, verifies the exact X subject, and retains an owner-only local
+copy. Raw secrets do not enter the renderer, agent protocol, or diagnostics.
+Browser password and passkey login stays in the system browser. Signed desktop
+authentication and a public native installer require separate live admission;
+publishing the CLI does not qualify them. Direct scenarios are development-only
+and are excluded from the production native graph. Public marketing frames are
+inert renders of those shared UI scenarios and contain no executable script.
+
 Source plugins are trusted in-process code. Portable plugins require an
 explicit trust decision for one verified content-addressed bundle and execute
 through a denied-by-default child-process protocol. The protocol limits the

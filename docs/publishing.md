@@ -89,6 +89,12 @@ Ghostget has no separate platform-native release assets. Its optional native
 providers retain their existing installation, identity, and live admission
 requirements. Publishing the CLI does not establish live provider qualification.
 
+The control panel in `desktop/` is currently built from an exact source checkout.
+Its local `.app` bundle is separate from the canonical CLI archive and does not
+add a sixth Release asset. Native source and helper checks do not qualify a
+signed installer, notarization, or live 1Password desktop authentication; those
+need their own relevant evidence before distribution or capability claims.
+
 The read-only build uploads a run-and-attempt-specific artifact. A separate
 checkout-free attestation job reauthorizes the exact owner/run/tag before
 requesting OIDC, validates the four-file handoff, and invokes pinned
@@ -161,7 +167,7 @@ npm by the Release workflow.
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.17.6/hraness-ghostget-0.17.6.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.0/hraness-ghostget-0.18.0.tgz
 ghostget --version
 ghostget doctor --json
 ```

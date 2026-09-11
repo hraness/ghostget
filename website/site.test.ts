@@ -447,7 +447,19 @@ describe("ghostget.com static site", () => {
     expect(html).not.toContain("@jungle/");
     expect(html).not.toContain("hraness.com/ghostget");
     expect(html.match(/<h1\b/gu)).toHaveLength(1);
-    expect(html.match(/<details\b/gu)).toHaveLength(11);
+    expect(html.match(/<details\b/gu)).toHaveLength(15);
+    expect(html.match(/<iframe\b/gu)).toHaveLength(4);
+    for (const scene of ["accounts", "capabilities", "activity", "approvals"]) {
+      expect(html).toContain(`src="/control/${scene}.html"`);
+      const frame = await readFile(join(websiteRoot, `dist/control/${scene}.html`), "utf8");
+      expect(frame).toContain("<div inert");
+      expect(frame).toContain("fictional Ghostget example");
+      expect(frame).not.toMatch(/<script\b|__direct|@tauri-apps|control_request|\son[a-z]+=/iu);
+    }
+    for (const iframe of html.match(/<iframe\b[^>]*>/gu) ?? []) {
+      expect(iframe).toMatch(/\ssandbox(?:="")?(?=\s|>)/u);
+      expect(iframe).toContain('referrerpolicy="no-referrer"');
+    }
     expect(html).toContain('class="table-scroll" role="region" tabindex="0"');
     expect(html).toContain('<a class="skip-link" href="#main">');
     expect(html.match(/data-analytics-event="project link opened"/gu)).toHaveLength(2);
@@ -720,16 +732,17 @@ describe("ghostget.com static site", () => {
     ]);
 
     const frameDenyHeaders = vercel.headers.find((rule: { source: string }) =>
-      rule.source === "/((?!preview/$).*)");
+      rule.source === "/((?!preview/$|control/).*)");
     expect(frameDenyHeaders?.headers).toEqual([
       { key: "X-Frame-Options", value: "DENY" },
       {
         key: "Content-Security-Policy",
-        value: "form-action 'self' https://account.hraness.com; frame-src https://challenges.cloudflare.com; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://*.posthog.com https://*.posthogusercontent.com",
+        value: "form-action 'self' https://account.hraness.com; frame-src 'self' https://challenges.cloudflare.com; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://*.posthog.com https://*.posthogusercontent.com",
       },
     ]);
-    const frameDenyPattern = /^\/((?!preview\/$).*)$/u;
+    const frameDenyPattern = /^\/((?!preview\/$|control\/).*)$/u;
     expect(frameDenyPattern.test("/preview/")).toBe(false);
+    expect(frameDenyPattern.test("/control/activity.html")).toBe(false);
     for (const deniedPath of [
       "/",
       "/preview",
@@ -750,14 +763,25 @@ describe("ghostget.com static site", () => {
       },
       { key: "X-Robots-Tag", value: "noindex, nofollow" },
     ]);
+    const controlHeaders = vercel.headers.find((rule: { source: string }) => rule.source === "/control/(.*)");
+    expect(controlHeaders?.headers).toEqual([
+      { key: "X-Frame-Options", value: "SAMEORIGIN" },
+      { key: "Content-Security-Policy", value: "default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; script-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'; frame-ancestors 'self'" },
+      { key: "X-Robots-Tag", value: "noindex, nofollow" },
+    ]);
+    expect(vercel.headers.find((rule: { source: string }) => rule.source === "/control/NebulaSans-Book.woff2")?.headers).toEqual([
+      { key: "Access-Control-Allow-Origin", value: "*" },
+    ]);
     expect(vercel.headers.filter((rule: { headers: Array<{ key: string }> }) =>
       rule.headers.some((header) => header.key === "X-Frame-Options"))).toEqual([
       frameDenyHeaders,
+      controlHeaders,
     ]);
     expect(vercel.headers.filter((rule: { headers: Array<{ key: string }> }) =>
       rule.headers.some((header) => header.key === "Content-Security-Policy"))).toEqual([
       frameDenyHeaders,
       previewHeaders,
+      controlHeaders,
     ]);
 
     expect(vercel.headers).toEqual(expect.arrayContaining([

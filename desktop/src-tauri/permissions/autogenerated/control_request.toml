@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-control-request"
+description = "Enables the control_request command without any pre-configured scope."
+commands.allow = ["control_request"]
+
+[[permission]]
+identifier = "deny-control-request"
+description = "Denies the control_request command without any pre-configured scope."
+commands.deny = ["control_request"]

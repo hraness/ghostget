@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.17.6",
+  "version": "0.18.0",
   "description": "Open-source CLI and TypeScript SDK for precise web capabilities for AI agents: page capture, verified media archives, encrypted reads, and typed provider operations.",
   "license": "MIT",
   "type": "module",
@@ -87,6 +87,7 @@
     "bunfig.toml",
     "docs/imessage-direct-provider.md",
     "docs/rental-listings.md",
+    "docs/control-panel.md",
     "src/args.ts",
     "src/apple-photos-cli.ts",
     "src/apple-photos-client-types.ts",
@@ -386,6 +387,7 @@
     "src/provider-plugin-lifecycle-kernel.ts",
     "src/provider-plugin-lifecycle.ts",
     "src/provider-plugin-package.ts",
+    "src/provider-plugin-import-analysis.ts",
     "src/provider-plugin-portable-authority.ts",
     "src/provider-plugin-portable-catalog.ts",
     "src/provider-plugin-portable-identity.ts",
@@ -540,7 +542,28 @@
     "src/confirmed-write-failure.ts",
     "src/confirmed-write-platform.ts",
     "src/confirmed-write-program.ts",
-    "src/confirmed-write-runtime.ts"
+    "src/confirmed-write-runtime.ts",
+    "src/control/validation.ts",
+    "src/control/interface-json.ts",
+    "src/control/interface-schema.ts",
+    "src/control/approval-client.ts",
+    "src/control/helper.ts",
+    "src/control/cli.ts",
+    "src/control/activity.ts",
+    "src/control/connections.ts",
+    "src/control/protocol.ts",
+    "src/control/approval-broker.ts",
+    "src/control/web-policy.ts",
+    "src/control/web-gateway.ts",
+    "src/control/service.ts",
+    "src/control/interfaces.ts",
+    "src/operation-permission-store.ts",
+    "src/operation-permission.ts",
+    "src/control/vault.ts",
+    "src/control/credential-helper.ts",
+    "src/control/account-revision.ts",
+    "src/control/interface-cli.ts",
+    "src/control/bundled-interfaces.ts"
   ],
   "scripts": {
     "check:theme": "bun scripts/check-paper-theme.mjs",
@@ -562,7 +585,7 @@
     "test:standalone": "bun run scripts/standalone-smoke.ts",
     "test:package": "bun run ./scripts/package-smoke.ts",
     "test:npm-release": "bun test --no-orphans --timeout 45000 --max-concurrency 1 ./scripts/release-ref-authority.test.ts ./scripts/npm-release-workflow.test.ts ./scripts/github-release-artifact.test.ts ./scripts/ci-pr-gate.test.ts",
-    "check:static": "bun run typecheck && bun run check:effect && bun run website:check && bun run test:npm-release",
+    "check:static": "bun run typecheck && bun run check:effect && bun run desktop:check && bun run website:check && bun run test:npm-release",
     "check:package": "bun run build && bun run test:package",
     "check:macos": "bun run ./scripts/ci-macos-check.ts",
     "check": "bun run check:static && bun run check:package && bun run test && bun run test:standalone",
@@ -571,7 +594,17 @@
     "kb:check": "bunx --bun github:hraness/kb#v0.15.2 check --root kb && bunx --bun github:hraness/kb#v0.15.2 agents check --root kb --repo .",
     "kb:catalog": "bunx --bun github:hraness/kb#v0.15.2 catalog --root kb",
     "prepack": "bun run check",
-    "check:effect": "bun scripts/check-effect-architecture.ts"
+    "check:effect": "bun scripts/check-effect-architecture.ts",
+    "desktop:typecheck": "tsc --noEmit -p desktop/tsconfig.json",
+    "desktop:build": "bun desktop/scripts/build.ts",
+    "desktop:direct": "bun desktop/scripts/serve-direct.ts",
+    "desktop:test": "bun test --no-orphans --timeout 180000 --max-concurrency 4 desktop",
+    "desktop:verify": "bun desktop/scripts/verify.ts",
+    "desktop:package": "bun desktop/scripts/package.ts",
+    "desktop:marketing": "bun desktop/scripts/marketing.tsx",
+    "desktop:check": "bun run desktop:typecheck && bun run desktop:test && bun run desktop:build && bun run desktop:marketing:check",
+    "desktop:marketing:check": "bun desktop/scripts/check-marketing.ts",
+    "desktop:check-native": "bun desktop/scripts/package.ts --stage-only && cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml && bun desktop/scripts/native-smoke.ts"
   },
   "dependencies": {
     "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
@@ -580,7 +613,8 @@
     "effect": "3.22.1",
     "source-map": "0.6.1",
     "source-map-support": "0.5.21",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "@1password/sdk": "0.5.0"
   },
   "devDependencies": {
     "@hraness/design-kit": "github:hraness/design-kit#v0.5.2",
@@ -592,7 +626,12 @@
     "@types/react-dom": "19.2.3",
     "fast-check": "^4.8.0",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "@tauri-apps/api": "2.11.1",
+    "@tauri-apps/cli": "2.11.4",
+    "@tanstack/react-virtual": "3.14.11",
+    "@hraness/direct": "https://github.com/hraness/direct/releases/download/v0.7.21/hraness-direct-0.7.21.tgz",
+    "agent-browser": "0.32.3"
   },
   "publishConfig": {
     "access": "public",

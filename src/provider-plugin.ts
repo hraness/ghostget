@@ -25,6 +25,7 @@ import {
   sep,
 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { scanProviderPluginValueImports } from "./provider-plugin-import-analysis";
 
 import type { GhostgetAuth } from "./auth";
 import type { MessageLikeMeSourceConversationCoordinateBindingV1 } from "./message-like-me-agentic-messaging";
@@ -1339,10 +1340,6 @@ const MAX_PROVIDER_PLUGIN_EVALUATION_PACKAGE_DEPTH = 32;
 const MAX_PROVIDER_PLUGIN_EVALUATION_PACKAGE_PATH_BYTES = 1_024;
 const MAX_PROVIDER_PLUGIN_EVALUATION_PACKAGE_BYTES = 128 * 1024 * 1024;
 const MAX_PROVIDER_PLUGIN_EVALUATION_PACKAGE_CACHE_ENTRIES = 256;
-const providerPluginEvaluationImportScanners = Object.freeze({
-  js: new Bun.Transpiler({ loader: "js" }),
-  ts: new Bun.Transpiler({ loader: "ts" }),
-});
 const providerPluginEvaluationModuleExtensions = new Set([
   ".cjs",
   ".cts",
@@ -2194,11 +2191,10 @@ function providerPluginEvaluationValueImports(
       `provider plugin evaluation module ${path} must be valid UTF-8`,
     );
   }
-  const scanner =
+  const loader =
     extension === ".ts" || extension === ".mts" || extension === ".cts"
-      ? providerPluginEvaluationImportScanners.ts
-      : providerPluginEvaluationImportScanners.js;
-  const imports = Object.freeze([...scanner.scanImports(source)]);
+      ? "ts" : "js";
+  const imports = scanProviderPluginValueImports(source, loader);
   if (imports.length > MAX_PROVIDER_PLUGIN_EVALUATION_IMPORTS_PER_MODULE) {
     throw new Error(
       `provider plugin evaluation module ${path} has too many static imports`,

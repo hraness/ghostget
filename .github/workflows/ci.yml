@@ -188,7 +188,7 @@ jobs:
   macos:
     name: macOS
     runs-on: macos-15
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -213,6 +213,9 @@ jobs:
         run: bun run ./scripts/release-source-ci.ts record
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run check:macos
+      - name: Pin native Rust toolchain
+        run: rustup toolchain install 1.97.1 --profile minimal && rustup default 1.97.1
+      - run: bun run desktop:check-native
 
   required:
     name: Required

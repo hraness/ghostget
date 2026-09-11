@@ -128,6 +128,54 @@ describe("macOS PR check subset", () => {
     expect(invocations[1]).toContain("--test-name-pattern");
     expect(invocations[1]).toContain("src/ghostget.test.ts");
   });
+
+  test("requires pinned native checks after the existing macOS suite", async () => {
+    type Step = { name?: string; run?: string; if?: unknown; "continue-on-error"?: unknown };
+    type Workflow = { jobs: { macos: { steps: Step[] }; required: { needs: string[] } } };
+    type Manifest = { scripts: Record<string, string> };
+    const workflow = Bun.YAML.parse(await readFile(ciWorkflowUrl, "utf8")) as Workflow;
+    const manifest = JSON.parse(await readFile(packageManifestUrl, "utf8")) as Manifest;
+    const nativeSteps: readonly Step[] = [
+      { run: "bun run check:macos" },
+      { name: "Pin native Rust toolchain", run: "rustup toolchain install 1.97.1 --profile minimal && rustup default 1.97.1" },
+      { run: "bun run desktop:check-native" },
+    ];
+    const validate = (candidate: Workflow, commands: Manifest): void => {
+      const steps = candidate.jobs.macos.steps;
+      const installation = steps.flatMap((step, index) => step.run === "bun install --frozen-lockfile --ignore-scripts" ? [index] : []);
+      if (installation.length !== 1 || !isDeepStrictEqual(steps.slice(installation[0]! + 1), nativeSteps)) {
+        throw new Error("macOS must retain its existing suite, then pin Rust before the native gate");
+      }
+      if (!candidate.jobs.required.needs.includes("macos")) throw new Error("native checks must gate Required");
+      if (commands.scripts["desktop:check-native"] !== "bun desktop/scripts/package.ts --stage-only && cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml && bun desktop/scripts/native-smoke.ts") {
+        throw new Error("native checks must stage production resources, use locked Rust dependencies, and smoke the packaged helper");
+      }
+      if (commands.scripts["desktop:check"] !== "bun run desktop:typecheck && bun run desktop:test && bun run desktop:build && bun run desktop:marketing:check") {
+        throw new Error("portable desktop checks must retain type, model, production graph, and inert marketing coverage");
+      }
+    };
+    expect(() => validate(workflow, manifest)).not.toThrow();
+    const mutations: ((candidate: Workflow, commands: Manifest) => void)[] = [
+      candidate => { candidate.jobs.macos.steps = candidate.jobs.macos.steps.filter(step => step.run !== "bun run check:macos"); },
+      candidate => { candidate.jobs.macos.steps = candidate.jobs.macos.steps.filter(step => step.name !== "Pin native Rust toolchain"); },
+      candidate => { candidate.jobs.macos.steps = candidate.jobs.macos.steps.filter(step => step.run !== "bun run desktop:check-native"); },
+      candidate => { candidate.jobs.macos.steps.find(step => step.name === "Pin native Rust toolchain")!.run = "rustup update stable"; },
+      candidate => { const steps = candidate.jobs.macos.steps; const index = steps.findIndex(step => step.name === "Pin native Rust toolchain"); steps.push(...steps.splice(index, 1)); },
+      candidate => { candidate.jobs.macos.steps.find(step => step.run === "bun run desktop:check-native")!.if = "always()"; },
+      candidate => { candidate.jobs.macos.steps.find(step => step.run === "bun run desktop:check-native")!["continue-on-error"] = true; },
+      candidate => { candidate.jobs.macos.steps.find(step => step.run === "bun run desktop:check-native")!.run += " || true"; },
+      candidate => { candidate.jobs.macos.steps.push({ run: "bun run desktop:check-native" }); },
+      candidate => { candidate.jobs.required.needs = candidate.jobs.required.needs.filter(job => job !== "macos"); },
+      (_candidate, commands) => { commands.scripts["desktop:check-native"] = commands.scripts["desktop:check-native"]!.replace(" --locked", ""); },
+      (_candidate, commands) => { commands.scripts["desktop:check-native"] = commands.scripts["desktop:check-native"]!.replace(" && bun desktop/scripts/native-smoke.ts", ""); },
+      (_candidate, commands) => { commands.scripts["desktop:check"] = commands.scripts["desktop:check"]!.replace(" && bun run desktop:marketing:check", ""); },
+    ];
+    for (const mutate of mutations) {
+      const candidate = structuredClone(workflow); const commands = structuredClone(manifest);
+      mutate(candidate, commands);
+      expect(() => validate(candidate, commands)).toThrow();
+    }
+  });
 });
 
 describe("complete local and release check composition", () => {
@@ -142,7 +190,7 @@ describe("complete local and release check composition", () => {
       test: ["test ${{ matrix.shard }}/4", "ubuntu-latest", 40],
       "test-omni": ["test-omni", "ubuntu-latest", 25],
       standalone: ["standalone", "ubuntu-latest", 20],
-      macos: ["macOS", "macos-15", 25],
+      macos: ["macOS", "macos-15", 45],
     } as const;
     const expectedNode = {
       uses: "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
@@ -276,7 +324,7 @@ describe("complete local and release check composition", () => {
       readonly scripts?: Record<string, string>;
     };
     expect(manifest.scripts?.["check:static"]).toBe(
-      "bun run typecheck && bun run check:effect && bun run website:check && bun run test:npm-release",
+      "bun run typecheck && bun run check:effect && bun run desktop:check && bun run website:check && bun run test:npm-release",
     );
     expect(manifest.scripts?.["check:package"]).toBe(
       "bun run build && bun run test:package",

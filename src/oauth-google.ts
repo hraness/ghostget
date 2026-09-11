@@ -764,11 +764,16 @@ export function installManagedGoogleOAuth(
       options.force === undefined ? {} : { force: options.force },
     );
   } catch (error) {
-    removePrivateStateFileIfUnchanged(
-      tokenPath,
-      { expectedCurrentContentSha256: createHash("sha256").update(content, "utf8").digest("hex") },
-      environment,
-    );
+    // Auth publication can succeed before prior-credential cleanup fails. Never
+    // delete the new live credential when reconciling that uncertain outcome.
+    const observed = loadAuthSnapshotIfPresent(id, environment)?.auth;
+    if (observed?.kind !== "oauth-token-file" || observed.path !== tokenPath) {
+      removePrivateStateFileIfUnchanged(
+        tokenPath,
+        { expectedCurrentContentSha256: createHash("sha256").update(content, "utf8").digest("hex") },
+        environment,
+      );
+    }
     throw error;
   }
   if (

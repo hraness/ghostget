@@ -45,6 +45,21 @@ async function rejectedError(promise: Promise<unknown>): Promise<Error> {
 }
 
 describe("DNS-pinned authenticated HTTPS", () => {
+  test("rechecks revocation and cancellation after DNS before dispatch", async () => {
+    let resolved=false;let dispatched=false;
+    const controller=new AbortController();
+    await expect(pinnedHttpsFetch(new URL("https://example.com/"),{redirect:"error",signal:controller.signal},30_000,{
+      resolveTarget:async()=>{await Promise.resolve();resolved=true;return [address];},
+      beforeRequest:()=>{expect(resolved).toBe(true);throw new Error("revoked");},
+      request:async()=>{dispatched=true;return response();},
+    })).rejects.toThrow("revoked");
+    expect(dispatched).toBe(false);
+    await expect(pinnedHttpsFetch(new URL("https://example.com/"),{redirect:"error",signal:controller.signal},30_000,{
+      resolveTarget:async()=>{controller.abort();return [address];},
+      request:async()=>{dispatched=true;return response();},
+    })).rejects.toThrow();
+    expect(dispatched).toBe(false);
+  });
   test("pins one validated address and preserves the exact method, headers, path, and owned body", async () => {
     const requests: PinnedHttpsRequest[] = [];
     const deps = dependencies((candidate) => {

@@ -1,4 +1,5 @@
 import { canonicalJson, sha256 } from "./canonical-json";
+import { assertOperationPermission, withOperationPermission } from "./operation-permission";
 import { loadAuthSnapshotIfPresent } from "./auth";
 import {
   createPortableProviderPluginCatalog,
@@ -239,8 +240,9 @@ export function readCachedPreparedCapability(
   options: ReadCapabilityOptions & { readonly registry: ProviderPluginRegistry },
 ): ReadProjectionCacheResult {
   const environment = options.environment ?? process.env;
+  assertOperationPermission(invocation, { environment, registry: options.registry });
   validateReadOptions(options);
-  return withInvocationAuthorityAdmission(
+  const result = withInvocationAuthorityAdmission(
     invocation,
     environment,
     () => {
@@ -265,6 +267,8 @@ export function readCachedPreparedCapability(
       return cached;
     },
   );
+  assertOperationPermission(invocation, { environment, registry: options.registry });
+  return result;
 }
 
 export function readCachedCapability(
@@ -279,7 +283,7 @@ export function readCachedCapability(
   );
 }
 
-export async function revalidatePreparedCapability(
+async function revalidatePreparedCapabilityCore(
   invocation: PreparedInvocation,
   options: PreparedReadOptions,
   cachedBeforeOverride?: ReadProjectionCacheResult | null,
@@ -465,6 +469,12 @@ export async function revalidatePreparedCapability(
     }
     throw error;
   }
+}
+
+export async function revalidatePreparedCapability(invocation: PreparedInvocation, options: PreparedReadOptions, cachedBeforeOverride?: ReadProjectionCacheResult | null): Promise<RevalidatedCapability> {
+  const environment = options.environment ?? process.env;
+  return withOperationPermission(invocation, { environment, registry: options.registry, ...(options.signal === undefined ? {} : { signal: options.signal }) },
+    () => revalidatePreparedCapabilityCore(invocation, options, cachedBeforeOverride));
 }
 
 export async function revalidateCapability(

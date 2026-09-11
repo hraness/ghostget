@@ -3480,6 +3480,8 @@ export async function main(
     return 2;
   }
   try {
+    const { assertGatewayCommandAllowed } = await import("./control/web-policy");
+    assertGatewayCommandAllowed(rawArguments, environment);
     let dependencies = resolveDependencies(dependencyOverrides);
     if (
       dependencyOverrides.providerPluginRegistry === undefined

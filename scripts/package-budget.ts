@@ -1,3 +1,35 @@
+// Ghostget 0.18.0 final control-boundary and idle-performance candidate: two
+// fresh Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0 on darwin
+// arm64 (zlib 1.2.12) are byte-identical, with 2,313,628 compressed and
+// 12,648,898 payload bytes across exactly 524 files, SHA-256
+// 6a18ddbf45c787ab22a206eccc75159e745700bab5cbdf34e159f0a240e135a9.
+// Every archive byte and mode matches its source. The new immutable syntax
+// analysis source adds 1,919 bytes; its callers, bounded approval and response
+// handling, monotonic deadlines, thin polling and guide changes add 2,611
+// bytes over the first 0.18.0 candidate below. No benchmark or test enters the
+// archive. Preserve 65 payload bytes of headroom and the exact inventory.
+// The compressed ceiling remains the measured size plus the last observed
+// 2,802-byte Linux spread and the reviewed 4,096-byte portability allowance.
+// This is a projection, not Linux evidence; fresh pinned Linux CI checks its
+// actual canonical archive. The five Release assets remain unchanged.
+//
+// Ghostget 0.18.0 first candidate, measured after the native control helper, public retrieval
+// gateway, operation permissions, editable OpenAPI interfaces, 1Password token
+// import and their public guides joined the version projections. Two fresh
+// Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0 on darwin arm64
+// (zlib 1.2.12) are byte-identical: 2,312,026 compressed and 12,644,368 payload
+// bytes across exactly 523 files, SHA-256
+// 82364442728547e0ea3c6a2fb105ea58e461f5bab2346e8b8244bf68e4596d54.
+// Every archive byte and mode matches its source. The 23 new control/permission
+// sources and public guides add 183,467 payload bytes; existing source, SDK and
+// documentation changes add the remaining 16,977 bytes over 0.17.6. Native app
+// assets, Direct fixtures, tests and dependencies are absent from this archive.
+// Preserve 65 payload bytes of headroom and require the exact inventory. Set
+// the compressed ceiling to this measured size plus the last observed
+// 2,802-byte Linux spread and the reviewed 4,096-byte portability allowance.
+// This is a projection, not Linux evidence: required CI checks its actual npm
+// archive under the pinned release toolchain. The five Release assets stay fixed.
+//
 // Ghostget 0.17.6, measured after the shared Paper marketing theme and version
 // projections: two Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0
 // on darwin arm64 are byte-identical, with 2,258,514 compressed and 12,443,924
@@ -339,10 +371,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_267_917;
-export const MAX_PACKED_ENTRIES = 500;
-export const MAX_PACKED_FILES = 500;
-export const MAX_UNPACKED_BYTES = 12_443_989;
+export const MAX_PACKED_BYTES = 2_320_526;
+export const MAX_PACKED_ENTRIES = 524;
+export const MAX_PACKED_FILES = 524;
+export const MAX_UNPACKED_BYTES = 12_648_963;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

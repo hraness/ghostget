@@ -1,4 +1,6 @@
 import * as Effect from "effect/Effect";
+import { assertOperationPreparationPermission, checkOperationPermission, withOperationPermission, withUnmanagedOperationPermission, readOperationPolicy } from "./operation-permission";
+import type { ApprovalTarget } from "./control/protocol";
 import { ConfirmedWritePlatform, makeConfirmedWritePlatform } from "./confirmed-write-platform";
 import { confirmedWriteProgram } from "./confirmed-write-program";
 import { runConfirmedWrite } from "./confirmed-write-runtime";
@@ -186,6 +188,7 @@ type InvocationPlanCommon = {
     readonly id: string;
     readonly hash: string;
     readonly kind: GhostgetAuth["kind"];
+    readonly incarnationHash?: string;
   };
   readonly duplicateRisk?: InvocationDuplicateRiskV1;
   readonly messagingComposite?: MessagingCompositeInvocationPlanV1;
@@ -1231,6 +1234,7 @@ export function prepareInvocation(
   authId?: string,
   environment: Readonly<Record<string, string | undefined>> = process.env,
   registry: ProviderPluginRegistry = providerPluginRegistry,
+  permissionMode: "enforce" | "inspect" = "enforce",
 ): PreparedInvocation {
   const manifestResult = loadInstalledManifestWithRegistry(adapterId, environment, registry);
   if (!manifestResult.ok) throw new Error(`adapter ${adapterId} is invalid: ${manifestResult.issues.join("; ")}`);
@@ -1257,7 +1261,7 @@ export function prepareInvocation(
       );
     }
     const authority = authenticationPolicy.authority;
-    return revalidatePreparedInvocation({
+    const invocation = revalidatePreparedInvocation({
       manifest: manifestResult.value,
       operationId,
       input: platformInput.value,
@@ -1265,6 +1269,8 @@ export function prepareInvocation(
       readProjectionAuthIdentityHash:
         publicWebSessionAuthorityIdentityHash(authority),
     }, registry).invocation;
+    if (permissionMode === "enforce") assertOperationPreparationPermission(invocation, { environment, registry });
+    return invocation;
   }
   const selectedAuthId = authId ?? adapterId;
   const preparedAuth = withSettledReadProjectionAuthAdmission(
@@ -1282,7 +1288,7 @@ export function prepareInvocation(
       });
     },
   );
-  return revalidatePreparedInvocation({
+  const invocation = revalidatePreparedInvocation({
     manifest: manifestResult.value,
     operationId,
     input: platformInput.value,
@@ -1290,6 +1296,8 @@ export function prepareInvocation(
     readProjectionAuthIdentityHash:
       preparedAuth.readProjectionAuthIdentityHash,
   }, registry).invocation;
+  if (permissionMode === "enforce") assertOperationPreparationPermission(invocation, { environment, registry });
+  return invocation;
 }
 
 /**
@@ -1448,6 +1456,7 @@ export function createInvocationPlan(
       id: planAuth.id,
       hash: authHash(planAuth),
       kind: planAuth.kind,
+      ...(invocation.readProjectionAuthIdentityHash === undefined ? {} : { incarnationHash: invocation.readProjectionAuthIdentityHash }),
     },
   };
   const portablePluginContract = pluginResolution?.portableIdentity ?? null;
@@ -2433,7 +2442,8 @@ function parseStoredPlan(value: unknown): StoredPlan {
   ) throw new Error("stored plan adapter is malformed");
   const auth = raw.auth;
   if (
-    !hasExactKeys(auth, ["id", "hash", "kind"])
+    !hasExactKeys(auth, ["id", "hash", "kind", ...(Object.hasOwn(auth, "incarnationHash") ? ["incarnationHash"] : [])])
+    || (Object.hasOwn(auth, "incarnationHash") && (typeof auth.incarnationHash !== "string" || !/^[a-f0-9]{64}$/u.test(auth.incarnationHash)))
     || typeof auth.id !== "string"
     || !/^[a-z][a-z0-9-]{0,47}$/u.test(auth.id)
     || typeof auth.hash !== "string"
@@ -2550,7 +2560,7 @@ function parseStoredPlan(value: unknown): StoredPlan {
     input,
     inputHash,
     dispatches,
-    auth: { id: auth.id, hash: auth.hash, kind: auth.kind },
+    auth: { id: auth.id, hash: auth.hash, kind: auth.kind, ...(typeof auth.incarnationHash === "string" ? { incarnationHash: auth.incarnationHash } : {}) },
     ...(Object.hasOwn(raw, "duplicateRisk")
       ? { duplicateRisk: parseInvocationDuplicateRisk(raw.duplicateRisk) }
       : {}),
@@ -2977,12 +2987,39 @@ function validateFreshPlan(
   } else if (auth.kind === "oauth-token-file") {
     throw new Error("browser authentication changed after preview; preview the action again");
   }
+  const incarnation = withSettledReadProjectionAuthAdmission(auth.id, environment, () => {
+    const current = loadAuth(auth.id, environment);
+    if (authHash(current) !== authHash(auth)) throw new Error("authentication changed during confirmation preparation");
+    return projectionAuthIdentityHash(auth.id, authHash(auth), environment);
+  });
+  if ((plan.auth.incarnationHash !== undefined && plan.auth.incarnationHash !== incarnation)
+    || (plan.auth.incarnationHash === undefined && readOperationPolicy(environment).managed)) {
+    throw new Error("authentication lifetime changed or predates managed permissions; preview the action again");
+  }
   return revalidatePreparedInvocation({
     manifest,
     operationId: plan.operation,
     input: platformInput.value,
     auth,
+    readProjectionAuthIdentityHash: incarnation,
   }, registry).invocation;
+}
+
+/** Trusted control-plane inspection. This only prepares; execution gates remain mandatory. */
+export function prepareOperationApprovalInvocation(
+  target: Extract<ApprovalTarget, { readonly kind: "provider" }>,
+  options: { readonly environment: Readonly<Record<string, string | undefined>>; readonly registry: ProviderPluginRegistry },
+): { readonly invocation: PreparedInvocation; readonly stored: StoredPlan | null } {
+  if (target.planDigest === null) return {
+    invocation: prepareInvocation(target.adapterId, target.operationId, target.input, target.authId ?? undefined, options.environment, options.registry, "inspect"), stored: null,
+  };
+  const stored = loadInvocationPlan(target.planDigest, options.environment);
+  if (stored.plan.adapter.id !== target.adapterId || stored.plan.operation !== target.operationId || stored.plan.auth.id !== target.authId) {
+    throw new Error("approval target does not match its exact saved plan");
+  }
+  const invocation = validateFreshPlan(stored, options.environment, new Date(), options.registry,
+    (id, environment = options.environment) => loadInstalledManifestWithRegistry(id, environment, options.registry));
+  return { invocation, stored };
 }
 
 
@@ -4381,6 +4418,7 @@ async function runPreparedReadCore(invocation: PreparedInvocation, planDigest: s
 
     },
     execute: async () => {
+      await checkOperationPermission(invocation, { environment: options.environment, registry, ...(options.signal === undefined ? {} : { signal: options.signal }) });
       if (options.preflightFailure !== undefined) throw options.preflightFailure;
     return providerOperation
       ? await (options.executeProvider ?? executeProviderOperation)(
@@ -4524,7 +4562,7 @@ async function runPreparedReadCore(invocation: PreparedInvocation, planDigest: s
 
 
 
-async function runPrepared(
+async function runPreparedCore(
   invocation: PreparedInvocation,
   planDigest: string | null,
   options: RunPreparedOptions,
@@ -4593,6 +4631,12 @@ async function runPrepared(
   );
 }
 
+async function runPrepared(invocation: PreparedInvocation, planDigest: string | null, options: RunPreparedOptions): Promise<InvocationResult> {
+  if (!readOperationPolicy(options.environment).managed) return withUnmanagedOperationPermission(options.environment, () => runPreparedCore(invocation, planDigest, options));
+  return withOperationPermission(invocation, { environment: options.environment, registry: options.registry ?? providerPluginRegistry,
+    ...(options.signal === undefined ? {} : { signal: options.signal }) }, () => runPreparedCore(invocation, planDigest, options));
+}
+
 export async function executeReadInvocation(
   invocation: PreparedInvocation,
   options: {
@@ -4628,7 +4672,7 @@ export async function executeReadInvocation(
   });
 }
 
-export async function confirmInvocation(
+async function confirmInvocationCore(
   digest: string,
   options: {
     readonly headed: boolean;
@@ -4681,6 +4725,17 @@ export async function confirmInvocation(
   }, options))));
 }
 
+export async function confirmInvocation(digest: string, options: Parameters<typeof confirmInvocationCore>[1]): Promise<InvocationResult> {
+  const environment = options.environment ?? process.env;
+  if (!readOperationPolicy(environment).managed) return withUnmanagedOperationPermission(environment, () => confirmInvocationCore(digest, options));
+  const registry = options.registry ?? providerPluginRegistry;
+  const stored = loadInvocationPlan(digest, environment);
+  const invocation = validateFreshPlan(stored, environment, options.now ?? new Date(), registry,
+    options.loadManifest ?? ((id, selected = environment) => loadInstalledManifestWithRegistry(id, selected, registry)));
+  return withOperationPermission(invocation, { environment, registry, plan: stored, ...(options.signal === undefined ? {} : { signal: options.signal }) },
+    () => confirmInvocationCore(digest, options));
+}
+
 export type MessagingConfirmationResult = {
   readonly run: MessagingRunV1;
   readonly receipt: MessagingRunReceipt;
@@ -4728,7 +4783,7 @@ function terminalizeMessagingRecovery(
 }
 
 /** Confirm one composite messaging preview under one durable ownership claim. */
-export async function confirmMessagingInvocation(
+async function confirmMessagingInvocationCore(
   digest: string,
   options: {
     readonly environment?: Readonly<Record<string, string | undefined>>;
@@ -4855,6 +4910,17 @@ export async function confirmMessagingInvocation(
       releaseConfirmationClaim(claim, environment);
     }
   }
+}
+
+export async function confirmMessagingInvocation(digest: string, options: NonNullable<Parameters<typeof confirmMessagingInvocationCore>[1]> = {}): Promise<MessagingConfirmationResult> {
+  const environment = options.environment ?? process.env;
+  if (!readOperationPolicy(environment).managed) return withUnmanagedOperationPermission(environment, () => confirmMessagingInvocationCore(digest, options));
+  const registry = options.registry ?? providerPluginRegistry;
+  const stored = loadInvocationPlan(digest, environment);
+  const invocation = validateFreshPlan(stored, environment, options.now ?? new Date(), registry,
+    options.loadManifest ?? ((id, selected = environment) => loadInstalledManifestWithRegistry(id, selected, registry)));
+  return withOperationPermission(invocation, { environment, registry, plan: stored, ...(options.signal === undefined ? {} : { signal: options.signal }) },
+    () => confirmMessagingInvocationCore(digest, options));
 }
 
 export function readRunReceipt(
