@@ -28,9 +28,10 @@ Explicit focused local/native and coupled reproductions still apply under
 requires the exact repository, active workflow ID/path, main-push source and tree,
 all ten successful jobs, and nine actual checkout logs. Each source job records
 its exact workflow/lock hashes, Node/npm/Bun versions and GitHub-hosted platform
-before its frozen install. Admission also requires both successful exact-source
-CodeQL jobs and current main analyses, plus the successful security comparison
-on the merged PR's identical tree. Any present main comparison must succeed;
+before its frozen install. Admission also requires all three successful
+exact-source CodeQL jobs and current main analyses for Actions,
+JavaScript/TypeScript, and the native host's Rust source, plus the successful
+security comparison on the merged PR's identical tree. Any present main comparison must succeed;
 analysis result counts are recorded without asserting that no alerts exist.
 The CodeQL app's check must identify that exact PR through its returned PR
 association. If GitHub returns an empty association array, only its exact
@@ -50,6 +51,13 @@ logs its bounded receipt; it never reruns CI or accepts a caller-supplied receip
 Only the read-only Verify job adds Checks, Pull requests and Security events read
 permissions for these API reads. Publication and attestation permissions stay
 unchanged.
+
+When the native host first entered `main`, GitHub's automatic CodeQL setup
+produced two runs on that source: the existing two-language scan and a new
+three-language scan including Rust. That transition source remains ambiguous
+and cannot qualify a release. The source-admission correction requires a fresh
+merged source with one complete three-language run; neither scan is deleted or
+selected as a substitute for the unique-run gate.
 
 After admission, Release still performs a fresh frozen install and deterministic
 build, checks generated `dist` and `bun.lock` cleanliness, dry packing and all

@@ -20,7 +20,9 @@ const MARKER = "WRENCH_SOURCE_CI_IDENTITY=";
 const SHA = /^[a-f0-9]{40}$/u;
 const HASH = /^[a-f0-9]{64}$/u;
 const JOBS = ["static", "package", "test 1/4", "test 2/4", "test 3/4", "test 4/4", "test-omni", "standalone", "macOS", "Required"];
-const CODEQL_JOBS = ["Analyze (javascript-typescript)", "Analyze (actions)"];
+const CODEQL_LANGUAGES = ["actions", "javascript-typescript", "rust"] as const;
+const CODEQL_JOBS = CODEQL_LANGUAGES.map(language => `Analyze (${language})`);
+const CODEQL_CATEGORIES = CODEQL_LANGUAGES.map(language => `/language:${language}`);
 const TOOLCHAIN = { node: "24.20.0", npm: "11.19.0", bun: "1.3.14" } as const;
 const MAXIMUM_EVIDENCE_AGE = 72 * 60 * 60 * 1000;
 const ANALYSES_WINDOW = 20;
@@ -172,14 +174,15 @@ function security(read: SourceCiReader, input: SourceCiInput, codeql: ReturnType
   const mainComparison = comparison(read, input.source);
   const intervalStart = Math.min(...codeql.jobs.map(job => timestamp(job.started_at)));
   const intervalEnd = Math.max(...codeql.jobs.map(job => timestamp(job.completed_at)));
-  // GitHub lists analyses newest first and main accumulates two per push, so the
+  // GitHub lists analyses newest first and main accumulates three per push, so the
   // exact current-main analyses sit inside this bounded window; older history is
   // not read and its growth cannot fail admission.
   const analyses = newestWindow(read(`${PREFIX}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=${ANALYSES_WINDOW}`), ANALYSES_WINDOW)
     .map(object).filter(analysis => analysis.commit_sha === input.source
       && timestamp(analysis.created_at) >= intervalStart && timestamp(analysis.created_at) <= intervalEnd);
-  requireValue(analyses.length === 2 && new Set(analyses.map(analysis => integer(analysis.id))).size === 2
-    && isDeepStrictEqual(analyses.map(analysis => analysis.category).sort(), ["/language:actions", "/language:javascript-typescript"]),
+  requireValue(analyses.length === CODEQL_LANGUAGES.length
+    && new Set(analyses.map(analysis => integer(analysis.id))).size === CODEQL_LANGUAGES.length
+    && isDeepStrictEqual(analyses.map(analysis => analysis.category).sort(), CODEQL_CATEGORIES),
   "exact main CodeQL analyses are missing or ambiguous");
   const exactAnalyses = analyses.map(analysis => {
     const id = integer(analysis.id); const category = text(analysis.category); const tool = object(analysis.tool);

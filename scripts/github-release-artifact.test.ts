@@ -31,7 +31,7 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
   const ciNames = ["static", "package", "test 1/4", "test 2/4", "test 3/4", "test 4/4", "test-omni", "standalone", "macOS", "Required"];
   for (const [workflowId, path, event, runId, names] of [
     [323493607, ".github/workflows/ci.yml", "push", 100, ciNames],
-    [351099999, "dynamic/github-code-scanning/codeql", "dynamic", 200, ["Analyze (javascript-typescript)", "Analyze (actions)"]],
+    [351099999, "dynamic/github-code-scanning/codeql", "dynamic", 200, ["Analyze (javascript-typescript)", "Analyze (actions)", "Analyze (rust)"]],
   ] as const) {
     responses[`${prefix}/actions/workflows/${workflowId}`] = { id: workflowId, path, state: "active" };
     const run = { id: runId, workflow_id: workflowId, path, event, head_sha: input.source, head_branch: "main", run_attempt: attempt,
@@ -66,7 +66,7 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
   // The currently running Release is deliberately not a required source job.
   responses[`${prefix}/commits/${input.source}/check-runs?per_page=100&filter=latest`] = { total_count: 1,
     check_runs: [{ id: 701, name: "Verify", app: { id: 15368 }, head_sha: input.source, status: "in_progress", conclusion: null }] };
-  const analyses = ["actions", "javascript-typescript"].map((language, index) => ({ id: 800 + index,
+  const analyses = ["actions", "javascript-typescript", "rust"].map((language, index) => ({ id: 800 + index,
     commit_sha: input.source, category: `/language:${language}`, ref: "refs/heads/main", analysis_key: "dynamic/github-code-scanning/codeql:analyze",
     tool: { name: "CodeQL", version: "2.27.0" }, environment: JSON.stringify({ category: `/language:${language}`, language }),
     error: "", warning: "", created_at: "2026-09-09T01:10:00Z", url: `https://api.github.com/${prefix}/code-scanning/analyses/${800 + index}`, results_count: 41 }));
@@ -79,9 +79,11 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
 describe("exact source CI admission", () => {
   test("admits all ten jobs and nine real checkouts with exact toolchains and distinct security evidence", () => {
     const fixture = sourceCiFixture(); const result = admitSourceCi(fixture.input, fixture.read, fixture.clock);
-    expect(result.ci.jobs).toHaveLength(10); expect(result.checkouts).toHaveLength(9); expect(result.codeql.jobs).toHaveLength(2);
+    expect(result.ci.jobs).toHaveLength(10); expect(result.checkouts).toHaveLength(9);
+    expect(result.codeql.jobs.map(job => job.name).sort()).toEqual(["Analyze (actions)", "Analyze (javascript-typescript)", "Analyze (rust)"]);
     expect(result.security.prComparison).toHaveLength(1); expect(result.security.mainComparison).toEqual([]);
-    expect(result.security.exactAnalyses.map(value => value.resultsCount)).toEqual([41, 41]);
+    expect(result.security.exactAnalyses.map(value => value.category)).toEqual(["/language:actions", "/language:javascript-typescript", "/language:rust"]);
+    expect(result.security.exactAnalyses.map(value => value.resultsCount)).toEqual([41, 41, 41]);
     expect(result.security.distinction).toContain("do not assert zero alerts");
     expect(fixture.calls.filter(path => path.endsWith("/logs"))).toHaveLength(9);
     expect(fixture.calls.filter(path => path.endsWith("/git/ref/heads/main"))).toHaveLength(2);
@@ -105,13 +107,13 @@ describe("exact source CI admission", () => {
   test("admits the exact analyses at the top of a full newest-first window and rejects an oversized window", () => {
     const path = (f: ReturnType<typeof sourceCiFixture>) => `${f.prefix}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=20`;
     const older = (f: ReturnType<typeof sourceCiFixture>, count: number) => Array.from({ length: count }, (_, index) => ({
-      ...f.analyses[index % 2]!, id: 900 + index, commit_sha: "c".repeat(40), created_at: "2026-09-08T01:10:00Z" }));
+      ...f.analyses[index % 3]!, id: 900 + index, commit_sha: "c".repeat(40), created_at: "2026-09-08T01:10:00Z" }));
     const full = sourceCiFixture();
-    full.responses[path(full)] = [...full.analyses, ...older(full, 18)];
+    full.responses[path(full)] = [...full.analyses, ...older(full, 17)];
     expect(full.responses[path(full)]).toHaveLength(20);
-    expect(admitSourceCi(full.input, full.read, full.clock).security.exactAnalyses.map(analysis => analysis.id)).toEqual([800, 801]);
+    expect(admitSourceCi(full.input, full.read, full.clock).security.exactAnalyses.map(analysis => analysis.id)).toEqual([800, 801, 802]);
     const oversized = sourceCiFixture();
-    oversized.responses[path(oversized)] = [...oversized.analyses, ...older(oversized, 19)];
+    oversized.responses[path(oversized)] = [...oversized.analyses, ...older(oversized, 18)];
     expect(() => admitSourceCi(oversized.input, oversized.read, oversized.clock)).toThrow("missing or oversized newest window");
     const absent = sourceCiFixture();
     absent.responses[path(absent)] = older(absent, 20);
@@ -123,7 +125,84 @@ describe("exact source CI admission", () => {
     fixture.analyses.push(...fixture.analyses.map(value => ({ ...value, id: value.id + 10, created_at: "2026-09-08T01:10:00Z" })));
     const result = admitSourceCi(fixture.input, fixture.read, fixture.clock);
     expect(result.ci.attempt).toBe(2); expect(result.codeql.attempt).toBe(2);
-    expect(result.security.exactAnalyses.map(value => value.id)).toEqual([800, 801]);
+    expect(result.security.exactAnalyses.map(value => value.id)).toEqual([800, 801, 802]);
+  });
+  test("requires Rust jobs and analyses without accepting the old two-language contract", () => {
+    for (const keepRustAnalysis of [false, true]) {
+      const fixture = sourceCiFixture();
+      const jobs = fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`];
+      jobs.jobs = jobs.jobs.filter((job: Json) => job.name !== "Analyze (rust)"); jobs.total_count = 2;
+      if (!keepRustAnalysis) fixture.analyses.pop();
+      expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow("complete successful job union is required");
+    }
+    const missingAnalysis = sourceCiFixture(); missingAnalysis.analyses.pop();
+    expect(() => admitSourceCi(missingAnalysis.input, missingAnalysis.read, missingAnalysis.clock)).toThrow("exact main CodeQL analyses are missing or ambiguous");
+    for (const mutate of [
+      (job: Json) => { job.name = "Analyze (unknown)"; },
+      (job: Json) => { job.name = "Analyze (actions)"; },
+      (job: Json) => { job.conclusion = "failure"; },
+      (job: Json) => { job.conclusion = "skipped"; },
+      (job: Json) => { job.run_attempt = 2; },
+      (job: Json) => { job.head_sha = "7".repeat(40); },
+    ]) {
+      const fixture = sourceCiFixture();
+      const rust = fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`].jobs.find((job: Json) => job.name === "Analyze (rust)");
+      mutate(rust);
+      expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow();
+    }
+  });
+  test("binds Rust analysis to its exact source, configuration and own job interval", () => {
+    for (const mutate of [
+      (analysis: Json) => { analysis.id = 800; },
+      (analysis: Json) => { analysis.category = "/language:actions"; },
+      (analysis: Json) => { analysis.category = "/language:unknown"; },
+      (analysis: Json) => { analysis.commit_sha = "7".repeat(40); },
+      (analysis: Json) => { analysis.ref = "refs/pull/50/head"; },
+      (analysis: Json) => { analysis.analysis_key = "other:analyze"; },
+      (analysis: Json) => { analysis.environment = JSON.stringify({ category: "/language:rust", language: "actions" }); },
+      (analysis: Json) => { analysis.environment = JSON.stringify({ category: "/language:actions", language: "rust" }); },
+      (analysis: Json) => { analysis.error = "failed analysis"; },
+      (analysis: Json) => { analysis.warning = "incomplete extraction"; },
+      (analysis: Json) => { analysis.tool.name = "Other"; },
+      (analysis: Json) => { analysis.url += "/other"; },
+      (analysis: Json) => { analysis.created_at = "2026-09-08T01:10:00Z"; },
+    ]) {
+      const fixture = sourceCiFixture(); mutate(fixture.analyses[2]!);
+      expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow();
+    }
+    for (const field of ["started_at", "completed_at"]) {
+      const fixture = sourceCiFixture();
+      const rust = fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`].jobs.find((job: Json) => job.name === "Analyze (rust)");
+      rust[field] = field === "started_at" ? "2026-09-09T01:11:00Z" : "2026-09-09T01:09:00Z";
+      expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow("CodeQL analysis source, configuration, time, or outcome differs");
+    }
+  });
+  test("refuses two exact-source CodeQL runs even when the later run has all three languages", () => {
+    const fixture = sourceCiFixture();
+    const path = `${fixture.prefix}/actions/workflows/351099999/runs?head_sha=${fixture.input.source}&branch=main&event=dynamic&per_page=100`;
+    const inventory = fixture.responses[path];
+    const earlier = { ...inventory.workflow_runs[0], id: 199 };
+    inventory.workflow_runs.push(earlier); inventory.total_count = 2;
+    fixture.responses[`${fixture.prefix}/actions/runs/199/attempts/1/jobs?per_page=100`] = {
+      total_count: 2, jobs: fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`].jobs.slice(0, 2),
+    };
+    expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow("exact-source workflow run is missing or ambiguous");
+    expect(fixture.calls.some(call => /\/actions\/runs\/(?:199|200)(?:\/|$)/u.test(call))).toBe(false);
+  });
+  test("rejects Rust-only evidence changes during the final source snapshot", () => {
+    for (const target of ["job", "analysis"]) {
+      const fixture = sourceCiFixture(); let reads = 0;
+      const path = target === "job" ? `${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`
+        : `${fixture.prefix}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=20`;
+      expect(() => admitSourceCi(fixture.input, current => {
+        if (current === path && ++reads === 2) {
+          if (target === "job") fixture.responses[path].jobs.find((job: Json) => job.name === "Analyze (rust)").completed_at = "2026-09-09T01:13:59Z";
+          else fixture.analyses[2]!.results_count += 1;
+        }
+        return fixture.read(current);
+      }, fixture.clock)).toThrow("source or provider evidence changed during admission");
+      expect(reads).toBe(2);
+    }
   });
   test("admits a current-repository closed PR CodeQL response with an empty association and exact provider summary", () => {
     const fixture = sourceCiFixture(1, 203);
