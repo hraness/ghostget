@@ -149,6 +149,20 @@ describe("1Password exact X token import", () => {
     })).toEqual({ ok: false, code: "IMPORT_UNCERTAIN" });
     expect(loadAuthSnapshotIfPresent(request.id, fixture.environment)).toBeNull(); expect(tokens(fixture.root)).toHaveLength(1);
   });
+
+  test("a successful subject probe cannot publish a BOM-prefixed staged credential", async () => {
+    const fixture = state(); let altered = Buffer.alloc(0);
+    expect(await runCredentialImport(request, fixture.environment, signal(), {
+      ...dependencies, probe: async auth => {
+        altered = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), readFileSync(auth.path)]);
+        writeFileSync(auth.path, altered);
+        return request.expectedSubject;
+      },
+    })).toEqual({ ok: false, code: "IMPORT_UNCERTAIN" });
+    expect(loadAuthSnapshotIfPresent(request.id, fixture.environment)).toBeNull();
+    const retained = tokens(fixture.root); expect(retained).toHaveLength(1);
+    expect(readFileSync(join(fixture.root, "auth", "oauth-tokens", retained[0]!))).toEqual(altered);
+  });
 });
 
 describe("fixed token probe and credential IPC", () => {

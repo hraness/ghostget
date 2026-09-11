@@ -85,11 +85,12 @@ export async function runCredentialImport(value: unknown, environment: Environme
     failure = "IMPORT_FAILED";
     const path = join(ghostgetStateHome(environment), "auth", "oauth-tokens", `${request.id}-${randomUUID()}.json`);
     const credential = { schemaVersion: 1, provider: "x", subject: request.expectedSubject, scopes: request.scopes, accessToken, expiresAt: request.expiresAt };
+    const expectedContent = `${canonicalJson(credential)}\n`;
     stage = { path, contentSha256: null };
     if (!createPrivateJsonIfAbsent(path, credential, { privateParent: true, environment }).created) { stage = null; throw new Error(); }
     const auth = createAuth(request.id, { oauthProvider: "x", tokenFile: path, subject: request.expectedSubject, scopes: request.scopes, ownedImport: true });
     if (auth.kind !== "oauth-token-file") throw new Error();
-    const { contentSha256 } = loadOAuthCredential(auth, { expectedContent: `${canonicalJson(credential)}\n` });
+    const { contentSha256 } = loadOAuthCredential(auth, { expectedContent });
     stage = { path, contentSha256 };
     failure = "TOKEN_UNVERIFIED";
     const subject = await deadline.run(activeSignal => (dependencies.probe ?? probeImportedXToken)(auth, activeSignal), "account verification");
@@ -101,7 +102,7 @@ export async function runCredentialImport(value: unknown, environment: Environme
       parseVaultImport(request);
       const observed = loadAuthSnapshotIfPresent(request.id, environment);
       if ((observed === null ? null : connectionAccountRevision(observed, environment)) !== request.expectedRevision) throw new Error();
-      if (loadOAuthCredential(auth).contentSha256 !== contentSha256) throw new Error();
+      if (loadOAuthCredential(auth, { expectedContent }).contentSha256 !== contentSha256) throw new Error();
       if (current === null) saveAuth(auth, environment);
       else if (!replaceAuthIfUnchanged(current, auth, environment).replaced) throw new Error();
     });
