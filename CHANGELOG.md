@@ -7,6 +7,18 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Read LinkedIn `contacts.read@1` first-degree distance from non-flight Como
+  rehydration string slots. Live pages after adapter 1.26.0 still bound
+  identity through `vieweeProfileId` plus vanity, but `networkDistance` and
+  paired `vieweeMemberUrn` sat in a Como array string that was not an RSC
+  flight. `decodeComoRehydrationValue` dropped that slot before the 1.26.0
+  peel could run. Non-flight string slots now go through
+  `decodeStringBootstrap`. True RSC flights still use
+  `decodeRscFlightRecords`. Self, non-first-degree, and contradictory
+  distances still fail closed, and no email is invented. Adapter bundle 1.27.0.
+  This is the fifth live Contact-info drift after the 1.23.0
+  flight-array parse, the 1.24.0 deep-walk / `vieweeProfileId` join, the
+  1.25.0 `vieweeMemberUrn` distance join, and the 1.26.0 multi-escaped peel.
 - Read LinkedIn `contacts.read@1` first-degree distance from multi-escaped Como
   PROFILE_VIEW breadcrumb rows. Live pages after adapter 1.25.0 still bound
   identity through `vieweeProfileId` plus vanity, but `networkDistance` and
