@@ -5,11 +5,12 @@ import {
   lstatSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { loadAuth, removeAuth } from "./auth";
 import {
@@ -146,6 +147,11 @@ describe("Google OAuth lifecycle", () => {
       });
       expect(loadAuth("gmail-main", fixture.environment)).toEqual(installed.auth);
       expect(Number(lstatSync(installed.auth.path).mode & 0o777)).toBe(0o600);
+      const tokenDirectory = dirname(installed.auth.path);
+      const beforeDuplicate = readdirSync(tokenDirectory).sort();
+      expect(() => installManagedGoogleOAuth("gmail-main", login, fixture.environment)).toThrow();
+      expect(readdirSync(tokenDirectory).sort()).toEqual(beforeDuplicate);
+      expect(loadAuth("gmail-main", fixture.environment)).toEqual(installed.auth);
       expect(readFileSync(installed.auth.path, "utf8")).toContain(
         "private-durable-refresh-token",
       );

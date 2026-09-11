@@ -7,7 +7,7 @@ import { ConfirmedWriteFailure, confirmedWriteAttempt, type ConfirmedWritePhase 
 import { redactSensitiveText } from "@hraness/kb/clip/persist";
 
 import { executeBrowserRecipe, PreservedBrowserArtifactsError, type BrowserDispatchEvent } from "./browser";
-import { assertOperationPermission, checkOperationPermission } from "./operation-permission";
+import { assertOperationPermission, checkOperationPermission, readOperationPolicy } from "./operation-permission";
 import { canonicalJson, DOM_ACTION_TRANSPORT_DISABLED_MESSAGE, expandBrowserRecipe, isLocalCliOperation, isProviderOperation, isReviewedTemplateOperation, isWebSessionOperation, manifestHash, sha256, type FileInputValue, type InputValue, type GhostgetManifest } from "./model";
 
 import { localCliContractIdentity } from "./local-cli-contracts";
@@ -155,6 +155,13 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
     const registry = options.registry ?? providerPluginRegistry;
     const invocation = checked.invocation;
     const operation = checked.operation;
+    const dispatchPermissionCheck = (): void | Promise<void> => {
+      const permissionOptions = { environment: options.environment, registry, ...(options.signal === undefined ? {} : { signal: options.signal }) };
+      // Legacy native execution persists its dispatch prefix before returning a
+      // Promise. Managed admission may need an asynchronous lease recheck.
+      if (readOperationPolicy(options.environment).managed) return checkOperationPermission(invocation, permissionOptions);
+      assertOperationPermission(invocation, permissionOptions);
+    };
     if (operation.risk === "R4") throw new Error("R4 capabilities are blocked by wrench");
     if (operation.risk !== "R2" && operation.risk !== "R3") throw new Error("only R2 and R3 plans use confirmation");
     const risk = operation.risk;
@@ -350,7 +357,10 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
         | ReviewedTemplateDispatchEvent,
       phase: "starting" | "verified",
     ): Promise<void> => {
-      if (phase === "starting") await checkOperationPermission(invocation, { environment: options.environment, registry, ...(options.signal === undefined ? {} : { signal: options.signal }) });
+      if (phase === "starting") {
+        const permission = dispatchPermissionCheck();
+        if (permission !== undefined) await permission;
+      }
       const expectedDispatch = plannedDispatches[event.index - 1];
       const prior = durableReceipt.dispatch;
       const expectedPrior = phase === "starting"
@@ -614,7 +624,8 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
       }, options.environment)),
       outputLimit: attempt("dispatch", () => executionOutputLimit(operation)),
       dispatch: native("dispatch", async () => {
-        await checkOperationPermission(invocation, { environment: options.environment, registry, ...(options.signal === undefined ? {} : { signal: options.signal }) });
+        const permission = dispatchPermissionCheck();
+        if (permission !== undefined) await permission;
         if (options.preflightFailure !== undefined) {
           throw options.preflightFailure;
         }

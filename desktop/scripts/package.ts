@@ -37,7 +37,8 @@ export async function stageRuntime(): Promise<string> {
   }
   if (!await Bun.file(join(target, "src/control/helper.ts")).exists()) throw new Error("The canonical package must include its control helper before native packaging");
   for (const name of Object.keys(metadata.dependencies)) await copyDependency(name, repository, target, new Set());
-  // SDK is an app-only dependency; its relative WASM payload remains intact.
+  // Only the credential helper loads this runtime dependency. Keep its pinned
+  // version and relative WASM payload intact in the native resources.
   const sdkSource = await packageDirectory("@1password/sdk", repository);
   const sdk = JSON.parse(await readFile(join(sdkSource, "package.json"), "utf8")) as { version: string };
   if (sdk.version !== "0.5.0") throw new Error("Native credential helper requires @1password/sdk 0.5.0");

@@ -76,7 +76,7 @@ function canonicalTokenPath(path: string): string {
   return current;
 }
 
-function readPrivateTokenFile(path: string): string {
+function readPrivateTokenFile(path: string, expectedContent?: string): string {
   if (!isAbsolute(path)) throw new Error("OAuth token file path must be absolute");
   const canonical = canonicalTokenPath(path);
   const descriptor = openSync(
@@ -112,6 +112,11 @@ function readPrivateTokenFile(path: string): string {
       || before.ctimeNs !== after.ctimeNs
       || before.mode !== after.mode
     ) throw new Error("OAuth token file changed while it was read");
+    // Bind write readback before decoding, including byte-order marks and
+    // formatting. Never derive cleanup authority from different stored bytes.
+    if (expectedContent !== undefined && !buffer.equals(Buffer.from(expectedContent, "utf8"))) {
+      throw new Error("OAuth credential file does not match its intended content");
+    }
     return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
   } finally {
     closeSync(descriptor);
@@ -190,11 +195,14 @@ function parseGoogleInstalledAppRefresh(value: unknown): GoogleInstalledAppRefre
 }
 
 /** Load and strictly bind a private token document without enforcing freshness. */
-export function loadOAuthCredential(auth: OAuthTokenAuth): LoadedOAuthCredential {
+export function loadOAuthCredential(
+  auth: OAuthTokenAuth,
+  options: Readonly<{ expectedContent?: string }> = {},
+): LoadedOAuthCredential {
   let content: string;
   let parsed: unknown;
   try {
-    content = readPrivateTokenFile(auth.path);
+    content = readPrivateTokenFile(auth.path, options.expectedContent);
     parsed = JSON.parse(content) as unknown;
   } catch (error) {
     throw new Error(`could not load private ${auth.provider} OAuth token document`, { cause: error });

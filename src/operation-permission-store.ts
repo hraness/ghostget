@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { canonicalJson, sha256 } from "./canonical-json";
-import { createPrivateJsonIfAbsent, ensurePrivateStateDirectory, ghostgetStateHome, readPrivateStateFileIfPresent, writePrivateJsonIfUnchanged } from "./storage";
+import { createPrivateJsonIfAbsent, ensurePrivateStateDirectory, ghostgetStateHome, privateStateFilesMayExist, readPrivateStateFileIfPresent, writePrivateJsonIfUnchanged } from "./storage";
 import type { PermissionDecision } from "./control/protocol";
 
 export type PermissionEnvironment = Readonly<Record<string, string | undefined>>;
@@ -44,8 +44,11 @@ function paths(environment: PermissionEnvironment) {
 }
 
 export function readOperationPolicy(environment: PermissionEnvironment = process.env): OperationPolicySnapshot {
-  const selected = paths(environment);
   try {
+    if (!privateStateFilesMayExist("operation-permissions", ["managed.json", "policy.json"], environment)) {
+      return Object.freeze({ managed: false, revision: 0, entries: Object.freeze([]), contentSha256: null });
+    }
+    const selected = paths(environment);
     const markerText = readPrivateStateFileIfPresent(selected.marker, 256, "operation policy marker", environment);
     if (markerText !== null && markerText !== `${canonicalJson(marker)}\n`) throw new Error("marker");
     const text = readPrivateStateFileIfPresent(selected.policy, MAX_POLICY_BYTES, "operation permission policy", environment);

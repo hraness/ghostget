@@ -695,3 +695,55 @@ closed successfully. No product change was needed.
 Repository design issue [#226](https://github.com/hraness/ghostget/issues/226)
 records the agreed migration and trust boundaries for implementation review.
 PR, Required CI, merge, immutable release and production readback remain open.
+
+### 2026-09-11: First CI findings and installation repairs
+
+PR [#227](https://github.com/hraness/ghostget/pull/227) initially checked source
+`f75d6a0d5636e862186b80f638071f41e8c433f1` in CI run `34618735010`.
+Its package gate correctly rejected a skill guide link that escaped the
+standalone skill bundle. That link now names the exact v0.18.0 source guide;
+the self-contained link gate is unchanged. The standalone fixture now creates
+its synthetic state root with mode 0700. A second package reproduction renamed
+its dedicated installer fixture to include Ghostget's required state-root
+identity, retaining ownership checks and private permissions.
+
+The macOS canary exposed a privacy regression before the installer ran: policy
+readers resolved state paths outside their error sanitizer. Both web and
+operation policy readers now include path resolution inside that boundary.
+Unsafe roots remain blocked, and public failures contain categorical errors
+without local paths. The original macOS canary passes with the earlier policy
+diagnostic (1 / 45); new cross-platform checks cover files, nonprivate modes,
+symlinks, conflicting roots and unchanged state (1 / 44). No permission bypass
+or special-case installer exemption was added. Full installation checks and a
+fresh current-candidate CI union remain required before merge.
+
+The complete first CI union also exposed policy discovery claiming an untouched
+state directory. That changed subsequent local file reads and violated existing
+rejection-before-state-effect canaries. Policy absence is now being separated
+from state adoption; managed or partial policy still requires the admitted
+private reader. Confirmed-write regressions additionally cover the synchronous
+pre-await dispatch contract and duplicate-successor comparison against the
+existing versioned recovery-auth projection, while keeping each new plan's
+credential incarnation and permission checks.
+
+CodeQL reported two credential content-fingerprint flows as password hashing,
+and dynamic code construction in the Direct verifier. Credential cleanup is
+being bound to an exact readback of the intended private file. The verifier now
+uses a constant browser expression to generate and return its nonce, with
+strict UUID validation and the same exact disposal receipt. Its complete eight
+scenarios passed again with clean final browser closure. No query suppression
+or security-gate exemption is part of these repairs.
+
+All twelve original source regressions now pass their focused reproductions:
+nine state-effect canaries (9 / 56) and three confirmed-write cases within a
+four-test account-lifetime run (4 / 51). Policy regression and managed-policy
+checks passed (9 / 135); credential, Google OAuth and vault checks passed
+(42 / 275). Independent review accepted each changed boundary. The standalone
+consumer also checks the exact SDK 0.5.0 and SDK-core 0.5.0 JS/WASM bytes; normal
+public SDK/control startup and rejected credential requests load neither SDK.
+
+The final repaired canonical build/pack pair is byte-identical: 524 files,
+2,314,828 compressed bytes, 12,654,022 payload bytes, SHA-256
+`e1b7edca283b667a1caa7f38d34c7d0b4c677380b464dc4e11ef3e6827f72dbf`.
+Full package/standalone installation, native resource refresh and the new
+Required CI/security comparison are the remaining delivery gates.

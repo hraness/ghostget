@@ -1160,7 +1160,7 @@ function validateStateRoot(root: string): StateRootRecord {
   return { claimed, creationAnchor: null, identity: { device: stats.dev.toString(), inode: stats.ino.toString() } };
 }
 
-export function ghostgetStateHome(environment: Readonly<Record<string, string | undefined>> = process.env): string {
+function selectStateHome(environment: Readonly<Record<string, string | undefined>>): string {
   const configuredRoots = [
     ["GHOSTGET_STATE_HOME", environment.GHOSTGET_STATE_HOME],
     ["WRENCH_STATE_HOME", environment.WRENCH_STATE_HOME],
@@ -1217,6 +1217,74 @@ export function ghostgetStateHome(environment: Readonly<Record<string, string | 
   if (forbiddenRoots.has(root) || isWithinPath(ghostgetSourcePackageRoot, root)) {
     throw new Error(`GHOSTGET_STATE_HOME must be a dedicated child directory, not a filesystem, home, temporary, repository, or shared data root: ${root}`);
   }
+  return root;
+}
+
+/**
+ * Inspect only whether an optional policy may exist, without adopting a state
+ * root. CLI validation and local file inputs must not claim or register state.
+ * A present file still requires the ordinary inode-bound private state reader.
+ */
+export function privateStateFilesMayExist(
+  collection: typeof stateDirectoryNames[number],
+  fileNames: readonly string[],
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  if (!stateDirectoryNames.includes(collection) || fileNames.length < 1 || fileNames.length > 8
+    || fileNames.some(name => !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/u.test(name))) {
+    throw new Error("optional private state file selection is invalid");
+  }
+  const root = selectStateHome(environment);
+  const inspect = (path: string): BigIntStats | null => {
+    try { return lstatSync(path, { bigint: true }); }
+    catch (error) { if (hasCode(error, "ENOENT")) return null; throw error; }
+  };
+  const inspectDirectory = (path: string): BigIntStats | null => {
+    const stats = inspect(path);
+    if (stats !== null && (!stats.isDirectory() || stats.isSymbolicLink()
+      || !ownedByCurrentUser(stats) || (stats.mode & 0o777n) !== 0o700n)) {
+      throw new Error("optional private state directory is unsafe");
+    }
+    return stats;
+  };
+  const assertUnchanged = (path: string, before: BigIntStats | null): void => {
+    const after = inspect(path);
+    if (before === null ? after !== null : after === null
+      || before.dev !== after.dev || before.ino !== after.ino
+      || before.mode !== after.mode || before.uid !== after.uid
+      || before.ctimeNs !== after.ctimeNs || before.mtimeNs !== after.mtimeNs) {
+      throw new Error("optional private state changed during inspection");
+    }
+  };
+  if (knownStateRoots.has(root)) assertStateRootIdentity(root);
+  const rootBefore = inspectDirectory(root);
+  // A missing root is observed from its existing, owned creation anchor; no
+  // directory, mode, marker, or process-local state registration is changed.
+  const anchor = rootBefore === null ? findCreationAnchor(root).path : null;
+  const anchorBefore = anchor === null ? null : inspect(anchor);
+  const markerPath = join(root, stateMarkerName);
+  const markerBefore = inspect(markerPath);
+  if (markerBefore !== null) readStateMarker(markerPath);
+  else if (rootBefore !== null && !hasGhostgetPathIdentity(root)) {
+    throw new Error("optional private state root does not identify dedicated Ghostget state");
+  }
+  const directory = join(root, collection);
+  const directoryBefore = inspectDirectory(directory);
+  let present = false;
+  for (const name of fileNames) {
+    if (inspect(join(directory, name)) !== null) present = true;
+  }
+  if (selectStateHome(environment) !== root) throw new Error("optional private state root selection changed");
+  assertUnchanged(directory, directoryBefore);
+  assertUnchanged(markerPath, markerBefore);
+  assertUnchanged(root, rootBefore);
+  if (anchor !== null) assertUnchanged(anchor, anchorBefore);
+  if (knownStateRoots.has(root)) assertStateRootIdentity(root);
+  return present;
+}
+
+export function ghostgetStateHome(environment: Readonly<Record<string, string | undefined>> = process.env): string {
+  const root = selectStateHome(environment);
   const inspected = validateStateRoot(root);
   const remembered = knownStateRoots.get(root);
   if (remembered !== undefined) {

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -25,6 +25,7 @@ type InstalledClosurePackage = {
 };
 
 const expectedClosureRuntimeDependencies = Object.freeze({
+  "@1password/sdk": "0.5.0",
   "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
   "@hraness/message-like-me": "github:hraness/message-like-me#v0.7.0",
   "buffer-from": "1.1.2",
@@ -59,7 +60,7 @@ const temporary = join(work, "tmp");
 
 await Promise.all([
   mkdir(home, { recursive: true }),
-  mkdir(state, { recursive: true }),
+  mkdir(state, { recursive: true, mode: 0o700 }),
   mkdir(temporary, { recursive: true }),
 ]);
 
@@ -707,10 +708,19 @@ try {
       "typescript",
       installedPackageRoot,
     );
+    // The published credential helper resolves this package only after explicit
+    // vault import. Installation must carry its pinned JS and relative WASM.
+    const installedCredentialSdkRoot = realpathSync(resolveInstalledDependencyRoot("@1password/sdk", installedPackageRoot));
+    const credentialSdkManifest = requireJsonObject("credential SDK manifest", await Bun.file(join(installedCredentialSdkRoot, "package.json")).json());
+    if (!isDeepStrictEqual(credentialSdkManifest.dependencies, { "@1password/sdk-core": "0.5.0" })) throw new Error("Credential SDK core dependency differs from the reviewed pin");
+    const installedCredentialCoreRoot = resolveInstalledDependencyRoot("@1password/sdk-core", installedCredentialSdkRoot);
     const installedKbDynamicKeyFile = await resolveReviewedKbDynamicKeyFile(
       installedKbRoot,
     );
     await Promise.all([
+      assertInstalledClosurePackage({ name: "@1password/sdk", version: "0.5.0", root: installedCredentialSdkRoot, keyFile: "dist/sdk.js", sha256: "55526607e6d252bd3f934a93888b6a023795b66bda76039230980e7bf0dcaedd" }),
+      assertInstalledClosurePackage({ name: "@1password/sdk-core", version: "0.5.0", root: installedCredentialCoreRoot, keyFile: "nodejs/core.js", sha256: "fc6e7745837afd4cf42a325284040083bbd09679eeceb4fa9a21ddba34151470" }),
+      assertInstalledClosurePackage({ name: "@1password/sdk-core", version: "0.5.0", root: installedCredentialCoreRoot, keyFile: "nodejs/core_bg.wasm", sha256: "97aa9140c5c923b39b41c059d5ab98e214b5fc78a80203d0026708cfbce8d6ab" }),
       assertInstalledClosurePackage({
         keyFile: installedKbDynamicKeyFile,
         name: "@hraness/kb",

@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import { chmodSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { createAuth } from "./auth";
 import {
+  loadOAuthCredential,
   loadOAuthToken,
   ProviderHttpClient,
   requireOAuthScopes,
@@ -166,6 +168,23 @@ function gatedCancellationResponse(): {
 }
 
 describe("private OAuth token documents", () => {
+  test("credential readback receipts bind exact persisted bytes before cleanup authority", () => {
+    const value = fixture();
+    try {
+      const expectedContent = readFileSync(value.path, "utf8");
+      expect(loadOAuthCredential(value.auth, { expectedContent }).contentSha256).toBe(createHash("sha256").update(expectedContent).digest("hex"));
+      const document = JSON.parse(expectedContent);
+      for (const changed of [`\uFEFF${expectedContent}`, JSON.stringify(document, null, 2), JSON.stringify({ ...document, accessToken: "different-private-access-token" })]) {
+        writeFileSync(value.path, changed, { mode: 0o600 });
+        expect(() => loadOAuthCredential(value.auth, { expectedContent })).toThrow("could not load private");
+        expect(readFileSync(value.path, "utf8")).toBe(changed);
+      }
+      writeFileSync(value.path, expectedContent, { mode: 0o600 });
+      chmodSync(value.path, 0o644);
+      expect(() => loadOAuthCredential(value.auth, { expectedContent })).toThrow("could not load private");
+    } finally { rmSync(value.root, { recursive: true, force: true }); }
+  });
+
   test.skipIf(process.platform !== "darwin")("accepts the root-owned macOS /var compatibility alias", () => {
     const root = mkdtempSync(join(tmpdir(), "wrench-provider-var-alias-test-"));
     chmodSync(root, 0o700);

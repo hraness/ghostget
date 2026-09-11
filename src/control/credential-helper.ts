@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { createAuth, loadAuthSnapshotIfPresent, normalizeOAuthScopes, replaceAuthIfUnchanged, saveAuth } from "../auth";
 import { canonicalJson } from "../canonical-json";
@@ -68,7 +68,7 @@ export async function runCredentialImport(value: unknown, environment: Environme
   let request: VaultImportRequest;
   try { request = parseVaultImport(value); } catch { return { ok: false, code: "INVALID_IMPORT" }; }
   const deadline = new OperationDeadline(VAULT_IMPORT_TIMEOUT_MS, { signal });
-  let stage: { path: string; contentSha256: string } | null = null;
+  let stage: { path: string; contentSha256: string | null } | null = null;
   let failure: VaultImportCode = "IMPORT_FAILED";
   try {
     deadline.throwIfUnavailable("token import");
@@ -85,11 +85,12 @@ export async function runCredentialImport(value: unknown, environment: Environme
     failure = "IMPORT_FAILED";
     const path = join(ghostgetStateHome(environment), "auth", "oauth-tokens", `${request.id}-${randomUUID()}.json`);
     const credential = { schemaVersion: 1, provider: "x", subject: request.expectedSubject, scopes: request.scopes, accessToken, expiresAt: request.expiresAt };
-    const contentSha256 = createHash("sha256").update(`${canonicalJson(credential)}\n`).digest("hex");
-    stage = { path, contentSha256 };
+    stage = { path, contentSha256: null };
     if (!createPrivateJsonIfAbsent(path, credential, { privateParent: true, environment }).created) { stage = null; throw new Error(); }
     const auth = createAuth(request.id, { oauthProvider: "x", tokenFile: path, subject: request.expectedSubject, scopes: request.scopes, ownedImport: true });
     if (auth.kind !== "oauth-token-file") throw new Error();
+    const { contentSha256 } = loadOAuthCredential(auth, { expectedContent: `${canonicalJson(credential)}\n` });
+    stage = { path, contentSha256 };
     failure = "TOKEN_UNVERIFIED";
     const subject = await deadline.run(activeSignal => (dependencies.probe ?? probeImportedXToken)(auth, activeSignal), "account verification");
     if (subject !== request.expectedSubject) throw new Error();
@@ -111,7 +112,7 @@ export async function runCredentialImport(value: unknown, environment: Environme
       try {
         const observed = loadAuthSnapshotIfPresent(request.id, environment)?.auth;
         // A cleanup failure after locator publication must never erase its live token.
-        if (observed?.kind === "oauth-token-file" && observed.path === stage.path) return { ok: false, code: "IMPORT_UNCERTAIN" };
+        if (stage.contentSha256 === null || observed?.kind === "oauth-token-file" && observed.path === stage.path) return { ok: false, code: "IMPORT_UNCERTAIN" };
         if (!removePrivateStateFileIfUnchanged(stage.path, { expectedCurrentContentSha256: stage.contentSha256 }, environment)) return { ok: false, code: "IMPORT_UNCERTAIN" };
       } catch { return { ok: false, code: "IMPORT_UNCERTAIN" }; }
     }

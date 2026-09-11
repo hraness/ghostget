@@ -4463,7 +4463,7 @@ describe("CLI previews and exit semantics", () => {
         }, output.output)).toBe(3);
         expect(output.stdout()).toBe("");
         expect(output.stderr()).toContain(
-          "imsg install state directory is unavailable or unsafe",
+          "Web policy is missing, unsafe, or invalid. Requests are blocked.",
         );
         expect(output.stderr()).not.toContain(unsafeState);
         expect(output.stderr()).not.toContain("private-state-canary");

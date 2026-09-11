@@ -59,8 +59,10 @@ async function verify() {
     await run(["--engine", "chrome", "open"]); browserLaunched = true; const bootstrap = await run(["tab"]); const bootstrapTabs = tabs(bootstrap); assert.equal(bootstrapTabs.length, 1); assert.equal(bootstrapTabs[0]!.url, "about:blank"); const bootstrapId = bootstrapTabs[0]!.tabId;
     for (const [index, scene] of SCENES.entries()) {
       const context = await run(["window", "new"]); await run(["set", "viewport", "1100", "780"]); await run(["open", `http://127.0.0.1:${server.port}/?__direct_scenario=${scene}`]);
-      const initial = await settle(scene); const disposalNonce = randomUUID();
-      await browser.evaluate(`(()=>{sessionStorage.setItem("ghostget.direct.disposal-nonce", ${JSON.stringify(disposalNonce)});return true})()`);
+      const initial = await settle(scene);
+      const disposalNonce = await browser.evaluate('(()=>{const nonce=crypto.randomUUID();sessionStorage.setItem("ghostget.direct.disposal-nonce",nonce);return nonce})()');
+      assert.equal(typeof disposalNonce, "string");
+      assert.match(disposalNonce as string, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u);
       const initialText = await body(); manifests.push(initial.manifest);
       const identity = await browser.evaluate("({userAgent:navigator.userAgent,platform:navigator.platform})");
       assert.equal(await browser.evaluate("document.querySelectorAll('nav [aria-current=page]').length"), 1);

@@ -1687,6 +1687,12 @@ function planRunJournalContract(plan: InvocationPlan): RunJournal["contract"] {
     : { transport: contract.transport, hash: contract.hash };
 }
 
+/** Recovery v1 records the durable account selection. The full lifetime binding
+ * remains in the successor scope hash and is revalidated before confirmation. */
+function planRecoveryAuth(plan: InvocationPlan): RunJournal["auth"] {
+  return { id: plan.auth.id, hash: plan.auth.hash, kind: plan.auth.kind };
+}
+
 function planFileInputs(input: OperationInput): readonly FileInputValue[] {
   const files: FileInputValue[] = [];
   for (const value of Object.values(input)) {
@@ -1762,7 +1768,7 @@ function resolveInvocationDuplicateRisk(
     || journal.operation !== plan.operation
     || journal.risk !== plan.risk
     || journal.inputHash !== plan.inputHash
-    || canonicalJson(journal.auth) !== canonicalJson(plan.auth)
+    || canonicalJson(journal.auth) !== canonicalJson(planRecoveryAuth(plan))
     || canonicalJson(journal.contract)
       !== canonicalJson(planRunJournalContract(plan))
   ) {
@@ -1795,7 +1801,7 @@ function resolveInvocationDuplicateRisk(
     || capsule.risk !== plan.risk
     || capsule.inputHash !== plan.inputHash
     || canonicalJson(capsule.input) !== canonicalJson(plan.input)
-    || canonicalJson(capsule.auth) !== canonicalJson(plan.auth)
+    || canonicalJson(capsule.auth) !== canonicalJson(planRecoveryAuth(plan))
     || canonicalJson(capsule.contract) !== canonicalJson(planRecoveryContract(plan))
   ) {
     throw new Error(

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { createPrivateJsonIfAbsent, ensurePrivateStateDirectory, ghostgetStateHome, readPrivateStateFileIfPresent, writePrivateJsonIfUnchanged } from "../storage";
+import { createPrivateJsonIfAbsent, ensurePrivateStateDirectory, ghostgetStateHome, privateStateFilesMayExist, readPrivateStateFileIfPresent, writePrivateJsonIfUnchanged } from "../storage";
 import { canonicalJson, sha256 } from "../canonical-json";
 import type { CheckedApproval, WebRule } from "./protocol";
 import { boolean, ControlError, integer, keys, parseWebRule, publicUrl, record } from "./validation";
@@ -18,8 +18,9 @@ function parsePolicy(text: string): WebPolicy {
   return {schema:1,revision:integer(v.revision,1,Number.MAX_SAFE_INTEGER),gatewayOnly:boolean(v.gatewayOnly),rules};
 }
 function snapshot(environment: ControlEnvironment): {policy:WebPolicy;text:string|null} {
-  const p=paths(environment);
   try {
+    if(!privateStateFilesMayExist("control",["web-managed.json","web-policy.json"],environment)) return {policy:EMPTY,text:null};
+    const p=paths(environment);
     const marker=readPrivateStateFileIfPresent(p.marker,128,"web policy marker",environment);
     const text=readPrivateStateFileIfPresent(p.policy,262144,"web policy",environment);
     if(marker===null && text===null) return {policy:EMPTY,text:null};

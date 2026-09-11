@@ -24,7 +24,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createAuth, saveAuth, type GhostgetAuth } from "./auth";
+import { createAuth, removeAuth, saveAuth, type GhostgetAuth } from "./auth";
 import {
   PreservedBrowserArtifactsError,
   type BrowserExecution,
@@ -2933,7 +2933,7 @@ describe("local at-most-once dispatch ledger", () => {
         0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
         0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
       ]), { mode: 0o600 });
-      const invocation = prepareInvocation(
+      let invocation = prepareInvocation(
         "x-web",
         "posts.publish",
         {
@@ -2996,6 +2996,34 @@ describe("local at-most-once dispatch ledger", () => {
       const sourceLedgerBytes = readFileSync(sourceLedgerPath, "utf8");
       const sourceCapsuleBytes = readFileSync(sourceCapsulePath, "utf8");
 
+      const otherAuth = createAuth("x-web-other-account", {
+        source: "arc", profile: "Profile 1", subject: "456",
+      });
+      saveAuth(otherAuth, testState.environment);
+      const otherInvocation = prepareInvocation("x-web", "posts.publish", {
+        body: "one explicit duplicate-risk fixture", media: mediaPath, media_type: "image/png",
+      }, otherAuth.id, testState.environment);
+      expect(() => createAndSaveInvocationPlan(otherInvocation, testState.environment,
+        new Date(), providerPluginRegistry, { duplicateRiskOf: [source.receipt.runId] }))
+        .toThrow("does not match the exact adapter, auth, operation, risk, and input scope");
+
+      const staleSuccessor = createAndSaveInvocationPlan(invocation, testState.environment,
+        new Date(), providerPluginRegistry, { duplicateRiskOf: [source.receipt.runId] });
+      const priorIncarnation = invocation.readProjectionAuthIdentityHash;
+      removeAuth(selectedAuth.id, testState.environment);
+      saveAuth(selectedAuth, testState.environment);
+      let staleDispatches = 0;
+      await expect(confirmInvocation(staleSuccessor.digest, {
+        headed: false, environment: testState.environment,
+        executeWebSession: () => { staleDispatches += 1; return Promise.resolve(execution()); },
+      })).rejects.toThrow("authentication lifetime changed");
+      expect(staleDispatches).toBe(0);
+      expect(readRunJournal(source.receipt.runId, testState.environment)?.journal.duplicateSuccessor).toBeUndefined();
+      invocation = prepareInvocation("x-web", "posts.publish", {
+        body: "one explicit duplicate-risk fixture", media: mediaPath, media_type: "image/png",
+      }, selectedAuth.id, testState.environment);
+      expect(invocation.readProjectionAuthIdentityHash).not.toBe(priorIncarnation);
+
       const preflight = createAndSaveInvocationPlan(
         invocation,
         testState.environment,
@@ -3003,6 +3031,7 @@ describe("local at-most-once dispatch ledger", () => {
         providerPluginRegistry,
         { duplicateRiskOf: [source.receipt.runId] },
       );
+      expect(preflight.plan.duplicateRisk?.intentHash).not.toBe(staleSuccessor.plan.duplicateRisk?.intentHash);
       const preflightResult = await confirmInvocation(preflight.digest, {
         headed: false,
         environment: testState.environment,

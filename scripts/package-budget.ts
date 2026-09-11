@@ -1,4 +1,18 @@
-// Ghostget 0.18.0 final control-boundary and idle-performance candidate: two
+// Ghostget 0.18.0 reviewed CI repairs: two fresh Bun 1.3.14 builds and
+// npm 11.19.0 packs under Node 24.20.0 on darwin arm64 (zlib 1.2.12) are
+// byte-identical: 2,314,828 compressed and 12,654,022 payload bytes across
+// exactly 524 files, SHA-256
+// e1b7edca283b667a1caa7f38d34c7d0b4c677380b464dc4e11ef3e6827f72dbf.
+// Every archive byte and mode matches its source. The self-contained skill
+// link adds 51 payload bytes; passive policy reads, sanitized state errors,
+// exact credential readback and recovery/dispatch corrections add 5,073 bytes
+// over the control-boundary candidate below. No inventory entries change.
+// Preserve 65 payload bytes of headroom and the exact inventory. The packed
+// ceiling remains the measured size plus the last observed 2,802-byte Linux
+// spread and reviewed 4,096-byte portability allowance. This is a projection,
+// not fresh Linux evidence; required CI checks its actual canonical archive.
+//
+// Ghostget 0.18.0 control-boundary and idle-performance candidate: two
 // fresh Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0 on darwin
 // arm64 (zlib 1.2.12) are byte-identical, with 2,313,628 compressed and
 // 12,648,898 payload bytes across exactly 524 files, SHA-256
@@ -371,10 +385,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_320_526;
+export const MAX_PACKED_BYTES = 2_321_726;
 export const MAX_PACKED_ENTRIES = 524;
 export const MAX_PACKED_FILES = 524;
-export const MAX_UNPACKED_BYTES = 12_648_963;
+export const MAX_UNPACKED_BYTES = 12_654_087;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
