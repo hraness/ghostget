@@ -1174,7 +1174,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(13_287_936);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(13_291_520);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1303,6 +1303,8 @@ describe("npm publication contract", () => {
     expect(budget).toContain("2,314,832 compressed and 12,654,071 payload");
     expect(budget).toContain("01abe7e7a0953670578777aa88e3c3dbe6d095fb2e46298154c37801db576c96");
     expect(budget).toContain("2,316,774 compressed");
+    expect(budget).toContain("12,670,102 payload bytes across exactly 524 files");
+    expect(budget).toContain("6c90a0e415f5b5d4e0466ad679d12167f370353da11f43c2208f5ed0a0780053");
     expect(budget).toContain("12,666,813 payload bytes across exactly 524 files");
     expect(budget).toContain("cf6a9688425c58509b4341e97e98e591eac1cdbfc1c004b37fb6b3f5a89c577b");
     expect(budget).toContain("12,662,758 payload bytes across exactly 524 files");
@@ -1318,12 +1320,14 @@ describe("npm publication contract", () => {
     expect(budget).toContain("94d6d015620ae4a4a9f6c59a761c1d631ecb91a6df6ab3e606f041440d72929b");
     expect(budget).toContain("2,337,268 compressed and 12,742,512 payload bytes");
     expect(budget).toContain("f37cf3a326301db472f08e3ec56dc8dc14ef9897a85b1a51d95065abec4e28dd");
-    expect(MAX_PACKED_BYTES).toBe(2_344_166);
-    expect(MAX_PACKED_BYTES).toBe(2_337_268 + 2_802 + 4_096);
+    expect(budget).toContain("2,338,050 compressed and 12,745,801");
+    expect(budget).toContain("fc00b4d88c542ce47c13b4fd281f87fff16f4c920b59fa44fc242091d52a5f6b");
+    expect(MAX_PACKED_BYTES).toBe(2_344_948);
+    expect(MAX_PACKED_BYTES).toBe(2_338_050 + 2_802 + 4_096);
     expect(MAX_PACKED_ENTRIES).toBe(532);
     expect(MAX_PACKED_FILES).toBe(532);
-    expect(MAX_UNPACKED_BYTES).toBe(12_742_577);
-    expect(MAX_UNPACKED_BYTES).toBe(12_742_512 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(12_745_866);
+    expect(MAX_UNPACKED_BYTES).toBe(12_745_801 + 65);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
@@ -1331,8 +1335,8 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 532, max: 532 },
       fileCount: { min: 532, max: 532 },
-      packedBytes: { min: 1_600_000, max: 2_344_166 },
-      unpackedBytes: { min: 9_000_000, max: 12_742_577 },
+      packedBytes: { min: 1_600_000, max: 2_344_948 },
+      unpackedBytes: { min: 9_000_000, max: 12_745_866 },
     });
   });
 
@@ -1499,10 +1503,16 @@ describe("npm publication contract", () => {
     expect(contactStart).toBeLessThan(listingStart);
     expect(listingStart).toBeLessThan(fixStart);
     expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
+      "Adapter bundle 1.26.0",
+    );
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
       "Adapter bundle 1.25.0",
     );
     expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
       "vieweeMemberUrn",
+    );
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
+      "multi-escaped",
     );
     const controlSection = changelog.slice(controlStart, paperStart);
     for (const fact of ["Tauri control panel", "existing Bun kernel", "human approval", "local SQLite", "1Password X token import", "source build", "separate qualification", "OpenAPI imports inert", "no model runtime in the kernel"]) {

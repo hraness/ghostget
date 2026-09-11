@@ -1,3 +1,15 @@
+// Ghostget 0.19.0 joined with main dafc8da (LinkedIn multi-escaped
+// PROFILE_VIEW breadcrumbs, adapter 1.26.0): two fresh Bun 1.3.14 builds
+// and npm 11.19.0 ignore-scripts packs under Node 24.20.0 on darwin arm64
+// (zlib 1.2.12) are byte-identical: 2,338,050 compressed and 12,745,801
+// payload bytes across exactly 532 files, SHA-256
+// fc00b4d88c542ce47c13b4fd281f87fff16f4c920b59fa44fc242091d52a5f6b.
+// Every file byte and mode matches its source. Incoming main contributes
+// exactly 3,289 payload bytes; the local compressed delta is 782 bytes.
+// Preserve all prior measurements, exact 532-file inventory, 65 payload
+// bytes of headroom and the 2,802 + 4,096-byte compression allowance.
+// Required Linux CI independently inspects its actual canonical archive.
+//
 // Final 0.19.0 CLI help ordering correction: the repeated Bun 1.3.14 /
 // npm 11.19.0 / Node 24.20.0 pair remains byte-identical on darwin arm64
 // (zlib 1.2.12): 2,337,268 compressed and 12,742,512 payload bytes across
@@ -16,6 +28,19 @@
 // distribution scripts, tests and website files remain excluded. Preserve
 // the 65-byte payload allowance and the prior 2,802 + 4,096-byte compression
 // allowance. Required Linux CI still inspects its actual canonical archive.
+//
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` multi-escaped
+// PROFILE_VIEW breadcrumb peel (adapter bundle 1.26.0), measured with no
+// version bump: a Bun 1.3.14 `pm pack` on Linux x64 shares
+// 12,670,102 payload bytes across exactly 524 files. The bun archive is
+// 2,178,602 compressed bytes, SHA-256
+// 6c90a0e415f5b5d4e0466ad679d12167f370353da11f43c2208f5ed0a0780053.
+// The escape-tolerant distance capture, adapter notes, and changelog add
+// 3,289 payload bytes compared with the 1.25.0 measurement. Raise only the
+// payload ceiling to the measured value plus 65 bytes of headroom
+// (12,670,167); the packed size stays under the existing packed allowance
+// and the 524-entry inventory is unchanged. Theme CSS stays website-only.
+// Fresh Linux CI independently checks its actual canonical archive.
 //
 // Ghostget 0.18.0 source plus the LinkedIn `contacts.read` vieweeMemberUrn
 // distance join (adapter bundle 1.25.0), measured with no version bump: a Bun
@@ -452,10 +477,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_344_166;
+export const MAX_PACKED_BYTES = 2_344_948;
 export const MAX_PACKED_ENTRIES = 532;
 export const MAX_PACKED_FILES = 532;
-export const MAX_UNPACKED_BYTES = 12_742_577;
+export const MAX_UNPACKED_BYTES = 12_745_866;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

@@ -21,6 +21,16 @@ Historical entries retain their original delivery coordinates.
   requires Apple enrollment and protected credentials. Browser autofill and
   passkey assertions are not implemented.
 
+- Read LinkedIn `contacts.read@1` first-degree distance from multi-escaped Como
+  PROFILE_VIEW breadcrumb rows. Live pages after adapter 1.25.0 still bound
+  identity through `vieweeProfileId` plus vanity, but `networkDistance` and
+  paired `vieweeMemberUrn` sat in string rows such as `networkDistance\":1`.
+  The binder now peels JSON string escapes and accepts those escaped key/value
+  forms. Object, flight-array, and lightly escaped breadcrumbs still bind.
+  Self, non-first-degree, and contradictory distances still fail closed, and
+  no email is invented. Adapter bundle 1.26.0. This is the fourth live
+  Contact-info drift after the 1.23.0 flight-array parse, the 1.24.0 deep-walk
+  / `vieweeProfileId` join, and the 1.25.0 `vieweeMemberUrn` distance join.
 - Join LinkedIn `contacts.read@1` first-degree distance when identity comes from
   `vieweeProfileId` plus vanity and `networkDistance` sits on a PROFILE_VIEW
   breadcrumb or `vieweeMemberUrn` record, including a member id or a different

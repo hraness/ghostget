@@ -114,17 +114,24 @@ qualify live Keychain, 1Password, browser login or Apple notarization behavior.
   exact grant parsing and projection, byte admission, approval, cancellation,
   revocation across resolution/DNS/response, durable audit, private ownership,
   interrupted creation, and shutdown. Only synthetic credentials were used.
-- Isolated Rust Keychain and native ancestry suite passed seven focused tests.
+- Isolated Rust Keychain and native ancestry suite passed ten focused tests.
   Native completion receipt tests passed eight tests with 171 assertions.
   Packaged native ancestry and actual secure-entry cancellation remain separate
   final integration checks; Direct does not substitute for those effects.
-- The earlier distribution suite passed nine tests with 328 assertions; the
-  revised runner-isolation design requires its own final tests and independent
-  review. Root and desktop TypeScript checks passed before artifact convergence.
+- The revised distribution suite passed eleven tests with 494 assertions and
+  six Python ZIP cases, including a synthetic macOS metadata round trip.
+  Independent review accepted runner isolation and direct signer-to-publisher
+  archive binding. Root and desktop types passed before artifact convergence.
 - The Vault grant form passed visual review at 1100 and 700 pixels. A diagnostic
   replay exposed the browser driver's ineffective Meta+A selection; the final
   verifier uses Home, Shift+End and Backspace and checks the empty search value.
-  The complete ten-scenario run remains the UI admission gate.
+  All ten scenarios then passed. Final review hardened browser closure to retain
+  uncertain ownership across retries; the full updated verifier remains the final
+  UI admission gate.
+- A complete local preview built and passed packaged helper lifecycle and native
+  ancestry rejection checks. Current main then advanced through PR 231, adding
+  the LinkedIn adapter 1.26.0 fix. Preserve that change and rebuild the combined
+  candidate before final package and native artifact admission.
 - The owner selected a dedicated 1Password vault and no agent-visible plaintext.
   No live service account was supplied; SDK/provider acceptance remains unclaimed.
 - The owner has no Apple Developer membership yet and is willing to enroll.

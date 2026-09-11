@@ -240,9 +240,10 @@ or its profile URN (`entityUrn`, `objectUrn`, `profileUrn`, `vieweeMemberUrn`,
 or `vieweeProfileId` plus vanity). Current Como trees can nest around depth 60,
 so the walk keeps a node ceiling and a depth ceiling of 128 instead of aborting
 at depth 32. Distance may appear on PROFILE_VIEW breadcrumb or RSC string rows,
-including beside a `vieweeMemberUrn` or member id that is not the same
-`fsd_profile` URN bound from `vieweeProfileId`. A unique first-degree distance
-on that viewee join is accepted. Incidental viewer or other `fsd_profile` URNs
+including multi-escaped Como fragments such as `networkDistance\":1` beside a
+`vieweeMemberUrn` or member id that is not the same `fsd_profile` URN bound
+from `vieweeProfileId`. A unique first-degree distance on that viewee join is
+accepted. Incidental viewer or other `fsd_profile` URNs
 in the same breadcrumb do not steal identity. Empty, missing, ambiguous, or
 contradictory distances stay fail-closed.
 
@@ -298,6 +299,15 @@ ids, not on a vanity or `fsd_profile` record the binder treated as the same
 target. Adapter 1.25.0 joins that unique viewee distance, including when the
 breadcrumb also carries an incidental viewer URN, and still fails closed for
 self, non-first-degree, and contradictory distances.
+
+A later 2026-09-11 signed-in capture of another 1st-degree profile still bound
+`profiles.read` and still joined `vieweeProfileId` identity after the 1.25.0
+walk. `contacts.read` then failed closed because PROFILE_VIEW breadcrumbs kept
+`networkDistance` and `vieweeMemberUrn` in multi-escaped Como string rows
+(`networkDistance\":1`), so the walk produced no distance records for the
+viewee join. Adapter 1.26.0 peels those JSON string escapes and reads the
+escaped key/value form. Self, non-first-degree, and contradictory distances
+still fail closed.
 
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid
