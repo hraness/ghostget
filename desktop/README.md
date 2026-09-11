@@ -15,14 +15,27 @@ bun desktop/scripts/build.ts --direct
 bun desktop/scripts/serve-direct.ts
 bun desktop/scripts/marketing.tsx
 bun desktop/scripts/package.ts --stage-only
+bun run desktop:package
 bun desktop/scripts/native-smoke.ts
 ```
 
-Native packaging requires the root owner's mac-native compute lane. After staging
-resources, invoke the pinned Tauri CLI from `desktop/src-tauri`. The default
-bundle target is the `.app`. Signing and notarization are separate release gates;
-a locally built unsigned bundle is not release-qualified. The runtime manifest
-records exact input bytes; signatures cover the final shipped resource tree.
+Native packaging requires the root owner's mac-native compute lane.
+`desktop:package` stages resources, runs the pinned Tauri build with Cargo's lock
+file enforced, and applies an outer ad hoc signature to the local `.app`. It
+strips Apple and updater signing variables from that build and uses no signing
+identity credentials or timestamp service. The bundled Bun signatures and all
+runtime resource bytes must still match the staged inventory after sealing.
+The final app must pass `codesign --verify --deep --strict`, the same check its
+GUI runs before starting the control helper. `--stage-only` prepares resources;
+it does not produce a runnable sealed app.
+
+The local seal preserves Bun's existing signatures and JIT behavior; it adds no
+hardened-runtime options and does not recursively re-sign resource binaries.
+This ad hoc preview is not a public signed release or a notarized installer.
+The [distribution workflow](distribution/README.md) builds its own unsigned input
+and performs the separate Developer ID, nested signing, notarization, and public
+artifact checks. The runtime manifest records exact input bytes; signatures
+cover the final shipped resource tree.
 The optional 1Password path uses the pinned SDK with a dedicated service-account
 token; it does not use account-wide DesktopAuth or an external desktop IPC
 library. No user vault data is bundled. See the [distribution guide](distribution/README.md)

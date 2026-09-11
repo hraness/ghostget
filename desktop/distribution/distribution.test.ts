@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
 import { spawnSync } from "node:child_process";
+import { admitArtifactId } from "./artifact-id.ts";
 import { matchSignedManifest, parseHandoff } from "./handoff.ts";
 import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -197,8 +198,17 @@ test("workflow isolates dependency builds, Apple secrets, executable verificatio
   expect(attest.find(step => step.uses?.startsWith("actions/attest@"))!.with["subject-path"].trim().split("\n")).toHaveLength(3);
   for (const [steps, input] of [[sign, "build"], [verify, "sign"], [attest, "verify"], [publishSteps, "attest"]] as const) {
     const download = steps.find(step => step.uses?.startsWith("actions/download-artifact@"))!;
-    expect(download.with["artifact-ids"]).toBe("${{ needs." + input + ".outputs.artifact_id }}"); expect(download.with.path).toStartWith("${{ runner.temp }}/");
+    expect(download.with["artifact-ids"]).toBe(input === "build" ? "${{ steps.artifact-input.outputs.artifact_id }}" : "${{ needs." + input + ".outputs.artifact_id }}"); expect(download.with.path).toStartWith("${{ runner.temp }}/");
   }
+  const idGuard = sign.find(step => step.id === "artifact-input")!;
+  const unsignedDownload = sign.find(step => step.uses?.startsWith("actions/download-artifact@"))!;
+  expect(idGuard.run).toBe("bun --no-env-file --no-install desktop/distribution/artifact-id.ts");
+  expect(idGuard.env).toEqual({ DESKTOP_BUILD_ARTIFACT_ID: "${{ needs.build.outputs.artifact_id }}" });
+  expect(sign.indexOf(idGuard)).toBeGreaterThan(sign.findIndex(step => step.uses?.startsWith("oven-sh/setup-bun@")));
+  expect(sign.indexOf(idGuard)).toBeLessThan(sign.indexOf(unsignedDownload));
+  expect(sign.indexOf(unsignedDownload)).toBeLessThan(prepareIndex);
+  expect(unsignedDownload.uses).toBe("actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131");
+  expect(unsignedDownload.with.path).toBe("${{ runner.temp }}/ghostget-desktop-input");
   const attestGate = attest.find(step => step.env?.SIGNED_HANDOFF)!;
   expect(attestGate.env.SIGNED_HANDOFF).toBe("${{ needs.sign.outputs.handoff }}"); expect(attestGate.env.SIGNED_RECEIPT_SHA256).toBe("${{ needs.sign.outputs.receipt_sha256 }}");
   expect(attestGate.run).toContain("h.archive[key]===m.archive[key]"); expect(attestGate.run).toContain("h.signing.notarization[key]===m.notarization[key]");
@@ -207,6 +217,30 @@ test("workflow isolates dependency builds, Apple secrets, executable verificatio
     if (step.uses) expect(step.uses).toMatch(/@[a-f0-9]{40}$/u);
     if (step.uses?.startsWith("actions/checkout@")) { expect(step.with.ref).toBe("${{ github.sha }}"); expect(step.with["persist-credentials"]).toBe(false); }
   }
+});
+
+test("artifact ID admission rejects lists, coercion, non-ASCII and output injection before emitting authority", () => {
+  for (const invalid of [undefined, null, {}, [], 1, "", "0", "01", "-1", "+1", "1.0", "1e3", "0x10", "Infinity", "NaN", "1,2", "1,", " 1", "1 ", "1\t", "1\n", "1\r\n", "1\u2028", "1\u2029", "١", "１", "1/2", "../1", "1\nartifact_id=2", "9007199254740992", "999999999999999999999"]) {
+    expect(() => admitArtifactId(invalid)).toThrow("one canonical positive safe-integer ID");
+  }
+  for (const valid of ["1", "123456789", String(Number.MAX_SAFE_INTEGER)]) expect(admitArtifactId(valid)).toBe(valid);
+  fc.assert(fc.property(fc.bigInt({ min: 1n, max: BigInt(Number.MAX_SAFE_INTEGER) }), value => {
+    const id = String(value); expect(admitArtifactId(id)).toBe(id);
+    expect(() => admitArtifactId(`${id},2`)).toThrow();
+    expect(() => admitArtifactId(`${id}\n`)).toThrow();
+  }), { numRuns: 100 });
+  const root = mkdtempSync("/tmp/ghostget-artifact-id-test-"), output = join(root, "output");
+  try {
+    for (const id of ["123", "1,2", "1\nartifact_id=2", "9007199254740992"]) {
+      writeFileSync(output, "sentinel\n", { mode: 0o600 });
+      const run = spawnSync(process.execPath, ["--no-env-file", "--no-install", new URL("artifact-id.ts", import.meta.url).pathname], {
+        env: { DESKTOP_BUILD_ARTIFACT_ID: id, GITHUB_OUTPUT: output }, timeout: 5000, killSignal: "SIGKILL", maxBuffer: 16 * 1024, encoding: "utf8",
+      });
+      expect(run.error).toBeUndefined(); expect(run.stdout).toBe("");
+      expect(run.status).toBe(id === "123" ? 0 : 1);
+      expect(readFileSync(output, "utf8")).toBe(id === "123" ? "sentinel\nartifact_id=123\n" : "sentinel\n");
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test("strict source-bound handoffs prevent the executable verifier from substituting signer evidence", () => {
