@@ -13,10 +13,13 @@ function fixture(timeoutMs = 400) {
   const module = fileURLToPath(new URL("./discovery-helper.ts", import.meta.url));
   const blocked = join(root, "blocked.ts"); writeFileSync(blocked, "for (;;) {}\n", { mode: 0o600 });
   const wrapper = join(root, "wrapper.ts");
-  writeFileSync(wrapper, `import { Worker } from 'node:worker_threads'; import { runDiscoveryHelper } from ${JSON.stringify(module)}; await runDiscoveryHelper(() => new Worker(${JSON.stringify(blocked)}), ${timeoutMs});\n`, { mode: 0o600 });
-  return { root, wrapper };
+  writeFileSync(wrapper, `import { Worker } from 'node:worker_threads';
+const { runDiscoveryHelper } = await import(process.argv[2]);
+await runDiscoveryHelper(() => new Worker(process.argv[3]), Number(process.argv[4]));
+`, { mode: 0o600 });
+  return { root, wrapper, args: [module, blocked, String(timeoutMs)] };
 }
-function spawn(script: string, cwd: string) { return Bun.spawn([process.execPath, "--no-env-file", "--no-install", script], { cwd, env: { PATH: "/usr/bin:/bin", HOME: cwd }, stdin: "pipe", stdout: "pipe", stderr: "pipe" }); }
+function spawn(script: string, cwd: string, args: readonly string[] = []) { return Bun.spawn([process.execPath, "--no-env-file", "--no-install", script, ...args], { cwd, env: { PATH: "/usr/bin:/bin", HOME: cwd }, stdin: "pipe", stdout: "pipe", stderr: "pipe" }); }
 async function finish(child: ReturnType<typeof spawn>) {
   const kill = setTimeout(() => child.kill("SIGKILL"), 5000);
   try { const [exit, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]); return { exit, stdout, stderr }; }
@@ -25,7 +28,7 @@ async function finish(child: ReturnType<typeof spawn>) {
 test("independent watchdog stops blocked SQLite work at its deadline and when parent input closes", async () => {
   const f = fixture();
   for (const closeParent of [false, true]) {
-    const child = spawn(f.wrapper, f.root); const before = performance.now(); child.stdin.write(start);
+    const child = spawn(f.wrapper, f.root, f.args); const before = performance.now(); child.stdin.write(start);
     if (closeParent) await child.stdin.end();
     const result = await finish(child);
     expect(result.exit).toBe(1); expect(result.stdout).toBe(""); expect(result.stderr).toBe("");
@@ -34,19 +37,22 @@ test("independent watchdog stops blocked SQLite work at its deadline and when pa
 });
 test("watchdog rejects extra frames and missing worker responses without leaking diagnostics", async () => {
   const f = fixture();
-  const extra = spawn(f.wrapper, f.root); extra.stdin.write(`${start}${start}`);
+  const extra = spawn(f.wrapper, f.root, f.args); extra.stdin.write(`${start}${start}`);
   expect(await finish(extra)).toEqual({ exit: 1, stdout: "", stderr: "" });
   const empty = join(f.root, "empty.ts"); writeFileSync(empty, "export {};\n", { mode: 0o600 });
-  const emptyWrapper = join(f.root, "empty-wrapper.ts");
-  writeFileSync(emptyWrapper, `import { Worker } from 'node:worker_threads'; import { runDiscoveryHelper } from ${JSON.stringify(fileURLToPath(new URL("./discovery-helper.ts", import.meta.url)))}; await runDiscoveryHelper(() => new Worker(${JSON.stringify(empty)}));\n`, { mode: 0o600 });
-  const missing = spawn(emptyWrapper, f.root); missing.stdin.write(start);
+  const missing = spawn(f.wrapper, f.root, [f.args[0]!, empty, "20000"]); missing.stdin.write(start);
   expect(await finish(missing)).toEqual({ exit: 1, stdout: "", stderr: "" });
 });
 test("abrupt controlling-parent death leaves no blocked scanner process", async () => {
   const f = fixture(30000);
   const parent = join(f.root, "parent.ts");
-  writeFileSync(parent, `const child = Bun.spawn([process.execPath, '--no-env-file', '--no-install', ${JSON.stringify(f.wrapper)}], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore', env: { PATH: '/usr/bin:/bin', HOME: ${JSON.stringify(f.root)} } }); child.stdin.write(${JSON.stringify(start)}); process.stdout.write(String(child.pid) + '\\n'); for await (const chunk of process.stdin) { if (chunk.toString() === 'exit\\n') process.exit(0); }\n`, { mode: 0o600 });
-  const controller = spawn(parent, f.root); const reader = controller.stdout.getReader(); let owner: ReturnType<typeof captureProcessOwnerIdentity> | undefined;
+  writeFileSync(parent, String.raw`const [wrapper, ...args] = process.argv.slice(2);
+const child = Bun.spawn([process.execPath, '--no-env-file', '--no-install', wrapper, ...args], { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore', env: { PATH: '/usr/bin:/bin', HOME: process.cwd() } });
+child.stdin.write('{"protocol":"ghostget.discovery/1","action":"scan"}\n');
+process.stdout.write(String(child.pid) + '\n');
+for await (const chunk of process.stdin) { if (chunk.toString() === 'exit\n') process.exit(0); }
+`, { mode: 0o600 });
+  const controller = spawn(parent, f.root, [f.wrapper, ...f.args]); const reader = controller.stdout.getReader(); let owner: ReturnType<typeof captureProcessOwnerIdentity> | undefined;
   const timeout = setTimeout(() => controller.kill("SIGKILL"), 5000);
   try {
     const first = await reader.read(); const pid = Number(new TextDecoder().decode(first.value).trim());
