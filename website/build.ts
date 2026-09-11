@@ -55,7 +55,7 @@ export const GITHUB_RELEASES_URL = "https://github.com/hraness/ghostget/releases
 export const SKILLS_URL = "https://skills.sh/hraness/ghostget" as const;
 export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.17.5" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.17.6" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV =
   "NEXT_PUBLIC_HRANESS_MAILING_TURNSTILE_SITEKEY" as const;
@@ -800,6 +800,7 @@ export async function buildWebsite(
     notFoundMarkdown,
     llmsTemplate,
     css,
+    paperThemeCss,
     uiCss,
     designKitFontsCss,
     designKitProductMarketingCss,
@@ -815,6 +816,7 @@ export async function buildWebsite(
     readFile(join(sourceRoot, "404.md"), "utf8"),
     readFile(join(sourceRoot, "llms.txt"), "utf8"),
     readFile(join(sourceRoot, "styles.css"), "utf8"),
+    readFile(join(repositoryRoot, "website/vendor/paper-theme/paper-theme.css"), "utf8"),
     readUiStylesheet(),
     readFile(designKitFontsStylesPath, "utf8"),
     readFile(designKitProductMarketingStylesPath, "utf8"),
@@ -857,7 +859,7 @@ export async function buildWebsite(
   const postHog = postHogEnvironment(environment);
   // The UI facade establishes its complete layer order before the static
   // marketing grammar and footer. Product tokens and composition follow them.
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${css.trimEnd()}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${css.trimEnd()}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;

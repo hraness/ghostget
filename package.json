@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.17.5",
+  "version": "0.17.6",
   "description": "Open-source CLI and TypeScript SDK for precise web capabilities for AI agents: page capture, verified media archives, encrypted reads, and typed provider operations.",
   "license": "MIT",
   "type": "module",
@@ -543,12 +543,13 @@
     "src/confirmed-write-runtime.ts"
   ],
   "scripts": {
+    "check:theme": "bun scripts/check-paper-theme.mjs",
     "website:build": "bun run website/build.ts",
     "website:verify-production-release": "bun run website/production-release-verifier.ts",
     "website:vercel-build": "bun run website/vercel-build.ts",
     "website:test": "bun test ./website ./edge",
     "website:typecheck": "tsc --noEmit --project website/tsconfig.json && tsc --noEmit --project edge/tsconfig.json",
-    "website:check": "bun run website:typecheck && bun run website:test && bun run website:build",
+    "website:check": "bun run check:theme && bun run website:typecheck && bun run website:test && bun run website:build",
     "build": "bun -e 'await (await import(\"node:fs/promises\")).rm(\"./dist\", { recursive: true, force: true })' && bun build ./src/index.ts ./src/client.ts ./src/beeper-client.ts ./src/apple-photos-client.ts ./src/whatsapp-client.ts ./src/omni-client.ts ./src/messaging.ts --outdir ./dist --root ./src --target bun --format esm --splitting --packages external",
     "typecheck": "tsc --noEmit",
     "whatsapp:transport:install": "sh src/scripts/install-whatsapp-protocol.sh",

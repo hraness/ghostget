@@ -1,4 +1,4 @@
-:root {
+:root:not([data-hraness-theme="paper"]) {
   color-scheme: light dark;
   --background: #f5f3ed;
   --surface: #fbfaf6;
@@ -39,7 +39,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-hraness-theme="paper"]) {
     --background: #0e1113;
     --surface: #14181b;
     --surface-raised: #1a1f23;
@@ -55,6 +55,28 @@
     --code-background: #090b0d;
     --shadow-low: 0 1px 2px rgb(0 0 0 / 30%), 0 24px 48px -24px rgb(0 0 0 / 60%);
   }
+}
+
+/* The shared paper palette owns ordinary pages. Fixed terminal and preview
+ * colors remain product-owned, independent of the document appearance. */
+:root[data-hraness-theme="paper"] {
+  --ghostget-action: var(--primary);
+  --accent-ink: var(--primary-foreground);
+  --accent-soft: var(--accent);
+  --accent-bright: #d99a4a;
+  --line-strong: var(--control-border);
+  --code-background: #14171a;
+  --code-foreground: #f3f0e8;
+  --code-muted: #a9a79f;
+  --dark-background: #0e1113;
+  --dark-surface: #15191c;
+  --dark-foreground: #f0ede4;
+  --dark-muted: #a8a69f;
+  --dark-line: #2c3134;
+  --hraness-site-footer-measure: 80rem;
+  --page-inline: var(--hraness-marketing-gutter);
+  --section-block: var(--hraness-marketing-section-space);
+  --shadow-low: var(--elevation-low);
 }
 
 *,
@@ -90,7 +112,7 @@ a {
 }
 
 a:hover {
-  text-decoration-color: var(--accent);
+  text-decoration-color: var(--ghostget-action, var(--accent));
 }
 
 :where(a, button, input, summary, [tabindex]):focus-visible {
@@ -627,7 +649,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .card-index {
-  color: var(--accent);
+  color: var(--ghostget-action, var(--accent));
   display: block;
   font-family: var(--font-mono);
   font-size: 0.7rem;
@@ -660,7 +682,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .provider-card {
-  --provider-accent: var(--accent);
+  --provider-accent: var(--ghostget-action, var(--accent));
   background: color-mix(in srgb, var(--surface-raised) 92%, var(--provider-accent));
   border: 1px solid color-mix(in srgb, var(--line) 78%, var(--provider-accent));
   border-radius: var(--radius-md);
@@ -995,7 +1017,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .faq-list summary::after {
-  color: var(--accent);
+  color: var(--ghostget-action, var(--accent));
   content: "+";
   font-family: var(--font-mono);
   font-size: 1.25rem;
@@ -1216,7 +1238,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 
 .editorial-cluster .card h3 a,
 .guide-cluster .card h3 a {
-  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--ghostget-action, var(--accent)) 45%, transparent);
 }
 
 .provider-directory-guide {
@@ -1269,7 +1291,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .provider-adapter summary::after {
-  color: var(--accent);
+  color: var(--ghostget-action, var(--accent));
   content: "+";
   flex: 0 0 auto;
   font-family: var(--font-mono);
@@ -1599,7 +1621,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .editorial-card a:hover h3 {
-  color: var(--accent);
+  color: var(--ghostget-action, var(--accent));
 }
 
 .preview-flow li {
@@ -1855,8 +1877,8 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 
-/* Premium surface. Ghostget binds the shared Hraness product-marketing grammar:
- * one text face, one amber accent, hairline chrome, and soft radii. The rules
+/* Ghostget binds the shared Hraness product-marketing grammar:
+ * one text face, paper surfaces, hairline chrome, and soft radii. The rules
  * below restyle the shared page chrome and then bind the homepage roles. Site
  * CSS sits outside the design-kit cascade layers, so link color stays scoped
  * to prose surfaces and never reaches marketing actions or navigation. */
@@ -1943,7 +1965,7 @@ body {
 
 .guide-hero h1,
 .route-state h1 {
-  font-size: clamp(2.5rem, 5vw, 4.25rem);
+  font-size: var(--hraness-paper-heading-size);
   margin: 0 0 1.25rem;
   max-width: 22ch;
 }
@@ -1952,7 +1974,7 @@ body {
 .guide-article > section > h2,
 .guide-callout h2,
 .final-section h2 {
-  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  font-size: var(--hraness-paper-section-heading-size);
   letter-spacing: -0.012em;
   line-height: 1.15;
   margin: 0 0 1rem;
@@ -2021,14 +2043,14 @@ body {
 }
 
 .button-primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--ghostget-action, var(--accent));
+  border-color: var(--ghostget-action, var(--accent));
   color: var(--accent-ink);
 }
 
 .button-primary:hover {
-  background: color-mix(in srgb, var(--accent) 86%, black);
-  border-color: color-mix(in srgb, var(--accent) 86%, black);
+  background: color-mix(in srgb, var(--ghostget-action, var(--accent)) 86%, black);
+  border-color: color-mix(in srgb, var(--ghostget-action, var(--accent)) 86%, black);
 }
 
 .button-secondary,
@@ -2062,7 +2084,7 @@ body {
 }
 
 .skill-install-prompt {
-  color: var(--accent);
+  color: var(--ghostget-action, var(--accent));
   font-weight: 600;
 }
 
@@ -2089,7 +2111,7 @@ body {
 }
 
 .skill-install-copy[data-copy-state="copied"] {
-  background: var(--accent);
+  background: var(--ghostget-action, var(--accent));
   color: var(--accent-ink);
 }
 
@@ -2148,7 +2170,7 @@ body {
 }
 
 .card h3 a:hover {
-  text-decoration-color: var(--accent);
+  text-decoration-color: var(--ghostget-action, var(--accent));
 }
 
 .card p {
@@ -2171,7 +2193,7 @@ body {
 }
 
 .editorial-card a:hover h3 {
-  color: var(--accent);
+  color: var(--ghostget-action, var(--accent));
 }
 
 /* Provider directory: compact cards with name, count, and access method. */
@@ -2232,7 +2254,7 @@ body {
 
 .provider-card h3 a:hover {
   text-decoration: underline;
-  text-decoration-color: var(--accent);
+  text-decoration-color: var(--ghostget-action, var(--accent));
 }
 
 .provider-card .provider-state {
@@ -2587,7 +2609,8 @@ body {
 
 /* Homepage: the shared marketing grammar bound to Ghostget content. */
 .hraness-marketing-page {
-  --hraness-marketing-measure: 72rem;
+  --hraness-marketing-inverse: var(--code-background);
+  --hraness-marketing-inverse-ink: var(--code-foreground);
   padding-block-end: clamp(2rem, 6vw, 4rem);
 }
 
@@ -2605,12 +2628,12 @@ body {
   grid-column: 1 / -1;
   align-items: center;
   gap: clamp(2rem, 4vw, 3.5rem);
-  padding-block: clamp(2.5rem, 5vw, 4.5rem);
+  padding-block: clamp(2rem, 4vw, 3rem);
 }
 
 .ghostget-product-hero .hraness-marketing-hero__heading {
   max-inline-size: 18ch;
-  font-size: clamp(2.25rem, 4vw, 3.5rem);
+  font-size: var(--hraness-paper-heading-size);
 }
 
 .ghostget-product-hero .hraness-marketing-hero__copy {
@@ -2709,7 +2732,7 @@ body {
 .hraness-marketing-section__heading-group > h2 {
   color: var(--foreground);
   font-family: var(--font-sans);
-  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  font-size: var(--hraness-paper-section-heading-size);
   font-weight: 500;
   letter-spacing: -0.012em;
   line-height: 1.15;
@@ -2742,7 +2765,7 @@ body {
 
 /* Link color is scoped to prose surfaces; actions and navigation inherit. */
 :where(.install-summary, .skill-install-note, .provider-status-note, .hraness-marketing-question__answer, .hraness-marketing-maker__links, .hraness-marketing-proof-frame__caption, .hraness-marketing-section__body > p) a {
-  color: var(--accent);
+  color: var(--ghostget-action, var(--accent));
 }
 
 .home-reading {
@@ -2823,4 +2846,26 @@ body {
     border-color: CanvasText;
     color: CanvasText;
   }
+}
+
+/* Local compositions read the portable type scale without requiring a
+ * coordinated component-library upgrade. */
+[data-hraness-theme="paper"] .hraness-marketing-hero__heading {
+  font-weight: var(--hraness-marketing-heading-weight);
+  line-height: var(--hraness-paper-heading-leading);
+  letter-spacing: var(--hraness-paper-heading-tracking);
+}
+[data-hraness-theme="paper"] .hraness-marketing-page h2 {
+  font-size: var(--hraness-paper-section-heading-size);
+  line-height: 1.2;
+  letter-spacing: -.025em;
+}
+[data-hraness-theme="paper"] .hraness-marketing-hero__summary {
+  font-size: var(--hraness-paper-summary-size);
+  line-height: 1.6;
+}
+[data-hraness-theme="paper"] .hraness-marketing-proof-frame {
+  --hraness-marketing-inverse: var(--code-background);
+  --hraness-marketing-inverse-ink: var(--code-foreground);
+  box-shadow: none;
 }

@@ -1,3 +1,13 @@
+// Ghostget 0.17.6, measured after the shared Paper marketing theme and version
+// projections: two Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0
+// on darwin arm64 are byte-identical, with 2,258,514 compressed and 12,443,924
+// payload bytes across exactly 500 files, SHA-256
+// 009e254d04ce94d17cbbe8a09293adcda42cb4b1430469d0d63c376d4c7581be.
+// The changelog and package check hook add 407 payload bytes over 0.17.5.
+// Preserve 65 bytes of payload headroom, the exact inventory, and the existing
+// compressed allowance. Theme CSS is website-only and does not enter the CLI
+// archive. Fresh Linux CI independently checks its actual canonical archive.
+//
 // Ghostget 0.17.5, measured after the bounded newest-window CodeQL analyses
 // read joined the 0.17.4 release source and the version bump: two Bun 1.3.14
 // builds and npm packs (Node 24.20.0 / npm 11.19.0, darwin arm64) are
@@ -332,7 +342,7 @@
 export const MAX_PACKED_BYTES = 2_267_917;
 export const MAX_PACKED_ENTRIES = 500;
 export const MAX_PACKED_FILES = 500;
-export const MAX_UNPACKED_BYTES = 12_443_582;
+export const MAX_UNPACKED_BYTES = 12_443_989;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
