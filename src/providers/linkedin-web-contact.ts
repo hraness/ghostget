@@ -46,14 +46,16 @@ const MAX_WALK_DEPTH = 128;
 const RSC_FLIGHT_ROW = /(?:^|\n)(\d+):/u;
 const PROFILE_ID = /^[A-Za-z0-9_-]{1,256}$/u;
 const DISTANCE_IN_TEXT =
-  /(?:^|["'\\{,])(?:networkDistance|memberDistance|distance)"?\s*:\s*"?(DISTANCE_[A-Z0-9]+|OUT_OF_NETWORK|SELF|[0-9]+)"?/gu;
+  /(?:^|["'\\{,])(?:networkDistance|memberDistance|distance)\\*"?\s*:\s*\\*"?(DISTANCE_[A-Z0-9]+|OUT_OF_NETWORK|SELF|[0-9]+)\\*"?/gu;
 const PROFILE_URN_IN_TEXT = /urn:li:fsd_profile:[A-Za-z0-9_-]{1,256}/gu;
-const VIEWEE_PROFILE_ID_IN_TEXT = /vieweeProfileId"\s*:\s*"([A-Za-z0-9_-]{1,256})"/gu;
+const VIEWEE_PROFILE_ID_IN_TEXT =
+  /vieweeProfileId\\*"?\s*:\s*\\*"?([A-Za-z0-9_-]{1,256})/gu;
 const VIEWEE_MEMBER_URN_IN_TEXT =
-  /vieweeMemberUrn\\?"?\s*:\s*\\?"?(urn:li:(?:fsd_profile|member):[A-Za-z0-9_-]{1,256}|[0-9]{1,32})/gu;
+  /vieweeMemberUrn\\*"?\s*:\s*\\*"?(urn:li:(?:fsd_profile|member):[A-Za-z0-9_-]{1,256}|[0-9]{1,32})/gu;
 const MEMBER_URN = /^urn:li:member:[0-9]{1,32}$/u;
 const VANITY_IN_TEXT =
-  /(?:vanityName|publicIdentifier)"\s*:\s*"([A-Za-z0-9][A-Za-z0-9_-]{1,99})"/gu;
+  /(?:vanityName|publicIdentifier)\\*"?\s*:\s*\\*"?([A-Za-z0-9][A-Za-z0-9_-]{1,99})/gu;
+const MAX_JSON_STRING_PEELS = 4;
 const KEYED_IDENTITY_KEYS = new Set([
   "distance",
   "entityUrn",
@@ -364,8 +366,57 @@ function uniqueTextCapture(values: readonly string[]): string | null {
   return unique.length === 1 ? unique[0]! : null;
 }
 
-function breadcrumbRecordFromText(value: string): JsonRecord | null {
-  if (value.length < 8 || value.length > 1024 * 1024) return null;
+function peelOneJsonStringLayer(value: string): string {
+  if (!value.includes("\\")) return value;
+  let peeled = "";
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (character !== "\\") {
+      peeled += character;
+      continue;
+    }
+    const escaped = value[index + 1];
+    if (escaped === undefined) {
+      peeled += character;
+      break;
+    }
+    if (escaped === "\"" || escaped === "\\" || escaped === "/") {
+      peeled += escaped;
+      index += 1;
+      continue;
+    }
+    if (escaped === "n" || escaped === "r" || escaped === "t") {
+      peeled += escaped === "n" ? "\n" : escaped === "r" ? "\r" : "\t";
+      index += 1;
+      continue;
+    }
+    if (escaped === "u") {
+      const hex = value.slice(index + 2, index + 6);
+      if (/^[0-9A-Fa-f]{4}$/u.test(hex)) {
+        const codePoint = Number.parseInt(hex, 16);
+        if (codePoint < 0xD800 || codePoint > 0xDFFF) {
+          peeled += String.fromCharCode(codePoint);
+          index += 5;
+          continue;
+        }
+      }
+    }
+    peeled += character;
+  }
+  return peeled;
+}
+
+function peelJsonStringEscapes(value: string): string {
+  let current = value;
+  for (let peel = 0; peel < MAX_JSON_STRING_PEELS; peel += 1) {
+    const next = peelOneJsonStringLayer(current);
+    if (next === current) break;
+    current = next;
+  }
+  return current;
+}
+
+function captureBreadcrumbRecord(value: string): JsonRecord | null {
   const distances = [...value.matchAll(DISTANCE_IN_TEXT)]
     .map((match) => match[1])
     .filter((item): item is string => item !== undefined);
@@ -404,6 +455,14 @@ function breadcrumbRecordFromText(value: string): JsonRecord | null {
   return Object.keys(record).length > 0 ? Object.freeze(record) : null;
 }
 
+function breadcrumbRecordFromText(value: string): JsonRecord | null {
+  if (value.length < 8 || value.length > 1024 * 1024) return null;
+  const peeled = peelJsonStringEscapes(value);
+  return captureBreadcrumbRecord(peeled) ?? (
+    peeled === value ? null : captureBreadcrumbRecord(value)
+  );
+}
+
 function stringLooksLikeBootstrap(value: string): boolean {
   return value.includes("networkDistance")
     || value.includes("memberDistance")
@@ -417,15 +476,20 @@ function stringLooksLikeBootstrap(value: string): boolean {
 function decodeStringBootstrap(value: string): unknown[] {
   const trimmed = value.trim();
   if (trimmed.length < 8 || trimmed.length > 1024 * 1024) return [];
-  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-    try {
-      return [JSON.parse(trimmed) as unknown];
-    } catch {
-      // Fall through to breadcrumb extraction from partial RSC string rows.
+  const peeled = peelJsonStringEscapes(trimmed);
+  for (const candidate of peeled === trimmed ? [trimmed] : [trimmed, peeled]) {
+    if (candidate.startsWith("{") || candidate.startsWith("[")) {
+      try {
+        return [JSON.parse(candidate) as unknown];
+      } catch {
+        // Fall through to breadcrumb extraction from partial RSC string rows.
+      }
     }
   }
-  if (!stringLooksLikeBootstrap(trimmed)) return [];
-  const breadcrumb = breadcrumbRecordFromText(trimmed);
+  if (!stringLooksLikeBootstrap(trimmed) && !stringLooksLikeBootstrap(peeled)) {
+    return [];
+  }
+  const breadcrumb = breadcrumbRecordFromText(peeled);
   return breadcrumb === null ? [] : [breadcrumb];
 }
 

@@ -147,6 +147,22 @@ test("LinkedIn contact-info binding joins unique vieweeMemberUrn distance to vie
       profileUrn: PROFILE_URN,
       relationship: "first-degree",
     });
+    const escaped = `<html><body><script>window.__como_rehydration__=${JSON.stringify([
+      `1:I["PROFILE_VIEW"]\n2:${JSON.stringify({
+        vanityName: slug,
+        vieweeProfileId: "ACoAAFixtureProfile",
+        isSelfView: false,
+      })}\n3:networkDistance\\":1,\\"vieweeMemberUrn\\":\\"urn:li:member:987654321\\",\\"breadcrumbType\\":\\"PROFILE_VIEW\\"`,
+    ])}</script></body></html>`;
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: escaped,
+      profileUrl: `https://www.linkedin.com/in/${slug}/`,
+      expectedViewerSubject: VIEWER,
+    })).toMatchObject({
+      vanity: slug.toLowerCase(),
+      profileUrn: PROFILE_URN,
+      relationship: "first-degree",
+    });
   }));
 });
 

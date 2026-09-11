@@ -1483,10 +1483,16 @@ describe("npm publication contract", () => {
     expect(contactStart).toBeLessThan(listingStart);
     expect(listingStart).toBeLessThan(fixStart);
     expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
+      "Adapter bundle 1.26.0",
+    );
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
       "Adapter bundle 1.25.0",
     );
     expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
       "vieweeMemberUrn",
+    );
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
+      "multi-escaped",
     );
     const controlSection = changelog.slice(controlStart, paperStart);
     for (const fact of ["Tauri control panel", "existing Bun kernel", "human approval", "local SQLite", "1Password X token import", "source build", "separate qualification", "OpenAPI imports inert", "no model runtime in the kernel"]) {
