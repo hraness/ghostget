@@ -9,11 +9,15 @@ if (!container) throw new Error("Application root is missing");
 const model = new PanelModel(nativePort);
 const root = createRoot(container);
 root.render(<ControlPanel model={model} />);
-void model.refresh();
+void model.refresh().then(() => {
+  const discovery = model.getSnapshot().snapshot?.discovery;
+  // The setting is chosen in the native app. Agent status and fixtures never scan.
+  if (discovery?.enabled && discovery.status === "not-scanned") void model.command({ action: "discovery.refresh", expectedRevision: discovery.revision });
+});
 // Approval polling never rebuilds the catalog. Refresh external account and
 // integration edits when returning to the app, after commands, or on demand.
 const refreshTimer = setInterval(() => {
-  if (document.visibilityState === "visible") void model.refreshApprovals();
+  if (document.visibilityState === "visible") void model.refreshAttention();
 }, 4000);
 const refreshOnReturn = () => {
   const state = model.getSnapshot();

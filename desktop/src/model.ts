@@ -9,6 +9,7 @@ export interface ActivityState {
 export interface PanelState {
   readonly section: ControlSection; readonly snapshot: ControlSnapshot | null; readonly accountId: string | null;
   readonly loading: boolean; readonly busy: boolean; readonly cancellingConnection: boolean; readonly error: string | null; readonly notice: string | null;
+  readonly discoveryScanning: boolean; readonly stoppingDiscovery: boolean;
   readonly output: Extract<ControlData, { kind: "prompt" | "document" }> | null;
   readonly connection: Extract<ControlData, { kind: "connection" }> | null;
   readonly activity: ActivityState;
@@ -25,6 +26,8 @@ export class PanelModel {
   private activityAbort: AbortController | null = null;
   private snapshotAbort: AbortController | null = null;
   private approvalAbort: AbortController | null = null;
+  private setupAbort: AbortController | null = null;
+  private attentionCycle: symbol | null = null;
   private requests = new Set<AbortController>();
   private commandAbort: AbortController | null = null;
   private commandGeneration = 0;
@@ -42,14 +45,16 @@ export class PanelModel {
     this.formatTime = value => time.format(new Date(value));
     this.formatDateTime = value => dateTime.format(new Date(value));
     this.formatCount = value => count.format(value);
-    this.state = { section: options.section ?? "accounts", snapshot: options.snapshot ?? null, accountId: options.snapshot?.accountId ?? null, loading: false, busy: false, cancellingConnection: false, error: null, notice: null, output: null, connection: null, activity: options.activity ? { ...emptyActivity(initialQuery), ...options.activity, loaded: true } : emptyActivity(initialQuery) };
+    this.state = { section: options.section ?? "accounts", snapshot: options.snapshot ?? null, accountId: options.snapshot?.accountId ?? null, loading: false, busy: false, cancellingConnection: false, discoveryScanning: false, stoppingDiscovery: false, error: null, notice: null, output: null, connection: null, activity: options.activity ? { ...emptyActivity(initialQuery), ...options.activity, loaded: true } : emptyActivity(initialQuery) };
   }
   getSnapshot = (): PanelState => this.state;
   subscribe = (listener: () => void): (() => void) => { this.listeners.add(listener); return () => this.listeners.delete(listener); };
   private update(patch: Partial<PanelState>): void { if (this.disposed) return; this.state = { ...this.state, ...patch }; for (const listener of this.listeners) listener(); }
   private activity(patch: Partial<ActivityState>): void { this.update({ activity: { ...this.state.activity, ...patch } }); }
-  navigate(section: ControlSection): void { this.update({ section, error: null, output: null }); if (section === "activity" && !this.state.activity.loaded && !this.state.activity.loading) void this.loadActivity(false); }
+  navigate(section: ControlSection): void { this.update({ section, error: null, notice: null, output: null }); if (section === "activity" && !this.state.activity.loaded && !this.state.activity.loading) void this.loadActivity(false); }
   notice(message: string): void { this.update({ notice: message }); }
+  showPrompt(text: string): void { this.update({ output: { kind: "prompt", text } }); }
+  clearOutput(): void { this.update({ output: null }); }
   async selectAccount(accountId: string | null): Promise<void> { this.update({ accountId }); await this.refresh(); }
   async refresh(): Promise<void> {
     if (this.disposed) return;
@@ -66,7 +71,29 @@ export class PanelModel {
     } catch { if (!abort.signal.aborted && generation === this.snapshotGeneration) this.update({ error: "The control service is unavailable. Restart Ghostget and try again." }); }
     finally { if (generation === this.snapshotGeneration) this.update({ loading: false }); }
   }
-  private cancelApprovalPoll(): void { this.approvalAbort?.abort(); this.approvalAbort = null; }
+  private cancelApprovalPoll(): void { this.attentionCycle = null; this.approvalAbort?.abort(); this.approvalAbort = null; this.setupAbort?.abort(); this.setupAbort = null; }
+  async refreshAttention(): Promise<void> {
+    if (this.disposed || this.attentionCycle) return;
+    const cycle = Symbol(); this.attentionCycle = cycle;
+    try { await this.refreshApprovals(); if (this.attentionCycle === cycle) await this.refreshSetupRequests(); }
+    finally { if (this.attentionCycle === cycle) this.attentionCycle = null; }
+  }
+  /** A service request carries no administrative authority and needs no catalog read. */
+  async refreshSetupRequests(): Promise<void> {
+    const snapshot = this.state.snapshot;
+    if (this.disposed || !snapshot || this.state.busy || this.state.loading || this.state.error || this.cancellationInFlight || this.setupAbort) return;
+    const abort = new AbortController(); this.setupAbort = abort;
+    const generation = this.commandGeneration;
+    const current = () => !this.disposed && !abort.signal.aborted && this.setupAbort === abort && this.state.snapshot === snapshot && this.commandGeneration === generation;
+    try {
+      const result = await this.port.request({ action: "setup.list" }, abort.signal);
+      if (!current()) return;
+      if (!result.ok) this.update({ error: result.message });
+      else if (result.data.kind === "setup-requests") this.update({ snapshot: { ...snapshot, setupRequests: result.data.setupRequests } });
+      else this.update({ error: "Setup requests could not load. Refresh to try again." });
+    } catch { if (current()) this.update({ error: "Setup requests could not load. Refresh to reconnect." }); }
+    finally { if (this.setupAbort === abort) this.setupAbort = null; }
+  }
   /** Poll only transient approvals; catalog reads and authority checks stay fresh. */
   async refreshApprovals(): Promise<void> {
     const snapshot = this.state.snapshot;
@@ -87,7 +114,7 @@ export class PanelModel {
     if (this.state.busy || this.cancellationInFlight || this.disposed) return false;
     this.cancelApprovalPoll();
     const generation = ++this.commandGeneration; this.commandAction = request.action;
-    const abort = new AbortController(); this.requests.add(abort); this.commandAbort = abort; this.update({ busy: true, error: null, notice: null });
+    const abort = new AbortController(); this.requests.add(abort); this.commandAbort = abort; this.update({ busy: true, discoveryScanning: request.action === "discovery.refresh" || request.action === "discovery.configure" && request.enabled, error: null, notice: null });
     try {
       const result = await this.port.request(request, abort.signal);
       if (this.disposed || generation !== this.commandGeneration) return false;
@@ -101,7 +128,25 @@ export class PanelModel {
       }
       return true;
     } catch { if (!abort.signal.aborted) this.update({ error: "The request could not be completed. Refresh before trying again." }); return false; }
-    finally { this.requests.delete(abort); if (generation === this.commandGeneration) { this.commandAction = null; this.update({ busy: false }); } }
+    finally { this.requests.delete(abort); if (generation === this.commandGeneration) { this.commandAction = null; this.update({ busy: false, discoveryScanning: false }); } }
+  }
+  /** Read the current consent revision before opting out of an in-flight scan. */
+  async stopDiscovery(): Promise<void> {
+    if (this.disposed || !this.state.discoveryScanning || this.cancellationInFlight) return;
+    this.cancellationInFlight = true; this.cancelApprovalPoll();
+    ++this.commandGeneration; this.commandAbort?.abort(); this.commandAction = null;
+    this.update({ stoppingDiscovery: true, error: null });
+    const abort = new AbortController(); this.requests.add(abort);
+    try {
+      const current = await this.port.request({ action: "snapshot", accountId: this.state.accountId }, abort.signal);
+      if (this.disposed || abort.signal.aborted) return;
+      if (!current.ok || current.data.kind !== "snapshot") throw new Error("Consent unavailable");
+      const result = await this.port.request({ action: "discovery.configure", enabled: false, expectedRevision: current.data.snapshot.discovery.revision }, abort.signal);
+      if (this.disposed || abort.signal.aborted) return;
+      if (!result.ok) this.update({ error: result.message });
+      else { await this.refresh(); this.update({ notice: "Browser discovery turned off." }); }
+    } catch { if (!this.disposed && !abort.signal.aborted) this.update({ error: "Discovery could not be stopped. Refresh and turn it off before trying again." }); }
+    finally { this.requests.delete(abort); this.cancellationInFlight = false; this.update({ busy: false, discoveryScanning: false, stoppingDiscovery: false }); }
   }
   async cancelConnection(): Promise<void> {
     const connection = this.state.connection;

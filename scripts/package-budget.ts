@@ -1,3 +1,13 @@
+// Ghostget 0.19.0 agent setup and optional Chrome metadata discovery: two
+// independent Bun 1.3.14 builds and npm 11.19.0 ignore-scripts packs under
+// Node 24.20.0 on darwin arm64 (zlib 1.2.12) are byte-identical:
+// 2,351,623 compressed / 12,793,233 payload bytes, exactly 540 files,
+// SHA-256 ecec283d7db9faffcf6bf7d7d6861de0d6a0f99e0d9c90923318627a369a79bd.
+// All file bytes and modes match their source. Seven runtime modules and one
+// setup guide add eight entries; native/website artwork and tests stay excluded.
+// Preserve the existing 65-byte payload and 2,802 + 4,096-byte compression
+// allowances. Required Linux CI independently admits its actual archive.
+//
 // Ghostget 0.19.0 joined with main dafc8da (LinkedIn multi-escaped
 // PROFILE_VIEW breadcrumbs, adapter 1.26.0): two fresh Bun 1.3.14 builds
 // and npm 11.19.0 ignore-scripts packs under Node 24.20.0 on darwin arm64
@@ -477,10 +487,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_344_948;
-export const MAX_PACKED_ENTRIES = 532;
-export const MAX_PACKED_FILES = 532;
-export const MAX_UNPACKED_BYTES = 12_745_866;
+export const MAX_PACKED_BYTES = 2_358_521;
+export const MAX_PACKED_ENTRIES = 540;
+export const MAX_PACKED_FILES = 540;
+export const MAX_UNPACKED_BYTES = 12_793_298;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

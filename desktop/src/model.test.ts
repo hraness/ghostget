@@ -18,7 +18,7 @@ test("strict worlds and response envelopes reject ambiguity", () => {
 test("vault responses reject secret-bearing, malformed and disconnected metadata", () => {
   const snapshot = makeSnapshot("vault.connected"); const vault = snapshot.vault;
   const response = (value: unknown) => ({ ok: true, data: { kind: "snapshot", snapshot: { ...snapshot, vault: value } } });
-  expect(SCENES).toHaveLength(10);
+  expect(SCENES).toHaveLength(12);
   for (const scene of SCENES) expect(parseControlResponse({ ok: true, data: { kind: "snapshot", snapshot: makeSnapshot(scene) } }).ok).toBe(true);
   for (const scene of ["vault.local", "vault.connected", "vault.cancelled"] as const) expect(sectionFor(scene)).toBe("vault");
   expect(snapshot.approvals[0]!.kind).toBe("credential");
@@ -216,4 +216,66 @@ test("cancel and commit cannot cross, while pending verification stays cancellab
   await verifying.model.cancelConnection(); expect(verifying.actions).toContain("connection.cancel");
   verifying.settle({ ok: true, data: { kind: "connection", attemptId: "held-attempt", status: "verified", subject: "river-stone" } }); expect(await verify).toBe(false);
   expect(verifying.model.getSnapshot().connection).toBeNull(); expect(verifying.model.getSnapshot().busy).toBe(false); verifying.model.dispose();
+});
+
+test("setup polling updates only pending suggestions and ignores replies after navigation refresh", async () => {
+  const snapshot = makeSnapshot("activity.history");
+  const pending: { request: ControlRequest; resolve: (response: ControlResponse) => void }[] = [];
+  const model = new PanelModel({ request: request => new Promise(resolve => pending.push({ request, resolve })) }, { snapshot });
+  const requests = makeSnapshot("accounts.requested").setupRequests;
+  try {
+    const poll = model.refreshSetupRequests(); await model.refreshSetupRequests();
+    expect(pending.map(value => value.request)).toEqual([{ action: "setup.list" }]);
+    pending[0]!.resolve({ ok: true, data: { kind: "setup-requests", setupRequests: requests } }); await poll;
+    expect(model.getSnapshot().snapshot!.setupRequests).toEqual(requests);
+    expect(model.getSnapshot().snapshot!.accounts).toBe(snapshot.accounts);
+    const stale = model.refreshSetupRequests(); const refresh = model.refresh();
+    pending[2]!.resolve({ ok: true, data: { kind: "snapshot", snapshot } }); await refresh;
+    pending[1]!.resolve({ ok: true, data: { kind: "setup-requests", setupRequests: requests } }); await stale;
+    expect(model.getSnapshot().snapshot!.setupRequests).toEqual([]);
+  } finally { model.dispose(); }
+});
+
+test("overlapping attention ticks cannot starve a slow approval reply", async () => {
+  const snapshot = makeSnapshot("activity.history");
+  const pending: { request: ControlRequest; resolve: (response: ControlResponse) => void }[] = [];
+  const model = new PanelModel({ request: request => new Promise(resolve => pending.push({ request, resolve })) }, { snapshot });
+  try {
+    const cycle = model.refreshAttention();
+    for (let tick = 0; tick < 5; tick++) await model.refreshAttention();
+    expect(pending.map(item => item.request.action)).toEqual(["approval.list"]);
+    const approvals = makeSnapshot("approvals.pending").approvals;
+    pending[0]!.resolve({ ok: true, data: { kind: "approvals", approvals } });
+    for (let turn = 0; turn < 20 && pending.length < 2; turn++) await Promise.resolve();
+    expect(model.getSnapshot().snapshot!.approvals).toEqual(approvals);
+    expect(pending.map(item => item.request.action)).toEqual(["approval.list", "setup.list"]);
+    await model.refreshAttention(); expect(pending).toHaveLength(2);
+    pending[1]!.resolve({ ok: true, data: { kind: "setup-requests", setupRequests: [] } }); await cycle;
+    const next = model.refreshAttention(); const refresh = model.refresh();
+    pending[3]!.resolve({ ok: true, data: { kind: "snapshot", snapshot } }); await refresh;
+    pending[2]!.resolve({ ok: true, data: { kind: "approvals", approvals } }); await next;
+    expect(pending).toHaveLength(4);
+    expect(model.getSnapshot().snapshot!.approvals).toEqual(snapshot.approvals);
+  } finally { model.dispose(); }
+});
+
+test("turning off an active discovery scan binds fresh consent and fences its late reply", async () => {
+  const snapshot = makeSnapshot("accounts.empty");
+  const pending: { request: ControlRequest; resolve: (response: ControlResponse) => void }[] = [];
+  const model = new PanelModel({ request: request => new Promise(resolve => pending.push({ request, resolve })) }, { snapshot });
+  const until = async (count: number) => { for (let turn = 0; turn < 20 && pending.length < count; turn++) await Promise.resolve(); expect(pending.length).toBe(count); };
+  try {
+    const scan = model.command({ action: "discovery.configure", enabled: true, expectedRevision: 1 });
+    const stop = model.stopDiscovery(); await until(2);
+    expect(model.getSnapshot().stoppingDiscovery).toBe(true);
+    const enabled = { ...snapshot, discovery: { ...snapshot.discovery, enabled: true, revision: 2 } };
+    pending[1]!.resolve({ ok: true, data: { kind: "snapshot", snapshot: enabled } }); await until(3);
+    expect(pending[2]!.request).toEqual({ action: "discovery.configure", enabled: false, expectedRevision: 2 });
+    pending[2]!.resolve({ ok: true, data: { kind: "success", message: "Disabled" } }); await until(4);
+    const disabled = { ...snapshot, discovery: { ...snapshot.discovery, revision: 3 } };
+    pending[3]!.resolve({ ok: true, data: { kind: "snapshot", snapshot: disabled } }); await stop;
+    pending[0]!.resolve({ ok: false, code: "DISCOVERY_CHANGED", message: "Old scan reply" }); expect(await scan).toBe(false);
+    expect(model.getSnapshot().error).toBeNull(); expect(model.getSnapshot().busy).toBe(false);
+    expect(model.getSnapshot().discoveryScanning).toBe(false); expect(model.getSnapshot().snapshot!.discovery.enabled).toBe(false);
+  } finally { model.dispose(); }
 });

@@ -1,7 +1,7 @@
 # Ghostget native control panel
 
-A macOS companion to the Ghostget CLI. The eight screens share production React
-components and state. The renderer's only native capability is `control_request`.
+A macOS companion to the Ghostget CLI. Five main destinations and Agent setup share production React
+components and state. Access groups operations, web rules, and integrations. The renderer's only native capability is `control_request`.
 The host starts one exact packaged Bun 1.3.14 binary with unchanged package source
 and dependency files; it never searches PATH for a runtime or installs code.
 
@@ -99,8 +99,8 @@ revocation, cleanup, and historical imported-X-token compatibility. Live
 
 ## Direct and product previews
 
-Direct is development-only. Its ten strict worlds include empty and reconnect
-accounts, policy, user/community interfaces, pending approval, local vault items,
+Direct is development-only. Its 12 strict worlds include empty and reconnect
+accounts, optional discovery, agent setup suggestions, policy, user/community interfaces, pending approval, local vault items,
 1Password links, vault cancellation and cleanup, backend failure and a 10,000-row
 activity history. `ControlPanelPort` is the seam:
 fixture checks prove shared UI behavior, not the replaced native IPC, credential,
@@ -109,7 +109,7 @@ drives the declared browser contract. Source-map checks prove both graph selecti
 and Direct exclusion from production output.
 
 Marketing output is `desktop/out/marketing/`: fixed HTML scenes and the real app
-CSS/font, with no script or hydration. The website owns accessible parent scene
+CSS, font, and ghost icon, with no script or hydration. The website owns accessible parent scene
 and enlargement controls. Embed each closed scene URL in an iframe with an empty
 sandbox and disclose fictional accounts. Never copy the Direct runtime into the
 marketing site or ship a query-selected fixture mode in the native app.
@@ -117,7 +117,7 @@ marketing site or ship a query-selected fixture mode in the native app.
 ## Direct driver disposal exception
 
 The verifier uses agent-browser **0.32.3** in two sequential owned Chromium
-batches of eight and two scenarios. Each scenario gets a fresh `window new`
+batches of eight and four scenarios. Each scenario gets a fresh `window new`
 context, and each whole browser must close before the next batch starts. The
 driver can promote a queued
 `Target.targetInfoChanged` for a closed page into a new target after `tab_close`
@@ -138,7 +138,7 @@ inert pages. No old context is reused. At most eight inert scenario tabs plus th
 bootstrap remain in a batch until **required final whole-browser close**. This
 is not proof of per-context closure or unmodified reference-skill compliance. Unexpected
 network-control failures, browser replacements and final-close failures remain
-fatal. The aggregate receipt binds all ten scenes and both whole-browser
+fatal. The aggregate receipt binds all 12 scenes and both whole-browser
 closures, and records this policy deviation explicitly.
 
 ## Website iframe qualification

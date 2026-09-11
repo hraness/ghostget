@@ -2881,3 +2881,6 @@ body {
   --hraness-marketing-inverse-ink: var(--code-foreground);
   box-shadow: none;
 }
+
+.wordmark { display: inline-flex; align-items: center; gap: 9px; }
+.wordmark > img { display: block; flex: none; }

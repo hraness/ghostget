@@ -15,7 +15,7 @@ async function verify() {
   const source = { head: gitRead(["rev-parse", "HEAD"]), dirty: gitRead(["status", "--porcelain"]).length > 0 };
   assert.equal(browserPackage.version, "0.32.3");
   const batches = [SCENES.slice(0, 8), SCENES.slice(8)];
-  assert.deepEqual(batches.map(batch => batch.length), [8, 2], "Review browser batch ownership when the scenario catalog changes");
+  assert.deepEqual(batches.map(batch => batch.length), [8, 4], "Review browser batch ownership when the scenario catalog changes");
   assert.equal(new Set(SCENES).size, SCENES.length);
   const artifact = join(desktopRoot, "out", "verification", randomUUID()); await mkdir(artifact, { recursive: true });
   await buildDesktop("native"); const server = await serveDirect();
@@ -88,14 +88,40 @@ async function verify() {
         };
         const identity = await browser.evaluate("({userAgent:navigator.userAgent,platform:navigator.platform})");
         assert.equal(await browser.evaluate("document.querySelectorAll('nav [aria-current=page]').length"), 1);
-        if (scene === "accounts.empty") { assert.ok(initialText.includes("Connect your first account")); await run(["find", "label", "Connection name", "fill", "test-account"]); await click("Open sign-in"); await settle(scene); assert.ok((await body()).includes("Finish signing in")); await click("Verify account"); await settle(scene); assert.ok((await body()).includes("Confirm this account")); await click("Save connection"); await settle(scene); assert.ok((await body()).includes("test-account")); }
+        if (scene === "accounts.empty") {
+          assert.ok(initialText.includes("Connect a service")); assert.equal(await browser.evaluate("document.querySelectorAll('.connect-form').length"), 0);
+          await capture("accounts.empty.initial.png");
+          await run(["find", "text", "GitHub", "click", "--exact"]); await settle(scene);
+          await run(["find", "text", "Connection options", "click", "--exact"]);
+          await run(["find", "label", "Connection name", "fill", "test-account"]); await click("Open sign-in"); await settle(scene);
+          assert.ok((await body()).includes("Finish signing in")); await click("Verify account"); await settle(scene);
+          assert.ok((await body()).includes("Confirm this account")); await click("Save connection"); await settle(scene); assert.ok((await body()).includes("test-account"));
+        }
         if (scene === "accounts.reconnect") {
-          assert.ok(initialText.includes("reconnect required")); await click("Reconnect");
-          assert.equal(await browser.evaluate("document.querySelector('.editor select').value"), "");
-          assert.equal(await browser.evaluate("document.querySelector('.editor input[name=id]').readOnly"), true);
-          await run(["select", "select[name=provider]", "github"]); await click("Reconnect account"); await settle(scene);
-          await click("Verify account"); await settle(scene); await click("Save connection"); await settle(scene);
+          assert.ok(initialText.includes("Reconnect required")); await run(["click", ".account-row:first-child .account-actions summary"]); await click("Reconnect");
+          assert.equal(await browser.evaluate("document.querySelectorAll('.connect-form').length"), 0);
+          await run(["find", "text", "GitHub", "click", "--exact"]); await settle(scene);
+          await run(["find", "text", "Connection options", "click", "--exact"]);
+          assert.equal(await browser.evaluate("document.querySelector('.connect-form input[name=id]').readOnly"), true);
+          assert.equal(await browser.evaluate("document.querySelector('.connect-form input[name=id]').value"), "personal");
+          await click("Reconnect account"); await settle(scene); await click("Verify account"); await settle(scene); await click("Save connection"); await settle(scene);
           assert.ok((await body()).includes("Connection saved")); assert.equal(await browser.evaluate("document.querySelectorAll('.account-row').length"), 2);
+        }
+        if (scene === "accounts.discovery") {
+          assert.ok(initialText.includes("Sign-in not verified")); assert.equal(await browser.evaluate("document.querySelectorAll('.account-row').length"), 0);
+          await capture("accounts.discovery.initial.png"); await run(["click", ".discovery-row button"]); await settle(scene);
+          assert.equal(await browser.evaluate("document.querySelector('[aria-label=\"Chrome profile\"]').value"), "Default");
+          assert.equal(await browser.evaluate("document.querySelectorAll('.account-row').length"), 0);
+          await click("Turn off"); await settle(scene); assert.equal(await browser.evaluate("document.querySelectorAll('.discovery-row').length"), 0);
+          await click("Open sign-in"); await settle(scene); await click("Cancel connection"); await settle(scene);
+          assert.equal(await browser.evaluate("document.querySelectorAll('.account-row').length"), 0);
+        }
+        if (scene === "accounts.requested") {
+          assert.ok(initialText.includes("Your agent requested setup")); await capture("accounts.requested.initial.png");
+          await click("Review setup"); await settle(scene); assert.ok((await body()).includes("Connect LinkedIn"));
+          assert.equal(await browser.evaluate("document.querySelectorAll('.account-row').length"), 0);
+          await click("Open sign-in"); await settle(scene); await click("Verify account"); await settle(scene); await click("Save connection"); await settle(scene); assert.ok(!(await body()).includes("Your agent requested setup"));
+          assert.equal(await browser.evaluate("document.querySelectorAll('.account-row').length"), 1);
         }
         if (scene === "capabilities.policy") { assert.ok(initialText.includes("create-issue")); await run(["select", '[aria-label="Permission for github-web create-issue"]', "deny"]); await settle(scene); assert.equal(await browser.evaluate("document.querySelector('[aria-label=\"Permission for github-web create-issue\"]').value"), "deny"); }
         if (scene === "integrations.community") { assert.ok(initialText.includes("Community reading list") && initialText.includes("imported")); await click("Activate research-library"); await settle(scene); assert.ok((await body()).includes("Interface activated")); await click("Activate research-archive"); await settle(scene); assert.equal(await browser.evaluate("Array.from(document.querySelectorAll('.integration-row:first-child button')).every(button => button.disabled)"), true); }
@@ -177,7 +203,7 @@ async function verify() {
           assert.ok(initialText.includes("10,000 matching requests")); const count = Number(await browser.evaluate("document.querySelectorAll('[data-activity-row]').length")); assert.ok(count > 0 && count < 45);
           await browser.evaluate("(()=>{const el=document.querySelector('[data-testid=activity-scroll]');el.scrollTop=el.scrollHeight;return true})()"); await settle(scene); assert.ok(Number(await browser.evaluate("document.querySelectorAll('[data-activity-row]').length")) < 45);
           await run(["find", "label", "Search activity", "fill", "installation"]); await click("Search"); await settle(scene); assert.ok(!(await body()).includes("10,000 matching requests"));
-          await click("Accounts"); await settle(scene); assert.ok((await body()).includes("river-stone")); await click("Web access"); await settle(scene); assert.ok((await body()).includes("Gateway-only mode")); await run(["uncheck", ".switch-label input"]); await click("Save web access"); await settle(scene); assert.ok((await body()).includes("Web access saved")); await click("Agent setup"); await run(["click", ".setup-row:first-child button"]); await settle(scene); assert.ok((await body()).includes("Ready for your agent")); await click("Activity");
+          await click("Accounts"); await settle(scene); assert.ok((await body()).includes("river-stone")); await click("Access"); await click("Web rules"); await settle(scene); assert.ok((await body()).includes("Use Ghostget for web access")); await run(["uncheck", ".switch-label input"]); await click("Save web access"); await settle(scene); assert.ok((await body()).includes("Web access saved")); await click("Agent setup"); await settle(scene); assert.ok((await body()).includes("ghostget setup --json")); await click("Copy setup prompt"); await settle(scene); assert.ok((await body()).includes("Ready for your agent") || (await body()).includes("Copied. Paste into your agent.")); await click("Activity");
         }
         await browser.evaluate("(()=>{document.querySelector('main').scrollTop=0;window.scrollTo(0,0);return true})()");
         const final = await settle(scene); bindDirectBrowserContractEvidence(initial, final);
@@ -193,7 +219,7 @@ async function verify() {
           assert.ok(!entry.error && !entry.errorText && !entry.failureText && !entry.failed, "Network failure recorded"); assert.equal(typeof entry.url, "string");
           const url = new URL(entry.url as string);
           if (url.protocol === "data:") { assert.ok((entry.url as string).startsWith("data:image/svg+xml;base64,"), "Unexpected embedded resource"); assert.equal(entry.resourceType, "Image"); }
-          else { assert.equal(url.origin, `http://127.0.0.1:${server.port}`); assert.ok(["/", "/app.js", "/app.css", "/NebulaSans-Book.woff2", "/__direct_disposed"].includes(url.pathname), "Unmapped fixture resource"); }
+          else { assert.equal(url.origin, `http://127.0.0.1:${server.port}`); assert.ok(["/", "/app.js", "/app.css", "/NebulaSans-Book.woff2", "/ghost.png", "/__direct_disposed"].includes(url.pathname), "Unmapped fixture resource"); }
         }
         const inventory = await run(["tab"]); assert.equal(tabs(inventory).length, index + 2);
         // Reviewed 0.32.3 driver exception: closing tabs promotes stale target events.

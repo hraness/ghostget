@@ -23,6 +23,10 @@ panel manages accounts, local Vault items, operation permissions, human approval
 editable OpenAPI interfaces, and a searchable local request log. See the
 [control panel guide](docs/control-panel.md) and [native source build](https://github.com/hraness/ghostget/blob/v0.19.0/desktop/README.md).
 
+Start with `ghostget setup --json`. Your agent can suggest a common service for
+you to review in Accounts; browser discovery is optional and every connection
+still requires verification. See [agent setup](docs/agent-setup.md).
+
 Vault stores passwords and tokens in macOS Keychain through a native secure-entry
 prompt. Optional 1Password access uses a dedicated read-only service account and
 exact item links. Agents use a human-configured grant with

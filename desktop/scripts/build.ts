@@ -9,6 +9,7 @@ export async function buildDesktop(kind: "native" | "direct" = "native", output 
   const result = await Bun.build({ entrypoints: [join(desktopRoot, kind === "native" ? "src/native-main.tsx" : "direct/main.tsx")], outdir: output, target: "browser", format: "esm", sourcemap: "external", minify: true, naming: { entry: "app.[ext]", asset: "[name].[ext]" }, external: ["*.woff2"], define: { "process.env.NODE_ENV": '"production"' } });
   if (!result.success) throw new Error("Desktop bundle failed: " + result.logs.map(log => log.message).join("\n"));
   await copyFile(resolve(desktopRoot, "../src/assets/fonts/nebula-sans/NebulaSans-Book.woff2"), join(output, "NebulaSans-Book.woff2"));
+  await copyFile(join(desktopRoot, "assets/ghost.png"), join(output, "ghost.png"));
   const names = await readdir(output); const css = names.filter(name => name.endsWith(".css"));
   if (css.length === 0 || !names.includes("app.js")) throw new Error("Desktop build emitted no complete UI");
   const policy = kind === "native" ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'";

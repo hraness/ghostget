@@ -7,7 +7,7 @@ mod vault;
 
 const PROTOCOL: &str = "ghostget.control/1";
 const MAX_FRAME: usize = 4 * 1024 * 1024;
-const ACTIONS: &[&str] = &["snapshot", "permission.enable", "permission.set", "approval.list", "approval.decide", "web.save", "activity.query", "interface.save", "interface.activate", "interface.export", "connection.begin", "connection.verify", "connection.commit", "connection.cancel", "connection.disconnect", "vault.lock", "vault.local.add", "vault.connect", "vault.link", "vault.remove", "vault.grant", "vault.revoke", "vault.cleanup", "prompt"];
+const ACTIONS: &[&str] = &["snapshot", "setup.list", "setup.dismiss", "discovery.configure", "discovery.refresh", "permission.enable", "permission.set", "approval.list", "approval.decide", "web.save", "activity.query", "interface.save", "interface.activate", "interface.export", "connection.begin", "connection.verify", "connection.commit", "connection.cancel", "connection.disconnect", "vault.lock", "vault.local.add", "vault.connect", "vault.link", "vault.remove", "vault.grant", "vault.revoke", "vault.cleanup", "prompt"];
 struct Pending { waiters: HashMap<String, SyncSender<Value>>, failed: bool }
 struct Helper { child: Arc<Mutex<Child>>, input: Arc<Mutex<Option<ChildStdin>>>, pending: Arc<Mutex<Pending>>, next_id: AtomicU64 }
 

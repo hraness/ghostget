@@ -6,6 +6,16 @@ passkey, cookie, or token. The human enters local passwords, tokens, and optiona
 1Password service-account tokens only in Ghostget's native macOS secure prompt.
 The renderer and agent protocol contain no secret-read operation.
 
+Start setup with `ghostget setup --json`. The structured response lists common
+services, configured account counts, pending suggestions, and next steps. A
+configured count does not prove current sign-in. Stage only the service the user
+chooses with `ghostget setup request <service> --json`; cancel your exact request
+with `ghostget setup cancel <request-id> --json`. Suggestions expire after ten
+minutes or app exit. They do not open a browser, scan profiles, connect an account,
+or approve anything. The user reviews them in Accounts. Optional Chrome discovery
+must be enabled in the app, and its hints still require live verification.
+See the [setup reference](https://github.com/hraness/ghostget/blob/v0.19.0/docs/agent-setup.md).
+
 Vault works locally with macOS Keychain. Optional 1Password access uses one
 human-configured dedicated vault and a service account with Read Items only.
 The human links exact item and field IDs; account-wide desktop authorization is

@@ -924,7 +924,8 @@ export async function buildWebsite(
       recursive: true,
     }),
     cp(join(publicRoot, "control"), join(outputRoot, "control"), { dereference: true, recursive: true }),
-    copyFile(join(publicRoot, "favicon.svg"), join(outputRoot, "favicon.svg")),
+    copyFile(join(publicRoot, "favicon.png"), join(outputRoot, "favicon.png")),
+    copyFile(join(publicRoot, "ghost.png"), join(outputRoot, "ghost.png")),
     copyFile(join(publicRoot, "og.png"), join(outputRoot, "og.png")),
     ...DEMO_PUBLIC_FILES.map((file) => copyFile(
       join(publicRoot, file),

@@ -88,6 +88,7 @@
     "docs/imessage-direct-provider.md",
     "docs/rental-listings.md",
     "docs/control-panel.md",
+    "docs/agent-setup.md",
     "src/args.ts",
     "src/apple-photos-cli.ts",
     "src/apple-photos-client-types.ts",
@@ -571,7 +572,14 @@
     "src/control/vault-helper.ts",
     "src/control/vault-custody.ts",
     "src/control/credential-executor.ts",
-    "src/control/credential-gateway.ts"
+    "src/control/credential-gateway.ts",
+    "src/control/setup-model.ts",
+    "src/control/setup.ts",
+    "src/control/setup-cli.ts",
+    "src/control/discovery.ts",
+    "src/control/discovery-process.ts",
+    "src/control/discovery-helper.ts",
+    "src/control/discovery-reader.ts"
   ],
   "scripts": {
     "check:theme": "bun scripts/check-paper-theme.mjs",

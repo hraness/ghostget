@@ -7,7 +7,7 @@ import { GHOSTGET_VERSION } from "../../src/version.ts";
 import { parseControlResponse } from "../src/response.ts";
 
 export const FIXTURE_NOW = Date.parse("2026-09-11T12:00:00Z");
-export const SCENES = ["accounts.empty", "accounts.reconnect", "capabilities.policy", "integrations.community", "approvals.pending", "vault.cancelled", "backend.failure", "activity.history", "vault.local", "vault.connected"] as const;
+export const SCENES = ["accounts.empty", "accounts.reconnect", "capabilities.policy", "integrations.community", "approvals.pending", "vault.cancelled", "backend.failure", "activity.history", "vault.local", "vault.connected", "accounts.discovery", "accounts.requested"] as const;
 export type Scene = typeof SCENES[number];
 export interface PanelWorld { readonly [key: string]: JsonValue; readonly version: 1; readonly scene: Scene; readonly rowCount: number }
 export function parseWorld(input: unknown): PanelWorld {
@@ -22,6 +22,7 @@ export const sectionFor = (scene: Scene): ControlSection => scene.startsWith("va
 export const definition = defineDirect({ parseWorld, defaultScenario: "activity.history", scenarios: SCENES.map(scene => ({ id: scene, title: scene.replaceAll(".", " · "), route: sectionFor(scene), world: { version: 1, scene, rowCount: scene === "activity.history" ? 10000 : 24 } satisfies PanelWorld, runtime: { schema: "direct.runtime/v1" as const, nowMs: FIXTURE_NOW, nextOperation: 1, acceleration: 1 } })), coverage: [
   { key: "panel.real-screens", mode: "fixture", claim: "Shared React screens and UI state render and handle account, vault metadata, permission, integration, approval, setup and failure states through a deterministic control port. No live IO is performed.", scenarios: [...SCENES] },
   { key: "panel.vault", mode: "fixture", claim: "The real Vault screen manages synthetic local items, optional 1Password links, exact access grants, lock state, cancellation and pending cleanup. Native secure entry and credential use require separate native acceptance.", scenarios: ["vault.local", "vault.connected", "vault.cancelled"] },
+  { key: "panel.discovery-setup", mode: "fixture", claim: "Browser hints and agent service requests remain unverified suggestions until explicit native-facing connection steps. Discovery opt-out clears hints; no real browser data is read.", scenarios: ["accounts.discovery", "accounts.requested"] },
   { key: "panel.activity", mode: "fixture", claim: "The real activity screen filters and traverses ten thousand deterministic metadata rows through asynchronous snapshot-bound keyset pages with a bounded DOM window.", scenarios: ["activity.history"] },
   { key: "panel.native-control", mode: "direct", claim: "Packaged Tauri IPC, exact helper resources, private filesystem and real provider/credential behavior require separate native acceptance.", scenarios: [] },
 ] });
@@ -46,7 +47,9 @@ export function makeVault(scene: Scene): VaultView {
 export function makeSnapshot(scene: Scene): ControlSnapshot {
   const snapshot: ControlSnapshot = {
     version: GHOSTGET_VERSION, accountId: null,
-    accounts: scene === "accounts.empty" ? [] : [
+    discovery: { revision: 1, enabled: scene === "accounts.discovery", status: scene === "accounts.discovery" ? "ready" : "not-scanned", scannedAt: scene === "accounts.discovery" ? new Date(FIXTURE_NOW).toISOString() : null, profiles: scene === "accounts.discovery" ? [{ id: "chrome-default", browser: "chrome", profile: "Default", label: "Chrome · Default", candidates: ["x-web"] }] : [] },
+    setupRequests: scene === "accounts.requested" ? [{ id: fixtureId(30), serviceId: "linkedin-web", requestedAt: new Date(FIXTURE_NOW).toISOString(), expiresAt: new Date(FIXTURE_NOW + 600000).toISOString() }] : [],
+    accounts: ["accounts.empty", "accounts.discovery", "accounts.requested"].includes(scene) ? [] : [
       { id: "personal", provider: scene === "accounts.reconnect" ? null : "github", kind: "cookie-source", subject: "river-stone", revision: "fictional-account-1", status: scene === "accounts.reconnect" ? "reconnect-required" : "verified", source: "Chrome · Default", tokenStorage: null },
       { id: "writing", provider: "x", kind: "oauth", subject: "@river_notes", revision: "fictional-account-2", status: "configured", source: "Imported token", tokenStorage: "ghostget-import" },
     ],
@@ -59,7 +62,7 @@ export function makeSnapshot(scene: Scene): ControlSnapshot {
     ] : [],
     policy: { managed: true, revision: 2 }, web: { revision: 1, gatewayOnly: true, rules: [{ id: "docs", origin: "https://docs.example.com", path: { kind: "prefix", value: "/reference/" }, methods: ["GET"], queryKeys: ["language"], decision: "allow", effect: "retrieval", maxResponseBytes: 1048576, timeoutMs: 15000 }] },
     approvals: scene === "approvals.pending" ? [{ id: "fictional-approval-1", digest: "fictional-approval-digest", kind: "provider", title: "Publish a post", account: "writing", effect: "write", preview: "Account: @river_notes\nOperation: publish-post\nText: A small update from today's research.", expiresAt: new Date(FIXTURE_NOW + 300000).toISOString() }] : scene === "vault.connected" ? [{ id: "fictional-credential-approval", digest: "fictional-credential-digest", kind: "credential", title: "Read profile", account: "Reading service", effect: "retrieval", preview: "Item: Reading service\nGET https://api.example.com/profile\nAuthentication: Bearer (secret kept private)\nReturned fields: /profile/name, /profile/status", expiresAt: new Date(FIXTURE_NOW + 120000).toISOString() }] : [],
-    connectionProviders: [{ id: "github", title: "GitHub" }, { id: "x", title: "X" }, { id: "linkedin", title: "LinkedIn" }], vault: makeVault(scene),
+    connectionProviders: [{ id: "github", title: "GitHub" }, { id: "x-web", title: "X" }, { id: "linkedin-web", title: "LinkedIn" }, { id: "reddit-web", title: "Reddit" }], vault: makeVault(scene),
   };
   parseControlResponse({ ok: true, data: { kind: "snapshot", snapshot } }); return snapshot;
 }
@@ -95,6 +98,14 @@ function createHarness(context: DirectSessionContext<PanelWorld, ControlSection>
     }
     switch (request.action) {
       case "snapshot": return context.world.scene === "backend.failure" ? failure("The control service is unavailable. Restart Ghostget and try again.") : { ok: true, data: { kind: "snapshot", snapshot: { ...snapshot, accountId: request.accountId } } };
+      case "setup.list": return { ok: true, data: { kind: "setup-requests", setupRequests: snapshot.setupRequests } };
+      case "setup.dismiss": snapshot = { ...snapshot, setupRequests: snapshot.setupRequests.filter(intent => intent.id !== request.id) }; return success("Setup request dismissed.");
+      case "discovery.configure":
+        if (request.expectedRevision !== snapshot.discovery.revision) return failure("Discovery changed. Refresh before trying again.");
+        snapshot = { ...snapshot, discovery: { revision: snapshot.discovery.revision + 1, enabled: request.enabled, status: request.enabled ? "ready" : "not-scanned", scannedAt: request.enabled ? new Date(context.clock.now()).toISOString() : null, profiles: request.enabled ? [{ id: "chrome-default", browser: "chrome", profile: "Default", label: "Chrome · Default", candidates: ["x-web"] }] : [] } }; return success(request.enabled ? "Browser discovery enabled." : "Browser discovery turned off.");
+      case "discovery.refresh":
+        if (!snapshot.discovery.enabled || request.expectedRevision !== snapshot.discovery.revision) return failure("Enable discovery in the app first.");
+        snapshot = { ...snapshot, discovery: { ...snapshot.discovery, status: "ready", scannedAt: new Date(context.clock.now()).toISOString(), profiles: [{ id: "chrome-default", browser: "chrome", profile: "Default", label: "Chrome · Default", candidates: ["x-web"] }] } }; return success("Browser suggestions refreshed.");
       case "activity.query": if (failNextActivity) { failNextActivity = false; return failure("Activity could not load. Retry this page."); } return { ok: true, data: { kind: "activity", page: activityPage(rows, request.query) } };
       case "permission.enable": if (request.expectedRevision !== snapshot.policy.revision) return failure("Permissions changed. Refresh before saving."); snapshot = { ...snapshot, policy: { managed: true, revision: snapshot.policy.revision + 1 } }; return success("Permissions enabled.");
       case "permission.set": { const target = snapshot.capabilities.find(row => row.adapterId === request.adapterId && row.operationId === request.operationId); if (!target || target.digest !== request.expectedCapabilityDigest || request.expectedRevision !== snapshot.policy.revision) return failure("This capability changed. Refresh before saving."); snapshot = { ...snapshot, capabilities: snapshot.capabilities.map(row => row === target ? { ...row, permission: request.decision } : row), policy: { ...snapshot.policy, revision: snapshot.policy.revision + 1 } }; return success("Permission saved."); }

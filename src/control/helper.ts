@@ -24,6 +24,7 @@ function parseTarget(value:unknown):ApprovalTarget {
 }
 async function handleAgent(value:unknown,service:ControlService,signal:AbortSignal):Promise<unknown> {
   const v=record(value);
+  if(v.protocol==="ghostget.setup/1")return service.setupStatus(value);
   if(v.protocol==="ghostget.credential/1"){keys(v,["protocol","action","grantId"]);if(v.action!=="use")throw new Error("invalid action");return await service.credentials.run(vaultId(v.grantId),signal);}
   if(v.protocol==="ghostget.web/1") {keys(v,["protocol","action","method","url"]);if(v.action!=="request")throw new Error("invalid action");return await service.gateway.run(oneOf(v.method,["GET","HEAD"]),string(v.url,8192),signal);}
   if(v.protocol!=="ghostget.approval/1")throw new Error("invalid protocol");

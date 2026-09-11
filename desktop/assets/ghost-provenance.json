@@ -1,0 +1,144 @@
+{
+  "schema": "ghostget.ghost-brand/1",
+  "generatedAt": "2026-09-11T22:18:49.774Z",
+  "selected": "source-bitmap-rendition",
+  "intent": "White ghost body, black face, pink tongue; transparent background. No inferred accent recoloring.",
+  "source": {
+    "emoji": "\ud83d\udc7b",
+    "codePoint": "1f47b",
+    "kind": "Exact AppleColorEmoji sbix PNG extracted locally",
+    "fontVersion": "21.4d3e1",
+    "fontSha256": "435ee0b75b26d671e089ddad38640473cc31febc4dbdfae27843a0a000d7ff62",
+    "nativePpem": 160,
+    "pngBytes": 29372,
+    "pngSha256": "9fbddb32ed155fe3f505f362c2c0e577f764affa64a78b46aeae28caf127f3ca",
+    "extractorSha256": "636ea41b0f8aa396dc91afb42d73c641503148ef3a94d94eb32f87d781147800"
+  },
+  "reviewedVectorization": {
+    "name": "@hraness/slopcamera",
+    "version": "3.2.6",
+    "sourceSha": "c2999ab2a4414a9c0ff02806095686ce04af98a5",
+    "archiveSha256": "5f024af3f85562c266d9a55171efc3d36af2845defb60056f5b942ab09930835",
+    "selected": false,
+    "reason": "Native-scale visual review found faceted shading and stray color specks; final PNGs derive directly from the exact native bitmap."
+  },
+  "renderer": {
+    "name": "sharp",
+    "version": "0.35.3",
+    "vips": "8.18.3",
+    "source": "Dependency installed with the verified immutable Slopcamera3.2.6 consumer",
+    "kernel": "lanczos3",
+    "format": "png",
+    "scriptSha256": "a90ab6a2e3d02e5a8ed9bd3990ada3a857de85c0d309377d8b922d890f29d3ef",
+    "dependencyLockSha256": "44fa31e92208a51ac659a1034279dc3665408b6df8dac71c61bae35b254622a1"
+  },
+  "limitation": "1024px is a deterministic enlargement of a160ppem bitmap. It preserves smooth gradients but does not add native high-resolution detail. No AI image generation or recoloring was used.",
+  "outputs": [
+    {
+      "path": "desktop/assets/ghost.png",
+      "bytes": 8628,
+      "sha256": "6c4ff7e98ed0967d18b295ad6fd0f5ba5cfad26767a270966bdbc129f39d8166"
+    },
+    {
+      "path": "desktop/src-tauri/icons/icon.png",
+      "bytes": 867469,
+      "sha256": "62f61a06ceab3cb9811c923abe8182842e6f0417e6031884a34dc1f25d15810a"
+    },
+    {
+      "path": "desktop/src-tauri/icons/icon.icns",
+      "bytes": 1230057,
+      "sha256": "505ce6495e4b9812c5b6425614ae9eb36c6d13f73fd7526b0ed2eb149fb7f0e9"
+    },
+    {
+      "path": "website/public/ghost.png",
+      "bytes": 8628,
+      "sha256": "6c4ff7e98ed0967d18b295ad6fd0f5ba5cfad26767a270966bdbc129f39d8166"
+    },
+    {
+      "path": "website/public/favicon.png",
+      "bytes": 2806,
+      "sha256": "36c6cba1829aae88fcd7543bd89f1fb2f1c26a70c48bd9edc37522ea22dd95d8"
+    },
+    {
+      "path": "website/public/og.png",
+      "bytes": 158147,
+      "sha256": "65a3f57f0183b863684b14ff07a85350a4426ab68edc2b2f12a8413585e7a548"
+    },
+    {
+      "path": "desktop/assets/ghost-source.png",
+      "bytes": 29372,
+      "sha256": "9fbddb32ed155fe3f505f362c2c0e577f764affa64a78b46aeae28caf127f3ca"
+    },
+    {
+      "path": "website/brand/og.svg",
+      "bytes": 377282,
+      "sha256": "b0e6eda53606f552e2953837d3e6e9092dd3b0f18a8a98785aad8e3b14e52347"
+    }
+  ],
+  "socialCard": {
+    "schema": "ghostget.social-art/1",
+    "generatedAt": "2026-09-11T22:26:03.412Z",
+    "title": "Give your coding agent bounded access to the web.",
+    "subtitle": "A local CLI and native control panel for accounts, access, and activity.",
+    "brand": "Ghostget",
+    "width": 1200,
+    "height": 630,
+    "palette": {
+      "source": "Ghostget checked Paper theme",
+      "background": "#12100f",
+      "foreground": "#f5f2ed",
+      "muted": "#aaa29a"
+    },
+    "fonts": [
+      {
+        "name": "NebulaSans-Book.otf",
+        "sha256": "4cc650f856591af1affc4add4f50e260c8239a2542bafe77909b78006023f091"
+      },
+      {
+        "name": "NebulaSans-Bold.otf",
+        "sha256": "91617d3e2281e8213f64f6bf359f387022d3149b35000b38365c32130a25bfa8"
+      }
+    ],
+    "image": {
+      "path": "ghost-512.png",
+      "sha256": "77451d5adfc3c7a90a52beb87f04f6bb9cd7cb70fa16ce4204cb4eaa96dda1d4",
+      "source": "Selected smooth bitmap rendition; see provenance.json. No recoloring."
+    },
+    "renderer": {
+      "name": "@resvg/resvg-js",
+      "version": "2.6.2",
+      "systemFonts": false,
+      "scriptSha256": "ce71225049515ec9dc3bc38340839b34e0026a49c9a8faa6e6d4221d3bd75088",
+      "dependencyLockSha256": "44fa31e92208a51ac659a1034279dc3665408b6df8dac71c61bae35b254622a1"
+    },
+    "checks": {
+      "suppliedCopyExact": true,
+      "textBounds": {
+        "x": 75.13600158691406,
+        "y": 184.82400512695312,
+        "width": 674.6241455078125,
+        "height": 347.4939880371094
+      },
+      "textConvertedToPaths": true,
+      "unresolvedImages": 0,
+      "pngRoundTrip": true
+    },
+    "outputs": [
+      {
+        "path": "og.source.svg",
+        "bytes": 377282,
+        "sha256": "b0e6eda53606f552e2953837d3e6e9092dd3b0f18a8a98785aad8e3b14e52347"
+      },
+      {
+        "path": "og.outlined.svg",
+        "bytes": 430453,
+        "sha256": "e4cd4a34d53da5f6eaa2eecf22a1755712518450f23ae449153b44661004479a"
+      },
+      {
+        "path": "og.png",
+        "bytes": 158147,
+        "sha256": "65a3f57f0183b863684b14ff07a85350a4426ab68edc2b2f12a8413585e7a548"
+      }
+    ]
+  }
+}

@@ -184,6 +184,11 @@ export async function runGhostgetCliProcess(
   try {
     const { assertGatewayCommandAllowed } = await import("./control/web-policy");
     assertGatewayCommandAllowed(rawArguments, process.env);
+    if (rawArguments[0] === "setup") {
+      const { runSetupCommand } = await import("./control/setup-cli");
+      process.exitCode = await runSetupCommand(rawArguments, process.env, resolvedOutput);
+      return;
+    }
     if (rawArguments[0] === "vault") {
       const { runVaultCommand } = await import("./control/cli");
       process.exitCode = await runVaultCommand(rawArguments, process.env, resolvedOutput);

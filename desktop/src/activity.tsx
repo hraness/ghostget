@@ -7,11 +7,13 @@ function duration(value: number | null): string { return value === null ? "—" 
 export function Activity({ model, state }: { model: PanelModel; state: ActivityState }) {
   const viewport = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState(state.query.search);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [origin, setOrigin] = useState(state.query.origin ?? "");
   const [selected, setSelected] = useState<ActivityRow | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const focusedIndex = focused ? state.rows.findIndex(row => row.id === focused) : -1;
   const virtualizer = useVirtualizer({ count: state.rows.length, getScrollElement: () => viewport.current, estimateSize: () => 46, overscan: 6, initialRect: { width: 800, height: 414 }, getItemKey: index => state.rows[index]?.id ?? index, rangeExtractor: range => { const indices = defaultRangeExtractor(range); return focusedIndex >= 0 && !indices.includes(focusedIndex) ? [...indices, focusedIndex].sort((a, b) => a - b) : indices; } });
+  const filterCount = Number(state.query.origin !== null) + Number(state.query.method !== "all") + Number(state.query.since !== null) + Number(state.query.order !== "newest");
   const virtualRows = virtualizer.getVirtualItems();
   const last = virtualRows.at(-1)?.index ?? -1;
   useEffect(() => { if (state.loaded && last >= state.rows.length - 12 && state.nextCursor && !state.loading && !state.error) void model.loadActivity(); }, [last, model, state.loaded, state.rows.length, state.nextCursor, state.loading, state.error]);
@@ -20,12 +22,15 @@ export function Activity({ model, state }: { model: PanelModel; state: ActivityS
   return <div className="activity-view">
     <form className="toolbar activity-filters" onSubmit={event => { event.preventDefault(); change({ search, origin: origin.trim() || null }); }}>
       <label className="search-field"><span className="sr-only">Search activity</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search endpoints, domains, outcomes…" maxLength={128} /></label>
-      <label><span className="sr-only">Domain filter</span><input type="text" value={origin} onChange={event => setOrigin(event.target.value)} placeholder="https://example.com" aria-label="Domain filter" maxLength={256} /></label>
+      <label><span className="sr-only">Outcome</span><select aria-label="Outcome" value={state.query.outcome} onChange={event => change({ outcome: event.target.value as "all" | ActivityOutcome })}>{["all", "succeeded", "denied", "failed", "cancelled", "interrupted", "started"].map(value => <option key={value} value={value}>{value === "all" ? "All outcomes" : value[0]!.toUpperCase() + value.slice(1)}</option>)}</select></label>
       <button type="submit">Search</button>
-      <label><span className="sr-only">Method</span><select aria-label="Method" value={state.query.method} onChange={event => change({ method: event.target.value as ActivityQuery["method"] })}><option value="all">All methods</option><option>GET</option><option>HEAD</option></select></label>
-      <label><span className="sr-only">Outcome</span><select aria-label="Outcome" value={state.query.outcome} onChange={event => change({ outcome: event.target.value as "all" | ActivityOutcome })}>{["all", "succeeded", "denied", "failed", "cancelled", "interrupted", "started"].map(value => <option key={value} value={value}>{value === "all" ? "All outcomes" : value}</option>)}</select></label>
-      <label><span className="sr-only">Time range</span><select aria-label="Time range" onChange={event => change({ since: event.target.value ? new Date(model.now() - Number(event.target.value)).toISOString() : null })}><option value="">Any time</option><option value="86400000">Last 24 hours</option><option value="604800000">Last 7 days</option></select></label>
-      <label><span className="sr-only">Sort order</span><select aria-label="Sort order" value={state.query.order} onChange={event => change({ order: event.target.value as "newest" | "oldest" })}><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
+      <details className="activity-more-filters" open={filtersOpen} onToggle={event => setFiltersOpen(event.currentTarget.open)}><summary>Filters{filterCount > 0 ? ` (${filterCount})` : ""}</summary><div className="filter-fields">
+        <label>Domain<input type="text" value={origin} onChange={event => setOrigin(event.target.value)} placeholder="https://example.com" aria-label="Domain filter" maxLength={256} /></label>
+        <label>Method<select aria-label="Method" value={state.query.method} onChange={event => change({ method: event.target.value as ActivityQuery["method"] })}><option value="all">All methods</option><option>GET</option><option>HEAD</option></select></label>
+        <label>Time range<select aria-label="Time range" onChange={event => change({ since: event.target.value ? new Date(model.now() - Number(event.target.value)).toISOString() : null })}><option value="">Any time</option><option value="86400000">Last 24 hours</option><option value="604800000">Last 7 days</option></select></label>
+        <label>Order<select aria-label="Sort order" value={state.query.order} onChange={event => change({ order: event.target.value as "newest" | "oldest" })}><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
+        <button type="submit">Apply domain</button>
+      </div></details>
     </form>
     <div className="activity-summary"><span>{state.loaded ? `${model.formatCount(state.matchingCount)} matching requests` : "Loading activity…"}</span><button className="text-button" onClick={() => { setSelected(null); model.refreshActivity(); }} disabled={state.loading}>{state.newerCount ? `${state.newerCount} new · Refresh` : "Refresh activity"}</button></div>
     <div className="activity-scroll" ref={viewport} data-testid="activity-scroll" aria-busy={state.loading}>
@@ -43,6 +48,6 @@ export function Activity({ model, state }: { model: PanelModel; state: ActivityS
       {state.loaded && state.nextCursor === null && state.rows.length > 0 && <p className="table-progress">End of retained activity</p>}
     </div>
     {selected && <section className="activity-detail" aria-label="Request details"><div className="row-heading"><h2>Request details</h2><button onClick={() => setSelected(null)}>Close details</button></div><dl><div><dt>Endpoint</dt><dd>{selected.origin}{selected.endpoint}</dd></div><div><dt>Rule</dt><dd>{selected.ruleId ?? "No matching rule"}</dd></div><div><dt>Decision</dt><dd>{selected.decision}</dd></div><div><dt>HTTP status</dt><dd>{selected.httpStatus ?? "No response"}</dd></div><div><dt>Response size</dt><dd>{model.formatCount(selected.responseBytes)} bytes</dd></div><div><dt>Failure code</dt><dd>{selected.errorCode ?? "None"}</dd></div></dl></section>}
-    <p className="footnote">Gateway metadata only. Request bodies, query values, credentials and response content are never shown here.</p>
+    <p className="footnote">Request metadata only. Secrets and response content stay out of this log.</p>
   </div>;
 }

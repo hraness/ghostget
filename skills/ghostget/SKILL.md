@@ -34,6 +34,7 @@ automation.
 
 ## Choose the smallest path
 
+- Guide setup with `ghostget setup --json`; stage only the user-chosen service with `ghostget setup request <service> --json`, then wait for native review. See [native control](references/control-panel.md).
 - Use the native app for accounts, operation permissions, and human approvals; follow [native control and the web gateway](references/control-panel.md) for gateway-only harnesses, local Vault items, optional 1Password links, credential-use grants, and user-space OpenAPI drafts.
 
 - Capture a URL: `ghostget <url>` or `ghostget clip <url>`.

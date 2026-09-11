@@ -27,7 +27,7 @@ async function verifyWebsite() {
   const policyText = await readFile(join(repository, "vercel.json"), "utf8");
   const policy = JSON.parse(policyText);
   const controlFiles = (await readdir(join(root, "control"))).sort();
-  assert.deepEqual(controlFiles, ["NebulaSans-Book.woff2", "accounts.html", "activity.html", "app.css", "approvals.html", "capabilities.html", "vault.html", "scenes.json"].sort());
+  assert.deepEqual(controlFiles, ["NebulaSans-Book.woff2", "accounts.html", "activity.html", "app.css", "approvals.html", "capabilities.html", "vault.html", "scenes.json", "ghost.png"].sort());
   const font = await readFile(join(root, "control/NebulaSans-Book.woff2"));
   assert.ok(font.equals(await readFile(join(repository, "src/assets/fonts/nebula-sans/NebulaSans-Book.woff2"))));
   const served = []; const blockedRequests = []; const errors = []; const consoleMessages = []; const responses = [];

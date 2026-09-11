@@ -3,6 +3,7 @@ import { createPrivateJsonIfAbsent, ensurePrivateStateDirectory, ghostgetStateHo
 import { canonicalJson, sha256 } from "../canonical-json";
 import type { CheckedApproval, WebRule } from "./protocol";
 import { boolean, ControlError, integer, keys, parseWebRule, publicUrl, record } from "./validation";
+import { parseSetupArguments } from "./setup-model";
 
 export type ControlEnvironment = Readonly<Record<string, string | undefined>>;
 export interface WebPolicy { readonly schema: 1; readonly revision: number; readonly gatewayOnly: boolean; readonly rules: readonly WebRule[] }
@@ -50,6 +51,7 @@ export function checkWebRequest(method:"GET"|"HEAD", rawUrl:string, environment:
 export function assertGatewayCommandAllowed(args: readonly string[], environment:ControlEnvironment=process.env): void {
   if(!readWebPolicy(environment).gatewayOnly) return;
   const first=args[0];
+  if(first==="setup") { try { parseSetupArguments(args); return; } catch { /* Reject malformed setup spellings too. */ } }
   if(first==="web" || first==="capabilities" || first==="--version" || first==="help" || first==="--help" || first==="-h" || args.length===0) return;
   if(first==="vault" && (args.length===1 || args.length===2&&args[1]==="--help" || args.length===3&&args[1]==="use")) return;
   if((first==="plugin"||first==="plugins") && ["list","show"].includes(args[1]??"")) return;

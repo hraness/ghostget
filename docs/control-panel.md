@@ -4,7 +4,7 @@ Ghostget's macOS app manages the local kernel your agent uses. It does not run a
 model. Accounts, Vault, capabilities, user interfaces, web rules, approvals,
 activity, and copyable agent instructions are available in one window.
 
-Pending approvals update every four seconds while the app is visible. Accounts
+Pending approvals and agent setup suggestions update every four seconds while the app is visible. Accounts
 and capabilities refresh when you return to the app, after changes made in the
 app, or when you choose Refresh. Permission decisions always validate current
 account and integration state.
@@ -18,8 +18,9 @@ unchanged.
 
 ## Connect an account
 
-Open Accounts, choose a connection name, provider, browser, and optional Chrome
-profile, then open sign-in. Finish authentication in that browser. Passwords and
+Open Accounts and choose a service. Choose its browser, then open sign-in.
+Ghostget suggests an unused connection name; change it or enter a Chrome profile
+under **Connection options** when needed. Finish authentication in that browser. Passwords and
 passkeys stay in the browser and password manager; Ghostget never asks the agent
 to handle them. Return to the app, verify the account, review its exact subject,
 and save the connection. The app installs that provider's bundled adapter if it
@@ -31,7 +32,27 @@ agent instructions. A saved account is labeled **Configured**; it is not proof
 that its browser session is still signed in. Disconnect removes Ghostget's
 locator and owned state, not the browser's session or a vault item.
 
+## Let your agent guide setup
+
+Run `ghostget setup --json` to inspect configured account counts, common services,
+pending suggestions, and the next step. Your agent can stage a service with
+`ghostget setup request linkedin-web --json`. Review the suggestion in Accounts;
+it does not start sign-in, select a browser profile, or change permissions.
+**Agent setup** also supplies a copyable prompt. See [agent setup](agent-setup.md)
+for the command contract and supported services.
+
+Optional **Find accounts in Chrome** suggests saved sessions for X, LinkedIn, and
+Reddit. Enable discovery in the app to scan; turn it off to cancel the scan and
+clear hints. A previously enabled app refreshes once at startup. Hints expire in
+memory and are never proof of a current login. Discovery queries fixed cookie
+metadata without decryption or value extraction; busy or unsupported stores can
+leave hints unavailable. The [discovery reference](agent-setup.md#optional-browser-hints)
+explains the local data boundary.
+
 ## Choose operation permissions
+
+Open **Access → Operations** to inspect permissions. **Web rules** and
+**Integrations** share the same Access destination.
 
 Existing CLI installations remain unmanaged until you enable permissions in the
 app. Enabling management makes unknown operations denied. Select an account and
@@ -64,7 +85,7 @@ ambiguous encoded paths, matrix parameters, duplicate query keys, IP literals,
 custom ports, and compressed or binary responses. GET is not proof that a
 server action is harmless: review the endpoint's behavior before permitting it.
 
-Enable **Gateway only** to block Ghostget's other supported network command
+Enable **Use Ghostget for web access** to block Ghostget's other supported network command
 families for this state home. Disable other web tools in the agent harness too.
 This is an application gateway, not an operating-system firewall. Same-user
 programs, other state homes, trusted source plugins, and tools outside Ghostget
@@ -250,7 +271,8 @@ it cannot approve requests, change policy, connect accounts, or read secrets.
 Closing the app cancels its work and releases its ownership record and socket.
 
 Direct supplies deterministic data through the same production-safe UI port.
-Its ten scenarios include empty and reconnecting accounts, permission changes,
+Its 12 scenarios include empty and reconnecting accounts, optional discovery,
+agent setup suggestions, permission changes,
 imported interfaces, approvals, local Vault items, 1Password links, cancellation
 and cleanup, backend failure, and 10,000 activity rows.
 Production and fixture entry graphs are separate and checked with source maps.

@@ -1,11 +1,13 @@
 import type { ControlResponse } from "../../src/control/protocol.ts";
 import type { VaultView } from "../../src/control/vault-model.ts";
+import { parseBrowserDiscoveryView, parseSetupRequestViews } from "../../src/control/setup-model.ts";
 
 type Check = (value: unknown) => boolean;
 const string = (max = 2048): Check => value => typeof value === "string" && value.length <= max && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(value);
 const isoDate: Check = value => typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(value) && Number.isFinite(Date.parse(value));
 const integer: Check = value => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 const bool: Check = value => typeof value === "boolean";
+const parsed = (parse: (value: unknown) => unknown): Check => value => { try { parse(value); return true; } catch { return false; } };
 const one = (...values: readonly unknown[]): Check => value => values.includes(value);
 const nullable = (check: Check): Check => value => value === null || check(value);
 const list = (check: Check, max: number, uniqueKey?: string): Check => value => Array.isArray(value) && value.length <= max && value.every(check) && (!uniqueKey || new Set(value.map(item => (item as Record<string, unknown>)[uniqueKey])).size === value.length);
@@ -43,10 +45,11 @@ const vault: Check = value => {
 };
 const outcome = one("started", "succeeded", "denied", "failed", "cancelled", "interrupted");
 const row = object({ id: string(), sequence: integer, startedAt: isoDate, finishedAt: nullable(isoDate), durationMs: nullable(integer), method: one("GET", "HEAD"), origin: nullable(string()), ruleId: nullable(string()), endpoint: nullable(string()), decision, outcome, httpStatus: nullable(integer), responseBytes: integer, errorCode: nullable(string()) });
-const snapshot = object({ version: string(), accountId: nullable(string()), accounts: list(account, 1024, "id"), capabilities: list(capability, 10000), interfaces: list(integration, 1024, "id"), policy: object({ managed: bool, revision: integer }), web: object({ revision: integer, gatewayOnly: bool, rules: list(rule, 256, "id") }), approvals: list(approval, 256, "id"), connectionProviders: list(object({ id: string(), title: string() }), 256, "id"), vault });
+const snapshot = object({ version: string(), accountId: nullable(string()), accounts: list(account, 1024, "id"), capabilities: list(capability, 10000), interfaces: list(integration, 1024, "id"), policy: object({ managed: bool, revision: integer }), web: object({ revision: integer, gatewayOnly: bool, rules: list(rule, 256, "id") }), approvals: list(approval, 256, "id"), connectionProviders: list(object({ id: string(), title: string() }), 256, "id"), vault, discovery: parsed(parseBrowserDiscoveryView), setupRequests: parsed(parseSetupRequestViews) });
 const data: Check = value => [
   object({ kind: one("snapshot"), snapshot }),
   object({ kind: one("approvals"), approvals: list(approval, 128, "id") }),
+  object({ kind: one("setup-requests"), setupRequests: parsed(parseSetupRequestViews) }),
   object({ kind: one("activity"), page: object({ rows: list(row, 100, "id"), nextCursor: nullable(string(4096)), snapshotSequence: integer, matchingCount: integer, newerCount: integer }) }),
   object({ kind: one("connection"), attemptId: string(), status: one("awaiting-sign-in", "verified"), subject: nullable(string()) }),
   object({ kind: one("document"), text: string(524288), filename: string() }),
