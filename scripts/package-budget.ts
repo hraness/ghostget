@@ -1,3 +1,13 @@
+// Ghostget 0.18.0 final credential-custody repair: two fresh Bun 1.3.14
+// builds and npm 11.19.0 packs under Node 24.20.0 on darwin arm64 (zlib
+// 1.2.12) are byte-identical: 2,314,832 compressed and 12,654,071 payload
+// bytes across the same 524 files, SHA-256
+// 01abe7e7a0953670578777aa88e3c3dbe6d095fb2e46298154c37801db576c96.
+// The repeated post-probe byte check adds exactly 49 source bytes. Preserve
+// the existing 65-byte payload allowance, including the public-manifest
+// admission fixtures, and the 2,802 + 4,096-byte compression allowance.
+// Fresh required Linux CI must still inspect its actual canonical archive.
+//
 // Ghostget 0.18.0 reviewed CI repairs: two fresh Bun 1.3.14 builds and
 // npm 11.19.0 packs under Node 24.20.0 on darwin arm64 (zlib 1.2.12) are
 // byte-identical: 2,314,828 compressed and 12,654,022 payload bytes across
@@ -385,10 +395,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_321_726;
+export const MAX_PACKED_BYTES = 2_321_730;
 export const MAX_PACKED_ENTRIES = 524;
 export const MAX_PACKED_FILES = 524;
-export const MAX_UNPACKED_BYTES = 12_654_087;
+export const MAX_UNPACKED_BYTES = 12_654_136;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
