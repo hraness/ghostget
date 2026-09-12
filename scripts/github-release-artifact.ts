@@ -11,6 +11,7 @@ import {
   parseReleaseAssetDescriptors,
   parseReleaseManifest,
   releaseAssetNames,
+  releaseAssetByteLimit,
   releaseIdentity,
   releaseVersion,
   verifyAttestationResult,
@@ -22,7 +23,7 @@ const maximumBytes = 8 * 1024 * 1024;
 const maximumJsonBytes = 1024 * 1024;
 const sha256 = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
 
-async function regularBytes(path: string, maximum = maximumBytes): Promise<Buffer> {
+async function regularBytes(path: string, maximum: number): Promise<Buffer> {
   const metadata = await lstat(path);
   if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size <= 0 || metadata.size > maximum) {
     throw new Error("Release artifact must be a bounded nonempty regular file");
@@ -48,7 +49,7 @@ export async function prepareReleaseDirectory(
   if (entries.sort().join(",") !== [archiveName, "npm-pack.json"].sort().join(",")) {
     throw new Error("Preparation requires only the exact archive and packing receipt");
   }
-  const archive = await regularBytes(join(directory, archiveName));
+  const archive = await regularBytes(join(directory, archiveName), releaseAssetByteLimit(input.tag, archiveName));
   await regularBytes(join(directory, "npm-pack.json"), maximumJsonBytes);
   await verifyPackArtifact(join(directory, archiveName), join(directory, "npm-pack.json"), "@hraness/ghostget", version, "Canonical GitHub");
   const manifest = parseReleaseManifest({
@@ -59,7 +60,7 @@ export async function prepareReleaseDirectory(
   });
   await writeFile(join(directory, "release-manifest.json"), `${JSON.stringify(manifest)}\n`, { flag: "wx", mode: 0o600 });
   const checksums = await Promise.all(releaseAssetNames(input.tag).slice(0, 3).map(async name =>
-    `${sha256(await regularBytes(join(directory, name)))}  ${name}\n`));
+    `${sha256(await regularBytes(join(directory, name), releaseAssetByteLimit(input.tag, name)))}  ${name}\n`));
   await writeFile(join(directory, "SHA256SUMS"), checksums.join(""), { flag: "wx", mode: 0o600 });
   return manifest;
 }
@@ -83,7 +84,7 @@ export async function verifyBuildHandoff(directory: string, tag: string, hashesV
   for (const name of [...names, "provenance.jsonl"]) {
     const expected = name === "provenance.jsonl" ? bundleHash : hashes[name];
     if (typeof expected !== "string" || !/^[a-f0-9]{64}$/u.test(expected)
-      || sha256(await regularBytes(join(directory, name))) !== expected) throw new Error("Publication handoff differs from verified build or attester outputs");
+      || sha256(await regularBytes(join(directory, name), releaseAssetByteLimit(tag, name))) !== expected) throw new Error("Publication handoff differs from verified build or attester outputs");
   }
 }
 
@@ -107,7 +108,7 @@ export async function verifyReleaseDirectory(
   if ((await readdir(directory)).sort().join(",") !== [...names].sort().join(",")) {
     throw new Error("Release directory must contain exactly the five canonical files");
   }
-  const files = new Map(await Promise.all(names.map(async name => [name, await regularBytes(join(directory, name))] as const)));
+  const files = new Map(await Promise.all(names.map(async name => [name, await regularBytes(join(directory, name), releaseAssetByteLimit(manifest.tag, name))] as const)));
   const archive = files.get(manifest.archive.name) as Buffer;
   if (archive.byteLength !== manifest.archive.bytes || sha256(archive) !== manifest.archive.sha256
     || createHash("sha512").update(archive).digest("hex") !== manifest.archive.sha512) {

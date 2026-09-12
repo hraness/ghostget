@@ -324,7 +324,13 @@ describe("ghostget.com static site", () => {
     const builtCss = await readFile(join(websiteRoot, "dist", cssAsset!.slice(1)), "utf8");
     expect(builtCss).not.toMatch(/@import\b/iu);
     expect(builtCss.startsWith("@layer base, components;")).toBe(true);
-    expect(builtCss.endsWith(`${sourceCss.trimEnd()}\n`)).toBe(true);
+    const presetCss = await readFile(join(websiteRoot, "vendor/marketing-preset/product-marketing-preset.css"), "utf8");
+    expect(builtCss.endsWith(`${sourceCss.trimEnd()}\n\n${presetCss}\n`)).toBe(true);
+    expect(html).toContain('data-hraness-marketing-preset="editorial"');
+    expect(html).toContain('<main class="hraness-marketing-field" id="main">');
+    for (const path of ["fonts/instrument-serif/instrument-serif-latin-400.woff2", "fonts/instrument-serif/OFL.txt", "marketing-assets/grain.svg", "marketing-assets/cells.svg"]) {
+      expect(await readFile(join(websiteRoot, "dist/assets", path))).toEqual(await readFile(join(websiteRoot, "vendor/marketing-preset", path)));
+    }
     for (const publicStylesheet of [
       "@hraness/ui/tokens.css",
       "@hraness/ui/reset.css",
@@ -636,7 +642,7 @@ describe("ghostget.com static site", () => {
         /\.ghostget-product-hero\s*\{[^{}]*\bgrid-column:\s*1\s*\/\s*-1\s*;/u,
       );
       expect(cssPropertyValues(css, ".ghostget-product-hero .hero-explainer", "color").at(-1))
-        .toBe("var(--muted)");
+        .toBe("var(--hraness-marketing-field-muted, var(--muted))");
       expect(cssPropertyValues(css, '.hraness-marketing-action[data-emphasis="primary"]', "color").at(-1))
         .toBe("var(--accent-ink)");
       const providerMarkDisplay = cssPropertyValues(css, ".provider-mark", "display");

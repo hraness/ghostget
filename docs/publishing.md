@@ -64,7 +64,10 @@ build, checks generated `dist` and `bun.lock` cleanliness, dry packing and all
 eight Node imports. Its new exact npm archive passes the strict artifact parser
 and isolated consumer smoke before attestation or publication capability is
 available. CI also packs with the same Node/npm versions and canonical npm
-command, then checks the archive parser before tagging. Record the Node zlib
+command, then checks the archive parser and calls the actual canonical
+preparation function before tagging. That CI preparation uses explicit synthetic
+source/run coordinates in its temporary directory; it creates no provenance and
+grants no publication authority. Record the Node zlib
 build and platform with package measurements; equal Node/npm versions alone do
 not establish equal gzip bytes.
 
@@ -92,6 +95,14 @@ The canonical asset set is exactly:
   `W`, run ID/attempt, and archive size/SHA-256/SHA-512.
 - `SHA256SUMS`, covering the preceding three files in that order.
 - `provenance.jsonl`, the GitHub attestation bundle for all four build files.
+
+The transfer envelope admits an archive of at most 12 MiB from `v0.18.1`;
+earlier archives retain their 8 MiB limit. The measured compressed package
+budget remains a separate, stricter admission check. The packing receipt and
+manifest remain limited to 1 MiB, checksums and provenance to 8 MiB, and GitHub
+JSON/log command output to 8 MiB. Preparation, downloads, draft readbacks,
+attestation handoff, and npm handoff use the same file-specific limits without
+changing any source, digest, signed-identity, or five-file inventory checks.
 
 Ghostget has no separate platform-native release assets. Its optional native
 providers retain their existing installation, identity, and live admission
@@ -170,12 +181,20 @@ always sit, and rejects only an oversized window. Retain the assetless
 `v0.17.4` tag and its failed run; `v0.17.5` is the first release published to
 npm by the Release workflow.
 
+The `v0.18.1` request passed source-CI admission, then Release run
+`34675956810` failed canonical preparation: its verified 11,649,726-byte archive
+exceeded an older 8 MiB transfer limit, despite passing the stricter measured
+package budget. No canonical assets, attestations, or publication were produced.
+Retain that tag and failed run. The correction applies file-specific limits to
+every canonical archive consumer and adds real canonical preparation to PR CI;
+delivery proceeds through a new source-qualified version.
+
 ## Install the canonical release
 
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.1/hraness-ghostget-0.18.1.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.2/hraness-ghostget-0.18.2.tgz
 ghostget --version
 ghostget doctor --json
 ```
