@@ -1,4 +1,6 @@
 import { CONTROL_PROTOCOL, type ActivityQuery, type ControlRequest, type ControlResponse, type PermissionDecision, type WebRule } from "./protocol";
+import { parseVaultControlRequest } from "./vault-store";
+import { setupRequestId } from "./setup-model";
 
 /** Keep oversized catalog reads local to one request; never terminate approvals. */
 export function controlResponseLine(id: string, response: ControlResponse): string {
@@ -80,10 +82,15 @@ export function parseActivityQuery(value: unknown): ActivityQuery {
 }
 export function parseControlRequest(value: unknown): ControlRequest {
   const v=record(value); const action=string(v.action,32);
+  if (action.startsWith("vault.") && action !== "vault.import") return parseVaultControlRequest(value);
   const exact=(...fields: string[])=>keys(v,["action",...fields]);
   switch(action) {
     case "snapshot": exact("accountId"); return {action,accountId:nullable(v.accountId,128)};
     case "approval.list": exact(); return {action};
+    case "setup.list": exact(); return {action};
+    case "setup.dismiss": exact("id"); return {action,id:setupRequestId(v.id)};
+    case "discovery.configure": exact("enabled","expectedRevision"); return {action,enabled:boolean(v.enabled),expectedRevision:integer(v.expectedRevision,0,Number.MAX_SAFE_INTEGER)};
+    case "discovery.refresh": exact("expectedRevision"); return {action,expectedRevision:integer(v.expectedRevision,0,Number.MAX_SAFE_INTEGER)};
     case "permission.enable": exact("expectedRevision"); return {action,expectedRevision:integer(v.expectedRevision,0,Number.MAX_SAFE_INTEGER)};
     case "permission.set": exact("adapterId","operationId","accountId","decision","expectedRevision","expectedCapabilityDigest"); return {action,adapterId:identifier(v.adapterId),operationId:identifier(v.operationId),accountId:nullable(v.accountId,128),decision:decision(v.decision),expectedRevision:integer(v.expectedRevision,0,Number.MAX_SAFE_INTEGER),expectedCapabilityDigest:digest(v.expectedCapabilityDigest)};
     case "approval.decide": exact("id","digest","decision"); return {action,id:identifier(v.id),digest:digest(v.digest),decision:oneOf(v.decision,["allow-once","deny"])};

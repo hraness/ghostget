@@ -1,7 +1,10 @@
 import { chmod, copyFile, cp, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { isDeepStrictEqual } from "node:util";
 import { buildDesktop, desktopRoot } from "./build.ts";
+import { MAIN_IDENTIFIER, SECURE_ENTRY_BUNDLE, SECURE_ENTRY_IDENTIFIER, stageSecureEntry, validateSecureEntry } from "../distribution/secure-entry.ts";
 const repository = resolve(desktopRoot, "..");
 const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 async function packageDirectory(name: string, parent: string): Promise<string> {
@@ -49,10 +52,45 @@ export async function stageRuntime(): Promise<string> {
   await writeFile(join(root, "runtime-manifest.json"), JSON.stringify({ schema: "ghostget.native-resources/1", bunVersion: Bun.version, files }, null, 2));
   return root;
 }
+
+/** Local preview only. Nested runtime signatures and their byte inventory stay intact. */
+async function sealLocalPreview(stagedRuntime: string): Promise<void> {
+  if (process.platform !== "darwin") throw new Error("Local preview signing requires macOS");
+  const app = join(desktopRoot, "src-tauri/target/release/bundle/macos/Ghostget.app");
+  if (await realpath(app) !== app) throw new Error("Local preview requires the exact built app path");
+  const runtime = join(app, "Contents/Resources/ghostget-runtime");
+  const expected = await inventory(stagedRuntime);
+  const unchangedRuntime = async () => {
+    if (!isDeepStrictEqual(await inventory(runtime), expected)) throw new Error("Local preview runtime differs from its staged byte inventory");
+  };
+  await unchangedRuntime();
+  const codesign = (args: string[]) => {
+    const result = spawnSync("/usr/bin/codesign", args, {
+      env: { PATH: "/usr/bin:/bin:/usr/sbin:/sbin" },
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 30000,
+      killSignal: "SIGKILL",
+      maxBuffer: 32768,
+    });
+    if (result.error || result.status !== 0 || result.signal !== null) throw new Error("Local preview ad hoc signature could not be confirmed");
+  };
+  // Never use --deep while signing: it would rewrite the bundled Bun binaries.
+  // No hardened-runtime options are added to this credential-free local preview.
+  codesign(["--force", "--sign", "-", "--timestamp=none", "--identifier", SECURE_ENTRY_IDENTIFIER, join(app, SECURE_ENTRY_BUNDLE)]);
+  codesign(["--force", "--sign", "-", "--timestamp=none", "--identifier", MAIN_IDENTIFIER, app]);
+  const { version } = JSON.parse(await readFile(join(repository, "package.json"), "utf8")) as { version: string };
+  validateSecureEntry(app, version, false);
+  await unchangedRuntime();
+  codesign(["--verify", "--deep", "--strict", app]);
+}
 if (import.meta.main) {
-  await buildDesktop("native"); await stageRuntime();
+  await buildDesktop("native"); const stagedRuntime = await stageRuntime();
   if (!process.argv.includes("--stage-only")) {
-    const child = Bun.spawn([process.execPath, join(repository, "node_modules/@tauri-apps/cli/tauri.js"), "build"], { cwd: join(desktopRoot, "src-tauri"), stdin: "inherit", stdout: "inherit", stderr: "inherit" });
+    const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("APPLE_") && !name.startsWith("TAURI_SIGNING_")));
+    const child = Bun.spawn([process.execPath, join(repository, "node_modules/@tauri-apps/cli/tauri.js"), "build", "--config", JSON.stringify({ bundle: { macOS: { signingIdentity: null } } }), "--", "--locked"], { cwd: join(desktopRoot, "src-tauri"), env, stdin: "inherit", stdout: "inherit", stderr: "inherit" });
     if (await child.exited !== 0) throw new Error("Native build failed");
+    const { version } = JSON.parse(await readFile(join(repository, "package.json"), "utf8")) as { version: string };
+    stageSecureEntry(join(desktopRoot, "src-tauri/target/release/bundle/macos/Ghostget.app"), version);
+    await sealLocalPreview(stagedRuntime);
   }
 }

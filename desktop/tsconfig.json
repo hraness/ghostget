@@ -1,5 +1,5 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": { "lib": ["ES2023", "DOM", "DOM.Iterable"], "jsx": "react-jsx", "types": ["bun", "react", "react-dom"] },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "direct/**/*.ts", "direct/**/*.tsx", "scripts/**/*.ts", "scripts/**/*.tsx", "../src/control/protocol.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "direct/**/*.ts", "direct/**/*.tsx", "scripts/**/*.ts", "scripts/**/*.tsx", "distribution/**/*.ts", "../src/control/protocol.ts"]
 }

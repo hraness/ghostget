@@ -3,7 +3,7 @@ import fc from "fast-check";
 import type { ControlRequest, ControlResponse } from "../../src/control/protocol.ts";
 import { PanelModel, initialQuery } from "./model.ts";
 import { parseControlResponse } from "./response.ts";
-import { activityPage, createPanelSession, definition, makeRows, makeSnapshot, parseWorld, SCENES } from "../direct/definition.ts";
+import { activityPage, createPanelSession, definition, FIXTURE_NOW, makeRows, makeSnapshot, parseWorld, SCENES, sectionFor } from "../direct/definition.ts";
 
 test("strict worlds and response envelopes reject ambiguity", () => {
   for (const scene of SCENES) expect(parseWorld({ version: 1, scene, rowCount: scene === "activity.history" ? 10000 : 24 }).scene).toBe(scene);
@@ -14,6 +14,74 @@ test("strict worlds and response envelopes reject ambiguity", () => {
   expect(parseControlResponse(snapshot)).toEqual(snapshot);
   expect(() => parseControlResponse({ ...snapshot, secret: "unrecognized" })).toThrow();
   fc.assert(fc.property(fc.stringMatching(/^[a-zA-Z0-9 ._-]{0,200}$/u), message => { const value: ControlResponse = { ok: false, code: "CONTROL_UNAVAILABLE", message }; expect(parseControlResponse(JSON.parse(JSON.stringify(value)))).toEqual(value); expect(() => parseControlResponse({ ...value, unexpected: message })).toThrow(); }), { numRuns: 200 });
+});
+test("vault responses reject secret-bearing, malformed and disconnected metadata", () => {
+  const snapshot = makeSnapshot("vault.connected"); const vault = snapshot.vault;
+  const response = (value: unknown) => ({ ok: true, data: { kind: "snapshot", snapshot: { ...snapshot, vault: value } } });
+  expect(SCENES).toHaveLength(12);
+  for (const scene of SCENES) expect(parseControlResponse({ ok: true, data: { kind: "snapshot", snapshot: makeSnapshot(scene) } }).ok).toBe(true);
+  for (const scene of ["vault.local", "vault.connected", "vault.cancelled"] as const) expect(sectionFor(scene)).toBe("vault");
+  expect(snapshot.approvals[0]!.kind).toBe("credential");
+  for (const malformed of [
+    { ...vault, token: "must-not-cross" }, { ...vault, locked: "false" }, { ...vault, revision: -1 },
+    { ...vault, items: [{ ...vault.items[0]!, secret: "must-not-cross" }] },
+    { ...vault, items: [{ ...vault.items[0]!, source: { ...vault.items[0]!.source, secret: "must-not-cross" } }] },
+    { ...vault, items: [vault.items[0]!, vault.items[0]!] }, { ...vault, connections: [] },
+    { ...vault, pending: [{ id: vault.items[0]!.source.kind === "local" ? vault.items[0]!.source.keyId : "", purpose: "credential" }] },
+    { ...vault, grants: [{ ...vault.grants[0]!, use: { ...vault.grants[0]!.use, authentication: "basic" } }] },
+    { ...vault, grants: [{ ...vault.grants[0]!, use: { ...vault.grants[0]!.use, fields: ["/password"] } }] },
+    { ...vault, grants: [{ ...vault.grants[0]!, use: { ...vault.grants[0]!.use, fields: ["/name", "/name"] } }] },
+    { ...vault, grants: [{ ...vault.grants[0]!, use: { ...vault.grants[0]!.use, url: "https://api.example.com/profile?key=value" } }] },
+    { ...vault, grants: [{ ...vault.grants[0]!, expiresAt: "2026-02-30T12:00:00.000Z" }] },
+  ]) expect(() => parseControlResponse(response(malformed))).toThrow();
+  const accessor = { ...vault }; Object.defineProperty(accessor, "locked", { enumerable: true, get() { throw new Error("Accessor must not run"); } });
+  expect(() => parseControlResponse(response(accessor))).toThrow("Invalid control response");
+});
+test("Vault fixtures use the real command model for lock, synthetic entry, grants and revocation", async () => {
+  const created = createPanelSession({ kind: "scenario", scenario: "vault.local" }); if (!created.ok) throw new Error("Fixture failed");
+  const session = created.value; const model = session.harness.model;
+  try {
+    const original = model.getSnapshot().snapshot!.vault;
+    expect(await model.command({ action: "vault.lock", locked: true, expectedRevision: original.revision })).toBe(true);
+    expect(await model.command({ action: "vault.local.add", title: "Example token", kind: "token", username: null, expectedRevision: original.revision })).toBe(false);
+    const locked = model.getSnapshot().snapshot!.vault;
+    expect(await model.command({ action: "vault.local.add", title: "Example token", kind: "token", username: null, expectedRevision: locked.revision })).toBe(false);
+    expect(await model.command({ action: "vault.lock", locked: false, expectedRevision: locked.revision })).toBe(true);
+    expect(await model.command({ action: "vault.local.add", title: "Example token", kind: "token", username: null, expectedRevision: model.getSnapshot().snapshot!.vault.revision })).toBe(true);
+    const added = model.getSnapshot().snapshot!.vault; const item = added.items.at(-1)!;
+    expect(item.title).toBe("Example token"); expect(Object.keys(item)).toEqual(["id", "title", "kind", "username", "source", "createdAt"]);
+    const grant = { id: "99999999-9999-4999-8999-999999999999", title: "Read fixture profile", itemId: item.id, decision: "ask" as const, expiresAt: new Date(FIXTURE_NOW + 86400000).toISOString(), use: { kind: "https-json" as const, url: "https://api.example.com/profile", authentication: "bearer" as const, fields: ["/profile/name"] } };
+    expect(await model.command({ action: "vault.grant", grant, expectedRevision: added.revision })).toBe(true);
+    expect(await model.command({ action: "vault.grant", grant: { ...grant, decision: "allow" }, expectedRevision: added.revision })).toBe(false);
+    expect(model.getSnapshot().snapshot!.vault.grants.at(-1)!.decision).toBe("ask");
+    expect(await model.command({ action: "vault.revoke", id: grant.id, expectedRevision: model.getSnapshot().snapshot!.vault.revision })).toBe(true);
+    expect(model.getSnapshot().snapshot!.vault.grants.some(value => value.id === grant.id)).toBe(false);
+    expect(await model.command({ action: "vault.remove", id: item.id, kind: "item", expectedRevision: model.getSnapshot().snapshot!.vault.revision })).toBe(true);
+    expect(model.getSnapshot().snapshot!.vault.items).toHaveLength(original.items.length);
+    const probe = session.probe.snapshot(); expect(probe.ok).toBe(true); if (probe.ok) expect(probe.value.isQuiescent).toBe(true);
+  } finally { session.dispose(); expect(session.disposalErrors()).toEqual([]); }
+});
+test("1Password fixture linking and disconnect preserve local items; cancellation grants no authority", async () => {
+  const created = createPanelSession({ kind: "scenario", scenario: "vault.connected" }); if (!created.ok) throw new Error("Fixture failed");
+  const model = created.value.harness.model;
+  try {
+    const vault = model.getSnapshot().snapshot!.vault;
+    expect(await model.command({ action: "vault.connect", title: "Second vault", vaultId: "c".repeat(26), access: "dedicated-vault-read-only", expectedRevision: vault.revision })).toBe(true);
+    const connected = model.getSnapshot().snapshot!.vault;
+    const connection = connected.connections.at(-1)!;
+    expect(await model.command({ action: "vault.link", title: "Linked field", kind: "token", username: null, connectionId: connection.id, itemId: "d".repeat(26), fieldId: "credential", expectedRevision: connected.revision })).toBe(true);
+    expect(model.getSnapshot().snapshot!.vault.items.at(-1)!.source.kind).toBe("1password");
+    expect(await model.command({ action: "vault.remove", id: connection.id, kind: "connection", expectedRevision: model.getSnapshot().snapshot!.vault.revision })).toBe(true);
+    expect(model.getSnapshot().snapshot!.vault.items).toEqual(vault.items);
+  } finally { created.value.dispose(); expect(created.value.disposalErrors()).toEqual([]); }
+  const cancelled = createPanelSession({ kind: "scenario", scenario: "vault.cancelled" }); if (!cancelled.ok) throw new Error("Fixture failed");
+  try {
+    const model = cancelled.value.harness.model; const original = model.getSnapshot().snapshot!.vault;
+    expect(await model.command({ action: "vault.local.add", title: "Cancelled entry", kind: "password", username: "river", expectedRevision: original.revision })).toBe(false);
+    expect(model.getSnapshot().snapshot!.vault).toEqual(original);
+    expect(await model.command({ action: "vault.cleanup", expectedRevision: original.revision })).toBe(true);
+    expect(model.getSnapshot().snapshot!.vault.pending).toEqual([]); expect(model.getSnapshot().snapshot!.vault.grants).toEqual([]);
+  } finally { cancelled.value.dispose(); expect(cancelled.value.disposalErrors()).toEqual([]); }
 });
 test("keyset traversal has no duplicates and ignores inserts above its snapshot", () => {
   const rows = makeRows(10000);
@@ -148,4 +216,66 @@ test("cancel and commit cannot cross, while pending verification stays cancellab
   await verifying.model.cancelConnection(); expect(verifying.actions).toContain("connection.cancel");
   verifying.settle({ ok: true, data: { kind: "connection", attemptId: "held-attempt", status: "verified", subject: "river-stone" } }); expect(await verify).toBe(false);
   expect(verifying.model.getSnapshot().connection).toBeNull(); expect(verifying.model.getSnapshot().busy).toBe(false); verifying.model.dispose();
+});
+
+test("setup polling updates only pending suggestions and ignores replies after navigation refresh", async () => {
+  const snapshot = makeSnapshot("activity.history");
+  const pending: { request: ControlRequest; resolve: (response: ControlResponse) => void }[] = [];
+  const model = new PanelModel({ request: request => new Promise(resolve => pending.push({ request, resolve })) }, { snapshot });
+  const requests = makeSnapshot("accounts.requested").setupRequests;
+  try {
+    const poll = model.refreshSetupRequests(); await model.refreshSetupRequests();
+    expect(pending.map(value => value.request)).toEqual([{ action: "setup.list" }]);
+    pending[0]!.resolve({ ok: true, data: { kind: "setup-requests", setupRequests: requests } }); await poll;
+    expect(model.getSnapshot().snapshot!.setupRequests).toEqual(requests);
+    expect(model.getSnapshot().snapshot!.accounts).toBe(snapshot.accounts);
+    const stale = model.refreshSetupRequests(); const refresh = model.refresh();
+    pending[2]!.resolve({ ok: true, data: { kind: "snapshot", snapshot } }); await refresh;
+    pending[1]!.resolve({ ok: true, data: { kind: "setup-requests", setupRequests: requests } }); await stale;
+    expect(model.getSnapshot().snapshot!.setupRequests).toEqual([]);
+  } finally { model.dispose(); }
+});
+
+test("overlapping attention ticks cannot starve a slow approval reply", async () => {
+  const snapshot = makeSnapshot("activity.history");
+  const pending: { request: ControlRequest; resolve: (response: ControlResponse) => void }[] = [];
+  const model = new PanelModel({ request: request => new Promise(resolve => pending.push({ request, resolve })) }, { snapshot });
+  try {
+    const cycle = model.refreshAttention();
+    for (let tick = 0; tick < 5; tick++) await model.refreshAttention();
+    expect(pending.map(item => item.request.action)).toEqual(["approval.list"]);
+    const approvals = makeSnapshot("approvals.pending").approvals;
+    pending[0]!.resolve({ ok: true, data: { kind: "approvals", approvals } });
+    for (let turn = 0; turn < 20 && pending.length < 2; turn++) await Promise.resolve();
+    expect(model.getSnapshot().snapshot!.approvals).toEqual(approvals);
+    expect(pending.map(item => item.request.action)).toEqual(["approval.list", "setup.list"]);
+    await model.refreshAttention(); expect(pending).toHaveLength(2);
+    pending[1]!.resolve({ ok: true, data: { kind: "setup-requests", setupRequests: [] } }); await cycle;
+    const next = model.refreshAttention(); const refresh = model.refresh();
+    pending[3]!.resolve({ ok: true, data: { kind: "snapshot", snapshot } }); await refresh;
+    pending[2]!.resolve({ ok: true, data: { kind: "approvals", approvals } }); await next;
+    expect(pending).toHaveLength(4);
+    expect(model.getSnapshot().snapshot!.approvals).toEqual(snapshot.approvals);
+  } finally { model.dispose(); }
+});
+
+test("turning off an active discovery scan binds fresh consent and fences its late reply", async () => {
+  const snapshot = makeSnapshot("accounts.empty");
+  const pending: { request: ControlRequest; resolve: (response: ControlResponse) => void }[] = [];
+  const model = new PanelModel({ request: request => new Promise(resolve => pending.push({ request, resolve })) }, { snapshot });
+  const until = async (count: number) => { for (let turn = 0; turn < 20 && pending.length < count; turn++) await Promise.resolve(); expect(pending.length).toBe(count); };
+  try {
+    const scan = model.command({ action: "discovery.configure", enabled: true, expectedRevision: 1 });
+    const stop = model.stopDiscovery(); await until(2);
+    expect(model.getSnapshot().stoppingDiscovery).toBe(true);
+    const enabled = { ...snapshot, discovery: { ...snapshot.discovery, enabled: true, revision: 2 } };
+    pending[1]!.resolve({ ok: true, data: { kind: "snapshot", snapshot: enabled } }); await until(3);
+    expect(pending[2]!.request).toEqual({ action: "discovery.configure", enabled: false, expectedRevision: 2 });
+    pending[2]!.resolve({ ok: true, data: { kind: "success", message: "Disabled" } }); await until(4);
+    const disabled = { ...snapshot, discovery: { ...snapshot.discovery, revision: 3 } };
+    pending[3]!.resolve({ ok: true, data: { kind: "snapshot", snapshot: disabled } }); await stop;
+    pending[0]!.resolve({ ok: false, code: "DISCOVERY_CHANGED", message: "Old scan reply" }); expect(await scan).toBe(false);
+    expect(model.getSnapshot().error).toBeNull(); expect(model.getSnapshot().busy).toBe(false);
+    expect(model.getSnapshot().discoveryScanning).toBe(false); expect(model.getSnapshot().snapshot!.discovery.enabled).toBe(false);
+  } finally { model.dispose(); }
 });

@@ -1,12 +1,13 @@
 import { defineDirect, type JsonValue } from "@hraness/direct";
 import { createDirectSession, type DirectSessionActivation, type DirectSessionContext } from "@hraness/direct/testing";
 import type { ActivityPage, ActivityQuery, ActivityRow, ControlPanelPort, ControlRequest, ControlResponse, ControlSection, ControlSnapshot } from "../../src/control/protocol.ts";
+import type { VaultView } from "../../src/control/vault-model.ts";
 import { PanelModel } from "../src/model.ts";
 import { GHOSTGET_VERSION } from "../../src/version.ts";
 import { parseControlResponse } from "../src/response.ts";
 
 export const FIXTURE_NOW = Date.parse("2026-09-11T12:00:00Z");
-export const SCENES = ["accounts.empty", "accounts.reconnect", "capabilities.policy", "integrations.community", "approvals.pending", "vault.cancelled", "backend.failure", "activity.history"] as const;
+export const SCENES = ["accounts.empty", "accounts.reconnect", "capabilities.policy", "integrations.community", "approvals.pending", "vault.cancelled", "backend.failure", "activity.history", "vault.local", "vault.connected", "accounts.discovery", "accounts.requested"] as const;
 export type Scene = typeof SCENES[number];
 export interface PanelWorld { readonly [key: string]: JsonValue; readonly version: 1; readonly scene: Scene; readonly rowCount: number }
 export function parseWorld(input: unknown): PanelWorld {
@@ -17,17 +18,38 @@ export function parseWorld(input: unknown): PanelWorld {
   if (d.version!.value !== 1 || typeof scene !== "string" || !SCENES.includes(scene as Scene) || !Number.isInteger(rowCount) || typeof rowCount !== "number" || rowCount < 0 || rowCount > 10000 || (scene === "activity.history" ? rowCount !== 10000 : rowCount !== 24)) throw new Error("Invalid control panel world");
   return Object.freeze({ version: 1, scene: scene as Scene, rowCount });
 }
-export const sectionFor = (scene: Scene): ControlSection => scene.startsWith("accounts") || scene.startsWith("vault") || scene.startsWith("backend") ? "accounts" : scene.startsWith("capabilities") ? "capabilities" : scene.startsWith("integrations") ? "integrations" : scene.startsWith("approvals") ? "approvals" : "activity";
+export const sectionFor = (scene: Scene): ControlSection => scene.startsWith("vault") ? "vault" : scene.startsWith("accounts") || scene.startsWith("backend") ? "accounts" : scene.startsWith("capabilities") ? "capabilities" : scene.startsWith("integrations") ? "integrations" : scene.startsWith("approvals") ? "approvals" : "activity";
 export const definition = defineDirect({ parseWorld, defaultScenario: "activity.history", scenarios: SCENES.map(scene => ({ id: scene, title: scene.replaceAll(".", " · "), route: sectionFor(scene), world: { version: 1, scene, rowCount: scene === "activity.history" ? 10000 : 24 } satisfies PanelWorld, runtime: { schema: "direct.runtime/v1" as const, nowMs: FIXTURE_NOW, nextOperation: 1, acceleration: 1 } })), coverage: [
-  { key: "panel.real-screens", mode: "fixture", claim: "Shared React screens and UI state render and handle account, permission, integration, approval, setup and failure states through a deterministic control port. No live IO is performed.", scenarios: [...SCENES] },
+  { key: "panel.real-screens", mode: "fixture", claim: "Shared React screens and UI state render and handle account, vault metadata, permission, integration, approval, setup and failure states through a deterministic control port. No live IO is performed.", scenarios: [...SCENES] },
+  { key: "panel.vault", mode: "fixture", claim: "The real Vault screen manages synthetic local items, optional 1Password links, exact access grants, lock state, cancellation and pending cleanup. Native secure entry and credential use require separate native acceptance.", scenarios: ["vault.local", "vault.connected", "vault.cancelled"] },
+  { key: "panel.discovery-setup", mode: "fixture", claim: "Browser hints and agent service requests remain unverified suggestions until explicit native-facing connection steps. Discovery opt-out clears hints; no real browser data is read.", scenarios: ["accounts.discovery", "accounts.requested"] },
   { key: "panel.activity", mode: "fixture", claim: "The real activity screen filters and traverses ten thousand deterministic metadata rows through asynchronous snapshot-bound keyset pages with a bounded DOM window.", scenarios: ["activity.history"] },
   { key: "panel.native-control", mode: "direct", claim: "Packaged Tauri IPC, exact helper resources, private filesystem and real provider/credential behavior require separate native acceptance.", scenarios: [] },
 ] });
 
+const fixtureId = (index: number): string => `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+export function makeVault(scene: Scene): VaultView {
+  const createdAt = new Date(FIXTURE_NOW - 86400000).toISOString();
+  const local = scene === "vault.local" || scene === "vault.connected";
+  return {
+    schema: 1, revision: 3, available: true, storage: "macos-keychain", locked: !scene.startsWith("vault"),
+    connections: scene === "vault.connected" ? [{ id: fixtureId(5), title: "Research vault", vaultId: "a".repeat(26), keyId: fixtureId(6), access: "dedicated-vault-read-only", createdAt }] : [],
+    items: local ? [
+      { id: fixtureId(1), title: "Reading service", kind: "token", username: null, source: { kind: "local", keyId: fixtureId(2) }, createdAt },
+      { id: fixtureId(3), title: "Research account", kind: "password", username: "river", source: { kind: "local", keyId: fixtureId(4) }, createdAt },
+      ...(scene === "vault.connected" ? [{ id: fixtureId(7), title: "Archive token", kind: "token" as const, username: null, source: { kind: "1password" as const, connectionId: fixtureId(5), vaultId: "a".repeat(26), itemId: "b".repeat(26), fieldId: "credential" }, createdAt }] : []),
+    ] : [],
+    grants: local ? [{ id: fixtureId(8), title: "Read profile", itemId: fixtureId(1), decision: "ask", expiresAt: new Date(FIXTURE_NOW + 86400000).toISOString(), use: { kind: "https-json", url: "https://api.example.com/profile", authentication: "bearer", fields: ["/profile/name", "/profile/status"] } }] : [],
+    pending: scene === "vault.cancelled" ? [{ id: fixtureId(9), purpose: "credential" }, { id: fixtureId(10), purpose: "1password-bootstrap" }] : [],
+  };
+}
+
 export function makeSnapshot(scene: Scene): ControlSnapshot {
   const snapshot: ControlSnapshot = {
     version: GHOSTGET_VERSION, accountId: null,
-    accounts: scene === "accounts.empty" ? [] : [
+    discovery: { revision: 1, enabled: scene === "accounts.discovery", status: scene === "accounts.discovery" ? "ready" : "not-scanned", scannedAt: scene === "accounts.discovery" ? new Date(FIXTURE_NOW).toISOString() : null, profiles: scene === "accounts.discovery" ? [{ id: "chrome-default", browser: "chrome", profile: "Default", label: "Chrome · Default", candidates: ["x-web"] }] : [] },
+    setupRequests: scene === "accounts.requested" ? [{ id: fixtureId(30), serviceId: "linkedin-web", requestedAt: new Date(FIXTURE_NOW).toISOString(), expiresAt: new Date(FIXTURE_NOW + 600000).toISOString() }] : [],
+    accounts: ["accounts.empty", "accounts.discovery", "accounts.requested"].includes(scene) ? [] : [
       { id: "personal", provider: scene === "accounts.reconnect" ? null : "github", kind: "cookie-source", subject: "river-stone", revision: "fictional-account-1", status: scene === "accounts.reconnect" ? "reconnect-required" : "verified", source: "Chrome · Default", tokenStorage: null },
       { id: "writing", provider: "x", kind: "oauth", subject: "@river_notes", revision: "fictional-account-2", status: "configured", source: "Imported token", tokenStorage: "ghostget-import" },
     ],
@@ -39,8 +61,8 @@ export function makeSnapshot(scene: Scene): ControlSnapshot {
       { id: "reading-list", title: "Community reading list", source: "imported", digest: "fictional-interface-2", activeDigest: null, state: "needs-executor", operationCount: 3, adapterIds: [], activationTargets: [], issues: ["This interface needs a supported executor before activation."] },
     ] : [],
     policy: { managed: true, revision: 2 }, web: { revision: 1, gatewayOnly: true, rules: [{ id: "docs", origin: "https://docs.example.com", path: { kind: "prefix", value: "/reference/" }, methods: ["GET"], queryKeys: ["language"], decision: "allow", effect: "retrieval", maxResponseBytes: 1048576, timeoutMs: 15000 }] },
-    approvals: scene === "approvals.pending" ? [{ id: "fictional-approval-1", digest: "fictional-approval-digest", kind: "provider", title: "Publish a post", account: "writing", effect: "write", preview: "Account: @river_notes\nOperation: publish-post\nText: A small update from today's research.", expiresAt: new Date(FIXTURE_NOW + 300000).toISOString() }] : [],
-    connectionProviders: [{ id: "github", title: "GitHub" }, { id: "x", title: "X" }, { id: "linkedin", title: "LinkedIn" }], vault: { provider: "1password", available: true, purpose: "x-user-token-import" },
+    approvals: scene === "approvals.pending" ? [{ id: "fictional-approval-1", digest: "fictional-approval-digest", kind: "provider", title: "Publish a post", account: "writing", effect: "write", preview: "Account: @river_notes\nOperation: publish-post\nText: A small update from today's research.", expiresAt: new Date(FIXTURE_NOW + 300000).toISOString() }] : scene === "vault.connected" ? [{ id: "fictional-credential-approval", digest: "fictional-credential-digest", kind: "credential", title: "Read profile", account: "Reading service", effect: "retrieval", preview: "Item: Reading service\nGET https://api.example.com/profile\nAuthentication: Bearer (secret kept private)\nReturned fields: /profile/name, /profile/status", expiresAt: new Date(FIXTURE_NOW + 120000).toISOString() }] : [],
+    connectionProviders: [{ id: "github", title: "GitHub" }, { id: "x-web", title: "X" }, { id: "linkedin-web", title: "LinkedIn" }, { id: "reddit-web", title: "Reddit" }], vault: makeVault(scene),
   };
   parseControlResponse({ ok: true, data: { kind: "snapshot", snapshot } }); return snapshot;
 }
@@ -62,10 +84,28 @@ export function activityPage(rows: readonly ActivityRow[], query: ActivityQuery)
 }
 function createHarness(context: DirectSessionContext<PanelWorld, ControlSection>) {
   let snapshot = makeSnapshot(context.world.scene); const activated = new Set<string>(); const rows = makeRows(context.world.rowCount); let violations = 0; let failNextActivity = false; let attempt: { id: string; provider: string; verified: boolean } | null = null;
+  let nextVaultId = 20;
   const success = (message: string): ControlResponse => ({ ok: true, data: { kind: "success", message } });
+  const vaultChange = (patch: Partial<VaultView>, message: string): ControlResponse => {
+    const next = { ...snapshot, vault: { ...snapshot.vault, ...patch, revision: snapshot.vault.revision + 1 } };
+    try { parseControlResponse({ ok: true, data: { kind: "snapshot", snapshot: next } }); } catch { return failure("Review the vault metadata and exact access settings before saving."); }
+    snapshot = next; return success(message);
+  };
   const dispatch = (request: ControlRequest): ControlResponse => {
+    if (request.action.startsWith("vault.") && request.action !== "vault.import") {
+      if (!("expectedRevision" in request) || request.expectedRevision !== snapshot.vault.revision) return failure("The vault changed. Refresh before trying again.");
+      if (snapshot.vault.locked && ["vault.local.add", "vault.connect", "vault.link", "vault.grant"].includes(request.action)) return failure("Unlock the vault before changing credential access.");
+    }
     switch (request.action) {
       case "snapshot": return context.world.scene === "backend.failure" ? failure("The control service is unavailable. Restart Ghostget and try again.") : { ok: true, data: { kind: "snapshot", snapshot: { ...snapshot, accountId: request.accountId } } };
+      case "setup.list": return { ok: true, data: { kind: "setup-requests", setupRequests: snapshot.setupRequests } };
+      case "setup.dismiss": snapshot = { ...snapshot, setupRequests: snapshot.setupRequests.filter(intent => intent.id !== request.id) }; return success("Setup request dismissed.");
+      case "discovery.configure":
+        if (request.expectedRevision !== snapshot.discovery.revision) return failure("Discovery changed. Refresh before trying again.");
+        snapshot = { ...snapshot, discovery: { revision: snapshot.discovery.revision + 1, enabled: request.enabled, status: request.enabled ? "ready" : "not-scanned", scannedAt: request.enabled ? new Date(context.clock.now()).toISOString() : null, profiles: request.enabled ? [{ id: "chrome-default", browser: "chrome", profile: "Default", label: "Chrome · Default", candidates: ["x-web"] }] : [] } }; return success(request.enabled ? "Browser discovery enabled." : "Browser discovery turned off.");
+      case "discovery.refresh":
+        if (!snapshot.discovery.enabled || request.expectedRevision !== snapshot.discovery.revision) return failure("Enable discovery in the app first.");
+        snapshot = { ...snapshot, discovery: { ...snapshot.discovery, status: "ready", scannedAt: new Date(context.clock.now()).toISOString(), profiles: [{ id: "chrome-default", browser: "chrome", profile: "Default", label: "Chrome · Default", candidates: ["x-web"] }] } }; return success("Browser suggestions refreshed.");
       case "activity.query": if (failNextActivity) { failNextActivity = false; return failure("Activity could not load. Retry this page."); } return { ok: true, data: { kind: "activity", page: activityPage(rows, request.query) } };
       case "permission.enable": if (request.expectedRevision !== snapshot.policy.revision) return failure("Permissions changed. Refresh before saving."); snapshot = { ...snapshot, policy: { managed: true, revision: snapshot.policy.revision + 1 } }; return success("Permissions enabled.");
       case "permission.set": { const target = snapshot.capabilities.find(row => row.adapterId === request.adapterId && row.operationId === request.operationId); if (!target || target.digest !== request.expectedCapabilityDigest || request.expectedRevision !== snapshot.policy.revision) return failure("This capability changed. Refresh before saving."); snapshot = { ...snapshot, capabilities: snapshot.capabilities.map(row => row === target ? { ...row, permission: request.decision } : row), policy: { ...snapshot.policy, revision: snapshot.policy.revision + 1 } }; return success("Permission saved."); }
@@ -80,7 +120,30 @@ function createHarness(context: DirectSessionContext<PanelWorld, ControlSection>
       case "connection.commit": if (!attempt?.verified || request.expectedSubject !== "river-stone") return failure("Verify this exact account first."); snapshot = { ...snapshot, accounts: [...snapshot.accounts.filter(row => row.id !== attempt!.id), { id: attempt.id, provider: null, kind: "cookie-source", subject: request.expectedSubject, revision: "fictional-saved", status: "verified", source: "Chrome", tokenStorage: null }] }; attempt = null; return success("Connection saved.");
       case "connection.cancel": attempt = null; return success("Connection cancelled.");
       case "connection.disconnect": snapshot = { ...snapshot, accounts: snapshot.accounts.filter(row => row.id !== request.id || row.revision !== request.expectedRevision) }; return success("Connection disconnected.");
-      case "vault.import": return failure("1Password authorization was cancelled. No credential was imported.");
+      case "vault.import": return failure("Use the Vault screen to manage credentials.");
+      case "vault.lock": return vaultChange({ locked: request.locked }, request.locked ? "Vault locked." : "Vault unlocked.");
+      case "vault.local.add": {
+        if (context.world.scene === "vault.cancelled") return failure("Secure entry was cancelled. No item was added.");
+        return vaultChange({ items: [...snapshot.vault.items, { id: fixtureId(nextVaultId++), title: request.title, kind: request.kind, username: request.username, source: { kind: "local", keyId: fixtureId(nextVaultId++) }, createdAt: new Date(context.clock.now()).toISOString() }] }, "Local item added. Secret entry is simulated in this fixture.");
+      }
+      case "vault.connect": {
+        if (context.world.scene === "vault.cancelled") return failure("Service-account entry was cancelled. No connection was added.");
+        return vaultChange({ connections: [...snapshot.vault.connections, { id: fixtureId(nextVaultId++), title: request.title, vaultId: request.vaultId, keyId: fixtureId(nextVaultId++), access: request.access, createdAt: new Date(context.clock.now()).toISOString() }] }, "1Password connection added. Service-account entry is simulated in this fixture.");
+      }
+      case "vault.link": {
+        const connection = snapshot.vault.connections.find(value => value.id === request.connectionId); if (!connection) return failure("Choose a connected 1Password vault.");
+        return vaultChange({ items: [...snapshot.vault.items, { id: fixtureId(nextVaultId++), title: request.title, kind: request.kind, username: request.username, source: { kind: "1password", connectionId: connection.id, vaultId: connection.vaultId, itemId: request.itemId, fieldId: request.fieldId }, createdAt: new Date(context.clock.now()).toISOString() }] }, "1Password item linked. No access has been granted.");
+      }
+      case "vault.grant": {
+        if (Date.parse(request.grant.expiresAt) <= context.clock.now() || Date.parse(request.grant.expiresAt) > context.clock.now() + 30 * 86400000) return failure("Choose an expiry within the next 30 days.");
+        return vaultChange({ grants: [...snapshot.vault.grants.filter(value => value.id !== request.grant.id), request.grant] }, "Access grant saved. Matching Web access rules still apply.");
+      }
+      case "vault.revoke": return vaultChange({ grants: snapshot.vault.grants.filter(value => value.id !== request.id) }, "Access grant revoked.");
+      case "vault.remove": {
+        const items = snapshot.vault.items.filter(item => request.kind === "item" ? item.id !== request.id : item.source.kind !== "1password" || item.source.connectionId !== request.id);
+        return vaultChange({ items, connections: request.kind === "connection" ? snapshot.vault.connections.filter(connection => connection.id !== request.id) : snapshot.vault.connections, grants: snapshot.vault.grants.filter(grant => items.some(item => item.id === grant.itemId)) }, request.kind === "connection" ? "1Password disconnected. Remote items are unchanged." : "Item removed and its grants revoked.");
+      }
+      case "vault.cleanup": return vaultChange({ pending: [] }, "Pending vault cleanup completed.");
       case "prompt": return { ok: true, data: { kind: "prompt", text: `Fictional ${request.kind} preview. In the installed app, Ghostget provides the exact pinned instructions.\nDiscover Ghostget capabilities and respect each operation's permission.` } };
     }
   };

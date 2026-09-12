@@ -1,6 +1,23 @@
 import { agentRequest } from "./approval-client";
 import { ControlError, integer, keys, oneOf, record, string } from "./validation";
 import type { ControlEnvironment } from "./web-policy";
+import { vaultId } from "./vault-store";
+import { CREDENTIAL_REQUEST_TIMEOUT_MS } from "./vault-model";
+import { parseCredentialResult } from "./credential-gateway";
+
+export async function runVaultCommand(args: readonly string[], environment: ControlEnvironment, output: { stdout: (text: string) => unknown; stderr: (text: string) => unknown }, signal?: AbortSignal): Promise<number> {
+  try {
+    if (args.length === 1 || args.length === 2 && args[1] === "--help") { output.stdout("Usage: ghostget vault use <grant-id>\nUse an exact credential grant configured in the native app. Only approved response fields are returned; secret values are never returned.\n"); return 0; }
+    if (args.length !== 3 || args[1] !== "use") throw new ControlError("INVALID_REQUEST", "Use ghostget vault use <grant-id>.");
+    const grantId = vaultId(args[2]);
+    const value = record(await agentRequest({ protocol: "ghostget.credential/1", action: "use", grantId }, { environment, ...(signal ? { signal } : {}), timeoutMs: CREDENTIAL_REQUEST_TIMEOUT_MS + 5000 }));
+    if (value.ok === false) { keys(value, ["ok", "code", "message"]); throw new ControlError(string(value.code, 64), string(value.message, 1024)); }
+    const result = parseCredentialResult(value, vaultId(value.id), grantId, Object.keys(record(value.fields)));
+    output.stdout(`${JSON.stringify(result)}\n`); return 0;
+  } catch (error) {
+    output.stderr(`${JSON.stringify(error instanceof ControlError ? { ok: false, code: error.code, message: error.message } : { ok: false, code: "CREDENTIAL_REQUEST_FAILED", message: "The credential response was unavailable or invalid." })}\n`); return 1;
+  }
+}
 
 export async function runWebCommand(args:readonly string[],environment:ControlEnvironment,output:{stdout:(text:string)=>unknown;stderr:(text:string)=>unknown},signal?:AbortSignal):Promise<number> {
   try {

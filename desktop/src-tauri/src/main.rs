@@ -3,10 +3,11 @@
 use serde_json::{json, Value};
 use std::{collections::HashMap, io::{BufRead, BufReader, Write}, path::Path, process::{Child, ChildStdin, Command, Stdio}, sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}, mpsc::{self, SyncSender}}, time::Duration};
 use tauri::{Manager, State};
+mod vault;
 
 const PROTOCOL: &str = "ghostget.control/1";
 const MAX_FRAME: usize = 4 * 1024 * 1024;
-const ACTIONS: &[&str] = &["snapshot", "permission.enable", "permission.set", "approval.list", "approval.decide", "web.save", "activity.query", "interface.save", "interface.activate", "interface.export", "connection.begin", "connection.verify", "connection.commit", "connection.cancel", "connection.disconnect", "vault.import", "prompt"];
+const ACTIONS: &[&str] = &["snapshot", "setup.list", "setup.dismiss", "discovery.configure", "discovery.refresh", "permission.enable", "permission.set", "approval.list", "approval.decide", "web.save", "activity.query", "interface.save", "interface.activate", "interface.export", "connection.begin", "connection.verify", "connection.commit", "connection.cancel", "connection.disconnect", "vault.lock", "vault.local.add", "vault.connect", "vault.link", "vault.remove", "vault.grant", "vault.revoke", "vault.cleanup", "prompt"];
 struct Pending { waiters: HashMap<String, SyncSender<Value>>, failed: bool }
 struct Helper { child: Arc<Mutex<Child>>, input: Arc<Mutex<Option<ChildStdin>>>, pending: Arc<Mutex<Pending>>, next_id: AtomicU64 }
 
@@ -40,8 +41,49 @@ fn stop_child(child: &Arc<Mutex<Child>>) {
         let _ = child.kill(); let _ = child.wait();
     }
 }
+fn bundle_root(executable: &Path) -> Result<std::path::PathBuf, ()> {
+    let macos = executable.parent().ok_or(())?;
+    let contents = macos.parent().ok_or(())?;
+    let bundle = contents.parent().ok_or(())?;
+    if executable.file_name() != Some(std::ffi::OsStr::new("ghostget-desktop")) || macos.file_name() != Some(std::ffi::OsStr::new("MacOS")) || contents.file_name() != Some(std::ffi::OsStr::new("Contents")) || bundle.extension() != Some(std::ffi::OsStr::new("app")) || secure_entry_bundle(executable) { return Err(()); }
+    Ok(bundle.to_owned())
+}
+fn secure_entry_bundle(executable: &Path) -> bool {
+    executable.parent().and_then(Path::parent).and_then(Path::parent).and_then(Path::file_name) == Some(std::ffi::OsStr::new("Ghostget Secure Entry.app"))
+}
+fn wait_verifier(child: &mut Child, duration: Duration) -> Result<Option<std::process::ExitStatus>, ()> {
+    let deadline = std::time::Instant::now() + duration;
+    loop {
+        match child.try_wait() { Ok(Some(status)) => return Ok(Some(status)), Err(_) => return Err(()), Ok(None) => {} }
+        if std::time::Instant::now() >= deadline { return Ok(None); }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+/// Validate sealed installed resources before any interpreter receives app authority.
+/// Valid ad hoc local builds are supported; publisher identity is a release gate.
+fn verify_bundle(resources: &Path) -> Result<(), ()> {
+    let executable = std::env::current_exe().and_then(|path| path.canonicalize()).map_err(|_| ())?;
+    let bundle = bundle_root(&executable)?;
+    let expected = bundle.join("Contents/Resources");
+    if resources.canonicalize().ok().as_ref() != Some(&expected) { return Err(()); }
+    let mut child = Command::new("/usr/bin/codesign").args(["--verify", "--deep", "--strict"]).arg(&bundle)
+        .env_clear().env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
+        .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().map_err(|_| ())?;
+    // All descriptors are the null device; there are no unjoined output pipes.
+    if let Some(status) = wait_verifier(&mut child, Duration::from_secs(15))? { return if status.success() { Ok(()) } else { Err(()) }; }
+    #[cfg(unix)] unsafe { libc::kill(child.id() as i32, libc::SIGTERM); }
+    if wait_verifier(&mut child, Duration::from_secs(1))?.is_some() { return Err(()); }
+    let _ = child.kill();
+    if wait_verifier(&mut child, Duration::from_secs(1))?.is_none() {
+        // Keep custody of an exceptional unjoined verifier without hanging the
+        // GUI. This app instance never starts its control helper after failure.
+        std::thread::spawn(move || { let _ = child.wait(); });
+    }
+    Err(())
+}
 impl Helper {
     fn spawn(resources: &Path) -> Result<Self, ()> {
+        verify_bundle(resources)?;
         let runtime = resources.join("ghostget-runtime"); let package = runtime.join("package"); let executable = runtime.join("ghostget-bun");
         if !executable.is_file() || !package.join("src/control/helper.ts").is_file() { return Err(()); }
         let mut command = Command::new(executable);
@@ -79,7 +121,7 @@ async fn control_request(window: tauri::WebviewWindow, state: State<'_, Option<H
     let helper = match state.inner().as_ref() { Some(helper) => helper, None => return Ok(unavailable()) };
     let action = request.get("action").and_then(Value::as_str).unwrap_or("");
     if !request.is_object() || !ACTIONS.contains(&action) { return Err("Invalid control request.".into()); }
-    let timeout = match action { "vault.import" => 125, "connection.verify" => 70, _ => 30 };
+    let timeout = match action { action if action.starts_with("vault.") => 125, "connection.verify" => 70, _ => 30 };
     let id = format!("native-{}", helper.next_id.fetch_add(1, Ordering::Relaxed));
     let mut frame = serde_json::to_vec(&json!({"id":id,"protocol":PROTOCOL,"request":request})).map_err(|_| "Invalid control request.")?;
     if frame.len() >= MAX_FRAME { return Err("Control request exceeds its size limit.".into()); } frame.push(b'\n');
@@ -101,12 +143,30 @@ async fn control_request(window: tauri::WebviewWindow, state: State<'_, Option<H
     match response { Ok(Ok(value)) => Ok(value), _ => { helper.stop(); Ok(unavailable()) } }
 }
 fn main() {
+    // Secret storage has no Tauri window, renderer, control service or agent IPC.
+    // The vault entry independently requires the exact nested helper layout;
+    // invoking this flag on the outer GUI fails before stdin or Keychain access.
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--vault-stdio")) {
+        std::process::exit(vault::run());
+    }
+    // The same compiled bytes live in the named secure-entry bundle. They must
+    // never create a second GUI/control host when launched without the protocol.
+    if std::env::current_exe().is_ok_and(|path| secure_entry_bundle(&path)) { std::process::exit(1); }
     let app = tauri::Builder::default().setup(|app| { let helper = app.path().resource_dir().ok().and_then(|path| Helper::spawn(&path).ok()); app.manage(helper); Ok(()) }).invoke_handler(tauri::generate_handler![control_request]).on_window_event(|window, event| { if matches!(event, tauri::WindowEvent::Destroyed) { if let Some(helper) = window.state::<Option<Helper>>().inner() { helper.stop(); } } }).build(tauri::generate_context!()).expect("Ghostget could not start");
     app.run(|app, event| { if matches!(event, tauri::RunEvent::Exit) { if let Some(helper) = app.state::<Option<Helper>>().inner() { helper.stop(); } } });
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn verification_requires_the_fixed_installed_bundle_layout() {
+        assert_eq!(bundle_root(Path::new("/tmp/Ghostget.app/Contents/MacOS/ghostget-desktop")), Ok(std::path::PathBuf::from("/tmp/Ghostget.app")));
+        assert_eq!(bundle_root(Path::new("/tmp/My Ghostget.app/Contents/MacOS/ghostget-desktop")), Ok(std::path::PathBuf::from("/tmp/My Ghostget.app")));
+        for path in ["/tmp/ghostget-desktop", "/tmp/Ghostget/Contents/MacOS/ghostget-desktop", "/tmp/Ghostget.app/Resources/MacOS/ghostget-desktop", "/tmp/Ghostget.app/Contents/MacOS/other", "/tmp/Ghostget.app/Contents/Helpers/Ghostget Secure Entry.app/Contents/MacOS/ghostget-desktop", "/tmp/Ghostget Secure Entry.app/Contents/MacOS/ghostget-desktop"] { assert!(bundle_root(Path::new(path)).is_err(), "{path}"); }
+    }
+    #[test] fn secure_entry_without_protocol_never_becomes_a_gui_host() {
+        for path in ["/tmp/Ghostget.app/Contents/Helpers/Ghostget Secure Entry.app/Contents/MacOS/ghostget-desktop", "/tmp/Renamed.app/Contents/Helpers/Ghostget Secure Entry.app/Contents/MacOS/ghostget-desktop", "/tmp/Ghostget Secure Entry.app/Contents/MacOS/ghostget-desktop"] { assert!(secure_entry_bundle(Path::new(path)), "{path}"); }
+        for path in ["/tmp/Ghostget.app/Contents/MacOS/ghostget-desktop", "/tmp/Renamed.app/Contents/MacOS/ghostget-desktop", "/tmp/target/debug/ghostget-desktop"] { assert!(!secure_entry_bundle(Path::new(path)), "{path}"); }
+    }
     #[test] fn frames_are_bounded_and_exact() {
         assert!(read_frame(&mut BufReader::new(&b"{}\n"[..])).is_ok());
         assert!(read_frame(&mut BufReader::new(&b"{}"[..])).is_err());

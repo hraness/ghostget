@@ -5,7 +5,7 @@
 
 # Guidelines
 
-The eight worlds are public synthetic seeds. Keep all UI and product state in
+The 12 worlds are public synthetic seeds. Keep all UI and product state in
 ../src; replace only ControlPanelPort IO. Use canonical Direct manifest/probe
 contracts and session activity. No live provider, native IPC, browser credential,
 filesystem or network imports. Add no product discovery global. Treat fixture

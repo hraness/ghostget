@@ -57,7 +57,7 @@ export const GITHUB_RELEASES_URL = "https://github.com/hraness/ghostget/releases
 export const SKILLS_URL = "https://skills.sh/hraness/ghostget" as const;
 export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.3" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.19.0" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV =
   "NEXT_PUBLIC_HRANESS_MAILING_TURNSTILE_SITEKEY" as const;
@@ -942,7 +942,7 @@ export async function buildWebsite(
       recursive: true,
     }),
     cp(join(publicRoot, "control"), join(outputRoot, "control"), { dereference: true, recursive: true }),
-    copyFile(join(publicRoot, "favicon.svg"), join(outputRoot, "favicon.svg")),
+    copyFile(join(publicRoot, "favicon.png"), join(outputRoot, "favicon.png")),
     copyFile(join(publicRoot, "og.png"), join(outputRoot, "og.png")),
     ...DEMO_PUBLIC_FILES.map((file) => copyFile(
       join(publicRoot, file),

@@ -1061,9 +1061,14 @@ dependencies = [
 
 [[package]]
 name = "ghostget-desktop"
-version = "0.18.3"
+version = "0.19.0"
 dependencies = [
+ "core-foundation",
  "libc",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "serde",
  "serde_json",
  "tauri",
  "tauri-build",

@@ -19,9 +19,23 @@ does not silently fall back to general browser control.
 
 Bring the model, planner, and tool loop you prefer. Ghostget supplies precise web
 capabilities with local custody and explicit evidence. Its native macOS control
-panel manages accounts, operation permissions, human approvals, editable OpenAPI
-interfaces, and a searchable local web request log. See the
-[control panel guide](docs/control-panel.md) and [native source build](https://github.com/hraness/ghostget/blob/v0.18.3/desktop/README.md).
+panel manages accounts, local Vault items, operation permissions, human approvals,
+editable OpenAPI interfaces, and a searchable local request log. See the
+[control panel guide](docs/control-panel.md) and [native source build](https://github.com/hraness/ghostget/blob/v0.19.0/desktop/README.md).
+
+Start with `ghostget setup --json`. Your agent can suggest a common service for
+you to review in Accounts; browser discovery is optional and every connection
+still requires verification. See [agent setup](docs/agent-setup.md).
+
+Vault stores passwords and tokens in macOS Keychain through a native secure-entry
+prompt. Optional 1Password access uses a dedicated read-only service account and
+exact item links. Agents use a human-configured grant with
+`ghostget vault use <grant-id>`; its fixed Basic/Bearer HTTPS GET and selected JSON
+fields also require a matching Web access rule. The agent receives no raw secret.
+Only authorize endpoints you trust to receive the credential. Browser autofill
+and unattended passkey login are not implemented. See the
+[macOS distribution setup](https://github.com/hraness/ghostget/blob/v0.19.0/desktop/distribution/README.md); public signed downloads
+remain pending Apple signing, notarization, and release verification.
 
 The separate public web gateway admits exact HTTPS retrieval URLs under human
 domain and path rules. Use `ghostget web request <url>` with the app open, and
@@ -51,7 +65,7 @@ ghostget plugin list
 
 ## Built-in provider catalog
 
-This v0.18.3 source tree supports executable actions for 20 services: Beeper,
+This v0.19.0 source tree supports executable actions for 20 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WhatsApp, X, and YouTube.
@@ -116,7 +130,7 @@ owns the narrow capability boundary that can sit beneath them.
 Wrench is now Ghostget. The package name is `@hraness/ghostget`, and the CLI
 command is `ghostget`. Read the [migration guide](docs/ghostget-migration.md)
 before updating an existing installation. After its optional npm mirror is
-verified public, `@hraness/ghostget@0.18.3` is also available from the registry.
+verified public, `@hraness/ghostget@0.19.0` is also available from the registry.
 
 This README describes the package version in this source tree. Its versioned
 GitHub archive and Agent Skill become a supported public release after the
@@ -127,9 +141,9 @@ The optional npm mirror can follow later without delaying canonical delivery.
 Install the single Ghostget Agent Skill with either runner:
 
 ```sh
-npx skills add hraness/ghostget#v0.18.3
+npx skills add hraness/ghostget#v0.19.0
 # or
-bunx skills add hraness/ghostget#v0.18.3
+bunx skills add hraness/ghostget#v0.19.0
 ```
 
 The skill teaches Codex, Claude Code, Cursor, and other compatible coding
@@ -139,7 +153,7 @@ install the CLI if it is missing. Start a new agent session after installation.
 After the matching immutable Release exists, install this exact canonical archive:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.3/hraness-ghostget-0.18.3.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.19.0/hraness-ghostget-0.19.0.tgz
 ghostget adapter sync-bundled --json
 ghostget doctor
 ```
@@ -167,7 +181,7 @@ For that same released coordinate, install Ghostget in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.3/hraness-ghostget-0.18.3.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.19.0/hraness-ghostget-0.19.0.tgz
 ```
 
 ```ts
@@ -185,7 +199,7 @@ const plugin = candidate satisfies ProviderPluginDefinitionV1
 void plugin
 ```
 
-The package exposes seven public TypeScript entrypoints. Its root exposes
+The package exposes eight public TypeScript entrypoints. Its root exposes
 programmatic plugin types and bounded validators.
 `@hraness/ghostget/client` exposes persistent-read and strict live-invocation
 helpers, `@hraness/ghostget/beeper` exposes the body-free Beeper contact
@@ -193,7 +207,11 @@ interaction export, `@hraness/ghostget/apple-photos` exposes exact local Photos
 contact evidence, `@hraness/ghostget/whatsapp` exposes the bounded private
 Message Like Me export, `@hraness/ghostget/omni` exposes normalized
 cross-provider reads, and `@hraness/ghostget/messaging` exposes agentic messaging
-route discovery and resolution. Importing any SDK entrypoint does not start the CLI.
+route discovery and resolution. `@hraness/ghostget/messaging-automation` exposes
+closed automation types, explicit trusted-owner host construction, and the
+bundled runtime installer. The owner host is not an agent tool; owner-supplied
+providers must enforce their own permissions and cleanup. Importing any SDK
+entrypoint does not start the CLI.
 Importing the package root also does not inspect local state or load provider
 runtimes.
 
@@ -953,6 +971,27 @@ unsupported.
 Build provenance, the exact macOS arm64 executable digest, checked installer,
 permission setup, and outcome limits are in
 [`docs/imessage-direct-provider.md`](docs/imessage-direct-provider.md).
+
+### Owner-managed iMessage and WhatsApp automation
+
+The separate `ghostget messaging automation serve --stdio` host lets a trusted
+owner enroll exact conversations and issue bounded automation grants. Keep its
+configuration, private message streams, and control port outside the agent's
+tool surface. Initialization neither pairs an account nor starts synchronization.
+
+Install the exact bundled transport with
+`ghostget imessage transport install --json` or
+`ghostget whatsapp automation install --json`. These explicit owner setup
+commands start no helper. Existing account pairing and macOS permissions
+still require separate setup; only pinned macOS arm64 runtime bytes are admitted.
+
+Managed operation permissions must separately allow `messaging.automation.read`,
+each required `messaging.automation.send.<kind>`, and WhatsApp's
+`messaging.automation.sync`. An existing `messaging.send` grant, an unmanaged
+policy, or **Ask** does not authorize unattended automation. These operations do
+not dispatch through generic `invoke` or `confirm`. See the
+[owner messaging host guide](docs/messaging-automation.md) for runtime provenance,
+exact enrollment and grant bindings, private storage, and uncertain-action recovery.
 
 ### Gmail
 

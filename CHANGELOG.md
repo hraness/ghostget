@@ -7,11 +7,29 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
-## 0.18.3
+## 0.19.0 - 2026-09-12
 
-- Apply the shared Lantern material to the homepage: luminous grid glass behind
-  the hero, a blurred header, warm open questions, and opaque reading surfaces.
-  Preserve clean marks, ordinary documentation, and the inert native preview.
+- Guide account setup with `ghostget setup --json` and expiring service
+  suggestions for native review. Optional Chrome discovery reads fixed cookie
+  metadata without decryption; every suggested connection still requires live
+  verification and human confirmation.
+- Simplify the control panel into five main destinations and Agent setup. Group
+  permission settings under Access, reveal uncommon connection and filter
+  options on demand, and preserve continuous virtualized activity scrolling.
+  Add two Direct scenarios for discovery and agent setup.
+- Use the white ghost emoji throughout the native app, website, inert previews,
+  favicon, and social card.
+- Add a local macOS Keychain vault with native secure entry, optional links to
+  selected fields in a dedicated 1Password vault, and separately revocable
+  credential grants. Secrets remain inside the credential broker; agents use
+  an exact granted HTTPS GET and receive selected JSON fields only.
+- Add searchable Vault management, lock, cleanup, credential approvals, and
+  copyable agent instructions to the shared native and Direct UI. Record
+  authenticated request metadata in the existing local activity log.
+- Add an independent Developer ID signing, notarization and immutable desktop
+  release pipeline while preserving canonical CLI releases. Signed publication
+  requires Apple enrollment and protected credentials. Browser autofill and
+  passkey assertions are not implemented.
 
 - Click the unique reviewed Contact info control when the page-bound
   NavigateToScreen extract is `absent` after adapter 1.36.2. Operator

@@ -1,8 +1,10 @@
 /** Production-safe data contract. No runtime, filesystem, provider or UI imports. */
+import type { VaultControlRequest, VaultView } from "./vault-model";
+import type { BrowserDiscoveryView, SetupRequestView } from "./setup-model";
 export const CONTROL_PROTOCOL = "ghostget.control/1" as const;
 export type JsonValue = null | boolean | number | string | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 export type PermissionDecision = "allow" | "deny" | "ask";
-export type ControlSection = "accounts" | "capabilities" | "integrations" | "web" | "approvals" | "activity" | "setup";
+export type ControlSection = "accounts" | "vault" | "capabilities" | "integrations" | "web" | "approvals" | "activity" | "setup";
 
 export interface AccountView {
   readonly id: string;
@@ -59,7 +61,7 @@ export interface WebRule {
 export interface ApprovalView {
   readonly id: string;
   readonly digest: string;
-  readonly kind: "provider" | "web";
+  readonly kind: "provider" | "web" | "credential";
   readonly title: string;
   readonly account: string | null;
   readonly effect: string;
@@ -114,12 +116,18 @@ export interface ControlSnapshot {
   readonly web: { readonly revision: number; readonly gatewayOnly: boolean; readonly rules: readonly WebRule[] };
   readonly approvals: readonly ApprovalView[];
   readonly connectionProviders: readonly { readonly id: string; readonly title: string }[];
-  readonly vault: { readonly provider: "1password"; readonly available: boolean; readonly purpose: "x-user-token-import" };
+  readonly vault: VaultView;
+  readonly discovery: BrowserDiscoveryView;
+  readonly setupRequests: readonly SetupRequestView[];
 }
 
-export type ControlRequest =
+export type ControlRequest = VaultControlRequest
   | { readonly action: "snapshot"; readonly accountId: string | null }
   | { readonly action: "approval.list" }
+  | { readonly action: "setup.list" }
+  | { readonly action: "setup.dismiss"; readonly id: string }
+  | { readonly action: "discovery.configure"; readonly enabled: boolean; readonly expectedRevision: number }
+  | { readonly action: "discovery.refresh"; readonly expectedRevision: number }
   | { readonly action: "permission.enable"; readonly expectedRevision: number }
   | { readonly action: "permission.set"; readonly adapterId: string; readonly operationId: string; readonly accountId: string | null; readonly decision: PermissionDecision; readonly expectedRevision: number; readonly expectedCapabilityDigest: string }
   | { readonly action: "approval.decide"; readonly id: string; readonly digest: string; readonly decision: "allow-once" | "deny" }
@@ -133,12 +141,14 @@ export type ControlRequest =
   | { readonly action: "connection.commit"; readonly attemptId: string; readonly expectedSubject: string }
   | { readonly action: "connection.cancel"; readonly attemptId: string }
   | { readonly action: "connection.disconnect"; readonly id: string; readonly expectedRevision: string }
+  /** @deprecated Rejected by ControlService and unavailable to the native host. Historical X-import tests only. */
   | { readonly action: "vault.import"; readonly id: string; readonly account: string; readonly reference: string; readonly expectedSubject: string; readonly scopes: readonly string[]; readonly expiresAt: string | null; readonly expectedRevision: string | null }
   | { readonly action: "prompt"; readonly kind: "install" | "use" | "extend" | "gateway"; readonly adapterId: string | null };
 
 export type ControlData =
   | { readonly kind: "snapshot"; readonly snapshot: ControlSnapshot }
   | { readonly kind: "approvals"; readonly approvals: readonly ApprovalView[] }
+  | { readonly kind: "setup-requests"; readonly setupRequests: readonly SetupRequestView[] }
   | { readonly kind: "activity"; readonly page: ActivityPage }
   | { readonly kind: "connection"; readonly attemptId: string; readonly status: "awaiting-sign-in" | "verified"; readonly subject: string | null }
   | { readonly kind: "document"; readonly text: string; readonly filename: string }
@@ -156,13 +166,14 @@ export interface ControlPanelPort {
 
 export type ApprovalTarget =
   | { readonly kind: "provider"; readonly adapterId: string; readonly operationId: string; readonly authId: string | null; readonly input: JsonValue; readonly planDigest: string | null }
-  | { readonly kind: "web"; readonly method: "GET" | "HEAD"; readonly url: string };
+  | { readonly kind: "web"; readonly method: "GET" | "HEAD"; readonly url: string }
+  | { readonly kind: "credential"; readonly grantId: string };
 
 export interface CheckedApproval {
   readonly digest: string;
   readonly revision: number;
   readonly decision: PermissionDecision;
-  readonly kind: "provider" | "web";
+  readonly kind: "provider" | "web" | "credential";
   readonly title: string;
   readonly account: string | null;
   readonly effect: string;

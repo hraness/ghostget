@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { buildMarketing } from "./marketing.tsx";
 import { desktopRoot } from "./build.ts";
 
-const permitted = /^(?:(?:accounts|capabilities|activity|approvals)\.html|app\.css|NebulaSans-Book\.woff2|scenes\.json)$/u;
+const permitted = /^(?:(?:accounts|vault|capabilities|activity|approvals)\.html|app\.css|ghost\.png|NebulaSans-Book\.woff2|scenes\.json)$/u;
 async function inspect(directory: string): Promise<string[]> {
   const names = (await readdir(directory)).sort();
   for (const name of names) {

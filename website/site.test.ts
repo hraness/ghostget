@@ -306,7 +306,7 @@ describe("ghostget.com static site", () => {
       readFile(join(websiteRoot, "dist/robots.txt"), "utf8"),
       readFile(join(websiteRoot, "dist/sitemap.xml"), "utf8"),
       readFile(join(websiteRoot, "dist/dc84ee4863539f2fff50ef5f0a164168.txt"), "utf8"),
-      readFile(join(websiteRoot, "dist/favicon.svg"), "utf8"),
+      readFile(join(websiteRoot, "dist/favicon.png")),
       readFile(join(websiteRoot, "source/styles.css"), "utf8"),
       Promise.all(DEMO_PUBLIC_FILES.map(async (file) => ({
         file,
@@ -429,7 +429,7 @@ describe("ghostget.com static site", () => {
     expect(notFound).not.toContain('data-slot="ask-ai-about-this"');
     expect(html).toContain(`<meta name="description" content="${SITE_DESCRIPTION}">`);
     expect(html).toContain('<link rel="canonical" href="https://ghostget.com/">');
-    expect(html).toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml">');
+    expect(html).toContain('<link rel="icon" href="/favicon.png" type="image/png">');
     expect(html).toContain('<meta property="og:image" content="https://ghostget.com/og.png">');
     expect(html).toContain('<meta property="og:image:width" content="1200">');
     expect(html).toContain('<meta property="og:image:height" content="630">');
@@ -462,9 +462,9 @@ describe("ghostget.com static site", () => {
     expect(html).not.toContain("@jungle/");
     expect(html).not.toContain("hraness.com/ghostget");
     expect(html.match(/<h1\b/gu)).toHaveLength(1);
-    expect(html.match(/<details\b/gu)).toHaveLength(15);
-    expect(html.match(/<iframe\b/gu)).toHaveLength(4);
-    for (const scene of ["accounts", "capabilities", "activity", "approvals"]) {
+    expect(html.match(/<details\b/gu)).toHaveLength(16);
+    expect(html.match(/<iframe\b/gu)).toHaveLength(5);
+    for (const scene of ["accounts", "vault", "capabilities", "activity", "approvals"]) {
       expect(html).toContain(`src="/control/${scene}.html"`);
       const frame = await readFile(join(websiteRoot, `dist/control/${scene}.html`), "utf8");
       expect(frame).toContain("<div inert");
@@ -541,7 +541,7 @@ describe("ghostget.com static site", () => {
     expect(html).not.toContain('class="hraness-marketing-hero__example"');
     expect(html).toContain('import { isProviderPluginId } from "@hraness/ghostget"');
     expect(html).toMatch(/Reviewed operations across \d+ supported services\./u);
-    expect(html).toContain('class="wordmark" href="/">Ghostget</a>');
+    expect(html).toContain('class="wordmark" href="/"><img src="/ghost.png" alt="" width="30" height="30">Ghostget</a>');
     expect(html).not.toMatch(/hero-field|hero-orbit|hero-glyph/u);
     expect(html).not.toMatch(/observed provider operations|capture-required|unavailable reservations/iu);
     expect(html).not.toContain("🔧");
@@ -553,7 +553,7 @@ describe("ghostget.com static site", () => {
     expect(preview).toContain('<body class="preview-body">');
     expect(preview).toContain("Give your coding agent bounded access to the web.");
     expect(preview).toContain("Capture pages, preserve media, and use supported provider actions");
-    expect(preview).toContain('class="preview-wordmark">Ghostget</p>');
+    expect(preview).toContain('class="preview-wordmark"><img src="/ghost.png" alt="" width="36" height="36">Ghostget</p>');
     expect(preview).not.toMatch(/preview-field|preview-orbit|src="\/favicon\.svg"/u);
     expect(preview.match(/<h1\b/gu)).toHaveLength(1);
     expect(preview).not.toContain("{{");
@@ -633,7 +633,10 @@ describe("ghostget.com static site", () => {
     expect(sitemap).not.toContain("/preview/");
     expect(llms).not.toContain("/preview/");
     expect(indexNowKey).toBe("dc84ee4863539f2fff50ef5f0a164168\n");
-    expect(favicon).toContain('viewBox="0 0 64 64"');
+    expect([...favicon.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+    expect(favicon.readUInt32BE(16)).toBe(32);
+    expect(favicon.readUInt32BE(20)).toBe(32);
+    expect(favicon.equals(await readFile(join(websiteRoot, "public/favicon.png")))).toBe(true);
     expect(sourceCss).toContain("@media (prefers-reduced-motion: reduce)");
     expect(sourceCss).toContain("@media (forced-colors: active)");
     expect(sourceCss).toContain(
@@ -868,7 +871,7 @@ describe("ghostget.com static site", () => {
       const canonicalUrl = `${SITE_ORIGIN}${definition.canonicalPath}`;
       expect(pageHtml).toContain(`<title>${definition.title}</title>`);
       expect(pageHtml).toContain(`<meta name="description" content="${definition.description}">`);
-      expect(pageHtml).toContain('class="wordmark" href="/">Ghostget</a>');
+      expect(pageHtml).toContain('class="wordmark" href="/"><img src="/ghost.png" alt="" width="30" height="30">Ghostget</a>');
       expect(pageHtml).not.toContain('class="wordmark" href="/">GHOSTGET</a>');
       expect(pageHtml).toContain(`<link rel="canonical" href="${canonicalUrl}">`);
       expect(pageHtml).toContain(`<meta property="og:title" content="${definition.title}">`);

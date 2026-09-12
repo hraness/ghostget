@@ -6,4 +6,7 @@ divided lists and a generous content surface. Use 1px separators, 8px controls,
 14px body copy, 12px supporting metadata, tabular numerals and visible focus.
 Reserve blue for primary actions, green for verified states and amber for human
 attention. Respect system light/dark and reduced motion. No decorative metrics,
-remote assets, illustration, floating panels or nested cards.
+remote assets, floating panels, or nested cards. The local white ghost mark is
+the only brand illustration. Group operations, web rules, and integrations under
+Access; keep Agent setup at the sidebar footer. Reveal connection options and
+uncommon activity filters only when needed.

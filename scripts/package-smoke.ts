@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { access, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
@@ -739,6 +739,28 @@ try {
     consumer,
     `${packageVersion}\n`,
   );
+  // Exercise the installed command with no app or browser access. Runtime HOME
+  // caches are permitted; a status read must not create Ghostget product state.
+  const setupRoot = await realpath(await mkdtemp(join(work, "setup-")));
+  const setupHome = join(setupRoot, "home"); await mkdir(setupHome, { mode: 0o700 });
+  const setupChild = Bun.spawn([
+    process.execPath, "--no-env-file", "--no-install",
+    join(consumer, "node_modules", ".bin", "ghostget"), "setup", "--json",
+  ], { cwd: consumer, env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin`, HOME: setupHome, GHOSTGET_STATE_HOME: join(setupRoot, "state") }, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  const setupDeadline = setTimeout(() => setupChild.kill("SIGKILL"), 15_000);
+  try {
+    const [exit, stdout, stderr] = await Promise.all([setupChild.exited, new Response(setupChild.stdout).text(), new Response(setupChild.stderr).text()]);
+    if (exit !== 0 || stderr !== "" || Buffer.byteLength(stdout) > 8192) throw new Error("Installed setup status failed its bounded output contract.");
+    const result = requireRecord(JSON.parse(stdout) as unknown, "installed setup status");
+    const services = Array.isArray(result.services) ? result.services.map(value => requireRecord(value, "installed setup service").id) : [];
+    const next = Array.isArray(result.nextActions) && result.nextActions.length === 1 ? requireRecord(result.nextActions[0], "installed setup next action") : {};
+    if (Object.keys(result).sort().join(",") !== "app,configuredAccountCount,nextActions,requestId,schema,services,setupRequests,version"
+      || result.schema !== "ghostget.setup-status/1" || result.app !== "unavailable" || result.version !== packageVersion
+      || result.configuredAccountCount !== null || result.requestId !== null || JSON.stringify(result.setupRequests) !== "[]"
+      || JSON.stringify(services) !== '["gmail","github","linkedin-web","x-web","instagram","reddit-web","whatsapp"]'
+      || next.action !== "open-app" || next.command !== null || typeof next.message !== "string" || next.message.length === 0
+      || JSON.stringify(await readdir(setupRoot)) !== '["home"]') throw new Error("Installed setup status changed authority, service guidance, or passive state behavior.");
+  } finally { clearTimeout(setupDeadline); }
   await run([
     process.execPath,
     "--eval",

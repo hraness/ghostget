@@ -1157,6 +1157,17 @@ async function providerReceipts(mode: "advanced" | "already-exact"): Promise<Rea
   });
 }
 
+const requiredVaultSources = [
+  "src/control/vault-model.ts",
+  "src/control/vault-store.ts",
+  "src/control/vault-runtime.ts",
+  "src/control/vault-process.ts",
+  "src/control/vault-helper.ts",
+  "src/control/vault-custody.ts",
+  "src/control/credential-executor.ts",
+  "src/control/credential-gateway.ts",
+] as const;
+
 describe("npm publication contract", () => {
   test("derives the tar expansion ceiling from the reviewed package budget", async () => {
     const artifact = await readFile(packageArtifactUrl, "utf8");
@@ -1166,7 +1177,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_093_760);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_238_144);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1323,6 +1334,23 @@ describe("npm publication contract", () => {
     expect(budget).toContain("6fdc9574102d2364548291891b8b81f9c1c1b442a95dfb13dce0d42f7e66944c");
     expect(budget).toContain("2,802-byte Linux spread and the reviewed 4,096-byte portability allowance");
     expect(budget).toContain("This is a projection, not Linux evidence");
+    expect(budget).toContain("2,337,247 compressed");
+    expect(budget).toContain("12,742,436 payload bytes across exactly 532 files");
+    expect(budget).toContain("94d6d015620ae4a4a9f6c59a761c1d631ecb91a6df6ab3e606f041440d72929b");
+    expect(budget).toContain("2,337,268 compressed and 12,742,512 payload bytes");
+    expect(budget).toContain("f37cf3a326301db472f08e3ec56dc8dc14ef9897a85b1a51d95065abec4e28dd");
+    expect(budget).toContain("2,338,050 compressed and 12,745,801");
+    expect(budget).toContain("fc00b4d88c542ce47c13b4fd281f87fff16f4c920b59fa44fc242091d52a5f6b");
+    expect(budget).toContain("2,351,623 compressed / 12,793,233 payload bytes");
+    expect(budget).toContain("ecec283d7db9faffcf6bf7d7d6861de0d6a0f99e0d9c90923318627a369a79bd");
+    expect(budget).toContain("2,352,260 compressed and 12,795,796 payload bytes");
+    expect(budget).toContain("a9273339f49473e32c298f403b6673a6eb16d2848335315e5eff94754a03c6bc");
+    expect(budget).toContain("2,354,420 compressed and 12,806,990 payload bytes");
+    expect(budget).toContain("2594de7a4b1fffc380aacdbe0c7a15b5dd0782db78ec264f9b807db527fb87ea");
+    expect(budget).toContain("2,360,770 compressed and 12,841,328 payload bytes");
+    expect(budget).toContain("517341426a9bdcdb0f245032f08b607d7617aed061932d4577a4ef3a25d6ec77");
+    expect(budget).toContain("2,361,917 compressed and 12,845,303 payload bytes");
+    expect(budget).toContain("8518b9c0264d6c80c5d016fc75e98063c39d3a76055f5592bcec3ef5b6992667");
     expect(budget).toContain("12,561,964 compressed / 27,437,097 payload");
     expect(budget).toContain("0914c7721df5cd1a2e317d334d7ee60e6ff8f461e4e61a21aae086cd9d5fb322");
     expect(budget).toContain("11,638,165 compressed / 22,474,305 payload");
@@ -1345,14 +1373,26 @@ describe("npm publication contract", () => {
     expect(budget).toContain("da3f581f1f96724337a99c4b80567d4d11893c4df1ff9a808464260796092976");
     expect(budget).toContain("22,496,998 payload bytes across exactly 558 files");
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
-    expect(MAX_PACKED_BYTES).toBe(11_661_673);
-    expect(MAX_PACKED_BYTES).toBe(11_657_577 + 4_096);
-    expect(MAX_PACKED_ENTRIES).toBe(558);
-    expect(MAX_PACKED_FILES).toBe(558);
-    expect(budget).toContain("34708922100, static job 103593972035 and package job 103593972046");
-    expect(budget).toContain("22,521,539 + 65 = 22,521,604");
-    expect(MAX_UNPACKED_BYTES).toBe(22_521_604);
-    expect(MAX_UNPACKED_BYTES).toBe(22_521_539 + 65);
+    expect(budget).toContain("11,691,232 compressed / 22,642,211 payload bytes across exactly 574 files");
+    expect(budget).toContain("5d020e68a4362c41b3e5251828144df4be4533b3bc2ad25f6f7b2b45a624a50e");
+    expect(budget).toContain("1f936230bbfe3624e8a633b3068d99d3839d5ba092fcb104b6c172984a4cb363");
+    expect(budget).toContain("11,657,577 + 4,096 = 11,661,673");
+    expect(budget).toContain("376dee6d63a54be49b46407cbcb69769da00c075657d89f40e0002975d49225f");
+    expect(budget).toContain("7a1459e68864f3b5c5779915f37aba6bc0d164b57ddd69a86e581674c30fed06");
+    expect(budget).toContain("11,691,340 compressed / 22,642,526 payload bytes across exactly 574 files");
+    expect(budget).toContain("00c1d461b83bf891d62e51e6ab1f1f5f25108767c1216f00d90ef7bc8eba82a4");
+    expect(budget).toContain("11,691,767 compressed / 22,644,806 payload bytes across");
+    expect(budget).toContain("1c00fc901cacf0b008c8183dc17403b72121771f5a1a0083fba30941b568fc83");
+    expect(budget).toContain("11,692,656 compressed / 22,649,181 payload bytes across");
+    expect(budget).toContain("3af5671274a6b04a16945ebb5d9b398a66dc1a5bda26571194163b7a405c45ef");
+    expect(budget).toContain("11,692,794 compressed / 22,649,672 payload bytes across");
+    expect(budget).toContain("a954286f9f6a707d653e5d550bbf61f47da6de9349d53f23cc41e236def251a6");
+    expect(MAX_PACKED_BYTES).toBe(11_696_890);
+    expect(MAX_PACKED_BYTES).toBe(11_692_794 + 4_096);
+    expect(MAX_PACKED_ENTRIES).toBe(574);
+    expect(MAX_PACKED_FILES).toBe(574);
+    expect(MAX_UNPACKED_BYTES).toBe(22_649_737);
+    expect(MAX_UNPACKED_BYTES).toBe(22_649_672 + 65);
     expect(budget).toContain("2,324,169 + 4,096 = 2,328,265");
     expect(budget).toContain("2,330,878 + 4,096 = 2,334,974");
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
@@ -1360,10 +1400,10 @@ describe("npm publication contract", () => {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 558, max: 558 },
-      fileCount: { min: 558, max: 558 },
-      packedBytes: { min: 1_600_000, max: 11_661_673 },
-      unpackedBytes: { min: 9_000_000, max: 22_521_604 },
+      entryCount: { min: 574, max: 574 },
+      fileCount: { min: 574, max: 574 },
+      packedBytes: { min: 1_600_000, max: 11_696_890 },
+      unpackedBytes: { min: 9_000_000, max: 22_649_737 },
     });
   });
 
@@ -1773,6 +1813,11 @@ describe("npm publication contract", () => {
   });
 
   test("requires the shipped control surface and rejects unreviewed documentation or test sources", async () => {
+    const setupSources = [
+      "docs/agent-setup.md", "src/control/setup-model.ts", "src/control/setup.ts",
+      "src/control/setup-cli.ts", "src/control/discovery.ts", "src/control/discovery-process.ts",
+      "src/control/discovery-helper.ts", "src/control/discovery-reader.ts",
+    ];
     const directory = await mkdtemp(join(tmpdir(), "ghostget-control-artifact-"));
     const archive = join(directory, "package.tgz");
     try {
@@ -1780,11 +1825,14 @@ describe("npm publication contract", () => {
       const inventory = await inspectPackageArtifact(archive);
       expect(inventory.files.some(file => file.path === "docs/control-panel.md")).toBe(true);
       expect(inventory.files.some(file => file.path === "src/control/credential-helper.ts")).toBe(true);
+      for (const source of [...requiredVaultSources, ...setupSources]) expect(inventory.files.some(file => file.path === source)).toBe(true);
       expect(inventory.files.some(file => file.path === "src/provider-plugin-import-analysis.ts")).toBe(true);
       expect(inventory.files.some(file => file.path.startsWith("desktop/") || file.path.includes("/direct/"))).toBe(false);
       expect(inventory.files.some(file => file.path.includes("benchmark"))).toBe(false);
       const originalTar = gunzipSync(await readFile(archive));
       for (const [source, replacement, expected] of [
+        ...requiredVaultSources.map(source => [source, source.replace(".ts", "-missing.ts"), `Required package path is missing: ${source}`] as const),
+        ...setupSources.map((source, index) => [source, `src/absent-setup-${index}.ts`, `Required package path is missing: ${source}`] as const),
         ["src/control/helper.ts", "src/control/absent-helper.ts", "Required package path is missing: src/control/helper.ts"],
         ["src/provider-plugin-import-analysis.ts", "src/absent-provider-analysis.ts", "Required package path is missing: src/provider-plugin-import-analysis.ts"],
         ["docs/control-panel.md", "src/control-guide.md", "Required package path is missing: docs/control-panel.md"],
@@ -2757,8 +2805,8 @@ fi
         if (writes.length === 1) workflowWriters.push(`${filename}:${name}`);
       }
     }
-    expect(workflowWriters).toEqual(["release.yml:publish"]);
-    expect(contentsWriteOccurrences).toBe(1);
+    expect(workflowWriters).toEqual(["desktop-release.yml:publish", "release.yml:publish"]);
+    expect(contentsWriteOccurrences).toBe(2);
     expect(workflow).not.toContain("VERCEL_TOKEN");
     expect(workflow).not.toContain("projectSettings");
     expect(workflow).not.toContain("redeploy");

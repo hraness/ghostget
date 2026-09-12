@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { chmodSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { runInNewContext } from "node:vm";
 
 import { describe, expect, test } from "bun:test";
 
@@ -850,6 +851,97 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     ]);
     expect(requests.some((request) => request.kind === "rsc-action")).toBeFalse();
     await transport.close();
+  });
+
+  test.each([
+    ["retains the profile path", PROFILE_URL, PROFILE_URL, null, 1],
+    ["follows its contact overlay", PROFILE_URL, `${PROFILE_URL}overlay/contact-info/`, null, 1],
+    ["normalizes the contact overlay trailing slash", PROFILE_URL, `${PROFILE_URL}overlay/contact-info`, null, 1],
+    ["rejects another member's contact overlay", PROFILE_URL, "https://www.linkedin.com/in/other-member/overlay/contact-info/", "bootstrap", 1],
+    ["rejects another overlay on the same profile", PROFILE_URL, `${PROFILE_URL}overlay/about-this-profile/`, "bootstrap", 1],
+    ["rejects another origin after clicking", PROFILE_URL, "https://example.test/in/0thernet/overlay/contact-info/", "bootstrap", 1],
+    ["rejects the authwall after clicking", PROFILE_URL, "https://www.linkedin.com/checkpoint/", "authwall", 1],
+    ["rejects starting from the overlay before clicking", `${PROFILE_URL}overlay/contact-info/`, PROFILE_URL, "bootstrap", 0],
+  ] as const)("executes the Contact-info modal script and %s", async (_label, initialUrl, afterClickUrl, failureCategory, expectedClicks) => {
+    const location: { href: string; origin: string } = {
+      href: initialUrl,
+      origin: new URL(initialUrl).origin,
+    };
+    let clicks = 0;
+    let modalReads = 0;
+    const document = {
+      querySelectorAll: (selector: string) => {
+        if (selector === 'a,button,[role="button"],[role="link"]') {
+          return [{
+            getAttribute: (name: string) => name === "aria-label" ? "Contact info" : null,
+            textContent: "Contact info",
+            click: () => {
+              clicks += 1;
+              location.href = afterClickUrl;
+              location.origin = new URL(afterClickUrl).origin;
+            },
+          }];
+        }
+        if (selector === '[role="dialog"],dialog,[aria-modal="true"]') {
+          modalReads += 1;
+          return [{ outerHTML: DIALOG_EMAIL_HTML }];
+        }
+        throw new Error(`unexpected synthetic DOM selector: ${selector}`);
+      },
+    };
+    const session: BrowserSession = {
+      runBatch: async (commands) => {
+        const command = commands[0];
+        if (command?.[0] === "open" || command?.[0] === "wait") {
+          return [{ success: true, result: {} }];
+        }
+        if (command?.[0] === "network") return voyagerProfileNetworkResult();
+        if (command?.[0] !== "eval" || command[1] === undefined) {
+          throw new Error("unexpected synthetic Contact-info browser command");
+        }
+        if (isContactModalEval(command[1])) {
+          // Execute the production-generated script; the fake click changes the
+          // document URL before its post-click guard can disclose modal HTML.
+          const result: unknown = await runInNewContext(command[1], {
+            location, document, URL, TextEncoder, crypto, btoa, Error,
+            setTimeout: () => { throw new Error("unexpected synthetic modal wait"); },
+          });
+          return [{ success: true, result: { origin: location.href, result } }];
+        }
+        const binding = requestBinding(command[1]);
+        if (binding.path === "/voyager/api/me") {
+          return [browserBodyRecord(identityResponse(), "application/json")];
+        }
+        if (binding.path === "/in/0thernet/") {
+          return [browserBodyRecord("<html>1st</html>", "text/html")];
+        }
+        throw new Error(`unexpected synthetic Contact-info path: ${binding.path}`);
+      },
+      close: () => Promise.resolve(),
+      cleanup: () => Promise.resolve(),
+    };
+    const transport = await createLinkedInProfileBrowserTransport(auth, {
+      timeoutMs: 1_000,
+      maxOutputBytes: 2 * 1024 * 1024,
+      dependencies: { createBrowserSession: () => Promise.resolve(session) },
+    });
+    try {
+      await transport.currentIdentityResponse();
+      await transport.readProfileHtml(PROFILE_URL);
+      const result = transport.readContactNavigationText(contactNavigationInput());
+      if (failureCategory === null) {
+        expect(await result).toBe(DIALOG_EMAIL_HTML);
+      } else {
+        await expect(result).rejects.toMatchObject({
+          name: "LinkedInProfileBrowserFailure",
+          category: failureCategory,
+        });
+      }
+      expect(clicks).toBe(expectedClicks);
+      expect(modalReads).toBe(failureCategory === null ? 1 : 0);
+    } finally {
+      await transport.close();
+    }
   });
 
   test("fails closed when the opened profile omits a unique page-instance", async () => {

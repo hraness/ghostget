@@ -4,6 +4,11 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:f
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { agentRequest } from "./approval-client";
+import { ApprovalBroker } from "./approval-broker";
+import { ActivityStore } from "./activity";
+import { beginControlHelperShutdown } from "./helper";
+import { WebGateway } from "./web-gateway";
+import { checkWebRequest, saveWebPolicy } from "./web-policy";
 import type { ControlRequest, ControlResponse, ControlSnapshot } from "./protocol";
 import { ghostgetStateHome } from "../storage";
 
@@ -61,6 +66,47 @@ function assertNoOwner(root: string) {
   expect(existsSync(join(root, "control", "owner.json"))).toBe(false);
   expect(existsSync(join(root, "control", "agent.sock"))).toBe(false);
 }
+
+test("helper shutdown records cancellation when an approval recheck outpaces socket close delivery", async () => {
+  const { environment } = fixture();
+  saveWebPolicy([{ id: "synthetic-docs", origin: "https://docs.example.com", path: { kind: "exact", value: "/reference" }, methods: ["GET"], queryKeys: [], decision: "ask", effect: "retrieval", maxResponseBytes: 1024, timeoutMs: 1000 }], false, 0, environment);
+  const activity = new ActivityStore(environment);
+  const checking = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  let checks = 0;
+  const approvals = new ApprovalBroker(async target => {
+    if (target.kind !== "web") throw new Error("Unexpected synthetic approval target");
+    if (++checks === 2) { checking.resolve(); await release.promise; }
+    return checkWebRequest(target.method, target.url, environment).approval;
+  });
+  let transportCalls = 0;
+  const gateway = new WebGateway(activity, approvals, environment, async () => {
+    transportCalls++;
+    throw new Error("Pending synthetic approval reached transport");
+  });
+  const controller = new AbortController();
+  let destroyed = false;
+  // Deliberately withhold the socket's close event until after the request settles.
+  const socket = { destroy: () => { destroyed = true; } };
+  const pending = gateway.run("GET", "https://docs.example.com/reference", controller.signal)
+    .then(value => ({ value }), (error: unknown) => ({ error }));
+  try {
+    await bounded(checking.promise);
+    expect(activity.query(activityQuery).rows[0]?.outcome).toBe("started");
+    beginControlHelperShutdown(new Map([[socket, controller]]), {
+      beginShutdown: () => approvals.close(),
+    });
+    expect(destroyed).toBe(true);
+    release.resolve();
+    expect(await bounded(pending)).toMatchObject({ error: { code: "REQUEST_CANCELLED" } });
+    expect(activity.query(activityQuery).rows[0]).toMatchObject({ outcome: "cancelled", errorCode: "REQUEST_CANCELLED" });
+    expect(transportCalls).toBe(0);
+  } finally {
+    controller.abort(); release.resolve();
+    await bounded(pending);
+    approvals.close(); activity.close();
+  }
+});
 
 test("actual helper separates admin and agent channels, rejects a second owner, and settles pending work before EOF cleanup", async () => {
   const fixtureState = fixture(); const helper = launch(fixtureState.environment);

@@ -7,6 +7,9 @@
  */
 export const ghostgetUsage = `Usage:
   ghostget --version                                  Print the exact Ghostget release version
+  ghostget setup [status] [--json]                     Check app setup and receive the next step
+  ghostget setup request <service> [--json]             Suggest a service for native review
+  ghostget setup cancel <request-id> [--json]           Dismiss a pending setup suggestion
   ghostget init [directory] [--json]                    Initialize a Markdown vault
   ghostget inspect <url> [capture-options]              Inspect capture without persistence
   ghostget pdf <file-or-url> [pdf-options]               Capture a PDF into the vault
@@ -32,6 +35,7 @@ export const ghostgetUsage = `Usage:
   ghostget capabilities [adapter] [--json]         List installed semantic capabilities
   ghostget web request <https-url> [--method GET|HEAD]
                                                  Retrieve public text through native web rules and approvals
+  ghostget vault use <grant-id>                    Use a granted credential and return selected JSON fields
   ghostget interface list                          List user and imported OpenAPI drafts
   ghostget interface export [adapter]              Export installed semantic interfaces as OpenAPI
   ghostget interface import <openapi.json> [--expected-digest <sha256>]

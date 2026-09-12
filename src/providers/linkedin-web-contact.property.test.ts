@@ -35,66 +35,72 @@ function bootstrapHtml(value: unknown): string {
   return `<html><body><code style="display: none" id="bpr-guid-123">${encoded}</code></body></html>`;
 }
 
+function assertContactInfoRequestBinding(slug: string): void {
+  const target = linkedInContactInfoTarget(`https://www.linkedin.com/in/${slug}`);
+  expect(target.slug).toBe(slug.toLowerCase());
+  expect(target.url).toBe(`https://www.linkedin.com/in/${slug.toLowerCase()}/`);
+  expect(() => assertLinkedInContactInfoRequest({
+    method: "GET",
+    url: target.url,
+  })).not.toThrow();
+  expect(() => assertLinkedInContactInfoRequest({
+    method: "GET",
+    url: linkedInProfileContactInfoGraphqlUrl({ profileUrn: PROFILE_URN }),
+  })).not.toThrow();
+  expect(() => assertLinkedInContactInfoRequest({
+    method: "GET",
+    url: `https://www.linkedin.com/voyager/api/identity/profiles/${slug.toLowerCase()}/profileContactInfo`,
+  })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+  const overlay = linkedInProfileContactInfoOverlayUrl({ profileUrl: target.url });
+  expect(overlay.pathname).toBe(`/in/${slug.toLowerCase()}/overlay/contact-info/`);
+  expect(overlay.search).toBe("");
+  expect(overlay.href).toBe(`https://www.linkedin.com/in/${slug.toLowerCase()}/overlay/contact-info/`);
+  expect(() => assertLinkedInContactInfoRequest({
+    method: "GET",
+    url: overlay,
+  })).not.toThrow();
+  expect(() => assertLinkedInContactInfoRequest({
+    method: "GET",
+    url: linkedInProfileContactDetailsOverlayUrl({ profileUrn: PROFILE_URN }),
+  })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+  expect(() => assertLinkedInContactInfoRequest({
+    method: "GET",
+    url: "https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
+  })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+  const navigation = linkedInProfileContactDetailsNavigationPostUrl({
+    sduiid: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+  });
+  expect(navigation.pathname).toBe("/flagship-web/rsc-action/actions/navigation");
+  expect([...navigation.searchParams.keys()]).toEqual(["screenId", "sduiid"]);
+  expect(navigation.searchParams.get("screenId")).toBe(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID);
+  expect(navigation.searchParams.get("sduiid")).toBe(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID);
+  expect(navigation.searchParams.has("sduid")).toBeFalse();
+  expect(navigation.href).not.toContain("sduid=");
+  expect(() => assertLinkedInContactInfoRequest({
+    method: "POST",
+    url: navigation,
+  })).not.toThrow();
+  expect(() => assertLinkedInContactInfoRequest({
+    method: "GET",
+    url: navigation,
+  })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+  expect(() => assertLinkedInContactInfoRequest({
+    method: "POST",
+    url: linkedInProfileContactDetailsNavigationPostUrl({
+      sduiid: `fixture-${slug.toLowerCase()}-sduiid`,
+    }),
+  })).toThrow("sduiid must equal ProfileContactDetailsOverlay");
+  expect(buildLinkedInProfileContactDetailsNavigationPostPath()).toContain(
+    `sduiid=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}`,
+  );
+}
+
 test("LinkedIn contact-info targets and request paths stay bound to one vanity", () => {
-  assertProperty(fc.property(vanity, (slug) => {
-    const target = linkedInContactInfoTarget(`https://www.linkedin.com/in/${slug}`);
-    expect(target.slug).toBe(slug.toLowerCase());
-    expect(target.url).toBe(`https://www.linkedin.com/in/${slug.toLowerCase()}/`);
-    expect(() => assertLinkedInContactInfoRequest({
-      method: "GET",
-      url: target.url,
-    })).not.toThrow();
-    expect(() => assertLinkedInContactInfoRequest({
-      method: "GET",
-      url: linkedInProfileContactInfoGraphqlUrl({ profileUrn: PROFILE_URN }),
-    })).not.toThrow();
-    expect(() => assertLinkedInContactInfoRequest({
-      method: "GET",
-      url: `https://www.linkedin.com/voyager/api/identity/profiles/${slug.toLowerCase()}/profileContactInfo`,
-    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
-    const overlay = linkedInProfileContactInfoOverlayUrl({ profileUrl: target.url });
-    expect(overlay.pathname).toBe(`/in/${slug.toLowerCase()}/overlay/contact-info/`);
-    expect(overlay.search).toBe("");
-    expect(overlay.href).toBe(`https://www.linkedin.com/in/${slug.toLowerCase()}/overlay/contact-info/`);
-    expect(() => assertLinkedInContactInfoRequest({
-      method: "GET",
-      url: overlay,
-    })).not.toThrow();
-    expect(() => assertLinkedInContactInfoRequest({
-      method: "GET",
-      url: linkedInProfileContactDetailsOverlayUrl({ profileUrn: PROFILE_URN }),
-    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
-    expect(() => assertLinkedInContactInfoRequest({
-      method: "GET",
-      url: "https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
-    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
-    const navigation = linkedInProfileContactDetailsNavigationPostUrl({
-      sduiid: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
-    });
-    expect(navigation.pathname).toBe("/flagship-web/rsc-action/actions/navigation");
-    expect([...navigation.searchParams.keys()]).toEqual(["screenId", "sduiid"]);
-    expect(navigation.searchParams.get("screenId")).toBe(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID);
-    expect(navigation.searchParams.get("sduiid")).toBe(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID);
-    expect(navigation.searchParams.has("sduid")).toBeFalse();
-    expect(navigation.href).not.toContain("sduid=");
-    expect(() => assertLinkedInContactInfoRequest({
-      method: "POST",
-      url: navigation,
-    })).not.toThrow();
-    expect(() => assertLinkedInContactInfoRequest({
-      method: "GET",
-      url: navigation,
-    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
-    expect(() => assertLinkedInContactInfoRequest({
-      method: "POST",
-      url: linkedInProfileContactDetailsNavigationPostUrl({
-        sduiid: `fixture-${slug.toLowerCase()}-sduiid`,
-      }),
-    })).toThrow("sduiid must equal ProfileContactDetailsOverlay");
-    expect(buildLinkedInProfileContactDetailsNavigationPostPath()).toContain(
-      `sduiid=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}`,
-    );
-  }));
+  assertProperty(fc.property(vanity, assertContactInfoRequestBinding));
+});
+
+test("LinkedIn contact-info accepts vanity c- even though it occurs in the fixed navigation route", () => {
+  assertContactInfoRequestBinding("c-");
 });
 
 test("LinkedIn contact-info navigation POST binds sduiid to the overlay screenId", () => {

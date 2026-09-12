@@ -8,6 +8,7 @@ import { buildDesktop, desktopRoot } from "./build.ts";
 
 export const marketingScenes = [
   { id: "accounts", scenario: "activity.history", section: "accounts", title: "Connected accounts", description: "The real Ghostget account screen, with fictional accounts." },
+  { id: "vault", scenario: "vault.connected", section: "vault", title: "Credential vault", description: "Local credentials and optional 1Password links, with fictional metadata." },
   { id: "capabilities", scenario: "capabilities.policy", section: "capabilities", title: "Operation permissions", description: "Inspect capabilities and choose an operation's permission." },
   { id: "activity", scenario: "activity.history", section: "activity", title: "Web activity", description: "A virtualized view of fictional gateway request metadata." },
   { id: "approvals", scenario: "approvals.pending", section: "approvals", title: "Human approval", description: "Review an exact proposed action before allowing it once." },
@@ -15,7 +16,7 @@ export const marketingScenes = [
 export async function buildMarketing(): Promise<string> {
   const production = await buildDesktop("native"); const output = join(desktopRoot, "out", "marketing");
   await rm(output, { recursive: true, force: true }); await mkdir(output, { recursive: true });
-  const assets = (await readdir(production)).filter(name => /\.(css|woff2)$/u.test(name));
+  const assets = (await readdir(production)).filter(name => /\.(css|woff2)$/u.test(name) || name === "ghost.png");
   for (const asset of assets) await copyFile(join(production, asset), join(output, asset));
   for (const scene of marketingScenes) {
     const created = createPanelSession({ kind: "scenario", scenario: scene.scenario }); if (!created.ok) throw new Error("Invalid marketing scene");
