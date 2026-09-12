@@ -1,5 +1,6 @@
 # Contents
 
+- `vendor/lantern-material/` owns the asset-free immutable Lantern CSS, license, checker and provenance. `lantern-material.ts` verifies its complete inventory and retains bounded hash-matched CSS/license bytes for the static build.
 - `vendor/marketing-preset/` owns the immutable shared editorial CSS, licensed Instrument Serif, field textures, and source/hash provenance. `marketing-preset.ts` verifies that closed snapshot before `build.ts` publishes its bytes.
 - `source/` – checked HTML, CSS, analytics, discovery, fallback, markdown, and llms.txt sources.
 - `public/` – checked public icon, social, caption, and reusable demo assets.
@@ -15,7 +16,7 @@
 
 # Guidelines
 
-- Keep the homepage's shared editorial preset scoped by `data-hraness-marketing-preset="editorial"`; the explicit `.hraness-marketing-field` flow container owns its background. Keep product adaptations outside the immutable snapshot and preserve the separate inert native-control previews, ordinary documentation, release identity, and all production admission gates.
+- Keep the homepage's shared editorial preset scoped by `data-hraness-marketing-preset="editorial"`; the homepage alone opts into `data-hraness-material="lantern"`, with `.hraness-material-wall` on its hero, quiet opaque reading surfaces and shared header chrome. Load the asset-free material after Paper/editorial foundations and keep the Node checker in the normal theme gate. Keep product adaptations outside the immutable snapshot and preserve the separate inert native-control previews, ordinary documentation, release identity, and all production admission gates.
 - Keep the page useful without JavaScript. JavaScript may progressively enhance explicit copy controls and canonical-host analytics; keep all commands readable and selectable without it.
 - Keep every product claim observable in the public Ghostget release and put each qualification beside the claim it limits.
 - Derive release identity and install commands from the validated root `package.json`; never copy a version into page source.

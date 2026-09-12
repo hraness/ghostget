@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-hraness-theme="paper" data-hraness-marketing-preset="editorial">
+<html lang="en" data-hraness-theme="paper" data-hraness-marketing-preset="editorial" data-hraness-material="lantern">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -41,7 +41,7 @@
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
-    <header class="hraness-marketing-header" data-hraness-marketing="header">
+    <header class="hraness-marketing-header hraness-material-chrome" data-hraness-marketing="header">
       <div class="hraness-marketing-header__inner">
         <a aria-label="Ghostget home" class="wordmark" href="/"><img src="/ghost.png" alt="" width="30" height="30">Ghostget</a>
         <nav aria-label="Primary" class="hraness-marketing-header__nav">
@@ -57,21 +57,21 @@
           >GitHub <span aria-hidden="true">↗</span></a>
         </nav>
         <div class="hraness-marketing-header__actions">
-          <a class="hraness-marketing-action" data-emphasis="primary" href="#start">Install Ghostget</a>
+          <a class="hraness-marketing-action hraness-material-control" data-emphasis="primary" href="#start">Install Ghostget</a>
         </div>
       </div>
     </header>
 
-    <main class="hraness-marketing-field" id="main">
+    <main id="main">
       <div class="hraness-marketing-page">
-        <header aria-labelledby="brand-name" class="hraness-marketing-hero ghostget-product-hero" data-align="start" data-hraness-marketing="hero" data-tone="paper">
+        <header aria-labelledby="brand-name" class="hraness-marketing-hero ghostget-product-hero hraness-material-wall" data-align="start" data-hraness-marketing="hero" data-tone="paper">
           <div class="hraness-marketing-hero__copy">
             <p aria-hidden="true" class="hraness-marketing-hero__name">Ghostget</p>
             <h1 class="hraness-marketing-hero__heading" id="brand-name">Read, archive, and act with your coding agent</h1>
             <p class="hraness-marketing-hero__summary hero-explainer">Read public pages, save media, and use supported actions in the services you’ve signed into. Ghostget is a local CLI and TypeScript SDK. You choose the agent and the accounts it can use.</p>
             <div class="hraness-marketing-hero__actions">
-              <a class="hraness-marketing-action" data-emphasis="primary" href="#start">Install Ghostget</a>
-              <a class="hraness-marketing-action" data-emphasis="secondary" href="#how-it-works">See how it works</a>
+              <a class="hraness-marketing-action hraness-material-control" data-emphasis="primary" href="#start">Install Ghostget</a>
+              <a class="hraness-marketing-action hraness-material-control" data-emphasis="secondary" href="#how-it-works">See how it works</a>
             </div>
             <p class="hraness-marketing-hero__boundary">Free and MIT licensed. Runs on macOS and Linux with Bun 1.3.14. Release {{GHOSTGET_RELEASE}}.</p>
           </div>
@@ -117,7 +117,7 @@ This domain is for use in documentation examples without needing permission. Avo
             <p class="hraness-marketing-section__summary">The macOS control panel brings accounts, a local credential vault with optional 1Password links, permissions, human approvals, and searchable request history together. <a href="https://github.com/hraness/ghostget/tree/{{GHOSTGET_RELEASE}}/desktop">Build the native app from source.</a></p>
           </div>
           <div class="control-scenes">
-            <details name="ghostget-control-scene" open>
+            <details class="hraness-material-disclosure" name="ghostget-control-scene" open>
               <summary>Accounts</summary>
               <figure><div class="control-frame"><iframe src="/control/accounts.html" title="Ghostget account screen with fictional accounts" sandbox referrerpolicy="no-referrer" loading="lazy" tabindex="-1"></iframe></div><figcaption>Choose a common service or ask your agent to guide setup. Optional Chrome hints still require account verification. <a href="/control/accounts.html" target="_blank" rel="noopener">Enlarge account screen</a></figcaption></figure>
             </details>
@@ -125,15 +125,15 @@ This domain is for use in documentation examples without needing permission. Avo
               <summary>Vault</summary>
               <figure><div class="control-frame"><iframe src="/control/vault.html" title="Ghostget local vault and optional 1Password links with fictional items" sandbox referrerpolicy="no-referrer" loading="lazy" tabindex="-1"></iframe></div><figcaption>Store a credential locally or link a chosen 1Password field. Grant exact authenticated requests; your agent receives selected results. <a href="/control/vault.html" target="_blank" rel="noopener">Enlarge vault screen</a></figcaption></figure>
             </details>
-            <details name="ghostget-control-scene">
+            <details class="hraness-material-disclosure" name="ghostget-control-scene">
               <summary>Permissions</summary>
               <figure><div class="control-frame"><iframe src="/control/capabilities.html" title="Ghostget operation permissions with fictional integrations" sandbox referrerpolicy="no-referrer" loading="lazy" tabindex="-1"></iframe></div><figcaption>Allow, deny, or require approval for an exact operation and account. <a href="/control/capabilities.html" target="_blank" rel="noopener">Enlarge permissions screen</a></figcaption></figure>
             </details>
-            <details name="ghostget-control-scene">
+            <details class="hraness-material-disclosure" name="ghostget-control-scene">
               <summary>Activity</summary>
               <figure><div class="control-frame"><iframe src="/control/activity.html" title="Ghostget searchable web activity with fictional requests" sandbox referrerpolicy="no-referrer" loading="lazy" tabindex="-1"></iframe></div><figcaption>Search and filter local web request metadata, with continuous scrolling in the app. <a href="/control/activity.html" target="_blank" rel="noopener">Enlarge activity screen</a></figcaption></figure>
             </details>
-            <details name="ghostget-control-scene">
+            <details class="hraness-material-disclosure" name="ghostget-control-scene">
               <summary>Approvals</summary>
               <figure><div class="control-frame"><iframe src="/control/approvals.html" title="Ghostget human approval screen with a fictional request" sandbox referrerpolicy="no-referrer" loading="lazy" tabindex="-1"></iframe></div><figcaption>Review the exact proposed request before allowing it once. <a href="/control/approvals.html" target="_blank" rel="noopener">Enlarge approval screen</a></figcaption></figure>
             </details>
@@ -209,7 +209,7 @@ ghostget capabilities --json</code></pre>
               Provider names identify compatible services and do not imply endorsement. Counts are for release {{GHOSTGET_RELEASE}}.
             </p>
             <div class="provider-actions">
-              <a class="hraness-marketing-action" data-emphasis="secondary" href="/provider-capabilities/">Browse every supported action</a>
+              <a class="hraness-marketing-action hraness-material-control" data-emphasis="secondary" href="/provider-capabilities/">Browse every supported action</a>
             </div>
           </div>
         </section>
@@ -266,17 +266,17 @@ ghostget capabilities --json</code></pre>
             <h2 class="hraness-marketing-questions__heading" id="faq-title">Before you install.</h2>
           </header>
           <div class="hraness-marketing-question-list">
-            <details class="hraness-marketing-question"><summary>Does Ghostget need an account?</summary><div class="hraness-marketing-question__answer"><p>No. Install the CLI and read a public page. You connect a service only when you want its actions, and each connection is stored on your machine. There is no Ghostget account and no Ghostget server in the loop.</p></div></details>
-            <details class="hraness-marketing-question"><summary>Does it use my credentials?</summary><div class="hraness-marketing-question__answer"><p>It uses a sign-in you already have for a service, on this machine, and keeps it out of your agent’s hands. The agent calls a named action and gets a typed result. It never receives cookies, tokens, a shell, or a browser it can steer.</p></div></details>
-            <details class="hraness-marketing-question"><summary>What does it cost?</summary><div class="hraness-marketing-question__answer"><p>Nothing. Ghostget is free and MIT licensed, with no hosted tier and no paid plan. You pay your model provider and any service subscriptions you already have.</p></div></details>
-            <details class="hraness-marketing-question"><summary>Does it phone home?</summary><div class="hraness-marketing-question__answer"><p>No. The CLI and SDK send no analytics to ghostget.com; they make only the network requests the action you chose requires. This website counts page views with cookieless analytics and honors Do Not Track. The <a href="/privacy/">privacy page</a> explains both.</p></div></details>
-            <details class="hraness-marketing-question"><summary>Which platforms does it run on?</summary><div class="hraness-marketing-question__answer"><p>macOS and Linux with Bun 1.3.14. Actions that read iMessage or Apple Photos need macOS. Beeper actions need Beeper Desktop on the same machine, and WhatsApp reads need a linked device.</p></div></details>
-            <details class="hraness-marketing-question"><summary>Is Ghostget an AI agent?</summary><div class="hraness-marketing-question__answer"><p>No. Ghostget supplies a CLI, SDK and Mac control panel. Your agent owns the model and plan; Ghostget manages account permissions, explicit approvals and the records of its actions.</p></div></details>
-            <details class="hraness-marketing-question"><summary>Does it bypass login, paywalls, access controls, or DRM?</summary><div class="hraness-marketing-question__answer"><p>No. Media archiving is limited to one item you are authorized to access that is finite and not protected by DRM. Ghostget does not bypass payment, authentication, access controls, or DRM.</p></div></details>
-            <details class="hraness-marketing-question"><summary>What happens when a service changes?</summary><div class="hraness-marketing-question__answer"><p>The affected action becomes unavailable until its contract is updated, reviewed, and tested. Ghostget does not switch to a browser fallback silently, so a changed page never turns into a guessed action.</p></div></details>
-            <details class="hraness-marketing-question"><summary>Why does Ghostget refuse to retry some writes?</summary><div class="hraness-marketing-question__answer"><p>If a request left the machine and its response was lost, the effect may already exist. Ghostget keeps that uncertainty visible and reconciles it from separately obtained evidence instead of sending the request again.</p></div></details>
-            <details class="hraness-marketing-question"><summary>What does release {{GHOSTGET_RELEASE}} include?</summary><div class="hraness-marketing-question__answer"><p>Page capture, media archives, encrypted reads, and {{PROVIDER_CALLABLE_ACTION_COUNT}} supported actions across {{PROVIDER_SURFACE_COUNT}} services. <code>ghostget capabilities</code> is the source of truth for what is installed and available on your machine, and the <a href="/provider-capabilities/">provider list</a> names every action in this release.</p></div></details>
-            <details class="hraness-marketing-question"><summary>Who made it?</summary><div class="hraness-marketing-question__answer"><p>Ben Guo, a musician and builder who was a founder and engineering leader at companies including Venmo and Stripe, and who now builds from Puerto Rico. Ghostget is published in the open under the Hraness GitHub organization.</p></div></details>
+            <details class="hraness-marketing-question hraness-material-disclosure"><summary>Does Ghostget need an account?</summary><div class="hraness-marketing-question__answer"><p>No. Install the CLI and read a public page. You connect a service only when you want its actions, and each connection is stored on your machine. There is no Ghostget account and no Ghostget server in the loop.</p></div></details>
+            <details class="hraness-marketing-question hraness-material-disclosure"><summary>Does it use my credentials?</summary><div class="hraness-marketing-question__answer"><p>It uses a sign-in you already have for a service, on this machine, and keeps it out of your agent’s hands. The agent calls a named action and gets a typed result. It never receives cookies, tokens, a shell, or a browser it can steer.</p></div></details>
+            <details class="hraness-marketing-question hraness-material-disclosure"><summary>What does it cost?</summary><div class="hraness-marketing-question__answer"><p>Nothing. Ghostget is free and MIT licensed, with no hosted tier and no paid plan. You pay your model provider and any service subscriptions you already have.</p></div></details>
+            <details class="hraness-marketing-question hraness-material-disclosure"><summary>Does it phone home?</summary><div class="hraness-marketing-question__answer"><p>No. The CLI and SDK send no analytics to ghostget.com; they make only the network requests the action you chose requires. This website counts page views with cookieless analytics and honors Do Not Track. The <a href="/privacy/">privacy page</a> explains both.</p></div></details>
+            <details class="hraness-marketing-question hraness-material-disclosure"><summary>Which platforms does it run on?</summary><div class="hraness-marketing-question__answer"><p>macOS and Linux with Bun 1.3.14. Actions that read iMessage or Apple Photos need macOS. Beeper actions need Beeper Desktop on the same machine, and WhatsApp reads need a linked device.</p></div></details>
+            <details class="hraness-marketing-question hraness-material-disclosure"><summary>Is Ghostget an AI agent?</summary><div class="hraness-marketing-question__answer"><p>No. Ghostget supplies a CLI, SDK and Mac control panel. Your agent owns the model and plan; Ghostget manages account permissions, explicit approvals and the records of its actions.</p></div></details>
+            <details class="hraness-marketing-question hraness-material-disclosure"><summary>Does it bypass login, paywalls, access controls, or DRM?</summary><div class="hraness-marketing-question__answer"><p>No. Media archiving is limited to one item you are authorized to access that is finite and not protected by DRM. Ghostget does not bypass payment, authentication, access controls, or DRM.</p></div></details>
+            <details class="hraness-marketing-question hraness-material-disclosure"><summary>What happens when a service changes?</summary><div class="hraness-marketing-question__answer"><p>The affected action becomes unavailable until its contract is updated, reviewed, and tested. Ghostget does not switch to a browser fallback silently, so a changed page never turns into a guessed action.</p></div></details>
+            <details class="hraness-marketing-question hraness-material-disclosure"><summary>Why does Ghostget refuse to retry some writes?</summary><div class="hraness-marketing-question__answer"><p>If a request left the machine and its response was lost, the effect may already exist. Ghostget keeps that uncertainty visible and reconciles it from separately obtained evidence instead of sending the request again.</p></div></details>
+            <details class="hraness-marketing-question hraness-material-disclosure"><summary>What does release {{GHOSTGET_RELEASE}} include?</summary><div class="hraness-marketing-question__answer"><p>Page capture, media archives, encrypted reads, and {{PROVIDER_CALLABLE_ACTION_COUNT}} supported actions across {{PROVIDER_SURFACE_COUNT}} services. <code>ghostget capabilities</code> is the source of truth for what is installed and available on your machine, and the <a href="/provider-capabilities/">provider list</a> names every action in this release.</p></div></details>
+            <details class="hraness-marketing-question hraness-material-disclosure"><summary>Who made it?</summary><div class="hraness-marketing-question__answer"><p>Ben Guo, a musician and builder who was a founder and engineering leader at companies including Venmo and Stripe, and who now builds from Puerto Rico. Ghostget is published in the open under the Hraness GitHub organization.</p></div></details>
           </div>
         </section>
 
@@ -303,7 +303,7 @@ ghostget capabilities --json</code></pre>
           <h2 class="hraness-marketing-cta__heading" id="final-title">Precise web capabilities for the agent you already use.</h2>
           <p class="hraness-marketing-cta__summary">Install the CLI, read one public page, and connect a service only when you need its actions.</p>
           <div class="hraness-marketing-cta__actions">
-            <a class="hraness-marketing-action" data-emphasis="primary" href="#start">Install Ghostget</a>
+            <a class="hraness-marketing-action hraness-material-control" data-emphasis="primary" href="#start">Install Ghostget</a>
           </div>
           <p class="hraness-marketing-cta__footnote">Free and MIT licensed. Runs on macOS and Linux with Bun 1.3.14. Release {{GHOSTGET_RELEASE}}.</p>
         </section>
