@@ -1,3 +1,18 @@
+// Ghostget 0.18.1 source plus the LinkedIn `contacts.read` observed
+// rsc-action tracking, pageforest, trace, and layout-tree header copies
+// (adapter bundle 1.35.0), measured with no version bump: a Bun 1.3.14
+// `pm pack` on Linux x64
+// shares 22,504,918 payload bytes across exactly 558 files. The bun
+// archive is 11,506,310 compressed bytes, SHA-256
+// da3f581f1f96724337a99c4b80567d4d11893c4df1ff9a808464260796092976.
+// Copying those already-observed X-Li names, adapter notes, changelog,
+// and tests add 7,920 payload bytes compared with the 1.34.0
+// measurement. Raise only the payload ceiling to the measured value
+// plus 65 bytes of headroom (22,504,983); the packed size stays under
+// the existing packed allowance and the 558-entry inventory is
+// unchanged. Theme CSS stays website-only. Fresh Linux CI independently
+// checks its actual canonical archive.
+//
 // Ghostget 0.18.1 source plus the LinkedIn `contacts.read` page-derived
 // X-Li header bind (adapter bundle 1.34.0), measured with no version
 // bump: a Bun 1.3.14 `pm pack` on Linux x64
@@ -690,7 +705,7 @@
 export const MAX_PACKED_BYTES = 11_658_467;
 export const MAX_PACKED_ENTRIES = 558;
 export const MAX_PACKED_FILES = 558;
-export const MAX_UNPACKED_BYTES = 22_497_063;
+export const MAX_UNPACKED_BYTES = 22_504_983;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
