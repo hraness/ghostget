@@ -3905,8 +3905,13 @@ describe("LinkedIn contacts.read runtime", () => {
                 givenName: "Ada",
                 familyName: "Example",
                 isVanityNameResolved: true,
+                requestMetadata: {
+                  $type: "proto.sdui.common.RequestMetadata",
+                  states: [],
+                  screenId: "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
+                  knownTemplates: [],
+                },
               },
-              requestMetadata: { $type: "proto.sdui.common.RequestMetadata" },
             });
             return Promise.resolve(OVERLAY_CONTACT_FLIGHT);
           },

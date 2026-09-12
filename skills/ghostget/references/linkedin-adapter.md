@@ -400,6 +400,18 @@ lifts headed nested `payload.requestMetadata` to the sibling placement
 when the two agree, and admits `proto.sdui.*` types only on this overlay
 POST body. Extra keys and unrelated proto prefixes still fail closed.
 
+A later signed-in smoke after adapter 1.32.0 peeled that sibling
+`proto.sdui` shape as `kind=action`, then the POST still returned HTTP
+500 `text/html`. The body sent empty sibling `RequestMetadata{$type}`
+only. Headed capture that produced Email kept `requestMetadata` under
+`payload` with children `$type`, `states`, `screenId`, and
+`knownTemplates`. Adapter 1.33.0 emits that nested placement, binds the
+reviewed overlay `screenId`, copies `states` / `knownTemplates` when the
+page already has those reviewed string lists, and otherwise sends empty
+arrays. It does not invent opaque state objects. Dormant NavigateToScreen
+still omits non-empty `states` / `knownTemplates`; if a later 500
+persists, those headed-only lists are the remaining mint gap.
+
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid
 Contact info from that viewer. The operation never invents a hidden email.
