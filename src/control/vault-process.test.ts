@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { chmodSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +12,7 @@ const secureEntry = "/Applications/Ghostget.app/Contents/Helpers/Ghostget Secure
 /** Process globals and spawn are replaced only inside this isolated synthetic child. */
 async function inspectInvocation(platform: string, executable: string) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "ghostget-vault-command-"))); chmodSync(root, 0o700); roots.push(root);
+  mkdirSync(join(root, "state"), { mode: 0o700 });
   const script = join(root, "inspect.ts");
   writeFileSync(script, `
 const { nativeSecretStore } = await import(process.argv[2]);
@@ -30,7 +31,7 @@ Bun.spawn = (argv, options) => {
 };
 const environment = {
   HOME: process.cwd(), TMPDIR: process.cwd(), USER: "fixture", LOGNAME: "fixture",
-  GHOSTGET_STATE_HOME: process.cwd(), PATH: "/untrusted/search/path",
+  GHOSTGET_STATE_HOME: process.cwd() + "/state", PATH: "/untrusted/search/path",
   GHOSTGET_NATIVE_EXECUTABLE: "/untrusted/native", BUN_OPTIONS: "--preload=untrusted",
   DYLD_INSERT_LIBRARIES: "/untrusted/library", OP_SERVICE_ACCOUNT_TOKEN: "synthetic-must-not-propagate",
 };
@@ -60,7 +61,7 @@ test("native vault invokes the nested secure entry with fixed argv and an isolat
     calls: ["read", "delete"].map(action => ({
       argv: [secureEntry, "--vault-stdio"],
       options: {
-        env: { HOME: root, TMPDIR: root, USER: "fixture", LOGNAME: "fixture", PATH: "/usr/bin:/bin:/usr/sbin:/sbin", GHOSTGET_STATE_HOME: root },
+        env: { HOME: root, TMPDIR: root, USER: "fixture", LOGNAME: "fixture", PATH: "/usr/bin:/bin:/usr/sbin:/sbin", GHOSTGET_STATE_HOME: join(root, "state") },
         stdin: "pipe", stdout: "pipe", stderr: "ignore",
       },
       frames: [{ protocol: "ghostget.secret-store/1", action, purpose: "credential", id: "a1234567-1234-4123-8123-123456789abc" }],

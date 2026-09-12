@@ -540,6 +540,9 @@ mod native {
         let marker = MainThreadMarker::new().ok_or(Error::Unavailable)?;
         let app = NSApplication::sharedApplication(marker);
         app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+        // Finish standalone AppKit launch before entering NSAlert's modal loop.
+        // NSApplication::run normally performs this lifecycle step.
+        app.finishLaunching();
         let alert = NSAlert::new(marker);
         alert.setMessageText(&NSString::from_str(match (purpose, kind) {
             (Purpose::Bootstrap, _) => "Connect a dedicated 1Password vault",
