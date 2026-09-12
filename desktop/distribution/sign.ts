@@ -18,25 +18,34 @@ if (import.meta.main) {
   const team = process.env.APPLE_TEAM_ID ?? "", identity = (process.env.APPLE_SIGNING_IDENTITY_SHA1 ?? "").toLowerCase();
   requireValue(/^[A-Z0-9]{10}$/u.test(team), "a Developer ID team is required"); digest(identity, 40);
   const keyId = process.env.APPLE_API_KEY_ID ?? "", issuer = process.env.APPLE_API_ISSUER ?? "";
-  requireValue(/^[A-Z0-9]{10}$/u.test(keyId) && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(issuer), "notary API identity is required");
-  const certificate = process.env.APPLE_CERTIFICATE_BASE64 ?? "", password = process.env.APPLE_CERTIFICATE_PASSWORD ?? "", privateKey = process.env.APPLE_API_PRIVATE_KEY ?? "";
+  const privateKey = process.env.APPLE_API_PRIVATE_KEY ?? "";
+  const appleId = process.env.APPLE_NOTARY_APPLE_ID ?? "", appPassword = process.env.APPLE_NOTARY_APP_PASSWORD ?? "";
+  const apiMode = keyId.length > 0 || issuer.length > 0 || privateKey.length > 0;
+  const appMode = appleId.length > 0 || appPassword.length > 0;
+  requireValue(!(apiMode && appMode), "choose one notarization credential mode");
+  requireValue((apiMode && /^[A-Z0-9]{10}$/u.test(keyId) && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(issuer))
+    || (appMode && /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(appleId) && appPassword.length > 0 && appPassword.length <= 1024), "complete notarization credentials are required");
+  const certificate = process.env.APPLE_CERTIFICATE_BASE64 ?? "", password = process.env.APPLE_CERTIFICATE_PASSWORD ?? "";
   requireValue(certificate.length > 0 && certificate.length <= 128 * 1024 && /^[A-Za-z0-9+/]+={0,2}$/u.test(certificate)
-    && password.length > 0 && password.length <= 1024 && privateKey.length <= 16 * 1024 && privateKey.startsWith("-----BEGIN PRIVATE KEY-----\n"), "complete signing credentials are required");
+    && password.length > 0 && password.length <= 1024 && (!apiMode || (privateKey.length <= 16 * 1024 && privateKey.startsWith("-----BEGIN PRIVATE KEY-----\n"))), "complete signing credentials are required");
   const out = temporaryDirectory("signed"); mkdirSync(out, { mode: 0o700 });
   requireValue(command("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundleShortVersionString", join(app, "Contents/Info.plist")]).toString("utf8").trim() === version(a.tag), "bundle version differs");
   const scratch = realpathSync(mkdtempSync(join(process.env.RUNNER_TEMP ?? "/private/tmp", "ghostget-signing-"))), keychain = join(scratch, "signing.keychain-db"), keychainPassword = randomBytes(32).toString("hex");
   const safeEnvironment = { HOME: process.env.HOME ?? "", TMPDIR: scratch, PATH: "/usr/bin:/bin:/usr/sbin:/sbin" };
-  const apple = (program: string, args: string[], timeout = 60_000) => command(program, args, { environment: safeEnvironment, timeout, maximum: 1024 * 1024 });
+  const apple = (program: string, args: string[], timeout = 60_000, input?: string) => command(program, args, { environment: safeEnvironment, timeout, maximum: 1024 * 1024, input });
   let createAttempted = false; let signing: SigningReceipt | undefined;
   try {
     writeFileSync(join(scratch, "certificate.p12"), Buffer.from(certificate, "base64"), { flag: "wx", mode: 0o600 });
-    writeFileSync(join(scratch, "notary.p8"), privateKey, { flag: "wx", mode: 0o600 });
+    if (apiMode) writeFileSync(join(scratch, "notary.p8"), privateKey, { flag: "wx", mode: 0o600 });
     createAttempted = true;
     apple("/usr/bin/security", ["create-keychain", "-p", keychainPassword, keychain]);
     apple("/usr/bin/security", ["set-keychain-settings", "-lut", "3600", keychain]);
     apple("/usr/bin/security", ["unlock-keychain", "-p", keychainPassword, keychain]);
     apple("/usr/bin/security", ["import", join(scratch, "certificate.p12"), "-k", keychain, "-P", password, "-T", "/usr/bin/codesign"]);
     apple("/usr/bin/security", ["set-key-partition-list", "-S", "apple-tool:,apple:,codesign:", "-s", "-k", keychainPassword, keychain]);
+    if (appMode) {
+      apple("/usr/bin/xcrun", ["notarytool", "store-credentials", "ghostget-notary", "--apple-id", appleId, "--team-id", team, "--keychain", keychain], 120_000, `${appPassword}\n`);
+    }
     const identities = apple("/usr/bin/security", ["find-identity", "-v", "-p", "codesigning", keychain]).toString("utf8");
     requireValue(identities.split("\n").some(line => line.includes(identity.toUpperCase()) && line.includes('"Developer ID Application:') && line.includes(`(${team})`)), "certificate is not the selected Developer ID Application identity");
     const paths = machoPaths(app);
@@ -56,7 +65,8 @@ if (import.meta.main) {
     apple("/usr/bin/codesign", ["--verify", "--deep", "--strict", "--verbose=2", app]); validateSignature(signatureDetails(app), team, MAIN_IDENTIFIER);
     validateSecureEntry(app, version(a.tag), false);
     const submission = join(scratch, "notary-submission.zip"); apple("/usr/bin/ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", app, submission], 180_000);
-    const notaryAuth = ["--key", join(scratch, "notary.p8"), "--key-id", keyId, "--issuer", issuer];
+    const notaryAuth = apiMode ? ["--key", join(scratch, "notary.p8"), "--key-id", keyId, "--issuer", issuer]
+      : ["--keychain-profile", "ghostget-notary", "--keychain", keychain];
     const admitted = object(JSON.parse(apple("/usr/bin/xcrun", ["notarytool", "submit", submission, ...notaryAuth, "--output-format", "json"], 180_000).toString("utf8")));
     requireValue(typeof admitted.id === "string" && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(admitted.id), "notary submission identity is missing");
     // Preserve the identifier before waiting so a timeout is reconciled without blind resubmission.

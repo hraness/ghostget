@@ -47,7 +47,11 @@ weaken these controls themselves.
    ID, exact path `.github/workflows/desktop-release.yml`, and active state, then
    set the repository variable `DESKTOP_RELEASE_WORKFLOW_ID` to that ID.
 5. Obtain an Apple Developer Program **Developer ID Application** certificate
-   with its private key and an App Store Connect API key authorized for notarytool.
+   with its private key and one of the two supported `notarytool` credential
+   modes. The preferred unattended mode is a team App Store Connect API key. If
+   App Store Connect API access is unavailable, an Apple Account app-specific
+   password is supported as an alternative; the primary Apple Account password
+   is never stored or passed to the tool.
    Supply the following values to `desktop-signing`, using GitHub's secret input
    interface or an authorized private operator flow. Keep exported credentials
    out of the repository, shell history, receipts, and agent-visible output.
@@ -61,6 +65,16 @@ weaken these controls themselves.
 | `APPLE_CERTIFICATE_BASE64` | Secret | Base64 of the password-protected Developer ID certificate/private-key `.p12` |
 | `APPLE_CERTIFICATE_PASSWORD` | Secret | Password for that `.p12` |
 | `APPLE_API_PRIVATE_KEY` | Secret | Complete notary `.p8` private key |
+| `APPLE_NOTARY_APPLE_ID` | Secret | Apple Account email for app-specific-password notarization (alternative to API key) |
+| `APPLE_NOTARY_APP_PASSWORD` | Secret | Apple Account app-specific password (alternative to API key) |
+
+Configure exactly one mode: either all three `APPLE_API_*` values, or both
+`APPLE_NOTARY_*` values. For the app-specific-password mode, create a label such
+as `Ghostget notarization` at [account.apple.com → Sign-In and Security →
+App-Specific Passwords](https://account.apple.com/), then add the generated value
+to the protected environment. The signer feeds it to `notarytool` through its
+secure prompt and stores it only in the temporary keychain that is deleted after
+the run. It is never placed in a command argument, receipt, log, or the app.
 
 Read back the exact repository ID `1316443113`, public visibility, default branch,
 immutable Release setting, both desktop rulesets including all bypass actors,
