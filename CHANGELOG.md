@@ -7,6 +7,17 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Keep LinkedIn `contacts.read@1` honest when GraphQL Contact-info stays HTTP
+  403 `text/html` and the vanity `/in/:publicIdentifier/overlay/contact-info/`
+  GET returns an HTML-200 profile shell with no Email. Dormant contained
+  Chrome cannot mint the client-filled Contact-info modal from GET-only
+  RSC or HTML. An HTML shell now fails as omitted Contact-info fields
+  after 1st-degree binding, not as a JSON-object parse. Overlay HTML that
+  still carries Como Email, a unique mailto, or an RSC/SDUI flight still
+  projects. `/flagship-web/rsc-action/actions/navigation` overlay GETs stay
+  rejected. Self, non-first-degree, and contradictory distances still fail
+  closed, and no email is invented. Adapter bundle 1.30.0. This is the eighth live
+  Contact-info drift after the 1.29.0 vanity overlay.
 - Read LinkedIn `contacts.read@1` Contact-info email from the exact vanity
   `/in/:publicIdentifier/overlay/contact-info/` RSC GET when GraphQL
   `voyagerIdentityDashProfileContactInfo` is unavailable. Live dormant

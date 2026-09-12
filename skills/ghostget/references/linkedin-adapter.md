@@ -353,6 +353,31 @@ navigation route. GraphQL Contact-info remains a 403 `text/html` path
 when a unique queryId is present. Self, non-first-degree, and
 contradictory distances still fail closed.
 
+A later 2026-09-11 smoke of the same 1st-degree path after adapter 1.29.0
+still bound identity and distance, and the vanity overlay GET returned
+HTML 200. That body was the signed-in profile HTML shell (~500KB+): no
+projectable Email, no mailto, and no Contact-info JSON or RSC flight.
+GraphQL Contact-info stayed HTTP 403 `text/html` with `queryId=null`.
+The live Contact-info Email still appears only after the headed UI opens
+the modal. Dormant contained Chrome stays GET-only and cannot mint that
+client-filled payload. Adapter 1.30.0 treats an HTML-200 shell as
+omitted Contact-info fields after 1st-degree binding, still projects
+overlay HTML that carries Como Email, a unique mailto, or an RSC/SDUI
+flight, and keeps `/flagship-web/rsc-action/actions/navigation` overlay
+GETs rejected. The next live-valid path needs a headed operator capture
+of the first request that actually contains Email:
+
+1. In headed signed-in Chrome, open the exact 1st-degree profile and
+   confirm Contact info is available.
+2. Open DevTools Network with preserve log.
+3. Click Contact info.
+4. Record the first request whose response body contains Email, not the
+   profile HTML shell: exact URL, method, `Accept`, `RSC`,
+   `Next-Router-State-Tree`, `Next-Action`, `Next-Url`, `Content-Type`,
+   POST body shape (keys only), status, and response `Content-Type`.
+5. Keep cookies, `li_at`, CSRF, `JSESSIONID`, live emails, and raw HARs
+   out of Git.
+
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid
 Contact info from that viewer. The operation never invents a hidden email.

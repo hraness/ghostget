@@ -1093,11 +1093,53 @@ function normalizeOverlayPayload(value: unknown): unknown {
   return mailto === null ? trimmed : [mailto];
 }
 
+const LINKEDIN_CONTACT_OVERLAY_OMITTED_FIELDS =
+  "LinkedIn contact-info overlay omitted its contact fields";
+
+function overlayHasProjectedField(fields: LinkedInContactFields): boolean {
+  return fields.email !== null
+    || fields.connectedSince !== null
+    || fields.phones.length > 0
+    || fields.websites.length > 0
+    || fields.birthday !== null;
+}
+
+function leftoverOverlayMailtoEmails(value: string): string[] {
+  return [...new Set(
+    [...value.matchAll(/mailto:([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,24})/giu)]
+      .map((match) => match[1]?.toLowerCase())
+      .filter((item): item is string => item !== undefined),
+  )];
+}
+
+function projectOverlayContactFields(
+  overlay: unknown,
+  vanity: string,
+): LinkedInContactFields {
+  const normalized = normalizeOverlayPayload(overlay);
+  if (typeof normalized !== "string") return projectFields(normalized, vanity);
+  if (leftoverOverlayMailtoEmails(normalized).length > 1) {
+    throw new Error("LinkedIn contact-info email was ambiguous");
+  }
+  try {
+    const embedded = projectLinkedInEmbeddedContactFields(normalized, vanity);
+    if (embedded !== undefined && overlayHasProjectedField(embedded)) return embedded;
+  } catch (error) {
+    if (
+      !(error instanceof Error)
+      || !/bootstrap|HTML bound|too many code payloads/u.test(error.message)
+    ) {
+      throw error;
+    }
+  }
+  throw new Error(LINKEDIN_CONTACT_OVERLAY_OMITTED_FIELDS);
+}
+
 export function projectLinkedInOverlayContactFields(
   overlay: unknown,
   vanity: string,
 ): LinkedInContactFields {
-  return projectFields(normalizeOverlayPayload(overlay), vanity);
+  return projectOverlayContactFields(overlay, vanity);
 }
 
 function oneUnique<T>(
@@ -1414,7 +1456,7 @@ export function projectLinkedInContactInfo(input: {
     profileUrl: input.profileUrl,
     expectedViewerSubject: input.expectedViewerSubject,
   });
-  const contact = projectFields(normalizeOverlayPayload(input.contactPayload), binding.vanity);
+  const contact = projectOverlayContactFields(input.contactPayload, binding.vanity);
   const hasAny = contact.email !== null
     || contact.connectedSince !== null
     || contact.phones.length > 0

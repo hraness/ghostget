@@ -4049,6 +4049,63 @@ describe("LinkedIn contacts.read runtime", () => {
     expect(JSON.stringify(result)).not.toContain("@gmail.com");
   });
 
+  test("fails at Contact-info projection when the vanity overlay is an HTML profile shell", async () => {
+    const browserCalls: string[] = [];
+    const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify({
+      publicIdentifier: "example",
+      entityUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+      networkDistance: 1,
+    })}</script></body></html>`;
+    expect(html).not.toContain("voyagerIdentityDashProfileContactInfo.");
+    const shell = "<!DOCTYPE html><html><body><main>signed-in profile chrome</main></body></html>";
+    const result = await executeLinkedInWebOperation(contactInfoRecipe(), {
+      profile_url: "https://www.linkedin.com/in/example/",
+    }, linkedinBrowserProfileAuth, {
+      dependencies: {
+        now: () => Date.parse("2026-09-08T18:00:00.000Z"),
+        createProfileBrowserTransport: () => Promise.resolve({
+          currentIdentityResponse: () => {
+            browserCalls.push("identity");
+            return Promise.resolve(currentIdentityResponse());
+          },
+          readProfileHtml: () => {
+            browserCalls.push("profile");
+            return Promise.resolve(html);
+          },
+          readConnectionsHtml: () => Promise.reject(new Error("shell crossed connections")),
+          readContactInfoJson: () => {
+            browserCalls.push("contact");
+            return Promise.reject(new Error("absent queryId fetched GraphQL"));
+          },
+          readContactOverlayText: (input) => {
+            browserCalls.push(`overlay:${input.profileUrn}`);
+            return Promise.resolve(shell);
+          },
+          readOrganizationHtml: () => Promise.reject(new Error("shell crossed company")),
+          close: () => {
+            browserCalls.push("close");
+            return Promise.resolve();
+          },
+        }),
+      },
+    });
+    expect(result).toMatchObject({
+      status: "failed",
+      output: null,
+      readFailure: { category: "contract-drift", retryDisposition: "do-not-retry" },
+    });
+    expect(result.error).toContain("exact Contact-info projection");
+    expect(result.error).toContain("no remote write occurred");
+    expect(result.error).not.toContain("1st-degree relationship binding");
+    expect(browserCalls).toEqual([
+      "identity",
+      "profile",
+      "overlay:urn:li:fsd_profile:ACoAAFixtureProfile",
+      "close",
+    ]);
+    expect(JSON.stringify(result)).not.toContain("@gmail.com");
+  });
+
   test("binds Como networkDistance and skips GraphQL when the page already embeds Email", async () => {
     const browserCalls: string[] = [];
     const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify({

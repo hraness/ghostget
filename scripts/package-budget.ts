@@ -1,3 +1,17 @@
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` overlay-shell
+// honesty path (adapter bundle 1.30.0), measured with no version bump: a
+// Bun 1.3.14 `pm pack` on Linux x64 shares
+// 12,689,327 payload bytes across exactly 524 files. The bun archive is 2,182,837 compressed
+// bytes, SHA-256
+// fd447e01ecfbf7bf7f4d68d63110ed3cd74d857e56e65b7e48ca162594c5aa5f.
+// HTML-shell omitted-fields projection, adapter notes, changelog, and
+// tests add 3,923 payload bytes compared with the 1.29.0 measurement.
+// Raise only the payload ceiling to the measured value plus 65 bytes of
+// headroom (12,689,392); the packed size stays under the existing packed
+// allowance and the 524-entry inventory is unchanged. Theme CSS stays
+// website-only. Fresh Linux CI independently checks its actual canonical
+// archive.
+//
 // Ghostget 0.18.0 packed-size portability after LinkedIn adapter 1.29.0:
 // required Linux CI measured the canonical npm archive at 2,324,169
 // compressed bytes under the pinned toolchain, 497 bytes above the
@@ -503,7 +517,7 @@
 export const MAX_PACKED_BYTES = 2_328_265;
 export const MAX_PACKED_ENTRIES = 524;
 export const MAX_PACKED_FILES = 524;
-export const MAX_UNPACKED_BYTES = 12_685_469;
+export const MAX_UNPACKED_BYTES = 12_689_392;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

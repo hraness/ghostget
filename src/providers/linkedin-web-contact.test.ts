@@ -989,6 +989,61 @@ describe("LinkedIn contacts.read Contact-info projection", () => {
     });
   });
 
+  test("treats an HTML-200 profile shell as omitted Contact-info fields", () => {
+    const shell = [
+      "<!DOCTYPE html><html><head><title>Profile</title></head>",
+      "<body><main id=\"profile-stickiness-container\">signed-in profile chrome</main></body></html>",
+    ].join("");
+    expect(() => projectLinkedInOverlayContactFields(shell, "example")).toThrow(
+      "LinkedIn contact-info overlay omitted its contact fields",
+    );
+    expect(() => projectLinkedInOverlayContactFields(shell, "example")).not.toThrow(
+      "LinkedIn contact-info payload must be a JSON object or array",
+    );
+    expect(() => projectLinkedInContactInfo({
+      profileHtml: profileHtml(),
+      contactPayload: shell,
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+      observedAt: OBSERVED_AT,
+    })).toThrow("LinkedIn contact-info overlay omitted its contact fields");
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: profileHtml(),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    }).relationship).toBe("first-degree");
+  });
+
+  test("projects Email from overlay HTML that still carries Como Contact-info fields", () => {
+    const html = comoHtml({
+      publicIdentifier: "example",
+      entityUrn: PROFILE_URN,
+      networkDistance: 1,
+      fields: [
+        { label: "Email", value: "connection@example.test" },
+        { label: "Connected since", value: "October 3, 2023" },
+      ],
+    });
+    expect(projectLinkedInOverlayContactFields(html, "example")).toMatchObject({
+      email: "connection@example.test",
+      connectedSince: "2023-10-03",
+    });
+    expect(projectLinkedInContactInfo({
+      profileHtml: profileHtml(),
+      contactPayload: html,
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+      observedAt: OBSERVED_AT,
+    }).contact.email).toBe("connection@example.test");
+  });
+
+  test("rejects leftover overlay HTML with more than one mailto address", () => {
+    expect(() => projectLinkedInOverlayContactFields(
+      "<html><body><a href=\"mailto:one@example.test\"></a><a href=\"mailto:two@example.test\"></a></body></html>",
+      "example",
+    )).toThrow("LinkedIn contact-info email was ambiguous");
+  });
+
   test("projects Email from SDUI text pairs and a mailto href in overlay payloads", () => {
     const textPairs = [
       "1:I[\"ProfileContactDetailsOverlay\"]",
@@ -1000,6 +1055,10 @@ describe("LinkedIn contacts.read Contact-info projection", () => {
     });
     expect(projectLinkedInOverlayContactFields(
       '1:{"href":"mailto:connection@example.test"}',
+      "example",
+    ).email).toBe("connection@example.test");
+    expect(projectLinkedInOverlayContactFields(
+      '<html><body><a href="mailto:connection@example.test">Email</a></body></html>',
       "example",
     ).email).toBe("connection@example.test");
     expect(projectLinkedInContactInfo({
