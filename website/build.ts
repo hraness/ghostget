@@ -1,5 +1,6 @@
 import { releaseArchiveUrl } from "./github-release-artifact.mjs";
 import { snapshotMarketingPreset } from "./marketing-preset";
+import { snapshotLanternMaterial } from "./lantern-material";
 import { createHash } from "node:crypto";
 import {
   cp,
@@ -56,7 +57,7 @@ export const GITHUB_RELEASES_URL = "https://github.com/hraness/ghostget/releases
 export const SKILLS_URL = "https://skills.sh/hraness/ghostget" as const;
 export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.19.0" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.3" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV =
   "NEXT_PUBLIC_HRANESS_MAILING_TURNSTILE_SITEKEY" as const;
@@ -795,6 +796,7 @@ export async function buildWebsite(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<void> {
   const marketingPreset = await snapshotMarketingPreset(join(repositoryRoot, "website/vendor/marketing-preset"));
+  const lanternMaterial = await snapshotLanternMaterial(join(repositoryRoot, "website/vendor/lantern-material"));
   const [
     manifest,
     publicTemplates,
@@ -862,7 +864,10 @@ export async function buildWebsite(
   const postHog = postHogEnvironment(environment);
   // The UI facade establishes its complete layer order before the static
   // marketing grammar and footer. Product tokens and composition follow them.
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n`;
+  const lanternCss = lanternMaterial.files.get("lantern-material.css");
+  const lanternLicense = lanternMaterial.files.get("LICENSE");
+  if (lanternCss === undefined || lanternLicense === undefined) throw new Error("The complete Lantern build snapshot is required.");
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${lanternCss.toString("utf8")}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
@@ -890,6 +895,9 @@ export async function buildWebsite(
   await rm(outputRoot, { force: true, recursive: true });
   await mkdir(join(outputRoot, "assets"), { recursive: true });
   await mkdir(join(outputRoot, "preview"), { recursive: true });
+  await mkdir(join(outputRoot, "assets/lantern-material"), { recursive: true });
+  await writeFile(join(outputRoot, "assets/lantern-material/LICENSE"), lanternLicense);
+  await writeFile(join(outputRoot, "assets/lantern-material/provenance.json"), `${JSON.stringify(lanternMaterial.manifest, null, 2)}\n`);
   for (const [path, bytes] of marketingPreset.files) {
     if (path === "product-marketing-preset.css" || path === "check.mjs" || path === "check.d.mts") continue;
     const publicPath = path === "LICENSE" ? "marketing-assets/LICENSE" : path;
@@ -934,8 +942,7 @@ export async function buildWebsite(
       recursive: true,
     }),
     cp(join(publicRoot, "control"), join(outputRoot, "control"), { dereference: true, recursive: true }),
-    copyFile(join(publicRoot, "favicon.png"), join(outputRoot, "favicon.png")),
-    copyFile(join(publicRoot, "ghost.png"), join(outputRoot, "ghost.png")),
+    copyFile(join(publicRoot, "favicon.svg"), join(outputRoot, "favicon.svg")),
     copyFile(join(publicRoot, "og.png"), join(outputRoot, "og.png")),
     ...DEMO_PUBLIC_FILES.map((file) => copyFile(
       join(publicRoot, file),
