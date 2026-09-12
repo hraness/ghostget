@@ -2791,12 +2791,32 @@ body {
 }
 
 @media (max-width: 48rem) {
+  /* Keep the five homepage links together without shrinking their hit targets. */
+  [data-hraness-marketing-preset="editorial"] .hraness-marketing-header__nav {
+    gap: 0.25rem;
+  }
+
+  [data-hraness-marketing-preset="editorial"] .hraness-marketing-header__nav a {
+    font-size: 0.875rem;
+  }
+
+  [data-hraness-marketing-preset="editorial"] .hraness-marketing-page > section[id] {
+    scroll-margin-block-start: 8.75rem;
+  }
+
   .proof-transcript code {
     white-space: pre-wrap;
   }
 
   .start-section.hraness-marketing-install {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 23rem) {
+  /* Below 368px, allow natural navigation wrapping and clear its extra row. */
+  [data-hraness-marketing-preset="editorial"] .hraness-marketing-page > section[id] {
+    scroll-margin-block-start: 11.5rem;
   }
 }
 
