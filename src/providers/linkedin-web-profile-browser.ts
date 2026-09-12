@@ -81,12 +81,22 @@ type BrowserReadBinding = {
   readonly documentUrl?: string;
   readonly pageInstance?: string;
   readonly track?: string;
+  readonly applicationVersion?: string;
+  readonly applicationInstance?: string;
+  readonly anchorPageKey?: string;
+  readonly rscStream?: string;
 };
 
 type LinkedInProfilePageBindings = {
   readonly pageInstance: string;
   readonly track?: string;
+  readonly applicationVersion?: string;
+  readonly applicationInstance?: string;
+  readonly anchorPageKey?: string;
+  readonly rscStream?: "true";
 };
+
+type LinkedInProfileNetworkRoute = "rsc-action" | "voyager";
 
 type BrowserReadState = "ready" | "identity" | "profile" | "complete";
 
@@ -225,7 +235,10 @@ function linkedInProfileTrack(value: unknown): string {
       "LinkedIn profile x-li-track binding changed shape",
     );
   }
-  if (!isRecord(parsed) || parsed.mpName !== "voyager-web") {
+  if (
+    !isRecord(parsed)
+    || (parsed.mpName !== "voyager-web" && parsed.mpName !== "web")
+  ) {
     throw new LinkedInProfileBrowserFailure(
       "page-binding",
       "LinkedIn profile x-li-track binding changed shape",
@@ -234,8 +247,89 @@ function linkedInProfileTrack(value: unknown): string {
   return track;
 }
 
+function observedHeader(
+  headers: Readonly<Record<string, unknown>>,
+  name: string,
+): unknown {
+  if (Object.hasOwn(headers, name)) return headers[name];
+  const wanted = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === wanted) return value;
+  }
+  return undefined;
+}
+
+function linkedInProfileApplicationVersion(value: unknown): string {
+  const version = boundedProfileHeader(
+    value,
+    "LinkedIn profile x-li-application-version binding",
+    64,
+  );
+  if (!/^[0-9]+(?:\.[0-9A-Za-z_-]+){1,8}$/u.test(version)) {
+    throw new LinkedInProfileBrowserFailure(
+      "page-binding",
+      "LinkedIn profile x-li-application-version binding changed shape",
+    );
+  }
+  return version;
+}
+
+function linkedInProfileApplicationInstance(value: unknown): string {
+  const instance = boundedProfileHeader(
+    value,
+    "LinkedIn profile x-li-application-instance binding",
+    512,
+  );
+  if (!/^[A-Za-z0-9+/=_-]{1,512}$/u.test(instance)) {
+    throw new LinkedInProfileBrowserFailure(
+      "page-binding",
+      "LinkedIn profile x-li-application-instance binding changed shape",
+    );
+  }
+  return instance;
+}
+
+function linkedInProfileAnchorPageKey(value: unknown): string {
+  const key = boundedProfileHeader(
+    value,
+    "LinkedIn profile x-li-anchor-page-key binding",
+    160,
+  );
+  if (!/^d_flagship3_profile[A-Za-z0-9_-]{0,128}$/u.test(key)) {
+    throw new LinkedInProfileBrowserFailure(
+      "page-binding",
+      "LinkedIn profile x-li-anchor-page-key binding changed shape",
+    );
+  }
+  return key;
+}
+
+function linkedInProfileCopiedHeaders(
+  headers: Readonly<Record<string, unknown>>,
+): Omit<LinkedInProfilePageBindings, "pageInstance"> {
+  const trackValue = observedHeader(headers, "x-li-track");
+  const applicationVersion = observedHeader(headers, "x-li-application-version");
+  const applicationInstance = observedHeader(headers, "x-li-application-instance");
+  const anchorPageKey = observedHeader(headers, "x-li-anchor-page-key");
+  const rscStream = observedHeader(headers, "x-li-rsc-stream");
+  return Object.freeze({
+    ...(typeof trackValue === "string" ? { track: linkedInProfileTrack(trackValue) } : {}),
+    ...(typeof applicationVersion === "string"
+      ? { applicationVersion: linkedInProfileApplicationVersion(applicationVersion) }
+      : {}),
+    ...(typeof applicationInstance === "string"
+      ? { applicationInstance: linkedInProfileApplicationInstance(applicationInstance) }
+      : {}),
+    ...(typeof anchorPageKey === "string"
+      ? { anchorPageKey: linkedInProfileAnchorPageKey(anchorPageKey) }
+      : {}),
+    ...(rscStream === "true" ? { rscStream: "true" as const } : {}),
+  });
+}
+
 function linkedInProfileNetworkBindings(
   value: unknown,
+  route: LinkedInProfileNetworkRoute,
 ): LinkedInProfilePageBindings | null {
   if (!isRecord(value) || !Array.isArray(value.requests) || value.requests.length > 10_000) {
     throw new LinkedInProfileBrowserFailure(
@@ -243,11 +337,14 @@ function linkedInProfileNetworkBindings(
       "LinkedIn profile network observation changed shape",
     );
   }
+  const pathPrefix = route === "rsc-action"
+    ? "/flagship-web/rsc-action/"
+    : "/voyager/api/";
   let selected: LinkedInProfilePageBindings | null = null;
   for (const item of value.requests) {
     if (!isRecord(item) || !isRecord(item.headers)) continue;
     if (
-      item.method !== "GET"
+      (route === "voyager" ? item.method !== "GET" : item.method !== "GET" && item.method !== "POST")
       || item.status !== 200
       || typeof item.url !== "string"
       || item.url.length > 64 * 1_024
@@ -262,19 +359,16 @@ function linkedInProfileNetworkBindings(
       url.origin !== LINKEDIN_ORIGIN
       || url.username !== ""
       || url.password !== ""
-      || !url.pathname.startsWith("/voyager/api/")
+      || !url.pathname.startsWith(pathPrefix)
     ) continue;
-    const pageInstanceValue = item.headers["x-li-page-instance"];
+    const pageInstanceValue = observedHeader(item.headers, "x-li-page-instance");
     if (
       typeof pageInstanceValue !== "string"
       || !PROFILE_PAGE_INSTANCE_PATTERN.test(pageInstanceValue)
     ) continue;
-    const trackValue = item.headers["x-li-track"];
     selected = Object.freeze({
       pageInstance: linkedInProfilePageInstance(pageInstanceValue),
-      ...(typeof trackValue === "string"
-        ? { track: linkedInProfileTrack(trackValue) }
-        : {}),
+      ...linkedInProfileCopiedHeaders(item.headers),
     });
   }
   return selected;
@@ -321,7 +415,7 @@ function linkedInProfileDocumentBindings(
 
 function browserReadEvaluationSource(binding: BrowserReadBinding): string {
   const bound = jsonScriptLiteral(binding);
-  return `(async()=>{const input=${bound};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");if((input.kind!=="json"&&input.kind!=="html"&&input.kind!=="rsc"&&input.kind!=="rsc-action")||!Number.isSafeInteger(input.maxBytes)||input.maxBytes<1||input.maxBytes>${MAX_STATS_PAGE_BYTES}||(input.kind==="rsc-action"?typeof input.body!=="string"||input.body.length<1||input.body.length>4096:input.body!==undefined))throw new Error("invalid LinkedIn stats browser request binding");const expected=new URL(input.path,"${LINKEDIN_ORIGIN}");if(expected.origin!=="${LINKEDIN_ORIGIN}"||expected.username!==""||expected.password!==""||expected.hash!==""||expected.href!=="${LINKEDIN_ORIGIN}"+input.path)throw new Error("invalid LinkedIn stats browser path binding");const headers=input.kind==="json"?{accept:"application/vnd.linkedin.normalized+json+2.1","x-li-lang":"en_US","x-requested-with":"XMLHttpRequest","x-restli-protocol-version":"2.0.0"}:input.kind==="rsc"?{accept:"text/x-component","x-li-lang":"en_US","x-requested-with":"XMLHttpRequest",RSC:"1"}:input.kind==="rsc-action"?{accept:"*/*","content-type":"application/json","x-li-lang":"en_US"}:{accept:"text/html"};if(input.kind==="json"||input.kind==="rsc"||input.kind==="rsc-action"){const raw=document.cookie.split("; ").find((part)=>part.startsWith("JSESSIONID="));if(typeof raw!=="string")throw new Error("missing LinkedIn browser CSRF cookie");const csrf=decodeURIComponent(raw.slice("JSESSIONID=".length)).replace(/^\"|\"$/g,"");if(!/^ajax:[A-Za-z0-9_-]{1,512}$/.test(csrf))throw new Error("invalid LinkedIn browser CSRF cookie");headers["csrf-token"]=csrf}if(input.kind==="rsc-action"){if(typeof input.documentUrl!=="string")throw new Error("LinkedIn stats browser left its bound profile document");const documentUrl=new URL(input.documentUrl);const here=new URL(location.href);const normalize=(path)=>path.endsWith("/")?path:path+"/";if(/^\\/(?:authwall|checkpoint|login|uas\\/login(?:-submit)?)(?:\\/|$)/u.test(here.pathname))throw new Error("LinkedIn stats browser reached the signed-out authwall");if(here.origin!==documentUrl.origin||here.username!==""||here.password!==""||here.search!==""||here.hash!==""||normalize(here.pathname)!==normalize(documentUrl.pathname))throw new Error("LinkedIn stats browser left its bound profile document");if(typeof input.pageInstance!=="string"||!/^urn:li:page:d_flagship3_profile[A-Za-z0-9_:-]{0,128};[A-Za-z0-9+/=_-]{1,512}$/.test(input.pageInstance))throw new Error("missing LinkedIn browser page instance");headers["x-li-page-instance"]=input.pageInstance;if(input.track!==undefined){if(typeof input.track!=="string"||input.track.length<1||input.track.length>4096||/[\\0\\r\\n]/.test(input.track))throw new Error("invalid LinkedIn browser track binding");headers["x-li-track"]=input.track}}const response=await fetch(input.path,{credentials:"include",headers,method:input.kind==="rsc-action"?"POST":"GET",redirect:"error",referrer:input.referrer,...(input.kind==="rsc-action"?{body:input.body}:{})});const responseUrl=new URL(response.url);if(responseUrl.origin!=="${LINKEDIN_ORIGIN}"||responseUrl.username!==""||responseUrl.password!==""||responseUrl.hash!==""||responseUrl.href!==expected.href)throw new Error("LinkedIn stats browser response escaped its exact route");const contentType=(response.headers.get("content-type")||"").split(";",1)[0].trim().toLowerCase();const contentTypeAllowed=input.kind==="json"?(contentType==="application/vnd.linkedin.normalized+json+2.1"||contentType==="application/json"):input.kind==="rsc"?(contentType==="text/x-component"||contentType==="text/html"||contentType==="text/plain"):input.kind==="rsc-action"?(contentType==="application/octet-stream"||contentType==="text/x-component"||contentType==="text/html"||contentType==="text/plain"):contentType==="text/html";if(response.status!==200||!contentTypeAllowed){response.body?.cancel();return{authWall:false,bodyBase64:null,bodyBytes:0,bodySha256:null,contentType,status:response.status}}if(response.body===null)throw new Error("LinkedIn stats browser response omitted its body");const reader=response.body.getReader();const chunks=[];let bytes=0;while(true){const part=await reader.read();if(part.done)break;bytes+=part.value.byteLength;if(bytes>input.maxBytes){await reader.cancel();throw new Error("LinkedIn stats browser response exceeded its reviewed byte bound")}chunks.push(part.value)}const body=new Uint8Array(bytes);let cursor=0;for(const chunk of chunks){body.set(chunk,cursor);cursor+=chunk.byteLength}const text=new TextDecoder("utf-8",{fatal:true}).decode(body);const authWall=(input.kind==="html"||input.kind==="rsc"||input.kind==="rsc-action")&&/(?:id|data-test-id)=[\"']authwall[\"']|name=[\"']loginCsrfParam[\"']|<form[^>]+(?:login|sign-in)/iu.test(text);if(authWall)return{authWall:true,bodyBase64:null,bodyBytes:0,bodySha256:null,contentType,status:response.status};const digest=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",body)),(value)=>value.toString(16).padStart(2,"0")).join("");let binary="";for(let offset=0;offset<body.length;offset+=32768)binary+=String.fromCharCode(...body.subarray(offset,Math.min(offset+32768,body.length)));return{authWall:false,bodyBase64:btoa(binary),bodyBytes:body.byteLength,bodySha256:digest,contentType,status:response.status}})()`;
+  return `(async()=>{const input=${bound};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");if((input.kind!=="json"&&input.kind!=="html"&&input.kind!=="rsc"&&input.kind!=="rsc-action")||!Number.isSafeInteger(input.maxBytes)||input.maxBytes<1||input.maxBytes>${MAX_STATS_PAGE_BYTES}||(input.kind==="rsc-action"?typeof input.body!=="string"||input.body.length<1||input.body.length>4096:input.body!==undefined))throw new Error("invalid LinkedIn stats browser request binding");const expected=new URL(input.path,"${LINKEDIN_ORIGIN}");if(expected.origin!=="${LINKEDIN_ORIGIN}"||expected.username!==""||expected.password!==""||expected.hash!==""||expected.href!=="${LINKEDIN_ORIGIN}"+input.path)throw new Error("invalid LinkedIn stats browser path binding");const headers=input.kind==="json"?{accept:"application/vnd.linkedin.normalized+json+2.1","x-li-lang":"en_US","x-requested-with":"XMLHttpRequest","x-restli-protocol-version":"2.0.0"}:input.kind==="rsc"?{accept:"text/x-component","x-li-lang":"en_US","x-requested-with":"XMLHttpRequest",RSC:"1"}:input.kind==="rsc-action"?{accept:"*/*","content-type":"application/json","x-li-lang":"en_US"}:{accept:"text/html"};if(input.kind==="json"||input.kind==="rsc"||input.kind==="rsc-action"){const raw=document.cookie.split("; ").find((part)=>part.startsWith("JSESSIONID="));if(typeof raw!=="string")throw new Error("missing LinkedIn browser CSRF cookie");const csrf=decodeURIComponent(raw.slice("JSESSIONID=".length)).replace(/^\"|\"$/g,"");if(!/^ajax:[A-Za-z0-9_-]{1,512}$/.test(csrf))throw new Error("invalid LinkedIn browser CSRF cookie");headers["csrf-token"]=csrf}if(input.kind==="rsc-action"){if(typeof input.documentUrl!=="string")throw new Error("LinkedIn stats browser left its bound profile document");const documentUrl=new URL(input.documentUrl);const here=new URL(location.href);const normalize=(path)=>path.endsWith("/")?path:path+"/";if(/^\\/(?:authwall|checkpoint|login|uas\\/login(?:-submit)?)(?:\\/|$)/u.test(here.pathname))throw new Error("LinkedIn stats browser reached the signed-out authwall");if(here.origin!==documentUrl.origin||here.username!==""||here.password!==""||here.search!==""||here.hash!==""||normalize(here.pathname)!==normalize(documentUrl.pathname))throw new Error("LinkedIn stats browser left its bound profile document");if(typeof input.pageInstance!=="string"||!/^urn:li:page:d_flagship3_profile[A-Za-z0-9_:-]{0,128};[A-Za-z0-9+/=_-]{1,512}$/.test(input.pageInstance))throw new Error("missing LinkedIn browser page instance");headers["x-li-page-instance"]=input.pageInstance;if(input.track!==undefined){if(typeof input.track!=="string"||input.track.length<1||input.track.length>4096||/[\\0\\r\\n]/.test(input.track))throw new Error("invalid LinkedIn browser track binding");headers["x-li-track"]=input.track}if(input.applicationVersion!==undefined){if(typeof input.applicationVersion!=="string"||!/^[0-9]+(?:[.][0-9A-Za-z_-]+){1,8}$/.test(input.applicationVersion)||input.applicationVersion.length>64)throw new Error("invalid LinkedIn browser application version");headers["x-li-application-version"]=input.applicationVersion}if(input.applicationInstance!==undefined){if(typeof input.applicationInstance!=="string"||!/^[A-Za-z0-9+/=_-]{1,512}$/.test(input.applicationInstance))throw new Error("invalid LinkedIn browser application instance");headers["x-li-application-instance"]=input.applicationInstance}if(input.anchorPageKey!==undefined){if(typeof input.anchorPageKey!=="string"||!/^d_flagship3_profile[A-Za-z0-9_-]{0,128}$/.test(input.anchorPageKey))throw new Error("invalid LinkedIn browser anchor page key");headers["x-li-anchor-page-key"]=input.anchorPageKey}if(input.rscStream!==undefined){if(input.rscStream!=="true")throw new Error("invalid LinkedIn browser rsc stream");headers["x-li-rsc-stream"]="true"}}const response=await fetch(input.path,{credentials:"include",headers,method:input.kind==="rsc-action"?"POST":"GET",redirect:"error",referrer:input.referrer,...(input.kind==="rsc-action"?{body:input.body}:{})});const responseUrl=new URL(response.url);if(responseUrl.origin!=="${LINKEDIN_ORIGIN}"||responseUrl.username!==""||responseUrl.password!==""||responseUrl.hash!==""||responseUrl.href!==expected.href)throw new Error("LinkedIn stats browser response escaped its exact route");const contentType=(response.headers.get("content-type")||"").split(";",1)[0].trim().toLowerCase();const contentTypeAllowed=input.kind==="json"?(contentType==="application/vnd.linkedin.normalized+json+2.1"||contentType==="application/json"):input.kind==="rsc"?(contentType==="text/x-component"||contentType==="text/html"||contentType==="text/plain"):input.kind==="rsc-action"?(contentType==="application/octet-stream"||contentType==="text/x-component"||contentType==="text/html"||contentType==="text/plain"):contentType==="text/html";if(response.status!==200||!contentTypeAllowed){response.body?.cancel();return{authWall:false,bodyBase64:null,bodyBytes:0,bodySha256:null,contentType,status:response.status}}if(response.body===null)throw new Error("LinkedIn stats browser response omitted its body");const reader=response.body.getReader();const chunks=[];let bytes=0;while(true){const part=await reader.read();if(part.done)break;bytes+=part.value.byteLength;if(bytes>input.maxBytes){await reader.cancel();throw new Error("LinkedIn stats browser response exceeded its reviewed byte bound")}chunks.push(part.value)}const body=new Uint8Array(bytes);let cursor=0;for(const chunk of chunks){body.set(chunk,cursor);cursor+=chunk.byteLength}const text=new TextDecoder("utf-8",{fatal:true}).decode(body);const authWall=(input.kind==="html"||input.kind==="rsc"||input.kind==="rsc-action")&&/(?:id|data-test-id)=[\"']authwall[\"']|name=[\"']loginCsrfParam[\"']|<form[^>]+(?:login|sign-in)/iu.test(text);if(authWall)return{authWall:true,bodyBase64:null,bodyBytes:0,bodySha256:null,contentType,status:response.status};const digest=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",body)),(value)=>value.toString(16).padStart(2,"0")).join("");let binary="";for(let offset=0;offset<body.length;offset+=32768)binary+=String.fromCharCode(...body.subarray(offset,Math.min(offset+32768,body.length)));return{authWall:false,bodyBase64:btoa(binary),bodyBytes:body.byteLength,bodySha256:digest,contentType,status:response.status}})()`;
 }
 
 function encodedBodyBound(bytes: number): number {
@@ -656,7 +750,7 @@ export async function createLinkedInProfileBrowserTransport(
     }
     if (
       error instanceof Error
-      && /(?:^|: )(?:missing LinkedIn browser page instance|invalid LinkedIn browser track binding|LinkedIn profile document page-instance binding is ambiguous)(?:$|[\r\n])/u
+      && /(?:^|: )(?:missing LinkedIn browser page instance|invalid LinkedIn browser (?:track binding|application version|application instance|anchor page key|rsc stream)|LinkedIn profile document page-instance binding is ambiguous)(?:$|[\r\n])/u
         .test(error.message)
     ) {
       throw new LinkedInProfileBrowserFailure(
@@ -687,20 +781,28 @@ export async function createLinkedInProfileBrowserTransport(
       browserOutputBytes,
       Math.min(remainingTimeMs(), 20_000),
     );
-    const observed = await runCommands(
-      [["network", "requests", "--filter", "/voyager/api/"]],
-      browserOutputBytes,
-      Math.min(remainingTimeMs(), 30_000),
-    );
-    const firstObserved = observed[0];
-    if (firstObserved === undefined) {
-      throw new LinkedInProfileBrowserFailure(
-        "page-binding",
-        "LinkedIn profile page-binding observation omitted its response",
+    const observeRoute = async (
+      filter: string,
+      route: LinkedInProfileNetworkRoute,
+    ): Promise<LinkedInProfilePageBindings | null> => {
+      const observed = await runCommands(
+        [["network", "requests", "--filter", filter]],
+        browserOutputBytes,
+        Math.min(remainingTimeMs(), 30_000),
       );
-    }
-    const network = linkedInProfileNetworkBindings(browserResultData(firstObserved));
-    if (network !== null) return network;
+      const firstObserved = observed[0];
+      if (firstObserved === undefined) {
+        throw new LinkedInProfileBrowserFailure(
+          "page-binding",
+          "LinkedIn profile page-binding observation omitted its response",
+        );
+      }
+      return linkedInProfileNetworkBindings(browserResultData(firstObserved), route);
+    };
+    const sdui = await observeRoute("/flagship-web/rsc-action/", "rsc-action");
+    if (sdui !== null) return sdui;
+    const voyager = await observeRoute("/voyager/api/", "voyager");
+    if (voyager !== null) return voyager;
     const extracted = await runCommands(
       [["eval", PROFILE_PAGE_CONTEXT_EXTRACT_SOURCE]],
       BROWSER_ENVELOPE_BYTES,
@@ -950,6 +1052,14 @@ export async function createLinkedInProfileBrowserTransport(
         documentUrl: profile.href,
         pageInstance: page.pageInstance,
         ...(page.track === undefined ? {} : { track: page.track }),
+        ...(page.applicationVersion === undefined
+          ? {}
+          : { applicationVersion: page.applicationVersion }),
+        ...(page.applicationInstance === undefined
+          ? {}
+          : { applicationInstance: page.applicationInstance }),
+        ...(page.anchorPageKey === undefined ? {} : { anchorPageKey: page.anchorPageKey }),
+        ...(page.rscStream === undefined ? {} : { rscStream: page.rscStream }),
       });
       state = "complete";
       return decodedBody(result, options.maxOutputBytes);

@@ -188,6 +188,8 @@ describe("LinkedIn contacts.read target and request binding", () => {
     expect(NAVIGATION_POST_PATH).toBe(
       `/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&sduiid=${encodeURIComponent(OVERLAY_SDUIID)}`,
     );
+    expect(NAVIGATION_POST_PATH).toContain("sduiid=");
+    expect(NAVIGATION_POST_PATH).not.toContain("sduid=");
     expect(OVERLAY_SDUIID).toBe(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID);
     expect(NAVIGATION_POST_URL.href).toBe(`https://www.linkedin.com${NAVIGATION_POST_PATH}`);
   });
@@ -328,6 +330,10 @@ describe("LinkedIn contacts.read target and request binding", () => {
       method: "POST",
       url: `https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&sduiid=${STOLEN_SDUIID}`,
     })).toThrow("LinkedIn contact-info navigation sduiid must equal ProfileContactDetailsOverlay");
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: `https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&sduid=${encodeURIComponent(OVERLAY_SDUIID)}`,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
     expect(() => assertLinkedInContactInfoRequest({
       method: "POST",
       url: NAVIGATION_POST_URL,

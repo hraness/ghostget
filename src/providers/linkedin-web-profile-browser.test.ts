@@ -66,6 +66,10 @@ type BrowserReadBinding = {
   readonly documentUrl?: string;
   readonly pageInstance?: string;
   readonly track?: string;
+  readonly applicationVersion?: string;
+  readonly applicationInstance?: string;
+  readonly anchorPageKey?: string;
+  readonly rscStream?: string;
 };
 
 const PROFILE_PAGE_INSTANCE =
@@ -709,6 +713,9 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         }
         if (command?.[0] === "network") {
           networkFilters.push(command.slice(1).join(" "));
+          if (command.includes("/flagship-web/rsc-action/")) {
+            return Promise.resolve([{ success: true, result: { requests: [] } }]);
+          }
           return Promise.resolve([{
             success: true,
             result: {
@@ -791,7 +798,10 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     })).rejects.toThrow("out of order");
     expect(opened).toEqual([PROFILE_URL]);
     expect(waits).toBe(1);
-    expect(networkFilters).toEqual(["requests --filter /voyager/api/"]);
+    expect(networkFilters).toEqual([
+      "requests --filter /flagship-web/rsc-action/",
+      "requests --filter /voyager/api/",
+    ]);
     expect(requests).toEqual([
       {
         kind: "json",
@@ -960,6 +970,116 @@ describe("LinkedIn profile stats contained-browser transport", () => {
       },
     })).toBe(overlayBody);
     expect(postedPageInstance).toBe(PROFILE_PAGE_INSTANCE);
+    await transport.close();
+  });
+
+  test("copies reviewed rsc-action X-Li headers and leaves headed-only track IDs out", async () => {
+    const overlayBody = "1:{\"fields\":[{\"label\":\"Email\",\"value\":\"connection@example.test\"}]}";
+    const sduiid = LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID;
+    const navigationPath = buildLinkedInProfileContactDetailsNavigationPostPath({ sduiid });
+    const sduiTrack = JSON.stringify({
+      clientVersion: "0.2.1234",
+      mpName: "web",
+    });
+    let posted: BrowserReadBinding | undefined;
+    const session: BrowserSession = {
+      runBatch: (commands) => {
+        const command = commands[0];
+        if (command?.[0] === "open" || command?.[0] === "wait") {
+          return Promise.resolve([{ success: true, result: {} }]);
+        }
+        if (command?.[0] === "network") {
+          if (command.includes("/voyager/api/")) {
+            throw new Error("voyager observation ran after an rsc-action page-instance");
+          }
+          return Promise.resolve([{
+            success: true,
+            result: {
+              requests: [{
+                method: "POST",
+                status: 200,
+                url: "https://www.linkedin.com/flagship-web/rsc-action/actions/server-request?sduiid=com.linkedin.sdui.generated.profile.dsl.impl.profileCardsActivity",
+                headers: {
+                  "X-Li-Page-Instance": PROFILE_PAGE_INSTANCE,
+                  "X-Li-Track": sduiTrack,
+                  "X-Li-Application-Version": "0.2.1234",
+                  "X-Li-Application-Instance": "fixtureInstance==",
+                  "X-Li-Anchor-Page-Key": "d_flagship3_profile_view_base",
+                  "X-Li-Rsc-Stream": "true",
+                  "X-Li-Traceparent": "00-fixture-trace-id",
+                  "X-Li-Tracestate": "fixture-trace-state",
+                  "X-Li-Pageforestid": "fixture-pageforest",
+                  "X-Li-Page-Instance-Tracking-Id": "fixture-tracking-id",
+                  "X-Li-Layout-Tree": "fixture-layout-tree",
+                },
+              }],
+            },
+          }]);
+        }
+        if (command?.[0] !== "eval" || command[1] === undefined) {
+          throw new Error("unexpected rsc-action header browser command");
+        }
+        if (command[1].includes("LinkedIn profile document omitted its root")) {
+          throw new Error("page-instance extract ran after an rsc-action binding");
+        }
+        const binding = requestBinding(command[1]);
+        if (binding.path === "/voyager/api/me") {
+          return Promise.resolve([browserBodyRecord(identityResponse(), "application/json")]);
+        }
+        if (binding.path === "/in/0thernet/") {
+          return Promise.resolve([browserBodyRecord("<html>1st</html>", "text/html")]);
+        }
+        if (binding.path === navigationPath) {
+          posted = binding;
+          expect(command[1]).toContain('headers["x-li-application-version"]=input.applicationVersion');
+          expect(command[1]).toContain('headers["x-li-application-instance"]=input.applicationInstance');
+          expect(command[1]).toContain('headers["x-li-anchor-page-key"]=input.anchorPageKey');
+          expect(command[1]).toContain('headers["x-li-rsc-stream"]="true"');
+          expect(command[1]).not.toContain("traceparent");
+          expect(command[1]).not.toContain("tracestate");
+          expect(command[1]).not.toContain("pageforest");
+          expect(command[1]).not.toContain("Page-Instance-Tracking-Id");
+          expect(command[1]).not.toContain("layout-tree");
+          return Promise.resolve([browserBodyRecord(overlayBody, "application/octet-stream")]);
+        }
+        throw new Error(`unexpected rsc-action header path ${binding.path}`);
+      },
+      close: () => Promise.resolve(),
+      cleanup: () => Promise.resolve(),
+    };
+    const transport = await createLinkedInProfileBrowserTransport(auth, {
+      timeoutMs: 1_000,
+      maxOutputBytes: 2 * 1024 * 1024,
+      dependencies: { createBrowserSession: () => Promise.resolve(session) },
+    });
+    await transport.currentIdentityResponse();
+    await transport.readProfileHtml(PROFILE_URL);
+    expect(await transport.readContactNavigationText({
+      profileUrl: PROFILE_URL,
+      profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+      sduiid,
+      clientArguments: {
+        payload: { vanityName: "0thernet" },
+      },
+    })).toBe(overlayBody);
+    expect(posted).toEqual({
+      kind: "rsc-action",
+      maxBytes: 2 * 1024 * 1024,
+      path: navigationPath,
+      referrer: PROFILE_URL,
+      body: buildLinkedInContactNavigationBody({
+        clientArguments: {
+          payload: { vanityName: "0thernet" },
+        },
+      }),
+      documentUrl: PROFILE_URL,
+      pageInstance: PROFILE_PAGE_INSTANCE,
+      track: sduiTrack,
+      applicationVersion: "0.2.1234",
+      applicationInstance: "fixtureInstance==",
+      anchorPageKey: "d_flagship3_profile_view_base",
+      rscStream: "true",
+    });
     await transport.close();
   });
 

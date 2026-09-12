@@ -13,16 +13,22 @@ Historical entries retain their original delivery coordinates.
   but contained Chrome still returned HTTP 500 `text/html` because that
   POST ran from the signed-in origin fetch context with only `Accept`,
   `Content-Type`, and session `csrf-token`. Headed success also sent
-  page-instance and optional `x-li-track` from the profile SPA. The
+  page-instance and the other X-Li names from the profile SPA. The
   contained path now opens the exact reviewed profile URL, waits for
-  that document, copies a unique `d_flagship3_profile*`
-  `x-li-page-instance` from observed same-origin voyager requests or
-  the loaded document, and forwards optional `x-li-track` only when
-  that same observation has one `voyager-web` JSON value. It does not
-  mint `traceparent`, `pageforest`, layout-tree, or tracking IDs.
-  Missing or ambiguous page-instance fails closed before POST. GraphQL
-  403, navigation GETs, vanity HTML-shell honesty, `sduiid=screenId`,
-  and the headed nested body stay. Soft-labels stay. Self,
+  that document, and copies a unique `d_flagship3_profile*`
+  `x-li-page-instance` plus optional `x-li-track` (`mpName` `web` or
+  `voyager-web`), `x-li-application-version`,
+  `x-li-application-instance`, `x-li-anchor-page-key`, and
+  `x-li-rsc-stream=true` from observed same-origin rsc-action or
+  voyager requests, or page-instance from the loaded document. It does
+  not mint `traceparent`, `tracestate`, `pageforest`,
+  page-instance-tracking-id, or layout-tree; those headed-only values
+  stay blockers if LinkedIn still 500s after the reviewed copies. Live
+  query key stays `sduiid=` (headed 200 plus public SDUI routes);
+  `sduid=` notes are transcription typos. Missing or ambiguous
+  page-instance fails closed before POST. GraphQL 403, navigation GETs,
+  vanity HTML-shell honesty, `sduiid=screenId`, and the headed nested
+  body stay. Soft-labels stay. Self,
   non-first-degree, and contradictory distances still fail closed, and
   no email is invented. Adapter bundle 1.34.0.
   This is the twelfth live Contact-info drift after the 1.33.0 nested
