@@ -1,3 +1,34 @@
+// Ghostget 0.19.0 joined with main add454d (LinkedIn adapter 1.36.2):
+// two clean Bun 1.3.14 builds and canonical npm 11.19.0 packs under verified
+// official Node 24.20.0 darwin-arm64 / zlib 1.3.2.1-motley-42c2f19 are
+// byte-identical: 11,691,767 compressed / 22,644,806 payload bytes across
+// exactly 574 files, SHA-256
+// 1c00fc901cacf0b008c8183dc17403b72121771f5a1a0083fba30941b568fc83.
+// Every archived byte and mode matches source. The five changed source,
+// adapter and documentation paths add 2,280 payload bytes over the b48aa72
+// join; compression grows 427 bytes. Inventory, generated dist, native
+// resources and the eight public SDK exports remain unchanged.
+// Preserve exactly 4,096 compressed-byte and 65 payload-byte allowances:
+// 11,691,767 + 4,096 = 11,695,863; 22,644,806 + 65 = 22,644,871.
+// The version-aware 12 MiB transfer envelope remains a separate bound.
+// Required Linux CI and Release still admit their actual canonical bytes.
+//
+// Ghostget 0.18.2 source plus the LinkedIn `contacts.read` post-click
+// bind on the reviewed vanity overlay pathname (adapter bundle
+// 1.36.2), measured with no version bump: a Bun 1.3.14 `pm pack` on
+// Linux x64
+// shares 22,517,747 payload bytes across exactly 558 files. The bun
+// archive is 11,508,884 compressed bytes, SHA-256
+// b74ba576b58bb5b8b2b9de1bdb4ab27280b99fa156d2eb1e6c768954b4d50b23.
+// Allowing that exact `/in/{vanity}/overlay/contact-info/` pathname
+// after the unique Contact info click, adapter notes, changelog, and
+// tests add 2,280 payload bytes compared with the 0.18.2 / 1.36.1
+// measurement. Raise only the payload ceiling to the measured value
+// plus 65 bytes of headroom (22,517,812); the packed size stays under
+// the existing packed allowance and the 558-entry inventory is
+// unchanged. Theme CSS stays website-only. Fresh Linux CI
+// independently checks its actual canonical archive.
+//
 // Final Ghostget 0.19.0 join with main b48aa72 (0.18.2 canonical archive
 // recovery), retaining the Vault/setup and messaging union: two clean Bun
 // 1.3.14 builds and canonical npm 11.19.0 packs under verified official
@@ -878,10 +909,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 11_695_436;
+export const MAX_PACKED_BYTES = 11_695_863;
 export const MAX_PACKED_ENTRIES = 574;
 export const MAX_PACKED_FILES = 574;
-export const MAX_UNPACKED_BYTES = 22_642_591;
+export const MAX_UNPACKED_BYTES = 22_644_871;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
