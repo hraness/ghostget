@@ -1,3 +1,17 @@
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` sibling
+// requestMetadata / proto.sdui POST body (adapter bundle 1.32.0),
+// measured with no version bump: a Bun 1.3.14 `pm pack` on Linux x64
+// shares 12,721,045 payload bytes across exactly 524 files. The bun
+// archive is 2,188,869 compressed bytes, SHA-256
+// 6ce1e1a7bf4f3f4d30b56cce135be3916efe3602fa7f595ceffd640de432a0dc.
+// Sibling requestMetadata, proto.sdui type admission, adapter notes,
+// changelog, and tests add 3,975 payload bytes compared with the 1.31.0
+// measurement. Raise only the payload ceiling to the measured value plus
+// 65 bytes of headroom (12,721,110); the packed size stays under the
+// existing packed allowance and the 524-entry inventory is unchanged.
+// Theme CSS stays website-only. Fresh Linux CI independently checks its
+// actual canonical archive.
+//
 // Ghostget 0.18.0 source plus the LinkedIn `contacts.read` navigation POST
 // Email path (adapter bundle 1.31.0), measured with no version bump: a
 // Bun 1.3.14 `pm pack` on Linux x64 shares
@@ -543,7 +557,7 @@
 export const MAX_PACKED_BYTES = 2_334_974;
 export const MAX_PACKED_ENTRIES = 524;
 export const MAX_PACKED_FILES = 524;
-export const MAX_UNPACKED_BYTES = 12_717_135;
+export const MAX_UNPACKED_BYTES = 12_721_110;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

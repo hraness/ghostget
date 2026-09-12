@@ -18,14 +18,18 @@ export const LINKEDIN_CONTACT_NAVIGATION_CLIENT_ARGUMENT_KEYS = Object.freeze([
   "$type",
   "requestedStateKeys",
   "payload",
+  "requestMetadata",
 ] as const);
 export const LINKEDIN_CONTACT_NAVIGATION_PAYLOAD_KEYS = Object.freeze([
   "vanityName",
   "givenName",
   "familyName",
   "isVanityNameResolved",
-  "requestMetadata",
 ] as const);
+export const LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE =
+  "proto.sdui.actions.requests.RequestedArguments";
+export const LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE =
+  "proto.sdui.common.RequestMetadata";
 export const LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_KEYS = Object.freeze([
   "$type",
   "states",
@@ -42,6 +46,7 @@ const CONTACT_NAVIGATION_REQUEST_METADATA_KEY_SET = new Set<string>(
   LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_KEYS,
 );
 const LINKEDIN_SDUI_TYPE = /^com\.linkedin(?:\.[A-Za-z][A-Za-z0-9]*)+$/u;
+const PROTO_SDUI_TYPE = /^proto\.sdui(?:\.[A-Za-z][A-Za-z0-9]*)+$/u;
 const CONTACT_NAVIGATION_HREF =
   /(?:https:\/\/www\.linkedin\.com)?(\/flagship-web\/rsc-action\/actions\/navigation\?[^\s"'<>]+)/gu;
 const CONTACT_QUERY_ID =
@@ -170,13 +175,13 @@ export type LinkedInContactNavigationPayload = {
   readonly givenName?: string;
   readonly familyName?: string;
   readonly isVanityNameResolved?: boolean;
-  readonly requestMetadata?: LinkedInContactNavigationRequestMetadata;
 };
 
 export type LinkedInContactNavigationClientArguments = {
   readonly $type?: string;
   readonly requestedStateKeys?: readonly string[];
   readonly payload: LinkedInContactNavigationPayload;
+  readonly requestMetadata?: LinkedInContactNavigationRequestMetadata;
 };
 
 export type LinkedInContactNavigationAction = {
@@ -1178,7 +1183,7 @@ function isContactDetailsPageKey(value: unknown): boolean {
 
 function reviewedSduiType(value: unknown): string | null {
   if (typeof value !== "string" || value.length < 12 || value.length > 256) return null;
-  return LINKEDIN_SDUI_TYPE.test(value) ? value : null;
+  return LINKEDIN_SDUI_TYPE.test(value) || PROTO_SDUI_TYPE.test(value) ? value : null;
 }
 
 function reviewedStateKeyList(value: unknown): readonly string[] | null {
@@ -1251,13 +1256,25 @@ function peelContactNavigationClientArguments(value: unknown): JsonRecord | null
     if (isRecord(candidate.payload) || candidate.$type !== undefined) return candidate;
     return Object.freeze({ payload: candidate });
   }
-  if (isRecord(value.payload)) {
-    const root: Record<string, unknown> = { payload: value.payload };
+  if (isRecord(value.payload) || value.requestMetadata !== undefined) {
+    const root: Record<string, unknown> = {};
     if (value.$type !== undefined) root.$type = value.$type;
     if (value.requestedStateKeys !== undefined) root.requestedStateKeys = value.requestedStateKeys;
+    if (isRecord(value.payload)) root.payload = value.payload;
+    if (value.requestMetadata !== undefined) root.requestMetadata = value.requestMetadata;
     return Object.freeze(root);
   }
   return null;
+}
+
+function requestMetadataEquals(
+  left: LinkedInContactNavigationRequestMetadata,
+  right: LinkedInContactNavigationRequestMetadata,
+): boolean {
+  return left.$type === right.$type
+    && left.screenId === right.screenId
+    && JSON.stringify(left.states ?? null) === JSON.stringify(right.states ?? null)
+    && JSON.stringify(left.knownTemplates ?? null) === JSON.stringify(right.knownTemplates ?? null);
 }
 
 function reviewedRequestMetadata(
@@ -1311,13 +1328,19 @@ function reviewedContactNavigationClientArguments(
   | { readonly kind: "empty" }
 {
   if (raw === null) return { kind: "empty" };
-  if (isRecord(raw.payload) || raw.$type !== undefined || raw.requestedStateKeys !== undefined) {
+  if (
+    isRecord(raw.payload)
+    || raw.$type !== undefined
+    || raw.requestedStateKeys !== undefined
+    || raw.requestMetadata !== undefined
+  ) {
     const extra = Object.keys(raw).filter((key) => !CONTACT_NAVIGATION_CLIENT_ARGUMENT_KEY_SET.has(key));
     if (extra.length > 0) return { kind: "unreviewed", keys: Object.freeze(extra) };
     const args: {
       $type?: string;
       requestedStateKeys?: readonly string[];
       payload: LinkedInContactNavigationPayload;
+      requestMetadata?: LinkedInContactNavigationRequestMetadata;
     } = { payload: Object.freeze({}) };
     if (raw.$type !== undefined) {
       const type = reviewedSduiType(raw.$type);
@@ -1329,10 +1352,16 @@ function reviewedContactNavigationClientArguments(
       if (keys === null) return { kind: "unreviewed", keys: Object.freeze(["requestedStateKeys"]) };
       args.requestedStateKeys = keys;
     }
+    const siblingMetadata = reviewedRequestMetadata(raw.requestMetadata);
+    if (siblingMetadata.kind === "unreviewed") return siblingMetadata;
+    let nestedMetadata:
+      | { readonly kind: "meta"; readonly meta: LinkedInContactNavigationRequestMetadata }
+      | { readonly kind: "unreviewed"; readonly keys: readonly string[] }
+      | { readonly kind: "empty" } = { kind: "empty" };
     if (raw.payload !== undefined) {
       if (!isRecord(raw.payload)) return { kind: "unreviewed", keys: Object.freeze(["payload"]) };
       const extraPayload = Object.keys(raw.payload)
-        .filter((key) => !CONTACT_NAVIGATION_PAYLOAD_KEY_SET.has(key));
+        .filter((key) => key !== "requestMetadata" && !CONTACT_NAVIGATION_PAYLOAD_KEY_SET.has(key));
       if (extraPayload.length > 0) {
         return { kind: "unreviewed", keys: Object.freeze(extraPayload.map((key) => `payload.${key}`)) };
       }
@@ -1341,7 +1370,6 @@ function reviewedContactNavigationClientArguments(
         givenName?: string;
         familyName?: string;
         isVanityNameResolved?: boolean;
-        requestMetadata?: LinkedInContactNavigationRequestMetadata;
       } = {};
       if (raw.payload.vanityName !== undefined) {
         const vanity = optionalPublicIdentifier(raw.payload.vanityName);
@@ -1364,10 +1392,26 @@ function reviewedContactNavigationClientArguments(
         }
         payload.isVanityNameResolved = raw.payload.isVanityNameResolved;
       }
-      const metadata = reviewedRequestMetadata(raw.payload.requestMetadata);
-      if (metadata.kind === "unreviewed") return metadata;
-      if (metadata.kind === "meta") payload.requestMetadata = metadata.meta;
+      nestedMetadata = reviewedRequestMetadata(raw.payload.requestMetadata);
+      if (nestedMetadata.kind === "unreviewed") {
+        return {
+          kind: "unreviewed",
+          keys: Object.freeze(nestedMetadata.keys.map((key) => (
+            key.startsWith("requestMetadata") ? `payload.${key}` : key
+          ))),
+        };
+      }
       args.payload = Object.freeze(payload);
+    }
+    if (siblingMetadata.kind === "meta" && nestedMetadata.kind === "meta") {
+      if (!requestMetadataEquals(siblingMetadata.meta, nestedMetadata.meta)) {
+        return { kind: "unreviewed", keys: Object.freeze(["requestMetadata"]) };
+      }
+      args.requestMetadata = siblingMetadata.meta;
+    } else if (siblingMetadata.kind === "meta") {
+      args.requestMetadata = siblingMetadata.meta;
+    } else if (nestedMetadata.kind === "meta") {
+      args.requestMetadata = nestedMetadata.meta;
     }
     return { kind: "args", args: Object.freeze(args) };
   }
