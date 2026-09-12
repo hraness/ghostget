@@ -1061,7 +1061,7 @@ dependencies = [
 
 [[package]]
 name = "ghostget-desktop"
-version = "0.18.2"
+version = "0.18.3"
 dependencies = [
  "libc",
  "serde_json",

@@ -325,9 +325,18 @@ describe("ghostget.com static site", () => {
     expect(builtCss).not.toMatch(/@import\b/iu);
     expect(builtCss.startsWith("@layer base, components;")).toBe(true);
     const presetCss = await readFile(join(websiteRoot, "vendor/marketing-preset/product-marketing-preset.css"), "utf8");
-    expect(builtCss.endsWith(`${sourceCss.trimEnd()}\n\n${presetCss}\n`)).toBe(true);
+    const lanternCss = await readFile(join(websiteRoot, "vendor/lantern-material/lantern-material.css"), "utf8");
+    expect(builtCss.endsWith(`${sourceCss.trimEnd()}\n\n${presetCss}\n\n${lanternCss}\n`)).toBe(true);
+    expect(builtCss.split(lanternCss)).toHaveLength(2);
     expect(html).toContain('data-hraness-marketing-preset="editorial"');
-    expect(html).toContain('<main class="hraness-marketing-field" id="main">');
+    expect(html).toContain('data-hraness-material="lantern"');
+    expect(html).toContain('<main id="main">');
+    expect(html).not.toContain('class="hraness-marketing-field"');
+    for (const page of pages.slice(1)) expect(page.html).not.toContain('data-hraness-material="lantern"');
+    for (const path of ["LICENSE", "provenance.json"]) {
+      expect(Buffer.compare(await readFile(join(websiteRoot, "dist/assets/lantern-material", path)),
+        await readFile(join(websiteRoot, "vendor/lantern-material", path)))).toBe(0);
+    }
     for (const path of ["fonts/instrument-serif/instrument-serif-latin-400.woff2", "fonts/instrument-serif/OFL.txt", "marketing-assets/grain.svg", "marketing-assets/cells.svg"]) {
       expect(await readFile(join(websiteRoot, "dist/assets", path))).toEqual(await readFile(join(websiteRoot, "vendor/marketing-preset", path)));
     }
@@ -642,7 +651,7 @@ describe("ghostget.com static site", () => {
         /\.ghostget-product-hero\s*\{[^{}]*\bgrid-column:\s*1\s*\/\s*-1\s*;/u,
       );
       expect(cssPropertyValues(css, ".ghostget-product-hero .hero-explainer", "color").at(-1))
-        .toBe("var(--hraness-marketing-field-muted, var(--muted))");
+        .toBe("var(--hraness-material-muted, var(--muted))");
       expect(cssPropertyValues(css, '.hraness-marketing-action[data-emphasis="primary"]', "color").at(-1))
         .toBe("var(--accent-ink)");
       const providerMarkDisplay = cssPropertyValues(css, ".provider-mark", "display");

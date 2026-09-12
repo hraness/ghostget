@@ -2614,13 +2614,13 @@ body {
   padding-block-end: clamp(2rem, 6vw, 4rem);
 }
 
-/* The snapshot owns editorial type and paint; local controls stay native. */
+/* The editorial snapshot owns type; Lantern owns material paint. */
 [data-hraness-marketing-preset] .hraness-marketing-page {
   --hraness-marketing-background: transparent;
   --hraness-marketing-heading-font: var(--hraness-marketing-display-font);
   --hraness-marketing-heading-weight: var(--hraness-marketing-display-weight);
-  --hraness-marketing-ink: var(--hraness-marketing-field-ink);
-  --hraness-marketing-muted: var(--hraness-marketing-field-muted);
+  --hraness-marketing-ink: var(--hraness-material-ink);
+  --hraness-marketing-muted: var(--hraness-material-muted);
 }
 
 .hraness-marketing-header .wordmark {
@@ -2650,7 +2650,7 @@ body {
 }
 
 .ghostget-product-hero .hero-explainer {
-  color: var(--hraness-marketing-field-muted, var(--muted));
+  color: var(--hraness-material-muted, var(--muted));
 }
 
 .ghostget-product-hero .hraness-marketing-hero__frame {
@@ -2678,8 +2678,8 @@ body {
 }
 
 .hraness-marketing-page ::selection {
-  background: var(--accent-soft);
-  color: var(--foreground);
+  background-color: var(--hraness-material-warm-plane);
+  color: var(--hraness-material-ink);
 }
 
 .proof-transcript {
@@ -2739,7 +2739,7 @@ body {
 
 /* The provider heading carries only its id, so it takes the grammar's recipe here. */
 .hraness-marketing-section__heading-group > h2 {
-  color: var(--hraness-marketing-field-ink, var(--foreground));
+  color: var(--hraness-material-ink, var(--foreground));
   font-family: var(--hraness-marketing-display-font, var(--font-sans));
   font-size: var(--hraness-paper-section-heading-size);
   font-weight: var(--hraness-marketing-display-weight, 500);
@@ -2910,4 +2910,31 @@ body {
   --hraness-marketing-inverse: var(--code-background);
   --hraness-marketing-inverse-ink: var(--code-foreground);
   box-shadow: none;
+}
+
+/* Bind existing native surfaces to the shared material without changing their
+ * layout, control semantics, inert preview documents or fixed transcript ink. */
+[data-hraness-material="lantern"] .hraness-marketing-header.hraness-material-chrome {
+  background-color: var(--hraness-material-chrome-paint);
+  border-block-end-color: var(--hraness-material-seam);
+  -webkit-backdrop-filter: var(--hraness-material-chrome-blur);
+  backdrop-filter: var(--hraness-material-chrome-blur);
+}
+
+[data-hraness-material="lantern"] :is(.provider-card, .card, .prompt-card, .control-frame) {
+  background-color: var(--hraness-material-plane);
+  border-color: var(--hraness-material-seam);
+  color: var(--hraness-material-ink);
+}
+
+[data-hraness-material="lantern"] .hraness-material-disclosure[open] > summary {
+  background-color: var(--hraness-material-warm-plane);
+  color: var(--hraness-material-ink);
+}
+
+@media (forced-colors: active) {
+  [data-hraness-material="lantern"] .hraness-material-disclosure[open] > summary {
+    background-color: Highlight;
+    color: HighlightText;
+  }
 }

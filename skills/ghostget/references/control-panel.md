@@ -40,4 +40,4 @@ Unsupported executors remain inert. Follow the existing provider-plugin
 authoring protocol to add an executor; do not synthesize arbitrary authenticated
 HTTP or broaden an existing grant. Interface changes invalidate exact grants.
 
-The product reference is the [Ghostget control panel guide](https://github.com/hraness/ghostget/blob/v0.18.2/docs/control-panel.md).
+The product reference is the [Ghostget control panel guide](https://github.com/hraness/ghostget/blob/v0.18.3/docs/control-panel.md).
