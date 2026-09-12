@@ -1,14 +1,20 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
+import { runInNewContext } from "node:vm";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as crypto from "node:crypto";
 import fc from "fast-check";
 import { admitSourceCi, verifySourceCiLog, type SourceCiInput } from "./release-source-ci.js";
-import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseReleaseManifest, releaseAssetNames } from "../website/github-release-artifact.mjs";
-import { attestationVerifyArguments, verifyBuildHandoff, verifyReleaseDirectory } from "./github-release-artifact.js";
-import { publishCanonicalRelease, validateReleaseAssets } from "./github-release-publish.js";
+import { parseReleaseManifest, releaseAssetNames, releaseAssetByteLimit, type ReleaseAssetDescriptor } from "../website/github-release-artifact.mjs";
+import { attestationVerifyArguments, prepareReleaseDirectory, verifyBuildHandoff, verifyReleaseDirectory } from "./github-release-artifact.js";
+import { downloadReleaseAsset, publishCanonicalRelease, validateReleaseAssets } from "./github-release-publish.js";
+import { MAX_PACKED_BYTES } from "./package-budget.js";
+import { propertyParameters } from "../src/test-support.js";
 
 const tag = "v0.17.0";
 const sourceSha = "a".repeat(40);
@@ -19,6 +25,141 @@ const manifest = parseReleaseManifest({ schema: "hraness-github-release-v1", rep
 const body = `wrench-release-source-v1 repository=hraness/ghostget tag=${tag} source_sha=${sourceSha} workflow_run_id=9001\n\nghostget-release-attempt-v1 run_attempt=1`;
 const names = releaseAssetNames(tag);
 type Json = Record<string, any>;
+
+// These are transfer/identity fixtures, not an installable package or signed provenance.
+async function largeTransferFixture(directory: string) {
+  const tag = "v0.18.1"; const names = releaseAssetNames(tag);
+  const files = new Map<string, Buffer>([[names[0]!, Buffer.alloc(9 * 1024 * 1024, 42)], ["npm-pack.json", Buffer.from("[]\n")]]);
+  const digest = (name: string) => createHash("sha256").update(files.get(name)!).digest("hex");
+  const manifest = parseReleaseManifest({ schema: "hraness-github-release-v1", repository: "hraness/ghostget", repositoryId: 1316443113,
+    package: "@hraness/ghostget", version: "0.18.1", tag, sourceSha, workflowSha, workflow: ".github/workflows/release.yml",
+    runId: 9001, runAttempt: 1, archive: { name: names[0], bytes: files.get(names[0]!)!.length,
+      sha256: digest(names[0]!), sha512: createHash("sha512").update(files.get(names[0]!)!).digest("hex") } });
+  files.set("release-manifest.json", Buffer.from(`${JSON.stringify(manifest)}\n`));
+  files.set("SHA256SUMS", Buffer.from(names.slice(0, 3).map(name => `${digest(name)}  ${name}\n`).join("")));
+  files.set("provenance.jsonl", Buffer.from("synthetic verifier output fixture; no signed provenance\n"));
+  for (const [name, bytes] of files) await writeFile(join(directory, name), bytes);
+  const hashes = Object.fromEntries(names.slice(0, 4).map(name => [name, digest(name)]));
+  const assets = names.map((name, index) => ({ id: index + 10, name, size: files.get(name)!.length, digest: `sha256:${digest(name)}`,
+    state: "uploaded", browser_download_url: `https://github.com/hraness/ghostget/releases/download/${tag}/${name}`,
+    url: `https://api.github.com/repos/hraness/ghostget/releases/assets/${index + 10}` }));
+  return { tag, names, files, manifest, hashes, assets, bundleHash: digest("provenance.jsonl") };
+}
+
+describe("canonical archive transfer envelopes", () => {
+  test("property: foreign archive sizes are accepted exactly within the versioned transfer bound", () => {
+    fc.assert(fc.property(fc.integer({ min: 1, max: 100 }),
+      fc.oneof(fc.integer({ min: -1, max: 16 * 1024 * 1024 }), fc.constantFrom(null, "100", NaN, Infinity, 0.5)), (patch, bytes) => {
+        const tag = `v0.18.${patch}`; const name = releaseAssetNames(tag)[0]!;
+        const value = { ...manifest, tag, version: tag.slice(1), archive: { ...manifest.archive, name, bytes } };
+        const admissible = typeof bytes === "number" && Number.isSafeInteger(bytes) && bytes > 0 && bytes <= releaseAssetByteLimit(tag, name);
+        if (admissible) expect(parseReleaseManifest(value).archive.bytes).toBe(bytes);
+        else expect(() => parseReleaseManifest(value)).toThrow();
+      }), propertyParameters);
+  });
+  test("keeps the measured package ceiling inside the archive transfer envelope", async () => {
+    const { version } = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+    const tag = `v${version}`;
+    expect(MAX_PACKED_BYTES).toBeLessThanOrEqual(releaseAssetByteLimit(tag, releaseAssetNames(tag)[0]!));
+  });
+  test("carries an archive above 8 MiB through handoff and draft download while retaining exact hashes and small auxiliary bounds", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-release-size-"));
+    try {
+      const f = await largeTransferFixture(directory);
+      await verifyBuildHandoff(directory, f.tag, f.hashes, f.bundleHash);
+      const { descriptors, missing } = validateReleaseAssets({ draft: true, assets: f.assets }, f.manifest, directory);
+      expect(missing).toEqual([]);
+      const archive = descriptors.find(asset => asset.name === f.names[0])!;
+      let calls = 0;
+      const run = (args: readonly string[], maximumBytes: number) => {
+        calls++;
+        expect(args).toEqual(["api", "--method", "GET", "/repos/hraness/ghostget/releases/assets/10", "-H", "Accept: application/octet-stream"]);
+        expect(maximumBytes).toBe(archive.bytes + 1);
+        return { status: 0, stdout: f.files.get(archive.name)! };
+      };
+      expect(downloadReleaseAsset(archive, f.tag, run)).toEqual(f.files.get(archive.name)!);
+      expect(calls).toBe(1);
+      for (const name of f.names) {
+        const oversized = { ...archive, name, bytes: releaseAssetByteLimit(f.tag, name) + 1 };
+        expect(() => downloadReleaseAsset(oversized, f.tag, run)).toThrow("bound");
+        const changedAssets = f.assets.map(asset => asset.name === name ? { ...asset, size: oversized.bytes } : asset);
+        expect(() => validateReleaseAssets({ draft: true, assets: changedAssets }, f.manifest, directory)).toThrow();
+      }
+      expect(calls).toBe(1);
+      expect(() => downloadReleaseAsset(archive, f.tag, () => ({ status: 0, stdout: Buffer.alloc(archive.bytes) }))).toThrow("differ");
+      expect(() => downloadReleaseAsset(archive, f.tag, () => ({ status: 0, stdout: Buffer.concat([f.files.get(archive.name)!, Buffer.from("x")]) }))).toThrow("differ");
+      expect(() => downloadReleaseAsset(archive, f.tag, () => ({ status: 1, stdout: f.files.get(archive.name)! }))).toThrow("complete");
+      await writeFile(join(directory, "npm-pack.json"), Buffer.alloc(1024 * 1024 + 1));
+      await expect(verifyBuildHandoff(directory, f.tag, f.hashes, f.bundleHash)).rejects.toThrow("bounded");
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+  test("preparation and full verification reach strict tar admission for a large archive instead of rejecting the transfer size", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-release-prepare-size-"));
+    try {
+      const f = await largeTransferFixture(directory); const m = f.manifest;
+      const signature = { certificate: {
+        issuer: "https://token.actions.githubusercontent.com", buildSignerURI: `https://github.com/hraness/ghostget/.github/workflows/release.yml@refs/tags/${f.tag}`,
+        buildSignerDigest: sourceSha, runnerEnvironment: "github-hosted", sourceRepositoryURI: "https://github.com/hraness/ghostget",
+        sourceRepositoryIdentifier: "1316443113", sourceRepositoryOwnerIdentifier: "307125679", sourceRepositoryOwnerURI: "https://github.com/hraness",
+        sourceRepositoryVisibilityAtSigning: "public", buildConfigURI: `https://github.com/hraness/ghostget/.github/workflows/release.yml@refs/tags/${f.tag}`,
+        buildConfigDigest: sourceSha, sourceRepositoryDigest: sourceSha, sourceRepositoryRef: `refs/tags/${f.tag}`, buildTrigger: "push",
+        runInvocationURI: "https://github.com/hraness/ghostget/actions/runs/9001/attempts/1",
+      } };
+      let checks = 0;
+      const run = () => { checks++; return JSON.stringify([{ verificationResult: { signature, verifiedTimestamps: [{ type: "fixture" }],
+        statement: { _type: "https://in-toto.io/Statement/v1", predicateType: "https://slsa.dev/provenance/v1",
+          subject: f.names.slice(0, 4).map(name => ({ name, digest: { sha256: f.hashes[name] } })) } } }]); };
+      await expect(verifyReleaseDirectory(directory, { tag: f.tag, sourceSha, workflowSha }, run)).rejects.toThrow("safely decompressed");
+      expect(checks).toBe(4);
+      for (const name of f.names.slice(2)) await rm(join(directory, name));
+      await expect(prepareReleaseDirectory(directory, { tag: f.tag, sourceSha, workflowSha, runId: m.runId, runAttempt: m.runAttempt })).rejects.toThrow("safely decompressed");
+      expect((await readdir(directory)).sort()).toEqual([...f.names.slice(0, 2)].sort());
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+  test("executes both source-free workflow programs on large files and rejects cap, hash and symlink substitutions", async () => {
+    const workflow = Bun.YAML.parse(await readFile(new URL("../.github/workflows/release.yml", import.meta.url), "utf8")) as Json;
+    const stages = [workflow.jobs.attest.steps.find((step: Json) => step.name === "Bind source-free attestation input"),
+      workflow.jobs.publish_npm.steps.find((step: Json) => step.id === "canonical")];
+    for (const [index, stage] of stages.entries()) {
+      const directory = await mkdtemp(join(tmpdir(), "ghostget-release-inline-size-"));
+      try {
+        const f = await largeTransferFixture(directory); const names = index === 0 ? f.names.slice(0, 4) : f.names;
+        if (index === 0) await rm(join(directory, "provenance.jsonl"));
+        const handoff = join(directory, "..", `${path.basename(directory)}-handoff`); await mkdir(handoff);
+        try {
+          const program = /node <<'NODE'\n([\s\S]*?)\nNODE/u.exec(stage.run)?.[1];
+          if (program === undefined) throw new Error("Missing source-free file verification program");
+          const env = { DIRECTORY: directory, HANDOFF_DIRECTORY: handoff, GITHUB_OUTPUT: join(handoff, "output"), VERIFIED_TAG: f.tag,
+            VERIFIED_SHA: sourceSha, EXPECTED_WORKFLOW_SHA: workflowSha, WORKFLOW_SHA: workflowSha, GITHUB_RUN_ID: "9001", GITHUB_RUN_ATTEMPT: "1",
+            EXPECTED_ARTIFACT_HASHES: JSON.stringify(f.hashes), EXPECTED_BUNDLE_SHA256: f.bundleHash };
+          const execute = (override?: (file: fs.PathLike) => fs.Stats) => runInNewContext(program + "\nbyteLimit;", {
+            process: { env }, require: (name: string) => {
+              if (name === "node:fs") return { ...fs, lstatSync: override ?? fs.lstatSync };
+              if (name === "node:path") return path; if (name === "node:crypto") return crypto;
+              throw new Error("Unexpected source-free dependency");
+            },
+          }, { timeout: 5000 });
+          const limit = execute();
+          for (const name of names) {
+            expect(limit(name)).toBe(releaseAssetByteLimit(f.tag, name));
+            expect(() => execute(file => {
+              const stat = fs.lstatSync(file);
+              if (String(file) === join(directory, name)) Object.defineProperty(stat, "size", { value: releaseAssetByteLimit(f.tag, name) + 1 });
+              return stat;
+            })).toThrow("bounded");
+          }
+          expect(() => execute(file => {
+            const stat = fs.lstatSync(file);
+            if (String(file) === join(directory, names[0]!)) stat.isSymbolicLink = () => true;
+            return stat;
+          })).toThrow("bounded");
+          env.EXPECTED_ARTIFACT_HASHES = JSON.stringify({ ...f.hashes, [names[0]!]: "0".repeat(64) });
+          expect(() => execute()).toThrow("differs");
+        } finally { await rm(handoff, { recursive: true, force: true }); }
+      } finally { await rm(directory, { recursive: true, force: true }); }
+    }
+  });
+});
 
 function sourceCiFixture(attempt = 1, prNumber = 50) {
   const input: SourceCiInput = { source: "1".repeat(40), tree: "2".repeat(40), main: "3".repeat(40),
@@ -472,7 +613,7 @@ describe("canonical release publication and safe local input", () => {
           else throw new Error(`Unexpected API ${endpoint}`);
           return { status: 0, stdout: JSON.stringify(value) };
         };
-        const download = (id: number, expectedBytes: number): Uint8Array => {
+        const download = ({ id, bytes: expectedBytes }: ReleaseAssetDescriptor): Uint8Array => {
           const asset = assets.find(asset => asset.id === id);
           if (asset === undefined || expectedBytes !== asset.size || !release?.assets.some((current: Json) => current.id === id)) {
             throw new Error("Download must bind one admitted uploaded asset and byte count");

@@ -1,4 +1,5 @@
 import { releaseArchiveUrl } from "./github-release-artifact.mjs";
+import { snapshotMarketingPreset } from "./marketing-preset";
 import { createHash } from "node:crypto";
 import {
   cp,
@@ -55,7 +56,7 @@ export const GITHUB_RELEASES_URL = "https://github.com/hraness/ghostget/releases
 export const SKILLS_URL = "https://skills.sh/hraness/ghostget" as const;
 export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.1" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.2" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV =
   "NEXT_PUBLIC_HRANESS_MAILING_TURNSTILE_SITEKEY" as const;
@@ -793,6 +794,7 @@ export function ghostgetMailingListConfig(
 export async function buildWebsite(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<void> {
+  const marketingPreset = await snapshotMarketingPreset(join(repositoryRoot, "website/vendor/marketing-preset"));
   const [
     manifest,
     publicTemplates,
@@ -860,7 +862,7 @@ export async function buildWebsite(
   const postHog = postHogEnvironment(environment);
   // The UI facade establishes its complete layer order before the static
   // marketing grammar and footer. Product tokens and composition follow them.
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${css.trimEnd()}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
@@ -888,6 +890,13 @@ export async function buildWebsite(
   await rm(outputRoot, { force: true, recursive: true });
   await mkdir(join(outputRoot, "assets"), { recursive: true });
   await mkdir(join(outputRoot, "preview"), { recursive: true });
+  for (const [path, bytes] of marketingPreset.files) {
+    if (path === "product-marketing-preset.css" || path === "check.mjs" || path === "check.d.mts") continue;
+    const publicPath = path === "LICENSE" ? "marketing-assets/LICENSE" : path;
+    const destination = join(outputRoot, "assets", publicPath);
+    await mkdir(dirname(destination), { recursive: true });
+    await writeFile(destination, bytes);
+  }
   await Promise.all(PUBLIC_PAGES.map((page) => mkdir(dirname(join(outputRoot, page.outputFile)), {
     recursive: true,
   })));

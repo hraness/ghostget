@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.2 - 2026-09-12
+
+- Apply the shared editorial typography, textured background and blurred header
+  to the homepage. Keep logos sharp, phone navigation on one row, and documentation
+  and inert native examples in their existing layouts.
+- Correct canonical archive-size limits for bundled messaging helpers.
+
 - Allow the unique reviewed Contact info control to open the live
   LinkedIn SPA modal after adapter 1.36.0. Operator smoke on
   2026-09-12 found that unique control on tessbloch, then fail-closed

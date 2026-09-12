@@ -30,6 +30,7 @@ export function releaseIdentity(tag: string): Readonly<{
   archivePrefix: "hraness-ghostget" | "hraness-wrench";
 }>;
 export function releaseAssetNames(tag: string): readonly string[];
+export function releaseAssetByteLimit(tag: string, name: string): number;
 export function releaseArchiveUrl(tag: string): string;
 export function parseReleaseManifest(value: unknown, expected?: Partial<ReleaseManifest>): ReleaseManifest;
 export function parseReleaseAssetDescriptors(value: unknown, tag: string): readonly ReleaseAssetDescriptor[];

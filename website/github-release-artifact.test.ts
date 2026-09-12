@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import {
   parseReleaseAssetDescriptors, parseReleaseManifest, releaseArchiveUrl, releaseAssetNames,
   usesGithubReleaseAssets, verifyAttestationResult, verifyReleaseAssetBytes,
-  releaseIdentity,
+  releaseIdentity, releaseAssetByteLimit,
 } from "./github-release-artifact.mjs";
 
 const tag = "v0.17.0";
@@ -14,7 +14,7 @@ const manifest = {
   package: "@hraness/ghostget", version: "0.17.0", tag, sourceSha, workflowSha: "c".repeat(40),
   workflow: ".github/workflows/release.yml", runId: 12345, runAttempt: 2,
   archive: { name: "hraness-ghostget-0.17.0.tgz", bytes: 100, sha256: hash, sha512: "d".repeat(128) },
-};
+} as const;
 function descriptors() {
   return releaseAssetNames(tag).map((name, index) => ({
     id: index + 1, name, size: 100, state: "uploaded", digest: `sha256:${hash}`,
@@ -43,11 +43,36 @@ function verifierOutput() {
 }
 
 describe("canonical GitHub artifact admission", () => {
+  test("reserves the larger transfer envelope for exact messaging archives and keeps historical and JSON bounds", () => {
+    for (const versionTag of ["v0.16.16", "v0.17.0", "v0.18.0", "v0.18.1", "v0.18.2", "v0.19.0", "v1.0.0"]) {
+      const names = releaseAssetNames(versionTag);
+      const archiveMaximum = ["v0.16.16", "v0.17.0", "v0.18.0"].includes(versionTag) ? 8 : 12;
+      for (const name of names) {
+        const maximum = (name === names[0] ? archiveMaximum : ["npm-pack.json", "release-manifest.json"].includes(name) ? 1 : 8) * 1024 * 1024;
+        expect(releaseAssetByteLimit(versionTag, name)).toBe(maximum);
+        const assets = names.map((name, index) => ({ id: index + 1, name, state: "uploaded", size: 100,
+          digest: `sha256:${hash}`, url: `https://api.github.com/repos/hraness/ghostget/releases/assets/${index + 1}`,
+          browser_download_url: `https://github.com/hraness/ghostget/releases/download/${versionTag}/${name}` }));
+        const asset = assets.find(asset => asset.name === name)!;
+        asset.size = maximum;
+        expect(parseReleaseAssetDescriptors(assets, versionTag).find(asset => asset.name === name)?.bytes).toBe(maximum);
+        asset.size++;
+        expect(() => parseReleaseAssetDescriptors(assets, versionTag)).toThrow();
+      }
+      for (const name of ["unknown.tgz", `../${names[0]}`, `${names[0]}.json`, "provenance.jsonl.tgz"]) {
+        expect(() => releaseAssetByteLimit(versionTag, name)).toThrow();
+      }
+    }
+    const current = { ...manifest, tag: "v0.18.1", version: "0.18.1", archive: {
+      ...manifest.archive, name: "hraness-ghostget-0.18.1.tgz", bytes: 12 * 1024 * 1024 } };
+    expect(parseReleaseManifest(current).archive.bytes).toBe(12 * 1024 * 1024);
+    expect(() => parseReleaseManifest({ ...current, archive: { ...current.archive, bytes: current.archive.bytes + 1 } })).toThrow();
+  });
   test("keeps immutable Wrench package names and signed repository identity below the rename boundary", () => {
     expect(releaseIdentity("v0.16.16")).toEqual({ package: "@hraness/wrench", repository: "hraness/wrench", archivePrefix: "hraness-wrench" });
     expect(releaseIdentity("v0.17.0")).toEqual({ package: "@hraness/ghostget", repository: "hraness/ghostget", archivePrefix: "hraness-ghostget" });
     expect(releaseAssetNames("v0.16.16")[0]).toBe("hraness-wrench-0.16.16.tgz");
-    const legacy = { ...manifest, repository: "hraness/wrench", package: "@hraness/wrench", tag: "v0.16.16", version: "0.16.16", archive: { ...manifest.archive, name: "hraness-wrench-0.16.16.tgz" } };
+    const legacy = { ...manifest, repository: "hraness/wrench", package: "@hraness/wrench", tag: "v0.16.16", version: "0.16.16", archive: { ...manifest.archive, name: "hraness-wrench-0.16.16.tgz" } } as const;
     expect(parseReleaseManifest(legacy)).toEqual(legacy);
     expect(() => parseReleaseManifest({ ...legacy, package: "@hraness/ghostget" })).toThrow();
     expect(() => parseReleaseManifest({ ...manifest, repository: "hraness/wrench" })).toThrow();
