@@ -450,6 +450,28 @@ values fail closed before POST. Live query key stays `sduiid=` (headed
 page-instance fails closed before POST. Headed successful body
 Content-Length was 400; compact emit at 398 stays.
 
+A later signed-in smoke after adapter 1.35.0 forwarded that full
+observed header set, omitted unobserved layout-tree, and kept the
+exact nested headed body at 398 compact bytes, then still returned
+HTTP 500 `text/html` on box and Mac. Headed Network capture
+`POST-request-headers-20260912.md` listed no `Csrf-Token` request
+header. Adapter 1.36.0 still requires a valid `ajax:` `JSESSIONID`
+cookie and sends it with `credentials:include`, but omits `csrf-token`
+on this navigation POST only. Other contained fetches still send that
+header. Compact JSON stays; two extra headed Content-Length bytes are
+not enough to invent spaces or a terminator. Sec-Fetch-* and
+Accept-Language stay omitted until a capture proves they are required.
+
+If a later POST is still 500 after that headed header match, Email may
+need a headed UI interaction rather than another synthetic request.
+The smallest R1 design is: keep the bound profile document, click one
+reviewed Contact-info control whose identity comes from a capture, and
+read the SPA-issued navigation POST (same URL, body, and headers the
+page already sends). Fail closed if that control is missing, ambiguous,
+or issues a drifted request. Do not invent a second network shape or
+DOM selector. That click path stays capture-required until the exact
+control and issued request are reviewed.
+
 ```sh
 printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \
   | ghostget invoke linkedin-web contacts.read --input - --auth linkedin-dormant-20260911 --json

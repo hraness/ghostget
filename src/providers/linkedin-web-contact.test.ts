@@ -281,6 +281,8 @@ describe("LinkedIn contacts.read target and request binding", () => {
     const headedBody = buildLinkedInContactNavigationBody({
       clientArguments: { payload: { vanityName: "example" } },
     });
+    expect(headedBody).toBe(JSON.stringify(JSON.parse(headedBody)));
+    expect(headedBody.endsWith("\n")).toBeFalse();
     expect(JSON.parse(headedBody)).toEqual({
       clientArguments: headedClientArguments({ vanityName: "example" }),
       isModal: true,

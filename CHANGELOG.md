@@ -7,6 +7,41 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Match the headed LinkedIn `contacts.read@1` Contact-info navigation
+  POST header set more closely after adapter 1.35.0. Live peel forwarded
+  page-instance, track, application version/instance, anchor page key,
+  `rscStream`, page-instance-tracking-id, pageforest, traceparent, and
+  tracestate from the same contained rsc-action observations; layout-tree
+  stayed omitted because it was not observed. The nested headed body
+  stayed exact at 398 compact bytes. Contained Chrome still returned
+  HTTP 500 `text/html` on box and Mac. Headed Network capture
+  `POST-request-headers-20260912.md` showed no `Csrf-Token` request
+  header, while contained `rsc-action` always set `csrf-token` from
+  `JSESSIONID`. This POST now still requires a valid `ajax:` JSESSIONID
+  cookie and sends it with `credentials:include`, but it omits the
+  `csrf-token` header. GraphQL and other contained fetches still send
+  that header. Compact JSON emit stays; the headed Content-Length of
+  400 is two bytes above 398 and is not enough evidence to invent
+  spaces or a terminator. Sec-Fetch-* and Accept-Language stay omitted
+  until a capture proves they are required. If this still 500s, Email
+  may need a headed UI interaction: one reviewed click of the already
+  visible Contact-info control on the bound profile, then read the
+  SPA-issued navigation POST rather than synthesizing another request.
+  That click path stays capture-required until the exact control
+  identity and issued request are reviewed. GraphQL 403, navigation
+  GETs, vanity HTML-shell honesty, `sduiid=screenId`, the headed nested
+  body, and observed X-Li copies stay. Soft-labels stay. Self,
+  non-first-degree, and contradictory distances still fail closed, and
+  no email is invented. Adapter bundle 1.36.0.
+  This is the fourteenth live Contact-info drift after the 1.35.0
+  observed-header copies. Cloud has no signed-in LinkedIn session; do
+  not treat this landing as live green. Operator smoke:
+
+  ```sh
+  printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \
+    | ghostget invoke linkedin-web contacts.read --input - --auth linkedin-dormant-20260911 --json
+  ```
+
 - Copy already-observed LinkedIn `contacts.read@1` rsc-action
   `x-li-page-instance-tracking-id`, `x-li-pageforestid`,
   `x-li-traceparent`, `x-li-tracestate`, and optional
