@@ -1372,12 +1372,18 @@ describe("npm publication contract", () => {
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
     expect(budget).toContain("11,691,232 compressed / 22,642,211 payload bytes across exactly 574 files");
     expect(budget).toContain("5d020e68a4362c41b3e5251828144df4be4533b3bc2ad25f6f7b2b45a624a50e");
-    expect(MAX_PACKED_BYTES).toBe(11_695_328);
-    expect(MAX_PACKED_BYTES).toBe(11_691_232 + 4_096);
+    expect(budget).toContain("1f936230bbfe3624e8a633b3068d99d3839d5ba092fcb104b6c172984a4cb363");
+    expect(budget).toContain("11,657,577 + 4,096 = 11,661,673");
+    expect(budget).toContain("376dee6d63a54be49b46407cbcb69769da00c075657d89f40e0002975d49225f");
+    expect(budget).toContain("7a1459e68864f3b5c5779915f37aba6bc0d164b57ddd69a86e581674c30fed06");
+    expect(budget).toContain("11,691,340 compressed / 22,642,526 payload bytes across exactly 574 files");
+    expect(budget).toContain("00c1d461b83bf891d62e51e6ab1f1f5f25108767c1216f00d90ef7bc8eba82a4");
+    expect(MAX_PACKED_BYTES).toBe(11_695_436);
+    expect(MAX_PACKED_BYTES).toBe(11_691_340 + 4_096);
     expect(MAX_PACKED_ENTRIES).toBe(574);
     expect(MAX_PACKED_FILES).toBe(574);
-    expect(MAX_UNPACKED_BYTES).toBe(22_642_276);
-    expect(MAX_UNPACKED_BYTES).toBe(22_642_211 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(22_642_591);
+    expect(MAX_UNPACKED_BYTES).toBe(22_642_526 + 65);
     expect(budget).toContain("2,324,169 + 4,096 = 2,328,265");
     expect(budget).toContain("2,330,878 + 4,096 = 2,334,974");
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
@@ -1387,8 +1393,8 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 574, max: 574 },
       fileCount: { min: 574, max: 574 },
-      packedBytes: { min: 1_600_000, max: 11_695_328 },
-      unpackedBytes: { min: 9_000_000, max: 22_642_276 },
+      packedBytes: { min: 1_600_000, max: 11_695_436 },
+      unpackedBytes: { min: 9_000_000, max: 22_642_591 },
     });
   });
 

@@ -1,3 +1,51 @@
+// Final Ghostget 0.19.0 join with main b48aa72 (0.18.2 canonical archive
+// recovery), retaining the Vault/setup and messaging union: two clean Bun
+// 1.3.14 builds and canonical npm 11.19.0 packs under verified official
+// Node 24.20.0 darwin-arm64 / zlib 1.3.2.1-motley-42c2f19 are byte-identical:
+// 11,691,340 compressed / 22,642,526 payload bytes across exactly 574 files,
+// SHA-256 00c1d461b83bf891d62e51e6ab1f1f5f25108767c1216f00d90ef7bc8eba82a4.
+// Every file byte and mode matches source. The sole archive-content delta
+// from the e46e9a0 join is 315 changelog bytes; compression grows 108 bytes.
+// All generated dist and vendored native resource bytes remain unchanged.
+// Preserve exactly 4,096 compressed-byte and 65 payload-byte allowances:
+// 11,691,340 + 4,096 = 11,695,436; 22,642,526 + 65 = 22,642,591.
+// The version-aware 12 MiB transfer envelope remains a separate bound.
+// Required Linux CI and Release still admit their actual canonical bytes.
+//
+// Ghostget 0.18.2 marketing and archive recovery joined with main e46e9a0
+// (LinkedIn adapter 1.36.1). Two clean Bun 1.3.14 builds and canonical npm
+// 11.19.0 packs under official Node 24.20.0 darwin-arm64 with zlib
+// 1.3.2.1-motley-42c2f19 produce identical archives: SHA-256
+// 1f936230bbfe3624e8a633b3068d99d3839d5ba092fcb104b6c172984a4cb363,
+// 11,657,577 compressed / 22,515,467 payload bytes across the same 558 files.
+// Compared with that main source, the task changelog adds 315 payload bytes;
+// release-version coordinates retain their length. Theme assets stay website-only.
+// Preserve the existing 4,096 compressed-byte and 65 payload-byte allowances:
+// 11,657,577 + 4,096 = 11,661,673; 22,515,467 + 65 = 22,515,532.
+// Fresh Required Linux CI and Release must inspect their actual canonical bytes.
+//
+// Ghostget 0.18.2 marketing and canonical archive recovery joined with main
+// a02519a (LinkedIn adapter 1.34.0). Two clean Bun 1.3.14 builds and canonical
+// npm 11.19.0 packs under official Node 24.20.0 darwin-arm64 with zlib
+// 1.3.2.1-motley-42c2f19 produce identical archives: SHA-256
+// 376dee6d63a54be49b46407cbcb69769da00c075657d89f40e0002975d49225f,
+// 11,654,474 compressed / 22,497,313 payload bytes across the same 558 files.
+// The task changelog adds 315 payload bytes; version coordinates retain their
+// length. Native bytes, exports and the website/package boundary are unchanged.
+// Retain exactly 4,096 compressed-byte and 65 payload-byte allowances:
+// 11,654,474 + 4,096 = 11,658,570; 22,497,313 + 65 = 22,497,378.
+// Fresh Required Linux CI and Release must admit their actual canonical bytes.
+//
+// Ghostget 0.18.2 shared marketing release on main d58db40. Two clean Bun
+// 1.3.14 builds and canonical npm 11.19.0 packs under official Node 24.20.0
+// darwin-arm64 / zlib 1.3.2.1-motley-42c2f19 produce identical archives:
+// SHA-256 7a1459e68864f3b5c5779915f37aba6bc0d164b57ddd69a86e581674c30fed06,
+// 11,649,815 compressed / 22,479,283 payload bytes across the same 558 files.
+// Release coordinates retain their length; the task changelog adds 244 payload
+// bytes. The website, shared font and textures stay outside the package.
+// Preserve 4,096 compressed-byte and 65 payload-byte allowances, the exact
+// inventory and native artifact bytes. Required Linux CI admits its own archive.
+//
 // Ghostget 0.19.0 secure-entry, Vault and setup joined with main e46e9a0
 // (messaging automation and LinkedIn adapter 1.36.1), including the portable
 // skill description: two clean Bun 1.3.14 builds and canonical npm 11.19.0
@@ -830,10 +878,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 11_695_328;
+export const MAX_PACKED_BYTES = 11_695_436;
 export const MAX_PACKED_ENTRIES = 574;
 export const MAX_PACKED_FILES = 574;
-export const MAX_UNPACKED_BYTES = 22_642_276;
+export const MAX_UNPACKED_BYTES = 22_642_591;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

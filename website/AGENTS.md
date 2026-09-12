@@ -1,5 +1,6 @@
 # Contents
 
+- `vendor/marketing-preset/` owns the immutable shared editorial CSS, licensed Instrument Serif, field textures, and source/hash provenance. `marketing-preset.ts` verifies that closed snapshot before `build.ts` publishes its bytes.
 - `source/` – checked HTML, CSS, analytics, discovery, fallback, markdown, and llms.txt sources.
 - `public/` – checked public icon, social, caption, and reusable demo assets.
 - `build.ts` – deterministic static output generation from the root package release.
@@ -14,6 +15,7 @@
 
 # Guidelines
 
+- Keep the homepage's shared editorial preset scoped by `data-hraness-marketing-preset="editorial"`; the explicit `.hraness-marketing-field` flow container owns its background. Keep product adaptations outside the immutable snapshot and preserve the separate inert native-control previews, ordinary documentation, release identity, and all production admission gates.
 - Keep the page useful without JavaScript. JavaScript may progressively enhance explicit copy controls and canonical-host analytics; keep all commands readable and selectable without it.
 - Keep every product claim observable in the public Ghostget release and put each qualification beside the claim it limits.
 - Derive release identity and install commands from the validated root `package.json`; never copy a version into page source.

@@ -7,6 +7,37 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.19.0 - 2026-09-12
+
+- Guide account setup with `ghostget setup --json` and expiring service
+  suggestions for native review. Optional Chrome discovery reads fixed cookie
+  metadata without decryption; every suggested connection still requires live
+  verification and human confirmation.
+- Simplify the control panel into five main destinations and Agent setup. Group
+  permission settings under Access, reveal uncommon connection and filter
+  options on demand, and preserve continuous virtualized activity scrolling.
+  Add two Direct scenarios for discovery and agent setup.
+- Use the white ghost emoji throughout the native app, website, inert previews,
+  favicon, and social card.
+- Add a local macOS Keychain vault with native secure entry, optional links to
+  selected fields in a dedicated 1Password vault, and separately revocable
+  credential grants. Secrets remain inside the credential broker; agents use
+  an exact granted HTTPS GET and receive selected JSON fields only.
+- Add searchable Vault management, lock, cleanup, credential approvals, and
+  copyable agent instructions to the shared native and Direct UI. Record
+  authenticated request metadata in the existing local activity log.
+- Add an independent Developer ID signing, notarization and immutable desktop
+  release pipeline while preserving canonical CLI releases. Signed publication
+  requires Apple enrollment and protected credentials. Browser autofill and
+  passkey assertions are not implemented.
+
+## 0.18.2 - 2026-09-12
+
+- Apply the shared editorial typography, textured background and blurred header
+  to the homepage. Keep logos sharp, phone navigation on one row, and documentation
+  and inert native examples in their existing layouts.
+- Correct canonical archive-size limits for bundled messaging helpers.
+
 - Allow the unique reviewed Contact info control to open the live
   LinkedIn SPA modal after adapter 1.36.0. Operator smoke on
   2026-09-12 found that unique control on tessbloch, then fail-closed
@@ -108,30 +139,6 @@ Historical entries retain their original delivery coordinates.
   This is the twelfth live Contact-info drift after the 1.33.0 nested
   body. Cloud has no signed-in LinkedIn session; do not treat this
   landing as live green.
-
-## 0.19.0 - 2026-09-11
-
-- Guide account setup with `ghostget setup --json` and expiring service
-  suggestions for native review. Optional Chrome discovery reads fixed cookie
-  metadata without decryption; every suggested connection still requires live
-  verification and human confirmation.
-- Simplify the control panel into five main destinations and Agent setup. Group
-  permission settings under Access, reveal uncommon connection and filter
-  options on demand, and preserve continuous virtualized activity scrolling.
-  Add two Direct scenarios for discovery and agent setup.
-- Use the white ghost emoji throughout the native app, website, inert previews,
-  favicon, and social card.
-- Add a local macOS Keychain vault with native secure entry, optional links to
-  selected fields in a dedicated 1Password vault, and separately revocable
-  credential grants. Secrets remain inside the credential broker; agents use
-  an exact granted HTTPS GET and receive selected JSON fields only.
-- Add searchable Vault management, lock, cleanup, credential approvals, and
-  copyable agent instructions to the shared native and Direct UI. Record
-  authenticated request metadata in the existing local activity log.
-- Add an independent Developer ID signing, notarization and immutable desktop
-  release pipeline while preserving canonical CLI releases. Signed publication
-  requires Apple enrollment and protected credentials. Browser autofill and
-  passkey assertions are not implemented.
 
 ## 0.18.1 - 2026-09-12
 

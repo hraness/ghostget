@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { verifyBuildHandoff, verifyReleaseDirectory } from "./github-release-artifact.js";
-import { parseReleaseAssetDescriptors, releaseAssetNames, verifyReleaseAssetBytes, type ReleaseManifest, type ReleaseAssetDescriptor } from "../website/github-release-artifact.mjs";
+import { parseReleaseAssetDescriptors, releaseAssetNames, releaseAssetByteLimit, verifyReleaseAssetBytes, type ReleaseManifest, type ReleaseAssetDescriptor } from "../website/github-release-artifact.mjs";
 import {
   assertReleaseTagNewerThanPublished, exactLatestPredecessor, exactWorkflowPublishedRelease,
   parseOptionalIncludedGitHubResponse, releaseSourceReceipt, requireLatestRelease,
@@ -14,17 +14,21 @@ const repository = "hraness/ghostget";
 const prefix = `/repos/${repository}`;
 type CommandResult = { status: number; stdout: string };
 type Runner = (args: readonly string[], input?: string) => CommandResult;
-type AssetDownloader = (id: number, expectedBytes: number) => Uint8Array;
-function downloadAsset(id: number, expectedBytes: number): Uint8Array {
-  if (!Number.isSafeInteger(id) || id <= 0 || !Number.isSafeInteger(expectedBytes)
-    || expectedBytes <= 0 || expectedBytes > 8 * 1024 * 1024) throw new Error("Release asset download is outside its admitted bound");
-  const result = spawnSync("gh", ["api", "--method", "GET", `${prefix}/releases/assets/${id}`,
-    "-H", "Accept: application/octet-stream"], {
-    timeout: 120_000, maxBuffer: expectedBytes + 1,
+type AssetDownloader = (asset: ReleaseAssetDescriptor, tag: string) => Uint8Array;
+type BinaryRunner = (args: readonly string[], maximumBytes: number) => { status: number | null; stdout: Uint8Array; error?: Error };
+export function downloadReleaseAsset(asset: ReleaseAssetDescriptor, tag: string, run: BinaryRunner = (args, maximumBytes) =>
+  spawnSync("gh", args, {
+    timeout: 120_000, maxBuffer: maximumBytes,
     env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("WRENCH_RELEASE_APP_"))),
     stdio: ["ignore", "pipe", "pipe"],
-  });
+  })): Uint8Array {
+  const { id, bytes: expectedBytes } = asset;
+  if (!Number.isSafeInteger(id) || id <= 0 || !Number.isSafeInteger(expectedBytes)
+    || expectedBytes <= 0 || expectedBytes > releaseAssetByteLimit(tag, asset.name)) throw new Error("Release asset download is outside its admitted bound");
+  const result = run(["api", "--method", "GET", `${prefix}/releases/assets/${id}`,
+    "-H", "Accept: application/octet-stream"], expectedBytes + 1);
   if (result.error !== undefined || result.status !== 0) throw new Error("Bounded release asset download did not complete");
+  verifyReleaseAssetBytes(result.stdout, asset);
   return result.stdout;
 }
 function command(args: readonly string[], input?: string): CommandResult {
@@ -98,7 +102,7 @@ export function validateReleaseAssets(releaseValue: unknown, manifest: ReleaseMa
     const temporaryMatch = /^untagged-[0-9a-f]{20}\/([^/]+)$/u.exec(temporaryPath);
     const temporaryUrl = release.draft === true && temporaryMatch?.[1] === name;
     const bytes = readFileSync(join(directory, name));
-    if (!Number.isSafeInteger(asset.size) || Number(asset.size) <= 0 || Number(asset.size) > 8 * 1024 * 1024
+    if (!Number.isSafeInteger(asset.size) || Number(asset.size) <= 0 || Number(asset.size) > releaseAssetByteLimit(manifest.tag, name)
       || asset.size !== bytes.length || asset.digest !== `sha256:${createHash("sha256").update(bytes).digest("hex")}`
       || asset.url !== `https://api.github.com${prefix}/releases/assets/${asset.id}`
       || (asset.browser_download_url !== canonicalUrl && !temporaryUrl)) {
@@ -111,7 +115,7 @@ export function validateReleaseAssets(releaseValue: unknown, manifest: ReleaseMa
   return { missing: names.filter(name => !found.has(name)), descriptors };
 }
 
-export async function publishCanonicalRelease(directory: string, manifest: ReleaseManifest, run: Runner = command, download: AssetDownloader = downloadAsset): Promise<void> {
+export async function publishCanonicalRelease(directory: string, manifest: ReleaseManifest, run: Runner = command, download: AssetDownloader = downloadReleaseAsset): Promise<void> {
   const get = async (endpoint: string): Promise<unknown> => JSON.parse(successful(run, ["gh", "api", "--method", "GET", endpoint]));
   const api = { get };
   const coordinates = { repository, verifiedSha: manifest.sourceSha, verifiedTag: manifest.tag, workflowRunId: String(manifest.runId) };
@@ -127,7 +131,7 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
     const admitted = validateReleaseAssets(value, manifest, directory);
     if (admitted.missing.length !== 0) throw new Error("Remote byte proof requires all canonical assets");
     const descriptors = value.draft === true ? admitted.descriptors : parseReleaseAssetDescriptors(value.assets, manifest.tag);
-    for (const asset of descriptors) verifyReleaseAssetBytes(download(asset.id, asset.bytes), asset);
+    for (const asset of descriptors) verifyReleaseAssetBytes(download(asset, manifest.tag), asset);
   };
   const authority = async (phase: "prewrite" | "postwrite"): Promise<void> => {
     const main = object(object(await get(`${prefix}/git/ref/heads/main`)).object).sha;

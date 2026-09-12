@@ -311,6 +311,13 @@ describe("complete local and release check composition", () => {
       packing,
       'cat "$directory/npm-pack.json"',
       'bun run ./scripts/package-artifact.ts "$directory/hraness-ghostget-$package_version.tgz"',
+      'DIRECTORY="$directory" PACKAGE_VERSION="$package_version" bun --eval \'',
+      '  import { prepareReleaseDirectory } from "./scripts/github-release-artifact.ts";',
+      '  await prepareReleaseDirectory(process.env.DIRECTORY, {',
+      '    tag: `v${process.env.PACKAGE_VERSION}`, sourceSha: "0".repeat(40), workflowSha: "0".repeat(40), runId: 1, runAttempt: 1,',
+      '  });',
+      '  console.log("Synthetic canonical preparation passed; no release authority or provenance.");',
+      "'",
       "",
     ].join("\n"));
     expect(packageJob.steps.indexOf(packed)).toBeGreaterThan(

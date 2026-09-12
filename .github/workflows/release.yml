@@ -363,12 +363,16 @@ jobs:
           const fs = require('node:fs'); const path = require('node:path'); const crypto = require('node:crypto');
           const directory = process.env.DIRECTORY;
           const names = [`hraness-ghostget-${process.env.VERIFIED_TAG.slice(1)}.tgz`, 'npm-pack.json', 'release-manifest.json', 'SHA256SUMS'];
+          const [major, minor, patch] = process.env.VERIFIED_TAG.slice(1).split('.').map(BigInt);
+          const bundledMessaging = major > 0n || minor > 18n || (minor === 18n && patch >= 1n);
+          const byteLimit = (name) => name === names[0] ? (bundledMessaging ? 12 : 8) * 1024 * 1024
+            : ['npm-pack.json', 'release-manifest.json'].includes(name) ? 1024 * 1024 : 8 * 1024 * 1024;
           if (fs.readdirSync(directory).sort().join(',') !== [...names].sort().join(',')) throw new Error('Attestation input inventory differs');
           const hashes = JSON.parse(process.env.EXPECTED_ARTIFACT_HASHES);
           if (hashes === null || typeof hashes !== 'object' || Array.isArray(hashes) || Object.keys(hashes).sort().join(',') !== [...names].sort().join(',')) throw new Error('Trusted build hashes are malformed');
           for (const name of names) {
             const stat = fs.lstatSync(path.join(directory, name));
-            if (!stat.isFile() || stat.isSymbolicLink() || stat.size <= 0 || stat.size > 8 * 1024 * 1024) throw new Error('Attestation input is not a bounded regular file');
+            if (!stat.isFile() || stat.isSymbolicLink() || stat.size <= 0 || stat.size > byteLimit(name)) throw new Error('Attestation input is not a bounded regular file');
             if (typeof hashes[name] !== 'string' || !/^[a-f0-9]{64}$/u.test(hashes[name]) || crypto.createHash('sha256').update(fs.readFileSync(path.join(directory, name))).digest('hex') !== hashes[name]) throw new Error('Attestation input differs from verified build output');
           }
           const manifest = JSON.parse(fs.readFileSync(path.join(directory, 'release-manifest.json'), 'utf8'));
@@ -755,6 +759,10 @@ jobs:
           const version = process.env.VERIFIED_TAG.slice(1);
           const archiveName = `hraness-ghostget-${version}.tgz`;
           const names = [archiveName, "npm-pack.json", "release-manifest.json", "SHA256SUMS", "provenance.jsonl"];
+          const [major, minor, patch] = version.split('.').map(BigInt);
+          const bundledMessaging = major > 0n || minor > 18n || (minor === 18n && patch >= 1n);
+          const byteLimit = (name) => name === names[0] ? (bundledMessaging ? 12 : 8) * 1024 * 1024
+            : ['npm-pack.json', 'release-manifest.json'].includes(name) ? 1024 * 1024 : 8 * 1024 * 1024;
           if (fs.readdirSync(directory).sort().join(",") !== [...names].sort().join(",")) throw new Error("Attested canonical inventory differs");
           const hashes = JSON.parse(process.env.EXPECTED_ARTIFACT_HASHES);
           const built = names.slice(0, 4);
@@ -762,7 +770,7 @@ jobs:
           const digest = (name) => crypto.createHash("sha256").update(fs.readFileSync(path.join(directory, name))).digest("hex");
           for (const name of names) {
             const stat = fs.lstatSync(path.join(directory, name));
-            if (!stat.isFile() || stat.isSymbolicLink() || stat.size <= 0 || stat.size > 8 * 1024 * 1024) throw new Error("Attested canonical file is not a bounded regular file");
+            if (!stat.isFile() || stat.isSymbolicLink() || stat.size <= 0 || stat.size > byteLimit(name)) throw new Error("Attested canonical file is not a bounded regular file");
             const expected = name === "provenance.jsonl" ? process.env.EXPECTED_BUNDLE_SHA256 : hashes[name];
             if (typeof expected !== "string" || !/^[a-f0-9]{64}$/u.test(expected) || digest(name) !== expected) throw new Error("Attested canonical file differs from verified build output");
           }
