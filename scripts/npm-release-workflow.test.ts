@@ -1292,6 +1292,8 @@ describe("npm publication contract", () => {
     expect(budget).toContain("2,314,832 compressed and 12,654,071 payload");
     expect(budget).toContain("01abe7e7a0953670578777aa88e3c3dbe6d095fb2e46298154c37801db576c96");
     expect(budget).toContain("2,316,774 compressed");
+    expect(budget).toContain("12,725,779 payload bytes across exactly 524 files");
+    expect(budget).toContain("43818a0f9210eea9ab07964afe98df56444c042cd911599b9cac83f93bcf1d6d");
     expect(budget).toContain("12,725,039 payload bytes across exactly 524 files");
     expect(budget).toContain("82aebc3443ba76a5f5ecb20121528aec7d52b3c25f9d0546310e213588dc9aad");
     expect(budget).toContain("12,721,045 payload bytes across exactly 524 files");
@@ -1324,8 +1326,8 @@ describe("npm publication contract", () => {
     expect(MAX_PACKED_BYTES).toBe(2_330_878 + 4_096);
     expect(MAX_PACKED_ENTRIES).toBe(524);
     expect(MAX_PACKED_FILES).toBe(524);
-    expect(MAX_UNPACKED_BYTES).toBe(12_725_104);
-    expect(MAX_UNPACKED_BYTES).toBe(12_725_039 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(12_725_844);
+    expect(MAX_UNPACKED_BYTES).toBe(12_725_779 + 65);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
@@ -1334,7 +1336,7 @@ describe("npm publication contract", () => {
       entryCount: { min: 524, max: 524 },
       fileCount: { min: 524, max: 524 },
       packedBytes: { min: 1_600_000, max: 2_334_974 },
-      unpackedBytes: { min: 9_000_000, max: 12_725_104 },
+      unpackedBytes: { min: 9_000_000, max: 12_725_844 },
     });
   });
 

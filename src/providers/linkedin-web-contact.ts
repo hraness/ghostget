@@ -323,7 +323,7 @@ export function buildLinkedInContactNavigationBody(
   input: Pick<LinkedInContactNavigationAction, "clientArguments">,
 ): string {
   return JSON.stringify({
-    clientArguments: input.clientArguments,
+    clientArguments: canonicalContactNavigationClientArguments(input.clientArguments),
     isModal: true,
   });
 }
@@ -1321,13 +1321,13 @@ function reviewedRequestMetadata(
 }
 
 function headedContactRequestMetadata(
-  meta: LinkedInContactNavigationRequestMetadata,
+  meta?: LinkedInContactNavigationRequestMetadata,
 ): LinkedInContactNavigationRequestMetadata {
   return Object.freeze({
-    ...(meta.$type === undefined ? {} : { $type: meta.$type }),
-    states: meta.states ?? Object.freeze([]),
+    $type: meta?.$type ?? LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+    states: meta?.states ?? Object.freeze([]),
     screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
-    knownTemplates: meta.knownTemplates ?? Object.freeze([]),
+    knownTemplates: meta?.knownTemplates ?? Object.freeze([]),
   });
 }
 
@@ -1339,32 +1339,30 @@ function canonicalContactNavigationPayload(
     givenName?: string;
     familyName?: string;
     isVanityNameResolved?: boolean;
-    requestMetadata?: LinkedInContactNavigationRequestMetadata;
-  } = {};
+    requestMetadata: LinkedInContactNavigationRequestMetadata;
+  } = {
+    requestMetadata: headedContactRequestMetadata(payload.requestMetadata),
+  };
   if (payload.vanityName !== undefined) next.vanityName = payload.vanityName;
   if (payload.givenName !== undefined) next.givenName = payload.givenName;
   if (payload.familyName !== undefined) next.familyName = payload.familyName;
   if (payload.isVanityNameResolved !== undefined) next.isVanityNameResolved = payload.isVanityNameResolved;
-  if (payload.requestMetadata !== undefined) {
-    next.requestMetadata = headedContactRequestMetadata(payload.requestMetadata);
-  }
-  return Object.freeze(next);
+  return Object.freeze({
+    ...(next.vanityName === undefined ? {} : { vanityName: next.vanityName }),
+    ...(next.givenName === undefined ? {} : { givenName: next.givenName }),
+    ...(next.familyName === undefined ? {} : { familyName: next.familyName }),
+    ...(next.isVanityNameResolved === undefined ? {} : { isVanityNameResolved: next.isVanityNameResolved }),
+    requestMetadata: next.requestMetadata,
+  });
 }
 
 function canonicalContactNavigationClientArguments(
   args: LinkedInContactNavigationClientArguments,
 ): LinkedInContactNavigationClientArguments {
-  const next: {
-    $type?: string;
-    requestedStateKeys?: readonly string[];
-    payload: LinkedInContactNavigationPayload;
-  } = { payload: canonicalContactNavigationPayload(args.payload) };
-  if (args.$type !== undefined) next.$type = args.$type;
-  if (args.requestedStateKeys !== undefined) next.requestedStateKeys = args.requestedStateKeys;
   return Object.freeze({
-    ...(next.$type === undefined ? {} : { $type: next.$type }),
-    ...(next.requestedStateKeys === undefined ? {} : { requestedStateKeys: next.requestedStateKeys }),
-    payload: next.payload,
+    $type: args.$type ?? LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+    requestedStateKeys: args.requestedStateKeys ?? Object.freeze([]),
+    payload: canonicalContactNavigationPayload(args.payload),
   });
 }
 
