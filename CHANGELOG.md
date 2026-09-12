@@ -12,6 +12,7 @@ Historical entries retain their original delivery coordinates.
 - Apply the shared editorial typography, textured background and blurred header
   to the homepage. Keep logos sharp, phone navigation on one row, and documentation
   and inert native examples in their existing layouts.
+- Correct canonical archive-size limits for bundled messaging helpers.
 
 ## 0.18.1 - 2026-09-12
 
