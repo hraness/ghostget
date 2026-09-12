@@ -577,7 +577,7 @@ const linkedin = {
     "contacts.read",
     LINKEDIN_WEB_OPERATIONS["contacts.read"].risk,
     LINKEDIN_WEB_OPERATIONS["contacts.read"].state,
-    "reviewed contained-Chrome 1st-degree Contact-info read: bind the signed-in viewer, require a 1st-degree relationship on the requested vanity from Profile embeds or Como rehydration, then project embedded Contact-info fields while skipping non-bounded SDUI labels, or POST ProfileContactDetailsOverlay using that screenId as sduiid with proto.sdui types and nested requestMetadata; treat an HTML-200 shell that omits Email as omitted fields, keep navigation GETs rejected, and do not invent Email",
+    "reviewed contained-Chrome 1st-degree Contact-info read: bind the signed-in viewer, require 1st-degree from Profile embeds or Como, project Contact-info fields while skipping non-bounded SDUI labels, or POST ProfileContactDetailsOverlay from the opened profile with screenId as sduiid, proto.sdui types, nested requestMetadata, and page-derived x-li-page-instance; treat an HTML-200 shell that omits Email as omitted fields, keep navigation GETs rejected, and do not invent Email or track IDs",
     LINKEDIN_WEB_OPERATIONS["contacts.read"].contractVersion,
   ),
   "feeds.read": contract(

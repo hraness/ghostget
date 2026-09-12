@@ -7,6 +7,28 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Bind LinkedIn `contacts.read@1` Contact-info navigation POST to the
+  already-loaded profile document after adapter 1.33.0. Live peel of the
+  headed nested `payload.requestMetadata` body matched byte-for-byte,
+  but contained Chrome still returned HTTP 500 `text/html` because that
+  POST ran from the signed-in origin fetch context with only `Accept`,
+  `Content-Type`, and session `csrf-token`. Headed success also sent
+  page-instance and optional `x-li-track` from the profile SPA. The
+  contained path now opens the exact reviewed profile URL, waits for
+  that document, copies a unique `d_flagship3_profile*`
+  `x-li-page-instance` from observed same-origin voyager requests or
+  the loaded document, and forwards optional `x-li-track` only when
+  that same observation has one `voyager-web` JSON value. It does not
+  mint `traceparent`, `pageforest`, layout-tree, or tracking IDs.
+  Missing or ambiguous page-instance fails closed before POST. GraphQL
+  403, navigation GETs, vanity HTML-shell honesty, `sduiid=screenId`,
+  and the headed nested body stay. Soft-labels stay. Self,
+  non-first-degree, and contradictory distances still fail closed, and
+  no email is invented. Adapter bundle 1.34.0.
+  This is the twelfth live Contact-info drift after the 1.33.0 nested
+  body. Cloud has no signed-in LinkedIn session; do not treat this
+  landing as live green.
+
 ## 0.18.1 - 2026-09-12
 
 - Add the owner messaging automation protocol for iMessage and WhatsApp:
@@ -23,7 +45,6 @@ Historical entries retain their original delivery coordinates.
   an already-working private bridge; its upstream setup requires disabled SIP.
   App Clips and arbitrary mini-app experiences remain unavailable. Offline checks
   do not establish real account pairing or message delivery.
-
 - Nest LinkedIn `contacts.read@1` Contact-info `requestMetadata` under
   `payload` after adapter 1.32.0. Live peel of sibling `proto.sdui`
   types succeeded, but the POST still returned HTTP 500 `text/html`

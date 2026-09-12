@@ -1527,6 +1527,9 @@ describe("npm publication contract", () => {
     expect(contactStart).toBeLessThan(listingStart);
     expect(listingStart).toBeLessThan(fixStart);
     expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
+      "Adapter bundle 1.34.0",
+    );
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
       "Adapter bundle 1.33.0",
     );
     expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
