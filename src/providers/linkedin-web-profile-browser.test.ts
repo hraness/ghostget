@@ -23,8 +23,6 @@ import {
 import { executeLinkedInWebOperation } from "./linkedin-web-runtime";
 import {
   LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
-  buildLinkedInContactNavigationBody,
-  buildLinkedInProfileContactDetailsNavigationPostPath,
   buildLinkedInProfileContactInfoGraphqlPath,
   buildLinkedInProfileContactInfoOverlayPath,
 } from "./linkedin-web-contact";
@@ -197,6 +195,63 @@ function browserRejectionRecord(
       },
     },
   };
+}
+
+function isContactModalEval(source: string): boolean {
+  return source.includes("const modalInput=")
+    && source.includes("omitted its reviewed Contact-info control");
+}
+
+function expectContactModalEval(source: string, profileUrl: string): void {
+  expect(() => evaluatorSyntax.transformSync(source)).not.toThrow();
+  expect(source).toContain('const modalInput=');
+  expect(source).toContain(`"documentUrl":${JSON.stringify(profileUrl)}`);
+  expect(source).toContain('nameOf(el)==="Contact info"');
+  expect(source).toContain("omitted its reviewed Contact-info control");
+  expect(source).toContain("Contact-info control was ambiguous");
+  expect(source).toContain("targeted the vanity overlay GET");
+  expect(source).toContain("omitted its Contact-info modal");
+  expect(source).toContain('querySelectorAll(\'[role="dialog"],dialog,[aria-modal="true"]\')');
+  expect(source).toContain(".click()");
+  expect(source).not.toContain('method:input.kind==="rsc-action"?"POST":"GET"');
+  expect(source).not.toContain("/flagship-web/rsc-action/actions/navigation");
+  expect(source).not.toContain('headers["csrf-token"]=csrf');
+  expect(source).not.toContain("crypto.randomUUID");
+}
+
+const DIALOG_EMAIL_HTML = [
+  "<div role=\"dialog\" aria-modal=\"true\">",
+  "<span>Email</span>",
+  "<a href=\"mailto:connection@example.test\">connection@example.test</a>",
+  "</div>",
+].join("");
+
+function contactNavigationInput() {
+  return {
+    profileUrl: PROFILE_URL,
+    profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+    sduiid: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+    clientArguments: {
+      payload: { vanityName: "0thernet" },
+    },
+  };
+}
+
+function voyagerProfileNetworkResult() {
+  return [{
+    success: true,
+    result: {
+      requests: [{
+        method: "GET",
+        status: 200,
+        url: "https://www.linkedin.com/voyager/api/graphql?fixture=profile",
+        headers: {
+          "x-li-page-instance": PROFILE_PAGE_INSTANCE,
+          "x-li-track": PROFILE_TRACK,
+        },
+      }],
+    },
+  }];
 }
 
 function identityResponse(): string {
@@ -691,26 +746,13 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     await transport.close();
   });
 
-  test("POSTs the page-bound Contact-info navigation action without RSC headers", async () => {
+  test("clicks the unique Contact info control and snapshots the modal", async () => {
     const requests: BrowserReadBinding[] = [];
     const opened: string[] = [];
     let waits = 0;
     let networkFilters: string[] = [];
-    const overlayBody = [
-      '1:I["com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay"]',
-      `2:${JSON.stringify({
-        fields: [
-          { label: "Email", value: "connection@example.test" },
-        ],
-      })}`,
-    ].join("\n");
-    const sduiid = LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID;
-    const navigationPath = buildLinkedInProfileContactDetailsNavigationPostPath({ sduiid });
-    const navigationBody = buildLinkedInContactNavigationBody({
-      clientArguments: {
-        payload: { vanityName: "0thernet" },
-      },
-    });
+    let clicked = false;
+    const overlayBody = DIALOG_EMAIL_HTML;
     const session: BrowserSession = {
       runBatch: (commands) => {
         const command = commands[0];
@@ -746,6 +788,11 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         if (command?.[0] !== "eval" || command[1] === undefined) {
           throw new Error("unexpected LinkedIn contact-info navigation browser command");
         }
+        if (isContactModalEval(command[1])) {
+          expectContactModalEval(command[1], PROFILE_URL);
+          clicked = true;
+          return Promise.resolve([browserBodyRecord(overlayBody, "text/html")]);
+        }
         if (command[1].includes("LinkedIn profile document omitted its root")) {
           throw new Error("page-instance extract ran after a unique network binding");
         }
@@ -756,38 +803,6 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         }
         if (binding.path === "/in/0thernet/") {
           return Promise.resolve([browserBodyRecord("<html>1st</html>", "text/html")]);
-        }
-        if (binding.path === navigationPath) {
-          expect(binding.kind).toBe("rsc-action");
-          expect(binding.body).toBe(navigationBody);
-          expect(binding.documentUrl).toBe(PROFILE_URL);
-          expect(binding.pageInstance).toBe(PROFILE_PAGE_INSTANCE);
-          expect(binding.track).toBe(PROFILE_TRACK);
-          expect(command[1]).toContain(
-            'input.kind==="rsc-action"?{accept:"*/*","content-type":"application/json","x-li-lang":"en_US"}',
-          );
-          expect(command[1]).toContain('headers["x-li-page-instance"]=input.pageInstance');
-          expect(command[1]).toContain('headers["x-li-track"]=input.track');
-          expect(command[1]).toContain('method:input.kind==="rsc-action"?"POST":"GET"');
-          expect(command[1]).toContain("csrf-token");
-          expect(command[1]).toContain("application/octet-stream");
-          expect(command[1]).not.toContain("Next-Router-State-Tree");
-          expect(command[1]).not.toContain("Next-Action");
-          expect(command[1]).not.toContain("crypto.randomUUID");
-          expect(command[1]).toContain(
-            'headers["x-li-page-instance-tracking-id"]=input.pageInstanceTrackingId',
-          );
-          expect(command[1]).toContain('headers["x-li-pageforestid"]=input.pageforestId');
-          expect(command[1]).toContain('headers["x-li-traceparent"]=input.traceparent');
-          expect(command[1]).toContain('headers["x-li-tracestate"]=input.tracestate');
-          expect(command[1]).toContain('headers["x-li-layout-tree"]=input.layoutTree');
-          expect(command[1]).not.toContain("Anchor-Page-Key");
-          expect(binding.pageInstanceTrackingId).toBeUndefined();
-          expect(binding.pageforestId).toBeUndefined();
-          expect(binding.traceparent).toBeUndefined();
-          expect(binding.tracestate).toBeUndefined();
-          expect(binding.layoutTree).toBeUndefined();
-          return Promise.resolve([browserBodyRecord(overlayBody, "application/octet-stream")]);
         }
         throw new Error(`unexpected LinkedIn contact-info navigation path ${binding.path}`);
       },
@@ -801,20 +816,14 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     });
     expect(await transport.currentIdentityResponse()).toEqual(JSON.parse(identityResponse()));
     expect(await transport.readProfileHtml(PROFILE_URL)).toBe("<html>1st</html>");
-    expect(await transport.readContactNavigationText({
-      profileUrl: PROFILE_URL,
-      profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
-      sduiid,
-      clientArguments: {
-        payload: { vanityName: "0thernet" },
-      },
-    })).toBe(overlayBody);
+    expect(await transport.readContactNavigationText(contactNavigationInput())).toBe(overlayBody);
     await expect(transport.readContactOverlayText({
       profileUrl: PROFILE_URL,
       profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
     })).rejects.toThrow("out of order");
     expect(opened).toEqual([PROFILE_URL]);
     expect(waits).toBe(1);
+    expect(clicked).toBeTrue();
     expect(networkFilters).toEqual([
       "requests --filter /flagship-web/rsc-action/",
       "requests --filter /voyager/api/",
@@ -832,23 +841,13 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         path: "/in/0thernet/",
         referrer: "https://www.linkedin.com/feed/",
       },
-      {
-        kind: "rsc-action",
-        maxBytes: 2 * 1024 * 1024,
-        path: navigationPath,
-        referrer: PROFILE_URL,
-        body: navigationBody,
-        documentUrl: PROFILE_URL,
-        pageInstance: PROFILE_PAGE_INSTANCE,
-        track: PROFILE_TRACK,
-      },
     ]);
+    expect(requests.some((request) => request.kind === "rsc-action")).toBeFalse();
     await transport.close();
   });
 
   test("fails closed when the opened profile omits a unique page-instance", async () => {
     let posted = false;
-    const sduiid = LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID;
     const session: BrowserSession = {
       runBatch: (commands) => {
         const command = commands[0];
@@ -893,14 +892,8 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     });
     await transport.currentIdentityResponse();
     await transport.readProfileHtml(PROFILE_URL);
-    const error = await transport.readContactNavigationText({
-      profileUrl: PROFILE_URL,
-      profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
-      sduiid,
-      clientArguments: {
-        payload: { vanityName: "0thernet" },
-      },
-    }).then(() => null, (failure: unknown) => failure);
+    const error = await transport.readContactNavigationText(contactNavigationInput())
+      .then(() => null, (failure: unknown) => failure);
     expect(error).toBeInstanceOf(LinkedInProfileBrowserFailure);
     expect(error).toMatchObject({
       category: "page-binding",
@@ -912,8 +905,6 @@ describe("LinkedIn profile stats contained-browser transport", () => {
 
   test("copies a unique document page-instance when voyager observation is empty", async () => {
     const overlayBody = "1:{\"fields\":[{\"label\":\"Email\",\"value\":\"connection@example.test\"}]}";
-    const sduiid = LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID;
-    const navigationPath = buildLinkedInProfileContactDetailsNavigationPostPath({ sduiid });
     let postedPageInstance: string | undefined;
     const session: BrowserSession = {
       runBatch: (commands) => {
@@ -940,6 +931,11 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         if (command?.[0] !== "eval" || command[1] === undefined) {
           throw new Error("unexpected document page-instance browser command");
         }
+        if (isContactModalEval(command[1])) {
+          expectContactModalEval(command[1], PROFILE_URL);
+          postedPageInstance = PROFILE_PAGE_INSTANCE;
+          return Promise.resolve([browserBodyRecord(overlayBody, "text/html")]);
+        }
         if (command[1].includes("LinkedIn profile document omitted its root")) {
           return Promise.resolve([{
             success: true,
@@ -959,18 +955,6 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         if (binding.path === "/in/0thernet/") {
           return Promise.resolve([browserBodyRecord("<html>1st</html>", "text/html")]);
         }
-        if (binding.path === navigationPath) {
-          postedPageInstance = binding.pageInstance;
-          expect(binding.track).toBeUndefined();
-          expect(binding.pageInstanceTrackingId).toBeUndefined();
-          expect(binding.pageforestId).toBeUndefined();
-          expect(binding.traceparent).toBeUndefined();
-          expect(binding.tracestate).toBeUndefined();
-          expect(binding.layoutTree).toBeUndefined();
-          expect(command[1]).toContain('headers["x-li-page-instance"]=input.pageInstance');
-          expect(command[1]).not.toContain("crypto.randomUUID");
-          return Promise.resolve([browserBodyRecord(overlayBody, "application/octet-stream")]);
-        }
         throw new Error(`unexpected document page-instance path ${binding.path}`);
       },
       close: () => Promise.resolve(),
@@ -983,27 +967,18 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     });
     await transport.currentIdentityResponse();
     await transport.readProfileHtml(PROFILE_URL);
-    expect(await transport.readContactNavigationText({
-      profileUrl: PROFILE_URL,
-      profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
-      sduiid,
-      clientArguments: {
-        payload: { vanityName: "0thernet" },
-      },
-    })).toBe(overlayBody);
+    expect(await transport.readContactNavigationText(contactNavigationInput())).toBe(overlayBody);
     expect(postedPageInstance).toBe(PROFILE_PAGE_INSTANCE);
     await transport.close();
   });
 
-  test("copies reviewed rsc-action X-Li headers including observed trace IDs", async () => {
+  test("does not mint a navigation POST after observing rsc-action page headers", async () => {
     const overlayBody = "1:{\"fields\":[{\"label\":\"Email\",\"value\":\"connection@example.test\"}]}";
-    const sduiid = LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID;
-    const navigationPath = buildLinkedInProfileContactDetailsNavigationPostPath({ sduiid });
     const sduiTrack = JSON.stringify({
       clientVersion: "0.2.1234",
       mpName: "web",
     });
-    let posted: BrowserReadBinding | undefined;
+    let clicked = false;
     const session: BrowserSession = {
       runBatch: (commands) => {
         const command = commands[0];
@@ -1041,6 +1016,11 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         if (command?.[0] !== "eval" || command[1] === undefined) {
           throw new Error("unexpected rsc-action header browser command");
         }
+        if (isContactModalEval(command[1])) {
+          expectContactModalEval(command[1], PROFILE_URL);
+          clicked = true;
+          return Promise.resolve([browserBodyRecord(overlayBody, "text/html")]);
+        }
         if (command[1].includes("LinkedIn profile document omitted its root")) {
           throw new Error("page-instance extract ran after an rsc-action binding");
         }
@@ -1050,22 +1030,6 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         }
         if (binding.path === "/in/0thernet/") {
           return Promise.resolve([browserBodyRecord("<html>1st</html>", "text/html")]);
-        }
-        if (binding.path === navigationPath) {
-          posted = binding;
-          expect(command[1]).toContain('headers["x-li-application-version"]=input.applicationVersion');
-          expect(command[1]).toContain('headers["x-li-application-instance"]=input.applicationInstance');
-          expect(command[1]).toContain('headers["x-li-anchor-page-key"]=input.anchorPageKey');
-          expect(command[1]).toContain('headers["x-li-rsc-stream"]="true"');
-          expect(command[1]).toContain(
-            'headers["x-li-page-instance-tracking-id"]=input.pageInstanceTrackingId',
-          );
-          expect(command[1]).toContain('headers["x-li-pageforestid"]=input.pageforestId');
-          expect(command[1]).toContain('headers["x-li-traceparent"]=input.traceparent');
-          expect(command[1]).toContain('headers["x-li-tracestate"]=input.tracestate');
-          expect(command[1]).toContain('headers["x-li-layout-tree"]=input.layoutTree');
-          expect(command[1]).not.toContain("crypto.randomUUID");
-          return Promise.resolve([browserBodyRecord(overlayBody, "application/octet-stream")]);
         }
         throw new Error(`unexpected rsc-action header path ${binding.path}`);
       },
@@ -1079,49 +1043,18 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     });
     await transport.currentIdentityResponse();
     await transport.readProfileHtml(PROFILE_URL);
-    expect(await transport.readContactNavigationText({
-      profileUrl: PROFILE_URL,
-      profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
-      sduiid,
-      clientArguments: {
-        payload: { vanityName: "0thernet" },
-      },
-    })).toBe(overlayBody);
-    expect(posted).toEqual({
-      kind: "rsc-action",
-      maxBytes: 2 * 1024 * 1024,
-      path: navigationPath,
-      referrer: PROFILE_URL,
-      body: buildLinkedInContactNavigationBody({
-        clientArguments: {
-          payload: { vanityName: "0thernet" },
-        },
-      }),
-      documentUrl: PROFILE_URL,
-      pageInstance: PROFILE_PAGE_INSTANCE,
-      track: sduiTrack,
-      applicationVersion: "0.2.1234",
-      applicationInstance: "fixtureInstance==",
-      anchorPageKey: "d_flagship3_profile_view_base",
-      rscStream: "true",
-      pageInstanceTrackingId: PROFILE_PAGE_INSTANCE_TRACKING_ID,
-      pageforestId: PROFILE_PAGEFOREST_ID,
-      traceparent: PROFILE_TRACEPARENT,
-      tracestate: PROFILE_TRACESTATE,
-      layoutTree: PROFILE_LAYOUT_TREE,
-    });
+    expect(await transport.readContactNavigationText(contactNavigationInput())).toBe(overlayBody);
+    expect(clicked).toBeTrue();
     await transport.close();
   });
 
-  test("omits unobserved rsc-action trace headers and does not mint them", async () => {
+  test("does not mint a navigation POST when rsc-action observations omit trace headers", async () => {
     const overlayBody = "1:{\"fields\":[{\"label\":\"Email\",\"value\":\"connection@example.test\"}]}";
-    const sduiid = LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID;
-    const navigationPath = buildLinkedInProfileContactDetailsNavigationPostPath({ sduiid });
     const sduiTrack = JSON.stringify({
       clientVersion: "0.2.1234",
       mpName: "web",
     });
-    let posted: BrowserReadBinding | undefined;
+    let clicked = false;
     const session: BrowserSession = {
       runBatch: (commands) => {
         const command = commands[0];
@@ -1150,6 +1083,14 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         if (command?.[0] !== "eval" || command[1] === undefined) {
           throw new Error("unexpected omitted-trace browser command");
         }
+        if (isContactModalEval(command[1])) {
+          expectContactModalEval(command[1], PROFILE_URL);
+          clicked = true;
+          expect(command[1]).not.toContain("crypto.randomUUID");
+          expect(command[1]).not.toContain(PROFILE_TRACEPARENT);
+          expect(command[1]).not.toContain(PROFILE_PAGEFOREST_ID);
+          return Promise.resolve([browserBodyRecord(overlayBody, "text/html")]);
+        }
         if (command[1].includes("LinkedIn profile document omitted its root")) {
           throw new Error("page-instance extract ran after an rsc-action binding");
         }
@@ -1160,12 +1101,8 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         if (binding.path === "/in/0thernet/") {
           return Promise.resolve([browserBodyRecord("<html>1st</html>", "text/html")]);
         }
-        if (binding.path === navigationPath) {
-          posted = binding;
-          expect(command[1]).not.toContain("crypto.randomUUID");
-          expect(command[1]).not.toContain(PROFILE_TRACEPARENT);
-          expect(command[1]).not.toContain(PROFILE_PAGEFOREST_ID);
-          return Promise.resolve([browserBodyRecord(overlayBody, "application/octet-stream")]);
+        if (binding.kind === "rsc-action") {
+          throw new Error("readContactNavigationText must not mint a navigation POST");
         }
         throw new Error(`unexpected omitted-trace path ${binding.path}`);
       },
@@ -1179,34 +1116,13 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     });
     await transport.currentIdentityResponse();
     await transport.readProfileHtml(PROFILE_URL);
-    expect(await transport.readContactNavigationText({
-      profileUrl: PROFILE_URL,
-      profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
-      sduiid,
-      clientArguments: {
-        payload: { vanityName: "0thernet" },
-      },
-    })).toBe(overlayBody);
-    expect(posted).toEqual({
-      kind: "rsc-action",
-      maxBytes: 2 * 1024 * 1024,
-      path: navigationPath,
-      referrer: PROFILE_URL,
-      body: buildLinkedInContactNavigationBody({
-        clientArguments: {
-          payload: { vanityName: "0thernet" },
-        },
-      }),
-      documentUrl: PROFILE_URL,
-      pageInstance: PROFILE_PAGE_INSTANCE,
-      track: sduiTrack,
-    });
+    expect(await transport.readContactNavigationText(contactNavigationInput())).toBe(overlayBody);
+    expect(clicked).toBeTrue();
     await transport.close();
   });
 
   test("fails closed when an observed traceparent changes shape", async () => {
     let posted = false;
-    const sduiid = LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID;
     const session: BrowserSession = {
       runBatch: (commands) => {
         const command = commands[0];
@@ -1255,14 +1171,8 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     });
     await transport.currentIdentityResponse();
     await transport.readProfileHtml(PROFILE_URL);
-    const error = await transport.readContactNavigationText({
-      profileUrl: PROFILE_URL,
-      profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
-      sduiid,
-      clientArguments: {
-        payload: { vanityName: "0thernet" },
-      },
-    }).then(() => null, (failure: unknown) => failure);
+    const error = await transport.readContactNavigationText(contactNavigationInput())
+      .then(() => null, (failure: unknown) => failure);
     expect(error).toBeInstanceOf(LinkedInProfileBrowserFailure);
     expect(error).toMatchObject({
       category: "page-binding",
@@ -1272,13 +1182,11 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     await transport.close();
   });
 
-  test("copies the last matching rsc-action observation without merging earlier IDs", async () => {
+  test("does not mint a navigation POST after multiple rsc-action observations", async () => {
     const overlayBody = "1:{\"fields\":[{\"label\":\"Email\",\"value\":\"connection@example.test\"}]}";
-    const sduiid = LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID;
-    const navigationPath = buildLinkedInProfileContactDetailsNavigationPostPath({ sduiid });
     const laterTraceparent =
       "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01";
-    let posted: BrowserReadBinding | undefined;
+    let clicked = false;
     const session: BrowserSession = {
       runBatch: (commands) => {
         const command = commands[0];
@@ -1325,6 +1233,11 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         if (command?.[0] !== "eval" || command[1] === undefined) {
           throw new Error("unexpected last-match browser command");
         }
+        if (isContactModalEval(command[1])) {
+          expectContactModalEval(command[1], PROFILE_URL);
+          clicked = true;
+          return Promise.resolve([browserBodyRecord(overlayBody, "text/html")]);
+        }
         if (command[1].includes("LinkedIn profile document omitted its root")) {
           throw new Error("page-instance extract ran after an rsc-action binding");
         }
@@ -1335,9 +1248,8 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         if (binding.path === "/in/0thernet/") {
           return Promise.resolve([browserBodyRecord("<html>1st</html>", "text/html")]);
         }
-        if (binding.path === navigationPath) {
-          posted = binding;
-          return Promise.resolve([browserBodyRecord(overlayBody, "application/octet-stream")]);
+        if (binding.kind === "rsc-action") {
+          throw new Error("readContactNavigationText must not mint a navigation POST");
         }
         throw new Error(`unexpected last-match path ${binding.path}`);
       },
@@ -1351,32 +1263,77 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     });
     await transport.currentIdentityResponse();
     await transport.readProfileHtml(PROFILE_URL);
-    expect(await transport.readContactNavigationText({
-      profileUrl: PROFILE_URL,
-      profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
-      sduiid,
-      clientArguments: {
-        payload: { vanityName: "0thernet" },
+    expect(await transport.readContactNavigationText(contactNavigationInput())).toBe(overlayBody);
+    expect(clicked).toBeTrue();
+    await transport.close();
+  });
+
+  test.each([
+    [
+      "omits the reviewed Contact info control",
+      "LinkedIn stats browser omitted its reviewed Contact-info control",
+    ],
+    [
+      "finds more than one Contact info control",
+      "LinkedIn stats browser Contact-info control was ambiguous",
+    ],
+    [
+      "targets the vanity overlay GET",
+      "LinkedIn stats browser Contact-info control targeted the vanity overlay GET",
+    ],
+    [
+      "omits the Contact-info modal",
+      "LinkedIn stats browser omitted its Contact-info modal",
+    ],
+  ])("fails closed when the opened profile %s", async (_label, message) => {
+    let clicked = false;
+    const session: BrowserSession = {
+      runBatch: (commands) => {
+        const command = commands[0];
+        if (command?.[0] === "open" || command?.[0] === "wait") {
+          return Promise.resolve([{ success: true, result: {} }]);
+        }
+        if (command?.[0] === "network") {
+          return Promise.resolve(voyagerProfileNetworkResult());
+        }
+        if (command?.[0] !== "eval" || command[1] === undefined) {
+          throw new Error("unexpected Contact-info control browser command");
+        }
+        if (isContactModalEval(command[1])) {
+          expectContactModalEval(command[1], PROFILE_URL);
+          clicked = true;
+          throw new Error(message);
+        }
+        if (command[1].includes("LinkedIn profile document omitted its root")) {
+          throw new Error("page-instance extract ran after a unique network binding");
+        }
+        const binding = requestBinding(command[1]);
+        if (binding.path === "/voyager/api/me") {
+          return Promise.resolve([browserBodyRecord(identityResponse(), "application/json")]);
+        }
+        if (binding.path === "/in/0thernet/") {
+          return Promise.resolve([browserBodyRecord("<html>1st</html>", "text/html")]);
+        }
+        throw new Error(`unexpected Contact-info control path ${binding.path}`);
       },
-    })).toBe(overlayBody);
-    expect(posted).toEqual({
-      kind: "rsc-action",
-      maxBytes: 2 * 1024 * 1024,
-      path: navigationPath,
-      referrer: PROFILE_URL,
-      body: buildLinkedInContactNavigationBody({
-        clientArguments: {
-          payload: { vanityName: "0thernet" },
-        },
-      }),
-      documentUrl: PROFILE_URL,
-      pageInstance: PROFILE_PAGE_INSTANCE,
-      pageInstanceTrackingId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-      pageforestId: PROFILE_PAGEFOREST_ID,
-      traceparent: laterTraceparent,
-      tracestate: "li=later-trace-state",
+      close: () => Promise.resolve(),
+      cleanup: () => Promise.resolve(),
+    };
+    const transport = await createLinkedInProfileBrowserTransport(auth, {
+      timeoutMs: 1_000,
+      maxOutputBytes: 2 * 1024 * 1024,
+      dependencies: { createBrowserSession: () => Promise.resolve(session) },
     });
-    expect(posted?.layoutTree).toBeUndefined();
+    await transport.currentIdentityResponse();
+    await transport.readProfileHtml(PROFILE_URL);
+    const error = await transport.readContactNavigationText(contactNavigationInput())
+      .then(() => null, (failure: unknown) => failure);
+    expect(error).toBeInstanceOf(LinkedInProfileBrowserFailure);
+    expect(error).toMatchObject({
+      category: "page-binding",
+      message,
+    });
+    expect(clicked).toBeTrue();
     await transport.close();
   });
 

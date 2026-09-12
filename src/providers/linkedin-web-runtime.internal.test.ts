@@ -3782,7 +3782,7 @@ describe("LinkedIn contacts.read runtime", () => {
     ]);
   });
 
-  test("POSTs the page-bound Contact-info navigation action after 1st-degree bind", async () => {
+  test("reads Contact-info through the page-bound navigation action after 1st-degree bind", async () => {
     const browserCalls: string[] = [];
     const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify([
       `1:I["ProfileView"]\n2:${JSON.stringify({
@@ -3849,7 +3849,7 @@ describe("LinkedIn contacts.read runtime", () => {
     expect(JSON.stringify(result)).not.toContain("@gmail.com");
   });
 
-  test("POSTs when dormant NavigateToScreen omits sduiid and binds the overlay screenId", async () => {
+  test("reads Contact-info when dormant NavigateToScreen omits sduiid and binds the overlay screenId", async () => {
     const browserCalls: string[] = [];
     const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify([
       `1:${JSON.stringify({
@@ -4284,7 +4284,7 @@ describe("LinkedIn contacts.read runtime", () => {
     expect(JSON.stringify(result)).not.toContain("@gmail.com");
   });
 
-  test("fails at Contact-info projection when the navigation POST returns an HTML profile shell", async () => {
+  test("fails at Contact-info projection when the navigation modal returns an HTML profile shell", async () => {
     const browserCalls: string[] = [];
     const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify({
       publicIdentifier: "example",

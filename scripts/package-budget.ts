@@ -1,3 +1,18 @@
+// Ghostget 0.18.1 source plus the LinkedIn `contacts.read` reviewed
+// Contact info click and modal snapshot (adapter bundle 1.36.0),
+// measured with no version bump: a Bun 1.3.14 `pm pack` on Linux x64
+// shares 22,513,764 payload bytes across exactly 558 files. The bun
+// archive is 11,507,774 compressed bytes, SHA-256
+// a7c6b53a90bde4324f2e4a8b3fb7af7ea2550d56549aad9c6a62c2637f035a04.
+// Replacing the synthetic navigation POST with the reviewed unique
+// Contact info click, adapter notes, changelog, and tests add 8,846
+// payload bytes compared with the 1.35.0 measurement. Raise only the
+// payload ceiling to the measured value plus 65 bytes of headroom
+// (22,513,829); the packed size stays under the existing packed
+// allowance and the 558-entry inventory is unchanged. Theme CSS stays
+// website-only. Fresh Linux CI independently checks its actual
+// canonical archive.
+//
 // Ghostget 0.18.1 source plus the LinkedIn `contacts.read` observed
 // rsc-action tracking, pageforest, trace, and layout-tree header copies
 // (adapter bundle 1.35.0), measured with no version bump: a Bun 1.3.14
@@ -705,7 +720,7 @@
 export const MAX_PACKED_BYTES = 11_658_467;
 export const MAX_PACKED_ENTRIES = 558;
 export const MAX_PACKED_FILES = 558;
-export const MAX_UNPACKED_BYTES = 22_504_983;
+export const MAX_UNPACKED_BYTES = 22_513_829;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

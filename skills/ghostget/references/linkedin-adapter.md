@@ -254,9 +254,15 @@ When the same page already embeds Contact-info fields, including a labeled
 Email row, the operation projects those fields and does not issue a second
 fetch. Long SDUI strings used as field labels are skipped instead of aborting
 the profile-stage walk. Otherwise it first inspects the page's exact
-Contact-info NavigateToScreen action. A reviewed action supplies the bounded
-`clientArguments` for the fixed Contact-info navigation POST; malformed or
-unsupported action fields stop the operation. Only when the action is absent
+Contact-info NavigateToScreen action. A reviewed action still admits only
+the ProfileContactDetailsOverlay URL (`sduiid` equal to that overlay
+`screenId`). Adapter 1.36.0 then clicks the unique accessible name
+`Contact info` on the already-loaded 1st-degree profile and projects Email
+from that modal DOM. Malformed or unsupported action fields stop the
+operation. Zero or two-plus matching controls, a control whose `href`
+targets `/overlay/contact-info/`, or a missing or ambiguous dialog fail
+closed. The contained path does not mint a synthetic navigation POST or
+track headers. Only when the action is absent
 does it use a page-resolved GraphQL `queryId` for
 `voyagerIdentityDashProfileContactInfo`, when the HTML contains exactly one
 decorated revision. Variables are exactly `(profileUrn:{urn})`. When that
@@ -268,9 +274,9 @@ binding. ScreenId-only and `profileUrn`-bound
 because live dormant sessions return HTTP 500 `application/octet-stream`.
 Classic `/voyager/api/identity/profiles/{vanity}/profileContactInfo` now
 returns HTTP 410 and is rejected. The executable contract is those reviewed
-first-party reads, including the fixed navigation POST, or the page-embedded
-fields. It accepts no caller-selected RSC body, DOM click, or selector.
-This contact read does not message, connect, or InMail.
+first-party reads, the reviewed Contact info click and modal snapshot, or
+the page-embedded fields. It accepts no caller-selected RSC body, selector,
+or script. This contact read does not message, connect, or InMail.
 
 The projection returns `email` when LinkedIn shows it, plus any of the vanity
 profile link, connected-since date, phone numbers, websites, and birthday.
@@ -449,6 +455,15 @@ values fail closed before POST. Live query key stays `sduiid=` (headed
 `sduid=` notes are transcription typos. Missing or ambiguous
 page-instance fails closed before POST. Headed successful body
 Content-Length was 400; compact emit at 398 stays.
+
+A later signed-in headed proof on 2026-09-12 opened tessbloch, clicked
+Contact info, and showed Email in the modal DOM. The same contained
+synthetic navigation POST still returned HTTP 500 `text/html` after the
+exact headed body and the full observed X-Li set. Adapter 1.36.0 keeps
+the page-instance bind, then clicks only the unique reviewed Contact
+info control and projects that modal. It does not mint a navigation
+POST or track headers. Cloud has no signed-in LinkedIn session; do not
+treat this landing as live green.
 
 ```sh
 printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \
