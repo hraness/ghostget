@@ -4,6 +4,8 @@ import { encodeRestliV2Value, assertLinkedInWebR1RequestAllowed } from "./linked
 import {
   LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
   LINKEDIN_CONTACT_DETAILS_PAGE_KEY,
+  LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+  LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
   LINKEDIN_PROFILE_CONTACT_INFO_QUERY_NAME,
   assertLinkedInContactInfoRequest,
   buildLinkedInContactNavigationBody,
@@ -374,6 +376,94 @@ describe("LinkedIn contacts.read navigation action binding", () => {
     });
   });
 
+  test("keeps requestMetadata a sibling and copies reviewed proto.sdui types", () => {
+    const live = {
+      actionName: "NavigateToScreen",
+      screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+      pageKey: LINKEDIN_CONTACT_DETAILS_PAGE_KEY,
+      requestedArguments: {
+        $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+        requestedStateKeys: [],
+        payload: {
+          vanityName: "example",
+          givenName: "Ada",
+          familyName: "Example",
+          isVanityNameResolved: true,
+        },
+        requestMetadata: {
+          $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+        },
+      },
+    };
+    const extracted = extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        live,
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    });
+    expect(extracted).toEqual({
+      kind: "action",
+      action: {
+        sduiid: OVERLAY_SDUIID,
+        clientArguments: {
+          $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+          requestedStateKeys: [],
+          payload: {
+            vanityName: "example",
+            givenName: "Ada",
+            familyName: "Example",
+            isVanityNameResolved: true,
+          },
+          requestMetadata: {
+            $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+          },
+        },
+        isModal: true,
+      },
+    });
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: NAVIGATION_POST_URL,
+      body: extracted.kind === "action"
+        ? buildLinkedInContactNavigationBody(extracted.action)
+        : undefined,
+    })).not.toThrow();
+    const lifted = extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          ...live,
+          requestedArguments: {
+            $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+            requestedStateKeys: [],
+            payload: {
+              vanityName: "example",
+              givenName: "Ada",
+              familyName: "Example",
+              isVanityNameResolved: true,
+              requestMetadata: {
+                $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+              },
+            },
+          },
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    });
+    expect(lifted).toEqual(extracted);
+    expect(JSON.parse(buildLinkedInContactNavigationBody({
+      clientArguments: extracted.kind === "action" ? extracted.action.clientArguments : { payload: {} },
+    })).clientArguments.requestMetadata).toEqual({
+      $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+    });
+    expect(JSON.parse(buildLinkedInContactNavigationBody({
+      clientArguments: extracted.kind === "action" ? extracted.action.clientArguments : { payload: {} },
+    })).clientArguments.payload.requestMetadata).toBeUndefined();
+  });
+
   test("stays absent when profile HTML only mentions the overlay screen", () => {
     expect(extractLinkedInContactNavigationAction({
       profileHtml: profileHtml(),
@@ -434,6 +524,75 @@ describe("LinkedIn contacts.read navigation action binding", () => {
     })).toEqual({
       kind: "unreviewed-client-arguments",
       keys: ["trackingId"],
+    });
+    const navigate = {
+      actionName: "NavigateToScreen",
+      screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+      pageKey: LINKEDIN_CONTACT_DETAILS_PAGE_KEY,
+    };
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          ...navigate,
+          requestedArguments: {
+            $type: "proto.graphql.UnreviewedArguments",
+            payload: { vanityName: "example" },
+          },
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      kind: "unreviewed-client-arguments",
+      keys: ["$type"],
+    });
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          ...navigate,
+          requestedArguments: {
+            $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+            payload: { vanityName: "example" },
+            requestMetadata: {
+              $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+            },
+            extraProto: true,
+          },
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      kind: "unreviewed-client-arguments",
+      keys: ["extraProto"],
+    });
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          ...navigate,
+          requestedArguments: {
+            $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+            payload: {
+              vanityName: "example",
+              requestMetadata: {
+                $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+                screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+              },
+            },
+            requestMetadata: {
+              $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+            },
+          },
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      kind: "unreviewed-client-arguments",
+      keys: ["requestMetadata"],
     });
   });
 });

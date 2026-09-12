@@ -388,6 +388,18 @@ the profile page omits that NavigateToScreen action. Soft-labels stay.
 Keep cookies, `li_at`, CSRF, `JSESSIONID`, live emails, and raw HARs out
 of Git.
 
+A later signed-in smoke after adapter 1.31.0 still bound 1st-degree
+distance and selected the navigation POST family, but live
+NavigateToScreen `requestedArguments` keeps `requestMetadata` a sibling
+of `payload` and uses `$type` values `proto.sdui.actions.requests.RequestedArguments`
+and `proto.sdui.common.RequestMetadata`. Treating `requestMetadata` as an
+unreviewed extra key, or rejecting `proto.sdui.*` in favor of
+`com.linkedin.*` only, aborted before POST. A payload-only body then
+returned HTTP 500. Adapter 1.32.0 copies that reviewed sibling shape,
+lifts headed nested `payload.requestMetadata` to the sibling placement
+when the two agree, and admits `proto.sdui.*` types only on this overlay
+POST body. Extra keys and unrelated proto prefixes still fail closed.
+
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid
 Contact info from that viewer. The operation never invents a hidden email.
