@@ -1,3 +1,17 @@
+// Ghostget 0.19.0 helper shutdown fix and portable skill description:
+// two clean Bun 1.3.14 builds and canonical npm 11.19.0 packs under verified
+// official Node 24.20.0 darwin-arm64 / zlib 1.3.2.1-motley-42c2f19 are
+// byte-identical: 11,692,794 compressed / 22,649,672 payload bytes across
+// exactly 574 files, SHA-256
+// a954286f9f6a707d653e5d550bbf61f47da6de9349d53f23cc41e236def251a6.
+// Every archived byte and mode matches source. Relative to the af759ce
+// join, helper.ts adds 404 payload bytes and SKILL.md adds 87, totaling
+// 491 bytes; compression grows 138 bytes. All other archived bytes and
+// modes, including generated dist and vendored native binaries, are unchanged.
+// Preserve exactly 4,096 compressed-byte and 65 payload-byte allowances:
+// 11,692,794 + 4,096 = 11,696,890; 22,649,672 + 65 = 22,649,737.
+// Required Linux CI and Release still admit their actual canonical bytes.
+//
 // Ghostget 0.19.0 joined with main af759ce (LinkedIn adapter 1.36.3),
 // including the current-flow and historical-capture guide clarification:
 // two clean Bun 1.3.14 builds and canonical npm 11.19.0 packs under verified
@@ -936,10 +950,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 11_696_752;
+export const MAX_PACKED_BYTES = 11_696_890;
 export const MAX_PACKED_ENTRIES = 574;
 export const MAX_PACKED_FILES = 574;
-export const MAX_UNPACKED_BYTES = 22_649_246;
+export const MAX_UNPACKED_BYTES = 22_649_737;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

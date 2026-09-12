@@ -48,15 +48,27 @@ function acquireOwner(environment:ControlEnvironment):()=>void {
   return ()=>{removePrivateStateFileIfUnchanged(path,{expectedCurrentContentSha256},environment);};
 }
 
+/** Socket close delivery may lag destruction; cancel requests before clearing approvals. */
+export function beginControlHelperShutdown(
+  clients: ReadonlyMap<{ destroy(): unknown }, AbortController>,
+  service: Pick<ControlService, "beginShutdown"> | undefined,
+): void {
+  for (const [socket, controller] of clients) {
+    controller.abort();
+    socket.destroy();
+  }
+  service?.beginShutdown();
+}
+
 /** Private native stdio is the only administrative transport. No TCP listener is created. */
 export async function runControlHelper(environment:ControlEnvironment=process.env):Promise<void> {
   process.umask(0o077);
-  const releaseOwner=acquireOwner(environment);const socketPath=controlSocketPath(environment);const clients=new Set<Socket>();const active=new Set<Promise<void>>();
+  const releaseOwner=acquireOwner(environment);const socketPath=controlSocketPath(environment);const clients=new Map<Socket,AbortController>();const active=new Set<Promise<void>>();
   let service:ControlService|undefined;let ownedSocket:{dev:number;ino:number}|undefined;let closing=false;let controlActive=0;
   const directory=join(ghostgetStateHome(environment),"control");const directoryIdentity=ensurePrivateStateDirectory(directory,environment);
   const server=createServer(socket=>{
     if(closing||clients.size>=16||service===undefined){socket.destroy();return;}
-    clients.add(socket);const controller=new AbortController();let buffer=Buffer.alloc(0);let started=false;
+    const controller=new AbortController();clients.set(socket,controller);let buffer=Buffer.alloc(0);let started=false;
     socket.setTimeout(150_000,()=>socket.destroy());
     socket.on("close",()=>{controller.abort();clients.delete(socket);});socket.on("error",()=>controller.abort());
     socket.on("data",chunk=>{
@@ -64,7 +76,7 @@ export async function runControlHelper(environment:ControlEnvironment=process.en
       started=true;const work=(async()=>{let response:unknown;try{if(newline!==buffer.length-1)throw new Error();const value:unknown=JSON.parse(buffer.subarray(0,newline).toString("utf8"));const frame=record(value);socket.setTimeout(frame.protocol==="ghostget.credential/1"?CREDENTIAL_REQUEST_TIMEOUT_MS:frame.protocol==="ghostget.web/1"?180_000:150_000);response=await handleAgent(value,service!,controller.signal);}catch(error){response=controlFailure(error);}if(!socket.destroyed)socket.end(`${JSON.stringify(response)}\n`);})();active.add(work);void work.then(()=>active.delete(work),()=>{active.delete(work);process.exitCode=1;process.stdin.destroy();});
     });
   });
-  const shutdown=async()=>{if(closing)return;closing=true;for(const socket of clients)socket.destroy();service?.beginShutdown();await Promise.allSettled(active);service?.close();if(server.listening)await new Promise<void>(resolve=>server.close(()=>resolve()));if(ownedSocket!==undefined){snapshotPrivateStateDirectory(directory,environment,directoryIdentity);try{const stat=lstatSync(socketPath);if(stat.isSocket()&&stat.dev===ownedSocket.dev&&stat.ino===ownedSocket.ino)unlinkSync(socketPath);}catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}}releaseOwner();};
+  const shutdown=async()=>{if(closing)return;closing=true;beginControlHelperShutdown(clients,service);await Promise.allSettled(active);service?.close();if(server.listening)await new Promise<void>(resolve=>server.close(()=>resolve()));if(ownedSocket!==undefined){snapshotPrivateStateDirectory(directory,environment,directoryIdentity);try{const stat=lstatSync(socketPath);if(stat.isSocket()&&stat.dev===ownedSocket.dev&&stat.ino===ownedSocket.ino)unlinkSync(socketPath);}catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}}releaseOwner();};
   const termination=()=>{process.stdin.destroy();};process.once("SIGTERM",termination);process.once("SIGINT",termination);
   try {
     if(Buffer.byteLength(socketPath)>100)throw new ControlError("CONTROL_PATH_TOO_LONG","Choose a shorter Ghostget state-home path for the native app.");

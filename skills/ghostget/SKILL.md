@@ -11,7 +11,8 @@ description: >-
   provider plugins from authorized HAR evidence or pinned local CLIs. Use for
   web capture, media archiving, inbox or messaging work, social publishing and
   integration development when raw HTTP, browser control, cookies and
-  credentials must stay outside the agent.
+  credentials must stay outside the agent. Operate Beeper
+  across the pinned official CLI and fixed Desktop loopback operations.
 ---
 
 # Ghostget

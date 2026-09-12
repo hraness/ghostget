@@ -1177,7 +1177,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_237_632);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_238_144);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1385,12 +1385,14 @@ describe("npm publication contract", () => {
     expect(budget).toContain("1c00fc901cacf0b008c8183dc17403b72121771f5a1a0083fba30941b568fc83");
     expect(budget).toContain("11,692,656 compressed / 22,649,181 payload bytes across");
     expect(budget).toContain("3af5671274a6b04a16945ebb5d9b398a66dc1a5bda26571194163b7a405c45ef");
-    expect(MAX_PACKED_BYTES).toBe(11_696_752);
-    expect(MAX_PACKED_BYTES).toBe(11_692_656 + 4_096);
+    expect(budget).toContain("11,692,794 compressed / 22,649,672 payload bytes across");
+    expect(budget).toContain("a954286f9f6a707d653e5d550bbf61f47da6de9349d53f23cc41e236def251a6");
+    expect(MAX_PACKED_BYTES).toBe(11_696_890);
+    expect(MAX_PACKED_BYTES).toBe(11_692_794 + 4_096);
     expect(MAX_PACKED_ENTRIES).toBe(574);
     expect(MAX_PACKED_FILES).toBe(574);
-    expect(MAX_UNPACKED_BYTES).toBe(22_649_246);
-    expect(MAX_UNPACKED_BYTES).toBe(22_649_181 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(22_649_737);
+    expect(MAX_UNPACKED_BYTES).toBe(22_649_672 + 65);
     expect(budget).toContain("2,324,169 + 4,096 = 2,328,265");
     expect(budget).toContain("2,330,878 + 4,096 = 2,334,974");
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
@@ -1400,8 +1402,8 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 574, max: 574 },
       fileCount: { min: 574, max: 574 },
-      packedBytes: { min: 1_600_000, max: 11_696_752 },
-      unpackedBytes: { min: 9_000_000, max: 22_649_246 },
+      packedBytes: { min: 1_600_000, max: 11_696_890 },
+      unpackedBytes: { min: 9_000_000, max: 22_649_737 },
     });
   });
 
