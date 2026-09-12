@@ -7,6 +7,23 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Read LinkedIn `contacts.read@1` Contact-info Email from the headed
+  ProfileContactDetailsOverlay navigation POST after 1st-degree bind.
+  Operator Chrome showed Email in the Contact-info modal; the first
+  response that contained the Email label was POST
+  `/flagship-web/rsc-action/actions/navigation?screenId=…ProfileContactDetailsOverlay&sduiid=…`
+  with JSON `{ clientArguments, isModal }` and an RSC
+  `application/octet-stream` flight. The operation extracts unique
+  `sduiid` and reviewed-identity `clientArguments` from the target
+  profile’s NavigateToScreen / RequestedArguments payload and POSTs
+  that exact allowlisted URL. GraphQL Contact-info stays 403
+  `text/html`, navigation overlay GETs stay 500-rejected, and the
+  vanity overlay GET remains HTML-shell honesty when no page-bound
+  action is present. Soft-labels stay. Self, non-first-degree, and
+  contradictory distances still fail closed, and no email is invented.
+  Adapter bundle 1.31.0. This is the ninth live Contact-info drift after
+  the 1.30.0 overlay-shell honesty path. Cloud has no signed-in LinkedIn
+  session; do not treat this landing as live green.
 - Keep LinkedIn `contacts.read@1` honest when GraphQL Contact-info stays HTTP
   403 `text/html` and the vanity `/in/:publicIdentifier/overlay/contact-info/`
   GET returns an HTML-200 profile shell with no Email. Dormant contained

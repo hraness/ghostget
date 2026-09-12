@@ -5,10 +5,15 @@ import {
   LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
   LINKEDIN_PROFILE_CONTACT_INFO_QUERY_NAME,
   assertLinkedInContactInfoRequest,
+  buildLinkedInContactNavigationBody,
+  buildLinkedInProfileContactDetailsNavigationPostPath,
   buildLinkedInProfileContactDetailsOverlayPath,
   buildLinkedInProfileContactInfoGraphqlPath,
   buildLinkedInProfileContactInfoOverlayPath,
+  extractLinkedInContactNavigationAction,
   linkedInContactInfoTarget,
+  linkedInContactNavigationActionError,
+  linkedInProfileContactDetailsNavigationPostUrl,
   linkedInProfileContactDetailsOverlayUrl,
   linkedInProfileContactInfoGraphqlUrl,
   linkedInProfileContactInfoOverlayUrl,
@@ -106,6 +111,13 @@ const REJECTED_NAVIGATION_OVERLAY_URL = linkedInProfileContactDetailsOverlayUrl(
 const REJECTED_NAVIGATION_OVERLAY_PATH = buildLinkedInProfileContactDetailsOverlayPath({
   profileUrn: PROFILE_URN,
 });
+const FIXTURE_SDUIID = "fixture-sduiid-contact-overlay-1";
+const NAVIGATION_POST_PATH = buildLinkedInProfileContactDetailsNavigationPostPath({
+  sduiid: FIXTURE_SDUIID,
+});
+const NAVIGATION_POST_URL = linkedInProfileContactDetailsNavigationPostUrl({
+  sduiid: FIXTURE_SDUIID,
+});
 const OVERLAY_CONTACT_FLIGHT = [
   `1:I["${LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID}"]`,
   `2:${JSON.stringify({
@@ -147,6 +159,10 @@ describe("LinkedIn contacts.read target and request binding", () => {
     expect(REJECTED_NAVIGATION_OVERLAY_PATH).toBe(
       `/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&profileUrn=${encodeURIComponent(PROFILE_URN)}`,
     );
+    expect(NAVIGATION_POST_PATH).toBe(
+      `/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&sduiid=${FIXTURE_SDUIID}`,
+    );
+    expect(NAVIGATION_POST_URL.href).toBe(`https://www.linkedin.com${NAVIGATION_POST_PATH}`);
   });
 
   test("allows only the reviewed profile page and Contact-info GraphQL GET routes", () => {
@@ -176,7 +192,7 @@ describe("LinkedIn contacts.read target and request binding", () => {
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "POST",
       url: PROFILE_URL,
-    })).toThrow("LinkedIn contact-info reads require GET");
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "GET",
       url: "https://www.linkedin.com/in/example/?trk=unsafe",
@@ -228,11 +244,188 @@ describe("LinkedIn contacts.read target and request binding", () => {
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "POST",
       url: OVERLAY_URL,
-    })).toThrow("LinkedIn contact-info reads require GET");
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
+      method: "POST",
+      url: NAVIGATION_POST_URL,
+    })).not.toThrow();
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: NAVIGATION_POST_URL,
+      body: buildLinkedInContactNavigationBody({
+        clientArguments: { vanityName: "example", profileUrn: PROFILE_URN },
+      }),
+    })).not.toThrow();
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "GET",
+      url: NAVIGATION_POST_URL,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
+      method: "GET",
+      url: NAVIGATION_POST_URL,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: `https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&sduiid=${FIXTURE_SDUIID}&profileUrn=${encodeURIComponent(PROFILE_URN)}`,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: `https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?sduiid=${FIXTURE_SDUIID}&screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}`,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: `https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileView&sduiid=${FIXTURE_SDUIID}`,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: NAVIGATION_POST_URL,
+      body: { clientArguments: { trackingId: "unreviewed" }, isModal: true },
+    })).toThrow("unreviewed keys");
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "GET",
       url: "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&queryName=voyagerFeedDashProfileUpdates&variables=(profileUrn:urn:li:fsd_profile:ACoAAFixtureProfile)",
     })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+  });
+});
+
+describe("LinkedIn contacts.read navigation action binding", () => {
+  const actionRecord = {
+    actionName: "NavigateToScreen",
+    screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+    sduiid: FIXTURE_SDUIID,
+    clientArguments: {
+      vanityName: "example",
+      profileUrn: PROFILE_URN,
+    },
+  };
+
+  test("extracts a unique page-bound ProfileContactDetailsOverlay action", () => {
+    const html = comoFlightHtml([
+      { vanityName: "example", vieweeProfileId: "ACoAAFixtureProfile", isSelfView: false },
+      actionRecord,
+    ]);
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: html,
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      kind: "action",
+      action: {
+        sduiid: FIXTURE_SDUIID,
+        clientArguments: { vanityName: "example", profileUrn: PROFILE_URN },
+        isModal: true,
+      },
+    });
+  });
+
+  test("peels requestedArguments and synthesizes bind identity when clientArguments are absent", () => {
+    const requested = comoFlightHtml([
+      { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+      {
+        actionName: "NavigateToScreen",
+        screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+        sduiid: FIXTURE_SDUIID,
+        requestedArguments: {
+          vanityName: "example",
+          profileUrn: PROFILE_URN,
+        },
+      },
+    ]);
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: requested,
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toMatchObject({
+      kind: "action",
+      action: { sduiid: FIXTURE_SDUIID, isModal: true },
+    });
+    const hrefOnly = profileHtml() +
+      `/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&sduiid=${FIXTURE_SDUIID}`;
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: hrefOnly,
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      kind: "action",
+      action: {
+        sduiid: FIXTURE_SDUIID,
+        clientArguments: { vanityName: "example", profileUrn: PROFILE_URN },
+        isModal: true,
+      },
+    });
+  });
+
+  test("stays absent when profile HTML only mentions the overlay screen", () => {
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: profileHtml(),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({ kind: "absent" });
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          fields: [{
+            label: `${LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID} decorative copy that exceeds the sixty-four character field-label bound`,
+            value: "skip this decorative SDUI string",
+          }],
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({ kind: "absent" });
+  });
+
+  test("fails closed for omitted, ambiguous, unbound, or unreviewed navigation actions", () => {
+    const omitted = extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          actionName: "NavigateToScreen",
+          screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+          clientArguments: { vanityName: "example", profileUrn: PROFILE_URN },
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    });
+    expect(omitted).toEqual({ kind: "omitted-sduiid" });
+    expect(linkedInContactNavigationActionError(omitted as Exclude<typeof omitted, { kind: "action" | "absent" }>).message)
+      .toContain("omitted its Contact-info navigation sduiid");
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        { ...actionRecord, sduiid: "fixture-sduiid-contact-overlay-1" },
+        { ...actionRecord, sduiid: "fixture-sduiid-contact-overlay-2" },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({ kind: "ambiguous-sduiid" });
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          ...actionRecord,
+          clientArguments: { vanityName: "other", profileUrn: PROFILE_URN },
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({ kind: "unbound-client-arguments" });
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          ...actionRecord,
+          clientArguments: { vanityName: "example", profileUrn: PROFILE_URN, trackingId: "no" },
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      kind: "unreviewed-client-arguments",
+      keys: ["trackingId"],
+    });
   });
 });
 

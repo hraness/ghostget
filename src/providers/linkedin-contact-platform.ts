@@ -4,7 +4,10 @@ import * as Layer from "effect/Layer";
 import { ReadEffectFailure, readAttempt } from "../read-effect";
 import { readNative } from "../read-effect-platform";
 import { LinkedInContactIdentityMismatch } from "./linkedin-contact-failure";
-import type { LinkedInContactInfoJsonInput } from "./linkedin-web-contact";
+import type {
+  LinkedInContactInfoJsonInput,
+  LinkedInContactNavigationInput,
+} from "./linkedin-web-contact";
 import type { LinkedInProfileBrowserTransport } from "./linkedin-web-profile-browser";
 
 export type LinkedInContactIdentity = { readonly subject: string };
@@ -32,6 +35,8 @@ function platform(ports: LinkedInContactNative) {
       readNative(() => browser.readContactInfoJson(input)).pipe(Effect.uninterruptible),
     contactOverlay: (browser: LinkedInProfileBrowserTransport, input: LinkedInContactInfoJsonInput) =>
       readNative(() => browser.readContactOverlayText(input)).pipe(Effect.uninterruptible),
+    contactNavigation: (browser: LinkedInProfileBrowserTransport, input: LinkedInContactNavigationInput) =>
+      readNative(() => browser.readContactNavigationText(input)).pipe(Effect.uninterruptible),
     observedAt: readAttempt(ports.observedAt),
     closeBrowser: (browser: LinkedInProfileBrowserTransport) =>
       readNative(() => browser.close()).pipe(Effect.uninterruptible),
