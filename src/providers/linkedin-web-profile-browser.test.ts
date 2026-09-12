@@ -463,6 +463,9 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         const binding = requestBinding(command[1]);
         requests.push(binding);
         if (binding.path === "/voyager/api/me") {
+          expect(command[1]).toContain(
+            'if(input.kind!=="rsc-action")headers["csrf-token"]=csrf',
+          );
           return Promise.resolve([browserBodyRecord(
             identityResponse(),
             "application/vnd.linkedin.normalized+json+2.1",
@@ -769,7 +772,13 @@ describe("LinkedIn profile stats contained-browser transport", () => {
           expect(command[1]).toContain('headers["x-li-page-instance"]=input.pageInstance');
           expect(command[1]).toContain('headers["x-li-track"]=input.track');
           expect(command[1]).toContain('method:input.kind==="rsc-action"?"POST":"GET"');
-          expect(command[1]).toContain("csrf-token");
+          expect(command[1]).toContain("JSESSIONID=");
+          expect(command[1]).toContain(
+            'if(input.kind!=="rsc-action")headers["csrf-token"]=csrf}if(input.kind==="rsc-action")',
+          );
+          expect(command[1]).not.toContain(
+            ';headers["csrf-token"]=csrf}if(input.kind==="rsc-action")',
+          );
           expect(command[1]).toContain("application/octet-stream");
           expect(command[1]).not.toContain("Next-Router-State-Tree");
           expect(command[1]).not.toContain("Next-Action");
