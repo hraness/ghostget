@@ -7,6 +7,32 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Click the unique reviewed Contact info control when the page-bound
+  NavigateToScreen extract is `absent` after adapter 1.36.2. Operator
+  smoke on 2026-09-12 was green for Email on tessbloch through DIRECT
+  transport that clicked after an absent extract, using the reviewed
+  ProfileContactDetailsOverlay `sduiid` and headed clientArguments
+  (bound vanity, optional givenName/familyName from profile HTML,
+  `isVanityNameResolved`, nested requestMetadata
+  states/screenId/knownTemplates, `isModal` true). Official
+  `contacts.read` still fell through that absent extract to GraphQL
+  or the vanity overlay GET (broken 500/HTML-shell path). The
+  contained path now uses the same click and modal snapshot as a
+  present action. It still does not mint a navigation POST or track
+  headers. Zero or two-plus controls and a missing or ambiguous
+  modal still fail closed. GraphQL 403 and vanity HTML-shell
+  honesty stay unused once that click is selected. Soft-labels
+  stay. Self, non-first-degree, and contradictory distances still
+  fail closed, and no email is invented. Adapter bundle 1.36.3.
+  This is the seventeenth live Contact-info drift after the 1.36.2
+  overlay pathname bind. Cloud has no signed-in LinkedIn session;
+  do not treat this landing as live green. Operator smoke:
+
+  ```sh
+  printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \
+    | ghostget invoke linkedin-web contacts.read --input - --auth linkedin-main --json
+  ```
+
 - Keep the unique reviewed Contact info click bound after adapter
   1.36.1 when contained Chrome follows the live vanity overlay path.
   Operator smoke on 2026-09-12 clicked that unique control, then

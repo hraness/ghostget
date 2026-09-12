@@ -1,3 +1,14 @@
+// Ghostget 0.18.2 source plus the LinkedIn `contacts.read` click when
+// NavigateToScreen extract is absent (adapter bundle 1.36.3), measured
+// from the 1.36.2 Linux x64 payload plus the exact packed-file delta:
+// CHANGELOG, adapter notes, and the reviewed overlay-click builder add
+// 3,542 payload bytes. 22,517,747 + 3,542 = 22,521,289 across exactly
+// 558 files. Raise only the payload ceiling to that measured value
+// plus 65 bytes of headroom (22,521,354); the packed size stays under
+// the existing packed allowance and the 558-entry inventory is
+// unchanged. Theme CSS stays website-only. Fresh Linux CI
+// independently checks its actual canonical archive.
+//
 // Ghostget 0.18.2 source plus the LinkedIn `contacts.read` post-click
 // bind on the reviewed vanity overlay pathname (adapter bundle
 // 1.36.2), measured with no version bump: a Bun 1.3.14 `pm pack` on
@@ -786,7 +797,7 @@
 export const MAX_PACKED_BYTES = 11_661_673;
 export const MAX_PACKED_ENTRIES = 558;
 export const MAX_PACKED_FILES = 558;
-export const MAX_UNPACKED_BYTES = 22_517_812;
+export const MAX_UNPACKED_BYTES = 22_521_354;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
