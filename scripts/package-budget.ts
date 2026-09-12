@@ -1,3 +1,12 @@
+// Ghostget 0.18.3 source plus same-boot cleanup of definitely published
+// browser roots after a contained setup failure, measured from the exact
+// 0.18.2 / LinkedIn adapter 1.36.3 candidate below. The cleanup runtime,
+// generated package chunk, release coordinates, and release note add 1,016
+// payload bytes: 22,521,289 + 1,016 = 22,522,305 across the same 558 files.
+// Preserve the existing 65-byte payload allowance (22,522,370); the packed
+// ceiling and exact inventory stay unchanged. Fresh Linux CI and Release must
+// independently inspect their actual canonical archive.
+//
 // Ghostget 0.18.2 source plus the LinkedIn `contacts.read` click when
 // NavigateToScreen extract is absent (adapter bundle 1.36.3), measured
 // from the 1.36.2 Linux x64 payload plus the exact packed-file delta:
@@ -797,7 +806,7 @@
 export const MAX_PACKED_BYTES = 11_661_673;
 export const MAX_PACKED_ENTRIES = 558;
 export const MAX_PACKED_FILES = 558;
-export const MAX_UNPACKED_BYTES = 22_521_354;
+export const MAX_UNPACKED_BYTES = 22_522_370;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

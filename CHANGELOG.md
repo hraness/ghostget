@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.3 - 2026-09-12
+
+- Finish same-boot cleanup of definitely published browser roots when a
+  contained browser setup fails. Profile-clone and later setup errors now use
+  the same durable quiescence and per-root journal as normal cleanup, while
+  ambiguous publication and unverifiable cleanup still preserve exact recovery
+  evidence.
+
 - Click the unique reviewed Contact info control when the page-bound
   NavigateToScreen extract is `absent` after adapter 1.36.2. Operator
   smoke on 2026-09-12 was green for Email on tessbloch through DIRECT
