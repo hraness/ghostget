@@ -256,14 +256,16 @@ fetch. Long SDUI strings used as field labels are skipped instead of aborting
 the profile-stage walk. Otherwise it first inspects the page's exact
 Contact-info NavigateToScreen action. A reviewed action still admits only
 the ProfileContactDetailsOverlay URL (`sduiid` equal to that overlay
-`screenId`). Adapter 1.36.1 then clicks the unique accessible name
+`screenId`). Adapter 1.36.2 then clicks the unique accessible name
 `Contact info` on the already-loaded 1st-degree profile and projects Email
 from that modal DOM, including when that control's `href` matches
-`/overlay/contact-info/` (the live SPA modal path). Malformed or
-unsupported action fields stop the operation. Zero or two-plus matching
-controls, or a missing or ambiguous dialog, fail closed. The contained
-path does not mint a synthetic navigation POST or track headers, and it
-does not fetch that overlay href as a navigation GET. Only when the
+`/overlay/contact-info/` and contained Chrome follows that reviewed vanity
+overlay pathname after click. Malformed or unsupported action fields stop
+the operation. Zero or two-plus matching controls, a path other than the
+bound profile or `/in/:publicIdentifier/overlay/contact-info/`, or a
+missing or ambiguous dialog, fail closed. The contained path does not mint
+a synthetic navigation POST or track headers, and it does not fetch that
+overlay href as a navigation GET. Only when the
 action is absent
 does it use a page-resolved GraphQL `queryId` for
 `voyagerIdentityDashProfileContactInfo`, when the HTML contains exactly one
@@ -468,8 +470,13 @@ found that unique control and fail-closed before click because its
 href matched `/overlay/contact-info/`. The raw eval error was exactly
 `Contact-info control targeted the vanity overlay GET`. Adapter 1.36.1
 clicks that unique control even when the href is the vanity overlay
-GET. It does not mint a navigation POST or track headers. Cloud has no
-signed-in LinkedIn session; do not treat this landing as live green.
+GET. Operator smoke after that click fail-closed because contained
+Chrome left `/in/tessbloch/` for
+`/in/tessbloch/overlay/contact-info/`. Adapter 1.36.2 treats that
+reviewed vanity overlay pathname as still bound after click, then
+snapshots the unique dialog. Authwall and any other path still fail
+closed. It does not mint a navigation POST or track headers. Cloud has
+no signed-in LinkedIn session; do not treat this landing as live green.
 
 ```sh
 printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \
