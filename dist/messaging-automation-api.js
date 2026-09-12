@@ -8,14 +8,14 @@ import {
 
 // src/messaging-automation-api.ts
 async function createMessagingAutomationSession(options) {
-  return (await import("./messaging-automation-factory-twf36ecb.js")).createMessagingAutomationSession(options);
+  return (await import("./messaging-automation-factory-6e0j1qpj.js")).createMessagingAutomationSession(options);
 }
 async function createMessagingAutomationHost(providers, environment) {
   const { MessagingAutomationHost } = await import("./messaging-automation-v5wk7gzn.js");
   return new MessagingAutomationHost(providers, environment);
 }
 async function installBundledMessagingRuntime(provider, environment) {
-  return (await import("./messaging-native-install-33kbjcgg.js")).installBundledMessagingRuntime(provider, environment);
+  return (await import("./messaging-native-install-sjexg09p.js")).installBundledMessagingRuntime(provider, environment);
 }
 export {
   installBundledMessagingRuntime,

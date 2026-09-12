@@ -86,3 +86,10 @@ not become a live event; possible gaps prevent automatic sends. Provider
 acceptance is reported separately from delivery or read status. Available rich
 actions depend on the current pinned helper and explicit permissions;
 app-clips and arbitrary mini-app experiences remain unavailable.
+
+Native iMessage links use the pinned `.3` helper and require the compatible
+bridge to report `send.rich` available. The host sets `fetch_metadata: false`
+to build a native URL/host-title card without helper metadata or image fetching.
+This does not control all network behavior inside Messages or on the recipient
+device. WhatsApp link sharing uses its existing text payload with preview
+fetching disabled.

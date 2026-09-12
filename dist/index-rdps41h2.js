@@ -90,7 +90,7 @@ function automationOperationDefinitions(provider) {
   }));
 }
 function loadImsgAutomationRuntime() {
-  return import("./imessage-automation-wr0392wf.js");
+  return import("./imessage-automation-fes7fjf1.js");
 }
 function loadWhatsAppAutomationRuntime() {
   return import("./whatsapp-automation-ckmvtqxa.js");

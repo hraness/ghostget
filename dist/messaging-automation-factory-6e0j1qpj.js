@@ -9,7 +9,7 @@ import {
   loadImsgAutomationRuntime,
   loadProviderPluginExtensionRuntime,
   loadWhatsAppAutomationRuntime
-} from "./index-ng3hr4kj.js";
+} from "./index-rdps41h2.js";
 import"./index-3sdtfztq.js";
 import {
   AUTOMATION_ACTION_KINDS,

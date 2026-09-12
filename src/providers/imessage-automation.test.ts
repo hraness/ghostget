@@ -42,7 +42,7 @@ function fixture() {
           } else if (request.method === "tapback") result = { ok: true, reaction: 2000 };
           else if (request.method === "send.sticker") result = { ok: true, transfer_guid: "fixture-transfer" };
           else if (request.method === "poll.send") result = { ok: true, event: "imessage.poll.created", guid: "fixture-poll" };
-          else if (request.method === "send.rich") result = state.linkQueued ? { ok: true, queued: true, chat_guid: target.chatGuid } : { ok: true, messageGuid: state.linkConflict ? "conflicting-guid" : "fixture-link", guid: "fixture-link", message_id: "fixture-link", chat_guid: target.chatGuid };
+          else if (request.method === "send.rich") result = state.linkQueued ? { ok: true, queued: true, chat_guid: target.chatGuid } : { ok: true, messageGuid: state.linkConflict ? "conflicting-guid" : "fixture-link", guid: "fixture-link", message_id: "fixture-link", chat_guid: target.chatGuid, service: "iMessage", richLinkImageUsed: false };
           else result = state.malformed ? { ok: true, unexpected: true } : request.method === "send" ? { ok: true, transport: "applescript", id: 11, guid: "fixture-sent", message_id: "fixture-sent", chat_guid: target.chatGuid, service: "iMessage" } : { ok: true, guid: "fixture-sent" };
           if (state.replace && request.method === "send") { rmSync(database); writeFileSync(database, "replacement", { mode: 0o600 }); }
           replies.push(JSON.stringify({ jsonrpc: "2.0", id: request.id, result }));
@@ -57,6 +57,7 @@ test("iMessage capabilities reflect current helper methods without starting brid
   const f = fixture(); expect(f.calls).toHaveLength(0);
   const live = await f.provider.inspect(); expect(live.actions.reaction.available).toBe(true); expect(live.actions.attachment.available).toBe(true); expect(live.actions["app-clip"].available).toBe(false);
   f.state.bridge = false; const disconnected = await f.provider.inspect(); expect(disconnected.actions.reaction.available).toBe(false); expect(disconnected.actions.sticker.available).toBe(false);
+  expect(disconnected.actions.link.available).toBe(false);
   expect(f.calls.every(call => call.method === "status")).toBe(true); await f.close();
 });
 test("iMessage bounded reads preserve exact coordinates and source generation", async () => {
@@ -89,9 +90,11 @@ test("sticker transfer acceptance and native polls preserve one action semantics
   expect(f.calls.find(call => call.method === "poll.send")!.params.suppress_comment).toBe(true);
   expect((await f.send({ kind: "poll", question: "Choose", options: ["One", "Two"], maximumSelections: 1 })).state).toBe("not-started"); await f.close();
 });
-test("rich links parse the pinned enriched bridge response and leave unresolved queue receipts indeterminate", async () => {
+test("rich links use no-fetch native cards and leave conflicting or queued receipts indeterminate", async () => {
   const f = fixture(); const action: AutomationAction = { kind: "link", url: "https://example.test/link" };
+  expect((await f.provider.inspect()).actions.link.available).toBe(true);
   expect(await f.send(action)).toEqual({ state: "accepted", messageId: "fixture-link", providerReceiptId: null, delivery: "unknown" });
+  expect(f.calls.find(call => call.method === "send.rich")!.params.fetch_metadata).toBe(false);
   f.state.linkConflict = true; expect((await f.send(action)).state).toBe("indeterminate");
   f.state.linkConflict = false; f.state.linkQueued = true; expect((await f.send(action)).state).toBe("indeterminate");
   expect(f.calls.filter(call => call.method === "send.rich")).toHaveLength(3); await f.close();

@@ -7,6 +7,23 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.1 - 2026-09-11
+
+- Add the owner messaging automation protocol for iMessage and WhatsApp:
+  exact conversation enrollment, revocable action grants, durable event cursors,
+  bounded history, admitted attachment bytes, and ordered send receipts. Importing
+  the eighth public SDK entrypoint performs no account or network work.
+- Bundle reviewed private iMessage and wacli helpers with pinned bytes, source
+  patches, resources, and licenses. Installation starts no provider and changes
+  no macOS security settings. WhatsApp synchronization requires an explicit owner
+  action and keeps each outgoing action to one dispatch attempt.
+- Expose text, files, reactions, stickers, links, and polls when the selected
+  provider and its managed permissions support them. Automated iMessage link
+  cards skip helper metadata/image fetching. Native rich iMessage actions require
+  an already-working private bridge; its upstream setup requires disabled SIP.
+  App Clips and arbitrary mini-app experiences remain unavailable. Offline checks
+  do not establish real account pairing or message delivery.
+
 - Read LinkedIn `contacts.read@1` Contact-info email from the target-bound
   ProfileContactDetailsOverlay RSC navigation when GraphQL
   `voyagerIdentityDashProfileContactInfo` is unavailable. Live dormant

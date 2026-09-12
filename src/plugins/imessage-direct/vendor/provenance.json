@@ -6,7 +6,7 @@
     "baseCommit": "25beb76c902b0acf2dd7ae392f1b0792f6813240"
   },
   "reviewedPatchStack": {
-    "tipCommit": "c5994f00d17969fd7772fd2772e7b3591089513a",
+    "tipCommit": "520b82ab025c1d4d57333b552aa65c9ae3fdb5fd",
     "patches": [
       {
         "file": "0001-fix-keep-AppleScript-send-payloads-out-of-child-argv.patch",
@@ -37,35 +37,79 @@
           "Sources/imsg/RPCServer.swift",
           "Tests/imsgTests/RPCServerTests.swift"
         ]
+      },
+      {
+        "file": "0003-feat-rpc-add-no-fetch-rich-cards.patch",
+        "commit": "520b82ab025c1d4d57333b552aa65c9ae3fdb5fd",
+        "sha256": "c2346afca4dd0f9721c235db4f692d6a2d6dece36481e074d94b5ce78f2e019b",
+        "purpose": "Native URL cards without helper metadata/image fetching, safe exact-chat fixtures, and release-only adjacent resource lookup without a build-path fallback.",
+        "changedFiles": [
+          "Sources/imsg/RPCServer+BridgeMessageHandlers.swift",
+          "Sources/imsg/RichLinkPreparer.swift",
+          "Tests/imsgTests/RPCBridgeMessageHandlersTests.swift",
+          "Tests/imsgTests/RPCSendRichLinkValidationTests.swift",
+          "Tests/imsgTests/RPCServerTests.swift",
+          "Tests/imsgTests/RichLinkPreparerTests.swift",
+          "docs/rpc.md",
+          "scripts/patch-deps.sh"
+        ]
       }
     ]
   },
   "artifact": {
     "platform": "darwin",
     "arch": "arm64",
-    "executableSha256": "77a0db864dfd247cd0a9142dd98997960582e6f150f76ecd3bf1c38944f2bf71",
+    "executableSha256": "46c4c73c81c7db2d516c2d467c66aff03c73de196996d646bc8afce0ea85cff6",
     "reportedVersion": "0.14.1",
     "build": {
       "swift": "Apple Swift 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)",
-      "sdk": "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
+      "sdk": "MacOSX26.5.sdk",
       "command": [
-        "env",
-        "SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk",
-        "CLANG_MODULE_CACHE_PATH=<private-build-cache>",
-        "SWIFTPM_MODULECACHE_OVERRIDE=<private-build-cache>",
         "swift",
         "build",
+        "--jobs",
+        "4",
         "--disable-sandbox",
+        "--cache-path",
+        ".swiftpm-cache",
+        "--config-path",
+        ".swiftpm-config",
+        "--security-path",
+        ".swiftpm-security",
+        "--disable-automatic-resolution",
         "-c",
         "release",
         "--product",
-        "imsg"
+        "imsg",
+        "-Xlinker",
+        "-S"
+      ],
+      "preparation": [
+        "scripts/generate-version.sh",
+        "swift package --force-resolved-versions resolve",
+        "scripts/patch-deps.sh"
+      ],
+      "linking": "Apple linker omits STABS/DWARF at link time before its default content-derived UUID and ad-hoc signature; no post-link byte rewriting.",
+      "dependencyPatches": [
+        "Pinned upstream patch-deps.sh retains PhoneNumberKit command-line/symlink bundle lookup and SQLite resource preparation.",
+        "Third reviewed patch keeps the generated Bundle.module fallback only in DEBUG; release builds require the adjacent shipped bundle and otherwise fail explicitly."
       ]
     },
-    "executableBytes": 5410056,
+    "executableBytes": 4525960,
     "compression": "gzip",
-    "compressedSha256": "50aea08e3f395be2c82f25b4e0e62e256628141a667e8d296d083093471b6018",
-    "compressedBytes": 1667784
+    "validation": {
+      "targetedSwiftTests": 35,
+      "signedBytesIdentical": true,
+      "strictAdHocSignatureVerification": true,
+      "userAndWorkspacePathsAbsent": true,
+      "installedLayoutVersion": "0.14.1",
+      "installedReleasePhoneNumberKitResourceParse": true,
+      "liveAccountOrSendQualification": false,
+      "releaseBuilds": 2,
+      "cleanRebuilds": 1
+    },
+    "compressedSha256": "12861bdb93779405f7cc4cb4a47fc1d6ea3bf2fc8cec5ed69f2197ce96804532",
+    "compressedBytes": 1490956
   },
   "reviewBoundary": {
     "liveSendPerformed": false,
@@ -79,7 +123,9 @@
     "service": "iMessage",
     "transport": "applescript",
     "smsFallback": false,
-    "exactRouteLookup": "chats.get(chat_id) returns one exact current chat projection and rejects an unknown row"
+    "exactRouteLookup": "chats.get(chat_id) returns one exact current chat projection and rejects an unknown row",
+    "noFetchNativeCards": "Owner automation requests send.rich fetch_metadata=false; helper metadata/image loading is bypassed while native rich-card dispatch remains. Messages/recipient network behavior is outside this helper claim.",
+    "nativeRichBridge": "Requires an already-working compatible injected bridge; upstream setup requires disabled SIP. Installation and tests change no security setting or Messages process."
   },
   "bundledResources": {
     "repository": "https://github.com/marmelroy/PhoneNumberKit",

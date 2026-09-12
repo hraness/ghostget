@@ -59,6 +59,17 @@ var LINKEDIN_WEB_OPERATIONS = {
       allowedQueryParameters: ["includeWebMetadata", "queryId", "queryName", "variables"],
       requiredQueryParameters: ["includeWebMetadata", "variables"],
       fixedQueryParameters: [["includeWebMetadata", "true"]]
+    }, {
+      kind: "server-rendered-read",
+      method: "GET",
+      path: "/flagship-web/rsc-action/actions/navigation ProfileContactDetailsOverlay",
+      queryPrefix: null,
+      allowedQueryParameters: ["screenId", "profileUrn"],
+      requiredQueryParameters: ["screenId", "profileUrn"],
+      fixedQueryParameters: [[
+        "screenId",
+        "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay"
+      ]]
     }]
   },
   "feeds.read": {

@@ -19,6 +19,7 @@ import { providerPluginRegistry } from "./provider-plugins";
 import {
   IMSG_DIRECT_OPERATION_NAMES,
   IMSG_EXACT_CHAT_PATCH_SHA256,
+  IMSG_NO_FETCH_RICH_CARDS_PATCH_SHA256,
   IMSG_PRIVATE_TRANSPORT_PATCH_SHA256,
   IMSG_REVIEWED_VERSION,
   IMSG_TOOL_PIN,
@@ -234,10 +235,20 @@ describe("reviewed direct iMessage provider", () => {
   test("registers one exact local-CLI identity and semantic surface", () => {
     const plugin = providerPluginRegistry.get("imessage-direct");
     const binding = providerPluginRegistry.requireRoute("local-cli", "imessage");
+    const registeredOperations = [
+      ...IMSG_DIRECT_OPERATION_NAMES,
+      "messaging.automation.read",
+      "messaging.automation.send.text",
+      "messaging.automation.send.attachment",
+      "messaging.automation.send.reaction",
+      "messaging.automation.send.sticker",
+      "messaging.automation.send.link",
+      "messaging.automation.send.poll",
+    ].sort();
     expect(plugin?.displayName).toBe("iMessage Reviewed Direct Transport");
     expect(imsgManifest.schemaVersion).toBe(6);
     expect(Object.keys(imsgManifest.operations).sort()).toEqual(
-      [...IMSG_DIRECT_OPERATION_NAMES].sort(),
+      registeredOperations,
     );
     expect(binding.transport).toBe("local-cli");
     if (binding.transport !== "local-cli") throw new Error("wrong transport");
@@ -250,7 +261,7 @@ describe("reviewed direct iMessage provider", () => {
     });
     expect(binding.tool.artifacts).toEqual(IMSG_TOOL_PIN.artifacts);
     expect(binding.operations.map((operation) => operation.name).sort()).toEqual(
-      [...IMSG_DIRECT_OPERATION_NAMES].sort(),
+      registeredOperations,
     );
     expect(binding.messaging?.action).toMatchObject({
       state: "supported",
@@ -679,6 +690,17 @@ describe("reviewed direct iMessage provider", () => {
     expect(source).toContain('RPCMethodDescriptor("chats.get"');
     expect(source).toContain("rpcChatsGetReturnsOneExactChatPayload");
     expect(source).toContain("rpcChatsGetRejectsAnUnknownChatRow");
+  });
+
+  test("vendors the admitted no-fetch native card and release resource patch", () => {
+    const bytes = readFileSync(join(import.meta.dir, "plugins", "imessage-direct", "vendor",
+      "0003-feat-rpc-add-no-fetch-rich-cards.patch"));
+    expect(createHash("sha256").update(bytes).digest("hex")).toBe(IMSG_NO_FETCH_RICH_CARDS_PATCH_SHA256);
+    expect(IMSG_TOOL_PIN.reviewedPatches.at(-1)?.sha256).toBe(IMSG_NO_FETCH_RICH_CARDS_PATCH_SHA256);
+    const source = bytes.toString("utf8");
+    expect(source).toContain("richLinkPreparerNoFetchNeverLoadsOrStagesResources");
+    expect(source).toContain("rpcSendRichNoFetchBuildsNativeCardWithoutMetadataPreparation");
+    expect(source).toContain("PhoneNumberKit resource bundle is missing");
   });
 
   test("refuses to install unreviewed current-platform bytes", async () => {

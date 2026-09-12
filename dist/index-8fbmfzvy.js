@@ -58,7 +58,7 @@ import {
   webSessionContractHash,
   withOperationPermission,
   withUnmanagedOperationPermission
-} from "./index-ng3hr4kj.js";
+} from "./index-rdps41h2.js";
 import {
   parseGmailThreadUrl
 } from "./index-vdxk3xwx.js";
@@ -74,7 +74,7 @@ import {
 import {
   linkedInProfileActivityInputIssues,
   readNative
-} from "./index-jr8fpkck.js";
+} from "./index-bvqxnnz5.js";
 import {
   articleDraftImageFileInput,
   articleDraftImageFileInputs
@@ -105,7 +105,7 @@ import {
   IMSG_TRANSPORT,
   boundedImsgString,
   parseImsgDirectOperationInput
-} from "./index-7tcbcqs5.js";
+} from "./index-qb4ybg2c.js";
 import {
   parseWhatsAppJid,
   whatsappTargetJid
@@ -15489,7 +15489,7 @@ var wrench_web_adapter_default9 = {
 var wrench_web_adapter_default10 = {
   schemaVersion: 4,
   id: "linkedin-web",
-  version: "1.27.0",
+  version: "1.28.0",
   displayName: "LinkedIn (Authenticated Web API)",
   surfaceId: "linkedin",
   origins: [
@@ -21927,7 +21927,7 @@ var bluesky = {
 };
 var linkedin = {
   "contacts.list": contract("linkedin", "contacts.list", "R1", "capture-required", "consumer-web contact statistics require a fresh viewer-bound messaging-participant collection with real conversation and message pagination, group attribution, completeness, and acknowledgement-free behavior"),
-  "contacts.read": contract("linkedin", "contacts.read", LINKEDIN_WEB_OPERATIONS["contacts.read"].risk, LINKEDIN_WEB_OPERATIONS["contacts.read"].state, "reviewed contained-Chrome 1st-degree Contact-info read: bind the signed-in viewer, require a 1st-degree relationship on the requested vanity from classic Profile embeds or Como rehydration, then project page-embedded Contact-info fields or GET voyagerIdentityDashProfileContactInfo and project email plus any shown profile link, connected-since date, phones, websites, or birthday", LINKEDIN_WEB_OPERATIONS["contacts.read"].contractVersion),
+  "contacts.read": contract("linkedin", "contacts.read", LINKEDIN_WEB_OPERATIONS["contacts.read"].risk, LINKEDIN_WEB_OPERATIONS["contacts.read"].state, "reviewed contained-Chrome 1st-degree Contact-info read: bind the signed-in viewer, require a 1st-degree relationship on the requested vanity from classic Profile embeds or Como rehydration, then project page-embedded Contact-info fields, or GET the target-bound ProfileContactDetailsOverlay RSC navigation when voyagerIdentityDashProfileContactInfo is unavailable, and project email plus any shown profile link, connected-since date, phones, websites, or birthday", LINKEDIN_WEB_OPERATIONS["contacts.read"].contractVersion),
   "feeds.read": contract("linkedin", "feeds.read", LINKEDIN_WEB_OPERATIONS["feeds.read"].risk, LINKEDIN_WEB_OPERATIONS["feeds.read"].state, "reviewed contained-Chrome profile-activity page: resolve one live voyagerFeedDashProfileUpdates query, bind the signed-in viewer, and project one recent-activity page for the requested vanity. feed=home remains capture-required and is refused at runtime", LINKEDIN_WEB_OPERATIONS["feeds.read"].contractVersion),
   "profiles.read": contract("linkedin", "profiles.read", LINKEDIN_WEB_OPERATIONS["profiles.read"].risk, LINKEDIN_WEB_OPERATIONS["profiles.read"].state, LINKEDIN_WEB_OPERATIONS["profiles.read"].reason),
   "organizations.read": contract("linkedin", "organizations.read", LINKEDIN_WEB_OPERATIONS["organizations.read"].risk, LINKEDIN_WEB_OPERATIONS["organizations.read"].state, LINKEDIN_WEB_OPERATIONS["organizations.read"].reason),
@@ -24872,6 +24872,10 @@ var imessageDirectPlugin = defineProviderPlugin({
       url: new URL("./vendor/0002-feat-rpc-add-exact-chat-lookup.patch", import.meta.url)
     }),
     Object.freeze({
+      label: "vendor/no-fetch-rich-cards.patch",
+      url: new URL("./vendor/0003-feat-rpc-add-no-fetch-rich-cards.patch", import.meta.url)
+    }),
+    Object.freeze({
       label: "vendor/provenance.json",
       url: new URL("./vendor/provenance.json", import.meta.url)
     })
@@ -24899,7 +24903,7 @@ var imessageDirectPlugin = defineProviderPlugin({
     },
     messaging: imsgDirectMessagingDefinition,
     runtime: lazyLocalCliRuntime(async () => {
-      const runtime2 = await import("./imessage-direct-runtime-jwvfk4qz.js");
+      const runtime2 = await import("./imessage-direct-runtime-aadvr5vy.js");
       return {
         inspect: runtime2.inspectImsgDirectRuntime,
         probe: runtime2.probeImsgDirectSubject,
@@ -26848,7 +26852,7 @@ function linkedinArticleDraftV2Dispatches(input) {
     })
   ]);
 }
-var currentOperations = webSessionContractOperations(Object.values(linkedinContracts), "9a6564b30dc4be4d1d879b0bc2cc20a070bd2637b890d150195748fb19483165", {
+var currentOperations = webSessionContractOperations(Object.values(linkedinContracts), "462015852032ad429427e9812eb922d15b7a3ad0a6328ca6ee452efbde89d99a", {
   "posts.publish": [2]
 }, {
   "messaging.list": {
@@ -27003,7 +27007,7 @@ var linkedinWebPlugin = defineProviderPlugin({
       matches: (value) => /^urn:li:fsd_profile:[0-9]{1,32}$/u.test(value)
     },
     runtime: lazyWebSessionRuntime(async () => {
-      const runtime3 = await import("./linkedin-web-runtime-bfvg7wdd.js");
+      const runtime3 = await import("./linkedin-web-runtime-p5wbrsgh.js");
       return {
         probe: runtime3.probeLinkedInWebSubject,
         execute: (_manifest, recipe, input, auth, options) => runtime3.executeLinkedInWebOperation(recipe, input, auth, options),
@@ -47295,7 +47299,7 @@ async function confirmMessagingInvocationCore(digest3, options = {}) {
     }
     const loadManifest = options.loadManifest ?? ((adapterId, selectedEnvironment = process.env) => loadInstalledManifestWithRegistry(adapterId, selectedEnvironment, registry));
     const invocation = validateFreshPlan(stored, environment, observation, registry, loadManifest);
-    const messagingRuntime = await import("./messaging-runtime-v6dfx699.js");
+    const messagingRuntime = await import("./messaging-runtime-bcayyvm6.js");
     let snapshot3 = messagingRuntime.initializeMessagingCompositeRunInternal(stored, runId2, { environment, now: observation });
     run = snapshot3.run;
     writeReceipt(messagingReceiptForPlan(stored, run), environment);

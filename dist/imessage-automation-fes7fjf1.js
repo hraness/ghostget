@@ -2,10 +2,12 @@
 import {
   imsgAutomationProjection,
   withImsgAutomationRuntime
-} from "./index-1cebqg31.js";
-import"./index-xgvkhhtr.js";
-import"./index-6k46a07n.js";
-import"./index-7tcbcqs5.js";
+} from "./index-y0nvfrrd.js";
+import"./index-j7y77jxa.js";
+import"./index-cnnpt47n.js";
+import {
+  IMSG_NO_FETCH_RICH_CARDS_AVAILABLE
+} from "./index-qb4ybg2c.js";
 import {
   AUTOMATION_ACTION_KINDS,
   automationArray,
@@ -65,9 +67,11 @@ function providerStatus(session, identity) {
   const available = methods(session);
   const rpc = { text: "send", attachment: "send", reaction: "tapback", sticker: "send.sticker", link: "send.rich", poll: "poll.send" };
   const actions = Object.fromEntries(AUTOMATION_ACTION_KINDS.map((kind) => {
+    if (kind === "link" && !IMSG_NO_FETCH_RICH_CARDS_AVAILABLE)
+      return [kind, { available: false, reason: "The installed iMessage artifact predates no-fetch rich cards. The replacement native build has not been admitted." }];
     const method = rpc[kind];
     const ready = method !== undefined && available.has(method);
-    return [kind, { available: ready, reason: ready ? null : method ? `The existing Messages bridge does not currently advertise ${method}. Enable it explicitly through Ghostget setup.` : "The pinned iMessage helper has no reviewed operation for this action." }];
+    return [kind, { available: ready, reason: ready ? null : !method ? "The pinned iMessage helper has no reviewed operation for this action." : method === "send" ? "The native iMessage send operation is unavailable. Check Messages permissions in Ghostget." : `The private Messages bridge does not currently advertise ${method}. Its injection design requires owner-configured system support, including disabled SIP. Ghostget installation never changes SIP.` }];
   }));
   return { identity, connected: true, events: { available: available.has("messages.after"), reason: available.has("messages.after") ? null : "The pinned database cursor operation is unavailable." }, actions };
 }
@@ -255,6 +259,7 @@ function createImsgAutomationProvider(options) {
           } else if (action.kind === "link") {
             method = "send.rich";
             params.url = action.url;
+            params.fetch_metadata = false;
           } else if (action.kind === "poll") {
             if (action.maximumSelections !== null)
               throw new Error("Native iMessage polls use provider selection behavior");
@@ -315,7 +320,7 @@ function createImsgAutomationProvider(options) {
             const accepted = imsgAutomationProjection.parseSendAccepted(result, target(selected));
             return { state: "accepted", messageId: automationText(accepted.messageGuid, 256), providerReceiptId: null, delivery: "unknown" };
           }
-          const allowed = action.kind === "reaction" ? ["ok", "reaction"] : action.kind === "poll" ? ["ok", "event", "guid", "message_id", "poll"] : action.kind === "link" ? ["ok", "id", "guid", "message_id", "messageGuid", "chat_guid", "chatGuid", "queued"] : ["ok", "transfer_guid"];
+          const allowed = action.kind === "reaction" ? ["ok", "reaction"] : action.kind === "poll" ? ["ok", "event", "guid", "message_id", "poll"] : action.kind === "link" ? ["ok", "id", "guid", "message_id", "messageGuid", "chat_guid", "chatGuid", "queued", "service", "richLinkImageUsed"] : ["ok", "transfer_guid"];
           if (result.ok !== true || Object.keys(result).some((key) => !allowed.includes(key)) || result.chat_guid !== undefined && result.chat_guid !== selected.chatGuid || result.transport !== undefined && result.transport !== "applescript")
             throw new Error("iMessage acceptance changed");
           const ids = [result.guid, result.message_id, result.messageGuid].filter((value) => value !== undefined).map((value) => automationText(value, 256));
@@ -324,6 +329,8 @@ function createImsgAutomationProvider(options) {
             throw new Error("Ambiguous iMessage result identity");
           if (result.chatGuid !== undefined && result.chatGuid !== selected.chatGuid || result.queued !== undefined && typeof result.queued !== "boolean")
             throw new Error("iMessage rich-link receipt changed");
+          if (action.kind === "link" && (result.service !== undefined && result.service !== "iMessage" || result.richLinkImageUsed !== undefined && result.richLinkImageUsed !== false))
+            throw new Error("iMessage rich-link transport or metadata mode changed");
           if (result.id !== undefined)
             automationInteger(result.id, 1, Number.MAX_SAFE_INTEGER);
           if (action.kind === "link" && messageId === null)

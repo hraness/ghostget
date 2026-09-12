@@ -4,7 +4,7 @@ import {
   installBundledMessagingRuntime,
   readBundledMessagingAsset,
   verifyImsgNativeResources
-} from "./index-6k46a07n.js";
+} from "./index-cnnpt47n.js";
 import"./index-0ywm1fj9.js";
 import"./index-4bpemvnc.js";
 import"./index-26yq8q16.js";

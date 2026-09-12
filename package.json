@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.18.0",
+  "version": "0.18.1",
   "description": "Open-source CLI and TypeScript SDK for precise web capabilities for AI agents: page capture, verified media archives, encrypted reads, and typed provider operations.",
   "license": "MIT",
   "type": "module",
@@ -367,6 +367,7 @@
     "src/plugins/imessage-direct/plugin.ts",
     "src/plugins/imessage-direct/vendor/0001-fix-keep-AppleScript-send-payloads-out-of-child-argv.patch",
     "src/plugins/imessage-direct/vendor/0002-feat-rpc-add-exact-chat-lookup.patch",
+    "src/plugins/imessage-direct/vendor/0003-feat-rpc-add-no-fetch-rich-cards.patch",
     "src/plugins/imessage-direct/vendor/provenance.json",
     "src/plugins/linkedin-official/plugin.ts",
     "src/plugins/linkedin-web/plugin.ts",

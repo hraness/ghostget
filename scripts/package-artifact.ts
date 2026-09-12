@@ -57,6 +57,7 @@ const requiredPaths = Object.freeze([
   "src/assets/messaging-runtime/phone-number-privacy.plist.gz",
   "src/assets/messaging-runtime/phone-number-info.plist.gz",
   "src/assets/messaging-runtime/NOTICE.txt",
+  "src/plugins/imessage-direct/vendor/0003-feat-rpc-add-no-fetch-rich-cards.patch",
   "src/plugins/whatsapp-linked-device/vendor/0001-ghostget-private-messaging.patch",
   "src/plugins/whatsapp-linked-device/vendor/provenance.json",
   "src/providers/imessage-direct-install.ts",

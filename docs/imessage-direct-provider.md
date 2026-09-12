@@ -19,7 +19,12 @@ The vendored patch stack applies to `openclaw/imsg` 0.14.1 at commit
 `292db82d89293867ef847a2875667fea0fdd5dc1`, isolates AppleScript payloads.
 The second, `c5994f00d17969fd7772fd2772e7b3591089513a`, adds the read-only exact
 `chats.get(chat_id)` lookup required to revalidate a route without relying on a
-bounded recent-chat scan. Patch SHA-256 values, changed files, and the full
+bounded recent-chat scan. The third, `520b82ab025c1d4d57333b552aa65c9ae3fdb5fd`,
+adds `send.rich` URL cards with `fetch_metadata: false`. The admitted `.3`
+executable includes this mode. It bypasses the helper's LinkPresentation metadata
+and image fetching while retaining the native rich-card payload. The patch also
+corrects exact-chat test fixtures and requires the shipped PhoneNumberKit resource
+bundle in release builds. Patch SHA-256 values, changed files, and the full
 artifact review boundary are recorded in
 `src/plugins/imessage-direct/vendor/provenance.json`.
 
@@ -47,24 +52,43 @@ usable, not which Apple account Messages will choose.
 
 ## Build and installation boundary
 
-Apply both vendored mail patches in order to an otherwise clean checkout at the exact base,
-then build `imsg` in release mode. The current reviewed macOS arm64 executable
+The admitted binary includes all three vendored mail patches applied to the exact base,
+and was built in release mode. The current reviewed macOS arm64 executable
 SHA-256 is
-`77a0db864dfd247cd0a9142dd98997960582e6f150f76ecd3bf1c38944f2bf71`.
-Compiler, SDK, and command provenance are in the manifest. A different byte is
+`46c4c73c81c7db2d516c2d467c66aff03c73de196996d646bc8afce0ea85cff6`.
+Two independent release builds produce identical signed bytes with `-Xlinker -S`.
+This omits debug build paths before the default UUID and ad-hoc signature are
+generated. The adjacent resource bundle was exercised with the release
+PhoneNumberKit code. Compiler, SDK, and command provenance are in the manifest. A different byte is
 not this reviewed transport, even if it prints version 0.14.1.
 
 Install only that byte sequence through the checked installer:
 
 ```sh
-ghostget imessage transport install --binary /absolute/path/to/imsg --json
+ghostget imessage transport install --json
 ```
 
-The installer supports only the declared current platform, reads the source
+The default uses the exact compressed executable and PhoneNumberKit resources
+bundled with Ghostget. An explicit `--binary /absolute/path/to/imsg` may supply
+the same pinned executable. The installer supports only the declared current platform, reads the source
 without following a symlink, checks owner, mode, size, stability, and SHA-256,
 and installs by an exclusive same-filesystem link. It never replaces mismatched
 existing bytes. Software build, installation, Messages login, and account
 recovery remain operator workflows, not provider operations.
+
+The separate [owner messaging host](messaging-automation.md) supports native
+reactions, stickers and polls only when the existing compatible
+Messages bridge reports those operations available. Upstream's injected bridge
+requires a SIP-disabled Mac. Installing Ghostget's CLI binary does not install
+or inject that bridge, disable SIP, or relaunch Messages. A normal Mac without
+that explicit setup can still use the reviewed AppleScript text and attachment
+path after the required macOS permissions are granted.
+
+Native rich cards require the compatible bridge to report `send.rich` available.
+The messaging-host path requests `fetch_metadata: false` for those cards.
+The card contains the URL and its host name, without a fetched title or preview
+image. This confines this helper's metadata preparation; it does not claim to
+control all network behavior inside Messages or on the recipient's device.
 
 Bind the local Messages store after the reviewed binary is installed:
 

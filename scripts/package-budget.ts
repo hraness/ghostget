@@ -1,3 +1,16 @@
+// Ghostget 0.18.1 messaging automation joined with main ac44040, including
+// the admitted imsg .3 no-fetch native cards and shipped release resources.
+// Two clean Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0 on
+// darwin arm64 are byte-identical: 12,561,964 compressed / 27,437,097 payload
+// bytes across exactly 619 files, SHA-256
+// 0914c7721df5cd1a2e317d334d7ee60e6ff8f461e4e61a21aae086cd9d5fb322.
+// The third reviewed imsg patch adds one inventory entry. The smaller signed
+// native artifact more than offsets the joined source, provenance and docs.
+// Reduce both byte ceilings to this measurement plus the unchanged 2,802-byte
+// observed platform spread, 4,096 compressed-byte and 65 payload-byte allowances.
+// Keep the existing five Release assets and eight inert SDK entrypoints.
+// Current Required Linux CI must independently inspect its canonical archive.
+//
 // Messaging automation joined with main 9cc16e1 (LinkedIn non-flight bootstrap).
 // Two clean Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0 on
 // darwin arm64 are byte-identical: 12,716,885 compressed / 27,573,685 payload
@@ -497,10 +510,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 12_723_783;
-export const MAX_PACKED_ENTRIES = 618;
-export const MAX_PACKED_FILES = 618;
-export const MAX_UNPACKED_BYTES = 27_573_750;
+export const MAX_PACKED_BYTES = 12_568_862;
+export const MAX_PACKED_ENTRIES = 619;
+export const MAX_PACKED_FILES = 619;
+export const MAX_UNPACKED_BYTES = 27_437_162;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

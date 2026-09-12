@@ -1166,7 +1166,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(28_207_104);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(28_071_424);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1311,21 +1311,23 @@ describe("npm publication contract", () => {
     expect(budget).toContain("6fdc9574102d2364548291891b8b81f9c1c1b442a95dfb13dce0d42f7e66944c");
     expect(budget).toContain("2,802-byte Linux spread and the reviewed 4,096-byte portability allowance");
     expect(budget).toContain("This is a projection, not Linux evidence");
-    expect(MAX_PACKED_BYTES).toBe(12_723_783);
-    expect(MAX_PACKED_BYTES).toBe(12_716_885 + 2_802 + 4_096);
-    expect(MAX_PACKED_ENTRIES).toBe(618);
-    expect(MAX_PACKED_FILES).toBe(618);
-    expect(MAX_UNPACKED_BYTES).toBe(27_573_750);
-    expect(MAX_UNPACKED_BYTES).toBe(27_573_685 + 65);
+    expect(budget).toContain("12,561,964 compressed / 27,437,097 payload");
+    expect(budget).toContain("0914c7721df5cd1a2e317d334d7ee60e6ff8f461e4e61a21aae086cd9d5fb322");
+    expect(MAX_PACKED_BYTES).toBe(12_568_862);
+    expect(MAX_PACKED_BYTES).toBe(12_561_964 + 2_802 + 4_096);
+    expect(MAX_PACKED_ENTRIES).toBe(619);
+    expect(MAX_PACKED_FILES).toBe(619);
+    expect(MAX_UNPACKED_BYTES).toBe(27_437_162);
+    expect(MAX_UNPACKED_BYTES).toBe(27_437_097 + 65);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 618, max: 618 },
-      fileCount: { min: 618, max: 618 },
-      packedBytes: { min: 1_600_000, max: 12_723_783 },
-      unpackedBytes: { min: 9_000_000, max: 27_573_750 },
+      entryCount: { min: 619, max: 619 },
+      fileCount: { min: 619, max: 619 },
+      packedBytes: { min: 1_600_000, max: 12_568_862 },
+      unpackedBytes: { min: 9_000_000, max: 27_437_162 },
     });
   });
 
@@ -1341,13 +1343,14 @@ describe("npm publication contract", () => {
   });
 
   test("keeps the exact eight public SDK entrypoints and required source inventory", async () => {
-    const [manifestSource, tsconfigSource, artifact, packageSmoke, standaloneSmoke]
+    const [manifestSource, tsconfigSource, artifact, packageSmoke, standaloneSmoke, releaseWorkflow]
       = await Promise.all([
         readFile(manifestUrl, "utf8"),
         readFile(tsconfigUrl, "utf8"),
         readFile(packageArtifactUrl, "utf8"),
         readFile(packageSmokeUrl, "utf8"),
         readFile(standaloneSmokeUrl, "utf8"),
+        readFile(releaseWorkflowUrl, "utf8"),
       ]);
     const value: unknown = JSON.parse(manifestSource);
     expect(typeof value).toBe("object");
@@ -1384,6 +1387,11 @@ describe("npm publication contract", () => {
       "@hraness/ghostget/messaging": ["./src/messaging.ts"],
       "@hraness/ghostget/messaging-automation": ["./src/messaging-automation-api.ts"],
     });
+    const releaseNodeImports = releaseWorkflow.match(/await Promise\.all\(\[(.*?)\]\.map/u)?.[1];
+    expect(releaseNodeImports).toBeDefined();
+    expect(JSON.parse(`[${releaseNodeImports ?? ""}]`)).toEqual(
+      publicDistEntrypoints.map(path => `./${path}`),
+    );
     for (const specifier of publicImportSpecifiers) {
       expect(packageSmoke).toContain(`"${specifier}"`);
       expect(standaloneSmoke).toContain(`"${specifier}"`);
