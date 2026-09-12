@@ -203,17 +203,22 @@ function isContactModalEval(source: string): boolean {
 }
 
 function expectContactModalEval(source: string, profileUrl: string): void {
+  const overlayPath = buildLinkedInProfileContactInfoOverlayPath({
+    profileUrl,
+  });
   expect(() => evaluatorSyntax.transformSync(source)).not.toThrow();
   expect(source).toContain('const modalInput=');
   expect(source).toContain(`"documentUrl":${JSON.stringify(profileUrl)}`);
+  expect(source).toContain(`"overlayPath":${JSON.stringify(overlayPath)}`);
   expect(source).toContain('nameOf(el)==="Contact info"');
   expect(source).toContain("omitted its reviewed Contact-info control");
   expect(source).toContain("Contact-info control was ambiguous");
   expect(source).toContain("omitted its Contact-info modal");
   expect(source).toContain('querySelectorAll(\'[role="dialog"],dialog,[aria-modal="true"]\')');
   expect(source).toContain(".click()");
+  expect(source).toContain('overlayPath!==profilePath+"overlay/contact-info/"');
+  expect(source).toContain("normalize(after.pathname)!==profilePath&&normalize(after.pathname)!==overlayPath");
   expect(source).not.toContain("targeted the vanity overlay GET");
-  expect(source).not.toContain("/overlay/contact-info/");
   expect(source).not.toContain('method:input.kind==="rsc-action"?"POST":"GET"');
   expect(source).not.toContain("/flagship-web/rsc-action/actions/navigation");
   expect(source).not.toContain('headers["csrf-token"]=csrf');

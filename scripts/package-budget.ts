@@ -1,3 +1,19 @@
+// Ghostget 0.18.2 source plus the LinkedIn `contacts.read` post-click
+// bind on the reviewed vanity overlay pathname (adapter bundle
+// 1.36.2), measured with no version bump: a Bun 1.3.14 `pm pack` on
+// Linux x64
+// shares 22,517,747 payload bytes across exactly 558 files. The bun
+// archive is 11,508,884 compressed bytes, SHA-256
+// b74ba576b58bb5b8b2b9de1bdb4ab27280b99fa156d2eb1e6c768954b4d50b23.
+// Allowing that exact `/in/{vanity}/overlay/contact-info/` pathname
+// after the unique Contact info click, adapter notes, changelog, and
+// tests add 2,280 payload bytes compared with the 0.18.2 / 1.36.1
+// measurement. Raise only the payload ceiling to the measured value
+// plus 65 bytes of headroom (22,517,812); the packed size stays under
+// the existing packed allowance and the 558-entry inventory is
+// unchanged. Theme CSS stays website-only. Fresh Linux CI
+// independently checks its actual canonical archive.
+//
 // Ghostget 0.18.2 marketing and archive recovery joined with main e46e9a0
 // (LinkedIn adapter 1.36.1). Two clean Bun 1.3.14 builds and canonical npm
 // 11.19.0 packs under official Node 24.20.0 darwin-arm64 with zlib
@@ -770,7 +786,7 @@
 export const MAX_PACKED_BYTES = 11_661_673;
 export const MAX_PACKED_ENTRIES = 558;
 export const MAX_PACKED_FILES = 558;
-export const MAX_UNPACKED_BYTES = 22_515_532;
+export const MAX_UNPACKED_BYTES = 22_517_812;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

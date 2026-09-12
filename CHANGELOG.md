@@ -7,6 +7,30 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Keep the unique reviewed Contact info click bound after adapter
+  1.36.1 when contained Chrome follows the live vanity overlay path.
+  Operator smoke on 2026-09-12 clicked that unique control, then
+  fail-closed because pathname left `/in/tessbloch/` for
+  `/in/tessbloch/overlay/contact-info/`. Headed proof the same day
+  still showed Email in the modal. After click, the contained path now
+  treats the exact bound profile pathname or that reviewed vanity
+  overlay pathname as still bound, then snapshots the unique dialog.
+  Authwall, other origins, and any other path still fail closed. Zero
+  or two-plus controls and a missing or ambiguous modal still fail
+  closed. It still does not mint a navigation POST or track headers.
+  GraphQL 403, minted navigation GETs, vanity HTML-shell honesty, and
+  embedded-field projection stay. Soft-labels stay. Self,
+  non-first-degree, and contradictory distances still fail closed, and
+  no email is invented. Adapter bundle 1.36.2.
+  This is the sixteenth live Contact-info drift after the 1.36.1
+  overlay-href click. Cloud has no signed-in LinkedIn session; do
+  not treat this landing as live green. Operator smoke:
+
+  ```sh
+  printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \
+    | ghostget invoke linkedin-web contacts.read --input - --auth linkedin-dormant-20260911 --json
+  ```
+
 ## 0.18.2 - 2026-09-12
 
 - Apply the shared editorial typography, textured background and blurred header
