@@ -1,3 +1,15 @@
+// Ghostget 0.19.0 joined with main cc99cb6 (LinkedIn adapter 1.31.0):
+// two fresh Bun 1.3.14 builds and npm 11.19.0 ignore-scripts packs under
+// Node 24.20.0 on darwin arm64 (zlib 1.2.12) are byte-identical:
+// 2,360,770 compressed and 12,841,328 payload bytes across exactly 540 files,
+// SHA-256 517341426a9bdcdb0f245032f08b607d7617aed061932d4577a4ef3a25d6ec77.
+// Every archived byte and mode matches source. Incoming adapter 1.29-1.31
+// adds 33,875 payload bytes; its reviewed current-flow guide adds 463 bytes.
+// The total local compressed increase is 6,350 bytes. Preserve
+// 65 payload bytes and the reviewed 2,802 + 4,096 compression allowance;
+// do not stack historical ceiling increases. Required Linux CI checks its
+// actual archive; this local measurement does not claim Linux evidence.
+//
 // Ghostget 0.19.0 joined with main ac44040 (LinkedIn adapter 1.28.0):
 // two fresh Bun 1.3.14 builds and npm 11.19.0 ignore-scripts packs under
 // Node 24.20.0 on darwin arm64 (zlib 1.2.12) are byte-identical:
@@ -57,6 +69,73 @@
 // distribution scripts, tests and website files remain excluded. Preserve
 // the 65-byte payload allowance and the prior 2,802 + 4,096-byte compression
 // allowance. Required Linux CI still inspects its actual canonical archive.
+//
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` navigation POST
+// Email path (adapter bundle 1.31.0), measured with no version bump: a
+// Bun 1.3.14 `pm pack` on Linux x64 shares
+// 12,717,070 payload bytes across exactly 524 files. The bun archive is 2,188,108 compressed
+// bytes, SHA-256
+// 77b915c17c573d48b421253fd22a8d1e302e03e2aa637dc3e33f57c007fa8763.
+// Binding sduiid to the overlay screenId, nested payload peel,
+// adapter notes, changelog, and tests add 27,743 payload bytes compared
+// with the 1.30.0 measurement. Raise only the payload ceiling to the
+// measured value plus 65 bytes of headroom (12,717,135); the 524-entry
+// inventory is unchanged. Theme CSS stays website-only. Fresh Linux CI
+// independently checks its actual canonical archive.
+//
+// Ghostget 0.18.0 packed-size portability after LinkedIn adapter 1.31.0:
+// required Linux CI measured the canonical npm archive at 2,330,878
+// compressed bytes under the pinned toolchain, 2,613 bytes above the
+// previous 2,328,265 ceiling. The same tree's Bun 1.3.14 `pm pack` on
+// Linux x64 remains 2,188,108 compressed bytes, SHA-256
+// 77b915c17c573d48b421253fd22a8d1e302e03e2aa637dc3e33f57c007fa8763.
+// Payload (12,717,070 measured; 12,717,135 ceiling), 524-file inventory,
+// and tar bounds are unchanged. Keep the reviewed 4,096-byte
+// portability allowance above the largest measured compression:
+// 2,330,878 + 4,096 = 2,334,974. This remains a compressor-spread
+// allowance, not a guarantee for arbitrary compressors; required CI
+// still checks the actual archive under the release toolchain.
+//
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` overlay-shell
+// honesty path (adapter bundle 1.30.0), measured with no version bump: a
+// Bun 1.3.14 `pm pack` on Linux x64 shares
+// 12,689,327 payload bytes across exactly 524 files. The bun archive is 2,182,837 compressed
+// bytes, SHA-256
+// fd447e01ecfbf7bf7f4d68d63110ed3cd74d857e56e65b7e48ca162594c5aa5f.
+// HTML-shell omitted-fields projection, adapter notes, changelog, and
+// tests add 3,923 payload bytes compared with the 1.29.0 measurement.
+// Raise only the payload ceiling to the measured value plus 65 bytes of
+// headroom (12,689,392); the packed size stays under the existing packed
+// allowance and the 524-entry inventory is unchanged. Theme CSS stays
+// website-only. Fresh Linux CI independently checks its actual canonical
+// archive.
+//
+// Ghostget 0.18.0 packed-size portability after LinkedIn adapter 1.29.0:
+// required Linux CI measured the canonical npm archive at 2,324,169
+// compressed bytes under the pinned toolchain, 497 bytes above the
+// previous 2,323,672 ceiling. The same tree's Bun 1.3.14 `pm pack` on
+// Linux x64 remains 2,181,867 compressed bytes, SHA-256
+// 6520cea342a0b9b570cb33d8f51536656fb5c828177701f42f889afaaff350cf.
+// Payload (12,685,404 measured; 12,685,469 ceiling), 524-file inventory,
+// and tar bounds are unchanged. Keep the reviewed 4,096-byte
+// portability allowance above the largest measured compression:
+// 2,324,169 + 4,096 = 2,328,265. This remains a compressor-spread
+// allowance, not a guarantee for arbitrary compressors; required CI
+// still checks the actual archive under the release toolchain.
+//
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` vanity overlay
+// and soft-label walk (adapter bundle 1.29.0), measured with no version
+// bump: a Bun 1.3.14 `pm pack` on Linux x64 shares
+// 12,685,404 payload bytes across exactly 524 files. The bun archive is
+// 2,181,867 compressed bytes, SHA-256
+// 6520cea342a0b9b570cb33d8f51536656fb5c828177701f42f889afaaff350cf.
+// Soft-label skipping, the `/in/:publicIdentifier/overlay/contact-info/`
+// RSC GET, adapter notes, and changelog add 2,209 payload bytes compared
+// with the 1.28.0 measurement. Raise only the payload ceiling to the
+// measured value plus 65 bytes of headroom (12,685,469); the packed size
+// stays under the existing packed allowance and the 524-entry inventory
+// is unchanged. Theme CSS stays website-only. Fresh Linux CI
+// independently checks its actual canonical archive.
 //
 // Ghostget 0.18.0 source plus the LinkedIn `contacts.read` Contact-info
 // overlay fallback (adapter bundle 1.28.0), measured with no version
@@ -533,10 +612,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_361_318;
+export const MAX_PACKED_BYTES = 2_367_668;
 export const MAX_PACKED_ENTRIES = 540;
 export const MAX_PACKED_FILES = 540;
-export const MAX_UNPACKED_BYTES = 12_807_055;
+export const MAX_UNPACKED_BYTES = 12_841_393;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

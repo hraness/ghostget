@@ -27,7 +27,8 @@ test.each(["success", "failure"] as const)(
       readProfileHtml: unexpected,
       readConnectionsHtml: unexpected,
       readContactInfoJson: unexpected,
-      readContactOverlayText: unexpected,
+            readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+            readContactOverlayText: unexpected,
       readOrganizationHtml: unexpected,
       close: () => {
         events.push("close");

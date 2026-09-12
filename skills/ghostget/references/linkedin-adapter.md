@@ -252,18 +252,26 @@ contradictory distances stay fail-closed.
 
 When the same page already embeds Contact-info fields, including a labeled
 Email row, the operation projects those fields and does not issue a second
-fetch. Otherwise it prefers a page-resolved GraphQL `queryId` for
-`voyagerIdentityDashProfileContactInfo` when the HTML contains exactly one
+fetch. Long SDUI strings used as field labels are skipped instead of aborting
+the profile-stage walk. Otherwise a valid, target-bound Contact-info
+NavigateToScreen action selects one fixed navigation POST with the reviewed
+`ProfileContactDetailsOverlay` screenId and sduiid. Its bounded JSON contains
+the validated `clientArguments`, bound to the requested vanity, and `isModal: true`.
+An action with an unreviewed sduiid or payload, or a different target, fails
+closed. A failed POST is not retried through another route.
+When the action is absent, it prefers a page-resolved GraphQL `queryId`
+for `voyagerIdentityDashProfileContactInfo` when the HTML contains exactly one
 decorated revision. Variables are exactly `(profileUrn:{urn})`. When that
-queryId is absent, or when the GraphQL GET returns a reviewed HTTP 403
-`text/html` rejection, the operation GETs the target-bound
-`/flagship-web/rsc-action/actions/navigation` overlay with exact
-`screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay`
-and `profileUrn`. A screenId-only overlay URL stays rejected. Classic
-`/voyager/api/identity/profiles/{vanity}/profileContactInfo` now returns HTTP
-410 and is rejected. The executable contract is those reviewed first-party
-GETs or the page-embedded fields, not a caller-selected RSC body, DOM click,
-or selector. Ghostget does not message, connect, or InMail.
+queryId is absent, or when a rejected GraphQL response has status 403, an HTML
+content type, or no content type, the operation GETs the exact vanity
+`/in/:publicIdentifier/overlay/contact-info/` overlay with RSC browser
+binding. ScreenId-only and `profileUrn`-bound
+`/flagship-web/rsc-action/actions/navigation` overlay GET URLs stay rejected
+because live dormant sessions return HTTP 500 `application/octet-stream`.
+Classic `/voyager/api/identity/profiles/{vanity}/profileContactInfo` now
+returns HTTP 410 and is rejected. The executable contract is those reviewed
+first-party routes or the page-embedded fields, not a caller-selected RSC body,
+DOM click, or selector. Ghostget does not message, connect, or InMail.
 
 The projection returns `email` when LinkedIn shows it, plus any of the vanity
 profile link, connected-since date, phone numbers, websites, and birthday.
@@ -337,6 +345,54 @@ is absent or after that reviewed GraphQL rejection, and projects Email
 from the RSC or SDUI overlay payload. ScreenId-only overlay URLs stay
 rejected. Self, non-first-degree, and contradictory distances still fail
 closed.
+
+A later signed-in capture of the same 1st-degree path still bound
+identity and distance, but the 1.28.0 navigation GET returned HTTP 500
+`application/octet-stream` for screenId-only, `profileUrn`-bound, and
+html variants. `/in/:publicIdentifier/overlay/contact-info/` returned
+HTML 200 for the signed-in Contact-info modal. Long SDUI strings in
+profile HTML also aborted the best-effort embedded walk at profile
+stage and misreported as relationship-binding contract-drift. Adapter
+1.29.0 skips non-bounded field labels during that walk and GETs the
+exact vanity overlay path with RSC headers instead of the 500
+navigation route. GraphQL Contact-info remains a 403 `text/html` path
+when a unique queryId is present. Self, non-first-degree, and
+contradictory distances still fail closed.
+
+A later 2026-09-11 smoke of the same 1st-degree path after adapter 1.29.0
+still bound identity and distance, and the vanity overlay GET returned
+HTML 200. That body was the signed-in profile HTML shell (~500KB+): no
+projectable Email, no mailto, and no Contact-info JSON or RSC flight.
+GraphQL Contact-info stayed HTTP 403 `text/html` with `queryId=null`.
+The live Contact-info Email still appears only after the headed UI opens
+the modal. Dormant contained Chrome stays GET-only and cannot mint that
+client-filled payload. Adapter 1.30.0 treats an HTML-200 shell as
+omitted Contact-info fields after 1st-degree binding, still projects
+overlay HTML that carries Como Email, a unique mailto, or an RSC/SDUI
+flight, and keeps `/flagship-web/rsc-action/actions/navigation` overlay
+GETs rejected.
+
+A later headed signed-in capture of the same 1st-degree Contact-info
+click showed Email in the modal. The first network response that
+contained the Email label was POST
+`/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay&sduiid=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay`
+with `Accept: */*`, `Content-Type: application/json`, no RSC or Next
+router headers, and JSON body keys `clientArguments` and `isModal`. The
+response was HTTP 200 `application/octet-stream` RSC flight. Headed
+capture bound `sduiid` to that same overlay `screenId` constant. Dormant
+profile HTML NavigateToScreen for Contact info carries `pageKey`
+`profile_view_base_contact_details` and `requestedArguments.payload`
+(`vanityName`, `givenName`, `familyName`, `isVanityNameResolved`) but
+omits `sduiid`. Adapter 1.31.0 POSTs the exact allowlisted URL after
+1st-degree bind, peels reviewed payload keys, and copies `$type` /
+`requestedStateKeys` / `requestMetadata` only when those reviewed fields
+are already on the action. It does not invent a stolen `sduiid`, `$type`,
+or `requestMetadata`. A different `sduiid` fails closed. GraphQL
+Contact-info stays a 403 `text/html` fallback. Navigation overlay GETs
+stay rejected. The vanity overlay GET remains HTML-shell honesty when
+the profile page omits that NavigateToScreen action. Soft-labels stay.
+Keep cookies, `li_at`, CSRF, `JSESSIONID`, live emails, and raw HARs out
+of Git.
 
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid
