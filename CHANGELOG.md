@@ -7,6 +7,12 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.3
+
+- Apply the shared Lantern material to the homepage: luminous grid glass behind
+  the hero, a blurred header, warm open questions, and opaque reading surfaces.
+  Preserve clean marks, ordinary documentation, and the inert native preview.
+
 - Click the unique reviewed Contact info control when the page-bound
   NavigateToScreen extract is `absent` after adapter 1.36.2. Operator
   smoke on 2026-09-12 was green for Email on tessbloch through DIRECT
