@@ -19,9 +19,8 @@ Historical entries retain their original delivery coordinates.
   vanity overlay path with RSC browser binding. ScreenId-only and
   `profileUrn`-bound navigation overlay URLs, other RSC screens, and
   writes stay rejected. Self, non-first-degree, and contradictory
-  distances still fail closed, and no email is invented. Adapter bundle
-  1.29.0. This is the seventh live Contact-info drift after the 1.28.0
-  navigation overlay.
+  distances still fail closed, and no email is invented. Adapter bundle 1.29.0. This is the seventh live
+  Contact-info drift after the 1.28.0 navigation overlay.
 - Read LinkedIn `contacts.read@1` Contact-info email from the target-bound
   ProfileContactDetailsOverlay RSC navigation when GraphQL
   `voyagerIdentityDashProfileContactInfo` is unavailable. Live dormant
