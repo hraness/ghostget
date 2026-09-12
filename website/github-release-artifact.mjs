@@ -6,7 +6,6 @@ export const GITHUB_RELEASE_WORKFLOW = ".github/workflows/release.yml";
 const shaPattern = /^[0-9a-f]{40}$/u;
 const sha256Pattern = /^[0-9a-f]{64}$/u;
 const sha512Pattern = /^[0-9a-f]{128}$/u;
-const maximumAssetBytes = 8 * 1024 * 1024;
 
 function record(value, label) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
@@ -65,6 +64,18 @@ export function releaseAssetNames(tag) {
   ]);
 }
 
+// Transfer envelopes are separate from the stricter, measured package budget.
+// Preserve the historical archive envelope; bundled messaging helpers first
+// require the larger envelope in 0.18.1. JSON receipts never inherit that limit.
+export function releaseAssetByteLimit(tag, name) {
+  const names = releaseAssetNames(tag);
+  if (!names.includes(name)) throw new Error("Unexpected canonical release asset name");
+  if (name === "npm-pack.json" || name === "release-manifest.json") return 1024 * 1024;
+  const [major, minor, patch] = releaseVersion(tag).split(".").map(BigInt);
+  const bundledMessaging = major > 0n || minor > 18n || (minor === 18n && patch >= 1n);
+  return (name === names[0] && bundledMessaging ? 12 : 8) * 1024 * 1024;
+}
+
 export function releaseArchiveUrl(tag) {
   return `https://github.com/${GITHUB_RELEASE_REPOSITORY}/releases/download/${tag}/${releaseAssetNames(tag)[0]}`;
 }
@@ -94,7 +105,7 @@ export function parseReleaseManifest(value, expected = {}) {
     || typeof archive.sha512 !== "string" || !sha512Pattern.test(archive.sha512)) {
     throw new Error("GitHub release archive identity is malformed");
   }
-  positive(archive.bytes, "release archive bytes", maximumAssetBytes);
+  positive(archive.bytes, "release archive bytes", releaseAssetByteLimit(manifest.tag, archive.name));
   for (const [key, value] of Object.entries(expected)) {
     if (!Object.hasOwn(manifest, key) || manifest[key] !== value) {
       throw new Error(`GitHub release manifest does not bind expected ${key}`);
@@ -112,7 +123,7 @@ export function parseReleaseAssetDescriptors(value, tag) {
   const descriptors = value.map((entry) => {
     const asset = record(entry, "GitHub release asset");
     const id = positive(asset.id, "GitHub release asset ID");
-    const bytes = positive(asset.size, "GitHub release asset size", maximumAssetBytes);
+    const bytes = positive(asset.size, "GitHub release asset size", releaseAssetByteLimit(tag, asset.name));
     if (!names.includes(asset.name) || found.has(asset.name) || ids.has(id)
       || asset.state !== "uploaded" || typeof asset.digest !== "string"
       || !/^sha256:[0-9a-f]{64}$/u.test(asset.digest)
