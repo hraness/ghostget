@@ -7,10 +7,22 @@
 // Binding sduiid to the overlay screenId, nested payload peel,
 // adapter notes, changelog, and tests add 27,743 payload bytes compared
 // with the 1.30.0 measurement. Raise only the payload ceiling to the
-// measured value plus 65 bytes of headroom (12,717,135); the packed size
-// stays under the existing packed allowance and the 524-entry inventory
-// is unchanged. Theme CSS stays website-only. Fresh Linux CI
+// measured value plus 65 bytes of headroom (12,717,135); the 524-entry
+// inventory is unchanged. Theme CSS stays website-only. Fresh Linux CI
 // independently checks its actual canonical archive.
+//
+// Ghostget 0.18.0 packed-size portability after LinkedIn adapter 1.31.0:
+// required Linux CI measured the canonical npm archive at 2,330,878
+// compressed bytes under the pinned toolchain, 2,613 bytes above the
+// previous 2,328,265 ceiling. The same tree's Bun 1.3.14 `pm pack` on
+// Linux x64 remains 2,188,108 compressed bytes, SHA-256
+// 77b915c17c573d48b421253fd22a8d1e302e03e2aa637dc3e33f57c007fa8763.
+// Payload (12,717,070 measured; 12,717,135 ceiling), 524-file inventory,
+// and tar bounds are unchanged. Keep the reviewed 4,096-byte
+// portability allowance above the largest measured compression:
+// 2,330,878 + 4,096 = 2,334,974. This remains a compressor-spread
+// allowance, not a guarantee for arbitrary compressors; required CI
+// still checks the actual archive under the release toolchain.
 //
 // Ghostget 0.18.0 source plus the LinkedIn `contacts.read` overlay-shell
 // honesty path (adapter bundle 1.30.0), measured with no version bump: a
@@ -528,7 +540,7 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_328_265;
+export const MAX_PACKED_BYTES = 2_334_974;
 export const MAX_PACKED_ENTRIES = 524;
 export const MAX_PACKED_FILES = 524;
 export const MAX_UNPACKED_BYTES = 12_717_135;

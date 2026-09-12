@@ -1315,8 +1315,9 @@ describe("npm publication contract", () => {
     expect(budget).toContain("2,802-byte Linux spread and the reviewed 4,096-byte portability allowance");
     expect(budget).toContain("This is a projection, not Linux evidence");
     expect(budget).toContain("2,324,169 + 4,096 = 2,328,265");
-    expect(MAX_PACKED_BYTES).toBe(2_328_265);
-    expect(MAX_PACKED_BYTES).toBe(2_324_169 + 4_096);
+    expect(budget).toContain("2,330,878 + 4,096 = 2,334,974");
+    expect(MAX_PACKED_BYTES).toBe(2_334_974);
+    expect(MAX_PACKED_BYTES).toBe(2_330_878 + 4_096);
     expect(MAX_PACKED_ENTRIES).toBe(524);
     expect(MAX_PACKED_FILES).toBe(524);
     expect(MAX_UNPACKED_BYTES).toBe(12_717_135);
@@ -1328,7 +1329,7 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 524, max: 524 },
       fileCount: { min: 524, max: 524 },
-      packedBytes: { min: 1_600_000, max: 2_328_265 },
+      packedBytes: { min: 1_600_000, max: 2_334_974 },
       unpackedBytes: { min: 9_000_000, max: 12_717_135 },
     });
   });
