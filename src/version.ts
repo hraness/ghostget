@@ -1,2 +1,2 @@
 /** Canonical immutable Ghostget package release identity. */
-export const GHOSTGET_VERSION = "0.18.0" as const;
+export const GHOSTGET_VERSION = "0.18.2" as const;

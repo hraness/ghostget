@@ -395,6 +395,150 @@
         "timeoutMs": 600000,
         "maxOutputBytes": 8388608
       }
+    },
+    "messaging.automation.read": {
+      "description": "Scoped owner automation permission; use ghostget messaging automation serve --stdio. Generic invocation is unavailable.",
+      "risk": "R1",
+      "sideEffect": "none",
+      "idempotency": "none",
+      "dedupeWindowMs": 0,
+      "input": {
+        "properties": {},
+        "required": []
+      },
+      "webSession": {
+        "site": "whatsapp",
+        "action": "messaging.automation.read",
+        "contractVersion": 1,
+        "timeoutMs": 30000,
+        "maxOutputBytes": 8388608
+      }
+    },
+    "messaging.automation.sync": {
+      "description": "Scoped owner automation permission; use ghostget messaging automation serve --stdio. Generic invocation is unavailable.",
+      "risk": "R2",
+      "sideEffect": "Maintain an explicitly started linked-device sync session; may emit protocol acknowledgements.",
+      "idempotency": "local-at-most-once",
+      "dedupeWindowMs": 86400000,
+      "input": {
+        "properties": {},
+        "required": []
+      },
+      "webSession": {
+        "site": "whatsapp",
+        "action": "messaging.automation.sync",
+        "contractVersion": 1,
+        "timeoutMs": 30000,
+        "maxOutputBytes": 8388608
+      }
+    },
+    "messaging.automation.send.text": {
+      "description": "Scoped owner automation permission; use ghostget messaging automation serve --stdio. Generic invocation is unavailable.",
+      "risk": "R3",
+      "sideEffect": "Submit one exact action through an enrolled conversation and an unexpired bounded owner grant; delivery remains unknown.",
+      "idempotency": "local-at-most-once",
+      "dedupeWindowMs": 86400000,
+      "input": {
+        "properties": {},
+        "required": []
+      },
+      "webSession": {
+        "site": "whatsapp",
+        "action": "messaging.automation.send.text",
+        "contractVersion": 1,
+        "timeoutMs": 30000,
+        "maxOutputBytes": 8388608
+      }
+    },
+    "messaging.automation.send.attachment": {
+      "description": "Scoped owner automation permission; use ghostget messaging automation serve --stdio. Generic invocation is unavailable.",
+      "risk": "R3",
+      "sideEffect": "Submit one exact action through an enrolled conversation and an unexpired bounded owner grant; delivery remains unknown.",
+      "idempotency": "local-at-most-once",
+      "dedupeWindowMs": 86400000,
+      "input": {
+        "properties": {},
+        "required": []
+      },
+      "webSession": {
+        "site": "whatsapp",
+        "action": "messaging.automation.send.attachment",
+        "contractVersion": 1,
+        "timeoutMs": 30000,
+        "maxOutputBytes": 8388608
+      }
+    },
+    "messaging.automation.send.reaction": {
+      "description": "Scoped owner automation permission; use ghostget messaging automation serve --stdio. Generic invocation is unavailable.",
+      "risk": "R3",
+      "sideEffect": "Submit one exact action through an enrolled conversation and an unexpired bounded owner grant; delivery remains unknown.",
+      "idempotency": "local-at-most-once",
+      "dedupeWindowMs": 86400000,
+      "input": {
+        "properties": {},
+        "required": []
+      },
+      "webSession": {
+        "site": "whatsapp",
+        "action": "messaging.automation.send.reaction",
+        "contractVersion": 1,
+        "timeoutMs": 30000,
+        "maxOutputBytes": 8388608
+      }
+    },
+    "messaging.automation.send.sticker": {
+      "description": "Scoped owner automation permission; use ghostget messaging automation serve --stdio. Generic invocation is unavailable.",
+      "risk": "R3",
+      "sideEffect": "Submit one exact action through an enrolled conversation and an unexpired bounded owner grant; delivery remains unknown.",
+      "idempotency": "local-at-most-once",
+      "dedupeWindowMs": 86400000,
+      "input": {
+        "properties": {},
+        "required": []
+      },
+      "webSession": {
+        "site": "whatsapp",
+        "action": "messaging.automation.send.sticker",
+        "contractVersion": 1,
+        "timeoutMs": 30000,
+        "maxOutputBytes": 8388608
+      }
+    },
+    "messaging.automation.send.link": {
+      "description": "Scoped owner automation permission; use ghostget messaging automation serve --stdio. Generic invocation is unavailable.",
+      "risk": "R3",
+      "sideEffect": "Submit one exact action through an enrolled conversation and an unexpired bounded owner grant; delivery remains unknown.",
+      "idempotency": "local-at-most-once",
+      "dedupeWindowMs": 86400000,
+      "input": {
+        "properties": {},
+        "required": []
+      },
+      "webSession": {
+        "site": "whatsapp",
+        "action": "messaging.automation.send.link",
+        "contractVersion": 1,
+        "timeoutMs": 30000,
+        "maxOutputBytes": 8388608
+      }
+    },
+    "messaging.automation.send.poll": {
+      "description": "Scoped owner automation permission; use ghostget messaging automation serve --stdio. Generic invocation is unavailable.",
+      "risk": "R3",
+      "sideEffect": "Submit one exact action through an enrolled conversation and an unexpired bounded owner grant; delivery remains unknown.",
+      "idempotency": "local-at-most-once",
+      "dedupeWindowMs": 86400000,
+      "input": {
+        "properties": {},
+        "required": []
+      },
+      "webSession": {
+        "site": "whatsapp",
+        "action": "messaging.automation.send.poll",
+        "contractVersion": 1,
+        "timeoutMs": 30000,
+        "maxOutputBytes": 8388608
+      }
     }
   }
 }

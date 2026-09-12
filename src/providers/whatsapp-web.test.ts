@@ -119,11 +119,26 @@ describe("WhatsApp linked-device protocol registry", () => {
     expect(whatsappManifest.operations["contacts.list"].description).toContain(
       "content-free relationship evidence",
     );
-    expect(Object.keys(whatsappManifest.operations).sort()).toEqual(
-      [...WHATSAPP_WEB_OPERATION_NAMES].sort(),
-    );
+    const ownerOperations = [
+      "messaging.automation.read",
+      "messaging.automation.sync",
+      "messaging.automation.send.text",
+      "messaging.automation.send.attachment",
+      "messaging.automation.send.reaction",
+      "messaging.automation.send.sticker",
+      "messaging.automation.send.link",
+      "messaging.automation.send.poll",
+    ];
+    const expectedOperations = [...WHATSAPP_WEB_OPERATION_NAMES, ...ownerOperations].sort();
+    expect(Object.keys(whatsappManifest.operations).sort()).toEqual(expectedOperations);
     const plugin = providerPluginRegistry.get("whatsapp-linked-device");
     expect(plugin?.version).toBe("1.2.0");
+    expect(plugin?.bindings[0]?.operations.map(operation => operation.name).sort()).toEqual(expectedOperations);
+    for (const name of ownerOperations) {
+      const operation = plugin?.bindings[0]?.operations.find(operation => operation.name === name);
+      expect(operation?.risk).toBe(name.endsWith(".read") ? "R1" : name.endsWith(".sync") ? "R2" : "R3");
+      expect(operation?.validateInput?.({})).toEqual(["This permission is available only through ghostget messaging automation serve --stdio."]);
+    }
     expect(plugin?.implementationSources.map((source) => source.label))
       .not.toContain("providers/whatsapp-private-transport.ts");
     expect(plugin?.implementationSources.some((source) =>

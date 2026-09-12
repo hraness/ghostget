@@ -1,5 +1,8 @@
 // @bun
 import {
+  startProviderPluginCleanupTrackedOperation
+} from "./index-n4szk3nw.js";
+import {
   PROVIDER_PLUGIN_ID_MAX_LENGTH,
   PROVIDER_PLUGIN_OPERATION_NAME_MAX_LENGTH,
   isPortableProviderPluginVersion,
@@ -45,6 +48,7 @@ import {
 import {
   canonicalJson
 } from "./index-gwk7rbyj.js";
+import"./index-z1w83f81.js";
 
 // src/local-cli-tool-identity.ts
 import { types as nodeTypes } from "util";
@@ -241,53 +245,6 @@ function localCliToolArtifactForCurrentRuntime(tool) {
     throw new Error(`local CLI tool ${tool.id}@${tool.version} does not support ${process.platform}/${process.arch}`);
   }
   return artifact;
-}
-// src/provider-plugin-cleanup-execution.ts
-function startProviderPluginCleanupTrackedOperation(register, start) {
-  if (register === undefined) {
-    return start(undefined, Object.freeze({
-      verified: () => {
-        return;
-      },
-      unsafe: () => {
-        return;
-      }
-    }));
-  }
-  let resolveCleanup;
-  let rejectCleanup;
-  let settled = false;
-  const cleanupBarrier = new Promise((resolve, reject) => {
-    resolveCleanup = resolve;
-    rejectCleanup = reject;
-  });
-  cleanupBarrier.catch(() => {
-    return;
-  });
-  const publishCleanupResource = register(cleanupBarrier);
-  const cleanup = Object.freeze({
-    verified: () => {
-      if (settled)
-        return;
-      settled = true;
-      resolveCleanup?.();
-    },
-    unsafe: (reason) => {
-      if (settled)
-        return;
-      settled = true;
-      rejectCleanup?.(reason instanceof Error ? reason : new Error("provider cleanup could not be verified"));
-    }
-  });
-  try {
-    return Promise.resolve(start(typeof publishCleanupResource === "function" ? publishCleanupResource : undefined, cleanup)).catch((error) => {
-      cleanup.unsafe(error);
-      throw error;
-    });
-  } catch (error) {
-    cleanup.unsafe(error);
-    throw error;
-  }
 }
 // src/article-draft-document.ts
 var ARTICLE_DRAFT_DOCUMENT_SCHEMA_VERSION = 1;

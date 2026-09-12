@@ -1,3 +1,4 @@
+import { automationOperationDefinitions } from "../../messaging-automation-descriptors";
 import {
   defineProviderPlugin,
   lazyWebSessionRuntime,
@@ -26,6 +27,10 @@ export const whatsappLinkedDevicePlugin = defineProviderPlugin({
   displayName: "WhatsApp Linked Device",
   sourceKind: "built-in",
   implementationSources: webImplementationSources(import.meta.url, [
+    ["native/wacli-darwin-arm64.gz", "../../assets/messaging-runtime/wacli-darwin-arm64.gz"],
+    ["native/NOTICE.txt", "../../assets/messaging-runtime/NOTICE.txt"],
+    ["vendor/private-messaging.patch", "./vendor/0001-ghostget-private-messaging.patch"],
+    ["vendor/provenance.json", "./vendor/provenance.json"],
     ["kernel/auth.ts", "../../auth.ts"],
     ["kernel/state-helper.bunfig.toml", "../../state-helper.bunfig.toml"],
     ["kernel/storage.ts", "../../storage.ts"],
@@ -48,7 +53,7 @@ export const whatsappLinkedDevicePlugin = defineProviderPlugin({
     origin: "https://web.whatsapp.com",
     protectedHostnameFamilies: ["whatsapp.com"],
     authKinds: linkedDeviceAuthKinds,
-    operations: webSessionContractOperations(
+    operations: [...webSessionContractOperations(
       Object.values(whatsappContracts),
       "a5c32c0b7c210fd98aee086455b2fde1151c7cf1806fd2e0f6c3e269d10ac13f",
       { "contacts.list": [1] },
@@ -68,7 +73,7 @@ export const whatsappLinkedDevicePlugin = defineProviderPlugin({
           materialize: materializeWhatsAppMessagingRead,
         },
       },
-    ),
+    ), ...automationOperationDefinitions("whatsapp")],
     subject: {
       format: "whatsapp:pn:<phone> or whatsapp:lid:<linked-id>",
       matches: (value) => /^whatsapp:(?:pn:[0-9]{5,20}|lid:[0-9]{5,32})$/u.test(value),

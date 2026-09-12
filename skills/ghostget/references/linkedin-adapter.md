@@ -253,19 +253,24 @@ contradictory distances stay fail-closed.
 When the same page already embeds Contact-info fields, including a labeled
 Email row, the operation projects those fields and does not issue a second
 fetch. Long SDUI strings used as field labels are skipped instead of aborting
-the profile-stage walk. Otherwise it prefers a page-resolved GraphQL `queryId`
-for `voyagerIdentityDashProfileContactInfo` when the HTML contains exactly one
+the profile-stage walk. Otherwise it first inspects the page's exact
+Contact-info NavigateToScreen action. A reviewed action supplies the bounded
+`clientArguments` for the fixed Contact-info navigation POST; malformed or
+unsupported action fields stop the operation. Only when the action is absent
+does it use a page-resolved GraphQL `queryId` for
+`voyagerIdentityDashProfileContactInfo`, when the HTML contains exactly one
 decorated revision. Variables are exactly `(profileUrn:{urn})`. When that
 queryId is absent, or when the GraphQL GET returns a reviewed HTTP 403
 `text/html` rejection, the operation GETs the exact vanity
 `/in/:publicIdentifier/overlay/contact-info/` overlay with RSC browser
 binding. ScreenId-only and `profileUrn`-bound
-`/flagship-web/rsc-action/actions/navigation` overlay URLs stay rejected
+`/flagship-web/rsc-action/actions/navigation` overlay GET URLs stay rejected
 because live dormant sessions return HTTP 500 `application/octet-stream`.
 Classic `/voyager/api/identity/profiles/{vanity}/profileContactInfo` now
 returns HTTP 410 and is rejected. The executable contract is those reviewed
-first-party GETs or the page-embedded fields, not a caller-selected RSC body,
-DOM click, or selector. Ghostget does not message, connect, or InMail.
+first-party reads, including the fixed navigation POST, or the page-embedded
+fields. It accepts no caller-selected RSC body, DOM click, or selector.
+This contact read does not message, connect, or InMail.
 
 The projection returns `email` when LinkedIn shows it, plus any of the vanity
 profile link, connected-since date, phone numbers, websites, and birthday.

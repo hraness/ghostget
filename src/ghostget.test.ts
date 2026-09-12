@@ -4481,7 +4481,9 @@ describe("CLI previews and exit semantics", () => {
     expect(usage).toContain("Shorthand for 'ghostget invoke'");
     expect(usage).toContain("ghostget plugin list [--json]");
     expect(usage).toContain("ghostget plugin show <id> [--json]");
-    expect(usage).toContain("ghostget imessage transport install --binary");
+    expect(usage).toContain("ghostget imessage transport install [--binary <absolute-reviewed-imsg-file>] [--json]");
+    expect(usage).toContain("ghostget whatsapp automation install [--binary <absolute-reviewed-wacli-file>] [--json]");
+    expect(usage).toContain("ghostget messaging automation serve --stdio");
     expect(usage).toContain("ghostget plugin scaffold --site <id>");
     expect(usage).toContain("ghostget plugin check <directory> [--json]");
     expect(usage).toContain(

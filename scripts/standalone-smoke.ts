@@ -49,6 +49,7 @@ const publicImportSpecifiers = Object.freeze([
   "@hraness/ghostget/whatsapp",
   "@hraness/ghostget/omni",
   "@hraness/ghostget/messaging",
+  "@hraness/ghostget/messaging-automation",
 ]);
 
 const packageRoot = resolve(import.meta.dir, "..");

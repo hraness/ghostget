@@ -12,6 +12,7 @@ import {
   createProviderDirectory,
   createWhatsAppPresentationFacts,
   PROVIDER_PRESENTATIONS,
+  isOwnerMessagingPermission,
   renderProviderAttestationGroups,
   renderProviderOverviewCards,
 } from "./provider-presentation";
@@ -54,7 +55,8 @@ describe("provider presentation", () => {
     expect(directory.entries.find((entry) => entry.surfaceId === "whatsapp")).toMatchObject({
       adapterIdentities: [{ id: "whatsapp-web", version: "1.4.0" }],
       href: "/providers/whatsapp/",
-      observedCount: 4,
+      observedCount: 12,
+      ownerPermissionCount: 8,
       supportedActionCount: 4,
       transports: ["linked-device"],
     });
@@ -63,7 +65,8 @@ describe("provider presentation", () => {
         row.surfaceId === entry.surfaceId && row.completeness === "observed");
       expect(entry.observedCount).toBe(supportedRows.length);
       expect(entry.operationCount).toBe(supportedRows.length);
-      expect(entry.supportedActionCount).toBe(new Set(supportedRows.map((row) => row.operation)).size);
+      expect(entry.supportedActionCount).toBe(new Set(supportedRows.filter(row => !isOwnerMessagingPermission(row)).map((row) => row.operation)).size);
+      expect(entry.ownerPermissionCount).toBe(supportedRows.filter(isOwnerMessagingPermission).length);
       expect(entry.transports).toEqual(
         [...new Set(supportedRows.map((row) => row.transport))].sort(),
       );
@@ -72,6 +75,23 @@ describe("provider presentation", () => {
       const hasSupport = supportedSurfaceIds.includes(surfaceId);
       expect(directory.entries.some((entry) => entry.surfaceId === surfaceId)).toBe(hasSupport);
     }
+  });
+
+  test("separates owner permissions from callable actions without dropping catalog entries", async () => {
+    const attestation = await loadProviderCapabilityAttestation(repositoryRoot);
+    const directory = createProviderDirectory(attestation);
+    const whatsapp = directory.entries.find(row => row.surfaceId === "whatsapp")!;
+    const imessage = directory.entries.find(row => row.surfaceId === "imessage")!;
+    expect(whatsapp).toMatchObject({ supportedActionCount: 4, ownerPermissionCount: 8 });
+    expect(imessage).toMatchObject({ supportedActionCount: 5, ownerPermissionCount: 7 });
+    const html = renderProviderAttestationGroups(directory, attestation);
+    expect(html).toContain('class="provider-owner-permissions"');
+    expect(html).toContain("unavailable through generic invoke");
+    expect(html.match(/<li><code>messaging\.automation\./gu)).toHaveLength(15);
+    expect(html).not.toMatch(/<strong>[^<]+<\/strong> — <code>messaging\.automation\./u);
+    const sample = attestation.rows.find(isOwnerMessagingPermission)!;
+    expect(() => isOwnerMessagingPermission({ ...sample, operation: "messaging.automation.send.unknown" })).toThrow("Unreviewed owner messaging permission");
+    expect(() => isOwnerMessagingPermission({ ...sample, surfaceId: "beeper" })).toThrow("Unreviewed owner messaging permission");
   });
 
   test("binds the WhatsApp page to four R1 reads and exact Wacli provenance", async () => {
@@ -90,7 +110,7 @@ describe("provider presentation", () => {
     });
 
     const driftedRows = attestation.rows.map((row) =>
-      row.surfaceId === "whatsapp" && row.completeness === "observed"
+      row.surfaceId === "whatsapp" && row.completeness === "observed" && !isOwnerMessagingPermission(row)
         ? Object.freeze({ ...row, risk: "R2" as const })
         : row);
     const drifted = Object.freeze({ ...attestation, rows: Object.freeze(driftedRows) });

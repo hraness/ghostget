@@ -1977,12 +1977,24 @@ async function runCommand(
     output.stdout(renderGhostgetUsage());
     return 0;
   }
+  if (arguments_.command === "whatsapp-automation-install") {
+    const { installReviewedWhatsAppAutomationBinary } = await import("./providers/whatsapp-automation-runtime");
+    const installed = arguments_.binary === undefined
+      ? await (await import("./providers/messaging-native-install")).installBundledMessagingRuntime("whatsapp", environment)
+      : await installReviewedWhatsAppAutomationBinary(arguments_.binary, environment);
+    print(output, { ok: true, installed: true, ...installed }, arguments_.json);
+    return 0;
+  }
+  if (arguments_.command === "messaging-automation-serve") {
+    const runtime = await import("./messaging-automation-server");
+    await runtime.serveMessagingAutomationStdio({ input: process.stdin, output: process.stdout, environment, registry: dependencies.providerPluginRegistry, ...(signal ? { signal } : {}) });
+    return 0;
+  }
   if (arguments_.command === "imessage-transport-install") {
     const runtime = await dependencies.loadImsgDirectInstallRuntime();
-    const installed = await runtime.installReviewedImsgBinary(
-      arguments_.binary,
-      environment,
-    );
+    const installed = arguments_.binary === undefined
+      ? await (await import("./providers/messaging-native-install")).installBundledMessagingRuntime("imessage", environment).then(result => ({ ...result, executableSha256: result.sha256, alreadyPresent: result.alreadyPresent === true }))
+      : await runtime.installReviewedImsgBinary(arguments_.binary, environment);
     const result = Object.freeze({
       ok: true,
       installed: true,
