@@ -57,7 +57,7 @@ export type LinkedInWebEvidence =
 
 type LinkedInWebReadRequestRule = {
   readonly kind: "registered-query" | "restli-read" | "server-rendered-read";
-  readonly method: "GET";
+  readonly method: "GET" | "POST";
   readonly path: string;
   readonly queryPrefix: string | null;
   readonly allowedQueryParameters: readonly string[];
@@ -113,10 +113,18 @@ export const LINKEDIN_WEB_OPERATIONS = {
     }, {
       kind: "server-rendered-read",
       method: "GET",
-      path: "/flagship-web/rsc-action/actions/navigation ProfileContactDetailsOverlay",
+      path: "/in/:publicIdentifier/overlay/contact-info/",
       queryPrefix: null,
-      allowedQueryParameters: ["screenId", "profileUrn"],
-      requiredQueryParameters: ["screenId", "profileUrn"],
+      allowedQueryParameters: [],
+      requiredQueryParameters: [],
+      fixedQueryParameters: [],
+    }, {
+      kind: "server-rendered-read",
+      method: "POST",
+      path: "/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay&sduiid=:",
+      queryPrefix: null,
+      allowedQueryParameters: ["screenId", "sduiid"],
+      requiredQueryParameters: ["screenId", "sduiid"],
       fixedQueryParameters: [[
         "screenId",
         "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
@@ -3211,7 +3219,9 @@ export function assertLinkedInWebR1RequestAllowed(
     if (!isRecord(requestValue)) throw new Error("LinkedIn contact-info request must be an object");
     const method = boundedText(requestValue.method, "LinkedIn contact-info request method", 16)
       .toUpperCase();
-    if (method !== "GET") throw new Error("LinkedIn contact-info reads require GET");
+    if (method !== "GET" && method !== "POST") {
+      throw new Error("LinkedIn contact-info reads require GET or the reviewed navigation POST");
+    }
     const rawUrl = requestValue.url;
     if (!(rawUrl instanceof URL) && typeof rawUrl !== "string") {
       throw new Error("LinkedIn contact-info request URL is invalid");
@@ -3223,6 +3233,25 @@ export function assertLinkedInWebR1RequestAllowed(
       && url.password === ""
       && url.hash === ""
     ) {
+      if (method === "POST") {
+        const queryNames = [...url.searchParams.keys()];
+        if (
+          url.pathname === "/flagship-web/rsc-action/actions/navigation"
+          && queryNames.length === 2
+          && queryNames[0] === "screenId"
+          && queryNames[1] === "sduiid"
+          && url.searchParams.get("screenId")
+            === "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay"
+          && url.searchParams.getAll("screenId").length === 1
+          && url.searchParams.getAll("sduiid").length === 1
+        ) {
+          const sduiid = url.searchParams.get("sduiid");
+          if (
+            sduiid === "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay"
+          ) return;
+        }
+        throw new Error("LinkedIn contact-info request escaped its exact reviewed route");
+      }
       if (url.search === "" && url.pathname === "/voyager/api/me") return;
       if (url.search === "" && /^\/in\/[A-Za-z0-9][A-Za-z0-9_-]{1,99}\/$/u.test(url.pathname)) {
         linkedInPersonalProfileTarget(url.href);
@@ -3253,21 +3282,10 @@ export function assertLinkedInWebR1RequestAllowed(
           )
         ) return;
       }
-      if (url.pathname === "/flagship-web/rsc-action/actions/navigation") {
-        const queryNames = [...url.searchParams.keys()];
-        if (
-          queryNames.length === 2
-          && queryNames[0] === "screenId"
-          && queryNames[1] === "profileUrn"
-          && url.searchParams.get("screenId")
-            === "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay"
-          && url.searchParams.getAll("screenId").length === 1
-          && url.searchParams.getAll("profileUrn").length === 1
-          && /^urn:li:fsd_profile:[A-Za-z0-9_-]{1,256}$/u.test(
-            url.searchParams.get("profileUrn") ?? "",
-          )
-        ) return;
-      }
+      if (
+        url.search === ""
+        && /^\/in\/[A-Za-z0-9][A-Za-z0-9_-]{1,99}\/overlay\/contact-info\/$/u.test(url.pathname)
+      ) return;
     }
     throw new Error("LinkedIn contact-info request escaped its exact reviewed route");
   }

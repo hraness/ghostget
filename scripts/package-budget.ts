@@ -35,6 +35,87 @@
 // Required Linux CI independently admits its actual canonical package; this
 // local measurement does not qualify account activation or message delivery.
 //
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` sibling
+// requestMetadata / proto.sdui POST body (adapter bundle 1.32.0),
+// measured with no version bump: a Bun 1.3.14 `pm pack` on Linux x64
+// shares 12,721,045 payload bytes across exactly 524 files. The bun
+// archive is 2,188,869 compressed bytes, SHA-256
+// 6ce1e1a7bf4f3f4d30b56cce135be3916efe3602fa7f595ceffd640de432a0dc.
+// Sibling requestMetadata, proto.sdui type admission, adapter notes,
+// changelog, and tests add 3,975 payload bytes compared with the 1.31.0
+// measurement. Raise only the payload ceiling to the measured value plus
+// 65 bytes of headroom (12,721,110); the packed size stays under the
+// existing packed allowance and the 524-entry inventory is unchanged.
+// Theme CSS stays website-only. Fresh Linux CI independently checks its
+// actual canonical archive.
+//
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` navigation POST
+// Email path (adapter bundle 1.31.0), measured with no version bump: a
+// Bun 1.3.14 `pm pack` on Linux x64 shares
+// 12,717,070 payload bytes across exactly 524 files. The bun archive is 2,188,108 compressed
+// bytes, SHA-256
+// 77b915c17c573d48b421253fd22a8d1e302e03e2aa637dc3e33f57c007fa8763.
+// Binding sduiid to the overlay screenId, nested payload peel,
+// adapter notes, changelog, and tests add 27,743 payload bytes compared
+// with the 1.30.0 measurement. Raise only the payload ceiling to the
+// measured value plus 65 bytes of headroom (12,717,135); the 524-entry
+// inventory is unchanged. Theme CSS stays website-only. Fresh Linux CI
+// independently checks its actual canonical archive.
+//
+// Ghostget 0.18.0 packed-size portability after LinkedIn adapter 1.31.0:
+// required Linux CI measured the canonical npm archive at 2,330,878
+// compressed bytes under the pinned toolchain, 2,613 bytes above the
+// previous 2,328,265 ceiling. The same tree's Bun 1.3.14 `pm pack` on
+// Linux x64 remains 2,188,108 compressed bytes, SHA-256
+// 77b915c17c573d48b421253fd22a8d1e302e03e2aa637dc3e33f57c007fa8763.
+// Payload (12,717,070 measured; 12,717,135 ceiling), 524-file inventory,
+// and tar bounds are unchanged. Keep the reviewed 4,096-byte
+// portability allowance above the largest measured compression:
+// 2,330,878 + 4,096 = 2,334,974. This remains a compressor-spread
+// allowance, not a guarantee for arbitrary compressors; required CI
+// still checks the actual archive under the release toolchain.
+//
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` overlay-shell
+// honesty path (adapter bundle 1.30.0), measured with no version bump: a
+// Bun 1.3.14 `pm pack` on Linux x64 shares
+// 12,689,327 payload bytes across exactly 524 files. The bun archive is 2,182,837 compressed
+// bytes, SHA-256
+// fd447e01ecfbf7bf7f4d68d63110ed3cd74d857e56e65b7e48ca162594c5aa5f.
+// HTML-shell omitted-fields projection, adapter notes, changelog, and
+// tests add 3,923 payload bytes compared with the 1.29.0 measurement.
+// Raise only the payload ceiling to the measured value plus 65 bytes of
+// headroom (12,689,392); the packed size stays under the existing packed
+// allowance and the 524-entry inventory is unchanged. Theme CSS stays
+// website-only. Fresh Linux CI independently checks its actual canonical
+// archive.
+//
+// Ghostget 0.18.0 packed-size portability after LinkedIn adapter 1.29.0:
+// required Linux CI measured the canonical npm archive at 2,324,169
+// compressed bytes under the pinned toolchain, 497 bytes above the
+// previous 2,323,672 ceiling. The same tree's Bun 1.3.14 `pm pack` on
+// Linux x64 remains 2,181,867 compressed bytes, SHA-256
+// 6520cea342a0b9b570cb33d8f51536656fb5c828177701f42f889afaaff350cf.
+// Payload (12,685,404 measured; 12,685,469 ceiling), 524-file inventory,
+// and tar bounds are unchanged. Keep the reviewed 4,096-byte
+// portability allowance above the largest measured compression:
+// 2,324,169 + 4,096 = 2,328,265. This remains a compressor-spread
+// allowance, not a guarantee for arbitrary compressors; required CI
+// still checks the actual archive under the release toolchain.
+//
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` vanity overlay
+// and soft-label walk (adapter bundle 1.29.0), measured with no version
+// bump: a Bun 1.3.14 `pm pack` on Linux x64 shares
+// 12,685,404 payload bytes across exactly 524 files. The bun archive is
+// 2,181,867 compressed bytes, SHA-256
+// 6520cea342a0b9b570cb33d8f51536656fb5c828177701f42f889afaaff350cf.
+// Soft-label skipping, the `/in/:publicIdentifier/overlay/contact-info/`
+// RSC GET, adapter notes, and changelog add 2,209 payload bytes compared
+// with the 1.28.0 measurement. Raise only the payload ceiling to the
+// measured value plus 65 bytes of headroom (12,685,469); the packed size
+// stays under the existing packed allowance and the 524-entry inventory
+// is unchanged. Theme CSS stays website-only. Fresh Linux CI
+// independently checks its actual canonical archive.
+//
 // Ghostget 0.18.0 source plus the LinkedIn `contacts.read` Contact-info
 // overlay fallback (adapter bundle 1.28.0), measured with no version
 // bump: a Bun 1.3.14 `pm pack` on Linux x64 shares

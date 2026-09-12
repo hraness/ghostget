@@ -3,13 +3,23 @@ import { describe, expect, test } from "bun:test";
 import { encodeRestliV2Value, assertLinkedInWebR1RequestAllowed } from "./linkedin-web";
 import {
   LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+  LINKEDIN_CONTACT_DETAILS_PAGE_KEY,
+  LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+  LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
   LINKEDIN_PROFILE_CONTACT_INFO_QUERY_NAME,
   assertLinkedInContactInfoRequest,
+  buildLinkedInContactNavigationBody,
+  buildLinkedInProfileContactDetailsNavigationPostPath,
   buildLinkedInProfileContactDetailsOverlayPath,
   buildLinkedInProfileContactInfoGraphqlPath,
+  buildLinkedInProfileContactInfoOverlayPath,
+  extractLinkedInContactNavigationAction,
   linkedInContactInfoTarget,
+  linkedInContactNavigationActionError,
+  linkedInProfileContactDetailsNavigationPostUrl,
   linkedInProfileContactDetailsOverlayUrl,
   linkedInProfileContactInfoGraphqlUrl,
+  linkedInProfileContactInfoOverlayUrl,
   projectLinkedInContactInfo,
   projectLinkedInEmbeddedContactFields,
   projectLinkedInOverlayContactFields,
@@ -92,11 +102,23 @@ const GRAPHQL_PATH = buildLinkedInProfileContactInfoGraphqlPath({
 const GRAPHQL_URL = linkedInProfileContactInfoGraphqlUrl({
   profileUrn: PROFILE_URN,
 });
-const OVERLAY_PATH = buildLinkedInProfileContactDetailsOverlayPath({
+const OVERLAY_PATH = buildLinkedInProfileContactInfoOverlayPath({
+  profileUrl: PROFILE_URL,
+});
+const OVERLAY_URL = linkedInProfileContactInfoOverlayUrl({
+  profileUrl: PROFILE_URL,
+});
+const REJECTED_NAVIGATION_OVERLAY_URL = linkedInProfileContactDetailsOverlayUrl({
   profileUrn: PROFILE_URN,
 });
-const OVERLAY_URL = linkedInProfileContactDetailsOverlayUrl({
+const REJECTED_NAVIGATION_OVERLAY_PATH = buildLinkedInProfileContactDetailsOverlayPath({
   profileUrn: PROFILE_URN,
+});
+const OVERLAY_SDUIID = LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID;
+const STOLEN_SDUIID = "fixture-sduiid-contact-overlay-1";
+const NAVIGATION_POST_PATH = buildLinkedInProfileContactDetailsNavigationPostPath();
+const NAVIGATION_POST_URL = linkedInProfileContactDetailsNavigationPostUrl({
+  sduiid: OVERLAY_SDUIID,
 });
 const OVERLAY_CONTACT_FLIGHT = [
   `1:I["${LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID}"]`,
@@ -134,10 +156,16 @@ describe("LinkedIn contacts.read target and request binding", () => {
     expect(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID).toBe(
       "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
     );
-    expect(OVERLAY_PATH).toBe(
+    expect(OVERLAY_PATH).toBe("/in/example/overlay/contact-info/");
+    expect(OVERLAY_URL.href).toBe(`https://www.linkedin.com${OVERLAY_PATH}`);
+    expect(REJECTED_NAVIGATION_OVERLAY_PATH).toBe(
       `/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&profileUrn=${encodeURIComponent(PROFILE_URN)}`,
     );
-    expect(OVERLAY_URL.href).toBe(`https://www.linkedin.com${OVERLAY_PATH}`);
+    expect(NAVIGATION_POST_PATH).toBe(
+      `/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&sduiid=${encodeURIComponent(OVERLAY_SDUIID)}`,
+    );
+    expect(OVERLAY_SDUIID).toBe(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID);
+    expect(NAVIGATION_POST_URL.href).toBe(`https://www.linkedin.com${NAVIGATION_POST_PATH}`);
   });
 
   test("allows only the reviewed profile page and Contact-info GraphQL GET routes", () => {
@@ -167,7 +195,7 @@ describe("LinkedIn contacts.read target and request binding", () => {
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "POST",
       url: PROFILE_URL,
-    })).toThrow("LinkedIn contact-info reads require GET");
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "GET",
       url: "https://www.linkedin.com/in/example/?trk=unsafe",
@@ -190,6 +218,14 @@ describe("LinkedIn contacts.read target and request binding", () => {
     })).not.toThrow();
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "GET",
+      url: REJECTED_NAVIGATION_OVERLAY_URL,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "GET",
+      url: REJECTED_NAVIGATION_OVERLAY_URL,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
+      method: "GET",
       url: "https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
     })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
@@ -198,7 +234,11 @@ describe("LinkedIn contacts.read target and request binding", () => {
     })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "GET",
-      url: `${OVERLAY_URL.href}&trk=unsafe`,
+      url: `${OVERLAY_URL.href}?trk=unsafe`,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
+      method: "GET",
+      url: "https://www.linkedin.com/in/example/overlay/contact-info",
     })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "GET",
@@ -207,11 +247,353 @@ describe("LinkedIn contacts.read target and request binding", () => {
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "POST",
       url: OVERLAY_URL,
-    })).toThrow("LinkedIn contact-info reads require GET");
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
+      method: "POST",
+      url: NAVIGATION_POST_URL,
+    })).not.toThrow();
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: NAVIGATION_POST_URL,
+      body: buildLinkedInContactNavigationBody({
+        clientArguments: { payload: { vanityName: "example" } },
+      }),
+    })).not.toThrow();
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "GET",
+      url: NAVIGATION_POST_URL,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
+      method: "GET",
+      url: NAVIGATION_POST_URL,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: `https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&sduiid=${STOLEN_SDUIID}&profileUrn=${encodeURIComponent(PROFILE_URN)}`,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: `https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?sduiid=${STOLEN_SDUIID}&screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}`,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: `https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileView&sduiid=${STOLEN_SDUIID}`,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: `https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&sduiid=${STOLEN_SDUIID}`,
+    })).toThrow("LinkedIn contact-info navigation sduiid must equal ProfileContactDetailsOverlay");
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: NAVIGATION_POST_URL,
+      body: { clientArguments: { trackingId: "unreviewed" }, isModal: true },
+    })).toThrow("unreviewed keys");
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "GET",
       url: "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&queryName=voyagerFeedDashProfileUpdates&variables=(profileUrn:urn:li:fsd_profile:ACoAAFixtureProfile)",
     })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+  });
+});
+
+describe("LinkedIn contacts.read navigation action binding", () => {
+  const actionRecord = {
+    actionName: "NavigateToScreen",
+    screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+    sduiid: OVERLAY_SDUIID,
+    clientArguments: {
+      payload: { vanityName: "example" },
+    },
+  };
+
+  test("extracts a unique page-bound ProfileContactDetailsOverlay action", () => {
+    const html = comoFlightHtml([
+      { vanityName: "example", vieweeProfileId: "ACoAAFixtureProfile", isSelfView: false },
+      actionRecord,
+    ]);
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: html,
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      kind: "action",
+      action: {
+        sduiid: OVERLAY_SDUIID,
+        clientArguments: { payload: { vanityName: "example" } },
+        isModal: true,
+      },
+    });
+  });
+
+  test("binds sduiid to the overlay screenId when dormant NavigateToScreen omits it", () => {
+    const dormant = comoFlightHtml([
+      { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+      {
+        actionName: "NavigateToScreen",
+        screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+        pageKey: LINKEDIN_CONTACT_DETAILS_PAGE_KEY,
+        requestedArguments: {
+          payload: {
+            vanityName: "example",
+            givenName: "Ada",
+            familyName: "Example",
+            isVanityNameResolved: true,
+          },
+        },
+      },
+    ]);
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: dormant,
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      kind: "action",
+      action: {
+        sduiid: OVERLAY_SDUIID,
+        clientArguments: {
+          payload: {
+            vanityName: "example",
+            givenName: "Ada",
+            familyName: "Example",
+            isVanityNameResolved: true,
+          },
+        },
+        isModal: true,
+      },
+    });
+    const hrefOnly = profileHtml() +
+      `/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&sduiid=${encodeURIComponent(OVERLAY_SDUIID)}`;
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: hrefOnly,
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      kind: "action",
+      action: {
+        sduiid: OVERLAY_SDUIID,
+        clientArguments: { payload: { vanityName: "example" } },
+        isModal: true,
+      },
+    });
+  });
+
+  test("keeps requestMetadata a sibling and copies reviewed proto.sdui types", () => {
+    const live = {
+      actionName: "NavigateToScreen",
+      screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+      pageKey: LINKEDIN_CONTACT_DETAILS_PAGE_KEY,
+      requestedArguments: {
+        $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+        requestedStateKeys: [],
+        payload: {
+          vanityName: "example",
+          givenName: "Ada",
+          familyName: "Example",
+          isVanityNameResolved: true,
+        },
+        requestMetadata: {
+          $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+        },
+      },
+    };
+    const extracted = extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        live,
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    });
+    expect(extracted).toEqual({
+      kind: "action",
+      action: {
+        sduiid: OVERLAY_SDUIID,
+        clientArguments: {
+          $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+          requestedStateKeys: [],
+          payload: {
+            vanityName: "example",
+            givenName: "Ada",
+            familyName: "Example",
+            isVanityNameResolved: true,
+          },
+          requestMetadata: {
+            $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+          },
+        },
+        isModal: true,
+      },
+    });
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: NAVIGATION_POST_URL,
+      body: extracted.kind === "action"
+        ? buildLinkedInContactNavigationBody(extracted.action)
+        : undefined,
+    })).not.toThrow();
+    const lifted = extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          ...live,
+          requestedArguments: {
+            $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+            requestedStateKeys: [],
+            payload: {
+              vanityName: "example",
+              givenName: "Ada",
+              familyName: "Example",
+              isVanityNameResolved: true,
+              requestMetadata: {
+                $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+              },
+            },
+          },
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    });
+    expect(lifted).toEqual(extracted);
+    expect(JSON.parse(buildLinkedInContactNavigationBody({
+      clientArguments: extracted.kind === "action" ? extracted.action.clientArguments : { payload: {} },
+    })).clientArguments.requestMetadata).toEqual({
+      $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+    });
+    expect(JSON.parse(buildLinkedInContactNavigationBody({
+      clientArguments: extracted.kind === "action" ? extracted.action.clientArguments : { payload: {} },
+    })).clientArguments.payload.requestMetadata).toBeUndefined();
+  });
+
+  test("stays absent when profile HTML only mentions the overlay screen", () => {
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: profileHtml(),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({ kind: "absent" });
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          fields: [{
+            label: `${LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID} decorative copy that exceeds the sixty-four character field-label bound`,
+            value: "skip this decorative SDUI string",
+          }],
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({ kind: "absent" });
+  });
+
+  test("fails closed for stolen, unbound, or unreviewed navigation actions", () => {
+    const stolen = extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        { ...actionRecord, sduiid: STOLEN_SDUIID },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    });
+    expect(stolen).toEqual({ kind: "unreviewed-sduiid" });
+    expect(linkedInContactNavigationActionError(stolen as Exclude<typeof stolen, { kind: "action" | "absent" }>).message)
+      .toContain("sduiid must equal ProfileContactDetailsOverlay");
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          ...actionRecord,
+          clientArguments: { payload: { vanityName: "other" } },
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({ kind: "unbound-client-arguments" });
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          ...actionRecord,
+          clientArguments: {
+            payload: { vanityName: "example" },
+            trackingId: "no",
+          },
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      kind: "unreviewed-client-arguments",
+      keys: ["trackingId"],
+    });
+    const navigate = {
+      actionName: "NavigateToScreen",
+      screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+      pageKey: LINKEDIN_CONTACT_DETAILS_PAGE_KEY,
+    };
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          ...navigate,
+          requestedArguments: {
+            $type: "proto.graphql.UnreviewedArguments",
+            payload: { vanityName: "example" },
+          },
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      kind: "unreviewed-client-arguments",
+      keys: ["$type"],
+    });
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          ...navigate,
+          requestedArguments: {
+            $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+            payload: { vanityName: "example" },
+            requestMetadata: {
+              $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+            },
+            extraProto: true,
+          },
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      kind: "unreviewed-client-arguments",
+      keys: ["extraProto"],
+    });
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          ...navigate,
+          requestedArguments: {
+            $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+            payload: {
+              vanityName: "example",
+              requestMetadata: {
+                $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+                screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+              },
+            },
+            requestMetadata: {
+              $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+            },
+          },
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      kind: "unreviewed-client-arguments",
+      keys: ["requestMetadata"],
+    });
   });
 });
 
@@ -894,6 +1276,37 @@ describe("LinkedIn contacts.read Contact-info projection", () => {
     }).contact.email).toBe("connection@example.test");
   });
 
+  test("skips long SDUI field labels and still projects a neighboring Email pair", () => {
+    const longLabel = "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay decorative copy that exceeds the sixty-four character field-label bound";
+    expect(longLabel.length).toBeGreaterThan(64);
+    const html = comoHtml({
+      publicIdentifier: "example",
+      entityUrn: PROFILE_URN,
+      networkDistance: 1,
+      fields: [
+        { label: longLabel, value: "skip this decorative SDUI string" },
+        { label: "Email", value: "connection@example.test" },
+        { label: "Connected since", value: "October 3, 2023" },
+      ],
+      rows: [
+        longLabel,
+        "not-an-email",
+        "Email",
+        "connection@example.test",
+      ],
+    });
+    expect(projectLinkedInEmbeddedContactFields(html, "example")).toMatchObject({
+      email: "connection@example.test",
+      connectedSince: "2023-10-03",
+    });
+    expect(projectLinkedInEmbeddedContactFields(comoHtml({
+      publicIdentifier: "example",
+      entityUrn: PROFILE_URN,
+      networkDistance: 1,
+      fields: [{ label: longLabel, value: "skip this decorative SDUI string" }],
+    }), "example")).toBeUndefined();
+  });
+
   test("rejects ambiguous emails and extra live-looking addresses", () => {
     expect(() => projectLinkedInContactInfo({
       profileHtml: profileHtml(),
@@ -937,6 +1350,61 @@ describe("LinkedIn contacts.read Contact-info projection", () => {
     });
   });
 
+  test("treats an HTML-200 profile shell as omitted Contact-info fields", () => {
+    const shell = [
+      "<!DOCTYPE html><html><head><title>Profile</title></head>",
+      "<body><main id=\"profile-stickiness-container\">signed-in profile chrome</main></body></html>",
+    ].join("");
+    expect(() => projectLinkedInOverlayContactFields(shell, "example")).toThrow(
+      "LinkedIn contact-info overlay omitted its contact fields",
+    );
+    expect(() => projectLinkedInOverlayContactFields(shell, "example")).not.toThrow(
+      "LinkedIn contact-info payload must be a JSON object or array",
+    );
+    expect(() => projectLinkedInContactInfo({
+      profileHtml: profileHtml(),
+      contactPayload: shell,
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+      observedAt: OBSERVED_AT,
+    })).toThrow("LinkedIn contact-info overlay omitted its contact fields");
+    expect(projectLinkedInProfileContactBinding({
+      profileHtml: profileHtml(),
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+    }).relationship).toBe("first-degree");
+  });
+
+  test("projects Email from overlay HTML that still carries Como Contact-info fields", () => {
+    const html = comoHtml({
+      publicIdentifier: "example",
+      entityUrn: PROFILE_URN,
+      networkDistance: 1,
+      fields: [
+        { label: "Email", value: "connection@example.test" },
+        { label: "Connected since", value: "October 3, 2023" },
+      ],
+    });
+    expect(projectLinkedInOverlayContactFields(html, "example")).toMatchObject({
+      email: "connection@example.test",
+      connectedSince: "2023-10-03",
+    });
+    expect(projectLinkedInContactInfo({
+      profileHtml: profileHtml(),
+      contactPayload: html,
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+      observedAt: OBSERVED_AT,
+    }).contact.email).toBe("connection@example.test");
+  });
+
+  test("rejects leftover overlay HTML with more than one mailto address", () => {
+    expect(() => projectLinkedInOverlayContactFields(
+      "<html><body><a href=\"mailto:one@example.test\"></a><a href=\"mailto:two@example.test\"></a></body></html>",
+      "example",
+    )).toThrow("LinkedIn contact-info email was ambiguous");
+  });
+
   test("projects Email from SDUI text pairs and a mailto href in overlay payloads", () => {
     const textPairs = [
       "1:I[\"ProfileContactDetailsOverlay\"]",
@@ -948,6 +1416,10 @@ describe("LinkedIn contacts.read Contact-info projection", () => {
     });
     expect(projectLinkedInOverlayContactFields(
       '1:{"href":"mailto:connection@example.test"}',
+      "example",
+    ).email).toBe("connection@example.test");
+    expect(projectLinkedInOverlayContactFields(
+      '<html><body><a href="mailto:connection@example.test">Email</a></body></html>',
       "example",
     ).email).toBe("connection@example.test");
     expect(projectLinkedInContactInfo({

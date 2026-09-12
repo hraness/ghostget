@@ -1295,6 +1295,14 @@ describe("npm publication contract", () => {
     expect(budget).toContain("2,314,832 compressed and 12,654,071 payload");
     expect(budget).toContain("01abe7e7a0953670578777aa88e3c3dbe6d095fb2e46298154c37801db576c96");
     expect(budget).toContain("2,316,774 compressed");
+    expect(budget).toContain("12,721,045 payload bytes across exactly 524 files");
+    expect(budget).toContain("6ce1e1a7bf4f3f4d30b56cce135be3916efe3602fa7f595ceffd640de432a0dc");
+    expect(budget).toContain("12,717,070 payload bytes across exactly 524 files");
+    expect(budget).toContain("77b915c17c573d48b421253fd22a8d1e302e03e2aa637dc3e33f57c007fa8763");
+    expect(budget).toContain("12,689,327 payload bytes across exactly 524 files");
+    expect(budget).toContain("fd447e01ecfbf7bf7f4d68d63110ed3cd74d857e56e65b7e48ca162594c5aa5f");
+    expect(budget).toContain("12,685,404 payload bytes across exactly 524 files");
+    expect(budget).toContain("6520cea342a0b9b570cb33d8f51536656fb5c828177701f42f889afaaff350cf");
     expect(budget).toContain("12,683,195 payload bytes across exactly 524 files");
     expect(budget).toContain("daebc81fbe6611c93b9c9b58a9cc245d4397e1a700429cb107baa2a9fbb62dbe");
     expect(budget).toContain("12,672,001 payload bytes across exactly 524 files");
@@ -1319,6 +1327,8 @@ describe("npm publication contract", () => {
     expect(MAX_PACKED_FILES).toBe(619);
     expect(MAX_UNPACKED_BYTES).toBe(27_437_162);
     expect(MAX_UNPACKED_BYTES).toBe(27_437_097 + 65);
+    expect(budget).toContain("2,324,169 + 4,096 = 2,328,265");
+    expect(budget).toContain("2,330,878 + 4,096 = 2,334,974");
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
@@ -1504,6 +1514,18 @@ describe("npm publication contract", () => {
     expect(automationStart).toBeLessThan(contactStart);
     expect(contactStart).toBeLessThan(listingStart);
     expect(listingStart).toBeLessThan(fixStart);
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
+      "Adapter bundle 1.32.0",
+    );
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
+      "Adapter bundle 1.31.0",
+    );
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
+      "Adapter bundle 1.30.0",
+    );
+    expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
+      "Adapter bundle 1.29.0",
+    );
     expect(changelog.slice(unreleasedStart + unreleasedHeader.length, controlStart)).toContain(
       "Adapter bundle 1.28.0",
     );

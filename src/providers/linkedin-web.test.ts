@@ -106,7 +106,7 @@ describe("LinkedIn internal-web operation registry", () => {
       expect(contract.state).toBe(observed.has(operation) ? "observed" : "capture-required");
       expect(contract.requests).toHaveLength(
         operation === "posts.publish" ? 5
-          : operation === "contacts.read" ? 2
+          : operation === "contacts.read" ? 3
             : operation === "profiles.read"
               || operation === "organizations.read"
               || operation === "feeds.read" ? 1
