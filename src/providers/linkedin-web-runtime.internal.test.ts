@@ -3766,6 +3766,63 @@ describe("LinkedIn contacts.read runtime", () => {
     ]);
   });
 
+  test("skips long SDUI field labels during profile stage and still reaches Contact-info overlay", async () => {
+    const browserCalls: string[] = [];
+    const longLabel = "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay decorative copy that exceeds the sixty-four character field-label bound";
+    const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify({
+      publicIdentifier: "example",
+      entityUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+      networkDistance: 1,
+      fields: [{ label: longLabel, value: "skip this decorative SDUI string" }],
+      rows: [longLabel, "not-an-email"],
+    })}</script></body></html>`;
+    expect(html).not.toContain("voyagerIdentityDashProfileContactInfo.");
+    const result = await executeLinkedInWebOperation(contactInfoRecipe(), {
+      profile_url: "https://www.linkedin.com/in/example/",
+    }, linkedinBrowserProfileAuth, {
+      dependencies: {
+        now: () => Date.parse("2026-09-08T18:00:00.000Z"),
+        createProfileBrowserTransport: () => Promise.resolve({
+          currentIdentityResponse: () => {
+            browserCalls.push("identity");
+            return Promise.resolve(currentIdentityResponse());
+          },
+          readProfileHtml: () => {
+            browserCalls.push("profile");
+            return Promise.resolve(html);
+          },
+          readConnectionsHtml: () => Promise.reject(new Error("long-label crossed connections")),
+          readContactInfoJson: () => {
+            browserCalls.push("contact");
+            return Promise.reject(new Error("absent queryId fetched GraphQL"));
+          },
+          readContactOverlayText: (input) => {
+            browserCalls.push(`overlay:${input.profileUrn}`);
+            return Promise.resolve(OVERLAY_CONTACT_FLIGHT);
+          },
+          readOrganizationHtml: () => Promise.reject(new Error("long-label crossed company")),
+          close: () => {
+            browserCalls.push("close");
+            return Promise.resolve();
+          },
+        }),
+      },
+    });
+    expect(result).toMatchObject({
+      status: "succeeded",
+      output: {
+        contact: { email: "connection@example.test", connectedSince: "2023-10-03" },
+        profile: { relationship: "first-degree", vanity: "example" },
+      },
+    });
+    expect(browserCalls).toEqual([
+      "identity",
+      "profile",
+      "overlay:urn:li:fsd_profile:ACoAAFixtureProfile",
+      "close",
+    ]);
+  });
+
   test("joins vieweeProfileId identity to unique breadcrumb vieweeMemberUrn distance", async () => {
     const browserCalls: string[] = [];
     const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify([

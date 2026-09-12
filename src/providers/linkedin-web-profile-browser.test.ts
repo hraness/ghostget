@@ -22,8 +22,8 @@ import {
 } from "../web-session-execution";
 import { executeLinkedInWebOperation } from "./linkedin-web-runtime";
 import {
-  buildLinkedInProfileContactDetailsOverlayPath,
   buildLinkedInProfileContactInfoGraphqlPath,
+  buildLinkedInProfileContactInfoOverlayPath,
 } from "./linkedin-web-contact";
 import {
   createLinkedInProfileBrowserTransport,
@@ -568,7 +568,7 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         if (binding.path === "/in/0thernet/") {
           return Promise.resolve([browserBodyRecord("<html>1st</html>", "text/html")]);
         }
-        if (binding.path.startsWith("/flagship-web/rsc-action/actions/navigation")) {
+        if (binding.path === "/in/0thernet/overlay/contact-info/") {
           expect(binding.kind).toBe("rsc");
           expect(command[1]).toContain('accept:"text/x-component"');
           expect(command[1]).toContain('RSC:"1"');
@@ -608,8 +608,8 @@ describe("LinkedIn profile stats contained-browser transport", () => {
       {
         kind: "rsc",
         maxBytes: 2 * 1024 * 1024,
-        path: buildLinkedInProfileContactDetailsOverlayPath({
-          profileUrn: contactInput.profileUrn,
+        path: buildLinkedInProfileContactInfoOverlayPath({
+          profileUrl: PROFILE_URL,
         }),
         referrer: PROFILE_URL,
       },
@@ -637,7 +637,7 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         if (binding.path.startsWith("/voyager/api/graphql")) {
           return Promise.resolve([browserRejectionRecord(403, "text/html")]);
         }
-        if (binding.path.startsWith("/flagship-web/rsc-action/actions/navigation")) {
+        if (binding.path === "/in/0thernet/overlay/contact-info/") {
           return Promise.resolve([browserBodyRecord(
             '1:{"emailAddress":"connection@example.test"}',
             "text/x-component",
