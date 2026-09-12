@@ -1361,6 +1361,154 @@ describe("browser process isolation helpers", () => {
     }
   });
 
+  test("cleans definitely published prepared roots inline when later setup fails", async () => {
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const publication: { resource: PublishedCleanupResource | null } = {
+      resource: null,
+    };
+    let sessionReads = 0;
+    const cleanupEvents: string[] = [];
+    const publisher = Object.assign(
+      (resource: PublishedCleanupResource): void => {
+        publication.resource = resource;
+      },
+      {
+        markBrowserCleanupQuiescent: (): void => {
+          cleanupEvents.push("journal-quiescent");
+        },
+        markBrowserCleanupRootRemoved: (
+          _resource: PublishedCleanupResource,
+          root: "artifacts" | "socket",
+        ): void => {
+          cleanupEvents.push(`journal-${root}`);
+        },
+      },
+    );
+    let proxyStarts = 0;
+    const failure = await rejectionValue(createBrowserSession(
+      manifest,
+      {
+        schemaVersion: 1,
+        id: "missing-profile",
+        kind: "browser-profile",
+        profile: join(
+          tmpdir(),
+          `ghostget-missing-profile-${crypto.randomUUID()}`,
+        ),
+        trustUnfilteredEgress: true,
+      },
+      {
+        headed: false,
+        timeoutMs: 1_000,
+        maxOutputBytes: 64 * 1024,
+        publishCleanupResource: publisher,
+        dependencies: {
+          startNetworkProxy: () => {
+            proxyStarts += 1;
+            return Promise.reject(new Error("network proxy must not start"));
+          },
+          runCommand: (command) => {
+            if (!command.includes("info")) {
+              throw new Error("unexpected browser command during prepared cleanup");
+            }
+            const resource = publication.resource;
+            if (resource === null) {
+              throw new Error("prepared cleanup resource was not published");
+            }
+            sessionReads += 1;
+            return Promise.resolve({
+              stdout: `${JSON.stringify({
+                success: true,
+                data: {
+                  active: false,
+                  namespace: null,
+                  pid: null,
+                  runtime: null,
+                  runtimeError: null,
+                  session: resource.session,
+                  socketDir: resource.socketDirectory,
+                  version: null,
+                },
+              })}\n`,
+              stderr: "",
+              exitCode: 0,
+            });
+          },
+        },
+      },
+    ));
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(PreservedBrowserArtifactsError);
+    expect(proxyStarts).toBe(0);
+    const resource = publication.resource;
+    if (resource === null) throw new Error("prepared roots were not published");
+    try {
+      expect(resource).toMatchObject({ phase: "prepared", control: null });
+      expect(sessionReads).toBe(4);
+      expect(cleanupEvents).toEqual([
+        "journal-quiescent",
+        "journal-artifacts",
+        "journal-socket",
+      ]);
+      expect(existsSync(resource.artifactsDirectory)).toBeFalse();
+      expect(existsSync(resource.socketDirectory)).toBeFalse();
+    } finally {
+      rmSync(resource.artifactsDirectory, { recursive: true, force: true });
+      rmSync(resource.socketDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test("retains published setup roots when durable cleanup journaling is unavailable", async () => {
+    type PublishedCleanupResource = Parameters<
+      NonNullable<
+        Parameters<typeof createBrowserSession>[2]["publishCleanupResource"]
+      >
+    >[0];
+    const publication: { resource: PublishedCleanupResource | null } = {
+      resource: null,
+    };
+    const failure = await rejectionValue(createBrowserSession(
+      manifest,
+      auth,
+      {
+        headed: false,
+        timeoutMs: 1_000,
+        maxOutputBytes: 64 * 1024,
+        publishCleanupResource: (resource) => {
+          publication.resource = resource;
+        },
+        dependencies: {
+          startNetworkProxy: () =>
+            Promise.reject(new Error("simulated setup failure")),
+        },
+      },
+    ));
+
+    expect(failure).toBeInstanceOf(PreservedBrowserArtifactsError);
+    const resource = publication.resource;
+    if (resource === null) throw new Error("prepared roots were not published");
+    if (resource.kind !== "agent-browser-session-v2") {
+      throw new Error("prepared cleanup resource was not v2");
+    }
+    try {
+      expect(resource).toMatchObject({ phase: "prepared", control: null });
+      expect(browserCleanupResourceRootStatus(resource, "artifacts")).toBe(
+        "match",
+      );
+      expect(browserCleanupResourceRootStatus(resource, "socket")).toBe(
+        "match",
+      );
+    } finally {
+      rmSync(resource.artifactsDirectory, { recursive: true, force: true });
+      rmSync(resource.socketDirectory, { recursive: true, force: true });
+    }
+  });
+
   test("proves only an unchanged prepared and doubly inactive session quiescent", async () => {
     const fixture = createPinnedBrowserRecoveryFixture();
     const prepared = parseBrowserCleanupResourceIdentity({
