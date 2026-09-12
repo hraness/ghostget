@@ -1323,8 +1323,11 @@ describe("npm publication contract", () => {
     expect(budget).toContain("0914c7721df5cd1a2e317d334d7ee60e6ff8f461e4e61a21aae086cd9d5fb322");
     expect(budget).toContain("11,638,165 compressed / 22,474,305 payload");
     expect(budget).toContain("56b38a2714918029075503d4e916f797e97e9ccaa76bed894421e2b4946ac677");
-    expect(MAX_PACKED_BYTES).toBe(11_645_063);
-    expect(MAX_PACKED_BYTES).toBe(11_638_165 + 2_802 + 4_096);
+    expect(budget).toContain("11,648,247 + 4,096 = 11,652,343");
+    expect(budget).toContain("52553bf2a994d12620df6973d2be365ca5b8ebf1c5e3266165d6b1000e7ea72f");
+    expect(budget).toContain("f3a019d12d62d947e963dd6b81dc583e1897f0e76261fbd3f1ef8705390ed5b5");
+    expect(MAX_PACKED_BYTES).toBe(11_652_343);
+    expect(MAX_PACKED_BYTES).toBe(11_648_247 + 4_096);
     expect(MAX_PACKED_ENTRIES).toBe(558);
     expect(MAX_PACKED_FILES).toBe(558);
     expect(MAX_UNPACKED_BYTES).toBe(22_474_370);
@@ -1338,7 +1341,7 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 558, max: 558 },
       fileCount: { min: 558, max: 558 },
-      packedBytes: { min: 1_600_000, max: 11_645_063 },
+      packedBytes: { min: 1_600_000, max: 11_652_343 },
       unpackedBytes: { min: 9_000_000, max: 22_474_370 },
     });
   });

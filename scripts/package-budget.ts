@@ -1,3 +1,19 @@
+// Canonical compression correction for 0.18.1 candidate 2931dd0, source tree
+// 07de7b236089f6f116a075b550cf1d7a8381731b. Required Linux CI run 34673035298
+// attempt 1 / package job 103497890460 produced 11,648,247 compressed bytes
+// with Node 24.20.0 / npm 11.19.0 / zlib 1.3.2.1-motley-42c2f19. Its exact
+// 558-path/size/mode inventory and 22,474,305 payload bytes match both Mac packs.
+// Recompressing their unchanged tar (SHA-256
+// f3a019d12d62d947e963dd6b81dc583e1897f0e76261fbd3f1ef8705390ed5b5) at npm's
+// level 9 / portable gzip OS byte with installed Node 24.19.0 / motley-3246f1b
+// reproduces the Linux SHA-1 and SHA-512 exactly. Reproduced archive SHA-256:
+// 52553bf2a994d12620df6973d2be365ca5b8ebf1c5e3266165d6b1000e7ea72f.
+// Homebrew Node 24.20.0 / zlib 1.2.12 reproduces the smaller Mac archive below.
+// Replace the obsolete 2,802-byte spread projection with the observed canonical
+// maximum; retain exactly 4,096 compressed bytes of headroom:
+// 11,648,247 + 4,096 = 11,652,343. Payload, inventory, tar, native pins and
+// exports stay unchanged. Fresh Required CI must admit its actual archive.
+//
 // Ghostget 0.18.1 with the leaf automation SDK boundary, joined with main
 // 79b74fe (LinkedIn adapter 1.32.0). Two clean Bun 1.3.14 builds and npm
 // 11.19.0 packs under Node 24.20.0 / zlib 1.2.12 on darwin arm64 are identical:
@@ -604,7 +620,7 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 11_645_063;
+export const MAX_PACKED_BYTES = 11_652_343;
 export const MAX_PACKED_ENTRIES = 558;
 export const MAX_PACKED_FILES = 558;
 export const MAX_UNPACKED_BYTES = 22_474_370;
