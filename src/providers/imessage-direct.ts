@@ -13,7 +13,11 @@ export const IMSG_EXACT_CHAT_PATCH_COMMIT =
   "c5994f00d17969fd7772fd2772e7b3591089513a" as const;
 export const IMSG_EXACT_CHAT_PATCH_SHA256 =
   "b05aa92a078930f96fda611c674436638843f7b148d7bfa3b65ed1ccb0885c13" as const;
-export const IMSG_REVIEWED_PATCH_COMMIT = IMSG_EXACT_CHAT_PATCH_COMMIT;
+export const IMSG_NO_FETCH_RICH_CARDS_PATCH_COMMIT =
+  "520b82ab025c1d4d57333b552aa65c9ae3fdb5fd" as const;
+export const IMSG_NO_FETCH_RICH_CARDS_PATCH_SHA256 =
+  "c2346afca4dd0f9721c235db4f692d6a2d6dece36481e074d94b5ce78f2e019b" as const;
+export const IMSG_REVIEWED_PATCH_COMMIT = IMSG_NO_FETCH_RICH_CARDS_PATCH_COMMIT;
 export const IMSG_REVIEWED_PATCHES = Object.freeze([
   Object.freeze({
     commit: IMSG_PRIVATE_TRANSPORT_PATCH_COMMIT,
@@ -23,11 +27,17 @@ export const IMSG_REVIEWED_PATCHES = Object.freeze([
     commit: IMSG_EXACT_CHAT_PATCH_COMMIT,
     sha256: IMSG_EXACT_CHAT_PATCH_SHA256,
   }),
+  Object.freeze({
+    commit: IMSG_NO_FETCH_RICH_CARDS_PATCH_COMMIT,
+    sha256: IMSG_NO_FETCH_RICH_CARDS_PATCH_SHA256,
+  }),
 ]);
 export const IMSG_REVIEWED_VERSION =
-  "0.14.1+private-transport.2" as const;
+  "0.14.1+private-transport.3" as const;
 export const IMSG_DARWIN_ARM64_EXECUTABLE_SHA256 =
-  "77a0db864dfd247cd0a9142dd98997960582e6f150f76ecd3bf1c38944f2bf71" as const;
+  "46c4c73c81c7db2d516c2d467c66aff03c73de196996d646bc8afce0ea85cff6" as const;
+// The exact .3 source and binary pins include the tested no-fetch RPC mode.
+export const IMSG_NO_FETCH_RICH_CARDS_AVAILABLE = true;
 
 export const IMSG_TOOL_PIN = Object.freeze({
   id: "imsg-private-transport",

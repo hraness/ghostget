@@ -61,7 +61,7 @@
 
         <section aria-labelledby="custody">
           <h2 id="custody">Account-bound reads stay under local custody</h2>
-          <p>A successful R1 read with a verified account subject can publish an encrypted snapshot of the exact validated query and bounded provider output. The same query can later load from local ciphertext without contacting the provider. Inputs, account subjects, cursors, private identifiers, and provider output remain inside authenticated local encryption.</p>
+          <p>A successful R1 provider read with a verified account subject can publish an encrypted snapshot of the exact validated query and bounded provider output. The same query can later load from local ciphertext without contacting the provider. Within those snapshots, inputs, account subjects, cursors, private identifiers, and provider output remain inside authenticated local encryption. The separate owner messaging host retains private plaintext history and journals; see the <a href="/privacy/">privacy guide</a> for storage and retention boundaries.</p>
           <p>A failed refresh or publication does not erase the last verified snapshot. Replacing or removing an auth locator rotates its local lifetime identity, so ciphertext from an earlier account incarnation cannot become current after recreation. Exact provider paging and completeness semantics are retained rather than being translated into invented certainty.</p>
         </section>
 
@@ -73,7 +73,8 @@
             <div><dt>R3</dt><dd>An externally visible or consequential change.</dd></div>
             <div><dt>R4</dt><dd>Blocked.</dd></div>
           </dl>
-          <p>R2 and R3 operations create an exact, short-lived preview. The confirmation binds the adapter, transport, account realm, input, attachment hashes, side effect, contract hash, and dispatch schedule. If a request left the machine but its response was lost, Ghostget retains the indeterminate result and does not retry or switch transport. A separate reconciliation needs exact external evidence.</p>
+          <p>Generic R2 and R3 operations create an exact, short-lived preview. The confirmation binds the adapter, transport, account realm, input, attachment hashes, side effect, contract hash, and dispatch schedule. The separate owner messaging host can submit an exact prepared plan under explicit managed permissions and a revocable conversation grant with action, expiry, interval, and capacity limits. Its <code>messaging.automation.*</code> catalog entries are permission ceilings, not commands available through generic <code>invoke</code> or <code>confirm</code>; current account and runtime capabilities must also admit the action.</p>
+          <p>If a request left the machine but its response was lost, Ghostget retains the indeterminate result and does not retry or switch transport. A separate reconciliation needs exact external evidence. Cancellation or revocation stops remaining work but does not prove an already-started action was unsent. Provider acceptance is distinct from delivery or read status.</p>
         </section>
 
         <section aria-labelledby="drift">

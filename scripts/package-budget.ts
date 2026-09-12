@@ -1,3 +1,82 @@
+// Ghostget 0.18.1 messaging automation joined with main 01a696f
+// (LinkedIn adapter 1.33.0). Two clean Bun 1.3.14 builds and canonical npm
+// 11.19.0 packs use the official Node 24.20.0 darwin-arm64 runtime with zlib
+// 1.3.2.1-motley-42c2f19, matching the required Linux CI compressor. Archives
+// are identical: 11,649,726 compressed / 22,479,039 payload bytes, 558 files,
+// SHA-256 3e96590b2334be064df614a9c65908b460f07be65def73d39eb71ab91d5fe204.
+// All paths and modes remain; the joined changelog, two guides, LinkedIn contact
+// runtime and contract definitions account for the exact 4,734-byte payload
+// increase. Native bytes and eight inert SDK entrypoints are unchanged.
+// Retain exactly 4,096 compressed-byte and 65 payload-byte allowances:
+// 11,649,726 + 4,096 = 11,653,822; 22,479,039 + 65 = 22,479,104.
+// Fresh Required Linux CI and Release still admit their actual canonical bytes.
+//
+// Canonical compression correction for 0.18.1 candidate 2931dd0, source tree
+// 07de7b236089f6f116a075b550cf1d7a8381731b. Required Linux CI run 34673035298
+// attempt 1 / package job 103497890460 produced 11,648,247 compressed bytes
+// with Node 24.20.0 / npm 11.19.0 / zlib 1.3.2.1-motley-42c2f19. Its exact
+// 558-path/size/mode inventory and 22,474,305 payload bytes match both Mac packs.
+// Recompressing their unchanged tar (SHA-256
+// f3a019d12d62d947e963dd6b81dc583e1897f0e76261fbd3f1ef8705390ed5b5) at npm's
+// level 9 / portable gzip OS byte with installed Node 24.19.0 / motley-3246f1b
+// reproduces the Linux SHA-1 and SHA-512 exactly. Reproduced archive SHA-256:
+// 52553bf2a994d12620df6973d2be365ca5b8ebf1c5e3266165d6b1000e7ea72f.
+// Homebrew Node 24.20.0 / zlib 1.2.12 reproduces the smaller Mac archive below.
+// Replace the obsolete 2,802-byte spread projection with the observed canonical
+// maximum; retain exactly 4,096 compressed bytes of headroom:
+// 11,648,247 + 4,096 = 11,652,343. Payload, inventory, tar, native pins and
+// exports stay unchanged. Fresh Required CI must admit its actual archive.
+//
+// Ghostget 0.18.1 with the leaf automation SDK boundary, joined with main
+// 79b74fe (LinkedIn adapter 1.32.0). Two clean Bun 1.3.14 builds and npm
+// 11.19.0 packs under Node 24.20.0 / zlib 1.2.12 on darwin arm64 are identical:
+// 11,638,165 compressed / 22,474,305 payload bytes across exactly 558 files,
+// SHA-256 56b38a2714918029075503d4e916f797e97e9ccaa76bed894421e2b4946ac677.
+// Removing the accidental public session factory removes 61 generated dist files
+// (83 -> 22); all non-dist inventory paths are retained. Built-in account and
+// policy factories remain available through the source CLI. Native bytes and
+// all eight public SDK entrypoints remain. Preserve the existing 2,802-byte
+// platform spread, 4,096 compressed-byte and 65 payload-byte allowances; reduce
+// the ceilings and exact inventory to this measured package. Current Required
+// Linux CI must independently admit its actual canonical archive.
+//
+// Ghostget 0.18.1 messaging automation joined with main ac44040, including
+// the admitted imsg .3 no-fetch native cards and shipped release resources.
+// Two clean Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0 on
+// darwin arm64 are byte-identical: 12,561,964 compressed / 27,437,097 payload
+// bytes across exactly 619 files, SHA-256
+// 0914c7721df5cd1a2e317d334d7ee60e6ff8f461e4e61a21aae086cd9d5fb322.
+// The third reviewed imsg patch adds one inventory entry. The smaller signed
+// native artifact more than offsets the joined source, provenance and docs.
+// Reduce both byte ceilings to this measurement plus the unchanged 2,802-byte
+// observed platform spread, 4,096 compressed-byte and 65 payload-byte allowances.
+// Keep the existing five Release assets and eight inert SDK entrypoints.
+// Current Required Linux CI must independently inspect its canonical archive.
+//
+// Messaging automation joined with main 9cc16e1 (LinkedIn non-flight bootstrap).
+// Two clean Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0 on
+// darwin arm64 are byte-identical: 12,716,885 compressed / 27,573,685 payload
+// bytes across exactly 618 files, SHA-256
+// 060a2a4b7eacf56e7399f29be241bfe611a7837c82a0d86c981c85d67a764f2a.
+// The joined source and generated provider chunk add 1,985 payload bytes over
+// the messaging-only measurement below. Preserve its exact inventory and
+// existing 2,802 + 4,096 compressed-byte and 65 payload-byte allowances.
+// Current Linux CI must still inspect the actual canonical artifact.
+//
+// Ghostget messaging automation with bundled reviewed iMessage and WhatsApp
+// helpers, PhoneNumberKit resources, durable host and eighth public SDK entrypoint.
+// Two clean Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0 on
+// darwin arm64 are byte-identical: 12,715,931 compressed / 27,571,700 payload
+// bytes across exactly 618 files, SHA-256
+// a552f3a4081f5478ee80c9a0bd4ad433ba1297044901d0113a5ddd26850eb161.
+// The five pinned compressed helper/resource files contribute 9,402,391 payload
+// bytes; their source pins, licenses, patches, host, and generated SDK chunks
+// explain the remaining measured growth. No additional Release asset is added.
+// Preserve the existing 2,802-byte observed platform spread plus 4,096-byte
+// compression allowance, 65 payload bytes, and exact measured file inventory.
+// Required Linux CI independently admits its actual canonical package; this
+// local measurement does not qualify account activation or message delivery.
+//
 // Ghostget 0.18.0 source plus the LinkedIn `contacts.read` exact headed
 // payload.requestMetadata POST body (adapter bundle 1.33.0),
 // measured with no version bump: a Bun 1.3.14 `pm pack` on Linux x64
@@ -582,10 +661,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_334_974;
-export const MAX_PACKED_ENTRIES = 524;
-export const MAX_PACKED_FILES = 524;
-export const MAX_UNPACKED_BYTES = 12_725_844;
+export const MAX_PACKED_BYTES = 11_653_822;
+export const MAX_PACKED_ENTRIES = 558;
+export const MAX_PACKED_FILES = 558;
+export const MAX_UNPACKED_BYTES = 22_479_104;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

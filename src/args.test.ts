@@ -4,6 +4,7 @@ import { parseGhostgetArguments } from "./args";
 
 describe("ghostget CLI grammar", () => {
   test("parses only one normalized reviewed iMessage transport install source", () => {
+    expect(parseGhostgetArguments(["imessage", "transport", "install"])).toEqual({ ok: true, value: { command: "imessage-transport-install", json: false } });
     expect(parseGhostgetArguments([
       "imessage",
       "transport",
@@ -20,7 +21,6 @@ describe("ghostget CLI grammar", () => {
       },
     });
     for (const raw of [
-      ["imessage", "transport", "install"],
       ["imessage", "transport", "install", "--binary", "relative-imsg"],
       ["imessage", "transport", "install", "--binary", "/tmp/../tmp/imsg"],
       ["imessage", "send"],

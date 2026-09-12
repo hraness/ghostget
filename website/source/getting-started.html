@@ -55,7 +55,7 @@
 
         <section aria-labelledby="requirements">
           <h2 id="requirements">What you need</h2>
-          <p>Ghostget runs on macOS and Linux and requires Bun 1.3.14. The CLI does not include an AI model, planner, approval interface, or application shell. It supplies a capability and custody layer for an agent or application that can invoke commands.</p>
+          <p>Ghostget runs on macOS and Linux and requires Bun 1.3.14. It supplies a capability and custody layer for an agent or application that can invoke commands. The caller supplies the AI model and planner. The optional Mac control panel manages local accounts, permissions, and approvals; CLI use does not require that app.</p>
           <p>A public page capture is the smallest useful first run. Authenticated providers add separate dependencies, account bindings, and contract requirements, so their commands remain unavailable until <code>ghostget doctor</code> and the relevant capability report say they are ready.</p>
         </section>
 
@@ -86,7 +86,7 @@ ghostget doctor</code></pre>
 ghostget plugin list --json
 ghostget platforms --json
 ghostget plugin doctor --json</code></pre></div>
-          <p><code>ghostget capabilities</code> is the local source of truth. It reports the semantic operations that are installed and observed on this machine. A <code>capture-required</code> operation is an inert reservation, not partial support and not permission to improvise with a browser fallback.</p>
+          <p><code>ghostget capabilities</code> reports the installed operation contracts. An <code>observed</code> contract still needs current account and runtime admission. The separate <code>messaging.automation.*</code> entries are owner-host permission ceilings and cannot dispatch through generic <code>invoke</code> or <code>confirm</code>. A <code>capture-required</code> operation is an inert reservation, not partial support and not permission to improvise with a browser fallback.</p>
           <p>Review the <a href="/provider-capabilities/">provider capability attestation</a> before adding account credentials. It lists every bundled adapter operation and the reviewed completeness of that contract.</p>
         </section>
 
@@ -138,7 +138,7 @@ if (!isProviderPluginId(candidate.id)) {
 }
 
 const plugin = candidate satisfies ProviderPluginDefinitionV1</code></pre></div>
-          <p>The package has seven public TypeScript entrypoints: <code>@hraness/ghostget</code> for plugin types and bounded validators, <code>@hraness/ghostget/client</code> for persistent reads and strict live invocation, <code>@hraness/ghostget/beeper</code> for body-free contact interactions, <code>@hraness/ghostget/apple-photos</code> for local Photos contact evidence, <code>@hraness/ghostget/whatsapp</code> for the bounded private Message Like Me export, <code>@hraness/ghostget/omni</code> for normalized cross-provider reads, and <code>@hraness/ghostget/messaging</code> for agentic route discovery and resolution. Importing any entrypoint does not start the CLI. Importing the package root also does not inspect local state.</p>
+          <p>The package has eight public TypeScript entrypoints: <code>@hraness/ghostget</code> for plugin types and bounded validators, <code>@hraness/ghostget/client</code> for persistent reads and strict live invocation, <code>@hraness/ghostget/beeper</code> for body-free contact interactions, <code>@hraness/ghostget/apple-photos</code> for local Photos contact evidence, <code>@hraness/ghostget/whatsapp</code> for the bounded private Message Like Me export, <code>@hraness/ghostget/omni</code> for normalized cross-provider reads, <code>@hraness/ghostget/messaging</code> for agentic route discovery and resolution, and <code>@hraness/ghostget/messaging-automation</code> for the trusted owner host and its closed protocol types. Imports are inert in Node and Bun; constructing an automation host requires Bun and explicit provider setup. Use <code>ghostget messaging automation serve --stdio</code> for built-in account and managed-permission enforcement. See the <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/messaging-automation.md">owner messaging guide</a> before granting authority.</p>
         </section>
 
         <section aria-labelledby="developer-resources">

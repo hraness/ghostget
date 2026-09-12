@@ -1,0 +1,276 @@
+From 520b82ab025c1d4d57333b552aa65c9ae3fdb5fd Mon Sep 17 00:00:00 2001
+From: 0thernet <ben@substrate.run>
+Date: Fri, 11 Sep 2026 18:46:37 -0400
+Subject: [PATCH] feat(rpc): add native rich cards without metadata fetching
+
+---
+ .../RPCServer+BridgeMessageHandlers.swift     | 12 +++++-
+ Sources/imsg/RichLinkPreparer.swift           | 13 +++++++
+ .../RPCBridgeMessageHandlersTests.swift       | 37 +++++++++++++++++++
+ .../RPCSendRichLinkValidationTests.swift      |  4 ++
+ Tests/imsgTests/RPCServerTests.swift          | 21 +++++++----
+ Tests/imsgTests/RichLinkPreparerTests.swift   | 28 ++++++++++++++
+ docs/rpc.md                                   |  2 +-
+ scripts/patch-deps.sh                         | 17 +++++++++
+ 8 files changed, 123 insertions(+), 11 deletions(-)
+
+diff --git a/Sources/imsg/RPCServer+BridgeMessageHandlers.swift b/Sources/imsg/RPCServer+BridgeMessageHandlers.swift
+index b097b9d..9ea023c 100644
+--- a/Sources/imsg/RPCServer+BridgeMessageHandlers.swift
++++ b/Sources/imsg/RPCServer+BridgeMessageHandlers.swift
+@@ -9,7 +9,7 @@ extension RPCServer {
+       RPCParameterKeys.partIndex,
+       [
+         "text", "message", "file", "path", "url", "dd_scan", "ddScan", "effect_id",
+-        "effectId", "effect", "subject", "text_formatting", "textFormatting",
++        "effectId", "effect", "subject", "text_formatting", "textFormatting", "fetch_metadata",
+       ]
+     )
+     let params = try RPCParameters(params, method: "send.rich", supportedKeys: supportedKeys)
+@@ -17,6 +17,9 @@ extension RPCServer {
+       try await handleSendRichLink(params: params, id: id)
+       return
+     }
++    if params.contains("fetch_metadata") {
++      throw RPCError.invalidParams("fetch_metadata requires url")
++    }
+     let text = try params.string("text", aliases: ["message"]) ?? ""
+     let file = try params.string("file", aliases: ["path"]) ?? ""
+     if params.contains("file") || params.contains("path") {
+@@ -112,6 +115,7 @@ extension RPCServer {
+     guard let rawURL = try params.string("url") else {
+       throw RPCError.invalidParams("url is required")
+     }
++    let fetchMetadata = try params.boolean("fetch_metadata") ?? true
+ 
+     let database = try await databaseResources.require()
+     let chatInfo = try await strictRichLinkChatInfo(params, database: database)
+@@ -125,7 +129,11 @@ extension RPCServer {
+ 
+     let prepared: PreparedRichLinkPreview
+     do {
+-      prepared = try await prepareRichLink(rawURL)
++      if fetchMetadata {
++        prepared = try await prepareRichLink(rawURL)
++      } else {
++        prepared = try await RichLinkPreparer.prepare(rawURL, fetchMetadata: false)
++      }
+     } catch let error as RichLinkPreparationError {
+       throw RPCError.invalidParams(error.localizedDescription)
+     }
+diff --git a/Sources/imsg/RichLinkPreparer.swift b/Sources/imsg/RichLinkPreparer.swift
+index a861229..06e95db 100644
+--- a/Sources/imsg/RichLinkPreparer.swift
++++ b/Sources/imsg/RichLinkPreparer.swift
+@@ -110,6 +110,7 @@ enum RichLinkPreparer {
+ 
+   static func prepare(
+     _ rawURL: String,
++    fetchMetadata: Bool = true,
+     timeout: Duration = defaultTimeout,
+     loadMetadata: @escaping MetadataLoader = { url in
+       try await RichLinkPreparer.loadMetadata(url)
+@@ -119,6 +120,18 @@ enum RichLinkPreparer {
+     }
+   ) async throws -> PreparedRichLinkPreview {
+     let originalURL = try validatedURL(rawURL)
++    try Task.checkCancellation()
++    if !fetchMetadata {
++      // The owner may need a native card without giving a URL authority to
++      // perform network requests. Do not construct a metadata provider, load
++      // subresources, or stage an image in this mode.
++      return PreparedRichLinkPreview(
++        originalURL: originalURL.absoluteString,
++        resolvedURL: originalURL.absoluteString,
++        title: sanitizedTitle(nil, fallback: originalURL.host ?? originalURL.absoluteString),
++        image: nil
++      )
++    }
+     let fetched: RichLinkFetchedMetadata?
+     do {
+       fetched = try await fetchWithDeadline(
+diff --git a/Tests/imsgTests/RPCBridgeMessageHandlersTests.swift b/Tests/imsgTests/RPCBridgeMessageHandlersTests.swift
+index 8340399..bed9184 100644
+--- a/Tests/imsgTests/RPCBridgeMessageHandlersTests.swift
++++ b/Tests/imsgTests/RPCBridgeMessageHandlersTests.swift
+@@ -489,6 +489,43 @@ func rpcSendRichURLRejectsBridgeWithoutPreviewSupportBeforePreparation() async t
+   #expect((error?["data"] as? String)?.contains("does not support rich links") == true)
+ }
+ 
++@Test
++func rpcSendRichNoFetchBuildsNativeCardWithoutMetadataPreparation() async throws {
++  let store = try CommandTestDatabase.makeStoreForRPC()
++  let output = TestRPCOutput()
++  var capturedAction: BridgeAction?
++  var capturedParams: [String: Any] = [:]
++  var metadataPrepared = false
++  let server = RPCServer(
++    store: store,
++    verbose: false,
++    output: output,
++    invokeBridge: { action, params in
++      if action == .status { return rpcRichLinkCapableStatus() }
++      capturedAction = action
++      capturedParams = params
++      return ["messageGuid": "synthetic-rich-link-guid"]
++    },
++    prepareRichLink: { _ in
++      metadataPrepared = true
++      return rpcPreparedRichLinkFixture
++    }
++  )
++  await server.handleLineForTesting(
++    #"{"jsonrpc":"2.0","id":"no-fetch","method":"send.rich","params":{"chat_id":1,"url":"https://example.com/path","fetch_metadata":false}}"#
++  )
++  #expect(metadataPrepared == false)
++  #expect(capturedAction == .sendRichLink)
++  #expect(capturedParams["message"] as? String == "https://example.com/path")
++  let preview = capturedParams["richLinkPreview"] as? [String: Any]
++  #expect(preview?["originalURL"] as? String == "https://example.com/path")
++  #expect(preview?["resolvedURL"] as? String == "https://example.com/path")
++  #expect(preview?["title"] as? String == "example.com")
++  #expect(preview?["image"] == nil)
++  let result = output.responses.first?["result"] as? [String: Any]
++  #expect(result?["message_id"] as? String == "synthetic-rich-link-guid")
++}
++
+ @Test
+ func rpcSendRichURLPrefersIMessageChatForSharedIdentifier() async throws {
+   let store = try CommandTestDatabase.makeStoreForRPCWithSharedIdentifier()
+diff --git a/Tests/imsgTests/RPCSendRichLinkValidationTests.swift b/Tests/imsgTests/RPCSendRichLinkValidationTests.swift
+index 7e2f329..21fdf77 100644
+--- a/Tests/imsgTests/RPCSendRichLinkValidationTests.swift
++++ b/Tests/imsgTests/RPCSendRichLinkValidationTests.swift
+@@ -14,6 +14,10 @@ private let rpcValidationRichLinkFixture = PreparedRichLinkPreview(
+ func rpcSendRichURLRejectsInvalidTypesAndModifiersBeforePreparation() async throws {
+   let store = try CommandTestDatabase.makeStoreForRPC()
+   let requests = [
++    #"{"chat_id":1,"url":"https://imsg.sh","fetch_metadata":null}"#,
++    #"{"chat_id":1,"url":"https://imsg.sh","fetch_metadata":"false"}"#,
++    #"{"chat_id":1,"url":"https://imsg.sh","fetch_metadata":0}"#,
++    #"{"chat_id":1,"text":"synthetic","fetch_metadata":false}"#,
+     #"{"chat_id":1,"url":42}"#,
+     #"{"chat_id":null,"url":"https://imsg.sh"}"#,
+     #"{"chat_id":true,"url":"https://imsg.sh"}"#,
+diff --git a/Tests/imsgTests/RPCServerTests.swift b/Tests/imsgTests/RPCServerTests.swift
+index de1ba0b..68d7859 100644
+--- a/Tests/imsgTests/RPCServerTests.swift
++++ b/Tests/imsgTests/RPCServerTests.swift
+@@ -53,12 +53,15 @@ func rpcChatsGetReturnsOneExactChatPayload() async throws {
+   await server.handleLineForTesting(line)
+ 
+   #expect(output.responses.count == 1)
+-  let result = output.responses[0]["result"] as? [String: Any]
+-  let chat = result?["chat"] as? [String: Any]
+-  #expect(int64Value(chat?["id"]) == 1)
+-  #expect(chat?["guid"] as? String == "iMessage;+;chat123")
+-  #expect(chat?["service"] as? String == "iMessage")
+-  #expect(chat?["contact_name"] as? String == "Family")
++  let response = try #require(output.responses.first)
++  let result = try #require(response["result"] as? [String: Any])
++  let chat = try #require(result["chat"] as? [String: Any])
++  #expect(int64Value(chat["id"]) == 1)
++  #expect(chat["guid"] as? String == "iMessage;+;chat123")
++  #expect(chat["service"] as? String == "iMessage")
++  #expect(chat["display_name"] as? String == "Group Chat")
++  #expect(chat["is_group"] as? Bool == true)
++  #expect(chat["contact_name"] == nil)
+ }
+ 
+ @Test
+@@ -70,8 +73,10 @@ func rpcChatsGetRejectsAnUnknownChatRow() async throws {
+   let line = #"{"jsonrpc":"2.0","id":"missing","method":"chats.get","params":{"chat_id":999}}"#
+   await server.handleLineForTesting(line)
+ 
+-  #expect(output.responses.count == 1)
+-  let error = output.responses[0]["error"] as? [String: Any]
++  #expect(output.responses.isEmpty)
++  #expect(output.errors.count == 1)
++  let response = try #require(output.errors.first)
++  let error = response["error"] as? [String: Any]
+   #expect(int64Value(error?["code"]) == -32602)
+ }
+ 
+diff --git a/Tests/imsgTests/RichLinkPreparerTests.swift b/Tests/imsgTests/RichLinkPreparerTests.swift
+index e20bed3..6bde945 100644
+--- a/Tests/imsgTests/RichLinkPreparerTests.swift
++++ b/Tests/imsgTests/RichLinkPreparerTests.swift
+@@ -21,6 +21,34 @@ private final class RichLinkTestBox<Value>: @unchecked Sendable {
+   }
+ }
+ 
++@Test
++func richLinkPreparerNoFetchNeverLoadsOrStagesResources() async throws {
++  for rawURL in [
++    "https://example.com/path", "https://127.0.0.1/private", "https://[::1]/", "https://localhost/",
++  ] {
++    let loaded = RichLinkTestBox(false)
++    let staged = RichLinkTestBox(false)
++    let prepared = try await RichLinkPreparer.prepare(
++      rawURL,
++      fetchMetadata: false,
++      loadMetadata: { _ in
++        loaded.withValue { $0 = true }
++        throw CocoaError(.fileReadUnknown)
++      },
++      stageImage: { _ in
++        staged.withValue { $0 = true }
++        throw CocoaError(.fileWriteUnknown)
++      }
++    )
++    #expect(prepared.originalURL == rawURL)
++    #expect(prepared.resolvedURL == rawURL)
++    #expect(!prepared.title.isEmpty)
++    #expect(prepared.image == nil)
++    #expect(loaded.withValue { $0 } == false)
++    #expect(staged.withValue { $0 } == false)
++  }
++}
++
+ @Test
+ func richLinkPreparerRejectsUnsafeURLs() async {
+   let tooLong = "https://example.com/" + String(repeating: "a", count: 8 * 1024)
+diff --git a/docs/rpc.md b/docs/rpc.md
+index c788989..a46bd3e 100644
+--- a/docs/rpc.md
++++ b/docs/rpc.md
+@@ -584,7 +584,7 @@ database even with an explicit GUID. Strictly verified `send.rich` file/path
+ mode and `send.multipart` also require it. Rich-link mode requires a stored
+ existing iMessage chat; ordinary `send.rich` text does not.
+ 
+-- `send.rich` sends text with optional `effect`, `subject`, `reply_to`, `part_index`, `dd_scan`, and `text_formatting`. It also accepts `file` or `path` and securely stages the file before sending it through the attachment bridge while preserving those same caption/effect/subject/reply/part/formatting semantics. Attachment capability is checked before staging or publishing the send. Alternatively, pass only one chat target plus an HTTP(S) `url` to send an Apple URL-preview balloon. URL mode is iMessage-only and rejects text, file, and other send modifiers; metadata or image lookup failure falls back to a metadata-only card, never a plain-message send.
++- `send.rich` sends text with optional `effect`, `subject`, `reply_to`, `part_index`, `dd_scan`, and `text_formatting`. It also accepts `file` or `path` and securely stages the file before sending it through the attachment bridge while preserving those same caption/effect/subject/reply/part/formatting semantics. Attachment capability is checked before staging or publishing the send. Alternatively, pass only one chat target plus an HTTP(S) `url` to send an Apple URL-preview balloon. URL mode is iMessage-only and rejects text, file, and other send modifiers; metadata or image lookup failure falls back to a metadata-only card, never a plain-message send. Optional `fetch_metadata: false` builds that native card directly from the URL and host title, without invoking LinkPresentation metadata/image fetching or staging an image. The default remains `true`. This flag requires URL mode and must be a JSON boolean.
+ - `send.attachment` sends `file` or `path`, with optional `audio` / `is_audio` / `as_voice`. Pass `reply_to` (or `replyTo`, `reply_to_guid`, or `message_guid`) to reply to an existing message. An optional non-negative integer `part_index` / `partIndex` selects that message's part and is invalid without a reply target.
+ - `send.multipart` sends 1–20 text parts. `parts` is a required array of objects containing a non-empty `text` string and optional `text_formatting` array. Top-level `effect` / `effect_id` and `subject` match `imsg send-multipart`. File, attachment, and mention parts are rejected before bridge dispatch.
+ - `tapback` sends or removes a reaction. Params: `message_id` or `message_guid`, plus `reaction` / `kind` / `emoji`, optional `remove`.
+diff --git a/scripts/patch-deps.sh b/scripts/patch-deps.sh
+index 556e58f..670cade 100755
+--- a/scripts/patch-deps.sh
++++ b/scripts/patch-deps.sh
+@@ -63,6 +63,23 @@ elif "resolvingSymlinksInPath()" not in text:
+     print(f"Error: PhoneNumberKit bundle URL list no longer contains the expected insertion point: {path}", file=sys.stderr)
+     raise SystemExit(1)
+ 
++# SwiftPM's generated Bundle.module accessor contains an absolute build path.
++# Release executables must use the shipped bundle, never a developer checkout.
++fallback = "#if SWIFT_PACKAGE\n        return Bundle.module\n        #else"
++release_fallback = """#if SWIFT_PACKAGE
++        #if DEBUG
++        return Bundle.module
++        #else
++        fatalError("PhoneNumberKit resource bundle is missing")
++        #endif
++        #else"""
++if fallback in text:
++    text = text.replace(fallback, release_fallback)
++    updated = True
++elif release_fallback not in text:
++    print(f"Error: PhoneNumberKit bundle fallback no longer matches the reviewed source: {path}", file=sys.stderr)
++    raise SystemExit(1)
++
+ if updated:
+     path.write_text(text)
+ PY
+-- 
+2.50.1 (Apple Git-155)
+

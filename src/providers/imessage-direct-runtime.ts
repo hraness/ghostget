@@ -891,7 +891,7 @@ function parseMessages(
 
 function parseSendAccepted(
   value: unknown,
-  input: ImsgMessagingSendInput,
+  input: ImsgChatCoordinate,
 ): Readonly<Record<string, unknown>> {
   const source = record(value, "imsg send result");
   exactKeys(source, [
@@ -1033,6 +1033,9 @@ async function withRuntime<T>(
   durableCleanupAdmissionRequired: boolean,
   operation: (context: Readonly<{
     subject: string;
+    sourceGeneration: string;
+    status: unknown;
+    operationRoot: string;
     run: (
       requests: readonly ImsgRpcRequest[],
       beforeSpawn?: () => Promise<void>,
@@ -1053,6 +1056,11 @@ async function withRuntime<T>(
       ?? join(homedir(), "Library", "Messages");
     const store = await validateMessagesStore(auth.path, expectedStorePath);
     const subject = subjectForStore(store.storePath);
+    const databaseIdentity = await lstat(store.databasePath, { bigint: true });
+    const sourceGeneration = createHash("sha256").update(canonicalJson({
+      subject, device: String(databaseIdentity.dev), inode: String(databaseIdentity.ino),
+      birthtime: String(databaseIdentity.birthtimeNs),
+    })).digest("hex");
     if (auth.subject !== undefined && auth.subject !== subject) {
       throw new Error("current Messages device-default realm does not match the bound auth subject");
     }
@@ -1107,7 +1115,12 @@ async function withRuntime<T>(
       await realpath(reportedDatabasePath) !== reportedDatabasePath
       || reportedDatabasePath !== store.databasePath
     ) throw new Error("imsg status reported a different Messages database than the bound subject");
-    return await operation(Object.freeze({ subject, run }));
+    const result = await operation(Object.freeze({ subject, sourceGeneration, status: status.get("status"), operationRoot, run }));
+    const after = await lstat(store.databasePath, { bigint: true });
+    if (after.dev !== databaseIdentity.dev || after.ino !== databaseIdentity.ino || after.birthtimeNs !== databaseIdentity.birthtimeNs || after.isSymbolicLink()) {
+      throw new Error("Messages database generation changed during the operation");
+    }
+    return result;
   } finally {
     try {
       if (operationRoot === undefined) {
@@ -1136,6 +1149,23 @@ async function withRuntime<T>(
     }
   }
 }
+
+/** Internal trusted host seam: retains the pinned executable, exact database,
+ * durable process cleanup and deadline used by the existing provider runtime.
+ * Callers build only reviewed semantic requests; this is never an agent tool. */
+export async function withImsgAutomationRuntime<T>(
+  auth: GhostgetAuth,
+  options: LocalCliExecutionOptions & Readonly<{ dependencies?: ImsgDirectRuntimeDependencies }>,
+  operation: Parameters<typeof withRuntime<T>>[9],
+): Promise<T> {
+  if (options.registerCleanupBarrier === undefined) throw new Error("Messaging automation requires durable provider cleanup custody");
+  return startProviderPluginCleanupTrackedOperation(options.registerCleanupBarrier, (publish, cleanup) => withRuntime(
+    requireImsgAuth(auth), 30_000, 10 * 1024 * 1024, options.dependencies,
+    options.environment ?? process.env, options.operationDeadline, publish, cleanup, true, operation,
+  ));
+}
+
+export const imsgAutomationProjection = Object.freeze({ parseChats, parseChat, parseMessages, parseMessage, exactChat, parseSendAccepted });
 
 export async function inspectImsgDirectRuntime(
   environment: Readonly<Record<string, string | undefined>>,

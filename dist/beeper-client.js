@@ -4,11 +4,12 @@ import {
 } from "./index-26yq8q16.js";
 import {
   GHOSTGET_VERSION
-} from "./index-9wca02er.js";
+} from "./index-qcy1xrfd.js";
 import {
   canonicalJson,
   sha256
 } from "./index-gwk7rbyj.js";
+import"./index-z1w83f81.js";
 
 // src/beeper-client.ts
 import { spawnSync } from "child_process";

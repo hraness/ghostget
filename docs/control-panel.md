@@ -9,7 +9,7 @@ and capabilities refresh when you return to the app, after changes made in the
 app, or when you choose Refresh. Permission decisions always validate current
 account and integration state.
 
-Build instructions and native qualification live in [desktop/README.md](https://github.com/hraness/ghostget/blob/v0.18.0/desktop/README.md).
+Build instructions and native qualification live in [desktop/README.md](https://github.com/hraness/ghostget/blob/v0.18.1/desktop/README.md).
 The CLI's canonical five-file GitHub Release contract is unchanged. A source
 build is not a signed or notarized public macOS installer.
 
@@ -123,7 +123,7 @@ User and imported interfaces are distinguished from bundled interfaces. Remote
 references, executable import hooks, arbitrary HTTP templates, and unsupported
 input-schema constructs are rejected or remain visibly inert as appropriate.
 An interface without an executor does not become executable by importing it.
-Use the existing [provider plugin protocol](https://github.com/hraness/ghostget/blob/v0.18.0/docs/plugins.md) when a new executor is
+Use the existing [provider plugin protocol](https://github.com/hraness/ghostget/blob/v0.18.1/docs/plugins.md) when a new executor is
 needed. OpenAPI import does not grant it account access.
 
 Middleware and LLM approval are future extensions. Future hooks may propose

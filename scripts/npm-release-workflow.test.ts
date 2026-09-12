@@ -106,6 +106,7 @@ const publicExportKeys = Object.freeze([
   "./whatsapp",
   "./omni",
   "./messaging",
+  "./messaging-automation",
 ]);
 const publicImportSpecifiers = Object.freeze([
   "@hraness/ghostget",
@@ -115,6 +116,7 @@ const publicImportSpecifiers = Object.freeze([
   "@hraness/ghostget/whatsapp",
   "@hraness/ghostget/omni",
   "@hraness/ghostget/messaging",
+  "@hraness/ghostget/messaging-automation",
 ]);
 const publicDistEntrypoints = Object.freeze([
   "dist/index.js",
@@ -124,6 +126,7 @@ const publicDistEntrypoints = Object.freeze([
   "dist/whatsapp-client.js",
   "dist/omni-client.js",
   "dist/messaging.js",
+  "dist/messaging-automation-api.js",
 ]);
 
 function workflowStepScript(workflow: string, name: string): string {
@@ -1163,7 +1166,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(13_263_360);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_051_264);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1320,23 +1323,33 @@ describe("npm publication contract", () => {
     expect(budget).toContain("6fdc9574102d2364548291891b8b81f9c1c1b442a95dfb13dce0d42f7e66944c");
     expect(budget).toContain("2,802-byte Linux spread and the reviewed 4,096-byte portability allowance");
     expect(budget).toContain("This is a projection, not Linux evidence");
+    expect(budget).toContain("12,561,964 compressed / 27,437,097 payload");
+    expect(budget).toContain("0914c7721df5cd1a2e317d334d7ee60e6ff8f461e4e61a21aae086cd9d5fb322");
+    expect(budget).toContain("11,638,165 compressed / 22,474,305 payload");
+    expect(budget).toContain("56b38a2714918029075503d4e916f797e97e9ccaa76bed894421e2b4946ac677");
+    expect(budget).toContain("11,648,247 + 4,096 = 11,652,343");
+    expect(budget).toContain("52553bf2a994d12620df6973d2be365ca5b8ebf1c5e3266165d6b1000e7ea72f");
+    expect(budget).toContain("f3a019d12d62d947e963dd6b81dc583e1897f0e76261fbd3f1ef8705390ed5b5");
+    expect(budget).toContain("1.3.2.1-motley-42c2f19");
+    expect(budget).toContain("3e96590b2334be064df614a9c65908b460f07be65def73d39eb71ab91d5fe204");
+    expect(budget).toContain("11,649,726 + 4,096 = 11,653,822");
+    expect(MAX_PACKED_BYTES).toBe(11_653_822);
+    expect(MAX_PACKED_BYTES).toBe(11_649_726 + 4_096);
+    expect(MAX_PACKED_ENTRIES).toBe(558);
+    expect(MAX_PACKED_FILES).toBe(558);
+    expect(MAX_UNPACKED_BYTES).toBe(22_479_104);
+    expect(MAX_UNPACKED_BYTES).toBe(22_479_039 + 65);
     expect(budget).toContain("2,324,169 + 4,096 = 2,328,265");
     expect(budget).toContain("2,330,878 + 4,096 = 2,334,974");
-    expect(MAX_PACKED_BYTES).toBe(2_334_974);
-    expect(MAX_PACKED_BYTES).toBe(2_330_878 + 4_096);
-    expect(MAX_PACKED_ENTRIES).toBe(524);
-    expect(MAX_PACKED_FILES).toBe(524);
-    expect(MAX_UNPACKED_BYTES).toBe(12_725_844);
-    expect(MAX_UNPACKED_BYTES).toBe(12_725_779 + 65);
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
     for (const range of Object.values(packageArtifactBudget)) {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 524, max: 524 },
-      fileCount: { min: 524, max: 524 },
-      packedBytes: { min: 1_600_000, max: 2_334_974 },
-      unpackedBytes: { min: 9_000_000, max: 12_725_844 },
+      entryCount: { min: 558, max: 558 },
+      fileCount: { min: 558, max: 558 },
+      packedBytes: { min: 1_600_000, max: 11_653_822 },
+      unpackedBytes: { min: 9_000_000, max: 22_479_104 },
     });
   });
 
@@ -1351,14 +1364,15 @@ describe("npm publication contract", () => {
     });
   });
 
-  test("keeps the exact seven public SDK entrypoints and required source inventory", async () => {
-    const [manifestSource, tsconfigSource, artifact, packageSmoke, standaloneSmoke]
+  test("keeps the exact eight public SDK entrypoints and required source inventory", async () => {
+    const [manifestSource, tsconfigSource, artifact, packageSmoke, standaloneSmoke, releaseWorkflow]
       = await Promise.all([
         readFile(manifestUrl, "utf8"),
         readFile(tsconfigUrl, "utf8"),
         readFile(packageArtifactUrl, "utf8"),
         readFile(packageSmokeUrl, "utf8"),
         readFile(standaloneSmokeUrl, "utf8"),
+        readFile(releaseWorkflowUrl, "utf8"),
       ]);
     const value: unknown = JSON.parse(manifestSource);
     expect(typeof value).toBe("object");
@@ -1367,6 +1381,10 @@ describe("npm publication contract", () => {
     expect(typeof manifest.exports).toBe("object");
     expect(manifest.exports).not.toBeNull();
     expect(Object.keys(manifest.exports as object)).toEqual(publicExportKeys);
+    expect((manifest.exports as Record<string, unknown>)["./messaging-automation"]).toEqual({
+      types: "./src/messaging-automation-types.ts",
+      import: "./dist/messaging-automation-api.js",
+    });
     expect(Array.isArray(manifest.files)).toBe(true);
     const files = manifest.files as readonly unknown[];
     expect(files.every((path) => typeof path === "string" && path.length > 0)).toBe(true);
@@ -1393,7 +1411,13 @@ describe("npm publication contract", () => {
       "@hraness/ghostget/whatsapp": ["./src/whatsapp-client.ts"],
       "@hraness/ghostget/omni": ["./src/omni-client.ts"],
       "@hraness/ghostget/messaging": ["./src/messaging.ts"],
+      "@hraness/ghostget/messaging-automation": ["./src/messaging-automation-types.ts"],
     });
+    const releaseNodeImports = releaseWorkflow.match(/await Promise\.all\(\[(.*?)\]\.map/u)?.[1];
+    expect(releaseNodeImports).toBeDefined();
+    expect(JSON.parse(`[${releaseNodeImports ?? ""}]`)).toEqual(
+      publicDistEntrypoints.map(path => `./${path}`),
+    );
     for (const specifier of publicImportSpecifiers) {
       expect(packageSmoke).toContain(`"${specifier}"`);
       expect(standaloneSmoke).toContain(`"${specifier}"`);
