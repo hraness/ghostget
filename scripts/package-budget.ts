@@ -1,3 +1,12 @@
+// Ghostget 0.18.3 Lantern release candidate ece1a6a. Required Linux CI
+// 34708922100, static job 103593972035 and package job 103593972046,
+// independently measured 22,521,539 unpacked bytes: exactly 250 bytes
+// above main af759ce2, all from the versioned Lantern changelog entry.
+// Version coordinates keep their length; the 558-file inventory, native
+// assets, packed-byte ceiling and website/package boundary are unchanged.
+// Retain the reviewed 65-byte payload allowance: 22,521,539 + 65 = 22,521,604.
+// Fresh Required CI and Release must still inspect their canonical bytes.
+//
 // Ghostget 0.18.2 source plus the LinkedIn `contacts.read` click when
 // NavigateToScreen extract is absent (adapter bundle 1.36.3), measured
 // from the 1.36.2 Linux x64 payload plus the exact packed-file delta:
@@ -797,7 +806,7 @@
 export const MAX_PACKED_BYTES = 11_661_673;
 export const MAX_PACKED_ENTRIES = 558;
 export const MAX_PACKED_FILES = 558;
-export const MAX_UNPACKED_BYTES = 22_521_354;
+export const MAX_UNPACKED_BYTES = 22_521_604;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
