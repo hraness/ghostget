@@ -175,13 +175,13 @@ export type LinkedInContactNavigationPayload = {
   readonly givenName?: string;
   readonly familyName?: string;
   readonly isVanityNameResolved?: boolean;
+  readonly requestMetadata?: LinkedInContactNavigationRequestMetadata;
 };
 
 export type LinkedInContactNavigationClientArguments = {
   readonly $type?: string;
   readonly requestedStateKeys?: readonly string[];
   readonly payload: LinkedInContactNavigationPayload;
-  readonly requestMetadata?: LinkedInContactNavigationRequestMetadata;
 };
 
 export type LinkedInContactNavigationAction = {
@@ -323,7 +323,7 @@ export function buildLinkedInContactNavigationBody(
   input: Pick<LinkedInContactNavigationAction, "clientArguments">,
 ): string {
   return JSON.stringify({
-    clientArguments: input.clientArguments,
+    clientArguments: canonicalContactNavigationClientArguments(input.clientArguments),
     isModal: true,
   });
 }
@@ -1320,6 +1320,52 @@ function reviewedRequestMetadata(
     : { kind: "meta", meta: Object.freeze(meta) };
 }
 
+function headedContactRequestMetadata(
+  meta?: LinkedInContactNavigationRequestMetadata,
+): LinkedInContactNavigationRequestMetadata {
+  return Object.freeze({
+    $type: meta?.$type ?? LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+    states: meta?.states ?? Object.freeze([]),
+    screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+    knownTemplates: meta?.knownTemplates ?? Object.freeze([]),
+  });
+}
+
+function canonicalContactNavigationPayload(
+  payload: LinkedInContactNavigationPayload,
+): LinkedInContactNavigationPayload {
+  const next: {
+    vanityName?: string;
+    givenName?: string;
+    familyName?: string;
+    isVanityNameResolved?: boolean;
+    requestMetadata: LinkedInContactNavigationRequestMetadata;
+  } = {
+    requestMetadata: headedContactRequestMetadata(payload.requestMetadata),
+  };
+  if (payload.vanityName !== undefined) next.vanityName = payload.vanityName;
+  if (payload.givenName !== undefined) next.givenName = payload.givenName;
+  if (payload.familyName !== undefined) next.familyName = payload.familyName;
+  if (payload.isVanityNameResolved !== undefined) next.isVanityNameResolved = payload.isVanityNameResolved;
+  return Object.freeze({
+    ...(next.vanityName === undefined ? {} : { vanityName: next.vanityName }),
+    ...(next.givenName === undefined ? {} : { givenName: next.givenName }),
+    ...(next.familyName === undefined ? {} : { familyName: next.familyName }),
+    ...(next.isVanityNameResolved === undefined ? {} : { isVanityNameResolved: next.isVanityNameResolved }),
+    requestMetadata: next.requestMetadata,
+  });
+}
+
+function canonicalContactNavigationClientArguments(
+  args: LinkedInContactNavigationClientArguments,
+): LinkedInContactNavigationClientArguments {
+  return Object.freeze({
+    $type: args.$type ?? LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+    requestedStateKeys: args.requestedStateKeys ?? Object.freeze([]),
+    payload: canonicalContactNavigationPayload(args.payload),
+  });
+}
+
 function reviewedContactNavigationClientArguments(
   raw: JsonRecord | null,
 ):
@@ -1340,7 +1386,6 @@ function reviewedContactNavigationClientArguments(
       $type?: string;
       requestedStateKeys?: readonly string[];
       payload: LinkedInContactNavigationPayload;
-      requestMetadata?: LinkedInContactNavigationRequestMetadata;
     } = { payload: Object.freeze({}) };
     if (raw.$type !== undefined) {
       const type = reviewedSduiType(raw.$type);
@@ -1358,6 +1403,13 @@ function reviewedContactNavigationClientArguments(
       | { readonly kind: "meta"; readonly meta: LinkedInContactNavigationRequestMetadata }
       | { readonly kind: "unreviewed"; readonly keys: readonly string[] }
       | { readonly kind: "empty" } = { kind: "empty" };
+    const payload: {
+      vanityName?: string;
+      givenName?: string;
+      familyName?: string;
+      isVanityNameResolved?: boolean;
+      requestMetadata?: LinkedInContactNavigationRequestMetadata;
+    } = {};
     if (raw.payload !== undefined) {
       if (!isRecord(raw.payload)) return { kind: "unreviewed", keys: Object.freeze(["payload"]) };
       const extraPayload = Object.keys(raw.payload)
@@ -1365,12 +1417,6 @@ function reviewedContactNavigationClientArguments(
       if (extraPayload.length > 0) {
         return { kind: "unreviewed", keys: Object.freeze(extraPayload.map((key) => `payload.${key}`)) };
       }
-      const payload: {
-        vanityName?: string;
-        givenName?: string;
-        familyName?: string;
-        isVanityNameResolved?: boolean;
-      } = {};
       if (raw.payload.vanityName !== undefined) {
         const vanity = optionalPublicIdentifier(raw.payload.vanityName);
         if (vanity === null) return { kind: "unreviewed", keys: Object.freeze(["payload.vanityName"]) };
@@ -1401,19 +1447,19 @@ function reviewedContactNavigationClientArguments(
           ))),
         };
       }
-      args.payload = Object.freeze(payload);
     }
     if (siblingMetadata.kind === "meta" && nestedMetadata.kind === "meta") {
       if (!requestMetadataEquals(siblingMetadata.meta, nestedMetadata.meta)) {
         return { kind: "unreviewed", keys: Object.freeze(["requestMetadata"]) };
       }
-      args.requestMetadata = siblingMetadata.meta;
+      payload.requestMetadata = headedContactRequestMetadata(siblingMetadata.meta);
     } else if (siblingMetadata.kind === "meta") {
-      args.requestMetadata = siblingMetadata.meta;
+      payload.requestMetadata = headedContactRequestMetadata(siblingMetadata.meta);
     } else if (nestedMetadata.kind === "meta") {
-      args.requestMetadata = nestedMetadata.meta;
+      payload.requestMetadata = headedContactRequestMetadata(nestedMetadata.meta);
     }
-    return { kind: "args", args: Object.freeze(args) };
+    args.payload = Object.freeze(payload);
+    return { kind: "args", args: canonicalContactNavigationClientArguments(Object.freeze(args)) };
   }
   const extra = Object.keys(raw).filter((key) => (
     key !== "vanityName"
@@ -1559,15 +1605,15 @@ export function extractLinkedInContactNavigationAction(input: {
     }
   }
   const clientArguments = reviewed?.kind === "args"
-    ? Object.freeze({
+    ? canonicalContactNavigationClientArguments({
         ...reviewed.args,
-        payload: Object.freeze({
+        payload: {
           ...reviewed.args.payload,
           vanityName: reviewed.args.payload.vanityName ?? publicIdentifier,
-        }),
+        },
       })
-    : Object.freeze({
-        payload: Object.freeze({ vanityName: publicIdentifier }),
+    : canonicalContactNavigationClientArguments({
+        payload: { vanityName: publicIdentifier },
       });
   if (!clientArgumentsBindTarget(clientArguments, publicIdentifier)) {
     return { kind: "unbound-client-arguments" };

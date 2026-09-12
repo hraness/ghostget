@@ -108,7 +108,6 @@ test("LinkedIn contact-info navigation POST binds sduiid to the overlay screenId
         $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
         requestedStateKeys: [],
         payload: { vanityName: slug, givenName: "Ada", familyName: "Example", isVanityNameResolved: true },
-        requestMetadata: { $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE },
       },
     }).replace(/[&<>"=\\]/gu, (character) => ({
       "&": "&amp;",
@@ -135,8 +134,13 @@ test("LinkedIn contact-info navigation POST binds sduiid to the overlay screenId
             givenName: "Ada",
             familyName: "Example",
             isVanityNameResolved: true,
+            requestMetadata: {
+              $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+              states: [],
+              screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+              knownTemplates: [],
+            },
           },
-          requestMetadata: { $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE },
         },
         isModal: true,
       },

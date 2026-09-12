@@ -7,6 +7,30 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Nest LinkedIn `contacts.read@1` Contact-info `requestMetadata` under
+  `payload` after adapter 1.32.0. Live peel of sibling `proto.sdui`
+  types succeeded, but the POST still returned HTTP 500 `text/html`
+  because the body sent empty sibling `RequestMetadata{$type}` and
+  omitted headed children `states`, `screenId`, and `knownTemplates`.
+  Headed 200 Email capture
+  `POST-navigation-body-shape-20260912.md` keeps
+  `clientArguments.$type`, `requestedStateKeys: []`, and nested
+  `payload.requestMetadata` with `$type`, `states: []`, overlay
+  `screenId`, and `knownTemplates: []`. The builder now emits that
+  exact headed shape, including when dormant HTML omits metadata, and
+  copies reviewed string lists when the page already has them. Empty
+  arrays and the two reviewed `proto.sdui` `$type` values come from
+  that capture, not invented opaque state. Extra keys, object-valued
+  states, and unrelated proto prefixes still fail closed. GraphQL 403,
+  navigation GETs, vanity HTML-shell honesty, and `sduiid=screenId`
+  stay. Contained Chrome already sends `Accept: */*`,
+  `Content-Type: application/json`, and session `csrf-token` for this
+  POST; it does not mint `X-Li-*` track values. Soft-labels stay.
+  Self, non-first-degree, and contradictory distances still fail
+  closed, and no email is invented. Adapter bundle 1.33.0.
+  This is the eleventh live Contact-info drift after the 1.32.0 sibling
+  peel. Cloud has no signed-in LinkedIn session; do not treat this
+  landing as live green.
 - Fix LinkedIn `contacts.read@1` Contact-info navigation POST body after
   adapter 1.31.0. Live 1st-degree bind still succeeded, but building
   `clientArguments` from NavigateToScreen failed closed on
