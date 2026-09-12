@@ -112,3 +112,44 @@ export type AutomationRun = Readonly<{
   totalActions: number; reason: string | null; retryable: false;
 }>;
 export type AutomationEvent = Readonly<{ sequence: number; enrollmentId: string; revision: number; message: AutomationMessage }>;
+
+/** Public trusted-host surface. No registry, database or provider implementation
+ * types are part of this contract. Creating a host requires Bun. */
+export interface MessagingAutomationHostApi {
+  providerStatus(provider: AutomationProviderId, signal?: AbortSignal): Promise<AutomationProviderStatus>;
+  conversations(input: Readonly<{ provider: AutomationProviderId; limit: number }>, signal?: AbortSignal): Promise<Readonly<{
+    identity: AutomationIdentity; conversations: readonly AutomationConversation[]; complete: boolean;
+  }>>;
+  enroll(input: Readonly<{ provider: AutomationProviderId; coordinate: AutomationCoordinate }>, signal?: AbortSignal): Promise<AutomationEnrollment>;
+  enrollments(): readonly AutomationEnrollment[];
+  history(input: Readonly<{ enrollmentId: string; limit: number }>): Readonly<{ enrollment: AutomationEnrollment; messages: readonly AutomationMessage[] }>;
+  grant(request: AutomationGrantRequest, intentId?: string): AutomationGrant;
+  grantByIntent(intentId: string): AutomationGrant | null;
+  grantStatus(grantId: string): AutomationGrant;
+  revoke(grantId: string): void;
+  poll(enrollmentId: string, signal?: AbortSignal): Promise<AutomationEnrollment>;
+  events(input: Readonly<{ enrollmentIds: readonly string[]; cursor: string | null; limit: number }>): Readonly<{
+    events: readonly AutomationEvent[]; nextCursor: string; caughtUp: boolean;
+  }>;
+  prepare(request: AutomationPlanRequest): AutomationPlan;
+  submit(input: Readonly<{ planId: string; grantId: string }>, signal?: AbortSignal): Promise<AutomationRun>;
+  run(runId: string): AutomationRun;
+  cancel(planId: string): boolean;
+  /** Resolves only after all provider operations and owned children have joined. */
+  close(): Promise<void>;
+}
+
+export type MessagingRuntimeInstallation = Readonly<{ version: string; sha256: string; alreadyPresent?: boolean }>;
+
+/** Injected providers are trusted owner code and must enforce their permissions.
+ * Use the CLI stdio host for built-in account/registry-managed providers. */
+export declare function createMessagingAutomationHost(
+  providers: readonly MessagingAutomationProvider[],
+  environment?: Readonly<Record<string, string | undefined>>,
+): Promise<MessagingAutomationHostApi>;
+
+/** Installs exact bundled bytes; never pairs, starts sync or grants authority. */
+export declare function installBundledMessagingRuntime(
+  provider: AutomationProviderId,
+  environment?: Readonly<Record<string, string | undefined>>,
+): Promise<MessagingRuntimeInstallation>;

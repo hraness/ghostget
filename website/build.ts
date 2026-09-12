@@ -55,7 +55,7 @@ export const GITHUB_RELEASES_URL = "https://github.com/hraness/ghostget/releases
 export const SKILLS_URL = "https://skills.sh/hraness/ghostget" as const;
 export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.0" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.1" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV =
   "NEXT_PUBLIC_HRANESS_MAILING_TURNSTILE_SITEKEY" as const;
@@ -648,6 +648,7 @@ function renderTemplate(
       String(options.attestation.captureRequiredCount),
     ],
     ["{{PROVIDER_CAPABILITY_OBSERVED_COUNT}}", String(options.attestation.observedCount)],
+    ["{{PROVIDER_CALLABLE_ACTION_COUNT}}", String(options.providerDirectory.entries.reduce((sum, entry) => sum + entry.supportedActionCount, 0))],
     ["{{PROVIDER_CAPABILITY_OPERATION_COUNT}}", String(options.attestation.operationCount)],
     ["{{PROVIDER_SURFACE_COUNT}}", String(options.providerDirectory.providerCount)],
   ]);

@@ -7,6 +7,14 @@ contains only protocol responses. Do not run it in a terminal or record its
 streams in general logs. It does not pair accounts or start synchronization on
 initialization.
 
+The `@hraness/ghostget/messaging-automation` SDK exports the closed message,
+grant, plan and receipt types, an explicit `createMessagingAutomationHost` for
+trusted owner-supplied providers, and `installBundledMessagingRuntime`. Imports
+are inert in Node and Bun; host construction requires Bun. Supplied providers
+must enforce their own exact permissions and cleanup. Use the stdio host above
+for Ghostget's built-in accounts and managed registry; its session factory is
+internal and is not part of the SDK.
+
 Install the current bundled `imessage-direct` or `whatsapp-web` adapter, bind an
 explicit existing Ghostget account, and enable managed operation permissions in
 Ghostget. Grant `allow` separately to `messaging.automation.read`, the required

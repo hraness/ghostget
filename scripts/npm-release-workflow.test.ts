@@ -1359,6 +1359,10 @@ describe("npm publication contract", () => {
     expect(typeof manifest.exports).toBe("object");
     expect(manifest.exports).not.toBeNull();
     expect(Object.keys(manifest.exports as object)).toEqual(publicExportKeys);
+    expect((manifest.exports as Record<string, unknown>)["./messaging-automation"]).toEqual({
+      types: "./src/messaging-automation-types.ts",
+      import: "./dist/messaging-automation-api.js",
+    });
     expect(Array.isArray(manifest.files)).toBe(true);
     const files = manifest.files as readonly unknown[];
     expect(files.every((path) => typeof path === "string" && path.length > 0)).toBe(true);
@@ -1385,7 +1389,7 @@ describe("npm publication contract", () => {
       "@hraness/ghostget/whatsapp": ["./src/whatsapp-client.ts"],
       "@hraness/ghostget/omni": ["./src/omni-client.ts"],
       "@hraness/ghostget/messaging": ["./src/messaging.ts"],
-      "@hraness/ghostget/messaging-automation": ["./src/messaging-automation-api.ts"],
+      "@hraness/ghostget/messaging-automation": ["./src/messaging-automation-types.ts"],
     });
     const releaseNodeImports = releaseWorkflow.match(/await Promise\.all\(\[(.*?)\]\.map/u)?.[1];
     expect(releaseNodeImports).toBeDefined();

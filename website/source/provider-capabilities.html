@@ -49,8 +49,8 @@
         <header class="guide-hero">
           <p class="eyebrow">Provider support · Ghostget {{GHOSTGET_VERSION}}</p>
           <h1>Choose a service. See what your agent can do.</h1>
-          <p class="answer-lede">This directory lists the actions supported by the current Ghostget release and the access method each service uses. An action that is not listed is not available.</p>
-          <p class="review-note">Run <code>ghostget capabilities --json</code> to see the exact support installed on your machine.</p>
+          <p class="answer-lede">This directory lists the current release's generic actions and, separately, owner-only messaging permissions. Each service names its access method. A listed contract still needs the required account, permissions, and runtime capabilities; an absent action is unavailable.</p>
+          <p class="review-note">Run <code>ghostget capabilities --json</code> to inspect installed contracts, then check readiness for the account and runtime you intend to use.</p>
         </header>
 
         <section aria-labelledby="directory">
@@ -63,7 +63,7 @@
 
         <section aria-labelledby="actions">
           <h2 id="actions">Supported actions by service</h2>
-          <p>The action name is the stable command surface your agent uses. The access label tells you whether Ghostget connects through an official API, a signed-in session, a linked device, or a local app.</p>
+          <p>Generic action names identify the command surface your agent uses. The access label names an official API, signed-in session, linked device, or local app. The separate <code>messaging.automation.*</code> entries authorize the trusted owner host only; they cannot run through generic <code>invoke</code> or <code>confirm</code>. An owner grant and current runtime support are required before that host can send.</p>
           <div class="provider-attestation-groups">
             {{PROVIDER_ATTESTATION_GROUPS}}
           </div>

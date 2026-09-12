@@ -31,7 +31,7 @@
         "./src/messaging.ts"
       ],
       "@hraness/ghostget/messaging-automation": [
-        "./src/messaging-automation-api.ts"
+        "./src/messaging-automation-types.ts"
       ]
     },
     "verbatimModuleSyntax": true,

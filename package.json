@@ -76,7 +76,7 @@
       "import": "./dist/messaging.js"
     },
     "./messaging-automation": {
-      "types": "./src/messaging-automation-api.ts",
+      "types": "./src/messaging-automation-types.ts",
       "import": "./dist/messaging-automation-api.js"
     }
   },
