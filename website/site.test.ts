@@ -1155,7 +1155,7 @@ describe("ghostget.com static site", () => {
       "utf8",
     );
     expect(providerCapabilities?.html).toContain(
-      "This directory lists the actions supported by the current Ghostget release",
+      "This directory lists the current release's generic actions and, separately, owner-only messaging permissions.",
     );
     expect(html).toContain(providerCards);
     expect(providerCapabilities?.html).toContain(providerCards);
