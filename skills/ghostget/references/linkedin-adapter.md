@@ -431,13 +431,29 @@ rsc-action or voyager requests or that document, and forwards optional
 `x-li-track` (`mpName` `web` or `voyager-web`),
 `x-li-application-version`, `x-li-application-instance`,
 `x-li-anchor-page-key`, and `x-li-rsc-stream=true` only when the same
-observation already has those values. It does not mint `traceparent`,
-`tracestate`, `pageforest`, page-instance-tracking-id, or layout-tree.
-Those headed-only headers remain blockers if a later POST is still
-500. Live query key stays `sduiid=` (headed 200 Email POST and public
-SDUI `server-request` / `pagination` routes); `sduid=` notes are
-transcription typos. Missing or ambiguous page-instance fails closed
-before POST.
+observation already has those values.
+
+A later signed-in smoke after adapter 1.34.0 kept that exact headed
+body and forwarded page-instance, track (`mpName=web`), application
+version/instance, anchor page key, and `rscStream=true`, then still
+returned HTTP 500 `text/html`. The same contained-browser
+`/flagship-web/rsc-action/` observations on the bound profile already
+carried `x-li-page-instance-tracking-id`, `x-li-pageforestid`,
+`x-li-traceparent`, and `x-li-tracestate`; 1.34.0 left those names off.
+Adapter 1.35.0 copies those original strings from the same selected
+rsc-action observation under a reviewed allowlist, copies
+`x-li-layout-tree` only when that observation has it, and does not mint
+any of those values when they are absent. Missing or malformed observed
+values fail closed before POST. Live query key stays `sduiid=` (headed
+200 Email POST and public SDUI `server-request` / `pagination` routes);
+`sduid=` notes are transcription typos. Missing or ambiguous
+page-instance fails closed before POST. Headed successful body
+Content-Length was 400; compact emit at 398 stays.
+
+```sh
+printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \
+  | ghostget invoke linkedin-web contacts.read --input - --auth linkedin-dormant-20260911 --json
+```
 
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid
