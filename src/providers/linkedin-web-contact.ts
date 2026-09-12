@@ -1571,6 +1571,55 @@ export function linkedInContactNavigationActionError(
   );
 }
 
+export function extractLinkedInProfileContactNames(input: {
+  readonly profileHtml: unknown;
+  readonly publicIdentifier: string;
+}): {
+  readonly givenName?: string;
+  readonly familyName?: string;
+} {
+  const publicIdentifier = linkedInPersonalProfilePublicIdentifier(input.publicIdentifier);
+  const given = new Set<string>();
+  const family = new Set<string>();
+  for (const record of embeddedRecords(input.profileHtml)) {
+    if (vanityFromRecord(record) !== publicIdentifier) continue;
+    const givenName = optionalPersonName(record.givenName ?? record.firstName);
+    const familyName = optionalPersonName(record.familyName ?? record.lastName);
+    if (givenName !== null) given.add(givenName);
+    if (familyName !== null) family.add(familyName);
+  }
+  const uniqueGiven = given.size === 1 ? [...given][0] : undefined;
+  const uniqueFamily = family.size === 1 ? [...family][0] : undefined;
+  return Object.freeze({
+    ...(uniqueGiven === undefined ? {} : { givenName: uniqueGiven }),
+    ...(uniqueFamily === undefined ? {} : { familyName: uniqueFamily }),
+  });
+}
+
+export function buildLinkedInAbsentContactNavigationAction(input: {
+  readonly profileHtml: unknown;
+  readonly publicIdentifier: string;
+  readonly profileUrn: string;
+}): LinkedInContactNavigationAction {
+  const publicIdentifier = linkedInPersonalProfilePublicIdentifier(input.publicIdentifier);
+  profileUrn(input.profileUrn);
+  const names = extractLinkedInProfileContactNames({
+    profileHtml: input.profileHtml,
+    publicIdentifier,
+  });
+  return Object.freeze({
+    sduiid: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+    clientArguments: canonicalContactNavigationClientArguments({
+      payload: {
+        vanityName: publicIdentifier,
+        ...names,
+        isVanityNameResolved: true,
+      },
+    }),
+    isModal: true,
+  });
+}
+
 export function extractLinkedInContactNavigationAction(input: {
   readonly profileHtml: unknown;
   readonly publicIdentifier: string;

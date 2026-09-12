@@ -256,31 +256,31 @@ fetch. Long SDUI strings used as field labels are skipped instead of aborting
 the profile-stage walk. Otherwise it first inspects the page's exact
 Contact-info NavigateToScreen action. A reviewed action still admits only
 the ProfileContactDetailsOverlay URL (`sduiid` equal to that overlay
-`screenId`). Adapter 1.36.2 then clicks the unique accessible name
+`screenId`). Adapter 1.36.3 then clicks the unique accessible name
 `Contact info` on the already-loaded 1st-degree profile and projects Email
 from that modal DOM, including when that control's `href` matches
 `/overlay/contact-info/` and contained Chrome follows that reviewed vanity
-overlay pathname after click. Malformed or unsupported action fields stop
-the operation. Zero or two-plus matching controls, a path other than the
-bound profile or `/in/:publicIdentifier/overlay/contact-info/`, or a
-missing or ambiguous dialog, fail closed. The contained path does not mint
-a synthetic navigation POST or track headers, and it does not fetch that
-overlay href as a navigation GET. Only when the
-action is absent
-does it use a page-resolved GraphQL `queryId` for
-`voyagerIdentityDashProfileContactInfo`, when the HTML contains exactly one
-decorated revision. Variables are exactly `(profileUrn:{urn})`. When that
-queryId is absent, or when the GraphQL GET returns a reviewed HTTP 403
-`text/html` rejection, the operation GETs the exact vanity
-`/in/:publicIdentifier/overlay/contact-info/` overlay with RSC browser
-binding. ScreenId-only and `profileUrn`-bound
+overlay pathname after click. When the NavigateToScreen extract is
+`absent`, the same click still uses that reviewed overlay `sduiid` plus a
+headed clientArguments payload from the bound vanity, optional
+givenName/familyName parsed from profile HTML when unique,
+`isVanityNameResolved`, nested requestMetadata
+states/screenId/knownTemplates, and `isModal` true. Malformed or
+unsupported action fields stop the operation. Zero or two-plus matching
+controls, a path other than the bound profile or
+`/in/:publicIdentifier/overlay/contact-info/`, or a missing or ambiguous
+dialog, fail closed. The contained path does not mint a synthetic
+navigation POST or track headers, and it does not fetch that overlay href
+as a navigation GET. GraphQL `voyagerIdentityDashProfileContactInfo` and
+the vanity overlay RSC GET stay unused once that click is selected.
+ScreenId-only and `profileUrn`-bound
 `/flagship-web/rsc-action/actions/navigation` overlay GET URLs stay rejected
 because live dormant sessions return HTTP 500 `application/octet-stream`.
 Classic `/voyager/api/identity/profiles/{vanity}/profileContactInfo` now
-returns HTTP 410 and is rejected. The executable contract is those reviewed
-first-party reads, the reviewed Contact info click and modal snapshot, or
-the page-embedded fields. It accepts no caller-selected RSC body, selector,
-or script. This contact read does not message, connect, or InMail.
+returns HTTP 410 and is rejected. The executable contract is the reviewed
+Contact info click and modal snapshot, or the page-embedded fields. It
+accepts no caller-selected RSC body, selector, or script. This contact
+read does not message, connect, or InMail.
 
 The projection returns `email` when LinkedIn shows it, plus any of the vanity
 profile link, connected-since date, phone numbers, websites, and birthday.
@@ -474,9 +474,15 @@ GET. Operator smoke after that click fail-closed because contained
 Chrome left `/in/tessbloch/` for
 `/in/tessbloch/overlay/contact-info/`. Adapter 1.36.2 treats that
 reviewed vanity overlay pathname as still bound after click, then
-snapshots the unique dialog. Authwall and any other path still fail
-closed. It does not mint a navigation POST or track headers. Cloud has
-no signed-in LinkedIn session; do not treat this landing as live green.
+snapshots the unique dialog. Operator smoke after that bind was green
+for Email on tessbloch when the extract was `absent` and the operator
+clicked with the reviewed overlay `sduiid` plus headed clientArguments.
+Official `contacts.read` still used GraphQL or the vanity overlay GET
+on that absent extract. Adapter 1.36.3 uses the same click and modal
+snapshot when extract is `absent`. Authwall and any other path still
+fail closed. It does not mint a navigation POST or track headers.
+Cloud has no signed-in LinkedIn session; do not treat this landing as
+live green.
 
 ```sh
 printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \
