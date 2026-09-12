@@ -310,6 +310,9 @@ export function buildLinkedInProfileContactDetailsNavigationPostPath(
   const sduiid = input.sduiid === undefined
     ? LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID
     : parseLinkedInContactNavigationSduiid(input.sduiid);
+  // Live LinkedIn rsc-action routes use `sduiid`, not `sduid`. The headed 200
+  // Contact-info POST and public SDUI server-request/pagination URLs keep that
+  // spelling; `sduid=` notes are transcription typos.
   return `${LINKEDIN_CONTACT_DETAILS_OVERLAY_PATH}?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&sduiid=${encodeURIComponent(sduiid)}`;
 }
 

@@ -1178,7 +1178,7 @@ describe("ghostget manifest parsing", () => {
     const current = parseRuntimeManifest(currentValue);
     expect(current.ok).toBeTrue();
     if (!current.ok) return;
-    expect(current.value.version).toBe("1.33.0");
+    expect(current.value.version).toBe("1.34.0");
     const draft = current.value.operations["articles.draft.save"];
     expect(draft !== undefined && isWebSessionOperation(draft)).toBeTrue();
     if (draft === undefined || !isWebSessionOperation(draft)) return;

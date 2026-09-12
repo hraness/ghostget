@@ -421,6 +421,24 @@ stays `sduiid=` matching overlay `screenId`. If a later 500 persists
 after this exact body, the remaining gap is headed-only non-empty
 `states` / `knownTemplates`, not sibling placement.
 
+A later signed-in smoke after adapter 1.33.0 kept that exact headed
+body and still returned HTTP 500 `text/html` from contained Chrome.
+The POST ran from the signed-in origin fetch context, not the loaded
+profile document, so it omitted page-instance headers the SPA sets.
+Adapter 1.34.0 opens the exact reviewed profile URL, copies a unique
+`d_flagship3_profile*` `x-li-page-instance` from observed same-origin
+rsc-action or voyager requests or that document, and forwards optional
+`x-li-track` (`mpName` `web` or `voyager-web`),
+`x-li-application-version`, `x-li-application-instance`,
+`x-li-anchor-page-key`, and `x-li-rsc-stream=true` only when the same
+observation already has those values. It does not mint `traceparent`,
+`tracestate`, `pageforest`, page-instance-tracking-id, or layout-tree.
+Those headed-only headers remain blockers if a later POST is still
+500. Live query key stays `sduiid=` (headed 200 Email POST and public
+SDUI `server-request` / `pagination` routes); `sduid=` notes are
+transcription typos. Missing or ambiguous page-instance fails closed
+before POST.
+
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid
 Contact info from that viewer. The operation never invents a hidden email.

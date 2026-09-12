@@ -74,6 +74,8 @@ test("LinkedIn contact-info targets and request paths stay bound to one vanity",
     expect([...navigation.searchParams.keys()]).toEqual(["screenId", "sduiid"]);
     expect(navigation.searchParams.get("screenId")).toBe(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID);
     expect(navigation.searchParams.get("sduiid")).toBe(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID);
+    expect(navigation.searchParams.has("sduid")).toBeFalse();
+    expect(navigation.href).not.toContain("sduid=");
     expect(() => assertLinkedInContactInfoRequest({
       method: "POST",
       url: navigation,

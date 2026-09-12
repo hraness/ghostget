@@ -802,6 +802,7 @@ function linkedInProfileStatsFailure(
         "execution-context": "contained-browser execution context",
         "identity-json": "signed-in identity JSON",
         "output-bound": "contained-browser output bound",
+        "page-binding": "reviewed profile page-instance binding",
         "provider-fetch": "contained-browser first-party fetch",
         "response-envelope": "bounded response envelope",
         "response-rejected": "first-party page response",
