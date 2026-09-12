@@ -93,15 +93,17 @@ The canonical asset set is exactly:
 - `SHA256SUMS`, covering the preceding three files in that order.
 - `provenance.jsonl`, the GitHub attestation bundle for all four build files.
 
-Ghostget has no separate platform-native release assets. Its optional native
+The canonical CLI release has no platform-native assets. Its optional native
 providers retain their existing installation, identity, and live admission
 requirements. Publishing the CLI does not establish live provider qualification.
 
-The control panel in `desktop/` is currently built from an exact source checkout.
-Its local `.app` bundle is separate from the canonical CLI archive and does not
-add a sixth Release asset. Native source and helper checks do not qualify a
-signed installer, notarization, or live 1Password desktop authentication; those
-need their own relevant evidence before distribution or capability claims.
+The control panel in `desktop/` uses a separate immutable desktop prerelease,
+as described in [macOS distribution](../desktop/distribution/README.md). Its
+Developer ID signing, notarization, and extracted-app verification gates must
+pass before a public desktop download is published. A locally built `.app` is
+only a preview and does not add a sixth canonical CLI asset. Native source and
+helper checks do not qualify signed distribution or live 1Password service-account
+access; those need their own relevant evidence before capability claims.
 
 The read-only build uploads a run-and-attempt-specific artifact. A separate
 checkout-free attestation job reauthorizes the exact owner/run/tag before

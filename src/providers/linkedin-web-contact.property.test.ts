@@ -27,36 +27,44 @@ function bootstrapHtml(value: unknown): string {
   return `<html><body><code style="display: none" id="bpr-guid-123">${encoded}</code></body></html>`;
 }
 
+function assertContactInfoRequestBinding(slug: string): void {
+  const target = linkedInContactInfoTarget(`https://www.linkedin.com/in/${slug}`);
+  expect(target.slug).toBe(slug.toLowerCase());
+  expect(target.url).toBe(`https://www.linkedin.com/in/${slug.toLowerCase()}/`);
+  expect(() => assertLinkedInContactInfoRequest({
+    method: "GET",
+    url: target.url,
+  })).not.toThrow();
+  expect(() => assertLinkedInContactInfoRequest({
+    method: "GET",
+    url: linkedInProfileContactInfoGraphqlUrl({ profileUrn: PROFILE_URN }),
+  })).not.toThrow();
+  expect(() => assertLinkedInContactInfoRequest({
+    method: "GET",
+    url: `https://www.linkedin.com/voyager/api/identity/profiles/${slug.toLowerCase()}/profileContactInfo`,
+  })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+  const overlay = linkedInProfileContactDetailsOverlayUrl({ profileUrn: PROFILE_URN });
+  expect(overlay.pathname).toBe("/flagship-web/rsc-action/actions/navigation");
+  expect([...overlay.searchParams]).toEqual([
+    ["screenId", "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay"],
+    ["profileUrn", PROFILE_URN],
+  ]);
+  expect(() => assertLinkedInContactInfoRequest({
+    method: "GET",
+    url: overlay,
+  })).not.toThrow();
+  expect(() => assertLinkedInContactInfoRequest({
+    method: "GET",
+    url: "https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
+  })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+}
+
 test("LinkedIn contact-info targets and request paths stay bound to one vanity", () => {
-  assertProperty(fc.property(vanity, (slug) => {
-    const target = linkedInContactInfoTarget(`https://www.linkedin.com/in/${slug}`);
-    expect(target.slug).toBe(slug.toLowerCase());
-    expect(target.url).toBe(`https://www.linkedin.com/in/${slug.toLowerCase()}/`);
-    expect(() => assertLinkedInContactInfoRequest({
-      method: "GET",
-      url: target.url,
-    })).not.toThrow();
-    expect(() => assertLinkedInContactInfoRequest({
-      method: "GET",
-      url: linkedInProfileContactInfoGraphqlUrl({ profileUrn: PROFILE_URN }),
-    })).not.toThrow();
-    expect(() => assertLinkedInContactInfoRequest({
-      method: "GET",
-      url: `https://www.linkedin.com/voyager/api/identity/profiles/${slug.toLowerCase()}/profileContactInfo`,
-    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
-    const overlay = linkedInProfileContactDetailsOverlayUrl({ profileUrn: PROFILE_URN });
-    expect(overlay.pathname).toBe("/flagship-web/rsc-action/actions/navigation");
-    expect(overlay.searchParams.get("profileUrn")).toBe(PROFILE_URN);
-    expect(overlay.href).not.toContain(slug);
-    expect(() => assertLinkedInContactInfoRequest({
-      method: "GET",
-      url: overlay,
-    })).not.toThrow();
-    expect(() => assertLinkedInContactInfoRequest({
-      method: "GET",
-      url: "https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
-    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
-  }));
+  assertProperty(fc.property(vanity, assertContactInfoRequestBinding));
+});
+
+test("LinkedIn contact-info accepts vanity c- even though it occurs in the fixed overlay route", () => {
+  assertContactInfoRequestBinding("c-");
 });
 
 test("LinkedIn contact-info binding never invents a 1st-degree relationship", () => {
