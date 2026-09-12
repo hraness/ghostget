@@ -577,7 +577,7 @@ const linkedin = {
     "contacts.read",
     LINKEDIN_WEB_OPERATIONS["contacts.read"].risk,
     LINKEDIN_WEB_OPERATIONS["contacts.read"].state,
-    "reviewed contained-Chrome 1st-degree Contact-info read: bind the signed-in viewer, require a 1st-degree relationship on the requested vanity from classic Profile embeds or Como rehydration, then project page-embedded Contact-info fields, or GET the target-bound ProfileContactDetailsOverlay RSC navigation when voyagerIdentityDashProfileContactInfo is unavailable, and project email plus any shown profile link, connected-since date, phones, websites, or birthday",
+    "reviewed contained-Chrome 1st-degree Contact-info read: bind the signed-in viewer, require a 1st-degree relationship on the requested vanity from classic Profile embeds or Como rehydration, then project page-embedded Contact-info fields while skipping non-bounded SDUI field labels, or GET the exact vanity /overlay/contact-info/ RSC route when voyagerIdentityDashProfileContactInfo is unavailable, and project email plus any shown profile link, connected-since date, phones, websites, or birthday",
     LINKEDIN_WEB_OPERATIONS["contacts.read"].contractVersion,
   ),
   "feeds.read": contract(

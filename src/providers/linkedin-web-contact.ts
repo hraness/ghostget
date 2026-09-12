@@ -14,6 +14,10 @@ export const LINKEDIN_CONTACT_DETAILS_OVERLAY_PATH =
   "/flagship-web/rsc-action/actions/navigation";
 const CONTACT_QUERY_ID =
   /^voyagerIdentityDashProfileContactInfo\.[0-9a-f]{32}$/u;
+const LINKEDIN_CONTACT_INFO_OVERLAY_PATH =
+  /^\/in\/([A-Za-z0-9][A-Za-z0-9_-]{1,99})\/overlay\/contact-info\/$/u;
+const LINKEDIN_CONTACT_INFO_FIELD_LABEL_ERROR =
+  "LinkedIn contact-info field label must be a bounded string";
 
 const LINKEDIN_ORIGIN = "https://www.linkedin.com";
 const PROFILE_URN = /^urn:li:fsd_profile:[A-Za-z0-9_-]{1,256}$/u;
@@ -205,18 +209,25 @@ export function linkedInProfileContactDetailsOverlayUrl(input: {
   return new URL(buildLinkedInProfileContactDetailsOverlayPath(input), LINKEDIN_ORIGIN);
 }
 
-function assertLinkedInContactDetailsOverlayUrl(url: URL): void {
-  const queryNames = [...url.searchParams.keys()];
-  if (
-    url.pathname !== LINKEDIN_CONTACT_DETAILS_OVERLAY_PATH
-    || queryNames.length !== 2
-    || queryNames[0] !== "screenId"
-    || queryNames[1] !== "profileUrn"
-    || url.searchParams.get("screenId") !== LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID
-    || url.searchParams.getAll("screenId").length !== 1
-    || url.searchParams.getAll("profileUrn").length !== 1
-  ) throw new Error("LinkedIn contact-info request escaped its exact reviewed route");
-  profileUrn(url.searchParams.get("profileUrn"));
+export function buildLinkedInProfileContactInfoOverlayPath(input: {
+  readonly profileUrl: unknown;
+}): string {
+  const target = linkedInPersonalProfileTarget(input.profileUrl);
+  return `/in/${target.slug}/overlay/contact-info/`;
+}
+
+export function linkedInProfileContactInfoOverlayUrl(input: {
+  readonly profileUrl: unknown;
+}): URL {
+  return new URL(buildLinkedInProfileContactInfoOverlayPath(input), LINKEDIN_ORIGIN);
+}
+
+function assertLinkedInContactInfoOverlayUrl(url: URL): void {
+  const match = LINKEDIN_CONTACT_INFO_OVERLAY_PATH.exec(url.pathname);
+  if (url.search !== "" || match?.[1] === undefined) {
+    throw new Error("LinkedIn contact-info request escaped its exact reviewed route");
+  }
+  linkedInPersonalProfilePublicIdentifier(match[1]);
 }
 
 export function resolveLinkedInProfileContactInfoQueryId(html: unknown): string | undefined {
@@ -286,8 +297,8 @@ export function assertLinkedInContactInfoRequest(requestValue: unknown): void {
       assertLinkedInContactInfoGraphqlUrl(url);
       return;
     }
-    if (url.pathname === LINKEDIN_CONTACT_DETAILS_OVERLAY_PATH) {
-      assertLinkedInContactDetailsOverlayUrl(url);
+    if (LINKEDIN_CONTACT_INFO_OVERLAY_PATH.test(url.pathname)) {
+      assertLinkedInContactInfoOverlayUrl(url);
       return;
     }
   }
@@ -992,10 +1003,17 @@ export function projectLinkedInEmbeddedContactFields(
   html: unknown,
   vanity: string,
 ): LinkedInContactFields | undefined {
-  const records = embeddedRecords(html);
-  const entities = collectRecords(records).filter(contactEntity);
-  if (entities.length < 1) return undefined;
-  return projectFields(records, vanity);
+  try {
+    const records = embeddedRecords(html);
+    const entities = collectRecords(records).filter(contactEntity);
+    if (entities.length < 1) return undefined;
+    return projectFields(records, vanity);
+  } catch (error) {
+    if (error instanceof Error && error.message === LINKEDIN_CONTACT_INFO_FIELD_LABEL_ERROR) {
+      return undefined;
+    }
+    throw error;
+  }
 }
 
 function overlayMailtoFields(value: string): JsonRecord | null {
@@ -1038,7 +1056,8 @@ function overlayTextPairFields(value: readonly unknown[]): JsonRecord | null {
     const label = texts[index];
     const raw = texts[index + 1];
     if (label === undefined || raw === undefined) continue;
-    const key = labelKey(label);
+    const key = optionalLabelKey(label);
+    if (key === undefined) continue;
     if (key === "email") {
       const email = optionalEmail(
         raw.toLowerCase().startsWith("mailto:") ? raw.slice("mailto:".length) : raw,
@@ -1228,8 +1247,13 @@ function websitesFromUnknown(value: unknown): readonly string[] {
   }));
 }
 
-function labelKey(value: unknown): string {
-  return boundedText(value, "LinkedIn contact-info field label", 64).trim().toLowerCase();
+function optionalLabelKey(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (trimmed.length < 1 || trimmed.length > 64 || /[\0\r]/u.test(trimmed)) {
+    return undefined;
+  }
+  return trimmed.toLowerCase();
 }
 
 function labeledFields(value: unknown): JsonRecord | null {
@@ -1247,7 +1271,8 @@ function labeledFields(value: unknown): JsonRecord | null {
     const label = item.label ?? item.title ?? item.heading;
     const raw = item.value ?? item.text ?? item.href;
     if (typeof label !== "string") continue;
-    const key = labelKey(label);
+    const key = optionalLabelKey(label);
+    if (key === undefined) continue;
     if (key === "email") {
       const email = optionalEmail(raw, "LinkedIn contact-info Email");
       if (email !== null) collected.email = email;

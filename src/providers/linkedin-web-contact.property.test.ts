@@ -6,6 +6,7 @@ import {
   linkedInContactInfoTarget,
   linkedInProfileContactDetailsOverlayUrl,
   linkedInProfileContactInfoGraphqlUrl,
+  linkedInProfileContactInfoOverlayUrl,
   projectLinkedInContactInfo,
   projectLinkedInProfileContactBinding,
 } from "./linkedin-web-contact";
@@ -44,14 +45,18 @@ test("LinkedIn contact-info targets and request paths stay bound to one vanity",
       method: "GET",
       url: `https://www.linkedin.com/voyager/api/identity/profiles/${slug.toLowerCase()}/profileContactInfo`,
     })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
-    const overlay = linkedInProfileContactDetailsOverlayUrl({ profileUrn: PROFILE_URN });
-    expect(overlay.pathname).toBe("/flagship-web/rsc-action/actions/navigation");
-    expect(overlay.searchParams.get("profileUrn")).toBe(PROFILE_URN);
-    expect(overlay.href).not.toContain(slug);
+    const overlay = linkedInProfileContactInfoOverlayUrl({ profileUrl: target.url });
+    expect(overlay.pathname).toBe(`/in/${slug.toLowerCase()}/overlay/contact-info/`);
+    expect(overlay.search).toBe("");
+    expect(overlay.href).toBe(`https://www.linkedin.com/in/${slug.toLowerCase()}/overlay/contact-info/`);
     expect(() => assertLinkedInContactInfoRequest({
       method: "GET",
       url: overlay,
     })).not.toThrow();
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "GET",
+      url: linkedInProfileContactDetailsOverlayUrl({ profileUrn: PROFILE_URN }),
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
     expect(() => assertLinkedInContactInfoRequest({
       method: "GET",
       url: "https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",

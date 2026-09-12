@@ -252,18 +252,20 @@ contradictory distances stay fail-closed.
 
 When the same page already embeds Contact-info fields, including a labeled
 Email row, the operation projects those fields and does not issue a second
-fetch. Otherwise it prefers a page-resolved GraphQL `queryId` for
-`voyagerIdentityDashProfileContactInfo` when the HTML contains exactly one
+fetch. Long SDUI strings used as field labels are skipped instead of aborting
+the profile-stage walk. Otherwise it prefers a page-resolved GraphQL `queryId`
+for `voyagerIdentityDashProfileContactInfo` when the HTML contains exactly one
 decorated revision. Variables are exactly `(profileUrn:{urn})`. When that
 queryId is absent, or when the GraphQL GET returns a reviewed HTTP 403
-`text/html` rejection, the operation GETs the target-bound
-`/flagship-web/rsc-action/actions/navigation` overlay with exact
-`screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay`
-and `profileUrn`. A screenId-only overlay URL stays rejected. Classic
-`/voyager/api/identity/profiles/{vanity}/profileContactInfo` now returns HTTP
-410 and is rejected. The executable contract is those reviewed first-party
-GETs or the page-embedded fields, not a caller-selected RSC body, DOM click,
-or selector. Ghostget does not message, connect, or InMail.
+`text/html` rejection, the operation GETs the exact vanity
+`/in/:publicIdentifier/overlay/contact-info/` overlay with RSC browser
+binding. ScreenId-only and `profileUrn`-bound
+`/flagship-web/rsc-action/actions/navigation` overlay URLs stay rejected
+because live dormant sessions return HTTP 500 `application/octet-stream`.
+Classic `/voyager/api/identity/profiles/{vanity}/profileContactInfo` now
+returns HTTP 410 and is rejected. The executable contract is those reviewed
+first-party GETs or the page-embedded fields, not a caller-selected RSC body,
+DOM click, or selector. Ghostget does not message, connect, or InMail.
 
 The projection returns `email` when LinkedIn shows it, plus any of the vanity
 profile link, connected-since date, phone numbers, websites, and birthday.
@@ -337,6 +339,19 @@ is absent or after that reviewed GraphQL rejection, and projects Email
 from the RSC or SDUI overlay payload. ScreenId-only overlay URLs stay
 rejected. Self, non-first-degree, and contradictory distances still fail
 closed.
+
+A later signed-in capture of the same 1st-degree path still bound
+identity and distance, but the 1.28.0 navigation GET returned HTTP 500
+`application/octet-stream` for screenId-only, `profileUrn`-bound, and
+html variants. `/in/:publicIdentifier/overlay/contact-info/` returned
+HTML 200 for the signed-in Contact-info modal. Long SDUI strings in
+profile HTML also aborted the best-effort embedded walk at profile
+stage and misreported as relationship-binding contract-drift. Adapter
+1.29.0 skips non-bounded field labels during that walk and GETs the
+exact vanity overlay path with RSC headers instead of the 500
+navigation route. GraphQL Contact-info remains a 403 `text/html` path
+when a unique queryId is present. Self, non-first-degree, and
+contradictory distances still fail closed.
 
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid

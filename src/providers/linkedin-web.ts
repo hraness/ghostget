@@ -113,14 +113,11 @@ export const LINKEDIN_WEB_OPERATIONS = {
     }, {
       kind: "server-rendered-read",
       method: "GET",
-      path: "/flagship-web/rsc-action/actions/navigation ProfileContactDetailsOverlay",
+      path: "/in/:publicIdentifier/overlay/contact-info/",
       queryPrefix: null,
-      allowedQueryParameters: ["screenId", "profileUrn"],
-      requiredQueryParameters: ["screenId", "profileUrn"],
-      fixedQueryParameters: [[
-        "screenId",
-        "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
-      ]],
+      allowedQueryParameters: [],
+      requiredQueryParameters: [],
+      fixedQueryParameters: [],
     }],
   },
   "feeds.read": {
@@ -3253,21 +3250,10 @@ export function assertLinkedInWebR1RequestAllowed(
           )
         ) return;
       }
-      if (url.pathname === "/flagship-web/rsc-action/actions/navigation") {
-        const queryNames = [...url.searchParams.keys()];
-        if (
-          queryNames.length === 2
-          && queryNames[0] === "screenId"
-          && queryNames[1] === "profileUrn"
-          && url.searchParams.get("screenId")
-            === "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay"
-          && url.searchParams.getAll("screenId").length === 1
-          && url.searchParams.getAll("profileUrn").length === 1
-          && /^urn:li:fsd_profile:[A-Za-z0-9_-]{1,256}$/u.test(
-            url.searchParams.get("profileUrn") ?? "",
-          )
-        ) return;
-      }
+      if (
+        url.search === ""
+        && /^\/in\/[A-Za-z0-9][A-Za-z0-9_-]{1,99}\/overlay\/contact-info\/$/u.test(url.pathname)
+      ) return;
     }
     throw new Error("LinkedIn contact-info request escaped its exact reviewed route");
   }

@@ -7,9 +7,11 @@ import {
   assertLinkedInContactInfoRequest,
   buildLinkedInProfileContactDetailsOverlayPath,
   buildLinkedInProfileContactInfoGraphqlPath,
+  buildLinkedInProfileContactInfoOverlayPath,
   linkedInContactInfoTarget,
   linkedInProfileContactDetailsOverlayUrl,
   linkedInProfileContactInfoGraphqlUrl,
+  linkedInProfileContactInfoOverlayUrl,
   projectLinkedInContactInfo,
   projectLinkedInEmbeddedContactFields,
   projectLinkedInOverlayContactFields,
@@ -92,10 +94,16 @@ const GRAPHQL_PATH = buildLinkedInProfileContactInfoGraphqlPath({
 const GRAPHQL_URL = linkedInProfileContactInfoGraphqlUrl({
   profileUrn: PROFILE_URN,
 });
-const OVERLAY_PATH = buildLinkedInProfileContactDetailsOverlayPath({
+const OVERLAY_PATH = buildLinkedInProfileContactInfoOverlayPath({
+  profileUrl: PROFILE_URL,
+});
+const OVERLAY_URL = linkedInProfileContactInfoOverlayUrl({
+  profileUrl: PROFILE_URL,
+});
+const REJECTED_NAVIGATION_OVERLAY_URL = linkedInProfileContactDetailsOverlayUrl({
   profileUrn: PROFILE_URN,
 });
-const OVERLAY_URL = linkedInProfileContactDetailsOverlayUrl({
+const REJECTED_NAVIGATION_OVERLAY_PATH = buildLinkedInProfileContactDetailsOverlayPath({
   profileUrn: PROFILE_URN,
 });
 const OVERLAY_CONTACT_FLIGHT = [
@@ -134,10 +142,11 @@ describe("LinkedIn contacts.read target and request binding", () => {
     expect(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID).toBe(
       "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
     );
-    expect(OVERLAY_PATH).toBe(
+    expect(OVERLAY_PATH).toBe("/in/example/overlay/contact-info/");
+    expect(OVERLAY_URL.href).toBe(`https://www.linkedin.com${OVERLAY_PATH}`);
+    expect(REJECTED_NAVIGATION_OVERLAY_PATH).toBe(
       `/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&profileUrn=${encodeURIComponent(PROFILE_URN)}`,
     );
-    expect(OVERLAY_URL.href).toBe(`https://www.linkedin.com${OVERLAY_PATH}`);
   });
 
   test("allows only the reviewed profile page and Contact-info GraphQL GET routes", () => {
@@ -190,6 +199,14 @@ describe("LinkedIn contacts.read target and request binding", () => {
     })).not.toThrow();
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "GET",
+      url: REJECTED_NAVIGATION_OVERLAY_URL,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "GET",
+      url: REJECTED_NAVIGATION_OVERLAY_URL,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
+      method: "GET",
       url: "https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
     })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
@@ -198,7 +215,11 @@ describe("LinkedIn contacts.read target and request binding", () => {
     })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "GET",
-      url: `${OVERLAY_URL.href}&trk=unsafe`,
+      url: `${OVERLAY_URL.href}?trk=unsafe`,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
+      method: "GET",
+      url: "https://www.linkedin.com/in/example/overlay/contact-info",
     })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "GET",
@@ -892,6 +913,37 @@ describe("LinkedIn contacts.read Contact-info projection", () => {
       expectedViewerSubject: VIEWER,
       observedAt: OBSERVED_AT,
     }).contact.email).toBe("connection@example.test");
+  });
+
+  test("skips long SDUI field labels and still projects a neighboring Email pair", () => {
+    const longLabel = "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay decorative copy that exceeds the sixty-four character field-label bound";
+    expect(longLabel.length).toBeGreaterThan(64);
+    const html = comoHtml({
+      publicIdentifier: "example",
+      entityUrn: PROFILE_URN,
+      networkDistance: 1,
+      fields: [
+        { label: longLabel, value: "skip this decorative SDUI string" },
+        { label: "Email", value: "connection@example.test" },
+        { label: "Connected since", value: "October 3, 2023" },
+      ],
+      rows: [
+        longLabel,
+        "not-an-email",
+        "Email",
+        "connection@example.test",
+      ],
+    });
+    expect(projectLinkedInEmbeddedContactFields(html, "example")).toMatchObject({
+      email: "connection@example.test",
+      connectedSince: "2023-10-03",
+    });
+    expect(projectLinkedInEmbeddedContactFields(comoHtml({
+      publicIdentifier: "example",
+      entityUrn: PROFILE_URN,
+      networkDistance: 1,
+      fields: [{ label: longLabel, value: "skip this decorative SDUI string" }],
+    }), "example")).toBeUndefined();
   });
 
   test("rejects ambiguous emails and extra live-looking addresses", () => {

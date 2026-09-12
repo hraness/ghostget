@@ -12,8 +12,8 @@ import {
 } from "../browser";
 import type { GhostgetManifest } from "../model";
 import {
-  buildLinkedInProfileContactDetailsOverlayPath,
   buildLinkedInProfileContactInfoGraphqlPath,
+  buildLinkedInProfileContactInfoOverlayPath,
   type LinkedInContactInfoJsonInput,
 } from "./linkedin-web-contact";
 import type {
@@ -678,8 +678,8 @@ export async function createLinkedInProfileBrowserTransport(
       const result = await run({
         kind: "rsc",
         maxBytes: options.maxOutputBytes,
-        path: buildLinkedInProfileContactDetailsOverlayPath({
-          profileUrn: input.profileUrn,
+        path: buildLinkedInProfileContactInfoOverlayPath({
+          profileUrl: input.profileUrl,
         }),
         referrer: profile.href,
       });
