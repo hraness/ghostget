@@ -2614,6 +2614,15 @@ body {
   padding-block-end: clamp(2rem, 6vw, 4rem);
 }
 
+/* The snapshot owns editorial type and paint; local controls stay native. */
+[data-hraness-marketing-preset] .hraness-marketing-page {
+  --hraness-marketing-background: transparent;
+  --hraness-marketing-heading-font: var(--hraness-marketing-display-font);
+  --hraness-marketing-heading-weight: var(--hraness-marketing-display-weight);
+  --hraness-marketing-ink: var(--hraness-marketing-field-ink);
+  --hraness-marketing-muted: var(--hraness-marketing-field-muted);
+}
+
 .hraness-marketing-header .wordmark {
   display: inline-flex;
   align-items: center;
@@ -2628,7 +2637,7 @@ body {
   grid-column: 1 / -1;
   align-items: center;
   gap: clamp(2rem, 4vw, 3.5rem);
-  padding-block: clamp(2rem, 4vw, 3rem);
+  padding-block: var(--hraness-marketing-hero-space, 3.5rem 4rem);
 }
 
 .ghostget-product-hero .hraness-marketing-hero__heading {
@@ -2641,7 +2650,7 @@ body {
 }
 
 .ghostget-product-hero .hero-explainer {
-  color: var(--muted);
+  color: var(--hraness-marketing-field-muted, var(--muted));
 }
 
 .ghostget-product-hero .hraness-marketing-hero__frame {
@@ -2730,12 +2739,12 @@ body {
 
 /* The provider heading carries only its id, so it takes the grammar's recipe here. */
 .hraness-marketing-section__heading-group > h2 {
-  color: var(--foreground);
-  font-family: var(--font-sans);
+  color: var(--hraness-marketing-field-ink, var(--foreground));
+  font-family: var(--hraness-marketing-display-font, var(--font-sans));
   font-size: var(--hraness-paper-section-heading-size);
-  font-weight: 500;
-  letter-spacing: -0.012em;
-  line-height: 1.15;
+  font-weight: var(--hraness-marketing-display-weight, 500);
+  letter-spacing: var(--hraness-marketing-h2-tracking, -0.012em);
+  line-height: var(--hraness-marketing-h2-leading, 1.15);
   margin: 0;
   text-wrap: balance;
 }
@@ -2864,13 +2873,14 @@ body {
 @media (max-width: 44rem) { .control-scenes figcaption { display: block; } .control-scenes figcaption a { display: block; margin-top: .5rem; } }
 [data-hraness-theme="paper"] .hraness-marketing-hero__heading {
   font-weight: var(--hraness-marketing-heading-weight);
-  line-height: var(--hraness-paper-heading-leading);
-  letter-spacing: var(--hraness-paper-heading-tracking);
+  line-height: var(--hraness-marketing-h1-leading, var(--hraness-paper-heading-leading));
+  letter-spacing: var(--hraness-marketing-h1-tracking, var(--hraness-paper-heading-tracking));
 }
 [data-hraness-theme="paper"] .hraness-marketing-page h2 {
   font-size: var(--hraness-paper-section-heading-size);
-  line-height: 1.2;
-  letter-spacing: -.025em;
+  font-weight: var(--hraness-marketing-display-weight, 500);
+  line-height: var(--hraness-marketing-h2-leading, 1.2);
+  letter-spacing: var(--hraness-marketing-h2-tracking, -.025em);
 }
 [data-hraness-theme="paper"] .hraness-marketing-hero__summary {
   font-size: var(--hraness-paper-summary-size);
