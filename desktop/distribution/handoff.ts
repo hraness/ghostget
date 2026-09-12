@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { authorize, command, environmentAuthority, githubReader, type Authority } from "./authority.ts";
 import { inventory } from "./native.ts";
+import { stageSecureEntry, validateSecureEntry } from "./secure-entry.ts";
 import { archiveName, digest, keys, MAX_ARCHIVE_BYTES, object, positive, REPOSITORY, REPOSITORY_ID, requireValue, sha256, version, WORKFLOW, type DesktopManifest } from "./contract.ts";
 
 export type SigningReceipt = Readonly<Pick<DesktopManifest, "teamId" | "signingIdentitySha1" | "notarization" | "runtimeInventorySha256" | "signingInventorySha256">>;
@@ -77,12 +78,15 @@ if (import.meta.main) {
     const input = temporaryDirectory("input"), h = admitHandoff(input, a, "unsigned", process.env.DESKTOP_INPUT_RECEIPT_SHA256);
     const tree = temporaryDirectory("tree"); mkdirSync(tree, { mode: 0o700 });
     command("python3", ["-I", "desktop/distribution/archive.py", "unsigned", join(input, h.archive.name), tree], { timeout: 300_000 });
+    validateSecureEntry(join(tree, "Ghostget.app"), version(a.tag), true);
     const hash = sha256(JSON.stringify(inventory(join(tree, "Ghostget.app"))));
     if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `tree_sha256=${hash}\n`);
     authorize(a, githubReader());
   } else {
   const directory = temporaryDirectory("unsigned"); mkdirSync(directory, { mode: 0o700 });
-  command("python3", ["-I", "desktop/distribution/archive.py", "pack", resolve("desktop/src-tauri/target/release/bundle/macos/Ghostget.app"), join(directory, "unsigned.zip")], { timeout: 300_000 });
+  const app = resolve("desktop/src-tauri/target/release/bundle/macos/Ghostget.app");
+  stageSecureEntry(app, version(a.tag));
+  command("python3", ["-I", "desktop/distribution/archive.py", "pack", app, join(directory, "unsigned.zip")], { timeout: 300_000 });
   sealHandoff(directory, a, "unsigned", null); authorize(a, githubReader());
   }
 }

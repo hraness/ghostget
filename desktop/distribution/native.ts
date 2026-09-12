@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { command } from "./authority.ts";
 import { object, requireValue, sha256 } from "./contract.ts";
+import { MAIN_EXECUTABLE, MAIN_IDENTIFIER, SECURE_ENTRY_BUNDLE, SECURE_ENTRY_EXECUTABLE, SECURE_ENTRY_IDENTIFIER, validateSecureEntry } from "./secure-entry.ts";
 
 export const BUN_ENTITLEMENTS = Object.freeze({ "com.apple.security.cs.allow-jit": true });
 export const CREDENTIAL_ENTITLEMENTS = BUN_ENTITLEMENTS;
@@ -40,6 +41,11 @@ export function machoPaths(root: string): string[] {
   // Inventory every Mach-O regardless of filename or nonstandard resource position.
   return inventory(root).filter(file => file.macho).map(file => file.path).sort((a, b) => b.split("/").length - a.split("/").length || a.localeCompare(b));
 }
+export function nestedSigningTargets(paths: readonly string[]): Readonly<{ path: string; executable: string; identifier?: string }>[] {
+  requireValue(paths.length >= 4 && new Set(paths).size === paths.length && paths.includes(MAIN_EXECUTABLE) && paths.includes(SECURE_ENTRY_EXECUTABLE), "bundled native code is missing or duplicated");
+  return [...paths.filter(path => path !== MAIN_EXECUTABLE && path !== SECURE_ENTRY_EXECUTABLE).map(path => ({ path, executable: path })),
+    { path: SECURE_ENTRY_BUNDLE, executable: SECURE_ENTRY_EXECUTABLE, identifier: SECURE_ENTRY_IDENTIFIER }];
+}
 export function signatureDetails(path: string): string {
   const result = spawnSync("/usr/bin/codesign", ["--display", "--verbose=4", path], { env: { PATH: "/usr/bin:/bin:/usr/sbin:/sbin" }, timeout: 30_000, killSignal: "SIGKILL", maxBuffer: 64 * 1024, stdio: ["ignore", "pipe", "pipe"] });
   requireValue(result.error === undefined && result.status === 0 && result.signal === null, "signature inspection failed");
@@ -50,13 +56,16 @@ export function validateSignature(details: string, team: string, expectedIdentif
     && /^Timestamp=.+$/mu.test(details) && /^CodeDirectory .*flags=0x[0-9a-f]+\([^\n]*runtime[^\n]*\)/mu.test(details)
     && !/^Signature=adhoc$/mu.test(details) && (expectedIdentifier === undefined || details.split("\n").includes(`Identifier=${expectedIdentifier}`)), "Developer ID, team, timestamp or hardened runtime differs");
 }
-export function verifyNativeBundle(app: string, team: string, identity: string): void {
+export function verifyNativeBundle(app: string, team: string, identity: string, version: string): void {
   requireValue(process.platform === "darwin" && process.arch === "arm64", "requires an Apple Silicon macOS verifier");
+  validateSecureEntry(app, version, false);
   command("/usr/bin/codesign", ["--verify", "--deep", "--strict", "--verbose=2", app]);
-  validateSignature(signatureDetails(app), team, "com.ghostget.desktop");
+  validateSignature(signatureDetails(app), team, MAIN_IDENTIFIER);
+  command("/usr/bin/codesign", ["--verify", "--strict", join(app, SECURE_ENTRY_BUNDLE)]);
+  validateSignature(signatureDetails(join(app, SECURE_ENTRY_BUNDLE)), team, SECURE_ENTRY_IDENTIFIER);
   for (const path of machoPaths(app)) {
     const absolute = join(app, path); command("/usr/bin/codesign", ["--verify", "--strict", absolute]);
-    validateSignature(signatureDetails(absolute), team);
+    validateSignature(signatureDetails(absolute), team, path === MAIN_EXECUTABLE ? MAIN_IDENTIFIER : path === SECURE_ENTRY_EXECUTABLE ? SECURE_ENTRY_IDENTIFIER : undefined);
     const scratch = mkdtempSync("/private/tmp/ghostget-signature-");
     try {
       command("/usr/bin/codesign", ["--display", "--extract-certificates", join(scratch, "cert"), absolute]);
@@ -68,7 +77,7 @@ export function verifyNativeBundle(app: string, team: string, identity: string):
     const actual = start < 0 ? {} : object(JSON.parse(command("/usr/bin/plutil", ["-convert", "json", "-o", "-", "-"], { input: output.slice(start, end + 8) }).toString("utf8")));
     requireValue(JSON.stringify(Object.entries(actual).sort()) === JSON.stringify(Object.entries(entitlementsFor(path)).sort()), "unexpected executable entitlements");
   }
-  for (const path of ["Contents/MacOS/ghostget-desktop", "Contents/Resources/ghostget-runtime/ghostget-bun", "Contents/Resources/ghostget-runtime/ghostget-credential-bun"]) {
+  for (const path of [MAIN_EXECUTABLE, SECURE_ENTRY_EXECUTABLE, "Contents/Resources/ghostget-runtime/ghostget-bun", "Contents/Resources/ghostget-runtime/ghostget-credential-bun"]) {
     requireValue(command("/usr/bin/lipo", ["-archs", join(app, path)]).toString("utf8").trim() === "arm64", "native architecture differs");
   }
   command("/usr/bin/xcrun", ["stapler", "validate", app]);

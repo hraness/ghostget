@@ -131,17 +131,40 @@ fn parse_request(bytes: &[u8]) -> Result<Request, Error> {
     }
     Ok(request)
 }
-fn expected_parent(executable: &Path) -> Option<PathBuf> {
-    let macos = executable.parent()?;
-    let contents = macos.parent()?;
-    let bundle = contents.parent()?;
-    if macos.file_name()? != "MacOS"
-        || contents.file_name()? != "Contents"
-        || bundle.extension()? != "app"
+#[derive(Debug, PartialEq)]
+struct NativePaths {
+    credential: PathBuf,
+    control: PathBuf,
+    host: PathBuf,
+}
+fn native_paths(executable: &Path) -> Option<NativePaths> {
+    if !executable.is_absolute()
+        || executable.components().any(|part| matches!(part, std::path::Component::ParentDir))
     {
         return None;
     }
-    Some(contents.join("Resources/ghostget-runtime/ghostget-credential-bun"))
+    let macos = executable.parent()?;
+    let contents = macos.parent()?;
+    let helper = contents.parent()?;
+    let helpers = helper.parent()?;
+    let outer_contents = helpers.parent()?;
+    let outer_bundle = outer_contents.parent()?;
+    if executable.file_name()? != "ghostget-desktop"
+        || macos.file_name()? != "MacOS"
+        || contents.file_name()? != "Contents"
+        || helper.file_name()? != "Ghostget Secure Entry.app"
+        || helpers.file_name()? != "Helpers"
+        || outer_contents.file_name()? != "Contents"
+        || outer_bundle.extension()? != "app"
+    {
+        return None;
+    }
+    let runtime = outer_contents.join("Resources/ghostget-runtime");
+    Some(NativePaths {
+        credential: runtime.join("ghostget-credential-bun"),
+        control: runtime.join("ghostget-bun"),
+        host: outer_contents.join("MacOS/ghostget-desktop"),
+    })
 }
 // This wrapper deliberately has no Debug, Display or Serialize implementation.
 struct Secret(String);
@@ -485,16 +508,12 @@ mod native {
         let executable = std::env::current_exe()
             .and_then(|path| path.canonicalize())
             .map_err(|_| Error::Unavailable)?;
-        let credential_path = expected_parent(&executable).ok_or(Error::Unavailable)?;
-        let control_path = credential_path
-            .parent()
-            .ok_or(Error::Unavailable)?
-            .join("ghostget-bun");
+        let paths = native_paths(&executable).ok_or(Error::Unavailable)?;
         // The real GUI host launches only the fixed control helper. Interpreter
         // paths alone would admit arbitrary agent JS using the same Bun files.
         // The --vault-stdio branch cannot launch a control helper or forge this
         // third kernel parent. All three incarnations remain live throughout.
-        for expected in [&credential_path, &control_path] {
+        for expected in [&paths.credential, &paths.control, &paths.host] {
             if expected.canonicalize().ok().as_ref() != Some(expected) {
                 return Err(Error::Unavailable);
             }
@@ -502,9 +521,9 @@ mod native {
         let credential = process_identity(unsafe { libc::getppid() }).ok_or(Error::Unavailable)?;
         let control = process_identity(credential.parent).ok_or(Error::Unavailable)?;
         let host = process_identity(control.parent).ok_or(Error::Unavailable)?;
-        if credential.path != credential_path
-            || control.path != control_path
-            || host.path != executable
+        if credential.path != paths.credential
+            || control.path != paths.control
+            || host.path != paths.host
         {
             return Err(Error::Unavailable);
         }
@@ -946,13 +965,37 @@ try {
         ] {
             assert!(!uuid_v4(&value));
         }
-        assert_eq!(expected_parent(Path::new("/Applications/Ghostget.app/Contents/MacOS/ghostget-desktop")), Some(PathBuf::from("/Applications/Ghostget.app/Contents/Resources/ghostget-runtime/ghostget-credential-bun")));
+        let helper = Path::new("/Applications/Ghostget.app/Contents/Helpers/Ghostget Secure Entry.app/Contents/MacOS/ghostget-desktop");
+        let paths = native_paths(helper).unwrap();
+        assert_eq!(paths, NativePaths {
+            credential: PathBuf::from("/Applications/Ghostget.app/Contents/Resources/ghostget-runtime/ghostget-credential-bun"),
+            control: PathBuf::from("/Applications/Ghostget.app/Contents/Resources/ghostget-runtime/ghostget-bun"),
+            host: PathBuf::from("/Applications/Ghostget.app/Contents/MacOS/ghostget-desktop"),
+        });
+        assert_ne!(paths.host.as_path(), helper);
+        assert!(native_paths(&paths.host).is_none());
+        // An installed app can live outside /Applications; every role still
+        // resolves within the same exact outer bundle, including paths with spaces.
+        let moved = native_paths(Path::new("/Volumes/Local Preview/My Ghostget.app/Contents/Helpers/Ghostget Secure Entry.app/Contents/MacOS/ghostget-desktop")).unwrap();
+        assert_eq!(moved.host, PathBuf::from("/Volumes/Local Preview/My Ghostget.app/Contents/MacOS/ghostget-desktop"));
+        assert_eq!(moved.credential, PathBuf::from("/Volumes/Local Preview/My Ghostget.app/Contents/Resources/ghostget-runtime/ghostget-credential-bun"));
+        assert_eq!(moved.control, PathBuf::from("/Volumes/Local Preview/My Ghostget.app/Contents/Resources/ghostget-runtime/ghostget-bun"));
         for path in [
             "/tmp/ghostget-desktop",
             "/tmp/Ghostget/Contents/MacOS/ghostget-desktop",
             "/tmp/Ghostget.app/Resources/ghostget-desktop",
+            "/Applications/Ghostget.app/Contents/MacOS/ghostget-desktop",
+            "/Applications/Ghostget Secure Entry.app/Contents/MacOS/ghostget-desktop",
+            "/Applications/Ghostget.app/Contents/Helpers/Other.app/Contents/MacOS/ghostget-desktop",
+            "/Applications/Ghostget/Contents/Helpers/Ghostget Secure Entry.app/Contents/MacOS/ghostget-desktop",
+            "/Applications/Ghostget.app/Contents/Resources/Ghostget Secure Entry.app/Contents/MacOS/ghostget-desktop",
+            "/Applications/Ghostget.app/Contents/Helpers/Ghostget Secure Entry.app/Contents/MacOS/other",
+            "/Applications/Ghostget.app/Contents/Helpers/Ghostget Secure Entry.app/MacOS/ghostget-desktop",
+            "/Applications/Ghostget.app/Contents/Helpers/Ghostget Secure Entry.app/Contents/ghostget-desktop",
+            "/Applications/../Ghostget.app/Contents/Helpers/Ghostget Secure Entry.app/Contents/MacOS/ghostget-desktop",
+            "Ghostget.app/Contents/Helpers/Ghostget Secure Entry.app/Contents/MacOS/ghostget-desktop",
         ] {
-            assert!(expected_parent(Path::new(path)).is_none());
+            assert!(native_paths(Path::new(path)).is_none(), "{path}");
         }
         assert_ne!(Purpose::Credential.service(), Purpose::Bootstrap.service());
     }

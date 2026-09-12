@@ -3,11 +3,12 @@ import fc from "fast-check";
 import { spawnSync } from "node:child_process";
 import { admitArtifactId } from "./artifact-id.ts";
 import { matchSignedManifest, parseHandoff } from "./handoff.ts";
-import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { assetNames, archiveName, buildNames, desktopTag, parseManifest, REPOSITORY, REPOSITORY_ID, sha256, VERIFICATIONS, verifyAttestation, verifyDirectory, version, WORKFLOW, type DesktopManifest } from "./contract.ts";
 import { authorize, environmentAuthority, type Authority } from "./authority.ts";
-import { BUN_ENTITLEMENTS, CREDENTIAL_ENTITLEMENTS, entitlementsFor, inventory, isMachO, validateSignature } from "./native.ts";
+import { BUN_ENTITLEMENTS, CREDENTIAL_ENTITLEMENTS, entitlementsFor, inventory, isMachO, nestedSigningTargets, validateSignature } from "./native.ts";
+import { MAIN_EXECUTABLE, MAIN_ICON, MAIN_IDENTIFIER, SECURE_ENTRY_BUNDLE, SECURE_ENTRY_EXECUTABLE, SECURE_ENTRY_ICON, SECURE_ENTRY_IDENTIFIER, secureEntryInfo, stageSecureEntry, validateSecureEntry } from "./secure-entry.ts";
 import { publish, releaseBody, type PublicationPorts } from "./publish.ts";
 import { HelperCustodyUncertain, verifyHelperLifecycle } from "./verify.ts";
 import { releaseAssetNames } from "../../website/github-release-artifact.mjs";
@@ -111,6 +112,7 @@ describe("desktop distribution contract", () => {
       expect(entitlementsFor("Contents/Resources/ghostget-runtime/ghostget-bun")).toEqual(BUN_ENTITLEMENTS);
       expect(entitlementsFor("Contents/Resources/ghostget-runtime/ghostget-credential-bun")).toEqual(CREDENTIAL_ENTITLEMENTS);
       expect(entitlementsFor("Contents/MacOS/ghostget-desktop")).toEqual({}); expect(entitlementsFor("anything/ghostget-bun")).toEqual({});
+      expect(entitlementsFor(SECURE_ENTRY_EXECUTABLE)).toEqual({});
       expect(Object.keys(CREDENTIAL_ENTITLEMENTS)).toEqual(["com.apple.security.cs.allow-jit"]);
       const details = "Identifier=com.ghostget.desktop\nTeamIdentifier=ABC123DEF4\nAuthority=Developer ID Application: Example (ABC123DEF4)\nTimestamp=Sep 11, 2026\nCodeDirectory v=20500 size=100 flags=0x10000(runtime) hashes=1\n";
       expect(() => validateSignature(details, "ABC123DEF4", "com.ghostget.desktop")).not.toThrow();
@@ -118,6 +120,57 @@ describe("desktop distribution contract", () => {
       expect(() => validateSignature(`${details}Signature=adhoc\n`, "ABC123DEF4")).toThrow();
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
+});
+
+test("secure entry stages exact native bytes and icon with a distinct fixed bundle identity", () => {
+  const scratch = realpathSync(mkdtempSync("/tmp/ghostget-secure-entry-")), app = join(scratch, "Ghostget.app");
+  try {
+    mkdirSync(join(app, "Contents/MacOS"), { recursive: true }); mkdirSync(join(app, "Contents/Resources"));
+    const mainBytes = Buffer.from("cffaedfe01020304", "hex");
+    writeFileSync(join(app, MAIN_EXECUTABLE), mainBytes, { mode: 0o755 }); writeFileSync(join(app, MAIN_ICON), "white ghost icon");
+    stageSecureEntry(app, "0.19.0");
+    expect(readFileSync(join(app, SECURE_ENTRY_EXECUTABLE))).toEqual(mainBytes);
+    expect(readFileSync(join(app, SECURE_ENTRY_ICON))).toEqual(readFileSync(join(app, MAIN_ICON)));
+    expect(readFileSync(join(app, `${SECURE_ENTRY_BUNDLE}/Contents/Info.plist`), "utf8")).toContain(`<key>CFBundleIdentifier</key><string>${SECURE_ENTRY_IDENTIFIER}</string>`);
+    expect(secureEntryInfo("0.19.0")).toContain("<key>LSUIElement</key><true/>");
+    expect(secureEntryInfo("0.19.0")).toContain("<key>CFBundleDisplayName</key><string>Ghostget Secure Entry</string>");
+    expect(() => validateSecureEntry(app, "0.19.0", true)).not.toThrow();
+    expect(() => validateSecureEntry(app, "0.19.1", true)).toThrow("metadata");
+    writeFileSync(join(app, SECURE_ENTRY_EXECUTABLE), Buffer.from("cffaedfe05060708", "hex"));
+    expect(() => validateSecureEntry(app, "0.19.0", true)).toThrow("compiled native host");
+    expect(() => validateSecureEntry(app, "0.19.0", false)).not.toThrow();
+    stageSecureEntry(app, "0.19.0");
+    const signature = join(app, `${SECURE_ENTRY_BUNDLE}/Contents/_CodeSignature`);
+    mkdirSync(signature); writeFileSync(join(signature, "CodeResources"), "signed resource inventory");
+    expect(() => validateSecureEntry(app, "0.19.0", false)).not.toThrow();
+    expect(() => validateSecureEntry(app, "0.19.0", true)).toThrow("layout");
+    rmSync(join(signature, "CodeResources")); mkdirSync(join(signature, "CodeResources"));
+    expect(() => validateSecureEntry(app, "0.19.0", false)).toThrow("layout");
+    stageSecureEntry(app, "0.19.0");
+    writeFileSync(join(app, SECURE_ENTRY_ICON), "foreign icon"); expect(() => validateSecureEntry(app, "0.19.0", false)).toThrow("icon");
+    stageSecureEntry(app, "0.19.0");
+    writeFileSync(join(app, `${SECURE_ENTRY_BUNDLE}/Contents/extra`), "unreviewed"); expect(() => validateSecureEntry(app, "0.19.0", false)).toThrow("layout");
+    stageSecureEntry(app, "0.19.0");
+    chmodSync(join(app, SECURE_ENTRY_EXECUTABLE), 0o644); expect(() => validateSecureEntry(app, "0.19.0", false)).toThrow("mode");
+    stageSecureEntry(app, "0.19.0");
+    rmSync(join(app, SECURE_ENTRY_EXECUTABLE)); symlinkSync(join(app, MAIN_EXECUTABLE), join(app, SECURE_ENTRY_EXECUTABLE));
+    expect(() => validateSecureEntry(app, "0.19.0", false)).toThrow("canonical");
+    expect(() => secureEntryInfo("0.19.0</string>")).toThrow();
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
+});
+
+test("secure entry is sealed as a nested native app before the outer identity", () => {
+  const bunPaths = ["Contents/Resources/ghostget-runtime/ghostget-bun", "Contents/Resources/ghostget-runtime/ghostget-credential-bun"];
+  const native = [MAIN_EXECUTABLE, SECURE_ENTRY_EXECUTABLE, ...bunPaths];
+  const targets = nestedSigningTargets(native);
+  expect(targets.map(target => target.executable).sort()).toEqual(native.filter(path => path !== MAIN_EXECUTABLE).sort());
+  expect(targets.at(-1)).toEqual({ path: SECURE_ENTRY_BUNDLE, executable: SECURE_ENTRY_EXECUTABLE, identifier: SECURE_ENTRY_IDENTIFIER });
+  expect(targets.some(target => target.identifier === MAIN_IDENTIFIER || target.path === SECURE_ENTRY_EXECUTABLE)).toBe(false);
+  for (const missing of [MAIN_EXECUTABLE, SECURE_ENTRY_EXECUTABLE]) expect(() => nestedSigningTargets(native.filter(path => path !== missing))).toThrow();
+  expect(() => nestedSigningTargets([...native, SECURE_ENTRY_EXECUTABLE])).toThrow();
+  const helperDetails = `Identifier=${SECURE_ENTRY_IDENTIFIER}\nTeamIdentifier=ABC123DEF4\nAuthority=Developer ID Application: Example (ABC123DEF4)\nTimestamp=Sep 12, 2026\nCodeDirectory v=20500 size=100 flags=0x10000(runtime) hashes=1\n`;
+  expect(() => validateSignature(helperDetails, "ABC123DEF4", SECURE_ENTRY_IDENTIFIER)).not.toThrow();
+  expect(() => validateSignature(helperDetails.replace(SECURE_ENTRY_IDENTIFIER, MAIN_IDENTIFIER), "ABC123DEF4", SECURE_ENTRY_IDENTIFIER)).toThrow();
 });
 
 describe("desktop publication lifecycle", () => {

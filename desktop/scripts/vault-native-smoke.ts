@@ -11,11 +11,29 @@ const script = fileURLToPath(import.meta.url);
 const desktop = resolve(dirname(script), "..");
 const app = join(desktop, "src-tauri/target/release/bundle/macos/Ghostget.app");
 const runtime = join(app, "Contents/Resources/ghostget-runtime");
-const native = join(app, "Contents/MacOS/ghostget-desktop");
+const guiExecutable = join(app, "Contents/MacOS/ghostget-desktop");
+const secureEntryApp = join(app, "Contents/Helpers/Ghostget Secure Entry.app");
+const secureEntryExecutable = join(secureEntryApp, "Contents/MacOS/ghostget-desktop");
 const control = join(runtime, "ghostget-bun"), credential = join(runtime, "ghostget-credential-bun");
 const protocol = "ghostget.vault-native-proof/1";
-const cases = ["direct-parent", "wrong-ancestor", "bun-trampoline"] as const;
+const cases = ["direct-parent", "wrong-ancestor", "bun-trampoline", "helper-no-flag", "outer-vault-stdio"] as const;
 type Case = typeof cases[number];
+/** Cancellation starts the real GUI; other commands probe the fixed native entry guards. */
+export function nativeVaultProofCommand(which: Case | "cancel-entry"): { executable: string; args: readonly string[] } {
+  if (which === "cancel-entry") return { executable: guiExecutable, args: [] };
+  if (which === "direct-parent") return { executable: secureEntryExecutable, args: ["--vault-stdio"] };
+  if (which === "helper-no-flag") return { executable: secureEntryExecutable, args: [] };
+  if (which === "outer-vault-stdio") return { executable: guiExecutable, args: ["--vault-stdio"] };
+  return {
+    executable: which === "wrong-ancestor" ? credential : control,
+    args: ["--no-env-file", "--no-install", script, which === "wrong-ancestor" ? "--credential-role" : "--control-role", which],
+  };
+}
+async function bundleDigests(): Promise<{ guiSha256: string; secureEntrySha256: string; runtimeManifestSha256: string }> {
+  const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+  const [gui, secureEntry, manifest] = await Promise.all([readFile(guiExecutable), readFile(secureEntryExecutable), readFile(join(runtime, "runtime-manifest.json"))]);
+  return { guiSha256: hash(gui), secureEntrySha256: hash(secureEntry), runtimeManifestSha256: hash(manifest) };
+}
 const delay = (ms: number) => new Promise<void>(done => setTimeout(done, ms));
 const same = (a: unknown, b: unknown) => assert.deepEqual(a, b);
 const categorical = (text: string, code: string) => same(JSON.parse(text), { ok: false, code });
@@ -87,7 +105,7 @@ async function joinChild(child: { exited: Promise<number>; kill(signal: "SIGTERM
 
 async function credentialRole(which: Case): Promise<void> {
   assert.equal(await realpath(process.execPath), credential);
-  const child = spawn(native, ["--vault-stdio"], process.env as Record<string, string>);
+  const child = spawn(secureEntryExecutable, ["--vault-stdio"], process.env as Record<string, string>);
   let complete = false;
   const read = output(child.stdout!);
   try {
@@ -125,7 +143,7 @@ async function observeCancellation(child: ReturnType<typeof spawn>, stateHome: s
         const rawReceipt = await optional(join(stateHome, "control/vault-native-creates", `${pending.id}.json`));
         if (rawReceipt !== null) {
           const receipt = parseNativeCreateReceipt(rawReceipt); assert.equal(receipt.id, pending.id); assert.equal(receipt.purpose, pending.purpose); remember(identity(receipt.nativeOwner));
-          if (!announced) { process.stdout.write(`Owned native secret-entry process: ${receipt.nativeOwner.pid}. Click Cancel without entering a value.\n`); announced = true; }
+          if (!announced) { process.stdout.write(`Owned Ghostget Secure Entry process: ${receipt.nativeOwner.pid}. Click Cancel without entering a value.\n`); announced = true; }
           if (receipt.state === "joined") { assert.equal(receipt.outcome, "CANCELLED", "The owned UI must cancel without saving a value"); assert.ok(await gone(pending.owner)); assert.ok(await gone(receipt.nativeOwner)); return; }
         }
       }
@@ -138,7 +156,8 @@ async function observeCancellation(child: ReturnType<typeof spawn>, stateHome: s
 /** No Keychain calls in the default suite: every request is rejected before Store::default. */
 export async function smokeNativeVault(cancelEntry = false): Promise<void> {
   assert.equal(process.platform, "darwin"); assert.equal(process.arch, "arm64"); assert.equal(Bun.version, "1.3.14");
-  for (const path of [app, native, control, credential]) assert.equal(await realpath(path), path, "Proof requires the exact canonical built bundle");
+  for (const path of [app, guiExecutable, secureEntryApp, secureEntryExecutable, control, credential]) assert.equal(await realpath(path), path, "Proof requires the exact canonical built bundle");
+  const digests = await bundleDigests();
   const scratch = await realpath(await mkdtemp("/private/tmp/ghostget-vault-native-proof-")); await mkdir(join(scratch, "state"), { mode: 0o700 });
   const env = environment(scratch, cancelEntry); const results: Record<string, unknown>[] = []; let cleanupSafe = false;
   const interrupted = new AbortController(); let activeChild: ReturnType<typeof spawn> | undefined;
@@ -147,12 +166,11 @@ export async function smokeNativeVault(cancelEntry = false): Promise<void> {
   try {
     for (const which of cancelEntry ? ["cancel-entry" as const] : cases) {
       interrupted.signal.throwIfAborted();
-      const direct = which === "direct-parent", gui = which === "cancel-entry";
-      const executable = direct || gui ? native : which === "wrong-ancestor" ? credential : control;
-      const args = gui ? [] : direct ? ["--vault-stdio"] : ["--no-env-file", "--no-install", script, which === "wrong-ancestor" ? "--credential-role" : "--control-role", which];
+      const direct = which === "direct-parent" || which === "outer-vault-stdio", gui = which === "cancel-entry", noFlag = which === "helper-no-flag";
+      const { executable, args } = nativeVaultProofCommand(which);
       const child = spawn(executable, args, env); const owners: ProcessOwnerIdentity[] = []; let settled = false;
       activeChild = child;
-      const read = output(child.stdout!, direct || gui ? undefined : frame => {
+      const read = output(child.stdout!, direct || gui || noFlag ? undefined : frame => {
         assert.equal(frame.protocol, protocol);
         assert.equal(frame.kind, "result"); assert.equal(frame.case, which); assert.equal(frame.joined, true); results.push(frame);
       });
@@ -165,7 +183,9 @@ export async function smokeNativeVault(cancelEntry = false): Promise<void> {
         }
         const [text, code] = await bounded(Promise.all([read, child.exited]), gui ? 30000 : 18000, interrupted.signal);
         if (direct) { assert.equal(code, 1); categorical(text, "UNAVAILABLE"); results.push({ case: which, category: "UNAVAILABLE", joined: true }); }
+        else if (noFlag) { assert.equal(code, 1); assert.equal(text, ""); results.push({ case: which, exitCode: code, stdoutEmpty: true, joined: true }); }
         else assert.equal(code, 0);
+        if (!gui) same(await readdir(env.GHOSTGET_STATE_HOME!), []);
         for (const owner of owners) assert.ok(await gone(owner), "A native proof descendant remains alive");
         if (gui) {
           assert.equal(text, "");
@@ -179,8 +199,8 @@ export async function smokeNativeVault(cancelEntry = false): Promise<void> {
       }
     }
     assert.equal(results.length, cancelEntry ? 1 : cases.length);
-    const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
-    const receipt = { schema: "ghostget.native-vault-smoke/1", mode: cancelEntry ? "cancel-entry" : "ancestry", nativeSha256: hash(await readFile(native)), runtimeManifestSha256: hash(await readFile(join(runtime, "runtime-manifest.json"))), keychainItemReads: false, secretValuesEntered: false, providerRequests: false, results };
+    same(await bundleDigests(), digests);
+    const receipt = { schema: "ghostget.native-vault-smoke/2", mode: cancelEntry ? "cancel-entry" : "ancestry", ...digests, keychainItemReads: false, secretValuesEntered: false, providerRequests: false, results };
     await writeFile(join(desktop, "out", cancelEntry ? "vault-native-cancel.json" : "vault-native-smoke.json"), `${JSON.stringify(receipt, null, 2)}\n`);
     cleanupSafe = true;
     process.stdout.write(cancelEntry ? "Genuine GUI native cancellation and durable joined receipt passed.\n" : "Packaged native ancestry and arbitrary-interpreter rejection passed without Keychain item access.\n");

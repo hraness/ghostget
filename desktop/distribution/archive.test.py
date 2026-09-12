@@ -33,10 +33,14 @@ class ArchiveBoundary(unittest.TestCase):
     def test_roundtrip_no_code_runs_and_modes_survive(self):
         app = self.root / "Ghostget.app"; app.mkdir(); (app / "Contents").mkdir()
         payload = app / "Contents" / "executable"; payload.write_bytes(b"this is never executed"); payload.chmod(0o755)
+        helper_path = "Contents/Helpers/Ghostget Secure Entry.app/Contents/MacOS/ghostget-desktop"
+        helper = app / helper_path; helper.parent.mkdir(parents=True); helper.write_bytes(payload.read_bytes()); helper.chmod(0o755)
         archive = self.root / "app.zip"; a.pack(app, archive)
         out = self.root / "out"; out.mkdir(); a.extract(archive, out)
         self.assertEqual((out / "Ghostget.app/Contents/executable").read_bytes(), payload.read_bytes())
         self.assertEqual((out / "Ghostget.app/Contents/executable").stat().st_mode & 0o777, 0o755)
+        self.assertEqual((out / "Ghostget.app" / helper_path).read_bytes(), payload.read_bytes())
+        self.assertEqual((out / "Ghostget.app" / helper_path).stat().st_mode & 0o777, 0o755)
     def test_unsigned_modes_normalize_before_signing_without_changing_source_or_executable_intent(self):
         app = self.root / "Ghostget.app"; app.mkdir(); app.chmod(0o777)
         source_modes = [0o600, 0o644, 0o666, 0o700, 0o744, 0o755, 0o777, 0o604, 0o641]

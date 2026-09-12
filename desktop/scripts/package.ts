@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { isDeepStrictEqual } from "node:util";
 import { buildDesktop, desktopRoot } from "./build.ts";
+import { MAIN_IDENTIFIER, SECURE_ENTRY_BUNDLE, SECURE_ENTRY_IDENTIFIER, stageSecureEntry, validateSecureEntry } from "../distribution/secure-entry.ts";
 const repository = resolve(desktopRoot, "..");
 const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 async function packageDirectory(name: string, parent: string): Promise<string> {
@@ -75,7 +76,10 @@ async function sealLocalPreview(stagedRuntime: string): Promise<void> {
   };
   // Never use --deep while signing: it would rewrite the bundled Bun binaries.
   // No hardened-runtime options are added to this credential-free local preview.
-  codesign(["--force", "--sign", "-", "--timestamp=none", "--identifier", "com.ghostget.desktop", app]);
+  codesign(["--force", "--sign", "-", "--timestamp=none", "--identifier", SECURE_ENTRY_IDENTIFIER, join(app, SECURE_ENTRY_BUNDLE)]);
+  codesign(["--force", "--sign", "-", "--timestamp=none", "--identifier", MAIN_IDENTIFIER, app]);
+  const { version } = JSON.parse(await readFile(join(repository, "package.json"), "utf8")) as { version: string };
+  validateSecureEntry(app, version, false);
   await unchangedRuntime();
   codesign(["--verify", "--deep", "--strict", app]);
 }
@@ -85,6 +89,8 @@ if (import.meta.main) {
     const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("APPLE_") && !name.startsWith("TAURI_SIGNING_")));
     const child = Bun.spawn([process.execPath, join(repository, "node_modules/@tauri-apps/cli/tauri.js"), "build", "--config", JSON.stringify({ bundle: { macOS: { signingIdentity: null } } }), "--", "--locked"], { cwd: join(desktopRoot, "src-tauri"), env, stdin: "inherit", stdout: "inherit", stderr: "inherit" });
     if (await child.exited !== 0) throw new Error("Native build failed");
+    const { version } = JSON.parse(await readFile(join(repository, "package.json"), "utf8")) as { version: string };
+    stageSecureEntry(join(desktopRoot, "src-tauri/target/release/bundle/macos/Ghostget.app"), version);
     await sealLocalPreview(stagedRuntime);
   }
 }

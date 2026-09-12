@@ -124,7 +124,7 @@ export function nativeSecretStore(environment: ControlEnvironment): SecretStoreP
   const call = async (action: "create" | "read" | "delete", id: string, purpose: SecretPurpose, kind?: "password" | "token", signal?: AbortSignal) => {
     signal?.throwIfAborted();
     if (process.platform !== "darwin" || basename(process.execPath) !== "ghostget-credential-bun") throw new ControlError("VAULT_UNAVAILABLE", VAULT_MESSAGES.VAULT_UNAVAILABLE!);
-    const executable = join(dirname(process.execPath), "../../MacOS/ghostget-desktop");
+    const executable = join(dirname(process.execPath), "../../Helpers/Ghostget Secure Entry.app/Contents/MacOS/ghostget-desktop");
     const child = Bun.spawn([executable, "--vault-stdio"], { env: vaultEnvironment(environment), stdin: "pipe", stdout: "pipe", stderr: "ignore" });
     // Native codes have their own strict mapping, never an arbitrary message.
     let result: unknown;

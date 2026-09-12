@@ -143,8 +143,8 @@ qualify live Keychain, 1Password, browser login or Apple notarization behavior.
   The combined package and clean standalone installation gates also passed.
 - The owner selected a dedicated 1Password vault and no agent-visible plaintext.
   No live service account was supplied; SDK/provider acceptance remains unclaimed.
-- The owner has no Apple Developer membership yet and is willing to enroll.
-  Identity, agreement, membership and Developer ID/notary credentials are the
+- The owner has an Apple Account; paid Developer Program membership has not yet
+  been confirmed. Identity, agreement, membership and Developer ID/notary credentials are the
   remaining external signed-publication prerequisites. No valid local signing
   identity was found. Do not weaken the signed-publication gate.
 - Additive GitHub controls were created and independently read back on
@@ -157,3 +157,29 @@ qualify live Keychain, 1Password, browser login or Apple notarization behavior.
 - Marketing retains the original four inert scenarios and adds a fifth Vault
   rendering. The website verifier requires every opaque frame and local asset;
   native, Direct and marketing remain separate entry graphs.
+
+### Secure-entry app identity correction
+
+The genuine cancellation check exposed an app-instance targeting problem: the
+GUI and native secret-entry child used the same executable and bundle identity.
+The app controller repeatedly selected the GUI instead of the modal alert.
+No failed Cancel action was observed inside the alert itself.
+
+Give the native child a fixed nested `Ghostget Secure Entry.app` identity under
+`Contents/Helpers`. Reuse the compiled native executable, but allow its secret
+protocol only from that exact nested layout and retain the three live parent
+incarnations, including the distinct outer GUI executable. Launching the helper
+without its protocol argument must not start another control panel. Sign the
+helper bundle before the outer app and verify both identities in distribution.
+
+The private protocol, secret field, Keychain services, deadlines, and renderer
+authority remain unchanged. A changed code identity may reject entries created
+by earlier ad hoc previews: preserve those entries and their metadata, never
+broaden their ACL or silently migrate or delete them. This vault has not yet
+shipped in a public desktop release.
+
+Required evidence is strict layout/ancestor rejection, native process lifetime,
+helper packaging and signing inventory, and the actual native Cancel button in
+an empty test vault followed by normal GUI close. Bind both native executable
+hashes and the runtime inventory in that receipt. This change does not replace
+the real cancellation check with a fixture or a synthetic cancellation path.

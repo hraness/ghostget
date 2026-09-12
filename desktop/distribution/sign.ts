@@ -4,7 +4,8 @@ import { randomBytes } from "node:crypto";
 import { authorize, command, environmentAuthority, githubReader } from "./authority.ts";
 import { archiveName, digest, object, requireValue, sha256, version } from "./contract.ts";
 import { admitHandoff, sealHandoff, temporaryDirectory, type SigningReceipt } from "./handoff.ts";
-import { entitlementsFor, inventory, machoPaths, plist, signatureDetails, validateSignature } from "./native.ts";
+import { entitlementsFor, inventory, machoPaths, nestedSigningTargets, plist, signatureDetails, validateSignature } from "./native.ts";
+import { MAIN_EXECUTABLE, MAIN_IDENTIFIER, validateSecureEntry } from "./secure-entry.ts";
 
 // Sole Apple-secret consumer on a fresh runner: no build hooks or bundle execution.
 if (import.meta.main) {
@@ -13,6 +14,7 @@ if (import.meta.main) {
   admitHandoff(temporaryDirectory("input"), a, "unsigned", process.env.DESKTOP_INPUT_RECEIPT_SHA256);
   const app = join(temporaryDirectory("tree"), "Ghostget.app");
   requireValue(sha256(JSON.stringify(inventory(app))) === digest(process.env.DESKTOP_PREPARED_SHA256), "prepared unsigned app changed");
+  validateSecureEntry(app, version(a.tag), true);
   const team = process.env.APPLE_TEAM_ID ?? "", identity = (process.env.APPLE_SIGNING_IDENTITY_SHA1 ?? "").toLowerCase();
   requireValue(/^[A-Z0-9]{10}$/u.test(team), "a Developer ID team is required"); digest(identity, 40);
   const keyId = process.env.APPLE_API_KEY_ID ?? "", issuer = process.env.APPLE_API_ISSUER ?? "";
@@ -37,20 +39,22 @@ if (import.meta.main) {
     apple("/usr/bin/security", ["set-key-partition-list", "-S", "apple-tool:,apple:,codesign:", "-s", "-k", keychainPassword, keychain]);
     const identities = apple("/usr/bin/security", ["find-identity", "-v", "-p", "codesigning", keychain]).toString("utf8");
     requireValue(identities.split("\n").some(line => line.includes(identity.toUpperCase()) && line.includes('"Developer ID Application:') && line.includes(`(${team})`)), "certificate is not the selected Developer ID Application identity");
-    const paths = machoPaths(app); requireValue(paths.length >= 3, "bundled native code is missing");
-    for (const path of paths.filter(path => path !== "Contents/MacOS/ghostget-desktop")) {
-      const entitlements = join(scratch, "entitlements.plist"); writeFileSync(entitlements, plist(entitlementsFor(path)), { mode: 0o600 });
-      apple("/usr/bin/codesign", ["--force", "--sign", identity, "--keychain", keychain, "--timestamp", "--options", "runtime", "--entitlements", entitlements, join(app, path)]);
-      validateSignature(signatureDetails(join(app, path)), team);
+    const paths = machoPaths(app);
+    for (const target of nestedSigningTargets(paths)) {
+      const entitlements = join(scratch, "entitlements.plist"); writeFileSync(entitlements, plist(entitlementsFor(target.executable)), { mode: 0o600 });
+      apple("/usr/bin/codesign", ["--force", "--sign", identity, "--keychain", keychain, "--timestamp", "--options", "runtime", "--entitlements", entitlements,
+        ...(target.identifier ? ["--identifier", target.identifier] : []), join(app, target.path)]);
+      validateSignature(signatureDetails(join(app, target.path)), team, target.identifier);
     }
     const runtime = join(app, "Contents/Resources/ghostget-runtime");
     copyFileSync(join(runtime, "runtime-manifest.json"), join(runtime, "runtime-input-manifest.json"));
     const finalFiles = inventory(runtime).filter(file => file.path !== "runtime-manifest.json");
     writeFileSync(join(runtime, "runtime-manifest.json"), JSON.stringify({ schema: "ghostget.native-resources/1", bunVersion: "1.3.14", files: finalFiles.map(({ path, bytes, sha256 }) => ({ path, size: bytes, sha256 })) }));
-    const signingFiles = paths.filter(path => path !== "Contents/MacOS/ghostget-desktop").map(path => ({ path, teamId: team, entitlements: entitlementsFor(path) }));
+    const signingFiles = paths.filter(path => path !== MAIN_EXECUTABLE).map(path => ({ path, teamId: team, entitlements: entitlementsFor(path) }));
     writeFileSync(join(app, "Contents/Resources/desktop-signing-inventory.json"), JSON.stringify({ schema: "ghostget.desktop-signing/1", files: signingFiles }));
-    apple("/usr/bin/codesign", ["--force", "--sign", identity, "--keychain", keychain, "--timestamp", "--options", "runtime", "--identifier", "com.ghostget.desktop", app]);
-    apple("/usr/bin/codesign", ["--verify", "--deep", "--strict", "--verbose=2", app]); validateSignature(signatureDetails(app), team, "com.ghostget.desktop");
+    apple("/usr/bin/codesign", ["--force", "--sign", identity, "--keychain", keychain, "--timestamp", "--options", "runtime", "--identifier", MAIN_IDENTIFIER, app]);
+    apple("/usr/bin/codesign", ["--verify", "--deep", "--strict", "--verbose=2", app]); validateSignature(signatureDetails(app), team, MAIN_IDENTIFIER);
+    validateSecureEntry(app, version(a.tag), false);
     const submission = join(scratch, "notary-submission.zip"); apple("/usr/bin/ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", app, submission], 180_000);
     const notaryAuth = ["--key", join(scratch, "notary.p8"), "--key-id", keyId, "--issuer", issuer];
     const admitted = object(JSON.parse(apple("/usr/bin/xcrun", ["notarytool", "submit", submission, ...notaryAuth, "--output-format", "json"], 180_000).toString("utf8")));

@@ -106,6 +106,13 @@ GitHub-hosted macOS runners. The build runner never receives Apple credentials;
 the signing runner never installs project dependencies or runs the supplied app.
 Each runner checks out the admitted source SHA with checkout credentials disabled.
 
+The build copies the compiled native executable into the fixed nested bundle
+`Contents/Helpers/Ghostget Secure Entry.app/Contents/MacOS/ghostget-desktop`.
+Its bundle metadata identifies `com.ghostget.secure-entry`, displays
+**Ghostget Secure Entry**, sets `LSUIElement`, and copies the main app's white
+Ghostget icon. Before sealing, its executable must match the compiled main
+executable byte for byte. The main app retains `com.ghostget.desktop`.
+
 The build hands off an unsigned ZIP and a strict receipt through a numeric Actions
 artifact ID. The receipt binds the repository, source commit/tree, workflow and
 lock hashes, run/attempt, and exact archive name/size/SHA-256. Before any signing
@@ -118,12 +125,14 @@ permission bits are rejected. This preserves executable-versus-data intent,
 removes group/world write permissions, and leaves the source app untouched.
 It extracts only real `Ghostget.app` files/directories beneath runner scratch,
 outside checkout. The signer rechecks the receipt and extracted file
-inventory. Archive content is never imported as signing-job code.
+inventory, exact helper metadata and layout, copied icon, and matching unsigned
+native bytes. Archive content is never imported as signing-job code.
 
 The signer uses a fresh temporary keychain with the selected Developer ID identity.
 It never changes the login/default keychain or search list. It enumerates every
 Mach-O file by its header, including binaries in unusual resource locations,
-signs nested code first, rebuilds the signed runtime byte inventory, and seals
+signs nested code first, including the secure-entry app under its own identifier,
+rebuilds the signed runtime byte inventory, and seals
 the outer app last. The original staged runtime inventory remains inside the
 sealed app as `runtime-input-manifest.json`.
 
@@ -178,9 +187,17 @@ they are not reasons to relax a gate.
 Both the control and dedicated credential Bun executables receive only
 `com.apple.security.cs.allow-jit`. Service-account authentication uses the SDK
 without DesktopAuth or an installed 1Password IPC library. All other native code,
-including the Rust app, receives no additional entitlement. The native vault's
-file-based Keychain ACL belongs to the Rust app's code identity; Bun does not
-receive Keychain authority.
+including the Rust app and secure-entry helper, receives no additional
+entitlement. The native vault's file-based Keychain ACL belongs to the secure-entry
+helper's code identity; Bun does not receive Keychain authority. Verification
+requires the helper's exact identifier, Developer ID leaf/team, arm64 architecture,
+empty entitlements, and the strict outer seal. Signing never uses `--deep`.
+
+Entries created by development previews before the first vault release stay in
+the Keychain unchanged. If their ACL rejects the new helper identity, create a
+new entry with the current app; the app does not broaden, migrate, or delete the
+older entry's ACL. An ad hoc preview is not a promise of stable signing identity
+across rebuilds.
 
 Bun's documented signing example grants more hardened-runtime exceptions. This
 pipeline intentionally starts with the smaller explicit set and runs the actual

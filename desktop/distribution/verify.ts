@@ -77,7 +77,7 @@ if (import.meta.main) {
   try {
   command("/usr/bin/ditto", ["-x", "-k", archive, extracted], { timeout: 180_000 });
   requireValue(readdirSync(extracted).join(",") === "Ghostget.app", "download archive has unexpected roots");
-  verifyNativeBundle(app, team, identity);
+  verifyNativeBundle(app, team, identity, version(a.tag));
   const runtime = join(app, "Contents/Resources/ghostget-runtime"), runtimeManifest = readFileSync(join(runtime, "runtime-manifest.json"));
   const resources = object(JSON.parse(runtimeManifest.toString("utf8")));
   requireValue(resources.schema === "ghostget.native-resources/1" && resources.bunVersion === "1.3.14"
