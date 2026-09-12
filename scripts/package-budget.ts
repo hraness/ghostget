@@ -1,3 +1,13 @@
+// Ghostget 0.19.0 joined with main 79b74fe (LinkedIn adapter 1.32.0):
+// two fresh Bun 1.3.14 builds and npm 11.19.0 ignore-scripts packs under
+// Node 24.20.0 on darwin arm64 (zlib 1.2.12) are byte-identical:
+// 2,361,917 compressed and 12,845,303 payload bytes across exactly 540 files,
+// SHA-256 8518b9c0264d6c80c5d016fc75e98063c39d3a76055f5592bcec3ef5b6992667.
+// Every archived byte and mode matches source. The incoming body correction
+// adds exactly 3,975 payload bytes and 1,147 local compressed bytes. Preserve
+// 65 payload bytes and the reviewed 2,802 + 4,096 compression allowance.
+// Required Linux CI independently checks its actual canonical archive.
+//
 // Ghostget 0.19.0 joined with main cc99cb6 (LinkedIn adapter 1.31.0):
 // two fresh Bun 1.3.14 builds and npm 11.19.0 ignore-scripts packs under
 // Node 24.20.0 on darwin arm64 (zlib 1.2.12) are byte-identical:
@@ -69,6 +79,20 @@
 // distribution scripts, tests and website files remain excluded. Preserve
 // the 65-byte payload allowance and the prior 2,802 + 4,096-byte compression
 // allowance. Required Linux CI still inspects its actual canonical archive.
+//
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` sibling
+// requestMetadata / proto.sdui POST body (adapter bundle 1.32.0),
+// measured with no version bump: a Bun 1.3.14 `pm pack` on Linux x64
+// shares 12,721,045 payload bytes across exactly 524 files. The bun
+// archive is 2,188,869 compressed bytes, SHA-256
+// 6ce1e1a7bf4f3f4d30b56cce135be3916efe3602fa7f595ceffd640de432a0dc.
+// Sibling requestMetadata, proto.sdui type admission, adapter notes,
+// changelog, and tests add 3,975 payload bytes compared with the 1.31.0
+// measurement. Raise only the payload ceiling to the measured value plus
+// 65 bytes of headroom (12,721,110); the packed size stays under the
+// existing packed allowance and the 524-entry inventory is unchanged.
+// Theme CSS stays website-only. Fresh Linux CI independently checks its
+// actual canonical archive.
 //
 // Ghostget 0.18.0 source plus the LinkedIn `contacts.read` navigation POST
 // Email path (adapter bundle 1.31.0), measured with no version bump: a
@@ -612,10 +636,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_367_668;
+export const MAX_PACKED_BYTES = 2_368_815;
 export const MAX_PACKED_ENTRIES = 540;
 export const MAX_PACKED_FILES = 540;
-export const MAX_UNPACKED_BYTES = 12_841_393;
+export const MAX_UNPACKED_BYTES = 12_845_368;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

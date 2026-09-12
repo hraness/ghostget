@@ -3860,12 +3860,15 @@ describe("LinkedIn contacts.read runtime", () => {
         screenId: "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
         pageKey: "profile_view_base_contact_details",
         requestedArguments: {
+          $type: "proto.sdui.actions.requests.RequestedArguments",
+          requestedStateKeys: [],
           payload: {
             vanityName: "example",
             givenName: "Ada",
             familyName: "Example",
             isVanityNameResolved: true,
           },
+          requestMetadata: { $type: "proto.sdui.common.RequestMetadata" },
         },
       })}`,
     ])}</script></body></html>`;
@@ -3894,11 +3897,16 @@ describe("LinkedIn contacts.read runtime", () => {
           },
           readContactNavigationText: (input) => {
             browserCalls.push(`navigation:${input.sduiid}:${input.clientArguments.payload.vanityName}`);
-            expect(input.clientArguments.payload).toEqual({
-              vanityName: "example",
-              givenName: "Ada",
-              familyName: "Example",
-              isVanityNameResolved: true,
+            expect(input.clientArguments).toEqual({
+              $type: "proto.sdui.actions.requests.RequestedArguments",
+              requestedStateKeys: [],
+              payload: {
+                vanityName: "example",
+                givenName: "Ada",
+                familyName: "Example",
+                isVanityNameResolved: true,
+              },
+              requestMetadata: { $type: "proto.sdui.common.RequestMetadata" },
             });
             return Promise.resolve(OVERLAY_CONTACT_FLIGHT);
           },

@@ -31,6 +31,23 @@ Historical entries retain their original delivery coordinates.
   requires Apple enrollment and protected credentials. Browser autofill and
   passkey assertions are not implemented.
 
+- Fix LinkedIn `contacts.read@1` Contact-info navigation POST body after
+  adapter 1.31.0. Live 1st-degree bind still succeeded, but building
+  `clientArguments` from NavigateToScreen failed closed on
+  `unreviewed-client-arguments` keys=`["requestMetadata"]` because live
+  HTML keeps `requestMetadata` a sibling of `payload` under
+  `requestedArguments`, and `$type` uses `proto.sdui.*`
+  (`RequestedArguments`, `RequestMetadata`). A payload-only POST then
+  returned HTTP 500. The operation now copies that reviewed sibling
+  shape, lifts headed nested `payload.requestMetadata` to the sibling
+  placement, and admits `proto.sdui.*` types only on this overlay POST
+  body. Extra keys and unrelated proto prefixes still fail closed.
+  GraphQL 403, navigation GETs, vanity HTML-shell honesty, and
+  sduiid=screenId stay. Soft-labels stay. Self, non-first-degree, and
+  contradictory distances still fail closed, and no email is invented.
+  Adapter bundle 1.32.0. This is the tenth live Contact-info drift after
+  the 1.31.0 navigation POST. Cloud has no signed-in LinkedIn session;
+  do not treat this landing as live green.
 - Read LinkedIn `contacts.read@1` Contact-info Email from the headed
   ProfileContactDetailsOverlay navigation POST after 1st-degree bind.
   Operator Chrome showed Email in the Contact-info modal; the first
