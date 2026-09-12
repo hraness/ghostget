@@ -77,6 +77,15 @@ confirmation; it does not replace them. If a cache-only read requires approval,
 perform an explicit live invocation with the app open. No cached data may be
 disclosed while waiting for approval.
 
+The iMessage and WhatsApp `messaging.automation.*` operations belong to a separate
+trusted owner host. Do not expose `ghostget messaging automation serve --stdio`
+as an agent tool. Its exact operation allows and conversation grants are
+additional authority; an unmanaged policy, **Ask**, or a `messaging.send` grant
+is insufficient. Refer the owner to the
+[messaging automation guide](https://github.com/hraness/ghostget/blob/v0.19.0/docs/messaging-automation.md)
+for setup, private stream handling, and recovery. Do not grant or broaden this
+authority through another interface.
+
 For user-space integration edits:
 
 ```sh

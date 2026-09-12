@@ -73,6 +73,8 @@ function assertContactInfoRequestBinding(slug: string): void {
   expect([...navigation.searchParams.keys()]).toEqual(["screenId", "sduiid"]);
   expect(navigation.searchParams.get("screenId")).toBe(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID);
   expect(navigation.searchParams.get("sduiid")).toBe(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID);
+  expect(navigation.searchParams.has("sduid")).toBeFalse();
+  expect(navigation.href).not.toContain("sduid=");
   expect(() => assertLinkedInContactInfoRequest({
     method: "POST",
     url: navigation,
@@ -114,7 +116,6 @@ test("LinkedIn contact-info navigation POST binds sduiid to the overlay screenId
         $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
         requestedStateKeys: [],
         payload: { vanityName: slug, givenName: "Ada", familyName: "Example", isVanityNameResolved: true },
-        requestMetadata: { $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE },
       },
     }).replace(/[&<>"=\\]/gu, (character) => ({
       "&": "&amp;",
@@ -141,8 +142,13 @@ test("LinkedIn contact-info navigation POST binds sduiid to the overlay screenId
             givenName: "Ada",
             familyName: "Example",
             isVanityNameResolved: true,
+            requestMetadata: {
+              $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+              states: [],
+              screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+              knownTemplates: [],
+            },
           },
-          requestMetadata: { $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE },
         },
         isModal: true,
       },

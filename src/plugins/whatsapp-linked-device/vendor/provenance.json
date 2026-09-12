@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "upstream": {
+    "repository": "https://github.com/openclaw/wacli",
+    "version": "0.15.0",
+    "baseCommit": "a020de724180d31eccfa5241d45443402d62fb06"
+  },
+  "reviewedPatchStack": {
+    "tipCommit": "16cf7557a1683eb18e7a6e1c1fde8ca9f05e0850",
+    "patches": [{
+      "file": "0001-ghostget-private-messaging.patch",
+      "sha256": "44235d0fcd070d895fbe2fa3fa4406b34b8f7c808216fd22a2417c4fc86f3255",
+      "purpose": "Bounded owner-only IPC, durable one-attempt request claims, exact direct JIDs, joined cancellation and atomic bounded message-change events."
+    }]
+  },
+  "artifact": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "version": "0.15.0+ghostget-private.1",
+    "executableSha256": "9b77ffb810d028fde725ca02b1451f1725b5ff5312a46a54468a9a38533d4cea",
+    "executableBytes": 21963810,
+    "compression": "gzip",
+    "compressedSha256": "1c1650d6c79b74db7f8f335b4746398c802031260a90468312dcaac0374a5166",
+    "compressedBytes": 7682949,
+    "build": {
+      "go": "go1.25.12 darwin/arm64",
+      "goArchiveSha256": "fa2c88bbcf64bd3b2aef355f026cfec6d3a4a01c132f999c8f8c964eb767164f",
+      "clang": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+      "macosSdk": "26.5",
+      "moduleGraphChanged": false,
+      "command": ["go", "build", "-trimpath", "-buildvcs=false", "-tags", "sqlite_fts5", "-ldflags", "-s -w -buildid= -X main.version=0.15.0+ghostget-private.1", "-o", "wacli-private", "./cmd/wacli"],
+      "secondIdenticalBuildVerified": true
+    }
+  },
+  "validation": {
+    "goTestAll": "passed",
+    "goTestAllSqliteFts5": "passed",
+    "goVetAll": "passed",
+    "privateSocketUsesSyntheticRuntime": true,
+    "realAccountRead": false,
+    "pairingPerformed": false,
+    "liveSendPerformed": false,
+    "deliveryQualified": false
+  }
+}

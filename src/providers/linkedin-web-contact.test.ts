@@ -32,6 +32,30 @@ const PROFILE_URN = "urn:li:fsd_profile:ACoAAFixtureProfile";
 const PROFILE_URL = "https://www.linkedin.com/in/example/";
 const OBSERVED_AT = "2026-09-08T18:00:00.000Z";
 const CONNECTED_AT_MS = Date.parse("2023-10-03T00:00:00.000Z");
+const HEADED_REQUEST_METADATA = Object.freeze({
+  $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+  states: Object.freeze([]),
+  screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+  knownTemplates: Object.freeze([]),
+});
+
+function headedClientArguments(
+  payload: {
+    readonly vanityName?: string;
+    readonly givenName?: string;
+    readonly familyName?: string;
+    readonly isVanityNameResolved?: boolean;
+  },
+) {
+  return {
+    $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+    requestedStateKeys: [],
+    payload: {
+      ...payload,
+      requestMetadata: HEADED_REQUEST_METADATA,
+    },
+  };
+}
 
 function bootstrapHtml(value: unknown): string {
   const encoded = JSON.stringify(value).replace(/[&<>"=\\]/gu, (character) => ({
@@ -164,6 +188,8 @@ describe("LinkedIn contacts.read target and request binding", () => {
     expect(NAVIGATION_POST_PATH).toBe(
       `/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&sduiid=${encodeURIComponent(OVERLAY_SDUIID)}`,
     );
+    expect(NAVIGATION_POST_PATH).toContain("sduiid=");
+    expect(NAVIGATION_POST_PATH).not.toContain("sduid=");
     expect(OVERLAY_SDUIID).toBe(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID);
     expect(NAVIGATION_POST_URL.href).toBe(`https://www.linkedin.com${NAVIGATION_POST_PATH}`);
   });
@@ -252,12 +278,33 @@ describe("LinkedIn contacts.read target and request binding", () => {
       method: "POST",
       url: NAVIGATION_POST_URL,
     })).not.toThrow();
+    const headedBody = buildLinkedInContactNavigationBody({
+      clientArguments: { payload: { vanityName: "example" } },
+    });
+    expect(JSON.parse(headedBody)).toEqual({
+      clientArguments: headedClientArguments({ vanityName: "example" }),
+      isModal: true,
+    });
+    expect(Object.keys(JSON.parse(headedBody).clientArguments)).toEqual([
+      "$type",
+      "requestedStateKeys",
+      "payload",
+    ]);
+    expect(Object.keys(JSON.parse(headedBody).clientArguments.payload)).toEqual([
+      "vanityName",
+      "requestMetadata",
+    ]);
+    expect(Object.keys(JSON.parse(headedBody).clientArguments.payload.requestMetadata)).toEqual([
+      "$type",
+      "states",
+      "screenId",
+      "knownTemplates",
+    ]);
+    expect(JSON.parse(headedBody).clientArguments.requestMetadata).toBeUndefined();
     expect(() => assertLinkedInContactInfoRequest({
       method: "POST",
       url: NAVIGATION_POST_URL,
-      body: buildLinkedInContactNavigationBody({
-        clientArguments: { payload: { vanityName: "example" } },
-      }),
+      body: headedBody,
     })).not.toThrow();
     expect(() => assertLinkedInContactInfoRequest({
       method: "GET",
@@ -283,6 +330,10 @@ describe("LinkedIn contacts.read target and request binding", () => {
       method: "POST",
       url: `https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&sduiid=${STOLEN_SDUIID}`,
     })).toThrow("LinkedIn contact-info navigation sduiid must equal ProfileContactDetailsOverlay");
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: `https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&sduid=${encodeURIComponent(OVERLAY_SDUIID)}`,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
     expect(() => assertLinkedInContactInfoRequest({
       method: "POST",
       url: NAVIGATION_POST_URL,
@@ -318,7 +369,7 @@ describe("LinkedIn contacts.read navigation action binding", () => {
       kind: "action",
       action: {
         sduiid: OVERLAY_SDUIID,
-        clientArguments: { payload: { vanityName: "example" } },
+        clientArguments: headedClientArguments({ vanityName: "example" }),
         isModal: true,
       },
     });
@@ -349,14 +400,12 @@ describe("LinkedIn contacts.read navigation action binding", () => {
       kind: "action",
       action: {
         sduiid: OVERLAY_SDUIID,
-        clientArguments: {
-          payload: {
-            vanityName: "example",
-            givenName: "Ada",
-            familyName: "Example",
-            isVanityNameResolved: true,
-          },
-        },
+        clientArguments: headedClientArguments({
+          vanityName: "example",
+          givenName: "Ada",
+          familyName: "Example",
+          isVanityNameResolved: true,
+        }),
         isModal: true,
       },
     });
@@ -370,13 +419,19 @@ describe("LinkedIn contacts.read navigation action binding", () => {
       kind: "action",
       action: {
         sduiid: OVERLAY_SDUIID,
-        clientArguments: { payload: { vanityName: "example" } },
+        clientArguments: headedClientArguments({ vanityName: "example" }),
         isModal: true,
       },
     });
   });
 
-  test("keeps requestMetadata a sibling and copies reviewed proto.sdui types", () => {
+  test("nests headed requestMetadata under payload and completes reviewed keys", () => {
+    const headedMetadata = {
+      $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+      states: [],
+      screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+      knownTemplates: [],
+    };
     const live = {
       actionName: "NavigateToScreen",
       screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
@@ -415,9 +470,7 @@ describe("LinkedIn contacts.read navigation action binding", () => {
             givenName: "Ada",
             familyName: "Example",
             isVanityNameResolved: true,
-          },
-          requestMetadata: {
-            $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+            requestMetadata: headedMetadata,
           },
         },
         isModal: true,
@@ -454,14 +507,91 @@ describe("LinkedIn contacts.read navigation action binding", () => {
       profileUrn: PROFILE_URN,
     });
     expect(lifted).toEqual(extracted);
-    expect(JSON.parse(buildLinkedInContactNavigationBody({
+    const posted = JSON.parse(buildLinkedInContactNavigationBody({
       clientArguments: extracted.kind === "action" ? extracted.action.clientArguments : { payload: {} },
-    })).clientArguments.requestMetadata).toEqual({
-      $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+    }));
+    expect(posted).toEqual({
+      clientArguments: headedClientArguments({
+        vanityName: "example",
+        givenName: "Ada",
+        familyName: "Example",
+        isVanityNameResolved: true,
+      }),
+      isModal: true,
     });
+    expect(posted.clientArguments.requestMetadata).toBeUndefined();
+    expect(posted.clientArguments.payload.requestMetadata).toEqual(headedMetadata);
     expect(JSON.parse(buildLinkedInContactNavigationBody({
-      clientArguments: extracted.kind === "action" ? extracted.action.clientArguments : { payload: {} },
-    })).clientArguments.payload.requestMetadata).toBeUndefined();
+      clientArguments: {
+        $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+        requestedStateKeys: [],
+        payload: {
+          vanityName: "example",
+          givenName: "Ada",
+          familyName: "Example",
+          isVanityNameResolved: true,
+        },
+      },
+    }))).toEqual(posted);
+    const headed = extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          actionName: "NavigateToScreen",
+          screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+          pageKey: LINKEDIN_CONTACT_DETAILS_PAGE_KEY,
+          requestedArguments: {
+            $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+            requestedStateKeys: [],
+            payload: {
+              vanityName: "example",
+              givenName: "Ada",
+              familyName: "Example",
+              isVanityNameResolved: true,
+              requestMetadata: {
+                $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+                states: ["contactDetails"],
+                screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+                knownTemplates: ["ProfileContactDetails"],
+              },
+            },
+          },
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    });
+    expect(headed.kind === "action" ? headed.action.clientArguments.payload.requestMetadata : undefined).toEqual({
+      $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+      states: ["contactDetails"],
+      screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+      knownTemplates: ["ProfileContactDetails"],
+    });
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: comoFlightHtml([
+        { publicIdentifier: "example", entityUrn: PROFILE_URN, memberDistance: 1 },
+        {
+          actionName: "NavigateToScreen",
+          screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+          pageKey: LINKEDIN_CONTACT_DETAILS_PAGE_KEY,
+          requestedArguments: {
+            $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+            payload: {
+              vanityName: "example",
+              requestMetadata: {
+                $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+                states: [{ key: "opaque" }],
+              },
+            },
+          },
+        },
+      ]),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      kind: "unreviewed-client-arguments",
+      keys: ["payload.requestMetadata.states"],
+    });
   });
 
   test("stays absent when profile HTML only mentions the overlay screen", () => {
@@ -1373,6 +1503,25 @@ describe("LinkedIn contacts.read Contact-info projection", () => {
       profileUrl: PROFILE_URL,
       expectedViewerSubject: VIEWER,
     }).relationship).toBe("first-degree");
+  });
+
+  test("projects Email from a Contact-info modal dialog snapshot", () => {
+    const html = [
+      "<div role=\"dialog\" aria-modal=\"true\">",
+      "<span>Email</span>",
+      "<a href=\"mailto:connection@example.test\">connection@example.test</a>",
+      "</div>",
+    ].join("");
+    expect(projectLinkedInOverlayContactFields(html, "example")).toMatchObject({
+      email: "connection@example.test",
+    });
+    expect(projectLinkedInContactInfo({
+      profileHtml: profileHtml(),
+      contactPayload: html,
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+      observedAt: OBSERVED_AT,
+    }).contact.email).toBe("connection@example.test");
   });
 
   test("projects Email from overlay HTML that still carries Como Contact-info fields", () => {

@@ -50,7 +50,7 @@
           <p class="eyebrow">WhatsApp local export · {{GHOSTGET_RELEASE}}</p>
           <h1>Export bounded WhatsApp history for Message Like Me.</h1>
           <p class="answer-lede">Ghostget reads an existing account-bound Wacli store and publishes one private Message Like Me schema-2 bundle. This export does not pair a device, synchronize WhatsApp, open a network connection, or send a message.</p>
-          <p class="review-note">The current native export is available on macOS arm64 with official Wacli {{WHATSAPP_WACLI_VERSION}}. The separate <code>whatsapp-web</code> adapter {{WHATSAPP_ADAPTER_VERSION}} also exposes {{WHATSAPP_OBSERVED_OPERATION_COUNT}} bounded R1 reads over the same local projection.</p>
+          <p class="review-note">The current native export is available on macOS arm64 with official Wacli {{WHATSAPP_WACLI_VERSION}}. The <code>whatsapp-web</code> adapter {{WHATSAPP_ADAPTER_VERSION}} exposes {{WHATSAPP_OBSERVED_OPERATION_COUNT}} generic bounded R1 reads over that local projection. Its separate owner-only automation permissions do not turn those reads into send commands.</p>
         </header>
 
         <section aria-labelledby="export">
@@ -75,7 +75,7 @@
         </section>
 
         <section aria-labelledby="provenance">
-          <h2 id="provenance">Exact macOS arm64 runtime</h2>
+          <h2 id="provenance">Exact macOS arm64 export runtime</h2>
           <div class="table-scroll version-table" role="region" aria-labelledby="provenance" tabindex="0">
             <table>
               <thead><tr><th scope="col">Boundary</th><th scope="col">Reviewed identity</th></tr></thead>
@@ -91,9 +91,17 @@
           <p>The runtime checks the official release identity, exact executable SHA-256, and offline code signature before reading. The installer separately repeats the online Apple notarization check before it publishes the executable. Runtime reads do not claim to repeat online notarization.</p>
         </section>
 
+        <section aria-labelledby="owner-messaging">
+          <h2 id="owner-messaging">Owner-controlled messaging is a separate setup</h2>
+          <p>The trusted <code>ghostget messaging automation serve --stdio</code> host supports enrolled individual conversations through a separate, pinned wacli build with reviewed patches. It requires an existing account, explicit managed operation permissions, and the exact installed automation runtime. Stock Wacli and the export runtime above do not establish automation readiness.</p>
+          <p>Initialization does not pair or start synchronization. The owner must explicitly start sync and grant a conversation its allowed action kinds, expiry, interval, and capacity. Available text, attachment, reaction, sticker, link, and poll actions depend on current account and runtime capabilities. The <code>messaging.automation.*</code> catalog entries are permission ceilings, not operations callable through generic <code>invoke</code> or <code>confirm</code>.</p>
+          <p>The host retains private plaintext conversation history and an action journal. Historical bootstrap is not a new-message event, gaps block automatic sends, and uncertain actions are not resubmitted. Provider acceptance does not prove delivery. This contract description does not claim a paired account or a successful live send on your machine.</p>
+          <p>Follow the release's <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/messaging-automation.md">owner messaging setup and recovery guide</a> and review <a href="/privacy/">local data retention</a> before enabling it.</p>
+        </section>
+
         <aside class="guide-callout" aria-labelledby="whatsapp-next">
           <h2 id="whatsapp-next">Inspect the installed boundary</h2>
-          <p>Run <code>ghostget operator doctor --json</code>, inspect <a href="/provider-capabilities/#provider-whatsapp">the four local R1 contracts</a>, and keep the output outside Git or shared storage.</p>
+          <p>Run <code>ghostget operator doctor --json</code>, inspect <a href="/provider-capabilities/#provider-whatsapp">the four local R1 contracts and separate owner-only permissions</a>, and keep private output outside Git or shared storage.</p>
         </aside>
       </article>
     </main>

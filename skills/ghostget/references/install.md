@@ -64,3 +64,13 @@ or another operating-system dependency only when the requested route needs
 it and the user has authorized that machine change. Re-run doctor after the
 install. Do not weaken a provider or archive boundary when an optional tool is
 absent.
+
+For authorized owner-managed iMessage or WhatsApp automation, the package includes
+pinned macOS arm64 runtime artifacts. `ghostget imessage transport install --json`
+and `ghostget whatsapp automation install --json` install those exact bytes without
+starting a helper. An optional `--binary /absolute/reviewed-file` accepts only the
+pinned reviewed executable. Installation does not pair an account, grant macOS
+permissions, start synchronization, or authorize messages. Follow the
+[owner messaging host guide](https://github.com/hraness/ghostget/blob/v0.19.0/docs/messaging-automation.md)
+for those separate setup and permission boundaries. Its stdio control port must
+remain outside the agent's tool surface.

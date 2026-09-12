@@ -40,7 +40,8 @@ export const ghostgetUsage = `Usage:
   ghostget interface export [adapter]              Export installed semantic interfaces as OpenAPI
   ghostget interface import <openapi.json> [--expected-digest <sha256>]
                                                  Save an inert draft; review and activate it in the native app
-  ghostget imessage transport install --binary <absolute-reviewed-imsg-file> [--json]
+  ghostget whatsapp automation install [--binary <absolute-reviewed-wacli-file>] [--json]
+  ghostget imessage transport install [--binary <absolute-reviewed-imsg-file>] [--json]
                                                  Install only the current reviewed iMessage transport bytes
   ghostget plugin list [--json]                    List trusted source and installed portable plugins
   ghostget plugin show <id> [--json]               Inspect one source or portable plugin
@@ -104,6 +105,7 @@ export const ghostgetUsage = `Usage:
                   --output <new-absolute-directory> [--json]
                   # local wacli.db bundle only; no send, pairing, or cloud sync
 
+  ghostget messaging automation serve --stdio
   ghostget messaging routes --input <-|@absolute-private-file>
                           --private-output <absolute-mode-0600-file> [--json]
   ghostget messaging resolve --input <-|@absolute-private-file>

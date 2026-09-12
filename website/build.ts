@@ -648,6 +648,7 @@ function renderTemplate(
       String(options.attestation.captureRequiredCount),
     ],
     ["{{PROVIDER_CAPABILITY_OBSERVED_COUNT}}", String(options.attestation.observedCount)],
+    ["{{PROVIDER_CALLABLE_ACTION_COUNT}}", String(options.providerDirectory.entries.reduce((sum, entry) => sum + entry.supportedActionCount, 0))],
     ["{{PROVIDER_CAPABILITY_OPERATION_COUNT}}", String(options.attestation.operationCount)],
     ["{{PROVIDER_SURFACE_COUNT}}", String(options.providerDirectory.providerCount)],
   ]);

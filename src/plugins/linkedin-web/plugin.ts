@@ -189,7 +189,7 @@ function linkedinArticleDraftV2Dispatches(
 
 const currentOperations = webSessionContractOperations(
   Object.values(linkedinContracts),
-    "e2c02bfe1d3529a7d5985097ab4f25ec507856da3848ad809b5231f2a1981c08",
+    "e7b252e0332557f3e8cc764800ada4972ca093d9974e2b876a904588523f441c",
   {
     "posts.publish": [2],
   },

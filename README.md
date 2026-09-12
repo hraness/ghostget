@@ -199,7 +199,7 @@ const plugin = candidate satisfies ProviderPluginDefinitionV1
 void plugin
 ```
 
-The package exposes seven public TypeScript entrypoints. Its root exposes
+The package exposes eight public TypeScript entrypoints. Its root exposes
 programmatic plugin types and bounded validators.
 `@hraness/ghostget/client` exposes persistent-read and strict live-invocation
 helpers, `@hraness/ghostget/beeper` exposes the body-free Beeper contact
@@ -207,7 +207,11 @@ interaction export, `@hraness/ghostget/apple-photos` exposes exact local Photos
 contact evidence, `@hraness/ghostget/whatsapp` exposes the bounded private
 Message Like Me export, `@hraness/ghostget/omni` exposes normalized
 cross-provider reads, and `@hraness/ghostget/messaging` exposes agentic messaging
-route discovery and resolution. Importing any SDK entrypoint does not start the CLI.
+route discovery and resolution. `@hraness/ghostget/messaging-automation` exposes
+closed automation types, explicit trusted-owner host construction, and the
+bundled runtime installer. The owner host is not an agent tool; owner-supplied
+providers must enforce their own permissions and cleanup. Importing any SDK
+entrypoint does not start the CLI.
 Importing the package root also does not inspect local state or load provider
 runtimes.
 
@@ -967,6 +971,27 @@ unsupported.
 Build provenance, the exact macOS arm64 executable digest, checked installer,
 permission setup, and outcome limits are in
 [`docs/imessage-direct-provider.md`](docs/imessage-direct-provider.md).
+
+### Owner-managed iMessage and WhatsApp automation
+
+The separate `ghostget messaging automation serve --stdio` host lets a trusted
+owner enroll exact conversations and issue bounded automation grants. Keep its
+configuration, private message streams, and control port outside the agent's
+tool surface. Initialization neither pairs an account nor starts synchronization.
+
+Install the exact bundled transport with
+`ghostget imessage transport install --json` or
+`ghostget whatsapp automation install --json`. These explicit owner setup
+commands start no helper. Existing account pairing and macOS permissions
+still require separate setup; only pinned macOS arm64 runtime bytes are admitted.
+
+Managed operation permissions must separately allow `messaging.automation.read`,
+each required `messaging.automation.send.<kind>`, and WhatsApp's
+`messaging.automation.sync`. An existing `messaging.send` grant, an unmanaged
+policy, or **Ask** does not authorize unattended automation. These operations do
+not dispatch through generic `invoke` or `confirm`. See the
+[owner messaging host guide](docs/messaging-automation.md) for runtime provenance,
+exact enrollment and grant bindings, private storage, and uncertain-action recovery.
 
 ### Gmail
 

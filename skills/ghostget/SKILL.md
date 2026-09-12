@@ -1,22 +1,16 @@
 ---
 name: ghostget
 description: >-
-  Use Ghostget to give a bring-your-own coding agent bounded, local-first web
-  capabilities: capture or scrape public and signed-in web pages into Markdown;
-  archive authorized audio, video, and transcripts with verification; query
-  encrypted cached email, contacts, inbox, and messaging views; resolve a live
-  conversation, read fresh context, preview ordered message bubbles, and
-  execute an exactly authorized turn through one provider route; publish and
-  reconcile text, image, and video posts through observed installed social
-  capabilities; inspect or develop bounded provider contracts for X, LinkedIn,
-  Bluesky, Substack Notes, Threads, TikTok, Instagram, and YouTube Shorts; save
-  private native article drafts; operate reviewed Beeper messaging actions
-  across the pinned official CLI and fixed Desktop loopback operations; and build or run typed provider plugins
-  from recorded browser-session APIs or versioned provider CLIs. Trigger for web capture,
-  URL clipping, authenticated sites, social media posting or cross-posting,
-  media download or archiving, transcription, email and messaging integrations,
-  HAR-to-API workflows, browser-session API automation, semantic operations,
-  and safe provider mutations when raw HTTP, DOM control, cookies, and
+  Use Ghostget for bounded web and account capabilities from your own coding
+  agent. Capture authorized pages as Markdown; archive finite audio, video and
+  transcripts with verification; query encrypted email, contact and messaging
+  snapshots; preview and confirm exact messages or social posts; and save
+  private article drafts. Guide native account setup, inspect capabilities and
+  permissions, use the public web gateway or human-configured Vault grants,
+  and edit OpenAPI interfaces. Author typed SDK integrations and reviewed
+  provider plugins from authorized HAR evidence or pinned local CLIs. Use for
+  web capture, media archiving, inbox or messaging work, social publishing and
+  integration development when raw HTTP, browser control, cookies and
   credentials must stay outside the agent.
 ---
 

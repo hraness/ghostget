@@ -1,0 +1,1093 @@
+From 16cf7557a1683eb18e7a6e1c1fde8ca9f05e0850 Mon Sep 17 00:00:00 2001
+From: 0thernet <ben@substrate.run>
+Date: Fri, 11 Sep 2026 18:07:14 -0400
+Subject: [PATCH] feat: add bounded Ghostget private messaging transport
+
+---
+ cmd/wacli/ghostget_private_context.go  |   9 +
+ cmd/wacli/ghostget_private_test.go     | 238 +++++++++++
+ cmd/wacli/ghostget_private_unix.go     | 527 +++++++++++++++++++++++++
+ cmd/wacli/ghostget_private_windows.go  |  13 +
+ cmd/wacli/send_helpers.go              |   8 +
+ cmd/wacli/sync.go                      |  18 +-
+ internal/store/ghostget_events.go      |  75 ++++
+ internal/store/ghostget_events_test.go |  95 +++++
+ 8 files changed, 982 insertions(+), 1 deletion(-)
+ create mode 100644 cmd/wacli/ghostget_private_context.go
+ create mode 100644 cmd/wacli/ghostget_private_test.go
+ create mode 100644 cmd/wacli/ghostget_private_unix.go
+ create mode 100644 cmd/wacli/ghostget_private_windows.go
+ create mode 100644 internal/store/ghostget_events.go
+ create mode 100644 internal/store/ghostget_events_test.go
+
+diff --git a/cmd/wacli/ghostget_private_context.go b/cmd/wacli/ghostget_private_context.go
+new file mode 100644
+index 0000000..fb98538
+--- /dev/null
++++ b/cmd/wacli/ghostget_private_context.go
+@@ -0,0 +1,9 @@
++package main
++
++import "context"
++
++type ghostgetPrivateContextKey struct{}
++
++func isGhostgetPrivateContext(ctx context.Context) bool {
++	return ctx.Value(ghostgetPrivateContextKey{}) == true
++}
+diff --git a/cmd/wacli/ghostget_private_test.go b/cmd/wacli/ghostget_private_test.go
+new file mode 100644
+index 0000000..49dff10
+--- /dev/null
++++ b/cmd/wacli/ghostget_private_test.go
+@@ -0,0 +1,238 @@
++//go:build !windows
++
++package main
++
++import (
++	"context"
++	"encoding/json"
++	"errors"
++	"net"
++	"os"
++	"path/filepath"
++	"strings"
++	"sync/atomic"
++	"testing"
++	"time"
++
++	"go.mau.fi/whatsmeow"
++)
++
++func privateTestDirectory(t *testing.T) string {
++	t.Helper()
++	path, err := os.MkdirTemp("", "ggp-")
++	if err != nil {
++		t.Fatal(err)
++	}
++	path, err = filepath.EvalSymlinks(path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	t.Cleanup(func() { os.RemoveAll(path) })
++	return path
++}
++
++func privateTestRequest() ghostgetPrivateRequest {
++	return ghostgetPrivateRequest{Protocol: ghostgetPrivateProtocol, Kind: "text", RequestID: strings.Repeat("a", 64), Generation: strings.Repeat("b", 64), Account: "15550000001@s.whatsapp.net", To: "15550000002@s.whatsapp.net", Message: "Synthetic test", Options: []string{}}
++}
++
++func TestGhostgetPrivateHasOneJoinedAttempt(t *testing.T) {
++	ctx := context.WithValue(context.Background(), ghostgetPrivateContextKey{}, true)
++	attempts, reconnects := 0, 0
++	_, err := runSendOperation(ctx, func(context.Context) error { reconnects++; return nil }, func(context.Context) (string, error) { attempts++; return "", whatsmeow.ErrIQTimedOut })
++	if !errors.Is(err, whatsmeow.ErrIQTimedOut) || attempts != 1 || reconnects != 0 {
++		t.Fatal("private send retried", attempts, reconnects, err)
++	}
++	cancelled, cancel := context.WithCancel(ctx)
++	entered := make(chan struct{})
++	release := make(chan struct{})
++	done := make(chan struct{})
++	go func() {
++		defer close(done)
++		_, _ = runSendOperation(cancelled, func(context.Context) error { return nil }, func(ctx context.Context) (string, error) {
++			close(entered)
++			<-ctx.Done()
++			<-release
++			return "", ctx.Err()
++		})
++	}()
++	<-entered
++	cancel()
++	select {
++	case <-done:
++		t.Fatal("cancelled operation escaped without joining")
++	case <-time.After(20 * time.Millisecond):
++	}
++	close(release)
++	select {
++	case <-done:
++	case <-time.After(time.Second):
++		t.Fatal("join did not finish")
++	}
++}
++
++func TestGhostgetPrivateClosedRequest(t *testing.T) {
++	raw, _ := json.Marshal(privateTestRequest())
++	if _, err := decodeGhostgetPrivateRequest(raw); err != nil {
++		t.Fatal(err)
++	}
++	for _, bad := range [][]byte{append(raw, []byte(" {}")...), []byte(strings.Replace(string(raw), `"kind":"text"`, `"kind":"text","kind":"text"`, 1)), []byte(strings.Replace(string(raw), `"message":"Synthetic test"`, `"message":null`, 1)), []byte(strings.Replace(string(raw), `"kind":"text"`, `"surprise":true,"kind":"text"`, 1)), []byte(strings.Replace(string(raw), `"options":[]`, `"options":null`, 1)), append(raw, 0xff), []byte(strings.Repeat(" ", ghostgetPrivateMaximum+1))} {
++		if _, err := decodeGhostgetPrivateRequest(bad); err == nil {
++			t.Fatal("accepted malformed private request")
++		}
++	}
++}
++
++func TestGhostgetPrivateDurableExactRequest(t *testing.T) {
++	directory := privateTestDirectory(t)
++	request := privateTestRequest()
++	calls := 0
++	runtime := ghostgetPrivateRuntime{account: func() string { return request.Account }, connected: func() bool { return true }, dispatch: func(ctx context.Context, request ghostgetPrivateRequest) (sendDelegateResponse, error) {
++		calls++
++		if !isGhostgetPrivateContext(ctx) {
++			t.Fatal("not a one-attempt context")
++		}
++		return sendDelegateResponse{OK: true, Sent: true, To: request.To, ID: "synthetic-id"}, nil
++	}}
++	response := executeGhostgetPrivate(context.Background(), runtime, directory, request.Generation, request)
++	if response.State != "accepted" || calls != 1 {
++		t.Fatal(response, calls)
++	}
++	request.Generation = strings.Repeat("c", 64)
++	response = executeGhostgetPrivate(context.Background(), runtime, directory, request.Generation, request)
++	if response.State != "accepted" || calls != 1 || response.Generation != request.Generation {
++		t.Fatal("restart replay dispatched", response, calls)
++	}
++	request.Message = "different"
++	if response = executeGhostgetPrivate(context.Background(), runtime, directory, request.Generation, request); response.State != "indeterminate" || calls != 1 {
++		t.Fatal("conflicting replay dispatched")
++	}
++	request.RequestID = strings.Repeat("d", 64)
++	request.Message = "synthetic failure"
++	runtime.dispatch = func(context.Context, ghostgetPrivateRequest) (sendDelegateResponse, error) {
++		calls++
++		return sendDelegateResponse{}, errors.New("unknown")
++	}
++	if response = executeGhostgetPrivate(context.Background(), runtime, directory, request.Generation, request); response.State != "indeterminate" || calls != 2 {
++		t.Fatal(response, calls)
++	}
++	if response = executeGhostgetPrivate(context.Background(), runtime, directory, request.Generation, request); response.State != "indeterminate" || calls != 2 {
++		t.Fatal("uncertain replay retried")
++	}
++}
++
++func TestGhostgetPrivateRejectsIdentityAndTarget(t *testing.T) {
++	request := privateTestRequest()
++	directory := privateTestDirectory(t)
++	calls := 0
++	runtime := ghostgetPrivateRuntime{account: func() string { return "15550000001@s.whatsapp.net" }, connected: func() bool { return true }, dispatch: func(context.Context, ghostgetPrivateRequest) (sendDelegateResponse, error) {
++		calls++
++		return sendDelegateResponse{}, nil
++	}}
++	for _, change := range []func(*ghostgetPrivateRequest){func(r *ghostgetPrivateRequest) { r.Generation = "other" }, func(r *ghostgetPrivateRequest) { r.Account = "15550000003@s.whatsapp.net" }, func(r *ghostgetPrivateRequest) { r.To = r.Account }, func(r *ghostgetPrivateRequest) { r.To = "15550000002:3@s.whatsapp.net" }, func(r *ghostgetPrivateRequest) { r.To = "15550000002@g.us" }, func(r *ghostgetPrivateRequest) { r.ID = "unexpected" }} {
++		current := request
++		change(&current)
++		response := executeGhostgetPrivate(context.Background(), runtime, directory, request.Generation, current)
++		if response.State != "not-started" || calls != 0 {
++			t.Fatal("identity or target admitted", response)
++		}
++	}
++}
++
++func TestGhostgetPrivateSocketShutdownJoins(t *testing.T) {
++	directory := privateTestDirectory(t)
++	var calls atomic.Int32
++	entered := make(chan struct{})
++	release := make(chan struct{})
++	runtime := ghostgetPrivateRuntime{store: directory, account: func() string { return "15550000001@s.whatsapp.net" }, connected: func() bool { return true }, dispatch: func(ctx context.Context, r ghostgetPrivateRequest) (sendDelegateResponse, error) {
++		calls.Add(1)
++		close(entered)
++		<-ctx.Done()
++		<-release
++		return sendDelegateResponse{}, ctx.Err()
++	}}
++	stop, err := startGhostgetPrivateRuntime(context.Background(), runtime)
++	if err != nil {
++		t.Fatal(err)
++	}
++	path := filepath.Join(directory, ghostgetPrivateSocket)
++	idle, err := net.Dial("unix", path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer idle.Close()
++	invoke := func(request ghostgetPrivateRequest) ghostgetPrivateResponse {
++		conn, err := net.Dial("unix", path)
++		if err != nil {
++			t.Fatal(err)
++		}
++		defer conn.Close()
++		conn.SetDeadline(time.Now().Add(time.Second))
++		json.NewEncoder(conn).Encode(request)
++		var response ghostgetPrivateResponse
++		if err = json.NewDecoder(conn).Decode(&response); err != nil {
++			t.Fatal(err)
++		}
++		return response
++	}
++	status := invoke(ghostgetPrivateRequest{Protocol: ghostgetPrivateProtocol, Kind: "status", Options: []string{}})
++	if status.State != "ready" {
++		t.Fatal(status)
++	}
++	request := privateTestRequest()
++	request.Generation = status.Generation
++	active, err := net.Dial("unix", path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer active.Close()
++	json.NewEncoder(active).Encode(request)
++	<-entered
++	done := make(chan struct{})
++	go func() { stop(); close(done) }()
++	select {
++	case <-done:
++		t.Fatal("shutdown abandoned dispatch")
++	case <-time.After(20 * time.Millisecond):
++	}
++	close(release)
++	select {
++	case <-done:
++	case <-time.After(time.Second):
++		t.Fatal("shutdown hung on idle reader")
++	}
++	if calls.Load() != 1 {
++		t.Fatal("unexpected dispatch count")
++	}
++	if _, err = os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
++		t.Fatal("owned socket remains")
++	}
++	stop()
++}
++
++func TestGhostgetPrivateExternalSocketIsOwnedAndNeverReplaced(t *testing.T) {
++	store := privateTestDirectory(t)
++	owner := privateTestDirectory(t)
++	path := filepath.Join(owner, ".s")
++	runtime := ghostgetPrivateRuntime{store: store, socketPath: path, account: func() string { return "15550000001@s.whatsapp.net" }, connected: func() bool { return true }}
++	if err := os.WriteFile(path, []byte("unknown"), 0600); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := startGhostgetPrivateRuntime(context.Background(), runtime); err == nil {
++		t.Fatal("replaced an unknown existing entry")
++	}
++	bytes, err := os.ReadFile(path)
++	if err != nil || string(bytes) != "unknown" {
++		t.Fatal("existing entry changed")
++	}
++	if err = os.Remove(path); err != nil {
++		t.Fatal(err)
++	}
++	stop, err := startGhostgetPrivateRuntime(context.Background(), runtime)
++	if err != nil {
++		t.Fatal(err)
++	}
++	stop()
++	if _, err = os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
++		t.Fatal("owned external socket remains")
++	}
++}
+diff --git a/cmd/wacli/ghostget_private_unix.go b/cmd/wacli/ghostget_private_unix.go
+new file mode 100644
+index 0000000..16c7eeb
+--- /dev/null
++++ b/cmd/wacli/ghostget_private_unix.go
+@@ -0,0 +1,527 @@
++//go:build !windows
++
++package main
++
++import (
++	"bufio"
++	"bytes"
++	"context"
++	"crypto/rand"
++	"crypto/sha256"
++	"encoding/hex"
++	"encoding/json"
++	"errors"
++	"io"
++	"net"
++	"os"
++	"path/filepath"
++	"regexp"
++	"strconv"
++	"sync"
++	"syscall"
++	"time"
++	"unicode/utf8"
++
++	"github.com/openclaw/wacli/internal/app"
++	"go.mau.fi/whatsmeow/types"
++)
++
++const ghostgetPrivateProtocol = "ghostget.whatsapp-private/1"
++const ghostgetPrivateSocket = ".ghostget-send.sock"
++const ghostgetPrivateMaximum = 1024 * 1024
++
++var ghostgetRequestID = regexp.MustCompile(`^[a-f0-9]{64}$`)
++var ghostgetDirectJID = regexp.MustCompile(`^([1-9][0-9]{4,14}@s\.whatsapp\.net|[1-9][0-9]{4,19}@lid)$`)
++
++type ghostgetPrivateRequest struct {
++	Protocol   string   `json:"protocol"`
++	Kind       string   `json:"kind"`
++	RequestID  string   `json:"requestId"`
++	Generation string   `json:"generation"`
++	Account    string   `json:"account"`
++	To         string   `json:"to"`
++	Message    string   `json:"message"`
++	File       string   `json:"file"`
++	Filename   string   `json:"filename"`
++	MIME       string   `json:"mime"`
++	ID         string   `json:"id"`
++	Reaction   string   `json:"reaction"`
++	Question   string   `json:"question"`
++	Options    []string `json:"options"`
++	Selectable int      `json:"selectable"`
++}
++
++type ghostgetPrivateResponse struct {
++	Protocol   string `json:"protocol"`
++	RequestID  string `json:"requestId"`
++	Generation string `json:"generation"`
++	Account    string `json:"account"`
++	State      string `json:"state"`
++	To         string `json:"to"`
++	MessageID  string `json:"messageId"`
++	Connected  bool   `json:"connected"`
++}
++
++type ghostgetPrivateReceipt struct {
++	SchemaVersion int                     `json:"schemaVersion"`
++	RequestDigest string                  `json:"requestDigest"`
++	Response      ghostgetPrivateResponse `json:"response"`
++}
++
++// The concrete runtime owns the linked-device connection. The transport only
++// admits one exact action; this small port permits offline custody tests.
++type ghostgetPrivateRuntime struct {
++	store      string
++	socketPath string
++	account    func() string
++	connected  func() bool
++	dispatch   func(context.Context, ghostgetPrivateRequest) (sendDelegateResponse, error)
++}
++
++func ghostgetPrivateOwned(info os.FileInfo, directory bool) bool {
++	stat, ok := info.Sys().(*syscall.Stat_t)
++	if !ok || stat.Uid != uint32(os.Getuid()) || info.Mode()&os.ModeSymlink != 0 {
++		return false
++	}
++	if directory {
++		return info.IsDir() && info.Mode().Perm() == 0700
++	}
++	return info.Mode().IsRegular() && info.Mode().Perm() == 0600 && stat.Nlink == 1
++}
++
++func ghostgetPrivateDirectory(path string) error {
++	if err := os.Mkdir(path, 0700); err != nil && !errors.Is(err, os.ErrExist) {
++		return err
++	}
++	info, err := os.Lstat(path)
++	if err != nil || !ghostgetPrivateOwned(info, true) {
++		return errors.New("unsafe Ghostget transport directory")
++	}
++	resolved, err := filepath.EvalSymlinks(path)
++	if err != nil || resolved != path {
++		return errors.New("noncanonical Ghostget transport directory")
++	}
++	return nil
++}
++
++func ghostgetPrivateSyncDirectory(path string) error {
++	f, err := os.Open(path)
++	if err != nil {
++		return err
++	}
++	defer f.Close()
++	return f.Sync()
++}
++
++func decodeGhostgetPrivateRequest(data []byte) (ghostgetPrivateRequest, error) {
++	var request ghostgetPrivateRequest
++	if len(data) > ghostgetPrivateMaximum || !utf8.Valid(data) || !ghostgetPrivateUnicode(data) {
++		return request, errors.New("invalid request encoding or size")
++	}
++	// Reject duplicate top-level fields before decoding the closed flat schema.
++	decoder := json.NewDecoder(bytes.NewReader(data))
++	token, err := decoder.Token()
++	if err != nil || token != json.Delim('{') {
++		return request, errors.New("invalid request")
++	}
++	seen := map[string]bool{}
++	for decoder.More() {
++		key, err := decoder.Token()
++		if err != nil {
++			return request, errors.New("invalid request")
++		}
++		name, ok := key.(string)
++		if !ok || seen[name] {
++			return request, errors.New("duplicate request field")
++		}
++		seen[name] = true
++		var raw json.RawMessage
++		if decoder.Decode(&raw) != nil {
++			return request, errors.New("invalid request field")
++		}
++		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
++			return request, errors.New("null request field")
++		}
++	}
++	if _, err = decoder.Token(); err != nil {
++		return request, errors.New("invalid request")
++	}
++	var trailing any
++	if err = decoder.Decode(&trailing); err != io.EOF {
++		return request, errors.New("trailing request data")
++	}
++	decoder = json.NewDecoder(bytes.NewReader(data))
++	decoder.DisallowUnknownFields()
++	if err = decoder.Decode(&request); err != nil {
++		return request, errors.New("unsupported request schema")
++	}
++	if len(seen) != 15 || request.Protocol != ghostgetPrivateProtocol {
++		return request, errors.New("unsupported request protocol")
++	}
++	return request, nil
++}
++
++func ghostgetPrivateUnicode(data []byte) bool {
++	for i := 0; i < len(data); i++ {
++		if data[i] != '\\' {
++			continue
++		}
++		i++
++		if i >= len(data) {
++			return false
++		}
++		if data[i] != 'u' {
++			continue
++		}
++		if i+4 >= len(data) {
++			return false
++		}
++		code, err := strconv.ParseUint(string(data[i+1:i+5]), 16, 16)
++		if err != nil {
++			return false
++		}
++		i += 4
++		if code >= 0xDC00 && code <= 0xDFFF {
++			return false
++		}
++		if code >= 0xD800 && code <= 0xDBFF {
++			if i+6 >= len(data) || data[i+1] != '\\' || data[i+2] != 'u' {
++				return false
++			}
++			low, err := strconv.ParseUint(string(data[i+3:i+7]), 16, 16)
++			if err != nil || low < 0xDC00 || low > 0xDFFF {
++				return false
++			}
++			i += 6
++		}
++	}
++	return true
++}
++
++func startGhostgetPrivateServer(parent context.Context, a *app.App, socketPath string) (func(), error) {
++	if err := a.DB().EnableGhostgetAutomationEvents(); err != nil {
++		return nil, err
++	}
++	runtime := ghostgetPrivateRuntime{store: a.StoreDir(), account: func() string { return ghostgetPrivateAccount(a) }, connected: a.WA().IsConnected,
++		socketPath: socketPath,
++		dispatch: func(ctx context.Context, request ghostgetPrivateRequest) (sendDelegateResponse, error) {
++			delegated := sendDelegateRequest{Version: 1, Kind: request.Kind, To: request.To, Message: request.Message, NoPreview: true, File: request.File, Filename: request.Filename, MIME: request.MIME, As: "document", ID: request.ID, Reaction: request.Reaction, Question: request.Question, Options: request.Options, Selectable: request.Selectable, PostSendWaitMS: 2000, TimeoutMS: 50000}
++			if request.Kind == "react" {
++				message, err := a.DB().GetMessage(request.To, request.ID)
++				if err != nil {
++					return sendDelegateResponse{}, err
++				}
++				delegated.Sender = message.SenderJID
++				if message.FromMe {
++					delegated.Sender = ghostgetPrivateAccount(a)
++				}
++			}
++			return executeDelegatedSend(ctx, a, delegated)
++		}}
++	return startGhostgetPrivateRuntime(parent, runtime)
++}
++
++func startGhostgetPrivateRuntime(parent context.Context, runtime ghostgetPrivateRuntime) (func(), error) {
++	if err := ghostgetPrivateDirectory(runtime.store); err != nil {
++		return nil, err
++	}
++	journal := filepath.Join(runtime.store, ".ghostget-dispatch-v1")
++	if err := ghostgetPrivateDirectory(journal); err != nil {
++		return nil, err
++	}
++	path := filepath.Join(runtime.store, ghostgetPrivateSocket)
++	if runtime.socketPath != "" {
++		path = runtime.socketPath
++		if !filepath.IsAbs(path) || filepath.Base(path) != ".s" {
++			return nil, errors.New("invalid private socket path")
++		}
++		if err := ghostgetPrivateDirectory(filepath.Dir(path)); err != nil {
++			return nil, err
++		}
++	}
++	if len(path) > 100 {
++		return nil, errors.New("private socket path exceeds the Unix address bound")
++	}
++	if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
++		return nil, errors.New("Ghostget transport socket already exists; exact owner reconciliation is required")
++	}
++	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
++	if err != nil {
++		return nil, err
++	}
++	listener.SetUnlinkOnClose(false)
++	if err = os.Chmod(path, 0600); err != nil {
++		listener.Close()
++		return nil, err
++	}
++	socketIdentity, err := os.Lstat(path)
++	if err != nil {
++		listener.Close()
++		return nil, err
++	}
++	var nonce [32]byte
++	if _, err = rand.Read(nonce[:]); err != nil {
++		listener.Close()
++		return nil, err
++	}
++	generation := hex.EncodeToString(nonce[:])
++	ctx, cancel := context.WithCancel(parent)
++	var workers sync.WaitGroup
++	done := make(chan struct{})
++	capacity := make(chan struct{}, 16)
++	serial := make(chan struct{}, 1)
++	var connectionsMu sync.Mutex
++	connections := map[*net.UnixConn]bool{}
++	go func() {
++		defer close(done)
++		for {
++			conn, err := listener.AcceptUnix()
++			if err != nil {
++				return
++			}
++			select {
++			case capacity <- struct{}{}:
++			default:
++				conn.Close()
++				continue
++			}
++			connectionsMu.Lock()
++			connections[conn] = true
++			connectionsMu.Unlock()
++			workers.Add(1)
++			go func() {
++				defer workers.Done()
++				defer func() { <-capacity }()
++				defer func() { connectionsMu.Lock(); delete(connections, conn); connectionsMu.Unlock(); conn.Close() }()
++				_ = conn.SetDeadline(time.Now().Add(60 * time.Second))
++				line, err := bufio.NewReaderSize(conn, ghostgetPrivateMaximum+1).ReadSlice('\n')
++				if err != nil || len(line) > ghostgetPrivateMaximum {
++					return
++				}
++				request, err := decodeGhostgetPrivateRequest(line)
++				if err != nil {
++					return
++				}
++				requestCtx, finish := context.WithTimeout(ctx, 50*time.Second)
++				defer finish()
++				select {
++				case serial <- struct{}{}:
++				case <-requestCtx.Done():
++					return
++				}
++				defer func() { <-serial }()
++				response := executeGhostgetPrivate(requestCtx, runtime, journal, generation, request)
++				_ = json.NewEncoder(conn).Encode(response)
++			}()
++		}
++	}()
++	var stopOnce sync.Once
++	return func() {
++		stopOnce.Do(func() {
++			cancel()
++			_ = listener.Close()
++			<-done
++			connectionsMu.Lock()
++			for conn := range connections {
++				_ = conn.Close()
++			}
++			connectionsMu.Unlock()
++			workers.Wait()
++			if current, err := os.Lstat(path); err == nil && os.SameFile(socketIdentity, current) {
++				_ = os.Remove(path)
++			}
++		})
++	}, nil
++}
++
++func ghostgetPrivateAccount(a *app.App) string {
++	jid, err := types.ParseJID(a.WA().LinkedJID())
++	if err != nil {
++		return ""
++	}
++	return jid.ToNonAD().String()
++}
++
++func validateGhostgetPrivateSend(request ghostgetPrivateRequest) error {
++	if !ghostgetRequestID.MatchString(request.RequestID) || !ghostgetDirectJID.MatchString(request.To) || !ghostgetDirectJID.MatchString(request.Account) || len(request.Message) > 65536 || len(request.Filename) > 255 || len(request.MIME) > 128 || len(request.ID) > 256 || len(request.Reaction) > 64 {
++		return errors.New("invalid private send request")
++	}
++	if request.To == request.Account {
++		return errors.New("self messaging requires a separate contract")
++	}
++	if request.Kind != "text" && request.Message != "" || request.Kind != "file" && (request.Filename != "" || request.MIME != "") || request.Kind != "react" && (request.ID != "" || request.Reaction != "") || request.Kind != "poll" && (request.Question != "" || len(request.Options) != 0 || request.Selectable != 0) || request.Kind != "file" && request.Kind != "sticker" && request.File != "" {
++		return errors.New("unsupported private action fields")
++	}
++	switch request.Kind {
++	case "text":
++		if request.Message == "" {
++			return errors.New("empty message")
++		}
++	case "file", "sticker":
++		if !filepath.IsAbs(request.File) {
++			return errors.New("file must be an owned absolute path")
++		}
++		info, err := os.Lstat(request.File)
++		if err != nil || !ghostgetPrivateOwned(info, false) || info.Size() < 1 || info.Size() > 20*1024*1024 {
++			return errors.New("file is not a bounded owned asset")
++		}
++		canonical, err := filepath.EvalSymlinks(request.File)
++		if err != nil || canonical != request.File {
++			return errors.New("file path is not canonical")
++		}
++	case "react":
++		if request.ID == "" {
++			return errors.New("missing reaction target")
++		}
++	case "poll":
++		if request.Question == "" || len(request.Question) > 1024 || len(request.Options) < 2 || len(request.Options) > 12 || request.Selectable < 1 || request.Selectable > len(request.Options) {
++			return errors.New("invalid poll")
++		}
++		seen := map[string]bool{}
++		for _, option := range request.Options {
++			if option == "" || len(option) > 256 || seen[option] {
++				return errors.New("invalid poll option")
++			}
++			seen[option] = true
++		}
++	default:
++		return errors.New("unsupported private action")
++	}
++	return nil
++}
++
++func executeGhostgetPrivate(ctx context.Context, runtime ghostgetPrivateRuntime, directory, generation string, request ghostgetPrivateRequest) ghostgetPrivateResponse {
++	response := ghostgetPrivateResponse{Protocol: ghostgetPrivateProtocol, RequestID: request.RequestID, Generation: generation, Account: runtime.account(), State: "not-started", To: request.To, Connected: runtime.connected()}
++	if request.Kind == "status" {
++		if request.RequestID == "" && request.Generation == "" && request.Account == "" && request.To == "" && request.Message == "" && request.File == "" && request.Filename == "" && request.MIME == "" && request.ID == "" && request.Reaction == "" && request.Question == "" && len(request.Options) == 0 && request.Selectable == 0 {
++			response.State = "ready"
++		}
++		return response
++	}
++	if request.Generation != generation || request.Account != response.Account || ctx.Err() != nil || !response.Connected {
++		return response
++	}
++	if validateGhostgetPrivateSend(request) != nil {
++		return response
++	}
++	// Exclude the process generation so an exact request can read its prior outcome
++	// after restart. Account/target/action/request ID remain part of the digest.
++	digestRequest := request
++	digestRequest.Generation = ""
++	encoded, _ := json.Marshal(digestRequest)
++	digest := sha256.Sum256(encoded)
++	receipt := ghostgetPrivateReceipt{SchemaVersion: 1, RequestDigest: hex.EncodeToString(digest[:]), Response: response}
++	receipt.Response.State = "started"
++	path := filepath.Join(directory, request.RequestID+".json")
++	fd, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0600)
++	if errors.Is(err, os.ErrExist) {
++		prior, readErr := readGhostgetPrivateReceipt(path)
++		if readErr != nil || prior.RequestDigest != receipt.RequestDigest || prior.Response.RequestID != request.RequestID || prior.Response.Account != request.Account || prior.Response.To != request.To {
++			response.State = "indeterminate"
++			return response
++		}
++		response = prior.Response
++		response.Generation = generation
++		if response.State != "accepted" {
++			response.State = "indeterminate"
++		}
++		return response
++	}
++	if err != nil {
++		return response
++	}
++	bytes, err := json.Marshal(receipt)
++	if err == nil {
++		_, err = fd.Write(append(bytes, '\n'))
++	}
++	if err == nil {
++		err = fd.Sync()
++	}
++	closeErr := fd.Close()
++	if err == nil {
++		err = closeErr
++	}
++	if err == nil {
++		err = ghostgetPrivateSyncDirectory(directory)
++	}
++	if err != nil {
++		response.State = "indeterminate"
++		return response
++	}
++	if ctx.Err() != nil {
++		response.State = "indeterminate"
++		return response
++	}
++	privateCtx := context.WithValue(ctx, ghostgetPrivateContextKey{}, true)
++	result, err := runtime.dispatch(privateCtx, request)
++	response.State = "indeterminate"
++	if err == nil && result.OK && result.Sent && result.To == request.To && result.ID != "" {
++		response.State = "accepted"
++		response.MessageID = result.ID
++	}
++	receipt.Response = response
++	if err := writeGhostgetPrivateReceipt(path, receipt); err != nil {
++		response.State = "indeterminate"
++	}
++	return response
++}
++
++func readGhostgetPrivateReceipt(path string) (ghostgetPrivateReceipt, error) {
++	var receipt ghostgetPrivateReceipt
++	fd, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
++	if err != nil {
++		return receipt, err
++	}
++	defer fd.Close()
++	info, err := fd.Stat()
++	if err != nil || !ghostgetPrivateOwned(info, false) || info.Size() > 4096 {
++		return receipt, errors.New("unsafe receipt")
++	}
++	data, err := io.ReadAll(io.LimitReader(fd, 4097))
++	if err != nil {
++		return receipt, err
++	}
++	decoder := json.NewDecoder(bytes.NewReader(data))
++	decoder.DisallowUnknownFields()
++	if err = decoder.Decode(&receipt); err != nil || receipt.SchemaVersion != 1 || !ghostgetRequestID.MatchString(receipt.RequestDigest) || receipt.Response.Protocol != ghostgetPrivateProtocol || !ghostgetRequestID.MatchString(receipt.Response.RequestID) || !ghostgetRequestID.MatchString(receipt.Response.Generation) || !ghostgetDirectJID.MatchString(receipt.Response.Account) || !ghostgetDirectJID.MatchString(receipt.Response.To) || len(receipt.Response.MessageID) > 256 || (receipt.Response.State != "started" && receipt.Response.State != "accepted" && receipt.Response.State != "indeterminate") || (receipt.Response.State == "accepted" && receipt.Response.MessageID == "") {
++		return receipt, errors.New("invalid receipt")
++	}
++	var trailing any
++	if decoder.Decode(&trailing) != io.EOF {
++		return receipt, errors.New("trailing receipt data")
++	}
++	return receipt, nil
++}
++
++func writeGhostgetPrivateReceipt(path string, receipt ghostgetPrivateReceipt) error {
++	data, err := json.Marshal(receipt)
++	if err != nil {
++		return err
++	}
++	temporary, err := os.CreateTemp(filepath.Dir(path), ".receipt-")
++	if err != nil {
++		return err
++	}
++	name := temporary.Name()
++	defer os.Remove(name)
++	if err = temporary.Chmod(0600); err == nil {
++		_, err = temporary.Write(append(data, '\n'))
++	}
++	if err == nil {
++		err = temporary.Sync()
++	}
++	closeErr := temporary.Close()
++	if err == nil {
++		err = closeErr
++	}
++	if err != nil {
++		return err
++	}
++	if _, err = readGhostgetPrivateReceipt(path); err != nil {
++		return err
++	}
++	if err = os.Rename(name, path); err != nil {
++		return err
++	}
++	return ghostgetPrivateSyncDirectory(filepath.Dir(path))
++}
+diff --git a/cmd/wacli/ghostget_private_windows.go b/cmd/wacli/ghostget_private_windows.go
+new file mode 100644
+index 0000000..af833c6
+--- /dev/null
++++ b/cmd/wacli/ghostget_private_windows.go
+@@ -0,0 +1,13 @@
++//go:build windows
++
++package main
++
++import (
++	"context"
++	"errors"
++	"github.com/openclaw/wacli/internal/app"
++)
++
++func startGhostgetPrivateServer(context.Context, *app.App, string) (func(), error) {
++	return nil, errors.New("Ghostget private transport requires a Unix host")
++}
+diff --git a/cmd/wacli/send_helpers.go b/cmd/wacli/send_helpers.go
+index d16bbdf..96d6a4c 100644
+--- a/cmd/wacli/send_helpers.go
++++ b/cmd/wacli/send_helpers.go
+@@ -26,6 +26,11 @@ func runSendOperation[T any](
+ 	reconnect func(context.Context) error,
+ 	op func(context.Context) (T, error),
+ ) (T, error) {
++	if isGhostgetPrivateContext(ctx) {
++		// This supervised path makes one attempt and joins it. No retry or detached
++		// timeout goroutine can create an unjournaled second message.
++		return op(ctx)
++	}
+ 	result, err := runSendAttempt(ctx, sendAttemptTimeout, op)
+ 	if err == nil {
+ 		return result, nil
+@@ -149,6 +154,9 @@ type whatsappRegistrationResolver interface {
+ }
+ 
+ func warmupRecipient(ctx context.Context, wa userInfoResolver, jid types.JID, stderr io.Writer) types.JID {
++	if isGhostgetPrivateContext(ctx) {
++		return jid
++	}
+ 	if jid.Server != types.DefaultUserServer && jid.Server != types.HiddenUserServer {
+ 		return jid
+ 	}
+diff --git a/cmd/wacli/sync.go b/cmd/wacli/sync.go
+index 1eacff0..855c47a 100644
+--- a/cmd/wacli/sync.go
++++ b/cmd/wacli/sync.go
+@@ -25,12 +25,20 @@ func newSyncCmd(flags *rootFlags) *cobra.Command {
+ 	var webhookURL string
+ 	var webhookSecret string
+ 	var webhookAllowPrivate bool
++	var ghostgetPrivate bool
++	var ghostgetSocket string
+ 	var storage syncStorageLimitFlags
+ 
+ 	cmd := &cobra.Command{
+ 		Use:   "sync",
+ 		Short: "Sync messages (requires prior auth; never shows QR)",
+ 		RunE: func(cmd *cobra.Command, args []string) error {
++			if ghostgetSocket != "" && !ghostgetPrivate {
++				return fmt.Errorf("--ghostget-private-socket requires --ghostget-private-transport")
++			}
++			if ghostgetPrivate && (once || !follow) {
++				return fmt.Errorf("Ghostget private transport requires follow mode")
++			}
+ 			if err := flags.requireWritable(); err != nil {
+ 				return err
+ 			}
+@@ -83,7 +91,13 @@ func newSyncCmd(flags *rootFlags) *cobra.Command {
+ 			var afterConnect func(context.Context) error
+ 			if mode == appPkg.SyncModeFollow {
+ 				afterConnect = func(ctx context.Context) error {
+-					stop, err := startSendDelegateServer(ctx, a)
++					var stop func()
++					var err error
++					if ghostgetPrivate {
++						stop, err = startGhostgetPrivateServer(ctx, a, ghostgetSocket)
++					} else {
++						stop, err = startSendDelegateServer(ctx, a)
++					}
+ 					if err != nil {
+ 						return err
+ 					}
+@@ -139,6 +153,8 @@ func newSyncCmd(flags *rootFlags) *cobra.Command {
+ 	cmd.Flags().StringVar(&webhookURL, "webhook", "", "URL to POST live message JSON")
+ 	cmd.Flags().StringVar(&webhookSecret, "webhook-secret", "", "HMAC-SHA256 secret for X-Wacli-Signature header")
+ 	cmd.Flags().BoolVar(&webhookAllowPrivate, "webhook-allow-private", false, "allow webhook URLs that resolve to localhost or private networks")
++	cmd.Flags().BoolVar(&ghostgetPrivate, "ghostget-private-transport", false, "use the versioned Ghostget one-attempt private transport instead of the ordinary send socket")
++	cmd.Flags().StringVar(&ghostgetSocket, "ghostget-private-socket", "", "socket in the supervising owner's physical private directory")
+ 	cmd.Flags().Int64Var(&storage.maxMessages, "max-messages", 0, "maximum total messages to keep in the local DB before sync stops (0 = unlimited, or WACLI_SYNC_MAX_MESSAGES)")
+ 	cmd.Flags().StringVar(&storage.maxDBSize, "max-db-size", "", "maximum wacli.db disk usage before sync stops, e.g. 500MB or 2GB (default: WACLI_SYNC_MAX_DB_SIZE or unlimited)")
+ 	return cmd
+diff --git a/internal/store/ghostget_events.go b/internal/store/ghostget_events.go
+new file mode 100644
+index 0000000..53916a3
+--- /dev/null
++++ b/internal/store/ghostget_events.go
+@@ -0,0 +1,75 @@
++package store
++
++import (
++	"crypto/rand"
++	"encoding/hex"
++	"fmt"
++)
++
++// EnableGhostgetAutomationEvents is used only by the explicitly selected
++// private transport. SQLite triggers commit each projection change alongside
++// the message write. The bounded ledger may expire cursors; readers must check
++// its minimum sequence and exact generation before using an incremental page.
++func (d *DB) EnableGhostgetAutomationEvents() error {
++	// One writer connection preserves the FULL durability setting for every
++	// message/event transaction in this explicitly selected runtime.
++	d.sql.SetMaxOpenConns(1)
++	if _, err := d.sql.Exec("PRAGMA synchronous=FULL"); err != nil {
++		return err
++	}
++	var nonce [32]byte
++	if _, err := rand.Read(nonce[:]); err != nil {
++		return err
++	}
++	tx, err := d.sql.Begin()
++	if err != nil {
++		return err
++	}
++	defer tx.Rollback()
++	_, err = tx.Exec(`
++CREATE TABLE IF NOT EXISTS ghostget_automation_state (
++ singleton INTEGER PRIMARY KEY CHECK(singleton=1), version INTEGER NOT NULL CHECK(version=1), generation TEXT NOT NULL
++);
++CREATE TABLE IF NOT EXISTS ghostget_automation_events (
++ sequence INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL,
++ chat_jid TEXT NOT NULL, msg_id TEXT NOT NULL, sender_jid TEXT,
++ ts INTEGER NOT NULL, from_me INTEGER NOT NULL, text TEXT, display_text TEXT,
++ quoted_msg_id TEXT, reaction_to_id TEXT, reaction_emoji TEXT,
++ media_type TEXT, filename TEXT, mime_type TEXT, file_length INTEGER,
++ revoked INTEGER NOT NULL, deleted_for_me INTEGER NOT NULL
++);
++CREATE INDEX IF NOT EXISTS ghostget_events_scope ON ghostget_automation_events(chat_jid,sequence);
++`)
++	if err != nil {
++		return err
++	}
++	if _, err = tx.Exec(`INSERT OR IGNORE INTO ghostget_automation_state(singleton,version,generation) VALUES(1,1,?)`, hex.EncodeToString(nonce[:])); err != nil {
++		return err
++	}
++	for _, event := range []struct{ name, op, source, kind string }{
++		{"insert", "INSERT", "NEW", `CASE WHEN NEW.reaction_to_id IS NOT NULL AND NEW.reaction_to_id<>'' THEN 'reaction' ELSE 'message' END`},
++		{"update", "UPDATE", "NEW", `CASE WHEN NEW.revoked=1 OR NEW.deleted_for_me=1 THEN 'delete' WHEN NEW.reaction_to_id IS NOT NULL AND NEW.reaction_to_id<>'' THEN 'reaction' ELSE 'edit' END`},
++		{"delete", "DELETE", "OLD", `'delete'`},
++	} {
++		columns := []string{"chat_jid", "msg_id", "sender_jid", "ts", "from_me", "text", "display_text", "quoted_msg_id", "reaction_to_id", "reaction_emoji", "media_type", "filename", "mime_type", "file_length", "revoked", "deleted_for_me"}
++		values := ""
++		for i, column := range columns {
++			if i > 0 {
++				values += ","
++			}
++			if column == "text" || column == "display_text" {
++				values += fmt.Sprintf("substr(%s.%s,1,65537)", event.source, column)
++			} else {
++				values += event.source + "." + column
++			}
++		}
++		query := fmt.Sprintf(`CREATE TRIGGER IF NOT EXISTS ghostget_events_%s AFTER %s ON messages BEGIN
++ INSERT INTO ghostget_automation_events(kind,chat_jid,msg_id,sender_jid,ts,from_me,text,display_text,quoted_msg_id,reaction_to_id,reaction_emoji,media_type,filename,mime_type,file_length,revoked,deleted_for_me) VALUES(%s,%s);
++ DELETE FROM ghostget_automation_events WHERE sequence <= (SELECT COALESCE(MAX(sequence),0)-10000 FROM ghostget_automation_events);
++ END;`, event.name, event.op, event.kind, values)
++		if _, err = tx.Exec(query); err != nil {
++			return err
++		}
++	}
++	return tx.Commit()
++}
+diff --git a/internal/store/ghostget_events_test.go b/internal/store/ghostget_events_test.go
+new file mode 100644
+index 0000000..4548138
+--- /dev/null
++++ b/internal/store/ghostget_events_test.go
+@@ -0,0 +1,95 @@
++package store
++
++import (
++	"fmt"
++	"testing"
++	"time"
++)
++
++func TestGhostgetAutomationEventsAtomicAndBounded(t *testing.T) {
++	db := openTestDB(t)
++	if err := db.EnableGhostgetAutomationEvents(); err != nil {
++		t.Fatal(err)
++	}
++	var generation string
++	if err := db.sql.QueryRow(`SELECT generation FROM ghostget_automation_state WHERE singleton=1 AND version=1`).Scan(&generation); err != nil || len(generation) != 64 {
++		t.Fatal(generation, err)
++	}
++	if err := db.EnableGhostgetAutomationEvents(); err != nil {
++		t.Fatal(err)
++	}
++	var again string
++	db.sql.QueryRow(`SELECT generation FROM ghostget_automation_state`).Scan(&again)
++	if again != generation {
++		t.Fatal("restart changed generation")
++	}
++	chat := "15550000002@s.whatsapp.net"
++	if err := db.UpsertChat(chat, "dm", "Synthetic", time.Unix(100, 0)); err != nil {
++		t.Fatal(err)
++	}
++	if err := db.UpsertMessage(UpsertMessageParams{ChatJID: chat, MsgID: "synthetic", Text: "hello", Timestamp: time.Unix(100, 0)}); err != nil {
++		t.Fatal(err)
++	}
++	var kind, text string
++	if err := db.sql.QueryRow(`SELECT kind,text FROM ghostget_automation_events ORDER BY sequence DESC LIMIT 1`).Scan(&kind, &text); err != nil || kind != "message" || text != "hello" {
++		t.Fatal(kind, text, err)
++	}
++	if err := db.MarkMessageRevoked(chat, "synthetic"); err != nil {
++		t.Fatal(err)
++	}
++	if err := db.sql.QueryRow(`SELECT kind FROM ghostget_automation_events ORDER BY sequence DESC LIMIT 1`).Scan(&kind); err != nil || kind != "delete" {
++		t.Fatal(kind, err)
++	}
++	tx, err := db.sql.Begin()
++	if err != nil {
++		t.Fatal(err)
++	}
++	if _, err = tx.Exec(`DELETE FROM messages WHERE chat_jid=? AND msg_id=?`, chat, "synthetic"); err != nil {
++		t.Fatal(err)
++	}
++	tx.Rollback()
++	if countRows(t, db.sql, `SELECT COUNT(*) FROM ghostget_automation_events`) != 2 {
++		t.Fatal("rolled back mutation leaked event")
++	}
++	tx, err = db.sql.Begin()
++	if err != nil {
++		t.Fatal(err)
++	}
++	for i := 0; i < 10010; i++ {
++		if _, err = tx.Exec(`INSERT INTO messages(chat_jid,msg_id,ts,from_me) VALUES(?,?,100,0)`, chat, fmt.Sprintf("synthetic-%d", i)); err != nil {
++			t.Fatal(err)
++		}
++	}
++	if err = tx.Commit(); err != nil {
++		t.Fatal(err)
++	}
++	if countRows(t, db.sql, `SELECT COUNT(*) FROM ghostget_automation_events`) != 10000 {
++		t.Fatal("event retention exceeded bound")
++	}
++	var first, last int64
++	db.sql.QueryRow(`SELECT MIN(sequence),MAX(sequence) FROM ghostget_automation_events`).Scan(&first, &last)
++	if first != 13 || last != 10012 {
++		t.Fatal("cursor gap not explicit", first, last)
++	}
++}
++
++func TestGhostgetAutomationReactionChangeRetainsEmoji(t *testing.T) {
++	db := openTestDB(t)
++	if err := db.EnableGhostgetAutomationEvents(); err != nil {
++		t.Fatal(err)
++	}
++	chat := "15550000002@s.whatsapp.net"
++	if err := db.UpsertChat(chat, "dm", "Synthetic", time.Unix(100, 0)); err != nil {
++		t.Fatal(err)
++	}
++	if err := db.UpsertMessage(UpsertMessageParams{ChatJID: chat, MsgID: "reaction", ReactionToID: "target", ReactionEmoji: "👍", Timestamp: time.Unix(100, 0)}); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := db.sql.Exec(`UPDATE messages SET reaction_emoji='👎' WHERE chat_jid=? AND msg_id='reaction'`, chat); err != nil {
++		t.Fatal(err)
++	}
++	var kind, emoji string
++	if err := db.sql.QueryRow(`SELECT kind,reaction_emoji FROM ghostget_automation_events ORDER BY sequence DESC LIMIT 1`).Scan(&kind, &emoji); err != nil || kind != "reaction" || emoji != "👎" {
++		t.Fatal(kind, emoji, err)
++	}
++}
+-- 
+2.50.1 (Apple Git-155)
+

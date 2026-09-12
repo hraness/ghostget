@@ -71,6 +71,7 @@ export type ProviderDirectoryEntry = Readonly<{
   icon: ProviderIcon;
   name: string;
   observedCount: number;
+  ownerPermissionCount: number;
   operationCount: number;
   supportedActionCount: number;
   surfaceId: string;
@@ -203,6 +204,22 @@ function setDifference(left: ReadonlySet<string>, right: ReadonlySet<string>): s
   return [...left].filter((value) => !right.has(value)).sort(compareStrings);
 }
 
+/** These catalog entries authorize the owner host; generic invoke rejects them. */
+export function isOwnerMessagingPermission(row: ProviderCapabilityAttestationRow): boolean {
+  if (!row.operation.startsWith("messaging.automation.")) return false;
+  const expectedAdapter = row.surfaceId === "imessage" ? "imessage-direct"
+    : row.surfaceId === "whatsapp" ? "whatsapp-web" : null;
+  const suffix = row.operation.slice("messaging.automation.".length);
+  const allowed = ["read", ...(row.surfaceId === "whatsapp" ? ["sync"] : []),
+    "send.text", "send.attachment", "send.reaction", "send.sticker", "send.link", "send.poll"];
+  const risk = suffix === "read" ? "R1" : suffix === "sync" ? "R2" : "R3";
+  if (row.adapterId !== expectedAdapter || !allowed.includes(suffix)
+    || row.risk !== risk || row.contractVersion !== 1) {
+    throw new Error("Unreviewed owner messaging permission in provider presentation");
+  }
+  return true;
+}
+
 export function createProviderDirectory(
   attestation: ProviderCapabilityAttestation,
   definitions: readonly ProviderPresentationDefinition[] = PROVIDER_PRESENTATIONS,
@@ -239,6 +256,7 @@ export function createProviderDirectory(
   }>>();
   const adapterOperations = new Set<string>();
   for (const row of attestation.rows) {
+    isOwnerMessagingPermission(row);
     const validTransport =
       (row.kind === "official-api" && row.transport === "provider-api")
       || (row.kind === "local-cli" && row.transport === "local-cli")
@@ -303,7 +321,7 @@ export function createProviderDirectory(
 
   const entries = definitions.flatMap((definition): ProviderDirectoryEntry[] => {
     const rows = attestation.rows.filter((row) => row.surfaceId === definition.surfaceId);
-    const supportedRows = rows.filter((row) => row.completeness === "observed");
+    const supportedRows = rows.filter((row) => row.completeness === "observed" && !isOwnerMessagingPermission(row));
     if (supportedRows.length === 0) return [];
     const adapterIdentities = [...new Map(supportedRows.map((row) => [
       row.adapterId,
@@ -332,7 +350,8 @@ export function createProviderDirectory(
       icon: definition.icon,
       name: definition.name,
       observedCount,
-      operationCount: supportedRows.length,
+      ownerPermissionCount: rows.filter(row => row.completeness === "observed" && isOwnerMessagingPermission(row)).length,
+      operationCount: observedCount,
       supportedActionCount: new Set(supportedRows.map((row) => row.operation)).size,
       surfaceId: definition.surfaceId,
       transports: Object.freeze(transports),
@@ -347,7 +366,7 @@ export function createWhatsAppPresentationFacts(
 ): WhatsAppPresentationFacts {
   const entry = directory.entries.find((candidate) => candidate.surfaceId === "whatsapp");
   const observedRows = attestation.rows.filter((row) =>
-    row.surfaceId === "whatsapp" && row.completeness === "observed");
+    row.surfaceId === "whatsapp" && row.completeness === "observed" && !isOwnerMessagingPermission(row));
   const expectedOperations = [
     "contacts.list",
     "media.read",
@@ -358,7 +377,7 @@ export function createWhatsAppPresentationFacts(
   if (
     entry === undefined
     || entry.supportedActionCount !== 4
-    || entry.observedCount !== 4
+    || entry.observedCount - entry.ownerPermissionCount !== 4
     || entry.adapterIdentities.length !== 1
     || entry.adapterIdentities[0]?.id !== "whatsapp-web"
     || !entry.transports.includes("linked-device")
@@ -534,8 +553,10 @@ export function renderProviderAttestationGroups(
   attestation: ProviderCapabilityAttestation,
 ): string {
   return directory.entries.map((entry) => {
-    const supportedRows = attestation.rows.filter((row) =>
+    const observedRows = attestation.rows.filter((row) =>
       row.surfaceId === entry.surfaceId && row.completeness === "observed");
+    const supportedRows = observedRows.filter(row => !isOwnerMessagingPermission(row));
+    const permissions = observedRows.filter(isOwnerMessagingPermission);
     const rowsByOperation = new Map<string, ProviderCapabilityAttestationRow[]>();
     for (const row of supportedRows) {
       const operationRows = rowsByOperation.get(row.operation) ?? [];
@@ -559,6 +580,10 @@ export function renderProviderAttestationGroups(
       `<h3>${escapeHtml(entry.name)}</h3>`,
       `<p>${entryCountLabel(entry)}${entry.capabilities.length > 0 ? `: ${entry.capabilities.map(escapeHtml).join(", ")}.` : "."}</p>`,
       `<ul class="provider-operation-list">${actions}</ul>`,
+      ...(permissions.length ? [
+        `<h4>Owner messaging permissions</h4><p>${permissions.length} permission entries for an explicitly configured messaging host. These are unavailable through generic invoke; a grant also needs a ready account and the requested runtime capability.</p>`,
+        `<ul class="provider-owner-permissions">${permissions.map(row => `<li><code>${escapeHtml(row.operation)}</code> · ${escapeHtml(row.risk)} · owner host only</li>`).join("")}</ul>`,
+      ] : []),
       "</section>",
     ].join("");
   }).join("");

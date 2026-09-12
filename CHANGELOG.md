@@ -7,6 +7,108 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Allow the unique reviewed Contact info control to open the live
+  LinkedIn SPA modal after adapter 1.36.0. Operator smoke on
+  2026-09-12 found that unique control on tessbloch, then fail-closed
+  before click because its href matched `/overlay/contact-info/`.
+  Headed proof the same day showed Email in that modal after click.
+  The contained path now clicks that unique accessible name even when
+  the href is the vanity overlay GET. Zero or two-plus controls and a
+  missing or ambiguous modal still fail closed. It still does not mint
+  a navigation POST or track headers. GraphQL 403, minted navigation
+  GETs, vanity HTML-shell honesty, and embedded-field projection stay.
+  Soft-labels stay. Self, non-first-degree, and contradictory
+  distances still fail closed, and no email is invented. Adapter bundle 1.36.1.
+  This is the fifteenth live Contact-info drift after the 1.36.0
+  Contact info click. Cloud has no signed-in LinkedIn session; do
+  not treat this landing as live green. Operator smoke:
+
+  ```sh
+  printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \
+    | ghostget invoke linkedin-web contacts.read --input - --auth linkedin-dormant-20260911 --json
+  ```
+
+- Click the unique reviewed Contact info control on an already-loaded
+  1st-degree LinkedIn profile and project Email from that modal after
+  adapter 1.35.0. Operator headed proof on 2026-09-12 showed Email in
+  the modal DOM. Contained synthetic navigation POST still returned
+  HTTP 500 `text/html` after the exact headed body and observed X-Li
+  set. The contained path now opens that profile, binds a unique
+  page-instance, clicks only the exact accessible name `Contact info`,
+  snapshots the unique dialog, and projects Email from that HTML. Zero
+  or two-plus controls, an overlay GET href, or a missing modal fail
+  closed. It does not mint a navigation POST or track headers.
+  GraphQL 403, navigation GETs, vanity HTML-shell honesty, and
+  embedded-field projection stay. Soft-labels stay. Self,
+  non-first-degree, and contradictory distances still fail closed, and
+  no email is invented. Adapter bundle 1.36.0.
+  This is the fourteenth live Contact-info drift after the 1.35.0
+  observed-header bind. Cloud has no signed-in LinkedIn session; do
+  not treat this landing as live green. Operator smoke:
+
+  ```sh
+  printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \
+    | ghostget invoke linkedin-web contacts.read --input - --auth linkedin-dormant-20260911 --json
+  ```
+
+- Copy already-observed LinkedIn `contacts.read@1` rsc-action
+  `x-li-page-instance-tracking-id`, `x-li-pageforestid`,
+  `x-li-traceparent`, `x-li-tracestate`, and optional
+  `x-li-layout-tree` onto the Contact-info overlay POST after adapter
+  1.34.0. Live peel after that bind kept the headed nested body and
+  forwarded page-instance, track (`mpName=web`), application
+  version/instance, anchor page key, and `rscStream=true`, but contained
+  Chrome still returned HTTP 500 `text/html`. The same profile-wait
+  `/flagship-web/rsc-action/` observations already carried those
+  tracking and trace names; 1.34.0 left them off as headed-only. The
+  contained path now copies the original strings from the same selected
+  same-origin rsc-action observation under a reviewed allowlist, prefers
+  that rsc-action bind, and omits a name when that observation lacks it.
+  It does not mint tracking IDs, traces, pageforest, or layout-tree.
+  Missing or malformed observed values fail closed before POST. Headed
+  successful body Content-Length was 400; compact emit at 398 stays.
+  GraphQL 403, navigation GETs, vanity HTML-shell honesty,
+  `sduiid=screenId`, the headed nested body, and prior page-derived
+  copies stay. Soft-labels stay. Self, non-first-degree, and
+  contradictory distances still fail closed, and no email is invented.
+  Adapter bundle 1.35.0.
+  This is the thirteenth live Contact-info drift after the 1.34.0
+  page-derived header bind. Cloud has no signed-in LinkedIn session; do
+  not treat this landing as live green. Operator smoke:
+
+  ```sh
+  printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \
+    | ghostget invoke linkedin-web contacts.read --input - --auth linkedin-dormant-20260911 --json
+  ```
+
+- Bind LinkedIn `contacts.read@1` Contact-info navigation POST to the
+  already-loaded profile document after adapter 1.33.0. Live peel of the
+  headed nested `payload.requestMetadata` body matched byte-for-byte,
+  but contained Chrome still returned HTTP 500 `text/html` because that
+  POST ran from the signed-in origin fetch context with only `Accept`,
+  `Content-Type`, and session `csrf-token`. Headed success also sent
+  page-instance and the other X-Li names from the profile SPA. The
+  contained path now opens the exact reviewed profile URL, waits for
+  that document, and copies a unique `d_flagship3_profile*`
+  `x-li-page-instance` plus optional `x-li-track` (`mpName` `web` or
+  `voyager-web`), `x-li-application-version`,
+  `x-li-application-instance`, `x-li-anchor-page-key`, and
+  `x-li-rsc-stream=true` from observed same-origin rsc-action or
+  voyager requests, or page-instance from the loaded document. It does
+  not mint `traceparent`, `tracestate`, `pageforest`,
+  page-instance-tracking-id, or layout-tree; those headed-only values
+  stay blockers if LinkedIn still 500s after the reviewed copies. Live
+  query key stays `sduiid=` (headed 200 plus public SDUI routes);
+  `sduid=` notes are transcription typos. Missing or ambiguous
+  page-instance fails closed before POST. GraphQL 403, navigation GETs,
+  vanity HTML-shell honesty, `sduiid=screenId`, and the headed nested
+  body stay. Soft-labels stay. Self,
+  non-first-degree, and contradictory distances still fail closed, and
+  no email is invented. Adapter bundle 1.34.0.
+  This is the twelfth live Contact-info drift after the 1.33.0 nested
+  body. Cloud has no signed-in LinkedIn session; do not treat this
+  landing as live green.
+
 ## 0.19.0 - 2026-09-11
 
 - Guide account setup with `ghostget setup --json` and expiring service
@@ -31,6 +133,46 @@ Historical entries retain their original delivery coordinates.
   requires Apple enrollment and protected credentials. Browser autofill and
   passkey assertions are not implemented.
 
+## 0.18.1 - 2026-09-12
+
+- Add the owner messaging automation protocol for iMessage and WhatsApp:
+  exact conversation enrollment, revocable action grants, durable event cursors,
+  bounded history, admitted attachment bytes, and ordered send receipts. Importing
+  the eighth public SDK entrypoint performs no account or network work.
+- Bundle reviewed private iMessage and wacli helpers with pinned bytes, source
+  patches, resources, and licenses. Installation starts no provider and changes
+  no macOS security settings. WhatsApp synchronization requires an explicit owner
+  action and keeps each outgoing action to one dispatch attempt.
+- Expose text, files, reactions, stickers, links, and polls when the selected
+  provider and its managed permissions support them. Automated iMessage link
+  cards skip helper metadata/image fetching. Native rich iMessage actions require
+  an already-working private bridge; its upstream setup requires disabled SIP.
+  App Clips and arbitrary mini-app experiences remain unavailable. Offline checks
+  do not establish real account pairing or message delivery.
+- Nest LinkedIn `contacts.read@1` Contact-info `requestMetadata` under
+  `payload` after adapter 1.32.0. Live peel of sibling `proto.sdui`
+  types succeeded, but the POST still returned HTTP 500 `text/html`
+  because the body sent empty sibling `RequestMetadata{$type}` and
+  omitted headed children `states`, `screenId`, and `knownTemplates`.
+  Headed 200 Email capture
+  `POST-navigation-body-shape-20260912.md` keeps
+  `clientArguments.$type`, `requestedStateKeys: []`, and nested
+  `payload.requestMetadata` with `$type`, `states: []`, overlay
+  `screenId`, and `knownTemplates: []`. The builder now emits that
+  exact headed shape, including when dormant HTML omits metadata, and
+  copies reviewed string lists when the page already has them. Empty
+  arrays and the two reviewed `proto.sdui` `$type` values come from
+  that capture, not invented opaque state. Extra keys, object-valued
+  states, and unrelated proto prefixes still fail closed. GraphQL 403,
+  navigation GETs, vanity HTML-shell honesty, and `sduiid=screenId`
+  stay. Contained Chrome already sends `Accept: */*`,
+  `Content-Type: application/json`, and session `csrf-token` for this
+  POST; it does not mint `X-Li-*` track values. Soft-labels stay.
+  Self, non-first-degree, and contradictory distances still fail
+  closed, and no email is invented. Adapter bundle 1.33.0.
+  This is the eleventh live Contact-info drift after the 1.32.0 sibling
+  peel. Cloud has no signed-in LinkedIn session; do not treat this
+  landing as live green.
 - Fix LinkedIn `contacts.read@1` Contact-info navigation POST body after
   adapter 1.31.0. Live 1st-degree bind still succeeded, but building
   `clientArguments` from NavigateToScreen failed closed on

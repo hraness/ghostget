@@ -19,6 +19,7 @@ const importSpecifiers = [
   "@hraness/ghostget/whatsapp",
   "@hraness/ghostget/omni",
   "@hraness/ghostget/messaging",
+  "@hraness/ghostget/messaging-automation",
 ];
 const binNames = ["ghostget"];
 const packageDiscoveryKeywords = [
@@ -853,6 +854,19 @@ import * as surface3 from "@hraness/ghostget/beeper";
 import * as surface4 from "@hraness/ghostget/apple-photos";
 import * as surface5 from "@hraness/ghostget/whatsapp";
 import * as surface6 from "@hraness/ghostget/messaging";
+import * as surface7 from "@hraness/ghostget/messaging-automation";
+import {
+  createMessagingAutomationHost,
+  installBundledMessagingRuntime,
+  type AutomationEnrollment,
+  type AutomationRun,
+  type MessagingAutomationHostApi,
+  type MessagingAutomationProvider,
+  type MessagingRuntimeInstallation,
+} from "@hraness/ghostget/messaging-automation";
+// Built-in registry/session construction is internal to the trusted CLI host.
+// @ts-expect-error private factory must not be a public package API
+import { createMessagingAutomationSession } from "@hraness/ghostget/messaging-automation";
 import {
   discoverMessagingRoutes,
   parseMessagingRouteResolveRequestV1,
@@ -876,6 +890,20 @@ const resolved: Promise<MessagingRouteV2> = resolveMessagingRoute({
   format: "wrench.messaging-route-resolve-request",
   routeRef: "wmroute_ABCDEFGHIJKLMNOPQRSTUV",
 });
+declare const automationProvider: MessagingAutomationProvider;
+declare const automationHost: MessagingAutomationHostApi;
+const createdHost: Promise<MessagingAutomationHostApi> = createMessagingAutomationHost([automationProvider]);
+const installedRuntime: Promise<MessagingRuntimeInstallation> = installBundledMessagingRuntime("whatsapp");
+const enrolled: Promise<AutomationEnrollment> = automationHost.enroll({
+  provider: "whatsapp", coordinate: { provider: "whatsapp", conversationJid: "12025550123@s.whatsapp.net" },
+});
+const submitted: Promise<AutomationRun> = automationHost.submit({ planId: "plan:synthetic", grantId: "grant:synthetic" });
+// @ts-expect-error unsupported provider must remain a closed union
+void installBundledMessagingRuntime("other");
+// @ts-expect-error a receipt is asynchronous and cannot be assumed accepted
+const acceptedRun: AutomationRun = submitted;
+// @ts-expect-error private persistence is never exposed by the owner SDK
+void automationHost.db;
 void [
   surface0,
   surface1,
@@ -884,8 +912,13 @@ void [
   surface4,
   surface5,
   surface6,
+  surface7,
   discovered,
   resolved,
+  createdHost,
+  installedRuntime,
+  enrolled,
+  submitted,
   parseMessagingRouteResolveRequestV1,
   parseMessagingRouteResolveRequestV2,
   parseMessagingRouteV1,

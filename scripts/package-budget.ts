@@ -1,3 +1,197 @@
+// Ghostget 0.19.0 secure-entry, Vault and setup joined with main e46e9a0
+// (messaging automation and LinkedIn adapter 1.36.1), including the portable
+// skill description: two clean Bun 1.3.14 builds and canonical npm 11.19.0
+// packs under the verified official Node 24.20.0 darwin-arm64 runtime,
+// zlib 1.3.2.1-motley-42c2f19, are byte-identical:
+// 11,691,232 compressed / 22,642,211 payload bytes across exactly 574 files,
+// SHA-256 5d020e68a4362c41b3e5251828144df4be4533b3bc2ad25f6f7b2b45a624a50e.
+// Every archived byte and mode matches source. Preserve both parents' complete
+// measurement history and the exact union of their source/native resources.
+// Retain exactly 4,096 compressed-byte and 65 payload-byte allowances above
+// this canonical measurement: 11,691,232 + 4,096 = 11,695,328;
+// 22,642,211 + 65 = 22,642,276. Do not restore the superseded
+// 2,802-byte compressor-spread projection. Fresh Required Linux CI and Release
+// still admit their actual canonical archives; local measurement is not CI.
+//
+// Ghostget 0.18.1 source plus the LinkedIn `contacts.read` unique
+// Contact info click when that control's href matches
+// `/overlay/contact-info/` (adapter bundle 1.36.1), measured with no
+// version bump: a Bun 1.3.14 `pm pack` on Linux x64
+// shares 22,515,152 payload bytes across exactly 558 files. The bun
+// archive is 11,508,333 compressed bytes, SHA-256
+// c606e02ae0ce9b4c72f8b27f7b705698597e6f1f474d0dc00f525cd7c0bbc259.
+// Allowing that unique overlay-href click, wrapped eval
+// classification, adapter notes, changelog, and tests add 1,388
+// payload bytes compared with the 1.36.0 measurement. Raise only the
+// payload ceiling to the measured value plus 65 bytes of headroom
+// (22,515,217); the packed size stays under the existing packed
+// allowance and the 558-entry inventory is unchanged. Theme CSS stays
+// website-only. Fresh Linux CI independently checks its actual
+// canonical archive.
+//
+// Ghostget 0.18.1 source plus the LinkedIn `contacts.read` reviewed
+// Contact info click and modal snapshot (adapter bundle 1.36.0),
+// measured with no version bump: a Bun 1.3.14 `pm pack` on Linux x64
+// shares 22,513,764 payload bytes across exactly 558 files. The bun
+// archive is 11,507,774 compressed bytes, SHA-256
+// a7c6b53a90bde4324f2e4a8b3fb7af7ea2550d56549aad9c6a62c2637f035a04.
+// Replacing the synthetic navigation POST with the reviewed unique
+// Contact info click, adapter notes, changelog, and tests add 8,846
+// payload bytes compared with the 1.35.0 measurement. Raise only the
+// payload ceiling to the measured value plus 65 bytes of headroom
+// (22,513,829); the packed size stays under the existing packed
+// allowance and the 558-entry inventory is unchanged. Theme CSS stays
+// website-only. Fresh Linux CI independently checks its actual
+// canonical archive.
+//
+// Ghostget 0.18.1 source plus the LinkedIn `contacts.read` observed
+// rsc-action tracking, pageforest, trace, and layout-tree header copies
+// (adapter bundle 1.35.0), measured with no version bump: a Bun 1.3.14
+// `pm pack` on Linux x64
+// shares 22,504,918 payload bytes across exactly 558 files. The bun
+// archive is 11,506,310 compressed bytes, SHA-256
+// da3f581f1f96724337a99c4b80567d4d11893c4df1ff9a808464260796092976.
+// Copying those already-observed X-Li names, adapter notes, changelog,
+// and tests add 7,920 payload bytes compared with the 1.34.0
+// measurement. Raise only the payload ceiling to the measured value
+// plus 65 bytes of headroom (22,504,983); the packed size stays under
+// the existing packed allowance and the 558-entry inventory is
+// unchanged. Theme CSS stays website-only. Fresh Linux CI independently
+// checks its actual canonical archive.
+//
+// Ghostget 0.18.1 source plus the LinkedIn `contacts.read` page-derived
+// X-Li header bind (adapter bundle 1.34.0), measured with no version
+// bump: a Bun 1.3.14 `pm pack` on Linux x64
+// shares 22,496,998 payload bytes across exactly 558 files. The bun
+// archive is 11,504,433 compressed bytes, SHA-256
+// 47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a.
+// Opening the reviewed profile document, copying unique page-derived
+// X-Li headers, adapter notes, changelog, and tests add 17,959 payload
+// bytes compared with the 0.18.1 / 1.33.0 measurement. Raise only the
+// payload ceiling to the measured value plus 65 bytes of headroom
+// (22,497,063); the packed size stays under the existing packed
+// allowance and the 558-entry inventory is unchanged. Theme CSS stays
+// website-only. Fresh Linux CI independently checks its actual
+// canonical archive.
+//
+// Ghostget 0.18.1 packed-size portability after LinkedIn adapter 1.34.0:
+// required Linux CI run 34675756854 / package job 103505207279 measured
+// the canonical npm archive at 11,654,371 compressed bytes under the
+// pinned toolchain, 549 bytes above the previous 11,653,822 ceiling.
+// Payload (22,496,998 measured; 22,497,063 ceiling), 558-file inventory,
+// and tar bounds are unchanged. Keep the reviewed 4,096-byte
+// portability allowance above the largest measured compression:
+// 11,654,371 + 4,096 = 11,658,467. This remains a compressor-spread
+// allowance, not a guarantee for arbitrary compressors; required CI
+// still checks the actual archive under the release toolchain.
+//
+// Ghostget 0.18.1 messaging automation joined with main 01a696f
+// (LinkedIn adapter 1.33.0). Two clean Bun 1.3.14 builds and canonical npm
+// 11.19.0 packs use the official Node 24.20.0 darwin-arm64 runtime with zlib
+// 1.3.2.1-motley-42c2f19, matching the required Linux CI compressor. Archives
+// are identical: 11,649,726 compressed / 22,479,039 payload bytes, 558 files,
+// SHA-256 3e96590b2334be064df614a9c65908b460f07be65def73d39eb71ab91d5fe204.
+// All paths and modes remain; the joined changelog, two guides, LinkedIn contact
+// runtime and contract definitions account for the exact 4,734-byte payload
+// increase. Native bytes and eight inert SDK entrypoints are unchanged.
+// Retain exactly 4,096 compressed-byte and 65 payload-byte allowances:
+// 11,649,726 + 4,096 = 11,653,822; 22,479,039 + 65 = 22,479,104.
+// Fresh Required Linux CI and Release still admit their actual canonical bytes.
+//
+// Canonical compression correction for 0.18.1 candidate 2931dd0, source tree
+// 07de7b236089f6f116a075b550cf1d7a8381731b. Required Linux CI run 34673035298
+// attempt 1 / package job 103497890460 produced 11,648,247 compressed bytes
+// with Node 24.20.0 / npm 11.19.0 / zlib 1.3.2.1-motley-42c2f19. Its exact
+// 558-path/size/mode inventory and 22,474,305 payload bytes match both Mac packs.
+// Recompressing their unchanged tar (SHA-256
+// f3a019d12d62d947e963dd6b81dc583e1897f0e76261fbd3f1ef8705390ed5b5) at npm's
+// level 9 / portable gzip OS byte with installed Node 24.19.0 / motley-3246f1b
+// reproduces the Linux SHA-1 and SHA-512 exactly. Reproduced archive SHA-256:
+// 52553bf2a994d12620df6973d2be365ca5b8ebf1c5e3266165d6b1000e7ea72f.
+// Homebrew Node 24.20.0 / zlib 1.2.12 reproduces the smaller Mac archive below.
+// Replace the obsolete 2,802-byte spread projection with the observed canonical
+// maximum; retain exactly 4,096 compressed bytes of headroom:
+// 11,648,247 + 4,096 = 11,652,343. Payload, inventory, tar, native pins and
+// exports stay unchanged. Fresh Required CI must admit its actual archive.
+//
+// Ghostget 0.18.1 with the leaf automation SDK boundary, joined with main
+// 79b74fe (LinkedIn adapter 1.32.0). Two clean Bun 1.3.14 builds and npm
+// 11.19.0 packs under Node 24.20.0 / zlib 1.2.12 on darwin arm64 are identical:
+// 11,638,165 compressed / 22,474,305 payload bytes across exactly 558 files,
+// SHA-256 56b38a2714918029075503d4e916f797e97e9ccaa76bed894421e2b4946ac677.
+// Removing the accidental public session factory removes 61 generated dist files
+// (83 -> 22); all non-dist inventory paths are retained. Built-in account and
+// policy factories remain available through the source CLI. Native bytes and
+// all eight public SDK entrypoints remain. Preserve the existing 2,802-byte
+// platform spread, 4,096 compressed-byte and 65 payload-byte allowances; reduce
+// the ceilings and exact inventory to this measured package. Current Required
+// Linux CI must independently admit its actual canonical archive.
+//
+// Ghostget 0.18.1 messaging automation joined with main ac44040, including
+// the admitted imsg .3 no-fetch native cards and shipped release resources.
+// Two clean Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0 on
+// darwin arm64 are byte-identical: 12,561,964 compressed / 27,437,097 payload
+// bytes across exactly 619 files, SHA-256
+// 0914c7721df5cd1a2e317d334d7ee60e6ff8f461e4e61a21aae086cd9d5fb322.
+// The third reviewed imsg patch adds one inventory entry. The smaller signed
+// native artifact more than offsets the joined source, provenance and docs.
+// Reduce both byte ceilings to this measurement plus the unchanged 2,802-byte
+// observed platform spread, 4,096 compressed-byte and 65 payload-byte allowances.
+// Keep the existing five Release assets and eight inert SDK entrypoints.
+// Current Required Linux CI must independently inspect its canonical archive.
+//
+// Messaging automation joined with main 9cc16e1 (LinkedIn non-flight bootstrap).
+// Two clean Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0 on
+// darwin arm64 are byte-identical: 12,716,885 compressed / 27,573,685 payload
+// bytes across exactly 618 files, SHA-256
+// 060a2a4b7eacf56e7399f29be241bfe611a7837c82a0d86c981c85d67a764f2a.
+// The joined source and generated provider chunk add 1,985 payload bytes over
+// the messaging-only measurement below. Preserve its exact inventory and
+// existing 2,802 + 4,096 compressed-byte and 65 payload-byte allowances.
+// Current Linux CI must still inspect the actual canonical artifact.
+//
+// Ghostget messaging automation with bundled reviewed iMessage and WhatsApp
+// helpers, PhoneNumberKit resources, durable host and eighth public SDK entrypoint.
+// Two clean Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0 on
+// darwin arm64 are byte-identical: 12,715,931 compressed / 27,571,700 payload
+// bytes across exactly 618 files, SHA-256
+// a552f3a4081f5478ee80c9a0bd4ad433ba1297044901d0113a5ddd26850eb161.
+// The five pinned compressed helper/resource files contribute 9,402,391 payload
+// bytes; their source pins, licenses, patches, host, and generated SDK chunks
+// explain the remaining measured growth. No additional Release asset is added.
+// Preserve the existing 2,802-byte observed platform spread plus 4,096-byte
+// compression allowance, 65 payload bytes, and exact measured file inventory.
+// Required Linux CI independently admits its actual canonical package; this
+// local measurement does not qualify account activation or message delivery.
+//
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` exact headed
+// payload.requestMetadata POST body (adapter bundle 1.33.0),
+// measured with no version bump: a Bun 1.3.14 `pm pack` on Linux x64
+// shares 12,725,779 payload bytes across exactly 524 files. The bun
+// archive is 2,190,088 compressed bytes, SHA-256
+// 43818a0f9210eea9ab07964afe98df56444c042cd911599b9cac83f93bcf1d6d.
+// Completing omitted headed metadata, the 20260912 capture notes, and
+// tests add 740 payload bytes compared with the first 1.33.0
+// measurement. Raise only the payload ceiling to the measured value
+// plus 65 bytes of headroom (12,725,844); the packed size stays under
+// the existing packed allowance and the 524-entry inventory is
+// unchanged. Theme CSS stays website-only. Fresh Linux CI independently
+// checks its actual canonical archive.
+//
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` nested
+// payload.requestMetadata POST body (adapter bundle 1.33.0),
+// measured with no version bump: a Bun 1.3.14 `pm pack` on Linux x64
+// shares 12,725,039 payload bytes across exactly 524 files. The bun
+// archive is 2,189,810 compressed bytes, SHA-256
+// 82aebc3443ba76a5f5ecb20121528aec7d52b3c25f9d0546310e213588dc9aad.
+// Nested headed metadata, adapter notes, changelog, and tests add 3,994
+// payload bytes compared with the 1.32.0 measurement. Raise only the
+// payload ceiling to the measured value plus 65 bytes of headroom
+// (12,725,104); the packed size stays under the existing packed
+// allowance and the 524-entry inventory is unchanged. Theme CSS stays
+// website-only. Fresh Linux CI independently checks its actual
+// canonical archive.
+//
 // Ghostget 0.19.0 joined with main 79b74fe (LinkedIn adapter 1.32.0):
 // two fresh Bun 1.3.14 builds and npm 11.19.0 ignore-scripts packs under
 // Node 24.20.0 on darwin arm64 (zlib 1.2.12) are byte-identical:
@@ -636,10 +830,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_368_815;
-export const MAX_PACKED_ENTRIES = 540;
-export const MAX_PACKED_FILES = 540;
-export const MAX_UNPACKED_BYTES = 12_845_368;
+export const MAX_PACKED_BYTES = 11_695_328;
+export const MAX_PACKED_ENTRIES = 574;
+export const MAX_PACKED_FILES = 574;
+export const MAX_UNPACKED_BYTES = 22_642_276;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

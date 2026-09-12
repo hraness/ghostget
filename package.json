@@ -74,6 +74,10 @@
     "./messaging": {
       "types": "./src/messaging-types.ts",
       "import": "./dist/messaging.js"
+    },
+    "./messaging-automation": {
+      "types": "./src/messaging-automation-types.ts",
+      "import": "./dist/messaging-automation-api.js"
     }
   },
   "bin": {
@@ -316,6 +320,21 @@
     "src/message-like-me-agentic-messaging.ts",
     "src/messaging-types.ts",
     "src/messaging.ts",
+    "src/messaging-automation-api.ts",
+    "src/messaging-automation-types.ts",
+    "src/messaging-automation-validation.ts",
+    "src/messaging-automation.ts",
+    "src/messaging-automation-descriptors.ts",
+    "src/messaging-automation-factory.ts",
+    "src/messaging-automation-server.ts",
+    "src/providers/imessage-automation.ts",
+    "src/providers/whatsapp-automation.ts",
+    "src/providers/whatsapp-automation-runtime.ts",
+    "src/providers/messaging-native-install.ts",
+    "src/providers/messaging-native-artifacts.ts",
+    "src/assets/messaging-runtime",
+    "src/plugins/whatsapp-linked-device/vendor",
+    "docs/messaging-automation.md",
     "src/messaging-action-store.ts",
     "src/messaging-runtime.ts",
     "src/messaging-store.ts",
@@ -349,6 +368,7 @@
     "src/plugins/imessage-direct/plugin.ts",
     "src/plugins/imessage-direct/vendor/0001-fix-keep-AppleScript-send-payloads-out-of-child-argv.patch",
     "src/plugins/imessage-direct/vendor/0002-feat-rpc-add-exact-chat-lookup.patch",
+    "src/plugins/imessage-direct/vendor/0003-feat-rpc-add-no-fetch-rich-cards.patch",
     "src/plugins/imessage-direct/vendor/provenance.json",
     "src/plugins/linkedin-official/plugin.ts",
     "src/plugins/linkedin-web/plugin.ts",
@@ -589,7 +609,7 @@
     "website:test": "bun test ./website ./edge",
     "website:typecheck": "tsc --noEmit --project website/tsconfig.json && tsc --noEmit --project edge/tsconfig.json",
     "website:check": "bun run check:theme && bun run website:typecheck && bun run website:test && bun run website:build",
-    "build": "bun -e 'await (await import(\"node:fs/promises\")).rm(\"./dist\", { recursive: true, force: true })' && bun build ./src/index.ts ./src/client.ts ./src/beeper-client.ts ./src/apple-photos-client.ts ./src/whatsapp-client.ts ./src/omni-client.ts ./src/messaging.ts --outdir ./dist --root ./src --target bun --format esm --splitting --packages external",
+    "build": "bun -e 'await (await import(\"node:fs/promises\")).rm(\"./dist\", { recursive: true, force: true })' && bun build ./src/index.ts ./src/client.ts ./src/beeper-client.ts ./src/apple-photos-client.ts ./src/whatsapp-client.ts ./src/omni-client.ts ./src/messaging.ts ./src/messaging-automation-api.ts --outdir ./dist --root ./src --target bun --format esm --splitting --packages external",
     "typecheck": "tsc --noEmit",
     "whatsapp:transport:install": "sh src/scripts/install-whatsapp-protocol.sh",
     "test:unit": "bun test --no-orphans --timeout 180000 --max-concurrency \"${GOMAXPROCS:-4}\" ./src --path-ignore-patterns='**/src/omni-runtime.test.ts'",

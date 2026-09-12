@@ -12,9 +12,9 @@ account and integration state.
 See the [native build and verification guide](https://github.com/hraness/ghostget/blob/v0.19.0/desktop/README.md) and
 [macOS distribution setup](https://github.com/hraness/ghostget/blob/v0.19.0/desktop/distribution/README.md). Public signed
 macOS distribution is pending Apple credentials and a successful signing,
-notarization, and release verification run. A local source build remains an
-unsigned preview. The CLI's canonical five-file GitHub Release contract is
-unchanged.
+notarization, and release verification run. A local source build is an
+ad hoc signed preview, without notarization. The CLI's canonical five-file
+GitHub Release contract is unchanged.
 
 ## Connect an account
 
@@ -66,6 +66,14 @@ expire after two minutes and require the app to stay open. Writes still require
 Ghostget's existing preview, confirmation, and dispatch evidence. Cached reads
 requiring human approval fail without disclosing data; a live invocation can ask.
 
+The separate [owner messaging host](messaging-automation.md) needs explicit
+**Allow** decisions for its `messaging.automation.*` operations and its own bounded
+conversation grants. **Ask**, an unmanaged policy, and existing `messaging.send`
+permissions do not authorize unattended automation. The native app configures
+operation permissions; the host's trusted owner control port is separate and must
+remain outside the agent's tools. Transport installation, account pairing, and
+macOS permissions remain separate setup steps.
+
 ## Give an agent one web tool
 
 Create a web rule with an exact HTTPS origin, literal path or slash-terminated
@@ -111,8 +119,8 @@ use has a `credential:<grant-id>` rule label. Legacy provider logs remain separa
 ## Store a local password or token
 
 Vault stores secrets in your default macOS Keychain. The native app collects
-secret values in a separate macOS secure-entry prompt. Vault administration
-sends only metadata through the renderer. Item names, kinds, usernames,
+secret values in the separate **Ghostget Secure Entry** app's macOS prompt.
+Vault administration sends only metadata through the renderer. Item names, kinds, usernames,
 references, and access grants remain visible in the control panel. Local items work without a
 1Password account or app. Your default macOS Keychain must already be unlocked;
 Ghostget does not unlock it or ask for its password.

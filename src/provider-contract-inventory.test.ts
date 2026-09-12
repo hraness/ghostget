@@ -4,27 +4,27 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "bun:test";
 
 const predecessorDefaultInventorySha256 =
-  "0c05340e428114a1edf1e14407a72088ba61e4ff43cdd7e07dde5ba0f8588d11";
+  "800ee91150aab9ac2211748f1f2c92fb57449e158324a38aac69c0fede48c896";
 const predecessorLegacyInventorySha256 = [
-  "f9703703d5216e03a9f73b70c17f3a54e403e5f8d662a0f26aad09ef0543f6b1",
-  "b0a70d84621ac626a67ef1be195bb8cbe4a995675335fd2e6c44fe243c34b173",
-  "2bac4f4164c8b5e941ac490dc677f064a49a086dc806c9d189b47786831edc38",
-  "d28264f9976007f06e30a7781038b534d28165ccb2edb319fba315709790e627",
-  "2eb2cceb8dcda28c8095a9c61922e82e653568535c818e297af9f9abadf83f02",
-  "63e38e6de487d25d5f65d27c54b81fddf8a37bce04b029390ffb46ca8da500f2",
-  "5017d785d5ed3d7f3c2ad579229405e2612264aa9ef2fbb80746bc12dc1991e5",
-  "61cc96700495479a6ea3da839375b6f86ca8890ad3294fa4e5263f26f2468565",
-  "3cbefb26f4161f8bb11628a356ffe91e697362d05450233d69f6859b62e141b2",
-  "52ae0bc1c1bb9f0960ca8766575ac267795e7de8dee65aed903573eb131648a5",
-  "80b627c394a44b4a3e1a6721c58f073fa3da41ae316e0a9471d1c7cd2fd23338",
-  "eb205ba72c1656cfeac2e76e732b4f9b675446938bbbaacffe486856c71076f3",
-  "59ee1cf46143322042099a74fb17f038f02eea1ea44faef15760d090bf1b7c30",
-  "803c727cf7298c0adaffd11a796253add12f07f0a09bb17a1e3ee943c9650936",
-  "6c48662c5603911e322de5a3a5f1f38b0d214e3df2b94c6a31594e44507420be",
-  "9710f75e36eb31f46f2c6e707d4d24b626c9fa0dff65fea8e982fee78efa3504",
-  "9d8063889763001899936c987b5233b2c7b6d5f56a32621b3122ebe7a59e0278",
-  "89f92e12a095daedb5a65cdd5b0be19e13127df3a8e7daaaa1d7a9129453c2ad",
-  "0ed7cdc0977abc94c299f80eebda5222967e68820399405731e5b7379c0206ab",
+  "4abf50326edbc8c8294a2056a08fc7ab2fd038d2d798708b77e29df98c2a86d0",
+  "112cb715f1466ed5eb29cf97116151ae8b6a56aeb8aa9c08ed26ebadd47b86be",
+  "0ceb2752973c0c855487dca60bb1e768b59f003b57b98cc0547996b9a766a9d7",
+  "738e521f9d410c8101dcc294ec466bef19f9cad6e13c5628ae7dafbab7f6cb6b",
+  "303ca3ae1b44693bbbdbdcf48665c388eaaa8b677f982a2ebdc0ae9ccb82a8b4",
+  "0b7b037e045497f96920c8e751711f767b6358589c39ba0ea9d9db880ddef2ca",
+  "ce149cd1d2d695a693b2dac2c16c3b7f18b5ab1adb108a3dee07ae8031414255",
+  "76aa514052cc903f730512b21a924725428b3839caf6a08e41200d0a8c588377",
+  "6b9e768de339261abdd78d5bc0c4ebdf3257ad2c6674c4bf5a5e8c476432469a",
+  "7ec13840c850e582dcd7dfed12266057a9930204baff6139a8c0b60ea4298d2c",
+  "1588b2433a627f1a237bd0c1d314b104558847a3b339c9bffec06bb6c6ab14ad",
+  "7ff280032dd0b2d2023b348dfccc44edf4ca15e9dfb049e4d11e787964b7bc69",
+  "bfafe93552d576c1a52da29ab5a56dfe7cf828b1e7b44bfd546937966c186f95",
+  "bf0e56da9f3b3529e59d2aa2c9d4b8c7e3c117be1b666c31288bcc8f90818ce3",
+  "58e5e5b27881f30114891f7c266f901e7dda800d3f12309e420c602348816a58",
+  "7db7a8a56a969f082a8fb588425d23e2525ee1fec8862d28606df29e2383db4b",
+  "29b7a19415dc62980cf33174e21d626b2d25f3dd05b6b11f82290e7d02257b7e",
+  "c5d57f9c78838ddd503259b99e39b49da93707e2b33136fc22194f05d3c8d736",
+  "2ec64924059bd3d89ae6914c0a7a841d6fce312a5cd9020c3f1e99aa713f2731",
 ];
 
 const moduleUrl = (name: string) => pathToFileURL(
@@ -93,6 +93,16 @@ function isCurrentOnlyRow(row) {
   return (row[0] === "provider-api" && row[1] === "gmail")
     || (row[0] === "local-cli" && row[1] === "beeper")
     || (row[0] === "local-cli" && row[1] === "imessage")
+    || (row[0] === "linked-device" && row[1] === "whatsapp" && row[3] === 1 && [
+      "messaging.automation.read",
+      "messaging.automation.sync",
+      "messaging.automation.send.text",
+      "messaging.automation.send.attachment",
+      "messaging.automation.send.reaction",
+      "messaging.automation.send.sticker",
+      "messaging.automation.send.link",
+      "messaging.automation.send.poll",
+    ].includes(row[2]))
     || (row[0] === "web-session-api" && row[1] === "clasificados")
     || (row[0] === "web-session-api" && row[1] === "github")
     || (row[0] === "web-session-api" && row[1] === "reddit" && row[2].startsWith("flair."))
@@ -240,6 +250,7 @@ process.stdout.write(JSON.stringify({
   currentOnlyRows: currentOnlyRows.length,
   currentOnlySha256:
     createHash("sha256").update(JSON.stringify(currentOnlyRows)).digest("hex"),
+  automationRows: currentOnlyRows.filter(row => row[2].startsWith("messaging.automation.")).map(row => row.slice(0, 4)),
   legacyRows: legacyRows.map((legacy) => legacy.length),
   legacySha256: legacyRows.map((legacy) =>
     createHash("sha256").update(JSON.stringify(legacy)).digest("hex")
@@ -286,8 +297,25 @@ describe("durable provider contract inventory", () => {
       expect(inventory).toEqual({
         rows: 324,
         sha256: predecessorDefaultInventorySha256,
-        currentOnlyRows: 58,
-        currentOnlySha256: "3afd55dd919e3cd938fbf9ad414035a0815dc2c53039201c11b7025d4e103be5",
+        currentOnlyRows: 73,
+        currentOnlySha256: "58d51f43cc0131710a08e5b81da92eb1cbe05b6f4edd6abde87bc9e7d8afb25f",
+        automationRows: [
+          ["linked-device", "whatsapp", "messaging.automation.read", 1],
+          ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],
+          ["linked-device", "whatsapp", "messaging.automation.send.link", 1],
+          ["linked-device", "whatsapp", "messaging.automation.send.poll", 1],
+          ["linked-device", "whatsapp", "messaging.automation.send.reaction", 1],
+          ["linked-device", "whatsapp", "messaging.automation.send.sticker", 1],
+          ["linked-device", "whatsapp", "messaging.automation.send.text", 1],
+          ["linked-device", "whatsapp", "messaging.automation.sync", 1],
+          ["local-cli", "imessage", "messaging.automation.read", 1],
+          ["local-cli", "imessage", "messaging.automation.send.attachment", 1],
+          ["local-cli", "imessage", "messaging.automation.send.link", 1],
+          ["local-cli", "imessage", "messaging.automation.send.poll", 1],
+          ["local-cli", "imessage", "messaging.automation.send.reaction", 1],
+          ["local-cli", "imessage", "messaging.automation.send.sticker", 1],
+          ["local-cli", "imessage", "messaging.automation.send.text", 1],
+        ],
         legacyRows: [
           324,
           324,

@@ -36,6 +36,8 @@ type MessagingArguments = {
 
 export type GhostgetArguments =
   | { readonly command: "help" }
+  | { readonly command: "messaging-automation-serve" }
+  | { readonly command: "whatsapp-automation-install"; readonly binary?: string; readonly json: boolean }
   | { readonly command: "clip"; readonly arguments: readonly string[] }
   | { readonly command: "read"; readonly arguments: readonly string[] }
   | { readonly command: "media"; readonly arguments: readonly string[] }
@@ -69,7 +71,7 @@ export type GhostgetArguments =
     }
   | {
       readonly command: "imessage-transport-install";
-      readonly binary: string;
+      readonly binary?: string;
       readonly json: boolean;
     }
   | { readonly command: "doctor"; readonly json: boolean }
@@ -464,6 +466,11 @@ function optionalPositiveInteger(
 
 function parseMessagingArguments(raw: readonly string[]): ParseGhostgetResult {
   const operation = raw[0];
+  if (operation === "automation") {
+    return raw.length === 3 && raw[1] === "serve" && raw[2] === "--stdio"
+      ? { ok: true, value: { command: "messaging-automation-serve" } }
+      : { ok: false, message: "Use messaging automation serve --stdio; all owner configuration and message data must arrive on stdin." };
+  }
   if (operation === "reconcile") {
     const runId = raw[1];
     if (runId === undefined) {
@@ -923,6 +930,13 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
     };
   }
   if (first === "whatsapp") {
+    if (raw[1] === "automation" && raw[2] === "install") {
+      const parsed = optionValues(raw.slice(3), ["--binary"], ["--json"]);
+      if (isFailure(parsed)) return parsed;
+      const binary = parsed.values["--binary"];
+      if (binary !== undefined && (!isAbsolute(binary) || resolve(binary) !== binary || Buffer.byteLength(binary) > 4096 || /[\0\r\n]/u.test(binary))) return { ok: false, message: "whatsapp automation install requires --binary <normalized-absolute-reviewed-wacli-file>" };
+      return { ok: true, value: { command: "whatsapp-automation-install", ...(binary === undefined ? {} : { binary }), json: parsed.booleans.has("--json") } };
+    }
     if (raw[1] !== "export-message-like-me") {
       return {
         ok: false,
@@ -966,11 +980,10 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
     if (isFailure(parsed)) return parsed;
     const binary = parsed.values["--binary"];
     if (
-      binary === undefined
-      || !isAbsolute(binary)
+      binary !== undefined && (!isAbsolute(binary)
       || resolve(binary) !== binary
       || Buffer.byteLength(binary, "utf8") > 4_096
-      || /[\0\r\n]/u.test(binary)
+      || /[\0\r\n]/u.test(binary))
     ) {
       return {
         ok: false,
@@ -982,7 +995,7 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
       ok: true,
       value: {
         command: "imessage-transport-install",
-        binary,
+        ...(binary === undefined ? {} : { binary }),
         json: parsed.booleans.has("--json"),
       },
     };

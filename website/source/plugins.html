@@ -56,8 +56,8 @@
         <section aria-labelledby="plugin-forms">
           <h2 id="plugin-forms">Two plugin forms share one semantic catalog</h2>
           <p>A source plugin ships with Ghostget, loads in process, and may implement a reviewed provider transport. It is trusted application code. A portable plugin is independently authored, content-addressed, installed into local state after an explicit code-trust decision, and run through a versioned, denied-by-default child-process protocol.</p>
-          <p>Neither plugin form can redefine Ghostget's custody rules. The kernel owns input resolution, auth selection, risk, preview and confirmation, dispatch journals, recovery, receipts, bounds, redaction, activation, and lifecycle serialization. A plugin owns the exact provider identity, operation descriptors, request and response contracts, account probes, execution, and reconciliation logic.</p>
-          <p>A source plugin may use <code>local-cli</code> to place an exact official provider executable behind semantic operations. That binding pins each supported executable and archive digest, isolates ambient CLI and plugin state, and owns fixed argument and output contracts. Portable protocol v1 cannot request native process authority, and neither plugin form exposes a generic command runner.</p>
+          <p>Neither plugin form can redefine Ghostget's custody rules. The kernel owns input resolution, auth selection, risk, preview and confirmation, bounded owner messaging grants, dispatch journals, recovery, receipts, bounds, redaction, activation, and lifecycle serialization. A plugin owns the exact provider identity, operation descriptors, request and response contracts, account probes, execution, and reconciliation logic.</p>
+          <p>A source plugin may use <code>local-cli</code> to place an exact reviewed provider executable, including declared patches, behind semantic operations. That binding pins each supported executable and archive digest, isolates ambient CLI and plugin state, and owns fixed argument and output contracts. Portable protocol v1 cannot request native process authority, and neither plugin form exposes a generic command runner.</p>
         </section>
 
         <section aria-labelledby="initialize">
@@ -73,7 +73,7 @@
 
         <section aria-labelledby="prove">
           <h2 id="prove">2. Prove the whole operation contract</h2>
-          <p>Before marking an operation observed, establish one semantic operation and bounded input schema; the exact transport, HTTPS origin, route, method, and request shape; a current-account probe; stable subject identity; response, target, side-effect, and completion projections; credential names and allowed sinks; risk and uncertainty behavior; fail-closed drift; and secret-free fixtures for success and every relevant rejection or unsettled outcome.</p>
+          <p>Before marking an operation observed, establish one semantic operation and bounded input schema; the exact transport and any declared HTTPS origin, route, method, or fixed native invocation; a current-account probe; stable subject identity; response, target, side-effect, and completion projections; credential names and allowed sinks; risk and uncertainty behavior; fail-closed drift; and secret-free fixtures for success and every relevant rejection or unsettled outcome. Owner-host permission descriptors must also reject generic dispatch; their catalog presence alone does not prove a runtime can perform the action.</p>
           <p>A UI label, route name, or one captured traffic shape is not enough. Ghostget does not treat DOM automation as an execution or recovery fallback.</p>
         </section>
 

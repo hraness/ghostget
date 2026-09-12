@@ -1158,7 +1158,7 @@ describe("ghostget.com static site", () => {
       "utf8",
     );
     expect(providerCapabilities?.html).toContain(
-      "This directory lists the actions supported by the current Ghostget release",
+      "This directory lists the current release's generic actions and, separately, owner-only messaging permissions.",
     );
     expect(html).toContain(providerCards);
     expect(providerCapabilities?.html).toContain(providerCards);
@@ -1186,6 +1186,9 @@ describe("ghostget.com static site", () => {
       expect(providerCapabilities?.html).toContain(`data-provider-icon="${entry.icon}"`);
     }
     expect(providerCapabilities?.html).toContain(providerGroups);
+    expect(providerCapabilities?.html).toContain("Owner messaging permissions");
+    expect(providerCapabilities?.html).toContain("unavailable through generic invoke");
+    expect(providerMarkdown).toContain("owner host only");
     expect(providerCapabilities?.html).toContain("Supported actions by service");
     expect(providerCapabilities?.html).toContain("Official API");
     expect(providerCapabilities?.html).toContain(`<code>contacts.list</code>`);
@@ -1401,7 +1404,7 @@ describe("ghostget.com static site", () => {
     expect(personalAgents?.html).toContain("https://ghostget.com/provider-capabilities/");
     expect(personalAgents?.html).toContain("https://ghostget.com/security/");
     expect(personalAgents?.html).toContain(
-      `The current release offers ${attestation.observedCount} supported provider actions.`,
+      `The current release offers ${providerDirectory.entries.reduce((sum, entry) => sum + entry.supportedActionCount, 0)} supported provider actions.`,
     );
     expect(personalAgents?.html).toContain("Telegram is not supported in this release");
     expect(personalAgents?.html).toContain("Instinct");
