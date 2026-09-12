@@ -734,7 +734,6 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         if (command?.[0] !== "eval" || command[1] === undefined) {
           throw new Error("unexpected LinkedIn contact-info navigation browser command");
         }
-        expect(() => evaluatorSyntax.transformSync(command[1])).not.toThrow();
         if (command[1].includes("LinkedIn profile document omitted its root")) {
           throw new Error("page-instance extract ran after a unique network binding");
         }

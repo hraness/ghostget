@@ -769,7 +769,7 @@ export async function createLinkedInProfileBrowserTransport(
     try {
       return await session.runBatch(commands, timeoutMs, maxOutputBytes);
     } catch (error) {
-      classifySessionError(error);
+      throw classifySessionError(error);
     }
   };
   const bindProfilePageContext = async (
