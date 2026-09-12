@@ -254,9 +254,17 @@ When the same page already embeds Contact-info fields, including a labeled
 Email row, the operation projects those fields and does not issue a second
 fetch. Long SDUI strings used as field labels are skipped instead of aborting
 the profile-stage walk. Otherwise it first inspects the page's exact
-Contact-info NavigateToScreen action. A reviewed action supplies the bounded
-`clientArguments` for the fixed Contact-info navigation POST; malformed or
-unsupported action fields stop the operation. Only when the action is absent
+Contact-info NavigateToScreen action. A reviewed action still admits only
+the ProfileContactDetailsOverlay URL (`sduiid` equal to that overlay
+`screenId`). Adapter 1.36.1 then clicks the unique accessible name
+`Contact info` on the already-loaded 1st-degree profile and projects Email
+from that modal DOM, including when that control's `href` matches
+`/overlay/contact-info/` (the live SPA modal path). Malformed or
+unsupported action fields stop the operation. Zero or two-plus matching
+controls, or a missing or ambiguous dialog, fail closed. The contained
+path does not mint a synthetic navigation POST or track headers, and it
+does not fetch that overlay href as a navigation GET. Only when the
+action is absent
 does it use a page-resolved GraphQL `queryId` for
 `voyagerIdentityDashProfileContactInfo`, when the HTML contains exactly one
 decorated revision. Variables are exactly `(profileUrn:{urn})`. When that
@@ -268,9 +276,9 @@ binding. ScreenId-only and `profileUrn`-bound
 because live dormant sessions return HTTP 500 `application/octet-stream`.
 Classic `/voyager/api/identity/profiles/{vanity}/profileContactInfo` now
 returns HTTP 410 and is rejected. The executable contract is those reviewed
-first-party reads, including the fixed navigation POST, or the page-embedded
-fields. It accepts no caller-selected RSC body, DOM click, or selector.
-This contact read does not message, connect, or InMail.
+first-party reads, the reviewed Contact info click and modal snapshot, or
+the page-embedded fields. It accepts no caller-selected RSC body, selector,
+or script. This contact read does not message, connect, or InMail.
 
 The projection returns `email` when LinkedIn shows it, plus any of the vanity
 profile link, connected-since date, phone numbers, websites, and birthday.
@@ -431,13 +439,42 @@ rsc-action or voyager requests or that document, and forwards optional
 `x-li-track` (`mpName` `web` or `voyager-web`),
 `x-li-application-version`, `x-li-application-instance`,
 `x-li-anchor-page-key`, and `x-li-rsc-stream=true` only when the same
-observation already has those values. It does not mint `traceparent`,
-`tracestate`, `pageforest`, page-instance-tracking-id, or layout-tree.
-Those headed-only headers remain blockers if a later POST is still
-500. Live query key stays `sduiid=` (headed 200 Email POST and public
-SDUI `server-request` / `pagination` routes); `sduid=` notes are
-transcription typos. Missing or ambiguous page-instance fails closed
-before POST.
+observation already has those values.
+
+A later signed-in smoke after adapter 1.34.0 kept that exact headed
+body and forwarded page-instance, track (`mpName=web`), application
+version/instance, anchor page key, and `rscStream=true`, then still
+returned HTTP 500 `text/html`. The same contained-browser
+`/flagship-web/rsc-action/` observations on the bound profile already
+carried `x-li-page-instance-tracking-id`, `x-li-pageforestid`,
+`x-li-traceparent`, and `x-li-tracestate`; 1.34.0 left those names off.
+Adapter 1.35.0 copies those original strings from the same selected
+rsc-action observation under a reviewed allowlist, copies
+`x-li-layout-tree` only when that observation has it, and does not mint
+any of those values when they are absent. Missing or malformed observed
+values fail closed before POST. Live query key stays `sduiid=` (headed
+200 Email POST and public SDUI `server-request` / `pagination` routes);
+`sduid=` notes are transcription typos. Missing or ambiguous
+page-instance fails closed before POST. Headed successful body
+Content-Length was 400; compact emit at 398 stays.
+
+A later signed-in headed proof on 2026-09-12 opened tessbloch, clicked
+Contact info, and showed Email in the modal DOM. The same contained
+synthetic navigation POST still returned HTTP 500 `text/html` after the
+exact headed body and the full observed X-Li set. Adapter 1.36.0 kept
+the page-instance bind, then clicked only the unique reviewed Contact
+info control and projected that modal. Operator smoke the same day
+found that unique control and fail-closed before click because its
+href matched `/overlay/contact-info/`. The raw eval error was exactly
+`Contact-info control targeted the vanity overlay GET`. Adapter 1.36.1
+clicks that unique control even when the href is the vanity overlay
+GET. It does not mint a navigation POST or track headers. Cloud has no
+signed-in LinkedIn session; do not treat this landing as live green.
+
+```sh
+printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \
+  | ghostget invoke linkedin-web contacts.read --input - --auth linkedin-dormant-20260911 --json
+```
 
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid
