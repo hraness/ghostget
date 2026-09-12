@@ -1505,6 +1505,25 @@ describe("LinkedIn contacts.read Contact-info projection", () => {
     }).relationship).toBe("first-degree");
   });
 
+  test("projects Email from a Contact-info modal dialog snapshot", () => {
+    const html = [
+      "<div role=\"dialog\" aria-modal=\"true\">",
+      "<span>Email</span>",
+      "<a href=\"mailto:connection@example.test\">connection@example.test</a>",
+      "</div>",
+    ].join("");
+    expect(projectLinkedInOverlayContactFields(html, "example")).toMatchObject({
+      email: "connection@example.test",
+    });
+    expect(projectLinkedInContactInfo({
+      profileHtml: profileHtml(),
+      contactPayload: html,
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+      observedAt: OBSERVED_AT,
+    }).contact.email).toBe("connection@example.test");
+  });
+
   test("projects Email from overlay HTML that still carries Como Contact-info fields", () => {
     const html = comoHtml({
       publicIdentifier: "example",

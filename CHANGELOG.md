@@ -7,6 +7,29 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Click the unique reviewed Contact info control on an already-loaded
+  1st-degree LinkedIn profile and project Email from that modal after
+  adapter 1.35.0. Operator headed proof on 2026-09-12 showed Email in
+  the modal DOM. Contained synthetic navigation POST still returned
+  HTTP 500 `text/html` after the exact headed body and observed X-Li
+  set. The contained path now opens that profile, binds a unique
+  page-instance, clicks only the exact accessible name `Contact info`,
+  snapshots the unique dialog, and projects Email from that HTML. Zero
+  or two-plus controls, an overlay GET href, or a missing modal fail
+  closed. It does not mint a navigation POST or track headers.
+  GraphQL 403, navigation GETs, vanity HTML-shell honesty, and
+  embedded-field projection stay. Soft-labels stay. Self,
+  non-first-degree, and contradictory distances still fail closed, and
+  no email is invented. Adapter bundle 1.36.0.
+  This is the fourteenth live Contact-info drift after the 1.35.0
+  observed-header bind. Cloud has no signed-in LinkedIn session; do
+  not treat this landing as live green. Operator smoke:
+
+  ```sh
+  printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \
+    | ghostget invoke linkedin-web contacts.read --input - --auth linkedin-dormant-20260911 --json
+  ```
+
 - Copy already-observed LinkedIn `contacts.read@1` rsc-action
   `x-li-page-instance-tracking-id`, `x-li-pageforestid`,
   `x-li-traceparent`, `x-li-tracestate`, and optional
