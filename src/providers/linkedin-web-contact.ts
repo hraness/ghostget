@@ -13,17 +13,35 @@ export const LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID =
 export const LINKEDIN_CONTACT_DETAILS_OVERLAY_PATH =
   "/flagship-web/rsc-action/actions/navigation";
 export const LINKEDIN_CONTACT_NAVIGATION_SDUIID_MAX_LENGTH = 256;
+export const LINKEDIN_CONTACT_DETAILS_PAGE_KEY = "profile_view_base_contact_details";
 export const LINKEDIN_CONTACT_NAVIGATION_CLIENT_ARGUMENT_KEYS = Object.freeze([
+  "$type",
+  "requestedStateKeys",
+  "payload",
+] as const);
+export const LINKEDIN_CONTACT_NAVIGATION_PAYLOAD_KEYS = Object.freeze([
   "vanityName",
-  "publicIdentifier",
-  "profileUrn",
-  "profileId",
-  "vieweeProfileId",
-  "vanity",
+  "givenName",
+  "familyName",
+  "isVanityNameResolved",
+  "requestMetadata",
+] as const);
+export const LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_KEYS = Object.freeze([
+  "$type",
+  "states",
+  "screenId",
+  "knownTemplates",
 ] as const);
 const CONTACT_NAVIGATION_CLIENT_ARGUMENT_KEY_SET = new Set<string>(
   LINKEDIN_CONTACT_NAVIGATION_CLIENT_ARGUMENT_KEYS,
 );
+const CONTACT_NAVIGATION_PAYLOAD_KEY_SET = new Set<string>(
+  LINKEDIN_CONTACT_NAVIGATION_PAYLOAD_KEYS,
+);
+const CONTACT_NAVIGATION_REQUEST_METADATA_KEY_SET = new Set<string>(
+  LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_KEYS,
+);
+const LINKEDIN_SDUI_TYPE = /^com\.linkedin(?:\.[A-Za-z][A-Za-z0-9]*)+$/u;
 const CONTACT_NAVIGATION_HREF =
   /(?:https:\/\/www\.linkedin\.com)?(\/flagship-web\/rsc-action\/actions\/navigation\?[^\s"'<>]+)/gu;
 const CONTACT_QUERY_ID =
@@ -140,13 +158,25 @@ export type LinkedInContactInfoJsonInput = {
   readonly queryId?: string;
 };
 
-export type LinkedInContactNavigationClientArguments = {
+export type LinkedInContactNavigationRequestMetadata = {
+  readonly $type?: string;
+  readonly states?: readonly string[];
+  readonly screenId?: string;
+  readonly knownTemplates?: readonly string[];
+};
+
+export type LinkedInContactNavigationPayload = {
   readonly vanityName?: string;
-  readonly publicIdentifier?: string;
-  readonly profileUrn?: string;
-  readonly profileId?: string;
-  readonly vieweeProfileId?: string;
-  readonly vanity?: string;
+  readonly givenName?: string;
+  readonly familyName?: string;
+  readonly isVanityNameResolved?: boolean;
+  readonly requestMetadata?: LinkedInContactNavigationRequestMetadata;
+};
+
+export type LinkedInContactNavigationClientArguments = {
+  readonly $type?: string;
+  readonly requestedStateKeys?: readonly string[];
+  readonly payload: LinkedInContactNavigationPayload;
 };
 
 export type LinkedInContactNavigationAction = {
@@ -166,6 +196,7 @@ export type LinkedInContactNavigationActionResult =
   | { readonly kind: "action"; readonly action: LinkedInContactNavigationAction }
   | { readonly kind: "absent" }
   | { readonly kind: "omitted-sduiid" }
+  | { readonly kind: "unreviewed-sduiid" }
   | { readonly kind: "ambiguous-sduiid" }
   | { readonly kind: "unreviewed-client-arguments"; readonly keys: readonly string[] }
   | { readonly kind: "unbound-client-arguments" };
@@ -259,16 +290,21 @@ export function parseLinkedInContactNavigationSduiid(raw: unknown): string {
     "LinkedIn contact-info navigation sduiid",
     LINKEDIN_CONTACT_NAVIGATION_SDUIID_MAX_LENGTH,
   );
-  if (/[\s"'<>\\]/u.test(sduiid)) {
-    throw new Error("LinkedIn contact-info navigation sduiid changed format");
+  if (
+    /[\s"'<>\\]/u.test(sduiid)
+    || sduiid !== LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID
+  ) {
+    throw new Error("LinkedIn contact-info navigation sduiid must equal ProfileContactDetailsOverlay");
   }
   return sduiid;
 }
 
-export function buildLinkedInProfileContactDetailsNavigationPostPath(input: {
-  readonly sduiid: unknown;
-}): string {
-  const sduiid = parseLinkedInContactNavigationSduiid(input.sduiid);
+export function buildLinkedInProfileContactDetailsNavigationPostPath(
+  input: { readonly sduiid?: unknown } = {},
+): string {
+  const sduiid = input.sduiid === undefined
+    ? LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID
+    : parseLinkedInContactNavigationSduiid(input.sduiid);
   return `${LINKEDIN_CONTACT_DETAILS_OVERLAY_PATH}?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&sduiid=${encodeURIComponent(sduiid)}`;
 }
 
@@ -356,12 +392,14 @@ function assertLinkedInContactInfoNavigationBody(body: unknown): void {
     || body.isModal !== true
     || !isRecord(body.clientArguments)
   ) throw new Error("LinkedIn contact-info navigation body escaped its reviewed shape");
-  const extra = Object.keys(body.clientArguments)
-    .filter((key) => !CONTACT_NAVIGATION_CLIENT_ARGUMENT_KEY_SET.has(key));
-  if (extra.length > 0) {
+  const reviewed = reviewedContactNavigationClientArguments(body.clientArguments);
+  if (reviewed.kind === "unreviewed") {
     throw new Error(
-      `LinkedIn contact-info navigation clientArguments used unreviewed keys: ${extra.join(", ")}`,
+      `LinkedIn contact-info navigation clientArguments used unreviewed keys: ${reviewed.keys.join(", ")}`,
     );
+  }
+  if (reviewed.kind !== "args") {
+    throw new Error("LinkedIn contact-info navigation body escaped its reviewed shape");
   }
 }
 
@@ -1134,18 +1172,51 @@ function isOverlayContactScreen(value: unknown): boolean {
     || value === "ProfileContactDetailsOverlay";
 }
 
-function optionalNavigationSduiid(value: unknown): string | null {
-  if (typeof value !== "string" || value.length < 1) return null;
+function isContactDetailsPageKey(value: unknown): boolean {
+  return value === LINKEDIN_CONTACT_DETAILS_PAGE_KEY;
+}
+
+function reviewedSduiType(value: unknown): string | null {
+  if (typeof value !== "string" || value.length < 12 || value.length > 256) return null;
+  return LINKEDIN_SDUI_TYPE.test(value) ? value : null;
+}
+
+function reviewedStateKeyList(value: unknown): readonly string[] | null {
+  if (!Array.isArray(value) || value.length > 32) return null;
+  const keys: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || item.length < 1 || item.length > 256 || /[\s"'<>\\]/u.test(item)) {
+      return null;
+    }
+    keys.push(item);
+  }
+  return Object.freeze(keys);
+}
+
+function optionalPersonName(value: unknown): string | null {
+  if (typeof value !== "string" || value.length < 1 || value.length > 128) return null;
+  if (/[@:/\\<>]/u.test(value)) return null;
+  return value;
+}
+
+type OptionalSduiid =
+  | { readonly kind: "absent" }
+  | { readonly kind: "reviewed"; readonly sduiid: string }
+  | { readonly kind: "unreviewed" };
+
+function optionalNavigationSduiid(value: unknown): OptionalSduiid {
+  if (value === undefined || value === null || value === "") return { kind: "absent" };
+  if (typeof value !== "string") return { kind: "unreviewed" };
   try {
-    return parseLinkedInContactNavigationSduiid(value);
+    return { kind: "reviewed", sduiid: parseLinkedInContactNavigationSduiid(value) };
   } catch {
-    return null;
+    return { kind: "unreviewed" };
   }
 }
 
 function parseContactNavigationHref(value: unknown): {
   readonly screenId: string | null;
-  readonly sduiid: string | null;
+  readonly sduiid: OptionalSduiid;
 } | null {
   if (typeof value !== "string" || value.length < 1 || value.length > 2_048) return null;
   let url: URL;
@@ -1177,10 +1248,59 @@ function peelContactNavigationClientArguments(value: unknown): JsonRecord | null
   for (const candidate of [requested, nested]) {
     if (candidate === null) continue;
     if (isRecord(candidate.clientArguments)) return candidate.clientArguments;
-    if (isRecord(candidate.requestedArguments)) return candidate.requestedArguments;
-    return candidate;
+    if (isRecord(candidate.payload) || candidate.$type !== undefined) return candidate;
+    return Object.freeze({ payload: candidate });
+  }
+  if (isRecord(value.payload)) {
+    const root: Record<string, unknown> = { payload: value.payload };
+    if (value.$type !== undefined) root.$type = value.$type;
+    if (value.requestedStateKeys !== undefined) root.requestedStateKeys = value.requestedStateKeys;
+    return Object.freeze(root);
   }
   return null;
+}
+
+function reviewedRequestMetadata(
+  raw: unknown,
+):
+  | { readonly kind: "meta"; readonly meta: LinkedInContactNavigationRequestMetadata }
+  | { readonly kind: "unreviewed"; readonly keys: readonly string[] }
+  | { readonly kind: "empty" }
+{
+  if (raw === undefined) return { kind: "empty" };
+  if (!isRecord(raw)) return { kind: "unreviewed", keys: Object.freeze(["requestMetadata"]) };
+  const extra = Object.keys(raw).filter((key) => !CONTACT_NAVIGATION_REQUEST_METADATA_KEY_SET.has(key));
+  if (extra.length > 0) return { kind: "unreviewed", keys: Object.freeze(extra.map((key) => `requestMetadata.${key}`)) };
+  const meta: {
+    $type?: string;
+    states?: readonly string[];
+    screenId?: string;
+    knownTemplates?: readonly string[];
+  } = {};
+  if (raw.$type !== undefined) {
+    const type = reviewedSduiType(raw.$type);
+    if (type === null) return { kind: "unreviewed", keys: Object.freeze(["requestMetadata.$type"]) };
+    meta.$type = type;
+  }
+  if (raw.states !== undefined) {
+    const states = reviewedStateKeyList(raw.states);
+    if (states === null) return { kind: "unreviewed", keys: Object.freeze(["requestMetadata.states"]) };
+    meta.states = states;
+  }
+  if (raw.screenId !== undefined) {
+    if (!isOverlayContactScreen(raw.screenId)) {
+      return { kind: "unreviewed", keys: Object.freeze(["requestMetadata.screenId"]) };
+    }
+    meta.screenId = LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID;
+  }
+  if (raw.knownTemplates !== undefined) {
+    const templates = reviewedStateKeyList(raw.knownTemplates);
+    if (templates === null) return { kind: "unreviewed", keys: Object.freeze(["requestMetadata.knownTemplates"]) };
+    meta.knownTemplates = templates;
+  }
+  return Object.keys(meta).length === 0
+    ? { kind: "empty" }
+    : { kind: "meta", meta: Object.freeze(meta) };
 }
 
 function reviewedContactNavigationClientArguments(
@@ -1191,33 +1311,87 @@ function reviewedContactNavigationClientArguments(
   | { readonly kind: "empty" }
 {
   if (raw === null) return { kind: "empty" };
-  const extra = Object.keys(raw).filter((key) => !CONTACT_NAVIGATION_CLIENT_ARGUMENT_KEY_SET.has(key));
-  if (extra.length > 0) return { kind: "unreviewed", keys: Object.freeze(extra) };
-  const args: Record<string, string> = {};
-  for (const key of LINKEDIN_CONTACT_NAVIGATION_CLIENT_ARGUMENT_KEYS) {
-    const value = raw[key];
-    if (typeof value !== "string" || value.length < 1 || value.length > 512) continue;
-    args[key] = value;
+  if (isRecord(raw.payload) || raw.$type !== undefined || raw.requestedStateKeys !== undefined) {
+    const extra = Object.keys(raw).filter((key) => !CONTACT_NAVIGATION_CLIENT_ARGUMENT_KEY_SET.has(key));
+    if (extra.length > 0) return { kind: "unreviewed", keys: Object.freeze(extra) };
+    const args: {
+      $type?: string;
+      requestedStateKeys?: readonly string[];
+      payload: LinkedInContactNavigationPayload;
+    } = { payload: Object.freeze({}) };
+    if (raw.$type !== undefined) {
+      const type = reviewedSduiType(raw.$type);
+      if (type === null) return { kind: "unreviewed", keys: Object.freeze(["$type"]) };
+      args.$type = type;
+    }
+    if (raw.requestedStateKeys !== undefined) {
+      const keys = reviewedStateKeyList(raw.requestedStateKeys);
+      if (keys === null) return { kind: "unreviewed", keys: Object.freeze(["requestedStateKeys"]) };
+      args.requestedStateKeys = keys;
+    }
+    if (raw.payload !== undefined) {
+      if (!isRecord(raw.payload)) return { kind: "unreviewed", keys: Object.freeze(["payload"]) };
+      const extraPayload = Object.keys(raw.payload)
+        .filter((key) => !CONTACT_NAVIGATION_PAYLOAD_KEY_SET.has(key));
+      if (extraPayload.length > 0) {
+        return { kind: "unreviewed", keys: Object.freeze(extraPayload.map((key) => `payload.${key}`)) };
+      }
+      const payload: {
+        vanityName?: string;
+        givenName?: string;
+        familyName?: string;
+        isVanityNameResolved?: boolean;
+        requestMetadata?: LinkedInContactNavigationRequestMetadata;
+      } = {};
+      if (raw.payload.vanityName !== undefined) {
+        const vanity = optionalPublicIdentifier(raw.payload.vanityName);
+        if (vanity === null) return { kind: "unreviewed", keys: Object.freeze(["payload.vanityName"]) };
+        payload.vanityName = vanity;
+      }
+      if (raw.payload.givenName !== undefined) {
+        const givenName = optionalPersonName(raw.payload.givenName);
+        if (givenName === null) return { kind: "unreviewed", keys: Object.freeze(["payload.givenName"]) };
+        payload.givenName = givenName;
+      }
+      if (raw.payload.familyName !== undefined) {
+        const familyName = optionalPersonName(raw.payload.familyName);
+        if (familyName === null) return { kind: "unreviewed", keys: Object.freeze(["payload.familyName"]) };
+        payload.familyName = familyName;
+      }
+      if (raw.payload.isVanityNameResolved !== undefined) {
+        if (typeof raw.payload.isVanityNameResolved !== "boolean") {
+          return { kind: "unreviewed", keys: Object.freeze(["payload.isVanityNameResolved"]) };
+        }
+        payload.isVanityNameResolved = raw.payload.isVanityNameResolved;
+      }
+      const metadata = reviewedRequestMetadata(raw.payload.requestMetadata);
+      if (metadata.kind === "unreviewed") return metadata;
+      if (metadata.kind === "meta") payload.requestMetadata = metadata.meta;
+      args.payload = Object.freeze(payload);
+    }
+    return { kind: "args", args: Object.freeze(args) };
   }
-  return Object.keys(args).length === 0
+  const extra = Object.keys(raw).filter((key) => (
+    key !== "vanityName"
+    && key !== "publicIdentifier"
+    && key !== "vanity"
+  ));
+  if (extra.length > 0) return { kind: "unreviewed", keys: Object.freeze(extra) };
+  const vanity = optionalPublicIdentifier(raw.vanityName)
+    ?? optionalPublicIdentifier(raw.publicIdentifier)
+    ?? optionalPublicIdentifier(raw.vanity);
+  return vanity === null
     ? { kind: "empty" }
-    : { kind: "args", args: Object.freeze(args) };
+    : { kind: "args", args: Object.freeze({ payload: Object.freeze({ vanityName: vanity }) }) };
 }
 
 function clientArgumentsBindTarget(
   args: LinkedInContactNavigationClientArguments,
   publicIdentifier: string,
-  targetUrn: string,
 ): boolean {
-  const vanity = optionalPublicIdentifier(args.vanityName)
-    ?? optionalPublicIdentifier(args.publicIdentifier)
-    ?? optionalPublicIdentifier(args.vanity);
-  const urn = profileUrnFromIdentity(args.profileUrn)
-    ?? profileUrnFromIdentity(args.profileId)
-    ?? profileUrnFromIdentity(args.vieweeProfileId);
+  const vanity = optionalPublicIdentifier(args.payload.vanityName);
   if (vanity !== null && vanity !== publicIdentifier) return false;
-  if (urn !== null && urn !== targetUrn) return false;
-  return vanity === publicIdentifier || urn === targetUrn;
+  return vanity === publicIdentifier || vanity === null;
 }
 
 function actionNameLooksLikeNavigateToScreen(value: unknown): boolean {
@@ -1228,14 +1402,14 @@ function collectContactNavigationCandidates(
   records: readonly JsonRecord[],
   html: string,
 ): readonly {
-  readonly sduiid: string | null;
+  readonly sduiid: OptionalSduiid;
   readonly clientArguments: JsonRecord | null;
 }[] {
   const candidates: {
-    sduiid: string | null;
+    sduiid: OptionalSduiid;
     clientArguments: JsonRecord | null;
   }[] = [];
-  const push = (sduiid: string | null, clientArguments: JsonRecord | null) => {
+  const push = (sduiid: OptionalSduiid, clientArguments: JsonRecord | null) => {
     candidates.push({ sduiid, clientArguments });
   };
   for (const record of records) {
@@ -1246,18 +1420,29 @@ function collectContactNavigationCandidates(
       ?? record.destinationScreen
       ?? record.screen
       ?? record.destination;
+    const pageKey = record.pageKey ?? record.page_key;
     const overlay = isOverlayContactScreen(screen)
+      || isContactDetailsPageKey(pageKey)
       || (href !== null && isOverlayContactScreen(href.screenId));
     const navigate = actionNameLooksLikeNavigateToScreen(
       record.actionName ?? record.action ?? record.$type ?? record.type,
     );
-    const sduiid = optionalNavigationSduiid(record.sduiid ?? record.sduiId ?? record.sduiID)
-      ?? href?.sduiid
-      ?? null;
+    const sduiid = optionalNavigationSduiid(record.sduiid ?? record.sduiId ?? record.sduiID);
+    const hrefSduiid = href?.sduiid ?? { kind: "absent" as const };
     const args = peelContactNavigationClientArguments(record);
     if (!overlay) continue;
-    if (!navigate && sduiid === null && args === null && href === null) continue;
-    push(sduiid, args);
+    if (
+      !navigate
+      && sduiid.kind === "absent"
+      && hrefSduiid.kind === "absent"
+      && args === null
+      && href === null
+      && !isContactDetailsPageKey(pageKey)
+    ) continue;
+    push(
+      sduiid.kind !== "absent" ? sduiid : hrefSduiid,
+      args,
+    );
   }
   for (const match of html.matchAll(CONTACT_NAVIGATION_HREF)) {
     const href = parseContactNavigationHref(match[1] ?? match[0]);
@@ -1272,6 +1457,11 @@ export function linkedInContactNavigationActionError(
 ): Error {
   if (result.kind === "omitted-sduiid") {
     return new Error("LinkedIn contact-info profile page omitted its Contact-info navigation sduiid");
+  }
+  if (result.kind === "unreviewed-sduiid") {
+    return new Error(
+      "LinkedIn contact-info navigation sduiid must equal ProfileContactDetailsOverlay",
+    );
   }
   if (result.kind === "ambiguous-sduiid") {
     return new Error(
@@ -1294,19 +1484,20 @@ export function extractLinkedInContactNavigationAction(input: {
   readonly profileUrn: string;
 }): LinkedInContactNavigationActionResult {
   const publicIdentifier = linkedInPersonalProfilePublicIdentifier(input.publicIdentifier);
-  const targetUrn = profileUrn(input.profileUrn);
+  profileUrn(input.profileUrn);
   const html = typeof input.profileHtml === "string" ? input.profileHtml : "";
   const records = embeddedRecords(input.profileHtml);
   const candidates = collectContactNavigationCandidates(records, html);
   if (candidates.length < 1) return { kind: "absent" };
+  if (candidates.some((candidate) => candidate.sduiid.kind === "unreviewed")) {
+    return { kind: "unreviewed-sduiid" };
+  }
   const sduiids = [...new Set(
     candidates
-      .map((candidate) => candidate.sduiid)
-      .filter((value): value is string => value !== null),
+      .map((candidate) => candidate.sduiid.kind === "reviewed" ? candidate.sduiid.sduiid : undefined)
+      .filter((value): value is string => value !== undefined),
   )];
   if (sduiids.length > 1) return { kind: "ambiguous-sduiid" };
-  const sduiid = sduiids[0];
-  if (sduiid === undefined) return { kind: "omitted-sduiid" };
   let reviewed:
     | { readonly kind: "args"; readonly args: LinkedInContactNavigationClientArguments }
     | { readonly kind: "empty" }
@@ -1317,25 +1508,30 @@ export function extractLinkedInContactNavigationAction(input: {
       return { kind: "unreviewed-client-arguments", keys: peeled.keys };
     }
     if (peeled.kind === "args") {
-      if (!clientArgumentsBindTarget(peeled.args, publicIdentifier, targetUrn)) {
+      if (!clientArgumentsBindTarget(peeled.args, publicIdentifier)) {
         return { kind: "unbound-client-arguments" };
       }
       reviewed = peeled;
     }
   }
   const clientArguments = reviewed?.kind === "args"
-    ? reviewed.args
+    ? Object.freeze({
+        ...reviewed.args,
+        payload: Object.freeze({
+          ...reviewed.args.payload,
+          vanityName: reviewed.args.payload.vanityName ?? publicIdentifier,
+        }),
+      })
     : Object.freeze({
-        vanityName: publicIdentifier,
-        profileUrn: targetUrn,
+        payload: Object.freeze({ vanityName: publicIdentifier }),
       });
-  if (!clientArgumentsBindTarget(clientArguments, publicIdentifier, targetUrn)) {
+  if (!clientArgumentsBindTarget(clientArguments, publicIdentifier)) {
     return { kind: "unbound-client-arguments" };
   }
   return {
     kind: "action",
     action: Object.freeze({
-      sduiid,
+      sduiid: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
       clientArguments,
       isModal: true,
     }),

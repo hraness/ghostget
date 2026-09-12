@@ -3247,10 +3247,7 @@ export function assertLinkedInWebR1RequestAllowed(
         ) {
           const sduiid = url.searchParams.get("sduiid");
           if (
-            typeof sduiid === "string"
-            && sduiid.length >= 1
-            && sduiid.length <= 256
-            && !/[\s"'<>\\]/u.test(sduiid)
+            sduiid === "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay"
           ) return;
         }
         throw new Error("LinkedIn contact-info request escaped its exact reviewed route");

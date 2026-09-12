@@ -3792,10 +3792,9 @@ describe("LinkedIn contacts.read runtime", () => {
       })}\n3:${JSON.stringify({
         actionName: "NavigateToScreen",
         screenId: "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
-        sduiid: "fixture-sduiid-contact-overlay-1",
+        sduiid: "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
         clientArguments: {
-          vanityName: "example",
-          profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+          payload: { vanityName: "example" },
         },
       })}`,
     ])}</script></body></html>`;
@@ -3823,7 +3822,7 @@ describe("LinkedIn contacts.read runtime", () => {
             return Promise.reject(new Error("navigation fetched vanity overlay"));
           },
           readContactNavigationText: (input) => {
-            browserCalls.push(`navigation:${input.sduiid}:${input.clientArguments.vanityName}`);
+            browserCalls.push(`navigation:${input.sduiid}:${input.clientArguments.payload.vanityName}`);
             return Promise.resolve(OVERLAY_CONTACT_FLIGHT);
           },
           readOrganizationHtml: () => Promise.reject(new Error("navigation crossed company")),
@@ -3844,13 +3843,13 @@ describe("LinkedIn contacts.read runtime", () => {
     expect(browserCalls).toEqual([
       "identity",
       "profile",
-      "navigation:fixture-sduiid-contact-overlay-1:example",
+      "navigation:com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay:example",
       "close",
     ]);
     expect(JSON.stringify(result)).not.toContain("@gmail.com");
   });
 
-  test("fails closed when the overlay action is present without a unique sduiid", async () => {
+  test("POSTs when dormant NavigateToScreen omits sduiid and binds the overlay screenId", async () => {
     const browserCalls: string[] = [];
     const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify([
       `1:${JSON.stringify({
@@ -3859,9 +3858,14 @@ describe("LinkedIn contacts.read runtime", () => {
         networkDistance: 1,
         actionName: "NavigateToScreen",
         screenId: "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
-        clientArguments: {
-          vanityName: "example",
-          profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+        pageKey: "profile_view_base_contact_details",
+        requestedArguments: {
+          payload: {
+            vanityName: "example",
+            givenName: "Ada",
+            familyName: "Example",
+            isVanityNameResolved: true,
+          },
         },
       })}`,
     ])}</script></body></html>`;
@@ -3879,20 +3883,26 @@ describe("LinkedIn contacts.read runtime", () => {
             browserCalls.push("profile");
             return Promise.resolve(html);
           },
-          readConnectionsHtml: () => Promise.reject(new Error("omitted-sduiid crossed connections")),
+          readConnectionsHtml: () => Promise.reject(new Error("dormant-sduiid crossed connections")),
           readContactInfoJson: () => {
             browserCalls.push("contact");
-            return Promise.reject(new Error("omitted-sduiid fetched GraphQL"));
+            return Promise.reject(new Error("dormant-sduiid fetched GraphQL"));
           },
           readContactOverlayText: () => {
             browserCalls.push("overlay");
-            return Promise.reject(new Error("omitted-sduiid fetched vanity overlay"));
+            return Promise.reject(new Error("dormant-sduiid fetched vanity overlay"));
           },
-          readContactNavigationText: () => {
-            browserCalls.push("navigation");
-            return Promise.reject(new Error("omitted-sduiid posted navigation"));
+          readContactNavigationText: (input) => {
+            browserCalls.push(`navigation:${input.sduiid}:${input.clientArguments.payload.vanityName}`);
+            expect(input.clientArguments.payload).toEqual({
+              vanityName: "example",
+              givenName: "Ada",
+              familyName: "Example",
+              isVanityNameResolved: true,
+            });
+            return Promise.resolve(OVERLAY_CONTACT_FLIGHT);
           },
-          readOrganizationHtml: () => Promise.reject(new Error("omitted-sduiid crossed company")),
+          readOrganizationHtml: () => Promise.reject(new Error("dormant-sduiid crossed company")),
           close: () => {
             browserCalls.push("close");
             return Promise.resolve();
@@ -3901,13 +3911,18 @@ describe("LinkedIn contacts.read runtime", () => {
       },
     });
     expect(result).toMatchObject({
-      status: "failed",
-      output: null,
-      readFailure: { category: "contract-drift", retryDisposition: "do-not-retry" },
+      status: "succeeded",
+      output: {
+        contact: { email: "connection@example.test", connectedSince: "2023-10-03" },
+        profile: { relationship: "first-degree", vanity: "example" },
+      },
     });
-    expect(result.error).toContain("contained-browser Contact-info read");
-    expect(result.error).toContain("no remote write occurred");
-    expect(browserCalls).toEqual(["identity", "profile", "close"]);
+    expect(browserCalls).toEqual([
+      "identity",
+      "profile",
+      "navigation:com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay:example",
+      "close",
+    ]);
   });
 
   test("skips long SDUI field labels during profile stage and still reaches Contact-info overlay", async () => {
@@ -4264,10 +4279,9 @@ describe("LinkedIn contacts.read runtime", () => {
       networkDistance: 1,
       actionName: "NavigateToScreen",
       screenId: "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
-      sduiid: "fixture-sduiid-contact-overlay-1",
+      sduiid: "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
       clientArguments: {
-        vanityName: "example",
-        profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+        payload: { vanityName: "example" },
       },
     })}</script></body></html>`;
     const shell = "<!DOCTYPE html><html><body><main>signed-in profile chrome</main></body></html>";
@@ -4316,7 +4330,7 @@ describe("LinkedIn contacts.read runtime", () => {
     expect(browserCalls).toEqual([
       "identity",
       "profile",
-      "navigation:fixture-sduiid-contact-overlay-1",
+      "navigation:com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
       "close",
     ]);
     expect(JSON.stringify(result)).not.toContain("@gmail.com");

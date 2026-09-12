@@ -22,6 +22,7 @@ import {
 } from "../web-session-execution";
 import { executeLinkedInWebOperation } from "./linkedin-web-runtime";
 import {
+  LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
   buildLinkedInContactNavigationBody,
   buildLinkedInProfileContactDetailsNavigationPostPath,
   buildLinkedInProfileContactInfoGraphqlPath,
@@ -662,12 +663,11 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         ],
       })}`,
     ].join("\n");
-    const sduiid = "fixture-sduiid-contact-overlay-1";
+    const sduiid = LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID;
     const navigationPath = buildLinkedInProfileContactDetailsNavigationPostPath({ sduiid });
     const navigationBody = buildLinkedInContactNavigationBody({
       clientArguments: {
-        vanityName: "0thernet",
-        profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+        payload: { vanityName: "0thernet" },
       },
     });
     const session: BrowserSession = {
@@ -717,8 +717,7 @@ describe("LinkedIn profile stats contained-browser transport", () => {
       profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
       sduiid,
       clientArguments: {
-        vanityName: "0thernet",
-        profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+        payload: { vanityName: "0thernet" },
       },
     })).toBe(overlayBody);
     await expect(transport.readContactOverlayText({

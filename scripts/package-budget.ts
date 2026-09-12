@@ -1,13 +1,13 @@
 // Ghostget 0.18.0 source plus the LinkedIn `contacts.read` navigation POST
 // Email path (adapter bundle 1.31.0), measured with no version bump: a
 // Bun 1.3.14 `pm pack` on Linux x64 shares
-// 12,708,470 payload bytes across exactly 524 files. The bun archive is 2,186,400 compressed
+// 12,717,070 payload bytes across exactly 524 files. The bun archive is 2,188,108 compressed
 // bytes, SHA-256
-// 9533fb35b1548bceedb11e3d358eaec2a9ab3f3cc6a27aed6051c62240179f21.
-// Page-bound sduiid extraction, the ProfileContactDetailsOverlay POST,
-// adapter notes, changelog, and tests add 19,143 payload bytes compared
+// 77b915c17c573d48b421253fd22a8d1e302e03e2aa637dc3e33f57c007fa8763.
+// Binding sduiid to the overlay screenId, nested payload peel,
+// adapter notes, changelog, and tests add 27,743 payload bytes compared
 // with the 1.30.0 measurement. Raise only the payload ceiling to the
-// measured value plus 65 bytes of headroom (12,708,535); the packed size
+// measured value plus 65 bytes of headroom (12,717,135); the packed size
 // stays under the existing packed allowance and the 524-entry inventory
 // is unchanged. Theme CSS stays website-only. Fresh Linux CI
 // independently checks its actual canonical archive.
@@ -531,7 +531,7 @@
 export const MAX_PACKED_BYTES = 2_328_265;
 export const MAX_PACKED_ENTRIES = 524;
 export const MAX_PACKED_FILES = 524;
-export const MAX_UNPACKED_BYTES = 12_708_535;
+export const MAX_UNPACKED_BYTES = 12_717_135;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

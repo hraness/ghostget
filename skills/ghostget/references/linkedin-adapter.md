@@ -369,24 +369,24 @@ GETs rejected.
 A later headed signed-in capture of the same 1st-degree Contact-info
 click showed Email in the modal. The first network response that
 contained the Email label was POST
-`/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay&sduiid=…`
+`/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay&sduiid=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay`
 with `Accept: */*`, `Content-Type: application/json`, no RSC or Next
 router headers, and JSON body keys `clientArguments` and `isModal`. The
-response was HTTP 200 `application/octet-stream` RSC flight. Adapter
-1.31.0 extracts the unique page-bound `sduiid` plus reviewed-identity
-`clientArguments` from the target profile’s NavigateToScreen /
-RequestedArguments payload after 1st-degree bind, POSTs that exact
-allowlisted URL, and projects Email with the same overlay-flight family.
-GraphQL Contact-info stays a 403 `text/html` fallback. Navigation overlay
-GETs stay rejected. The vanity overlay GET remains HTML-shell honesty
-when the profile page omits that navigation action. Soft-labels stay.
-The inner `clientArguments` key tree was redacted in the first operator
-report; the adapter admits only reviewed identity keys (`vanityName`,
-`publicIdentifier`, `profileUrn`, `profileId`, `vieweeProfileId`,
-`vanity`) and synthesizes `{ vanityName, profileUrn }` from the bind when
-the action omits `clientArguments`. A missing required inner key should
-be captured, not invented. Keep cookies, `li_at`, CSRF, `JSESSIONID`,
-live emails, and raw HARs out of Git.
+response was HTTP 200 `application/octet-stream` RSC flight. Headed
+capture bound `sduiid` to that same overlay `screenId` constant. Dormant
+profile HTML NavigateToScreen for Contact info carries `pageKey`
+`profile_view_base_contact_details` and `requestedArguments.payload`
+(`vanityName`, `givenName`, `familyName`, `isVanityNameResolved`) but
+omits `sduiid`. Adapter 1.31.0 POSTs the exact allowlisted URL after
+1st-degree bind, peels reviewed payload keys, and copies `$type` /
+`requestedStateKeys` / `requestMetadata` only when those reviewed fields
+are already on the action. It does not invent a stolen `sduiid`, `$type`,
+or `requestMetadata`. A different `sduiid` fails closed. GraphQL
+Contact-info stays a 403 `text/html` fallback. Navigation overlay GETs
+stay rejected. The vanity overlay GET remains HTML-shell honesty when
+the profile page omits that NavigateToScreen action. Soft-labels stay.
+Keep cookies, `li_at`, CSRF, `JSESSIONID`, live emails, and raw HARs out
+of Git.
 
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid
