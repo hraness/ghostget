@@ -93,6 +93,16 @@ function isCurrentOnlyRow(row) {
   return (row[0] === "provider-api" && row[1] === "gmail")
     || (row[0] === "local-cli" && row[1] === "beeper")
     || (row[0] === "local-cli" && row[1] === "imessage")
+    || (row[0] === "linked-device" && row[1] === "whatsapp" && row[3] === 1 && [
+      "messaging.automation.read",
+      "messaging.automation.sync",
+      "messaging.automation.send.text",
+      "messaging.automation.send.attachment",
+      "messaging.automation.send.reaction",
+      "messaging.automation.send.sticker",
+      "messaging.automation.send.link",
+      "messaging.automation.send.poll",
+    ].includes(row[2]))
     || (row[0] === "web-session-api" && row[1] === "clasificados")
     || (row[0] === "web-session-api" && row[1] === "github")
     || (row[0] === "web-session-api" && row[1] === "reddit" && row[2].startsWith("flair."))
@@ -240,6 +250,7 @@ process.stdout.write(JSON.stringify({
   currentOnlyRows: currentOnlyRows.length,
   currentOnlySha256:
     createHash("sha256").update(JSON.stringify(currentOnlyRows)).digest("hex"),
+  automationRows: currentOnlyRows.filter(row => row[2].startsWith("messaging.automation.")).map(row => row.slice(0, 4)),
   legacyRows: legacyRows.map((legacy) => legacy.length),
   legacySha256: legacyRows.map((legacy) =>
     createHash("sha256").update(JSON.stringify(legacy)).digest("hex")
@@ -286,8 +297,25 @@ describe("durable provider contract inventory", () => {
       expect(inventory).toEqual({
         rows: 324,
         sha256: predecessorDefaultInventorySha256,
-        currentOnlyRows: 58,
-        currentOnlySha256: "3afd55dd919e3cd938fbf9ad414035a0815dc2c53039201c11b7025d4e103be5",
+        currentOnlyRows: 73,
+        currentOnlySha256: "58d51f43cc0131710a08e5b81da92eb1cbe05b6f4edd6abde87bc9e7d8afb25f",
+        automationRows: [
+          ["linked-device", "whatsapp", "messaging.automation.read", 1],
+          ["linked-device", "whatsapp", "messaging.automation.send.attachment", 1],
+          ["linked-device", "whatsapp", "messaging.automation.send.link", 1],
+          ["linked-device", "whatsapp", "messaging.automation.send.poll", 1],
+          ["linked-device", "whatsapp", "messaging.automation.send.reaction", 1],
+          ["linked-device", "whatsapp", "messaging.automation.send.sticker", 1],
+          ["linked-device", "whatsapp", "messaging.automation.send.text", 1],
+          ["linked-device", "whatsapp", "messaging.automation.sync", 1],
+          ["local-cli", "imessage", "messaging.automation.read", 1],
+          ["local-cli", "imessage", "messaging.automation.send.attachment", 1],
+          ["local-cli", "imessage", "messaging.automation.send.link", 1],
+          ["local-cli", "imessage", "messaging.automation.send.poll", 1],
+          ["local-cli", "imessage", "messaging.automation.send.reaction", 1],
+          ["local-cli", "imessage", "messaging.automation.send.sticker", 1],
+          ["local-cli", "imessage", "messaging.automation.send.text", 1],
+        ],
         legacyRows: [
           324,
           324,

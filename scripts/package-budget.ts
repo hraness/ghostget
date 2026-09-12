@@ -1,3 +1,16 @@
+// Ghostget 0.18.1 with the leaf automation SDK boundary, joined with main
+// 79b74fe (LinkedIn adapter 1.32.0). Two clean Bun 1.3.14 builds and npm
+// 11.19.0 packs under Node 24.20.0 / zlib 1.2.12 on darwin arm64 are identical:
+// 11,638,165 compressed / 22,474,305 payload bytes across exactly 558 files,
+// SHA-256 56b38a2714918029075503d4e916f797e97e9ccaa76bed894421e2b4946ac677.
+// Removing the accidental public session factory removes 61 generated dist files
+// (83 -> 22); all non-dist inventory paths are retained. Built-in account and
+// policy factories remain available through the source CLI. Native bytes and
+// all eight public SDK entrypoints remain. Preserve the existing 2,802-byte
+// platform spread, 4,096 compressed-byte and 65 payload-byte allowances; reduce
+// the ceilings and exact inventory to this measured package. Current Required
+// Linux CI must independently admit its actual canonical archive.
+//
 // Ghostget 0.18.1 messaging automation joined with main ac44040, including
 // the admitted imsg .3 no-fetch native cards and shipped release resources.
 // Two clean Bun 1.3.14 builds and npm 11.19.0 packs under Node 24.20.0 on
@@ -591,10 +604,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 12_568_862;
-export const MAX_PACKED_ENTRIES = 619;
-export const MAX_PACKED_FILES = 619;
-export const MAX_UNPACKED_BYTES = 27_437_162;
+export const MAX_PACKED_BYTES = 11_645_063;
+export const MAX_PACKED_ENTRIES = 558;
+export const MAX_PACKED_FILES = 558;
+export const MAX_UNPACKED_BYTES = 22_474_370;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

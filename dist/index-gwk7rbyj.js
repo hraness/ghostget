@@ -23,17 +23,8 @@ function canonicalJson(value) {
   }
   throw new Error("canonical JSON supports only JSON-compatible values");
 }
-function canonicalJsonScriptLiteral(value) {
-  return escapeScriptLiteral(canonicalJson(value));
-}
-function jsonScriptLiteral(value) {
-  return escapeScriptLiteral(JSON.stringify(value));
-}
-function escapeScriptLiteral(json) {
-  return json.replace(/[<>\u2028\u2029]/gu, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
-}
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-export { canonicalJson, canonicalJsonScriptLiteral, jsonScriptLiteral, sha256 };
+export { canonicalJson, sha256 };

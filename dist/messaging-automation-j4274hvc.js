@@ -18,11 +18,15 @@ import {
   ensurePrivateStateDirectory,
   ghostgetStateHome,
   snapshotPrivateStateDirectory
-} from "./index-0ywm1fj9.js";
+} from "./index-yq6maz71.js";
 import {
   canonicalJson,
   sha256
-} from "./index-8sbt8qwx.js";
+} from "./index-gwk7rbyj.js";
+import {
+  MESSAGING_AUTOMATION_PROTOCOL
+} from "./index-01eeae9e.js";
+import"./index-z1w83f81.js";
 
 // src/messaging-automation.ts
 import { Database, constants as sqlite } from "bun:sqlite";
@@ -599,5 +603,7 @@ class MessagingAutomationHost {
       throw new Error("Messaging automation shutdown did not establish complete cleanup.");
   }
 }
-
-export { MessagingAutomationHost };
+export {
+  MessagingAutomationHost,
+  MESSAGING_AUTOMATION_PROTOCOL
+};
