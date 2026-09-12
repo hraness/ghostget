@@ -13,7 +13,9 @@ import {
   buildLinkedInProfileContactDetailsOverlayPath,
   buildLinkedInProfileContactInfoGraphqlPath,
   buildLinkedInProfileContactInfoOverlayPath,
+  buildLinkedInAbsentContactNavigationAction,
   extractLinkedInContactNavigationAction,
+  extractLinkedInProfileContactNames,
   linkedInContactInfoTarget,
   linkedInContactNavigationActionError,
   linkedInProfileContactDetailsNavigationPostUrl,
@@ -592,6 +594,79 @@ describe("LinkedIn contacts.read navigation action binding", () => {
       kind: "unreviewed-client-arguments",
       keys: ["payload.requestMetadata.states"],
     });
+  });
+
+  test("builds the reviewed overlay click action when navigation extract is absent", () => {
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: profileHtml(),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({ kind: "absent" });
+    expect(buildLinkedInAbsentContactNavigationAction({
+      profileHtml: profileHtml(),
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      sduiid: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+      clientArguments: headedClientArguments({
+        vanityName: "example",
+        isVanityNameResolved: true,
+      }),
+      isModal: true,
+    });
+    const named = bootstrapHtml({
+      $type: "com.linkedin.voyager.identity.profile.Profile",
+      publicIdentifier: "example",
+      entityUrn: PROFILE_URN,
+      memberDistance: "DISTANCE_1",
+      firstName: "Tess",
+      lastName: "Bloch",
+    });
+    expect(extractLinkedInProfileContactNames({
+      profileHtml: named,
+      publicIdentifier: "example",
+    })).toEqual({ givenName: "Tess", familyName: "Bloch" });
+    expect(buildLinkedInAbsentContactNavigationAction({
+      profileHtml: named,
+      publicIdentifier: "example",
+      profileUrn: PROFILE_URN,
+    })).toEqual({
+      sduiid: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+      clientArguments: headedClientArguments({
+        vanityName: "example",
+        givenName: "Tess",
+        familyName: "Bloch",
+        isVanityNameResolved: true,
+      }),
+      isModal: true,
+    });
+    expect(extractLinkedInProfileContactNames({
+      profileHtml: bootstrapHtml({
+        records: [
+          {
+            publicIdentifier: "example",
+            firstName: "Tess",
+            lastName: "Bloch",
+          },
+          {
+            publicIdentifier: "example",
+            firstName: "Theresa",
+            lastName: "Bloch",
+          },
+        ],
+      }),
+      publicIdentifier: "example",
+    })).toEqual({ familyName: "Bloch" });
+    expect(extractLinkedInProfileContactNames({
+      profileHtml: bootstrapHtml({
+        $type: "com.linkedin.voyager.identity.profile.Profile",
+        publicIdentifier: "other",
+        entityUrn: PROFILE_URN,
+        firstName: "Stolen",
+        lastName: "Name",
+      }),
+      publicIdentifier: "example",
+    })).toEqual({});
   });
 
   test("stays absent when profile HTML only mentions the overlay screen", () => {

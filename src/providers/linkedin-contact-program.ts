@@ -4,18 +4,17 @@ import { readAttempt, type ReadEffectFailure, withReadResource } from "../read-e
 import type { WebSessionExecution } from "../web-session-execution";
 import { LinkedInContactPlatform } from "./linkedin-contact-platform";
 import {
-  isLinkedInContactGraphqlUnavailable,
   linkedInContactDiagnostic,
   linkedInContactReadFailure,
   type LinkedInContactStage,
 } from "./linkedin-contact-failure";
 import {
+  buildLinkedInAbsentContactNavigationAction,
   extractLinkedInContactNavigationAction,
   linkedInContactNavigationActionError,
   projectLinkedInContactInfo,
   projectLinkedInEmbeddedContactFields,
   projectLinkedInProfileContactBinding,
-  resolveLinkedInProfileContactInfoQueryId,
   type LinkedInContactInfoTarget,
 } from "./linkedin-web-contact";
 
@@ -65,25 +64,22 @@ export function linkedInContactReadProgram(
               sduiid: navigation.action.sduiid,
               clientArguments: navigation.action.clientArguments,
             });
-          } else if (navigation.kind !== "absent") {
+          } else if (navigation.kind === "absent") {
+            const fallback = yield* readAttempt(() => buildLinkedInAbsentContactNavigationAction({
+              profileHtml,
+              publicIdentifier: binding.vanity,
+              profileUrn: binding.profileUrn,
+            }));
+            contactPayload = yield* platform.contactNavigation(browser, {
+              profileUrl: target.url,
+              profileUrn: binding.profileUrn,
+              sduiid: fallback.sduiid,
+              clientArguments: fallback.clientArguments,
+            });
+          } else {
             yield* readAttempt(() => {
               throw linkedInContactNavigationActionError(navigation);
             });
-          } else {
-            const queryId = resolveLinkedInProfileContactInfoQueryId(profileHtml);
-            const contactInput = {
-              profileUrl: target.url,
-              profileUrn: binding.profileUrn,
-              ...(queryId === undefined ? {} : { queryId }),
-            };
-            contactPayload = queryId === undefined
-              ? yield* platform.contactOverlay(browser, contactInput)
-              : yield* platform.contactPayload(browser, contactInput).pipe(
-                Effect.catchIf(
-                  (error) => isLinkedInContactGraphqlUnavailable(error),
-                  () => platform.contactOverlay(browser, contactInput),
-                ),
-              );
           }
         }
         stage = "projection";

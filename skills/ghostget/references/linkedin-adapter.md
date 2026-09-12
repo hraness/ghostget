@@ -257,30 +257,33 @@ fetch. Long SDUI strings used as field labels are skipped instead of aborting
 the profile-stage walk. Otherwise it first inspects the page's exact
 Contact-info NavigateToScreen action. A reviewed action still admits only
 the ProfileContactDetailsOverlay URL (`sduiid` equal to that overlay
-`screenId`). Adapter 1.36.2 then clicks the unique accessible name
+`screenId`). Adapter 1.36.3 then clicks the unique accessible name
 `Contact info` on the already-loaded 1st-degree profile and projects Email
 from that modal DOM, including when that control's `href` matches
 `/overlay/contact-info/` and contained Chrome follows that reviewed vanity
-overlay pathname after click. Malformed or unsupported action fields stop
-the operation. Missing or multiple matching controls, a path other than the
-bound profile or `/in/:publicIdentifier/overlay/contact-info/`, or a
-missing or ambiguous dialog, fail closed. The contained path does not mint
-a synthetic navigation POST or track headers, and it does not fetch that
-overlay href as a navigation GET. Only when the action is absent does it
-use a page-resolved GraphQL `queryId` for
-`voyagerIdentityDashProfileContactInfo`, when the HTML contains exactly one
-decorated revision. Variables are exactly `(profileUrn:{urn})`. When that
-queryId is absent, or when a rejected GraphQL response has status 403, an HTML
-content type, or no content type, the operation GETs the exact vanity
-`/in/:publicIdentifier/overlay/contact-info/` overlay with RSC browser
-binding. ScreenId-only and `profileUrn`-bound
+overlay pathname after click. When the NavigateToScreen extract is
+`absent`, the operation builds the reviewed overlay action from the bound
+vanity, with optional givenName/familyName parsed from profile HTML when
+unique, `isVanityNameResolved`, nested requestMetadata
+states/screenId/knownTemplates, and `isModal` true. These clientArguments
+are internal metadata, not a transmitted request body. The contained
+browser validates the fixed overlay `sduiid`, then uses the bound profile
+URL and fixed Contact info control for the same click and modal snapshot.
+Malformed or unsupported extracted action fields stop the operation.
+Missing or multiple matching controls, a path other than the bound profile or
+`/in/:publicIdentifier/overlay/contact-info/`, or a missing or ambiguous
+dialog, fail closed. The contained path does not mint a synthetic
+navigation POST or track headers, and it does not fetch that overlay href
+as a navigation GET. GraphQL `voyagerIdentityDashProfileContactInfo` and
+the vanity overlay RSC GET are no longer selected by `contacts.read`.
+ScreenId-only and `profileUrn`-bound
 `/flagship-web/rsc-action/actions/navigation` overlay GET URLs stay rejected
 because live dormant sessions return HTTP 500 `application/octet-stream`.
 Classic `/voyager/api/identity/profiles/{vanity}/profileContactInfo` now
-returns HTTP 410 and is rejected. The executable contract is those reviewed
-first-party reads, the reviewed Contact info click and modal snapshot, or
-the page-embedded fields. It accepts no caller-selected RSC body, selector,
-or script. This contact read does not message, connect, or InMail.
+returns HTTP 410 and is rejected. The executable contract is the reviewed
+Contact info click and modal snapshot, or the page-embedded fields. It
+accepts no caller-selected RSC body, selector, or script. This contact
+read does not message, connect, or InMail.
 
 The projection returns `email` when LinkedIn shows it, plus any of the vanity
 profile link, connected-since date, phone numbers, websites, and birthday.
@@ -291,7 +294,16 @@ optional field.
 ### Contact-info capture history
 
 The following captures describe earlier adapter revisions. The current
-1.36.2 action branch uses the Contact info click and modal projection above.
+1.36.3 flow uses the Contact info click and modal projection above when
+Email is not embedded, whether the extracted action is present or absent.
+
+In 1.36.2, an absent action selected a page-resolved GraphQL `queryId`
+for `voyagerIdentityDashProfileContactInfo` when exactly one decorated
+revision was present, with variables exactly `(profileUrn:{urn})`. An absent
+queryId, or a rejected GraphQL response with status 403, an HTML content
+type, or no content type, selected the exact vanity
+`/in/:publicIdentifier/overlay/contact-info/` RSC GET. Adapter 1.36.3 removed
+that fallback branch.
 
 A 2026-09-08 signed-in capture of a 1st-degree profile showed the Contact info
 control on the intro card and a modal with the vanity link, Email, and
@@ -480,9 +492,17 @@ GET. Operator smoke after that click fail-closed because contained
 Chrome left `/in/tessbloch/` for
 `/in/tessbloch/overlay/contact-info/`. Adapter 1.36.2 treats that
 reviewed vanity overlay pathname as still bound after click, then
-snapshots the unique dialog. Authwall and any other path still fail
-closed. It does not mint a navigation POST or track headers. Cloud has
-no signed-in LinkedIn session; do not treat this landing as live green.
+snapshots the unique dialog. Operator smoke after that bind was green
+for Email on tessbloch when the extract was `absent` and the operator
+supplied the reviewed overlay `sduiid` plus headed clientArguments to the
+browser transport. Those arguments were internal metadata; the transport
+clicked the fixed control without transmitting them.
+Official `contacts.read` still used GraphQL or the vanity overlay GET
+on that absent extract. Adapter 1.36.3 uses the same click and modal
+snapshot when extract is `absent`. Authwall and any other path still
+fail closed. It does not mint a navigation POST or track headers.
+Cloud has no signed-in LinkedIn session; do not treat this landing as
+live green.
 
 ```sh
 printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \

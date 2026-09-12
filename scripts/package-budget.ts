@@ -1,3 +1,30 @@
+// Ghostget 0.19.0 joined with main af759ce (LinkedIn adapter 1.36.3),
+// including the current-flow and historical-capture guide clarification:
+// two clean Bun 1.3.14 builds and canonical npm 11.19.0 packs under verified
+// official Node 24.20.0 darwin-arm64 / zlib 1.3.2.1-motley-42c2f19 are
+// byte-identical: 11,692,656 compressed / 22,649,181 payload bytes across
+// exactly 574 files, SHA-256
+// 3af5671274a6b04a16945ebb5d9b398a66dc1a5bda26571194163b7a405c45ef.
+// Every archived byte and mode matches source. Six existing packaged
+// TypeScript, adapter and documentation paths add 4,375 payload bytes over
+// the add454d join; compression grows 889 bytes. The inventory, generated
+// dist, vendored native binaries and eight public SDK exports are unchanged.
+// Preserve exactly 4,096 compressed-byte and 65 payload-byte allowances:
+// 11,692,656 + 4,096 = 11,696,752; 22,649,181 + 65 = 22,649,246.
+// The version-aware 12 MiB transfer envelope remains a separate bound.
+// Required Linux CI and Release still admit their actual canonical bytes.
+//
+// Ghostget 0.18.2 source plus the LinkedIn `contacts.read` click when
+// NavigateToScreen extract is absent (adapter bundle 1.36.3), measured
+// from the 1.36.2 Linux x64 payload plus the exact packed-file delta:
+// CHANGELOG, adapter notes, and the reviewed overlay-click builder add
+// 3,542 payload bytes. 22,517,747 + 3,542 = 22,521,289 across exactly
+// 558 files. Raise only the payload ceiling to that measured value
+// plus 65 bytes of headroom (22,521,354); the packed size stays under
+// the existing packed allowance and the 558-entry inventory is
+// unchanged. Theme CSS stays website-only. Fresh Linux CI
+// independently checks its actual canonical archive.
+//
 // Ghostget 0.19.0 joined with main add454d (LinkedIn adapter 1.36.2):
 // two clean Bun 1.3.14 builds and canonical npm 11.19.0 packs under verified
 // official Node 24.20.0 darwin-arm64 / zlib 1.3.2.1-motley-42c2f19 are
@@ -909,10 +936,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 11_695_863;
+export const MAX_PACKED_BYTES = 11_696_752;
 export const MAX_PACKED_ENTRIES = 574;
 export const MAX_PACKED_FILES = 574;
-export const MAX_UNPACKED_BYTES = 22_644_871;
+export const MAX_UNPACKED_BYTES = 22_649_246;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

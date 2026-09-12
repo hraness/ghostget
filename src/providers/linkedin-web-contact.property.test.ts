@@ -7,6 +7,7 @@ import {
   LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
   assertLinkedInContactInfoRequest,
   buildLinkedInProfileContactDetailsNavigationPostPath,
+  buildLinkedInAbsentContactNavigationAction,
   extractLinkedInContactNavigationAction,
   linkedInContactInfoTarget,
   linkedInProfileContactDetailsNavigationPostUrl,
@@ -184,6 +185,58 @@ test("LinkedIn contact-info navigation POST binds sduiid to the overlay screenId
       publicIdentifier: slug,
       profileUrn: PROFILE_URN,
     })).toEqual({ kind: "unreviewed-sduiid" });
+  }));
+});
+
+test("absent Contact-info navigation still builds the reviewed overlay click action", () => {
+  const personName = fc.stringMatching(/^[A-Za-z]{1,20}$/u);
+  assertProperty(fc.property(vanity, fc.option(personName, { nil: undefined }), fc.option(personName, { nil: undefined }), (slug, givenName, familyName) => {
+    const html = bootstrapHtml({
+      $type: "com.linkedin.voyager.identity.profile.Profile",
+      publicIdentifier: slug,
+      entityUrn: PROFILE_URN,
+      memberDistance: "DISTANCE_1",
+      ...(givenName === undefined ? {} : { firstName: givenName }),
+      ...(familyName === undefined ? {} : { lastName: familyName }),
+    });
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: html,
+      publicIdentifier: slug,
+      profileUrn: PROFILE_URN,
+    })).toEqual({ kind: "absent" });
+    const action = buildLinkedInAbsentContactNavigationAction({
+      profileHtml: html,
+      publicIdentifier: slug,
+      profileUrn: PROFILE_URN,
+    });
+    expect(action).toEqual({
+      sduiid: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+      clientArguments: {
+        $type: LINKEDIN_CONTACT_NAVIGATION_REQUESTED_ARGUMENTS_TYPE,
+        requestedStateKeys: [],
+        payload: {
+          vanityName: slug.toLowerCase(),
+          ...(givenName === undefined ? {} : { givenName }),
+          ...(familyName === undefined ? {} : { familyName }),
+          isVanityNameResolved: true,
+          requestMetadata: {
+            $type: LINKEDIN_CONTACT_NAVIGATION_REQUEST_METADATA_TYPE,
+            states: [],
+            screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+            knownTemplates: [],
+          },
+        },
+      },
+      isModal: true,
+    });
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: linkedInProfileContactDetailsNavigationPostUrl({ sduiid: action.sduiid }),
+      body: {
+        clientArguments: action.clientArguments,
+        isModal: true,
+      },
+    })).not.toThrow();
   }));
 });
 
