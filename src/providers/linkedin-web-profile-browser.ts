@@ -520,7 +520,7 @@ const CONTACT_INFO_CONTROL_NAME = "Contact info";
 
 function contactModalEvaluationSource(documentUrl: string): string {
   const bound = jsonScriptLiteral({ documentUrl });
-  return `(async()=>{const modalInput=${bound};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");if(typeof modalInput.documentUrl!=="string")throw new Error("LinkedIn stats browser left its bound profile document");const documentUrl=new URL(modalInput.documentUrl);const here=new URL(location.href);const normalize=(path)=>path.endsWith("/")?path:path+"/";if(/^\\/(?:authwall|checkpoint|login|uas\\/login(?:-submit)?)(?:\\/|$)/u.test(here.pathname))throw new Error("LinkedIn stats browser reached the signed-out authwall");if(here.origin!==documentUrl.origin||here.username!==""||here.password!==""||normalize(here.pathname)!==normalize(documentUrl.pathname))throw new Error("LinkedIn stats browser left its bound profile document");const nameOf=(el)=>{const labelled=el.getAttribute("aria-label");if(typeof labelled==="string"&&labelled.trim())return labelled.replace(/\\s+/g," ").trim();return((el.textContent||"").replace(/\\s+/g," ").trim())};const matches=[];for(const el of document.querySelectorAll('a,button,[role="button"],[role="link"]')){if(nameOf(el)==="${CONTACT_INFO_CONTROL_NAME}")matches.push(el)}if(matches.length===0)throw new Error("LinkedIn stats browser omitted its reviewed Contact-info control");if(matches.length!==1)throw new Error("LinkedIn stats browser Contact-info control was ambiguous");const control=matches[0];const href=control.getAttribute("href");if(typeof href==="string"&&/\\/overlay\\/contact-info\\//u.test(href))throw new Error("LinkedIn stats browser Contact-info control targeted the vanity overlay GET");control.click();const deadline=Date.now()+8000;let dialog=null;while(Date.now()<deadline){const after=new URL(location.href);if(/^\\/(?:authwall|checkpoint|login|uas\\/login(?:-submit)?)(?:\\/|$)/u.test(after.pathname))throw new Error("LinkedIn stats browser reached the signed-out authwall");if(after.origin!==documentUrl.origin||after.username!==""||after.password!==""||normalize(after.pathname)!==normalize(documentUrl.pathname))throw new Error("LinkedIn stats browser left its bound profile document");const found=document.querySelectorAll('[role="dialog"],dialog,[aria-modal="true"]');if(found.length===1){dialog=found[0];break}if(found.length>1){const withEmail=[];for(const node of found){const text=node.innerText||"";const html=node.innerHTML||"";if(/Email/u.test(text)||/mailto:/iu.test(text)||/mailto:/iu.test(html))withEmail.push(node)}if(withEmail.length===1){dialog=withEmail[0];break}if(withEmail.length>1)throw new Error("LinkedIn stats browser Contact-info modal was ambiguous")}await new Promise((resolve)=>setTimeout(resolve,50))}if(dialog===null)throw new Error("LinkedIn stats browser omitted its Contact-info modal");const html=dialog.outerHTML;if(typeof html!=="string"||html.length<1||html.length>${MAX_STATS_PAGE_BYTES})throw new Error("LinkedIn stats browser Contact-info modal changed shape");const bytes=new TextEncoder().encode(html);const digest=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes)),(value)=>value.toString(16).padStart(2,"0")).join("");let binary="";for(let offset=0;offset<bytes.length;offset+=32768)binary+=String.fromCharCode(...bytes.subarray(offset,Math.min(offset+32768,bytes.length)));return{authWall:false,bodyBase64:btoa(binary),bodyBytes:bytes.byteLength,bodySha256:digest,contentType:"text/html",status:200}})()`;
+  return `(async()=>{const modalInput=${bound};if(location.origin!=="${LINKEDIN_ORIGIN}")throw new Error("unexpected LinkedIn origin");if(typeof modalInput.documentUrl!=="string")throw new Error("LinkedIn stats browser left its bound profile document");const documentUrl=new URL(modalInput.documentUrl);const here=new URL(location.href);const normalize=(path)=>path.endsWith("/")?path:path+"/";if(/^\\/(?:authwall|checkpoint|login|uas\\/login(?:-submit)?)(?:\\/|$)/u.test(here.pathname))throw new Error("LinkedIn stats browser reached the signed-out authwall");if(here.origin!==documentUrl.origin||here.username!==""||here.password!==""||normalize(here.pathname)!==normalize(documentUrl.pathname))throw new Error("LinkedIn stats browser left its bound profile document");const nameOf=(el)=>{const labelled=el.getAttribute("aria-label");if(typeof labelled==="string"&&labelled.trim())return labelled.replace(/\\s+/g," ").trim();return((el.textContent||"").replace(/\\s+/g," ").trim())};const matches=[];for(const el of document.querySelectorAll('a,button,[role="button"],[role="link"]')){if(nameOf(el)==="${CONTACT_INFO_CONTROL_NAME}")matches.push(el)}if(matches.length===0)throw new Error("LinkedIn stats browser omitted its reviewed Contact-info control");if(matches.length!==1)throw new Error("LinkedIn stats browser Contact-info control was ambiguous");matches[0].click();const deadline=Date.now()+8000;let dialog=null;while(Date.now()<deadline){const after=new URL(location.href);if(/^\\/(?:authwall|checkpoint|login|uas\\/login(?:-submit)?)(?:\\/|$)/u.test(after.pathname))throw new Error("LinkedIn stats browser reached the signed-out authwall");if(after.origin!==documentUrl.origin||after.username!==""||after.password!==""||normalize(after.pathname)!==normalize(documentUrl.pathname))throw new Error("LinkedIn stats browser left its bound profile document");const found=document.querySelectorAll('[role="dialog"],dialog,[aria-modal="true"]');if(found.length===1){dialog=found[0];break}if(found.length>1){const withEmail=[];for(const node of found){const text=node.innerText||"";const html=node.innerHTML||"";if(/Email/u.test(text)||/mailto:/iu.test(text)||/mailto:/iu.test(html))withEmail.push(node)}if(withEmail.length===1){dialog=withEmail[0];break}if(withEmail.length>1)throw new Error("LinkedIn stats browser Contact-info modal was ambiguous")}await new Promise((resolve)=>setTimeout(resolve,50))}if(dialog===null)throw new Error("LinkedIn stats browser omitted its Contact-info modal");const html=dialog.outerHTML;if(typeof html!=="string"||html.length<1||html.length>${MAX_STATS_PAGE_BYTES})throw new Error("LinkedIn stats browser Contact-info modal changed shape");const bytes=new TextEncoder().encode(html);const digest=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes)),(value)=>value.toString(16).padStart(2,"0")).join("");let binary="";for(let offset=0;offset<bytes.length;offset+=32768)binary+=String.fromCharCode(...bytes.subarray(offset,Math.min(offset+32768,bytes.length)));return{authWall:false,bodyBase64:btoa(binary),bodyBytes:bytes.byteLength,bodySha256:digest,contentType:"text/html",status:200}})()`;
 }
 
 function browserReadEvaluationSource(binding: BrowserReadBinding): string {
@@ -613,12 +613,21 @@ function hasNoDefaultExecutionContext(error: unknown): boolean {
 }
 
 function hasUnexpectedLinkedInOrigin(error: unknown): boolean {
+  return matchesLinkedInBrowserEvalError(error, "unexpected LinkedIn origin");
+}
+
+function escapeLinkedInBrowserEvalPhrase(phrase: string): string {
+  return phrase.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function matchesLinkedInBrowserEvalError(error: unknown, phrase: string): boolean {
+  const pattern = new RegExp(
+    `(?:^|: )${escapeLinkedInBrowserEvalPhrase(phrase)}(?:$|[\\r\\n]| +at )`,
+    "u",
+  );
   let current: unknown = error;
   for (let depth = 0; depth < 8 && current !== undefined; depth += 1) {
-    if (
-      current instanceof Error
-      && /(?:^|: )unexpected LinkedIn origin(?:$|[\r\n])/u.test(current.message)
-    ) return true;
+    if (current instanceof Error && pattern.test(current.message)) return true;
     current = current instanceof Error ? current.cause : undefined;
   }
   return false;
@@ -838,21 +847,13 @@ export async function createLinkedInProfileBrowserTransport(
         "LinkedIn stats browser was not on its reviewed signed-in origin",
       );
     }
-    if (
-      error instanceof Error
-      && /(?:^|: )LinkedIn stats browser left its bound profile document(?:$|[\r\n])/u
-        .test(error.message)
-    ) {
+    if (matchesLinkedInBrowserEvalError(error, "LinkedIn stats browser left its bound profile document")) {
       throw new LinkedInProfileBrowserFailure(
         "bootstrap",
         "LinkedIn stats browser left its bound profile document",
       );
     }
-    if (
-      error instanceof Error
-      && /(?:^|: )LinkedIn stats browser reached the signed-out authwall(?:$|[\r\n])/u
-        .test(error.message)
-    ) {
+    if (matchesLinkedInBrowserEvalError(error, "LinkedIn stats browser reached the signed-out authwall")) {
       throw new LinkedInProfileBrowserFailure(
         "authwall",
         "LinkedIn stats browser reached the signed-out authwall",
@@ -860,7 +861,7 @@ export async function createLinkedInProfileBrowserTransport(
     }
     if (
       error instanceof Error
-      && /(?:^|: )(?:missing LinkedIn browser page instance|invalid LinkedIn browser (?:track binding|application version|application instance|anchor page key|rsc stream|page-instance tracking id|pageforest id|traceparent|tracestate|layout tree)|LinkedIn profile document page-instance binding is ambiguous)(?:$|[\r\n])/u
+      && /(?:^|: )(?:missing LinkedIn browser page instance|invalid LinkedIn browser (?:track binding|application version|application instance|anchor page key|rsc stream|page-instance tracking id|pageforest id|traceparent|tracestate|layout tree)|LinkedIn profile document page-instance binding is ambiguous)(?:$|[\r\n]| +at )/u
         .test(error.message)
     ) {
       throw new LinkedInProfileBrowserFailure(
@@ -869,37 +870,31 @@ export async function createLinkedInProfileBrowserTransport(
       );
     }
     if (error instanceof Error) {
-      if (/(?:^|: )LinkedIn stats browser Contact-info control was ambiguous(?:$|[\r\n])/u.test(error.message)) {
+      if (matchesLinkedInBrowserEvalError(error, "LinkedIn stats browser Contact-info control was ambiguous")) {
         throw new LinkedInProfileBrowserFailure(
           "page-binding",
           "LinkedIn stats browser Contact-info control was ambiguous",
         );
       }
-      if (/(?:^|: )LinkedIn stats browser Contact-info control targeted the vanity overlay GET(?:$|[\r\n])/u.test(error.message)) {
-        throw new LinkedInProfileBrowserFailure(
-          "page-binding",
-          "LinkedIn stats browser Contact-info control targeted the vanity overlay GET",
-        );
-      }
-      if (/(?:^|: )LinkedIn stats browser omitted its reviewed Contact-info control(?:$|[\r\n])/u.test(error.message)) {
+      if (matchesLinkedInBrowserEvalError(error, "LinkedIn stats browser omitted its reviewed Contact-info control")) {
         throw new LinkedInProfileBrowserFailure(
           "page-binding",
           "LinkedIn stats browser omitted its reviewed Contact-info control",
         );
       }
-      if (/(?:^|: )LinkedIn stats browser Contact-info modal was ambiguous(?:$|[\r\n])/u.test(error.message)) {
+      if (matchesLinkedInBrowserEvalError(error, "LinkedIn stats browser Contact-info modal was ambiguous")) {
         throw new LinkedInProfileBrowserFailure(
           "page-binding",
           "LinkedIn stats browser Contact-info modal was ambiguous",
         );
       }
-      if (/(?:^|: )LinkedIn stats browser omitted its Contact-info modal(?:$|[\r\n])/u.test(error.message)) {
+      if (matchesLinkedInBrowserEvalError(error, "LinkedIn stats browser omitted its Contact-info modal")) {
         throw new LinkedInProfileBrowserFailure(
           "page-binding",
           "LinkedIn stats browser omitted its Contact-info modal",
         );
       }
-      if (/(?:^|: )LinkedIn stats browser Contact-info modal changed shape(?:$|[\r\n])/u.test(error.message)) {
+      if (matchesLinkedInBrowserEvalError(error, "LinkedIn stats browser Contact-info modal changed shape")) {
         throw new LinkedInProfileBrowserFailure(
           "page-binding",
           "LinkedIn stats browser Contact-info modal changed shape",

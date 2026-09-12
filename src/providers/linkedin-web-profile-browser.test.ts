@@ -209,10 +209,11 @@ function expectContactModalEval(source: string, profileUrl: string): void {
   expect(source).toContain('nameOf(el)==="Contact info"');
   expect(source).toContain("omitted its reviewed Contact-info control");
   expect(source).toContain("Contact-info control was ambiguous");
-  expect(source).toContain("targeted the vanity overlay GET");
   expect(source).toContain("omitted its Contact-info modal");
   expect(source).toContain('querySelectorAll(\'[role="dialog"],dialog,[aria-modal="true"]\')');
   expect(source).toContain(".click()");
+  expect(source).not.toContain("targeted the vanity overlay GET");
+  expect(source).not.toContain("/overlay/contact-info/");
   expect(source).not.toContain('method:input.kind==="rsc-action"?"POST":"GET"');
   expect(source).not.toContain("/flagship-web/rsc-action/actions/navigation");
   expect(source).not.toContain('headers["csrf-token"]=csrf');
@@ -1272,20 +1273,29 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     [
       "omits the reviewed Contact info control",
       "LinkedIn stats browser omitted its reviewed Contact-info control",
+      "LinkedIn stats browser omitted its reviewed Contact-info control",
     ],
     [
       "finds more than one Contact info control",
       "LinkedIn stats browser Contact-info control was ambiguous",
-    ],
-    [
-      "targets the vanity overlay GET",
-      "LinkedIn stats browser Contact-info control targeted the vanity overlay GET",
+      "LinkedIn stats browser Contact-info control was ambiguous",
     ],
     [
       "omits the Contact-info modal",
       "LinkedIn stats browser omitted its Contact-info modal",
+      "LinkedIn stats browser omitted its Contact-info modal",
     ],
-  ])("fails closed when the opened profile %s", async (_label, message) => {
+    [
+      "omits the reviewed Contact info control in a wrapped agent-browser stack",
+      "agent-browser batch failed with exit code 1: Evaluation error: Error: LinkedIn stats browser omitted its reviewed Contact-info control     at <anonymous>:1:234",
+      "LinkedIn stats browser omitted its reviewed Contact-info control",
+    ],
+    [
+      "omits the Contact-info modal in a wrapped agent-browser stack",
+      "agent-browser batch failed with exit code 1: Evaluation error: Error: LinkedIn stats browser omitted its Contact-info modal     at <anonymous>:1:234",
+      "LinkedIn stats browser omitted its Contact-info modal",
+    ],
+  ])("fails closed when the opened profile %s", async (_label, thrown, classified) => {
     let clicked = false;
     const session: BrowserSession = {
       runBatch: (commands) => {
@@ -1302,7 +1312,7 @@ describe("LinkedIn profile stats contained-browser transport", () => {
         if (isContactModalEval(command[1])) {
           expectContactModalEval(command[1], PROFILE_URL);
           clicked = true;
-          throw new Error(message);
+          throw new Error(thrown);
         }
         if (command[1].includes("LinkedIn profile document omitted its root")) {
           throw new Error("page-instance extract ran after a unique network binding");
@@ -1331,7 +1341,7 @@ describe("LinkedIn profile stats contained-browser transport", () => {
     expect(error).toBeInstanceOf(LinkedInProfileBrowserFailure);
     expect(error).toMatchObject({
       category: "page-binding",
-      message,
+      message: classified,
     });
     expect(clicked).toBeTrue();
     await transport.close();

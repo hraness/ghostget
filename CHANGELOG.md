@@ -7,6 +7,27 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Allow the unique reviewed Contact info control to open the live
+  LinkedIn SPA modal after adapter 1.36.0. Operator smoke on
+  2026-09-12 found that unique control on tessbloch, then fail-closed
+  before click because its href matched `/overlay/contact-info/`.
+  Headed proof the same day showed Email in that modal after click.
+  The contained path now clicks that unique accessible name even when
+  the href is the vanity overlay GET. Zero or two-plus controls and a
+  missing or ambiguous modal still fail closed. It still does not mint
+  a navigation POST or track headers. GraphQL 403, minted navigation
+  GETs, vanity HTML-shell honesty, and embedded-field projection stay.
+  Soft-labels stay. Self, non-first-degree, and contradictory
+  distances still fail closed, and no email is invented. Adapter bundle 1.36.1.
+  This is the fifteenth live Contact-info drift after the 1.36.0
+  Contact info click. Cloud has no signed-in LinkedIn session; do
+  not treat this landing as live green. Operator smoke:
+
+  ```sh
+  printf '%s' '{"profile_url":"https://www.linkedin.com/in/tessbloch/"}' \
+    | ghostget invoke linkedin-web contacts.read --input - --auth linkedin-dormant-20260911 --json
+  ```
+
 - Click the unique reviewed Contact info control on an already-loaded
   1st-degree LinkedIn profile and project Email from that modal after
   adapter 1.35.0. Operator headed proof on 2026-09-12 showed Email in
