@@ -4,6 +4,7 @@ import { assertProperty, fc } from "../test-support";
 import {
   assertLinkedInContactInfoRequest,
   linkedInContactInfoTarget,
+  linkedInProfileContactDetailsOverlayUrl,
   linkedInProfileContactInfoGraphqlUrl,
   projectLinkedInContactInfo,
   projectLinkedInProfileContactBinding,
@@ -42,6 +43,18 @@ test("LinkedIn contact-info targets and request paths stay bound to one vanity",
     expect(() => assertLinkedInContactInfoRequest({
       method: "GET",
       url: `https://www.linkedin.com/voyager/api/identity/profiles/${slug.toLowerCase()}/profileContactInfo`,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    const overlay = linkedInProfileContactDetailsOverlayUrl({ profileUrn: PROFILE_URN });
+    expect(overlay.pathname).toBe("/flagship-web/rsc-action/actions/navigation");
+    expect(overlay.searchParams.get("profileUrn")).toBe(PROFILE_URN);
+    expect(overlay.href).not.toContain(slug);
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "GET",
+      url: overlay,
+    })).not.toThrow();
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "GET",
+      url: "https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
     })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
   }));
 });

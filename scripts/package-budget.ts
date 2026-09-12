@@ -22,6 +22,20 @@
 // Required Linux CI independently admits its actual canonical package; this
 // local measurement does not qualify account activation or message delivery.
 //
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` Contact-info
+// overlay fallback (adapter bundle 1.28.0), measured with no version
+// bump: a Bun 1.3.14 `pm pack` on Linux x64 shares
+// 12,683,195 payload bytes across exactly 524 files. The bun archive is
+// 2,181,350 compressed bytes, SHA-256
+// daebc81fbe6611c93b9c9b58a9cc245d4397e1a700429cb107baa2a9fbb62dbe.
+// The overlay allowlist, RSC projection, GraphQL-unavailable fallback,
+// adapter notes, and changelog add 11,194 payload bytes compared with
+// the 1.27.0 measurement. Raise only the payload ceiling to the measured
+// value plus 65 bytes of headroom (12,683,260); the packed size stays
+// under the existing packed allowance and the 524-entry inventory is
+// unchanged. Theme CSS stays website-only. Fresh Linux CI independently
+// checks its actual canonical archive.
+//
 // Ghostget 0.18.0 source plus the LinkedIn `contacts.read` non-flight Como
 // string-slot bootstrap (adapter bundle 1.27.0), measured with no version
 // bump: a Bun 1.3.14 `pm pack` on Linux x64 shares

@@ -252,14 +252,18 @@ contradictory distances stay fail-closed.
 
 When the same page already embeds Contact-info fields, including a labeled
 Email row, the operation projects those fields and does not issue a second
-fetch. Otherwise it GETs `/voyager/api/graphql` for
-`voyagerIdentityDashProfileContactInfo`, using a page-resolved `queryId` when
-the HTML contains exactly one decorated revision and `queryName` otherwise.
-Variables are exactly `(profileUrn:{urn})`. Classic
+fetch. Otherwise it prefers a page-resolved GraphQL `queryId` for
+`voyagerIdentityDashProfileContactInfo` when the HTML contains exactly one
+decorated revision. Variables are exactly `(profileUrn:{urn})`. When that
+queryId is absent, or when the GraphQL GET returns a reviewed HTTP 403
+`text/html` rejection, the operation GETs the target-bound
+`/flagship-web/rsc-action/actions/navigation` overlay with exact
+`screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay`
+and `profileUrn`. A screenId-only overlay URL stays rejected. Classic
 `/voyager/api/identity/profiles/{vanity}/profileContactInfo` now returns HTTP
-410 and is rejected. The executable contract is that reviewed first-party GET
-or the page-embedded fields, not a caller-selected RSC body, DOM click, or
-selector. Ghostget does not message, connect, or InMail.
+410 and is rejected. The executable contract is those reviewed first-party
+GETs or the page-embedded fields, not a caller-selected RSC body, DOM click,
+or selector. Ghostget does not message, connect, or InMail.
 
 The projection returns `email` when LinkedIn shows it, plus any of the vanity
 profile link, connected-since date, phone numbers, websites, and birthday.
@@ -322,6 +326,17 @@ rehydration array slot `[6]`, a ~25KB SDUI string with `networkDistance` and
 string. Adapter 1.27.0 feeds non-flight Como string slots through that
 decoder and still routes true RSC flights through `decodeRscFlightRecords`.
 Self, non-first-degree, and contradictory distances still fail closed.
+
+A later signed-in capture of a known 1st-degree profile still bound
+identity, profile HTML, and distance, but Contact-info GraphQL returned
+HTTP 403 `text/html` and the page still omitted
+`voyagerIdentityDashProfileContactInfo.<32hex>`. The signed-in UI opens
+Contact info through `ProfileContactDetailsOverlay`, not GraphQL.
+Adapter 1.28.0 GETs that overlay with the bound `profileUrn` when queryId
+is absent or after that reviewed GraphQL rejection, and projects Email
+from the RSC or SDUI overlay payload. ScreenId-only overlay URLs stay
+rejected. Self, non-first-degree, and contradictory distances still fail
+closed.
 
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid
