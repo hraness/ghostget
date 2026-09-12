@@ -32,7 +32,9 @@ if (import.meta.main) {
   requireValue(command("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundleShortVersionString", join(app, "Contents/Info.plist")]).toString("utf8").trim() === version(a.tag), "bundle version differs");
   const scratch = realpathSync(mkdtempSync(join(process.env.RUNNER_TEMP ?? "/private/tmp", "ghostget-signing-"))), keychain = join(scratch, "signing.keychain-db"), keychainPassword = randomBytes(32).toString("hex");
   const safeEnvironment = { HOME: process.env.HOME ?? "", TMPDIR: scratch, PATH: "/usr/bin:/bin:/usr/sbin:/sbin" };
-  const apple = (program: string, args: string[], timeout = 60_000, input?: string) => command(program, args, { environment: safeEnvironment, timeout, maximum: 1024 * 1024, input });
+  const apple = (program: string, args: string[], timeout = 60_000, input?: string) => command(program, args,
+    input === undefined ? { environment: safeEnvironment, timeout, maximum: 1024 * 1024 }
+      : { environment: safeEnvironment, timeout, maximum: 1024 * 1024, input });
   let createAttempted = false; let signing: SigningReceipt | undefined;
   try {
     writeFileSync(join(scratch, "certificate.p12"), Buffer.from(certificate, "base64"), { flag: "wx", mode: 0o600 });
