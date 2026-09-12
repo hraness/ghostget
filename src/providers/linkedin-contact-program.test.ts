@@ -63,7 +63,8 @@ test.each([undefined, null, false, new Error("private close detail")])(
       readProfileHtml: unexpected,
       readConnectionsHtml: unexpected,
       readContactInfoJson: unexpected,
-      readContactOverlayText: unexpected,
+            readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+            readContactOverlayText: unexpected,
       readOrganizationHtml: unexpected,
       close: () => { closeStarted.resolve(); return closing.promise; },
     }))).then(exit => { settled = true; return exit; });
@@ -104,7 +105,8 @@ test.each(["acquire", "identity"] as const)(
       readProfileHtml: unexpected,
       readConnectionsHtml: unexpected,
       readContactInfoJson: unexpected,
-      readContactOverlayText: unexpected,
+            readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+            readContactOverlayText: unexpected,
       readOrganizationHtml: unexpected,
       close: () => { events.push("close"); closeStarted.resolve(); return closing.promise; },
     };

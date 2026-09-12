@@ -7,6 +7,29 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Read LinkedIn `contacts.read@1` Contact-info Email from the headed
+  ProfileContactDetailsOverlay navigation POST after 1st-degree bind.
+  Operator Chrome showed Email in the Contact-info modal; the first
+  response that contained the Email label was POST
+  `/flagship-web/rsc-action/actions/navigation?screenId=…ProfileContactDetailsOverlay&sduiid=…ProfileContactDetailsOverlay`
+  with JSON `{ clientArguments, isModal }` and an RSC
+  `application/octet-stream` flight. Headed capture bound `sduiid` to
+  the same overlay `screenId` constant, not a per-session mint.
+  Dormant profile HTML NavigateToScreen exposes `pageKey`
+  `profile_view_base_contact_details` and
+  `requestedArguments.payload` (`vanityName`, `givenName`,
+  `familyName`, `isVanityNameResolved`) but omits `sduiid`; the
+  operation still POSTs that exact allowlisted URL after 1st-degree
+  bind and peels reviewed payload keys without inventing `$type`,
+  `requestMetadata`, or a stolen id. A different `sduiid` fails
+  closed. GraphQL Contact-info stays 403 `text/html`, navigation
+  overlay GETs stay 500-rejected, and the vanity overlay GET remains
+  HTML-shell honesty when no Contact-info NavigateToScreen is present.
+  Soft-labels stay. Self, non-first-degree, and contradictory
+  distances still fail closed, and no email is invented.
+  Adapter bundle 1.31.0. This is the ninth live Contact-info drift after
+  the 1.30.0 overlay-shell honesty path. Cloud has no signed-in LinkedIn
+  session; do not treat this landing as live green.
 - Keep LinkedIn `contacts.read@1` honest when GraphQL Contact-info stays HTTP
   403 `text/html` and the vanity `/in/:publicIdentifier/overlay/contact-info/`
   GET returns an HTML-200 profile shell with no Email. Dormant contained

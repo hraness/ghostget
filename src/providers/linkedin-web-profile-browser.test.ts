@@ -22,6 +22,9 @@ import {
 } from "../web-session-execution";
 import { executeLinkedInWebOperation } from "./linkedin-web-runtime";
 import {
+  LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+  buildLinkedInContactNavigationBody,
+  buildLinkedInProfileContactDetailsNavigationPostPath,
   buildLinkedInProfileContactInfoGraphqlPath,
   buildLinkedInProfileContactInfoOverlayPath,
 } from "./linkedin-web-contact";
@@ -55,10 +58,11 @@ const cookieSourceAuth = {
 } as const satisfies GhostgetAuth;
 
 type BrowserReadBinding = {
-  readonly kind: "html" | "json" | "rsc";
+  readonly kind: "html" | "json" | "rsc" | "rsc-action";
   readonly maxBytes: number;
   readonly path: string;
   readonly referrer: string;
+  readonly body?: string;
 };
 
 const evaluatorSyntax = new Bun.Transpiler({ loader: "js" });
@@ -67,11 +71,43 @@ function requestBinding(source: string): BrowserReadBinding {
   expect(() => evaluatorSyntax.transformSync(source)).not.toThrow();
   expect(source).toContain('redirect:"error"');
   expect(source).toContain('crypto.subtle.digest("SHA-256",body)');
-  const match = /const input=(\{.*?\});if\(location\.origin/u.exec(source);
-  if (match?.[1] === undefined) {
+  const prefix = "const input=";
+  const start = source.indexOf(prefix);
+  if (start === -1 || source[start + prefix.length] !== "{") {
     throw new Error("test browser evaluation omitted its fixed request binding");
   }
-  return JSON.parse(match[1]) as BrowserReadBinding;
+  const jsonStart = start + prefix.length;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = jsonStart; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === undefined) break;
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (character === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (character === "\"") inString = false;
+      continue;
+    }
+    if (character === "\"") {
+      inString = true;
+      continue;
+    }
+    if (character === "{") depth += 1;
+    else if (character === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return JSON.parse(source.slice(jsonStart, index + 1)) as BrowserReadBinding;
+      }
+    }
+  }
+  throw new Error("test browser evaluation omitted its fixed request binding");
 }
 
 function browserBodyRecord(
@@ -612,6 +648,101 @@ describe("LinkedIn profile stats contained-browser transport", () => {
           profileUrl: PROFILE_URL,
         }),
         referrer: PROFILE_URL,
+      },
+    ]);
+    await transport.close();
+  });
+
+  test("POSTs the page-bound Contact-info navigation action without RSC headers", async () => {
+    const requests: BrowserReadBinding[] = [];
+    const overlayBody = [
+      '1:I["com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay"]',
+      `2:${JSON.stringify({
+        fields: [
+          { label: "Email", value: "connection@example.test" },
+        ],
+      })}`,
+    ].join("\n");
+    const sduiid = LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID;
+    const navigationPath = buildLinkedInProfileContactDetailsNavigationPostPath({ sduiid });
+    const navigationBody = buildLinkedInContactNavigationBody({
+      clientArguments: {
+        payload: { vanityName: "0thernet" },
+      },
+    });
+    const session: BrowserSession = {
+      runBatch: (commands) => {
+        const command = commands[0];
+        if (command?.[0] === "open" || command?.[0] === "wait") {
+          return Promise.resolve([{ success: true, result: {} }]);
+        }
+        if (command?.[0] !== "eval" || command[1] === undefined) {
+          throw new Error("unexpected LinkedIn contact-info navigation browser command");
+        }
+        const binding = requestBinding(command[1]);
+        requests.push(binding);
+        if (binding.path === "/voyager/api/me") {
+          return Promise.resolve([browserBodyRecord(identityResponse(), "application/json")]);
+        }
+        if (binding.path === "/in/0thernet/") {
+          return Promise.resolve([browserBodyRecord("<html>1st</html>", "text/html")]);
+        }
+        if (binding.path === navigationPath) {
+          expect(binding.kind).toBe("rsc-action");
+          expect(binding.body).toBe(navigationBody);
+          expect(command[1]).toContain(
+            'input.kind==="rsc-action"?{accept:"*/*","content-type":"application/json"}',
+          );
+          expect(command[1]).toContain('method:input.kind==="rsc-action"?"POST":"GET"');
+          expect(command[1]).toContain('csrf-token');
+          expect(command[1]).toContain("application/octet-stream");
+          expect(command[1]).not.toContain("Next-Router-State-Tree");
+          expect(command[1]).not.toContain("Next-Action");
+          return Promise.resolve([browserBodyRecord(overlayBody, "application/octet-stream")]);
+        }
+        throw new Error(`unexpected LinkedIn contact-info navigation path ${binding.path}`);
+      },
+      close: () => Promise.resolve(),
+      cleanup: () => Promise.resolve(),
+    };
+    const transport = await createLinkedInProfileBrowserTransport(auth, {
+      timeoutMs: 1_000,
+      maxOutputBytes: 2 * 1024 * 1024,
+      dependencies: { createBrowserSession: () => Promise.resolve(session) },
+    });
+    expect(await transport.currentIdentityResponse()).toEqual(JSON.parse(identityResponse()));
+    expect(await transport.readProfileHtml(PROFILE_URL)).toBe("<html>1st</html>");
+    expect(await transport.readContactNavigationText({
+      profileUrl: PROFILE_URL,
+      profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+      sduiid,
+      clientArguments: {
+        payload: { vanityName: "0thernet" },
+      },
+    })).toBe(overlayBody);
+    await expect(transport.readContactOverlayText({
+      profileUrl: PROFILE_URL,
+      profileUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+    })).rejects.toThrow("out of order");
+    expect(requests).toEqual([
+      {
+        kind: "json",
+        maxBytes: 2 * 1024 * 1024,
+        path: "/voyager/api/me",
+        referrer: "https://www.linkedin.com/feed/",
+      },
+      {
+        kind: "html",
+        maxBytes: 2 * 1024 * 1024,
+        path: "/in/0thernet/",
+        referrer: "https://www.linkedin.com/feed/",
+      },
+      {
+        kind: "rsc-action",
+        maxBytes: 2 * 1024 * 1024,
+        path: navigationPath,
+        referrer: PROFILE_URL,
+        body: navigationBody,
       },
     ]);
     await transport.close();

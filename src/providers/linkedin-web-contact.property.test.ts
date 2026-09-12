@@ -2,8 +2,12 @@ import { expect, test } from "bun:test";
 import { assertProperty, fc } from "../test-support";
 
 import {
+  LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
   assertLinkedInContactInfoRequest,
+  buildLinkedInProfileContactDetailsNavigationPostPath,
+  extractLinkedInContactNavigationAction,
   linkedInContactInfoTarget,
+  linkedInProfileContactDetailsNavigationPostUrl,
   linkedInProfileContactDetailsOverlayUrl,
   linkedInProfileContactInfoGraphqlUrl,
   linkedInProfileContactInfoOverlayUrl,
@@ -61,6 +65,105 @@ test("LinkedIn contact-info targets and request paths stay bound to one vanity",
       method: "GET",
       url: "https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
     })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    const navigation = linkedInProfileContactDetailsNavigationPostUrl({
+      sduiid: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+    });
+    expect(navigation.pathname).toBe("/flagship-web/rsc-action/actions/navigation");
+    expect([...navigation.searchParams.keys()]).toEqual(["screenId", "sduiid"]);
+    expect(navigation.searchParams.get("screenId")).toBe(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID);
+    expect(navigation.searchParams.get("sduiid")).toBe(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID);
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: navigation,
+    })).not.toThrow();
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "GET",
+      url: navigation,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: linkedInProfileContactDetailsNavigationPostUrl({
+        sduiid: `fixture-${slug.toLowerCase()}-sduiid`,
+      }),
+    })).toThrow("sduiid must equal ProfileContactDetailsOverlay");
+    expect(buildLinkedInProfileContactDetailsNavigationPostPath()).toContain(
+      `sduiid=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}`,
+    );
+  }));
+});
+
+test("LinkedIn contact-info navigation POST binds sduiid to the overlay screenId", () => {
+  assertProperty(fc.property(vanity, (slug) => {
+    const html = `<html><body><code style="display: none" id="bpr-guid-123">${JSON.stringify({
+      $type: "com.linkedin.voyager.identity.profile.Profile",
+      publicIdentifier: slug,
+      entityUrn: PROFILE_URN,
+      memberDistance: "DISTANCE_1",
+      actionName: "NavigateToScreen",
+      screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+      pageKey: "profile_view_base_contact_details",
+      requestedArguments: {
+        payload: { vanityName: slug, givenName: "Ada", familyName: "Example", isVanityNameResolved: true },
+      },
+    }).replace(/[&<>"=\\]/gu, (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "=": "&#61;",
+      "\\": "&#92;",
+    })[character] ?? character)}</code></body></html>`;
+    const extracted = extractLinkedInContactNavigationAction({
+      profileHtml: html,
+      publicIdentifier: slug,
+      profileUrn: PROFILE_URN,
+    });
+    expect(extracted).toEqual({
+      kind: "action",
+      action: {
+        sduiid: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+        clientArguments: {
+          payload: {
+            vanityName: slug.toLowerCase(),
+            givenName: "Ada",
+            familyName: "Example",
+            isVanityNameResolved: true,
+          },
+        },
+        isModal: true,
+      },
+    });
+    if (extracted.kind !== "action") return;
+    expect(linkedInProfileContactDetailsNavigationPostUrl({
+      sduiid: extracted.action.sduiid,
+    }).searchParams.get("sduiid")).toBe(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID);
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "POST",
+      url: linkedInProfileContactDetailsNavigationPostUrl({ sduiid: extracted.action.sduiid }),
+      body: {
+        clientArguments: extracted.action.clientArguments,
+        isModal: true,
+      },
+    })).not.toThrow();
+    const stolen = `<html><body><code style="display: none" id="bpr-guid-123">${JSON.stringify({
+      publicIdentifier: slug,
+      entityUrn: PROFILE_URN,
+      actionName: "NavigateToScreen",
+      screenId: LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
+      sduiid: `stolen-${slug}`,
+    }).replace(/[&<>"=\\]/gu, (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "=": "&#61;",
+      "\\": "&#92;",
+    })[character] ?? character)}</code></body></html>`;
+    expect(extractLinkedInContactNavigationAction({
+      profileHtml: stolen,
+      publicIdentifier: slug,
+      profileUrn: PROFILE_URN,
+    })).toEqual({ kind: "unreviewed-sduiid" });
   }));
 });
 

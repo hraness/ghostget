@@ -364,19 +364,29 @@ client-filled payload. Adapter 1.30.0 treats an HTML-200 shell as
 omitted Contact-info fields after 1st-degree binding, still projects
 overlay HTML that carries Como Email, a unique mailto, or an RSC/SDUI
 flight, and keeps `/flagship-web/rsc-action/actions/navigation` overlay
-GETs rejected. The next live-valid path needs a headed operator capture
-of the first request that actually contains Email:
+GETs rejected.
 
-1. In headed signed-in Chrome, open the exact 1st-degree profile and
-   confirm Contact info is available.
-2. Open DevTools Network with preserve log.
-3. Click Contact info.
-4. Record the first request whose response body contains Email, not the
-   profile HTML shell: exact URL, method, `Accept`, `RSC`,
-   `Next-Router-State-Tree`, `Next-Action`, `Next-Url`, `Content-Type`,
-   POST body shape (keys only), status, and response `Content-Type`.
-5. Keep cookies, `li_at`, CSRF, `JSESSIONID`, live emails, and raw HARs
-   out of Git.
+A later headed signed-in capture of the same 1st-degree Contact-info
+click showed Email in the modal. The first network response that
+contained the Email label was POST
+`/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay&sduiid=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay`
+with `Accept: */*`, `Content-Type: application/json`, no RSC or Next
+router headers, and JSON body keys `clientArguments` and `isModal`. The
+response was HTTP 200 `application/octet-stream` RSC flight. Headed
+capture bound `sduiid` to that same overlay `screenId` constant. Dormant
+profile HTML NavigateToScreen for Contact info carries `pageKey`
+`profile_view_base_contact_details` and `requestedArguments.payload`
+(`vanityName`, `givenName`, `familyName`, `isVanityNameResolved`) but
+omits `sduiid`. Adapter 1.31.0 POSTs the exact allowlisted URL after
+1st-degree bind, peels reviewed payload keys, and copies `$type` /
+`requestedStateKeys` / `requestMetadata` only when those reviewed fields
+are already on the action. It does not invent a stolen `sduiid`, `$type`,
+or `requestMetadata`. A different `sduiid` fails closed. GraphQL
+Contact-info stays a 403 `text/html` fallback. Navigation overlay GETs
+stay rejected. The vanity overlay GET remains HTML-shell honesty when
+the profile page omits that NavigateToScreen action. Soft-labels stay.
+Keep cookies, `li_at`, CSRF, `JSESSIONID`, live emails, and raw HARs out
+of Git.
 
 Self profiles fail closed with guidance to use `profiles.read`. Second-degree,
 third-degree, and out-of-network profiles fail closed because LinkedIn hid

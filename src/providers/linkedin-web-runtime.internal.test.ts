@@ -1092,7 +1092,8 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         return Promise.resolve("<h1><span>4,877</span> connections</h1><button>Sort by:</button><label>Search with filters</label>");
       },
       readContactInfoJson: () => Promise.reject(new Error("personal read crossed Contact-info")),
-      readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+            readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+            readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
       readOrganizationHtml: () => Promise.reject(
         new Error("personal read must not request a company page"),
       ),
@@ -1148,7 +1149,8 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         readProfileHtml: () => Promise.reject(new Error("probe crossed profile read")),
         readConnectionsHtml: () => Promise.reject(new Error("probe crossed connections read")),
         readContactInfoJson: () => Promise.reject(new Error("probe crossed Contact-info read")),
-        readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+                readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
         readOrganizationHtml: () => Promise.reject(new Error("probe crossed company read")),
         close: () => {
           browserCalls.push("close");
@@ -1225,7 +1227,8 @@ describe("LinkedIn authenticated internal-API runtime", () => {
       readProfileHtml: () => Promise.reject(new Error("cancelled probe crossed profile read")),
       readConnectionsHtml: () => Promise.reject(new Error("cancelled probe crossed connections read")),
       readContactInfoJson: () => Promise.reject(new Error("cancelled probe crossed Contact-info read")),
-      readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+            readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+            readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
       readOrganizationHtml: () => Promise.reject(new Error("cancelled probe crossed company read")),
       close: () => {
         browserCalls.push("close");
@@ -1271,7 +1274,8 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         return Promise.resolve("<h1><span>4,877</span> connections</h1><button>Sort by:</button><label>Search with filters</label>");
       },
       readContactInfoJson: () => Promise.reject(new Error("personal read crossed Contact-info")),
-      readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+            readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+            readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
       readOrganizationHtml: () => Promise.reject(new Error("personal read crossed company page")),
       close: () => {
         browserCalls.push("close");
@@ -1327,7 +1331,8 @@ describe("LinkedIn authenticated internal-API runtime", () => {
       readProfileHtml: () => Promise.reject(new Error("company read crossed profile page")),
       readConnectionsHtml: () => Promise.reject(new Error("company read crossed connections page")),
       readContactInfoJson: () => Promise.reject(new Error("company read crossed Contact-info")),
-      readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+            readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+            readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
       readOrganizationHtml: (url) => {
         browserCalls.push(`organization:${url}`);
         return Promise.resolve(linkedInOrganizationStatsHtml());
@@ -1377,7 +1382,8 @@ describe("LinkedIn authenticated internal-API runtime", () => {
           readProfileHtml: () => Promise.reject(new Error("company crossed self profile")),
           readConnectionsHtml: () => Promise.reject(new Error("company crossed connections")),
           readContactInfoJson: () => Promise.reject(new Error("company crossed Contact-info")),
-          readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+                    readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                    readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
           readOrganizationHtml: () => { browserCalls.push("company"); return Promise.resolve(linkedInOrganizationStatsHtml()); },
           close: () => { browserCalls.push("close"); return Promise.resolve(); },
         }),
@@ -1420,7 +1426,8 @@ describe("LinkedIn authenticated internal-API runtime", () => {
           readProfileHtml: () => Promise.reject(new Error("company crossed self profile")),
           readConnectionsHtml: () => Promise.reject(new Error("company crossed connections")),
           readContactInfoJson: () => Promise.reject(new Error("company crossed Contact-info")),
-          readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+                    readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                    readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
           readOrganizationHtml: () => { browserCalls.push("company"); return Promise.reject(new Error("unbound company read")); },
           close: () => { browserCalls.push("close"); return Promise.resolve(); },
         }),
@@ -1445,7 +1452,8 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         readProfileHtml: () => Promise.reject(new Error("company crossed self profile")),
         readConnectionsHtml: () => Promise.reject(new Error("company crossed connections")),
         readContactInfoJson: () => Promise.reject(new Error("company crossed Contact-info")),
-        readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+                readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
         readOrganizationHtml: () => { events.push("company"); return Promise.resolve(linkedInOrganizationStatsHtml().replace("hraness", "unrelated-company")); },
         close: () => { events.push("close"); closeStarted.resolve(); return closing.promise; },
       }),
@@ -1491,7 +1499,8 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         readProfileHtml: () => Promise.reject(new Error("company crossed self profile")),
         readConnectionsHtml: () => Promise.reject(new Error("company crossed connections")),
         readContactInfoJson: () => Promise.reject(new Error("company crossed Contact-info")),
-        readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+                readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
         readOrganizationHtml: () => { events.push("company"); readStarted.resolve(); return reading.promise; },
         close: () => { events.push("close"); closeStarted.resolve(); return closing.promise; },
       }),
@@ -1551,7 +1560,8 @@ describe("LinkedIn authenticated internal-API runtime", () => {
           return Promise.resolve("<h1><span>4,877</span> connections</h1><button>Sort by:</button><label>Search with filters</label>");
         },
         readContactInfoJson: () => Promise.reject(new Error("personal read crossed Contact-info")),
-        readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+                readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
         readOrganizationHtml: (url) => {
           browserCalls.push(`organization:${url}`);
           return Promise.resolve(linkedInOrganizationStatsHtml());
@@ -1631,7 +1641,8 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         readProfileHtml: () => Promise.reject(new Error("drift reached profile page")),
         readConnectionsHtml: () => Promise.reject(new Error("drift reached connections page")),
         readContactInfoJson: () => Promise.reject(new Error("drift reached Contact-info")),
-        readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+                readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
         readOrganizationHtml: () => Promise.reject(new Error("drift reached company page")),
         close: () => {
           browserCalls.push("close");
@@ -1814,7 +1825,8 @@ describe("LinkedIn authenticated internal-API runtime", () => {
         readContactInfoJson: () => Promise.reject(
           new Error("typed failure crossed Contact-info read"),
         ),
-        readContactOverlayText: () => Promise.reject(
+                readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                readContactOverlayText: () => Promise.reject(
           new Error("typed failure crossed Contact-info overlay"),
         ),
         readOrganizationHtml: () => Promise.reject(
@@ -3587,7 +3599,8 @@ describe("LinkedIn contacts.read runtime", () => {
           connectedAt: Date.parse("2023-10-03T00:00:00.000Z"),
         });
       },
-      readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+            readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+            readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
       readOrganizationHtml: () => Promise.reject(new Error("contacts.read crossed company")),
       close: () => {
         browserCalls.push("close");
@@ -3654,7 +3667,8 @@ describe("LinkedIn contacts.read runtime", () => {
         browserCalls.push("contact");
         return Promise.reject(new Error("non-1st fetched Contact-info"));
       },
-      readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+            readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+            readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
       readOrganizationHtml: () => Promise.reject(new Error("non-1st crossed company")),
       close: () => {
         browserCalls.push("close");
@@ -3701,7 +3715,8 @@ describe("LinkedIn contacts.read runtime", () => {
           ),
           readConnectionsHtml: () => Promise.reject(new Error("self crossed connections")),
           readContactInfoJson: () => Promise.reject(new Error("self fetched Contact-info")),
-          readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+                    readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                    readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
           readOrganizationHtml: () => Promise.reject(new Error("self crossed company")),
           close: () => Promise.resolve(),
         }),
@@ -3739,7 +3754,8 @@ describe("LinkedIn contacts.read runtime", () => {
             browserCalls.push("contact");
             return Promise.reject(new Error("absent queryId fetched GraphQL"));
           },
-          readContactOverlayText: (input) => {
+                    readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                    readContactOverlayText: (input) => {
             browserCalls.push(`overlay:${input.profileUrn}`);
             return Promise.resolve(OVERLAY_CONTACT_FLIGHT);
           },
@@ -3762,6 +3778,149 @@ describe("LinkedIn contacts.read runtime", () => {
       "identity",
       "profile",
       "overlay:urn:li:fsd_profile:ACoAAFixtureProfile",
+      "close",
+    ]);
+  });
+
+  test("POSTs the page-bound Contact-info navigation action after 1st-degree bind", async () => {
+    const browserCalls: string[] = [];
+    const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify([
+      `1:I["ProfileView"]\n2:${JSON.stringify({
+        publicIdentifier: "example",
+        vieweeMemberUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+        networkDistance: 1,
+      })}\n3:${JSON.stringify({
+        actionName: "NavigateToScreen",
+        screenId: "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
+        sduiid: "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
+        clientArguments: {
+          payload: { vanityName: "example" },
+        },
+      })}`,
+    ])}</script></body></html>`;
+    const result = await executeLinkedInWebOperation(contactInfoRecipe(), {
+      profile_url: "https://www.linkedin.com/in/example/",
+    }, linkedinBrowserProfileAuth, {
+      dependencies: {
+        now: () => Date.parse("2026-09-08T18:00:00.000Z"),
+        createProfileBrowserTransport: () => Promise.resolve({
+          currentIdentityResponse: () => {
+            browserCalls.push("identity");
+            return Promise.resolve(currentIdentityResponse());
+          },
+          readProfileHtml: () => {
+            browserCalls.push("profile");
+            return Promise.resolve(html);
+          },
+          readConnectionsHtml: () => Promise.reject(new Error("navigation crossed connections")),
+          readContactInfoJson: () => {
+            browserCalls.push("contact");
+            return Promise.reject(new Error("navigation fetched GraphQL"));
+          },
+          readContactOverlayText: () => {
+            browserCalls.push("overlay");
+            return Promise.reject(new Error("navigation fetched vanity overlay"));
+          },
+          readContactNavigationText: (input) => {
+            browserCalls.push(`navigation:${input.sduiid}:${input.clientArguments.payload.vanityName}`);
+            return Promise.resolve(OVERLAY_CONTACT_FLIGHT);
+          },
+          readOrganizationHtml: () => Promise.reject(new Error("navigation crossed company")),
+          close: () => {
+            browserCalls.push("close");
+            return Promise.resolve();
+          },
+        }),
+      },
+    });
+    expect(result).toMatchObject({
+      status: "succeeded",
+      output: {
+        contact: { email: "connection@example.test", connectedSince: "2023-10-03" },
+        profile: { relationship: "first-degree", vanity: "example" },
+      },
+    });
+    expect(browserCalls).toEqual([
+      "identity",
+      "profile",
+      "navigation:com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay:example",
+      "close",
+    ]);
+    expect(JSON.stringify(result)).not.toContain("@gmail.com");
+  });
+
+  test("POSTs when dormant NavigateToScreen omits sduiid and binds the overlay screenId", async () => {
+    const browserCalls: string[] = [];
+    const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify([
+      `1:${JSON.stringify({
+        publicIdentifier: "example",
+        entityUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+        networkDistance: 1,
+        actionName: "NavigateToScreen",
+        screenId: "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
+        pageKey: "profile_view_base_contact_details",
+        requestedArguments: {
+          payload: {
+            vanityName: "example",
+            givenName: "Ada",
+            familyName: "Example",
+            isVanityNameResolved: true,
+          },
+        },
+      })}`,
+    ])}</script></body></html>`;
+    const result = await executeLinkedInWebOperation(contactInfoRecipe(), {
+      profile_url: "https://www.linkedin.com/in/example/",
+    }, linkedinBrowserProfileAuth, {
+      dependencies: {
+        now: () => Date.parse("2026-09-08T18:00:00.000Z"),
+        createProfileBrowserTransport: () => Promise.resolve({
+          currentIdentityResponse: () => {
+            browserCalls.push("identity");
+            return Promise.resolve(currentIdentityResponse());
+          },
+          readProfileHtml: () => {
+            browserCalls.push("profile");
+            return Promise.resolve(html);
+          },
+          readConnectionsHtml: () => Promise.reject(new Error("dormant-sduiid crossed connections")),
+          readContactInfoJson: () => {
+            browserCalls.push("contact");
+            return Promise.reject(new Error("dormant-sduiid fetched GraphQL"));
+          },
+          readContactOverlayText: () => {
+            browserCalls.push("overlay");
+            return Promise.reject(new Error("dormant-sduiid fetched vanity overlay"));
+          },
+          readContactNavigationText: (input) => {
+            browserCalls.push(`navigation:${input.sduiid}:${input.clientArguments.payload.vanityName}`);
+            expect(input.clientArguments.payload).toEqual({
+              vanityName: "example",
+              givenName: "Ada",
+              familyName: "Example",
+              isVanityNameResolved: true,
+            });
+            return Promise.resolve(OVERLAY_CONTACT_FLIGHT);
+          },
+          readOrganizationHtml: () => Promise.reject(new Error("dormant-sduiid crossed company")),
+          close: () => {
+            browserCalls.push("close");
+            return Promise.resolve();
+          },
+        }),
+      },
+    });
+    expect(result).toMatchObject({
+      status: "succeeded",
+      output: {
+        contact: { email: "connection@example.test", connectedSince: "2023-10-03" },
+        profile: { relationship: "first-degree", vanity: "example" },
+      },
+    });
+    expect(browserCalls).toEqual([
+      "identity",
+      "profile",
+      "navigation:com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay:example",
       "close",
     ]);
   });
@@ -3796,7 +3955,8 @@ describe("LinkedIn contacts.read runtime", () => {
             browserCalls.push("contact");
             return Promise.reject(new Error("absent queryId fetched GraphQL"));
           },
-          readContactOverlayText: (input) => {
+                    readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                    readContactOverlayText: (input) => {
             browserCalls.push(`overlay:${input.profileUrn}`);
             return Promise.resolve(OVERLAY_CONTACT_FLIGHT);
           },
@@ -3851,7 +4011,8 @@ describe("LinkedIn contacts.read runtime", () => {
             browserCalls.push("contact");
             return Promise.reject(new Error("breadcrumb fetched GraphQL"));
           },
-          readContactOverlayText: (input) => {
+                    readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                    readContactOverlayText: (input) => {
             browserCalls.push(`overlay:${input.profileUrn}`);
             return Promise.resolve(OVERLAY_CONTACT_FLIGHT);
           },
@@ -3907,7 +4068,8 @@ describe("LinkedIn contacts.read runtime", () => {
             browserCalls.push("contact");
             return Promise.reject(new Error("escaped breadcrumb fetched GraphQL"));
           },
-          readContactOverlayText: (input) => {
+                    readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                    readContactOverlayText: (input) => {
             browserCalls.push(`overlay:${input.profileUrn}`);
             return Promise.resolve(OVERLAY_CONTACT_FLIGHT);
           },
@@ -3971,7 +4133,8 @@ describe("LinkedIn contacts.read runtime", () => {
             browserCalls.push("contact");
             return Promise.reject(new Error("non-flight slot fetched GraphQL"));
           },
-          readContactOverlayText: (input) => {
+                    readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                    readContactOverlayText: (input) => {
             browserCalls.push(`overlay:${input.profileUrn}`);
             return Promise.resolve(OVERLAY_CONTACT_FLIGHT);
           },
@@ -4020,7 +4183,8 @@ describe("LinkedIn contacts.read runtime", () => {
             browserCalls.push("contact");
             return Promise.reject(new LinkedInProfileBrowserResponseRejectedError(403, "text/html"));
           },
-          readContactOverlayText: (input) => {
+                    readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                    readContactOverlayText: (input) => {
             browserCalls.push(`overlay:${input.profileUrn}`);
             return Promise.resolve(OVERLAY_CONTACT_FLIGHT);
           },
@@ -4077,7 +4241,8 @@ describe("LinkedIn contacts.read runtime", () => {
             browserCalls.push("contact");
             return Promise.reject(new Error("absent queryId fetched GraphQL"));
           },
-          readContactOverlayText: (input) => {
+                    readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                    readContactOverlayText: (input) => {
             browserCalls.push(`overlay:${input.profileUrn}`);
             return Promise.resolve(shell);
           },
@@ -4101,6 +4266,71 @@ describe("LinkedIn contacts.read runtime", () => {
       "identity",
       "profile",
       "overlay:urn:li:fsd_profile:ACoAAFixtureProfile",
+      "close",
+    ]);
+    expect(JSON.stringify(result)).not.toContain("@gmail.com");
+  });
+
+  test("fails at Contact-info projection when the navigation POST returns an HTML profile shell", async () => {
+    const browserCalls: string[] = [];
+    const html = `<html><body><script>window.__como_rehydration__=${JSON.stringify({
+      publicIdentifier: "example",
+      entityUrn: "urn:li:fsd_profile:ACoAAFixtureProfile",
+      networkDistance: 1,
+      actionName: "NavigateToScreen",
+      screenId: "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
+      sduiid: "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
+      clientArguments: {
+        payload: { vanityName: "example" },
+      },
+    })}</script></body></html>`;
+    const shell = "<!DOCTYPE html><html><body><main>signed-in profile chrome</main></body></html>";
+    const result = await executeLinkedInWebOperation(contactInfoRecipe(), {
+      profile_url: "https://www.linkedin.com/in/example/",
+    }, linkedinBrowserProfileAuth, {
+      dependencies: {
+        now: () => Date.parse("2026-09-08T18:00:00.000Z"),
+        createProfileBrowserTransport: () => Promise.resolve({
+          currentIdentityResponse: () => {
+            browserCalls.push("identity");
+            return Promise.resolve(currentIdentityResponse());
+          },
+          readProfileHtml: () => {
+            browserCalls.push("profile");
+            return Promise.resolve(html);
+          },
+          readConnectionsHtml: () => Promise.reject(new Error("nav-shell crossed connections")),
+          readContactInfoJson: () => {
+            browserCalls.push("contact");
+            return Promise.reject(new Error("nav-shell fetched GraphQL"));
+          },
+          readContactOverlayText: () => {
+            browserCalls.push("overlay");
+            return Promise.reject(new Error("nav-shell fetched vanity overlay"));
+          },
+          readContactNavigationText: (input) => {
+            browserCalls.push(`navigation:${input.sduiid}`);
+            return Promise.resolve(shell);
+          },
+          readOrganizationHtml: () => Promise.reject(new Error("nav-shell crossed company")),
+          close: () => {
+            browserCalls.push("close");
+            return Promise.resolve();
+          },
+        }),
+      },
+    });
+    expect(result).toMatchObject({
+      status: "failed",
+      output: null,
+      readFailure: { category: "contract-drift", retryDisposition: "do-not-retry" },
+    });
+    expect(result.error).toContain("exact Contact-info projection");
+    expect(result.error).not.toContain("1st-degree relationship binding");
+    expect(browserCalls).toEqual([
+      "identity",
+      "profile",
+      "navigation:com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
       "close",
     ]);
     expect(JSON.stringify(result)).not.toContain("@gmail.com");
@@ -4133,7 +4363,8 @@ describe("LinkedIn contacts.read runtime", () => {
             browserCalls.push("contact");
             return Promise.reject(new Error("embedded email fetched Contact-info"));
           },
-          readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
+                    readContactNavigationText: () => Promise.reject(new Error("crossed Contact-info navigation")),
+                    readContactOverlayText: () => Promise.reject(new Error("crossed Contact-info overlay")),
           readOrganizationHtml: () => Promise.reject(new Error("embedded email crossed company")),
           close: () => {
             browserCalls.push("close");
