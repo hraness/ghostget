@@ -5,11 +5,14 @@ import {
   LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID,
   LINKEDIN_PROFILE_CONTACT_INFO_QUERY_NAME,
   assertLinkedInContactInfoRequest,
+  buildLinkedInProfileContactDetailsOverlayPath,
   buildLinkedInProfileContactInfoGraphqlPath,
   linkedInContactInfoTarget,
+  linkedInProfileContactDetailsOverlayUrl,
   linkedInProfileContactInfoGraphqlUrl,
   projectLinkedInContactInfo,
   projectLinkedInEmbeddedContactFields,
+  projectLinkedInOverlayContactFields,
   projectLinkedInProfileContactBinding,
   resolveLinkedInProfileContactInfoQueryId,
 } from "./linkedin-web-contact";
@@ -89,6 +92,21 @@ const GRAPHQL_PATH = buildLinkedInProfileContactInfoGraphqlPath({
 const GRAPHQL_URL = linkedInProfileContactInfoGraphqlUrl({
   profileUrn: PROFILE_URN,
 });
+const OVERLAY_PATH = buildLinkedInProfileContactDetailsOverlayPath({
+  profileUrn: PROFILE_URN,
+});
+const OVERLAY_URL = linkedInProfileContactDetailsOverlayUrl({
+  profileUrn: PROFILE_URN,
+});
+const OVERLAY_CONTACT_FLIGHT = [
+  `1:I["${LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID}"]`,
+  `2:${JSON.stringify({
+    fields: [
+      { label: "Email", value: "connection@example.test" },
+      { label: "Connected since", value: "October 3, 2023" },
+    ],
+  })}`,
+].join("\n");
 
 function contactPayload(overrides: Readonly<Record<string, unknown>> = {}): unknown {
   return {
@@ -116,6 +134,10 @@ describe("LinkedIn contacts.read target and request binding", () => {
     expect(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID).toBe(
       "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
     );
+    expect(OVERLAY_PATH).toBe(
+      `/flagship-web/rsc-action/actions/navigation?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&profileUrn=${encodeURIComponent(PROFILE_URN)}`,
+    );
+    expect(OVERLAY_URL.href).toBe(`https://www.linkedin.com${OVERLAY_PATH}`);
   });
 
   test("allows only the reviewed profile page and Contact-info GraphQL GET routes", () => {
@@ -160,8 +182,32 @@ describe("LinkedIn contacts.read target and request binding", () => {
     })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "GET",
+      url: OVERLAY_URL,
+    })).not.toThrow();
+    expect(() => assertLinkedInContactInfoRequest({
+      method: "GET",
+      url: OVERLAY_URL,
+    })).not.toThrow();
+    expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
+      method: "GET",
       url: "https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
     })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
+      method: "GET",
+      url: `https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?profileUrn=${encodeURIComponent(PROFILE_URN)}&screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}`,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
+      method: "GET",
+      url: `${OVERLAY_URL.href}&trk=unsafe`,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
+      method: "GET",
+      url: `https://www.linkedin.com/flagship-web/rsc-action/actions/navigation?screenId=com.linkedin.sdui.flagshipnav.profile.ProfileView&profileUrn=${encodeURIComponent(PROFILE_URN)}`,
+    })).toThrow("LinkedIn contact-info request escaped its exact reviewed route");
+    expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
+      method: "POST",
+      url: OVERLAY_URL,
+    })).toThrow("LinkedIn contact-info reads require GET");
     expect(() => assertLinkedInWebR1RequestAllowed("contacts.read", {
       method: "GET",
       url: "https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&queryName=voyagerFeedDashProfileUpdates&variables=(profileUrn:urn:li:fsd_profile:ACoAAFixtureProfile)",
@@ -868,5 +914,56 @@ describe("LinkedIn contacts.read Contact-info projection", () => {
     });
     expect(JSON.stringify(projected)).not.toContain("tess.bloch");
     expect(JSON.stringify(projected)).not.toContain("@gmail.com");
+  });
+
+  test("projects Email and full-month Connected since from an RSC overlay flight", () => {
+    expect(projectLinkedInOverlayContactFields(OVERLAY_CONTACT_FLIGHT, "example")).toMatchObject({
+      email: "connection@example.test",
+      connectedSince: "2023-10-03",
+    });
+    expect(projectLinkedInContactInfo({
+      profileHtml: profileHtml(),
+      contactPayload: OVERLAY_CONTACT_FLIGHT,
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+      observedAt: OBSERVED_AT,
+    })).toMatchObject({
+      completeness: "complete",
+      contact: {
+        email: "connection@example.test",
+        connectedSince: "2023-10-03",
+        profileUrl: PROFILE_URL,
+      },
+    });
+  });
+
+  test("projects Email from SDUI text pairs and a mailto href in overlay payloads", () => {
+    const textPairs = [
+      "1:I[\"ProfileContactDetailsOverlay\"]",
+      `2:${JSON.stringify(["Email", "connection@example.test", "Connected since", "October 3, 2023"])}`,
+    ].join("\n");
+    expect(projectLinkedInOverlayContactFields(textPairs, "example")).toMatchObject({
+      email: "connection@example.test",
+      connectedSince: "2023-10-03",
+    });
+    expect(projectLinkedInOverlayContactFields(
+      '1:{"href":"mailto:connection@example.test"}',
+      "example",
+    ).email).toBe("connection@example.test");
+    expect(projectLinkedInContactInfo({
+      profileHtml: profileHtml(),
+      contactPayload: [
+        { text: "Email" },
+        { text: "connection@example.test" },
+        { text: "Connected since" },
+        { text: "October 3, 2023" },
+      ],
+      profileUrl: PROFILE_URL,
+      expectedViewerSubject: VIEWER,
+      observedAt: OBSERVED_AT,
+    }).contact).toMatchObject({
+      email: "connection@example.test",
+      connectedSince: "2023-10-03",
+    });
   });
 });

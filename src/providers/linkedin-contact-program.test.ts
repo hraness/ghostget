@@ -3,6 +3,7 @@ import { Cause, Effect, Exit, Fiber, Option } from "effect";
 import { ReadEffectFailure } from "../read-effect";
 import { assertProperty, fc } from "../test-support";
 import {
+  isLinkedInContactGraphqlUnavailable,
   linkedInContactDiagnostic,
   linkedInContactReadFailure,
 } from "./linkedin-contact-failure";
@@ -10,6 +11,7 @@ import { LinkedInContactPlatformLive, type LinkedInContactNative } from "./linke
 import { linkedInContactReadProgram } from "./linkedin-contact-program";
 import {
   LinkedInProfileBrowserFailure,
+  LinkedInProfileBrowserResponseRejectedError,
   type LinkedInProfileBrowserTransport,
 } from "./linkedin-web-profile-browser";
 
@@ -61,6 +63,7 @@ test.each([undefined, null, false, new Error("private close detail")])(
       readProfileHtml: unexpected,
       readConnectionsHtml: unexpected,
       readContactInfoJson: unexpected,
+      readContactOverlayText: unexpected,
       readOrganizationHtml: unexpected,
       close: () => { closeStarted.resolve(); return closing.promise; },
     }))).then(exit => { settled = true; return exit; });
@@ -101,6 +104,7 @@ test.each(["acquire", "identity"] as const)(
       readProfileHtml: unexpected,
       readConnectionsHtml: unexpected,
       readContactInfoJson: unexpected,
+      readContactOverlayText: unexpected,
       readOrganizationHtml: unexpected,
       close: () => { events.push("close"); closeStarted.resolve(); return closing.promise; },
     };
@@ -132,3 +136,16 @@ test.each(["acquire", "identity"] as const)(
     }
   },
 );
+
+test("GraphQL Contact-info unavailability unwraps reviewed 403 HTML rejections", () => {
+  const rejected = new LinkedInProfileBrowserResponseRejectedError(403, "text/html");
+  expect(isLinkedInContactGraphqlUnavailable(rejected)).toBe(true);
+  expect(isLinkedInContactGraphqlUnavailable(new ReadEffectFailure({ cause: rejected }))).toBe(true);
+  expect(isLinkedInContactGraphqlUnavailable(
+    new ReadEffectFailure({ cause: new Error("wrapped", { cause: rejected }) }),
+  )).toBe(true);
+  expect(isLinkedInContactGraphqlUnavailable(
+    new LinkedInProfileBrowserResponseRejectedError(404, "application/json"),
+  )).toBe(false);
+  expect(isLinkedInContactGraphqlUnavailable(new Error("private page failure"))).toBe(false);
+});

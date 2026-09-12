@@ -30,6 +30,8 @@ function platform(ports: LinkedInContactNative) {
       readNative(() => browser.readProfileHtml(profileUrl)).pipe(Effect.uninterruptible),
     contactPayload: (browser: LinkedInProfileBrowserTransport, input: LinkedInContactInfoJsonInput) =>
       readNative(() => browser.readContactInfoJson(input)).pipe(Effect.uninterruptible),
+    contactOverlay: (browser: LinkedInProfileBrowserTransport, input: LinkedInContactInfoJsonInput) =>
+      readNative(() => browser.readContactOverlayText(input)).pipe(Effect.uninterruptible),
     observedAt: readAttempt(ports.observedAt),
     closeBrowser: (browser: LinkedInProfileBrowserTransport) =>
       readNative(() => browser.close()).pipe(Effect.uninterruptible),

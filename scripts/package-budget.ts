@@ -1,3 +1,13 @@
+// Ghostget 0.19.0 joined with main ac44040 (LinkedIn adapter 1.28.0):
+// two fresh Bun 1.3.14 builds and npm 11.19.0 ignore-scripts packs under
+// Node 24.20.0 on darwin arm64 (zlib 1.2.12) are byte-identical:
+// 2,354,420 compressed and 12,806,990 payload bytes across exactly 540 files,
+// SHA-256 2594de7a4b1fffc380aacdbe0c7a15b5dd0782db78ec264f9b807db527fb87ea.
+// All archived bytes and modes match source. The reviewed incoming overlay
+// fallback adds exactly 11,194 payload bytes and 2,160 local compressed bytes.
+// Preserve the exact inventory, 65 payload bytes and 2,802 + 4,096 bytes
+// of compression allowance. Required Linux CI checks its actual archive.
+//
 // Ghostget 0.19.0 joined with main 9cc16e1 (LinkedIn adapter 1.27.0), plus
 // final setup release notes: two fresh Bun 1.3.14 / npm 11.19.0 builds under
 // Node 24.20.0 on darwin arm64 (zlib 1.2.12) are byte-identical:
@@ -47,6 +57,21 @@
 // distribution scripts, tests and website files remain excluded. Preserve
 // the 65-byte payload allowance and the prior 2,802 + 4,096-byte compression
 // allowance. Required Linux CI still inspects its actual canonical archive.
+//
+// Ghostget 0.18.0 source plus the LinkedIn `contacts.read` Contact-info
+// overlay fallback (adapter bundle 1.28.0), measured with no version
+// bump: a Bun 1.3.14 `pm pack` on Linux x64 shares
+// 12,683,195 payload bytes across exactly 524 files. The bun archive is
+// 2,181,350 compressed bytes, SHA-256
+// daebc81fbe6611c93b9c9b58a9cc245d4397e1a700429cb107baa2a9fbb62dbe.
+// The overlay allowlist, RSC projection, GraphQL-unavailable fallback,
+// adapter notes, and changelog add 11,194 payload bytes compared with
+// the 1.27.0 measurement. Raise only the payload ceiling to the measured
+// value plus 65 bytes of headroom (12,683,260); the packed size stays
+// under the existing packed allowance and the 524-entry inventory is
+// unchanged. Theme CSS stays website-only. Fresh Linux CI independently
+// checks its actual canonical archive.
+//
 // Ghostget 0.18.0 source plus the LinkedIn `contacts.read` non-flight Como
 // string-slot bootstrap (adapter bundle 1.27.0), measured with no version
 // bump: a Bun 1.3.14 `pm pack` on Linux x64 shares
@@ -508,10 +533,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 2_359_158;
+export const MAX_PACKED_BYTES = 2_361_318;
 export const MAX_PACKED_ENTRIES = 540;
 export const MAX_PACKED_FILES = 540;
-export const MAX_UNPACKED_BYTES = 12_795_861;
+export const MAX_UNPACKED_BYTES = 12_807_055;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

@@ -31,6 +31,21 @@ Historical entries retain their original delivery coordinates.
   requires Apple enrollment and protected credentials. Browser autofill and
   passkey assertions are not implemented.
 
+- Read LinkedIn `contacts.read@1` Contact-info email from the target-bound
+  ProfileContactDetailsOverlay RSC navigation when GraphQL
+  `voyagerIdentityDashProfileContactInfo` is unavailable. Live dormant
+  Chrome and Arc sessions still bind 1st-degree distance from profile HTML,
+  but Contact-info GraphQL returns HTTP 403 `text/html` and the page embeds
+  no queryId. The operation now GETs the overlay with exact `screenId` plus
+  `profileUrn` when queryId is absent, or after that reviewed GraphQL
+  rejection, and projects Email plus Connected since from the RSC or SDUI
+  payload. ScreenId-only overlay URLs, other RSC screens, and writes stay
+  rejected. Self, non-first-degree, and contradictory distances still fail
+  closed, and no email is invented. Adapter bundle 1.28.0. This is the sixth
+  live Contact-info drift after the 1.23.0 flight-array parse, the 1.24.0
+  deep-walk / `vieweeProfileId` join, the 1.25.0 `vieweeMemberUrn` distance
+  join, the 1.26.0 multi-escaped peel, and the 1.27.0 non-flight string-slot
+  bootstrap.
 - Read LinkedIn `contacts.read@1` first-degree distance from non-flight Como
   rehydration string slots. Live pages after adapter 1.26.0 still bound
   identity through `vieweeProfileId` plus vanity, but `networkDistance` and

@@ -10,6 +10,8 @@ export const LINKEDIN_PROFILE_CONTACT_INFO_QUERY_NAME =
   "voyagerIdentityDashProfileContactInfo";
 export const LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID =
   "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay";
+export const LINKEDIN_CONTACT_DETAILS_OVERLAY_PATH =
+  "/flagship-web/rsc-action/actions/navigation";
 const CONTACT_QUERY_ID =
   /^voyagerIdentityDashProfileContactInfo\.[0-9a-f]{32}$/u;
 
@@ -20,20 +22,31 @@ const EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,24}$/u;
 const PHONE = /^\+?[0-9][0-9 .\-()]{6,30}[0-9]$/u;
 const BIRTHDAY = /^(?:[0-9]{4}-)?(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$/u;
 const CONNECTED_DISPLAY =
-  /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) ([1-9]|[12][0-9]|3[01]), ([0-9]{4})$/u;
+  /^(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec) ([1-9]|[12][0-9]|3[01]), ([0-9]{4})$/u;
 const MONTHS = Object.freeze({
   Jan: "01",
+  January: "01",
   Feb: "02",
+  February: "02",
   Mar: "03",
+  March: "03",
   Apr: "04",
+  April: "04",
   May: "05",
   Jun: "06",
+  June: "06",
   Jul: "07",
+  July: "07",
   Aug: "08",
+  August: "08",
   Sep: "09",
+  September: "09",
   Oct: "10",
+  October: "10",
   Nov: "11",
+  November: "11",
   Dec: "12",
+  December: "12",
 });
 const HTML_ENTITY =
   /&(?:nbsp|quot|amp|lt|gt|apos|#(?:[xX][0-9A-Fa-f]{1,6}|[0-9]{1,7}));/gu;
@@ -179,6 +192,33 @@ export function linkedInProfileContactInfoGraphqlUrl(input: {
   return new URL(buildLinkedInProfileContactInfoGraphqlPath(input), LINKEDIN_ORIGIN);
 }
 
+export function buildLinkedInProfileContactDetailsOverlayPath(input: {
+  readonly profileUrn: unknown;
+}): string {
+  const urn = profileUrn(input.profileUrn);
+  return `${LINKEDIN_CONTACT_DETAILS_OVERLAY_PATH}?screenId=${encodeURIComponent(LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID)}&profileUrn=${encodeURIComponent(urn)}`;
+}
+
+export function linkedInProfileContactDetailsOverlayUrl(input: {
+  readonly profileUrn: unknown;
+}): URL {
+  return new URL(buildLinkedInProfileContactDetailsOverlayPath(input), LINKEDIN_ORIGIN);
+}
+
+function assertLinkedInContactDetailsOverlayUrl(url: URL): void {
+  const queryNames = [...url.searchParams.keys()];
+  if (
+    url.pathname !== LINKEDIN_CONTACT_DETAILS_OVERLAY_PATH
+    || queryNames.length !== 2
+    || queryNames[0] !== "screenId"
+    || queryNames[1] !== "profileUrn"
+    || url.searchParams.get("screenId") !== LINKEDIN_CONTACT_DETAILS_OVERLAY_SCREEN_ID
+    || url.searchParams.getAll("screenId").length !== 1
+    || url.searchParams.getAll("profileUrn").length !== 1
+  ) throw new Error("LinkedIn contact-info request escaped its exact reviewed route");
+  profileUrn(url.searchParams.get("profileUrn"));
+}
+
 export function resolveLinkedInProfileContactInfoQueryId(html: unknown): string | undefined {
   if (typeof html !== "string" || html.length < 1 || html.length > MAX_HTML_BYTES) {
     return undefined;
@@ -244,6 +284,10 @@ export function assertLinkedInContactInfoRequest(requestValue: unknown): void {
     }
     if (url.pathname === LINKEDIN_GRAPHQL_PATH) {
       assertLinkedInContactInfoGraphqlUrl(url);
+      return;
+    }
+    if (url.pathname === LINKEDIN_CONTACT_DETAILS_OVERLAY_PATH) {
+      assertLinkedInContactDetailsOverlayUrl(url);
       return;
     }
   }
@@ -954,6 +998,89 @@ export function projectLinkedInEmbeddedContactFields(
   return projectFields(records, vanity);
 }
 
+function overlayMailtoFields(value: string): JsonRecord | null {
+  const emails = [...value.matchAll(/mailto:([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,24})/giu)]
+    .map((match) => match[1]?.toLowerCase())
+    .filter((item): item is string => item !== undefined);
+  const unique = [...new Set(emails)];
+  if (unique.length !== 1) return null;
+  return Object.freeze({ emailAddress: unique[0] });
+}
+
+function overlayTextPairFields(value: readonly unknown[]): JsonRecord | null {
+  const texts: string[] = [];
+  for (const item of value) {
+    if (typeof item === "string") {
+      const text = item.trim();
+      if (text.length > 0 && text.length <= 2_048) texts.push(text);
+      continue;
+    }
+    if (!isRecord(item)) continue;
+    const text = item.text ?? item.value ?? item.title ?? item.label;
+    if (typeof text === "string") {
+      const trimmed = text.trim();
+      if (trimmed.length > 0 && trimmed.length <= 2_048) texts.push(trimmed);
+    }
+    const href = item.href ?? item.url;
+    if (typeof href === "string" && href.toLowerCase().startsWith("mailto:")) {
+      texts.push(href);
+    }
+  }
+  if (texts.length < 2) return null;
+  const collected: {
+    email?: string;
+    connectedSince?: string;
+    phones: string[];
+    websites: string[];
+    birthday?: string;
+  } = { phones: [], websites: [] };
+  for (let index = 0; index < texts.length - 1; index += 1) {
+    const label = texts[index];
+    const raw = texts[index + 1];
+    if (label === undefined || raw === undefined) continue;
+    const key = labelKey(label);
+    if (key === "email") {
+      const email = optionalEmail(
+        raw.toLowerCase().startsWith("mailto:") ? raw.slice("mailto:".length) : raw,
+        "LinkedIn contact-info Email",
+      );
+      if (email !== null) collected.email = email;
+      continue;
+    }
+    if (key === "connected since") {
+      const connected = connectedSinceValue(raw);
+      if (connected !== null) collected.connectedSince = connected;
+    }
+  }
+  if (collected.email === undefined && collected.connectedSince === undefined) return null;
+  return Object.freeze({
+    emailAddress: collected.email ?? null,
+    connectedAt: collected.connectedSince ?? null,
+    phoneNumbers: collected.phones,
+    websites: collected.websites,
+    birthDateOn: collected.birthday ?? null,
+  });
+}
+
+function normalizeOverlayPayload(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  if (value.length < 1 || value.length > MAX_HTML_BYTES) {
+    throw new Error("LinkedIn contact-info overlay payload exceeded its reviewed bound");
+  }
+  const trimmed = value.trim();
+  if (looksLikeRscFlight(trimmed)) return decodeRscFlightRecords(trimmed);
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) return parseJsonRoot(trimmed);
+  const mailto = overlayMailtoFields(trimmed);
+  return mailto === null ? trimmed : [mailto];
+}
+
+export function projectLinkedInOverlayContactFields(
+  overlay: unknown,
+  vanity: string,
+): LinkedInContactFields {
+  return projectFields(normalizeOverlayPayload(overlay), vanity);
+}
+
 function oneUnique<T>(
   values: readonly T[],
   label: string,
@@ -1185,15 +1312,25 @@ function collectRecords(value: unknown): readonly JsonRecord[] {
       if (next.value.length > 20_000) {
         throw new Error("LinkedIn contact-info payload array exceeded its reviewed bound");
       }
-      const labeled = labeledFields(next.value);
+      const labeled = labeledFields(next.value) ?? overlayTextPairFields(next.value);
       if (labeled !== null) records.push(labeled);
       for (const item of next.value) stack.push({ value: item, depth: next.depth + 1 });
       continue;
     }
     if (!isRecord(next.value)) continue;
     records.push(next.value);
-    const nestedLabels = labeledFields(next.value.fields ?? next.value.items ?? next.value.rows);
+    const nestedLabels = labeledFields(next.value.fields ?? next.value.items ?? next.value.rows)
+      ?? overlayTextPairFields(
+        Array.isArray(next.value.fields) ? next.value.fields
+          : Array.isArray(next.value.items) ? next.value.items
+            : Array.isArray(next.value.rows) ? next.value.rows
+              : [],
+      );
     if (nestedLabels !== null) records.push(nestedLabels);
+    if (typeof next.value.href === "string" || typeof next.value.url === "string") {
+      const mailto = overlayMailtoFields(String(next.value.href ?? next.value.url));
+      if (mailto !== null) records.push(mailto);
+    }
     for (const item of Object.values(next.value)) {
       stack.push({ value: item, depth: next.depth + 1 });
     }
@@ -1252,7 +1389,7 @@ export function projectLinkedInContactInfo(input: {
     profileUrl: input.profileUrl,
     expectedViewerSubject: input.expectedViewerSubject,
   });
-  const contact = projectFields(input.contactPayload, binding.vanity);
+  const contact = projectFields(normalizeOverlayPayload(input.contactPayload), binding.vanity);
   const hasAny = contact.email !== null
     || contact.connectedSince !== null
     || contact.phones.length > 0

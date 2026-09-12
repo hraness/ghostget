@@ -110,6 +110,17 @@ export const LINKEDIN_WEB_OPERATIONS = {
       allowedQueryParameters: ["includeWebMetadata", "queryId", "queryName", "variables"],
       requiredQueryParameters: ["includeWebMetadata", "variables"],
       fixedQueryParameters: [["includeWebMetadata", "true"]],
+    }, {
+      kind: "server-rendered-read",
+      method: "GET",
+      path: "/flagship-web/rsc-action/actions/navigation ProfileContactDetailsOverlay",
+      queryPrefix: null,
+      allowedQueryParameters: ["screenId", "profileUrn"],
+      requiredQueryParameters: ["screenId", "profileUrn"],
+      fixedQueryParameters: [[
+        "screenId",
+        "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay",
+      ]],
     }],
   },
   "feeds.read": {
@@ -3239,6 +3250,21 @@ export function assertLinkedInWebR1RequestAllowed(
           )
           && /^\(profileUrn:urn:li:fsd_profile:[A-Za-z0-9_-]{1,256}\)$/u.test(
             url.searchParams.get("variables") ?? "",
+          )
+        ) return;
+      }
+      if (url.pathname === "/flagship-web/rsc-action/actions/navigation") {
+        const queryNames = [...url.searchParams.keys()];
+        if (
+          queryNames.length === 2
+          && queryNames[0] === "screenId"
+          && queryNames[1] === "profileUrn"
+          && url.searchParams.get("screenId")
+            === "com.linkedin.sdui.flagshipnav.profile.ProfileContactDetailsOverlay"
+          && url.searchParams.getAll("screenId").length === 1
+          && url.searchParams.getAll("profileUrn").length === 1
+          && /^urn:li:fsd_profile:[A-Za-z0-9_-]{1,256}$/u.test(
+            url.searchParams.get("profileUrn") ?? "",
           )
         ) return;
       }

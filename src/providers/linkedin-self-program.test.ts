@@ -27,6 +27,7 @@ test.each(["success", "failure"] as const)(
       readProfileHtml: unexpected,
       readConnectionsHtml: unexpected,
       readContactInfoJson: unexpected,
+      readContactOverlayText: unexpected,
       readOrganizationHtml: unexpected,
       close: () => {
         events.push("close");
