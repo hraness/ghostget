@@ -576,6 +576,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "desktop-foundation"
+version = "0.2.0"
+source = "git+https://github.com/hraness/desktop-foundation?tag=v0.2.0#3458a67dac9093a3d1b266fa981528fb8cccfa4c"
+dependencies = [
+ "serde_json",
+ "tauri",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1063,6 +1072,7 @@ dependencies = [
 name = "ghostget-desktop"
 version = "0.18.2"
 dependencies = [
+ "desktop-foundation",
  "libc",
  "serde_json",
  "tauri",
