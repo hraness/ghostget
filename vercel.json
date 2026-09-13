@@ -59,12 +59,8 @@
       "source": "/((?!preview/$|control/).*)",
       "headers": [
         {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
           "key": "Content-Security-Policy",
-          "value": "form-action 'self' https://account.hraness.com; frame-src 'self' https://challenges.cloudflare.com; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://*.posthog.com https://*.posthogusercontent.com"
+          "value": "form-action 'self' https://account.hraness.com; frame-ancestors 'self' https://hraness.com; frame-src 'self' https://challenges.cloudflare.com; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://*.posthog.com https://*.posthogusercontent.com"
         }
       ]
     },
@@ -113,12 +109,8 @@
       "source": "/control/(.*)",
       "headers": [
         {
-          "key": "X-Frame-Options",
-          "value": "SAMEORIGIN"
-        },
-        {
           "key": "Content-Security-Policy",
-          "value": "default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; script-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'; frame-ancestors 'self'"
+          "value": "default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; script-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'; frame-ancestors 'self' https://hraness.com"
         },
         {
           "key": "X-Robots-Tag",

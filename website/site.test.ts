@@ -749,19 +749,18 @@ describe("ghostget.com static site", () => {
       { key: "Content-Type", value: "application/json; charset=utf-8" },
     ]);
 
-    const frameDenyHeaders = vercel.headers.find((rule: { source: string }) =>
+    const framePolicyHeaders = vercel.headers.find((rule: { source: string }) =>
       rule.source === "/((?!preview/$|control/).*)");
-    expect(frameDenyHeaders?.headers).toEqual([
-      { key: "X-Frame-Options", value: "DENY" },
+    expect(framePolicyHeaders?.headers).toEqual([
       {
         key: "Content-Security-Policy",
-        value: "form-action 'self' https://account.hraness.com; frame-src 'self' https://challenges.cloudflare.com; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://*.posthog.com https://*.posthogusercontent.com",
+        value: "form-action 'self' https://account.hraness.com; frame-ancestors 'self' https://hraness.com; frame-src 'self' https://challenges.cloudflare.com; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://*.posthog.com https://*.posthogusercontent.com",
       },
     ]);
-    const frameDenyPattern = /^\/((?!preview\/$|control\/).*)$/u;
-    expect(frameDenyPattern.test("/preview/")).toBe(false);
-    expect(frameDenyPattern.test("/control/activity.html")).toBe(false);
-    for (const deniedPath of [
+    const framePolicyPattern = /^\/((?!preview\/$|control\/).*)$/u;
+    expect(framePolicyPattern.test("/preview/")).toBe(false);
+    expect(framePolicyPattern.test("/control/activity.html")).toBe(false);
+    for (const coveredPath of [
       "/",
       "/preview",
       "/preview/index.html",
@@ -769,7 +768,7 @@ describe("ghostget.com static site", () => {
       "/security/",
       "/assets/example.css",
     ]) {
-      expect(frameDenyPattern.test(deniedPath)).toBe(true);
+      expect(framePolicyPattern.test(coveredPath)).toBe(true);
     }
 
     const previewHeaders = vercel.headers.find((rule: { source: string }) =>
@@ -783,21 +782,17 @@ describe("ghostget.com static site", () => {
     ]);
     const controlHeaders = vercel.headers.find((rule: { source: string }) => rule.source === "/control/(.*)");
     expect(controlHeaders?.headers).toEqual([
-      { key: "X-Frame-Options", value: "SAMEORIGIN" },
-      { key: "Content-Security-Policy", value: "default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; script-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'; frame-ancestors 'self'" },
+      { key: "Content-Security-Policy", value: "default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; script-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'; frame-ancestors 'self' https://hraness.com" },
       { key: "X-Robots-Tag", value: "noindex, nofollow" },
     ]);
     expect(vercel.headers.find((rule: { source: string }) => rule.source === "/control/NebulaSans-Book.woff2")?.headers).toEqual([
       { key: "Access-Control-Allow-Origin", value: "*" },
     ]);
     expect(vercel.headers.filter((rule: { headers: Array<{ key: string }> }) =>
-      rule.headers.some((header) => header.key === "X-Frame-Options"))).toEqual([
-      frameDenyHeaders,
-      controlHeaders,
-    ]);
+      rule.headers.some((header) => header.key === "X-Frame-Options"))).toEqual([]);
     expect(vercel.headers.filter((rule: { headers: Array<{ key: string }> }) =>
       rule.headers.some((header) => header.key === "Content-Security-Policy"))).toEqual([
-      frameDenyHeaders,
+      framePolicyHeaders,
       previewHeaders,
       controlHeaders,
     ]);
