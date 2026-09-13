@@ -1,3 +1,17 @@
+// Ghostget 0.18.4 interactive root-help refinement over main 9cb3cbe.
+// Two canonical npm 11.19.0 packs with --ignore-scripts under official
+// Node 24.20.0 darwin-arm64 / zlib 1.3.2.1-motley-42c2f19 are byte-identical:
+// SHA-256 c124bf65b11b124d293ca95680aefef3d8a9e74f36159f8df0e435eb9a149073,
+// 11,658,847 compressed / 22,522,543 payload bytes across exactly 559 files.
+// Every packed file matches its source bytes. The new 434-byte CLI intro,
+// its 199-byte call site, 9-byte help label, 25-byte explicit manifest entry,
+// and 337-byte changelog add exactly 1,004 payload bytes over 0.18.3.
+// The 89-byte version chunk is renamed by the SDK build; it and its import
+// references retain their lengths. Native assets and the package/site boundary
+// are unchanged. Keep the measured compressor allowance and payload headroom:
+// 11,658,847 + 4,096 = 11,662,943; 22,522,543 + 65 = 22,522,608.
+// Fresh Required Linux CI and Release still admit their actual canonical bytes.
+//
 // Ghostget 0.18.3 Lantern release candidate ece1a6a. Required Linux CI
 // 34708922100, static job 103593972035 and package job 103593972046,
 // independently measured 22,521,539 unpacked bytes: exactly 250 bytes
@@ -803,10 +817,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 11_661_673;
-export const MAX_PACKED_ENTRIES = 558;
-export const MAX_PACKED_FILES = 558;
-export const MAX_UNPACKED_BYTES = 22_521_604;
+export const MAX_PACKED_BYTES = 11_662_943;
+export const MAX_PACKED_ENTRIES = 559;
+export const MAX_PACKED_FILES = 559;
+export const MAX_UNPACKED_BYTES = 22_522_608;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

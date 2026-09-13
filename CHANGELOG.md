@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.4
+
+- Show a compact ASCII ghost before interactive root help. Piped output,
+  machine-readable commands, version output, and command help stay unchanged.
+- Refine the shared marketing surfaces and use the ghost identity consistently.
+  Provider operations, account authority, and immutable archive contracts remain
+  unchanged.
+
 ## 0.18.3
 
 - Apply the shared Lantern material to the homepage: luminous grid glass behind
