@@ -12,13 +12,10 @@ serve HTML by default and Markdown when `Accept` prefers `text/markdown`.
 optional PostHog bootstrap records privacy-bounded page lifecycle events and the
 two explicit repository links. Set `NEXT_PUBLIC_POSTHOG_KEY` to the shared
 project's public `phc_` token; `NEXT_PUBLIC_POSTHOG_HOST` defaults to
-`https://us.i.posthog.com`. Set
-`NEXT_PUBLIC_HRANESS_MAILING_TURNSTILE_SITEKEY` to the public Cloudflare
-Turnstile sitekey registered for `ghostget.com` to enable the product-specific
-Ghostget mailing-list form. Production builds require a valid key and fail closed
-when it is absent or malformed. Local and Preview builds may omit it; in those
-environments the shared footer stays visible without rendering a signup form.
-The private Turnstile secret remains in the central Accounts service.
+`https://us.i.posthog.com`.
+The product-specific Ghostget mailing-list form renders on production builds.
+Local and Preview builds keep the shared footer visible without rendering a
+signup form.
 The form retains the existing internal `wrench` audience ID so its subscribers
 remain attached to the same list; the public name and origin are Ghostget.
 No personal API key is used by the runtime build.

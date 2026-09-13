@@ -59,8 +59,6 @@ export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
 export const CONTENT_REVIEWED_RELEASE = "v0.18.4" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
-export const GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV =
-  "NEXT_PUBLIC_HRANESS_MAILING_TURNSTILE_SITEKEY" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",
   "wrench-first-capture.mp4",
@@ -770,25 +768,10 @@ function postHogEnvironment(environment: Readonly<Record<string, string | undefi
 export function ghostgetMailingListConfig(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): HranessMailingListConfig {
-  const turnstileSitekey =
-    environment[GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV];
-  if (turnstileSitekey === undefined || turnstileSitekey === "") {
-    if (environment.VERCEL_ENV === "production") {
-      throw new Error(
-        `${GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV} must be configured for Vercel Production.`,
-      );
-    }
-    return { kind: "none" };
-  }
-  if (!/^[A-Za-z0-9_-]{20,100}$/u.test(turnstileSitekey)) {
-    throw new Error(
-      `${GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV} must be a 20-100 character URL-safe public Cloudflare Turnstile sitekey.`,
-    );
-  }
+  if (environment.VERCEL_ENV !== "production") return { kind: "none" };
   return {
     audience: "wrench",
     kind: "signup",
-    turnstileSitekey,
   };
 }
 
