@@ -168,15 +168,15 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.5.2",
-        "@hraness/site-footer": "github:hraness/site-footer#v0.6.1",
-        "@hraness/ui": "github:hraness/ui#v0.5.7",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.8.0",
+        "@hraness/site-footer": "github:hraness/site-footer#v0.6.3",
+        "@hraness/ui": "github:hraness/ui#v0.5.13",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.5.2"');
-    expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.7"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.8.0"');
+    expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.13"');
     expect(lockfile).toContain(
-      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#590056b"',
+      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#f984d97"',
     );
   });
 
@@ -306,7 +306,7 @@ describe("ghostget.com static site", () => {
       readFile(join(websiteRoot, "dist/robots.txt"), "utf8"),
       readFile(join(websiteRoot, "dist/sitemap.xml"), "utf8"),
       readFile(join(websiteRoot, "dist/dc84ee4863539f2fff50ef5f0a164168.txt"), "utf8"),
-      readFile(join(websiteRoot, "dist/favicon.svg"), "utf8"),
+      readFile(join(websiteRoot, "dist/icon.png")),
       readFile(join(websiteRoot, "source/styles.css"), "utf8"),
       Promise.all(DEMO_PUBLIC_FILES.map(async (file) => ({
         file,
@@ -429,7 +429,7 @@ describe("ghostget.com static site", () => {
     expect(notFound).not.toContain('data-slot="ask-ai-about-this"');
     expect(html).toContain(`<meta name="description" content="${SITE_DESCRIPTION}">`);
     expect(html).toContain('<link rel="canonical" href="https://ghostget.com/">');
-    expect(html).toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml">');
+    expect(html).toContain('<link rel="icon" href="/icon.png" type="image/png" sizes="512x512">');
     expect(html).toContain('<meta property="og:image" content="https://ghostget.com/og.png">');
     expect(html).toContain('<meta property="og:image:width" content="1200">');
     expect(html).toContain('<meta property="og:image:height" content="630">');
@@ -541,7 +541,7 @@ describe("ghostget.com static site", () => {
     expect(html).not.toContain('class="hraness-marketing-hero__example"');
     expect(html).toContain('import { isProviderPluginId } from "@hraness/ghostget"');
     expect(html).toMatch(/Reviewed operations across \d+ supported services\./u);
-    expect(html).toContain('class="wordmark" href="/">Ghostget</a>');
+    expect(html).toContain('aria-label="Ghostget home" class="wordmark" href="/"><span aria-hidden="true">👻</span> Ghostget</a>');
     expect(html).not.toMatch(/hero-field|hero-orbit|hero-glyph/u);
     expect(html).not.toMatch(/observed provider operations|capture-required|unavailable reservations/iu);
     expect(html).not.toContain("🔧");
@@ -633,7 +633,10 @@ describe("ghostget.com static site", () => {
     expect(sitemap).not.toContain("/preview/");
     expect(llms).not.toContain("/preview/");
     expect(indexNowKey).toBe("dc84ee4863539f2fff50ef5f0a164168\n");
-    expect(favicon).toContain('viewBox="0 0 64 64"');
+    expect(createHash("sha256").update(favicon).digest("hex")).toBe("8ab02075b8b531513373a4012b5a2856b4a391d7cb349a555dc172123bb88ef0");
+    expect(favicon).toEqual(await readFile(join(websiteRoot, "public/icon.png")));
+    expect(await readFile(join(websiteRoot, "dist/apple-icon.png"))).toEqual(await readFile(join(websiteRoot, "public/apple-icon.png")));
+    expect(html).toContain('<link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">');
     expect(sourceCss).toContain("@media (prefers-reduced-motion: reduce)");
     expect(sourceCss).toContain("@media (forced-colors: active)");
     expect(sourceCss).toContain(
@@ -868,7 +871,7 @@ describe("ghostget.com static site", () => {
       const canonicalUrl = `${SITE_ORIGIN}${definition.canonicalPath}`;
       expect(pageHtml).toContain(`<title>${definition.title}</title>`);
       expect(pageHtml).toContain(`<meta name="description" content="${definition.description}">`);
-      expect(pageHtml).toContain('class="wordmark" href="/">Ghostget</a>');
+      expect(pageHtml).toContain('aria-label="Ghostget home" class="wordmark" href="/"><span aria-hidden="true">👻</span> Ghostget</a>');
       expect(pageHtml).not.toContain('class="wordmark" href="/">GHOSTGET</a>');
       expect(pageHtml).toContain(`<link rel="canonical" href="${canonicalUrl}">`);
       expect(pageHtml).toContain(`<meta property="og:title" content="${definition.title}">`);

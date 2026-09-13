@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { ghostgetUsage } from "./usage";
+import { terminalIntro } from "./cli-intro";
 import { GHOSTGET_VERSION } from "./version";
 import type {
   GhostgetCatalogCommand,
@@ -164,6 +165,7 @@ export async function runGhostgetCliProcess(
   loadKnowledgeCli: () => Promise<PublicKbCliModule> = loadPublicKbCli,
 ): Promise<void> {
   if (isImmediateGhostgetHelpRequest(rawArguments)) {
+    if (output === defaultOutput) output.stdout(terminalIntro({ isTTY: process.stdout.isTTY, columns: process.stdout.columns, term: process.env.TERM }));
     output.stdout(ghostgetUsage);
     process.exitCode = 0;
     return;

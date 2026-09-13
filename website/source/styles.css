@@ -2692,11 +2692,16 @@ body {
   overflow-x: auto;
   padding: 1.15rem 1.35rem;
   tab-size: 2;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .proof-transcript code {
   font-size: inherit;
   white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .proof-transcript__prompt {
@@ -2802,10 +2807,6 @@ body {
 
   [data-hraness-marketing-preset="editorial"] .hraness-marketing-page > section[id] {
     scroll-margin-block-start: 8.75rem;
-  }
-
-  .proof-transcript code {
-    white-space: pre-wrap;
   }
 
   .start-section.hraness-marketing-install {
