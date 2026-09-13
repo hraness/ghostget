@@ -189,11 +189,14 @@ describe("Ghostget hardening performance gates", () => {
   test("keeps static help and release identity lazy without provider or state initialization", async () => {
     const cliSource = readFileSync(cliPath, "utf8");
     const usageSource = readFileSync(join(import.meta.dir, "usage.ts"), "utf8");
+    const introSource = readFileSync(join(import.meta.dir, "cli-intro.ts"), "utf8");
     expect(runtimeImportDeclarations(cliSource)).toEqual([
       'import { ghostgetUsage } from "./usage";',
+      'import { terminalIntro } from "./cli-intro";',
       'import { GHOSTGET_VERSION } from "./version";',
     ]);
     expect(runtimeImportDeclarations(usageSource)).toEqual([]);
+    expect(runtimeImportDeclarations(introSource)).toEqual([]);
 
     const previousExitCode = process.exitCode;
     let loaderCalls = 0;
