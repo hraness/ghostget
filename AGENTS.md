@@ -3,8 +3,7 @@
 
 - `src/` – the CLI, page-capture runtime, strict data and protocol models, provider-plugin kernel, built-in providers, runtime assets, helpers, and colocated tests.
 - `src/media/` – the finite-item media acquisition, archive, derivation, transcript, revision, verification, and cancellation runtime.
-- `src/control/` – private app control, agent approvals, public web policy, SQLite activity, connection verification, and user OpenAPI drafts.
-- `desktop/` – the macOS control panel, narrow Rust host, shared React UI, Direct scenarios, and native verification scripts.
+- `src/control/` – the menu-bar control service, approvals, account connections, and LaunchAgent lifecycle.
 - `skills/ghostget/` – the single public Agent Skill and its focused operational references, including social publishing.
 - `.agents/skills/` – reusable cross-repository KB and phased-execution workflows; product-specific Ghostget operations remain under `skills/ghostget/`.
 - `kb/` – authored repository rationale, evidence, synthesis, and plans.
@@ -24,11 +23,11 @@
 - Apply unreasonably robust programming when agent work is cheap. Model invalid states out of existence and pair readable regression examples with property tests for general laws.
 - Deliver changes to `main` through a current-head pull request. Keep the stable `Required` CI job green, resolve every review thread, and serialize merges. Human approval stays optional while one regular maintainer would otherwise self-review. Never force-push or bypass the gate.
 - Pin Hraness dependencies to reviewed immutable releases or full commits. Never replace them with sibling paths, Git submodules, or coordinated `main` assumptions.
-- Extract a shared package only after two concrete consumers need the same stable interface. Keep shared packages product-neutral and keep consumer planning, policy, agent loops, and unrelated consumer UI outside Ghostget's own control panel.
+- Extract a shared package only after two concrete consumers need the same stable interface. Keep shared packages product-neutral and keep consumer planning, policy, agent loops, and unrelated consumer UI outside Ghostget's menu-bar control surface.
 - For UI work, consume shared design-kit or `@hraness/ui` primitives only at immutable versions; keep product composition in the owning product and keep `website/` dependency-free.
 - Freeze shared interfaces before parallel lanes begin. Give public barrels, manifests, lockfiles, generated catalogs, and other convergence surfaces one owner while lanes edit disjoint paths.
 - Keep mandatory rules in the closest `AGENTS.md`, current procedures in `docs/`, executable contracts in types and tests, and pull-based rationale, evidence, synthesis, and plans in `kb/`.
-- Keep Ghostget a bring-your-own-agent CLI and TypeScript SDK with a native control panel for accounts, capabilities, permissions, interfaces, approvals, activity, and installation guidance. Do not add a bundled model, planning or tool loop, or agent runtime.
+- Keep Ghostget a bring-your-own-agent CLI and TypeScript SDK with a menu-bar control surface for accounts, capabilities, permissions, interfaces, approvals, activity, and installation guidance. Do not add a bundled model, planning or tool loop, or agent runtime.
 - Keep exactly one public Agent Skill at `skills/ghostget/`. Bundle product workflows as references and mark repository-maintenance skills under `.agents/skills/` internal.
 - Keep `website/` informational: it may explain and document Ghostget, but must not grow an agent runtime, authenticated product surface, or browser-based substitute for the CLI and SDK.
 - Keep the package root import side-effect-free. Importing `@hraness/ghostget` must not start the CLI, inspect local state, load built-in providers, or access the network.

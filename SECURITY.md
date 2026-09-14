@@ -10,7 +10,7 @@ responses, browser output, files, durable state, and subprocess diagnostics as
 untrusted. Foreign values are strictly parsed and bounded. Sensitive values are
 redacted from terminal output, receipts, and diagnostics.
 
-The native control panel has a private administrative stdio channel to its
+The menu-bar companion has a private administrative stdio channel to its
 owned helper. Its owner-only agent socket accepts bounded web requests and
 approval requests, checks, and cancellation; it cannot grant approval, change
 permissions, or import credentials. Enabling operation permissions establishes

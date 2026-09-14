@@ -1166,7 +1166,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_096_320);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_094_272);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1239,9 +1239,7 @@ describe("npm publication contract", () => {
     expect(testOmniJob.match(/^      - run: bun run test:omni$/gmu) ?? []).toHaveLength(1);
     expect(standaloneJob.match(/^      - run: bun run test:standalone$/gmu) ?? []).toHaveLength(1);
     expect(macosJob.match(/^      - run: bun run check:macos$/gmu) ?? []).toHaveLength(1);
-    expect(macosJob).toContain("rustup toolchain install 1.97.1 --profile minimal && rustup default 1.97.1");
-    expect(macosJob.match(/^      - run: bun run desktop:check-native$/gmu) ?? []).toHaveLength(1);
-    expect(macosJob.indexOf("bun run desktop:check-native")).toBeGreaterThan(macosJob.indexOf("bun run check:macos"));
+    expect(macosJob).not.toContain("desktop");
     expect(macosJob.match(/^      - run: bun run check$/gmu) ?? []).toHaveLength(0);
     expect(requiredJob.match(/^      - run: bun run check$/gmu) ?? []).toHaveLength(0);
     expect(requiredJob.match(
@@ -1347,8 +1345,8 @@ describe("npm publication contract", () => {
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
     expect(MAX_PACKED_BYTES).toBe(11_662_943);
     expect(MAX_PACKED_BYTES).toBe(11_658_847 + 4_096);
-    expect(MAX_PACKED_ENTRIES).toBe(559);
-    expect(MAX_PACKED_FILES).toBe(559);
+    expect(MAX_PACKED_ENTRIES).toBe(557);
+    expect(MAX_PACKED_FILES).toBe(557);
     expect(budget).toContain("34708922100, static job 103593972035 and package job 103593972046");
     expect(budget).toContain("22,521,539 + 65 = 22,521,604");
     expect(MAX_UNPACKED_BYTES).toBe(22_523_047);
@@ -1360,8 +1358,8 @@ describe("npm publication contract", () => {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 559, max: 559 },
-      fileCount: { min: 559, max: 559 },
+      entryCount: { min: 557, max: 557 },
+      fileCount: { min: 557, max: 557 },
       packedBytes: { min: 1_600_000, max: 11_662_943 },
       unpackedBytes: { min: 9_000_000, max: 22_523_047 },
     });
@@ -1778,8 +1776,7 @@ describe("npm publication contract", () => {
     try {
       await run([process.execPath, "pm", "pack", "--filename", archive, "--ignore-scripts", "--quiet"], repository);
       const inventory = await inspectPackageArtifact(archive);
-      expect(inventory.files.some(file => file.path === "docs/control-panel.md")).toBe(true);
-      expect(inventory.files.some(file => file.path === "src/control/credential-helper.ts")).toBe(true);
+        expect(inventory.files.some(file => file.path === "src/control/credential-helper.ts")).toBe(true);
       expect(inventory.files.some(file => file.path === "src/provider-plugin-import-analysis.ts")).toBe(true);
       expect(inventory.files.some(file => file.path.startsWith("desktop/") || file.path.includes("/direct/"))).toBe(false);
       expect(inventory.files.some(file => file.path.includes("benchmark"))).toBe(false);
@@ -1787,8 +1784,6 @@ describe("npm publication contract", () => {
       for (const [source, replacement, expected] of [
         ["src/control/helper.ts", "src/control/absent-helper.ts", "Required package path is missing: src/control/helper.ts"],
         ["src/provider-plugin-import-analysis.ts", "src/absent-provider-analysis.ts", "Required package path is missing: src/provider-plugin-import-analysis.ts"],
-        ["docs/control-panel.md", "src/control-guide.md", "Required package path is missing: docs/control-panel.md"],
-        ["docs/control-panel.md", "docs/unreviewed.md", "Unexpected package path: docs/unreviewed.md"],
         ["src/control/helper.ts", "src/control/helper.test.ts", "Test source entered the package"],
       ] as const) {
         const tar = Buffer.from(originalTar);
