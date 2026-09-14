@@ -30,7 +30,7 @@ async function handleAgent(value:unknown,service:ControlService,signal:AbortSign
   throw new Error("invalid action");
 }
 function socketLive(path:string):Promise<boolean> {
-  return new Promise((resolve,reject)=>{const socket=connect({path});const timer=setTimeout(()=>{socket.destroy();reject(new Error("socket state unknown"));},1000);socket.once("connect",()=>{clearTimeout(timer);socket.destroy();resolve(true);});socket.once("error",error=>{clearTimeout(timer);socket.destroy();if((error as NodeJS.ErrnoException).code==="ECONNREFUSED")resolve(false);else reject(new Error("socket state unknown"));});});
+  return new Promise((resolve,reject)=>{const socket=connect({path});const timer=setTimeout(()=>{socket.destroy();reject(new Error("socket state unknown"));},1000);socket.once("connect",()=>{clearTimeout(timer);socket.destroy();resolve(true);});socket.once("error",error=>{clearTimeout(timer);socket.destroy();const code=(error as NodeJS.ErrnoException).code;if(code==="ECONNREFUSED"||code==="ENOENT")resolve(false);else reject(new Error("socket state unknown"));});});
 }
 function acquireOwner(environment:ControlEnvironment):()=>void {
   const directory=join(ghostgetStateHome(environment),"control");ensurePrivateStateDirectory(directory,environment);

@@ -3,7 +3,7 @@
 use serde_json::{json, Value};
 use std::{collections::HashMap, fs::{File, OpenOptions}, io::{BufRead, BufReader, Write}, os::unix::io::AsRawFd, path::{Path, PathBuf}, process::{Child, ChildStdin, Command, Stdio}, sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}, mpsc::{self, SyncSender}}, time::Duration};
 use tauri::{Manager, State};
-use desktop_foundation::{Host, MenuModel, MenuNode, Options};
+use desktop_foundation::{outputs::OutputsSection, Host, MenuModel, MenuNode, Options};
 
 const PROTOCOL: &str = "ghostget.control/1";
 const MAX_FRAME: usize = 4 * 1024 * 1024;
@@ -164,7 +164,7 @@ async fn control_request(window: tauri::WebviewWindow, state: State<'_, Option<H
     match response { Ok(value) => Ok(value), Err(_) => Ok(unavailable()) }
 }
 
-struct GhostgetHost { helper: Mutex<Option<Helper>> }
+struct GhostgetHost { helper: Mutex<Option<Helper>>, outputs: OutputsSection }
 
 impl Host for GhostgetHost {
     fn started(&self, app: &tauri::AppHandle) {
@@ -201,8 +201,13 @@ impl Host for GhostgetHost {
             }
         }
         nodes.push(MenuNode::Separator);
+        nodes.extend(self.outputs.nodes());
+        nodes.push(MenuNode::Separator);
         nodes.push(MenuNode::quit("Quit Ghostget"));
         MenuModel { title: Some("Ghostget".to_owned()), tooltip: Some(tooltip), icon: None, nodes }
+    }
+    fn dispatch(&self, id: &str) {
+        self.outputs.dispatch(id);
     }
     fn stopping(&self) {
         if let Some(helper) = self.helper.lock().ok().and_then(|guard| guard.clone()) { helper.stop(); }
@@ -214,7 +219,10 @@ fn main() {
         Some(lock) => lock,
         None => return,
     };
-    let host = Arc::new(GhostgetHost { helper: Mutex::new(None) });
+    let outputs = state_home().map(|home| OutputsSection::new(home.join("outputs")))
+        .unwrap_or_else(|| OutputsSection::new(PathBuf::from("outputs")));
+    let _ = std::fs::create_dir_all(outputs.dir());
+    let host = Arc::new(GhostgetHost { helper: Mutex::new(None), outputs });
     let options = Options { refresh: Duration::from_secs(5), companion_window: true };
     desktop_foundation::run(
         tauri::generate_context!(),
