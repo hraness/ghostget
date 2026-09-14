@@ -3,7 +3,7 @@
 use serde_json::{json, Value};
 use std::{collections::HashMap, fs::{File, OpenOptions}, io::{BufRead, BufReader, Write}, os::unix::io::AsRawFd, path::{Path, PathBuf}, process::{Child, ChildStdin, Command, Stdio}, sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}, mpsc::{self, SyncSender}}, time::Duration};
 use tauri::{Manager, State};
-use desktop_foundation::{outputs::OutputsSection, Host, MenuModel, MenuNode, Options};
+use desktop_foundation::{outputs::OutputsSection, Host, MenuItem, MenuModel, MenuNode, Options};
 
 const PROTOCOL: &str = "ghostget.control/1";
 const MAX_FRAME: usize = 4 * 1024 * 1024;
@@ -183,7 +183,11 @@ impl Host for GhostgetHost {
                 if approvals.is_empty() {
                     nodes.push(MenuNode::disabled("No pending approvals"));
                 } else {
-                    nodes.push(MenuNode::show_window(format!("{} pending approval{}", approvals.len(), if approvals.len() == 1 { "" } else { "s" })));
+                    nodes.push(MenuNode::interactive(
+                        MenuItem::action(desktop_foundation::WINDOW_SHOW_ACTION_ID, format!("{} pending approval{}", approvals.len(), if approvals.len() == 1 { "" } else { "s" }))
+                            .with_badge(approvals.len().to_string())
+                            .with_shortcut("CmdOrCtrl+Shift+A"),
+                    ));
                     for approval in approvals.iter().take(5) {
                         let title = approval.get("title").and_then(Value::as_str).unwrap_or("Approval request");
                         nodes.push(MenuNode::show_window(format!("  {}", title.chars().take(60).collect::<String>())));
