@@ -3,12 +3,11 @@
 The `ghostget menubar` command is a foreground process over a prebuilt
 companion. It does not compile or assemble a desktop app at launch.
 
-Ghostget's existing native release is a Tauri application whose executable
-depends on the adjacent `ghostget-runtime/` resource tree. A bare
-`target/release/ghostget-desktop` copied out of that bundle is not a valid
-release artifact. A future menu-bar sidecar must therefore publish either a
-standalone companion with no bundle-relative resources, or an immutable
-architecture-specific bundle/resource archive:
+The former Tauri control panel is a local development surface and is not a
+product release. Its bundle is disabled in the checked-in configuration. The
+menu-bar command consumes a standalone companion plus its explicitly staged
+runtime directory; neither is nested in an `.app`. Publish an immutable
+architecture-specific sidecar archive:
 
 ```
 ghostget-menubar-darwin-arm64
@@ -21,5 +20,6 @@ inventory. The installer may extract only that verified inventory and then
 create the per-user LaunchAgent.
 
 The current CLI accepts an existing qualified binary (or the explicit
-`GHOSTGET_DESKTOP` override) and fails closed otherwise. It intentionally does
-not select a debug target or silently strip the Tauri resource tree.
+`GHOSTGET_MENUBAR` override; `GHOSTGET_DESKTOP` remains a compatibility alias)
+and fails closed otherwise. It never selects a debug target, compiles source,
+or silently strips a Tauri resource tree.

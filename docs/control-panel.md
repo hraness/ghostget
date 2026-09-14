@@ -1,8 +1,13 @@
-# Native control panel
+# Native control panel (local development)
 
-Ghostget's macOS app manages the local kernel your agent uses. It does not run a
-model. Accounts, capabilities, user interfaces, web rules, approvals, activity,
-and copyable agent instructions are available in one window.
+The former Ghostget macOS control panel is retained for local qualification and
+is not a distributed product. Ghostget releases are CLI-first; the menu-bar
+companion is the only native surface intended for users. It does not require an
+`.app`, signing, or notarization artifact.
+
+When built locally, the panel manages the local kernel your agent uses. It does
+not run a model. Accounts, capabilities, user interfaces, web rules, approvals,
+activity, and copyable agent instructions are available in one window.
 
 Pending approvals update every four seconds while the app is visible. Accounts
 and capabilities refresh when you return to the app, after changes made in the
