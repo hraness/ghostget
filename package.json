@@ -614,7 +614,8 @@
     "kb:check": "bunx --bun github:hraness/kb#v0.15.2 check --root kb && bunx --bun github:hraness/kb#v0.15.2 agents check --root kb --repo .",
     "kb:catalog": "bunx --bun github:hraness/kb#v0.15.2 catalog --root kb",
     "prepack": "bun run check",
-    "check:effect": "bun scripts/check-effect-architecture.ts"
+    "check:effect": "bun scripts/check-effect-architecture.ts",
+    "menubar:build": "bun scripts/build-menubar.ts"
   },
   "dependencies": {
     "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
