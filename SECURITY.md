@@ -34,11 +34,12 @@ cannot create an arbitrary authenticated HTTP executor. The first 1Password
 sink is an X user-context token: a separate credential process resolves the
 selected field, verifies the exact X subject, and retains an owner-only local
 copy. Raw secrets do not enter the renderer, agent protocol, or diagnostics.
-Browser password and passkey login stays in the system browser. Signed desktop
-authentication and a public native installer require separate live admission;
-publishing the CLI does not qualify them. Direct scenarios are development-only
-and are excluded from the production native graph. Public marketing frames are
-inert renders of those shared UI scenarios and contain no executable script.
+Browser password and passkey login stays in the system browser. Ghostget is
+distributed as a CLI with an unbundled macOS menu-bar companion; there is no
+Ghostget desktop app bundle or native installer. Publishing the CLI does not
+qualify third-party providers. Direct scenarios are development-only and are
+excluded from the production companion graph. Public marketing pages are
+inert documentation and contain no executable control surface.
 
 Source plugins are trusted in-process code. Portable plugins require an
 explicit trust decision for one verified content-addressed bundle and execute
