@@ -1,7 +1,7 @@
 /**
  * Static CLI help kept separate from the command implementation graph.
  *
- * The installed entrypoint imports only this module and the static release
+ * The installed entrypoint imports only static help, terminal identity, and release
  * identity for a valid help request, so help remains available even when an
  * optional provider runtime is broken.
  */

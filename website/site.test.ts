@@ -6,7 +6,6 @@ import { join, resolve } from "node:path";
 import {
   HRANESS_HOME_URL,
   HRANESS_MAILING_SUBSCRIBE_URL,
-  HRANESS_TURNSTILE_SCRIPT_URL,
   hranessSocialLinks,
 } from "@hraness/site-footer";
 
@@ -28,7 +27,6 @@ import {
   SITE_TITLE,
   SKILLS_URL,
   versionedPackageArtifactUrl,
-  GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV,
   ghostgetMailingListConfig,
   type UiStylesheetImport,
 } from "./build";
@@ -168,15 +166,15 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.5.2",
-        "@hraness/site-footer": "github:hraness/site-footer#v0.6.1",
-        "@hraness/ui": "github:hraness/ui#v0.5.7",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.8.0",
+        "@hraness/site-footer": "github:hraness/site-footer#v0.9.0",
+        "@hraness/ui": "github:hraness/ui#v0.5.13",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.5.2"');
-    expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.7"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.8.0"');
+    expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.13"');
     expect(lockfile).toContain(
-      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#590056b"',
+      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#9711848"',
     );
   });
 
@@ -247,30 +245,18 @@ describe("ghostget.com static site", () => {
       .toThrow("descriptions must stay identical");
   });
 
-  test("binds signup to Ghostget and fails production closed without a key", () => {
-    const turnstileSitekey = "1x00000000000000000000AA";
+  test("binds signup to Ghostget in production only", () => {
     expect(ghostgetMailingListConfig({
-      [GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV]: turnstileSitekey,
+      VERCEL_ENV: "production",
     })).toEqual({
       audience: "wrench",
       kind: "signup",
-      turnstileSitekey,
     });
     expect(ghostgetMailingListConfig({})).toEqual({ kind: "none" });
-    expect(ghostgetMailingListConfig({
-      [GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV]: "",
-    })).toEqual({ kind: "none" });
     expect(ghostgetMailingListConfig({ VERCEL_ENV: "preview" }))
       .toEqual({ kind: "none" });
-    for (const turnstileSitekey of [undefined, ""]) {
-      expect(() => ghostgetMailingListConfig({
-        [GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV]: turnstileSitekey,
-        VERCEL_ENV: "production",
-      })).toThrow(GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV);
-    }
-    expect(() => ghostgetMailingListConfig({
-      [GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV]: "not a public key",
-    })).toThrow(GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV);
+    expect(ghostgetMailingListConfig({ VERCEL_ENV: "development" }))
+      .toEqual({ kind: "none" });
   });
 
   test("builds canonical discovery, semantic content, and private-key-free analytics", async () => {
@@ -290,7 +276,7 @@ describe("ghostget.com static site", () => {
     await mkdir(join(websiteRoot, "dist/.well-known"), { recursive: true });
     await writeFile(staleMarkerPath, "stale marker must not survive preview/local output\n");
     await buildWebsite({
-      [GHOSTGET_MAILING_TURNSTILE_SITEKEY_ENV]: "1x00000000000000000000AA",
+      VERCEL_ENV: "production",
       NEXT_PUBLIC_POSTHOG_HOST: DEFAULT_POSTHOG_HOST,
       NEXT_PUBLIC_POSTHOG_KEY: "phc_public_project_token",
     });
@@ -306,7 +292,7 @@ describe("ghostget.com static site", () => {
       readFile(join(websiteRoot, "dist/robots.txt"), "utf8"),
       readFile(join(websiteRoot, "dist/sitemap.xml"), "utf8"),
       readFile(join(websiteRoot, "dist/dc84ee4863539f2fff50ef5f0a164168.txt"), "utf8"),
-      readFile(join(websiteRoot, "dist/favicon.svg"), "utf8"),
+      readFile(join(websiteRoot, "dist/icon.png")),
       readFile(join(websiteRoot, "source/styles.css"), "utf8"),
       Promise.all(DEMO_PUBLIC_FILES.map(async (file) => ({
         file,
@@ -325,9 +311,18 @@ describe("ghostget.com static site", () => {
     expect(builtCss).not.toMatch(/@import\b/iu);
     expect(builtCss.startsWith("@layer base, components;")).toBe(true);
     const presetCss = await readFile(join(websiteRoot, "vendor/marketing-preset/product-marketing-preset.css"), "utf8");
-    expect(builtCss.endsWith(`${sourceCss.trimEnd()}\n\n${presetCss}\n`)).toBe(true);
+    const lanternCss = await readFile(join(websiteRoot, "vendor/lantern-material/lantern-material.css"), "utf8");
+    expect(builtCss.endsWith(`${sourceCss.trimEnd()}\n\n${presetCss}\n\n${lanternCss}\n`)).toBe(true);
+    expect(builtCss.split(lanternCss)).toHaveLength(2);
     expect(html).toContain('data-hraness-marketing-preset="editorial"');
-    expect(html).toContain('<main class="hraness-marketing-field" id="main">');
+    expect(html).toContain('data-hraness-material="lantern"');
+    expect(html).toContain('<main id="main">');
+    expect(html).not.toContain('class="hraness-marketing-field"');
+    for (const page of pages.slice(1)) expect(page.html).not.toContain('data-hraness-material="lantern"');
+    for (const path of ["LICENSE", "provenance.json"]) {
+      expect(Buffer.compare(await readFile(join(websiteRoot, "dist/assets/lantern-material", path)),
+        await readFile(join(websiteRoot, "vendor/lantern-material", path)))).toBe(0);
+    }
     for (const path of ["fonts/instrument-serif/instrument-serif-latin-400.woff2", "fonts/instrument-serif/OFL.txt", "marketing-assets/grain.svg", "marketing-assets/cells.svg"]) {
       expect(await readFile(join(websiteRoot, "dist/assets", path))).toEqual(await readFile(join(websiteRoot, "vendor/marketing-preset", path)));
     }
@@ -420,7 +415,7 @@ describe("ghostget.com static site", () => {
     expect(notFound).not.toContain('data-slot="ask-ai-about-this"');
     expect(html).toContain(`<meta name="description" content="${SITE_DESCRIPTION}">`);
     expect(html).toContain('<link rel="canonical" href="https://ghostget.com/">');
-    expect(html).toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml">');
+    expect(html).toContain('<link rel="icon" href="/icon.png" type="image/png" sizes="512x512">');
     expect(html).toContain('<meta property="og:image" content="https://ghostget.com/og.png">');
     expect(html).toContain('<meta property="og:image:width" content="1200">');
     expect(html).toContain('<meta property="og:image:height" content="630">');
@@ -532,7 +527,7 @@ describe("ghostget.com static site", () => {
     expect(html).not.toContain('class="hraness-marketing-hero__example"');
     expect(html).toContain('import { isProviderPluginId } from "@hraness/ghostget"');
     expect(html).toMatch(/Reviewed operations across \d+ supported services\./u);
-    expect(html).toContain('class="wordmark" href="/">Ghostget</a>');
+    expect(html).toContain('aria-label="Ghostget home" class="wordmark" href="/"><span aria-hidden="true">👻</span> Ghostget</a>');
     expect(html).not.toMatch(/hero-field|hero-orbit|hero-glyph/u);
     expect(html).not.toMatch(/observed provider operations|capture-required|unavailable reservations/iu);
     expect(html).not.toContain("🔧");
@@ -624,7 +619,10 @@ describe("ghostget.com static site", () => {
     expect(sitemap).not.toContain("/preview/");
     expect(llms).not.toContain("/preview/");
     expect(indexNowKey).toBe("dc84ee4863539f2fff50ef5f0a164168\n");
-    expect(favicon).toContain('viewBox="0 0 64 64"');
+    expect(createHash("sha256").update(favicon).digest("hex")).toBe("8ab02075b8b531513373a4012b5a2856b4a391d7cb349a555dc172123bb88ef0");
+    expect(favicon).toEqual(await readFile(join(websiteRoot, "public/icon.png")));
+    expect(await readFile(join(websiteRoot, "dist/apple-icon.png"))).toEqual(await readFile(join(websiteRoot, "public/apple-icon.png")));
+    expect(html).toContain('<link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">');
     expect(sourceCss).toContain("@media (prefers-reduced-motion: reduce)");
     expect(sourceCss).toContain("@media (forced-colors: active)");
     expect(sourceCss).toContain(
@@ -642,7 +640,7 @@ describe("ghostget.com static site", () => {
         /\.ghostget-product-hero\s*\{[^{}]*\bgrid-column:\s*1\s*\/\s*-1\s*;/u,
       );
       expect(cssPropertyValues(css, ".ghostget-product-hero .hero-explainer", "color").at(-1))
-        .toBe("var(--hraness-marketing-field-muted, var(--muted))");
+        .toBe("var(--hraness-material-muted, var(--muted))");
       expect(cssPropertyValues(css, '.hraness-marketing-action[data-emphasis="primary"]', "color").at(-1))
         .toBe("var(--accent-ink)");
       const providerMarkDisplay = cssPropertyValues(css, ".provider-mark", "display");
@@ -667,7 +665,9 @@ describe("ghostget.com static site", () => {
       expect(footer).toContain('data-mailing-list="signup"');
       expect(footer).toContain(`action="${HRANESS_MAILING_SUBSCRIBE_URL}"`);
       expect(footer).toContain('name="audience" type="hidden" value="wrench"');
-      expect(footer).toContain(`src="${HRANESS_TURNSTILE_SCRIPT_URL}"`);
+      expect(footer).toContain('name="website"');
+      expect(footer).not.toContain("challenges.cloudflare.com");
+      expect(footer).not.toContain("turnstile");
       expect(footer?.match(/data-slot="hraness-mark"/gu)).toHaveLength(1);
       expect(footer?.match(/data-slot="social-icon"/gu)).toHaveLength(
         hranessSocialLinks.length,
@@ -743,7 +743,7 @@ describe("ghostget.com static site", () => {
       { key: "X-Frame-Options", value: "DENY" },
       {
         key: "Content-Security-Policy",
-        value: "form-action 'self' https://account.hraness.com; frame-src 'self' https://challenges.cloudflare.com; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://*.posthog.com https://*.posthogusercontent.com",
+        value: "form-action 'self' https://account.hraness.com; frame-src 'self'; script-src 'self' 'unsafe-inline' https://*.posthog.com https://*.posthogusercontent.com",
       },
     ]);
     const frameDenyPattern = /^\/((?!preview\/$|control\/).*)$/u;
@@ -859,7 +859,7 @@ describe("ghostget.com static site", () => {
       const canonicalUrl = `${SITE_ORIGIN}${definition.canonicalPath}`;
       expect(pageHtml).toContain(`<title>${definition.title}</title>`);
       expect(pageHtml).toContain(`<meta name="description" content="${definition.description}">`);
-      expect(pageHtml).toContain('class="wordmark" href="/">Ghostget</a>');
+      expect(pageHtml).toContain('aria-label="Ghostget home" class="wordmark" href="/"><span aria-hidden="true">👻</span> Ghostget</a>');
       expect(pageHtml).not.toContain('class="wordmark" href="/">GHOSTGET</a>');
       expect(pageHtml).toContain(`<link rel="canonical" href="${canonicalUrl}">`);
       expect(pageHtml).toContain(`<meta property="og:title" content="${definition.title}">`);
@@ -1130,7 +1130,7 @@ describe("ghostget.com static site", () => {
         .trim();
     const expectedMailingCopy = [
       "Ghostget mailing-list subscriptions are separate",
-      "The optional footer form loads Cloudflare Turnstile. When you submit it, Hraness Accounts processes the email address and Turnstile response at https://account.hraness.com/api/mailing/subscribe. Each request uses the fixed wrench audience and source=hraness-site-footer. An eligible request records a pending Ghostget membership. Resend processes the email address to deliver a confirmation message from newsletter@news.hraness.com. The emailed link opens the Hraness Accounts confirmation page. Only the page's explicit Confirm subscription POST records consent and changes the membership to subscribed.",
+      "The optional footer form submits to Hraness Accounts, which processes the email address at https://account.hraness.com/api/mailing/subscribe. Each request uses the fixed wrench audience and source=hraness-site-footer. An eligible request records a pending Ghostget membership. Resend processes the email address to deliver a confirmation message from newsletter@news.hraness.com. The emailed link opens the Hraness Accounts confirmation page. Only the page's explicit Confirm subscription POST records consent and changes the membership to subscribed.",
       "Subscribed members can receive later Ghostget mail through Resend from news.hraness.com. Unsubscribing retains the Ghostget membership and consent history, changes only that membership to unsubscribed, and leaves every other Hraness audience unchanged. The mailing list is optional: using the Ghostget CLI, SDK, or ghostget.com does not require a subscription, and a Ghostget subscription does not enroll the address in another Hraness audience.",
     ].join(" ");
     const normalizedMailingCopies = [mailingHtml, mailingMarkdown].map(normalizeMailingCopy);
