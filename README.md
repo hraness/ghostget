@@ -18,13 +18,10 @@ implementation, and risk level. If those facts drift, the operation stops. It
 does not silently fall back to general browser control.
 
 Bring the model, planner, and tool loop you prefer. Ghostget supplies precise web
-capabilities with local custody and explicit evidence. Its native macOS control
-panel manages accounts, operation permissions, human approvals, editable OpenAPI
-interfaces, and a searchable local web request log. See the
-[control panel guide](docs/control-panel.md) and [native source build](https://github.com/hraness/ghostget/blob/v0.18.4/desktop/README.md).
+capabilities with local custody and explicit evidence. Its macOS menu-bar companion manages accounts, operation permissions, human approvals, editable OpenAPI interfaces, and a searchable local web request log. See the [menu-bar companion guide](docs/menubar-release.md).
 
 The separate public web gateway admits exact HTTPS retrieval URLs under human
-domain and path rules. Use `ghostget web request <url>` with the app open, and
+domain and path rules. Use `ghostget web request <url>` with the menu-bar companion running, and
 enable gateway-only mode when the harness should use Ghostget as its sole web
 tool. It is an application permission boundary, not an operating-system firewall.
 
