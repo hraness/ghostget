@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { lstatSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 import type { ControlEnvironment } from "./web-policy";
@@ -20,9 +20,22 @@ export function resolveDesktopBinary(environment: ControlEnvironment = process.e
     resolve(import.meta.dir, "../../desktop/src-tauri/target/debug/ghostget-desktop"),
   ];
   for (const candidate of candidates) {
-    if (candidate !== undefined && candidate !== "" && existsSync(candidate)) return candidate;
+    if (candidate !== undefined && candidate !== "" && qualifiedBinary(candidate)) return candidate;
   }
   return null;
+}
+
+/** Accept only a prebuilt executable that cannot be replaced by its group or
+ * other users. The menu-bar process runs detached, so launching a writable
+ * path would turn a convenience command into a local code-execution footgun.
+ */
+function qualifiedBinary(path: string): boolean {
+  try {
+    const info = lstatSync(path);
+    return info.isFile() && (info.mode & 0o111) !== 0 && (info.mode & 0o022) === 0;
+  } catch {
+    return false;
+  }
 }
 
 export async function runMenubarCommand(
@@ -42,7 +55,10 @@ export async function runMenubarCommand(
   }
   let child;
   try {
-    child = Bun.spawn([binary], { stdin: "ignore", stdout: "ignore", stderr: "pipe" });
+    // The companion owns its diagnostics. Do not leave a pipe unread: a
+    // noisy crash or repeated retry could otherwise fill stderr and wedge the
+    // launcher while it is waiting for the short startup settle window.
+    child = Bun.spawn([binary], { stdin: "ignore", stdout: "ignore", stderr: "ignore" });
   } catch {
     output.stderr("The Ghostget desktop binary could not start.\n");
     return 1;
