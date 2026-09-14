@@ -1,3 +1,11 @@
+// Menu-bar companion candidate: the shared-foundation port adds the
+// `ghostget menubar` launcher, which bundles into the existing CLI entry
+// chunks. Required Linux CI run 34794821049 measured 22,522,826 unpacked
+// bytes and the clean macOS pack measured 22,522,982, both across exactly
+// 559 files with the packed ceiling unchanged. Retain the reviewed 65-byte
+// payload allowance above the larger measurement:
+// 22,522,982 + 65 = 22,523,047.
+//
 // Ghostget 0.18.4 interactive root-help refinement over main 9cb3cbe.
 // Two canonical npm 11.19.0 packs with --ignore-scripts under official
 // Node 24.20.0 darwin-arm64 / zlib 1.3.2.1-motley-42c2f19 are byte-identical:
@@ -820,7 +828,7 @@
 export const MAX_PACKED_BYTES = 11_662_943;
 export const MAX_PACKED_ENTRIES = 559;
 export const MAX_PACKED_FILES = 559;
-export const MAX_UNPACKED_BYTES = 22_522_608;
+export const MAX_UNPACKED_BYTES = 22_523_047;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

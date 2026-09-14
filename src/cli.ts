@@ -196,6 +196,11 @@ export async function runGhostgetCliProcess(
       process.exitCode = runInterfaceCommand(rawArguments, process.env, resolvedOutput);
       return;
     }
+    if (rawArguments[0] === "menubar") {
+      const { runMenubarCommand } = await import("./control/menubar-cli");
+      process.exitCode = await runMenubarCommand(rawArguments, process.env, resolvedOutput);
+      return;
+    }
   } catch {
     resolvedOutput.stderr("Ghostget gateway-only policy blocks this command, or its policy state is unavailable. Review the native app.\n");
     process.exitCode = 1;

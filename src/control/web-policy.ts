@@ -50,7 +50,7 @@ export function checkWebRequest(method:"GET"|"HEAD", rawUrl:string, environment:
 export function assertGatewayCommandAllowed(args: readonly string[], environment:ControlEnvironment=process.env): void {
   if(!readWebPolicy(environment).gatewayOnly) return;
   const first=args[0];
-  if(first==="web" || first==="capabilities" || first==="--version" || first==="help" || first==="--help" || first==="-h" || args.length===0) return;
+  if(first==="web" || first==="capabilities" || first==="menubar" || first==="--version" || first==="help" || first==="--help" || first==="-h" || args.length===0) return;
   if((first==="plugin"||first==="plugins") && ["list","show"].includes(args[1]??"")) return;
   throw new ControlError("GATEWAY_ONLY","This state home permits web gateway requests only. Use ghostget web request or change the mode in the native app.");
 }

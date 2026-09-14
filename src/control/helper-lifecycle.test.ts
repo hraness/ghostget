@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { agentRequest } from "./approval-client";
@@ -107,6 +107,22 @@ test("actual helper separates admin and agent channels, rejects a second owner, 
   const stored = readFileSync(path); expect(stored.includes(Buffer.from("synthetic-query-marker"))).toBe(false); expect(stored.includes(Buffer.from("synthetic-pending-marker"))).toBe(false);
   const restarted = launch(fixtureState.environment); expect(snapshot(await restarted.request({ action: "snapshot", accountId: null })).approvals).toEqual([]);
   expect((await restarted.end()).code).toBe(0); assertNoOwner(fixtureState.root);
+});
+
+test("actual helper reclaims a socket file left by a dead owner", async () => {
+  const fixtureState = fixture();
+  const directory = join(fixtureState.root, "control"); mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const socketPath = join(directory, "agent.sock");
+  const stale = Bun.spawn(
+    [process.execPath, "-e", `require("net").createServer().listen(${JSON.stringify(socketPath)});setInterval(()=>{},10000);`],
+    { env: fixtureState.environment, stdout: "ignore", stderr: "ignore" },
+  );
+  cleanups.push(async () => { stale.kill("SIGKILL"); await bounded(stale.exited, 2000); });
+  for (let attempt = 0; attempt < 100 && !existsSync(socketPath); attempt++) await new Promise(resolve => setTimeout(resolve, 20));
+  chmodSync(socketPath, 0o600); stale.kill("SIGKILL"); await bounded(stale.exited, 2000);
+  const helper = launch(fixtureState.environment);
+  snapshot(await helper.request({ action: "snapshot", accountId: null }));
+  expect((await helper.end()).code).toBe(0); assertNoOwner(fixtureState.root);
 });
 
 test("actual helper SIGTERM and truncated control frames remove only their owned socket and claim", async () => {
