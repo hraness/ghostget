@@ -18,11 +18,12 @@ bun desktop/scripts/package.ts --stage-only
 bun desktop/scripts/native-smoke.ts
 ```
 
-Native packaging requires the root owner's mac-native compute lane. After staging
-resources, invoke the pinned Tauri CLI from `desktop/src-tauri`. The default
-bundle target is the `.app`. Signing and notarization are separate release gates;
-a locally built unsigned bundle is not release-qualified. The runtime manifest
-records exact input bytes; signatures cover the final shipped resource tree.
+The native control panel is a local development surface. The pinned Tauri host
+can still be compiled for local qualification, but bundle generation is disabled
+and no `.app`, signing, or notarization artifact is part of a Ghostget release.
+The menu-bar product path uses a standalone prebuilt companion and never invokes
+this source build at launch. The runtime manifest records exact input bytes for
+local qualification only.
 The installed 1Password app supplies its own IPC library. No vault data or
 1Password library is copied into the app.
 

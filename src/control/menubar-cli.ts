@@ -10,7 +10,10 @@ function xml(value: string): string { return value.replaceAll("&", "&amp;").repl
 function exists(path: string): boolean { try { return statSync(path).isFile(); } catch { return false; } }
 
 export function resolveDesktopBinary(environment: ControlEnvironment = process.env): string | null {
-  const candidates = [environment.GHOSTGET_DESKTOP, resolve(dirname(process.execPath), "ghostget-desktop"), resolve(import.meta.dir, "../../desktop/src-tauri/target/release/ghostget-desktop")];
+  // Consume a prebuilt companion only. Keep GHOSTGET_DESKTOP as a
+  // compatibility alias for existing local installs, but prefer the explicit
+  // menu-bar name and never trigger a source build or app bundling step.
+  const candidates = [environment.GHOSTGET_MENUBAR, environment.GHOSTGET_DESKTOP, resolve(dirname(process.execPath), "ghostget-menubar"), resolve(dirname(process.execPath), "ghostget-desktop"), resolve(import.meta.dir, "../../desktop/src-tauri/target/release/ghostget-menubar"), resolve(import.meta.dir, "../../desktop/src-tauri/target/release/ghostget-desktop")];
   for (const candidate of candidates) if (candidate !== undefined && candidate !== "" && exists(candidate)) return candidate;
   return null;
 }
@@ -47,7 +50,7 @@ export function uninstallLaunchAgent(binary: string, environment: Readonly<Recor
 }
 async function runBinary(binary: string, foreground: boolean): Promise<number> {
   let child: Bun.Subprocess;
-  try { child = Bun.spawn([binary], foreground ? { stdin: "inherit", stdout: "inherit", stderr: "inherit" } : { stdin: "ignore", stdout: "ignore", stderr: "pipe" }); } catch { throw new Error("The Ghostget desktop binary could not start."); }
+  try { child = Bun.spawn([binary], foreground ? { stdin: "inherit", stdout: "inherit", stderr: "inherit" } : { stdin: "ignore", stdout: "ignore", stderr: "pipe" }); } catch { throw new Error("The Ghostget menu-bar companion could not start."); }
   if (!foreground) { child.unref(); const settled = await Promise.race([child.exited.then((code) => code as number | null), Bun.sleep(SETTLE_MS).then(() => null)]); if (settled !== null && settled !== 0) throw new Error("The Ghostget desktop exited during startup."); return 0; }
   return await child.exited;
 }
@@ -55,7 +58,7 @@ export async function runMenubarCommand(args: readonly string[], environment: Co
   if (args[1] === "--help") { output.stdout("Usage: ghostget menubar [--foreground|--background]\n       ghostget menubar install|uninstall|status\nRuns the prebuilt menu-bar companion; install writes a per-user LaunchAgent (RunAtLoad, no KeepAlive).\n"); return 0; }
   if (args.length > 2 || (args[1] !== undefined && !["install", "uninstall", "status", "--foreground", "--background"].includes(args[1]))) { output.stderr("Usage: ghostget menubar [--foreground|--background] | install|uninstall|status\n"); return 1; }
   const action = args[1] === "install" || args[1] === "uninstall" || args[1] === "status" ? args[1] : "run";
-  const binary = resolveDesktopBinary(environment); if (binary === null) { output.stderr("The Ghostget desktop binary is not installed; build it separately or set GHOSTGET_DESKTOP.\n"); return 1; }
+  const binary = resolveDesktopBinary(environment); if (binary === null) { output.stderr("The Ghostget menu-bar companion is not installed; install a prebuilt binary or set GHOSTGET_MENUBAR.\n"); return 1; }
   try {
     if (action === "install") { const state = installLaunchAgent(binary, environment); output.stdout(`Ghostget menu-bar LaunchAgent ${state}.\n`); return 0; }
     if (action === "uninstall") { const state = uninstallLaunchAgent(binary, environment); output.stdout(`Ghostget menu-bar LaunchAgent ${state}.\n`); return 0; }
