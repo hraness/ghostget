@@ -107,7 +107,7 @@ test("actual helper separates admin and agent channels, rejects a second owner, 
   const stored = readFileSync(path); expect(stored.includes(Buffer.from("synthetic-query-marker"))).toBe(false); expect(stored.includes(Buffer.from("synthetic-pending-marker"))).toBe(false);
   const restarted = launch(fixtureState.environment); expect(snapshot(await restarted.request({ action: "snapshot", accountId: null })).approvals).toEqual([]);
   expect((await restarted.end()).code).toBe(0); assertNoOwner(fixtureState.root);
-}, 30_000);
+});
 
 test("actual helper reclaims a socket file left by a dead owner", async () => {
   const fixtureState = fixture();
@@ -123,7 +123,7 @@ test("actual helper reclaims a socket file left by a dead owner", async () => {
   const helper = launch(fixtureState.environment);
   snapshot(await helper.request({ action: "snapshot", accountId: null }));
   expect((await helper.end()).code).toBe(0); assertNoOwner(fixtureState.root);
-}, 30_000);
+});
 
 test("actual helper SIGTERM and truncated control frames remove only their owned socket and claim", async () => {
   for (const shutdown of ["signal", "partial"] as const) {
@@ -134,4 +134,4 @@ test("actual helper SIGTERM and truncated control frames remove only their owned
     expect([0, 1]).toContain(result.code); assertNoOwner(fixtureState.root);
     if (shutdown === "partial") expect(result.code).toBe(1);
   }
-}, 30_000);
+});
