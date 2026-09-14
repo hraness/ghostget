@@ -16,3 +16,13 @@ inventory. The installer may extract only that verified inventory and then
 create the per-user LaunchAgent.
 
 The current CLI accepts an existing qualified binary (or the explicit `GHOSTGET_MENUBAR` override) and fails closed otherwise. It never selects a debug target or compiles source.
+
+Build the standalone companion explicitly on macOS:
+
+```sh
+bun run menubar:build
+```
+
+This writes `dist/ghostget-menubar`, a Mach-O executable. Copy that verified
+binary into the release sidecar or set `GHOSTGET_MENUBAR` for local testing;
+`ghostget menubar` never invokes this build command itself.
