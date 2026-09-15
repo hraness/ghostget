@@ -5,8 +5,8 @@
 // and install-command references account for the 455 payload bytes above
 // the menu-bar measurement; version literals retain their length and the
 // packed-file inventory and website/package boundary are unchanged.
-// Keep the reviewed 65-byte payload allowance: 22,523,437 + 65 =
-// 22,523,502. The compressed measurement stays under the existing
+// Keep the reviewed 65-byte payload allowance: 22,523,437 + 65 = 22,523,502.
+// The compressed measurement stays under the existing
 // 4,096-byte compressor allowance. Fresh Required Linux CI and Release
 // still admit their actual canonical bytes.
 //
