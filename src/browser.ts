@@ -2829,10 +2829,10 @@ async function recoverPinnedAgentBrowserCleanupResourceAfterCloseAttempt(
     lastNow = value;
     return value;
   };
-  const deadline = now() + BROWSER_RESOURCE_TEARDOWN_TIMEOUT_MS;
+  const deadline = now() + BROWSER_POST_CLOSE_CONVERGENCE_TIMEOUT_MS;
   const retryIntervalMs = 25;
   const maximumAttempts = Math.ceil(
-    BROWSER_RESOURCE_TEARDOWN_TIMEOUT_MS / retryIntervalMs,
+    BROWSER_POST_CLOSE_CONVERGENCE_TIMEOUT_MS / retryIntervalMs,
   ) + 1;
   let attempts = 0;
   let lastTransitionFailure: unknown = new Error(
@@ -3116,6 +3116,11 @@ export function browserResultData(record: JsonRecord): unknown {
 
 const BROWSER_SETUP_DEADLINE_LABEL = "browser session setup";
 const BROWSER_CLOSE_TEARDOWN_TIMEOUT_MS = 17_500;
+// A close command can lose its acknowledgement while agent-browser is still
+// finishing an otherwise healthy Chrome shutdown. Keep that transition wait
+// distinct from the short per-resource teardown bound and inside the outer
+// 30-second cleanup join.
+const BROWSER_POST_CLOSE_CONVERGENCE_TIMEOUT_MS = 10_000;
 const BROWSER_RESOURCE_TEARDOWN_TIMEOUT_MS = 2_000;
 const BROWSER_ACTIVE_BATCH_SETTLEMENT_TIMEOUT_MS = 2_500;
 
