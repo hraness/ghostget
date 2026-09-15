@@ -184,7 +184,7 @@ impl Host for GhostgetHost {
                     nodes.push(MenuNode::disabled("No pending approvals"));
                 } else {
                     nodes.push(MenuNode::interactive(
-                        MenuItem::action(desktop_foundation::WINDOW_SHOW_ACTION_ID, format!("{} pending approval{}", approvals.len(), if approvals.len() == 1 { "" } else { "s" }))
+                        MenuItem::action(desktop_foundation::WINDOW_SHOW_ACTION_ID, "Pending approvals")
                             .with_badge(approvals.len().to_string())
                             .with_shortcut("CmdOrCtrl+Shift+A"),
                     ));

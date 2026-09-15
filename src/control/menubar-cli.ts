@@ -25,9 +25,9 @@ export function resolveDesktopBinary(environment: ControlEnvironment = process.e
   return null;
 }
 
-/** Accept only a prebuilt executable that cannot be replaced by its group or
- * other users. The menu-bar process runs detached, so launching a writable
- * path would turn a convenience command into a local code-execution footgun.
+/** Accept regular executable files without group or other write bits.
+ * This filters accidental directories, symlinks, and writable binaries; it does
+ * not qualify ownership of parent directories or eliminate filesystem races.
  */
 function qualifiedBinary(path: string): boolean {
   try {
