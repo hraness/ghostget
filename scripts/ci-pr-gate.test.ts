@@ -135,6 +135,11 @@ describe("macOS PR check subset", () => {
     const steps = workflow.jobs.macos.steps;
     expect(steps.some(step => step.run === "bun run check:macos")).toBeTrue();
     expect(steps.some(step => step.run === "bun run menubar:check")).toBeTrue();
+    expect(steps.filter(step => step.run === "swift build")).toEqual([
+      { name: "Build Swift analysis target", run: "swift build" },
+    ]);
+    expect(steps.findIndex(step => step.run === "swift build"))
+      .toBeGreaterThan(steps.findIndex(step => step.run === "bun run menubar:check"));
     expect(steps.some(step => (step.run ?? "").includes("desktop"))).toBeFalse();
     expect(Object.keys(manifest.scripts).some(name => name.startsWith("desktop"))).toBeFalse();
     expect(workflow.jobs.required.needs).toContain("macos");

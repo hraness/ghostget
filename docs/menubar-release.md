@@ -35,6 +35,12 @@ builds the executable without running the model checks. For local testing, set
 `ghostget menubar`. Direct invocation without `--outputs-directory` shows outputs
 as unavailable; it does not guess a state home.
 
+The root Swift package lets security analysis discover these same two runtime
+sources through `swift build` on macOS. It has no external dependencies or app
+resources, and excludes the synthetic test entry point. The direct build above
+remains the companion build; the analysis build is not a published sidecar and
+does not set a new supported macOS version. Neither build enters the CLI archive.
+
 `ghostget menubar --background` detaches the companion. `ghostget menubar install`
 records its exact executable and output-directory arguments in a per-user
 LaunchAgent with `RunAtLoad` enabled and `KeepAlive` disabled.

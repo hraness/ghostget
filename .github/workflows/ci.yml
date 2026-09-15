@@ -221,6 +221,8 @@ jobs:
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run check:macos
       - run: bun run menubar:check
+      - name: Build Swift analysis target
+        run: swift build
 
   required:
     name: Required
