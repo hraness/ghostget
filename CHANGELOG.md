@@ -7,13 +7,26 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.10
+
+- Give contained-browser cleanup ten seconds to observe a normal daemon exit
+  after close. LinkedIn and Instagram profile-stat reads no longer retain a
+  cleanup-required claim merely because the daemon needs more than two seconds
+  to stop; identity drift, live endpoints, and unverifiable cleanup still fail
+  closed and preserve exact recovery evidence.
+
+## 0.18.9
+
+- Repin the shared site footer to v0.11.1. Public pages render the famous
+  example-email signup placeholders, the narrower signup field, and the
+  subscribe disclosure and account navigation markup from the current footer.
+
 ## 0.18.8
 
-- Let lost browser-close acknowledgements converge for up to ten seconds before
-  preserving cleanup-required recovery evidence. LinkedIn and Instagram profile
-  reads can now finish ordinary Chrome shutdowns that outlasted the old
-  per-resource two-second window, while owner, session, root, and CDP proofs and
-  the 30-second outer cleanup barrier remain fail-closed.
+- Suggest a local Git email address for optional product updates. The agent
+  can prefill the editable signup form after the person chooses an address;
+  sending confirmation still requires their request, and activation requires
+  inbox confirmation. Email suggestions stay out of links and shared state.
 
 ## 0.18.7
 

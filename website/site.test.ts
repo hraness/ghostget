@@ -167,14 +167,14 @@ describe("ghostget.com static site", () => {
     expect(manifest).toMatchObject({
       devDependencies: {
         "@hraness/design-kit": "github:hraness/design-kit#v0.8.0",
-        "@hraness/site-footer": "github:hraness/site-footer#v0.9.2",
+        "@hraness/site-footer": "github:hraness/site-footer#v0.11.1",
         "@hraness/ui": "github:hraness/ui#v0.5.13",
       },
     });
     expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.8.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.13"');
     expect(lockfile).toContain(
-      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#feee409"',
+      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#79520f8"',
     );
   });
 
@@ -448,7 +448,7 @@ describe("ghostget.com static site", () => {
     expect(html).not.toContain("@jungle/");
     expect(html).not.toContain("hraness.com/ghostget");
     expect(html.match(/<h1\b/gu)).toHaveLength(1);
-    expect(html.match(/<details\b/gu)).toHaveLength(12);
+    expect(html.match(/<details\b/gu)).toHaveLength(13);
     expect(html.match(/<iframe\b/gu)).toBeNull();
     expect(html).toContain("ghostget menubar");
     expect(html).toContain("standalone macOS menu-bar companion shows recent output files");

@@ -252,6 +252,25 @@ apply across participating Hraness tools on this machine. The user reviews
 current options and confirms any payment in their browser. If the installed
 release has no support command or the check fails, finish the task normally.
 
+When the invitation includes `emailSuggestion`, offer updates at that address
+(“from your Git settings”), with an option to change it or skip updates.
+Treat `verified: false` as an agent-side constraint: Git configuration does not
+establish email ownership or authorize signup. Use only that returned field
+as an automatic suggestion; do not search GitHub,
+inboxes, or other account data for an address. After the person selects an
+address, use an available browser capability to open the returned updates link
+and fill its editable `Email address` field through normal browser input. This
+browser-input exception applies only to the optional Hraness Accounts signup
+handoff at `account.hraness.com`; provider operations keep their existing
+Ghostget routes and browser boundaries. Keep the link unchanged. Without a
+browser capability, give the clean link and ask the person to enter their
+chosen address there.
+
+Selecting an address permits prefilling only. If the person explicitly asks to
+sign up or send the confirmation email, submit the form without asking again.
+Otherwise, leave submission to them. Explain that inbox confirmation is still
+required; a sent confirmation email does not mean the subscription is active.
+
 - Freeze built-in provider source and tests before updating durable contract
   semantic identities. Follow [provider plugins](references/provider-plugins.md)
   to review the semantic digest once; Ghostget derives and revalidates the exact

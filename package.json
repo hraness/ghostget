@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.18.8",
+  "version": "0.18.10",
   "description": "Open-source CLI and TypeScript SDK for precise web capabilities for AI agents: page capture, verified media archives, encrypted reads, and typed provider operations.",
   "license": "MIT",
   "type": "module",
@@ -622,7 +622,7 @@
   "dependencies": {
     "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
     "@hraness/message-like-me": "github:hraness/message-like-me#v0.7.0",
-    "@hraness/support-foundation": "github:hraness/support-foundation#381c8237e013b32a9fb34a5712295ab18f3d1b86",
+    "@hraness/support-foundation": "github:hraness/support-foundation#5650bfc74af771d3dabff410e01eff2fa5c8b2ca",
     "buffer-from": "1.1.2",
     "effect": "3.22.1",
     "source-map": "0.6.1",
@@ -632,7 +632,7 @@
   },
   "devDependencies": {
     "@hraness/design-kit": "github:hraness/design-kit#v0.8.0",
-    "@hraness/site-footer": "github:hraness/site-footer#v0.9.2",
+    "@hraness/site-footer": "github:hraness/site-footer#v0.11.1",
     "@hraness/ui": "github:hraness/ui#v0.5.13",
     "@steipete/sweet-cookie": "0.4.3",
     "@types/bun": "^1.3.14",
