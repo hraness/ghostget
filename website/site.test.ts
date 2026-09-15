@@ -167,14 +167,14 @@ describe("ghostget.com static site", () => {
     expect(manifest).toMatchObject({
       devDependencies: {
         "@hraness/design-kit": "github:hraness/design-kit#v0.8.0",
-        "@hraness/site-footer": "github:hraness/site-footer#v0.9.0",
+        "@hraness/site-footer": "github:hraness/site-footer#v0.9.2",
         "@hraness/ui": "github:hraness/ui#v0.5.13",
       },
     });
     expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.8.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.13"');
     expect(lockfile).toContain(
-      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#9711848"',
+      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#feee409"',
     );
   });
 
@@ -646,6 +646,7 @@ describe("ghostget.com static site", () => {
     }
     const expectedFooterHrefs = [
       HRANESS_HOME_URL,
+      "https://hraness.com/privacy",
       ...hranessSocialLinks.map(({ href }) => href),
     ];
     for (const document of [...pages.map(({ html: pageHtml }) => pageHtml), notFound]) {
