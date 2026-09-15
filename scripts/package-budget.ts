@@ -1,3 +1,11 @@
+// Optional support invitations over main edbe567 add one published source
+// module and exactly 3,695 payload bytes: package.json +101, src/cli.ts
+// +1,647, src/usage.ts +468, skills/ghostget/SKILL.md +622, and
+// src/support.ts +857. No generated SDK files or native assets change.
+// Retain the reviewed 65-byte payload allowance and packed-byte ceiling:
+// 22,523,437 + 3,695 + 65 = 22,527,197, with exactly 558 files.
+// Required Linux CI independently admits its rebuilt canonical archive.
+//
 // Ghostget 0.18.5 release candidate over main 202117c. A canonical npm
 // 11.19.0 pack with --ignore-scripts under Node 24.20.0 darwin-arm64
 // measured 11,649,401 compressed / 22,523,437 payload bytes across
@@ -838,9 +846,9 @@
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
 export const MAX_PACKED_BYTES = 11_662_943;
-export const MAX_PACKED_ENTRIES = 557;
-export const MAX_PACKED_FILES = 557;
-export const MAX_UNPACKED_BYTES = 22_523_502;
+export const MAX_PACKED_ENTRIES = 558;
+export const MAX_PACKED_FILES = 558;
+export const MAX_UNPACKED_BYTES = 22_527_197;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

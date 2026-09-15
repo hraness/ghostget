@@ -35,6 +35,14 @@ type PublicKbCliModule = {
   ) => Promise<number>;
 };
 
+type GhostgetSupportModule = {
+  readonly runGhostgetSupportCommand: (
+    args: readonly string[],
+    output: Required<CliOutput>,
+  ) => Promise<number>;
+  readonly showGhostgetSupportInvitation: () => Promise<void>;
+};
+
 const defaultOutput: GhostgetCatalogOutput = {
   stdout: (value) => process.stdout.write(value),
   stderr: (value) => process.stderr.write(value),
@@ -43,6 +51,19 @@ const defaultOutput: GhostgetCatalogOutput = {
 const loadGhostgetProcess = (): Promise<GhostgetProcessModule> => import("./ghostget");
 const loadGhostgetCatalog = (): Promise<GhostgetCatalogModule> => import("./catalog-cli");
 const loadPublicKbCli = (): Promise<PublicKbCliModule> => import("@hraness/kb/cli");
+const loadGhostgetSupport = (): Promise<GhostgetSupportModule> => import("./support");
+
+/** Only completed captures and reads qualify for an optional terminal footer. */
+export function isUsefulSupportBoundary(rawArguments: readonly string[]): boolean {
+  if (rawArguments.some((argument) => [
+    "--json", "--jsonl", "--ndjson", "--help", "-h", "--version", "-V", "--quiet", "--silent",
+  ].includes(argument))) return false;
+  const first = rawArguments[0];
+  if (first === undefined) return false;
+  return ["clip", "read", "inspect", "archive", "audio", "video", "transcript", "verify"].includes(first)
+    || /^https?:\/\//u.test(first)
+    || (first === "media" && ["archive", "audio", "video", "transcript"].includes(rawArguments[1] ?? ""));
+}
 
 const publicGhostgetCommands = new Set([
   "adapters",
@@ -163,6 +184,7 @@ export async function runGhostgetCliProcess(
   loadProcess: () => Promise<GhostgetProcessModule> = loadGhostgetProcess,
   loadCatalog: () => Promise<GhostgetCatalogModule> = loadGhostgetCatalog,
   loadKnowledgeCli: () => Promise<PublicKbCliModule> = loadPublicKbCli,
+  loadSupport: () => Promise<GhostgetSupportModule> = loadGhostgetSupport,
 ): Promise<void> {
   if (isImmediateGhostgetHelpRequest(rawArguments)) {
     if (output === defaultOutput) output.stdout(terminalIntro({ isTTY: process.stdout.isTTY, columns: process.stdout.columns, term: process.env.TERM }));
@@ -206,6 +228,11 @@ export async function runGhostgetCliProcess(
     process.exitCode = 1;
     return;
   }
+  if (rawArguments[0] === "support") {
+    const support = await loadSupport();
+    process.exitCode = await support.runGhostgetSupportCommand(rawArguments.slice(1), resolvedOutput);
+    return;
+  }
   if (isPublicGhostgetCommand(rawArguments)) {
     const knowledge = await loadKnowledgeCli();
     process.exitCode = await knowledge.main(rawArguments, resolvedOutput);
@@ -226,6 +253,20 @@ export async function runGhostgetCliProcess(
     rawArguments: providerArguments,
     output: resolvedOutput,
   });
+  if (
+    process.exitCode === 0
+    && output === defaultOutput
+    && process.stdout.isTTY === true
+    && process.stderr.isTTY === true
+    && isUsefulSupportBoundary(rawArguments)
+  ) {
+    try {
+      const support = await loadSupport();
+      await support.showGhostgetSupportInvitation();
+    } catch {
+      // An optional invitation cannot change the result of completed work.
+    }
+  }
 }
 
 if (import.meta.main) {
