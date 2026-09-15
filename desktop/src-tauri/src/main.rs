@@ -3,7 +3,7 @@
 use serde_json::{json, Value};
 use std::{collections::HashMap, fs::{File, OpenOptions}, io::{BufRead, BufReader, Write}, os::unix::io::AsRawFd, path::{Path, PathBuf}, process::{Child, ChildStdin, Command, Stdio}, sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}, mpsc::{self, SyncSender}}, time::Duration};
 use tauri::{Manager, State};
-use desktop_foundation::{outputs::OutputsSection, Host, MenuItem, MenuModel, MenuNode, Options};
+use desktop_foundation::{outputs::OutputsSection, DispatchOutcome, Host, MenuItem, MenuModel, MenuNode, Options, RenderError};
 
 const PROTOCOL: &str = "ghostget.control/1";
 const MAX_FRAME: usize = 4 * 1024 * 1024;
@@ -210,8 +210,15 @@ impl Host for GhostgetHost {
         nodes.push(MenuNode::quit("Quit Ghostget"));
         MenuModel { title: Some("Ghostget".to_owned()), tooltip: Some(tooltip), icon: None, nodes }
     }
-    fn dispatch(&self, id: &str) {
-        self.outputs.dispatch(id);
+    fn dispatch_result(&self, id: &str) -> DispatchOutcome {
+        if self.outputs.dispatch(id) {
+            DispatchOutcome::Accepted
+        } else {
+            DispatchOutcome::Rejected
+        }
+    }
+    fn render_failed(&self, error: RenderError) {
+        eprintln!("ghostget-menubar: render failed: {error:?}");
     }
     fn stopping(&self) {
         if let Some(helper) = self.helper.lock().ok().and_then(|guard| guard.clone()) { helper.stop(); }
