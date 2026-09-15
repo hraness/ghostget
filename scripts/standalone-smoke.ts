@@ -28,7 +28,7 @@ const expectedClosureRuntimeDependencies = Object.freeze({
   "@1password/sdk": "0.5.0",
   "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
   "@hraness/message-like-me": "github:hraness/message-like-me#v0.7.0",
-  "@hraness/support-foundation": "github:hraness/support-foundation#v0.1.0",
+  "@hraness/support-foundation": "github:hraness/support-foundation#381c8237e013b32a9fb34a5712295ab18f3d1b86",
   "buffer-from": "1.1.2",
   "source-map": "0.6.1",
   "source-map-support": "0.5.21",

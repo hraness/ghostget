@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.7
+
+- Offer free Ghostget product updates and optional paid support through the
+  CLI and product skill. Shared invitation cadence, snooze, and dismissal
+  keep incidental offers occasional; people confirm subscriptions or payments
+  in their browser. Existing tool access and structured output stay unchanged.
+
 ## 0.18.6
 
 - Finish same-boot cleanup of definitely published browser roots when a
