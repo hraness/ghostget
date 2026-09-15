@@ -108,7 +108,10 @@ Ghostget has no separate platform-native release assets. Its optional native
 providers retain their existing installation, identity, and live admission
 requirements. Publishing the CLI does not establish live provider qualification.
 
-Ghostget publishes the CLI and standalone menu-bar companion from an exact source checkout.
+The canonical release pipeline publishes the CLI from an exact source checkout.
+The standalone menu-bar companion has a separate build and sidecar contract in
+[`menubar-release.md`](menubar-release.md); native sidecar publication is not part
+of the current CLI release pipeline.
 There is no desktop app bundle or native installer. Native provider checks retain
 only their own installation and live admission requirements.
 
