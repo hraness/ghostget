@@ -1,3 +1,13 @@
+// Ghostget 0.18.9 shared-footer v0.11.1 repin over main 9d23a99 adds exactly
+// 172 payload bytes over the 0.18.8 measurement: the site-footer pin and the
+// release changelog/coordinate edits retain their byte lengths. A Bun 1.3.14
+// pack on darwin arm64 measured 11,508,293 compressed / 22,519,442 payload
+// bytes across the same 558 files, SHA-256
+// 8c7f28f09482732a29bb8acac486f0dfb004698bb3823531a7c9a2e445417404.
+// Retain the packed-byte ceiling and the reviewed 65-byte payload allowance:
+// 22,519,442 + 65 = 22,519,507.
+// Canonical Node/npm Linux CI still independently admits its own archive.
+//
 // Ghostget 0.18.8 Git-email suggestions over main 734a921 add exactly 1,548
 // payload bytes: skills/ghostget/SKILL.md +1,231 and CHANGELOG.md +317.
 // The full-commit dependency pin, version coordinates, and generated version
@@ -871,7 +881,7 @@
 export const MAX_PACKED_BYTES = 11_662_943;
 export const MAX_PACKED_ENTRIES = 558;
 export const MAX_PACKED_FILES = 558;
-export const MAX_UNPACKED_BYTES = 22_519_270;
+export const MAX_UNPACKED_BYTES = 22_519_507;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
