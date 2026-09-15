@@ -3307,6 +3307,12 @@ export async function createBrowserSession(
   }
   const initializedSocketDirectory = socketDirectory
     ?? failInitialization(new Error("browser socket directory was not initialized"));
+  let environment: Readonly<Record<string, string>>;
+  try {
+    environment = isolatedEnvironment(initializedSocketDirectory);
+  } catch (error) {
+    failInitialization(error);
+  }
   cleanupResourceIdentity = (() => {
     let identity: BrowserCleanupResourceIdentityV2 | null = null;
     try {
@@ -3331,24 +3337,6 @@ export async function createBrowserSession(
       return failInitialization(error, identity);
     }
   })();
-  try {
-    guardBrowserSetup(operationDeadline);
-    const sourceProfile = auth.kind === "browser-profile"
-      ? profilePath(auth.profile)
-      : null;
-    if (sourceProfile !== null) {
-      guardBrowserSetup(operationDeadline);
-      const clonedProfile = cloneBrowserProfile(sourceProfile, directory);
-      guardBrowserSetup(operationDeadline);
-      globalArguments.push("--profile", clonedProfile.userDataPath);
-      selectedProfileDirectory = clonedProfile.profileDirectory ?? null;
-    } else if (auth.kind === "browser-profile") {
-      guardBrowserSetup(operationDeadline);
-      globalArguments.push("--profile", auth.profile);
-    }
-  } catch (error) {
-    failInitialization(error);
-  }
   if (cleanupResourceIdentity === null) {
     failInitialization(new Error("browser cleanup resource was not initialized"));
   }
@@ -3366,12 +3354,6 @@ export async function createBrowserSession(
     }
     cleanupResourceIdentity = next;
   };
-  let environment: Readonly<Record<string, string>>;
-  try {
-    environment = isolatedEnvironment(initializedSocketDirectory);
-  } catch (error) {
-    failInitialization(error);
-  }
   let networkProxy: LocalNetworkProxy | null = null;
   const networkProxyCreation: {
     pending: Promise<LocalNetworkProxy> | null;
@@ -3648,6 +3630,20 @@ export async function createBrowserSession(
     }
   };
   try {
+    guardBrowserSetup(operationDeadline);
+    const sourceProfile = auth.kind === "browser-profile"
+      ? profilePath(auth.profile)
+      : null;
+    if (sourceProfile !== null) {
+      guardBrowserSetup(operationDeadline);
+      const clonedProfile = cloneBrowserProfile(sourceProfile, directory);
+      guardBrowserSetup(operationDeadline);
+      globalArguments.push("--profile", clonedProfile.userDataPath);
+      selectedProfileDirectory = clonedProfile.profileDirectory ?? null;
+    } else if (auth.kind === "browser-profile") {
+      guardBrowserSetup(operationDeadline);
+      globalArguments.push("--profile", auth.profile);
+    }
     networkProxy = await runBrowserSetupStep(operationDeadline, () => {
       const creation = createNetworkProxy({
         allowPrivateNetwork: false,
@@ -3817,6 +3813,27 @@ export async function createBrowserSession(
           new Error("browser network proxy could not be closed safely"),
         );
       }
+    }
+    if (
+      cleanupResourcePublication === "published"
+      && resourcesQuiescent
+      && sessionIsClosed()
+      && activeBatches.size === 0
+      && !commandCleanupUnsafe
+      && cleanupFailures.length === 0
+    ) {
+      let cleanupSucceeded = false;
+      try {
+        // Once publication is known to have committed, setup rollback must use
+        // the same durable quiescence and per-root journal as ordinary session
+        // cleanup. A later recovery run is necessary only when that exact
+        // cleanup cannot be proved here.
+        await cleanup();
+        cleanupSucceeded = true;
+      } catch (cleanupError) {
+        cleanupFailures.push(cleanupError);
+      }
+      if (cleanupSucceeded) throw error;
     }
     if (cleanupResourcePublication !== "unpublished") {
       cleanupFailures.push(

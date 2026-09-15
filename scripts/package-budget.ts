@@ -1,3 +1,13 @@
+// Ghostget 0.18.6 same-boot setup-cleanup candidate over main edbe567.
+// A canonical npm 11.19.0 pack with --ignore-scripts under Node 24.20.0
+// on darwin arm64 / zlib 1.3.2.1-motley-42c2f19 measured 11,656,173
+// compressed / 22,513,450 payload bytes across exactly 557 files. Its
+// SHA-256 is 14ca5affd08c7d3561401b7e38c048e1bb0d6a02b02312210ea4c3d314d5d82c.
+// The setup-cleanup source, generated bundle, version coordinates, and release
+// note remain below the existing reviewed packed and payload ceilings; the
+// package inventory and website boundary are unchanged. Fresh Required Linux
+// CI and Release must still admit their actual canonical bytes.
+//
 // Ghostget 0.18.5 release candidate over main 202117c. A canonical npm
 // 11.19.0 pack with --ignore-scripts under Node 24.20.0 darwin-arm64
 // measured 11,649,401 compressed / 22,523,437 payload bytes across
