@@ -451,7 +451,8 @@ describe("ghostget.com static site", () => {
     expect(html.match(/<details\b/gu)).toHaveLength(11);
     expect(html.match(/<iframe\b/gu)).toBeNull();
     expect(html).toContain("ghostget menubar");
-    expect(html).toContain("no desktop app bundle");
+    expect(html).toContain("standalone macOS menu-bar companion shows recent output files");
+    expect(html).toContain("Account, approval, and interface administration are not exposed in this companion.");
     expect(html).toContain('class="table-scroll" role="region" tabindex="0"');
     expect(html).toContain('<a class="skip-link" href="#main">');
     expect(html.match(/data-analytics-event="project link opened"/gu)).toHaveLength(2);
