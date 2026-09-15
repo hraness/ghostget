@@ -1,3 +1,15 @@
+// Ghostget 0.18.5 release candidate over main 202117c. A canonical npm
+// 11.19.0 pack with --ignore-scripts under Node 24.20.0 darwin-arm64
+// measured 11,649,401 compressed / 22,523,437 payload bytes across
+// exactly 559 files. The 0.18.5 changelog section, release coordinates,
+// and install-command references account for the 455 payload bytes above
+// the menu-bar measurement; version literals retain their length and the
+// packed-file inventory and website/package boundary are unchanged.
+// Keep the reviewed 65-byte payload allowance: 22,523,437 + 65 =
+// 22,523,502. The compressed measurement stays under the existing
+// 4,096-byte compressor allowance. Fresh Required Linux CI and Release
+// still admit their actual canonical bytes.
+//
 // Menu-bar companion candidate: the shared-foundation port adds the
 // `ghostget menubar` launcher, which bundles into the existing CLI entry
 // chunks. Required Linux CI run 34794821049 measured 22,522,826 unpacked
@@ -828,7 +840,7 @@
 export const MAX_PACKED_BYTES = 11_662_943;
 export const MAX_PACKED_ENTRIES = 559;
 export const MAX_PACKED_FILES = 559;
-export const MAX_UNPACKED_BYTES = 22_523_047;
+export const MAX_UNPACKED_BYTES = 22_523_502;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

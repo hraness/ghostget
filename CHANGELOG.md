@@ -7,6 +7,15 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.5
+
+- Remove the website footer's Cloudflare Turnstile gate through the shared
+  footer: newsletter signups post directly to the accounts endpoint behind a
+  honeypot field, and the geo-gated consent note joins the public pages.
+  Package commands, provider operations, and archive contracts stay unchanged.
+- Port the desktop control panel onto the shared menu-bar foundation and
+  harden menu refreshes while preserving unknown approval status.
+
 ## 0.18.4
 
 - Show a compact ASCII ghost before interactive root help. Piped output,
