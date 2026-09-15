@@ -1,9 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde_json::{json, Value};
-use std::{collections::HashMap, fs::{File, OpenOptions}, io::{BufRead, BufReader, Write}, os::unix::io::AsRawFd, path::{Path, PathBuf}, process::{Child, ChildStdin, Command, Stdio}, sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}, mpsc::{self, SyncSender}}, time::Duration};
+use std::{collections::{HashMap, HashSet}, fs::{File, OpenOptions}, io::{BufRead, BufReader, Write}, os::unix::io::AsRawFd, path::{Path, PathBuf}, process::{Child, ChildStdin, Command, Stdio}, sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}, mpsc::{self, SyncSender}}, time::Duration};
 use tauri::{Manager, State};
-use desktop_foundation::{outputs::OutputsSection, Host, MenuModel, MenuNode, Options};
+use desktop_foundation::{outputs::OutputsSection, Host, MenuItem, MenuModel, MenuNode, Options};
 
 const PROTOCOL: &str = "ghostget.control/1";
 const MAX_FRAME: usize = 4 * 1024 * 1024;
@@ -164,6 +164,94 @@ async fn control_request(window: tauri::WebviewWindow, state: State<'_, Option<H
     match response { Ok(value) => Ok(value), Err(_) => Ok(unavailable()) }
 }
 
+#[derive(Debug, PartialEq)]
+enum ApprovalStatus {
+    Known { count: usize, titles: Vec<String> },
+    Unavailable,
+}
+
+// These read-only projection checks mirror the approval response shape and
+// UTF-16 string bounds in desktop/src/response.ts. The helper owns decisions.
+fn bounded_protocol_string(value: &Value, maximum: usize) -> bool {
+    value.as_str().is_some_and(|text| text.encode_utf16().count() <= maximum
+        && !text.chars().any(|character| matches!(character as u32, 0..=8 | 11..=12 | 14..=31)))
+}
+
+fn valid_approval_expiry(value: &Value) -> bool {
+    let Some(text) = value.as_str() else { return false; };
+    let bytes = text.as_bytes();
+    if bytes.len() != 24 { return false; }
+    for (index, byte) in bytes.iter().enumerate() {
+        let separator = match index { 4 | 7 => Some(b'-'), 10 => Some(b'T'), 13 | 16 => Some(b':'), 19 => Some(b'.'), 23 => Some(b'Z'), _ => None };
+        if separator.map_or(!byte.is_ascii_digit(), |expected| *byte != expected) { return false; }
+    }
+    let number = |start: usize, end: usize| bytes[start..end].iter().fold(0u32, |value, digit| value * 10 + u32::from(digit - b'0'));
+    let year = number(0, 4); let month = number(5, 7); let day = number(8, 10);
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let days = match month { 2 if leap => 29, 2 => 28, 4 | 6 | 9 | 11 => 30, 1 | 3 | 5 | 7 | 8 | 10 | 12 => 31, _ => return false };
+    day >= 1 && day <= days && number(11, 13) <= 23 && number(14, 16) <= 59 && number(17, 19) <= 59
+}
+
+fn valid_approval(approval: &Value) -> bool {
+    let Some(record) = approval.as_object() else { return false; };
+    const FIELDS: &[&str] = &["id", "digest", "kind", "title", "account", "effect", "preview", "expiresAt"];
+    if record.len() != FIELDS.len() || FIELDS.iter().any(|key| !record.contains_key(*key)) { return false; }
+    ["id", "digest", "title", "effect"].iter().all(|key| bounded_protocol_string(&record[*key], 2048))
+        && matches!(record["kind"].as_str(), Some("provider" | "web"))
+        && (record["account"].is_null() || bounded_protocol_string(&record["account"], 2048))
+        && bounded_protocol_string(&record["preview"], 240 * 1024)
+        && valid_approval_expiry(&record["expiresAt"])
+}
+
+fn approval_status(response: Option<&Value>) -> ApprovalStatus {
+    let Some(response) = response else { return ApprovalStatus::Unavailable; };
+    if response.as_object().map(|object| object.len()) != Some(2) || response.get("ok").and_then(Value::as_bool) != Some(true) {
+        return ApprovalStatus::Unavailable;
+    }
+    let Some(data) = response.get("data") else { return ApprovalStatus::Unavailable; };
+    if data.as_object().map(|object| object.len()) != Some(2) || data.get("kind").and_then(Value::as_str) != Some("approvals") {
+        return ApprovalStatus::Unavailable;
+    }
+    let Some(approvals) = data.get("approvals").and_then(Value::as_array) else {
+        return ApprovalStatus::Unavailable;
+    };
+    // Match the approval-list bound in desktop/src/response.ts.
+    let mut ids = HashSet::new();
+    if approvals.len() > 128 || approvals.iter().any(|approval| !valid_approval(approval) || !ids.insert(approval["id"].as_str().unwrap())) {
+        return ApprovalStatus::Unavailable;
+    }
+    ApprovalStatus::Known {
+        count: approvals.len(),
+        titles: approvals.iter().take(5).map(|approval| approval["title"].as_str().unwrap().chars().take(60).collect()).collect(),
+    }
+}
+
+fn approval_menu(response: Option<&Value>) -> (Vec<MenuNode>, String) {
+    let mut nodes = vec![MenuNode::disabled("Ghostget"), MenuNode::Separator];
+    let tooltip = match approval_status(response) {
+        ApprovalStatus::Known { count, titles } => {
+            if count == 0 {
+                nodes.push(MenuNode::disabled("No pending approvals"));
+            } else {
+                nodes.push(MenuNode::interactive(
+                    MenuItem::action(desktop_foundation::WINDOW_SHOW_ACTION_ID, "Pending approvals")
+                        .with_badge(count.to_string())
+                        .with_shortcut("CmdOrCtrl+Shift+A"),
+                ));
+                for title in titles { nodes.push(MenuNode::show_window(format!("  {title}"))); }
+            }
+            format!("Ghostget — {count} pending approval{}", if count == 1 { "" } else { "s" })
+        }
+        ApprovalStatus::Unavailable => {
+            nodes.push(MenuNode::disabled("Approval status unavailable"));
+            "Ghostget — approval status unavailable".to_owned()
+        }
+    };
+    nodes.push(MenuNode::Separator);
+    nodes.push(MenuNode::show_window("Open Ghostget"));
+    (nodes, tooltip)
+}
+
 struct GhostgetHost { helper: Mutex<Option<Helper>>, outputs: OutputsSection }
 
 impl Host for GhostgetHost {
@@ -174,32 +262,8 @@ impl Host for GhostgetHost {
     }
     fn snapshot(&self) -> MenuModel {
         let helper = self.helper.lock().ok().and_then(|guard| guard.clone());
-        let mut nodes = vec![MenuNode::disabled("Ghostget"), MenuNode::Separator];
-        let tooltip;
-        match helper {
-            Some(helper) => {
-                let response = helper.request(json!({"action":"approval.list"}), Duration::from_secs(10));
-                let approvals = response.get("data").and_then(|d| d.get("approvals")).and_then(Value::as_array).cloned().unwrap_or_default();
-                if approvals.is_empty() {
-                    nodes.push(MenuNode::disabled("No pending approvals"));
-                } else {
-                    nodes.push(MenuNode::show_window(format!("{} pending approval{}", approvals.len(), if approvals.len() == 1 { "" } else { "s" })));
-                    for approval in approvals.iter().take(5) {
-                        let title = approval.get("title").and_then(Value::as_str).unwrap_or("Approval request");
-                        nodes.push(MenuNode::show_window(format!("  {}", title.chars().take(60).collect::<String>())));
-                    }
-                }
-                nodes.push(MenuNode::Separator);
-                nodes.push(MenuNode::show_window("Open Ghostget"));
-                tooltip = format!("Ghostget — {} pending approval{}", approvals.len(), if approvals.len() == 1 { "" } else { "s" });
-            }
-            None => {
-                nodes.push(MenuNode::disabled("Control service unavailable"));
-                nodes.push(MenuNode::Separator);
-                nodes.push(MenuNode::show_window("Open Ghostget"));
-                tooltip = "Ghostget — control service unavailable".to_owned();
-            }
-        }
+        let response = helper.map(|helper| helper.request(json!({"action":"approval.list"}), Duration::from_secs(10)));
+        let (mut nodes, tooltip) = approval_menu(response.as_ref());
         nodes.push(MenuNode::Separator);
         nodes.extend(self.outputs.nodes());
         nodes.push(MenuNode::Separator);
@@ -234,6 +298,44 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn approval_fixture(id: &str) -> Value {
+        json!({"id":id,"digest":"fixture-digest","kind":"provider","title":"Fixture request","account":null,"effect":"read","preview":"Fixture preview","expiresAt":"2030-01-01T00:00:00.000Z"})
+    }
+    #[test] fn approval_projection_rejects_invalid_records_and_duplicate_identity() {
+        let first = approval_fixture("first");
+        let mut malformed = Vec::new();
+        for key in ["id", "digest", "kind", "title", "account", "effect", "preview", "expiresAt"] {
+            let mut record = first.clone(); record.as_object_mut().unwrap().remove(key); malformed.push(record);
+        }
+        for (key, value) in [("kind", json!("unknown")), ("account", json!(42)), ("expiresAt", json!("2030-02-29T00:00:00.000Z")), ("title", json!("x".repeat(2049))), ("preview", json!("x".repeat(240 * 1024 + 1))), ("id", json!("invalid\u{0000}"))] {
+            let mut record = first.clone(); record[key] = value; malformed.push(record);
+        }
+        for record in malformed {
+            let response = json!({"ok":true,"data":{"kind":"approvals","approvals":[record]}});
+            assert_eq!(approval_status(Some(&response)), ApprovalStatus::Unavailable);
+        }
+        let duplicate = json!({"ok":true,"data":{"kind":"approvals","approvals":[first.clone(),first]}});
+        assert_eq!(approval_status(Some(&duplicate)), ApprovalStatus::Unavailable);
+    }
+    #[test] fn approval_errors_never_look_like_an_empty_queue() {
+        for response in [None, Some(json!({"ok":false,"code":"control-unavailable"})), Some(json!({"ok":true,"data":{}})), Some(json!({"ok":true,"data":{"kind":"approvals","approvals":[{}]}}))] {
+            assert_eq!(approval_status(response.as_ref()), ApprovalStatus::Unavailable);
+            let (nodes, tooltip) = approval_menu(response.as_ref());
+            assert!(tooltip.contains("unavailable"));
+            assert!(!tooltip.contains("0 pending"));
+            assert!(nodes.iter().any(|node| matches!(node, MenuNode::Item { id: Some(id), title, .. } if id == desktop_foundation::WINDOW_SHOW_ACTION_ID && title == "Open Ghostget")));
+        }
+    }
+    #[test] fn approval_counts_are_known_only_for_valid_lists() {
+        let empty = json!({"ok":true,"data":{"kind":"approvals","approvals":[]}});
+        assert_eq!(approval_status(Some(&empty)), ApprovalStatus::Known { count: 0, titles: vec![] });
+        let (_, tooltip) = approval_menu(Some(&empty));
+        assert_eq!(tooltip, "Ghostget — 0 pending approvals");
+        let pending = json!({"ok":true,"data":{"kind":"approvals","approvals":[approval_fixture("first"),approval_fixture("second")]}});
+        let (nodes, _) = approval_menu(Some(&pending));
+        assert!(nodes.iter().any(|node| matches!(node, MenuNode::Interactive { item } if item.title == "Pending approvals" && item.badge.as_deref() == Some("2"))));
+        assert!(!nodes.iter().any(|node| matches!(node, MenuNode::Interactive { item } if item.title.contains("2"))));
+    }
     #[test] fn frames_are_bounded_and_exact() {
         assert!(read_frame(&mut BufReader::new(&b"{}\n"[..])).is_ok());
         assert!(read_frame(&mut BufReader::new(&b"{}"[..])).is_err());
