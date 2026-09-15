@@ -1166,7 +1166,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_096_320);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_096_832);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1351,8 +1351,9 @@ describe("npm publication contract", () => {
     expect(MAX_PACKED_FILES).toBe(559);
     expect(budget).toContain("34708922100, static job 103593972035 and package job 103593972046");
     expect(budget).toContain("22,521,539 + 65 = 22,521,604");
-    expect(MAX_UNPACKED_BYTES).toBe(22_523_047);
-    expect(MAX_UNPACKED_BYTES).toBe(22_522_982 + 65);
+    expect(budget).toContain("22,523,437 + 65 = 22,523,502");
+    expect(MAX_UNPACKED_BYTES).toBe(22_523_502);
+    expect(MAX_UNPACKED_BYTES).toBe(22_523_437 + 65);
     expect(budget).toContain("2,324,169 + 4,096 = 2,328,265");
     expect(budget).toContain("2,330,878 + 4,096 = 2,334,974");
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
@@ -1363,7 +1364,7 @@ describe("npm publication contract", () => {
       entryCount: { min: 559, max: 559 },
       fileCount: { min: 559, max: 559 },
       packedBytes: { min: 1_600_000, max: 11_662_943 },
-      unpackedBytes: { min: 9_000_000, max: 22_523_047 },
+      unpackedBytes: { min: 9_000_000, max: 22_523_502 },
     });
   });
 
