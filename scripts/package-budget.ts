@@ -1,11 +1,11 @@
 // Ghostget 0.18.7 optional support invitations joined with main 811f3b3 add
-// one published source module and exactly 4,048 payload bytes: package.json
+// one published source module and exactly 4,207 payload bytes: package.json
 // +135 (including the full-commit dependency pin), src/cli.ts +1,647,
-// src/usage.ts +468, skills/ghostget/SKILL.md +622, src/support.ts +857,
+// src/usage.ts +468, skills/ghostget/SKILL.md +781, src/support.ts +857,
 // and the versioned changelog +319. Version literals, the generated version
 // chunk and its imports keep their byte lengths; native assets are unchanged.
 // Retain the reviewed 65-byte payload allowance and packed-byte ceiling:
-// 22,513,450 + 4,048 + 65 = 22,517,563, with exactly 558 files.
+// 22,513,450 + 4,207 + 65 = 22,517,722, with exactly 558 files.
 // The joined setup-cleanup base below reduced measured payload by 9,987 bytes.
 // Required Linux CI independently admits its rebuilt canonical archive.
 //
@@ -861,7 +861,7 @@
 export const MAX_PACKED_BYTES = 11_662_943;
 export const MAX_PACKED_ENTRIES = 558;
 export const MAX_PACKED_FILES = 558;
-export const MAX_UNPACKED_BYTES = 22_517_563;
+export const MAX_UNPACKED_BYTES = 22_517_722;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

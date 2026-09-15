@@ -1,18 +1,20 @@
 ---
 name: ghostget
 description: >-
-  Use Ghostget for bounded, local-first web capabilities from a bring-your-own
-  coding agent: capture public or signed-in pages as Markdown; archive authorized
-  audio, video, and transcripts; query encrypted cached email, contacts, inboxes,
-  and messaging; preview and execute exactly authorized messages or social posts
-  through installed provider routes; save private native article drafts; inspect
-  or develop typed provider contracts and plugins from recorded browser APIs or
-  versioned CLIs. Trigger for URL clipping, web capture, social publishing or
-  cross-posting, media archiving, transcription, email or Beeper messaging,
-  HAR-to-API workflows, browser-session API automation, semantic operations, and
-  bounded provider mutations when raw HTTP, DOM control, cookies, and credentials
-  must stay outside the agent. Ghostget does not run the agent's model or planning
-  loop.
+  Use Ghostget for bounded, local-first web work: capture public/signed-in pages
+  as Markdown; archive authorized, verified audio, video, and transcripts; query
+  encrypted cached email, contacts, inboxes, and messages; resolve live
+  conversations, read fresh context, preview ordered bubbles, and execute
+  exactly authorized turns through one provider route; publish and reconcile
+  text/image/video posts through observed installed routes; save private native
+  article drafts; inspect/build/run typed contracts/plugins for X, LinkedIn,
+  Bluesky, Substack Notes, Threads, TikTok, Instagram, YouTube Shorts from
+  recorded browser APIs or versioned CLIs.
+  Use Beeper messaging across the pinned official CLI and fixed Desktop loopback operations.
+  Trigger for scraping, URL clipping, authenticated sites, media downloads,
+  transcription, email/messaging, cross-posting, HAR-to-API workflows,
+  browser-session API automation, semantic operations, and bounded mutations. Raw HTTP,
+  DOM control, cookies, and credentials stay outside the agent.
 ---
 
 # Ghostget
