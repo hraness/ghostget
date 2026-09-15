@@ -28,6 +28,7 @@ const expectedClosureRuntimeDependencies = Object.freeze({
   "@1password/sdk": "0.5.0",
   "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
   "@hraness/message-like-me": "github:hraness/message-like-me#v0.7.0",
+  "@hraness/support-foundation": "github:hraness/support-foundation#381c8237e013b32a9fb34a5712295ab18f3d1b86",
   "buffer-from": "1.1.2",
   "source-map": "0.6.1",
   "source-map-support": "0.5.21",
@@ -507,6 +508,21 @@ async function exerciseCli(
   target: Readonly<{ cliPath: string; cwd: string; label: string }>,
   artifactLabel: string,
 ): Promise<void> {
+  const support = await runCli(target, "explicit support", ["support", "--json"]);
+  const offer = requireJsonObject(`${target.label} support`, JSON.parse(support.stdout) as unknown);
+  const supportProduct = requireJsonObject(`${target.label} support.product`, offer.product);
+  if (support.stderr !== "" || offer.schemaVersion !== "hraness-support-offer-v1"
+    || offer.optional !== true || supportProduct.id !== "wrench"
+    || !Array.isArray(offer.actions) || offer.actions.length !== 2) {
+    throw new Error(`${target.label} support offer is malformed`);
+  }
+  const supportUrls = offer.actions.map((value: unknown) =>
+    requireJsonObject(`${target.label} support.action`, value).url);
+  if (!isDeepStrictEqual(supportUrls, [
+    "https://account.hraness.com/support?product=wrench&source=cli#updates",
+    "https://account.hraness.com/support?product=wrench&source=cli#support",
+  ])) throw new Error(`${target.label} support links differ from the canonical handoff`);
+
   const urlMetadataHelp = await runCli(
     target,
     "url-metadata help",
@@ -701,6 +717,10 @@ try {
       "@hraness/message-like-me",
       installedPackageRoot,
     );
+    const installedSupportRoot = resolveInstalledDependencyRoot(
+      "@hraness/support-foundation",
+      installedPackageRoot,
+    );
     const installedSourceMapSupportRoot = resolveInstalledDependencyRoot(
       "source-map-support",
       installedPackageRoot,
@@ -719,6 +739,8 @@ try {
       installedKbRoot,
     );
     await Promise.all([
+      assertInstalledClosurePackage({ name: "@hraness/support-foundation", version: "0.1.0", root: installedSupportRoot, keyFile: "dist/index.js", sha256: "8141fb1868854cb28a81781b21efae8c16c49d7ca46b89b016b80706a68093a9" }),
+      assertInstalledClosurePackage({ name: "@hraness/support-foundation", version: "0.1.0", root: installedSupportRoot, keyFile: "dist/node.js", sha256: "35e187c9c85a2d7a70cd2b643ce7bd8daca9cc56f2bac8912ee0e7317295decb" }),
       assertInstalledClosurePackage({ name: "@1password/sdk", version: "0.5.0", root: installedCredentialSdkRoot, keyFile: "dist/sdk.js", sha256: "55526607e6d252bd3f934a93888b6a023795b66bda76039230980e7bf0dcaedd" }),
       assertInstalledClosurePackage({ name: "@1password/sdk-core", version: "0.5.0", root: installedCredentialCoreRoot, keyFile: "nodejs/core.js", sha256: "fc6e7745837afd4cf42a325284040083bbd09679eeceb4fa9a21ddba34151470" }),
       assertInstalledClosurePackage({ name: "@1password/sdk-core", version: "0.5.0", root: installedCredentialCoreRoot, keyFile: "nodejs/core_bg.wasm", sha256: "97aa9140c5c923b39b41c059d5ab98e214b5fc78a80203d0026708cfbce8d6ab" }),

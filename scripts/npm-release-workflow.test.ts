@@ -1166,7 +1166,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_094_784);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_089_664);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1345,8 +1345,8 @@ describe("npm publication contract", () => {
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
     expect(MAX_PACKED_BYTES).toBe(11_662_943);
     expect(MAX_PACKED_BYTES).toBe(11_658_847 + 4_096);
-    expect(MAX_PACKED_ENTRIES).toBe(557);
-    expect(MAX_PACKED_FILES).toBe(557);
+    expect(MAX_PACKED_ENTRIES).toBe(558);
+    expect(MAX_PACKED_FILES).toBe(558);
     expect(budget).toContain("Ghostget 0.18.6 same-boot setup-cleanup candidate over main edbe567");
     expect(budget).toContain("11,656,173");
     expect(budget).toContain("22,513,450 payload bytes across exactly 557 files");
@@ -1354,8 +1354,9 @@ describe("npm publication contract", () => {
     expect(budget).toContain("34708922100, static job 103593972035 and package job 103593972046");
     expect(budget).toContain("22,521,539 + 65 = 22,521,604");
     expect(budget).toContain("22,523,437 + 65 = 22,523,502");
-    expect(MAX_UNPACKED_BYTES).toBe(22_523_502);
-    expect(MAX_UNPACKED_BYTES).toBe(22_523_437 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(22_517_722);
+    expect(MAX_UNPACKED_BYTES).toBe(22_513_450 + 4_207 + 65);
+    expect(budget).toContain("22,513,450 + 4,207 + 65 = 22,517,722");
     expect(budget).toContain("2,324,169 + 4,096 = 2,328,265");
     expect(budget).toContain("2,330,878 + 4,096 = 2,334,974");
     expect(Object.isFrozen(packageArtifactBudget)).toBe(true);
@@ -1363,10 +1364,10 @@ describe("npm publication contract", () => {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 557, max: 557 },
-      fileCount: { min: 557, max: 557 },
+      entryCount: { min: 558, max: 558 },
+      fileCount: { min: 558, max: 558 },
       packedBytes: { min: 1_600_000, max: 11_662_943 },
-      unpackedBytes: { min: 9_000_000, max: 22_523_502 },
+      unpackedBytes: { min: 9_000_000, max: 22_517_722 },
     });
   });
 

@@ -7,6 +7,11 @@
  */
 export const ghostgetUsage = `Usage:
   ghostget --version                                  Print the exact Ghostget release version
+  ghostget support [--json]                           View optional product updates and support
+  ghostget support offer --json                       Check whether an agent invitation is due
+  ghostget support shown <id>                         Record an invitation presented to the user
+  ghostget support dismiss|snooze|enable               Set shared invitation preferences
+  ghostget support status --json                      Inspect local invitation preferences
   ghostget init [directory] [--json]                    Initialize a Markdown vault
   ghostget inspect <url> [capture-options]              Inspect capture without persistence
   ghostget pdf <file-or-url> [pdf-options]               Capture a PDF into the vault

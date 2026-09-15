@@ -35,6 +35,7 @@ const requiredPaths = Object.freeze([
   "src/assets/adapters/beeper/wrench-web-adapter.v2.2.0.json",
   "src/assets/adapters/beeper/wrench-web-adapter.v2.3.0.json",
   "src/cli.ts",
+  "src/support.ts",
   "src/index.ts",
   "src/local-cli-surface-contract.ts",
   "src/message-like-me-agentic-messaging.ts",
