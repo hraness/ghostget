@@ -7,6 +7,12 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.9
+
+- Repin the shared site footer to v0.11.1. Public pages render the famous
+  example-email signup placeholders, the narrower signup field, and the
+  subscribe disclosure and account navigation markup from the current footer.
+
 ## 0.18.8
 
 - Suggest a local Git email address for optional product updates. The agent
