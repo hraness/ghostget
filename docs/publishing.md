@@ -30,7 +30,7 @@ all ten successful jobs, and nine actual checkout logs. Each source job records
 its exact workflow/lock hashes, Node/npm/Bun versions and GitHub-hosted platform
 before its frozen install. Admission also requires all three successful
 exact-source CodeQL jobs and current main analyses for Actions,
-JavaScript/TypeScript, and the native host's Rust source, plus the successful
+JavaScript/TypeScript, and the menu companion's Swift source, plus the successful
 security comparison on the merged PR's identical tree. Any present main comparison must succeed;
 analysis result counts are recorded without asserting that no alerts exist.
 The CodeQL app's check must identify that exact PR through its returned PR

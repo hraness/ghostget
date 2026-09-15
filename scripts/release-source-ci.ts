@@ -20,7 +20,7 @@ const MARKER = "WRENCH_SOURCE_CI_IDENTITY=";
 const SHA = /^[a-f0-9]{40}$/u;
 const HASH = /^[a-f0-9]{64}$/u;
 const JOBS = ["static", "package", "test 1/4", "test 2/4", "test 3/4", "test 4/4", "test-omni", "standalone", "macOS", "Required"];
-const CODEQL_LANGUAGES = ["actions", "javascript-typescript", "rust"] as const;
+const CODEQL_LANGUAGES = ["actions", "javascript-typescript", "swift"] as const;
 const CODEQL_JOBS = CODEQL_LANGUAGES.map(language => `Analyze (${language})`);
 const CODEQL_CATEGORIES = CODEQL_LANGUAGES.map(language => `/language:${language}`);
 const TOOLCHAIN = { node: "24.20.0", npm: "11.19.0", bun: "1.3.14" } as const;
