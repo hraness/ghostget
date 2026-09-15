@@ -114,12 +114,12 @@ This domain is for use in documentation examples without needing permission. Avo
 
         <section aria-labelledby="control-heading" class="hraness-marketing-section" data-hraness-marketing="section" id="control-panel">
           <div class="hraness-marketing-section__heading-group">
-            <h2 class="hraness-marketing-section__heading" id="control-heading">Your agent works. You choose its access.</h2>
-            <p class="hraness-marketing-section__summary">Ghostget's macOS menu-bar companion keeps account connections, operation permissions, human approvals, and local request activity close at hand. It is a small standalone companion launched by the CLI; there is no desktop app bundle.</p>
+            <h2 class="hraness-marketing-section__heading" id="control-heading">Local outputs in your menu bar.</h2>
+            <p class="hraness-marketing-section__summary">Ghostget's standalone macOS menu-bar companion shows recent output files with their size and modification time. Open supported documents, reveal a file in Finder, or copy its path.</p>
           </div>
           <div class="hraness-marketing-prose">
-            <p>Run <code>ghostget menubar</code> after installing the CLI. The companion runs in the foreground as a single process, and <code>ghostget menubar install</code> registers it to start at login. It never compiles source or downloads an app.</p>
-            <p>Use the menu to connect accounts, review exact capability grants, approve one proposed action, inspect request activity, or quit the companion. Agents continue to use the CLI and SDK directly; the menu bar is the local control surface.</p>
+            <p>Run <code>ghostget menubar</code> with an existing prebuilt companion. It runs in the foreground as a single process, and <code>ghostget menubar install</code> registers it to start at login. The launcher never compiles source or downloads an app.</p>
+            <p>The menu also opens documentation and copies CLI help commands. Account, approval, and interface administration are not exposed in this companion. Agents continue to use the CLI and SDK directly.</p>
           </div>
         </section>
 
@@ -219,7 +219,7 @@ ghostget capabilities --json</code></pre>
             <div class="hraness-marketing-trust-item"><dt>Reads you can open later</dt><dd>Provider-read snapshots are encrypted on your machine; owner messaging keeps a separate private local history and journal. A failed refresh does not erase the last verified state.</dd></div>
             <div class="hraness-marketing-trust-item"><dt>Writes happen once or stay flagged</dt><dd>Consequential changes need a preview and explicit authority: one confirmation or a bounded owner grant. An indeterminate write is never blindly retried and remains unsettled until separate exact evidence can reconcile it.</dd></div>
             <div class="hraness-marketing-trust-item"><dt>Change fails closed</dt><dd>When a service changes its shape, the affected action becomes unavailable until its contract is reviewed again. Ghostget never switches silently to a browser fallback.</dd></div>
-            <div class="hraness-marketing-trust-item"><dt>Bring your own agent</dt><dd>Ghostget supplies the local tools and a macOS menu-bar companion for accounts, permissions and approvals. Your agent owns the model and planning.</dd></div>
+            <div class="hraness-marketing-trust-item"><dt>Bring your own agent</dt><dd>Ghostget supplies the local tools and a macOS menu-bar companion for outputs and CLI guidance. Your agent owns the model and planning.</dd></div>
           </dl>
         </section>
 

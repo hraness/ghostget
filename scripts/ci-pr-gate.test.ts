@@ -129,11 +129,12 @@ describe("macOS PR check subset", () => {
     expect(invocations[1]).toContain("src/ghostget.test.ts");
   });
 
-  test("keeps the macOS gate focused on the CLI surface", async () => {
+  test("checks the CLI and standalone menu while excluding desktop packaging", async () => {
     const workflow = Bun.YAML.parse(await readFile(ciWorkflowUrl, "utf8")) as { jobs: { macos: { steps: { run?: string }[] }; required: { needs: string[] } } };
     const manifest = JSON.parse(await readFile(packageManifestUrl, "utf8")) as { scripts: Record<string, string> };
     const steps = workflow.jobs.macos.steps;
     expect(steps.some(step => step.run === "bun run check:macos")).toBeTrue();
+    expect(steps.some(step => step.run === "bun run menubar:check")).toBeTrue();
     expect(steps.some(step => (step.run ?? "").includes("desktop"))).toBeFalse();
     expect(Object.keys(manifest.scripts).some(name => name.startsWith("desktop"))).toBeFalse();
     expect(workflow.jobs.required.needs).toContain("macos");

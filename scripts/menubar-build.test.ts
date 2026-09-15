@@ -10,7 +10,7 @@ describe("standalone menu-bar companion", () => {
   test("is a source executable rather than an app bundle or webview", async () => {
     const source = await readFile(join(repository, "menubar/ghostget-menubar.swift"), "utf8");
     expect(source).toContain("NSStatusBar.system.statusItem");
-    expect(source).toContain("flock");
+    expect(source).toContain("O_EXLOCK | O_NONBLOCK");
     expect(source).not.toContain("WKWebView");
     expect(source).not.toContain("NSBundle");
     expect(source).not.toContain(".app/");

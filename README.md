@@ -18,7 +18,7 @@ implementation, and risk level. If those facts drift, the operation stops. It
 does not silently fall back to general browser control.
 
 Bring the model, planner, and tool loop you prefer. Ghostget supplies precise web
-capabilities with local custody and explicit evidence. Its macOS menu-bar companion manages accounts, operation permissions, human approvals, editable OpenAPI interfaces, and a searchable local web request log. See the [menu-bar companion guide](docs/menubar-release.md).
+capabilities with local custody and explicit evidence. Its standalone macOS menu-bar companion browses local output files and opens CLI guidance. Account, approval, and interface administration are not exposed in this companion. See the [menu-bar companion guide](docs/menubar-release.md).
 
 The separate public web gateway admits exact HTTPS retrieval URLs under human
 domain and path rules. Use `ghostget web request <url>` with the menu-bar companion running, and

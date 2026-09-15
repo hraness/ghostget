@@ -22,7 +22,7 @@ description: >-
 
 # Ghostget
 
-Ghostget supplies bounded CLI and SDK capabilities with a menu-bar companion for human control. Use it from the caller's own agent loop; Ghostget does not run a model.
+Ghostget supplies bounded CLI and SDK capabilities with a menu-bar companion for local outputs and CLI guidance. Use it from the caller's own agent loop; Ghostget does not run a model.
 
 ## Install or verify Ghostget
 

@@ -220,6 +220,7 @@ jobs:
         run: bun run ./scripts/release-source-ci.ts record
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run check:macos
+      - run: bun run menubar:check
 
   required:
     name: Required

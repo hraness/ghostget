@@ -202,7 +202,7 @@ export async function runGhostgetCliProcess(
       return;
     }
   } catch {
-    resolvedOutput.stderr("Ghostget gateway-only policy blocks this command, or its policy state is unavailable. Review the native app.\n");
+    resolvedOutput.stderr("Ghostget gateway-only policy blocks this command, or its policy state is unavailable. Review the policy through an authorized local control client.\n");
     process.exitCode = 1;
     return;
   }
