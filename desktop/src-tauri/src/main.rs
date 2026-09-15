@@ -164,6 +164,60 @@ async fn control_request(window: tauri::WebviewWindow, state: State<'_, Option<H
     match response { Ok(value) => Ok(value), Err(_) => Ok(unavailable()) }
 }
 
+#[derive(Debug, PartialEq)]
+enum ApprovalStatus {
+    Known { count: usize, titles: Vec<String> },
+    Unavailable,
+}
+
+fn approval_status(response: Option<&Value>) -> ApprovalStatus {
+    let Some(response) = response else { return ApprovalStatus::Unavailable; };
+    if response.get("ok").and_then(Value::as_bool) != Some(true) {
+        return ApprovalStatus::Unavailable;
+    }
+    let Some(data) = response.get("data") else { return ApprovalStatus::Unavailable; };
+    if data.get("kind").and_then(Value::as_str) != Some("approvals") {
+        return ApprovalStatus::Unavailable;
+    }
+    let Some(approvals) = data.get("approvals").and_then(Value::as_array) else {
+        return ApprovalStatus::Unavailable;
+    };
+    // Match the approval-list bound in desktop/src/response.ts.
+    if approvals.len() > 128 || approvals.iter().any(|approval| approval.get("title").and_then(Value::as_str).is_none()) {
+        return ApprovalStatus::Unavailable;
+    }
+    ApprovalStatus::Known {
+        count: approvals.len(),
+        titles: approvals.iter().take(5).map(|approval| approval["title"].as_str().unwrap().chars().take(60).collect()).collect(),
+    }
+}
+
+fn approval_menu(response: Option<&Value>) -> (Vec<MenuNode>, String) {
+    let mut nodes = vec![MenuNode::disabled("Ghostget"), MenuNode::Separator];
+    let tooltip = match approval_status(response) {
+        ApprovalStatus::Known { count, titles } => {
+            if count == 0 {
+                nodes.push(MenuNode::disabled("No pending approvals"));
+            } else {
+                nodes.push(MenuNode::interactive(
+                    MenuItem::action(desktop_foundation::WINDOW_SHOW_ACTION_ID, "Pending approvals")
+                        .with_badge(count.to_string())
+                        .with_shortcut("CmdOrCtrl+Shift+A"),
+                ));
+                for title in titles { nodes.push(MenuNode::show_window(format!("  {title}"))); }
+            }
+            format!("Ghostget — {count} pending approval{}", if count == 1 { "" } else { "s" })
+        }
+        ApprovalStatus::Unavailable => {
+            nodes.push(MenuNode::disabled("Approval status unavailable"));
+            "Ghostget — approval status unavailable".to_owned()
+        }
+    };
+    nodes.push(MenuNode::Separator);
+    nodes.push(MenuNode::show_window("Open Ghostget"));
+    (nodes, tooltip)
+}
+
 struct GhostgetHost { helper: Mutex<Option<Helper>>, outputs: OutputsSection }
 
 impl Host for GhostgetHost {
@@ -174,36 +228,8 @@ impl Host for GhostgetHost {
     }
     fn snapshot(&self) -> MenuModel {
         let helper = self.helper.lock().ok().and_then(|guard| guard.clone());
-        let mut nodes = vec![MenuNode::disabled("Ghostget"), MenuNode::Separator];
-        let tooltip;
-        match helper {
-            Some(helper) => {
-                let response = helper.request(json!({"action":"approval.list"}), Duration::from_secs(10));
-                let approvals = response.get("data").and_then(|d| d.get("approvals")).and_then(Value::as_array).cloned().unwrap_or_default();
-                if approvals.is_empty() {
-                    nodes.push(MenuNode::disabled("No pending approvals"));
-                } else {
-                    nodes.push(MenuNode::interactive(
-                        MenuItem::action(desktop_foundation::WINDOW_SHOW_ACTION_ID, "Pending approvals")
-                            .with_badge(approvals.len().to_string())
-                            .with_shortcut("CmdOrCtrl+Shift+A"),
-                    ));
-                    for approval in approvals.iter().take(5) {
-                        let title = approval.get("title").and_then(Value::as_str).unwrap_or("Approval request");
-                        nodes.push(MenuNode::show_window(format!("  {}", title.chars().take(60).collect::<String>())));
-                    }
-                }
-                nodes.push(MenuNode::Separator);
-                nodes.push(MenuNode::show_window("Open Ghostget"));
-                tooltip = format!("Ghostget — {} pending approval{}", approvals.len(), if approvals.len() == 1 { "" } else { "s" });
-            }
-            None => {
-                nodes.push(MenuNode::disabled("Control service unavailable"));
-                nodes.push(MenuNode::Separator);
-                nodes.push(MenuNode::show_window("Open Ghostget"));
-                tooltip = "Ghostget — control service unavailable".to_owned();
-            }
-        }
+        let response = helper.map(|helper| helper.request(json!({"action":"approval.list"}), Duration::from_secs(10)));
+        let (mut nodes, tooltip) = approval_menu(response.as_ref());
         nodes.push(MenuNode::Separator);
         nodes.extend(self.outputs.nodes());
         nodes.push(MenuNode::Separator);
@@ -238,6 +264,25 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn approval_errors_never_look_like_an_empty_queue() {
+        for response in [None, Some(json!({"ok":false,"code":"control-unavailable"})), Some(json!({"ok":true,"data":{}})), Some(json!({"ok":true,"data":{"kind":"approvals","approvals":[{}]}}))] {
+            assert_eq!(approval_status(response.as_ref()), ApprovalStatus::Unavailable);
+            let (nodes, tooltip) = approval_menu(response.as_ref());
+            assert!(tooltip.contains("unavailable"));
+            assert!(!tooltip.contains("0 pending"));
+            assert!(nodes.iter().any(|node| matches!(node, MenuNode::Item { id: Some(id), title, .. } if id == desktop_foundation::WINDOW_SHOW_ACTION_ID && title == "Open Ghostget")));
+        }
+    }
+    #[test] fn approval_counts_are_known_only_for_valid_lists() {
+        let empty = json!({"ok":true,"data":{"kind":"approvals","approvals":[]}});
+        assert_eq!(approval_status(Some(&empty)), ApprovalStatus::Known { count: 0, titles: vec![] });
+        let (_, tooltip) = approval_menu(Some(&empty));
+        assert_eq!(tooltip, "Ghostget — 0 pending approvals");
+        let pending = json!({"ok":true,"data":{"kind":"approvals","approvals":[{"title":"First request"},{"title":"Second request"}]}});
+        let (nodes, _) = approval_menu(Some(&pending));
+        assert!(nodes.iter().any(|node| matches!(node, MenuNode::Interactive { item } if item.title == "Pending approvals" && item.badge.as_deref() == Some("2"))));
+        assert!(!nodes.iter().any(|node| matches!(node, MenuNode::Interactive { item } if item.title.contains("2"))));
+    }
     #[test] fn frames_are_bounded_and_exact() {
         assert!(read_frame(&mut BufReader::new(&b"{}\n"[..])).is_ok());
         assert!(read_frame(&mut BufReader::new(&b"{}"[..])).is_err());
