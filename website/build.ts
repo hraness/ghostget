@@ -57,7 +57,7 @@ export const GITHUB_RELEASES_URL = "https://github.com/hraness/ghostget/releases
 export const SKILLS_URL = "https://skills.sh/hraness/ghostget" as const;
 export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.7" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.8" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",

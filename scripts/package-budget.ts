@@ -1,3 +1,11 @@
+// Ghostget 0.18.8 browser-close convergence over main 734a921 measures
+// 22,518,365 payload bytes across the same 558 files. The version surfaces,
+// focused cleanup source/test changes, and release note add 643 bytes above
+// the reviewed 0.18.7 payload ceiling without changing package inventory.
+// Retain the reviewed 65-byte payload allowance:
+// 22,518,365 + 65 = 22,518,430. The packed-byte ceiling remains unchanged;
+// Required Linux CI and Release must still admit their actual canonical bytes.
+//
 // Ghostget 0.18.7 optional support invitations joined with main 811f3b3 add
 // one published source module and exactly 4,207 payload bytes: package.json
 // +135 (including the full-commit dependency pin), src/cli.ts +1,647,
@@ -861,7 +869,7 @@
 export const MAX_PACKED_BYTES = 11_662_943;
 export const MAX_PACKED_ENTRIES = 558;
 export const MAX_PACKED_FILES = 558;
-export const MAX_UNPACKED_BYTES = 22_517_722;
+export const MAX_UNPACKED_BYTES = 22_518_430;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

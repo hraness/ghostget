@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.8
+
+- Let lost browser-close acknowledgements converge for up to ten seconds before
+  preserving cleanup-required recovery evidence. LinkedIn and Instagram profile
+  reads can now finish ordinary Chrome shutdowns that outlasted the old
+  per-resource two-second window, while owner, session, root, and CDP proofs and
+  the 30-second outer cleanup barrier remain fail-closed.
+
 ## 0.18.7
 
 - Offer free Ghostget product updates and optional paid support through the
