@@ -1,8 +1,47 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isUsefulSupportBoundary, runGhostgetCliProcess } from "./cli";
+
+const fixtureEmail = "ghostget-fixture@example.test";
+const canonicalSupportUrls = [
+  "https://account.hraness.com/support?product=wrench&source=cli#updates",
+  "https://account.hraness.com/support?product=wrench&source=cli#support",
+];
+
+async function runIsolatedSupport(root: string, args: readonly string[], disabled = false) {
+  const cwd = join(root, "cwd");
+  mkdirSync(cwd, { recursive: true });
+  const gitConfig = join(root, "gitconfig");
+  writeFileSync(gitConfig, `[user]\nemail = ${fixtureEmail}\n`);
+  const env: Record<string, string> = {
+    HOME: root,
+    PATH: process.env.PATH ?? "",
+    GIT_CONFIG_GLOBAL: gitConfig,
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CEILING_DIRECTORIES: root,
+    GHOSTGET_STATE_HOME: join(root, "ghostget-state"),
+    XDG_CONFIG_HOME: join(root, "config"),
+    XDG_STATE_HOME: join(root, "state"),
+  };
+  if (disabled) env.HRANESS_SUPPORT_EMAIL = "off";
+  for (const name of ["COMSPEC", "PATHEXT", "SystemRoot", "SYSTEMROOT"]) {
+    const value = process.env[name];
+    if (value !== undefined) env[name] = value;
+  }
+  const child = Bun.spawn([
+    process.execPath, "--no-env-file", "--no-install", join(import.meta.dir, "cli.ts"),
+    "support", ...args,
+  ], { cwd, env, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  const timeout = setTimeout(() => child.kill("SIGKILL"), 10_000);
+  const [exitCode, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]).finally(() => clearTimeout(timeout));
+  return { exitCode, stdout, stderr };
+}
 
 describe("optional Ghostget support", () => {
   let stateRoot: string;
@@ -22,6 +61,36 @@ describe("optional Ghostget support", () => {
     else process.env.GHOSTGET_STATE_HOME = previousStateHome;
     process.exitCode = previousExitCode;
     rmSync(stateRoot, { recursive: true, force: true });
+  });
+
+  test("offers an unverified synthetic Git email without changing links or persisting it", async () => {
+    const result = await runIsolatedSupport(stateRoot, ["--json"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    const offer = JSON.parse(result.stdout);
+    expect(offer.product).toEqual({ id: "wrench", name: "Ghostget" });
+    expect(offer.emailSuggestion).toEqual({ email: fixtureEmail, source: "git-config", verified: false });
+    expect(offer.actions.map((action: { url: string }) => action.url)).toEqual(canonicalSupportUrls);
+    const text = await runIsolatedSupport(stateRoot, []);
+    expect(text.exitCode).toBe(0);
+    expect(text.stderr).toBe("");
+    expect(text.stdout).toContain(fixtureEmail);
+    expect(text.stdout).toContain("skip updates");
+    expect(existsSync(join(stateRoot, "state"))).toBeFalse();
+  });
+
+  test("disables email discovery while preserving explicit support offers", async () => {
+    const result = await runIsolatedSupport(stateRoot, ["--json"], true);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    const offer = JSON.parse(result.stdout);
+    expect(offer).not.toHaveProperty("emailSuggestion");
+    expect(offer.actions.map((action: { url: string }) => action.url)).toEqual(canonicalSupportUrls);
+    const text = await runIsolatedSupport(stateRoot, [], true);
+    expect(text.exitCode).toBe(0);
+    expect(text.stderr).toBe("");
+    expect(text.stdout).not.toContain(fixtureEmail);
+    expect(existsSync(join(stateRoot, "state"))).toBeFalse();
   });
 
   test("allows useful captures while excluding auth, writes, diagnostics and machine output", () => {

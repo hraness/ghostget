@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.8
+
+- Suggest a local Git email address for optional product updates. The agent
+  can prefill the editable signup form after the person chooses an address;
+  sending confirmation still requires their request, and activation requires
+  inbox confirmation. Email suggestions stay out of links and shared state.
+
 ## 0.18.7
 
 - Offer free Ghostget product updates and optional paid support through the
