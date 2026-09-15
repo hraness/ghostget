@@ -1,3 +1,13 @@
+// Ghostget 0.18.8 Git-email suggestions over main 734a921 add exactly 1,548
+// payload bytes: skills/ghostget/SKILL.md +1,231 and CHANGELOG.md +317.
+// The full-commit dependency pin, version coordinates, and generated version
+// chunk/import names preserve their byte lengths. A Bun 1.3.14 pack on darwin
+// arm64 measured 11,508,184 compressed / 22,519,205 payload bytes in 558 files,
+// SHA-256 7b4d626d9a0fe4189eac39a4853639dcb01cf7e7ef053390c7d0ebedc1ebfa20.
+// Retain the packed-byte ceiling and reviewed 65-byte payload allowance:
+// 22,517,657 + 1,548 + 65 = 22,519,270. Canonical Node/npm Linux CI still
+// independently admits its own archive; this Bun measurement does not replace it.
+//
 // Ghostget 0.18.7 optional support invitations joined with main 811f3b3 add
 // one published source module and exactly 4,207 payload bytes: package.json
 // +135 (including the full-commit dependency pin), src/cli.ts +1,647,
@@ -861,7 +871,7 @@
 export const MAX_PACKED_BYTES = 11_662_943;
 export const MAX_PACKED_ENTRIES = 558;
 export const MAX_PACKED_FILES = 558;
-export const MAX_UNPACKED_BYTES = 22_517_722;
+export const MAX_UNPACKED_BYTES = 22_519_270;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
