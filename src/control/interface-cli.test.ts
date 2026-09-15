@@ -52,13 +52,13 @@ describe("public interface CLI", () => {
     expect(help).toEqual({ exitCode: 0, stdout: ghostgetUsage, stderr: "" });
     expect(help.stdout).toContain("ghostget web request <https-url> [--method GET|HEAD]");
     expect(help.stdout).toContain("ghostget interface import <openapi.json>");
-    expect(help.stdout).toContain("Save an inert draft; review and activate it in the native app");
+    expect(help.stdout).toContain("Save an inert draft; activation requires an authorized local control client");
     for (const args of [["interface"], ["interface", "--help"]]) {
       const result = await run(f, args);
       expect(result.exitCode).toBe(0); expect(result.stderr).toBe("");
-      expect(result.stdout).toContain("Import saves an inert draft. Review and activate it in the native app.");
+      expect(result.stdout).toContain("Import saves an inert draft. Activation requires an authorized local control client.");
     }
-    expect((await run(f, ["web", "--help"])).stdout).toContain("Configure rules and approvals in the Ghostget native app.");
+    expect((await run(f, ["web", "--help"])).stdout).toContain("Rules and approvals require an authorized local control client.");
   });
 
   test("export, import and list round-trip an editable draft without activating it", async () => {

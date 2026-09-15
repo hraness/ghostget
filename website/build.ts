@@ -924,7 +924,6 @@ export async function buildWebsite(
       dereference: true,
       recursive: true,
     }),
-    cp(join(publicRoot, "control"), join(outputRoot, "control"), { dereference: true, recursive: true }),
     copyFile(join(publicRoot, "icon.png"), join(outputRoot, "icon.png")),
     copyFile(join(publicRoot, "apple-icon.png"), join(outputRoot, "apple-icon.png")),
     copyFile(join(publicRoot, "og.png"), join(outputRoot, "og.png")),

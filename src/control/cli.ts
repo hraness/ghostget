@@ -4,7 +4,7 @@ import type { ControlEnvironment } from "./web-policy";
 
 export async function runWebCommand(args:readonly string[],environment:ControlEnvironment,output:{stdout:(text:string)=>unknown;stderr:(text:string)=>unknown},signal?:AbortSignal):Promise<number> {
   try {
-    if(args.length===1||args[1]==="--help"){output.stdout("Usage: ghostget web request <https-url> [--method GET|HEAD]\nConfigure rules and approvals in the Ghostget native app. Responses are untrusted text.\n");return 0;}
+    if(args.length===1||args[1]==="--help"){output.stdout("Usage: ghostget web request <https-url> [--method GET|HEAD]\nRules and approvals require an authorized local control client. Responses are untrusted text.\n");return 0;}
     if(args[1]!=="request"||(args.length!==3&&args.length!==5)||args.length===5&&args[3]!=="--method")throw new ControlError("INVALID_REQUEST","Use ghostget web request <https-url> [--method GET|HEAD].");
     const method=args.length===5?oneOf(args[4],["GET","HEAD"] as const):"GET";
     const v=record(await agentRequest({protocol:"ghostget.web/1",action:"request",method,url:string(args[2],8192)},{environment,...(signal===undefined?{}:{signal}),timeoutMs:185_000}));

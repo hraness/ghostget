@@ -35,7 +35,7 @@ export const ghostgetUsage = `Usage:
   ghostget interface list                          List user and imported OpenAPI drafts
   ghostget interface export [adapter]              Export installed semantic interfaces as OpenAPI
   ghostget interface import <openapi.json> [--expected-digest <sha256>]
-                                                 Save an inert draft; review and activate it in the native app
+                                                 Save an inert draft; activation requires an authorized local control client
   ghostget whatsapp automation install [--binary <absolute-reviewed-wacli-file>] [--json]
   ghostget imessage transport install [--binary <absolute-reviewed-imsg-file>] [--json]
                                                  Install only the current reviewed iMessage transport bytes

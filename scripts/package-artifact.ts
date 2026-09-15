@@ -66,11 +66,8 @@ const requiredPaths = Object.freeze([
   "src/ghostget.ts",
 ]);
 
-// These public control-plane sources were added after the historical Wrench
-// package identity. Keep them mandatory for the current Ghostget artifact.
+// The CLI control-plane sources are mandatory for the current Ghostget artifact.
 const controlPaths = Object.freeze([
-  "docs/control-panel.md",
-  "skills/ghostget/references/control-panel.md",
   "src/control/account-revision.ts",
   "src/control/activity.ts",
   "src/control/approval-broker.ts",
@@ -198,7 +195,6 @@ function verifyAllowedPath(path: string, type: "directory" | "file", skillName: 
       || path === "bunfig.toml"
       || path === "docs/imessage-direct-provider.md"
       || path === "docs/rental-listings.md"
-      || path === "docs/control-panel.md"
       || path === "docs/messaging-automation.md"
       || path === "package.json"
       || path === "tsconfig.json"

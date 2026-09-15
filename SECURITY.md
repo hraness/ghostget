@@ -10,7 +10,7 @@ responses, browser output, files, durable state, and subprocess diagnostics as
 untrusted. Foreign values are strictly parsed and bounded. Sensitive values are
 redacted from terminal output, receipts, and diagnostics.
 
-The native control panel has a private administrative stdio channel to its
+The menu-bar companion has a private administrative stdio channel to its
 owned helper. Its owner-only agent socket accepts bounded web requests and
 approval requests, checks, and cancellation; it cannot grant approval, change
 permissions, or import credentials. Enabling operation permissions establishes
@@ -34,11 +34,12 @@ cannot create an arbitrary authenticated HTTP executor. The first 1Password
 sink is an X user-context token: a separate credential process resolves the
 selected field, verifies the exact X subject, and retains an owner-only local
 copy. Raw secrets do not enter the renderer, agent protocol, or diagnostics.
-Browser password and passkey login stays in the system browser. Signed desktop
-authentication and a public native installer require separate live admission;
-publishing the CLI does not qualify them. Direct scenarios are development-only
-and are excluded from the production native graph. Public marketing frames are
-inert renders of those shared UI scenarios and contain no executable script.
+Browser password and passkey login stays in the system browser. Ghostget is
+distributed as a CLI with an unbundled macOS menu-bar companion; there is no
+Ghostget desktop app bundle or native installer. Publishing the CLI does not
+qualify third-party providers. Direct scenarios are development-only and are
+excluded from the production companion graph. Public marketing pages are
+inert documentation and contain no executable control surface.
 
 Source plugins are trusted in-process code. Portable plugins require an
 explicit trust decision for one verified content-addressed bundle and execute

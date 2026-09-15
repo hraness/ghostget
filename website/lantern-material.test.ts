@@ -41,7 +41,7 @@ test("refuses incomplete, extra, drifted, oversized or linked material before st
   }
 });
 
-test("keeps the Lantern wall on the homepage hero and preserves ordinary reading and inert previews", async () => {
+test("keeps the Lantern wall on the homepage hero and preserves ordinary reading", async () => {
   const directory = join(import.meta.dir, "source");
   const home = await readFile(join(directory, "index.html"), "utf8");
   expect(home).toContain('data-hraness-marketing-preset="editorial" data-hraness-material="lantern"');
@@ -50,7 +50,8 @@ test("keeps the Lantern wall on the homepage hero and preserves ordinary reading
   expect(home).toContain('class="hraness-marketing-hero ghostget-product-hero hraness-material-wall"');
   expect(home).not.toContain('class="hraness-marketing-field"');
   expect(home.match(/class="hraness-marketing-question hraness-material-disclosure"/gu)).toHaveLength(11);
-  expect(home.match(/sandbox referrerpolicy="no-referrer" loading="lazy" tabindex="-1"/gu)).toHaveLength(4);
+  expect(home).not.toMatch(/<iframe\b/gu);
+  expect(home).not.toContain("/control/accounts.html");
   for (const name of await readdir(directory)) {
     if (!name.endsWith(".html") || name === "index.html") continue;
     const html = await readFile(join(directory, name), "utf8");

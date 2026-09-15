@@ -22,7 +22,7 @@ description: >-
 
 # Ghostget
 
-Ghostget supplies bounded CLI and SDK capabilities with a native human control panel. Use it from the caller's own agent loop; Ghostget does not run a model.
+Ghostget supplies bounded CLI and SDK capabilities with a menu-bar companion for local outputs and CLI guidance. Use it from the caller's own agent loop; Ghostget does not run a model.
 
 ## Install or verify Ghostget
 
@@ -34,7 +34,7 @@ automation.
 
 ## Choose the smallest path
 
-- Use the native app for accounts, operation permissions, and human approvals; follow [native control and the web gateway](references/control-panel.md) for gateway-only harnesses, 1Password import, and user-space OpenAPI drafts.
+- Use `ghostget menubar` for accounts, operation permissions, and human approvals; use the CLI control commands for gateway-only harnesses, 1Password import, and user-space OpenAPI drafts.
 
 - Capture a URL: `ghostget <url>` or `ghostget clip <url>`.
 - Read without persistence: `ghostget read <url>`.
@@ -44,7 +44,7 @@ automation.
 - Read Reddit post or community user flair choices: follow [Reddit flair](references/reddit-flair.md), including installed capability, same-account evidence, and the separate selection boundary.
 - Search public Puerto Rico rentals: `ghostget clasificados-web listings.search --input '{"location":"San Juan, PR","beds_min":2,"max_price":5500}' --json`. Keep `location` to the reviewed San Juan tokens. Neighborhood comes from street, ZIP, known address, or list-card coordinates, never from broker copy. Zillow-group and Puerto Rico MLS public search are not installed.
 - Operate Beeper: inspect `ghostget capabilities beeper-local --json`, then use
-  only its typed read or action operation with the bound local Desktop realm.
+  only its typed read or action operation with the bound local provider realm.
 - Export an existing WhatsApp local projection for Message Like Me: follow
   [WhatsApp local Message Like Me export](references/whatsapp-adapter.md).
   This route does not pair, sync, or send, and its seven-file output is private.

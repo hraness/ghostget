@@ -108,11 +108,12 @@ Ghostget has no separate platform-native release assets. Its optional native
 providers retain their existing installation, identity, and live admission
 requirements. Publishing the CLI does not establish live provider qualification.
 
-The control panel in `desktop/` is currently built from an exact source checkout.
-Its local `.app` bundle is separate from the canonical CLI archive and does not
-add a sixth Release asset. Native source and helper checks do not qualify a
-signed installer, notarization, or live 1Password desktop authentication; those
-need their own relevant evidence before distribution or capability claims.
+The canonical release pipeline publishes the CLI from an exact source checkout.
+The standalone menu-bar companion has a separate build and sidecar contract in
+[`menubar-release.md`](menubar-release.md); native sidecar publication is not part
+of the current CLI release pipeline.
+There is no desktop app bundle or native installer. Native provider checks retain
+only their own installation and live admission requirements.
 
 The read-only build uploads a run-and-attempt-specific artifact. A separate
 checkout-free attestation job reauthorizes the exact owner/run/tag before
