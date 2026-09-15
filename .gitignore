@@ -7,3 +7,5 @@ website/dist/
 .vercel
 .env*
 build/menubar/
+/.build/
+/.swiftpm/
