@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.6
+
+- Finish same-boot cleanup of definitely published browser roots when a
+  contained browser setup fails. Profile-clone and later setup errors now use
+  the same durable quiescence and per-root journal as normal cleanup, while
+  ambiguous publication and unverifiable cleanup still preserve exact recovery
+  evidence.
+
 ## 0.18.5
 
 - Remove the website footer's Cloudflare Turnstile gate through the shared

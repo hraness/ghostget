@@ -1,10 +1,21 @@
-// Optional support invitations over main edbe567 add one published source
+// Optional support invitations joined with main 811f3b3 add one published source
 // module and exactly 3,695 payload bytes: package.json +101, src/cli.ts
 // +1,647, src/usage.ts +468, skills/ghostget/SKILL.md +622, and
 // src/support.ts +857. No generated SDK files or native assets change.
 // Retain the reviewed 65-byte payload allowance and packed-byte ceiling:
-// 22,523,437 + 3,695 + 65 = 22,527,197, with exactly 558 files.
+// 22,513,450 + 3,695 + 65 = 22,517,210, with exactly 558 files.
+// The joined setup-cleanup base below reduced measured payload by 9,987 bytes.
 // Required Linux CI independently admits its rebuilt canonical archive.
+//
+// Ghostget 0.18.6 same-boot setup-cleanup candidate over main edbe567.
+// A canonical npm 11.19.0 pack with --ignore-scripts under Node 24.20.0
+// on darwin arm64 / zlib 1.3.2.1-motley-42c2f19 measured 11,656,173
+// compressed / 22,513,450 payload bytes across exactly 557 files. Its
+// SHA-256 is 14ca5affd08c7d3561401b7e38c048e1bb0d6a02b02312210ea4c3d314d5d82c.
+// The setup-cleanup source, generated bundle, version coordinates, and release
+// note remain below the existing reviewed packed and payload ceilings; the
+// package inventory and website boundary are unchanged. Fresh Required Linux
+// CI and Release must still admit their actual canonical bytes.
 //
 // Ghostget 0.18.5 release candidate over main 202117c. A canonical npm
 // 11.19.0 pack with --ignore-scripts under Node 24.20.0 darwin-arm64
@@ -848,7 +859,7 @@
 export const MAX_PACKED_BYTES = 11_662_943;
 export const MAX_PACKED_ENTRIES = 558;
 export const MAX_PACKED_FILES = 558;
-export const MAX_UNPACKED_BYTES = 22_527_197;
+export const MAX_UNPACKED_BYTES = 22_517_210;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
