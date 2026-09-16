@@ -305,7 +305,7 @@ describe("complete local and release check composition", () => {
     expect(manifest.scripts?.["test:omni"]).toContain("./src/omni-runtime.test.ts");
     expect(manifest.scripts?.test).toBe("bun run test:unit && bun run test:omni");
     expect(manifest.scripts?.check).toBe(
-      "bun run check:static && bun run check:package && bun run test && bun run test:standalone",
+      "bun run check:cost-surfaces && bun run check:static && bun run check:package && bun run test && bun run test:standalone",
     );
     expect(manifest.scripts?.["check:macos"]).toBe("bun run ./scripts/ci-macos-check.ts");
     expect(manifest.scripts?.["test:shard"]).toBe("bun run ./scripts/ci-test-shard.ts");
