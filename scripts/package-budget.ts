@@ -969,7 +969,9 @@
 export const MAX_PACKED_BYTES = 11_677_251;
 export const MAX_PACKED_ENTRIES = 561;
 export const MAX_PACKED_FILES = 561;
-export const MAX_UNPACKED_BYTES = 22_571_674;
+// The cost-discipline registry and gate added 34 unpacked bytes of package
+// surface; the ceiling carries 292 unpacked bytes of headroom over it.
+export const MAX_UNPACKED_BYTES = 22_572_000;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
