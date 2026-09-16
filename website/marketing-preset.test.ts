@@ -19,7 +19,9 @@ test("refuses drift, extra assets, missing assets and symbolic links", async () 
   for (const mutation of ["drift", "extra", "missing", "symlink"] as const) {
     const directory = await mkdtemp(join(tmpdir(), "marketing-preset-test-"));
     try {
-      await cp(source, directory, { recursive: true });
+      // Traverse every entry through JS; Bun's native recursive path can stall
+      // when this fixture runs with the complete static-site suite.
+      await cp(source, directory, { recursive: true, filter: () => true });
       if (mutation === "drift") await writeFile(join(directory, "product-marketing-preset.css"), "body { color: red; }");
       if (mutation === "extra") await writeFile(join(directory, "extra.svg"), "<svg/>");
       if (mutation === "missing") await rm(join(directory, "marketing-assets/grain.svg"));

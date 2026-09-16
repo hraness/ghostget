@@ -172,7 +172,7 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
   const ciNames = ["static", "package", "test 1/4", "test 2/4", "test 3/4", "test 4/4", "test-omni", "standalone", "macOS", "Required"];
   for (const [workflowId, path, event, runId, names] of [
     [323493607, ".github/workflows/ci.yml", "push", 100, ciNames],
-    [351099999, "dynamic/github-code-scanning/codeql", "dynamic", 200, ["Analyze (javascript-typescript)", "Analyze (actions)", "Analyze (swift)"]],
+    [351099999, "dynamic/github-code-scanning/codeql", "dynamic", 200, ["Analyze (javascript-typescript)", "Analyze (actions)"]],
   ] as const) {
     responses[`${prefix}/actions/workflows/${workflowId}`] = { id: workflowId, path, state: "active" };
     const run = { id: runId, workflow_id: workflowId, path, event, head_sha: input.source, head_branch: "main", run_attempt: attempt,
@@ -207,7 +207,7 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
   // The currently running Release is deliberately not a required source job.
   responses[`${prefix}/commits/${input.source}/check-runs?per_page=100&filter=latest`] = { total_count: 1,
     check_runs: [{ id: 701, name: "Verify", app: { id: 15368 }, head_sha: input.source, status: "in_progress", conclusion: null }] };
-  const analyses = ["actions", "javascript-typescript", "swift"].map((language, index) => ({ id: 800 + index,
+  const analyses = ["actions", "javascript-typescript"].map((language, index) => ({ id: 800 + index,
     commit_sha: input.source, category: `/language:${language}`, ref: "refs/heads/main", analysis_key: "dynamic/github-code-scanning/codeql:analyze",
     tool: { name: "CodeQL", version: "2.27.0" }, environment: JSON.stringify({ category: `/language:${language}`, language }),
     error: "", warning: "", created_at: "2026-09-09T01:10:00Z", url: `https://api.github.com/${prefix}/code-scanning/analyses/${800 + index}`, results_count: 41 }));
@@ -218,13 +218,18 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
 }
 
 describe("exact source CI admission", () => {
+  test("keeps the reviewed two-language inventory bound to a tree without owned Swift source", () => {
+    const result = Bun.spawnSync(["git", "ls-files", "-z", "*.swift"], { cwd: join(import.meta.dir, ".."), stdout: "pipe", stderr: "pipe" });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.toString()).toBe("");
+  });
   test("admits all ten jobs and nine real checkouts with exact toolchains and distinct security evidence", () => {
     const fixture = sourceCiFixture(); const result = admitSourceCi(fixture.input, fixture.read, fixture.clock);
     expect(result.ci.jobs).toHaveLength(10); expect(result.checkouts).toHaveLength(9);
-    expect(result.codeql.jobs.map(job => job.name).sort()).toEqual(["Analyze (actions)", "Analyze (javascript-typescript)", "Analyze (swift)"]);
+    expect(result.codeql.jobs.map(job => job.name).sort()).toEqual(["Analyze (actions)", "Analyze (javascript-typescript)"]);
     expect(result.security.prComparison).toHaveLength(1); expect(result.security.mainComparison).toEqual([]);
-    expect(result.security.exactAnalyses.map(value => value.category)).toEqual(["/language:actions", "/language:javascript-typescript", "/language:swift"]);
-    expect(result.security.exactAnalyses.map(value => value.resultsCount)).toEqual([41, 41, 41]);
+    expect(result.security.exactAnalyses.map(value => value.category)).toEqual(["/language:actions", "/language:javascript-typescript"]);
+    expect(result.security.exactAnalyses.map(value => value.resultsCount)).toEqual([41, 41]);
     expect(result.security.distinction).toContain("do not assert zero alerts");
     expect(fixture.calls.filter(path => path.endsWith("/logs"))).toHaveLength(9);
     expect(fixture.calls.filter(path => path.endsWith("/git/ref/heads/main"))).toHaveLength(2);
@@ -248,13 +253,13 @@ describe("exact source CI admission", () => {
   test("admits the exact analyses at the top of a full newest-first window and rejects an oversized window", () => {
     const path = (f: ReturnType<typeof sourceCiFixture>) => `${f.prefix}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=20`;
     const older = (f: ReturnType<typeof sourceCiFixture>, count: number) => Array.from({ length: count }, (_, index) => ({
-      ...f.analyses[index % 3]!, id: 900 + index, commit_sha: "c".repeat(40), created_at: "2026-09-08T01:10:00Z" }));
+      ...f.analyses[index % 2]!, id: 900 + index, commit_sha: "c".repeat(40), created_at: "2026-09-08T01:10:00Z" }));
     const full = sourceCiFixture();
-    full.responses[path(full)] = [...full.analyses, ...older(full, 17)];
+    full.responses[path(full)] = [...full.analyses, ...older(full, 18)];
     expect(full.responses[path(full)]).toHaveLength(20);
-    expect(admitSourceCi(full.input, full.read, full.clock).security.exactAnalyses.map(analysis => analysis.id)).toEqual([800, 801, 802]);
+    expect(admitSourceCi(full.input, full.read, full.clock).security.exactAnalyses.map(analysis => analysis.id)).toEqual([800, 801]);
     const oversized = sourceCiFixture();
-    oversized.responses[path(oversized)] = [...oversized.analyses, ...older(oversized, 18)];
+    oversized.responses[path(oversized)] = [...oversized.analyses, ...older(oversized, 19)];
     expect(() => admitSourceCi(oversized.input, oversized.read, oversized.clock)).toThrow("missing or oversized newest window");
     const absent = sourceCiFixture();
     absent.responses[path(absent)] = older(absent, 20);
@@ -266,14 +271,23 @@ describe("exact source CI admission", () => {
     fixture.analyses.push(...fixture.analyses.map(value => ({ ...value, id: value.id + 10, created_at: "2026-09-08T01:10:00Z" })));
     const result = admitSourceCi(fixture.input, fixture.read, fixture.clock);
     expect(result.ci.attempt).toBe(2); expect(result.codeql.attempt).toBe(2);
-    expect(result.security.exactAnalyses.map(value => value.id)).toEqual([800, 801, 802]);
+    expect(result.security.exactAnalyses.map(value => value.id)).toEqual([800, 801]);
   });
-  test("requires Swift jobs and analyses without accepting the old two-language contract", () => {
-    for (const keepSwiftAnalysis of [false, true]) {
+  test("requires both current source languages and rejects incomplete security coverage", () => {
+    for (const language of ["actions", "javascript-typescript"]) {
+      const missingJob = sourceCiFixture();
+      const jobs = missingJob.responses[`${missingJob.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`];
+      jobs.jobs = jobs.jobs.filter((job: Json) => job.name !== `Analyze (${language})`); jobs.total_count = 1;
+      expect(() => admitSourceCi(missingJob.input, missingJob.read, missingJob.clock)).toThrow("complete successful job union is required");
+      const missingAnalysis = sourceCiFixture();
+      missingAnalysis.responses[`${missingAnalysis.prefix}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=20`] = missingAnalysis.analyses.filter(value => value.category !== `/language:${language}`);
+      expect(() => admitSourceCi(missingAnalysis.input, missingAnalysis.read, missingAnalysis.clock)).toThrow("exact main CodeQL analyses are missing or ambiguous");
+    }
+    for (const keepTypeScriptAnalysis of [false, true]) {
       const fixture = sourceCiFixture();
       const jobs = fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`];
-      jobs.jobs = jobs.jobs.filter((job: Json) => job.name !== "Analyze (swift)"); jobs.total_count = 2;
-      if (!keepSwiftAnalysis) fixture.analyses.pop();
+      jobs.jobs = jobs.jobs.filter((job: Json) => job.name !== "Analyze (javascript-typescript)"); jobs.total_count = 1;
+      if (!keepTypeScriptAnalysis) fixture.analyses.pop();
       expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow("complete successful job union is required");
     }
     const missingAnalysis = sourceCiFixture(); missingAnalysis.analyses.pop();
@@ -287,19 +301,34 @@ describe("exact source CI admission", () => {
       (job: Json) => { job.head_sha = "7".repeat(40); },
     ]) {
       const fixture = sourceCiFixture();
-      const swift = fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`].jobs.find((job: Json) => job.name === "Analyze (swift)");
-      mutate(swift);
+      const typescript = fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`].jobs.find((job: Json) => job.name === "Analyze (javascript-typescript)");
+      mutate(typescript);
       expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow();
     }
   });
-  test("rejects obsolete Rust coverage in place of the menu's Swift job or analysis", () => {
+  test("rejects an additional obsolete Swift job or analysis instead of silently ignoring it", () => {
+    for (const extra of ["job", "analysis", "both"]) {
+      const fixture = sourceCiFixture();
+      if (extra !== "analysis") {
+        const jobs = fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`];
+        jobs.jobs.push({ ...jobs.jobs[0], id: 2002, name: "Analyze (swift)" }); jobs.total_count = 3;
+      }
+      if (extra !== "job") fixture.analyses.push({ ...fixture.analyses[1]!, id: 802,
+        category: "/language:swift", environment: JSON.stringify({ category: "/language:swift", language: "swift" }),
+        url: `https://api.github.com/${fixture.prefix}/code-scanning/analyses/802` });
+      expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow(
+        extra === "analysis" ? "exact main CodeQL analyses are missing or ambiguous" : "complete successful job union is required",
+      );
+    }
+  });
+  test("rejects an unreviewed language in place of a current source job or analysis", () => {
     for (const substitute of ["job", "analysis", "both"]) {
       const fixture = sourceCiFixture();
       if (substitute !== "analysis") {
         const jobs = fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`].jobs;
-        jobs.find((job: Json) => job.name === "Analyze (swift)").name = "Analyze (rust)";
+        jobs.find((job: Json) => job.name === "Analyze (javascript-typescript)").name = "Analyze (rust)";
       }
-      if (substitute !== "job") Object.assign(fixture.analyses[2]!, {
+      if (substitute !== "job") Object.assign(fixture.analyses[1]!, {
         category: "/language:rust", environment: JSON.stringify({ category: "/language:rust", language: "rust" }),
       });
       expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow(
@@ -307,7 +336,7 @@ describe("exact source CI admission", () => {
       );
     }
   });
-  test("binds Swift analysis to its exact source, configuration and own job interval", () => {
+  test("binds TypeScript analysis to its exact source, configuration and own job interval", () => {
     for (const mutate of [
       (analysis: Json) => { analysis.id = 800; },
       (analysis: Json) => { analysis.category = "/language:actions"; },
@@ -315,25 +344,25 @@ describe("exact source CI admission", () => {
       (analysis: Json) => { analysis.commit_sha = "7".repeat(40); },
       (analysis: Json) => { analysis.ref = "refs/pull/50/head"; },
       (analysis: Json) => { analysis.analysis_key = "other:analyze"; },
-      (analysis: Json) => { analysis.environment = JSON.stringify({ category: "/language:swift", language: "actions" }); },
-      (analysis: Json) => { analysis.environment = JSON.stringify({ category: "/language:actions", language: "swift" }); },
+      (analysis: Json) => { analysis.environment = JSON.stringify({ category: "/language:javascript-typescript", language: "actions" }); },
+      (analysis: Json) => { analysis.environment = JSON.stringify({ category: "/language:actions", language: "javascript-typescript" }); },
       (analysis: Json) => { analysis.error = "failed analysis"; },
       (analysis: Json) => { analysis.warning = "incomplete extraction"; },
       (analysis: Json) => { analysis.tool.name = "Other"; },
       (analysis: Json) => { analysis.url += "/other"; },
       (analysis: Json) => { analysis.created_at = "2026-09-08T01:10:00Z"; },
     ]) {
-      const fixture = sourceCiFixture(); mutate(fixture.analyses[2]!);
+      const fixture = sourceCiFixture(); mutate(fixture.analyses[1]!);
       expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow();
     }
     for (const field of ["started_at", "completed_at"]) {
       const fixture = sourceCiFixture();
-      const swift = fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`].jobs.find((job: Json) => job.name === "Analyze (swift)");
-      swift[field] = field === "started_at" ? "2026-09-09T01:11:00Z" : "2026-09-09T01:09:00Z";
+      const typescript = fixture.responses[`${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`].jobs.find((job: Json) => job.name === "Analyze (javascript-typescript)");
+      typescript[field] = field === "started_at" ? "2026-09-09T01:11:00Z" : "2026-09-09T01:09:00Z";
       expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow("CodeQL analysis source, configuration, time, or outcome differs");
     }
   });
-  test("refuses two exact-source CodeQL runs even when the later run has all three languages", () => {
+  test("refuses two exact-source CodeQL runs even when the later run has both source languages", () => {
     const fixture = sourceCiFixture();
     const path = `${fixture.prefix}/actions/workflows/351099999/runs?head_sha=${fixture.input.source}&branch=main&event=dynamic&per_page=100`;
     const inventory = fixture.responses[path];
@@ -345,15 +374,15 @@ describe("exact source CI admission", () => {
     expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow("exact-source workflow run is missing or ambiguous");
     expect(fixture.calls.some(call => /\/actions\/runs\/(?:199|200)(?:\/|$)/u.test(call))).toBe(false);
   });
-  test("rejects Swift-only evidence changes during the final source snapshot", () => {
+  test("rejects TypeScript-only evidence changes during the final source snapshot", () => {
     for (const target of ["job", "analysis"]) {
       const fixture = sourceCiFixture(); let reads = 0;
       const path = target === "job" ? `${fixture.prefix}/actions/runs/200/attempts/1/jobs?per_page=100`
         : `${fixture.prefix}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=20`;
       expect(() => admitSourceCi(fixture.input, current => {
         if (current === path && ++reads === 2) {
-          if (target === "job") fixture.responses[path].jobs.find((job: Json) => job.name === "Analyze (swift)").completed_at = "2026-09-09T01:13:59Z";
-          else fixture.analyses[2]!.results_count += 1;
+          if (target === "job") fixture.responses[path].jobs.find((job: Json) => job.name === "Analyze (javascript-typescript)").completed_at = "2026-09-09T01:13:59Z";
+          else fixture.analyses[1]!.results_count += 1;
         }
         return fixture.read(current);
       }, fixture.clock)).toThrow("source or provider evidence changed during admission");

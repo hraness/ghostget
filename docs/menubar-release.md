@@ -29,6 +29,14 @@ Supported documents can be opened; every admitted file can be revealed in the
 file manager or have its path copied. A further submenu copies CLI help
 commands, and the menu opens documentation.
 
+The menu also offers free Ghostget product updates and optional paid development
+support. Each explicit selection opens the fixed Hraness Accounts page in the
+default browser, where the person reviews and confirms signup or payment. These
+links remain available when the control helper is unavailable. They carry no
+account details or email address and do not inspect local invitation preferences.
+The shared browser handoff has a 10-second deadline; repeated clicks while it is
+pending do not launch another browser process.
+
 The adapter selects the state home through the existing private-state validator.
 The output directory must already exist, belong to the current user, and have
 mode `0700`. The adapter does not create or adopt it. An unavailable directory

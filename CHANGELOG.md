@@ -7,6 +7,18 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.13
+
+- Move the menu companion onto the shared desktop-foundation runner, retaining
+  its revision-checked account controls and bounded local output listing.
+- Add explicit menu links for free Ghostget updates and optional paid development
+  support. Hraness Accounts owns the browser confirmation; the menu sends no
+  local account details or email address.
+- Add the shared optional support link to the static website footer, retaining
+  the existing production-only Ghostget newsletter form.
+- Retain timeout escalation until the direct iMessage RPC process group exits,
+  including descendants that ignore termination and close inherited pipes.
+
 ## 0.18.12
 
 - Make optional updates and support discoverable to agents after successful CLI

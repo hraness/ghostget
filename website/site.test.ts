@@ -646,6 +646,7 @@ describe("ghostget.com static site", () => {
     }
     const expectedFooterHrefs = [
       HRANESS_HOME_URL,
+      "https://account.hraness.com/support?product=wrench&amp;source=web#support",
       "https://hraness.com/privacy",
       ...hranessSocialLinks.map(({ href }) => href),
     ];
@@ -656,6 +657,7 @@ describe("ghostget.com static site", () => {
       expect(footer).toContain('data-slot="hraness-site-footer"');
       expect(footer).not.toContain("hraness-site-footer__wordmark");
       expect(footer).toContain('data-mailing-list="signup"');
+      expect(footer).toContain('data-slot="hraness-support-link"');
       expect(footer).toContain(`action="${HRANESS_MAILING_SUBSCRIBE_URL}"`);
       expect(footer).toContain('name="audience" type="hidden" value="wrench"');
       expect(footer).toContain('name="website"');
