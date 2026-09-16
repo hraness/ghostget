@@ -1,3 +1,15 @@
+// Ghost emoji status mark over main 9af4d34 adds exactly one packed file and
+// 5,841 payload bytes: src/control/menubar-icon.ts +5,810 (the pre-rendered
+// Twemoji CC-BY 4.0 ghost the icon-only Windows/Linux tray surfaces use while
+// macOS renders the native emoji title) and package.json +31 (the packed file
+// entry; the v0.7.0 foundation tarball coordinate keeps its byte length). A
+// Bun 1.3.14 pack on darwin arm64 measured 11,662,157 compressed /
+// 22,568,350 payload bytes across exactly 560 files. Retain the reviewed
+// 4,096-byte packed portability allowance and the 65-byte payload allowance:
+// 11,662,157 + 4,096 = 11,666,253 and 22,568,350 + 65 = 22,568,415. Canonical
+// Release still admits its actual archive; the Required Linux CI package job
+// measures the same archive under the Linux toolchain.
+//
 // Shared-foundation menu-bar migration over main dd1f377 adds exactly one
 // packed file and 33,838 payload bytes: src/control/menubar-cli.ts +33,710
 // (the TypeScript adapter ships so `ghostget menubar` drives the shared
@@ -925,10 +937,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 11_672_823;
-export const MAX_PACKED_ENTRIES = 559;
-export const MAX_PACKED_FILES = 559;
-export const MAX_UNPACKED_BYTES = 22_562_574;
+export const MAX_PACKED_BYTES = 11_666_253;
+export const MAX_PACKED_ENTRIES = 560;
+export const MAX_PACKED_FILES = 560;
+export const MAX_UNPACKED_BYTES = 22_568_415;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

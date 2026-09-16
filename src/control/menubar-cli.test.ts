@@ -3,6 +3,7 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, wri
 import { join } from "node:path";
 import { validateSnapshot, type MenuItem, type Snapshot } from "@hraness/desktop-foundation";
 import { ghostgetStateHome } from "../storage";
+import { TRAY_ICON } from "./menubar-icon";
 import { companionOptions, menuLabel, readOutputs, runMenubarCommand, snapshotItems, type Attempt, type OutputsView } from "./menubar-cli";
 import type { ControlSnapshot } from "./protocol";
 
@@ -18,7 +19,7 @@ function fixture() {
 
 /** The produced items must satisfy the shared runner's wire contract. */
 function wire(items: readonly MenuItem[]): ReadonlyMap<string, boolean> {
-  return validateSnapshot({ version: 1, type: "snapshot", appId: "ghostget", name: "Ghostget", title: "Gg", revision: 1, items } satisfies Snapshot);
+  return validateSnapshot({ version: 1, type: "snapshot", appId: "ghostget", name: "Ghostget", title: "\u{1f47b}", icon: TRAY_ICON, revision: 1, items } satisfies Snapshot);
 }
 function labels(items: readonly MenuItem[]): string[] {
   return items.flatMap((item) => item.kind === "separator" ? [] : item.kind === "submenu" ? [item.label, ...labels(item.items)] : [item.label]);
@@ -177,6 +178,13 @@ describe("outputs menu", () => {
 });
 
 describe("helper-backed companion options", () => {
+  test("the status mark is the ghost emoji with bundled tray art", () => {
+    const { environment } = fixture();
+    const options = companionOptions(environment);
+    expect(options.title).toBe("\u{1f47b}");
+    expect(options.icon).toEqual({ width: 32, height: 32, rgba: expect.any(String) });
+    expect(Buffer.from(options.icon!.rgba, "base64")).toHaveLength(32 * 32 * 4);
+  });
   test("snapshot maps a live helper response and marks it fresh", async () => {
     const { environment } = fixture();
     const options = companionOptions(environment);

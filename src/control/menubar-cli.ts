@@ -3,6 +3,7 @@ import { lstatSync, readdirSync, type BigIntStats } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleCompanionCommand, openBrowser, type CompanionOptions, type MenuItem } from "@hraness/desktop-foundation";
+import { TRAY_ICON } from "./menubar-icon";
 import { ghostgetStateHome } from "../storage";
 import { CONTROL_PROTOCOL, type ActivityRow, type ApprovalView, type CapabilityView, type ControlRequest, type ControlResponse, type ControlSnapshot } from "./protocol";
 import type { ControlEnvironment } from "./web-policy";
@@ -417,7 +418,8 @@ export function companionOptions(environment: ControlEnvironment): CompanionOpti
   return {
     appId: "ghostget",
     name: "Ghostget",
-    title: "Gg",
+    title: "\u{1f47b}",
+    icon: TRAY_ICON,
     tooltip: "Ghostget · control, outputs and CLI help",
     stateDir: join(ghostgetStateHome(environment), "menubar"),
     refreshMs: 5_000,
