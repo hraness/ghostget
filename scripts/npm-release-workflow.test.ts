@@ -1343,8 +1343,8 @@ describe("npm publication contract", () => {
     expect(budget).toContain("da3f581f1f96724337a99c4b80567d4d11893c4df1ff9a808464260796092976");
     expect(budget).toContain("22,496,998 payload bytes across exactly 558 files");
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
-    expect(MAX_PACKED_BYTES).toBe(11_662_943);
-    expect(MAX_PACKED_BYTES).toBe(11_658_847 + 4_096);
+    expect(MAX_PACKED_BYTES).toBe(11_672_823);
+    expect(MAX_PACKED_BYTES).toBe(11_668_727 + 4_096);
     expect(MAX_PACKED_ENTRIES).toBe(559);
     expect(MAX_PACKED_FILES).toBe(559);
     expect(budget).toContain("Ghostget 0.18.6 same-boot setup-cleanup candidate over main edbe567");
@@ -1370,7 +1370,7 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 559, max: 559 },
       fileCount: { min: 559, max: 559 },
-      packedBytes: { min: 1_600_000, max: 11_662_943 },
+      packedBytes: { min: 1_600_000, max: 11_672_823 },
       unpackedBytes: { min: 9_000_000, max: 22_562_574 },
     });
   });

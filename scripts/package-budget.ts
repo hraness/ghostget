@@ -7,10 +7,14 @@
 // Ghostget-owned LaunchAgent lifecycle leave the release. A Bun 1.3.14
 // pack on darwin arm64 measured 11,520,572 compressed / 22,562,509
 // payload bytes across exactly 559 files, SHA-256
-// 6b46852893ff1714bf7c2d6a7027e5e8a9d6fc614b838675bef0ca2092c015d5.
-// Retain the packed ceiling and the reviewed 65-byte payload allowance:
-// 22,562,509 + 65 = 22,562,574. Canonical Node/npm Linux CI and Release
-// independently admit their actual archive.
+// 6b46852893ff1714bf7c2d6a7027e5e8a9d6fc614b838675bef0ca2092c015d5; the
+// Required Linux CI package job on PR #272 measured the same archive at
+// 11,668,727 compressed bytes under the Linux toolchain, consistent with
+// the documented darwin/Linux zlib spread. Raise the packed ceiling to the
+// reviewed 4,096-byte portability allowance above that larger measurement:
+// 11,668,727 + 4,096 = 11,672,823. Retain the reviewed 65-byte payload
+// allowance: 22,562,509 + 65 = 22,562,574. Canonical Release still admits
+// its actual archive.
 //
 // Ghostget 0.18.12 agent support discovery over main e9513c7 adds exactly
 // 8,123 payload bytes: source modules +4,519, six generated SDK entrypoints
@@ -921,7 +925,7 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 11_662_943;
+export const MAX_PACKED_BYTES = 11_672_823;
 export const MAX_PACKED_ENTRIES = 559;
 export const MAX_PACKED_FILES = 559;
 export const MAX_UNPACKED_BYTES = 22_562_574;
