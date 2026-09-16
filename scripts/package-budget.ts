@@ -1,3 +1,17 @@
+// Ghost emoji status mark over the merged support candidate adds exactly one
+// packed file and 5,841 payload bytes: src/control/menubar-icon.ts +5,810
+// (the pre-rendered Twemoji CC-BY 4.0 ghost the icon-only Windows/Linux tray
+// surfaces use while macOS renders the native emoji title) and package.json
+// +31 (the packed file entry). The pinned v0.7.0 foundation release tarball
+// coordinate keeps its byte length, so the compressed ceiling sized off the
+// earlier Linux CI measurement still covers the smaller darwin archive: an
+// npm pack on darwin arm64 measured 11,663,260 compressed / 22,571,609
+// payload bytes across exactly 561 files. Archive SHA-256:
+// 160726e2db7ac18e243c2ce3b04bf967e49233730eb66b5a7bc102827ece05dc.
+// Keep the retained packed ceiling and the reviewed 65-byte payload
+// allowance: 22,571,609 + 65 = 22,571,674. Required Linux CI and the
+// canonical Release independently admit their actual archives.
+//
 // Final Ghostget 0.18.13 also retains direct iMessage RPC group escalation
 // after a leader exits and closes its pipes. Against the support candidate
 // below, the runtime adds 1,131 bytes and its changelog adds 154. Two identical
@@ -952,9 +966,9 @@
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
 export const MAX_PACKED_BYTES = 11_672_823;
-export const MAX_PACKED_ENTRIES = 560;
-export const MAX_PACKED_FILES = 560;
-export const MAX_UNPACKED_BYTES = 22_565_833;
+export const MAX_PACKED_ENTRIES = 561;
+export const MAX_PACKED_FILES = 561;
+export const MAX_UNPACKED_BYTES = 22_571_674;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
