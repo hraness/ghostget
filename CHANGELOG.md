@@ -14,6 +14,8 @@ Historical entries retain their original delivery coordinates.
   status. A shared protocol separates discovery from claiming an invitation;
   agents acknowledge only after human-facing output. Audience settings, local
   preferences, cancellation, and cadence keep the handoff optional.
+- Pin the unchanged Message Like Me 0.7.0 contract by full commit at its renamed
+  Textbutler repository so clean installs verify the canonical source archive.
 
 ## 0.18.11
 
