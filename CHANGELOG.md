@@ -7,6 +7,12 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.11
+
+- Repin the shared site footer to v0.11.2. The footer bar no longer paints a
+  visible top border in normal themes; its one-pixel footprint and the
+  forced-colors separator are unchanged.
+
 ## 0.18.10
 
 - Give contained-browser cleanup ten seconds to observe a normal daemon exit

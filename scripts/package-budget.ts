@@ -1,3 +1,13 @@
+// Ghostget 0.18.11 shared-footer v0.11.2 repin over main c931249 adds exactly
+// 202 payload bytes over the 0.18.10 measurement: the site-footer pin and the
+// release changelog/coordinate edits retain their byte lengths. A Bun 1.3.14
+// pack on darwin arm64 measured 11,508,687 compressed / 22,520,359 payload
+// bytes across the same 558 files, SHA-256
+// 1294d4d7b01869352af72abb4e7510e6d99d51896a8751a5446152b2fe1f6ef3.
+// Retain the packed-byte ceiling and the reviewed 65-byte payload allowance:
+// 22,520,359 + 65 = 22,520,424.
+// Canonical Node/npm Linux CI still independently admits its own archive.
+//
 // Ghostget 0.18.10 cleanup-convergence candidate over main 0840d3a preserves
 // the 558-file public boundary and the existing packed-byte ceiling. A Bun
 // 1.3.14 canonical pack on darwin arm64 measured 11,508,605 compressed /
@@ -887,7 +897,7 @@
 export const MAX_PACKED_BYTES = 11_662_943;
 export const MAX_PACKED_ENTRIES = 558;
 export const MAX_PACKED_FILES = 558;
-export const MAX_UNPACKED_BYTES = 22_520_222;
+export const MAX_UNPACKED_BYTES = 22_520_424;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
