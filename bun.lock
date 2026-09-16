@@ -8,7 +8,7 @@
         "@1password/sdk": "0.5.0",
         "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
         "@hraness/message-like-me": "github:hraness/message-like-me#v0.7.0",
-        "@hraness/support-foundation": "github:hraness/support-foundation#5650bfc74af771d3dabff410e01eff2fa5c8b2ca",
+        "@hraness/support-foundation": "github:hraness/support-foundation#2d034b357680353574411217d68b02b6755b07ed",
         "buffer-from": "1.1.2",
         "effect": "3.22.1",
         "source-map": "0.6.1",
@@ -51,7 +51,7 @@
 
     "@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#79520f8", { "peerDependencies": { "react": ">=18 <20" }, "optionalPeers": ["react"] }, "hraness-site-footer-79520f8", "sha512-sI70nIuGcUr/CQs4vR75yB1WLoWwPSZN14xsQG0cFArSkohzHR50I6ebV31bEgwwO6PO7QeZow/SAeeZrIG8WQ=="],
 
-    "@hraness/support-foundation": ["@hraness/support-foundation@github:hraness/support-foundation#5650bfc", {}, "hraness-support-foundation-5650bfc", "sha512-Sx5eKIdaPtIO89S5CYOmEbsIHAanQmKYTlxkR6FOGVLQk8MfhaQfj5zFopKbxHXliihYblwguOjA7DARO8ob3A=="],
+    "@hraness/support-foundation": ["@hraness/support-foundation@github:hraness/support-foundation#2d034b3", {}, "hraness-support-foundation-2d034b3", "sha512-ayi8JeDAkaKkJDtQwe705DfNAas0na5fmf70BF+dHhADYdryBNhohahGDtItNZ+DD8rPxmmy7xRGfteixSC+1w=="],
 
     "@hraness/ui": ["@hraness/ui@github:hraness/ui#89946f6", { "dependencies": { "@hugeicons/core-free-icons": "^4.2.2", "@hugeicons/react": "^1.1.9", "@stylexjs/stylex": "0.19.0", "clsx": "^2.1.1", "parse5": "8.0.1", "react-aria": "3.50.0", "react-aria-components": "1.19.0" }, "peerDependencies": { "@babel/core": "7.29.7", "@stylexjs/babel-plugin": "0.19.0", "@types/babel__core": "7.20.5", "@types/bun": "1.3.14", "@types/node": "^20.19.0 || >=22.12.0", "lightningcss": "1.33.0", "next": "16.2.12 || 16.3.3", "react": ">=18 <20", "react-dom": ">=18 <20", "typescript": "6.0.3", "vite": "7.3.6 || 8.2.1" }, "optionalPeers": ["@babel/core", "@stylexjs/babel-plugin", "@types/babel__core", "@types/bun", "@types/node", "lightningcss", "next", "typescript", "vite"] }, "hraness-ui-89946f6", "sha512-U3mbWWSJbULiEZTY8N0cS+Nu7BO9vYI8UbeTkI+UnmSUElk/RJv9lZEEB8/R5873SLVpAXm2oC9puj51mvsBOw=="],
 

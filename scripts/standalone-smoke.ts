@@ -28,7 +28,7 @@ const expectedClosureRuntimeDependencies = Object.freeze({
   "@1password/sdk": "0.5.0",
   "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
   "@hraness/message-like-me": "github:hraness/message-like-me#v0.7.0",
-  "@hraness/support-foundation": "github:hraness/support-foundation#5650bfc74af771d3dabff410e01eff2fa5c8b2ca",
+  "@hraness/support-foundation": "github:hraness/support-foundation#2d034b357680353574411217d68b02b6755b07ed",
   "buffer-from": "1.1.2",
   "source-map": "0.6.1",
   "source-map-support": "0.5.21",
@@ -77,6 +77,7 @@ const environment: Record<string, string> = {
   GHOSTGET_MEDIA_HOME: join(state, "media"),
   GHOSTGET_STATE_HOME: state,
   HRANESS_SUPPORT_EMAIL: "off",
+  HRANESS_SUPPORT_AUDIENCE: "off",
 };
 
 const inheritedProcessBudget = process.env.GOMAXPROCS;
@@ -525,6 +526,17 @@ async function exerciseCli(
     "https://account.hraness.com/support?product=wrench&source=cli#support",
   ])) throw new Error(`${target.label} support links differ from the canonical handoff`);
 
+  const protocolResult = await runCli(target, "support protocol", ["support", "protocol", "--json"]);
+  const protocol = requireJsonObject(`${target.label} support protocol`, JSON.parse(protocolResult.stdout) as unknown);
+  const commands = requireJsonObject(`${target.label} support protocol.commands`, protocol.commands);
+  if (protocolResult.stderr !== "" || protocol.schemaVersion !== "hraness-support-protocol-v1"
+    || protocol.optional !== true
+    || !isDeepStrictEqual(commands.offer, ["ghostget", "support", "offer", "--json"])
+    || !isDeepStrictEqual(commands.shown, ["ghostget", "support", "shown", "{invitationId}"])
+    || !isDeepStrictEqual(commands.release, ["ghostget", "support", "release", "{invitationId}"])) {
+    throw new Error(`${target.label} support protocol is malformed`);
+  }
+
   const urlMetadataHelp = await runCli(
     target,
     "url-metadata help",
@@ -741,8 +753,8 @@ try {
       installedKbRoot,
     );
     await Promise.all([
-      assertInstalledClosurePackage({ name: "@hraness/support-foundation", version: "0.2.0", root: installedSupportRoot, keyFile: "dist/index.js", sha256: "043d86b53dc9898be116b7a804968d52575ed8a1c960279535ef412f54619427" }),
-      assertInstalledClosurePackage({ name: "@hraness/support-foundation", version: "0.2.0", root: installedSupportRoot, keyFile: "dist/node.js", sha256: "e8ed90e4c22abb94e9cf3bdfaa806c4c788e02590f3bd46a41f2e39065173813" }),
+      assertInstalledClosurePackage({ name: "@hraness/support-foundation", version: "0.3.0", root: installedSupportRoot, keyFile: "dist/index.js", sha256: "8c80132d2eaa0fcbf91fe9db2a4ece735ced307e629bd411030c8e2d6f9fa3c5" }),
+      assertInstalledClosurePackage({ name: "@hraness/support-foundation", version: "0.3.0", root: installedSupportRoot, keyFile: "dist/node.js", sha256: "e5867b56351d8ebdf3d6a8de3dd8a992dd59aedfde930d1cc96adc806962de95" }),
       assertInstalledClosurePackage({ name: "@1password/sdk", version: "0.5.0", root: installedCredentialSdkRoot, keyFile: "dist/sdk.js", sha256: "55526607e6d252bd3f934a93888b6a023795b66bda76039230980e7bf0dcaedd" }),
       assertInstalledClosurePackage({ name: "@1password/sdk-core", version: "0.5.0", root: installedCredentialCoreRoot, keyFile: "nodejs/core.js", sha256: "fc6e7745837afd4cf42a325284040083bbd09679eeceb4fa9a21ddba34151470" }),
       assertInstalledClosurePackage({ name: "@1password/sdk-core", version: "0.5.0", root: installedCredentialCoreRoot, keyFile: "nodejs/core_bg.wasm", sha256: "97aa9140c5c923b39b41c059d5ab98e214b5fc78a80203d0026708cfbce8d6ab" }),

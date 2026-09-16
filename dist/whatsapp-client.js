@@ -283,6 +283,7 @@ function preparedEnvironment(additions) {
     if (typeof value === "string")
       environment[key] = value;
   }
+  environment.GHOSTGET_CLI_DEPTH = "1";
   if (additions === undefined)
     return Object.freeze(environment);
   const source = record(additions, "options.environment");
@@ -297,6 +298,7 @@ function preparedEnvironment(additions) {
     } else
       environment[key] = value;
   }
+  environment.GHOSTGET_CLI_DEPTH = "1";
   return Object.freeze(environment);
 }
 function exportWhatsAppMessageLikeMeSync(requestValue, optionsValue = {}) {

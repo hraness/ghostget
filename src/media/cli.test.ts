@@ -169,8 +169,19 @@ describe("runCli", () => {
 
   test("keeps JSON capture output to one stdout record", async () => {
     const output = captureIo();
-    const code = await runCli(["https://youtube.com/watch?v=abc", "--json"], { io: output.io, dependencies: dependencies(), homeDirectory: "/home/test", environment: {} });
+    let usefulResults = 0;
+    const code = await runCli(["https://youtube.com/watch?v=abc", "--json"], {
+      io: output.io,
+      dependencies: dependencies(),
+      homeDirectory: "/home/test",
+      environment: {},
+      onUsefulResult: () => {
+        usefulResults += 1;
+        throw new Error("optional observer failure");
+      },
+    });
     expect(code).toBe(0);
+    expect(usefulResults).toBe(1);
     expect(output.stderr).toEqual([]);
     expect(output.stdout).toHaveLength(1);
     expect(JSON.parse(output.stdout[0] ?? "")).toMatchObject({ ok: true, assetKey: manifest.assetKey });
@@ -186,12 +197,19 @@ describe("runCli", () => {
       }),
     });
     const json = captureIo();
+    const observedOutput: string[] = [];
     expect(await runCli(["https://youtube.com/watch?v=abc", "--json"], {
       io: json.io,
       dependencies: tracked,
       homeDirectory: "/home/test",
       environment: {},
+      onUsefulResult: async () => {
+        observedOutput.push(json.stdout.join(""));
+        throw new Error("optional asynchronous observer failure");
+      },
     })).toBe(0);
+    expect(observedOutput).toEqual([json.stdout.join("")]);
+    expect(json.stderr).toEqual([]);
     expect(JSON.parse(json.stdout[0] ?? "")).toMatchObject({
       assetKey: trackedManifest.assetKey,
       revision: {
@@ -214,17 +232,79 @@ describe("runCli", () => {
 
   test("uses stable nonzero codes and redacts failure URLs", async () => {
     const output = captureIo();
+    let usefulResults = 0;
     const code = await runCli(["https://example.com/v", "--json"], {
       io: output.io,
       homeDirectory: "/home/test",
       environment: {},
       dependencies: dependencies({ mediaUrl: () => Promise.reject(new MediaArchiveError("PROBE_FAILED", "failed https://example.com/v?token=secret")) }),
+      onUsefulResult: () => { usefulResults += 1; },
     });
     expect(code).toBe(4);
+    expect(usefulResults).toBe(0);
     expect(output.stdout).toEqual([]);
     expect(output.stderr).toHaveLength(1);
     expect(output.stderr.join("")).not.toContain("secret");
     expect(JSON.parse(output.stderr[0] ?? "")).toMatchObject({ ok: false, error: { code: "PROBE_FAILED" } });
+  });
+
+  test("observes successful verification but leaves help, probes and failed verification quiet", async () => {
+    for (const argv of [
+      ["--help", "--json"],
+      ["--version", "--json"],
+      ["doctor", "--json"],
+      ["transcriber", "setup", "--engine", "whisper-cpp", "--model", "/models/model.bin", "--json"],
+      ["verify", "/tmp/synthetic-media-item", "--json"],
+    ]) {
+      const output = captureIo();
+      let usefulResults = 0;
+      expect(await runCli(argv, {
+        io: output.io,
+        dependencies: dependencies(),
+        homeDirectory: "/home/test",
+        environment: {},
+        onUsefulResult: () => { usefulResults += 1; },
+      })).toBe(0);
+      expect(output.stderr).toEqual([]);
+      expect(usefulResults).toBe(argv[0] === "verify" ? 1 : 0);
+    }
+    const output = captureIo();
+    let usefulResults = 0;
+    expect(await runCli(["verify", "/tmp/synthetic-media-item", "--json"], {
+      io: output.io,
+      dependencies: dependencies({
+        verifyMediaItem: (itemDirectory) => Promise.resolve({
+          ok: false, itemDirectory, checkedArtifacts: 0, failures: ["synthetic verification failure"],
+        }),
+      }),
+      environment: {},
+      onUsefulResult: () => { usefulResults += 1; },
+    })).toBe(8);
+    expect(usefulResults).toBe(0);
+    expect(output.stdout).toEqual([]);
+    expect(JSON.parse(output.stderr[0] ?? "")).toMatchObject({ ok: false });
+  });
+
+  test("does not observe a useful result after the caller aborts", async () => {
+    const output = captureIo();
+    const controller = new AbortController();
+    let usefulResults = 0;
+    const code = await runCli(["https://example.com/item.mp4", "--json"], {
+      io: output.io,
+      signal: controller.signal,
+      dependencies: dependencies({
+        mediaUrl: () => {
+          controller.abort();
+          return Promise.resolve({ status: "created", itemDirectory: "/tmp/synthetic-media-item", manifest, warnings: [] });
+        },
+      }),
+      environment: {},
+      onUsefulResult: () => { usefulResults += 1; },
+    });
+    expect(code).toBe(0);
+    expect(usefulResults).toBe(0);
+    expect(output.stdout).toHaveLength(1);
+    expect(output.stderr).toEqual([]);
   });
 
   test("returns shell cancellation status in JSON and human modes", async () => {

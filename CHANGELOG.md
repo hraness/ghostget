@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.11
+
+- Make optional updates and support discoverable to agents after successful CLI
+  work, including JSON, pipes, and PTYs, while preserving command output and
+  status. A shared protocol separates discovery from claiming an invitation;
+  agents acknowledge only after human-facing output. Audience settings, local
+  preferences, cancellation, and cadence keep the handoff optional.
+
 ## 0.18.9
 
 - Repin the shared site footer to v0.11.1. Public pages render the famous

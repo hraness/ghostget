@@ -75,6 +75,8 @@ function environmentSnapshot(
       else result[key] = value;
     }
   }
+  // Package-owned SDK children never emit standalone support notices.
+  result.GHOSTGET_CLI_DEPTH = "1";
   return Object.freeze(result);
 }
 

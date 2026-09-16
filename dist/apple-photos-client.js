@@ -1,7 +1,7 @@
 // @bun
 import {
   GHOSTGET_VERSION
-} from "./index-tccxpn6h.js";
+} from "./index-q19dc4s7.js";
 import {
   canonicalJson,
   sha256
@@ -631,6 +631,7 @@ function prepareEnvironment(value) {
     if (typeof item === "string")
       environment[key] = item;
   }
+  environment.GHOSTGET_CLI_DEPTH = "1";
   if (value === undefined)
     return Object.freeze(environment);
   const descriptors = dataDescriptors(value, "environment");
@@ -648,6 +649,7 @@ function prepareEnvironment(value) {
     } else
       environment[key] = item;
   }
+  environment.GHOSTGET_CLI_DEPTH = "1";
   return Object.freeze(environment);
 }
 function prepareOptions(value) {

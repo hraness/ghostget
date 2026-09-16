@@ -1606,6 +1606,10 @@ describe("auth CLI", () => {
     writeFileSync(join(userData, "Local State"), "{\"os_crypt\":{}}", { mode: 0o600 });
     writeFileSync(join(sourceProfile, "Preferences"), "source-must-not-change", { mode: 0o600 });
     let clonedUserData: string | undefined;
+    const observedCleanup: boolean[] = [];
+    const onUsefulResult = (): void => {
+      observedCleanup.push(clonedUserData !== undefined && !existsSync(dirname(clonedUserData)));
+    };
     try {
       saveAuth(createAuth("arc-main", {
         browserProfile: sourceProfile,
@@ -1646,8 +1650,11 @@ describe("auth CLI", () => {
             return Promise.resolve(0);
           },
         },
+        undefined,
+        onUsefulResult,
       );
       expect(code).toBe(0);
+      expect(observedCleanup).toEqual([true]);
       expect(readFileSync(join(sourceProfile, "Preferences"), "utf8")).toBe("source-must-not-change");
       expect(clonedUserData).toBeString();
       expect(existsSync(dirname(clonedUserData ?? sourceProfile))).toBeFalse();
@@ -1666,7 +1673,10 @@ describe("auth CLI", () => {
             throw new Error("synthetic delegated capture failure");
           },
         },
+        undefined,
+        onUsefulResult,
       )).toBe(3);
+      expect(observedCleanup).toEqual([true]);
       expect(failedClone).toBeString();
       expect(existsSync(dirname(failedClone ?? sourceProfile))).toBeFalse();
       expect(readFileSync(join(sourceProfile, "Preferences"), "utf8")).toBe("source-must-not-change");
@@ -1684,7 +1694,10 @@ describe("auth CLI", () => {
             return Promise.resolve(2);
           },
         },
+        undefined,
+        onUsefulResult,
       )).toBe(2);
+      expect(observedCleanup).toEqual([true]);
       expect(malformedProfile).toBe(sourceProfile);
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
@@ -3110,9 +3123,15 @@ describe("reviewed platform policy helpers", () => {
     try {
       const inlineText = `${"🙂".repeat(200)}\u202eright`;
       const inline = capture();
+      let usefulResults = 0;
       expect(await main([
         "thread", "split", "x", "--text", inlineText, "--json",
-      ], testState.environment, inline.output)).toBe(0);
+      ], testState.environment, inline.output, {}, undefined, () => {
+        usefulResults += 1;
+        throw new Error("optional observer failure");
+      })).toBe(0);
+      expect(usefulResults).toBe(1);
+      expect(inline.stderr()).toBe("");
       expect(hasUnsafeTerminalCharacters(inline.stdout())).toBeFalse();
       const inlineView = JSON.parse(inline.stdout()) as {
         readonly published: boolean;
@@ -3138,9 +3157,15 @@ describe("reviewed platform policy helpers", () => {
       const path = join(testState.directory, "thread.txt");
       writeFileSync(path, fileText, { encoding: "utf8", mode: 0o600 });
       const fromFile = capture();
+      const observedOutput: string[] = [];
       expect(await main([
         "thread", "split", "bluesky", "--text", `@${path}`, "--json",
-      ], testState.environment, fromFile.output)).toBe(0);
+      ], testState.environment, fromFile.output, {}, undefined, async () => {
+        observedOutput.push(fromFile.stdout());
+        throw new Error("optional asynchronous observer failure");
+      })).toBe(0);
+      expect(observedOutput).toEqual([fromFile.stdout()]);
+      expect(fromFile.stderr()).toBe("");
       const fileView = JSON.parse(fromFile.stdout()) as {
         readonly chunks: readonly { readonly text: string }[];
       };
@@ -3162,6 +3187,7 @@ describe("reviewed platform policy helpers", () => {
       }), testState.environment);
       const text = `${"a".repeat(280)}${"b".repeat(120)}`;
       const output = capture();
+      let usefulResults = 0;
       expect(await main([
         "thread", "publish", "x",
         "--adapter", "x-thread",
@@ -3169,7 +3195,8 @@ describe("reviewed platform policy helpers", () => {
         "--auth", "example",
         "--preview",
         "--json",
-      ], testState.environment, output.output)).toBe(0);
+      ], testState.environment, output.output, {}, undefined, () => { usefulResults += 1; })).toBe(0);
+      expect(usefulResults).toBe(0);
       const preview = JSON.parse(output.stdout()) as {
         readonly digest: string;
         readonly operation: string;
@@ -3399,6 +3426,7 @@ describe("CLI previews and exit semantics", () => {
     const testState = state();
     try {
       install(testState, "R1");
+      const usefulResults: string[] = [];
       const cacheKey = "d".repeat(64);
       const dataRevision = "e".repeat(64);
       const exactMessage =
@@ -3436,7 +3464,7 @@ describe("CLI previews and exit semantics", () => {
           expect(invocation.operationId).toBe("posts.read");
           return cached;
         },
-      })).toBe(0);
+      }, undefined, () => { usefulResults.push("json-cache"); })).toBe(0);
       expect(JSON.parse(hit.stdout())).toMatchObject({
         ok: true,
         status: "cached",
@@ -3456,6 +3484,8 @@ describe("CLI previews and exit semantics", () => {
         testState.environment,
         human.output,
         { readCachedPreparedCapability: () => cached },
+        undefined,
+        () => { usefulResults.push("text-cache"); },
       )).toBe(0);
       expect(human.stdout()).not.toContain("ordinary-message-value");
       expect(hasUnsafeTerminalCharacters(human.stdout())).toBeFalse();
@@ -3463,7 +3493,7 @@ describe("CLI previews and exit semantics", () => {
       const miss = capture();
       expect(await main(arguments_, testState.environment, miss.output, {
         readCachedPreparedCapability: () => ({ status: "miss", key: cacheKey }),
-      })).toBe(3);
+      }, undefined, () => { usefulResults.push("miss"); })).toBe(3);
       expect(JSON.parse(miss.stdout())).toEqual({
         ok: false,
         status: "cache-miss",
@@ -3487,6 +3517,8 @@ describe("CLI previews and exit semantics", () => {
             return cached;
           },
         },
+        undefined,
+        () => { usefulResults.push("identity"); },
       )).toBe(0);
       expect(identityCacheReads).toBe(0);
       const identityView = JSON.parse(identity.stdout()) as {
@@ -3546,7 +3578,7 @@ describe("CLI previews and exit semantics", () => {
           identityCacheReads += 1;
           return cached;
         },
-      })).toBe(0);
+      }, undefined, () => { usefulResults.push("unbound-identity"); })).toBe(0);
       const unboundView = JSON.parse(unbound.stdout()) as Record<string, unknown>;
       expect(Object.keys(unboundView).sort()).toEqual([
         "authHash",
@@ -3571,6 +3603,18 @@ describe("CLI previews and exit semantics", () => {
       expect(unboundView.authIdentity).toMatch(/^[a-f0-9]{64}$/u);
       expect(identityCacheReads).toBe(0);
       expect(unbound.stderr()).toBe("");
+      const preview = capture();
+      expect(await main(
+        arguments_.map((argument) => argument === "--cache-only" ? "--preview" : argument),
+        testState.environment,
+        preview.output,
+        {},
+        undefined,
+        () => { usefulResults.push("preview"); },
+      )).toBe(0);
+      expect(preview.stderr()).toBe("");
+      expect(JSON.parse(preview.stdout())).toMatchObject({ operation: "posts.read" });
+      expect(usefulResults).toEqual(["json-cache", "text-cache"]);
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }
@@ -3610,6 +3654,7 @@ describe("CLI previews and exit semantics", () => {
       };
       const cacheKey = "d".repeat(64);
       const wrench = capture();
+      const usefulResults: string[] = [];
 
       expect(await main([
         "invoke",
@@ -3639,7 +3684,7 @@ describe("CLI previews and exit semantics", () => {
             },
           });
         },
-      })).toBe(0);
+      }, undefined, () => { usefulResults.push("succeeded"); })).toBe(0);
 
       expect(JSON.parse(wrench.stdout())).toMatchObject({
         ok: true,
@@ -3661,6 +3706,23 @@ describe("CLI previews and exit semantics", () => {
       expect(wrench.stdout()).toContain("\\u202e");
       expect(wrench.stdout()).toContain("\\u0085");
       expect(wrench.stderr()).toBe("");
+      for (const status of ["submitted", "failed", "indeterminate"] as const) {
+        const outcome = capture();
+        const expectedCode = status === "submitted" ? 0 : status === "indeterminate" ? 5 : 3;
+        expect(await main([
+          "x", "posts.read", "--input", '{"post_ids":["2078889282404569267"]}',
+          "--auth", "x-official", "--json",
+        ], testState.environment, outcome.output, {
+          revalidatePreparedCapability: () => Promise.resolve({
+            cachedBefore: { status: "miss", key: cacheKey },
+            live: { ...live, receipt: { ...live.receipt, status } },
+            cache: { status: "miss", reason: "no-cached-snapshot" },
+          }),
+        }, undefined, () => { usefulResults.push(status); })).toBe(expectedCode);
+        expect(outcome.stderr()).toBe("");
+        expect(JSON.parse(outcome.stdout())).toMatchObject({ status, output: live.output });
+      }
+      expect(usefulResults).toEqual(["succeeded", "submitted"]);
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }
@@ -4591,6 +4653,68 @@ describe("CLI previews and exit semantics", () => {
 });
 
 describe("Ghostget process termination boundary", () => {
+  test("reports useful completion once after teardown without changing the exit status", async () => {
+    for (const rejectAsynchronously of [false, true]) {
+      const events: string[] = [];
+      const output = capture();
+      const observedOutput: string[] = [];
+      let observedExitCode: number | undefined;
+      await runGhostgetProcess({
+        rawArguments: [],
+        environment: {},
+        output: output.output,
+        runMain: async (_arguments, _environment, io, _overrides, _signal, onUsefulResult) => {
+          events.push("work");
+          io?.stdout('{"result":"completed"}\n');
+          onUsefulResult?.();
+          onUsefulResult?.();
+          return 0;
+        },
+        subscribeTermination: () => () => { events.push("teardown"); },
+        setExitCode: (code) => { observedExitCode = code; },
+        onUsefulResult: () => {
+          events.push("useful");
+          observedOutput.push(output.stdout());
+          if (rejectAsynchronously) return Promise.reject(new Error("optional asynchronous observer failure"));
+          throw new Error("optional observer failure");
+        },
+      });
+      expect(observedExitCode).toBe(0);
+      expect(events).toEqual(["work", "teardown", "useful"]);
+      expect(observedOutput).toEqual(['{"result":"completed"}\n']);
+      expect(output.stderr()).toBe("");
+    }
+  });
+
+  test("discards a tentative useful result when the process fails or is aborted", async () => {
+    for (const abort of [false, true]) {
+      let terminate: ((signal: NodeJS.Signals) => void) | undefined;
+      let usefulResults = 0;
+      let observedExitCode: number | undefined;
+      let fallbackCancelled = 0;
+      await runGhostgetProcess({
+        rawArguments: [],
+        environment: {},
+        output: capture().output,
+        runMain: async (_arguments, _environment, _output, _overrides, _signal, onUsefulResult) => {
+          onUsefulResult?.();
+          if (abort) terminate?.("SIGINT");
+          return abort ? 0 : 3;
+        },
+        subscribeTermination: (listener) => {
+          terminate = listener;
+          return () => undefined;
+        },
+        scheduleForcedTermination: () => () => { fallbackCancelled += 1; },
+        setExitCode: (code) => { observedExitCode = code; },
+        onUsefulResult: () => { usefulResults += 1; },
+      });
+      expect(observedExitCode).toBe(abort ? 0 : 3);
+      expect(usefulResults).toBe(0);
+      expect(fallbackCancelled).toBe(abort ? 1 : 0);
+    }
+  });
+
   test("reserves the browser cleanup window before restoring forced signal delivery", async () => {
     let terminate:
       | ((signal: NodeJS.Signals) => void)

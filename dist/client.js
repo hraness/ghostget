@@ -347,6 +347,7 @@ function snapshotChildEnvironment(overrides) {
     if (typeof value === "string")
       defineEnvironmentValue(environment, key, value);
   }
+  environment.GHOSTGET_CLI_DEPTH = "1";
   if (overrides === undefined)
     return Object.freeze(environment);
   if (!isRecord(overrides) || nodeTypes.isProxy(overrides) || Object.getPrototypeOf(overrides) !== Object.prototype && Object.getPrototypeOf(overrides) !== null) {
@@ -374,6 +375,7 @@ function snapshotChildEnvironment(overrides) {
       defineEnvironmentValue(environment, name, descriptor.value);
     }
   }
+  environment.GHOSTGET_CLI_DEPTH = "1";
   return Object.freeze(environment);
 }
 function isBrandedAbortSignal(value) {

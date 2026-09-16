@@ -8,8 +8,10 @@
 export const ghostgetUsage = `Usage:
   ghostget --version                                  Print the exact Ghostget release version
   ghostget support [--json]                           View optional product updates and support
-  ghostget support offer --json                       Check whether an agent invitation is due
-  ghostget support shown <id>                         Record an invitation presented to the user
+  ghostget support protocol --json                    Read the optional agent closeout protocol
+  ghostget support offer --json                       Claim an invitation when due at task closeout
+  ghostget support shown <id>                         Acknowledge human-facing output after presentation
+  ghostget support release <id>                       Cancel an invitation before presentation
   ghostget support dismiss|snooze|enable               Set shared invitation preferences
   ghostget support status --json                      Inspect local invitation preferences
   ghostget init [directory] [--json]                    Initialize a Markdown vault
@@ -192,4 +194,16 @@ Omni views:
   and Notification entities. 'omni read --cache-only' returns the merged local view
   without provider work. A normal omni read explicitly revalidates each declared
   source; --from-exact-cache rebuilds derivatives from exact snapshots only.
+
+Optional updates and support:
+  Successful standalone work may write a compact agent discovery notice to stderr,
+  including with --json or a PTY; command stdout and exit status stay unchanged.
+  Read support protocol --json, then check offer --json once at human task closeout.
+  Present persistently before shown <id>; acknowledgement records output, not consent.
+  Collapsed progress does not qualify. Final-only hosts omit shown; reservations expire
+  after ten minutes without a weekly cooldown, so a later task may offer again.
+  A quiet result needs no mention. No signup or payment occurs through these commands.
+  HRANESS_SUPPORT_AUDIENCE=agent|human|off selects presentation (default: agent).
+  Human presentation requires interactive stderr. Off suppresses due offers too.
+  HRANESS_SUPPORT=off disables ambient support; support dismiss opts out locally.
 `;

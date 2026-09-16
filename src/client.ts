@@ -509,6 +509,8 @@ function snapshotChildEnvironment(
   for (const [key, value] of Object.entries(process.env)) {
     if (typeof value === "string") defineEnvironmentValue(environment, key, value);
   }
+  // Package-owned SDK children never emit standalone support notices.
+  environment.GHOSTGET_CLI_DEPTH = "1";
   if (overrides === undefined) return Object.freeze(environment);
   if (
     !isRecord(overrides)
@@ -552,6 +554,7 @@ function snapshotChildEnvironment(
       defineEnvironmentValue(environment, name, descriptor.value);
     }
   }
+  environment.GHOSTGET_CLI_DEPTH = "1";
   return Object.freeze(environment);
 }
 

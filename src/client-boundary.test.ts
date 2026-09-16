@@ -10,6 +10,32 @@ import {
 import type { RevalidatedCapabilityCurrent } from "./client";
 
 describe("public client process boundary", () => {
+  test("keeps all package-owned SDK CLI children outside standalone support", async () => {
+    const child = Bun.spawn([
+      process.execPath,
+      "--no-env-file",
+      "--no-install",
+      join(import.meta.dir, "client-child-environment.fixture.ts"),
+    ], {
+      cwd: import.meta.dir,
+      env: { ...process.env, HRANESS_SUPPORT_EMAIL: "off" },
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const deadline = setTimeout(() => child.kill("SIGKILL"), 10_000);
+    try {
+      const [exitCode, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect({ exitCode, stdout, stderr }).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    } finally {
+      clearTimeout(deadline);
+    }
+  });
+
   test("exports the typed current SWR winner", () => {
     const current: RevalidatedCapabilityCurrent = {
       source: "live",
