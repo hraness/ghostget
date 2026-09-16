@@ -1,80 +1,548 @@
-import { chmodSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
+import { lstatSync, readdirSync, type BigIntStats } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { handleCompanionCommand, openBrowser, type CompanionOptions, type MenuItem } from "@hraness/desktop-foundation";
 import { ghostgetStateHome } from "../storage";
+import { CONTROL_PROTOCOL, type ActivityRow, type ApprovalView, type CapabilityView, type ControlRequest, type ControlResponse, type ControlSnapshot } from "./protocol";
 import type { ControlEnvironment } from "./web-policy";
 
-const SETTLE_MS = 400;
-const LABEL = "com.ghostget.menubar";
+const WEBSITE = "https://ghostget.com/getting-started";
+const MAX_FRAME = 4_194_304;
+const HELPER_TIMEOUT_MS = 15_000;
+const OUTPUTS_LIMIT = 12;
+const OUTPUTS_SCAN_BOUND = 512;
+const OPENABLE_EXTENSIONS = new Set(["pdf", "txt", "md", "csv", "json", "png", "jpg", "jpeg", "gif", "webp", "tiff"]);
+const BROWSERS = [
+  { key: "safari", label: "Safari", browser: "safari", profile: null },
+  { key: "chrome-default", label: "Chrome · Default", browser: "chrome", profile: "Default" },
+  { key: "chrome-profile-1", label: "Chrome · Profile 1", browser: "chrome", profile: "Profile 1" },
+  { key: "chrome-profile-2", label: "Chrome · Profile 2", browser: "chrome", profile: "Profile 2" },
+] as const;
 type Output = { readonly stdout: (text: string) => unknown; readonly stderr: (text: string) => unknown };
 
-function xml(value: string): string { return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;"); }
-/** Filter regular executable files without group or other write bits. This does
- * not establish ownership of parent directories or eliminate filesystem races. */
-function qualifiedBinary(path: string): boolean {
-  try {
-    const info = lstatSync(path);
-    return info.isFile() && (info.mode & 0o111) !== 0 && (info.mode & 0o022) === 0;
-  } catch { return false; }
+/** Presentation never lets control data add lines, bidi overrides or unbounded menus. */
+export function menuLabel(text: string, limit = 72): string {
+  const clean = [...text]
+    .map((character) => (/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/u.test(character) ? " " : character))
+    .join("").split(/\s+/u).filter((part) => part.length > 0).join(" ");
+  const scalars = [...clean];
+  return scalars.length > limit ? `${scalars.slice(0, Math.max(0, limit - 1)).join("")}…` : clean;
 }
 
-export function resolveMenubarBinary(environment: ControlEnvironment = process.env): string | null {
-  // Consume only a prebuilt standalone companion. Never invoke a source build,
-  // Tauri host, or app bundle.
-  const candidates = [
-    environment.GHOSTGET_MENUBAR,
-    resolve(dirname(process.execPath), "ghostget-menubar"),
+function detailItems(detail: string): MenuItem[] {
+  const words = menuLabel(detail, 216).split(" ");
+  const rows: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if ([...next].length <= 72) current = next;
+    else { if (current !== "") rows.push(current); current = word; }
+  }
+  if (current !== "") rows.push(current);
+  const bounded = rows.slice(0, 3);
+  return bounded.length > 0 ? bounded.map((line) => ({ kind: "label" as const, label: menuLabel(line, 72) })) : [{ kind: "label" as const, label: "No additional detail." }];
+}
+
+/** One output file that passed ownership, type and permission checks. The
+ * identity fields revalidate the same file at dispatch time. */
+export interface OutputEntry {
+  readonly name: string;
+  readonly size: number;
+  readonly modifiedMs: number;
+  readonly identity: { readonly dev: bigint; readonly ino: bigint; readonly size: bigint; readonly mtimeNs: bigint; readonly mode: bigint };
+}
+export interface OutputsView {
+  readonly directory: { readonly dev: bigint; readonly ino: bigint } | null;
+  readonly entries: readonly OutputEntry[];
+  readonly message: string | null;
+  readonly truncated: boolean;
+}
+const EMPTY_OUTPUTS: OutputsView = { directory: null, entries: [], message: null, truncated: false };
+const UNAVAILABLE_OUTPUTS: OutputsView = { directory: null, entries: [], message: "Outputs unavailable", truncated: false };
+
+/** Bounded newest-first listing of the product outputs directory. Reads never
+ * create the directory and never follow symlinks; entries must be regular
+ * files owned by the current user without group or other write bits. */
+export function readOutputs(directory: string): OutputsView {
+  const uid = process.getuid?.();
+  const dirInfo = (() => { try { return lstatSync(directory, { bigint: true }); } catch { return null; } })();
+  if (dirInfo === null || uid === undefined || !dirInfo.isDirectory() || dirInfo.isSymbolicLink() || dirInfo.uid !== BigInt(uid) || (dirInfo.mode & 0o777n) !== 0o700n) return UNAVAILABLE_OUTPUTS;
+  const entry = (name: string): OutputEntry | null => {
+    if (name.startsWith(".") || name.includes("/") || name.includes("\u0000")) return null;
+    let info: BigIntStats;
+    try { info = lstatSync(join(directory, name), { bigint: true }); } catch { return null; }
+    if (!info.isFile() || info.isSymbolicLink() || info.uid !== BigInt(uid) || (info.mode & 0o022n) !== 0n) return null;
+    return { name, size: Number(info.size), modifiedMs: Number(info.mtimeMs), identity: { dev: info.dev, ino: info.ino, size: info.size, mtimeNs: info.mtimeNs, mode: info.mode } };
+  };
+  let names: readonly string[];
+  try { names = readdirSync(directory).slice(0, OUTPUTS_SCAN_BOUND); } catch { return UNAVAILABLE_OUTPUTS; }
+  const entries = names.flatMap((name) => { const found = entry(name); return found === null ? [] : [found]; });
+  const truncated = names.length === OUTPUTS_SCAN_BOUND || entries.length > OUTPUTS_LIMIT;
+  entries.sort((a, b) => b.identity.mtimeNs === a.identity.mtimeNs ? a.name.localeCompare(b.name) : b.identity.mtimeNs > a.identity.mtimeNs ? 1 : -1);
+  return { directory: { dev: dirInfo.dev, ino: dirInfo.ino }, entries: entries.slice(0, OUTPUTS_LIMIT), message: entries.length === 0 ? "No output files" : null, truncated };
+}
+
+/** Wire action ids carry only entry indices; file names never enter the wire
+ * contract, and dispatch revalidates identity against the stored listing. */
+
+/** Revalidate directory and entry identity at dispatch. An OS open remains a
+ * handoff; this refuses stale or swapped targets. */
+function validatedOutputPath(directory: string, expected: OutputsView, name: string): string | null {
+  const uid = process.getuid?.();
+  if (expected.directory === null || uid === undefined) return null;
+  const dirInfo = (() => { try { return lstatSync(directory, { bigint: true }); } catch { return null; } })();
+  if (dirInfo === null || !dirInfo.isDirectory() || dirInfo.isSymbolicLink() || dirInfo.dev !== expected.directory.dev || dirInfo.ino !== expected.directory.ino) return null;
+  const expectedEntry = expected.entries.find((item) => item.name === name);
+  if (expectedEntry === undefined) return null;
+  const fresh = (() => { try { return lstatSync(join(directory, name), { bigint: true }); } catch { return null; } })();
+  if (fresh === null || !fresh.isFile() || fresh.isSymbolicLink() || fresh.uid !== BigInt(uid) || (fresh.mode & 0o022n) !== 0n
+    || fresh.dev !== expectedEntry.identity.dev || fresh.ino !== expectedEntry.identity.ino
+    || fresh.size !== expectedEntry.identity.size || fresh.mtimeNs !== expectedEntry.identity.mtimeNs || fresh.mode !== expectedEntry.identity.mode) return null;
+  return join(directory, name);
+}
+
+function outputSize(size: number): string {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+function outputItems(outputs: OutputsView): MenuItem[] {
+  const items: MenuItem[] = [];
+  if (outputs.message !== null) items.push({ kind: "label", label: menuLabel(outputs.message) });
+  outputs.entries.forEach((entry, index) => {
+    const detail: MenuItem[] = [{ kind: "label", label: menuLabel(`${outputSize(entry.size)} · ${new Date(entry.modifiedMs).toLocaleString()}`) }];
+    const extension = entry.name.includes(".") ? entry.name.slice(entry.name.lastIndexOf(".") + 1).toLowerCase() : "";
+    if (OPENABLE_EXTENSIONS.has(extension)) detail.push({ kind: "action", id: `output:open:${index}`, label: "Open file" });
+    detail.push({ kind: "action", id: `output:reveal:${index}`, label: "Reveal in file manager" });
+    detail.push({ kind: "action", id: `output:copy:${index}`, label: "Copy file path" });
+    items.push({ kind: "submenu", label: menuLabel(entry.name), items: detail });
+  });
+  if (outputs.truncated) items.push({ kind: "label", label: `Showing up to ${OUTPUTS_LIMIT} files from a bounded scan` });
+  if (outputs.directory !== null && outputs.entries.length > 0) items.push({ kind: "action", id: "output:folder", label: "Reveal outputs folder" });
+  if (items.length === 0) items.push({ kind: "label", label: "No output files" });
+  return items;
+}
+
+const CLI_COMMANDS = ["ghostget --help", "ghostget menubar --help", "ghostget menubar status"] as const;
+function cliHelpItems(): MenuItem[] {
+  return [
+    { kind: "action", id: "clip:0", label: "CLI help" },
+    { kind: "action", id: "clip:1", label: "Menu-bar help" },
+    { kind: "action", id: "clip:2", label: "Menu-bar installation status" },
   ];
-  for (const candidate of candidates) if (candidate !== undefined && candidate !== "" && qualifiedBinary(candidate)) return candidate;
-  return null;
 }
-export function launchAgentPath(environment: Readonly<Record<string, string | undefined>> = process.env): string {
-  const home = environment.HOME; if (home === undefined || home === "") throw new Error("HOME is required for a per-user LaunchAgent.");
-  return join(home, "Library", "LaunchAgents", `${LABEL}.plist`);
+
+/** OS open/reveal handoff for one validated path. Explorer exit codes are not
+ * meaningful, so only spawn failure degrades the menu. */
+function openPath(path: string, reveal: boolean): void {
+  const command = process.platform === "darwin"
+    ? (reveal ? ["open", "-R", path] : ["open", path])
+    : process.platform === "win32"
+      ? (reveal ? ["explorer", `/select,${path}`] : ["explorer", path])
+      : (reveal ? ["xdg-open", dirname(path)] : ["xdg-open", path]);
+  try { const child = Bun.spawnSync(command, { stdout: "ignore", stderr: "ignore" }); if (process.platform !== "win32" && child.exitCode !== 0) throw new Error("exit"); }
+  catch { throw new Error("ghostget-open-unavailable"); }
 }
-export function launchAgentPlist(binary: string, outputsDirectory?: string): string {
-  const outputArguments = outputsDirectory === undefined ? "" : `<string>--outputs-directory</string><string>${xml(outputsDirectory)}</string>`;
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>Label</key><string>${xml(LABEL)}</string><key>ProgramArguments</key><array><string>${xml(binary)}</string>${outputArguments}</array><key>RunAtLoad</key><true/><key>KeepAlive</key><false/><key>ProcessType</key><string>Interactive</string><key>LimitLoadToSessionType</key><string>Aqua</string></dict></plist>\n`;
+function copyText(text: string): void {
+  const command = process.platform === "darwin" ? ["pbcopy"] : process.platform === "win32" ? ["clip"] : ["xclip", "-selection", "clipboard"];
+  try { const child = Bun.spawnSync(command, { stdin: Buffer.from(text, "utf8"), stdout: "ignore", stderr: "ignore" }); if (child.exitCode !== 0) throw new Error("exit"); }
+  catch { throw new Error("ghostget-clipboard-unavailable"); }
 }
-function readAgent(path: string): string | null { try { return readFileSync(path, "utf8"); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return null; throw error; } }
-export type LaunchAgentState = "absent" | "installed" | "conflict";
-export type LaunchctlRunner = (args: readonly string[], allowMissing?: boolean) => void;
-function launchctl(args: readonly string[], allowMissing = false): void {
-  const uid = process.getuid?.(); if (uid === undefined) throw new Error("The current user has no launchd GUI domain.");
-  const result = Bun.spawnSync(["/bin/launchctl", ...args.map((arg) => arg.replaceAll("{uid}", String(uid)))], { stdout: "ignore", stderr: "pipe" });
-  if (result.exitCode !== 0 && !(allowMissing && result.stderr.toString().includes("Could not find service"))) throw new Error("launchctl could not reconcile the Ghostget menu-bar LaunchAgent.");
+
+/** Bounded administrative client over the helper's private stdio channel. The
+ * menu companion owns the helper process; agent requests stay on the socket. */
+interface HelperClient { request(request: ControlRequest, timeoutMs?: number): Promise<ControlResponse>; close(): void }
+function spawnHelper(environment: ControlEnvironment): HelperClient {
+  const script = fileURLToPath(new URL("./helper.ts", import.meta.url));
+  const env: Record<string, string> = { ...process.env } as Record<string, string>;
+  for (const [key, value] of Object.entries(environment)) if (value !== undefined) env[key] = value;
+  const child = Bun.spawn([process.execPath, "--no-env-file", "--no-install", script], { cwd: dirname(script), env, stdin: "pipe", stdout: "pipe", stderr: "pipe" });
+  const pending = new Map<string, { resolve: (response: ControlResponse) => void; timer: ReturnType<typeof setTimeout> }>();
+  let buffer = Buffer.alloc(0);
+  let closed = false;
+  void new Response(child.stderr).text();
+  const settle = (response: ControlResponse | null): void => {
+    const slots = [...pending.values()]; pending.clear();
+    for (const slot of slots) {
+      clearTimeout(slot.timer);
+      slot.resolve(response ?? { ok: false, code: "CONTROL_DISCONNECTED", message: "The Ghostget control helper disconnected." });
+    }
+  };
+  const read = (async () => {
+    const reader = child.stdout.getReader();
+    try {
+      for (;;) {
+        const next = await reader.read(); if (next.done) break;
+        buffer = Buffer.concat([buffer, next.value]);
+        if (buffer.length > MAX_FRAME) throw new Error("oversized helper response");
+        let end: number;
+        while ((end = buffer.indexOf(10)) >= 0) {
+          const line = buffer.subarray(0, end); buffer = buffer.subarray(end + 1);
+          let frame: Record<string, unknown>;
+          try { frame = JSON.parse(line.toString("utf8")) as Record<string, unknown>; } catch { continue; }
+          const id = typeof frame.id === "string" ? frame.id : null;
+          if (id === null || frame.protocol !== CONTROL_PROTOCOL) continue;
+          const slot = pending.get(id); if (slot === undefined) continue;
+          pending.delete(id); clearTimeout(slot.timer);
+          slot.resolve(frame as unknown as ControlResponse);
+        }
+      }
+    } catch { /* a dead or oversized channel degrades the menu, it never retries */ }
+    finally { closed = true; settle(null); }
+  })();
+  void read;
+  void child.exited.then(() => { closed = true; settle(null); });
+  return {
+    request: (request, timeoutMs = HELPER_TIMEOUT_MS) => new Promise<ControlResponse>((resolve) => {
+      if (closed) { resolve({ ok: false, code: "CONTROL_DISCONNECTED", message: "The Ghostget control helper is not running." }); return; }
+      const id = randomUUID();
+      const timer = setTimeout(() => { pending.delete(id); resolve({ ok: false, code: "CONTROL_TIMEOUT", message: "The Ghostget control helper did not answer in time." }); }, timeoutMs);
+      pending.set(id, { resolve, timer });
+      try { child.stdin.write(`${JSON.stringify({ id, protocol: CONTROL_PROTOCOL, request })}\n`); }
+      catch { pending.delete(id); clearTimeout(timer); resolve({ ok: false, code: "CONTROL_DISCONNECTED", message: "The Ghostget control helper disconnected." }); }
+    }),
+    close: () => { try { child.stdin.end(); } catch { /* already closed */ } },
+  };
 }
-export function launchAgentState(binary: string, environment: Readonly<Record<string, string | undefined>> = process.env, outputsDirectory?: string): LaunchAgentState { const content = readAgent(launchAgentPath(environment)); return content === null ? "absent" : content === launchAgentPlist(binary, outputsDirectory) ? "installed" : "conflict"; }
-export function installLaunchAgent(binary: string, environment: Readonly<Record<string, string | undefined>> = process.env, platform: NodeJS.Platform = process.platform, runLaunchctl: LaunchctlRunner = launchctl, outputsDirectory?: string): LaunchAgentState {
-  if (platform !== "darwin") throw new Error("Ghostget menu-bar LaunchAgents are supported only on macOS.");
-  if (!binary.startsWith("/")) throw new Error("LaunchAgent binary must be an absolute path.");
-  if (!qualifiedBinary(binary)) throw new Error("The prebuilt Ghostget menu-bar binary must be a regular executable without group or other write permission.");
-  const path = launchAgentPath(environment); const current = readAgent(path); const expected = launchAgentPlist(binary, outputsDirectory);
-  if (current !== null) { if (current !== expected) throw new Error("The existing Ghostget menu-bar LaunchAgent is not owned by this command."); return "installed"; }
-  const directory = dirname(path); mkdirSync(directory, { recursive: true, mode: 0o700 }); chmodSync(directory, 0o700);
-  const temporary = `${path}.tmp-${process.pid}`; writeFileSync(temporary, expected, { encoding: "utf8", mode: 0o600, flag: "wx" }); chmodSync(temporary, 0o600); renameSync(temporary, path); runLaunchctl(["bootstrap", "gui/{uid}", path]); return "installed";
+
+function accountItems(snapshot: ControlSnapshot, enabled: boolean): MenuItem[] {
+  const accounts = snapshot.accounts;
+  const rows: MenuItem[] = accounts.slice(0, 20).map((account) => {
+    const status = account.status === "verified" ? "Verified" : account.status === "configured" ? "Configured" : "Reconnect required";
+    const items: MenuItem[] = [
+      { kind: "label", label: status },
+      ...detailItems([account.provider, account.kind, account.subject].filter((part): part is string => part !== null).join(" · ") || "No subject recorded"),
+    ];
+    if (enabled && account.status === "reconnect-required") {
+      items.push({
+        kind: "submenu",
+        label: "Reconnect",
+        items: snapshot.connectionProviders.map((provider) => ({
+          kind: "submenu" as const,
+          label: menuLabel(provider.title) || "Provider",
+          items: BROWSERS.map((choice) => ({ kind: "action" as const, id: `reconnect:${account.id}:${provider.id}:${choice.key}`, label: choice.label })),
+        })),
+      });
+    }
+    if (enabled) items.push({ kind: "action", id: `disconnect:${account.id}`, label: "Disconnect this account" });
+    return { kind: "submenu" as const, label: menuLabel(`${account.id} · ${status}`) || "Account", items };
+  });
+  if (accounts.length === 0) rows.push({ kind: "label", label: "No accounts connected" });
+  if (accounts.length > 20) rows.push({ kind: "label", label: `${accounts.length - 20} more accounts` });
+  return rows;
 }
-export function uninstallLaunchAgent(binary: string, environment: Readonly<Record<string, string | undefined>> = process.env, platform: NodeJS.Platform = process.platform, runLaunchctl: LaunchctlRunner = launchctl, outputsDirectory?: string): LaunchAgentState {
-  if (platform !== "darwin") throw new Error("Ghostget menu-bar LaunchAgents are supported only on macOS.");
-  const path = launchAgentPath(environment); const current = readAgent(path); if (current === null) return "absent";
-  if (current !== launchAgentPlist(binary, outputsDirectory)) throw new Error("The existing Ghostget menu-bar LaunchAgent is not owned by this command.");
-  runLaunchctl(["bootout", `gui/{uid}/${LABEL}`], true); rmSync(path); return "absent";
+
+function approvalItems(approvals: readonly ApprovalView[], enabled: boolean): MenuItem[] {
+  const rows: MenuItem[] = approvals.slice(0, 10).map((approval) => ({
+    kind: "submenu" as const,
+    label: menuLabel(approval.title) || "Approval request",
+    items: [
+      ...detailItems([approval.kind, approval.account ?? "no account", approval.effect, approval.preview].join(" · ")),
+      { kind: "label", label: menuLabel(`Expires ${approval.expiresAt}`) },
+      { kind: "action", id: `approval:allow:${approval.id}`, label: "Allow once", enabled },
+      { kind: "action", id: `approval:deny:${approval.id}`, label: "Deny", enabled },
+    ],
+  }));
+  if (approvals.length === 0) rows.push({ kind: "label", label: "No pending approvals" });
+  if (approvals.length > 10) rows.push({ kind: "label", label: `${approvals.length - 10} more approvals` });
+  return rows;
 }
-async function runBinary(binary: string, foreground: boolean, outputsDirectory: string): Promise<number> {
-  let child: Bun.Subprocess;
-  try { child = Bun.spawn([binary, "--outputs-directory", outputsDirectory], foreground ? { stdin: "inherit", stdout: "inherit", stderr: "inherit" } : { stdin: "ignore", stdout: "ignore", stderr: "ignore" }); } catch { throw new Error("The Ghostget menu-bar companion could not start."); }
-  if (!foreground) { child.unref(); const settled = await Promise.race([child.exited.then((code) => code as number | null), Bun.sleep(SETTLE_MS).then(() => null)]); if (settled !== null && settled !== 0) throw new Error("The Ghostget menu-bar companion exited during startup."); return 0; }
-  return await child.exited;
+
+export interface Attempt { readonly attemptId: string; readonly title: string; status: "awaiting-sign-in" | "verified"; subject: string | null }
+function connectItems(snapshot: ControlSnapshot, attempts: ReadonlyMap<string, Attempt>, enabled: boolean): MenuItem[] {
+  const rows: MenuItem[] = [];
+  for (const attempt of [...attempts.values()].slice(0, 8)) {
+    const items: MenuItem[] = attempt.status === "verified"
+      ? [
+          { kind: "label", label: menuLabel(`Signed in as ${attempt.subject ?? "unknown"}`) },
+          { kind: "action", id: `attempt:commit:${attempt.attemptId}`, label: `Connect ${menuLabel(attempt.subject ?? "this account", 40)}`, enabled },
+        ]
+      : [
+          { kind: "label", label: "Finish sign-in in the opened browser, then verify." },
+          { kind: "action", id: `attempt:verify:${attempt.attemptId}`, label: "Verify sign-in", enabled },
+        ];
+    items.push({ kind: "action", id: `attempt:cancel:${attempt.attemptId}`, label: "Cancel", enabled });
+    rows.push({ kind: "submenu", label: menuLabel(`${attempt.title} · ${attempt.status === "verified" ? "verified" : "awaiting sign-in"}`), items });
+  }
+  for (const provider of snapshot.connectionProviders.slice(0, 12)) {
+    rows.push({
+      kind: "submenu",
+      label: menuLabel(provider.title) || "Provider",
+      items: BROWSERS.map((choice) => ({ kind: "action" as const, id: `connect:${provider.id}:${choice.key}`, label: choice.label, enabled })),
+    });
+  }
+  if (rows.length === 0) rows.push({ kind: "label", label: "No connection providers" });
+  return rows;
 }
+
+function capabilityItems(capabilities: readonly CapabilityView[]): MenuItem[] {
+  if (capabilities.length === 0) return [{ kind: "label", label: "No capabilities discovered" }];
+  const counts = new Map<string, number>();
+  for (const capability of capabilities) counts.set(capability.state, (counts.get(capability.state) ?? 0) + 1);
+  const rows: MenuItem[] = [...counts.entries()].map(([state, count]) => ({ kind: "label" as const, label: `${count} ${state}` }));
+  for (const capability of capabilities.slice(0, 15)) {
+    rows.push({ kind: "label", label: menuLabel(`${capability.adapterId} · ${capability.operationId} · ${capability.permission}`) });
+  }
+  if (capabilities.length > 15) rows.push({ kind: "label", label: `${capabilities.length - 15} more capabilities` });
+  return rows;
+}
+
+function permissionItems(snapshot: ControlSnapshot, enabled: boolean): MenuItem[] {
+  const rows: MenuItem[] = [];
+  if (!snapshot.policy.managed) rows.push({ kind: "action", id: "permission:enable", label: "Enable operation permissions", enabled });
+  else rows.push({ kind: "label", label: "Operation permissions are managed per account." });
+  const unmanaged = snapshot.capabilities.filter((capability) => capability.permission === "unmanaged");
+  for (const capability of unmanaged.slice(0, 15)) {
+    rows.push({
+      kind: "submenu",
+      label: menuLabel(`${capability.adapterId} · ${capability.operationId}`),
+      items: [
+        ...detailItems(`${capability.surface} · ${capability.effect} · risk ${capability.risk}`),
+        { kind: "action", id: `permission:allow:${capability.adapterId}:${capability.operationId}`, label: "Allow", enabled },
+        { kind: "action", id: `permission:ask:${capability.adapterId}:${capability.operationId}`, label: "Ask each time", enabled },
+        { kind: "action", id: `permission:deny:${capability.adapterId}:${capability.operationId}`, label: "Deny", enabled },
+      ],
+    });
+  }
+  if (unmanaged.length > 15) rows.push({ kind: "label", label: `${unmanaged.length - 15} more operations need review` });
+  if (!snapshot.policy.managed && unmanaged.length === 0) rows.push({ kind: "label", label: "All operations already have a decision." });
+  return rows;
+}
+
+function webItems(snapshot: ControlSnapshot): MenuItem[] {
+  const rules = snapshot.web.rules;
+  const rows: MenuItem[] = [{ kind: "label", label: snapshot.web.gatewayOnly ? "Gateway-only mode" : "Direct retrieval allowed" }];
+  for (const rule of rules.slice(0, 10)) {
+    rows.push({ kind: "label", label: menuLabel(`${rule.origin}${rule.path.value} · ${rule.decision}`) });
+  }
+  if (rules.length > 10) rows.push({ kind: "label", label: `${rules.length - 10} more rules` });
+  return rows;
+}
+
+function interfaceItems(snapshot: ControlSnapshot): MenuItem[] {
+  const interfaces = snapshot.interfaces;
+  if (interfaces.length === 0) return [{ kind: "label", label: "No interfaces installed" }];
+  const rows: MenuItem[] = interfaces.slice(0, 10).map((entry) => ({
+    kind: "submenu" as const,
+    label: menuLabel(`${entry.title} · ${entry.state}`),
+    items: detailItems(`${entry.operationCount} operations · ${entry.adapterIds.join(", ") || "no adapters"}${entry.issues.length > 0 ? ` · ${entry.issues.length} issue(s)` : ""}`),
+  }));
+  if (interfaces.length > 10) rows.push({ kind: "label", label: `${interfaces.length - 10} more interfaces` });
+  return rows;
+}
+
+function activityItems(rows: readonly ActivityRow[]): MenuItem[] {
+  if (rows.length === 0) return [{ kind: "label", label: "No recent gateway activity" }];
+  return rows.slice(0, 8).map((row) => ({
+    kind: "label" as const,
+    label: menuLabel(`${row.method} ${row.origin ?? row.endpoint ?? "request"} · ${row.outcome}${row.httpStatus === null ? "" : ` · ${row.httpStatus}`}`),
+  }));
+}
+
+/** Map one control snapshot onto the shared menu contract. The helper stays
+ * the authority; rows are display-only except the bounded actions below. */
+export function snapshotItems(
+  snapshot: ControlSnapshot | null,
+  attempts: ReadonlyMap<string, Attempt>,
+  status: { confirmedAgeSeconds: number | null; fresh: boolean; detail?: string | undefined },
+  activity: readonly ActivityRow[] = [],
+  outputs: OutputsView = EMPTY_OUTPUTS,
+  notice: string | null = null,
+): MenuItem[] {
+  const confirmed = snapshot !== null;
+  const age = status.confirmedAgeSeconds;
+  const ageText = age !== null && age < 60 ? `${age}s ago` : `${Math.floor((age ?? 0) / 60)}m ago`;
+  const updated = age === null ? "Control status not confirmed" : status.fresh ? `Updated ${ageText}` : `Last confirmed ${ageText}`;
+  const tail: MenuItem[] = [
+    { kind: "separator" },
+    { kind: "submenu", label: `Outputs · ${outputs.entries.length}`, items: outputItems(outputs) },
+    ...(notice === null ? [] : [{ kind: "label" as const, label: menuLabel(notice) }]),
+    { kind: "label", label: menuLabel(updated) },
+    { kind: "action", id: "refresh", label: "Refresh status" },
+    { kind: "action", id: "open-website", label: "Open Ghostget…" },
+    { kind: "submenu", label: "Copy CLI command", items: cliHelpItems() },
+    { kind: "separator" },
+    { kind: "quit", label: "Quit Ghostget" },
+  ];
+  if (!confirmed) {
+    return [
+      { kind: "label", label: "Ghostget control unavailable" },
+      { kind: "label", label: menuLabel(status.detail ?? "The control helper is not running. Requests need the companion open.") },
+      ...tail,
+    ];
+  }
+  const pending = snapshot.approvals.length;
+  const reconnect = snapshot.accounts.filter((account) => account.status === "reconnect-required").length;
+  return [
+    { kind: "label", label: menuLabel(`Ghostget ${snapshot.version}`) },
+    { kind: "label", label: menuLabel(`${snapshot.accounts.length} account${snapshot.accounts.length === 1 ? "" : "s"}${reconnect > 0 ? ` · ${reconnect} need reconnect` : ""} · ${pending} pending approval${pending === 1 ? "" : "s"}`) },
+    { kind: "separator" },
+    { kind: "submenu", label: `Approvals · ${pending}`, items: approvalItems(snapshot.approvals, confirmed) },
+    { kind: "submenu", label: `Accounts · ${snapshot.accounts.length}`, items: accountItems(snapshot, confirmed) },
+    { kind: "submenu", label: "Connect account", items: connectItems(snapshot, attempts, confirmed) },
+    { kind: "submenu", label: "Permissions", items: permissionItems(snapshot, confirmed) },
+    { kind: "submenu", label: `Capabilities · ${snapshot.capabilities.length}`, items: capabilityItems(snapshot.capabilities) },
+    { kind: "submenu", label: `Web rules · ${snapshot.web.rules.length}`, items: webItems(snapshot) },
+    { kind: "submenu", label: `Interfaces · ${snapshot.interfaces.length}`, items: interfaceItems(snapshot) },
+    { kind: "submenu", label: "Recent activity", items: activityItems(activity) },
+    { kind: "label", label: menuLabel(`Vault · 1Password ${snapshot.vault.available ? "available" : "unavailable"}`) },
+    ...tail,
+  ];
+}
+
+/** The Ghostget menu companion owns the control helper's stdio channel and is
+ * a disposable client of it. All reads and mutations use bounded control
+ * requests; the shared runner renders state and enforces revision-checked
+ * dispatch. Failed or indeterminate mutations are never retried. */
+export function companionOptions(environment: ControlEnvironment): CompanionOptions {
+  let helper: HelperClient | null = null;
+  let lastSnapshot: ControlSnapshot | null = null;
+  let confirmedAt: number | null = null;
+  let lastOutputs: OutputsView = EMPTY_OUTPUTS;
+  let notice: string | null = null;
+  const attempts = new Map<string, Attempt>();
+  const outputsDirectory = join(ghostgetStateHome(environment), "outputs");
+  const client = (): HelperClient => {
+    if (helper === null) helper = spawnHelper(environment);
+    return helper;
+  };
+  const drop = (): void => { helper?.close(); helper = null; };
+  process.once("exit", drop);
+  const request = async (body: ControlRequest, timeoutMs?: number): Promise<ControlResponse> => {
+    const response = await client().request(body, timeoutMs);
+    if (!response.ok && (response.code === "CONTROL_DISCONNECTED" || response.code === "CONTROL_TIMEOUT")) drop();
+    return response;
+  };
+  return {
+    appId: "ghostget",
+    name: "Ghostget",
+    title: "Gg",
+    tooltip: "Ghostget · control, outputs and CLI help",
+    stateDir: join(ghostgetStateHome(environment), "menubar"),
+    refreshMs: 5_000,
+    timeoutMs: 90_000,
+    snapshot: async () => {
+      let fresh = false;
+      const response = await request({ action: "snapshot", accountId: null });
+      if (response.ok && response.data.kind === "snapshot") {
+        if (lastSnapshot !== null && response.data.snapshot.policy.revision < lastSnapshot.policy.revision) {
+          // A late or replayed response must never undo newer owner state.
+        } else {
+          lastSnapshot = response.data.snapshot;
+          confirmedAt = Date.now();
+          fresh = true;
+        }
+      }
+      let activity: readonly ActivityRow[] = [];
+      if (fresh) {
+        const page = await request({ action: "activity.query", query: { search: "", method: "all", outcome: "all", origin: null, since: null, order: "newest", cursor: null, limit: 8 } });
+        if (page.ok && page.data.kind === "activity") activity = page.data.page.rows;
+      }
+      lastOutputs = readOutputs(outputsDirectory);
+      return snapshotItems(lastSnapshot, attempts, { confirmedAgeSeconds: confirmedAt === null ? null : Math.max(0, Math.floor((Date.now() - confirmedAt) / 1000)), fresh, detail: response.ok ? undefined : response.message }, activity, lastOutputs, notice);
+    },
+    onAction: async (id) => {
+      if (id === "refresh") { notice = null; return; } // the runner re-reads state after every action
+      if (id === "open-website") { await openBrowser(WEBSITE); return; }
+      if (id === "output:folder") {
+        const expected = lastOutputs.directory;
+        const fresh = (() => { try { return lstatSync(outputsDirectory, { bigint: true }); } catch { return null; } })();
+        if (expected !== null && fresh !== null && fresh.isDirectory() && !fresh.isSymbolicLink() && fresh.dev === expected.dev && fresh.ino === expected.ino) openPath(outputsDirectory, true);
+        return;
+      }
+      if (id.startsWith("output:open:") || id.startsWith("output:reveal:") || id.startsWith("output:copy:")) {
+        const entry = lastOutputs.entries[Number(id.slice(id.indexOf(":", 7) + 1))];
+        const path = entry === undefined ? null : validatedOutputPath(outputsDirectory, lastOutputs, entry.name);
+        if (path === null) { notice = "File changed or unavailable; refresh outputs"; return; }
+        notice = null;
+        if (id.startsWith("output:copy:")) copyText(path);
+        else openPath(path, id.startsWith("output:reveal:"));
+        return;
+      }
+      if (id.startsWith("clip:")) { const command = CLI_COMMANDS[Number(id.slice(5))]; if (command !== undefined) copyText(command); return; }
+      const snapshot = lastSnapshot;
+      if (snapshot === null) return;
+      const parts = id.split(":");
+      const fail = (response: ControlResponse): void => { if (!response.ok) throw new Error(`ghostget-${response.code}`); };
+      if (id === "permission:enable") { fail(await request({ action: "permission.enable", expectedRevision: snapshot.policy.revision })); return; }
+      if (parts[0] === "approval" && parts.length === 3 && (parts[1] === "allow" || parts[1] === "deny")) {
+        const approval = snapshot.approvals.find((item) => item.id === parts[2]);
+        if (approval === undefined) return;
+        fail(await request({ action: "approval.decide", id: approval.id, digest: approval.digest, decision: parts[1] === "allow" ? "allow-once" : "deny" }));
+        return;
+      }
+      if (parts[0] === "disconnect" && parts.length === 2) {
+        const account = snapshot.accounts.find((item) => item.id === parts[1]);
+        if (account === undefined) return;
+        fail(await request({ action: "connection.disconnect", id: account.id, expectedRevision: account.revision }));
+        return;
+      }
+      if (parts[0] === "connect" && parts.length === 3) {
+        const provider = snapshot.connectionProviders.find((item) => item.id === parts[1]);
+        const choice = BROWSERS.find((item) => item.key === parts[2]);
+        if (provider === undefined || choice === undefined) return;
+        const response = await request({ action: "connection.begin", id: `${provider.id}-${randomUUID().slice(0, 8)}`, provider: provider.id, browser: choice.browser, profile: choice.profile, expectedRevision: null });
+        fail(response);
+        if (response.ok && response.data.kind === "connection") attempts.set(response.data.attemptId, { attemptId: response.data.attemptId, title: provider.title, status: "awaiting-sign-in", subject: null });
+        return;
+      }
+      if (parts[0] === "reconnect" && parts.length === 4) {
+        const account = snapshot.accounts.find((item) => item.id === parts[1]);
+        const provider = snapshot.connectionProviders.find((item) => item.id === parts[2]);
+        const choice = BROWSERS.find((item) => item.key === parts[3]);
+        if (account === undefined || provider === undefined || choice === undefined) return;
+        const response = await request({ action: "connection.begin", id: account.id, provider: provider.id, browser: choice.browser, profile: choice.profile, expectedRevision: account.revision });
+        fail(response);
+        if (response.ok && response.data.kind === "connection") attempts.set(response.data.attemptId, { attemptId: response.data.attemptId, title: provider.title, status: "awaiting-sign-in", subject: null });
+        return;
+      }
+      if (parts[0] === "attempt" && parts.length === 3) {
+        const attempt = attempts.get(parts[2]!);
+        if (attempt === undefined) return;
+        if (parts[1] === "cancel") { await request({ action: "connection.cancel", attemptId: attempt.attemptId }); attempts.delete(attempt.attemptId); return; }
+        if (parts[1] === "verify") {
+          const response = await request({ action: "connection.verify", attemptId: attempt.attemptId }, 75_000);
+          if (!response.ok) { attempts.delete(attempt.attemptId); throw new Error(`ghostget-${response.code}`); }
+          if (response.data.kind === "connection" && response.data.status === "verified") attempts.set(attempt.attemptId, { ...attempt, status: "verified", subject: response.data.subject });
+          return;
+        }
+        if (parts[1] === "commit") {
+          if (attempt.status !== "verified" || attempt.subject === null) return;
+          const response = await request({ action: "connection.commit", attemptId: attempt.attemptId, expectedSubject: attempt.subject });
+          attempts.delete(attempt.attemptId);
+          fail(response);
+          return;
+        }
+        return;
+      }
+      if (parts[0] === "permission" && parts.length === 4 && (parts[1] === "allow" || parts[1] === "ask" || parts[1] === "deny")) {
+        const capability = snapshot.capabilities.find((item) => item.adapterId === parts[2] && item.operationId === parts[3]);
+        if (capability === undefined) return;
+        fail(await request({ action: "permission.set", adapterId: capability.adapterId, operationId: capability.operationId, accountId: snapshot.accountId, decision: parts[1], expectedRevision: snapshot.policy.revision, expectedCapabilityDigest: capability.digest }));
+      }
+    },
+  };
+}
+
+/** Delegate the product `menubar` command family to the shared lifecycle. */
 export async function runMenubarCommand(args: readonly string[], environment: ControlEnvironment = process.env, output: Output): Promise<number> {
-  if (args[1] === "--help") { output.stdout("Usage: ghostget menubar [--foreground|--background]\n       ghostget menubar install|uninstall|status\nRuns the prebuilt menu-bar companion; install writes a per-user LaunchAgent (RunAtLoad, no KeepAlive).\n"); return 0; }
-  if (args.length > 2 || (args[1] !== undefined && !["install", "uninstall", "status", "--foreground", "--background"].includes(args[1]))) { output.stderr("Usage: ghostget menubar [--foreground|--background] | install|uninstall|status\n"); return 1; }
-  const action = args[1] === "install" || args[1] === "uninstall" || args[1] === "status" ? args[1] : "run";
-  const binary = resolveMenubarBinary(environment); if (binary === null) { output.stderr("The Ghostget menu-bar companion is not installed; install a prebuilt binary or set GHOSTGET_MENUBAR.\n"); return 1; }
-  try {
-    const outputsDirectory = join(ghostgetStateHome(environment), "outputs");
-    if (action === "install") { const state = installLaunchAgent(binary, environment, process.platform, launchctl, outputsDirectory); output.stdout(`Ghostget menu-bar LaunchAgent ${state}.\n`); return 0; }
-    if (action === "uninstall") { const state = uninstallLaunchAgent(binary, environment, process.platform, launchctl, outputsDirectory); output.stdout(`Ghostget menu-bar LaunchAgent ${state}.\n`); return 0; }
-    if (action === "status") { output.stdout(`Ghostget menu-bar LaunchAgent: ${launchAgentState(binary, environment, outputsDirectory)}.\n`); return 0; }
-    return await runBinary(binary, args[1] !== "--background", outputsDirectory);
-  } catch (error) { output.stderr(`${error instanceof Error ? error.message : "Ghostget menu-bar command failed."}\n`); return 1; }
+  const rest = args.slice(1);
+  if (rest[0] === "--help" || rest[0] === "help" || rest[0] === "-h") {
+    output.stdout("Usage: ghostget menubar [start|stop|status|doctor|install|uninstall]\nRuns the shared menu-bar companion; install registers login startup.\n");
+    return 0;
+  }
+  if (rest.length > 1 || (rest[0] !== undefined && !["start", "stop", "status", "doctor", "install", "uninstall", "--foreground", "--background"].includes(rest[0]))) {
+    output.stderr("Usage: ghostget menubar [start|stop|status|doctor|install|uninstall]\n");
+    return 1;
+  }
+  const mapped = rest[0] === "--background" ? [] : rest;
+  const cli = fileURLToPath(new URL("../cli.ts", import.meta.url));
+  const binary = environment.GHOSTGET_MENUBAR;
+  return await handleCompanionCommand(companionOptions(environment), {
+    args: mapped,
+    ...(binary === undefined || binary === "" ? {} : { binary }),
+    foreground: { executable: process.execPath, args: [cli, "menubar", "--foreground"] },
+    write: (result) => output.stdout(`${JSON.stringify(result)}\n`),
+  });
 }

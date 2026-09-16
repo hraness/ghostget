@@ -109,9 +109,10 @@ providers retain their existing installation, identity, and live admission
 requirements. Publishing the CLI does not establish live provider qualification.
 
 The canonical release pipeline publishes the CLI from an exact source checkout.
-The standalone menu-bar companion has a separate build and sidecar contract in
-[`menubar-release.md`](menubar-release.md); native sidecar publication is not part
-of the current CLI release pipeline.
+The menu-bar companion is a TypeScript adapter over the shared desktop-foundation
+runner in [`menubar-release.md`](menubar-release.md); the pinned companion
+artifact resolves from that foundation release, and Ghostget publishes no
+platform sidecar of its own.
 There is no desktop app bundle or native installer. Native provider checks retain
 only their own installation and live admission requirements.
 

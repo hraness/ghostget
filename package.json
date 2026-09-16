@@ -584,6 +584,7 @@
     "src/control/credential-helper.ts",
     "src/control/account-revision.ts",
     "src/control/interface-cli.ts",
+    "src/control/menubar-cli.ts",
     "src/control/bundled-interfaces.ts"
   ],
   "scripts": {
@@ -615,9 +616,7 @@
     "kb:check": "bunx --bun github:hraness/kb#v0.15.2 check --root kb && bunx --bun github:hraness/kb#v0.15.2 agents check --root kb --repo .",
     "kb:catalog": "bunx --bun github:hraness/kb#v0.15.2 catalog --root kb",
     "prepack": "bun run check",
-    "check:effect": "bun scripts/check-effect-architecture.ts",
-    "menubar:build": "bun scripts/build-menubar.ts",
-    "menubar:check": "bun scripts/check-menubar.ts"
+    "check:effect": "bun scripts/check-effect-architecture.ts"
   },
   "dependencies": {
     "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
@@ -628,7 +627,8 @@
     "source-map": "0.6.1",
     "source-map-support": "0.5.21",
     "typescript": "6.0.3",
-    "@1password/sdk": "0.5.0"
+    "@1password/sdk": "0.5.0",
+    "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.6.0/hraness-desktop-foundation-0.6.0.tgz"
   },
   "devDependencies": {
     "@hraness/design-kit": "github:hraness/design-kit#v0.8.0",
