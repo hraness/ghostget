@@ -3,6 +3,8 @@
 - `protocol.ts` – browser-safe administrative and agent contracts.
 - `helper.ts`, `service.ts` – process custody, transport and control composition.
 - `menubar-cli.ts` – shared desktop-foundation menu adapter over the helper's private stdio channel.
+- `menubar-icon.ts` – bundled 32px Twemoji (CC-BY 4.0) tray art for icon-only surfaces.
+- `menubar-icon.ts` – bundled 32px Twemoji (CC-BY 4.0) tray art for icon-only surfaces.
 - `approval-*.ts` – exact human request and one-use approval lifetimes.
 - `web-*.ts`, `activity.ts` – bounded public retrieval and SQLite metadata.
 - `interface*.ts` – OpenAPI parsing, inert drafts and conditional activation.
