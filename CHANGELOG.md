@@ -15,6 +15,14 @@ Historical entries retain their original delivery coordinates.
   agents acknowledge only after human-facing output. Audience settings, local
   preferences, cancellation, and cadence keep the handoff optional.
 
+## 0.18.10
+
+- Give contained-browser cleanup ten seconds to observe a normal daemon exit
+  after close. LinkedIn and Instagram profile-stat reads no longer retain a
+  cleanup-required claim merely because the daemon needs more than two seconds
+  to stop; identity drift, live endpoints, and unverifiable cleanup still fail
+  closed and preserve exact recovery evidence.
+
 ## 0.18.9
 
 - Repin the shared site footer to v0.11.1. Public pages render the famous

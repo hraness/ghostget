@@ -1,3 +1,19 @@
+// Ghostget 0.18.11 agent support discovery over main c931249 adds exactly
+// 8,123 payload bytes: source modules +4,519, six generated SDK entrypoints
+// +425, and README/SKILL/changelog +3,179. Version coordinates and the renamed
+// version chunk retain their byte lengths. Bun 1.3.14 on darwin arm64 measured
+// 11,511,844 compressed / 22,528,280 payload bytes across exactly 558 files,
+// SHA-256 8e229109e5f4fa41acd6cf38f3becf55af4e237437c695f99b17700ab05330c4.
+// Retain the packed ceiling and the reviewed 65-byte payload allowance:
+// 22,520,157 + 8,123 + 65 = 22,528,345. Canonical Node/npm Linux CI and
+// Release independently admit their actual archive; this is local evidence.
+//
+// Ghostget 0.18.10 cleanup-convergence candidate over main 0840d3a preserves
+// the 558-file public boundary and the existing packed-byte ceiling. A Bun
+// 1.3.14 canonical pack on darwin arm64 measured 11,508,605 compressed /
+// 22,520,157 payload bytes. Keep the reviewed 65-byte payload allowance:
+// 22,520,157 + 65 = 22,520,222. Required CI and Release remeasure it.
+//
 // Ghostget 0.18.9 shared-footer v0.11.1 repin over main 9d23a99 adds exactly
 // 172 payload bytes over the 0.18.8 measurement: the site-footer pin and the
 // release changelog/coordinate edits retain their byte lengths. A Bun 1.3.14
@@ -881,7 +897,7 @@
 export const MAX_PACKED_BYTES = 11_662_943;
 export const MAX_PACKED_ENTRIES = 558;
 export const MAX_PACKED_FILES = 558;
-export const MAX_UNPACKED_BYTES = 22_519_507;
+export const MAX_UNPACKED_BYTES = 22_528_345;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

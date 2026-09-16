@@ -910,6 +910,7 @@ describe("browser process isolation helpers", () => {
       "closed-daemon",
       "delayed-closed-daemon",
       "natural-exit",
+      "slow-natural-exit",
       "inactive-live",
       "info-unavailable",
       "deadline-before-term",
@@ -944,7 +945,7 @@ describe("browser process isolation helpers", () => {
       ? 1
       : 0;
     const convergenceSessionReadLimit = closeOutcome === "still-launched"
-      ? 81
+      ? 401
       : closeOutcome === "deadline-before-term"
         ? 2
         : closeOutcome === "closed-daemon"
@@ -1073,14 +1074,14 @@ describe("browser process isolation helpers", () => {
               postCloseSessionReads += 1;
               if (postCloseSessionReads <= convergenceSessionReadLimit) {
                 postCloseSessionTimeouts.push({
-                  remaining: Math.max(1, 2_000 - observedNow),
+                  remaining: Math.max(1, 10_000 - observedNow),
                   timeout: options.timeoutMs,
                 });
               }
               if (
                 closeOutcome === "deadline-before-term"
                 && postCloseSessionReads === 2
-              ) clock = 2_000;
+              ) clock = 10_000;
             }
             if (closeCommands > 0 && unavailableSessionReads > 0) {
               unavailableSessionReads -= 1;
@@ -1162,6 +1163,10 @@ describe("browser process isolation helpers", () => {
               && recoverySleeps === 1
             ) daemonLive = false;
             if (
+              closeOutcome === "slow-natural-exit"
+              && recoverySleeps === 120
+            ) daemonLive = false;
+            if (
               closeOutcome === "info-unavailable"
               && recoverySleeps === 1
             ) browserClosed = true;
@@ -1238,12 +1243,16 @@ describe("browser process isolation helpers", () => {
       expect(unavailableSessionReads).toBe(0);
       expect(postSignalUnavailableReads).toBe(0);
       if (closeOutcome === "delayed-closed-daemon") {
-        expect(postCloseSessionTimeouts[0]?.timeout).toBe(2_000);
-        expect(postCloseSessionTimeouts[1]?.timeout).toBe(1_975);
+        expect(postCloseSessionTimeouts[0]?.timeout).toBe(10_000);
+        expect(postCloseSessionTimeouts[1]?.timeout).toBe(9_975);
+      }
+      if (closeOutcome === "slow-natural-exit") {
+        expect(recoverySleeps).toBeGreaterThan(80);
+        expect(recoverySleeps).toBeLessThan(400);
       }
       if (cleanupShouldFail) {
         expect(recoverySleeps).toBe(
-          closeOutcome === "still-launched" ? 80 : 0,
+          closeOutcome === "still-launched" ? 400 : 0,
         );
         const sleepsAfterFirstCleanup = recoverySleeps;
         const readsAfterFirstCleanup = postCloseSessionReads;
