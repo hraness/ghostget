@@ -1,4 +1,16 @@
-// Ghostget 0.18.13 menu and website support over main 9af4d34 adds exactly
+// Final Ghostget 0.18.13 also retains direct iMessage RPC group escalation
+// after a leader exits and closes its pipes. Against the support candidate
+// below, the runtime adds 1,131 bytes and its changelog adds 154. Two identical
+// npm 11.19.0 / Node 24.18.1 archives measure 11,670,047 compressed bytes,
+// 22,565,768 payload bytes and exactly 560 files; every byte and executable
+// mode matches source. SHA-256:
+// 08ab419759025a338cce9bdddf7e3b48f661a6d076396f4fb18c822c08119860.
+// Generated SDK files remain unchanged. Keep the compressed ceiling and exact
+// inventory; add only the measured 1,285 payload bytes, preserving 65 bytes
+// of allowance: 22,565,768 + 65 = 22,565,833. The derived tar bound remains
+// formula-based, and required CI/release verify their actual archives.
+//
+// Earlier Ghostget 0.18.13 menu and website support over main 9af4d34 adds exactly
 // one packed file and 1,974 payload bytes: shared public profile +279,
 // CLI profile extraction -97, explicit menu actions +1,035, package inventory
 // +30, README +224 and changelog +503. Version coordinates and the replaced
@@ -942,7 +954,7 @@
 export const MAX_PACKED_BYTES = 11_672_823;
 export const MAX_PACKED_ENTRIES = 560;
 export const MAX_PACKED_FILES = 560;
-export const MAX_UNPACKED_BYTES = 22_564_548;
+export const MAX_UNPACKED_BYTES = 22_565_833;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

@@ -16,6 +16,8 @@ Historical entries retain their original delivery coordinates.
   local account details or email address.
 - Add the shared optional support link to the static website footer, retaining
   the existing production-only Ghostget newsletter form.
+- Retain timeout escalation until the direct iMessage RPC process group exits,
+  including descendants that ignore termination and close inherited pipes.
 
 ## 0.18.12
 

@@ -630,6 +630,46 @@ describe("reviewed direct iMessage provider", () => {
     }
   });
 
+  test("retains escalation after the RPC leader exits and a TERM-ignoring descendant closes its pipes", async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-imessage-closed-pipes-")));
+    chmodSync(root, 0o700);
+    const executable = join(root, "imsg-fixture");
+    const worker = join(root, "nested-fixture");
+    const nestedPidPath = join(root, "nested.pid");
+    writeFileSync(worker,
+      `#!/bin/sh\ntrap '' TERM\nprintf '%s' "$$" > "${nestedPidPath}"\nexec sleep 60\n`,
+      { mode: 0o500 });
+    writeFileSync(executable,
+      `#!/bin/sh\n"${worker}" </dev/null >/dev/null 2>&1 &\nwait\n`,
+      { mode: 0o500 });
+    let leaderPid = 0;
+    try {
+      await expect(runImsgRpc({
+        binary: executable,
+        arguments: ["rpc"],
+        stdin: "{}\n",
+        environment: { PATH: "/usr/bin:/bin", TMPDIR: root },
+        timeoutMs: 3_000,
+        maxOutputBytes: 1024,
+        maxStderrBytes: 1024,
+        afterSpawn: (pid) => { leaderPid = pid; },
+      })).rejects.toThrow("timed out");
+      const nestedPid = Number(readFileSync(nestedPidPath, "utf8"));
+      expect(leaderPid).toBeGreaterThan(0);
+      expect(nestedPid).toBeGreaterThan(0);
+      expect(() => process.kill(leaderPid, 0)).toThrow();
+      expect(() => process.kill(nestedPid, 0)).toThrow();
+      expect(() => process.kill(-leaderPid, 0)).toThrow();
+    } finally {
+      if (leaderPid > 0) {
+        try { process.kill(-leaderPid, "SIGKILL"); } catch {
+          // The assertions above establish cleanup; this only contains a failed regression.
+        }
+      }
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test("reaps a crashing RPC child and reports its exit without foreign stderr", async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "wrench-imessage-crash-")));
     chmodSync(root, 0o700);
