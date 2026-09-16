@@ -19,6 +19,7 @@ import {
 } from "@hraness/site-footer";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { ghostgetSupportProfile } from "../src/support-profile";
 
 import { AskAiAboutThis } from "./ask-ai-runtime.js";
 import {
@@ -57,7 +58,7 @@ export const GITHUB_RELEASES_URL = "https://github.com/hraness/ghostget/releases
 export const SKILLS_URL = "https://skills.sh/hraness/ghostget" as const;
 export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.12" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.13" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",
@@ -864,6 +865,7 @@ export async function buildWebsite(
     cssAsset,
     hranessSiteFooter: renderHranessSiteFooter({
       mailingList: ghostgetMailingListConfig(environment),
+      support: ghostgetSupportProfile,
     }),
     packageIdentity: identity,
     postHogHost: postHog.host,
@@ -899,6 +901,8 @@ export async function buildWebsite(
     cp(designKitFontsDirectory, join(outputRoot, "assets/fonts"), {
       dereference: true,
       recursive: true,
+      // Retain every file while avoiding Bun's stalled native recursive copy.
+      filter: () => true,
     }),
     ...renderedPages.map(({ page, html }) => writeFile(join(outputRoot, page.outputFile), html)),
     ...renderedPages.map(({ page, html }) => writeFile(
@@ -923,6 +927,7 @@ export async function buildWebsite(
     cp(join(publicRoot, "images"), join(outputRoot, "images"), {
       dereference: true,
       recursive: true,
+      filter: () => true,
     }),
     copyFile(join(publicRoot, "icon.png"), join(outputRoot, "icon.png")),
     copyFile(join(publicRoot, "apple-icon.png"), join(outputRoot, "apple-icon.png")),

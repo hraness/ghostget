@@ -2,13 +2,7 @@ import {
   maybeShowSupportInvitation,
   runSupportCommand,
 } from "@hraness/support-foundation/node";
-
-const profile = {
-  id: "wrench",
-  name: "Ghostget",
-  valueProposition: "Support ongoing development of precise web tools for agents.",
-  updates: true,
-} as const;
+import { ghostgetSupportProfile as profile } from "./support-profile";
 
 type SupportOutput = {
   readonly stdout: (text: string) => unknown;

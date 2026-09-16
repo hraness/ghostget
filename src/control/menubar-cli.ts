@@ -3,11 +3,14 @@ import { lstatSync, readdirSync, type BigIntStats } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleCompanionCommand, openBrowser, type CompanionOptions, type MenuItem } from "@hraness/desktop-foundation";
+import { createSupportOffer } from "@hraness/support-foundation";
+import { ghostgetSupportProfile } from "../support-profile";
 import { ghostgetStateHome } from "../storage";
 import { CONTROL_PROTOCOL, type ActivityRow, type ApprovalView, type CapabilityView, type ControlRequest, type ControlResponse, type ControlSnapshot } from "./protocol";
 import type { ControlEnvironment } from "./web-policy";
 
 const WEBSITE = "https://ghostget.com/getting-started";
+const SUPPORT_ACTIONS = createSupportOffer(ghostgetSupportProfile, "desktop").actions;
 const MAX_FRAME = 4_194_304;
 const HELPER_TIMEOUT_MS = 15_000;
 const OUTPUTS_LIMIT = 12;
@@ -361,6 +364,8 @@ export function snapshotItems(
     { kind: "label", label: menuLabel(updated) },
     { kind: "action", id: "refresh", label: "Refresh status" },
     { kind: "action", id: "open-website", label: "Open Ghostget…" },
+    { kind: "action", id: "support:updates", label: "Get Ghostget updates (free)…" },
+    { kind: "action", id: "support:paid", label: "Support Ghostget development (optional paid)…" },
     { kind: "submenu", label: "Copy CLI command", items: cliHelpItems() },
     { kind: "separator" },
     { kind: "quit", label: "Quit Ghostget" },
@@ -395,12 +400,16 @@ export function snapshotItems(
  * a disposable client of it. All reads and mutations use bounded control
  * requests; the shared runner renders state and enforces revision-checked
  * dispatch. Failed or indeterminate mutations are never retried. */
-export function companionOptions(environment: ControlEnvironment): CompanionOptions {
+export function companionOptions(
+  environment: ControlEnvironment,
+  openAccountPage: (url: string) => Promise<void> = openBrowser,
+): CompanionOptions {
   let helper: HelperClient | null = null;
   let lastSnapshot: ControlSnapshot | null = null;
   let confirmedAt: number | null = null;
   let lastOutputs: OutputsView = EMPTY_OUTPUTS;
   let notice: string | null = null;
+  let openingAccountPage = false;
   const attempts = new Map<string, Attempt>();
   const outputsDirectory = join(ghostgetStateHome(environment), "outputs");
   const client = (): HelperClient => {
@@ -445,6 +454,17 @@ export function companionOptions(environment: ControlEnvironment): CompanionOpti
     onAction: async (id) => {
       if (id === "refresh") { notice = null; return; } // the runner re-reads state after every action
       if (id === "open-website") { await openBrowser(WEBSITE); return; }
+      if (id === "support:updates" || id === "support:paid") {
+        if (openingAccountPage) return;
+        const action = SUPPORT_ACTIONS.find((item) => item.kind === (id === "support:updates" ? "updates" : "support"));
+        if (action === undefined) return;
+        openingAccountPage = true;
+        notice = null;
+        try { await openAccountPage(action.url); }
+        catch { notice = "Could not open Accounts. Try again from the menu."; }
+        finally { openingAccountPage = false; }
+        return;
+      }
       if (id === "output:folder") {
         const expected = lastOutputs.directory;
         const fresh = (() => { try { return lstatSync(outputsDirectory, { bigint: true }); } catch { return null; } })();

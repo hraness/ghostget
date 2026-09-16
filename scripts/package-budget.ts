@@ -1,3 +1,17 @@
+// Ghostget 0.18.13 menu and website support over main 9af4d34 adds exactly
+// one packed file and 1,974 payload bytes: shared public profile +279,
+// CLI profile extraction -97, explicit menu actions +1,035, package inventory
+// +30, README +224 and changelog +503. Version coordinates and the replaced
+// 90-byte generated version chunk retain their lengths. The website and its
+// development-only footer dependency remain outside the public archive.
+// npm 11.19.0 under Node 24.18.1 on darwin arm64 measured 11,669,486
+// compressed / 22,564,483 payload bytes across exactly 560 files; every
+// packed file matched its source bytes. Archive SHA-256:
+// 6a266944e0815c607d2722e592ed8875fee718e4f9fd5f23d7492c81af722712.
+// Keep the existing packed ceiling and the reviewed 65-byte payload allowance:
+// 22,562,509 + 1,974 + 65 = 22,564,548. Required Linux CI and the canonical
+// Release independently admit their actual archive and installation.
+//
 // Shared-foundation menu-bar migration over main dd1f377 adds exactly one
 // packed file and 33,838 payload bytes: src/control/menubar-cli.ts +33,710
 // (the TypeScript adapter ships so `ghostget menubar` drives the shared
@@ -926,9 +940,9 @@
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
 export const MAX_PACKED_BYTES = 11_672_823;
-export const MAX_PACKED_ENTRIES = 559;
-export const MAX_PACKED_FILES = 559;
-export const MAX_UNPACKED_BYTES = 22_562_574;
+export const MAX_PACKED_ENTRIES = 560;
+export const MAX_PACKED_FILES = 560;
+export const MAX_UNPACKED_BYTES = 22_564_548;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

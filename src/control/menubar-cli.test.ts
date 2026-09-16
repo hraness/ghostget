@@ -110,7 +110,9 @@ describe("snapshot menu mapping", () => {
     expect(items[0]).toMatchObject({ kind: "label", label: "Ghostget control unavailable" });
     expect(labels(items)).toContain("Control status not confirmed");
     expect(labels(items)).toContain("Outputs · 0");
-    expect(actionIds(items)).toEqual(["refresh", "open-website", "clip:0", "clip:1", "clip:2"]);
+    expect(actionIds(items)).toEqual(["refresh", "open-website", "support:updates", "support:paid", "clip:0", "clip:1", "clip:2"]);
+    expect(labels(items)).toContain("Get Ghostget updates (free)…");
+    expect(labels(items)).toContain("Support Ghostget development (optional paid)…");
   });
   test("bounds menus for large control surfaces", () => {
     const capabilities = Array.from({ length: 40 }, (_, index) => ({
@@ -204,6 +206,48 @@ describe("helper-backed companion options", () => {
     await expect(options.onAction("permission:enable", signal)).rejects.toThrow("ghostget-");
     const items = await options.snapshot(signal);
     expect(labels(items)).toContain("Operation permissions are managed per account.");
+  });
+});
+
+describe("optional Accounts browser handoffs", () => {
+  test("only explicit fixed actions open a page, including before any helper snapshot", async () => {
+    const { environment } = fixture();
+    const opened: string[] = [];
+    const options = companionOptions(environment, async (url) => { opened.push(url); });
+    const signal = new AbortController().signal;
+    expect(opened).toEqual([]);
+    await options.onAction("support:unknown", signal);
+    expect(opened).toEqual([]);
+    await options.onAction("support:updates", signal);
+    await options.onAction("support:paid", signal);
+    expect(opened).toEqual([
+      "https://account.hraness.com/support?product=wrench&source=desktop#updates",
+      "https://account.hraness.com/support?product=wrench&source=desktop#support",
+    ]);
+  });
+
+  test("concurrent clicks share one bounded handoff and failures reveal only a generic notice", async () => {
+    const { environment } = fixture();
+    const opened: string[] = [];
+    let finish: (() => void) | undefined;
+    const options = companionOptions(environment, async (url) => {
+      opened.push(url);
+      await new Promise<void>((resolve) => { finish = resolve; });
+      throw new Error("PRIVATE_BROWSER_DIAGNOSTIC");
+    });
+    const signal = new AbortController().signal;
+    const first = options.onAction("support:paid", signal);
+    await options.onAction("support:updates", signal);
+    expect(opened).toHaveLength(1);
+    finish!();
+    await first;
+    const items = await options.snapshot(signal);
+    expect(labels(items)).toContain("Could not open Accounts. Try again from the menu.");
+    expect(JSON.stringify(items)).not.toContain("PRIVATE_BROWSER_DIAGNOSTIC");
+    const retry = options.onAction("support:updates", signal);
+    expect(opened).toHaveLength(2);
+    finish!();
+    await retry;
   });
 });
 

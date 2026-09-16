@@ -1345,8 +1345,8 @@ describe("npm publication contract", () => {
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
     expect(MAX_PACKED_BYTES).toBe(11_672_823);
     expect(MAX_PACKED_BYTES).toBe(11_668_727 + 4_096);
-    expect(MAX_PACKED_ENTRIES).toBe(559);
-    expect(MAX_PACKED_FILES).toBe(559);
+    expect(MAX_PACKED_ENTRIES).toBe(560);
+    expect(MAX_PACKED_FILES).toBe(560);
     expect(budget).toContain("Ghostget 0.18.6 same-boot setup-cleanup candidate over main edbe567");
     expect(budget).toContain("11,656,173");
     expect(budget).toContain("22,513,450 payload bytes across exactly 557 files");
@@ -1354,8 +1354,10 @@ describe("npm publication contract", () => {
     expect(budget).toContain("34708922100, static job 103593972035 and package job 103593972046");
     expect(budget).toContain("22,521,539 + 65 = 22,521,604");
     expect(budget).toContain("22,523,437 + 65 = 22,523,502");
-    expect(MAX_UNPACKED_BYTES).toBe(22_562_574);
-    expect(MAX_UNPACKED_BYTES).toBe(22_562_509 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(22_564_548);
+    expect(MAX_UNPACKED_BYTES).toBe(22_562_509 + 1_974 + 65);
+    expect(budget).toContain("22,562,509 + 1,974 + 65 = 22,564,548");
+    expect(budget).toContain("6a266944e0815c607d2722e592ed8875fee718e4f9fd5f23d7492c81af722712");
     expect(budget).toContain("22,562,509 + 65 = 22,562,574");
     expect(budget).toContain("22,520,359 + 8,123 + 189 + 65 = 22,528,736");
     expect(budget).toContain("22,520,359 + 65 = 22,520,424");

@@ -167,14 +167,14 @@ describe("ghostget.com static site", () => {
     expect(manifest).toMatchObject({
       devDependencies: {
         "@hraness/design-kit": "github:hraness/design-kit#v0.8.0",
-        "@hraness/site-footer": "github:hraness/site-footer#v0.11.2",
+        "@hraness/site-footer": "github:hraness/site-footer#v0.12.2",
         "@hraness/ui": "github:hraness/ui#v0.5.13",
       },
     });
     expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.8.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.13"');
     expect(lockfile).toContain(
-      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#f2ac787"',
+      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#3283be8"',
     );
   });
 
@@ -646,6 +646,7 @@ describe("ghostget.com static site", () => {
     }
     const expectedFooterHrefs = [
       HRANESS_HOME_URL,
+      "https://account.hraness.com/support?product=wrench&amp;source=web#support",
       "https://hraness.com/privacy",
       ...hranessSocialLinks.map(({ href }) => href),
     ];
@@ -656,6 +657,7 @@ describe("ghostget.com static site", () => {
       expect(footer).toContain('data-slot="hraness-site-footer"');
       expect(footer).not.toContain("hraness-site-footer__wordmark");
       expect(footer).toContain('data-mailing-list="signup"');
+      expect(footer).toContain('data-slot="hraness-support-link"');
       expect(footer).toContain(`action="${HRANESS_MAILING_SUBSCRIBE_URL}"`);
       expect(footer).toContain('name="audience" type="hidden" value="wrench"');
       expect(footer).toContain('name="website"');
