@@ -129,19 +129,15 @@ describe("macOS PR check subset", () => {
     expect(invocations[1]).toContain("src/ghostget.test.ts");
   });
 
-  test("checks the CLI and standalone menu while excluding desktop packaging", async () => {
+  test("checks the CLI and shared-foundation menu while excluding desktop packaging", async () => {
     const workflow = Bun.YAML.parse(await readFile(ciWorkflowUrl, "utf8")) as { jobs: { macos: { steps: { run?: string }[] }; required: { needs: string[] } } };
     const manifest = JSON.parse(await readFile(packageManifestUrl, "utf8")) as { scripts: Record<string, string> };
     const steps = workflow.jobs.macos.steps;
     expect(steps.some(step => step.run === "bun run check:macos")).toBeTrue();
-    expect(steps.some(step => step.run === "bun run menubar:check")).toBeTrue();
-    expect(steps.filter(step => step.run === "swift build")).toEqual([
-      { name: "Build Swift analysis target", run: "swift build" },
-    ]);
-    expect(steps.findIndex(step => step.run === "swift build"))
-      .toBeGreaterThan(steps.findIndex(step => step.run === "bun run menubar:check"));
+    expect(steps.some(step => (step.run ?? "").includes("swift"))).toBeFalse();
+    expect(steps.some(step => (step.run ?? "").includes("menubar:check"))).toBeFalse();
     expect(steps.some(step => (step.run ?? "").includes("desktop"))).toBeFalse();
-    expect(Object.keys(manifest.scripts).some(name => name.startsWith("desktop"))).toBeFalse();
+    expect(Object.keys(manifest.scripts).some(name => name.startsWith("desktop") || name.startsWith("menubar:"))).toBeFalse();
     expect(workflow.jobs.required.needs).toContain("macos");
   });
 });

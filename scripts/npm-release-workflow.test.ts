@@ -1166,7 +1166,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_100_928);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_135_744);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1345,8 +1345,8 @@ describe("npm publication contract", () => {
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
     expect(MAX_PACKED_BYTES).toBe(11_662_943);
     expect(MAX_PACKED_BYTES).toBe(11_658_847 + 4_096);
-    expect(MAX_PACKED_ENTRIES).toBe(558);
-    expect(MAX_PACKED_FILES).toBe(558);
+    expect(MAX_PACKED_ENTRIES).toBe(559);
+    expect(MAX_PACKED_FILES).toBe(559);
     expect(budget).toContain("Ghostget 0.18.6 same-boot setup-cleanup candidate over main edbe567");
     expect(budget).toContain("11,656,173");
     expect(budget).toContain("22,513,450 payload bytes across exactly 557 files");
@@ -1354,8 +1354,9 @@ describe("npm publication contract", () => {
     expect(budget).toContain("34708922100, static job 103593972035 and package job 103593972046");
     expect(budget).toContain("22,521,539 + 65 = 22,521,604");
     expect(budget).toContain("22,523,437 + 65 = 22,523,502");
-    expect(MAX_UNPACKED_BYTES).toBe(22_528_736);
-    expect(MAX_UNPACKED_BYTES).toBe(22_520_359 + 8_123 + 189 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(22_562_574);
+    expect(MAX_UNPACKED_BYTES).toBe(22_562_509 + 65);
+    expect(budget).toContain("22,562,509 + 65 = 22,562,574");
     expect(budget).toContain("22,520,359 + 8,123 + 189 + 65 = 22,528,736");
     expect(budget).toContain("22,520,359 + 65 = 22,520,424");
     expect(budget).toContain("22,519,442 + 65 = 22,519,507");
@@ -1367,10 +1368,10 @@ describe("npm publication contract", () => {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 558, max: 558 },
-      fileCount: { min: 558, max: 558 },
+      entryCount: { min: 559, max: 559 },
+      fileCount: { min: 559, max: 559 },
       packedBytes: { min: 1_600_000, max: 11_662_943 },
-      unpackedBytes: { min: 9_000_000, max: 22_528_736 },
+      unpackedBytes: { min: 9_000_000, max: 22_562_574 },
     });
   });
 

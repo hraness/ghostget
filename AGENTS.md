@@ -3,7 +3,7 @@
 
 - `src/` – the CLI, page-capture runtime, strict data and protocol models, provider-plugin kernel, built-in providers, runtime assets, helpers, and colocated tests.
 - `src/media/` – the finite-item media acquisition, archive, derivation, transcript, revision, verification, and cancellation runtime.
-- `src/control/` – the menu-bar control service, approvals, account connections, and LaunchAgent lifecycle.
+- `src/control/` – the menu-bar control service, approvals, account connections, and the shared-foundation menu adapter.
 - `skills/ghostget/` – the single public Agent Skill and its focused operational references, including social publishing.
 - `.agents/skills/` – reusable cross-repository KB and phased-execution workflows; product-specific Ghostget operations remain under `skills/ghostget/`.
 - `kb/` – authored repository rationale, evidence, synthesis, and plans.

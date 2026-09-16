@@ -6,6 +6,3 @@ website/dist/
 .DS_Store
 .vercel
 .env*
-build/menubar/
-/.build/
-/.swiftpm/
