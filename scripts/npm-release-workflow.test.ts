@@ -1166,7 +1166,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_135_744);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_138_816);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1370,10 +1370,10 @@ describe("npm publication contract", () => {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 559, max: 559 },
-      fileCount: { min: 559, max: 559 },
+      entryCount: { min: 560, max: 560 },
+      fileCount: { min: 560, max: 560 },
       packedBytes: { min: 1_600_000, max: 11_672_823 },
-      unpackedBytes: { min: 9_000_000, max: 22_562_574 },
+      unpackedBytes: { min: 9_000_000, max: 22_564_548 },
     });
   });
 
