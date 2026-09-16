@@ -48,6 +48,10 @@ ghostget plugin list
 
 ## Optional updates and support
 
+The website footer and menu companion offer the same optional support. The menu
+also links to free Ghostget product updates. Select a link to open Hraness
+Accounts, then review and confirm signup or payment in the browser.
+
 Ghostget stays free to use. After useful standalone work, the CLI may write a
 compact discovery notice to stderr, including when stdout is JSON or piped.
 It preserves the result on stdout and does not claim an invitation or inspect
@@ -75,7 +79,7 @@ The protocol and [Agent Skill](skills/ghostget/SKILL.md) describe the handoff.
 
 ## Built-in provider catalog
 
-This v0.18.12 source tree supports executable actions for 20 services: Beeper,
+This v0.18.13 source tree supports executable actions for 20 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WhatsApp, X, and YouTube.
@@ -151,9 +155,9 @@ The optional npm mirror can follow later without delaying canonical delivery.
 Install the single Ghostget Agent Skill with either runner:
 
 ```sh
-npx skills add hraness/ghostget#v0.18.12
+npx skills add hraness/ghostget#v0.18.13
 # or
-bunx skills add hraness/ghostget#v0.18.12
+bunx skills add hraness/ghostget#v0.18.13
 ```
 
 The skill teaches Codex, Claude Code, Cursor, and other compatible coding
@@ -163,7 +167,7 @@ install the CLI if it is missing. Start a new agent session after installation.
 After the matching immutable Release exists, install this exact canonical archive:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.12/hraness-ghostget-0.18.12.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.13/hraness-ghostget-0.18.13.tgz
 ghostget adapter sync-bundled --json
 ghostget doctor
 ```
@@ -191,7 +195,7 @@ For that same released coordinate, install Ghostget in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.12/hraness-ghostget-0.18.12.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.13/hraness-ghostget-0.18.13.tgz
 ```
 
 ```ts

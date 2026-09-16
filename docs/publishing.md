@@ -28,9 +28,9 @@ Explicit focused local/native and coupled reproductions still apply under
 requires the exact repository, active workflow ID/path, main-push source and tree,
 all ten successful jobs, and nine actual checkout logs. Each source job records
 its exact workflow/lock hashes, Node/npm/Bun versions and GitHub-hosted platform
-before its frozen install. Admission also requires all three successful
-exact-source CodeQL jobs and current main analyses for Actions,
-JavaScript/TypeScript, and the menu companion's Swift source, plus the successful
+before its frozen install. Admission also requires both successful
+exact-source CodeQL jobs and current main analyses for Actions
+and JavaScript/TypeScript, plus the successful
 security comparison on the merged PR's identical tree. Any present main comparison must succeed;
 analysis result counts are recorded without asserting that no alerts exist.
 The CodeQL app's check must identify that exact PR through its returned PR
@@ -52,11 +52,18 @@ Only the read-only Verify job adds Checks, Pull requests and Security events rea
 permissions for these API reads. Publication and attestation permissions stay
 unchanged.
 
+PR #272 moved the repository-owned Swift menu into the pinned shared desktop
+foundation. The current repository has no tracked Swift source; GitHub's
+default setup scans Actions and JavaScript/TypeScript. Admission requires
+exactly those two jobs and analyses, with missing or extra languages rejected.
+The shared foundation owns its native source checks and published artifacts.
+Reintroducing another source language requires a reviewed coverage update.
+
 When the native host first entered `main`, GitHub's automatic CodeQL setup
 produced two runs on that source: the existing two-language scan and a new
 three-language scan including Rust. That transition source remains ambiguous
-and cannot qualify a release. The source-admission correction requires a fresh
-merged source with one complete three-language run; neither scan is deleted or
+and cannot qualify a release. That source-admission correction required a fresh
+merged source with one complete three-language run; neither scan was deleted or
 selected as a substitute for the unique-run gate.
 
 After admission, Release still performs a fresh frozen install and deterministic
@@ -193,10 +200,13 @@ delivery proceeds through a new source-qualified version.
 
 ## Install the canonical release
 
+These commands require the matching published immutable v0.18.13 release.
+The prior published release is v0.18.12.
+
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.12/hraness-ghostget-0.18.12.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.13/hraness-ghostget-0.18.13.tgz
 ghostget --version
 ghostget doctor --json
 ```

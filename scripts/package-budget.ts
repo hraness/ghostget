@@ -1,14 +1,28 @@
-// Ghost emoji status mark over main 9af4d34 adds exactly one packed file and
-// 5,841 payload bytes: src/control/menubar-icon.ts +5,810 (the pre-rendered
-// Twemoji CC-BY 4.0 ghost the icon-only Windows/Linux tray surfaces use while
-// macOS renders the native emoji title) and package.json +31 (the packed file
-// entry; the v0.7.0 foundation tarball coordinate keeps its byte length). A
-// Bun 1.3.14 pack on darwin arm64 measured 11,662,157 compressed /
-// 22,568,350 payload bytes across exactly 560 files. Retain the reviewed
-// 4,096-byte packed portability allowance and the 65-byte payload allowance:
-// 11,662,157 + 4,096 = 11,666,253 and 22,568,350 + 65 = 22,568,415. Canonical
-// Release still admits its actual archive; the Required Linux CI package job
-// measures the same archive under the Linux toolchain.
+// Final Ghostget 0.18.13 also retains direct iMessage RPC group escalation
+// after a leader exits and closes its pipes. Against the support candidate
+// below, the runtime adds 1,131 bytes and its changelog adds 154. Two identical
+// npm 11.19.0 / Node 24.18.1 archives measure 11,670,047 compressed bytes,
+// 22,565,768 payload bytes and exactly 560 files; every byte and executable
+// mode matches source. SHA-256:
+// 08ab419759025a338cce9bdddf7e3b48f661a6d076396f4fb18c822c08119860.
+// Generated SDK files remain unchanged. Keep the compressed ceiling and exact
+// inventory; add only the measured 1,285 payload bytes, preserving 65 bytes
+// of allowance: 22,565,768 + 65 = 22,565,833. The derived tar bound remains
+// formula-based, and required CI/release verify their actual archives.
+//
+// Earlier Ghostget 0.18.13 menu and website support over main 9af4d34 adds exactly
+// one packed file and 1,974 payload bytes: shared public profile +279,
+// CLI profile extraction -97, explicit menu actions +1,035, package inventory
+// +30, README +224 and changelog +503. Version coordinates and the replaced
+// 90-byte generated version chunk retain their lengths. The website and its
+// development-only footer dependency remain outside the public archive.
+// npm 11.19.0 under Node 24.18.1 on darwin arm64 measured 11,669,486
+// compressed / 22,564,483 payload bytes across exactly 560 files; every
+// packed file matched its source bytes. Archive SHA-256:
+// 6a266944e0815c607d2722e592ed8875fee718e4f9fd5f23d7492c81af722712.
+// Keep the existing packed ceiling and the reviewed 65-byte payload allowance:
+// 22,562,509 + 1,974 + 65 = 22,564,548. Required Linux CI and the canonical
+// Release independently admit their actual archive and installation.
 //
 // Shared-foundation menu-bar migration over main dd1f377 adds exactly one
 // packed file and 33,838 payload bytes: src/control/menubar-cli.ts +33,710
@@ -937,10 +951,10 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 11_666_253;
+export const MAX_PACKED_BYTES = 11_672_823;
 export const MAX_PACKED_ENTRIES = 560;
 export const MAX_PACKED_FILES = 560;
-export const MAX_UNPACKED_BYTES = 22_568_415;
+export const MAX_UNPACKED_BYTES = 22_565_833;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

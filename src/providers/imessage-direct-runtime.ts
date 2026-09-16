@@ -448,18 +448,38 @@ export async function runImsgRpc(
   let timedOut = false;
   let cancelled = false;
   let forceKill: ReturnType<typeof setTimeout> | null = null;
+  let groupTerminated: Promise<boolean> | null = null;
   let terminationStarted = false;
   const signalGroup = (signal: "SIGTERM" | "SIGKILL"): void => {
     try {
       process.kill(-child.pid, signal);
     } catch {
-      // child.exited remains the reaping proof.
+      // The bounded group probe below establishes descendant cleanup.
     }
   };
   const terminate = (): void => {
     if (!terminationStarted) {
       terminationStarted = true;
       signalGroup("SIGTERM");
+      groupTerminated = (async (): Promise<boolean> => {
+        // A joined leader and closed pipes do not prove its descendants exited.
+        // Retain the one-second escalation, then bound final group reaping.
+        const deadline = performance.now() + 1_500;
+        for (;;) {
+          try {
+            process.kill(-child.pid, 0);
+          } catch (error) {
+            const code = typeof error === "object" && error !== null
+              && "code" in error ? error.code : undefined;
+            if (code === "ESRCH") return true;
+            // Allow a transient permission denial to settle within the same
+            // bound; it is never proof that the group exited.
+            if (code !== "EPERM") return false;
+          }
+          if (performance.now() >= deadline) return false;
+          await new Promise<void>((resolve) => setTimeout(resolve, 20));
+        }
+      })();
     }
     forceKill ??= setTimeout(() => signalGroup("SIGKILL"), 1_000);
   };
@@ -509,8 +529,14 @@ export async function runImsgRpc(
     });
   } finally {
     clearTimeout(timeout);
-    if (forceKill !== null) clearTimeout(forceKill);
     invocation.signal?.removeEventListener("abort", onAbort);
+    try {
+      if (groupTerminated !== null && !await groupTerminated) {
+        throw new ImsgCleanupUnverifiedError();
+      }
+    } finally {
+      if (forceKill !== null) clearTimeout(forceKill);
+    }
   }
 }
 

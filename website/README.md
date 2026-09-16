@@ -111,3 +111,8 @@ Root `middleware.ts` imports only `edge/negotiation.ts` for Accept q-values,
 `406`, and markdown 404 bodies.
 
 For v0.16.13 and later, the bounded production build verifies immutable Release metadata, bot/source receipt, exactly five asset descriptors, and manifest/archive digests. It trusts the authenticated canonical workflow admission. Independent promotion CI verifies Sigstore provenance; the Vercel build does not run a local cryptographic Sigstore verifier. Historical assetless Releases retain their npm manifest check.
+
+The shared footer also links to optional Ghostget development support on Hraness
+Accounts. The link contains only the public product identity and web source. The
+existing production-only newsletter form remains the signup surface; previews
+keep that form disabled. Signup and payment require browser confirmation.
