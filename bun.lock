@@ -18,7 +18,7 @@
       "devDependencies": {
         "@hraness/design-kit": "github:hraness/design-kit#v0.8.0",
         "@hraness/direct": "https://github.com/hraness/direct/releases/download/v0.7.21/hraness-direct-0.7.21.tgz",
-        "@hraness/site-footer": "github:hraness/site-footer#v0.11.1",
+        "@hraness/site-footer": "github:hraness/site-footer#v0.11.2",
         "@hraness/ui": "github:hraness/ui#v0.5.13",
         "@steipete/sweet-cookie": "0.4.3",
         "@tanstack/react-virtual": "3.14.11",
@@ -49,7 +49,7 @@
 
     "@hraness/oh": ["@hraness/oh@github:hraness/oh#89fb133", { "peerDependencies": { "@libsql/client": ">=0.17.4 <1", "@suss/datalog": "0.20.0", "@tobilu/qmd": "2.5.3" }, "optionalPeers": ["@libsql/client", "@suss/datalog", "@tobilu/qmd"], "bin": { "oh": "./dist/cli.js" } }, "hraness-oh-89fb133", "sha512-huk8DqOAhnwMm4QAOU+JiyxfdfUF0pZth1jnzOkOmZQe6NqZjR+LXAe2swIVdBMn1hCHb47+c7IqFH3QUTBWTQ=="],
 
-    "@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#79520f8", { "peerDependencies": { "react": ">=18 <20" }, "optionalPeers": ["react"] }, "hraness-site-footer-79520f8", "sha512-sI70nIuGcUr/CQs4vR75yB1WLoWwPSZN14xsQG0cFArSkohzHR50I6ebV31bEgwwO6PO7QeZow/SAeeZrIG8WQ=="],
+    "@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#f2ac787", { "peerDependencies": { "react": ">=18 <20" }, "optionalPeers": ["react"] }, "hraness-site-footer-f2ac787", "sha512-u+gy2E6C4rlYJBnuPchH5F6iimPoeVktr+Ca/r78U6KTWzblumNo7wtbFBeXfYbGZoadQi0HPcCe8uOAX8rhtw=="],
 
     "@hraness/support-foundation": ["@hraness/support-foundation@github:hraness/support-foundation#2d034b3", {}, "hraness-support-foundation-2d034b3", "sha512-ayi8JeDAkaKkJDtQwe705DfNAas0na5fmf70BF+dHhADYdryBNhohahGDtItNZ+DD8rPxmmy7xRGfteixSC+1w=="],
 

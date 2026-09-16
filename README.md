@@ -75,7 +75,7 @@ The protocol and [Agent Skill](skills/ghostget/SKILL.md) describe the handoff.
 
 ## Built-in provider catalog
 
-This v0.18.11 source tree supports executable actions for 20 services: Beeper,
+This v0.18.12 source tree supports executable actions for 20 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WhatsApp, X, and YouTube.
@@ -140,7 +140,7 @@ owns the narrow capability boundary that can sit beneath them.
 Wrench is now Ghostget. The package name is `@hraness/ghostget`, and the CLI
 command is `ghostget`. Read the [migration guide](docs/ghostget-migration.md)
 before updating an existing installation. After its optional npm mirror is
-verified public, `@hraness/ghostget@0.18.11` is also available from the registry.
+verified public, `@hraness/ghostget@0.18.12` is also available from the registry.
 
 This README describes the package version in this source tree. Its versioned
 GitHub archive and Agent Skill become a supported public release after the
@@ -151,9 +151,9 @@ The optional npm mirror can follow later without delaying canonical delivery.
 Install the single Ghostget Agent Skill with either runner:
 
 ```sh
-npx skills add hraness/ghostget#v0.18.11
+npx skills add hraness/ghostget#v0.18.12
 # or
-bunx skills add hraness/ghostget#v0.18.11
+bunx skills add hraness/ghostget#v0.18.12
 ```
 
 The skill teaches Codex, Claude Code, Cursor, and other compatible coding
@@ -163,7 +163,7 @@ install the CLI if it is missing. Start a new agent session after installation.
 After the matching immutable Release exists, install this exact canonical archive:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.11/hraness-ghostget-0.18.11.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.12/hraness-ghostget-0.18.12.tgz
 ghostget adapter sync-bundled --json
 ghostget doctor
 ```
@@ -191,7 +191,7 @@ For that same released coordinate, install Ghostget in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.11/hraness-ghostget-0.18.11.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.12/hraness-ghostget-0.18.12.tgz
 ```
 
 ```ts
