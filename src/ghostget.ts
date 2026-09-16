@@ -839,6 +839,7 @@ async function runCaptureCommand(
   output: Output,
   dependencies: GhostgetDependencies,
   signal?: AbortSignal,
+  onUsefulResult?: () => void,
 ): Promise<number> {
   const resolved = resolveCaptureArgumentsWithAuth(arguments_, environment);
   const unresolvedArguments = [...prefix, ...resolved.arguments];
@@ -866,16 +867,18 @@ async function runCaptureCommand(
     if (persistentPrivateCapture) {
       ensurePrivateStateDirectory(gmailOptions.outputBase, environment);
     }
-    return dependencies.gmailCaptureMain(
+    const code = await dependencies.gmailCaptureMain(
       gmailOptions,
       resolved.auth,
       environment,
       output,
     );
+    if (code === 0) onUsefulResult?.();
+    return code;
   }
   const prepared = prepareCapture(resolved, environment);
   try {
-    return await dependencies.clipMain(
+    const code = await dependencies.clipMain(
       [...prefix, ...prepared.arguments],
       environment,
       output,
@@ -888,6 +891,8 @@ async function runCaptureCommand(
       },
       prepared.runtimeOptions,
     );
+    if (code === 0 && (parsed.value.command === "capture" || parsed.value.command === "inspect")) onUsefulResult?.();
+    return code;
   } finally {
     prepared.cleanup();
   }
@@ -1972,6 +1977,7 @@ async function runCommand(
   output: Output,
   dependencies: GhostgetDependencies,
   signal?: AbortSignal,
+  onUsefulResult?: () => void,
 ): Promise<number> {
   if (arguments_.command === "help") {
     output.stdout(renderGhostgetUsage());
@@ -2031,6 +2037,7 @@ async function runCommand(
       output,
       dependencies,
       signal,
+      onUsefulResult,
     );
   }
   if (arguments_.command === "read") {
@@ -2041,12 +2048,14 @@ async function runCommand(
       output,
       dependencies,
       signal,
+      onUsefulResult,
     );
   }
   if (arguments_.command === "media") {
     const media = await dependencies.loadMediaRuntime();
     return media.runCli(arguments_.arguments, {
       io: output,
+      ...(onUsefulResult === undefined ? {} : { onUsefulResult }),
       environment,
       ...(signal === undefined ? {} : { signal }),
     });
@@ -2066,6 +2075,7 @@ async function runCommand(
     output.stdout(
       runtime.encodeApplePhotosContactEvidenceCliOutput(result, arguments_.json),
     );
+    onUsefulResult?.();
     return 0;
   }
   if (arguments_.command === "whatsapp-export-message-like-me") {
@@ -2097,6 +2107,7 @@ async function runCommand(
         output.stdout(`Manifest SHA-256: ${safe(result.bundle.manifestSha256)}\n`);
         output.stdout("Remote history completeness is not claimed. No cloud sync occurred.\n");
       }
+      onUsefulResult?.();
       return 0;
     } finally {
       admission.release();
@@ -2136,6 +2147,7 @@ async function runCommand(
         ...(signal === undefined ? {} : { signal }),
       });
       output.stdout(runtime.encodeBeeperContactInteractionExportResult(result));
+      onUsefulResult?.();
       return 0;
     } finally {
       admission.release();
@@ -2184,6 +2196,7 @@ async function runCommand(
         counts: result.manifest.counts,
       });
       print(output, summary, arguments_.json);
+      onUsefulResult?.();
       return 0;
     } finally {
       admission.release();
@@ -2218,6 +2231,7 @@ async function runCommand(
       environment,
     );
     output.stdout(exactTerminalJson(receipt));
+    if (arguments_.command === "messaging-context") onUsefulResult?.();
     return 0;
   }
   if (arguments_.command === "doctor") {
@@ -2259,7 +2273,11 @@ async function runCommand(
     }
     return 0;
   }
-  if (arguments_.command === "thread-split") return runThreadSplit(arguments_, output);
+  if (arguments_.command === "thread-split") {
+    const code = await runThreadSplit(arguments_, output);
+    if (code === 0) onUsefulResult?.();
+    return code;
+  }
   if (arguments_.command === "thread-publish") {
     return runThreadPublish(
       arguments_,
@@ -3156,6 +3174,7 @@ async function runCommand(
             });
     if (arguments_.json) output.stdout(exactTerminalJson(value));
     else print(output, value, false);
+    if (value.view?.sources.some((source) => source.coverage.state === "observed")) onUsefulResult?.();
     return 0;
   }
   if (arguments_.command === "invoke") {
@@ -3242,6 +3261,7 @@ async function runCommand(
         const view = cachedInvocationView(result);
         if (arguments_.json) output.stdout(exactTerminalJson(view));
         else print(output, view, false);
+        if (result.status === "hit") onUsefulResult?.();
         return result.status === "hit" ? 0 : 3;
       }
       const result = await dependencies.revalidatePreparedCapability(
@@ -3256,6 +3276,7 @@ async function runCommand(
       const view = revalidatedInvocationView(result);
       if (arguments_.json) output.stdout(exactTerminalJson(view));
       else print(output, view, false);
+      if (result.live.receipt.status === "succeeded" || result.live.receipt.status === "submitted") onUsefulResult?.();
       return result.live.receipt.status === "succeeded" || result.live.receipt.status === "submitted" ? 0 : result.live.receipt.status === "indeterminate" ? 5 : 3;
     }
     const stored = createAndSaveInvocationPlan(
@@ -3325,6 +3346,7 @@ async function runCommand(
         result.receiptBinding,
         environment,
       );
+      if (result.receipt.state === "submitted") onUsefulResult?.();
       return result.receipt.state === "submitted"
         ? 0
         : result.receipt.state === "indeterminate"
@@ -3342,6 +3364,7 @@ async function runCommand(
       ...(signal === undefined ? {} : { signal }),
     });
     print(output, invocationView(result), arguments_.json);
+    if (result.receipt.status === "succeeded" || result.receipt.status === "submitted") onUsefulResult?.();
     return result.receipt.status === "succeeded" || result.receipt.status === "submitted" ? 0 : result.receipt.status === "indeterminate" ? 5 : 3;
   }
   if (arguments_.command === "runs-list") {
@@ -3483,6 +3506,7 @@ export async function main(
   output: Output = defaultOutput,
   dependencyOverrides: Partial<GhostgetDependencies> = {},
   signal?: AbortSignal,
+  onUsefulResult?: () => void,
 ): Promise<number> {
   const parsed = parseGhostgetArguments(rawArguments);
   if (!parsed.ok) {
@@ -3508,13 +3532,19 @@ export async function main(
         ).registry,
       };
     }
-    return await runCommand(
+    let usefulResult = false;
+    const code = await runCommand(
       parsed.value,
       environment,
       output,
       dependencies,
       signal,
+      () => { usefulResult = true; },
     );
+    if (code === 0 && usefulResult && signal?.aborted !== true) {
+      try { void Promise.resolve(onUsefulResult?.()).catch(() => undefined); } catch { /* Optional observation cannot alter completed work. */ }
+    }
+    return code;
   } catch (error) {
     if (error instanceof LinkedDeviceLifecycleIndeterminateError) {
       const failure = {
@@ -3600,6 +3630,7 @@ type GhostgetProcessBoundaryDependencies = {
   ) => () => void;
   readonly resendSignal: (signal: NodeJS.Signals) => void;
   readonly setExitCode: (code: number) => void;
+  readonly onUsefulResult?: () => void;
 };
 
 function subscribeProcessTermination(
@@ -3631,6 +3662,7 @@ export async function runGhostgetProcess(
   overrides: Partial<GhostgetProcessBoundaryDependencies> = {},
 ): Promise<void> {
   const dependencies: GhostgetProcessBoundaryDependencies = {
+    ...(overrides.onUsefulResult === undefined ? {} : { onUsefulResult: overrides.onUsefulResult }),
     rawArguments: overrides.rawArguments ?? process.argv.slice(2),
     environment: overrides.environment ?? process.env,
     output: overrides.output ?? defaultOutput,
@@ -3667,17 +3699,24 @@ export async function runGhostgetProcess(
     );
   };
   unsubscribeTermination = dependencies.subscribeTermination(terminate);
+  let usefulResult = false;
+  let code: number | undefined;
   try {
-    dependencies.setExitCode(await dependencies.runMain(
+    code = await dependencies.runMain(
       dependencies.rawArguments,
       dependencies.environment,
       dependencies.output,
       {},
       controller.signal,
-    ));
+      () => { usefulResult = true; },
+    );
+    dependencies.setExitCode(code);
   } finally {
     terminationState.cancelFallback?.();
     unsubscribeTermination();
+  }
+  if (code === 0 && usefulResult && !controller.signal.aborted) {
+    try { void Promise.resolve(dependencies.onUsefulResult?.()).catch(() => undefined); } catch { /* Keep the completed command outcome. */ }
   }
 }
 

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { isUsefulSupportBoundary, runGhostgetCliProcess } from "./cli";
+import { standaloneSupportDepth, runGhostgetCliProcess } from "./cli";
 
 const fixtureEmail = "ghostget-fixture@example.test";
 const canonicalSupportUrls = [
@@ -10,7 +10,7 @@ const canonicalSupportUrls = [
   "https://account.hraness.com/support?product=wrench&source=cli#support",
 ];
 
-async function runIsolatedSupport(root: string, args: readonly string[], disabled = false) {
+function isolatedEnvironment(root: string): Record<string, string> {
   const cwd = join(root, "cwd");
   mkdirSync(cwd, { recursive: true });
   const gitConfig = join(root, "gitconfig");
@@ -24,16 +24,23 @@ async function runIsolatedSupport(root: string, args: readonly string[], disable
     GHOSTGET_STATE_HOME: join(root, "ghostget-state"),
     XDG_CONFIG_HOME: join(root, "config"),
     XDG_STATE_HOME: join(root, "state"),
+    HRANESS_SUPPORT_EMAIL: "off",
   };
-  if (disabled) env.HRANESS_SUPPORT_EMAIL = "off";
   for (const name of ["COMSPEC", "PATHEXT", "SystemRoot", "SYSTEMROOT"]) {
     const value = process.env[name];
     if (value !== undefined) env[name] = value;
   }
-  const child = Bun.spawn([
-    process.execPath, "--no-env-file", "--no-install", join(import.meta.dir, "cli.ts"),
-    "support", ...args,
-  ], { cwd, env, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  return env;
+}
+
+const cli = [process.execPath, "--no-env-file", "--no-install", join(import.meta.dir, "cli.ts")];
+const usefulArguments = ["thread", "split", "x", "--text", "Synthetic support fixture", "--json"];
+
+async function runIsolatedCli(root: string, args: readonly string[], extraEnv: Record<string, string> = {}) {
+  const env = { ...isolatedEnvironment(root), ...extraEnv };
+  const child = Bun.spawn([...cli, ...args], {
+    cwd: join(root, "cwd"), env, stdin: "ignore", stdout: "pipe", stderr: "pipe",
+  });
   const timeout = setTimeout(() => child.kill("SIGKILL"), 10_000);
   const [exitCode, stdout, stderr] = await Promise.all([
     child.exited,
@@ -41,6 +48,33 @@ async function runIsolatedSupport(root: string, args: readonly string[], disable
     new Response(child.stderr).text(),
   ]).finally(() => clearTimeout(timeout));
   return { exitCode, stdout, stderr };
+}
+
+function runIsolatedSupport(root: string, args: readonly string[], disabled = false) {
+  return runIsolatedCli(root, ["support", ...args], { HRANESS_SUPPORT_EMAIL: disabled ? "off" : "" });
+}
+
+async function runIsolatedPty(root: string, extraEnv: Record<string, string> = {}) {
+  const env = { ...isolatedEnvironment(root), ...extraEnv };
+  const chunks: Buffer[] = [];
+  let closed = (): void => undefined;
+  const eof = new Promise<void>((resolve) => { closed = resolve; });
+  const child = Bun.spawn([...cli, ...usefulArguments], {
+    cwd: join(root, "cwd"), env,
+    terminal: {
+      cols: 100, rows: 24,
+      data: (_terminal, data) => { chunks.push(Buffer.from(data)); },
+      exit: () => { closed(); },
+    },
+  });
+  const timeout = setTimeout(() => { child.kill("SIGKILL"); child.terminal?.close(); closed(); }, 10_000);
+  try {
+    const [exitCode] = await Promise.all([child.exited, eof]);
+    return { exitCode, output: Buffer.concat(chunks).toString("utf8").replaceAll("\r\n", "\n") };
+  } finally {
+    clearTimeout(timeout);
+    child.terminal?.close();
+  }
 }
 
 describe("optional Ghostget support", () => {
@@ -93,23 +127,77 @@ describe("optional Ghostget support", () => {
     expect(existsSync(join(stateRoot, "state"))).toBeFalse();
   });
 
-  test("allows useful captures while excluding auth, writes, diagnostics and machine output", () => {
-    for (const args of [
-      ["clip", "https://example.com/article"],
-      ["read", "https://example.com/article"],
-      ["https://example.com/article"],
-      ["media", "transcript", "https://example.com/video"],
-      ["verify", "archive"],
-    ]) expect(isUsefulSupportBoundary(args)).toBeTrue();
-    for (const args of [
-      [], ["--help"], ["--version"], ["capabilities"], ["doctor"],
-      ["auth", "login", "example"], ["confirm", "digest"],
-      ["invoke", "example", "posts.publish"], ["support"],
-      ["read", "https://example.com", "--json"],
-      ["archive", "https://example.com", "--quiet"],
-      ["clip", "--help"], ["media", "doctor"],
-      ["archive", "--version"], ["audio", "-V"], ["media", "transcript", "--version"],
-    ]) expect(isUsefulSupportBoundary(args)).toBeFalse();
+  test("bounds inherited CLI depth and rejects malformed nesting markers", () => {
+    expect(standaloneSupportDepth(undefined)).toBe(0);
+    for (const depth of ["0", "1", "8"]) expect(standaloneSupportDepth(depth)).toBe(Number(depth));
+    for (const depth of ["", "-1", "9", "01", "1.0", "1e0", " 0", "0\n"]) expect(standaloneSupportDepth(depth)).toBeNull();
+  });
+
+  test("discovers closeout in pipes without changing JSON or claiming an invitation", async () => {
+    const first = await runIsolatedCli(stateRoot, usefulArguments);
+    expect(first.exitCode).toBe(0);
+    const artifact = JSON.parse(first.stdout);
+    expect(artifact.kind).toBe("local-thread-split");
+    expect(artifact.published).toBeFalse();
+    expect(artifact.chunks.map((chunk: { text: string }) => chunk.text).join("")).toBe("Synthetic support fixture");
+    const discovery = JSON.parse(first.stderr);
+    expect(discovery.schemaVersion).toBe("hraness-support-discovery-v1");
+    expect(discovery).not.toHaveProperty("emailSuggestion");
+    expect(first.stderr).toContain("protocol");
+    expect(first.stderr).not.toContain(fixtureEmail);
+    const second = await runIsolatedCli(stateRoot, usefulArguments);
+    expect(second).toEqual({ exitCode: 0, stdout: first.stdout, stderr: "" });
+    const protocol = await runIsolatedCli(stateRoot, ["support", "protocol", "--json"]);
+    const contract = JSON.parse(protocol.stdout);
+    expect(contract.schemaVersion).toBe("hraness-support-protocol-v1");
+    expect(contract.commands.offer).toEqual(["ghostget", "support", "offer", "--json"]);
+    expect(protocol.stdout).not.toContain(fixtureEmail);
+    const offer = await runIsolatedCli(stateRoot, ["support", "offer", "--json"]);
+    expect(JSON.parse(offer.stdout).kind).toBe("offer");
+  });
+
+  test("treats an unknown PTY audience as an agent without reserving an offer", async () => {
+    const result = await runIsolatedPty(stateRoot);
+    expect(result.exitCode).toBe(0);
+    const lines = result.output.trim().split("\n");
+    const discovery = JSON.parse(lines.pop() ?? "");
+    const artifact = JSON.parse(lines.join("\n"));
+    expect(artifact.kind).toBe("local-thread-split");
+    expect(discovery.schemaVersion).toBe("hraness-support-discovery-v1");
+    expect(result.output).not.toContain(fixtureEmail);
+    const offer = await runIsolatedCli(stateRoot, ["support", "offer", "--json"]);
+    expect(JSON.parse(offer.stdout).kind).toBe("offer");
+  });
+
+  test("explicit human presentation requires a PTY and audience off suppresses due offers", async () => {
+    const pipe = await runIsolatedCli(stateRoot, usefulArguments, { HRANESS_SUPPORT_AUDIENCE: "human" });
+    expect(pipe.exitCode).toBe(0);
+    expect(pipe.stderr).toBe("");
+    const terminal = await runIsolatedPty(stateRoot, { HRANESS_SUPPORT_AUDIENCE: "human" });
+    expect(terminal.exitCode).toBe(0);
+    expect(terminal.output).toContain("account.hraness.com/support");
+    expect(terminal.output).not.toContain("hraness-support-discovery-v1");
+    const disabledRoot = join(stateRoot, "disabled");
+    const disabled = await runIsolatedPty(disabledRoot, { HRANESS_SUPPORT_AUDIENCE: "off" });
+    expect(disabled.exitCode).toBe(0);
+    expect(disabled.output).not.toContain("account.hraness.com");
+    expect(disabled.output).not.toContain("hraness-support-discovery-v1");
+    const offer = await runIsolatedCli(disabledRoot, ["support", "offer", "--json"], { HRANESS_SUPPORT_AUDIENCE: "off" });
+    expect(JSON.parse(offer.stdout).kind).toBe("quiet");
+    expect(existsSync(join(disabledRoot, "state"))).toBeFalse();
+  });
+
+  test("keeps probes, failures, nested executables and unattended mode quiet", async () => {
+    for (const args of [["--help"], ["--version"], ["media", "--version"], ["thread", "split", "reddit", "--text", "draft"]]) {
+      const result = await runIsolatedCli(stateRoot, args);
+      expect(result.stderr).not.toContain("hraness-support-discovery-v1");
+    }
+    const suppressionEnvironments: readonly Record<string, string>[] = [{ GHOSTGET_CLI_DEPTH: "1" }, { GHOSTGET_CLI_DEPTH: "invalid" }, { CI: "1" }, { HRANESS_SUPPORT: "off" }, { HRANESS_SUPPORT_AUDIENCE: "off" }, { HRANESS_SUPPORT_AUDIENCE: "invalid" }];
+    for (const env of suppressionEnvironments) {
+      const result = await runIsolatedCli(stateRoot, usefulArguments, env);
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe("");
+    }
   });
 
   test("routes explicit support without loading provider or knowledge commands", async () => {
@@ -184,36 +272,31 @@ describe("optional Ghostget support", () => {
     expect(supportLoads).toBe(0);
   });
 
-  test("offers only after successful terminal work and tolerates optional support failure", async () => {
-    const stdoutTTY = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
-    const stderrTTY = Object.getOwnPropertyDescriptor(process.stderr, "isTTY");
+  test("observes only successful standalone completion and tolerates optional support failure", async () => {
     let invitations = 0;
-    const forbidden = () => { throw new Error("the capture uses the provider process"); };
-    try {
-      Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: true });
-      Object.defineProperty(process.stderr, "isTTY", { configurable: true, value: true });
-      for (const exitCode of [1, 0]) {
-        await runGhostgetCliProcess(
-          ["clip", "https://example.com"],
-          undefined,
-          async () => ({ runGhostgetProcess: async () => { process.exitCode = exitCode; } }),
-          forbidden,
-          forbidden,
-          async () => ({
-            runGhostgetSupportCommand: forbidden,
-            showGhostgetSupportInvitation: async () => {
-              invitations += 1;
-              throw new Error("optional support unavailable");
-            },
-          }),
-        );
-        expect(process.exitCode).toBe(exitCode);
-      }
-    } finally {
-      if (stdoutTTY === undefined) Reflect.deleteProperty(process.stdout, "isTTY");
-      else Object.defineProperty(process.stdout, "isTTY", stdoutTTY);
-      if (stderrTTY === undefined) Reflect.deleteProperty(process.stderr, "isTTY");
-      else Object.defineProperty(process.stderr, "isTTY", stderrTTY);
+    const forbidden = () => { throw new Error("the invocation uses the provider process"); };
+    for (const [exitCode, usefulResult, standalone, extraArgs] of [
+      [1, true, true, []], [0, false, true, []], [0, true, false, []],
+      [0, true, true, ["--quiet"]], [0, true, true, ["--silent"]],
+      [0, true, true, ["--help"]], [0, true, true, ["--version"]],
+      [0, true, true, []],
+    ] as const) {
+      await runGhostgetCliProcess(
+        ["invoke", "example", "posts.list", "--json", ...extraArgs],
+        undefined,
+        async () => ({ runGhostgetProcess: async (overrides) => {
+          if (usefulResult) overrides?.onUsefulResult?.();
+          process.exitCode = exitCode;
+        } }),
+        forbidden,
+        forbidden,
+        async () => ({
+          runGhostgetSupportCommand: forbidden,
+          showGhostgetSupportInvitation: async () => { invitations += 1; throw new Error("optional support unavailable"); },
+        }),
+        standalone,
+      );
+      expect(process.exitCode).toBe(exitCode);
     }
     expect(invitations).toBe(1);
   });

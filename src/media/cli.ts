@@ -38,6 +38,7 @@ export interface RunCliOptions {
   readonly homeDirectory?: string;
   readonly signal?: AbortSignal;
   readonly dependencies?: MediaCliDependencies;
+  readonly onUsefulResult?: () => void;
 }
 
 const processIo: CliIo = {
@@ -163,6 +164,10 @@ export async function runCli(argv: readonly string[], options: RunCliOptions = {
   const environment = options.environment ?? process.env;
   const homeDirectory = options.homeDirectory ?? homedir();
   const dependencies = options.dependencies ?? defaultDependencies;
+  const completed = (): void => {
+    if (options.signal?.aborted === true) return;
+    try { void Promise.resolve(options.onUsefulResult?.()).catch(() => undefined); } catch { /* Observation cannot change an archive result. */ }
+  };
   const parsed = parseArgs(argv);
   if (!parsed.ok) {
     if (parsed.json) writeJson(io, "stderr", { ok: false, error: { code: "USAGE", message: parsed.message } });
@@ -191,6 +196,7 @@ export async function runCli(argv: readonly string[], options: RunCliOptions = {
     if (command.json) writeJson(io, result.ok ? "stdout" : "stderr", { ok: result.ok, verification: result });
     else if (result.ok) io.stdout(`Verified ${sanitizeTerminalText(result.assetKey ?? command.itemDirectory)}: ${String(result.checkedArtifacts)} artifacts\n`);
     else io.stderr(`ghostget media: verification failed\n${result.failures.map((failure) => `- ${redactDiagnostic(failure, { homeDirectory })}`).join("\n")}\n`);
+    if (result.ok) completed();
     return result.ok ? 0 : 8;
   }
   if (command.kind === "transcriber-setup") {
@@ -258,6 +264,7 @@ export async function runCli(argv: readonly string[], options: RunCliOptions = {
     });
     if (command.json) writeJson(io, "stdout", captureSummary(result));
     else io.stdout(humanCaptureSummary(result));
+    completed();
     return 0;
   } catch (error) {
     const secrets = [

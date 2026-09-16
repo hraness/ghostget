@@ -526,6 +526,8 @@ function snapshotEnvironment(value: unknown): Readonly<Record<string, string>> {
       defineEnvironmentValue(result, key, environmentValue);
     }
   }
+  // Package-owned SDK children never emit standalone support notices.
+  result.GHOSTGET_CLI_DEPTH = "1";
   if (value === undefined) return Object.freeze(result);
   const overrides = record(value, "Ghostget omni client environment");
   for (const [key, environmentValue] of Object.entries(overrides)) {
@@ -541,6 +543,7 @@ function snapshotEnvironment(value: unknown): Readonly<Record<string, string>> {
       defineEnvironmentValue(result, name, environmentValue);
     }
   }
+  result.GHOSTGET_CLI_DEPTH = "1";
   return Object.freeze(result);
 }
 

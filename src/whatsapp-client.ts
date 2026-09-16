@@ -321,6 +321,8 @@ function preparedEnvironment(
   for (const [key, value] of Object.entries(process.env)) {
     if (typeof value === "string") environment[key] = value;
   }
+  // Package-owned SDK children never emit standalone support notices.
+  environment.GHOSTGET_CLI_DEPTH = "1";
   if (additions === undefined) return Object.freeze(environment);
   const source = record(additions, "options.environment");
   for (const [key, value] of Object.entries(source)) {
@@ -332,6 +334,7 @@ function preparedEnvironment(
       return fail("environment value is malformed");
     } else environment[key] = value;
   }
+  environment.GHOSTGET_CLI_DEPTH = "1";
   return Object.freeze(environment);
 }
 

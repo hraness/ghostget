@@ -578,7 +578,7 @@ async function verifyPackagedSkill(
     || manifest.dependencies === null
     || !("@hraness/message-like-me" in manifest.dependencies)
     || manifest.dependencies["@hraness/message-like-me"]
-      !== "github:hraness/message-like-me#v0.7.0"
+      !== "github:hraness/textbutler#83453cc7c17b49bb53fdfd89ccb69b8b44b30af1"
   ) {
     throw new Error("Packed Ghostget must pin the immutable Message Like Me v0.7.0 consumer contract.");
   }

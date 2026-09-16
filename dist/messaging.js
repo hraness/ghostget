@@ -893,6 +893,7 @@ function environmentSnapshot(overrides) {
         result[key] = value;
     }
   }
+  result.GHOSTGET_CLI_DEPTH = "1";
   return Object.freeze(result);
 }
 function options(value) {

@@ -19,12 +19,12 @@ export async function runGhostgetSupportCommand(
   args: readonly string[],
   output: SupportOutput,
 ): Promise<number> {
-  const result = await runSupportCommand(profile, args);
+  const result = await runSupportCommand(profile, args, { command: ["ghostget"] });
   if (result.stdout !== "") output.stdout(result.stdout);
   if (result.stderr !== "") output.stderr(result.stderr);
   return result.exitCode;
 }
 
 export async function showGhostgetSupportInvitation(): Promise<void> {
-  await maybeShowSupportInvitation(profile, { usefulResult: true });
+  await maybeShowSupportInvitation(profile, { usefulResult: true, command: ["ghostget"] });
 }

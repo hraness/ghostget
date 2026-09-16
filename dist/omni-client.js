@@ -341,6 +341,7 @@ function snapshotEnvironment(value) {
       defineEnvironmentValue(result, key, environmentValue);
     }
   }
+  result.GHOSTGET_CLI_DEPTH = "1";
   if (value === undefined)
     return Object.freeze(result);
   const overrides = record(value, "Ghostget omni client environment");
@@ -354,6 +355,7 @@ function snapshotEnvironment(value) {
       defineEnvironmentValue(result, name, environmentValue);
     }
   }
+  result.GHOSTGET_CLI_DEPTH = "1";
   return Object.freeze(result);
 }
 function isBrandedAbortSignal(value) {

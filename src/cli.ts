@@ -17,6 +17,7 @@ type GhostgetProcessModule = {
   readonly runGhostgetProcess: (overrides?: {
     readonly rawArguments?: readonly string[];
     readonly output?: Required<CliOutput>;
+    readonly onUsefulResult?: () => void;
   }) => Promise<void>;
 };
 
@@ -53,16 +54,16 @@ const loadGhostgetCatalog = (): Promise<GhostgetCatalogModule> => import("./cata
 const loadPublicKbCli = (): Promise<PublicKbCliModule> => import("@hraness/kb/cli");
 const loadGhostgetSupport = (): Promise<GhostgetSupportModule> => import("./support");
 
-/** Only completed captures and reads qualify for an optional terminal footer. */
-export function isUsefulSupportBoundary(rawArguments: readonly string[]): boolean {
-  if (rawArguments.some((argument) => [
-    "--json", "--jsonl", "--ndjson", "--help", "-h", "--version", "-V", "--quiet", "--silent",
-  ].includes(argument))) return false;
-  const first = rawArguments[0];
-  if (first === undefined) return false;
-  return ["clip", "read", "inspect", "archive", "audio", "video", "transcript", "verify"].includes(first)
-    || /^https?:\/\//u.test(first)
-    || (first === "media" && ["archive", "audio", "video", "transcript"].includes(rawArguments[1] ?? ""));
+/** An inherited marker belongs only to the real executable entrypoint. */
+export function standaloneSupportDepth(value: string | undefined): number | null {
+  if (value === undefined) return 0;
+  return value.length === 1 && /^[0-8]$/u.test(value) ? Number(value) : null;
+}
+
+function supportOutputAllowed(rawArguments: readonly string[]): boolean {
+  return !rawArguments.some((argument) => [
+    "--help", "-h", "--version", "-V", "--quiet", "--silent",
+  ].includes(argument));
 }
 
 const publicGhostgetCommands = new Set([
@@ -185,6 +186,7 @@ export async function runGhostgetCliProcess(
   loadCatalog: () => Promise<GhostgetCatalogModule> = loadGhostgetCatalog,
   loadKnowledgeCli: () => Promise<PublicKbCliModule> = loadPublicKbCli,
   loadSupport: () => Promise<GhostgetSupportModule> = loadGhostgetSupport,
+  standaloneRoot = false,
 ): Promise<void> {
   if (isImmediateGhostgetHelpRequest(rawArguments)) {
     if (output === defaultOutput) output.stdout(terminalIntro({ isTTY: process.stdout.isTTY, columns: process.stdout.columns, term: process.env.TERM }));
@@ -249,16 +251,18 @@ export async function runGhostgetCliProcess(
     return;
   }
   const runtime = await loadProcess();
+  let usefulResult = false;
   await runtime.runGhostgetProcess({
     rawArguments: providerArguments,
     output: resolvedOutput,
+    onUsefulResult: () => { usefulResult = true; },
   });
   if (
     process.exitCode === 0
     && output === defaultOutput
-    && process.stdout.isTTY === true
-    && process.stderr.isTTY === true
-    && isUsefulSupportBoundary(rawArguments)
+    && standaloneRoot
+    && usefulResult
+    && supportOutputAllowed(rawArguments)
   ) {
     try {
       const support = await loadSupport();
@@ -270,5 +274,9 @@ export async function runGhostgetCliProcess(
 }
 
 if (import.meta.main) {
-  await runGhostgetCliProcess();
+  const depth = standaloneSupportDepth(process.env.GHOSTGET_CLI_DEPTH);
+  // Set once for this executable and its children; programmatic calls never
+  // mutate inherited state or compete to restore a process-global variable.
+  process.env.GHOSTGET_CLI_DEPTH = String(depth === null ? 8 : Math.min(depth + 1, 8));
+  await runGhostgetCliProcess(undefined, undefined, undefined, undefined, undefined, undefined, depth === 0);
 }
