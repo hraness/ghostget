@@ -195,7 +195,7 @@ delivery proceeds through a new source-qualified version.
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.10/hraness-ghostget-0.18.10.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.11/hraness-ghostget-0.18.11.tgz
 ghostget --version
 ghostget doctor --json
 ```
