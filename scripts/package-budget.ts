@@ -1,3 +1,26 @@
+// Ghostget 0.18.15 release preparation over the X evidence refresh adds
+// exactly 12 payload bytes and no files: the version coordinate bumps and the
+// 0.18.15 changelog heading. npm 11.16.0 under darwin arm64 measured this
+// candidate at 11,685,812 compressed / 22,656,407 payload bytes across
+// exactly 563 files; archive SHA-1 48fd15078406b0e314410f70db4a4a33a3ab6241.
+// Keep the packed ceiling and the exact inventory; raise the payload ceiling
+// by the measured delta while preserving the reviewed 65-byte allowance:
+// 22,656,407 + 65 = 22,656,472. Required Linux CI and the canonical Release
+// independently admit their actual archives.
+//
+// The 2026-09-17 X descriptor evidence refresh over the 0.18.14 release
+// preparation adds exactly 918 payload bytes and no files: current
+// authenticated client-web query IDs, longer shared-chunk filenames, the
+// retired DM search descriptors, the profile-read guard for X's empty-data
+// deleted-account shape, and its changelog note. npm 11.16.0 under darwin
+// arm64 measured this candidate at 11,685,806 compressed / 22,656,395
+// payload bytes across exactly 563 files; archive SHA-1
+// 350518b514afe8281e1a33e8a4cc1784e674b538. Keep the packed ceiling and the
+// exact inventory; raise the payload ceiling by the measured delta while
+// preserving the reviewed 65-byte allowance: 22,656,395 + 65 = 22,656,460.
+// Required Linux CI and the canonical Release independently admit their
+// actual archives.
+//
 // Ghostget 0.18.14 release preparation over main 5a58396 adds exactly 1,139
 // payload bytes and no files: the version coordinate bumps package.json,
 // src/version.ts, the declared producer literal in src/beeper-client-types.ts
@@ -1017,9 +1040,9 @@
 export const MAX_PACKED_BYTES = 11_688_858;
 export const MAX_PACKED_ENTRIES = 563;
 export const MAX_PACKED_FILES = 563;
-// The Ghostget 0.18.14 candidate measured 22,655,477 unpacked bytes; the
+// The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
-export const MAX_UNPACKED_BYTES = 22_655_542;
+export const MAX_UNPACKED_BYTES = 22_656_472;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
