@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Refresh the X web descriptor evidence for the 2026-09-17 authenticated
+  client-web drop. X rotated most GraphQL query IDs and chunk names, so exact
+  profile, timeline, and Article operations resume instead of reporting
+  contract drift. The three retired DM search descriptors are removed, and a
+  deleted or renamed profile target now reports `target-unavailable` rather
+  than contract drift when X returns its empty-data result.
+
 ## 0.18.14
 
 - Pin `@hraness/site-footer` v0.13.0 so every public page's shared footer
