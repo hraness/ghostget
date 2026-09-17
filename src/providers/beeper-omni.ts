@@ -978,7 +978,7 @@ export function materializeBeeperMessagingRead(
     "tombstones",
     "continuation",
     "completeness",
-  ], [], "messaging.read output");
+  ], ["canonicalSelfUserId"], "messaging.read output");
   if (source.accountId !== parsed.accountId || source.conversationId !== parsed.conversationId) {
     drift("messaging.read output", "must bind input account and conversation");
   }
@@ -987,6 +987,13 @@ export function materializeBeeperMessagingRead(
     "messaging.read output.selfUserId",
     2_048,
   );
+  const canonicalSelfUserId = source.canonicalSelfUserId === undefined || source.canonicalSelfUserId === null
+    ? null
+    : beeperRawIdentifier(
+        source.canonicalSelfUserId,
+        "messaging.read output.canonicalSelfUserId",
+        2_048,
+      );
   const requestCursor = parsed.beforeCursor ?? parsed.afterCursor;
   if (source.requestCursor !== requestCursor) {
     drift("messaging.read output.requestCursor", "must bind the requested cursor");
@@ -1025,7 +1032,7 @@ export function materializeBeeperMessagingRead(
     );
     if (
       isSender !== null
-      && isSender !== (senderId === selfUserId)
+      && isSender !== (senderId === selfUserId || (canonicalSelfUserId !== null && senderId === canonicalSelfUserId))
     ) drift(
       "messaging.read output.messages",
       "must bind direction to the exact self user ID",

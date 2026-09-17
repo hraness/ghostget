@@ -53,13 +53,17 @@ export function parseAutomationCoordinate(value: unknown): AutomationCoordinate 
     if (!chatGuid.startsWith("iMessage;") || r.service !== "iMessage") throw new Error("Only exact iMessage conversations are supported.");
     return Object.freeze({ provider, chatGuid, service: "iMessage", observedChatRowId: automationInteger(r.observedChatRowId, 1, Number.MAX_SAFE_INTEGER) });
   }
+  if (provider === "beeper") {
+    const r = automationRecord(value, ["provider", "accountId", "conversationId"]);
+    return Object.freeze({ provider, accountId: automationText(r.accountId, 512), conversationId: automationText(r.conversationId, 2048) });
+  }
   const r = automationRecord(value, ["provider", "conversationJid"]);
   if (provider !== "whatsapp" || typeof r.conversationJid !== "string" || !/^(?:[1-9][0-9]{4,14}@s\.whatsapp\.net|[1-9][0-9]{4,19}@lid)$/u.test(r.conversationJid)) throw new Error("Only exact individual WhatsApp conversations are supported.");
   return Object.freeze({ provider, conversationJid: r.conversationJid });
 }
 export function parseAutomationIdentity(value: unknown): AutomationIdentity {
   const r = automationRecord(value, ["provider", "authId", "accountIdentity", "accountSubject", "implementationIdentity", "sourceGeneration"]);
-  if (r.provider !== "imessage" && r.provider !== "whatsapp") throw new Error("Messaging provider is invalid.");
+  if (r.provider !== "imessage" && r.provider !== "whatsapp" && r.provider !== "beeper") throw new Error("Messaging provider is invalid.");
   return Object.freeze({ provider: r.provider, authId: automationId(r.authId), accountIdentity: automationDigest(r.accountIdentity), accountSubject: automationText(r.accountSubject, 512), implementationIdentity: automationDigest(r.implementationIdentity), sourceGeneration: automationText(r.sourceGeneration, 256) });
 }
 export function parseAutomationActionKind(value: unknown): AutomationActionKind {

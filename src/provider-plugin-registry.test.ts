@@ -302,6 +302,8 @@ describe("provider plugin definition and registry", () => {
   test("retains Beeper reader identities only on the exact routes each distribution owned", () => {
     const plugin = providerPluginRegistry.get("beeper-linked-device");
     const binding = providerPluginRegistry.requireRoute("local-cli", "beeper");
+    const distribution24 =
+      "a989e65e372aa63af41cb36f32d6a1d769c734ba0adc207dd2f25d916f877ff5";
     const distribution23 =
       "2d2cef38ce2d0c193f4e6890c51d59f8a3547d9011d5c3aa8df18f5f077ebcdd";
     const distribution22 =
@@ -312,10 +314,19 @@ describe("provider plugin definition and registry", () => {
       "1f5ed0abd4eaaef92e0d035452273e8a081f564da827897547b6e65939974a60";
     const distribution20 =
       "6b166b3cd61866e1af17d1d0fd2e63b78500f9e49255a03d89ca11ed6406ec92";
-    expect(plugin?.version).toBe("2.4.0");
-    expect(binding.operations).toHaveLength(41);
+    expect(plugin?.version).toBe("2.5.0");
+    expect(binding.operations).toHaveLength(43);
 
-    const v1 = binding.operations.filter((operation) => operation.contractVersion === 1);
+    const v1 = binding.operations.filter((operation) =>
+      operation.contractVersion === 1
+      && !operation.name.startsWith("messaging.automation."));
+    const automation = binding.operations.filter((operation) =>
+      operation.name.startsWith("messaging.automation."));
+    expect(automation.map((operation) =>
+      `${operation.name}@${String(operation.contractVersion)}`).sort()).toEqual([
+      "messaging.automation.read@1",
+      "messaging.automation.send.text@1",
+    ]);
     const historicalDirectV2 = new Set([
       "accounts.list",
       "messaging.search",
@@ -324,12 +335,13 @@ describe("provider plugin definition and registry", () => {
       "messaging.content.search",
     ]);
     const newlyOwned = [
-      ["contacts.list", 3],
+      ["messaging.automation.read", 1],
+      ["messaging.automation.send.text", 1],
     ] as const;
     expect(v1).toHaveLength(32);
     const reviewedIdentity = reviewedBuiltInContractIdentity(
       "beeper-linked-device",
-      "2.4.0",
+      "2.5.0",
     );
     expect(reviewedIdentity.legacyCurrentReadImplementationSha256).toEqual([]);
     const v1Coordinates = v1.map((operation) => `${operation.name}@1`).sort();
@@ -354,12 +366,20 @@ describe("provider plugin definition and registry", () => {
       "local-cli:beeper/contacts.list@2",
       "local-cli:beeper/messaging.read@3",
     ].sort();
+    const ownedBy24Coordinates = [
+      ...ownedBy23Coordinates,
+      "local-cli:beeper/contacts.list@3",
+    ].sort();
     expect(reviewedIdentity.legacyDistributionReadImplementationSha256?.map(
       (distribution) => ({
         implementationSha256: distribution.implementationSha256,
         routes: [...distribution.routes].sort(),
       }),
     )).toEqual([
+      {
+        implementationSha256: distribution24,
+        routes: ownedBy24Coordinates,
+      },
       {
         implementationSha256: distribution23,
         routes: ownedBy23Coordinates,
@@ -381,6 +401,7 @@ describe("provider plugin definition and registry", () => {
         operation.name,
         1,
       ).map((hash) => hash.toString("hex"))).toEqual([
+        distribution24,
         distribution23,
         distribution22,
         distribution21,
@@ -396,7 +417,7 @@ describe("provider plugin definition and registry", () => {
         binding,
         operation.name,
         2,
-      ).map((hash) => hash.toString("hex"))).toEqual([distribution23, distribution22]);
+      ).map((hash) => hash.toString("hex"))).toEqual([distribution24, distribution23, distribution22]);
     }
     for (const [operation, contractVersion] of [
       ["bridges.list", 2],
@@ -407,8 +428,13 @@ describe("provider plugin definition and registry", () => {
         binding,
         operation,
         contractVersion,
-      ).map((hash) => hash.toString("hex"))).toEqual([distribution23]);
+      ).map((hash) => hash.toString("hex"))).toEqual([distribution24, distribution23]);
     }
+    expect(providerPluginRegistry.legacyContractImplementationHashes(
+      binding,
+      "contacts.list",
+      3,
+    ).map((hash) => hash.toString("hex"))).toEqual([distribution24]);
     for (const [operation, contractVersion] of newlyOwned) {
       expect(providerPluginRegistry.legacyContractImplementationHashes(
         binding,

@@ -153,6 +153,7 @@ describe("single-process bundled adapter generation sync", () => {
       "beeper-local@2.1.0",
       "beeper-local@2.2.0",
       "beeper-local@2.3.0",
+      "beeper-local@2.4.0",
       "bluesky-web@1.0.0",
       "bluesky-web@1.1.0",
       "bluesky-web@1.2.0",

@@ -53,6 +53,24 @@
 // 22,562,509 + 1,974 + 65 = 22,564,548. Required Linux CI and the canonical
 // Release independently admit their actual archive and installation.
 //
+// Beeper owner-messaging automation over main f239de1 adds exactly two
+// packed files and 82,261 payload bytes:
+// src/assets/adapters/beeper/wrench-web-adapter.v2.4.0.json +44,811 (the
+// archived pre-automation adapter baseline) and
+// src/providers/beeper-automation.ts +29,199 (the host-only automation
+// provider), plus the current adapter manifest's two new
+// messaging.automation.* operation descriptors and rebuilt dist chunks.
+// The dist entry set is unchanged: six renamed content-hash chunks replace
+// six predecessors. A Bun 1.3.14 pack on darwin arm64 measured 11,536,183
+// compressed / 22,654,338 payload bytes across exactly 563 files, SHA-256
+// a20110e0fbb5fc3cdf36d7fe8551a46a415e37d76ca6e738e4171f2f4a420355.
+// Raise the packed ceiling by the documented darwin/Linux zlib spread
+// (148,155 bytes at 9af4d34) plus the reviewed 4,096-byte portability
+// allowance: 11,536,183 + 148,155 + 4,096 = 11,688,434. Retain the
+// reviewed 65-byte payload allowance: 22,654,338 + 65 = 22,654,403.
+// Canonical Node/npm Linux CI and Release independently admit their actual
+// archive; this is local evidence.
+//
 // Shared-foundation menu-bar migration over main dd1f377 adds exactly one
 // packed file and 33,838 payload bytes: src/control/menubar-cli.ts +33,710
 // (the TypeScript adapter ships so `ghostget menubar` drives the shared
@@ -980,12 +998,12 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 11_677_251;
-export const MAX_PACKED_ENTRIES = 561;
-export const MAX_PACKED_FILES = 561;
-// The shared-footer v0.13.0 repin measured 22,572,077 unpacked bytes; the
+export const MAX_PACKED_BYTES = 11_688_434;
+export const MAX_PACKED_ENTRIES = 563;
+export const MAX_PACKED_FILES = 563;
+// The Beeper automation candidate measured 22,654,338 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
-export const MAX_UNPACKED_BYTES = 22_572_142;
+export const MAX_UNPACKED_BYTES = 22_654_403;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

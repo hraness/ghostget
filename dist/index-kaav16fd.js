@@ -147,6 +147,8 @@ async function ensureImsgNativeResources(installDirectory, environment) {
 async function installBundledMessagingRuntime(provider, environment = process.env) {
   if (process.platform !== "darwin" || process.arch !== "arm64")
     throw new Error("Bundled messaging runtimes require Apple silicon macOS");
+  if (provider === "beeper")
+    throw new Error("Beeper has no bundled messaging runtime; the pinned local CLI and running Beeper Desktop are installed separately");
   if (provider !== "imessage" && provider !== "whatsapp")
     throw new Error("Unknown messaging runtime");
   const bytes = await readBundledMessagingAsset(provider), directory = await mkdtemp(join(await realpath(tmpdir()), "wrench-messaging-install-"));
@@ -160,11 +162,11 @@ async function installBundledMessagingRuntime(provider, environment = process.en
       await file.close();
     }
     if (provider === "imessage") {
-      const { installReviewedImsgBinary } = await import("./imessage-direct-install-2gm3kge7.js");
+      const { installReviewedImsgBinary } = await import("./imessage-direct-install-5nftwc6p.js");
       const result = await installReviewedImsgBinary(path, environment);
       return { version: result.version, sha256: result.executableSha256, alreadyPresent: result.alreadyPresent };
     }
-    const { installReviewedWhatsAppAutomationBinary } = await import("./whatsapp-automation-runtime-hgh1e9rm.js");
+    const { installReviewedWhatsAppAutomationBinary } = await import("./whatsapp-automation-runtime-ke1dx91p.js");
     return await installReviewedWhatsAppAutomationBinary(path, environment);
   } finally {
     await unlink(path);

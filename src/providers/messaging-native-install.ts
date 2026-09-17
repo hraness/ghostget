@@ -62,8 +62,9 @@ export async function ensureImsgNativeResources(installDirectory: string, enviro
 
 /** Owner setup only. Installing resources never pairs, opens Messages, changes
  * OS permissions, connects a provider, or grants messaging authority. */
-export async function installBundledMessagingRuntime(provider: "imessage" | "whatsapp", environment: Environment = process.env): Promise<{ version: string; sha256: string; alreadyPresent?: boolean }> {
+export async function installBundledMessagingRuntime(provider: "imessage" | "whatsapp" | "beeper", environment: Environment = process.env): Promise<{ version: string; sha256: string; alreadyPresent?: boolean }> {
   if (process.platform !== "darwin" || process.arch !== "arm64") throw new Error("Bundled messaging runtimes require Apple silicon macOS");
+  if (provider === "beeper") throw new Error("Beeper has no bundled messaging runtime; the pinned local CLI and running Beeper Desktop are installed separately");
   if (provider !== "imessage" && provider !== "whatsapp") throw new Error("Unknown messaging runtime");
   const bytes = await readBundledMessagingAsset(provider), directory = await mkdtemp(join(await realpath(tmpdir()), "wrench-messaging-install-")); await chmod(directory, 0o700);
   const path = join(directory, "runtime"), file = await open(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o500);

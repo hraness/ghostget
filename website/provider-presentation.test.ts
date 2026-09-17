@@ -41,13 +41,14 @@ describe("provider presentation", () => {
 
     expect(directory.entries[0]).toMatchObject({
       adapterCount: 1,
-      adapterIdentities: [{ id: "beeper-local", version: "2.4.0" }],
+      adapterIdentities: [{ id: "beeper-local", version: "2.5.0" }],
       captureRequiredCount: 0,
       contractVersions: [1, 2, 3],
       href: "/providers/beeper/",
       name: "Beeper",
-      observedCount: 32,
-      operationCount: 32,
+      observedCount: 34,
+      operationCount: 34,
+      ownerPermissionCount: 2,
       supportedActionCount: 32,
       surfaceId: "beeper",
       transports: ["local-cli"],
@@ -84,14 +85,20 @@ describe("provider presentation", () => {
     const imessage = directory.entries.find(row => row.surfaceId === "imessage")!;
     expect(whatsapp).toMatchObject({ supportedActionCount: 4, ownerPermissionCount: 8 });
     expect(imessage).toMatchObject({ supportedActionCount: 5, ownerPermissionCount: 7 });
+    const beeper = directory.entries.find(row => row.surfaceId === "beeper")!;
+    expect(beeper).toMatchObject({ supportedActionCount: 32, ownerPermissionCount: 2 });
     const html = renderProviderAttestationGroups(directory, attestation);
     expect(html).toContain('class="provider-owner-permissions"');
     expect(html).toContain("unavailable through generic invoke");
-    expect(html.match(/<li><code>messaging\.automation\./gu)).toHaveLength(15);
+    expect(html.match(/<li><code>messaging\.automation\./gu)).toHaveLength(17);
     expect(html).not.toMatch(/<strong>[^<]+<\/strong> — <code>messaging\.automation\./u);
-    const sample = attestation.rows.find(isOwnerMessagingPermission)!;
+    const sample = attestation.rows.find((row) =>
+      row.surfaceId !== "beeper" && isOwnerMessagingPermission(row))!;
+    const beeperSample = attestation.rows.find((row) =>
+      row.surfaceId === "beeper" && isOwnerMessagingPermission(row))!;
     expect(() => isOwnerMessagingPermission({ ...sample, operation: "messaging.automation.send.unknown" })).toThrow("Unreviewed owner messaging permission");
     expect(() => isOwnerMessagingPermission({ ...sample, surfaceId: "beeper" })).toThrow("Unreviewed owner messaging permission");
+    expect(() => isOwnerMessagingPermission({ ...beeperSample, operation: "messaging.automation.send.reaction" })).toThrow("Unreviewed owner messaging permission");
   });
 
   test("binds the WhatsApp page to four R1 reads and exact Wacli provenance", async () => {
@@ -126,7 +133,7 @@ describe("provider presentation", () => {
     );
     const facts = createBeeperPresentationFacts(directory);
     expect(facts).toMatchObject({
-      adapterVersion: "2.4.0",
+      adapterVersion: "2.5.0",
       cliBackedOperationCount:
         BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount,
       cliCommandCount: 101,
@@ -213,7 +220,7 @@ describe("provider presentation", () => {
     expect(cards).toContain("32 supported actions");
     expect(cards).toContain("Accounts · Bridges · Contacts · Conversations · Messages · Presence · Reactions");
     expect(cards).toContain(
-      `${String(directory.entries[0]?.observedCount)} reviewed actions: ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} through one pinned CLI and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} fixed Desktop reads; writes are previewed and uncertain outcomes stay unretriable.`,
+      `${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount + BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} reviewed actions: ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} through one pinned CLI and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} fixed Desktop reads; writes are previewed and uncertain outcomes stay unretriable.`,
     );
     expect(cards).not.toContain("other supported actions");
     expect(cards).not.toContain("{{");
