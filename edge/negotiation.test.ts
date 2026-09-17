@@ -145,8 +145,6 @@ describe("document negotiation runtime", () => {
       .toBeNull();
     expect(await handleDocumentNegotiation(request("/assets/styles.css", "text/markdown"), retrieve))
       .toBeNull();
-    expect(await handleDocumentNegotiation(request("/getting-started.md", "text/markdown"), retrieve))
-      .toBeNull();
   });
 
   test("serves markdown, 406, and markdown 404 bodies from sibling assets", async () => {
@@ -165,6 +163,9 @@ describe("document negotiation runtime", () => {
     expect(markdown?.status).toBe(200);
     expect(markdown?.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
     expect(markdown?.headers.get("vary")).toBe("Accept");
+    expect(markdown?.headers.get("link")).toBe(
+      '<https://ghostget.com/>; rel="canonical", </index.md>; rel="alternate"; type="text/markdown"',
+    );
     expect(await markdown?.text()).toBe("# Wrench\n");
 
     const missing = await handleDocumentNegotiation(
@@ -174,6 +175,7 @@ describe("document negotiation runtime", () => {
     expect(missing?.status).toBe(404);
     expect(missing?.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
     expect(missing?.headers.get("vary")).toBe("Accept");
+    expect(missing?.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     expect(await missing?.text()).toBe("# Missing\n");
 
     const rejected = await handleDocumentNegotiation(request("/", "application/pdf"), retrieve);
@@ -185,6 +187,54 @@ describe("document negotiation runtime", () => {
 
     const head = await handleDocumentNegotiation(request("/", "text/markdown", "HEAD"), retrieve);
     expect(head?.status).toBe(200);
+    expect(head?.headers.get("link")).toContain('rel="canonical"');
     expect(await head?.text()).toBe("");
+  });
+
+  test("serves direct markdown requests with canonical and alternate links", async () => {
+    const files = new Map([
+      ["/getting-started.md", "# Install\n"],
+      ["/providers/beeper.md", "# Beeper\n"],
+      ["/404.md", "# Missing\n"],
+    ]);
+    const retrieve = async (url: URL): Promise<Response> => {
+      const body = files.get(url.pathname);
+      return body === undefined
+        ? new Response("missing", { status: 404 })
+        : new Response(body, { status: 200 });
+    };
+
+    for (const [path, canonical] of [
+      ["/getting-started.md", "https://ghostget.com/getting-started/"],
+      ["/providers/beeper.md", "https://ghostget.com/providers/beeper/"],
+    ] as const) {
+      const direct = await handleDocumentNegotiation(request(path), retrieve);
+      expect(direct?.status).toBe(200);
+      expect(direct?.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+      expect(direct?.headers.get("vary")).toBe("Accept");
+      expect(direct?.headers.get("link")).toBe(
+        `<${canonical}>; rel="canonical", <${path}>; rel="alternate"; type="text/markdown"`,
+      );
+      expect(await direct?.text()).toBe(files.get(path));
+    }
+
+    const notFoundDocument = await handleDocumentNegotiation(request("/404.md"), retrieve);
+    expect(notFoundDocument?.status).toBe(200);
+    expect(notFoundDocument?.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    expect(notFoundDocument?.headers.get("link")).toBeNull();
+    expect(await notFoundDocument?.text()).toBe("# Missing\n");
+
+    const missingMirror = await handleDocumentNegotiation(request("/no-such-page.md"), retrieve);
+    expect(missingMirror?.status).toBe(404);
+    expect(missingMirror?.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    expect(await missingMirror?.text()).toBe("# Missing\n");
+
+    const headMirror = await handleDocumentNegotiation(
+      request("/getting-started.md", undefined, "HEAD"),
+      retrieve,
+    );
+    expect(headMirror?.status).toBe(200);
+    expect(headMirror?.headers.get("link")).toContain('rel="canonical"');
+    expect(await headMirror?.text()).toBe("");
   });
 });

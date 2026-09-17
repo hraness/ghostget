@@ -1719,7 +1719,18 @@ describe("ghostget.com static site", () => {
     expect(negotiated?.status).toBe(200);
     expect(negotiated?.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
     expect(negotiated?.headers.get("vary")).toBe("Accept");
+    expect(negotiated?.headers.get("link")).toBe(
+      '<https://ghostget.com/getting-started/>; rel="canonical", </getting-started.md>; rel="alternate"; type="text/markdown"',
+    );
     expect(await negotiated?.text()).toContain("# Install Ghostget and capture your first URL.");
+
+    const direct = await handleDocumentNegotiation(
+      new Request(`${SITE_ORIGIN}/getting-started.md`),
+      retrieve,
+    );
+    expect(direct?.status).toBe(200);
+    expect(direct?.headers.get("link")).toBe(negotiated?.headers.get("link"));
+    expect(await direct?.text()).toContain("# Install Ghostget and capture your first URL.");
   });
 
   test("keeps every README release reference aligned with package identity", async () => {
