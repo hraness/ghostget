@@ -28,6 +28,7 @@ const expectedClosureRuntimeDependencies = Object.freeze({
   "@1password/sdk": "0.5.0",
   "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.7.0/hraness-desktop-foundation-0.7.0.tgz",
   "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
+  "@hraness/local-custody": "github:hraness/local-custody#d462900810b042a8b5f34245d0d371cfaa6ee9b3",
   "@hraness/message-like-me": "github:hraness/textbutler#83453cc7c17b49bb53fdfd89ccb69b8b44b30af1",
   "@hraness/support-foundation": "github:hraness/support-foundation#2d034b357680353574411217d68b02b6755b07ed",
   "buffer-from": "1.1.2",
@@ -728,6 +729,10 @@ try {
       "@hraness/kb",
       installedPackageRoot,
     );
+    const installedLocalCustodyRoot = resolveInstalledDependencyRoot(
+      "@hraness/local-custody",
+      installedPackageRoot,
+    );
     const installedMessageLikeMeRoot = resolveInstalledDependencyRoot(
       "@hraness/message-like-me",
       installedPackageRoot,
@@ -765,6 +770,22 @@ try {
         root: installedKbRoot,
         sha256: reviewedKbDynamicModuleSha256,
         version: "0.19.6",
+      }),
+      assertInstalledClosurePackage({
+        keyFile: "dist/private-paths.js",
+        name: "@hraness/local-custody",
+        root: installedLocalCustodyRoot,
+        sha256:
+          "9125f29b725f96e17df3d92e61e4bd896cd4c701ae2a5f06d009b6659d8a0536",
+        version: "0.5.1",
+      }),
+      assertInstalledClosurePackage({
+        keyFile: "dist/atomic-publish.js",
+        name: "@hraness/local-custody",
+        root: installedLocalCustodyRoot,
+        sha256:
+          "6f1f9282696f3081ade6169d7ee8baa5bac3208503b55ad102dcc73fe2b5e6f0",
+        version: "0.5.1",
       }),
       assertInstalledClosurePackage({
         keyFile: "dist/message-bundle-v1.js",

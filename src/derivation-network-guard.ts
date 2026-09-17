@@ -1,20 +1,13 @@
 import { createHash } from "node:crypto";
-import {
-  chmodSync,
-  closeSync,
-  constants,
-  fchmodSync,
-  fstatSync,
-  fsyncSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-  readSync,
-  unlinkSync,
-  writeSync,
-} from "node:fs";
+import { chmodSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
+
+import {
+  assertOwnedPathSync,
+  readOwnedFileStableSync,
+} from "@hraness/local-custody/private-paths";
+import { createPrivateFileOnceSync } from "@hraness/local-custody/atomic-publish";
 
 import { canonicalJson, sha256 } from "./canonical-json";
 import type { ProcessOwnerIdentity } from "./process-identity";
@@ -140,11 +133,6 @@ type GuardRuntimeCase = {
   readonly type: (typeof derivationGuardResourceTypes)[number];
   readonly ruleId: number;
 };
-
-function currentUserOwns(uid: number | bigint): boolean {
-  const current = typeof process.getuid === "function" ? process.getuid() : undefined;
-  return current === undefined || uid === (typeof uid === "bigint" ? BigInt(current) : current);
-}
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
@@ -307,14 +295,11 @@ function extensionIdFromKey(): string {
 
 function inspectDirectory(path: string): GuardDirectoryIdentity {
   try {
-    const stats = lstatSync(path, { bigint: true });
-    if (
-      !stats.isDirectory()
-      || stats.isSymbolicLink()
-      || !currentUserOwns(stats.uid)
-      || (stats.mode & 0o777n) !== 0o700n
-    ) throw new Error("unsafe");
-    return { device: stats.dev.toString(), inode: stats.ino.toString() };
+    const identity = assertOwnedPathSync(path, {
+      kind: "directory",
+      exactMode: 0o700,
+    });
+    return { device: identity.dev.toString(), inode: identity.ino.toString() };
   } catch {
     throw new Error("derivation network guard directory is unavailable or unsafe");
   }
@@ -325,71 +310,18 @@ function sameIdentity(left: GuardDirectoryIdentity, right: GuardDirectoryIdentit
 }
 
 export function writeGuardPrivateFile(path: string, content: string): GuardPrivateFileEvidence {
-  let descriptor: number | null = null;
-  let openedIdentity: GuardDirectoryIdentity | null = null;
-  let completed = false;
   try {
-    descriptor = openSync(
-      path,
-      constants.O_WRONLY
-        | constants.O_CREAT
-        | constants.O_EXCL
-        | ("O_NOFOLLOW" in constants ? constants.O_NOFOLLOW : 0),
-      0o600,
-    );
-    const opened = fstatSync(descriptor, { bigint: true });
-    openedIdentity = { device: opened.dev.toString(), inode: opened.ino.toString() };
-    fchmodSync(descriptor, 0o600);
-    const bytes = Buffer.from(content, "utf8");
-    let offset = 0;
-    while (offset < bytes.byteLength) {
-      offset += writeSync(descriptor, bytes, offset, bytes.byteLength - offset);
-    }
-    fsyncSync(descriptor);
-    const stats = fstatSync(descriptor, { bigint: true });
-    if (
-      !stats.isFile()
-      || !currentUserOwns(stats.uid)
-      || (stats.mode & 0o777n) !== 0o600n
-      || stats.size !== BigInt(bytes.byteLength)
-    ) throw new Error("derivation network guard file could not be secured");
-    const evidence = {
-      device: stats.dev.toString(),
-      inode: stats.ino.toString(),
-      byteLength: bytes.byteLength,
+    const outcome = createPrivateFileOnceSync(dirname(path), basename(path), content);
+    if (outcome !== "created") throw new Error("exists");
+    const identity = assertOwnedPathSync(path, { kind: "file", exactMode: 0o600 });
+    return {
+      device: identity.dev.toString(),
+      inode: identity.ino.toString(),
+      byteLength: Buffer.byteLength(content, "utf8"),
       sha256: sha256(content),
     };
-    completed = true;
-    return evidence;
   } catch {
     throw new Error("derivation network guard file could not be secured");
-  } finally {
-    if (descriptor !== null) {
-      if (!completed && openedIdentity === null) {
-        try {
-          const stats = fstatSync(descriptor, { bigint: true });
-          openedIdentity = { device: stats.dev.toString(), inode: stats.ino.toString() };
-        } catch {
-          // Without an exact identity, preserve the path instead of unlinking.
-        }
-      }
-      try {
-        closeSync(descriptor);
-      } catch {
-        // The categorical write failure below must not expose a local path.
-      }
-    }
-    if (!completed && openedIdentity !== null) {
-      try {
-        const current = lstatSync(path, { bigint: true });
-        if (
-          current.dev.toString() === openedIdentity.device
-          && current.ino.toString() === openedIdentity.inode
-        ) unlinkSync(path);
-      } catch {
-        // A changed path is intentionally preserved.
-      }
-    }
   }
 }
 
@@ -397,55 +329,23 @@ export function readGuardPrivateFile(
   path: string,
   maximumBytes = 4 * 1024 * 1024,
 ): { readonly content: string; readonly evidence: GuardPrivateFileEvidence } {
-  let descriptor: number | null = null;
   try {
-    descriptor = openSync(
-      path,
-      constants.O_RDONLY | ("O_NOFOLLOW" in constants ? constants.O_NOFOLLOW : 0),
-    );
-    const before = fstatSync(descriptor, { bigint: true });
-    if (
-      !before.isFile()
-      || !currentUserOwns(before.uid)
-      || (before.mode & 0o777n) !== 0o600n
-      || before.size < 1n
-      || before.size > BigInt(maximumBytes)
-    ) throw new Error("derivation network guard file is unavailable or unsafe");
-    const bytes = Buffer.alloc(Number(before.size));
-    let offset = 0;
-    while (offset < bytes.byteLength) {
-      const count = readSync(descriptor, bytes, offset, bytes.byteLength - offset, null);
-      if (count === 0) throw new Error("derivation network guard file changed size");
-      offset += count;
-    }
-    const after = fstatSync(descriptor, { bigint: true });
-    if (
-      before.dev !== after.dev
-      || before.ino !== after.ino
-      || before.size !== after.size
-      || before.mtimeNs !== after.mtimeNs
-      || before.ctimeNs !== after.ctimeNs
-    ) throw new Error("derivation network guard file changed while reading");
-    const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    const read = readOwnedFileStableSync(path, maximumBytes, {
+      exactMode: 0o600,
+      minimumBytes: 1n,
+    });
+    const content = new TextDecoder("utf-8", { fatal: true }).decode(read.bytes);
     return {
       content,
       evidence: {
-        device: before.dev.toString(),
-        inode: before.ino.toString(),
-        byteLength: bytes.byteLength,
+        device: read.dev.toString(),
+        inode: read.ino.toString(),
+        byteLength: read.bytes.byteLength,
         sha256: sha256(content),
       },
     };
   } catch {
     throw new Error("derivation network guard file is unavailable or unsafe");
-  } finally {
-    if (descriptor !== null) {
-      try {
-        closeSync(descriptor);
-      } catch {
-        // Keep diagnostics categorical and path-free.
-      }
-    }
   }
 }
 
@@ -484,48 +384,20 @@ export function verifyGuardPrivateFile(
   expected: GuardPrivateFileEvidence,
   expectedContent: string,
 ): void {
-  let descriptor: number | null = null;
   try {
-    descriptor = openSync(
-      path,
-      constants.O_RDONLY | ("O_NOFOLLOW" in constants ? constants.O_NOFOLLOW : 0),
-    );
-    const before = fstatSync(descriptor, { bigint: true });
+    const read = readOwnedFileStableSync(path, expected.byteLength, {
+      exactMode: 0o600,
+      minimumBytes: 1n,
+    });
     if (
-      !before.isFile()
-      || !currentUserOwns(before.uid)
-      || (before.mode & 0o777n) !== 0o600n
-      || before.dev.toString() !== expected.device
-      || before.ino.toString() !== expected.inode
-      || before.size !== BigInt(expected.byteLength)
-    ) throw new Error("derivation network guard file changed identity");
-    const bytes = Buffer.alloc(expected.byteLength);
-    let offset = 0;
-    while (offset < bytes.byteLength) {
-      const count = readSync(descriptor, bytes, offset, bytes.byteLength - offset, null);
-      if (count === 0) throw new Error("derivation network guard file changed size");
-      offset += count;
-    }
-    const after = fstatSync(descriptor, { bigint: true });
-    if (
-      before.dev !== after.dev
-      || before.ino !== after.ino
-      || before.size !== after.size
-      || before.mtimeNs !== after.mtimeNs
-      || before.ctimeNs !== after.ctimeNs
-      || bytes.toString("utf8") !== expectedContent
+      read.dev.toString() !== expected.device
+      || read.ino.toString() !== expected.inode
+      || read.bytes.byteLength !== expected.byteLength
+      || read.bytes.toString("utf8") !== expectedContent
       || sha256(expectedContent) !== expected.sha256
-    ) throw new Error("derivation network guard file changed content");
+    ) throw new Error("derivation network guard file changed");
   } catch {
     throw new Error("derivation network guard file changed or is unavailable");
-  } finally {
-    if (descriptor !== null) {
-      try {
-        closeSync(descriptor);
-      } catch {
-        // Keep diagnostics categorical and path-free.
-      }
-    }
   }
 }
 

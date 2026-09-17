@@ -718,7 +718,6 @@ describe("ghostget.com static site", () => {
       expect(document.indexOf('data-hraness-marketing="footer"'))
         .toBeLessThan(document.indexOf('data-slot="hraness-site-footer"'));
       expect(footer).toBeDefined();
-      // The footer is the package's complete render, never a product fork.
       expect(footer).toBe(productionFooter);
       expect(footer).toContain('data-slot="hraness-site-footer"');
       expect(footer).not.toContain("hraness-site-footer__wordmark");
