@@ -7,11 +7,22 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.14
+
 - Pin `@hraness/site-footer` v0.13.0 so every public page's shared footer
   carries the package-owned "Built by Hraness" organization attribution. The
   static build keeps the framework-neutral renderer, which tests prove is the
   same `HranessSiteFooter` contract, and the homepage maker biography remains
   product-owned page content rather than footer attribution.
+- Admit Beeper as a third messaging automation provider beside iMessage and
+  WhatsApp. Adapter `beeper-local` 2.5.0 declares two scoped owner-automation
+  permissions — `messaging.automation.read` and `messaging.automation.send.text` —
+  served only through the owner-driven `ghostget messaging automation` host.
+  Sessions bind one exact account realm, preserve the realm's canonical Matrix
+  self identity beside the bridge-scoped account id, and keep every send
+  behind an explicit reviewed grant with no retry after an uncertain dispatch.
+  Realm-wide conversation listing excludes chats owned by accounts outside
+  the bound realm instead of failing the whole projection.
 
 ## 0.18.13
 

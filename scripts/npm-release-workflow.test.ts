@@ -1166,7 +1166,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_231_488);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_233_024);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1343,8 +1343,8 @@ describe("npm publication contract", () => {
     expect(budget).toContain("da3f581f1f96724337a99c4b80567d4d11893c4df1ff9a808464260796092976");
     expect(budget).toContain("22,496,998 payload bytes across exactly 558 files");
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
-    expect(MAX_PACKED_BYTES).toBe(11_688_434);
-    expect(MAX_PACKED_BYTES).toBe(11_536_183 + 148_155 + 4_096);
+    expect(MAX_PACKED_BYTES).toBe(11_688_858);
+    expect(MAX_PACKED_BYTES).toBe(11_536_607 + 148_155 + 4_096);
     expect(MAX_PACKED_ENTRIES).toBe(563);
     expect(MAX_PACKED_FILES).toBe(563);
     expect(budget).toContain("Ghostget 0.18.6 same-boot setup-cleanup candidate over main edbe567");
@@ -1354,8 +1354,9 @@ describe("npm publication contract", () => {
     expect(budget).toContain("34708922100, static job 103593972035 and package job 103593972046");
     expect(budget).toContain("22,521,539 + 65 = 22,521,604");
     expect(budget).toContain("22,523,437 + 65 = 22,523,502");
-    expect(MAX_UNPACKED_BYTES).toBe(22_654_403);
-    expect(MAX_UNPACKED_BYTES).toBe(22_654_338 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(22_655_542);
+    expect(MAX_UNPACKED_BYTES).toBe(22_655_477 + 65);
+    expect(budget).toContain("22,655,477 + 65 = 22,655,542");
     expect(budget).toContain("22,654,338 + 65 = 22,654,403");
     expect(budget).toContain("Shared-footer v0.13.0 repin over main c4c1469 adds exactly 369 payload");
     expect(budget).toContain("11,673,185 compressed / 22,571,708 payload bytes");
@@ -1380,8 +1381,8 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 563, max: 563 },
       fileCount: { min: 563, max: 563 },
-      packedBytes: { min: 1_600_000, max: 11_688_434 },
-      unpackedBytes: { min: 9_000_000, max: 22_654_403 },
+      packedBytes: { min: 1_600_000, max: 11_688_858 },
+      unpackedBytes: { min: 9_000_000, max: 22_655_542 },
     });
   });
 
