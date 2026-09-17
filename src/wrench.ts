@@ -23,6 +23,11 @@ import {
   type WrenchAuth,
 } from "./auth";
 import {
+  runAccountsDeviceLogin,
+  runAccountsSignOut,
+  type AccountsAuthResult,
+} from "./accounts-auth";
+import {
   isPublicWebSessionInvocationAuthority,
   type InvocationAuthority,
 } from "./web-session-authentication-policy";
@@ -1964,6 +1969,81 @@ function printPreview(output: Output, value: Record<string, unknown>, json: bool
   output.stdout(json ? exactTerminalJson(value) : exactTerminalJson(value));
 }
 
+async function runAccountsLogin(
+  arguments_: Extract<WrenchArguments, { readonly command: "login" }>,
+  environment: Readonly<Record<string, string | undefined>>,
+  output: Output,
+  signal?: AbortSignal,
+): Promise<number> {
+  const result = await runAccountsDeviceLogin(
+    environment,
+    {
+      onUserCode: (userCode, verificationUri) => {
+        output.stdout("Open the following URL in your browser to sign in to Hraness Accounts:\n");
+        output.stdout(`${verificationUri}\n`);
+        output.stdout(`Code: ${userCode}\n`);
+      },
+      onPending: () => {
+        // Polling noise is suppressed; the CLI remains quiet between checks.
+      },
+      onSlowDown: (intervalMs) => {
+        output.stderr(
+          `Server requested slower polling; waiting ${intervalMs}ms.\n`,
+        );
+      },
+    },
+    undefined,
+    signal,
+  );
+  printAccountsAuthResult(output, result, arguments_.json);
+  return result.kind === "success" ? 0 : 1;
+}
+
+async function runAccountsLogout(
+  arguments_: Extract<WrenchArguments, { readonly command: "logout" }>,
+  environment: Readonly<Record<string, string | undefined>>,
+  output: Output,
+): Promise<number> {
+  await runAccountsSignOut(environment);
+  if (arguments_.json) {
+    output.stdout('{"ok":true}\n');
+  } else {
+    output.stdout("Signed out of Hraness Accounts.\n");
+  }
+  return 0;
+}
+
+function printAccountsAuthResult(
+  output: Output,
+  result: AccountsAuthResult,
+  json: boolean,
+): void {
+  if (json) {
+    output.stdout(
+      `${exactTerminalJson({
+        ok: result.kind === "success",
+        ...(result.kind === "success" ? { message: result.message } : {}),
+        ...(result.kind === "error" ? { error: result.message } : {}),
+      })}\n`,
+    );
+    return;
+  }
+  switch (result.kind) {
+    case "success":
+      output.stdout(`${result.message}\n`);
+      break;
+    case "denied":
+      output.stderr("Login was denied.\n");
+      break;
+    case "expired":
+      output.stderr("Login code expired. Run 'wrench login' to try again.\n");
+      break;
+    case "error":
+      output.stderr(`Login failed: ${result.message}\n`);
+      break;
+  }
+}
+
 async function runCommand(
   arguments_: WrenchArguments,
   environment: Readonly<Record<string, string | undefined>>,
@@ -3454,6 +3534,12 @@ async function runCommand(
       arguments_.privateOutput !== undefined
       || arguments_.receiptBindingOutput !== undefined
     ) throw new Error("messaging output options require a messaging run");
+  }
+  if (arguments_.command === "login") {
+    return runAccountsLogin(arguments_, environment, output, signal);
+  }
+  if (arguments_.command === "logout") {
+    return runAccountsLogout(arguments_, environment, output);
   }
   repairInterruptedConfirmationClaims(environment);
   repairInterruptedRunJournals(environment);

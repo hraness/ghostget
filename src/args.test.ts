@@ -1765,4 +1765,32 @@ describe("wrench CLI grammar", () => {
     expect(result.ok).toBeFalse();
     if (!result.ok) expect(result.message).toContain("--trust-profile-egress");
   });
+
+  test("parses accounts login and logout", () => {
+    expect(parseWrenchArguments(["login"])).toEqual({
+      ok: true,
+      value: { command: "login", json: false },
+    });
+    expect(parseWrenchArguments(["logout"])).toEqual({
+      ok: true,
+      value: { command: "logout", json: false },
+    });
+    expect(parseWrenchArguments(["login", "--json"])).toEqual({
+      ok: true,
+      value: { command: "login", json: true },
+    });
+    expect(parseWrenchArguments(["logout", "--json"])).toEqual({
+      ok: true,
+      value: { command: "logout", json: true },
+    });
+    for (const raw of [
+      ["login", "--force"],
+      ["logout", "--force"],
+      ["login", "extra"],
+      ["logout", "extra"],
+    ]) {
+      const result = parseWrenchArguments(raw);
+      expect(result.ok).toBeFalse();
+    }
+  });
 });

@@ -288,7 +288,9 @@ export type WrenchArguments =
   | { readonly command: "runs-reconcile"; readonly runId: string; readonly inputSource?: string; readonly json: boolean }
   | { readonly command: "messaging-reconcile"; readonly runId: string; readonly json: boolean }
   | { readonly command: "plans-list"; readonly json: boolean }
-  | { readonly command: "plans-cancel"; readonly digest: string; readonly yes: boolean };
+  | { readonly command: "plans-cancel"; readonly digest: string; readonly yes: boolean }
+  | { readonly command: "login"; readonly json: boolean }
+  | { readonly command: "logout"; readonly json: boolean };
 
 export type ParseWrenchResult =
   | { readonly ok: true; readonly value: WrenchArguments }
@@ -2043,6 +2045,14 @@ export function parseWrenchArguments(raw: readonly string[]): ParseWrenchResult 
       return isFailure(parsed) ? parsed : { ok: true, value: { command: "plans-cancel", digest, yes: parsed.booleans.has("--yes") } };
     }
     return { ok: false, message: "plans requires list or cancel" };
+  }
+  if (first === "login") {
+    const json = simpleJsonOptions(raw.slice(1), "login");
+    return typeof json === "boolean" ? { ok: true, value: { command: "login", json } } : json;
+  }
+  if (first === "logout") {
+    const json = simpleJsonOptions(raw.slice(1), "logout");
+    return typeof json === "boolean" ? { ok: true, value: { command: "logout", json } } : json;
   }
   if (validId(first, "adapter ID") === null && raw[1] !== undefined && validOperation(raw[1]) === null) {
     return parseWrenchArguments(["invoke", ...raw]);

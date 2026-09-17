@@ -78,6 +78,9 @@ export const wrenchUsage = `Usage:
   wrench auth sync <id> --once [--json]       Explicitly connect and refresh the local projection
   wrench auth remove <id> --yes
 
+  wrench login [--json]                          Sign in to Hraness Accounts with a cross-device code
+  wrench logout [--json]                         Sign out of Hraness Accounts and delete local tokens
+
   wrench apple-photos export-contact-evidence
                 [--library <normalized-absolute-.photoslibrary>] [--json]
                 # private cluster evidence; returned JSON has no images, crops, or templates

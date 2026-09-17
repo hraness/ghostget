@@ -90,6 +90,7 @@
     "bunfig.toml",
     "docs/imessage-direct-provider.md",
     "docs/rental-listings.md",
+    "src/accounts-auth.ts",
     "src/args.ts",
     "src/apple-photos-cli.ts",
     "src/apple-photos-client-types.ts",
@@ -536,6 +537,7 @@
   "dependencies": {
     "@hraness/kb": "0.17.1",
     "@hraness/message-like-me": "github:hraness/message-like-me#v0.7.0",
+    "@hraness/suite-accounts": "github:hraness/suite-accounts#21424ee08eb41929c7290cfddfdb479923fb6ba5",
     "buffer-from": "1.1.2",
     "source-map": "0.6.1",
     "source-map-support": "0.5.21",
