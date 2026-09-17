@@ -17,7 +17,7 @@
 # Guidelines
 
 - Keep the homepage's shared editorial preset scoped by `data-hraness-marketing-preset="editorial"`; the homepage alone opts into `data-hraness-material="lantern"`, with `.hraness-material-wall` on its hero, quiet opaque reading surfaces and shared header chrome. Load the asset-free material after Paper/editorial foundations and keep the Node checker in the normal theme gate. Keep product adaptations outside the immutable snapshot and preserve the separate inert native-control previews, ordinary documentation, release identity, and all production admission gates.
-- Keep the page useful without JavaScript. JavaScript may progressively enhance explicit copy controls and canonical-host analytics; keep all commands readable and selectable without it.
+- Keep the page useful without JavaScript. JavaScript may progressively enhance explicit copy controls, canonical-host analytics, and the shared `attachFoil` pointer treatment on `[data-foil]` elements; keep all commands readable and selectable without it.
 - Keep every product claim observable in the public Ghostget release and put each qualification beside the claim it limits.
 - Derive release identity and install commands from the validated root `package.json`; never copy a version into page source.
 - Keep the Agent Skill install command centralized in `build.ts`, pin its skills source to `hraness/ghostget#v<package version>`, render it as inert HTML, and make clipboard enhancement reusable through the `data-skill-install` contract. Link installation to that exact canonical GitHub archive; registry mirrors may be advertised only after verified availability.

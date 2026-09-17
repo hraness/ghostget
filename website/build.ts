@@ -213,6 +213,38 @@ export function renderAskAiAboutThis(canonicalUrl: string): string {
   }));
 }
 
+const CONTENT_FOOTER_LINKS = [
+  { href: "/getting-started/", label: "Install" },
+  { href: "/provider-capabilities/", label: "Providers" },
+  { href: "/about/", label: "About" },
+  { href: "/contact/", label: "Contact" },
+  { href: "/privacy/", label: "Privacy" },
+  {
+    href: "https://github.com/hraness/ghostget",
+    label: 'GitHub <span aria-hidden="true">↗</span>',
+  },
+] as const;
+
+/** In-flow product footer rendered immediately before the shared Hraness site footer. */
+export function renderGhostgetContentFooter(currentPath?: string): string {
+  const links = CONTENT_FOOTER_LINKS.map(({ href, label }) => {
+    const current = href === currentPath
+      ? ` aria-current="page"`
+      : href === "/provider-capabilities/" && currentPath?.startsWith("/providers/")
+        ? ` aria-current="location"`
+        : "";
+    return `<a${current} class="hraness-marketing-footer__link" href="${href}">${label}</a>`;
+  }).join("\n      ");
+  return `<footer aria-label="Ghostget" class="hraness-marketing-footer" data-hraness-marketing="footer">
+  <div class="hraness-marketing-footer__inner">
+    <a class="hraness-marketing-footer__brand" href="/" aria-label="Ghostget home"><img alt="" height="20" src="/icon.png" width="20" /><span class="hraness-marketing-footer__name">Ghostget</span></a>
+    <nav aria-label="Footer navigation" class="hraness-marketing-footer__nav">
+      ${links}
+    </nav>
+  </div>
+</footer>`;
+}
+
 export function markdownSiblingPath(canonicalPath: string): string {
   return canonicalPath === "/" ? "/index.md" : `${canonicalPath.slice(0, -1)}.md`;
 }
@@ -309,7 +341,9 @@ type RenderOptions = Readonly<{
   analyticsAsset: string;
   attestation: ProviderCapabilityAttestation;
   beeperFacts: BeeperPresentationFacts;
+  contentFooter: (currentPath?: string) => string;
   cssAsset: string;
+  foilAsset: string;
   hranessSiteFooter: string;
   packageIdentity: PackageIdentity;
   postHogHost: string;
@@ -569,13 +603,15 @@ function renderTemplate(
   let rendered = template;
   rendered = replaceHtmlRequired(rendered, "{{ANALYTICS_ASSET}}", escapeHtml(options.analyticsAsset));
   rendered = replaceHtmlRequired(rendered, "{{CSS_ASSET}}", escapeHtml(options.cssAsset));
+  rendered = replaceHtmlRequired(rendered, "{{FOIL_ASSET}}", escapeHtml(options.foilAsset));
   if (rendered.includes("{{HRANESS_SITE_FOOTER}}")) {
+    const contentFooter = options.contentFooter(page?.canonicalPath);
     rendered = replaceRequired(
       rendered,
       "{{HRANESS_SITE_FOOTER}}",
       page === undefined
-        ? options.hranessSiteFooter
-        : `${renderAskAiAboutThis(`${SITE_ORIGIN}${page.canonicalPath}`)}\n${options.hranessSiteFooter}`,
+        ? `${contentFooter}\n${options.hranessSiteFooter}`
+        : `${renderAskAiAboutThis(`${SITE_ORIGIN}${page.canonicalPath}`)}\n${contentFooter}\n${options.hranessSiteFooter}`,
     );
   }
   if (page) {
@@ -796,6 +832,7 @@ export async function buildWebsite(
     hranessSiteFooterCss,
     analyticsBuild,
     skillInstallBuild,
+    foilBuild,
     attestation,
   ] = await Promise.all([
     Bun.file(join(repositoryRoot, "package.json")).json(),
@@ -827,6 +864,13 @@ export async function buildWebsite(
       sourcemap: "none",
       target: "browser",
     }),
+    Bun.build({
+      entrypoints: [join(sourceRoot, "foil.ts")],
+      format: "esm",
+      minify: true,
+      sourcemap: "none",
+      target: "browser",
+    }),
     loadProviderCapabilityAttestation(repositoryRoot),
   ]);
   if (!analyticsBuild.success || analyticsBuild.outputs.length !== 1) {
@@ -839,6 +883,11 @@ export async function buildWebsite(
     throw new Error(`Skill install control build failed: ${messages || "no browser output"}`);
   }
   const skillInstall = new Uint8Array(await skillInstallBuild.outputs[0]!.arrayBuffer());
+  if (!foilBuild.success || foilBuild.outputs.length !== 1) {
+    const messages = foilBuild.logs.map((log) => log.message).join("\n");
+    throw new Error(`Foil controller build failed: ${messages || "no browser output"}`);
+  }
+  const foil = new Uint8Array(await foilBuild.outputs[0]!.arrayBuffer());
   const identity = parsePackageIdentity(manifest);
   if (identity.release !== CONTENT_REVIEWED_RELEASE) {
     throw new Error(
@@ -855,6 +904,7 @@ export async function buildWebsite(
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
+  const foilAsset = `/assets/foil-${contentHash(foil)}.js`;
   const providerDirectory = createProviderDirectory(attestation);
   const beeperFacts = createBeeperPresentationFacts(providerDirectory);
   const whatsappFacts = createWhatsAppPresentationFacts(providerDirectory, attestation);
@@ -862,7 +912,9 @@ export async function buildWebsite(
     analyticsAsset,
     attestation,
     beeperFacts,
+    contentFooter: renderGhostgetContentFooter,
     cssAsset,
+    foilAsset,
     hranessSiteFooter: renderHranessSiteFooter({
       mailingList: ghostgetMailingListConfig(environment),
       support: ghostgetSupportProfile,
@@ -916,6 +968,7 @@ export async function buildWebsite(
     writeFile(join(outputRoot, cssAsset.slice(1)), compiledCss),
     writeFile(join(outputRoot, analyticsAsset.slice(1)), analytics),
     writeFile(join(outputRoot, skillInstallAsset.slice(1)), skillInstall),
+    writeFile(join(outputRoot, foilAsset.slice(1)), foil),
     writeFile(
       join(outputRoot, "robots.txt"),
       `User-agent: *\nAllow: /\n\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`,
