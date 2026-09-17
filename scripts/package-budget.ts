@@ -1,3 +1,19 @@
+// Ghostget 0.18.14 release preparation over main 5a58396 adds exactly 1,139
+// payload bytes and no files: the version coordinate bumps package.json,
+// src/version.ts, the declared producer literal in src/beeper-client-types.ts
+// and README, publishing, skill install, and local-CLI provider prose; the
+// changelog gains the Beeper automation release note; and the generated
+// version chunk renames.
+// A Bun 1.3.14 pack on darwin arm64 measured 11,536,607 compressed /
+// 22,655,477 payload bytes across exactly 563 files, SHA-256
+// 6a09a4699b387e0d0a204379c7a3a2f10a79510778f1605851215d424af28404.
+// Raise the packed ceiling by the documented darwin/Linux zlib spread
+// (148,155 bytes at 9af4d34) plus the reviewed 4,096-byte portability
+// allowance: 11,536,607 + 148,155 + 4,096 = 11,688,858. Retain the
+// reviewed 65-byte payload allowance: 22,655,477 + 65 = 22,655,542.
+// Canonical Node/npm Linux CI and Release independently admit their actual
+// archive; this is local evidence.
+//
 // Shared-footer v0.13.0 repin over main c4c1469 adds exactly 369 payload
 // bytes, all in CHANGELOG.md: the six-line Unreleased note for the shared
 // "Built by Hraness" attribution. The `github:hraness/site-footer#v0.13.0`
@@ -998,12 +1014,12 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 11_688_434;
+export const MAX_PACKED_BYTES = 11_688_858;
 export const MAX_PACKED_ENTRIES = 563;
 export const MAX_PACKED_FILES = 563;
-// The Beeper automation candidate measured 22,654,338 unpacked bytes; the
+// The Ghostget 0.18.14 candidate measured 22,655,477 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
-export const MAX_UNPACKED_BYTES = 22_654_403;
+export const MAX_UNPACKED_BYTES = 22_655_542;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
