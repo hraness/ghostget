@@ -1,16 +1,16 @@
 #!/usr/bin/env bun
 import {
   chmodSync,
-  closeSync,
-  constants,
-  fstatSync,
   lstatSync,
-  openSync,
-  readSync,
   rmdirSync,
   unlinkSync,
 } from "node:fs";
 import { createServer, type Server, type Socket } from "node:net";
+
+import {
+  assertOwnedPathSync,
+  readOwnedFileStableSync,
+} from "@hraness/local-custody/private-paths";
 
 import {
   DERIVATION_GUARD_PROXY_CONFIG,
@@ -37,11 +37,6 @@ function injectFailureForTest(stage: HelperFailureStage): void {
     process.env.NODE_ENV === "test"
     && process.env[helperFailureEnvironmentKey] === stage
   ) throw new Error("injected derivation proxy helper failure");
-}
-
-function currentUserOwns(uid: number | bigint): boolean {
-  const current = typeof process.getuid === "function" ? process.getuid() : undefined;
-  return current === undefined || uid === (typeof uid === "bigint" ? BigInt(current) : current);
 }
 
 function sameIdentity(left: GuardDirectoryIdentity, right: GuardDirectoryIdentity): boolean {
@@ -95,25 +90,23 @@ function provisionalReadyFileIsAbsent(): boolean {
 }
 
 function inspectPrivateDirectory(path: string): GuardDirectoryIdentity {
-  const stats = lstatSync(path, { bigint: true });
-  if (
-    !stats.isDirectory()
-    || stats.isSymbolicLink()
-    || !currentUserOwns(stats.uid)
-    || (stats.mode & 0o777n) !== 0o700n
-  ) throw new Error("derivation proxy directory is unavailable or unsafe");
-  return { device: stats.dev.toString(), inode: stats.ino.toString() };
+  let identity: { readonly dev: number; readonly ino: number };
+  try {
+    identity = assertOwnedPathSync(path, { kind: "directory", exactMode: 0o700 });
+  } catch {
+    throw new Error("derivation proxy directory is unavailable or unsafe");
+  }
+  return { device: identity.dev.toString(), inode: identity.ino.toString() };
 }
 
 function inspectPrivateControlSocket(path: string): GuardDirectoryIdentity {
-  const stats = lstatSync(path, { bigint: true });
-  if (
-    !stats.isSocket()
-    || stats.isSymbolicLink()
-    || !currentUserOwns(stats.uid)
-    || (stats.mode & 0o777n) !== 0o600n
-  ) throw new Error("derivation proxy control socket is unavailable or unsafe");
-  return { device: stats.dev.toString(), inode: stats.ino.toString() };
+  let identity: { readonly dev: number; readonly ino: number };
+  try {
+    identity = assertOwnedPathSync(path, { kind: "socket", exactMode: 0o600 });
+  } catch {
+    throw new Error("derivation proxy control socket is unavailable or unsafe");
+  }
+  return { device: identity.dev.toString(), inode: identity.ino.toString() };
 }
 
 function unlinkExactControlSocket(
@@ -147,38 +140,16 @@ function waitForSocketClose(socket: Socket): Promise<void> {
 }
 
 function readPrivateConfig(): unknown {
-  const descriptor = openSync(
-    DERIVATION_GUARD_PROXY_CONFIG,
-    constants.O_RDONLY | ("O_NOFOLLOW" in constants ? constants.O_NOFOLLOW : 0),
-  );
+  let read: ReturnType<typeof readOwnedFileStableSync>;
   try {
-    const before = fstatSync(descriptor, { bigint: true });
-    if (
-      !before.isFile()
-      || !currentUserOwns(before.uid)
-      || (before.mode & 0o777n) !== 0o600n
-      || before.size < 1n
-      || before.size > BigInt(MAX_CONFIG_BYTES)
-    ) throw new Error("derivation proxy config is unavailable or unsafe");
-    const bytes = Buffer.alloc(Number(before.size));
-    let offset = 0;
-    while (offset < bytes.byteLength) {
-      const count = readSync(descriptor, bytes, offset, bytes.byteLength - offset, null);
-      if (count === 0) throw new Error("derivation proxy config changed size");
-      offset += count;
-    }
-    const after = fstatSync(descriptor, { bigint: true });
-    if (
-      before.dev !== after.dev
-      || before.ino !== after.ino
-      || before.size !== after.size
-      || before.mtimeNs !== after.mtimeNs
-      || before.ctimeNs !== after.ctimeNs
-    ) throw new Error("derivation proxy config changed while reading");
-    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
-  } finally {
-    closeSync(descriptor);
+    read = readOwnedFileStableSync(DERIVATION_GUARD_PROXY_CONFIG, MAX_CONFIG_BYTES, {
+      exactMode: 0o600,
+      minimumBytes: 1n,
+    });
+  } catch {
+    throw new Error("derivation proxy config is unavailable or unsafe");
   }
+  return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(read.bytes)) as unknown;
 }
 
 function exactKeys(record: Record<string, unknown>, expected: readonly string[]): boolean {
