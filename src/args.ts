@@ -36,6 +36,8 @@ type MessagingArguments = {
 
 export type GhostgetArguments =
   | { readonly command: "help" }
+  | { readonly command: "login"; readonly json: boolean }
+  | { readonly command: "logout"; readonly json: boolean }
   | { readonly command: "messaging-automation-serve" }
   | { readonly command: "whatsapp-automation-install"; readonly binary?: string; readonly json: boolean }
   | { readonly command: "clip"; readonly arguments: readonly string[] }
@@ -776,6 +778,18 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
   if (raw[0] === "help" || raw[0] === "--help" || raw[0] === "-h") {
     if (raw.length > 1) return { ok: false, message: "help accepts no arguments" };
     return { ok: true, value: { command: "help" } };
+  }
+  if (raw[0] === "login") {
+    const json = simpleJsonOptions(raw.slice(1), "login");
+    return typeof json === "boolean"
+      ? { ok: true, value: { command: "login", json } }
+      : json;
+  }
+  if (raw[0] === "logout") {
+    const json = simpleJsonOptions(raw.slice(1), "logout");
+    return typeof json === "boolean"
+      ? { ok: true, value: { command: "logout", json } }
+      : json;
   }
   const first = raw[0] ?? "";
   if (/^https?:\/\//iu.test(first)) return { ok: true, value: { command: "clip", arguments: raw } };
