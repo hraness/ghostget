@@ -2,7 +2,7 @@
 
 [![Ghostget: precise web capabilities for AI agents](https://ghostget.com/og.png)](https://ghostget.com)
 
-[![skills.sh](https://skills.sh/b/hraness/ghostget)](https://skills.sh/hraness/ghostget)
+[![skills.sh](https://skills.sh/b/hraness/ghostget)](https://www.skills.sh/hraness/ghostget/ghostget)
 
 **Give agents bounded access to pages, media, and connected accounts.**
 

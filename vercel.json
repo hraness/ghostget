@@ -82,6 +82,15 @@
       ]
     },
     {
+      "source": "/404.md",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
       "source": "/(.*).md",
       "headers": [
         {
