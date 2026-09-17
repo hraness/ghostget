@@ -6,6 +6,8 @@
  * optional provider runtime is broken.
  */
 export const ghostgetUsage = `Usage:
+  ghostget login [--json]                             Sign in to Hraness Accounts
+  ghostget logout [--json]                            Sign out of Hraness Accounts
   ghostget --version                                  Print the exact Ghostget release version
   ghostget support [--json]                           View optional product updates and support
   ghostget support protocol --json                    Read the optional agent closeout protocol

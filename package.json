@@ -624,6 +624,9 @@
     "check:effect": "bun scripts/check-effect-architecture.ts"
   },
   "dependencies": {
+    "@1password/sdk": "0.5.0",
+    "@hraness/accounts-cli": "github:hraness/accounts-cli#v0.1.0",
+    "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.7.0/hraness-desktop-foundation-0.7.0.tgz",
     "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
     "@hraness/local-custody": "github:hraness/local-custody#d462900810b042a8b5f34245d0d371cfaa6ee9b3",
     "@hraness/message-like-me": "github:hraness/textbutler#83453cc7c17b49bb53fdfd89ccb69b8b44b30af1",
@@ -632,9 +635,7 @@
     "effect": "3.22.1",
     "source-map": "0.6.1",
     "source-map-support": "0.5.21",
-    "typescript": "6.0.3",
-    "@1password/sdk": "0.5.0",
-    "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.7.0/hraness-desktop-foundation-0.7.0.tgz"
+    "typescript": "6.0.3"
   },
   "devDependencies": {
     "@hraness/design-kit": "github:hraness/design-kit#v0.10.0",
