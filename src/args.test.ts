@@ -1765,4 +1765,25 @@ describe("ghostget CLI grammar", () => {
     expect(result.ok).toBeFalse();
     if (!result.ok) expect(result.message).toContain("--trust-profile-egress");
   });
+
+  test("parses Hraness Accounts login and logout", () => {
+    expect(parseGhostgetArguments(["login"])).toEqual({
+      ok: true,
+      value: { command: "login", json: false },
+    });
+    expect(parseGhostgetArguments(["login", "--json"])).toEqual({
+      ok: true,
+      value: { command: "login", json: true },
+    });
+    expect(parseGhostgetArguments(["logout"])).toEqual({
+      ok: true,
+      value: { command: "logout", json: false },
+    });
+    expect(parseGhostgetArguments(["logout", "--json"])).toEqual({
+      ok: true,
+      value: { command: "logout", json: true },
+    });
+    expect(parseGhostgetArguments(["login", "--wat"]).ok).toBeFalse();
+    expect(parseGhostgetArguments(["logout", "extra"]).ok).toBeFalse();
+  });
 });
