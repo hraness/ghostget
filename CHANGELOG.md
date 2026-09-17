@@ -7,6 +7,8 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.15
+
 - Refresh the X web descriptor evidence for the 2026-09-17 authenticated
   client-web drop. X rotated most GraphQL query IDs and chunk names, so exact
   profile, timeline, and Article operations resume instead of reporting

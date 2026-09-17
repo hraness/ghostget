@@ -22,6 +22,7 @@ import {
 } from "@hraness/kb/clip/acquire";
 import { isPrivateAddress, isPrivateHostname } from "@hraness/kb/clip/network";
 import type { StrictCookie } from "@hraness/kb/clip/cookies";
+import { assertOwnedPathSync } from "@hraness/local-custody/private-paths";
 import type { GhostgetAuth } from "./auth";
 import {
   agentBrowserFailure,
@@ -234,14 +235,14 @@ function ownedByCurrentUser(uid: number | bigint): boolean {
 }
 
 function inspectDirectoryIdentity(path: string): DirectoryIdentity {
-  const stats = lstatSync(path, { bigint: true });
-  if (
-    !stats.isDirectory()
-    || stats.isSymbolicLink()
-    || !ownedByCurrentUser(stats.uid)
-    || (stats.mode & 0o777n) !== 0o700n
-  ) throw new Error("derivation session directory is unsafe");
-  return { device: stats.dev.toString(), inode: stats.ino.toString() };
+  let identity: { readonly dev: number; readonly ino: number };
+  try {
+    identity = assertOwnedPathSync(path, { kind: "directory", exactMode: 0o700 });
+  } catch (error) {
+    if (hasErrorCode(error, "ENOENT")) throw error;
+    throw new Error("derivation session directory is unsafe", { cause: error });
+  }
+  return { device: identity.dev.toString(), inode: identity.ino.toString() };
 }
 
 function parseDirectoryIdentity(value: unknown): DirectoryIdentity {
@@ -1101,25 +1102,21 @@ function inspectPrivateFile(
   maximumBytes: number,
   label: string,
 ): Omit<PrivateFileEvidence, "sha256"> {
-  const stats = (() => {
-    try {
-      return lstatSync(path, { bigint: true });
-    } catch (error) {
-      throw new Error(`${label} is unavailable or unsafe`, { cause: error });
-    }
-  })();
-  if (
-    !stats.isFile()
-    || stats.isSymbolicLink()
-    || !ownedByCurrentUser(stats.uid)
-    || (stats.mode & 0o077n) !== 0n
-    || stats.size < 1n
-    || stats.size > BigInt(maximumBytes)
-  ) throw new Error(`${label} is unavailable or unsafe`);
+  let identity: { readonly dev: number; readonly ino: number; readonly size: number };
+  try {
+    identity = assertOwnedPathSync(path, {
+      kind: "file",
+      ownerOnly: true,
+      minimumBytes: 1n,
+      maximumBytes: BigInt(maximumBytes),
+    });
+  } catch (error) {
+    throw new Error(`${label} is unavailable or unsafe`, { cause: error });
+  }
   return {
-    device: stats.dev.toString(),
-    inode: stats.ino.toString(),
-    byteLength: Number(stats.size),
+    device: identity.dev.toString(),
+    inode: identity.ino.toString(),
+    byteLength: identity.size,
   };
 }
 
@@ -1444,18 +1441,20 @@ function inspectCapturedHar(path: string): {
   readonly inode: string;
   readonly byteLength: number;
 } {
-  const stats = lstatSync(path, { bigint: true });
-  if (
-    !stats.isFile()
-    || stats.isSymbolicLink()
-    || !ownedByCurrentUser(stats.uid)
-    || stats.size < 1n
-    || stats.size > BigInt(MAX_HAR_BYTES)
-  ) throw new Error("derivation review HAR is unavailable or unsafe");
+  let identity: { readonly dev: number; readonly ino: number; readonly size: number };
+  try {
+    identity = assertOwnedPathSync(path, {
+      kind: "file",
+      minimumBytes: 1n,
+      maximumBytes: BigInt(MAX_HAR_BYTES),
+    });
+  } catch (error) {
+    throw new Error("derivation review HAR is unavailable or unsafe", { cause: error });
+  }
   return {
-    device: stats.dev.toString(),
-    inode: stats.ino.toString(),
-    byteLength: Number(stats.size),
+    device: identity.dev.toString(),
+    inode: identity.ino.toString(),
+    byteLength: identity.size,
   };
 }
 
