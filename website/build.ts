@@ -55,10 +55,12 @@ export const SITE_DESCRIPTION =
   "Open-source CLI and TypeScript SDK for precise web capabilities for AI agents: page capture, verified media archives, encrypted reads, and typed provider operations." as const;
 export const REPOSITORY_URL = "https://github.com/hraness/ghostget" as const;
 export const GITHUB_RELEASES_URL = "https://github.com/hraness/ghostget/releases" as const;
-export const SKILLS_URL = "https://skills.sh/hraness/ghostget" as const;
+export const SKILLS_URL = "https://www.skills.sh/hraness/ghostget/ghostget" as const;
 export const PUBLISHER_URL = "https://github.com/hraness" as const;
+export const HRANESS_URL = "https://hraness.com/" as const;
+export const HRANESS_ORGANIZATION_ID = `${HRANESS_URL}#organization` as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.13" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.15" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",
@@ -310,6 +312,7 @@ type RenderOptions = Readonly<{
   attestation: ProviderCapabilityAttestation;
   beeperFacts: BeeperPresentationFacts;
   cssAsset: string;
+  ghostgetContentFooter: string;
   hranessSiteFooter: string;
   packageIdentity: PackageIdentity;
   postHogHost: string;
@@ -428,11 +431,11 @@ function replaceHtmlRequired(template: string, placeholder: string, value: strin
 function sharedJsonLd(identity: PackageIdentity): ReadonlyArray<Readonly<Record<string, unknown>>> {
   return [
     {
-      "@id": `${SITE_ORIGIN}/#organization`,
+      "@id": HRANESS_ORGANIZATION_ID,
       "@type": "Organization",
       name: "Hraness",
       sameAs: [PUBLISHER_URL],
-      url: PUBLISHER_URL,
+      url: HRANESS_URL,
     },
     {
       "@id": `${SITE_ORIGIN}/#website`,
@@ -440,14 +443,14 @@ function sharedJsonLd(identity: PackageIdentity): ReadonlyArray<Readonly<Record<
       description: SITE_DESCRIPTION,
       inLanguage: "en",
       name: "Ghostget",
-      publisher: { "@id": `${SITE_ORIGIN}/#organization` },
+      publisher: { "@id": HRANESS_ORGANIZATION_ID },
       url: `${SITE_ORIGIN}/`,
     },
     {
       "@id": `${SITE_ORIGIN}/#software`,
       "@type": "SoftwareApplication",
       applicationCategory: "DeveloperApplication",
-      author: { "@id": `${SITE_ORIGIN}/#organization` },
+      author: { "@id": HRANESS_ORGANIZATION_ID },
       description: SITE_DESCRIPTION,
       featureList: [
         "Durable Markdown page capture",
@@ -468,7 +471,7 @@ function sharedJsonLd(identity: PackageIdentity): ReadonlyArray<Readonly<Record<
         priceCurrency: "USD",
       },
       operatingSystem: ["macOS", "Linux"],
-      publisher: { "@id": `${SITE_ORIGIN}/#organization` },
+      publisher: { "@id": HRANESS_ORGANIZATION_ID },
       sameAs: [REPOSITORY_URL, versionedPackageArtifactUrl(identity), SKILLS_URL],
       softwareRequirements: "Bun 1.3.14 on macOS or Linux",
       softwareVersion: identity.version,
@@ -531,14 +534,14 @@ function jsonLd(identity: PackageIdentity, page: PublicPage): Readonly<Record<st
         "@id": `${url}#article`,
         "@type": "TechArticle",
         about: { "@id": `${SITE_ORIGIN}/#software` },
-        author: { "@id": `${SITE_ORIGIN}/#organization` },
+        author: { "@id": HRANESS_ORGANIZATION_ID },
         description: page.description,
         headline: page.title,
         image: image === undefined ? undefined : imageObject(image),
         inLanguage: "en",
         isPartOf: { "@id": `${SITE_ORIGIN}/#website` },
         mainEntityOfPage: { "@id": pageId },
-        publisher: { "@id": `${SITE_ORIGIN}/#organization` },
+        publisher: { "@id": HRANESS_ORGANIZATION_ID },
       },
       {
         "@id": `${url}#breadcrumb`,
@@ -558,6 +561,41 @@ function jsonLd(identity: PackageIdentity, page: PublicPage): Readonly<Record<st
   };
 }
 
+const CONTENT_FOOTER_LINKS = [
+  { href: "/getting-started/", label: "Install" },
+  { href: "/provider-capabilities/", label: "Providers" },
+  { href: "/about/", label: "About" },
+  { href: "/contact/", label: "Contact" },
+  { href: "/privacy/", label: "Privacy" },
+  { href: REPOSITORY_URL, label: 'GitHub <span aria-hidden="true">↗</span>' },
+] as const;
+
+// The in-flow product footer is Ghostget's own composition around the shared
+// Hraness network footer: same row contract, Ghostget brand, six links.
+function renderGhostgetContentFooter(): string {
+  const links = CONTENT_FOOTER_LINKS
+    .map(({ href, label }) => `<a class="hraness-marketing-footer__link" href="${href}">${label}</a>`)
+    .join("\n      ");
+  return `<footer aria-label="Ghostget" class="hraness-marketing-footer" data-hraness-marketing="footer">
+  <div class="hraness-marketing-footer__inner">
+    <a class="hraness-marketing-footer__brand" href="/" aria-label="Ghostget home"><img alt="" height="20" src="/icon.png" width="20" /><span class="hraness-marketing-footer__name">Ghostget</span></a>
+    <nav aria-label="Footer navigation" class="hraness-marketing-footer__nav">
+      ${links}
+    </nav>
+  </div>
+</footer>`;
+}
+
+// Every page carries the product's content footer immediately before the
+// shared Hraness network footer; indexable pages keep the Ask AI row between
+// them.
+function renderInFlowFooters(options: RenderOptions, page?: PublicPage): string {
+  const middle = page === undefined
+    ? ""
+    : `${renderAskAiAboutThis(`${SITE_ORIGIN}${page.canonicalPath}`)}\n`;
+  return `${options.ghostgetContentFooter}\n${middle}${options.hranessSiteFooter}`;
+}
+
 function renderTemplate(
   template: string,
   options: RenderOptions,
@@ -573,9 +611,7 @@ function renderTemplate(
     rendered = replaceRequired(
       rendered,
       "{{HRANESS_SITE_FOOTER}}",
-      page === undefined
-        ? options.hranessSiteFooter
-        : `${renderAskAiAboutThis(`${SITE_ORIGIN}${page.canonicalPath}`)}\n${options.hranessSiteFooter}`,
+      renderInFlowFooters(options, page),
     );
   }
   if (page) {
@@ -863,6 +899,7 @@ export async function buildWebsite(
     attestation,
     beeperFacts,
     cssAsset,
+    ghostgetContentFooter: renderGhostgetContentFooter(),
     hranessSiteFooter: renderHranessSiteFooter({
       mailingList: ghostgetMailingListConfig(environment),
       support: ghostgetSupportProfile,

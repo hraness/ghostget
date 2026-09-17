@@ -12,12 +12,12 @@ import {
   mkdtempSync,
   openSync,
   opendirSync,
-  readSync,
   realpathSync,
   rmSync,
   writeFileSync
 } from "fs";
 import { spawnSync } from "child_process";
+import { readOwnedFileStableSync } from "@hraness/local-custody/private-paths";
 import { homedir, tmpdir } from "os";
 import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from "path";
 import { fileURLToPath } from "url";
@@ -367,21 +367,6 @@ function isWithinPath(root, candidate) {
 }
 function hasCode(error, code) {
   return typeof error === "object" && error !== null && "code" in error && error.code === code;
-}
-function readDescriptorBounded(descriptor, maximumBytes) {
-  const chunks = [];
-  const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, maximumBytes + 1));
-  let total = 0;
-  for (;; ) {
-    const remaining = maximumBytes + 1 - total;
-    const count = readSync(descriptor, buffer, 0, Math.min(buffer.byteLength, remaining), null);
-    if (count === 0)
-      return Buffer.concat(chunks, total);
-    total += count;
-    if (total > maximumBytes)
-      throw new Error("file grew beyond its byte bound");
-    chunks.push(Buffer.from(buffer.subarray(0, count)));
-  }
 }
 function pathInside(root, target) {
   const child = relative(root, target);
@@ -825,25 +810,22 @@ function ownedByCurrentUser(stats) {
   return currentUid === undefined || stats.uid === (typeof stats.uid === "bigint" ? BigInt(currentUid) : currentUid);
 }
 function readStateMarker(path) {
-  const noFollow = "O_NOFOLLOW" in constants ? constants.O_NOFOLLOW : 0;
-  const nonBlocking = "O_NONBLOCK" in constants ? constants.O_NONBLOCK : 0;
-  const descriptor = openSync(path, constants.O_RDONLY | noFollow | nonBlocking);
+  let bytes;
   try {
-    const stats = fstatSync(descriptor);
-    if (!stats.isFile() || stats.size > 256 || !ownedByCurrentUser(stats) || (stats.mode & 63) !== 0) {
-      throw new Error("ghostget state marker must be a private, owned regular file");
-    }
+    bytes = readOwnedFileStableSync(path, 256).bytes;
+  } catch (error) {
+    throw new Error("ghostget state marker must be a private, owned regular file", { cause: error });
+  }
+  {
     const content = new TextDecoder("utf-8", {
       fatal: true,
       ignoreBOM: true
-    }).decode(readDescriptorBounded(descriptor, 256));
+    }).decode(bytes);
     if (content !== stateMarkerText)
       throw new Error("ghostget state marker is malformed");
     const value = JSON.parse(content);
     if (typeof value !== "object" || value === null || Array.isArray(value) || Object.keys(value).sort().join(",") !== "kind,schemaVersion" || !("schemaVersion" in value) || value.schemaVersion !== 1 || !("kind" in value) || value.kind !== "io-state")
       throw new Error("ghostget state marker is malformed");
-  } finally {
-    closeSync(descriptor);
   }
 }
 function hasGhostgetPathIdentity(path) {

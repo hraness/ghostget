@@ -82,9 +82,9 @@ describe("Beeper pinned local-CLI provider plugin", () => {
     const plugin = providerPluginRegistry.get("beeper-linked-device");
     const binding = providerPluginRegistry.requireRoute("local-cli", "beeper");
     expect(plugin?.displayName).toBe("Beeper Pinned Local CLI");
-    expect(plugin?.version).toBe("2.4.0");
+    expect(plugin?.version).toBe("2.5.0");
     expect(beeperManifest.schemaVersion).toBe(6);
-    expect(beeperManifest.version).toBe("2.4.0");
+    expect(beeperManifest.version).toBe("2.5.0");
     expect([
       archivedBeeperManifestV20.version,
       archivedBeeperManifestV21.version,
@@ -131,10 +131,16 @@ describe("Beeper pinned local-CLI provider plugin", () => {
       }
     }
     expect(Object.keys(beeperManifest.operations).sort()).toEqual(
-      [...BEEPER_LOCAL_OPERATION_NAMES].sort(),
+      [
+        ...BEEPER_LOCAL_OPERATION_NAMES,
+        "messaging.automation.read",
+        "messaging.automation.send.text",
+      ].sort(),
     );
     const selectedCoordinates = Object.fromEntries(Object.entries(
       beeperManifest.operations,
+    ).filter(([operation]) =>
+      !operation.startsWith("messaging.automation.")
     ).map(([operation, definition]) => [
       operation,
       definition.localCli.contractVersion,
@@ -169,7 +175,11 @@ describe("Beeper pinned local-CLI provider plugin", () => {
     const versionThree = binding.operations.filter((operation) =>
       operation.contractVersion === 3);
     expect(versionOne.map((operation) => operation.name).sort()).toEqual(
-      [...BEEPER_LOCAL_OPERATION_NAMES].sort(),
+      [
+        ...BEEPER_LOCAL_OPERATION_NAMES,
+        "messaging.automation.read",
+        "messaging.automation.send.text",
+      ].sort(),
     );
     expect(versionTwo.map((operation) => operation.name).sort()).toEqual([
       "accounts.list",
@@ -184,7 +194,7 @@ describe("Beeper pinned local-CLI provider plugin", () => {
       "contacts.list",
       "messaging.read",
     ]);
-    expect(binding.operations).toHaveLength(41);
+    expect(binding.operations).toHaveLength(43);
     for (const operation of binding.operations) {
       expect(operation.historicalContractVersions).toBeUndefined();
     }
@@ -218,7 +228,7 @@ describe("Beeper pinned local-CLI provider plugin", () => {
     expect(readOmniV1.materialize).not.toBe(readOmniV2.materialize);
     expect(readOmniV2.materialize).not.toBe(readOmniV3.materialize);
     expect(readOmniV1.materialize).not.toBe(readOmniV3.materialize);
-    expect(binding.operations.filter((operation) => operation.risk === "R1")).toHaveLength(23);
+    expect(binding.operations.filter((operation) => operation.risk === "R1")).toHaveLength(24);
     expect(binding.operations.every((operation) => operation.state === "observed")).toBeTrue();
     for (const operationName of [
       "accounts.list",
@@ -340,11 +350,11 @@ describe("Beeper pinned local-CLI provider plugin", () => {
     const binding = providerPluginRegistry.requireRoute("local-cli", "beeper");
     expect(providerPluginRegistry.implementationClosureHash(binding)).toBe(baseline.hash);
 
-    // Beeper 2.4.0's durable writer identity was reviewed against this closure
-    // at 5fb740ec4fef243734734bfbd917ed09bc7001c2. Current runtime source changes
-    // must change the execution closure above without rewriting that identity.
+    // Beeper 2.5.0's durable writer identity was reviewed against this closure
+    // carrying the scoped automation permission routes. Later runtime source
+    // changes must change the execution closure above without rewriting it.
     const reviewedDistributionClosureSha256 =
-      "4fd54b5f19fae01e72b6c6d10b2f6d7debbd5225086cf7026d806a3df193e103";
+      "fbd313667c9228aa74489a0239d74fd10a851d09000df879e6d5807da2bef455";
     const adapterSha256 = createHash("sha256")
       .update(readFileSync(
         join(import.meta.dir, "assets", "adapters", "beeper", "wrench-web-adapter.json"),
@@ -355,9 +365,9 @@ describe("Beeper pinned local-CLI provider plugin", () => {
         format: "wrench.reviewed-built-in-contract-identity",
         schemaVersion: 1,
         pluginId: "beeper-linked-device",
-        pluginVersion: "2.4.0",
+        pluginVersion: "2.5.0",
         adapterId: "beeper-local",
-        adapterVersion: "2.4.0",
+        adapterVersion: "2.5.0",
         adapterSha256,
         localCliSurfaceSha256: BEEPER_CLI_V062_WHOLE_SURFACE_SHA256,
         implementationClosureSha256: reviewedDistributionClosureSha256,
@@ -365,7 +375,7 @@ describe("Beeper pinned local-CLI provider plugin", () => {
       .digest("hex");
     expect(reviewedBuiltInContractIdentity(
       "beeper-linked-device",
-      "2.4.0",
+      "2.5.0",
     ).implementationSha256).toBe(derivedContractIdentity);
     expect(providerPluginRegistry.contractImplementationHash(binding).toString("hex"))
       .toBe(derivedContractIdentity);
@@ -394,6 +404,8 @@ describe("Beeper pinned local-CLI provider plugin", () => {
       "contacts.list@2",
       "messaging.read@3",
     ]);
+    const distribution24 =
+      "a989e65e372aa63af41cb36f32d6a1d769c734ba0adc207dd2f25d916f877ff5";
     const distribution23 =
       "2d2cef38ce2d0c193f4e6890c51d59f8a3547d9011d5c3aa8df18f5f077ebcdd";
     const distribution22 =
@@ -405,8 +417,11 @@ describe("Beeper pinned local-CLI provider plugin", () => {
         operation.contractVersion,
       ).map((value) => value.toString("hex"));
       const coordinate = `${operation.name}@${String(operation.contractVersion)}`;
-      const expected = operation.contractVersion === 1
+      const expected = operation.name.startsWith("messaging.automation.")
+        ? []
+        : operation.contractVersion === 1
         ? [
+            distribution24,
             distribution23,
             distribution22,
             "89a51cc1e082b15ff89dd4e85e48e218653ca4bf7e49b5bbc824e5381bad86e1",
@@ -416,10 +431,12 @@ describe("Beeper pinned local-CLI provider plugin", () => {
               : ["6b166b3cd61866e1af17d1d0fd2e63b78500f9e49255a03d89ca11ed6406ec92"]),
           ]
         : operation.contractVersion === 2 && directV2.has(operation.name)
-          ? [distribution23, distribution22]
+          ? [distribution24, distribution23, distribution22]
           : ownedBy23.has(coordinate)
-            ? [distribution23]
-            : [];
+            ? [distribution24, distribution23]
+            : coordinate === "contacts.list@3"
+              ? [distribution24]
+              : [];
       expect(legacy, coordinate).toEqual(expected);
     }
   });
@@ -486,8 +503,8 @@ describe("Beeper pinned local-CLI provider plugin", () => {
     expect(surface.executable.artifacts).toHaveLength(4);
     expect(surface.sdk).toEqual(BEEPER_DESKTOP_API_PIN);
     expect(surface.runtime).toMatchObject({
-      providerPluginVersion: "2.4.0",
-      adapterVersion: "2.4.0",
+      providerPluginVersion: "2.5.0",
+      adapterVersion: "2.5.0",
       operationContractVersions: BEEPER_LOCAL_OPERATION_CONTRACT_VERSIONS,
       operationInputTypes: BEEPER_LOCAL_OPERATION_INPUT_TYPES,
     });
@@ -512,7 +529,7 @@ describe("Beeper pinned local-CLI provider plugin", () => {
       .toBe(BEEPER_CLI_V062_UPSTREAM_SURFACE_SHA256);
     expect(surface.digests.wholeSurfaceSha256)
       .toBe(BEEPER_CLI_V062_WHOLE_SURFACE_SHA256);
-    expect(reviewedBuiltInContractIdentity("beeper-linked-device", "2.4.0").implementationSha256)
+    expect(reviewedBuiltInContractIdentity("beeper-linked-device", "2.5.0").implementationSha256)
       .not.toBe(BEEPER_CLI_V062_WHOLE_SURFACE_SHA256);
 
     const publicManualSemanticProfiles = Object.fromEntries(surface.commands

@@ -1920,11 +1920,21 @@ body {
 }
 
 .wordmark {
+  align-items: center;
   color: var(--foreground);
+  display: inline-flex;
   font-family: var(--font-sans);
   font-size: 1rem;
   font-weight: 600;
+  gap: 0.45rem;
   letter-spacing: -0.01em;
+}
+
+/* The wordmark icon matches the marketing contract's 1.25rem line height. */
+.wordmark img {
+  block-size: 1.25rem;
+  display: inline-block;
+  inline-size: auto;
 }
 
 /* Labels: sentence case in the text face. Monospace stays with code. */

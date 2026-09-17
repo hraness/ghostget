@@ -1,7 +1,8 @@
 # Owner messaging host
 
 `ghostget messaging automation serve --stdio` is the trusted owner control port
-for enrolled iMessage and WhatsApp conversations. It is never an agent tool.
+for enrolled iMessage, WhatsApp, and Beeper conversations. It is never an agent
+tool.
 All configuration, targets, message bodies and assets arrive on stdin; stdout
 contains only protocol responses. Do not run it in a terminal or record its
 streams in general logs. It does not pair accounts or start synchronization on
@@ -15,11 +16,13 @@ must enforce their own exact permissions and cleanup. Use the stdio host above
 for Ghostget's built-in accounts and managed registry; its session factory is
 internal and is not part of the SDK.
 
-Install the current bundled `imessage-direct` or `whatsapp-web` adapter, bind an
-explicit existing Ghostget account, and enable managed operation permissions in
-Ghostget. Grant `allow` separately to `messaging.automation.read`, the required
-`messaging.automation.send.<kind>` operations, and (WhatsApp only)
-`messaging.automation.sync`. An old `messaging.send` allow does not authorize this
+Install the current bundled `imessage-direct`, `whatsapp-web`, or `beeper-local`
+adapter, bind an explicit existing Ghostget account, and enable managed
+operation permissions in Ghostget. Grant `allow` separately to
+`messaging.automation.read`, the required `messaging.automation.send.<kind>`
+operations, and (WhatsApp only) `messaging.automation.sync`. Beeper admits exact
+text sends only: `messaging.automation.send.text` is its sole send permission.
+An old `messaging.send` allow does not authorize this
 host. `ask`, `deny`, and an unmanaged policy do not provide unattended authority.
 Updated manifests and automatic implementation closures invalidate old grants.
 These catalog entries cannot dispatch through generic `invoke` or `confirm`.
@@ -30,6 +33,10 @@ The private transport binaries are separate owner setup:
 ghostget imessage transport install --json
 ghostget whatsapp automation install --json
 ```
+
+Beeper has no bundled runtime: its transport is the separately installed pinned
+`beeper` CLI against the running Beeper Desktop local API on its fixed loopback
+target.
 
 The default installs the exact compressed runtime included in the Ghostget package. An optional `--binary /absolute/reviewed-file` selects an explicit source instead. Only exact pinned bytes are accepted. Installation starts no helper. The
 WhatsApp binary is the reviewed wacli build with durable events and exact action
@@ -46,7 +53,7 @@ responses can arrive before a pending ordinary response.
 
 | Method | Exact params | Result |
 | --- | --- | --- |
-| initialize | providers: 1–2 `{provider,authId}`, distinct networks | `{initialized:true}` |
+| initialize | providers: 1–3 `{provider,authId}`, distinct networks | `{initialized:true}` |
 | status | provider | Current identity and permissions-intersected capabilities |
 | start | provider | Current status; WhatsApp sync starts explicitly |
 | conversations | provider, limit (1–200) | Current individual conversations |

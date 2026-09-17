@@ -4,7 +4,7 @@ import {
 } from "./index-26yq8q16.js";
 import {
   GHOSTGET_VERSION
-} from "./index-maa9hb5z.js";
+} from "./index-4tsyncva.js";
 import {
   canonicalJson,
   sha256
@@ -27,7 +27,7 @@ import {
 var wrench_web_adapter_default = {
   schemaVersion: 6,
   id: "beeper-local",
-  version: "2.4.0",
+  version: "2.5.0",
   displayName: "Beeper (Pinned Local CLI)",
   surfaceId: "beeper",
   origins: [
@@ -1521,6 +1521,42 @@ var wrench_web_adapter_default = {
         timeoutMs: 120000,
         maxOutputBytes: 10485760
       }
+    },
+    "messaging.automation.read": {
+      description: "Scoped owner automation permission; use ghostget messaging automation serve --stdio. Generic invocation is unavailable.",
+      risk: "R1",
+      sideEffect: "none",
+      idempotency: "none",
+      dedupeWindowMs: 0,
+      input: {
+        properties: {},
+        required: []
+      },
+      localCli: {
+        surface: "beeper",
+        action: "messaging.automation.read",
+        contractVersion: 1,
+        timeoutMs: 30000,
+        maxOutputBytes: 8388608
+      }
+    },
+    "messaging.automation.send.text": {
+      description: "Scoped owner automation permission; use ghostget messaging automation serve --stdio. Generic invocation is unavailable.",
+      risk: "R3",
+      sideEffect: "Submit one exact action through an enrolled conversation and an unexpired bounded owner grant; delivery remains unknown.",
+      idempotency: "local-at-most-once",
+      dedupeWindowMs: 86400000,
+      input: {
+        properties: {},
+        required: []
+      },
+      localCli: {
+        surface: "beeper",
+        action: "messaging.automation.send.text",
+        contractVersion: 1,
+        timeoutMs: 30000,
+        maxOutputBytes: 8388608
+      }
     }
   }
 };
@@ -2762,7 +2798,7 @@ function beeperLocalSurfaceInputType(value) {
   return value;
 }
 var adapterOperations = wrench_web_adapter_default.operations;
-var BEEPER_LOCAL_OPERATION_INPUT_TYPES = Object.freeze(Object.fromEntries(Object.keys(adapterOperations).sort().map((operation) => [
+var BEEPER_LOCAL_OPERATION_INPUT_TYPES = Object.freeze(Object.fromEntries([...BEEPER_LOCAL_OPERATION_NAMES].sort().map((operation) => [
   operation,
   Object.freeze(Object.fromEntries(Object.keys(adapterOperations[operation].input.properties).sort().map((field) => [
     field,
@@ -3774,9 +3810,9 @@ var BEEPER_CLI_V062_SURFACE_CONTRACT = defineLocalCliSurfaceContractV1({
   sdk: BEEPER_DESKTOP_API_PIN,
   runtime: {
     providerPluginId: "beeper-linked-device",
-    providerPluginVersion: "2.4.0",
+    providerPluginVersion: "2.5.0",
     adapterId: "beeper-local",
-    adapterVersion: "2.4.0",
+    adapterVersion: "2.5.0",
     operationContractVersions: BEEPER_LOCAL_OPERATION_CONTRACT_VERSIONS,
     operationInputTypes: BEEPER_LOCAL_OPERATION_INPUT_TYPES,
     target: BEEPER_DESKTOP_TARGET,
@@ -3790,7 +3826,7 @@ var BEEPER_CLI_V062_SURFACE_CONTRACT = defineLocalCliSurfaceContractV1({
 var BEEPER_CLI_V062_UPSTREAM_SURFACE_SHA256 = "74297df1af30fe89cf1596a0670983e79cf85c0768c2f68e9bc3d386be640836";
 var BEEPER_CLI_V062_CLASSIFICATION_SHA256 = "bcd411af1544e5cd618cd3c04f2852a797bd804d92b7fe4cd226374b61c57d08";
 var BEEPER_CLI_V062_SEMANTIC_PROFILES_SHA256 = "fb7ea5f70f004dd8090c3e6e0996bfa00b0bab8ea5639203e2d1027602450ffe";
-var BEEPER_CLI_V062_WHOLE_SURFACE_SHA256 = "72201ac5eb3532f7c159583f19009f547d7d313e86388466b57c135bd2dc4944";
+var BEEPER_CLI_V062_WHOLE_SURFACE_SHA256 = "bedc3063a7a792686e351c78e7ba3ed2a5fc0cc6efd3d88a23d9b7ae777765e2";
 var BEEPER_CLI_V062_PUBLIC_MANUAL_SEMANTIC_PROFILE_SHA256 = Object.freeze({
   setup: "cd432e2649e5724d70398e739a2d1c0c21557a23820aaa14562575a5fe689406",
   "install desktop": "478f4cc022b1d51d4016a319efea17e4523c55e3168560c99fdf7779347ae78a",

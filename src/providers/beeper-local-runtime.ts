@@ -2544,11 +2544,11 @@ async function directMessagesV3(
     cursor: string;
   }> | null;
 }>> {
-  const selfUserId = requireBoundSelfAccount(
+  const selfUserIds = boundSelfUserIds(
+    requireBoundSelfAccount(realm.accounts, input.accountId, "messaging.read"),
     realm.accounts,
-    input.accountId,
     "messaging.read",
-  ).user.id;
+  );
   const collected: unknown[] = [];
   const seenIds = new Set<string>();
   const seenCursors = new Set<string>();
@@ -2582,8 +2582,8 @@ async function directMessagesV3(
       input,
     ));
     if (parsed.some((message) =>
-      message.isSender === true && message.senderId !== selfUserId
-      || message.isSender === false && message.senderId === selfUserId)) {
+      message.isSender === true && !selfUserIds.has(message.senderId)
+      || message.isSender === false && selfUserIds.has(message.senderId))) {
       throw new Error(
         "Beeper Desktop direct message direction contradicted the bound account self identity",
       );
@@ -3868,7 +3868,7 @@ export async function reconcileBeeperLocalOperation(
             const actualState = action === "messaging.edit"
               ? message.isSender === true && message.text === value.text
               : message.reactions.some((reaction) =>
-                  reaction.participantId === requireBoundAccount(accounts, accountId, action).user.id
+                  boundSelfUserIds(requireBoundAccount(accounts, accountId, action), accounts, action).has(reaction.participantId)
                   && reaction.reactionKey === value.reaction);
             return Object.freeze({
               actualState,
@@ -4032,13 +4032,21 @@ function conversationOutput(
   if (accountId !== null && !accountIds.has(accountId)) {
     throw new Error("messaging.list requested an account outside the bound Beeper realm");
   }
-  const conversations = strictArray(raw, "Beeper conversations", MAX_CHATS)
-    .map((item, index) => parseConversation(
-      item,
-      `Beeper conversations[${index}]`,
-      accountIds,
-      accountId,
-    ));
+  const rows = strictArray(raw, "Beeper conversations", MAX_CHATS);
+  // Desktop keeps chats for stale bridge accounts that /v1/accounts no longer
+  // enumerates. An unfiltered list excludes those rows instead of failing the
+  // whole projection; every emitted row still binds to the realm and scoped
+  // reads keep their exact-account check.
+  let excludedOutOfRealm = 0;
+  const conversations = rows.flatMap((item, index) => {
+    if (
+      accountId === null
+      && typeof item === "object" && item !== null
+      && typeof (item as Readonly<Record<string, unknown>>).accountID === "string"
+      && !accountIds.has((item as Readonly<Record<string, unknown>>).accountID as string)
+    ) { excludedOutOfRealm += 1; return []; }
+    return [parseConversation(item, `Beeper conversations[${index}]`, accountIds, accountId)];
+  });
   for (const conversation of conversations) {
     if (
       (input.archived !== null && (conversation.isArchived === true) !== input.archived)
@@ -4055,7 +4063,7 @@ function conversationOutput(
   }
   const ids = conversations.map((conversation) => `${conversation.accountId}\0${conversation.id}`);
   if (new Set(ids).size !== ids.length) throw new Error("Beeper conversations repeat an account-scoped ID");
-  const requestedLimitReached = conversations.length >= input.limit;
+  const requestedLimitReached = rows.length >= input.limit;
   return Object.freeze({
     provider: "beeper",
     operation: "messaging.list",
@@ -4070,9 +4078,11 @@ function conversationOutput(
       remoteConversationSetComplete: false,
       continuationAvailable: false,
       requestedLimitReached,
+      excludedOutOfRealmConversationCount: excludedOutOfRealm,
       warnings: Object.freeze([
         "beeper-cli-v0.6.2-chat-result-window-has-no-continuation",
         "newly-connected-accounts-may-have-incomplete-history",
+        ...(excludedOutOfRealm > 0 ? ["beeper-out-of-realm-conversations-excluded"] : []),
       ]),
     }),
   });
@@ -4302,11 +4312,8 @@ function directMessageOutputV3(
   raw: unknown,
   continuation: Readonly<{ direction: "before" | "after"; cursor: string }> | null,
 ) {
-  const selfUserId = requireBoundSelfAccount(
-    accounts,
-    input.accountId,
-    "messaging.read",
-  ).user.id;
+  const selfAccount = requireBoundSelfAccount(accounts, input.accountId, "messaging.read");
+  const selfUserIds = boundSelfUserIds(selfAccount, accounts, "messaging.read");
   const messages = strictArray(raw, "Beeper direct messages", input.limit)
     .map((item, index) => parseMessage(
       item,
@@ -4315,7 +4322,7 @@ function directMessageOutputV3(
     ));
   if (messages.some((message) =>
     message.isSender !== null
-    && message.isSender !== (message.senderId === selfUserId))) {
+    && message.isSender !== selfUserIds.has(message.senderId))) {
     throw new Error(
       "Beeper direct messages contradicted the bound account self identity",
     );
@@ -4367,7 +4374,8 @@ function directMessageOutputV3(
     projection: "bounded-local-desktop-direct-iterator",
     accountId: input.accountId,
     conversationId: input.conversationId,
-    selfUserId,
+    selfUserId: selfAccount.user.id,
+    canonicalSelfUserId: canonicalSelfUserId(accounts, "messaging.read"),
     requestCursor,
     requestDirection,
     requestedSender: input.sender,
@@ -4413,6 +4421,38 @@ function requireBoundSelfAccount(
     throw new Error(`${operation} bound account did not prove its exact self user identity`);
   }
   return account;
+}
+
+/** The realm's canonical Matrix self identity when exactly one is present;
+ * Desktop reports it as `senderID`/`participantId` for the owner on every
+ * bridge rather than each account's bridge-scoped user ID. */
+function canonicalSelfUserId(
+  accounts: readonly BeeperAccountProjection[],
+  operation: string,
+): string | null {
+  const canonical = accounts.filter((candidate) =>
+    candidate.user.isSelf === true
+    && (
+      candidate.bridge.type.toLowerCase() === "matrix"
+      || candidate.network?.toLowerCase() === "beeper"
+    ));
+  if (canonical.length > 1) {
+    throw new Error(`${operation} found ambiguous canonical self identities`);
+  }
+  return canonical.length === 1 ? canonical[0]!.user.id : null;
+}
+
+/** Self sender identities proven by the bound realm: the given bound account's
+ * bridge-scoped user ID plus the canonical Matrix self identity. */
+function boundSelfUserIds(
+  account: BeeperAccountProjection,
+  accounts: readonly BeeperAccountProjection[],
+  operation: string,
+): ReadonlySet<string> {
+  const self = new Set([account.user.id]);
+  const canonical = canonicalSelfUserId(accounts, operation);
+  if (canonical !== null) self.add(canonical);
+  return self;
 }
 
 function exactConversation(

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "id": "beeper-local",
-  "version": "2.5.0",
+  "version": "2.4.0",
   "displayName": "Beeper (Pinned Local CLI)",
   "surfaceId": "beeper",
   "origins": [
@@ -1494,42 +1494,6 @@
         "contractVersion": 1,
         "timeoutMs": 120000,
         "maxOutputBytes": 10485760
-      }
-    },
-    "messaging.automation.read": {
-      "description": "Scoped owner automation permission; use ghostget messaging automation serve --stdio. Generic invocation is unavailable.",
-      "risk": "R1",
-      "sideEffect": "none",
-      "idempotency": "none",
-      "dedupeWindowMs": 0,
-      "input": {
-        "properties": {},
-        "required": []
-      },
-      "localCli": {
-        "surface": "beeper",
-        "action": "messaging.automation.read",
-        "contractVersion": 1,
-        "timeoutMs": 30000,
-        "maxOutputBytes": 8388608
-      }
-    },
-    "messaging.automation.send.text": {
-      "description": "Scoped owner automation permission; use ghostget messaging automation serve --stdio. Generic invocation is unavailable.",
-      "risk": "R3",
-      "sideEffect": "Submit one exact action through an enrolled conversation and an unexpired bounded owner grant; delivery remains unknown.",
-      "idempotency": "local-at-most-once",
-      "dedupeWindowMs": 86400000,
-      "input": {
-        "properties": {},
-        "required": []
-      },
-      "localCli": {
-        "surface": "beeper",
-        "action": "messaging.automation.send.text",
-        "contractVersion": 1,
-        "timeoutMs": 30000,
-        "maxOutputBytes": 8388608
       }
     }
   }

@@ -12,8 +12,12 @@ and executable provenance remain code-owned source-plugin responsibilities.
 The built-in Beeper adapter is the first production example. It turns the
 pinned official `@beeper/cli` 0.6.2 executable into 26 CLI-backed operations
 and adds six fixed Beeper Desktop loopback reads, for 32 named operations in
-all. The source plugin owns executable and endpoint verification, Desktop-target
-and account binding, strict projections, process bounds, and mutation recovery.
+all. Adapter 2.5.0 also declares `messaging.automation.read` and
+`messaging.automation.send.text`, two scoped owner-automation permission
+descriptors served only through the `ghostget messaging automation` host; they
+have no generic command path. The source plugin owns executable and endpoint
+verification, Desktop-target and account binding, strict projections, process
+bounds, and mutation recovery.
 See the public [Beeper provider guide](https://ghostget.com/providers/beeper/) and
 the current release's [supported-action directory](https://ghostget.com/provider-capabilities/#provider-beeper).
 

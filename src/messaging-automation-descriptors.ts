@@ -10,8 +10,15 @@ export function automationPermissionOperation(operation: string): string {
   throw new Error("This messaging action has no admitted host permission.");
 }
 
+const AUTOMATION_SEND_KINDS: Readonly<Record<AutomationProviderId, readonly string[]>> = Object.freeze({
+  imessage: Object.freeze(["text", "attachment", "reaction", "sticker", "link", "poll"]),
+  whatsapp: Object.freeze(["text", "attachment", "reaction", "sticker", "link", "poll"]),
+  // The pinned Beeper local transport admits exact text sends only.
+  beeper: Object.freeze(["text"]),
+});
+
 export function automationOperationDefinitions(provider: AutomationProviderId): readonly LocalCliPluginOperationDefinitionV1[] {
-  const names = ["messaging.automation.read", ...(provider === "whatsapp" ? ["messaging.automation.sync"] : []), ...["text", "attachment", "reaction", "sticker", "link", "poll"].map(kind => `messaging.automation.send.${kind}`)];
+  const names = ["messaging.automation.read", ...(provider === "whatsapp" ? ["messaging.automation.sync"] : []), ...AUTOMATION_SEND_KINDS[provider].map(kind => `messaging.automation.send.${kind}`)];
   return names.map(name => ({
     name, contractVersion: 1, risk: name.endsWith(".read") ? "R1" : name.endsWith(".sync") ? "R2" : "R3",
     input: { properties: {}, required: [] },
@@ -27,3 +34,4 @@ export function automationOperationDefinitions(provider: AutomationProviderId): 
 // pinned runtime. The owner permission kernel stays outside provider plugins.
 export function loadImsgAutomationRuntime() { return import("./providers/imessage-automation"); }
 export function loadWhatsAppAutomationRuntime() { return import("./providers/whatsapp-automation"); }
+export function loadBeeperAutomationRuntime() { return import("./providers/beeper-automation"); }

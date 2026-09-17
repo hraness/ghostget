@@ -15,7 +15,7 @@ type Asset = { bytes: Uint8Array; sha256: string; expires: number; plan: string 
 const MAX_ASSET = 16 * 1024 * 1024;
 const MAX_FRAME = 24 * 1024 * 1024;
 const MAX_RESPONSE = 32 * 1024 * 1024;
-const provider = (value: unknown): AutomationProviderId => { if (value !== "imessage" && value !== "whatsapp") throw new Error("Invalid provider"); return value; };
+const provider = (value: unknown): AutomationProviderId => { if (value !== "imessage" && value !== "whatsapp" && value !== "beeper") throw new Error("Invalid provider"); return value; };
 export class AutomationHostRecoveryRequired extends Error {}
 
 /** One trusted owner connection. No agent receives this port. */
@@ -44,7 +44,7 @@ export class MessagingAutomationRpcServer {
     if (method === "initialize") {
       if (this.initialized || this.closed) throw new Error("Already initialized");
       const r = automationRecord(raw, ["providers"]);
-      const accounts = automationArray(r.providers, 2).map(value => {
+      const accounts = automationArray(r.providers, 3).map(value => {
         const item = automationRecord(value, ["provider", "authId"]); const authId = automationText(item.authId, 48);
         if (!/^[a-z][a-z0-9-]{0,47}$/u.test(authId)) throw new Error("Invalid account identifier");
         return { provider: provider(item.provider), authId };

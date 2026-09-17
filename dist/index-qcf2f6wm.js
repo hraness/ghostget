@@ -59,6 +59,10 @@ function parseAutomationCoordinate(value) {
       throw new Error("Only exact iMessage conversations are supported.");
     return Object.freeze({ provider, chatGuid, service: "iMessage", observedChatRowId: automationInteger(r2.observedChatRowId, 1, Number.MAX_SAFE_INTEGER) });
   }
+  if (provider === "beeper") {
+    const r2 = automationRecord(value, ["provider", "accountId", "conversationId"]);
+    return Object.freeze({ provider, accountId: automationText(r2.accountId, 512), conversationId: automationText(r2.conversationId, 2048) });
+  }
   const r = automationRecord(value, ["provider", "conversationJid"]);
   if (provider !== "whatsapp" || typeof r.conversationJid !== "string" || !/^(?:[1-9][0-9]{4,14}@s\.whatsapp\.net|[1-9][0-9]{4,19}@lid)$/u.test(r.conversationJid))
     throw new Error("Only exact individual WhatsApp conversations are supported.");
@@ -66,7 +70,7 @@ function parseAutomationCoordinate(value) {
 }
 function parseAutomationIdentity(value) {
   const r = automationRecord(value, ["provider", "authId", "accountIdentity", "accountSubject", "implementationIdentity", "sourceGeneration"]);
-  if (r.provider !== "imessage" && r.provider !== "whatsapp")
+  if (r.provider !== "imessage" && r.provider !== "whatsapp" && r.provider !== "beeper")
     throw new Error("Messaging provider is invalid.");
   return Object.freeze({ provider: r.provider, authId: automationId(r.authId), accountIdentity: automationDigest(r.accountIdentity), accountSubject: automationText(r.accountSubject, 512), implementationIdentity: automationDigest(r.implementationIdentity), sourceGeneration: automationText(r.sourceGeneration, 256) });
 }

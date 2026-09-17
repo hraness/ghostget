@@ -1,3 +1,42 @@
+// Ghostget 0.18.15 release preparation over the X evidence refresh adds
+// exactly 12 payload bytes and no files: the version coordinate bumps and the
+// 0.18.15 changelog heading. npm 11.16.0 under darwin arm64 measured this
+// candidate at 11,685,812 compressed / 22,656,407 payload bytes across
+// exactly 563 files; archive SHA-1 48fd15078406b0e314410f70db4a4a33a3ab6241.
+// Keep the packed ceiling and the exact inventory; raise the payload ceiling
+// by the measured delta while preserving the reviewed 65-byte allowance:
+// 22,656,407 + 65 = 22,656,472. Required Linux CI and the canonical Release
+// independently admit their actual archives.
+//
+// The 2026-09-17 X descriptor evidence refresh over the 0.18.14 release
+// preparation adds exactly 918 payload bytes and no files: current
+// authenticated client-web query IDs, longer shared-chunk filenames, the
+// retired DM search descriptors, the profile-read guard for X's empty-data
+// deleted-account shape, and its changelog note. npm 11.16.0 under darwin
+// arm64 measured this candidate at 11,685,806 compressed / 22,656,395
+// payload bytes across exactly 563 files; archive SHA-1
+// 350518b514afe8281e1a33e8a4cc1784e674b538. Keep the packed ceiling and the
+// exact inventory; raise the payload ceiling by the measured delta while
+// preserving the reviewed 65-byte allowance: 22,656,395 + 65 = 22,656,460.
+// Required Linux CI and the canonical Release independently admit their
+// actual archives.
+//
+// Ghostget 0.18.14 release preparation over main 5a58396 adds exactly 1,139
+// payload bytes and no files: the version coordinate bumps package.json,
+// src/version.ts, the declared producer literal in src/beeper-client-types.ts
+// and README, publishing, skill install, and local-CLI provider prose; the
+// changelog gains the Beeper automation release note; and the generated
+// version chunk renames.
+// A Bun 1.3.14 pack on darwin arm64 measured 11,536,607 compressed /
+// 22,655,477 payload bytes across exactly 563 files, SHA-256
+// 6a09a4699b387e0d0a204379c7a3a2f10a79510778f1605851215d424af28404.
+// Raise the packed ceiling by the documented darwin/Linux zlib spread
+// (148,155 bytes at 9af4d34) plus the reviewed 4,096-byte portability
+// allowance: 11,536,607 + 148,155 + 4,096 = 11,688,858. Retain the
+// reviewed 65-byte payload allowance: 22,655,477 + 65 = 22,655,542.
+// Canonical Node/npm Linux CI and Release independently admit their actual
+// archive; this is local evidence.
+//
 // Shared-footer v0.13.0 repin over main c4c1469 adds exactly 369 payload
 // bytes, all in CHANGELOG.md: the six-line Unreleased note for the shared
 // "Built by Hraness" attribution. The `github:hraness/site-footer#v0.13.0`
@@ -52,6 +91,24 @@
 // Keep the existing packed ceiling and the reviewed 65-byte payload allowance:
 // 22,562,509 + 1,974 + 65 = 22,564,548. Required Linux CI and the canonical
 // Release independently admit their actual archive and installation.
+//
+// Beeper owner-messaging automation over main f239de1 adds exactly two
+// packed files and 82,261 payload bytes:
+// src/assets/adapters/beeper/wrench-web-adapter.v2.4.0.json +44,811 (the
+// archived pre-automation adapter baseline) and
+// src/providers/beeper-automation.ts +29,199 (the host-only automation
+// provider), plus the current adapter manifest's two new
+// messaging.automation.* operation descriptors and rebuilt dist chunks.
+// The dist entry set is unchanged: six renamed content-hash chunks replace
+// six predecessors. A Bun 1.3.14 pack on darwin arm64 measured 11,536,183
+// compressed / 22,654,338 payload bytes across exactly 563 files, SHA-256
+// a20110e0fbb5fc3cdf36d7fe8551a46a415e37d76ca6e738e4171f2f4a420355.
+// Raise the packed ceiling by the documented darwin/Linux zlib spread
+// (148,155 bytes at 9af4d34) plus the reviewed 4,096-byte portability
+// allowance: 11,536,183 + 148,155 + 4,096 = 11,688,434. Retain the
+// reviewed 65-byte payload allowance: 22,654,338 + 65 = 22,654,403.
+// Canonical Node/npm Linux CI and Release independently admit their actual
+// archive; this is local evidence.
 //
 // Shared-foundation menu-bar migration over main dd1f377 adds exactly one
 // packed file and 33,838 payload bytes: src/control/menubar-cli.ts +33,710
@@ -980,12 +1037,12 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 11_677_251;
-export const MAX_PACKED_ENTRIES = 561;
-export const MAX_PACKED_FILES = 561;
-// The shared-footer v0.13.0 repin measured 22,572,077 unpacked bytes; the
+export const MAX_PACKED_BYTES = 11_688_858;
+export const MAX_PACKED_ENTRIES = 563;
+export const MAX_PACKED_FILES = 563;
+// The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
-export const MAX_UNPACKED_BYTES = 22_572_142;
+export const MAX_UNPACKED_BYTES = 22_656_472;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

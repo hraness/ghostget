@@ -2,7 +2,7 @@
 
 [![Ghostget: precise web capabilities for AI agents](https://ghostget.com/og.png)](https://ghostget.com)
 
-[![skills.sh](https://skills.sh/b/hraness/ghostget)](https://skills.sh/hraness/ghostget)
+[![skills.sh](https://skills.sh/b/hraness/ghostget)](https://www.skills.sh/hraness/ghostget/ghostget)
 
 **Give agents bounded access to pages, media, and connected accounts.**
 
@@ -79,7 +79,7 @@ The protocol and [Agent Skill](skills/ghostget/SKILL.md) describe the handoff.
 
 ## Built-in provider catalog
 
-This v0.18.13 source tree supports executable actions for 20 services: Beeper,
+This v0.18.15 source tree supports executable actions for 20 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WhatsApp, X, and YouTube.
@@ -94,7 +94,10 @@ Beeper is Ghostget's first provider adapter with a pinned local-CLI transport. I
 manage reactions, drafts, reminders, and conversation state; and preview and
 confirm sends, edits, group changes, and presence. Of those, 26 operations use
 the authoritative `@beeper/cli` 0.6.2 executable; six reads use fixed Beeper
-Desktop loopback endpoints. Ghostget binds one Desktop target and does not expose
+Desktop loopback endpoints. Adapter 2.5.0 adds two scoped owner-automation
+permissions, `messaging.automation.read` and `messaging.automation.send.text`,
+served only through the owner-driven `ghostget messaging automation` host with
+sends behind an explicit bounded grant. Ghostget binds one Desktop target and does not expose
 a generic command runner. Submission is not a claim of network delivery.
 
 ```sh
@@ -155,9 +158,9 @@ The optional npm mirror can follow later without delaying canonical delivery.
 Install the single Ghostget Agent Skill with either runner:
 
 ```sh
-npx skills add hraness/ghostget#v0.18.13
+npx skills add hraness/ghostget#v0.18.15
 # or
-bunx skills add hraness/ghostget#v0.18.13
+bunx skills add hraness/ghostget#v0.18.15
 ```
 
 The skill teaches Codex, Claude Code, Cursor, and other compatible coding
@@ -167,7 +170,7 @@ install the CLI if it is missing. Start a new agent session after installation.
 After the matching immutable Release exists, install this exact canonical archive:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.13/hraness-ghostget-0.18.13.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.15/hraness-ghostget-0.18.15.tgz
 ghostget adapter sync-bundled --json
 ghostget doctor
 ```
@@ -195,7 +198,7 @@ For that same released coordinate, install Ghostget in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.13/hraness-ghostget-0.18.13.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.15/hraness-ghostget-0.18.15.tgz
 ```
 
 ```ts
@@ -807,7 +810,9 @@ absorbed into explicit account IDs; `targets status`, `version`, and top-level
 `export` are internal; `accounts add`, `accounts remove`, and `messages delete`
 are R4 and unavailable to provider dispatch; and plain `status` is among the
 53 unsupported paths. None of those three R4 paths appears in the selected
-32-operation provider adapter. Ghostget does not turn administrative,
+32-operation provider adapter. Two additional scoped permission descriptors —
+`messaging.automation.read` and `messaging.automation.send.text` — belong only
+to the owner-driven automation host and admit no generic invocation. Ghostget does not turn administrative,
 destructive, caller-selected network, or arbitrary-filesystem commands into
 agent authority.
 

@@ -105,7 +105,7 @@ describe("X query descriptor revision evidence", () => {
   test("marks the snapshot as evidence that can never authorize dispatch by itself", () => {
     expect(xWebQueryDescriptorEvidenceSnapshot.role).toBe("revision-evidence-only");
     expect(xWebQueryDescriptorEvidenceSnapshot.currentBundleResolutionRequired).toBe(true);
-    expect(xWebQueryDescriptorEvidenceSnapshot.observedOn).toBe("2026-07-22");
+    expect(xWebQueryDescriptorEvidenceSnapshot.observedOn).toBe("2026-09-17");
     expect(xWebQueryDescriptorEvidenceSnapshot.mainBundleUrl).toStartWith("https://abs.twimg.com/");
   });
 
@@ -123,14 +123,17 @@ describe("X query descriptor revision evidence", () => {
   test("records the current reviewed Bookmarks observation", () => {
     const bookmarks = evidence("Bookmarks");
     expect(bookmarks).toMatchObject({
-      queryId: "tF6KOjmZM0WGcB2Q0mfwhw",
-      sourceChunk: "shared~bundle.BookmarkFolders~bundle.Bookmarks.42881d01aa4e5708a.js",
-      observedOn: "2026-09-13",
+      queryId: "-dgKZ58Dr9YSJYrcgEb5KA",
+      sourceChunk: "shared~bundle.BookmarkFolders~bundle.Bookmarks.12cb1875a99ef5b3a.js",
+      observedOn: "2026-09-17",
     });
     expect(bookmarks.queryId).not.toBe("iblrFnKr6PZUR-dWpfXG6g");
+    expect(bookmarks.queryId).not.toBe("tF6KOjmZM0WGcB2Q0mfwhw");
     expect(bookmarks.queryId).not.toBe("LoLaMO4GuHLEPJGhostgetH9kjAw");
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
       .not.toContain("iblrFnKr6PZUR-dWpfXG6g");
+    expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
+      .not.toContain("tF6KOjmZM0WGcB2Q0mfwhw");
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
       .not.toContain("LoLaMO4GuHLEPJGhostgetH9kjAw");
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
@@ -139,14 +142,14 @@ describe("X query descriptor revision evidence", () => {
 
   test("records the current reviewed UserTweets and SearchTimeline observations", () => {
     expect(evidence("UserTweets")).toMatchObject({
-      queryId: "eviprbEPLvNG88V3smUngQ",
-      sourceChunk: "main.ae82e9d02d3328bba.js",
-      observedOn: "2026-09-06",
+      queryId: "jeAA-59Y9FL7FmjgBNIVPw",
+      sourceChunk: "main.52fc4dd0aada586aa.js",
+      observedOn: "2026-09-17",
     });
     expect(evidence("SearchTimeline")).toMatchObject({
-      queryId: "hyPfJYJ_XAtDYoslQc-Rgg",
-      sourceChunk: "main.ae82e9d02d3328bba.js",
-      observedOn: "2026-09-06",
+      queryId: "auLkqtmHqYEpRvflfvLhyQ",
+      sourceChunk: "main.52fc4dd0aada586aa.js",
+      observedOn: "2026-09-17",
     });
     expect(xWebSemanticOperationRegistry["feeds.user"]).toEqual({
       semanticOperation: "feeds.read",
@@ -167,35 +170,37 @@ describe("X query descriptor revision evidence", () => {
     const serialized = JSON.stringify(xWebQueryDescriptorEvidenceSnapshot);
     expect(serialized).not.toContain("6r5OLCC_wFH4CpRyXKuAmQ");
     expect(serialized).not.toContain("SXVCYB8XHSS25nzIljNtZA");
+    expect(serialized).not.toContain("eviprbEPLvNG88V3smUngQ");
+    expect(serialized).not.toContain("hyPfJYJ_XAtDYoslQc-Rgg");
     expect(serialized).not.toContain("hz_94eVAtrtQo_vO3my7Rw");
   });
 
   test("records the current reviewed HomeLatestTimeline observation", () => {
     expect(evidence("HomeLatestTimeline")).toMatchObject({
-      queryId: "BLQWpfVqtgBqAqwRRJcJjA",
-      sourceChunk: "shared~bundle.LoggedInMain~bundle.HomeTimeline.c12c8a9a.js",
-      observedOn: "2026-08-20",
+      queryId: "OQPHTgwczzp9RMAPt6BH9A",
+      sourceChunk: "shared~bundle.LoggedInMain~bundle.HomeTimeline~bundle.Compose.d2799da549fa4165a.js",
+      observedOn: "2026-09-17",
     });
     expect(evidence("HomeTimeline")).toMatchObject({
-      queryId: "wp06oo3fRGU4P1sK8rECqQ",
-      sourceChunk: "shared~bundle.LoggedInMain~bundle.HomeTimeline.c12c8a9a.js",
-      observedOn: "2026-08-20",
+      queryId: "og4a4SdSF3WiQkkwaPCdPg",
+      sourceChunk: "shared~bundle.LoggedInMain~bundle.HomeTimeline~bundle.Compose.d2799da549fa4165a.js",
+      observedOn: "2026-09-17",
     });
   });
 
   test("records the current reviewed CreateTweet observation", () => {
     expect(evidence("CreateTweet")).toMatchObject({
-      queryId: "WXTdKnLddrQOunD6MhWi3g",
-      sourceChunk: "main.7792f4fa.js",
-      observedOn: "2026-08-20",
+      queryId: "GYdIGqVWfZNho79bQ2XDoA",
+      sourceChunk: "main.52fc4dd0aada586aa.js",
+      observedOn: "2026-09-17",
     });
   });
 
   test("records the current reviewed Viewer and Article descriptor observations", () => {
     expect(evidence("Viewer")).toMatchObject({
       queryId: "9t128XgFic52jPUEkJMf6w",
-      sourceChunk: "main.59435dbf6f40166da.js",
-      observedOn: "2026-09-13",
+      sourceChunk: "main.52fc4dd0aada586aa.js",
+      observedOn: "2026-09-17",
     });
     expect(evidence("Viewer").queryId).not.toBe("5XShkXk2oO2J7SYmTu6pvw");
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
@@ -203,18 +208,20 @@ describe("X query descriptor revision evidence", () => {
     expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
       .not.toContain("main.cd39a626fdb81748a.js");
     expect(evidence("ArticleEntityDraftCreate")).toMatchObject({
-      queryId: "btD9FyMDa3_vydVp7fr87Q",
-      sourceChunk: "bundle.TwitterArticles.305538ca.js",
-      observedOn: "2026-08-14",
+      queryId: "_rbmb_NKLqKVBr5X_MSoMQ",
+      sourceChunk: "bundle.TwitterArticles.b3c21fed7d9db030a.js",
+      observedOn: "2026-09-17",
     });
   });
 
   test("records the current reviewed UserByScreenName observation", () => {
     expect(evidence("UserByScreenName")).toMatchObject({
-      queryId: "Gb-d6r0vxPOADdG62OEBpQ",
-      sourceChunk: "main.dd6a5b6a.js",
-      observedOn: "2026-08-21",
+      queryId: "KybxDj9RrADIITXlGG8kpw",
+      sourceChunk: "main.52fc4dd0aada586aa.js",
+      observedOn: "2026-09-17",
     });
+    expect(JSON.stringify(xWebQueryDescriptorEvidenceSnapshot))
+      .not.toContain("Gb-d6r0vxPOADdG62OEBpQ");
     expect(xWebSemanticOperationRegistry["profiles.by-handle"]).toEqual({
       semanticOperation: "profiles.read",
       risk: "R1",

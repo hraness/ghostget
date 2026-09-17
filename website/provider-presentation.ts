@@ -208,10 +208,13 @@ function setDifference(left: ReadonlySet<string>, right: ReadonlySet<string>): s
 export function isOwnerMessagingPermission(row: ProviderCapabilityAttestationRow): boolean {
   if (!row.operation.startsWith("messaging.automation.")) return false;
   const expectedAdapter = row.surfaceId === "imessage" ? "imessage-direct"
-    : row.surfaceId === "whatsapp" ? "whatsapp-web" : null;
+    : row.surfaceId === "whatsapp" ? "whatsapp-web"
+    : row.surfaceId === "beeper" ? "beeper-local" : null;
   const suffix = row.operation.slice("messaging.automation.".length);
-  const allowed = ["read", ...(row.surfaceId === "whatsapp" ? ["sync"] : []),
-    "send.text", "send.attachment", "send.reaction", "send.sticker", "send.link", "send.poll"];
+  const allowed = row.surfaceId === "beeper"
+    ? ["read", "send.text"]
+    : ["read", ...(row.surfaceId === "whatsapp" ? ["sync"] : []),
+      "send.text", "send.attachment", "send.reaction", "send.sticker", "send.link", "send.poll"];
   const risk = suffix === "read" ? "R1" : suffix === "sync" ? "R2" : "R3";
   if (row.adapterId !== expectedAdapter || !allowed.includes(suffix)
     || row.risk !== risk || row.contractVersion !== 1) {
@@ -616,7 +619,8 @@ export function createBeeperPresentationFacts(
     || beeper.transports.length !== 1
     || beeper.transports[0] !== "local-cli"
     || beeper.captureRequiredCount !== 0
-    || beeper.observedCount !== BEEPER_LOCAL_OPERATION_NAMES.length
+    || beeper.observedCount - beeper.ownerPermissionCount
+      !== BEEPER_LOCAL_OPERATION_NAMES.length
   ) {
     throw new Error("Beeper presentation drifted from the exact local CLI contract");
   }
@@ -652,7 +656,7 @@ export function createBeeperPresentationFacts(
     desktopApiVersion: BEEPER_DESKTOP_API_PIN.version,
     desktopLoopbackOperationCount:
       BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount,
-    observedOperationCount: beeper.observedCount,
+    observedOperationCount: beeper.observedCount - beeper.ownerPermissionCount,
     pageDescription: BEEPER_PAGE_METADATA.description,
     pageTitle: BEEPER_PAGE_METADATA.title,
     semanticContractVersionLabel,
