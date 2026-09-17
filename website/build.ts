@@ -310,6 +310,7 @@ type RenderOptions = Readonly<{
   attestation: ProviderCapabilityAttestation;
   beeperFacts: BeeperPresentationFacts;
   cssAsset: string;
+  ghostgetContentFooter: string;
   hranessSiteFooter: string;
   packageIdentity: PackageIdentity;
   postHogHost: string;
@@ -558,6 +559,41 @@ function jsonLd(identity: PackageIdentity, page: PublicPage): Readonly<Record<st
   };
 }
 
+const CONTENT_FOOTER_LINKS = [
+  { href: "/getting-started/", label: "Install" },
+  { href: "/provider-capabilities/", label: "Providers" },
+  { href: "/about/", label: "About" },
+  { href: "/contact/", label: "Contact" },
+  { href: "/privacy/", label: "Privacy" },
+  { href: REPOSITORY_URL, label: 'GitHub <span aria-hidden="true">↗</span>' },
+] as const;
+
+// The in-flow product footer is Ghostget's own composition around the shared
+// Hraness network footer: same row contract, Ghostget brand, six links.
+function renderGhostgetContentFooter(): string {
+  const links = CONTENT_FOOTER_LINKS
+    .map(({ href, label }) => `<a class="hraness-marketing-footer__link" href="${href}">${label}</a>`)
+    .join("\n      ");
+  return `<footer aria-label="Ghostget" class="hraness-marketing-footer" data-hraness-marketing="footer">
+  <div class="hraness-marketing-footer__inner">
+    <a class="hraness-marketing-footer__brand" href="/" aria-label="Ghostget home"><img alt="" height="20" src="/icon.png" width="20" /><span class="hraness-marketing-footer__name">Ghostget</span></a>
+    <nav aria-label="Footer navigation" class="hraness-marketing-footer__nav">
+      ${links}
+    </nav>
+  </div>
+</footer>`;
+}
+
+// Every page carries the product's content footer immediately before the
+// shared Hraness network footer; indexable pages keep the Ask AI row between
+// them.
+function renderInFlowFooters(options: RenderOptions, page?: PublicPage): string {
+  const middle = page === undefined
+    ? ""
+    : `${renderAskAiAboutThis(`${SITE_ORIGIN}${page.canonicalPath}`)}\n`;
+  return `${options.ghostgetContentFooter}\n${middle}${options.hranessSiteFooter}`;
+}
+
 function renderTemplate(
   template: string,
   options: RenderOptions,
@@ -573,9 +609,7 @@ function renderTemplate(
     rendered = replaceRequired(
       rendered,
       "{{HRANESS_SITE_FOOTER}}",
-      page === undefined
-        ? options.hranessSiteFooter
-        : `${renderAskAiAboutThis(`${SITE_ORIGIN}${page.canonicalPath}`)}\n${options.hranessSiteFooter}`,
+      renderInFlowFooters(options, page),
     );
   }
   if (page) {
@@ -863,6 +897,7 @@ export async function buildWebsite(
     attestation,
     beeperFacts,
     cssAsset,
+    ghostgetContentFooter: renderGhostgetContentFooter(),
     hranessSiteFooter: renderHranessSiteFooter({
       mailingList: ghostgetMailingListConfig(environment),
       support: ghostgetSupportProfile,
