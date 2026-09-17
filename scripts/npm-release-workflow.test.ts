@@ -1166,7 +1166,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_147_008);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_147_520);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1354,8 +1354,13 @@ describe("npm publication contract", () => {
     expect(budget).toContain("34708922100, static job 103593972035 and package job 103593972046");
     expect(budget).toContain("22,521,539 + 65 = 22,521,604");
     expect(budget).toContain("22,523,437 + 65 = 22,523,502");
-    expect(MAX_UNPACKED_BYTES).toBe(22_572_000);
-    expect(MAX_UNPACKED_BYTES).toBe(22_571_609 + 391);
+    expect(MAX_UNPACKED_BYTES).toBe(22_572_142);
+    expect(MAX_UNPACKED_BYTES).toBe(22_572_077 + 65);
+    expect(budget).toContain("Shared-footer v0.13.0 repin over main c4c1469 adds exactly 369 payload");
+    expect(budget).toContain("11,673,185 compressed / 22,571,708 payload bytes");
+    expect(budget).toContain("11,673,325 compressed / 22,572,077 payload bytes");
+    expect(budget).toContain("41de26ca839fb0ba8ab93ba03b4f91140ebe6925");
+    expect(budget).toContain("22,572,077 + 65 = 22,572,142");
     expect(budget).toContain("22,571,609 + 65 = 22,571,674");
     expect(budget).toContain("160726e2db7ac18e243c2ce3b04bf967e49233730eb66b5a7bc102827ece05dc");
     expect(budget).toContain("22,562,509 + 1,974 + 65 = 22,564,548");
@@ -1375,7 +1380,7 @@ describe("npm publication contract", () => {
       entryCount: { min: 561, max: 561 },
       fileCount: { min: 561, max: 561 },
       packedBytes: { min: 1_600_000, max: 11_677_251 },
-      unpackedBytes: { min: 9_000_000, max: 22_572_000 },
+      unpackedBytes: { min: 9_000_000, max: 22_572_142 },
     });
   });
 
