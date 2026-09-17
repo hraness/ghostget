@@ -23,6 +23,8 @@ import {
   DEMO_PUBLIC_FILES,
   markdownSiblingPath,
   GITHUB_RELEASES_URL,
+  HRANESS_ORGANIZATION_ID,
+  HRANESS_URL,
   parsePackageIdentity,
   PUBLIC_PAGES,
   PUBLISHER_URL,
@@ -880,6 +882,11 @@ describe("ghostget.com static site", () => {
         source: "/(.*).md",
       }),
     ]));
+    const notFoundMarkdownHeaders = vercel.headers.find((rule: { source: string }) =>
+      rule.source === "/404.md");
+    expect(notFoundMarkdownHeaders?.headers).toEqual([
+      { key: "X-Robots-Tag", value: "noindex, nofollow" },
+    ]);
     expect(middleware).toContain("handleDocumentNegotiation");
     expect(middleware).toContain("./edge/negotiation");
     expect(middleware).not.toContain("website/");
@@ -907,9 +914,9 @@ describe("ghostget.com static site", () => {
     expect(graph).toEqual(expect.arrayContaining([
       expect.objectContaining({ "@id": `${SITE_ORIGIN}/#website`, "@type": "WebSite" }),
       expect.objectContaining({
-        "@id": `${SITE_ORIGIN}/#organization`,
+        "@id": HRANESS_ORGANIZATION_ID,
         "@type": "Organization",
-        url: PUBLISHER_URL,
+        url: HRANESS_URL,
       }),
       expect.objectContaining({
         "@id": `${SITE_ORIGIN}/#webpage`,
@@ -921,7 +928,7 @@ describe("ghostget.com static site", () => {
         sameAs: [
           "https://github.com/hraness/ghostget",
           npmPackageUrl,
-          "https://skills.sh/hraness/ghostget",
+          SKILLS_URL,
         ],
         softwareVersion: packageIdentity.version,
       }),
@@ -987,7 +994,7 @@ describe("ghostget.com static site", () => {
           url: canonicalUrl,
         }),
         expect.objectContaining({ "@id": `${SITE_ORIGIN}/#software` }),
-        expect.objectContaining({ "@id": `${SITE_ORIGIN}/#organization` }),
+        expect.objectContaining({ "@id": HRANESS_ORGANIZATION_ID }),
       ]));
 
       if (definition.canonicalPath !== "/") {
