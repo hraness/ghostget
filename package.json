@@ -91,6 +91,7 @@
     "bunfig.toml",
     "docs/imessage-direct-provider.md",
     "docs/rental-listings.md",
+    "src/accounts-auth.ts",
     "src/args.ts",
     "src/apple-photos-cli.ts",
     "src/apple-photos-client-types.ts",
