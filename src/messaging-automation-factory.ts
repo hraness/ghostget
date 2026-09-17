@@ -4,7 +4,7 @@ import type { GhostgetAuth } from "./auth";
 import { MessagingAutomationHost } from "./messaging-automation";
 import type { AutomationActionKind, AutomationProviderId, AutomationProviderStatus, MessagingAutomationProvider } from "./messaging-automation-types";
 import { AUTOMATION_ACTION_KINDS } from "./messaging-automation-validation";
-import { automationPermissionOperation, loadImsgAutomationRuntime, loadWhatsAppAutomationRuntime } from "./messaging-automation-descriptors";
+import { automationPermissionOperation, loadBeeperAutomationRuntime, loadImsgAutomationRuntime, loadWhatsAppAutomationRuntime } from "./messaging-automation-descriptors";
 import { describeOperationPermission, type OperationPermissionDescription } from "./operation-permission";
 import { loadProviderPluginExtensionRuntime } from "./provider-plugin";
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
@@ -29,7 +29,7 @@ export async function createMessagingAutomationSession(options: MessagingAutomat
   const starts = new Map<AutomationProviderId, (signal?: AbortSignal) => Promise<AutomationProviderStatus>>();
   try {
     for (const selected of options.providers) {
-      const adapterId = selected.provider === "imessage" ? "imessage-direct" : "whatsapp-web";
+      const adapterId = selected.provider === "imessage" ? "imessage-direct" : selected.provider === "beeper" ? "beeper-local" : "whatsapp-web";
       let custody: WebSessionCleanupAdmissionController | undefined;
       let custodyIdentity: string | undefined;
       let poisoned = false, persistent = false, closed = false, started = false;
@@ -59,7 +59,7 @@ export async function createMessagingAutomationSession(options: MessagingAutomat
             pluginImplementationHash: options.registry.implementationHash(description.resolution.binding).toString("hex"),
             adapterId, adapterHash: description.coordinate.manifestHash, surfaceId: selected.provider,
             authId: selected.authId, authHash: sha256(canonicalJson(auth)),
-            transport: selected.provider === "imessage" ? "local-cli" : "web-session-api",
+            transport: selected.provider === "whatsapp" ? "web-session-api" : "local-cli",
             executionIdentityHash: implementationIdentity,
           }, options.environment);
           custodyIdentity = coordinate;
@@ -85,10 +85,12 @@ export async function createMessagingAutomationSession(options: MessagingAutomat
         return finishing;
       };
       const execution = { environment: options.environment, registerCleanupBarrier };
-      const binding = options.registry.requireOperationDefinition(selected.provider === "imessage" ? "local-cli" : "linked-device", selected.provider, "messaging.automation.read", 1).binding;
+      const binding = options.registry.requireOperationDefinition(selected.provider === "whatsapp" ? "linked-device" : "local-cli", selected.provider, "messaging.automation.read", 1).binding;
       const concrete: Concrete = await loadProviderPluginExtensionRuntime(binding.loadRuntime, async () => selected.provider === "imessage"
         ? (await loadImsgAutomationRuntime()).createImsgAutomationProvider({ authorize, execution, resolveAsset: options.resolveAsset })
-        : (await loadWhatsAppAutomationRuntime()).createWhatsAppAutomationProvider({ authorize, execution, resolveAsset: options.resolveAsset }));
+        : selected.provider === "beeper"
+          ? (await loadBeeperAutomationRuntime()).createBeeperAutomationProvider({ authorize, execution })
+          : (await loadWhatsAppAutomationRuntime()).createWhatsAppAutomationProvider({ authorize, execution, resolveAsset: options.resolveAsset }));
       const call = async <T>(work: () => Promise<T>): Promise<T> => {
         if (poisoned) throw new AutomationHostRecoveryRequired("Host is fenced");
         if (closed) throw new Error("Host closed");

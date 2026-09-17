@@ -284,7 +284,7 @@ const adapterOperations = beeperAdapterManifest.operations as Readonly<Record<
 >>;
 
 export const BEEPER_LOCAL_OPERATION_INPUT_TYPES = Object.freeze(Object.fromEntries(
-  Object.keys(adapterOperations).sort().map((operation) => [
+  [...BEEPER_LOCAL_OPERATION_NAMES].sort().map((operation) => [
     operation,
     Object.freeze(Object.fromEntries(
       Object.keys(adapterOperations[operation]!.input.properties).sort().map((field) => [
@@ -2579,9 +2579,9 @@ export const BEEPER_CLI_V062_SURFACE_CONTRACT = defineLocalCliSurfaceContractV1(
   sdk: BEEPER_DESKTOP_API_PIN,
   runtime: {
     providerPluginId: "beeper-linked-device",
-    providerPluginVersion: "2.4.0",
+    providerPluginVersion: "2.5.0",
     adapterId: "beeper-local",
-    adapterVersion: "2.4.0",
+    adapterVersion: "2.5.0",
     operationContractVersions: BEEPER_LOCAL_OPERATION_CONTRACT_VERSIONS,
     operationInputTypes: BEEPER_LOCAL_OPERATION_INPUT_TYPES,
     target: BEEPER_DESKTOP_TARGET,
@@ -2600,7 +2600,7 @@ export const BEEPER_CLI_V062_CLASSIFICATION_SHA256 =
 export const BEEPER_CLI_V062_SEMANTIC_PROFILES_SHA256 =
   "fb7ea5f70f004dd8090c3e6e0996bfa00b0bab8ea5639203e2d1027602450ffe" as const;
 export const BEEPER_CLI_V062_WHOLE_SURFACE_SHA256 =
-  "72201ac5eb3532f7c159583f19009f547d7d313e86388466b57c135bd2dc4944" as const;
+  "bedc3063a7a792686e351c78e7ba3ed2a5fc0cc6efd3d88a23d9b7ae777765e2" as const;
 
 export const BEEPER_CLI_V062_PUBLIC_MANUAL_SEMANTIC_PROFILE_SHA256 = Object.freeze({
   "setup": "cd432e2649e5724d70398e739a2d1c0c21557a23820aaa14562575a5fe689406",

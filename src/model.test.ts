@@ -1688,15 +1688,24 @@ describe("schemaVersion 4 authenticated web-session binding", () => {
       "beeper",
       "wrench-web-adapter.v2.3.0.json",
     ), "utf8")) as Record<string, unknown>;
+    const automationBaseline = JSON.parse(readFileSync(join(
+      import.meta.dir,
+      "assets",
+      "adapters",
+      "beeper",
+      "wrench-web-adapter.v2.4.0.json",
+    ), "utf8")) as Record<string, unknown>;
 
     expect(parseDiagnosticManifest(archived).ok).toBeTrue();
     expect(parseDiagnosticManifest(intermediate).ok).toBeTrue();
     expect(parseDiagnosticManifest(predecessor).ok).toBeTrue();
     expect(parseDiagnosticManifest(cliContactBaseline).ok).toBeTrue();
+    expect(parseDiagnosticManifest(automationBaseline).ok).toBeTrue();
     expect(parseRuntimeManifest(archived).ok).toBeTrue();
     expect(parseRuntimeManifest(intermediate).ok).toBeTrue();
     expect(parseRuntimeManifest(predecessor).ok).toBeTrue();
     expect(parseRuntimeManifest(cliContactBaseline).ok).toBeTrue();
+    expect(parseRuntimeManifest(automationBaseline).ok).toBeTrue();
     expect(parseRuntimeManifest(current).ok).toBeTrue();
 
     const archivedOperations = archived.operations as Record<
@@ -1706,6 +1715,7 @@ describe("schemaVersion 4 authenticated web-session binding", () => {
     const intermediateOperations = intermediate.operations as typeof archivedOperations;
     const predecessorOperations = predecessor.operations as typeof archivedOperations;
     const cliContactOperations = cliContactBaseline.operations as typeof archivedOperations;
+    const automationOperations = automationBaseline.operations as typeof archivedOperations;
     const currentOperations = current.operations as typeof archivedOperations;
     const intermediateDirectReads = new Set([
       "accounts.list",
@@ -1738,6 +1748,11 @@ describe("schemaVersion 4 authenticated web-session binding", () => {
       );
       expect(cliContactOperations[operation]?.localCli.contractVersion).toBe(
         operation === "messaging.read" ? 3 : cliContactVersionTwo.has(operation) ? 2 : 1,
+      );
+      expect(automationOperations[operation]?.localCli.contractVersion).toBe(
+        operation === "messaging.read" || operation === "contacts.list"
+          ? 3
+          : currentVersionTwo.has(operation) ? 2 : 1,
       );
       expect(currentOperations[operation]?.localCli.contractVersion).toBe(
         operation === "messaging.read" || operation === "contacts.list"

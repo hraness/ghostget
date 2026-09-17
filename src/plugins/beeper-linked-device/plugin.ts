@@ -1,3 +1,4 @@
+import { automationOperationDefinitions } from "../../messaging-automation-descriptors";
 import {
   defineProviderPlugin,
   lazyLocalCliRuntime,
@@ -250,12 +251,13 @@ const operations = Object.freeze([
     operationDefinition(action, 2)),
   operationDefinition("messaging.read", 3),
   operationDefinition("contacts.list", 3),
+  ...automationOperationDefinitions("beeper"),
 ]);
 
 export const beeperLinkedDevicePlugin = defineProviderPlugin({
   apiVersion: 1,
   id: "beeper-linked-device",
-  version: "2.4.0",
+  version: "2.5.0",
   displayName: "Beeper Pinned Local CLI",
   sourceKind: "built-in",
   implementationSources: providerImplementationEntry(import.meta.url),

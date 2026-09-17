@@ -1,11 +1,12 @@
 /** Closed host-side messaging contract. Provider credentials and local paths never cross it. */
 export const MESSAGING_AUTOMATION_PROTOCOL = "ghostget.messaging-automation/1" as const;
 
-export type AutomationProviderId = "imessage" | "whatsapp";
+export type AutomationProviderId = "imessage" | "whatsapp" | "beeper";
 export type AutomationActionKind = AutomationAction["kind"];
 export type AutomationCoordinate =
   | Readonly<{ provider: "imessage"; chatGuid: string; service: "iMessage"; observedChatRowId: number }>
-  | Readonly<{ provider: "whatsapp"; conversationJid: string }>;
+  | Readonly<{ provider: "whatsapp"; conversationJid: string }>
+  | Readonly<{ provider: "beeper"; accountId: string; conversationId: string }>;
 export type AutomationIdentity = Readonly<{
   provider: AutomationProviderId;
   authId: string;
