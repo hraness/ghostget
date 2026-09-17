@@ -91,7 +91,6 @@
     "bunfig.toml",
     "docs/imessage-direct-provider.md",
     "docs/rental-listings.md",
-    "src/accounts-auth.ts",
     "src/args.ts",
     "src/apple-photos-cli.ts",
     "src/apple-photos-client-types.ts",
@@ -622,12 +621,10 @@
     "kb:check": "bunx --bun github:hraness/kb#v0.15.2 check --root kb && bunx --bun github:hraness/kb#v0.15.2 agents check --root kb --repo .",
     "kb:catalog": "bunx --bun github:hraness/kb#v0.15.2 catalog --root kb",
     "prepack": "bun run check",
-    "check:effect": "bun scripts/check-effect-architecture.ts"
+    "check:effect": "bun scripts/check-effect-architecture.ts",
+    "generate:og": "bun scripts/generate-og.tsx"
   },
   "dependencies": {
-    "@1password/sdk": "0.5.0",
-    "@hraness/accounts-cli": "github:hraness/accounts-cli#v0.1.1",
-    "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.7.0/hraness-desktop-foundation-0.7.0.tgz",
     "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
     "@hraness/local-custody": "github:hraness/local-custody#d462900810b042a8b5f34245d0d371cfaa6ee9b3",
     "@hraness/message-like-me": "github:hraness/textbutler#83453cc7c17b49bb53fdfd89ccb69b8b44b30af1",
@@ -636,22 +633,28 @@
     "effect": "3.22.1",
     "source-map": "0.6.1",
     "source-map-support": "0.5.21",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "@1password/sdk": "0.5.0",
+    "@hraness/accounts-cli": "github:hraness/accounts-cli#v0.1.1",
+    "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.7.0/hraness-desktop-foundation-0.7.0.tgz"
   },
   "devDependencies": {
     "@hraness/design-kit": "github:hraness/design-kit#v0.10.0",
+    "@hraness/direct": "https://github.com/hraness/direct/releases/download/v0.7.21/hraness-direct-0.7.21.tgz",
     "@hraness/site-footer": "github:hraness/site-footer#v0.15.0",
     "@hraness/ui": "github:hraness/ui#v0.5.13",
+    "@hraness/web-discovery": "github:hraness/web-discovery#v0.6.0",
+    "@resvg/resvg-js": "2.6.2",
     "@steipete/sweet-cookie": "0.4.3",
+    "@tanstack/react-virtual": "3.14.11",
     "@types/bun": "^1.3.14",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "agent-browser": "0.32.3",
     "fast-check": "^4.8.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "@tanstack/react-virtual": "3.14.11",
-    "@hraness/direct": "https://github.com/hraness/direct/releases/download/v0.7.21/hraness-direct-0.7.21.tgz",
-    "agent-browser": "0.32.3"
+    "satori": "0.33.4"
   },
   "publishConfig": {
     "access": "public",

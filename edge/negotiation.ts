@@ -3,6 +3,8 @@ export const MARKDOWN_MEDIA_TYPE = "text/markdown" as const;
 const MARKDOWN_CONTENT_TYPE = `${MARKDOWN_MEDIA_TYPE}; charset=utf-8` as const;
 const PLAIN_CONTENT_TYPE = "text/plain; charset=utf-8" as const;
 const STATIC_ASSET = /\.[a-z0-9]+$/iu;
+const CANONICAL_SITE_ORIGIN = "https://ghostget.com";
+const MARKDOWN_NOT_FOUND_PATH = "/404.md";
 
 export type DocumentRepresentation = "html" | "markdown";
 type DocumentRepresentations = readonly [
@@ -204,6 +206,29 @@ function markdownHeaders(): Headers {
   });
 }
 
+function markdownDocumentLink(markdownPath: string): string {
+  const stem = markdownPath.slice(0, -".md".length);
+  const canonicalPath = stem === "/index" ? "/" : `${stem}/`;
+  return `<${CANONICAL_SITE_ORIGIN}${canonicalPath}>; rel="canonical", <${markdownPath}>; rel="alternate"; type="${MARKDOWN_MEDIA_TYPE}"`;
+}
+
+async function markdownNotFound(
+  request: Request,
+  url: URL,
+  retrieve: DocumentRetrieve,
+): Promise<Response> {
+  const missing = await retrieve(new URL(MARKDOWN_NOT_FOUND_PATH, url.origin));
+  if (!missing.ok) {
+    throw new Error("The markdown 404 document is missing.");
+  }
+  const headers = markdownHeaders();
+  headers.set("X-Robots-Tag", "noindex, nofollow");
+  return new Response(await readBody(missing, request.method), {
+    headers,
+    status: 404,
+  });
+}
+
 function notAcceptableHeaders(): Headers {
   return new Headers({
     "Cache-Control": "no-store",
@@ -224,10 +249,26 @@ export async function handleDocumentNegotiation(
   if (request.method !== "GET" && request.method !== "HEAD") return null;
   const url = new URL(request.url);
   const htmlOnly = isHtmlOnlyDocumentPath(url.pathname);
-  if (
-    url.pathname.startsWith("/assets/")
-    || (STATIC_ASSET.test(url.pathname) && !htmlOnly)
-  ) return null;
+  if (url.pathname.startsWith("/assets/")) return null;
+
+  // A direct request for a published markdown sibling serves the same sealed
+  // bytes with the canonical document and alternate representation headers the
+  // negotiated response carries. Missing markdown stays an HTTP 404.
+  if (!htmlOnly && url.pathname.endsWith(".md")) {
+    const asset = await retrieve(new URL(url.pathname, url.origin));
+    if (!asset.ok) return await markdownNotFound(request, url, retrieve);
+    const headers = markdownHeaders();
+    if (url.pathname === MARKDOWN_NOT_FOUND_PATH) {
+      headers.set("X-Robots-Tag", "noindex, nofollow");
+    } else {
+      headers.set("Link", markdownDocumentLink(url.pathname));
+    }
+    return new Response(await readBody(asset, request.method), {
+      headers,
+      status: 200,
+    });
+  }
+  if (STATIC_ASSET.test(url.pathname) && !htmlOnly) return null;
 
   const representations = htmlOnly
     ? HTML_ONLY_REPRESENTATIONS
@@ -253,21 +294,16 @@ export async function handleDocumentNegotiation(
   if (assetPath !== null) {
     const asset = await retrieve(new URL(assetPath, url.origin));
     if (asset.ok) {
+      const headers = markdownHeaders();
+      headers.set("Link", markdownDocumentLink(assetPath));
       return new Response(await readBody(asset, request.method), {
-        headers: markdownHeaders(),
+        headers,
         status: 200,
       });
     }
   }
 
-  const missing = await retrieve(new URL("/404.md", url.origin));
-  if (!missing.ok) {
-    throw new Error("The markdown 404 document is missing.");
-  }
-  return new Response(await readBody(missing, request.method), {
-    headers: markdownHeaders(),
-    status: 404,
-  });
+  return await markdownNotFound(request, url, retrieve);
 }
 
 export const DOCUMENT_MEDIA_TYPES = [HTML_MEDIA_TYPE, MARKDOWN_MEDIA_TYPE] as const;

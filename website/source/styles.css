@@ -2943,3 +2943,7 @@ body {
     color: HighlightText;
   }
 }
+
+/* Decorative topic icons (agent-generated line art, public/icons/). */
+.ghostget-topic-icon { display: block; width: 88px; height: 88px; margin: 0 0 18px; }
+.hraness-marketing-pillars .ghostget-topic-icon { margin: 0 0 14px; }
