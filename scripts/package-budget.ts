@@ -1,3 +1,17 @@
+// Shared-footer v0.13.0 repin over main c4c1469 adds exactly 369 payload
+// bytes, all in CHANGELOG.md: the six-line Unreleased note for the shared
+// "Built by Hraness" attribution. The `github:hraness/site-footer#v0.13.0`
+// pin keeps its byte length, and the footer remains a development-only
+// dependency outside the public archive. npm 10.9.7 under Node 22.14.0 on
+// Linux x64 measured main at 11,673,185 compressed / 22,571,708 payload bytes
+// and this candidate at 11,673,325 compressed / 22,572,077 payload bytes,
+// both across exactly 561 files; candidate archive SHA-1
+// 41de26ca839fb0ba8ab93ba03b4f91140ebe6925. Keep the packed ceiling and the
+// exact inventory; raise the payload ceiling by the measured delta while
+// preserving the reviewed 65-byte allowance: 22,572,077 + 65 = 22,572,142.
+// Required Linux CI and the canonical Release independently admit their
+// actual archives.
+//
 // Ghost emoji status mark over the merged support candidate adds exactly one
 // packed file and 5,841 payload bytes: src/control/menubar-icon.ts +5,810
 // (the pre-rendered Twemoji CC-BY 4.0 ghost the icon-only Windows/Linux tray
@@ -969,9 +983,9 @@
 export const MAX_PACKED_BYTES = 11_677_251;
 export const MAX_PACKED_ENTRIES = 561;
 export const MAX_PACKED_FILES = 561;
-// The cost-discipline registry and gate added 34 unpacked bytes of package
-// surface; the ceiling carries 292 unpacked bytes of headroom over it.
-export const MAX_UNPACKED_BYTES = 22_572_000;
+// The shared-footer v0.13.0 repin measured 22,572,077 unpacked bytes; the
+// ceiling carries the reviewed 65-byte allowance over that measurement.
+export const MAX_UNPACKED_BYTES = 22_572_142;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
