@@ -804,8 +804,8 @@ describe("private X internal-API HAR evidence", () => {
   });
 
   test("keeps GraphQL operation revisions and field paths but no values, auth material, or dynamic user keys", () => {
-    const revision = "zd0F6a_svKAXdlMGbCZDFg";
-    const url = new URL(`https://x.com/i/api/graphql/${revision}/DmAllSearchSlice`);
+    const revision = "9t128XgFic52jPUEkJMf6w";
+    const url = new URL(`https://x.com/i/api/graphql/${revision}/Viewer`);
     url.searchParams.set("variables", JSON.stringify({ count: 20, cursor: "x-query-cursor-private" }));
     url.searchParams.set("features", JSON.stringify({ responsive_web_graphql_enabled: true }));
     url.searchParams.set("fieldToggles", JSON.stringify({ withAuxiliaryUserLabels: false }));
@@ -851,13 +851,13 @@ describe("private X internal-API HAR evidence", () => {
     expect(candidate).toMatchObject({
       method: "POST",
       origin: "https://x.com",
-      path: "/i/api/graphql/:revision/DmAllSearchSlice",
+      path: "/i/api/graphql/:revision/Viewer",
       sampleCount: 1,
       statuses: [200],
       reviewRequired: true,
     });
     expect(candidate.queryNames).toEqual(["features", "fieldToggles", "variables"]);
-    expect(candidate.revisions).toEqual([`graphql=DmAllSearchSlice.${revision}`]);
+    expect(candidate.revisions).toEqual([`graphql=Viewer.${revision}`]);
     expect(candidate.headerNames).toEqual([
       "accept",
       "authorization",

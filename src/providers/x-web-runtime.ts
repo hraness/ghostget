@@ -153,8 +153,8 @@ const viewerEvidence = Object.freeze({
   operationName: "Viewer",
   operationType: "query" as const,
   queryId: "9t128XgFic52jPUEkJMf6w",
-  sourceChunk: "main.59435dbf6f40166da.js",
-  observedOn: "2026-09-13",
+  sourceChunk: "main.52fc4dd0aada586aa.js",
+  observedOn: "2026-09-17",
 });
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -722,10 +722,10 @@ async function currentChunkText(bootstrap: XBootstrap, sourceChunk: string): Pro
 }
 
 const articleRichContractEvidence = Object.freeze({
-  uploader: "shared~bundle.LoggedInMain~ondemand.HoverCard~loader.AudioDock~loader.Dock~bundle.BookmarkFolders~bundle.Book.a9bac6ba.js",
-  entities: "shared~bundle.TwitterArticles~ondemand.Verified~bundle.SettingsExtendedProfile~bundle.WorkHistory.d1314bba.js",
-  converter: "shared~bundle.Grok~bundle.GrokDrawer~bundle.ReaderMode~bundle.Birdwatch~bundle.TwitterArticles~bundle.Compose.02f6dc7a.js",
-  observedOn: "2026-08-14",
+  uploader: "shared~bundle.LoggedInMain~ondemand.HoverCard~loader.AudioDock~loader.Dock~bundle.BookmarkFolders~bundle.Book.9549529d09fb73baa.js",
+  entities: "shared~bundle.TwitterArticles~ondemand.Verified~bundle.SettingsExtendedProfile~bundle.WorkHistory.f5f6edfb2fe9ac4ca.js",
+  converter: "shared~bundle.Grok~bundle.GrokDrawer~bundle.ReaderMode~bundle.Birdwatch~bundle.TwitterArticles~bundle.Compose.c851d723cd517177a.js",
+  observedOn: "2026-09-17",
 });
 
 function requireCurrentBundleTokens(text: string, tokens: readonly string[], label: string): void {
@@ -743,10 +743,10 @@ async function assertCurrentArticleRichContract(
     currentChunkText(bootstrap, articleRichContractEvidence.converter),
   ]);
   requireCurrentBundleTokens(entities, [
-    'createEntity(w.Sg,"MUTABLE",{url:',
+    'createEntity(E.Sg,"MUTABLE",{url:',
   ], "Article entity");
   requireCurrentBundleTokens(converter, [
-    'mutability:s[r.mutability]',
+    'mutability:s[i.mutability]',
     'inline_style_ranges:',
   ], "Article content converter");
   if (!includeImages) return;
@@ -767,12 +767,12 @@ async function assertCurrentArticleRichContract(
     'TwitterArticle:"twitter_article"',
   ], "media uploader");
   requireCurrentBundleTokens(entities, [
-    'createEntity(p.LA.MEDIA,p.Ei.IMMUTABLE',
-    'mediaCategory:E(e)',
+    'createEntity(g.LA.MEDIA,g.Ei.IMMUTABLE',
+    'mediaCategory:K(e)',
     'mediaId:e.uploadId',
   ], "Article entity");
   requireCurrentBundleTokens(converter, [
-    'media_items:r.data?.mediaItems?.map',
+    'media_items:i.data?.mediaItems?.map',
     'media_category:e.mediaCategory',
   ], "Article content converter");
 }
