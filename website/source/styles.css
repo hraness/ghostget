@@ -168,10 +168,18 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .wordmark {
+  align-items: center;
+  display: inline-flex;
   font-size: 0.88rem;
   font-weight: 850;
+  gap: 0.4rem;
   letter-spacing: 0.14em;
   text-decoration: none;
+}
+
+.wordmark img {
+  block-size: 1.25rem;
+  inline-size: auto;
 }
 
 .topbar nav {

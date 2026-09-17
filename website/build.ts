@@ -312,6 +312,7 @@ type RenderOptions = Readonly<{
   attestation: ProviderCapabilityAttestation;
   beeperFacts: BeeperPresentationFacts;
   cssAsset: string;
+  foilAsset: string;
   ghostgetContentFooter: string;
   hranessSiteFooter: string;
   packageIdentity: PackageIdentity;
@@ -607,6 +608,7 @@ function renderTemplate(
   let rendered = template;
   rendered = replaceHtmlRequired(rendered, "{{ANALYTICS_ASSET}}", escapeHtml(options.analyticsAsset));
   rendered = replaceHtmlRequired(rendered, "{{CSS_ASSET}}", escapeHtml(options.cssAsset));
+  rendered = replaceHtmlRequired(rendered, "{{FOIL_ASSET}}", escapeHtml(options.foilAsset));
   if (rendered.includes("{{HRANESS_SITE_FOOTER}}")) {
     rendered = replaceRequired(
       rendered,
@@ -832,6 +834,7 @@ export async function buildWebsite(
     hranessSiteFooterCss,
     analyticsBuild,
     skillInstallBuild,
+    foilBuild,
     attestation,
   ] = await Promise.all([
     Bun.file(join(repositoryRoot, "package.json")).json(),
@@ -863,6 +866,13 @@ export async function buildWebsite(
       sourcemap: "none",
       target: "browser",
     }),
+    Bun.build({
+      entrypoints: [join(sourceRoot, "foil.ts")],
+      format: "esm",
+      minify: true,
+      sourcemap: "none",
+      target: "browser",
+    }),
     loadProviderCapabilityAttestation(repositoryRoot),
   ]);
   if (!analyticsBuild.success || analyticsBuild.outputs.length !== 1) {
@@ -875,6 +885,11 @@ export async function buildWebsite(
     throw new Error(`Skill install control build failed: ${messages || "no browser output"}`);
   }
   const skillInstall = new Uint8Array(await skillInstallBuild.outputs[0]!.arrayBuffer());
+  if (!foilBuild.success || foilBuild.outputs.length !== 1) {
+    const messages = foilBuild.logs.map((log) => log.message).join("\n");
+    throw new Error(`Foil controller build failed: ${messages || "no browser output"}`);
+  }
+  const foil = new Uint8Array(await foilBuild.outputs[0]!.arrayBuffer());
   const identity = parsePackageIdentity(manifest);
   if (identity.release !== CONTENT_REVIEWED_RELEASE) {
     throw new Error(
@@ -891,6 +906,7 @@ export async function buildWebsite(
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
+  const foilAsset = `/assets/foil-${contentHash(foil)}.js`;
   const providerDirectory = createProviderDirectory(attestation);
   const beeperFacts = createBeeperPresentationFacts(providerDirectory);
   const whatsappFacts = createWhatsAppPresentationFacts(providerDirectory, attestation);
@@ -899,6 +915,7 @@ export async function buildWebsite(
     attestation,
     beeperFacts,
     cssAsset,
+    foilAsset,
     ghostgetContentFooter: renderGhostgetContentFooter(),
     hranessSiteFooter: renderHranessSiteFooter({
       mailingList: ghostgetMailingListConfig(environment),
@@ -953,6 +970,7 @@ export async function buildWebsite(
     writeFile(join(outputRoot, cssAsset.slice(1)), compiledCss),
     writeFile(join(outputRoot, analyticsAsset.slice(1)), analytics),
     writeFile(join(outputRoot, skillInstallAsset.slice(1)), skillInstall),
+    writeFile(join(outputRoot, foilAsset.slice(1)), foil),
     writeFile(
       join(outputRoot, "robots.txt"),
       `User-agent: *\nAllow: /\n\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`,
