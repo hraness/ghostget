@@ -6,6 +6,7 @@
       "name": "@hraness/ghostget",
       "dependencies": {
         "@1password/sdk": "0.5.0",
+        "@hraness/accounts-cli": "github:hraness/accounts-cli#v0.1.1",
         "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.7.0/hraness-desktop-foundation-0.7.0.tgz",
         "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
         "@hraness/local-custody": "github:hraness/local-custody#d462900810b042a8b5f34245d0d371cfaa6ee9b3",
@@ -13,7 +14,6 @@
         "@hraness/support-foundation": "github:hraness/support-foundation#2d034b357680353574411217d68b02b6755b07ed",
         "buffer-from": "1.1.2",
         "effect": "3.22.1",
-        "@hraness/accounts-cli": "github:hraness/accounts-cli#v0.1.0",
         "source-map": "0.6.1",
         "source-map-support": "0.5.21",
         "typescript": "6.0.3",
@@ -114,7 +114,7 @@
 
     "@hono/node-server": ["@hono/node-server@1.19.17", "", { "peerDependencies": { "hono": "^4" } }, "sha512-dSneS5qhiauZWGDCeK4o695Xd9nUNjviSZCMQrj10eetr8Uln1ucn6bbphOM6UynAMMtNIzZNSpL9vnASJwrPQ=="],
 
-    "@hraness/accounts-cli": ["@hraness/accounts-cli@github:hraness/accounts-cli#d8c9500", { "dependencies": { "@hraness/suite-accounts": "github:hraness/suite-accounts#21424ee08eb41929c7290cfddfdb479923fb6ba5" } }, "hraness-accounts-cli-d8c9500", "sha512-rAPhOIsp3kCMBRfRUQb7tTu08103GZE/AqwIpAAaO/uqt2t10l2ToxA+Ki1fG3SG0bG+s1ZJ3JeHVSy+FuJMKQ=="],
+    "@hraness/accounts-cli": ["@hraness/accounts-cli@github:hraness/accounts-cli#f508210", { "dependencies": { "@hraness/suite-accounts": "github:hraness/suite-accounts#21424ee08eb41929c7290cfddfdb479923fb6ba5" } }, "hraness-accounts-cli-f508210", "sha512-4T2+TMyZC9Me1PvmHz0d684LwZEriwSsLxF6xLsEJOMvxpP8s3m5+x+fBvLRYsT2eibkfoVd1pqCwClfm2n95g=="],
 
     "@hraness/design-kit": ["@hraness/design-kit@github:hraness/design-kit#2432210", { "dependencies": { "@hugeicons/core-free-icons": "^4.2.2", "@stylexjs/stylex": "0.19.0", "motion": "12.42.0", "next-themes": "0.4.6", "react-aria-components": "1.19.0", "recharts": "3.8.0", "sugar-high": "^1.2.1", "web-haptics": "0.0.6" }, "peerDependencies": { "@hraness/ui": ">=0.5.12 <0.6.0", "react": ">=18 <20", "react-dom": ">=18 <20" }, "optionalPeers": ["@hraness/ui"] }, "hraness-design-kit-2432210", "sha512-sHn7kLoAuPPrdEHoac5Lp66LxRiEYv/qh21S1EFHMJ5VvngW6Eh6Ce9NTbul83rJTf7gdai+Mw9lsd0CleI7KA=="],
 

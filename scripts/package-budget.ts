@@ -1,3 +1,10 @@
+// Hraness Accounts CLI login integration adds exactly one packed file and
+// 1,356 payload bytes: src/accounts-auth.ts and its package.json files entry.
+// A Bun 1.3.14 pack on darwin arm64 measured 22,657,763 payload bytes across
+// exactly 564 files. Keep the packed ceiling; raise the file/entry inventory
+// to 564 and the payload ceiling by the measured delta while preserving the
+// reviewed 65-byte allowance: 22,657,763 + 65 = 22,657,828.
+//
 // Ghostget 0.18.15 release preparation over the X evidence refresh adds
 // exactly 12 payload bytes and no files: the version coordinate bumps and the
 // 0.18.15 changelog heading. npm 11.16.0 under darwin arm64 measured this
@@ -1038,11 +1045,11 @@
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
 export const MAX_PACKED_BYTES = 11_688_858;
-export const MAX_PACKED_ENTRIES = 563;
-export const MAX_PACKED_FILES = 563;
+export const MAX_PACKED_ENTRIES = 564;
+export const MAX_PACKED_FILES = 564;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
-export const MAX_UNPACKED_BYTES = 22_656_472;
+export const MAX_UNPACKED_BYTES = 22_657_828;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
