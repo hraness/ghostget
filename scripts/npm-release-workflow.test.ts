@@ -1354,8 +1354,9 @@ describe("npm publication contract", () => {
     expect(budget).toContain("34708922100, static job 103593972035 and package job 103593972046");
     expect(budget).toContain("22,521,539 + 65 = 22,521,604");
     expect(budget).toContain("22,523,437 + 65 = 22,523,502");
-    expect(MAX_UNPACKED_BYTES).toBe(22_656_460);
-    expect(MAX_UNPACKED_BYTES).toBe(22_656_395 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(22_656_472);
+    expect(MAX_UNPACKED_BYTES).toBe(22_656_407 + 65);
+    expect(budget).toContain("22,656,407 + 65 = 22,656,472");
     expect(budget).toContain("22,656,395 + 65 = 22,656,460");
     expect(budget).toContain("22,655,477 + 65 = 22,655,542");
     expect(budget).toContain("22,654,338 + 65 = 22,654,403");
@@ -1383,7 +1384,7 @@ describe("npm publication contract", () => {
       entryCount: { min: 563, max: 563 },
       fileCount: { min: 563, max: 563 },
       packedBytes: { min: 1_600_000, max: 11_688_858 },
-      unpackedBytes: { min: 9_000_000, max: 22_656_460 },
+      unpackedBytes: { min: 9_000_000, max: 22_656_472 },
     });
   });
 

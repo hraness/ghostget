@@ -79,7 +79,7 @@ The protocol and [Agent Skill](skills/ghostget/SKILL.md) describe the handoff.
 
 ## Built-in provider catalog
 
-This v0.18.14 source tree supports executable actions for 20 services: Beeper,
+This v0.18.15 source tree supports executable actions for 20 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WhatsApp, X, and YouTube.
@@ -158,9 +158,9 @@ The optional npm mirror can follow later without delaying canonical delivery.
 Install the single Ghostget Agent Skill with either runner:
 
 ```sh
-npx skills add hraness/ghostget#v0.18.14
+npx skills add hraness/ghostget#v0.18.15
 # or
-bunx skills add hraness/ghostget#v0.18.14
+bunx skills add hraness/ghostget#v0.18.15
 ```
 
 The skill teaches Codex, Claude Code, Cursor, and other compatible coding
@@ -170,7 +170,7 @@ install the CLI if it is missing. Start a new agent session after installation.
 After the matching immutable Release exists, install this exact canonical archive:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.14/hraness-ghostget-0.18.14.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.15/hraness-ghostget-0.18.15.tgz
 ghostget adapter sync-bundled --json
 ghostget doctor
 ```
@@ -198,7 +198,7 @@ For that same released coordinate, install Ghostget in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.14/hraness-ghostget-0.18.14.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.15/hraness-ghostget-0.18.15.tgz
 ```
 
 ```ts
