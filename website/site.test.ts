@@ -6,8 +6,14 @@ import { join, resolve } from "node:path";
 import {
   HRANESS_HOME_URL,
   HRANESS_MAILING_SUBSCRIBE_URL,
+  hranessAttribution,
   hranessSocialLinks,
+  renderHranessSiteFooter,
+  type HranessMailingListConfig,
 } from "@hraness/site-footer";
+import { HranessSiteFooter } from "@hraness/site-footer/react";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   agentSkillInstallCommands,
@@ -31,6 +37,7 @@ import {
   type UiStylesheetImport,
 } from "./build";
 import { handleDocumentNegotiation } from "../edge/negotiation";
+import { ghostgetSupportProfile } from "../src/support-profile";
 import {
   EDITORIAL_ARTICLE_IMAGE_SIZES,
   EDITORIAL_CARD_IMAGE_SIZES,
@@ -167,14 +174,15 @@ describe("ghostget.com static site", () => {
     expect(manifest).toMatchObject({
       devDependencies: {
         "@hraness/design-kit": "github:hraness/design-kit#v0.8.0",
-        "@hraness/site-footer": "github:hraness/site-footer#v0.12.2",
+        "@hraness/site-footer": "github:hraness/site-footer#v0.13.0",
         "@hraness/ui": "github:hraness/ui#v0.5.13",
       },
     });
     expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.8.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.13"');
+    expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.13.0"');
     expect(lockfile).toContain(
-      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#3283be8"',
+      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#5a98596"',
     );
   });
 
@@ -257,6 +265,47 @@ describe("ghostget.com static site", () => {
       .toEqual({ kind: "none" });
     expect(ghostgetMailingListConfig({ VERCEL_ENV: "development" }))
       .toEqual({ kind: "none" });
+  });
+
+  test("renders the shared Hraness attribution through the HranessSiteFooter contract in every mode", () => {
+    expect(hranessAttribution).toEqual({
+      subtitle: "Hraness is an advanced software research organization dedicated to advancing the frontier of machine intelligence.",
+      title: "Built by Hraness",
+    });
+    expect(Object.isFrozen(hranessAttribution)).toBe(true);
+
+    const mailingLists: ReadonlyArray<HranessMailingListConfig> = [
+      ghostgetMailingListConfig({ VERCEL_ENV: "production" }),
+      ghostgetMailingListConfig({ VERCEL_ENV: "preview" }),
+      ghostgetMailingListConfig({}),
+    ];
+    for (const mailingList of mailingLists) {
+      for (const support of [ghostgetSupportProfile, undefined]) {
+        for (const showBrand of [true, false]) {
+          const options = { mailingList, showBrand, ...(support === undefined ? {} : { support }) };
+          const staticHtml = renderHranessSiteFooter(options);
+          // The framework-neutral renderer the static build uses is the same
+          // contract as the React adapter once the client-only enrollment
+          // experiment is off; the React default instead ships an "arming"
+          // veil that only hydration lifts, which a React-free page must not emit.
+          expect(staticHtml).toBe(
+            renderToStaticMarkup(createElement(HranessSiteFooter, { ...options, experiment: false })),
+          );
+          expect(staticHtml).not.toContain("data-experiment=");
+          expect(staticHtml.match(/data-slot="hraness-attribution"/gu)).toHaveLength(1);
+          const attribution = /<div class="hraness-site-footer__attribution[^"]*" data-slot="hraness-attribution" lang="en" dir="ltr">([\s\S]*?)<\/div>/u
+            .exec(staticHtml)?.[1];
+          expect(attribution).toBeDefined();
+          expect(attribution).toMatch(
+            /^<p class="hraness-site-footer__attribution-title[^"]*">Built by Hraness<\/p><p class="hraness-site-footer__attribution-subtitle[^"]*">Hraness is an advanced software research organization dedicated to advancing the frontier of machine intelligence\.<\/p>$/u,
+          );
+          expect(attribution).not.toMatch(/<a\b|<button\b|aria-hidden|role=/u);
+          expect(staticHtml).not.toMatch(/Ben Guo|Built by Ben/u);
+          expect(staticHtml.match(/<footer\b/gu)).toHaveLength(1);
+          expect(staticHtml.match(/class="hraness-site-footer__social-link[\s"]/gu)).toHaveLength(hranessSocialLinks.length);
+        }
+      }
+    }
   });
 
   test("builds canonical discovery, semantic content, and private-key-free analytics", async () => {
@@ -503,6 +552,13 @@ describe("ghostget.com static site", () => {
     expect(html).toContain('data-hraness-marketing="proof-frame"');
     expect(html).toContain('data-hraness-marketing="pillars"');
     expect(html).toContain('data-hraness-marketing="maker"');
+    // The maker section is product-owned biography in page content; network
+    // attribution belongs to the shared footer and is never repeated here.
+    const makerSection = /<section\b[^>]*data-hraness-marketing="maker"[\s\S]*?<\/section>/u.exec(html)?.[0];
+    expect(makerSection).toBeDefined();
+    expect(makerSection).toContain('<h2 class="hraness-marketing-maker__heading" id="maker-title">Ben Guo</h2>');
+    expect(makerSection).not.toContain("hraness-attribution");
+    expect(makerSection).not.toMatch(/Built by\b/u);
     expect(html).toContain('clipped: "2026-09-05"');
     expect(html).toContain("Public-page read recorded on September 5, 2026; command updated for Ghostget.");
     expect(html).toContain('<a href="https://hraness.com">hraness.com</a>');
@@ -650,14 +706,37 @@ describe("ghostget.com static site", () => {
       "https://hraness.com/privacy",
       ...hranessSocialLinks.map(({ href }) => href),
     ];
+    const productionFooter = renderHranessSiteFooter({
+      mailingList: ghostgetMailingListConfig({ VERCEL_ENV: "production" }),
+      support: ghostgetSupportProfile,
+    });
     for (const document of [...pages.map(({ html: pageHtml }) => pageHtml), notFound]) {
       expect(document.match(/<footer\b/gu)).toHaveLength(1);
       const footer = /<footer\b[\s\S]*?<\/footer>/u.exec(document)?.[0];
       expect(footer).toBeDefined();
+      // The footer is the package's complete render, never a product fork.
+      expect(footer).toBe(productionFooter);
       expect(footer).toContain('data-slot="hraness-site-footer"');
       expect(footer).not.toContain("hraness-site-footer__wordmark");
       expect(footer).toContain('data-mailing-list="signup"');
       expect(footer).toContain('data-slot="hraness-support-link"');
+      // Shared network attribution: package-owned copy, present once, in the
+      // wide visual order after the support link and before consent and socials.
+      expect(document.match(/data-slot="hraness-attribution"/gu)).toHaveLength(1);
+      // The only "Built by" credit on a page is the package footer's.
+      expect(document.match(/Built by\b/gu)).toHaveLength(1);
+      expect(footer).toContain(`>${hranessAttribution.title}</p>`);
+      expect(footer).toContain(`>${hranessAttribution.subtitle}</p>`);
+      expect(footer).not.toMatch(/Ben Guo|Built by Ben/u);
+      expect(footer).not.toContain('data-experiment="arming"');
+      const footerOrder = [
+        'data-slot="hraness-support-link"',
+        'data-slot="hraness-attribution"',
+        'data-slot="hraness-cookie-consent"',
+        'aria-label="Hraness links"',
+      ].map((marker) => footer!.indexOf(marker));
+      expect(footerOrder.every((offset) => offset >= 0)).toBe(true);
+      expect(footerOrder).toEqual([...footerOrder].sort((left, right) => left - right));
       expect(footer).toContain(`action="${HRANESS_MAILING_SUBSCRIBE_URL}"`);
       expect(footer).toContain('name="audience" type="hidden" value="wrench"');
       expect(footer).toContain('name="website"');

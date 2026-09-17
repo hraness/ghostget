@@ -7,6 +7,12 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Pin `@hraness/site-footer` v0.13.0 so every public page's shared footer
+  carries the package-owned "Built by Hraness" organization attribution. The
+  static build keeps the framework-neutral renderer, which tests prove is the
+  same `HranessSiteFooter` contract, and the homepage maker biography remains
+  product-owned page content rather than footer attribution.
+
 ## 0.18.13
 
 - Move the menu companion onto the shared desktop-foundation runner, retaining
