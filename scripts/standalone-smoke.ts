@@ -26,7 +26,7 @@ type InstalledClosurePackage = {
 
 const expectedClosureRuntimeDependencies = Object.freeze({
   "@1password/sdk": "0.5.0",
-  "@hraness/accounts-cli": "github:hraness/accounts-cli#v0.1.1",
+  "@hraness/accounts-cli": "github:hraness/accounts-cli#v0.1.3",
   "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.7.0/hraness-desktop-foundation-0.7.0.tgz",
   "@hraness/kb": "https://github.com/hraness/kb/releases/download/v0.19.6/hraness-kb-0.19.6.tgz",
   "@hraness/local-custody": "github:hraness/local-custody#d462900810b042a8b5f34245d0d371cfaa6ee9b3",
