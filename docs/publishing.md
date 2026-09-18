@@ -206,7 +206,7 @@ The prior published release is v0.18.12.
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.15/hraness-ghostget-0.18.15.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.16/hraness-ghostget-0.18.16.tgz
 ghostget --version
 ghostget doctor --json
 ```
