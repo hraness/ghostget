@@ -22,6 +22,7 @@ import {
   saveAuth,
   type GhostgetAuth,
 } from "./auth";
+import { runAccountsDeviceLogin, runAccountsSignOut } from "./accounts-auth";
 import {
   isPublicWebSessionInvocationAuthority,
   type InvocationAuthority,
@@ -1981,6 +1982,48 @@ async function runCommand(
 ): Promise<number> {
   if (arguments_.command === "help") {
     output.stdout(renderGhostgetUsage());
+    return 0;
+  }
+  if (arguments_.command === "login") {
+    const result = await runAccountsDeviceLogin(
+      environment,
+      {
+        onUserCode: (userCode, verificationUri) => {
+          output.stderr(
+            `Open ${safe(verificationUri)} in a browser where you are already signed in to Hraness Accounts and enter code: ${safe(userCode)}\n`,
+          );
+        },
+        onPending: () => {
+          output.stderr("Waiting for browser approval...\n");
+        },
+        onSlowDown: () => {
+          output.stderr("Polling more slowly...\n");
+        },
+      },
+      undefined,
+      signal,
+    );
+    if (arguments_.json) {
+      output.stdout(exactTerminalJson({ ok: result.kind === "success", ...result }));
+    } else if (result.kind === "success") {
+      output.stdout(`${safe(result.message)}\n`);
+    } else if (result.kind === "denied") {
+      output.stderr("Login was denied in the browser.\n");
+    } else if (result.kind === "expired") {
+      output.stderr("The sign-in code expired. Run 'ghostget login' again.\n");
+    } else {
+      output.stderr(`Login failed: ${safe(result.message)}\n`);
+    }
+    return result.kind === "success" ? 0 : 3;
+  }
+  if (arguments_.command === "logout") {
+    await runAccountsSignOut(environment);
+    const message = "Signed out of Hraness Accounts.";
+    if (arguments_.json) {
+      output.stdout(exactTerminalJson({ ok: true, message }));
+    } else {
+      output.stdout(`${message}\n`);
+    }
     return 0;
   }
   if (arguments_.command === "whatsapp-automation-install") {
