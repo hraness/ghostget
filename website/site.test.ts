@@ -660,7 +660,7 @@ describe("ghostget.com static site", () => {
     expect(sitemap).not.toContain("/preview/");
     expect(llms).not.toContain("/preview/");
     expect(indexNowKey).toBe("dc84ee4863539f2fff50ef5f0a164168\n");
-    expect(createHash("sha256").update(favicon).digest("hex")).toBe("53c9d9dd047600f8b6fc58aefdc0eaebbbe03af1756101e4d43648acc6dc6ad5");
+    expect(createHash("sha256").update(favicon).digest("hex")).toBe("09931384427416761a2e2d064d41532b8432dfb3c2d2f60d02bb54ed460ee3b4");
     expect(favicon).toEqual(await readFile(join(websiteRoot, "public/icon.png")));
     expect(await readFile(join(websiteRoot, "dist/apple-icon.png"))).toEqual(await readFile(join(websiteRoot, "public/apple-icon.png")));
     expect(html).toContain('<link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">');
