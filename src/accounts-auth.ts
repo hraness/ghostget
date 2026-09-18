@@ -7,23 +7,18 @@ import {
   createMemoryTokenStorage,
   initiateDeviceLogin,
   type CliSession,
+  type DeviceLoginResult,
   type TokenStorage,
 } from "@hraness/accounts-cli";
 import { ghostgetStateHome } from "./storage";
 
-const GHOSTGET_CLIENT_ID = "hraness:wrench:production:v1";
+const GHOSTGET_CLIENT_ID = "hraness:ghostget:production:v1";
 const ACCOUNTS_ORIGIN = "https://account.hraness.com";
 const DEVICE_AUTHORIZATION_ENDPOINT =
   `${ACCOUNTS_ORIGIN}/api/auth/oauth2/device_authorization`;
 const DEVICE_TOKEN_ENDPOINT =
   `${ACCOUNTS_ORIGIN}/api/auth/oauth2/device/token`;
 const TOKEN_ENDPOINT = `${ACCOUNTS_ORIGIN}/api/auth/oauth2/token`;
-
-type DeviceLoginResult =
-  | Readonly<{ kind: "token"; accessToken: string; refreshToken: string }>
-  | Readonly<{ kind: "access_denied" }>
-  | Readonly<{ kind: "expired_token" }>
-  | Readonly<{ kind: "error"; error: string; errorDescription: string | null }>;
 
 export type AccountsAuthResult =
   | Readonly<{ kind: "success"; message: string }>
