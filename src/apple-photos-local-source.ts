@@ -41,6 +41,7 @@ import {
 import {
   canonicalJson,
   canonicalJsonSha256Matches,
+  legacyCanonicalJson,
   sha256,
 } from "./canonical-json";
 import { removePrivateDirectoryTree } from "./storage";
@@ -80,11 +81,15 @@ const CONTACTS_SCHEMA_CONTRACT = Object.freeze({
   }),
 });
 
+// These schema identities are reviewed stable constants embedded in exported
+// evidence and receipts: they name "the Core Data schema this build expects",
+// not a canonicalization of new writes, so they keep the pre-migration legacy
+// ordering and never change value across the RFC 8785 migration.
 export const APPLE_PHOTOS_SCHEMA_SHA256 = sha256(
-  canonicalJson(PHOTOS_SCHEMA_CONTRACT),
+  legacyCanonicalJson(PHOTOS_SCHEMA_CONTRACT),
 );
 export const APPLE_CONTACTS_SCHEMA_SHA256 = sha256(
-  canonicalJson(CONTACTS_SCHEMA_CONTRACT),
+  legacyCanonicalJson(CONTACTS_SCHEMA_CONTRACT),
 );
 
 type CaptureRole = "photos" | "contacts";

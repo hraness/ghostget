@@ -1044,7 +1044,12 @@
 // Prior CI measured a 3,543-byte Linux/macOS gzip spread.
 // That candidate retained a 2,220,909-byte packed ceiling, 4,326 packed bytes
 // and 938 unpacked bytes of headroom, with exactly 466 files.
-export const MAX_PACKED_BYTES = 11_688_858;
+// The RFC 8785 canonical-ordering migration grew the packed tarball past the
+// prior ceiling: ubuntu CI packed 11,689,843 bytes and macOS packed
+// 11,680,162 (a 9,681-byte gzip spread across the new dual-read serializer
+// and verification-path helpers). Retain 4,096 packed bytes of headroom over
+// the larger measurement: 11,689,843 + 4,096 = 11,693,939.
+export const MAX_PACKED_BYTES = 11_693_939;
 export const MAX_PACKED_ENTRIES = 564;
 export const MAX_PACKED_FILES = 564;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
@@ -1055,8 +1060,11 @@ export const MAX_PACKED_FILES = 564;
 // canonical-JSON consumers: a clean npm 11.19.0 pack --ignore-scripts on
 // this branch measured 22,674,601 unpacked bytes across the unchanged
 // 564-file inventory. Retain the reviewed 65-byte allowance:
-// 22,674,601 + 65 = 22,674,666.
-export const MAX_UNPACKED_BYTES = 22_674_666;
+// 22,674,601 + 65 = 22,674,666. The schema-identity constants pinned to the
+// legacy serializer (stable reviewed identifiers, not new writes) added 337
+// source bytes: a clean pack now measures 22,674,938. Retain the reviewed
+// 65-byte allowance: 22,674,938 + 65 = 22,675,003.
+export const MAX_UNPACKED_BYTES = 22_675_003;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
