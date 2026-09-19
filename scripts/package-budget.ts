@@ -1,3 +1,38 @@
+// Final 0.18.17 first-launch and concise-catalog repairs, with matching built
+// SDK bytes, measure 572 files/entries and 22,764,262 payload bytes. npm 11.16.0
+// with Node 24.18.1 / zlib 1.3.1-e00f703 on darwin arm64 packed 11,714,977
+// compressed bytes; every archive entry matched current source bytes.
+// Archive SHA-256: a211e0a1fc8cca37ce468a22500c1718787baca2c304b537a1a636ac3d98560e.
+// Keep the reviewed compressed ceiling and exact inventory; retain the same
+// payload allowance: 22,764,262 + 65 = 22,764,327. Canonical Linux CI and
+// Release independently measure and admit their exact archives.
+//
+// Integrating main 639825a preserves the Jev reference retirement below:
+// 22,771,636 - 12,213 = 22,759,423 across exactly 572 files. Restore the
+// same payload allowance: 22,759,423 + 65 = 22,759,488.
+//
+// Ghostget 0.18.17 onboarding and local-control release candidate adds seven
+// packed production files: helper-client.ts, control-response.ts, vault-input.ts,
+// vault-cli.ts, tui.ts, tui-model.ts, and tui-terminal.ts under src/control.
+// The CLI, menu, credential validation, docs, and generated version chunk also
+// change. `npm pack --ignore-scripts --json --pack-destination <private-dir>
+// --registry=https://registry.npmjs.org` with Node 24.18.1, npm 11.16.0,
+// zlib 1.3.1-e00f703 on darwin arm64 measured exactly 573 files/entries,
+// 11,717,815 compressed bytes and 22,769,813 payload bytes. Every packed
+// file's bytes matched the converged source. Archive SHA-256:
+// cca7868892b6c57901c581f10e714292086d7b38a1b4b261df7216dacd8367f0.
+// Retain the reviewed 65-byte payload allowance:
+// 22,769,813 + 65 = 22,769,878. For local compression, retain the documented
+// 148,155-byte platform/compressor spread from the 9af4d34 measurements below
+// and the existing 4,096-byte portability allowance:
+// 11,717,815 + 148,155 + 4,096 = 11,870,066. This is local evidence, not a
+// claim of identical canonical gzip bytes. Required Linux CI and Release
+// independently admit their actual Node 24.20.0/npm 11.19.0 archives.
+// The final helper framing and menu lifecycle repairs add exactly 641 and
+// 1,182 source payload bytes. Rechecking every path in the measured inventory
+// gives 22,771,636 bytes across the same 573 files. Keep the compressed ceiling
+// and restore the 65-byte payload allowance: 22,771,636 + 65 = 22,771,701.
+//
 // Jev example retirement removes one packed reference and 12,213 payload bytes
 // from the reviewed PR #301 tree: 22,689,627 - 12,213 = 22,677,414.
 // Restore the exact 565-file inventory and the same 65-byte payload allowance:
@@ -1095,9 +1130,9 @@
 // exactly 565 files on macOS, archive SHA-256
 // c47c8d3767080acddfa48b353aff98fae738c45a5ba16708d63e857dd839480a. Raise the
 // packed inventory to 565 and retain the existing packed ceiling.
-export const MAX_PACKED_BYTES = 11_700_187;
-export const MAX_PACKED_ENTRIES = 565;
-export const MAX_PACKED_FILES = 565;
+export const MAX_PACKED_BYTES = 11_870_066;
+export const MAX_PACKED_ENTRIES = 572;
+export const MAX_PACKED_FILES = 572;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
 //
@@ -1131,7 +1166,9 @@ export const MAX_PACKED_FILES = 565;
 // Retain the reviewed 65-byte allowance: 22,677,414 + 65 = 22,677,479.
 // The final consumer reference measurement retains the original allowance:
 // 22,689,627 + 65 = 22,689,692.
-export const MAX_UNPACKED_BYTES = 22_677_479;
+// The 0.18.17 measurement restores that same allowance over the new source:
+// 22,769,813 + 65 = 22,769,878.
+export const MAX_UNPACKED_BYTES = 22_764_327;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

@@ -339,6 +339,7 @@ var stateDirectoryNames = [
   "derivations",
   "idempotency",
   "linked-device-stores",
+  "menubar",
   "messaging",
   "omni-read-projections",
   "operation-permissions",

@@ -492,8 +492,9 @@ describe("ghostget.com static site", () => {
     expect(html.match(/<details\b/gu)).toHaveLength(13);
     expect(html.match(/<iframe\b/gu)).toBeNull();
     expect(html).toContain("ghostget menubar");
-    expect(html).toContain("menu-bar companion reviews connected accounts, pending approvals, and operation permissions");
-    expect(html).toContain("revision-checked requests to Ghostget's own control helper");
+    expect(html).toContain("Review connected accounts, permissions, pending approvals, and recent activity in your menu bar or terminal");
+    expect(html).toContain("ghostget tui");
+    expect(html).toContain("Only one control client runs at a time");
     expect(html).toContain('class="table-scroll" role="region" tabindex="0"');
     expect(html).toContain('<a class="skip-link" href="#main">');
     expect(html.match(/data-analytics-event="project link opened"/gu)).toHaveLength(2);

@@ -4,7 +4,9 @@
 - `helper.ts`, `service.ts` – process custody, transport and control composition.
 - `menubar-cli.ts` – shared desktop-foundation menu adapter over the helper's private stdio channel.
 - `menubar-icon.ts` – bundled 32px Twemoji (CC-BY 4.0) tray art for icon-only surfaces.
-- `menubar-icon.ts` – bundled 32px Twemoji (CC-BY 4.0) tray art for icon-only surfaces.
+- `tui*.ts` – keyboard-driven control views, input decoding, and terminal lifetime.
+- `helper-client.ts`, `control-response.ts` – bounded private control transport and strict response parsing shared by the menu, TUI, and token-import command.
+- `vault-cli.ts`, `vault-input.ts` – explicit X-token import metadata and command guidance; secret resolution stays in `credential-helper.ts`.
 - `approval-*.ts` – exact human request and one-use approval lifetimes.
 - `web-*.ts`, `activity.ts` – bounded public retrieval and SQLite metadata.
 - `interface*.ts` – OpenAPI parsing, inert drafts and conditional activation.
@@ -17,6 +19,10 @@
 administrative stdio and a separate owner-only agent socket. Agent requests
 cannot grant approvals, alter policy, connect accounts, or resolve secrets.
 Keep both protocols bounded and reject drift before dispatch.
+The menu, TUI, and token-import command share one helper owner per state home.
+Keep account selection and exact revision/digest review visible before actions.
+Terminal input, including pasted text, must never bypass that review. Restore
+terminal state before waiting for helper cancellation and custody settlement.
 
 `service.ts` composes current account, manifest and implementation identities.
 Display optimizations must not cache authorization across a changed account,

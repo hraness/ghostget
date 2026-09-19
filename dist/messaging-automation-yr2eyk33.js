@@ -18,7 +18,7 @@ import {
   ensurePrivateStateDirectory,
   ghostgetStateHome,
   snapshotPrivateStateDirectory
-} from "./index-wwtk6nnt.js";
+} from "./index-78368s4p.js";
 import {
   canonicalJson,
   canonicalJsonSha256Matches,

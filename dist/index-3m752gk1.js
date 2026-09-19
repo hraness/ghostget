@@ -1,7 +1,7 @@
 // @bun
 import {
   ensurePrivateStateDirectory
-} from "./index-wwtk6nnt.js";
+} from "./index-78368s4p.js";
 import {
   __require
 } from "./index-z1w83f81.js";
@@ -162,11 +162,11 @@ async function installBundledMessagingRuntime(provider, environment = process.en
       await file.close();
     }
     if (provider === "imessage") {
-      const { installReviewedImsgBinary } = await import("./imessage-direct-install-gd03tave.js");
+      const { installReviewedImsgBinary } = await import("./imessage-direct-install-2tjttg52.js");
       const result = await installReviewedImsgBinary(path, environment);
       return { version: result.version, sha256: result.executableSha256, alreadyPresent: result.alreadyPresent };
     }
-    const { installReviewedWhatsAppAutomationBinary } = await import("./whatsapp-automation-runtime-jwd06fbs.js");
+    const { installReviewedWhatsAppAutomationBinary } = await import("./whatsapp-automation-runtime-yzk2g101.js");
     return await installReviewedWhatsAppAutomationBinary(path, environment);
   } finally {
     await unlink(path);

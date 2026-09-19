@@ -36,6 +36,7 @@ const MAX_BATCH_STDOUT_BYTES = 96 * 1024 * 1024;
 const MAX_STATE_MUTATION_CONTENT_BYTES = 2 * 1024 * 1024;
 const MAX_STATE_MUTATION_EXPECTED_CONTENT_BYTES = 4 * 1024 * 1024;
 const stateDirectories = new Set([
+  "menubar",
   "adapter-generations",
   "adapters",
   "auth",

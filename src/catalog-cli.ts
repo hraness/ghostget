@@ -87,23 +87,6 @@ function safeJson(
       : candidate, 2)}\n`;
 }
 
-function print(
-  output: GhostgetCatalogOutput,
-  value: unknown,
-  json: boolean,
-  reviewedPublicStrings: ReadonlySet<string> = new Set(),
-): void {
-  output.stdout(
-    json
-      ? safeJson(value, reviewedPublicStrings)
-      : `${safe(
-          typeof value === "string"
-            ? value
-            : JSON.stringify(value, null, 2),
-        )}\n`,
-  );
-}
-
 function providerPluginTrustBoundary(): Record<string, unknown> {
   return {
     sourceExecution: "trusted-in-process",
@@ -354,11 +337,11 @@ function listRuntimeManifests(
 }
 
 function capabilitySummary(
-  environment: Readonly<Record<string, string | undefined>>,
+  manifests: ReturnType<typeof listRuntimeManifests>,
   registry: ProviderPluginRegistry,
   reviewedPublicStrings: Set<string>,
-): readonly unknown[] {
-  return listRuntimeManifests(environment, registry).map(({ id, result }) =>
+) {
+  return manifests.map(({ id, result }) =>
     result.ok
       ? {
           id,
@@ -459,31 +442,133 @@ function capabilitySummary(
       : { id, invalid: true, issues: result.issues });
 }
 
+function renderCapabilityOperationText(
+  id: string,
+  operation: GhostgetOperation,
+  registry: ProviderPluginRegistry,
+): readonly string[] {
+  const transport = installedOperationTransport(operation);
+  const contract = isProviderOperation(operation)
+    ? getProviderContract(operation.provider, registry)
+    : isWebSessionOperation(operation)
+      ? getWebSessionContract(operation.webSession, registry)
+      : isLocalCliOperation(operation)
+        ? getLocalCliContract(operation.localCli, registry)
+        : isReviewedTemplateOperation(operation)
+          ? operation.reviewedTemplate
+          : null;
+  if (contract === null) throw new Error(DOM_ACTION_TRANSPORT_DISABLED_MESSAGE);
+  const lines = [
+    `  ${safe(id)} (${transport}; contract ${contract.state}; ${operation.risk})`,
+    `    ${safe(operation.description)}`,
+  ];
+  if (contract.state === "capture-required") {
+    lines.push("    Unavailable until its contract is captured and reviewed.");
+  }
+  const required = new Set(operation.input.required);
+  const inputs = Object.entries(operation.input.properties).map(([name, field]) =>
+    `${safe(name)}${required.has(name) ? "*" : ""} (${field.type})`);
+  lines.push(`    Inputs: ${inputs.length === 0 ? "none" : inputs.join(", ")}`);
+  if (operation.sideEffect !== "none") {
+    lines.push(`    Effect: ${safe(operation.sideEffect)}`);
+  }
+  if ("requiredScopeSets" in contract) {
+    // These are reviewed public scope identifiers, as in the JSON allowlist.
+    const scopeSets = contract.requiredScopeSets.map((scopes) =>
+      scopes.length === 0
+        ? "[no scopes]"
+        : `[${scopes.map((scope) => sanitizeTerminalLine(scope)).join(" + ")}]`);
+    lines.push(
+      scopeSets.length === 0
+        ? "    OAuth scopes: none declared; account access is still checked."
+        : `    OAuth scopes (one complete set): ${scopeSets.join(" or ")}`,
+    );
+  }
+  return lines;
+}
+
+function renderCapabilitiesText(
+  manifests: ReturnType<typeof listRuntimeManifests>,
+  adapterId: string | undefined,
+  registry: ProviderPluginRegistry,
+): string {
+  if (adapterId !== undefined && manifests.length === 0) {
+    return `Adapter ${safe(adapterId)} is not installed.\n`
+      + "Run 'ghostget capabilities' to list installed adapters.\n"
+      + "Run 'ghostget adapter sync-bundled' to install bundled adapter contracts.\n";
+  }
+  if (manifests.length === 0) {
+    return "No adapters installed.\n"
+      + "Read a public page now: ghostget read https://example.com\n"
+      + "Install bundled adapter contracts: ghostget adapter sync-bundled\n"
+      + "Exact full contracts in JSON: ghostget capabilities --json\n";
+  }
+  const lines = [
+    adapterId === undefined
+      ? `Installed adapters (${manifests.length})`
+      : `Adapter ${safe(adapterId)}`,
+    "Installed contracts do not confirm account access or runtime readiness.",
+    "",
+  ];
+  for (const { id, result } of manifests) {
+    if (!result.ok) {
+      lines.push(`  ${safe(id)} (invalid manifest)`);
+      if (adapterId !== undefined) {
+        lines.push(...result.issues.map((issue) => `    ${safe(issue)}`));
+      }
+      continue;
+    }
+    const manifest = result.value;
+    const operations = Object.entries(manifest.operations);
+    if (adapterId === undefined) {
+      const transports = [...new Set(operations.map(([, operation]) =>
+        installedOperationTransport(operation)))];
+      lines.push(
+        `  ${safe(id)}: ${safe(manifest.displayName)} (${operations.length} operations; ${transports.join(", ")})`,
+      );
+    } else {
+      lines.push(
+        `${safe(manifest.displayName)} (version ${safe(manifest.version)})`,
+        `${operations.length} operations; * marks a required input.`,
+        "",
+      );
+      for (const [operationId, operation] of operations) {
+        lines.push(...renderCapabilityOperationText(operationId, operation, registry), "");
+      }
+    }
+  }
+  if (adapterId === undefined) {
+    lines.push("", "Operation details: ghostget capabilities <adapter>");
+  }
+  lines.push(
+    `Exact full contracts (input schemas, scopes and hashes): ghostget capabilities${adapterId === undefined ? "" : ` ${safe(adapterId)}`} --json`,
+  );
+  return `${lines.join("\n")}\n`;
+}
+
 export function runCapabilities(
   command: Extract<GhostgetCatalogCommand, { readonly command: "capabilities" }>,
   environment: Readonly<Record<string, string | undefined>>,
   output: GhostgetCatalogOutput,
   registry: ProviderPluginRegistry,
 ): number {
-  const reviewedPublicStrings = new Set<string>();
-  const values = capabilitySummary(
-    environment,
-    registry,
-    reviewedPublicStrings,
-  );
+  const values = listRuntimeManifests(environment, registry);
   const selected = command.adapterId === undefined
     ? values
-    : values.filter((entry) =>
-        typeof entry === "object"
-        && entry !== null
-        && (entry as { readonly id?: unknown }).id === command.adapterId);
+    : values.filter((entry) => entry.id === command.adapterId);
   const found = selected.length > 0 || command.adapterId === undefined;
-  print(
-    output,
-    command.json ? { ok: found, adapters: selected } : selected,
-    command.json,
-    reviewedPublicStrings,
-  );
+  if (command.json) {
+    const reviewedPublicStrings = new Set<string>();
+    const summaries = capabilitySummary(values, registry, reviewedPublicStrings);
+    output.stdout(safeJson({
+      ok: found,
+      adapters: command.adapterId === undefined
+        ? summaries
+        : summaries.filter((entry) => entry.id === command.adapterId),
+    }, reviewedPublicStrings));
+  } else {
+    output.stdout(renderCapabilitiesText(selected, command.adapterId, registry));
+  }
   return found ? 0 : 3;
 }
 

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { createAuth, loadAuthSnapshotIfPresent, normalizeOAuthScopes, replaceAuthIfUnchanged, saveAuth } from "../auth";
+import { createAuth, loadAuthSnapshotIfPresent, replaceAuthIfUnchanged, saveAuth } from "../auth";
 import { canonicalJson } from "../canonical-json";
 import { OperationDeadline } from "../operation-deadline";
 import { createPinnedHttpsFetchScope, type PinnedHttpsFetch } from "../pinned-https";
@@ -11,7 +11,8 @@ import { createPrivateJsonIfAbsent, ghostgetStateHome, removePrivateStateFileIfU
 import { GHOSTGET_VERSION } from "../version";
 import type { ControlRequest } from "./protocol";
 import { readInterfaceJson } from "./interface-json";
-import { parseControlRequest } from "./validation";
+import { parseVaultImport } from "./vault-input";
+export { parseVaultImport } from "./vault-input";
 import { connectionAccountRevision } from "./account-revision";
 
 export type VaultImportRequest = Extract<ControlRequest, { action: "vault.import" }>;
@@ -19,22 +20,6 @@ export type VaultImportCode = "INVALID_IMPORT" | "ACCOUNT_CHANGED" | "VAULT_UNAV
 export type VaultImportResult = { readonly ok: true } | { readonly ok: false; readonly code: VaultImportCode };
 type Environment = Readonly<Record<string, string | undefined>>;
 export const VAULT_IMPORT_TIMEOUT_MS = 120_000;
-const X_IMPORT_SCOPES = new Set(["tweet.read", "tweet.write", "users.read", "dm.read", "dm.write", "bookmark.write"]);
-
-/** The import metadata is declared by the human; only the exact user subject is proved. */
-export function parseVaultImport(value: unknown, now = Date.now()): VaultImportRequest {
-  const request = parseControlRequest(value);
-  if (request.action !== "vault.import" || !/^[a-z][a-z0-9-]{0,47}$/u.test(request.id)
-    || !isXAccountSubject(request.expectedSubject)
-    || request.account.trim() !== request.account || /[\u0000-\u001f\u007f]/u.test(request.account)
-    || !/^op:\/\/[^/\u0000-\u001f\u007f?#\\]+\/[^/\u0000-\u001f\u007f?#\\]+\/(?:[^/\u0000-\u001f\u007f?#\\]+\/)?[^/\u0000-\u001f\u007f?#\\]+$/u.test(request.reference)
-    || /%(?:2f|5c|00|0a|0d)/iu.test(request.reference)) throw new Error("invalid token import");
-  const scopes = normalizeOAuthScopes(request.scopes);
-  if (!scopes.includes("tweet.read") || !scopes.includes("users.read") || scopes.some(scope => !X_IMPORT_SCOPES.has(scope))) throw new Error("unsupported token scopes");
-  if (request.expiresAt !== null && (!Number.isFinite(Date.parse(request.expiresAt)) || new Date(request.expiresAt).toISOString() !== request.expiresAt || Date.parse(request.expiresAt) <= now + 30_000)) throw new Error("invalid declared expiry");
-  return { ...request, scopes };
-}
-
 /** Trusted fixed sink: no registry, supplied URL, dynamic executor, redirect or retry. */
 export async function probeImportedXToken(auth: OAuthTokenAuth, signal: AbortSignal, transport?: PinnedHttpsFetch): Promise<string> {
   const deadline = new OperationDeadline(15_000, { signal });

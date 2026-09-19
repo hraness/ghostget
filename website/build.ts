@@ -60,7 +60,7 @@ export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const HRANESS_URL = "https://hraness.com/" as const;
 export const HRANESS_ORGANIZATION_ID = `${HRANESS_URL}#organization` as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.16" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.17" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",
@@ -81,7 +81,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/getting-started/",
     description:
-      "Install Ghostget with Bun, verify local readiness, capture a first URL, and inspect the exact capabilities available on your machine.",
+      "Install Ghostget and read a public page with no account or API key. Then choose page saving, an agent skill, or connected services.",
     outputFile: "getting-started/index.html",
     sourceFile: "getting-started.html",
     title: "Install Ghostget: CLI and TypeScript SDK getting started guide",

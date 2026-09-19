@@ -5,7 +5,24 @@
  * identity for a valid help request, so help remains available even when an
  * optional provider runtime is broken.
  */
-export const ghostgetUsage = `Usage:
+export const ghostgetUsage = `Ghostget reads pages, saves media, and connects account tools to your agent.
+
+Start here (no account required):
+  ghostget read https://example.com                    Read a public page without saving it
+  ghostget adapter sync-bundled                        Set up reviewed provider capabilities
+  ghostget capabilities                               See what you can use
+
+Control Ghostget:
+  ghostget tui                                        Open the keyboard-driven control panel
+  ghostget tui --snapshot                             Print a plain-text control overview
+  ghostget menubar                                    Start the menu-bar companion
+  ghostget menubar doctor                             Check companion installation
+  ghostget vault --help                               Import an X token from 1Password on macOS
+
+Use one controller at a time. Run ghostget menubar stop before opening the TUI.
+Setup guide: https://ghostget.com/getting-started
+
+Command reference:
   ghostget login [--json]                             Sign in to Hraness Accounts
   ghostget logout [--json]                            Sign out of Hraness Accounts
   ghostget --version                                  Print the exact Ghostget release version

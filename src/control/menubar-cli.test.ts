@@ -1,14 +1,23 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { validateSnapshot, type MenuItem, type Snapshot } from "@hraness/desktop-foundation";
-import { ghostgetStateHome } from "../storage";
+import { ghostgetStateHome, installManifest } from "../storage";
+import { createAuth, saveAuth } from "../auth";
+import type { GhostgetManifest } from "../model";
+import { providerPluginRegistry as registry } from "../provider-plugins";
+import { readOperationPolicy } from "../operation-permission-store";
 import { TRAY_ICON } from "./menubar-icon";
-import { companionOptions, menuLabel, readOutputs, runMenubarCommand, snapshotItems, type Attempt, type OutputsView } from "./menubar-cli";
-import type { ControlSnapshot } from "./protocol";
+import { companionOptions as createCompanionOptions, menuLabel, readOutputs, runMenubarCommand, snapshotItems, type Attempt, type OutputsView } from "./menubar-cli";
+import type { ControlRequest, ControlResponse, ControlSnapshot } from "./protocol";
 
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup(); });
+function companionOptions(...args: Parameters<typeof createCompanionOptions>) {
+  const options = createCompanionOptions(...args);
+  cleanups.push(options.dispose);
+  return options;
+}
 function fixture() {
   const raw = mkdtempSync("/tmp/ghostget-menu-"); chmodSync(raw, 0o700);
   cleanups.push(async () => { rmSync(raw, { recursive: true, force: true }); });
@@ -62,7 +71,7 @@ describe("snapshot menu mapping", () => {
     const items = snapshotItems(base({
       accounts: [
         { id: "acct-one", provider: "x", kind: "browser-profile", subject: "owner", revision: "a".repeat(64), status: "verified", source: "Browser profile", tokenStorage: null },
-        { id: "acct-two", provider: null, kind: "cookie-source", subject: null, revision: "b".repeat(64), status: "reconnect-required", source: "safari", tokenStorage: null },
+        { id: "x-web-acct-two", provider: null, kind: "cookie-source", subject: null, revision: "b".repeat(64), status: "reconnect-required", source: "safari", tokenStorage: null },
       ],
       approvals: [{ id: "appr-1", digest: "c".repeat(64), kind: "web", title: "Fetch docs page", account: null, effect: "retrieval", preview: "GET https://docs.example.com", expiresAt: "2026-09-16T00:00:00Z" }],
       capabilities: [
@@ -78,16 +87,17 @@ describe("snapshot menu mapping", () => {
     expect(all).toContain("2 accounts · 1 need reconnect · 1 pending approval");
     expect(all).toContain("Approvals · 1");
     expect(all).toContain("Fetch docs page");
-    expect(all).toContain("acct-two · Reconnect required");
+    expect(all).toContain("x-web-acct-two · Reconnect required");
     expect(all).toContain("Gateway-only mode");
     expect(all).toContain("Docs interface · draft");
-    expect(all).toContain("Vault · 1Password available");
+    expect(all).toContain("1Password · X token import");
+    expect(all).toContain("macOS supported; desktop access has not been checked.");
     expect(all).toContain("Updated 3s ago");
     expect(ids).toContain("approval:allow:appr-1");
     expect(ids).toContain("approval:deny:appr-1");
     expect(ids).toContain("disconnect:acct-one");
     expect(ids).toContain("connect:x-web:safari");
-    expect(ids).toContain("reconnect:acct-two:x-web:chrome-default");
+    expect(ids).toContain("reconnect:x-web-acct-two:x-web:chrome-default");
     expect(ids).toContain("permission:enable");
     expect(ids).toContain("permission:allow:x-web:post");
     expect(ids).toContain("permission:ask:x-web:post");
@@ -124,8 +134,47 @@ describe("snapshot menu mapping", () => {
     wire(items);
     const all = labels(items);
     expect(all).toContain("5 more accounts");
-    expect(all).toContain("25 more operations need review");
+    expect(all).toContain("25 more operations; use ghostget tui to review all");
     expect(all).toContain("Last confirmed 1m ago");
+  });
+  test("configured browser accounts offer a matching reconnect without offering token replacement", () => {
+    const accounts: ControlSnapshot["accounts"] = [
+      { id: "x-web-123", provider: null, kind: "cookie-source", subject: "12345", revision: "a".repeat(64), status: "configured", source: "chrome", tokenStorage: null },
+      { id: "x-token", provider: "x", kind: "oauth-token-file", subject: "12345", revision: "b".repeat(64), status: "configured", source: null, tokenStorage: "ghostget-import" },
+      { id: "unknown-browser", provider: null, kind: "cookie-source", subject: "12345", revision: "c".repeat(64), status: "configured", source: "chrome", tokenStorage: null },
+    ];
+    const ids = actionIds(snapshotItems(base({ accounts, connectionProviders: [{ id: "x-web", title: "X" }, { id: "linkedin-web", title: "LinkedIn" }] }), new Map(), { confirmedAgeSeconds: 0, fresh: true }));
+    expect(ids).toContain("reconnect:x-web-123:x-web:chrome-default");
+    expect(ids.some(id => id.startsWith("reconnect:x-web-123:linkedin"))).toBe(false);
+    expect(ids.some(id => id.startsWith("reconnect:x-token:"))).toBe(false);
+    expect(ids.some(id => id.startsWith("reconnect:unknown-browser:"))).toBe(false);
+  });
+  test("unconfirmed snapshots retain status but disable administrative actions", () => {
+    const actions = wire(snapshotItems(base(), new Map(), { confirmedAgeSeconds: 9, fresh: false }));
+    expect(actions.get("permission:enable")).toBe(false);
+    expect(actions.get("connect:x-web:safari")).toBe(false);
+    expect(actions.get("refresh")).toBe(true);
+  });
+  test("Linux keeps browser connection controls disabled and offers provider-specific guidance", () => {
+    const state = base({ accounts: [{ id: "x-web-main", provider: null, kind: "cookie-source", subject: "12345", revision: "a".repeat(64), status: "configured", source: "chrome", tokenStorage: null }] });
+    const items = snapshotItems(state, new Map(), { confirmedAgeSeconds: 0, fresh: true }, [], undefined, null, null, "linux");
+    const actions = wire(items);
+    expect(actions.get("connect:x-web:safari")).toBe(false);
+    expect(actions.get("reconnect:x-web-main:x-web:chrome-default")).toBe(false);
+    expect(actions.get("provider:help:x-web")).toBe(true);
+    expect(labels(items)).toContain("Browser sign-in requires macOS. Open a provider guide for CLI setup.");
+    expect(labels(items)).toContain("Connect X, LinkedIn, or Reddit");
+  });
+  test("an approval with hidden or normalized content cannot be allowed from the menu", () => {
+    for (const preview of ["Visible prefix ".repeat(30) + "HIDDEN TARGET", "Preserve  these spaces", "line one\nline two", "x".repeat(100)]) {
+      const approval = { id: "long-review", digest: "a".repeat(64), kind: "provider" as const, title: "Review request", account: "account", effect: "write", preview, expiresAt: "2026-09-20T00:00:00Z" };
+      const items = snapshotItems(base({ approvals: [approval] }), new Map(), { confirmedAgeSeconds: 0, fresh: true });
+      const actions = wire(items);
+      expect(actions.get("approval:allow:long-review")).toBe(false);
+      expect(actions.get("approval:deny:long-review")).toBe(true);
+      expect(labels(items).join(" ")).toContain("Full review requires TUI. Stop menu, open ghostget tui, then submit a new approval request.");
+      expect(labels(items)).toContain("Switching controllers cancels this pending request.");
+    }
   });
 });
 
@@ -205,6 +254,31 @@ describe("helper-backed companion options", () => {
     const items = await options.snapshot(signal);
     expect(labels(items)).toContain("Operation permissions are managed per account.");
   });
+  test("a real private account can be selected and permissions remain editable after opt-in and a grant", async () => {
+    const { environment } = fixture();
+    const manifest = JSON.parse(readFileSync(new URL("../assets/adapters/x/wrench-adapter.json", import.meta.url), "utf8")) as GhostgetManifest;
+    installManifest(manifest, { force: false, environment, registry });
+    saveAuth(createAuth("selected-account", { oauthProvider: "x", tokenFile: join(environment.GHOSTGET_STATE_HOME, "synthetic-token.json"), scopes: ["tweet.read", "users.read"], subject: "12345" }), environment);
+    const options = companionOptions(environment);
+    const signal = new AbortController().signal;
+    const publicItems = await options.snapshot(signal);
+    expect(actionIds(publicItems)).not.toContain("permission:allow:x:posts.read");
+    await options.onAction("account:select:selected-account", signal);
+    const selected = await options.snapshot(signal);
+    expect(labels(selected)).toContain("Account: selected-account");
+    expect(wire(selected).get("permission:allow:x:posts.read")).toBe(false);
+    await options.onAction("permission:enable", signal);
+    const managed = await options.snapshot(signal);
+    expect(wire(managed).get("permission:allow:x:posts.read")).toBe(true);
+    await options.onAction("permission:allow:x:posts.read", signal);
+    expect(readOperationPolicy(environment).entries).toHaveLength(1);
+    expect(readOperationPolicy(environment).entries[0]?.decision).toBe("allow");
+    const granted = await options.snapshot(signal);
+    expect(labels(granted)).toContain("x · posts.read · allow");
+    expect(wire(granted).get("permission:deny:x:posts.read")).toBe(true);
+    await options.onAction("account:public", signal);
+    expect(labels(await options.snapshot(signal))).toContain("Scope: public operations");
+  });
   test("a stale revision conflict is rejected by the helper, not retried", async () => {
     const { environment } = fixture();
     const options = companionOptions(environment);
@@ -217,7 +291,91 @@ describe("helper-backed companion options", () => {
   });
 });
 
+describe("administrative action admission", () => {
+  const draft = { id: "reviewed-interface", title: "Reviewed interface", source: "user" as const, digest: "a".repeat(64), activeDigest: null, state: "draft" as const, operationCount: 1, adapterIds: ["x"], activationTargets: [{ adapterId: "x", installedDigest: "b".repeat(64) }], issues: [] };
+  function controlled(platform: NodeJS.Platform = "darwin") {
+    const { environment } = fixture();
+    let snapshot = base({ interfaces: [draft], policy: { managed: true, revision: 3 } });
+    let unavailable = false;
+    const requests: ControlRequest[] = [];
+    const options = companionOptions(environment, async () => {}, () => ({
+      request: async (request): Promise<ControlResponse> => {
+        requests.push(request);
+        if (unavailable) return { ok: false, code: "CONTROL_DISCONNECTED", message: "Disconnected" };
+        if (request.action === "snapshot") return { ok: true, data: { kind: "snapshot", snapshot } };
+        if (request.action === "activity.query") return { ok: true, data: { kind: "activity", page: { rows: [], nextCursor: null, snapshotSequence: 0, matchingCount: 0, newerCount: 0 } } };
+        return { ok: true, data: { kind: "success", message: "Saved" } };
+      },
+      close() {},
+    }), platform);
+    return { options, requests, change: (next: ControlSnapshot) => { snapshot = next; }, disconnect: () => { unavailable = true; }, signal: new AbortController().signal };
+  }
+  test("interface activation needs a second selection and sends the exact draft and installed digests once", async () => {
+    const f = controlled();
+    await f.options.snapshot(f.signal);
+    await f.options.onAction("interface:review:reviewed-interface:x", f.signal);
+    expect(f.requests.filter(request => request.action === "interface.activate")).toEqual([]);
+    const reviewed = await f.options.snapshot(f.signal);
+    wire(reviewed);
+    expect(labels(reviewed)).toContain(`Draft: ${draft.digest}`);
+    expect(actionIds(reviewed)).toContain("interface:confirm");
+    await f.options.onAction("interface:confirm", f.signal);
+    expect(f.requests.filter(request => request.action === "interface.activate")).toEqual([{ action: "interface.activate", id: draft.id, digest: draft.digest, adapterId: "x", expectedInstalledDigest: "b".repeat(64) }]);
+    await expect(f.options.onAction("interface:confirm", f.signal)).rejects.toThrow("CONTROL_UNCONFIRMED");
+    expect(f.requests.filter(request => request.action === "interface.activate")).toHaveLength(1);
+  });
+  test("draft or baseline movement cancels confirmation before dispatch", async () => {
+    for (const changed of [{ ...draft, digest: "c".repeat(64) }, { ...draft, activationTargets: [{ adapterId: "x", installedDigest: "c".repeat(64) }] }]) {
+      const f = controlled();
+      await f.options.snapshot(f.signal);
+      await f.options.onAction("interface:review:reviewed-interface:x", f.signal);
+      f.change(base({ interfaces: [changed], policy: { managed: true, revision: 3 } }));
+      expect(actionIds(await f.options.snapshot(f.signal))).not.toContain("interface:confirm");
+      await f.options.onAction("interface:confirm", f.signal);
+      expect(f.requests.filter(request => request.action === "interface.activate")).toEqual([]);
+    }
+  });
+  test("stale control state cannot dispatch an administrative action even with a direct action ID", async () => {
+    const f = controlled();
+    await f.options.snapshot(f.signal);
+    f.disconnect();
+    await f.options.snapshot(f.signal);
+    const before = f.requests.length;
+    await expect(f.options.onAction("permission:enable", f.signal)).rejects.toThrow("CONTROL_UNCONFIRMED");
+    expect(f.requests).toHaveLength(before);
+  });
+  test("Linux rejects direct browser connection actions before any helper mutation", async () => {
+    const f = controlled("linux");
+    await f.options.snapshot(f.signal);
+    const before = f.requests.length;
+    await expect(f.options.onAction("connect:x-web:safari", f.signal)).rejects.toThrow("CONNECTION_PLATFORM_UNSUPPORTED");
+    await expect(f.options.onAction("reconnect:x-web-main:x-web:chrome-default", f.signal)).rejects.toThrow("CONNECTION_PLATFORM_UNSUPPORTED");
+    expect(f.requests).toHaveLength(before);
+  });
+  test("a direct action ID cannot approve a truncated request, but denial remains available", async () => {
+    const f = controlled();
+    f.change(base({ approvals: [{ id: "hidden-tail", digest: "e".repeat(64), kind: "provider", title: "Request", account: "personal", effect: "write", preview: "Visible content ".repeat(30) + "unseen destination", expiresAt: "2026-09-20T00:00:00Z" }] }));
+    await f.options.snapshot(f.signal);
+    await expect(f.options.onAction("approval:allow:hidden-tail", f.signal)).rejects.toThrow("APPROVAL_REQUIRES_FULL_REVIEW");
+    expect(f.requests.filter(request => request.action === "approval.decide")).toEqual([]);
+    await f.options.onAction("approval:deny:hidden-tail", f.signal);
+    expect(f.requests.filter(request => request.action === "approval.decide")).toEqual([{ action: "approval.decide", id: "hidden-tail", digest: "e".repeat(64), decision: "deny" }]);
+  });
+});
+
 describe("optional Accounts browser handoffs", () => {
+  test("provider guidance opens only the exact selected public provider page", async () => {
+    const { environment } = fixture();
+    const opened: string[] = [];
+    const options = companionOptions(environment, async url => { opened.push(url); });
+    const signal = new AbortController().signal;
+    for (const id of ["provider:help:x-web", "provider:help:linkedin-web", "provider:help:reddit-web", "provider:help:constructor", "provider:help:unknown"]) await options.onAction(id, signal);
+    expect(opened).toEqual([
+      "https://ghostget.com/provider-capabilities/#provider-x",
+      "https://ghostget.com/provider-capabilities/#provider-linkedin",
+      "https://ghostget.com/provider-capabilities/#provider-reddit",
+    ]);
+  });
   test("only explicit fixed actions open a page, including before any helper snapshot", async () => {
     const { environment } = fixture();
     const opened: string[] = [];
@@ -260,6 +418,95 @@ describe("optional Accounts browser handoffs", () => {
 });
 
 describe("menubar CLI routing", () => {
+  test("first launch claims its state before the shared runner and serves a live helper snapshot", async () => {
+    for (const legacyMenu of [false, true]) {
+      const { environment: parent } = fixture();
+      const environment = { ...parent, GHOSTGET_STATE_HOME: join(parent.GHOSTGET_STATE_HOME, "fresh") };
+      if (legacyMenu) mkdirSync(join(environment.GHOSTGET_STATE_HOME, "menubar"), { recursive: true, mode: 0o700 });
+      const marker = join(environment.GHOSTGET_STATE_HOME, ".io-state.json");
+      expect(existsSync(marker)).toBe(false);
+      expect(await runMenubarCommand(["menubar", "--foreground"], environment, { stdout: () => {}, stderr: () => {} }, {
+        handle: async options => {
+          expect(existsSync(marker)).toBe(true);
+          expect(labels(await options.snapshot(new AbortController().signal))).toContain("Updated 0s ago");
+          return 0;
+        },
+      })).toBe(0);
+      expect(existsSync(join(environment.GHOSTGET_STATE_HOME, "control", "owner.json"))).toBe(false);
+    }
+  });
+  test("status and doctor leave a fresh state home unclaimed", async () => {
+    const { environment: parent } = fixture();
+    const environment = { ...parent, GHOSTGET_STATE_HOME: join(parent.GHOSTGET_STATE_HOME, "untouched") };
+    for (const verb of ["status", "doctor"]) await runMenubarCommand(["menubar", verb], environment, { stdout: () => {}, stderr: () => {} });
+    expect(existsSync(environment.GHOSTGET_STATE_HOME)).toBe(false);
+  });
+  test("unsafe legacy menu directories are rejected before state ownership or lifecycle dispatch", async () => {
+    for (const unsafe of ["public", "symlink"] as const) {
+      const { environment: parent } = fixture();
+      const environment = { ...parent, GHOSTGET_STATE_HOME: join(parent.GHOSTGET_STATE_HOME, "unsafe") };
+      mkdirSync(environment.GHOSTGET_STATE_HOME, { mode: 0o700 });
+      const menu = join(environment.GHOSTGET_STATE_HOME, "menubar");
+      if (unsafe === "symlink") symlinkSync(parent.GHOSTGET_STATE_HOME, menu);
+      else { mkdirSync(menu); chmodSync(menu, 0o755); }
+      let dispatched = false;
+      await expect(runMenubarCommand(["menubar", "--foreground"], environment, { stdout: () => {}, stderr: () => {} }, {
+        handle: async () => { dispatched = true; return 0; },
+      })).rejects.toThrow();
+      expect(dispatched).toBe(false);
+      expect(existsSync(join(environment.GHOSTGET_STATE_HOME, ".io-state.json"))).toBe(false);
+    }
+  });
+  test("joins helper shutdown after both a normal return and a startup failure", async () => {
+    for (const fails of [false, true]) {
+      const { environment } = fixture();
+      const before = process.listenerCount("exit");
+      let finish!: () => void;
+      const closing = new Promise<void>(resolve => { finish = resolve; });
+      let closeStarted!: () => void;
+      const started = new Promise<void>(resolve => { closeStarted = resolve; });
+      let closes = 0;
+      let settled = false;
+      const result = runMenubarCommand(["menubar", "--foreground"], environment, { stdout: () => {}, stderr: () => {} }, {
+        helper: () => ({
+          request: async (): Promise<ControlResponse> => ({ ok: false, code: "CONTROL_UNAVAILABLE", message: "Test state unavailable." }),
+          close: async () => { closes++; closeStarted(); await closing; },
+        }),
+        handle: async options => {
+          await options.snapshot(new AbortController().signal);
+          if (fails) throw new Error("synthetic startup failure");
+          return 0;
+        },
+      }).then(code => ({ code, error: null }), error => ({ code: null, error: String(error) })).finally(() => { settled = true; });
+      await started;
+      expect(settled).toBe(false);
+      expect(process.listenerCount("exit")).toBe(before);
+      finish();
+      const outcome = await result;
+      expect(closes).toBe(1);
+      expect(outcome).toEqual(fails ? { code: null, error: "Error: synthetic startup failure" } : { code: 0, error: null });
+    }
+  });
+  test("doctor reports the exact maintainer binary override without running it", async () => {
+    const { environment } = fixture();
+    const binaryRoot = mkdtempSync("/tmp/ghostget-companion-");
+    cleanups.push(async () => { rmSync(binaryRoot, { recursive: true, force: true }); });
+    const binary = join(binaryRoot, "reviewed-companion");
+    // This file is not a runner; doctor must only report the override.
+    writeFileSync(binary, "#!/bin/sh\nexit 97\n", { mode: 0o700 });
+    const lines: string[] = [];
+    const output = { stdout: (text: string) => { lines.push(text); }, stderr: (text: string) => { lines.push(text); } };
+    await runMenubarCommand(["menubar", "doctor"], { ...environment, GHOSTGET_MENUBAR: binary }, output);
+    expect(JSON.parse(lines[0]!)).toMatchObject({ artifact: { path: binary, source: "maintainer-override", integrity: "not-release-verified" } });
+  });
+  test("invalid maintainer override paths are rejected before shared lifecycle dispatch", async () => {
+    const { environment } = fixture();
+    for (const binary of ["relative-companion", "/tmp/../tmp/companion", "/tmp/companion\n"]) {
+      const lines: string[] = [];
+      expect(await runMenubarCommand(["menubar", "doctor"], { ...environment, GHOSTGET_MENUBAR: binary }, { stdout: text => { lines.push(text); }, stderr: text => { lines.push(text); } })).toBe(1);
+      expect(lines).toEqual(["GHOSTGET_MENUBAR must be an absolute, normalized path to a reviewed companion executable.\n"]);
+    }
+  });
   test("status reports the shared companion lifecycle, not a LaunchAgent", async () => {
     const { environment } = fixture();
     const lines: string[] = [];

@@ -1,19 +1,24 @@
 import { randomUUID } from "node:crypto";
 import { lstatSync, readdirSync, type BigIntStats } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleCompanionCommand, openBrowser, type CompanionOptions, type MenuItem } from "@hraness/desktop-foundation";
 import { createSupportOffer } from "@hraness/support-foundation";
 import { ghostgetSupportProfile } from "../support-profile";
 import { TRAY_ICON } from "./menubar-icon";
-import { ghostgetStateHome } from "../storage";
-import { CONTROL_PROTOCOL, type ActivityRow, type ApprovalView, type CapabilityView, type ControlRequest, type ControlResponse, type ControlSnapshot } from "./protocol";
+import { ensurePrivateStateDirectory, ghostgetStateHome } from "../storage";
+import { type ActivityRow, type ApprovalView, type CapabilityView, type ControlRequest, type ControlResponse, type ControlSnapshot } from "./protocol";
+import { spawnHelper, type HelperClient } from "./helper-client";
 import type { ControlEnvironment } from "./web-policy";
 
 const WEBSITE = "https://ghostget.com/getting-started";
+const CONNECTION_GUIDES: Readonly<Record<string, { readonly title: string; readonly url: string }>> = {
+  "x-web": { title: "X", url: "https://ghostget.com/provider-capabilities/#provider-x" },
+  "linkedin-web": { title: "LinkedIn", url: "https://ghostget.com/provider-capabilities/#provider-linkedin" },
+  "reddit-web": { title: "Reddit", url: "https://ghostget.com/provider-capabilities/#provider-reddit" },
+};
+const connectionGuide = (id: string) => Object.hasOwn(CONNECTION_GUIDES, id) ? CONNECTION_GUIDES[id] : undefined;
 const SUPPORT_ACTIONS = createSupportOffer(ghostgetSupportProfile, "desktop").actions;
-const MAX_FRAME = 4_194_304;
-const HELPER_TIMEOUT_MS = 15_000;
 const OUTPUTS_LIMIT = 12;
 const OUTPUTS_SCAN_BOUND = 512;
 const OPENABLE_EXTENSIONS = new Set(["pdf", "txt", "md", "csv", "json", "png", "jpg", "jpeg", "gif", "webp", "tiff"]);
@@ -128,7 +133,7 @@ function outputItems(outputs: OutputsView): MenuItem[] {
   return items;
 }
 
-const CLI_COMMANDS = ["ghostget --help", "ghostget menubar --help", "ghostget menubar status"] as const;
+const CLI_COMMANDS = ["ghostget --help", "ghostget menubar --help", "ghostget menubar status", "ghostget vault import-x --help"] as const;
 function cliHelpItems(): MenuItem[] {
   return [
     { kind: "action", id: "clip:0", label: "CLI help" },
@@ -154,82 +159,35 @@ function copyText(text: string): void {
   catch { throw new Error("ghostget-clipboard-unavailable"); }
 }
 
-/** Bounded administrative client over the helper's private stdio channel. The
- * menu companion owns the helper process; agent requests stay on the socket. */
-interface HelperClient { request(request: ControlRequest, timeoutMs?: number): Promise<ControlResponse>; close(): void }
-function spawnHelper(environment: ControlEnvironment): HelperClient {
-  const script = fileURLToPath(new URL("./helper.ts", import.meta.url));
-  const env: Record<string, string> = { ...process.env } as Record<string, string>;
-  for (const [key, value] of Object.entries(environment)) if (value !== undefined) env[key] = value;
-  const child = Bun.spawn([process.execPath, "--no-env-file", "--no-install", script], { cwd: dirname(script), env, stdin: "pipe", stdout: "pipe", stderr: "pipe" });
-  const pending = new Map<string, { resolve: (response: ControlResponse) => void; timer: ReturnType<typeof setTimeout> }>();
-  let buffer = Buffer.alloc(0);
-  let closed = false;
-  void new Response(child.stderr).text();
-  const settle = (response: ControlResponse | null): void => {
-    const slots = [...pending.values()]; pending.clear();
-    for (const slot of slots) {
-      clearTimeout(slot.timer);
-      slot.resolve(response ?? { ok: false, code: "CONTROL_DISCONNECTED", message: "The Ghostget control helper disconnected." });
-    }
-  };
-  const read = (async () => {
-    const reader = child.stdout.getReader();
-    try {
-      for (;;) {
-        const next = await reader.read(); if (next.done) break;
-        buffer = Buffer.concat([buffer, next.value]);
-        if (buffer.length > MAX_FRAME) throw new Error("oversized helper response");
-        let end: number;
-        while ((end = buffer.indexOf(10)) >= 0) {
-          const line = buffer.subarray(0, end); buffer = buffer.subarray(end + 1);
-          let frame: Record<string, unknown>;
-          try { frame = JSON.parse(line.toString("utf8")) as Record<string, unknown>; } catch { continue; }
-          const id = typeof frame.id === "string" ? frame.id : null;
-          if (id === null || frame.protocol !== CONTROL_PROTOCOL) continue;
-          const slot = pending.get(id); if (slot === undefined) continue;
-          pending.delete(id); clearTimeout(slot.timer);
-          slot.resolve(frame as unknown as ControlResponse);
-        }
-      }
-    } catch { /* a dead or oversized channel degrades the menu, it never retries */ }
-    finally { closed = true; settle(null); }
-  })();
-  void read;
-  void child.exited.then(() => { closed = true; settle(null); });
-  return {
-    request: (request, timeoutMs = HELPER_TIMEOUT_MS) => new Promise<ControlResponse>((resolve) => {
-      if (closed) { resolve({ ok: false, code: "CONTROL_DISCONNECTED", message: "The Ghostget control helper is not running." }); return; }
-      const id = randomUUID();
-      const timer = setTimeout(() => { pending.delete(id); resolve({ ok: false, code: "CONTROL_TIMEOUT", message: "The Ghostget control helper did not answer in time." }); }, timeoutMs);
-      pending.set(id, { resolve, timer });
-      try { child.stdin.write(`${JSON.stringify({ id, protocol: CONTROL_PROTOCOL, request })}\n`); }
-      catch { pending.delete(id); clearTimeout(timer); resolve({ ok: false, code: "CONTROL_DISCONNECTED", message: "The Ghostget control helper disconnected." }); }
-    }),
-    close: () => { try { child.stdin.end(); } catch { /* already closed */ } },
-  };
+
+function reconnectProviders(snapshot: ControlSnapshot, account: ControlSnapshot["accounts"][number]) {
+  if (account.kind !== "cookie-source" && account.kind !== "browser-profile") return [];
+  return snapshot.connectionProviders.filter((provider) => account.provider === provider.id.replace(/-web$/u, "")
+    || account.provider === null && account.id.startsWith(`${provider.id}-`));
 }
 
-function accountItems(snapshot: ControlSnapshot, enabled: boolean): MenuItem[] {
+function accountItems(snapshot: ControlSnapshot, enabled: boolean, platform: NodeJS.Platform): MenuItem[] {
   const accounts = snapshot.accounts;
   const rows: MenuItem[] = accounts.slice(0, 20).map((account) => {
     const status = account.status === "verified" ? "Verified" : account.status === "configured" ? "Configured" : "Reconnect required";
     const items: MenuItem[] = [
       { kind: "label", label: status },
       ...detailItems([account.provider, account.kind, account.subject].filter((part): part is string => part !== null).join(" · ") || "No subject recorded"),
+      { kind: "action", id: `account:select:${account.id}`, label: snapshot.accountId === account.id ? "Selected for permissions" : "Review this account's permissions", enabled },
     ];
-    if (enabled && account.status === "reconnect-required") {
+    const providers = reconnectProviders(snapshot, account);
+    if (providers.length > 0) {
       items.push({
         kind: "submenu",
         label: "Reconnect",
-        items: snapshot.connectionProviders.map((provider) => ({
+        items: providers.map((provider) => ({
           kind: "submenu" as const,
           label: menuLabel(provider.title) || "Provider",
-          items: BROWSERS.map((choice) => ({ kind: "action" as const, id: `reconnect:${account.id}:${provider.id}:${choice.key}`, label: choice.label })),
+          items: BROWSERS.map((choice) => ({ kind: "action" as const, id: `reconnect:${account.id}:${provider.id}:${choice.key}`, label: choice.label, enabled: enabled && platform === "darwin" })),
         })),
       });
     }
-    if (enabled) items.push({ kind: "action", id: `disconnect:${account.id}`, label: "Disconnect this account" });
+    items.push({ kind: "action", id: `disconnect:${account.id}`, label: "Disconnect this account", enabled });
     return { kind: "submenu" as const, label: menuLabel(`${account.id} · ${status}`) || "Account", items };
   });
   if (accounts.length === 0) rows.push({ kind: "label", label: "No accounts connected" });
@@ -237,25 +195,42 @@ function accountItems(snapshot: ControlSnapshot, enabled: boolean): MenuItem[] {
   return rows;
 }
 
+function approvalReview(approval: ApprovalView): { readonly items: MenuItem[]; readonly complete: boolean } {
+  const detail = [approval.kind, approval.account ?? "no account", approval.effect, approval.preview].join(" · ");
+  const items = detailItems(detail);
+  // Allow only when every account/effect/preview character survives the actual
+  // bounded menu rendering. Truncation or normalization needs the full TUI.
+  const rendered = items.map(item => item.kind === "label" ? item.label : "").join(" ");
+  return { items, complete: rendered === detail };
+}
+
 function approvalItems(approvals: readonly ApprovalView[], enabled: boolean): MenuItem[] {
-  const rows: MenuItem[] = approvals.slice(0, 10).map((approval) => ({
+  const rows: MenuItem[] = approvals.slice(0, 10).map((approval) => {
+    const review = approvalReview(approval);
+    return {
     kind: "submenu" as const,
     label: menuLabel(approval.title) || "Approval request",
     items: [
-      ...detailItems([approval.kind, approval.account ?? "no account", approval.effect, approval.preview].join(" · ")),
+      ...review.items,
+      ...(review.complete ? [] : [
+        ...detailItems("Full review requires TUI. Stop menu, open ghostget tui, then submit a new approval request."),
+        { kind: "label" as const, label: "Switching controllers cancels this pending request." },
+      ]),
       { kind: "label", label: menuLabel(`Expires ${approval.expiresAt}`) },
-      { kind: "action", id: `approval:allow:${approval.id}`, label: "Allow once", enabled },
+      { kind: "action", id: `approval:allow:${approval.id}`, label: "Allow once", enabled: enabled && review.complete },
       { kind: "action", id: `approval:deny:${approval.id}`, label: "Deny", enabled },
     ],
-  }));
+    };
+  });
   if (approvals.length === 0) rows.push({ kind: "label", label: "No pending approvals" });
   if (approvals.length > 10) rows.push({ kind: "label", label: `${approvals.length - 10} more approvals` });
   return rows;
 }
 
 export interface Attempt { readonly attemptId: string; readonly title: string; status: "awaiting-sign-in" | "verified"; subject: string | null }
-function connectItems(snapshot: ControlSnapshot, attempts: ReadonlyMap<string, Attempt>, enabled: boolean): MenuItem[] {
+function connectItems(snapshot: ControlSnapshot, attempts: ReadonlyMap<string, Attempt>, enabled: boolean, platform: NodeJS.Platform): MenuItem[] {
   const rows: MenuItem[] = [];
+  if (platform !== "darwin") rows.push({ kind: "label", label: "Browser sign-in requires macOS. Open a provider guide for CLI setup." });
   for (const attempt of [...attempts.values()].slice(0, 8)) {
     const items: MenuItem[] = attempt.status === "verified"
       ? [
@@ -270,10 +245,14 @@ function connectItems(snapshot: ControlSnapshot, attempts: ReadonlyMap<string, A
     rows.push({ kind: "submenu", label: menuLabel(`${attempt.title} · ${attempt.status === "verified" ? "verified" : "awaiting sign-in"}`), items });
   }
   for (const provider of snapshot.connectionProviders.slice(0, 12)) {
+    const guide = connectionGuide(provider.id);
     rows.push({
       kind: "submenu",
       label: menuLabel(provider.title) || "Provider",
-      items: BROWSERS.map((choice) => ({ kind: "action" as const, id: `connect:${provider.id}:${choice.key}`, label: choice.label, enabled })),
+      items: [
+        ...BROWSERS.map((choice) => ({ kind: "action" as const, id: `connect:${provider.id}:${choice.key}`, label: choice.label, enabled: enabled && platform === "darwin" })),
+        ...(guide === undefined ? [] : [{ kind: "action" as const, id: `provider:help:${provider.id}`, label: `Open ${guide.title} capabilities and setup…` }]),
+      ],
     });
   }
   if (rows.length === 0) rows.push({ kind: "label", label: "No connection providers" });
@@ -293,24 +272,29 @@ function capabilityItems(capabilities: readonly CapabilityView[]): MenuItem[] {
 }
 
 function permissionItems(snapshot: ControlSnapshot, enabled: boolean): MenuItem[] {
-  const rows: MenuItem[] = [];
+  const rows: MenuItem[] = [
+    { kind: "label", label: menuLabel(snapshot.accountId === null ? "Scope: public operations" : `Account: ${snapshot.accountId}`) },
+    { kind: "action", id: "account:public", label: "Review public operations", enabled },
+    { kind: "label", label: "Choose an account under Accounts for private operations." },
+  ];
   if (!snapshot.policy.managed) rows.push({ kind: "action", id: "permission:enable", label: "Enable operation permissions", enabled });
   else rows.push({ kind: "label", label: "Operation permissions are managed per account." });
-  const unmanaged = snapshot.capabilities.filter((capability) => capability.permission === "unmanaged");
-  for (const capability of unmanaged.slice(0, 15)) {
+  if (!snapshot.policy.managed) rows.push({ kind: "label", label: "Enabling blocks operations until you choose Allow or Ask each time." });
+  const editable = snapshot.capabilities.filter((capability) => capability.permission !== "unavailable");
+  for (const capability of editable.slice(0, 15)) {
     rows.push({
       kind: "submenu",
-      label: menuLabel(`${capability.adapterId} · ${capability.operationId}`),
+      label: menuLabel(`${capability.adapterId} · ${capability.operationId} · ${capability.permission}`),
       items: [
         ...detailItems(`${capability.surface} · ${capability.effect} · risk ${capability.risk}`),
-        { kind: "action", id: `permission:allow:${capability.adapterId}:${capability.operationId}`, label: "Allow", enabled },
-        { kind: "action", id: `permission:ask:${capability.adapterId}:${capability.operationId}`, label: "Ask each time", enabled },
-        { kind: "action", id: `permission:deny:${capability.adapterId}:${capability.operationId}`, label: "Deny", enabled },
+        { kind: "action", id: `permission:allow:${capability.adapterId}:${capability.operationId}`, label: "Allow", enabled: enabled && snapshot.policy.managed },
+        { kind: "action", id: `permission:ask:${capability.adapterId}:${capability.operationId}`, label: "Ask each time", enabled: enabled && snapshot.policy.managed },
+        { kind: "action", id: `permission:deny:${capability.adapterId}:${capability.operationId}`, label: "Deny", enabled: enabled && snapshot.policy.managed },
       ],
     });
   }
-  if (unmanaged.length > 15) rows.push({ kind: "label", label: `${unmanaged.length - 15} more operations need review` });
-  if (!snapshot.policy.managed && unmanaged.length === 0) rows.push({ kind: "label", label: "All operations already have a decision." });
+  if (editable.length > 15) rows.push({ kind: "label", label: `${editable.length - 15} more operations; use ghostget tui to review all` });
+  if (editable.length === 0) rows.push({ kind: "label", label: "No compatible operations in this scope." });
   return rows;
 }
 
@@ -324,14 +308,25 @@ function webItems(snapshot: ControlSnapshot): MenuItem[] {
   return rows;
 }
 
-function interfaceItems(snapshot: ControlSnapshot): MenuItem[] {
+export type PendingActivation = Extract<ControlRequest, { action: "interface.activate" }>;
+function interfaceItems(snapshot: ControlSnapshot, enabled: boolean, pending: PendingActivation | null): MenuItem[] {
   const interfaces = snapshot.interfaces;
   if (interfaces.length === 0) return [{ kind: "label", label: "No interfaces installed" }];
   const rows: MenuItem[] = interfaces.slice(0, 10).map((entry) => ({
     kind: "submenu" as const,
     label: menuLabel(`${entry.title} · ${entry.state}`),
-    items: detailItems(`${entry.operationCount} operations · ${entry.adapterIds.join(", ") || "no adapters"}${entry.issues.length > 0 ? ` · ${entry.issues.length} issue(s)` : ""}`),
+    items: [
+      ...detailItems(`${entry.operationCount} operations · ${entry.adapterIds.join(", ") || "no adapters"}${entry.issues.length > 0 ? ` · ${entry.issues.length} issue(s)` : ""}`),
+      ...entry.activationTargets.slice(0, 3).map((target) => ({ kind: "action" as const, id: `interface:review:${entry.id}:${target.adapterId}`, label: menuLabel(`Review activation · ${target.adapterId}`), enabled })),
+    ],
   }));
+  if (pending !== null) rows.unshift({ kind: "submenu", label: menuLabel(`Confirm activation · ${pending.adapterId}`), items: [
+    { kind: "label", label: "Activate this exact reviewed draft and installed baseline." },
+    { kind: "label", label: `Draft: ${pending.digest}` },
+    { kind: "label", label: `Base: ${pending.expectedInstalledDigest ?? "not installed"}` },
+    { kind: "action", id: "interface:confirm", label: menuLabel(`Activate ${pending.adapterId}`), enabled },
+    { kind: "action", id: "interface:cancel", label: "Cancel activation", enabled },
+  ] });
   if (interfaces.length > 10) rows.push({ kind: "label", label: `${interfaces.length - 10} more interfaces` });
   return rows;
 }
@@ -353,8 +348,10 @@ export function snapshotItems(
   activity: readonly ActivityRow[] = [],
   outputs: OutputsView = EMPTY_OUTPUTS,
   notice: string | null = null,
+  pendingActivation: PendingActivation | null = null,
+  platform: NodeJS.Platform = process.platform,
 ): MenuItem[] {
-  const confirmed = snapshot !== null;
+  const confirmed = snapshot !== null && status.fresh;
   const age = status.confirmedAgeSeconds;
   const ageText = age !== null && age < 60 ? `${age}s ago` : `${Math.floor((age ?? 0) / 60)}m ago`;
   const updated = age === null ? "Control status not confirmed" : status.fresh ? `Updated ${ageText}` : `Last confirmed ${ageText}`;
@@ -371,10 +368,11 @@ export function snapshotItems(
     { kind: "separator" },
     { kind: "quit", label: "Quit Ghostget" },
   ];
-  if (!confirmed) {
+  if (snapshot === null) {
     return [
       { kind: "label", label: "Ghostget control unavailable" },
       { kind: "label", label: menuLabel(status.detail ?? "The control helper is not running. Requests need the companion open.") },
+      { kind: "label", label: "Close any Ghostget TUI or other control session, then refresh." },
       ...tail,
     ];
   }
@@ -385,14 +383,18 @@ export function snapshotItems(
     { kind: "label", label: menuLabel(`${snapshot.accounts.length} account${snapshot.accounts.length === 1 ? "" : "s"}${reconnect > 0 ? ` · ${reconnect} need reconnect` : ""} · ${pending} pending approval${pending === 1 ? "" : "s"}`) },
     { kind: "separator" },
     { kind: "submenu", label: `Approvals · ${pending}`, items: approvalItems(snapshot.approvals, confirmed) },
-    { kind: "submenu", label: `Accounts · ${snapshot.accounts.length}`, items: accountItems(snapshot, confirmed) },
-    { kind: "submenu", label: "Connect account", items: connectItems(snapshot, attempts, confirmed) },
+    { kind: "submenu", label: `Accounts · ${snapshot.accounts.length}`, items: accountItems(snapshot, confirmed, platform) },
+    { kind: "submenu", label: "Connect X, LinkedIn, or Reddit", items: connectItems(snapshot, attempts, confirmed, platform) },
     { kind: "submenu", label: "Permissions", items: permissionItems(snapshot, confirmed) },
     { kind: "submenu", label: `Capabilities · ${snapshot.capabilities.length}`, items: capabilityItems(snapshot.capabilities) },
     { kind: "submenu", label: `Web rules · ${snapshot.web.rules.length}`, items: webItems(snapshot) },
-    { kind: "submenu", label: `Interfaces · ${snapshot.interfaces.length}`, items: interfaceItems(snapshot) },
+    { kind: "submenu", label: `Interfaces · ${snapshot.interfaces.length}`, items: interfaceItems(snapshot, confirmed, pendingActivation) },
     { kind: "submenu", label: "Recent activity", items: activityItems(activity) },
-    { kind: "label", label: menuLabel(`Vault · 1Password ${snapshot.vault.available ? "available" : "unavailable"}`) },
+    { kind: "submenu", label: "1Password · X token import", items: [
+      { kind: "label", label: snapshot.vault.available ? "macOS supported; desktop access has not been checked." : "Import requires macOS and the 1Password desktop app." },
+      { kind: "label", label: "Imports one X token to a private local copy; no token renewal." },
+      { kind: "action", id: "clip:3", label: "Copy import help command" },
+    ] },
     ...tail,
   ];
 }
@@ -403,28 +405,51 @@ export function snapshotItems(
  * dispatch. Failed or indeterminate mutations are never retried. */
 export function companionOptions(
   environment: ControlEnvironment,
-  openAccountPage: (url: string) => Promise<void> = openBrowser,
-): CompanionOptions {
+  openPage: (url: string) => Promise<void> = openBrowser,
+  createHelper: (environment: ControlEnvironment) => HelperClient = spawnHelper,
+  platform: NodeJS.Platform = process.platform,
+): CompanionOptions & { readonly dispose: () => Promise<void> } {
   let helper: HelperClient | null = null;
+  let disposed = false;
+  let closing: Promise<void> | null = null;
   let lastSnapshot: ControlSnapshot | null = null;
   let confirmedAt: number | null = null;
   let lastOutputs: OutputsView = EMPTY_OUTPUTS;
   let notice: string | null = null;
   let openingAccountPage = false;
+  let selectedAccount: string | null = null;
+  let administrativeConfirmed = false;
+  let pendingActivation: PendingActivation | null = null;
   const attempts = new Map<string, Attempt>();
   const outputsDirectory = join(ghostgetStateHome(environment), "outputs");
-  const client = (): HelperClient => {
-    if (helper === null) helper = spawnHelper(environment);
-    return helper;
+  const drop = (): Promise<void> => {
+    const current = helper;
+    helper = null;
+    if (current === null) return closing ?? Promise.resolve();
+    // Closing stdin asks the helper to cancel and join owned work. Keep that
+    // custody until it settles; never detach or kill pending credential work.
+    closing = Promise.all([closing, Promise.resolve().then(() => current.close())]).then(() => undefined);
+    void closing.catch(() => undefined); // The exit fallback cannot await it.
+    return closing;
   };
-  const drop = (): void => { helper?.close(); helper = null; };
-  process.once("exit", drop);
+  const onExit = (): void => { void drop(); };
+  const dispose = async (): Promise<void> => {
+    disposed = true;
+    administrativeConfirmed = false;
+    process.removeListener("exit", onExit);
+    await drop();
+  };
+  process.once("exit", onExit);
   const request = async (body: ControlRequest, timeoutMs?: number): Promise<ControlResponse> => {
-    const response = await client().request(body, timeoutMs);
-    if (!response.ok && (response.code === "CONTROL_DISCONNECTED" || response.code === "CONTROL_TIMEOUT")) drop();
+    await closing;
+    if (disposed) return { ok: false, code: "CONTROL_CLOSED", message: "The Ghostget menu controller is closed." };
+    if (helper === null) helper = createHelper(environment);
+    const response = await helper.request(body, timeoutMs);
+    if (!response.ok && (response.code === "CONTROL_DISCONNECTED" || response.code === "CONTROL_TIMEOUT")) { administrativeConfirmed = false; await drop(); }
     return response;
   };
   return {
+    dispose,
     appId: "ghostget",
     name: "Ghostget",
     title: "\u{1f47b}",
@@ -435,7 +460,14 @@ export function companionOptions(
     timeoutMs: 90_000,
     snapshot: async () => {
       let fresh = false;
-      const response = await request({ action: "snapshot", accountId: null });
+      administrativeConfirmed = false;
+      let response = await request({ action: "snapshot", accountId: selectedAccount });
+      if (!response.ok && response.code === "ACCOUNT_UNAVAILABLE" && selectedAccount !== null) {
+        selectedAccount = null;
+        pendingActivation = null;
+        notice = "The selected account is no longer configured. Showing public operations.";
+        response = await request({ action: "snapshot", accountId: null });
+      }
       if (response.ok && response.data.kind === "snapshot") {
         if (lastSnapshot !== null && response.data.snapshot.policy.revision < lastSnapshot.policy.revision) {
           // A late or replayed response must never undo newer owner state.
@@ -443,6 +475,12 @@ export function companionOptions(
           lastSnapshot = response.data.snapshot;
           confirmedAt = Date.now();
           fresh = true;
+          administrativeConfirmed = true;
+          if (pendingActivation !== null && !response.data.snapshot.interfaces.some((entry) => entry.id === pendingActivation!.id && entry.digest === pendingActivation!.digest
+            && entry.activationTargets.some((target) => target.adapterId === pendingActivation!.adapterId && target.installedDigest === pendingActivation!.expectedInstalledDigest))) {
+            pendingActivation = null;
+            notice = "The draft or installed adapter changed. Review activation again.";
+          }
         }
       }
       let activity: readonly ActivityRow[] = [];
@@ -451,18 +489,23 @@ export function companionOptions(
         if (page.ok && page.data.kind === "activity") activity = page.data.page.rows;
       }
       lastOutputs = readOutputs(outputsDirectory);
-      return snapshotItems(lastSnapshot, attempts, { confirmedAgeSeconds: confirmedAt === null ? null : Math.max(0, Math.floor((Date.now() - confirmedAt) / 1000)), fresh, detail: response.ok ? undefined : response.message }, activity, lastOutputs, notice);
+      return snapshotItems(lastSnapshot, attempts, { confirmedAgeSeconds: confirmedAt === null ? null : Math.max(0, Math.floor((Date.now() - confirmedAt) / 1000)), fresh: fresh && administrativeConfirmed, detail: response.ok ? undefined : response.message }, activity, lastOutputs, notice, pendingActivation, platform);
     },
     onAction: async (id) => {
       if (id === "refresh") { notice = null; return; } // the runner re-reads state after every action
       if (id === "open-website") { await openBrowser(WEBSITE); return; }
+      if (id.startsWith("provider:help:")) {
+        const guide = connectionGuide(id.slice("provider:help:".length));
+        if (guide !== undefined) await openPage(guide.url);
+        return;
+      }
       if (id === "support:updates" || id === "support:paid") {
         if (openingAccountPage) return;
         const action = SUPPORT_ACTIONS.find((item) => item.kind === (id === "support:updates" ? "updates" : "support"));
         if (action === undefined) return;
         openingAccountPage = true;
         notice = null;
-        try { await openAccountPage(action.url); }
+        try { await openPage(action.url); }
         catch { notice = "Could not open Accounts. Try again from the menu."; }
         finally { openingAccountPage = false; }
         return;
@@ -486,11 +529,40 @@ export function companionOptions(
       const snapshot = lastSnapshot;
       if (snapshot === null) return;
       const parts = id.split(":");
+      if (id === "account:public" || parts[0] === "account" && parts[1] === "select" && parts.length === 3) {
+        if (id !== "account:public" && !snapshot.accounts.some((account) => account.id === parts[2])) return;
+        selectedAccount = id === "account:public" ? null : parts[2]!;
+        administrativeConfirmed = false;
+        pendingActivation = null;
+        return;
+      }
+      if (id === "interface:cancel") { pendingActivation = null; return; }
+      if (!administrativeConfirmed) throw new Error("ghostget-CONTROL_UNCONFIRMED");
       const fail = (response: ControlResponse): void => { if (!response.ok) throw new Error(`ghostget-${response.code}`); };
+      if (parts[0] === "interface" && parts[1] === "review" && parts.length === 4) {
+        const entry = snapshot.interfaces.find((item) => item.id === parts[2]);
+        const target = entry?.activationTargets.find((item) => item.adapterId === parts[3]);
+        if (entry === undefined || target === undefined) return;
+        pendingActivation = { action: "interface.activate", id: entry.id, digest: entry.digest, adapterId: target.adapterId, expectedInstalledDigest: target.installedDigest };
+        return;
+      }
+      if (id === "interface:confirm") {
+        const activation = pendingActivation;
+        pendingActivation = null;
+        if (activation === null) return;
+        fail(await request(activation));
+        administrativeConfirmed = false;
+        notice = "Interface activated. Review its operation permissions.";
+        return;
+      }
       if (id === "permission:enable") { fail(await request({ action: "permission.enable", expectedRevision: snapshot.policy.revision })); return; }
       if (parts[0] === "approval" && parts.length === 3 && (parts[1] === "allow" || parts[1] === "deny")) {
         const approval = snapshot.approvals.find((item) => item.id === parts[2]);
         if (approval === undefined) return;
+        if (parts[1] === "allow" && !approvalReview(approval).complete) {
+          notice = "Full review requires TUI. Switching controllers cancels this request.";
+          throw new Error("ghostget-APPROVAL_REQUIRES_FULL_REVIEW");
+        }
         fail(await request({ action: "approval.decide", id: approval.id, digest: approval.digest, decision: parts[1] === "allow" ? "allow-once" : "deny" }));
         return;
       }
@@ -501,6 +573,7 @@ export function companionOptions(
         return;
       }
       if (parts[0] === "connect" && parts.length === 3) {
+        if (platform !== "darwin") throw new Error("ghostget-CONNECTION_PLATFORM_UNSUPPORTED");
         const provider = snapshot.connectionProviders.find((item) => item.id === parts[1]);
         const choice = BROWSERS.find((item) => item.key === parts[2]);
         if (provider === undefined || choice === undefined) return;
@@ -510,10 +583,11 @@ export function companionOptions(
         return;
       }
       if (parts[0] === "reconnect" && parts.length === 4) {
+        if (platform !== "darwin") throw new Error("ghostget-CONNECTION_PLATFORM_UNSUPPORTED");
         const account = snapshot.accounts.find((item) => item.id === parts[1]);
         const provider = snapshot.connectionProviders.find((item) => item.id === parts[2]);
         const choice = BROWSERS.find((item) => item.key === parts[3]);
-        if (account === undefined || provider === undefined || choice === undefined) return;
+        if (account === undefined || provider === undefined || choice === undefined || !reconnectProviders(snapshot, account).some((item) => item.id === provider.id)) return;
         const response = await request({ action: "connection.begin", id: account.id, provider: provider.id, browser: choice.browser, profile: choice.profile, expectedRevision: account.revision });
         fail(response);
         if (response.ok && response.data.kind === "connection") attempts.set(response.data.attemptId, { attemptId: response.data.attemptId, title: provider.title, status: "awaiting-sign-in", subject: null });
@@ -540,7 +614,7 @@ export function companionOptions(
       }
       if (parts[0] === "permission" && parts.length === 4 && (parts[1] === "allow" || parts[1] === "ask" || parts[1] === "deny")) {
         const capability = snapshot.capabilities.find((item) => item.adapterId === parts[2] && item.operationId === parts[3]);
-        if (capability === undefined) return;
+        if (capability === undefined || capability.permission === "unavailable" || !snapshot.policy.managed) return;
         fail(await request({ action: "permission.set", adapterId: capability.adapterId, operationId: capability.operationId, accountId: snapshot.accountId, decision: parts[1], expectedRevision: snapshot.policy.revision, expectedCapabilityDigest: capability.digest }));
       }
     },
@@ -548,7 +622,10 @@ export function companionOptions(
 }
 
 /** Delegate the product `menubar` command family to the shared lifecycle. */
-export async function runMenubarCommand(args: readonly string[], environment: ControlEnvironment = process.env, output: Output): Promise<number> {
+export async function runMenubarCommand(
+  args: readonly string[], environment: ControlEnvironment = process.env, output: Output,
+  dependencies: { readonly handle?: typeof handleCompanionCommand; readonly helper?: (environment: ControlEnvironment) => HelperClient } = {},
+): Promise<number> {
   const rest = args.slice(1);
   if (rest[0] === "--help" || rest[0] === "help" || rest[0] === "-h") {
     output.stdout("Usage: ghostget menubar [start|stop|status|doctor|install|uninstall]\nRuns the shared menu-bar companion; install registers login startup.\n");
@@ -561,10 +638,24 @@ export async function runMenubarCommand(args: readonly string[], environment: Co
   const mapped = rest[0] === "--background" ? [] : rest;
   const cli = fileURLToPath(new URL("../cli.ts", import.meta.url));
   const binary = environment.GHOSTGET_MENUBAR;
-  return await handleCompanionCommand(companionOptions(environment), {
-    args: mapped,
+  if (binary !== undefined && binary !== "" && (!isAbsolute(binary) || normalize(binary) !== binary || /[\u0000-\u001f\u007f]/u.test(binary))) {
+    output.stderr("GHOSTGET_MENUBAR must be an absolute, normalized path to a reviewed companion executable.\n");
+    return 1;
+  }
+  const adapter = companionOptions(environment, openBrowser, dependencies.helper ?? spawnHelper);
+  const options: CompanionOptions = {
+    ...adapter,
     ...(binary === undefined || binary === "" ? {} : { binary }),
-    foreground: { executable: process.execPath, args: [cli, "menubar", "--foreground"] },
-    write: (result) => output.stdout(`${JSON.stringify(result)}\n`),
-  });
+  };
+  try {
+    // Claim the private root before the shared lifecycle creates its service
+    // directory. Otherwise a first launch leaves unmarked state that the
+    // independently launched control helper must reject.
+    if (mapped[0] === undefined || mapped[0] === "start" || mapped[0] === "--foreground") ensurePrivateStateDirectory(adapter.stateDir, environment);
+    return await (dependencies.handle ?? handleCompanionCommand)(options, {
+      args: mapped,
+      foreground: { executable: process.execPath, args: [cli, "menubar", "--foreground"] },
+      write: (result) => output.stdout(`${JSON.stringify(result)}\n`),
+    });
+  } finally { await adapter.dispose(); }
 }

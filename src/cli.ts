@@ -210,6 +210,22 @@ export async function runGhostgetCliProcess(
   try {
     const { assertGatewayCommandAllowed } = await import("./control/web-policy");
     assertGatewayCommandAllowed(rawArguments, process.env);
+  } catch {
+    resolvedOutput.stderr("Ghostget gateway-only policy blocks this command, or its policy state is unavailable. Review the policy through an authorized local control client.\n");
+    process.exitCode = 1;
+    return;
+  }
+  try {
+    if (rawArguments[0] === "tui") {
+      const { runTuiCommand } = await import("./control/tui");
+      process.exitCode = await runTuiCommand(rawArguments, process.env, resolvedOutput);
+      return;
+    }
+    if (rawArguments[0] === "vault") {
+      const { runVaultCommand } = await import("./control/vault-cli");
+      process.exitCode = await runVaultCommand(rawArguments, process.env, resolvedOutput);
+      return;
+    }
     if (rawArguments[0] === "web") {
       const { runWebCommand } = await import("./control/cli");
       process.exitCode = await runWebCommand(rawArguments, process.env, resolvedOutput);
@@ -226,7 +242,7 @@ export async function runGhostgetCliProcess(
       return;
     }
   } catch {
-    resolvedOutput.stderr("Ghostget gateway-only policy blocks this command, or its policy state is unavailable. Review the policy through an authorized local control client.\n");
+    resolvedOutput.stderr("Ghostget could not start this control command. Run its --help command and check that no other Ghostget controller is open.\n");
     process.exitCode = 1;
     return;
   }

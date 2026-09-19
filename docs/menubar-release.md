@@ -1,9 +1,96 @@
-# Menu-bar companion
+# Accounts, approvals, and local controls
+
+Use the menu-bar companion to connect accounts, review permissions and pending
+approvals, and open recent outputs. Public-page reads work without it.
+
+```sh
+ghostget menubar doctor   # check the companion and platform requirements
+ghostget menubar          # start the companion
+ghostget menubar install  # optionally start it at login
+```
+
+The companion is a downloaded, unsigned native binary. Follow the platform
+guidance printed by `doctor` if the operating system blocks it. Ghostget does
+not change operating-system trust settings for you. It supports macOS and
+Linux; Linux also needs a desktop session with a supported tray.
+
+On macOS, choose X, LinkedIn, or Reddit under account connections and finish
+sign-in in the selected browser. Use Verify sign-in, then Connect to save the
+verified account. The companion does not offer Gmail, Beeper, or WhatsApp
+sign-in, and its browser connection flow does not run on Linux. Use the CLI
+setup instructions in the [provider directory](https://ghostget.com/provider-capabilities/)
+for those routes. Once configured, select an account under Accounts to review
+its permissions.
+
+## Use the terminal controls
+
+Run `ghostget tui` for keyboard-driven account, permission, approval, and activity
+views. Run `ghostget tui --snapshot` to print the current control state once.
+These commands use the same local control service as the menu companion.
+
+The six sections are Setup, Accounts, Capabilities, Approvals, Activity, and
+Interfaces. Press Tab to change sections, use the arrow keys to choose a row,
+and press Enter to open its actions. Press `?` for keyboard help and `q` to quit.
+Changes show a review before you confirm them. For long approval previews, read
+through the complete preview before confirming. The TUI runs with the same Bun
+installation as the CLI; it needs no Rust compiler or separate download.
+
+Only one control client can own a state home at a time. Before opening the TUI
+or importing a token, stop the menu companion:
+
+```sh
+ghostget menubar stop
+ghostget tui
+```
+
+Quit the TUI before restarting `ghostget menubar`. Neither control interface is
+needed for an ordinary public-page read.
+
+## Import one X token from 1Password
+
+The password-vault integration currently imports one X OAuth 2.0 user access
+token. It does not manage passwords, fill web forms, import a whole vault, or
+renew an expired token. The Markdown vault created by `ghostget init` is a
+separate document store.
+
+On macOS, unlock the 1Password desktop app and enable its app integration. Keep
+the existing X token in a 1Password field. Obtain the numeric X user ID for that
+token and its actual scopes before importing. Stop the menu companion and quit
+the TUI, then replace the example identifiers with your own:
+
+```sh
+ghostget vault import-x \
+  --id x-main \
+  --account my.1password.com \
+  --reference 'op://Personal/X/access-token' \
+  --subject 123456789 \
+  --scopes tweet.read,users.read
+```
+
+Pass only the `op://` field reference, never the token itself. Required scopes
+are `tweet.read` and `users.read`; declare any additional supported scopes the
+token actually has. The importer does not prove declared scopes or expiry.
+Use `--expires-at` with the token’s known future ISO timestamp, such as
+`2030-01-01T00:00:00.000Z`, when available. Do not invent a later expiry.
+
+Ghostget verifies the token against the expected X user before storing a local
+copy. The credential helper resolves the field in a separate process; token
+bytes do not cross the agent protocol or normal command output. The saved copy
+is protected by filesystem permissions, not encrypted by Ghostget. Disconnecting
+removes the exact owned copy but does not revoke the token at X.
+
+An existing account ID requires explicit `--replace` and a matching current
+revision. If an import’s outcome is unknown, inspect `ghostget auth list`
+before starting another import. Use `ghostget vault --help` for the current
+options. Linux token import through the 1Password desktop integration is not
+supported.
+
+## Companion implementation
 
 Ghostget's menu-bar companion is a TypeScript adapter over the shared
 `hraness/desktop-foundation` runner. `ghostget menubar` delegates to the shared
-lifecycle — `start`, `stop`, `status`, `doctor`, `install`, `uninstall`, and a
-`--foreground` re-entry — instead of launching a product-built executable.
+lifecycle (`start`, `stop`, `status`, `doctor`, `install`, `uninstall`, and
+`--foreground` re-entry) instead of launching a product-built executable.
 
 The shared runner is `hraness-companion`, a pinned `desktop-foundation` release
 artifact bound to an exact tag, byte size, and SHA-256 digest in its release

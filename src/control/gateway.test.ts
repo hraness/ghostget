@@ -19,6 +19,8 @@ test("rules default deny, narrow queries, and deny dominates overlapping allows"
   expect(checkWebRequest("GET","https://docs.example.com/guide/one?secret=a",environment).approval.decision).toBe("deny");
   expect(()=>assertGatewayCommandAllowed(["url-metadata","https://docs.example.com/"],environment)).toThrow();
   expect(()=>assertGatewayCommandAllowed(["web","request"],environment)).not.toThrow();
+  expect(()=>assertGatewayCommandAllowed(["tui"],environment)).not.toThrow();
+  expect(()=>assertGatewayCommandAllowed(["vault","import-x"],environment)).toThrow();
   saveWebPolicy([rule,{...rule,id:"blocked",decision:"deny",path:{kind:"exact",value:"/guide/one"},queryKeys:[]}],true,1,environment);
   expect(checkWebRequest("GET","https://docs.example.com/guide/one?q=a",environment).approval.decision).toBe("deny");
   expect(()=>saveWebPolicy([],false,1,environment)).toThrow();

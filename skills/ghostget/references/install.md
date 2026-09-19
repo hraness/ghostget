@@ -5,7 +5,7 @@ reports a dependency needed by the requested workflow.
 
 ## Install the CLI
 
-Ghostget requires Bun 1.3.14 or newer and supports macOS and Linux. Check both
+Ghostget requires Bun 1.3.14 and supports macOS and Linux. Check both
 commands before changing the machine:
 
 ```sh
@@ -17,34 +17,51 @@ If Bun is missing, stop and direct the user to the official
 [Bun installation guide](https://bun.sh/docs/installation). Do not switch
 package managers or pipe an unreviewed installer into a shell.
 
-This reference is authored for the exact v0.18.16 release coordinate. Use it
+This reference is authored for the exact v0.18.17 release coordinate. Use it
 only from the matching release-bound Agent Skill after its canonical archive and
 immutable GitHub Release exist. If the coordinate is not public, stop instead
 of substituting `main`, another tag, or a different package version. Install
-that exact release and its reviewed bundled adapter manifests:
+that exact release and verify a public-page read:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.16/hraness-ghostget-0.18.16.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.17/hraness-ghostget-0.18.17.tgz
+ghostget read https://example.com
+```
+
+Success prints `Example Domain` as Markdown without saving the page. This first
+read needs no account, API key, Markdown vault, or optional media tools. If the
+shell cannot find `ghostget`, add Bun’s global binary directory to `PATH` or
+open a new terminal. The Agent Skill does not itself install the executable.
+
+Before connecting or using a provider, synchronize the reviewed bundled
+adapter manifests and inspect that provider’s setup requirements:
+
+```sh
 ghostget adapter sync-bundled --json
-ghostget --help
+ghostget capabilities
 ghostget doctor --json
 ```
 
-The package is `@hraness/ghostget`; `@hraness/ghostget@0.18.16` is an optional npm
+Doctor also performs guarded recovery of interrupted work. Inspect the fields
+for the requested workflow; an unconnected provider or missing media tool does
+not prevent a public-page read, and overall provider readiness can be false on
+a fresh installation.
+
+The package is `@hraness/ghostget`; `@hraness/ghostget@0.18.17` is an optional npm
 mirror only after verified registry publication. Canonical installation does not
 wait for registry publication.
 
 When upgrading from Wrench, use `ghostget` for new commands and
 `GHOSTGET_STATE_HOME` for an explicit state root. Existing state is selected in
 place; do not rename, copy, or delete a state directory as part of the upgrade.
-The [migration guide](https://github.com/hraness/ghostget/blob/v0.18.16/docs/ghostget-migration.md)
+The [migration guide](https://github.com/hraness/ghostget/blob/v0.18.17/docs/ghostget-migration.md)
 explains the retained state aliases and durable protocol names.
 
 Do not clone the repository merely to run the CLI. Importing the SDK is a
 separate project dependency and does not install a global command:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.16/hraness-ghostget-0.18.16.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.17/hraness-ghostget-0.18.17.tgz
 ```
 
 `ghostget adapter sync-bundled` upgrades exact bundled baselines, including an
