@@ -1,3 +1,12 @@
+// Final 0.18.17 first-launch and concise-catalog repairs, with matching built
+// SDK bytes, measure 572 files/entries and 22,764,262 payload bytes. npm 11.16.0
+// with Node 24.18.1 / zlib 1.3.1-e00f703 on darwin arm64 packed 11,714,977
+// compressed bytes; every archive entry matched current source bytes.
+// Archive SHA-256: a211e0a1fc8cca37ce468a22500c1718787baca2c304b537a1a636ac3d98560e.
+// Keep the reviewed compressed ceiling and exact inventory; retain the same
+// payload allowance: 22,764,262 + 65 = 22,764,327. Canonical Linux CI and
+// Release independently measure and admit their exact archives.
+//
 // Integrating main 639825a preserves the Jev reference retirement below:
 // 22,771,636 - 12,213 = 22,759,423 across exactly 572 files. Restore the
 // same payload allowance: 22,759,423 + 65 = 22,759,488.
@@ -1159,7 +1168,7 @@ export const MAX_PACKED_FILES = 572;
 // 22,689,627 + 65 = 22,689,692.
 // The 0.18.17 measurement restores that same allowance over the new source:
 // 22,769,813 + 65 = 22,769,878.
-export const MAX_UNPACKED_BYTES = 22_759_488;
+export const MAX_UNPACKED_BYTES = 22_764_327;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

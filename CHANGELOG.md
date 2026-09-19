@@ -16,13 +16,16 @@ Historical entries retain their original delivery coordinates.
 - Keep menu-bar permissions editable after enabling them, add account selection,
   restore provider-specific browser reconnect, and review interface activation
   before applying it. Unsupported browser connections on Linux point to CLI
-  setup. Honor the documented companion binary override.
+  setup. Honor the documented companion binary override, initialize private
+  state before first launch, and join helper cleanup when the companion stops.
 - Expose the existing macOS 1Password X-token importer through `ghostget vault
   import-x`. It verifies the expected X user before saving a private token copy;
   replacing an account requires an explicit flag and unchanged revision.
 - Lead the website, README, and CLI help with a no-account public-page read,
   then explain saving, connecting a service, and optional agent integration.
   Separate Markdown vaults from the limited password-vault token importer.
+- Show a concise installed-adapter list with `ghostget capabilities` and readable
+  operation details when an adapter is selected. Keep full contracts in `--json`.
 
 ## 0.18.15
 

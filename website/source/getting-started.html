@@ -99,6 +99,7 @@ ghostget search "Example Domain" --root ./ghostget-notes --mode exact</code></pr
           <div class="command-panel"><pre><code>ghostget adapter sync-bundled --json
 ghostget capabilities
 ghostget menubar</code></pre></div>
+          <p><code>capabilities</code> lists installed adapters. Add an adapter ID, such as <code>ghostget capabilities gmail</code>, to see its operations and required inputs. Add <code>--json</code> when your agent needs the complete contracts.</p>
           <p>On macOS, the menu companion can connect X, LinkedIn, and Reddit browser sessions. Other providers and Linux account setup use the CLI instructions in the <a href="/provider-capabilities/">provider directory</a>, including the focused guides for <a href="/providers/beeper/">Beeper</a> and <a href="/providers/whatsapp/">WhatsApp</a>. Some providers need their own local tool or OAuth client. Installing Ghostget does not connect any account automatically.</p>
           <p>Use <code>ghostget menubar doctor</code> for companion platform and unsigned-binary guidance. See the <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/menubar-release.md">control guide</a> for startup, approvals, and credential import.</p>
           <p>For keyboard controls, run <code>ghostget menubar stop</code>, then <code>ghostget tui</code>. Press Tab to change sections, Enter to open actions, and <code>?</code> for help. Quit the TUI before restarting the menu. No Rust compiler or separate TUI install is needed.</p>

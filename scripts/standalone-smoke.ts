@@ -45,6 +45,7 @@ const archivedAdapterNamePattern =
   /^wrench(?:-web)?-adapter\.v([0-9]+\.[0-9]+\.[0-9]+)\.json$/u;
 const MAX_PACKED_ARCHIVED_UPGRADE_FAMILIES = 32;
 const PACKED_ARCHIVED_UPGRADE_COMMAND_TIMEOUT_MS = 30_000;
+const PACKED_CONTROL_COMMAND_TIMEOUT_MS = 30_000;
 const publicImportSpecifiers = Object.freeze([
   "@hraness/ghostget",
   "@hraness/ghostget/client",
@@ -103,10 +104,11 @@ async function runCommand(
   cwd: string,
   expectedExitCodes: readonly number[] = [0],
   timeoutMs = 180_000,
+  commandEnvironment: Readonly<Record<string, string>> = environment,
 ): Promise<CommandResult> {
   const child = Bun.spawn([...command], {
     cwd,
-    env: environment,
+    env: commandEnvironment,
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -137,6 +139,7 @@ function runCli(
   arguments_: readonly string[],
   expectedExitCodes: readonly number[] = [0],
   timeoutMs = 180_000,
+  commandEnvironment: Readonly<Record<string, string>> = environment,
 ): Promise<CommandResult> {
   return runCommand(
     `${target.label} ${label}`,
@@ -144,7 +147,74 @@ function runCli(
     target.cwd,
     expectedExitCodes,
     timeoutMs,
+    commandEnvironment,
   );
+}
+
+async function exercisePackedControls(
+  target: Readonly<{ cliPath: string; cwd: string; label: string }>,
+  version: unknown,
+): Promise<void> {
+  if (typeof version !== "string") throw new Error("packed Ghostget omitted its version");
+  // Keep the helper's Unix socket below its platform path limit on macOS.
+  const controlsRoot = await mkdtemp(join(tmpdir(), "ggctl-"));
+  const controlsHome = join(controlsRoot, "home");
+  const controlsState = join(controlsRoot, "s");
+  const controlsTemporary = join(controlsRoot, "tmp");
+  const controlsEnvironment = {
+    ...environment,
+    HOME: controlsHome,
+    TMPDIR: controlsTemporary,
+    GHOSTGET_STATE_HOME: controlsState,
+    GHOSTGET_MEDIA_HOME: join(controlsState, "media"),
+  };
+  try {
+    await Promise.all([
+      mkdir(controlsHome, { mode: 0o700 }),
+      mkdir(controlsTemporary, { mode: 0o700 }),
+    ]);
+    const vaultHelp = await runCli(
+      target,
+      "vault import help without account access",
+      ["vault", "import-x", "--help"],
+      [0],
+      PACKED_CONTROL_COMMAND_TIMEOUT_MS,
+      controlsEnvironment,
+    );
+    if (vaultHelp.stderr !== ""
+      || !vaultHelp.stdout.startsWith("Usage: ghostget vault import-x ")
+      || !vaultHelp.stdout.includes("--reference <op://vault/item/field>")
+      || !vaultHelp.stdout.includes("Import an X OAuth 2.0 user access token from 1Password on macOS.")
+      || existsSync(controlsState)) {
+      throw new Error(`${target.label} vault help did not remain an account-free help route`);
+    }
+
+    const snapshot = await runCli(
+      target,
+      "TUI snapshot from an absent state home",
+      ["tui", "--snapshot"],
+      [0],
+      PACKED_CONTROL_COMMAND_TIMEOUT_MS,
+      controlsEnvironment,
+    );
+    if (snapshot.stderr !== ""
+      || !snapshot.stdout.startsWith(`Ghostget ${version} · Local controls\n`)
+      || !snapshot.stdout.includes("\nAccount: No account (public scope)\n")
+      || !snapshot.stdout.includes("\nAccounts: 0 · capabilities: 0 · approvals: 0 · interfaces: 0\n")
+      || !snapshot.stdout.includes("\nManaged permissions: off\n")
+      || !snapshot.stdout.includes("\nFirst read: ghostget read https://example.com\n")
+      || /[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/u.test(snapshot.stdout)
+      || !existsSync(join(controlsState, ".io-state.json"))
+      || !existsSync(join(controlsState, "control"))) {
+      throw new Error(`${target.label} TUI did not return a clean helper-backed snapshot`);
+    }
+    if (existsSync(join(controlsState, "control", "owner.json"))
+      || existsSync(join(controlsState, "control", "agent.sock"))) {
+      throw new Error(`${target.label} TUI exited without releasing its helper ownership`);
+    }
+  } finally {
+    await rm(controlsRoot, { recursive: true, force: true });
+  }
 }
 
 function parseJsonObject(label: string, text: string): Record<string, unknown> {
@@ -1090,6 +1160,7 @@ try {
       cwd: consumer,
       label: "packed",
     } as const;
+    await exercisePackedControls(packedCli, installedManifest.version);
     await exercisePackedArchivedAdapterUpgrades(packedCli, installedPackageRoot);
     const packedState = join(work, "packed-state");
     environment.GHOSTGET_STATE_HOME = packedState;

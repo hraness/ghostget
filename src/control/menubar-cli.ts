@@ -6,7 +6,7 @@ import { handleCompanionCommand, openBrowser, type CompanionOptions, type MenuIt
 import { createSupportOffer } from "@hraness/support-foundation";
 import { ghostgetSupportProfile } from "../support-profile";
 import { TRAY_ICON } from "./menubar-icon";
-import { ghostgetStateHome } from "../storage";
+import { ensurePrivateStateDirectory, ghostgetStateHome } from "../storage";
 import { type ActivityRow, type ApprovalView, type CapabilityView, type ControlRequest, type ControlResponse, type ControlSnapshot } from "./protocol";
 import { spawnHelper, type HelperClient } from "./helper-client";
 import type { ControlEnvironment } from "./web-policy";
@@ -648,6 +648,10 @@ export async function runMenubarCommand(
     ...(binary === undefined || binary === "" ? {} : { binary }),
   };
   try {
+    // Claim the private root before the shared lifecycle creates its service
+    // directory. Otherwise a first launch leaves unmarked state that the
+    // independently launched control helper must reject.
+    if (mapped[0] === undefined || mapped[0] === "start" || mapped[0] === "--foreground") ensurePrivateStateDirectory(adapter.stateDir, environment);
     return await (dependencies.handle ?? handleCompanionCommand)(options, {
       args: mapped,
       foreground: { executable: process.execPath, args: [cli, "menubar", "--foreground"] },

@@ -90,6 +90,10 @@ ghostget capabilities
 ghostget menubar
 ```
 
+`capabilities` lists installed adapters. Add an adapter ID, such as
+`ghostget capabilities gmail`, to see its operations and required inputs. Add
+`--json` when your agent needs the complete contracts.
+
 On macOS, the companion can connect X, LinkedIn, and Reddit browser sessions.
 For Gmail, Beeper, WhatsApp, and other services, follow their CLI setup guides;
 Linux account setup also uses the CLI. The

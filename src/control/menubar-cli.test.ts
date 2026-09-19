@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { validateSnapshot, type MenuItem, type Snapshot } from "@hraness/desktop-foundation";
 import { ghostgetStateHome, installManifest } from "../storage";
@@ -418,6 +418,45 @@ describe("optional Accounts browser handoffs", () => {
 });
 
 describe("menubar CLI routing", () => {
+  test("first launch claims its state before the shared runner and serves a live helper snapshot", async () => {
+    for (const legacyMenu of [false, true]) {
+      const { environment: parent } = fixture();
+      const environment = { ...parent, GHOSTGET_STATE_HOME: join(parent.GHOSTGET_STATE_HOME, "fresh") };
+      if (legacyMenu) mkdirSync(join(environment.GHOSTGET_STATE_HOME, "menubar"), { recursive: true, mode: 0o700 });
+      const marker = join(environment.GHOSTGET_STATE_HOME, ".io-state.json");
+      expect(existsSync(marker)).toBe(false);
+      expect(await runMenubarCommand(["menubar", "--foreground"], environment, { stdout: () => {}, stderr: () => {} }, {
+        handle: async options => {
+          expect(existsSync(marker)).toBe(true);
+          expect(labels(await options.snapshot(new AbortController().signal))).toContain("Updated 0s ago");
+          return 0;
+        },
+      })).toBe(0);
+      expect(existsSync(join(environment.GHOSTGET_STATE_HOME, "control", "owner.json"))).toBe(false);
+    }
+  });
+  test("status and doctor leave a fresh state home unclaimed", async () => {
+    const { environment: parent } = fixture();
+    const environment = { ...parent, GHOSTGET_STATE_HOME: join(parent.GHOSTGET_STATE_HOME, "untouched") };
+    for (const verb of ["status", "doctor"]) await runMenubarCommand(["menubar", verb], environment, { stdout: () => {}, stderr: () => {} });
+    expect(existsSync(environment.GHOSTGET_STATE_HOME)).toBe(false);
+  });
+  test("unsafe legacy menu directories are rejected before state ownership or lifecycle dispatch", async () => {
+    for (const unsafe of ["public", "symlink"] as const) {
+      const { environment: parent } = fixture();
+      const environment = { ...parent, GHOSTGET_STATE_HOME: join(parent.GHOSTGET_STATE_HOME, "unsafe") };
+      mkdirSync(environment.GHOSTGET_STATE_HOME, { mode: 0o700 });
+      const menu = join(environment.GHOSTGET_STATE_HOME, "menubar");
+      if (unsafe === "symlink") symlinkSync(parent.GHOSTGET_STATE_HOME, menu);
+      else { mkdirSync(menu); chmodSync(menu, 0o755); }
+      let dispatched = false;
+      await expect(runMenubarCommand(["menubar", "--foreground"], environment, { stdout: () => {}, stderr: () => {} }, {
+        handle: async () => { dispatched = true; return 0; },
+      })).rejects.toThrow();
+      expect(dispatched).toBe(false);
+      expect(existsSync(join(environment.GHOSTGET_STATE_HOME, ".io-state.json"))).toBe(false);
+    }
+  });
   test("joins helper shutdown after both a normal return and a startup failure", async () => {
     for (const fails of [false, true]) {
       const { environment } = fixture();
