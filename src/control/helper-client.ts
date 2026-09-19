@@ -38,7 +38,7 @@ export function spawnHelper(environment: ControlEnvironment): HelperClient {
   for (const [key, value] of Object.entries(environment)) if (value !== undefined) env[key] = value;
   const child = Bun.spawn([process.execPath, "--no-env-file", "--no-install", script], { cwd: dirname(script), env, stdin: "pipe", stdout: "pipe", stderr: "pipe" });
   const pending = new Map<string, { resolve: (response: ControlResponse) => void; timer: ReturnType<typeof setTimeout> }>();
-  let buffer = Buffer.alloc(0);
+  let buffer: Buffer = Buffer.alloc(0);
   let closed = false;
   // Drain diagnostics without accumulating or disclosing third-party output.
   void (async () => { for await (const _chunk of child.stderr) { /* discard */ } })().catch(() => undefined);

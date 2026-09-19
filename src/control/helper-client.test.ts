@@ -19,8 +19,8 @@ test("helper rejects malformed envelopes and nested contract drift", () => {
 });
 
 test("helper framing accepts coalesced large messages and rejects oversized or malformed frames", () => {
-  const approval = { id: "a", digest: "d", kind: "provider", title: "Review", account: null, effect: "write", preview: "x".repeat(400_000), expiresAt: "2030-01-01T00:00:00.000Z" };
-  const envelope = { id: "request-1", protocol: CONTROL_PROTOCOL, ok: true, data: { kind: "approvals", approvals: Array.from({ length: 9 }, () => approval) } };
+  const approval = { id: "a", digest: "d", kind: "provider", title: "Review", account: null, effect: "write", preview: "x".repeat(400_000), expiresAt: "2030-01-01T00:00:00.000Z" } as const;
+  const envelope = { id: "request-1", protocol: CONTROL_PROTOCOL, ok: true, data: { kind: "approvals", approvals: Array.from({ length: 9 }, () => approval) } } as const;
   const line = Buffer.from(`${JSON.stringify(envelope)}\n`);
   const first = decodeHelperFrames(line.subarray(0, line.length - 7));
   expect(first.frames).toHaveLength(0);
