@@ -1,14 +1,14 @@
-// The consumer candidate-decisions reference adds exactly one packed file and
-// 8,201 payload bytes: skills/ghostget/references/candidate-decisions.md
-// +7,671 (the bounded-candidate consumer-judgment reference),
-// skills/ghostget/SKILL.md +277 (its smallest-path bullet), and
-// skills/ghostget/references/messaging.md +253 (the route-selection
-// cross-reference). A Bun 1.3.14 pack on darwin arm64 measured 11,545,531
-// compressed / 22,682,054 payload bytes across exactly 565 files, SHA-256
-// 8aa2b54f73cd3f1d5dbf42d50e925c8535f4e1332c7dcff85e38567040f4649a. Keep the
-// packed ceiling; raise the file/entry inventory to 565 and the payload
-// ceiling to the measurement plus the reviewed 65-byte allowance:
-// 22,682,054 + 65 = 22,682,119.
+// The initial consumer candidate-decisions reference added one packed file and
+// 12,158 payload bytes over main b518370: candidate-decisions.md +11,628,
+// SKILL.md +277, and references/messaging.md +253. A Bun 1.3.14 pack
+// --ignore-scripts on darwin arm64 measured 11,547,963 compressed /
+// 22,689,572 payload bytes across exactly 566 files, archive SHA-256
+// aab8003f241c2d63aec2bf909d587e11c983fabb689d43386202db22a2b471a5.
+// Retain the packed ceiling, add the reference to the file/entry inventory,
+// and retain the reviewed 65-byte payload allowance:
+// 22,689,572 + 65 = 22,689,637. The final fixed-model wire-budget correction
+// adds 55 documentation bytes; the unchanged ceiling retains ten bytes:
+// 22,689,627 + 10 = 22,689,637.
 //
 // Hraness Accounts CLI login integration adds exactly one packed file and
 // 1,356 payload bytes: src/accounts-auth.ts and its package.json files entry.
@@ -1069,9 +1069,17 @@
 // encoder repacked the rebuilt chunks: two npm 11.19.0 packs on this branch
 // were byte-identical at 11,680,809 packed bytes on macOS. Retain the
 // existing ceiling.
+//
+// Staged local-custody sidecar adoption adds exactly one packed file,
+// src/custody-engine.ts (+1,026 source bytes), inside the unchanged
+// entrypoint set: a clean npm 11.19.0 pack --ignore-scripts on this branch
+// measured 11,681,840 packed bytes / 22,677,414 unpacked bytes across
+// exactly 565 files on macOS, archive SHA-256
+// c47c8d3767080acddfa48b353aff98fae738c45a5ba16708d63e857dd839480a. Raise the
+// packed inventory to 565 and retain the existing packed ceiling.
 export const MAX_PACKED_BYTES = 11_693_939;
-export const MAX_PACKED_ENTRIES = 565;
-export const MAX_PACKED_FILES = 565;
+export const MAX_PACKED_ENTRIES = 566;
+export const MAX_PACKED_FILES = 566;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
 //
@@ -1096,12 +1104,16 @@ export const MAX_PACKED_FILES = 565;
 // 22,673,853 unpacked bytes across the unchanged 564-file inventory.
 // Retain the existing ceiling; the residual allowance is now 1,150 bytes:
 // 22,673,853 + 1,150 = 22,675,003.
-// The consumer candidate-decisions reference adds one packed skill file and
-// 8,201 payload bytes: a clean Bun 1.3.14 pack --ignore-scripts on this
-// branch measured 22,682,054 unpacked bytes across the new 565-file
-// inventory. Retain the reviewed 65-byte allowance:
-// 22,682,054 + 65 = 22,682,119.
-export const MAX_UNPACKED_BYTES = 22_682_119;
+//
+// Staged local-custody sidecar adoption adds src/custody-engine.ts (+1,026)
+// and grows the guard, boundary, helper, and semantic-identity sources plus
+// rebuilt dist chunks by +2,476 payload bytes over the 22,674,938
+// measurement: a clean npm 11.19.0 pack --ignore-scripts on this branch
+// measured 22,677,414 unpacked bytes across the new 565-file inventory.
+// Retain the reviewed 65-byte allowance: 22,677,414 + 65 = 22,677,479.
+// The integrated consumer reference measurement retains the same allowance:
+// 22,689,572 + 65 = 22,689,637.
+export const MAX_UNPACKED_BYTES = 22_689_637;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

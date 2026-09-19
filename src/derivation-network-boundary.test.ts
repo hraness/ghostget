@@ -35,6 +35,18 @@ function identity(path: string): { readonly device: string; readonly inode: stri
   return { device: stats.dev.toString(), inode: stats.ino.toString() };
 }
 
+/**
+ * The Rust-first custody engine reports designed per-operation fallback with a
+ * bounded, sanitized stderr notice. Anything else on the spawned pipeline's
+ * stderr still violates its silence contract.
+ */
+function unexpectedHelperStderr(stderr: string): string {
+  return stderr
+    .split("\n")
+    .filter((line) => line !== "" && !line.startsWith("[local-custody-rust-fallback] "))
+    .join("\n");
+}
+
 function boundaryFixture(prefix: string) {
   const root = mkdtempSync(join(tmpdir(), prefix));
   const directory = join(root, "derivation");
@@ -186,7 +198,7 @@ describe("contained derivation network boundary lifecycle", () => {
         new Response(child.stdout).text(),
         new Response(child.stderr).text(),
       ]);
-      expect({ exitCode, stderr }).toEqual({ exitCode: 0, stderr: "" });
+      expect({ exitCode, stderr: unexpectedHelperStderr(stderr) }).toEqual({ exitCode: 0, stderr: "" });
       const guard = parseDerivationNetworkGuard(JSON.parse(stdout) as unknown);
       const deadline = Date.now() + 3_000;
       while (
