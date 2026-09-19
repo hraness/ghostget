@@ -279,6 +279,7 @@
     "src/support.ts",
     "src/support-profile.ts",
     "src/cursor-token.ts",
+    "src/custody-engine.ts",
     "src/derive-command-helper.ts",
     "src/derivation-dnr-readiness.ts",
     "src/derivation-file-chooser.ts",
