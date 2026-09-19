@@ -56,6 +56,10 @@ automation.
   [agentic messaging](references/messaging.md). Keep one exact provider route,
   use private artifacts for prose and capability references, and never expose a
   provider CLI or API beside Ghostget as a second action path.
+- Pick one candidate from a bounded Ghostget enumeration with the caller's own
+  model: follow [candidate decisions](references/candidate-decisions.md).
+  Ghostget owns enumeration and target binding; the caller owns the judgment
+  and passes back the exact emitted reference.
 - Diagnose state: `ghostget operator doctor --json`.
 - Invoke a supported semantic operation: `ghostget invoke <adapter> <operation>` or its printed shorthand.
 - Collect exact daily social-account statistics into a checked consumer snapshot: follow [social profile statistics](references/social-profile-stats.md).

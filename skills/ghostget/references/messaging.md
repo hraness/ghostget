@@ -57,6 +57,11 @@ qualification. Its bounded list projection cannot yet create the canonical
 source-conversation context binding. X archives are analysis evidence and
 never routes.
 
+When the caller must choose among candidates, it may apply its own model
+judgment over the enumerated fields. The choice stays advisory: the emitted
+`routeRef` remains the only accepted resolve input. See
+[candidate decisions](candidate-decisions.md).
+
 ## Read fresh context
 
 ```text
