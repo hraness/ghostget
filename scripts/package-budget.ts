@@ -1,3 +1,10 @@
+// Jev example retirement removes one packed reference and 12,213 payload bytes
+// from the reviewed PR #301 tree: 22,689,627 - 12,213 = 22,677,414.
+// Restore the exact 565-file inventory and the same 65-byte payload allowance:
+// 22,677,414 + 65 = 22,677,479. Retain the proven Linux compressed ceiling;
+// required package CI independently checks the resulting canonical archive.
+// Earlier measurement receipts below remain historical evidence.
+//
 // PR #301 Linux CI run 35449445752 attempt 1, package job 105913938839,
 // packed reviewed tree 355a85fac97013265c44b480921591d9d0323614 with npm
 // 11.19.0: 11,696,091 compressed / 22,689,627 payload bytes and 566 files
@@ -1089,8 +1096,8 @@
 // c47c8d3767080acddfa48b353aff98fae738c45a5ba16708d63e857dd839480a. Raise the
 // packed inventory to 565 and retain the existing packed ceiling.
 export const MAX_PACKED_BYTES = 11_700_187;
-export const MAX_PACKED_ENTRIES = 566;
-export const MAX_PACKED_FILES = 566;
+export const MAX_PACKED_ENTRIES = 565;
+export const MAX_PACKED_FILES = 565;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
 //
@@ -1124,7 +1131,7 @@ export const MAX_PACKED_FILES = 566;
 // Retain the reviewed 65-byte allowance: 22,677,414 + 65 = 22,677,479.
 // The final consumer reference measurement retains the original allowance:
 // 22,689,627 + 65 = 22,689,692.
-export const MAX_UNPACKED_BYTES = 22_689_692;
+export const MAX_UNPACKED_BYTES = 22_677_479;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
