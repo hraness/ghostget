@@ -1,7 +1,10 @@
 import type { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
 import type { GhostgetAuth } from "../auth";
-import { canonicalJson } from "../canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Variants,
+} from "../canonical-json";
 import type { LocalCliExecutionOptions } from "../local-cli-execution";
 import type { AutomationAction, AutomationConversation, AutomationCoordinate, AutomationIdentity, AutomationMessage, AutomationProviderStatus, AutomationProviderSendResult, MessagingAutomationProvider } from "../messaging-automation-types";
 import { AUTOMATION_ACTION_KINDS, automationArray, automationDigest, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationCoordinate, parseAutomationIdentity } from "../messaging-automation-validation";
@@ -56,7 +59,11 @@ function parseCursor(value: string | null, current: AutomationIdentity, coordina
   automationText(value, 16_384); const decoded = Buffer.from(value, "base64url");
   if (decoded.toString("base64url") !== value) throw new Error("Noncanonical WhatsApp cursor");
   const row = automationRecord(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(decoded)), ["version", "identity", "scope", "sequence", "anchor"]);
-  if (row.version !== 1 || row.identity !== initial.identity || row.scope !== initial.scope) throw new Error("WhatsApp cursor identity or scope changed");
+  if (
+    row.version !== 1
+    || !canonicalJsonSha256Variants(current).includes(row.identity as string)
+    || !canonicalJsonSha256Variants(coordinates).includes(row.scope as string)
+  ) throw new Error("WhatsApp cursor identity or scope changed");
   return { ...initial, sequence: automationInteger(row.sequence, 0, Number.MAX_SAFE_INTEGER), anchor: row.anchor === null ? null : automationDigest(row.anchor) };
 }
 function ledgerBounds(database: Database): { first: number; last: number } {

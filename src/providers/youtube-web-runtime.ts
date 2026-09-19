@@ -6,7 +6,10 @@ import { types as nodeTypes } from "node:util";
 
 import type { GhostgetAuth } from "../auth";
 import type { BrowserFileResolver } from "../browser";
-import { canonicalJson } from "../canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonText,
+} from "../canonical-json";
 import type { FileInputValue, OperationInput, WebSessionRecipe } from "../model";
 import {
   createWebSessionClient,
@@ -411,7 +414,7 @@ export function parseYouTubeVideoTargetIdentifier(
     url: youtubeVideoWatchUrl(videoId),
     videoId,
   });
-  if (target.url !== parsed.url || canonicalJson(parsed) !== identifier) {
+  if (target.url !== parsed.url || !isCanonicalJsonText(identifier, parsed)) {
     throw new Error("YouTube canonical video target is not canonical");
   }
   return parsed;

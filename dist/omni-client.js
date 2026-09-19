@@ -1,8 +1,9 @@
 // @bun
 import {
   canonicalJson,
+  canonicalJsonSha256Matches,
   sha256
-} from "./index-gwk7rbyj.js";
+} from "./index-ad2rp8dr.js";
 import"./index-z1w83f81.js";
 
 // src/omni-client.ts
@@ -498,7 +499,7 @@ function entityCommon(source, label) {
 }
 function verifyEntityRevision(semantic, revisionValue, label) {
   const revision = digest(revisionValue, `${label}.revision`);
-  if (sha256(canonicalJson(semantic)) !== revision) {
+  if (!canonicalJsonSha256Matches(revision, semantic)) {
     return fail(`${label}.revision`, "does not authenticate its semantic fields");
   }
   return Object.freeze({ ...semantic, revision });

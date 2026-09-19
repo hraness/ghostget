@@ -1,8 +1,7 @@
 // @bun
 import {
-  canonicalJson,
-  sha256
-} from "./index-gwk7rbyj.js";
+  canonicalJsonSha256Matches
+} from "./index-ad2rp8dr.js";
 import"./index-z1w83f81.js";
 
 // src/whatsapp-client.ts
@@ -260,7 +259,7 @@ function parseWhatsAppMessageLikeMeExportReceipt(value) {
       cloudSync: "none"
     })
   });
-  if (sha256(canonicalJson(projection)) !== expectedDigest) {
+  if (!canonicalJsonSha256Matches(expectedDigest, projection)) {
     return fail2("receipt digest does not match its canonical projection");
   }
   return Object.freeze({

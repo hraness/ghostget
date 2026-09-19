@@ -32,6 +32,7 @@ import {
 import { executeBrowserRecipe, PreservedBrowserArtifactsError } from "./browser";
 import {
   canonicalJson,
+  canonicalJsonSha256Matches,
   DOM_ACTION_TRANSPORT_DISABLED_MESSAGE,
   expandBrowserRecipe,
   isLocalCliOperation,
@@ -1882,9 +1883,9 @@ function claimDuplicateRiskSource(
   );
   const ledgers = matchingJournalLedgers(source.journal, environment);
   if (
-    sha256(canonicalJson(receipt)) !== binding.sourceReceiptHash
+    !canonicalJsonSha256Matches(binding.sourceReceiptHash, receipt)
     || capsule === null
-    || sha256(canonicalJson(capsule)) !== binding.sourceCapsuleHash
+    || !canonicalJsonSha256Matches(binding.sourceCapsuleHash, capsule)
     || ledgers.length !== 1
     || ledgers[0]?.contentSha256 !== binding.sourceLedgerHash
   ) {
@@ -2311,7 +2312,7 @@ export function parseMessagingCompositeInvocationPlan(
     seen.add(candidate.partId);
     const input = parsePlanInput(candidate.input);
     const inputHash = messagingDigest(candidate.inputHash, "messaging composite invocation part input hash");
-    if (sha256(canonicalJson(input)) !== inputHash) {
+    if (!canonicalJsonSha256Matches(inputHash, input)) {
       throw new Error("messaging composite invocation part input hash disagrees");
     }
     return Object.freeze({
@@ -2845,7 +2846,10 @@ function validateFreshPlan(
   const manifestResult = loadManifest(plan.adapter.id, environment);
   if (!manifestResult.ok) throw new Error(`adapter ${plan.adapter.id} is invalid: ${manifestResult.issues.join("; ")}`);
   const manifest = manifestResult.value;
-  if (manifest.version !== plan.adapter.version || manifestHash(manifest) !== plan.adapter.hash) {
+  if (
+    manifest.version !== plan.adapter.version
+    || !canonicalJsonSha256Matches(plan.adapter.hash, manifest)
+  ) {
     throw new Error("adapter changed after preview; preview the action again");
   }
   const operation = manifest.operations[plan.operation];
@@ -2863,7 +2867,7 @@ function validateFreshPlan(
     ? validatePlatformOperationInput(manifest, plan.operation, inputResult.value)
     : inputResult;
   const plannedInputIsCurrent = plan.messagingComposite === undefined
-    ? sha256(canonicalJson(platformInput.ok ? platformInput.value : null)) === plan.inputHash
+    ? canonicalJsonSha256Matches(plan.inputHash, platformInput.ok ? platformInput.value : null)
     : platformInput.ok
       && canonicalJson(platformInput.value) === canonicalJson(plan.messagingComposite.parts[0]!.input)
       && messagingCompositeInputHash(plan.messagingComposite) === plan.inputHash;
@@ -3138,9 +3142,30 @@ function acquireLedger(
   entry: LedgerEntry,
   environment: Readonly<Record<string, string | undefined>>,
   now: Date,
+  alternatePaths: readonly string[] = [],
 ):
   | { readonly acquired: true; readonly snapshot: LedgerSnapshot }
-  | { readonly acquired: false; readonly existing: LedgerEntry } {
+  | {
+      readonly acquired: false;
+      readonly existing: LedgerEntry;
+      readonly viaAlternatePath?: boolean;
+    } {
+  // Ledger coordinates derived before the RFC 8785 canonical-ordering
+  // migration live at paths computed from the legacy input and manifest
+  // digests. A live entry there authenticates the same intent, so probe
+  // those paths read-only before claiming the current one.
+  for (const alternatePath of alternatePaths) {
+    const snapshot = readLedgerSnapshot(alternatePath, environment);
+    if (snapshot === null) continue;
+    const existing = snapshot.entry;
+    if (
+      existing.schemaVersion === 3
+      || existing.status !== "succeeded"
+      || Date.parse(existing.expiresAt) >= now.getTime()
+    ) {
+      return { acquired: false, existing, viaAlternatePath: true };
+    }
+  }
   const stem = basename(path, ".json");
   let candidatePath = path;
   for (let generation = 0; generation < 10_000; generation += 1) {
@@ -3912,8 +3937,10 @@ export function releaseReconciledRunRecovery(
     );
   }
   if (
-    sha256(canonicalJson(runJournalReceipt(snapshot.journal)))
-    !== expectedReceiptHash
+    !canonicalJsonSha256Matches(
+      expectedReceiptHash,
+      runJournalReceipt(snapshot.journal),
+    )
   ) {
     throw new Error(
       "run journal no longer matches the reconciled receipt",

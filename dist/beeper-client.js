@@ -7,8 +7,9 @@ import {
 } from "./index-km75a0bm.js";
 import {
   canonicalJson,
+  canonicalJsonSha256Matches,
   sha256
-} from "./index-gwk7rbyj.js";
+} from "./index-ad2rp8dr.js";
 import"./index-z1w83f81.js";
 
 // src/beeper-client.ts
@@ -4312,7 +4313,7 @@ function parseBeeperContactInteractionSummary(value) {
     accounts,
     interactions
   });
-  if (sha256(canonicalJson(summaryProjection(projection))) !== summarySha256) {
+  if (!canonicalJsonSha256Matches(summarySha256, summaryProjection(projection))) {
     return fail("integrity digest does not bind the summary projection");
   }
   return Object.freeze({
@@ -4460,7 +4461,7 @@ function parseBeeperContactInteractionExportResult(value) {
     return fail("export receipt integrity algorithm is unsupported");
   }
   const receiptSha256 = digest(integrity.receiptSha256, "export receipt.integrity.receiptSha256");
-  if (sha256(canonicalJson(receiptProjection(projection))) !== receiptSha256) {
+  if (!canonicalJsonSha256Matches(receiptSha256, receiptProjection(projection))) {
     return fail("export receipt integrity does not bind its projection");
   }
   return Object.freeze({

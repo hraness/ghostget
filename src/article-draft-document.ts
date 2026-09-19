@@ -1,4 +1,7 @@
-import { canonicalJson } from "./canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonText,
+} from "./canonical-json";
 
 export const ARTICLE_DRAFT_DOCUMENT_SCHEMA_VERSION = 1;
 export const ARTICLE_DRAFT_DOCUMENT_IMAGE_SCHEMA_VERSION = 2;
@@ -171,7 +174,7 @@ export function parseArticleDraftDocument(
   } catch {
     throw new Error("input.document must be valid ArticleDraftDocument JSON");
   }
-  if (canonicalJson(parsed) !== value) {
+  if (!isCanonicalJsonText(value, parsed)) {
     throw new Error("input.document must use canonical JSON encoding");
   }
 
@@ -328,7 +331,7 @@ export function parseArticleDraftDocumentV2(
   } catch {
     throw new Error("input.document must be valid ArticleDraftDocument JSON");
   }
-  if (canonicalJson(parsed) !== value) {
+  if (!isCanonicalJsonText(value, parsed)) {
     throw new Error("input.document must use canonical JSON encoding");
   }
   const root = record(parsed, "input.document");

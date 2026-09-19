@@ -2,7 +2,7 @@
 import {
   canonicalJson,
   sha256
-} from "./index-gwk7rbyj.js";
+} from "./index-ad2rp8dr.js";
 
 // src/message-like-me-agentic-messaging.ts
 import { types as nodeTypes } from "util";

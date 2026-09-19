@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { types as nodeTypes } from "node:util";
 
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonFileText,
+  sha256,
+} from "./canonical-json";
 import {
   AgentBrowserLiveControlUnavailableError,
   adoptLiveLegacyBrowserCleanupResource,
@@ -789,7 +793,7 @@ export function listWebSessionCleanupAdmissions(
       );
       if (
         claim.realmKey !== match[1]
-        || file.content !== `${canonicalJson(claim)}\n`
+        || !isCanonicalJsonFileText(file.content, claim)
       ) {
         return { coordinate, invalid: true as const };
       }
@@ -833,7 +837,7 @@ function readWebSessionCleanupAdmission(
     );
     if (
       claim.realmKey !== realmKey
-      || content !== `${canonicalJson(claim)}\n`
+      || !isCanonicalJsonFileText(content, claim)
     ) {
       throw new Error(
         "web-session cleanup admission does not match its canonical realm",

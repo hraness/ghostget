@@ -38,7 +38,11 @@ import {
   type BeeperMessageLikeMeDirectoryLease,
   updateBeeperMessageLikeMeDirectoryLease,
 } from "./beeper-message-like-me-recovery";
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Matches,
+  sha256,
+} from "./canonical-json";
 import { removePrivateDirectoryTree } from "./storage";
 
 const PHOTOS_DATABASE_RELATIVE_PATH = join("database", "Photos.sqlite");
@@ -673,7 +677,7 @@ function validateSchema(
     }
     observed[table] = selected;
   }
-  if (sha256(canonicalJson(observed)) !== expectedSha256) {
+  if (!canonicalJsonSha256Matches(expectedSha256, observed)) {
     return fail(`${label} relevant Core Data schema fingerprint drifted`);
   }
 }

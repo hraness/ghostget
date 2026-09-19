@@ -2,7 +2,11 @@ import { Database, constants as sqlite } from "bun:sqlite";
 import { closeSync, constants, fstatSync, lstatSync, openSync } from "node:fs";
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { join } from "node:path";
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Matches,
+  sha256,
+} from "./canonical-json";
 import { ensurePrivateStateDirectory, ghostgetStateHome, snapshotPrivateStateDirectory } from "./storage";
 import { AUTOMATION_ACTION_KINDS, automationArray, automationDate, automationDigest, automationId, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationActionKind, parseAutomationCoordinate, parseAutomationIdentity, parseAutomationMessage } from "./messaging-automation-validation";
 import type { AutomationConversation, AutomationEnrollment, AutomationEvent, AutomationGrant, AutomationGrantRequest, AutomationIdentity, AutomationPlan, AutomationPlanRequest, AutomationProviderPage, AutomationProviderSendResult, AutomationRun, MessagingAutomationProvider } from "./messaging-automation-types";
@@ -30,7 +34,7 @@ function planData(value: unknown): AutomationPlan {
   if (actions.length === 0 || Buffer.byteLength(canonicalJson(actions)) > 256 * 1024) throw new Error("Messaging plan exceeds its bound.");
   const binding = { enrollmentId: automationId(r.enrollmentId), expectedRevision: automationInteger(r.expectedRevision, 0, Number.MAX_SAFE_INTEGER), intentId: automationId(r.intentId), actions: Object.freeze(actions), bindingDigest: automationDigest(r.bindingDigest), expiresAt: automationDate(r.expiresAt) };
   const digest = automationDigest(r.digest); const id = automationId(r.id);
-  if (sha256(canonicalJson(binding)) !== digest || id !== `plan:${digest}`) throw new Error("Messaging plan binding is invalid.");
+  if (!canonicalJsonSha256Matches(digest, binding) || id !== `plan:${digest}`) throw new Error("Messaging plan binding is invalid.");
   return Object.freeze({ ...binding, id, digest });
 }
 
@@ -133,7 +137,7 @@ export class MessagingAutomationHost {
   private enrollment(row: StoredEnrollment): AutomationEnrollment {
     const r = automationRecord(JSON.parse(row.data) as unknown, ["identity", "conversation", "bindingDigest"]);
     const identity = parseAutomationIdentity(r.identity); const selected = conversation(r.conversation); const bindingDigest = automationDigest(r.bindingDigest);
-    if (sha256(canonicalJson(authority(identity, selected))) !== bindingDigest) throw new Error("Messaging enrollment binding is invalid.");
+    if (!canonicalJsonSha256Matches(bindingDigest, authority(identity, selected))) throw new Error("Messaging enrollment binding is invalid.");
     const ready = automationInteger(row.ready, 0, 1); const baselining = automationInteger(row.baselining, 0, 1); const gap = automationInteger(row.gap, 0, 1);
     if (ready && (baselining || gap)) throw new Error("Messaging enrollment readiness is inconsistent.");
     return Object.freeze({ id: automationId(row.id), identity, conversation: selected, bindingDigest, revision: automationInteger(row.revision, 0, Number.MAX_SAFE_INTEGER), ready: ready === 1, reason: row.reason === null ? null : automationText(row.reason, 1024) });

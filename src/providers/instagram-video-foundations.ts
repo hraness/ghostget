@@ -5,7 +5,10 @@ import { open } from "node:fs/promises";
 import { types as nodeTypes } from "node:util";
 
 import type { BrowserFileResolver } from "../browser";
-import { canonicalJson } from "../canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonText,
+} from "../canonical-json";
 import type { FileInputValue, OperationInput } from "../model";
 import type { WebSessionOperationDeadline } from "../web-session-execution";
 import {
@@ -786,7 +789,7 @@ export function parseInstagramVideoAcceptedTargetIdentifier(
     mediaId: target.mediaId,
     url: parseInstagramVideoPermalink(value.url, target.code),
   });
-  if (canonicalJson(parsed) !== identifier) {
+  if (!isCanonicalJsonText(identifier, parsed)) {
     throw new Error("Instagram provider-accepted video target is not canonical");
   }
   return parsed;

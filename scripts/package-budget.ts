@@ -1049,7 +1049,14 @@ export const MAX_PACKED_ENTRIES = 564;
 export const MAX_PACKED_FILES = 564;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
-export const MAX_UNPACKED_BYTES = 22_658_003;
+//
+// The RFC 8785 canonical-ordering migration adds the dual-read serializer
+// and verification-path helpers plus their audit conversions across the
+// canonical-JSON consumers: a clean npm 11.19.0 pack --ignore-scripts on
+// this branch measured 22,674,601 unpacked bytes across the unchanged
+// 564-file inventory. Retain the reviewed 65-byte allowance:
+// 22,674,601 + 65 = 22,674,666.
+export const MAX_UNPACKED_BYTES = 22_674_666;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

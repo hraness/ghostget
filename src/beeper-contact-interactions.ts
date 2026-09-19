@@ -7,7 +7,11 @@ import {
   LOCAL_MESSAGE_BUNDLE_V1_SOURCE_TRANSFORM_VERSION,
 } from "@hraness/message-like-me/message-bundle-v1";
 
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Matches,
+  sha256,
+} from "./canonical-json";
 import {
   parseBeeperMessageLikeMeCompletion,
   parseBeeperMessageLikeMeDescriptor,
@@ -1302,7 +1306,7 @@ export function parseBeeperContactInteractionSummary(
     accounts,
     interactions,
   }) satisfies Omit<BeeperContactInteractionSummary, "integrity">;
-  if (sha256(canonicalJson(summaryProjection(projection))) !== summarySha256) {
+  if (!canonicalJsonSha256Matches(summarySha256, summaryProjection(projection))) {
     return fail("integrity digest does not bind the summary projection");
   }
   return Object.freeze({
@@ -1592,7 +1596,7 @@ export function parseBeeperContactInteractionExportResult(
     integrity.receiptSha256,
     "export receipt.integrity.receiptSha256",
   );
-  if (sha256(canonicalJson(receiptProjection(projection))) !== receiptSha256) {
+  if (!canonicalJsonSha256Matches(receiptSha256, receiptProjection(projection))) {
     return fail("export receipt integrity does not bind its projection");
   }
   return Object.freeze({

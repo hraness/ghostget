@@ -8,7 +8,10 @@ import { renderCookieHeader } from "@hraness/kb/clip/cookies";
 
 import type { GhostgetAuth } from "../auth";
 import type { BrowserFileResolver } from "../browser";
-import { canonicalJson } from "../canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonText,
+} from "../canonical-json";
 import type { FileInputValue, OperationInput, WebSessionRecipe } from "../model";
 import { OperationDeadline } from "../operation-deadline";
 import { pinnedHttpsFetch } from "../pinned-https";
@@ -909,7 +912,7 @@ export function parseSubstackVideoUploadRecoveryTargetIdentifier(
     ),
     schemaVersion: 1 as const,
   });
-  if (canonicalJson(target) !== identifier) {
+  if (!isCanonicalJsonText(identifier, target)) {
     throw new Error("Substack video recovery target must use canonical JSON");
   }
   return target;
@@ -2222,7 +2225,7 @@ function parseSubstackAcceptedNoteTarget(
   }
   if (!isRecord(value)) throw new Error("Substack accepted Note target changed shape");
   requireExactKeys(value, ["attachment", "noteId"], "Substack accepted Note target");
-  if (canonicalJson(value) !== identifier) {
+  if (!isCanonicalJsonText(identifier, value)) {
     throw new Error("Substack accepted Note target must use canonical JSON");
   }
   const noteId = positiveInteger(value.noteId, "Substack accepted Note target.noteId");

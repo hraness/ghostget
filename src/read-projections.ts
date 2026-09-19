@@ -10,7 +10,12 @@ import {
 import { lstatSync } from "node:fs";
 import { join } from "node:path";
 
-import { canonicalJson } from "./canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Variants,
+  isCanonicalJsonFileText,
+  legacyCanonicalJson,
+} from "./canonical-json";
 import {
   parseLocalCliToolIdentityV1,
   type LocalCliToolIdentityV1,
@@ -712,7 +717,7 @@ function parseProjectionStoreKeyMarker(
         "read projection store key marker authentication",
       ),
     });
-    if (text !== `${canonicalJson(marker)}\n`) {
+    if (!isCanonicalJsonFileText(text, marker)) {
       throw new Error("read projection store key marker is not canonical");
     }
   } catch {
@@ -971,7 +976,7 @@ function parseIdentity(value: unknown): ReadProjectionQueryIdentity {
   );
   const input = boundedJson(identity.input, "read projection input");
   const inputHash = hexDigest(identity.inputHash, "read projection input hash");
-  if (hashBytes(canonicalJson(input)) !== inputHash) {
+  if (!canonicalJsonSha256Variants(input).includes(inputHash)) {
     throw new Error("read projection input is not hash-bound");
   }
   const transport = contract.transport;
@@ -1010,16 +1015,24 @@ function parseIdentity(value: unknown): ReadProjectionQueryIdentity {
   });
 }
 
+/**
+ * The canonical serializer bound to a stored projection coordinate. Current
+ * writes use the RFC 8785 ordering; directories and authenticated bodies
+ * created before the ordering migration use the legacy encoding.
+ */
+type CanonicalJsonSerializer = (value: unknown) => string;
+
 function queryForIdentity(
   identityValue: ReadProjectionQueryIdentity,
   environment: Environment,
   projectionKeyValue?: ProjectionKey,
+  serialize: CanonicalJsonSerializer = canonicalJson,
 ): ReadProjectionQuery {
   const identity = parseIdentity(identityValue);
   const key = projectionKeyValue ?? projectionKey(environment, true);
   if (key === null) throw new Error("projection encryption key is unavailable");
   return Object.freeze({
-    key: hmac(key.value, "wrench-read-projection-query-v1", canonicalJson(identity)),
+    key: hmac(key.value, "wrench-read-projection-query-v1", serialize(identity)),
     realmKey: hmac(key.value, "wrench-read-projection-realm-v1", identity.auth.id),
     identity,
   });
@@ -1029,13 +1042,14 @@ function omniQueryForIdentity(
   identityValue: ReadProjectionQueryIdentity,
   environment: Environment,
   projectionKeyValue?: ProjectionKey,
+  serialize: CanonicalJsonSerializer = canonicalJson,
 ): OmniProjectionQuery {
   const identity = parseIdentity(identityValue);
   const key = projectionKeyValue ?? projectionKey(environment, true);
   if (key === null) throw new Error("projection encryption key is unavailable");
   return Object.freeze({
     storageClass: "omni-v1" as const,
-    key: hmac(key.value, "wrench-omni-projection-query-v1", canonicalJson(identity)),
+    key: hmac(key.value, "wrench-omni-projection-query-v1", serialize(identity)),
     realmKey: hmac(key.value, "wrench-omni-projection-realm-v1", identity.auth.id),
     identity,
   });
@@ -1098,15 +1112,35 @@ function projectionStorageClass(
 function validateQuery(query: ReadProjectionQuery, environment: Environment): {
   readonly query: ReadProjectionQuery;
   readonly key: ProjectionKey;
+  readonly serialize: CanonicalJsonSerializer;
 } {
   const parsed = parseQueryValue(query);
   const key = projectionKey(environment, true);
   if (key === null) throw new Error("projection encryption key is unavailable");
   const expected = queryForIdentity(parsed.identity, environment, key);
-  if (parsed.key !== expected.key || parsed.realmKey !== expected.realmKey) {
-    throw new Error("read projection query is not bound to its current private key");
+  if (parsed.key === expected.key && parsed.realmKey === expected.realmKey) {
+    return { query: expected, key, serialize: canonicalJson };
   }
-  return { query: expected, key };
+  // A query coordinate derived before the RFC 8785 ordering migration is
+  // bound to the same private key through the legacy serialization of its
+  // identity, and its stored artifacts authenticate the same way.
+  const legacyExpected = queryForIdentity(
+    parsed.identity,
+    environment,
+    key,
+    legacyCanonicalJson,
+  );
+  if (
+    parsed.key === legacyExpected.key
+    && parsed.realmKey === legacyExpected.realmKey
+  ) {
+    return {
+      query: legacyExpected,
+      key,
+      serialize: legacyCanonicalJson,
+    };
+  }
+  throw new Error("read projection query is not bound to its current private key");
 }
 
 function validateOmniQuery(
@@ -1115,15 +1149,32 @@ function validateOmniQuery(
 ): {
   readonly query: OmniProjectionQuery;
   readonly key: ProjectionKey;
+  readonly serialize: CanonicalJsonSerializer;
 } {
   const parsed = parseOmniQueryValue(query);
   const key = projectionKey(environment, true);
   if (key === null) throw new Error("projection encryption key is unavailable");
   const expected = omniQueryForIdentity(parsed.identity, environment, key);
-  if (parsed.key !== expected.key || parsed.realmKey !== expected.realmKey) {
-    throw new Error("omni projection query is not bound to its current private key");
+  if (parsed.key === expected.key && parsed.realmKey === expected.realmKey) {
+    return { query: expected, key, serialize: canonicalJson };
   }
-  return { query: expected, key };
+  const legacyExpected = omniQueryForIdentity(
+    parsed.identity,
+    environment,
+    key,
+    legacyCanonicalJson,
+  );
+  if (
+    parsed.key === legacyExpected.key
+    && parsed.realmKey === legacyExpected.realmKey
+  ) {
+    return {
+      query: legacyExpected,
+      key,
+      serialize: legacyCanonicalJson,
+    };
+  }
+  throw new Error("omni projection query is not bound to its current private key");
 }
 
 function parseHeadPublication(value: unknown): ReadProjectionHeadPublication {
@@ -1204,19 +1255,23 @@ function headPublication(
   });
 }
 
-function headBody(head: Omit<ProjectionHeadV1, "authentication">): string {
-  return canonicalJson(head);
+function headBody(
+  head: Omit<ProjectionHeadV1, "authentication">,
+  serialize: CanonicalJsonSerializer = canonicalJson,
+): string {
+  return serialize(head);
 }
 
 function headAuthentication(
   key: ProjectionKey,
   query: ReadProjectionQuery,
   body: Omit<ProjectionHeadV1, "authentication">,
+  serialize: CanonicalJsonSerializer = canonicalJson,
 ): string {
   return hmac(
     key.value,
     `wrench-read-projection-head-v1\0${query.realmKey}\0${query.key}`,
-    headBody(body),
+    headBody(body, serialize),
   );
 }
 
@@ -1224,6 +1279,7 @@ function parseHead(
   value: unknown,
   query: ReadProjectionQuery,
   key: ProjectionKey,
+  serialize: CanonicalJsonSerializer = canonicalJson,
 ): ProjectionHeadV1 {
   const head = record(value, "read projection head");
   exactKeys(
@@ -1254,7 +1310,7 @@ function parseHead(
   };
   if (body.keyId !== key.id) throw new Error("read projection head uses another encryption key");
   const authentication = hexDigest(head.authentication, "read projection head authentication");
-  if (!authenticated(authentication, headAuthentication(key, query, body))) {
+  if (!authenticated(authentication, headAuthentication(key, query, body, serialize))) {
     throw new Error("read projection head failed authentication");
   }
   return Object.freeze({ ...body, authentication });
@@ -1264,11 +1320,12 @@ function manifestAuthentication(
   key: ProjectionKey,
   query: ReadProjectionQuery,
   body: Omit<ProjectionManifestV1, "authentication">,
+  serialize: CanonicalJsonSerializer = canonicalJson,
 ): string {
   return hmac(
     key.value,
     `wrench-read-projection-manifest-v1\0${query.realmKey}\0${query.key}`,
-    canonicalJson(body),
+    serialize(body),
   );
 }
 
@@ -1277,6 +1334,7 @@ function parseManifest(
   query: ReadProjectionQuery,
   key: ProjectionKey,
   revisionId: string,
+  serialize: CanonicalJsonSerializer = canonicalJson,
 ): ProjectionManifestV1 {
   const manifest = record(value, "read projection manifest");
   exactKeys(
@@ -1314,7 +1372,7 @@ function parseManifest(
     throw new Error("read projection manifest identity does not match its head");
   }
   const authentication = hexDigest(manifest.authentication, "read projection manifest authentication");
-  if (!authenticated(authentication, manifestAuthentication(key, query, body))) {
+  if (!authenticated(authentication, manifestAuthentication(key, query, body, serialize))) {
     throw new Error("read projection manifest failed authentication");
   }
   return Object.freeze({ ...body, authentication });
@@ -1614,13 +1672,14 @@ function dataRevision(
   key: ProjectionKey,
   output: unknown,
   storageClass: ProjectionStorageClass = "exact-v1",
+  serialize: CanonicalJsonSerializer = canonicalJson,
 ): string {
   return hmac(
     key.value,
     storageClass === "exact-v1"
       ? "wrench-read-projection-data-v1"
       : "wrench-omni-projection-data-v1",
-    canonicalJson(output),
+    serialize(output),
   );
 }
 
@@ -1671,6 +1730,7 @@ function readHead(
   query: ReadProjectionQuery,
   key: ProjectionKey,
   environment: Environment,
+  serialize: CanonicalJsonSerializer = canonicalJson,
 ): ProjectionHeadSnapshot | null {
   const bytes = readPrivateStateFileBytesIfPresent(
     headPath(query, environment),
@@ -1691,7 +1751,7 @@ function readHead(
   );
   let head: ProjectionHeadV1;
   try {
-    head = parseHead(parseJson(text, "read projection head"), query, key);
+    head = parseHead(parseJson(text, "read projection head"), query, key, serialize);
   } catch (error) {
     throw corruption(evidence, "read projection head is corrupt", error);
   }
@@ -1703,6 +1763,7 @@ function loadFromHead(
   key: ProjectionKey,
   headSnapshot: ProjectionHeadSnapshot,
   environment: Environment,
+  serialize: CanonicalJsonSerializer = canonicalJson,
 ): LoadedProjection {
   const directory = queryDirectory(query, environment);
   const evidence = corruptionContext(
@@ -1737,6 +1798,7 @@ function loadFromHead(
       query,
       key,
       headSnapshot.head.revisionId,
+      serialize,
     );
   } catch (error) {
     throw corruption(evidence, "read projection manifest is corrupt", error);
@@ -1797,7 +1859,7 @@ function loadFromHead(
     payload = parsePayload(
       parsed,
       query,
-      (output) => dataRevision(key, output, projectionStorageClass(query)),
+      (output) => dataRevision(key, output, projectionStorageClass(query), serialize),
     );
   } catch (error) {
     throw corruption(evidence, "read projection payload is corrupt", error);
@@ -1822,18 +1884,72 @@ function loadProjection(
   query: ReadProjectionQuery,
   key: ProjectionKey,
   environment: Environment,
+  serialize: CanonicalJsonSerializer = canonicalJson,
 ): LoadedProjection | null {
-  let first = readHead(query, key, environment);
+  let first = readHead(query, key, environment, serialize);
   if (first === null) return null;
   try {
-    return loadFromHead(query, key, first, environment);
+    return loadFromHead(query, key, first, environment, serialize);
   } catch (error) {
-    const second = readHead(query, key, environment);
+    const second = readHead(query, key, environment, serialize);
     if (second === null) return null;
     if (second.contentSha256 === first.contentSha256) throw error;
     first = second;
-    return loadFromHead(query, key, first, environment);
+    return loadFromHead(query, key, first, environment, serialize);
   }
+}
+
+/**
+ * The sibling coordinate for the same identity under the other accepted
+ * canonical ordering, or null when both orderings derive the same query key.
+ * Read paths probe it only after the preferred directory is absent, so a
+ * projection written before the ordering migration stays readable while a
+ * corrupt current directory still fails loudly.
+ */
+function alternateQueryVariant(
+  query: ReadProjectionQuery,
+  serialize: CanonicalJsonSerializer,
+  key: ProjectionKey,
+): {
+  readonly query: ReadProjectionQuery;
+  readonly serialize: CanonicalJsonSerializer;
+} | null {
+  const alternateSerialize = serialize === canonicalJson
+    ? legacyCanonicalJson
+    : canonicalJson;
+  const domain = projectionStorageClass(query) === "exact-v1"
+    ? "wrench-read-projection-query-v1"
+    : "wrench-omni-projection-query-v1";
+  const alternateKey = hmac(key.value, domain, alternateSerialize(query.identity));
+  if (alternateKey === query.key) return null;
+  return Object.freeze({
+    query: Object.freeze({ ...query, key: alternateKey }),
+    serialize: alternateSerialize,
+  });
+}
+
+function loadProjectionAcrossEncodings(
+  query: ReadProjectionQuery,
+  serialize: CanonicalJsonSerializer,
+  key: ProjectionKey,
+  environment: Environment,
+): {
+  readonly query: ReadProjectionQuery;
+  readonly loaded: LoadedProjection | null;
+} {
+  const loaded = loadProjection(query, key, environment, serialize);
+  if (loaded !== null) return Object.freeze({ query, loaded });
+  const alternate = alternateQueryVariant(query, serialize, key);
+  if (alternate === null) return Object.freeze({ query, loaded });
+  const retried = loadProjection(
+    alternate.query,
+    key,
+    environment,
+    alternate.serialize,
+  );
+  return retried === null
+    ? Object.freeze({ query, loaded: null })
+    : Object.freeze({ query: alternate.query, loaded: retried });
 }
 
 function freshness(
@@ -1865,8 +1981,17 @@ export function readReadProjection(
   const environment = options.environment ?? process.env;
   const authId = parseQueryValue(queryValue).identity.auth.id;
   return withReadProjectionAuthAdmission(authId, environment, () => {
-    const { query, key } = validateQuery(queryValue, environment);
-    const loaded = loadProjection(query, key, environment);
+    const { query, key, serialize } = validateQuery(
+      queryValue,
+      environment,
+    );
+    const resolved = loadProjectionAcrossEncodings(
+      query,
+      serialize,
+      key,
+      environment,
+    );
+    const loaded = resolved.loaded;
     if (loaded === null) {
       return Object.freeze({ status: "miss" as const, key: query.key });
     }
@@ -1878,7 +2003,7 @@ export function readReadProjection(
     return Object.freeze({
       status: "hit" as const,
       source: "cache" as const,
-      key: query.key,
+      key: resolved.query.key,
       output: loaded.payload.output,
       dataRevision: loaded.payload.dataRevision,
       createdAt: loaded.payload.createdAt,
@@ -1905,8 +2030,17 @@ export function readOmniProjection(
   const environment = options.environment ?? process.env;
   const authId = parseOmniQueryValue(queryValue).identity.auth.id;
   return withReadProjectionAuthAdmission(authId, environment, () => {
-    const { query, key } = validateOmniQuery(queryValue, environment);
-    const loaded = loadProjection(query, key, environment);
+    const { query, key, serialize } = validateOmniQuery(
+      queryValue,
+      environment,
+    );
+    const resolved = loadProjectionAcrossEncodings(
+      query,
+      serialize,
+      key,
+      environment,
+    );
+    const loaded = resolved.loaded;
     if (loaded === null) {
       return Object.freeze({ status: "miss" as const, key: query.key });
     }
@@ -1918,7 +2052,7 @@ export function readOmniProjection(
     return Object.freeze({
       status: "hit" as const,
       source: "cache" as const,
-      key: query.key,
+      key: resolved.query.key,
       storageRevisionId: loaded.head.revisionId,
       output: immutableBoundedJson(
         loaded.payload.output,
@@ -1956,8 +2090,17 @@ export function readReadProjectionForMaterialization(
   const environment = options.environment ?? process.env;
   const authId = parseQueryValue(queryValue).identity.auth.id;
   return withReadProjectionAuthAdmission(authId, environment, () => {
-    const { query, key } = validateQuery(queryValue, environment);
-    const loaded = loadProjection(query, key, environment);
+    const { query, key, serialize } = validateQuery(
+      queryValue,
+      environment,
+    );
+    const resolved = loadProjectionAcrossEncodings(
+      query,
+      serialize,
+      key,
+      environment,
+    );
+    const loaded = resolved.loaded;
     if (loaded === null) {
       return Object.freeze({ status: "miss" as const, key: query.key });
     }
@@ -1969,7 +2112,7 @@ export function readReadProjectionForMaterialization(
     return Object.freeze({
       status: "hit" as const,
       source: "cache" as const,
-      key: query.key,
+      key: resolved.query.key,
       storageRevisionId: loaded.head.revisionId,
       output: immutableBoundedJson(
         loaded.payload.output,

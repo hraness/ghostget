@@ -24,6 +24,8 @@ import { fileURLToPath } from "node:url";
 
 import {
   canonicalJson,
+  canonicalJsonSha256Matches,
+  isCanonicalJsonFileText,
   manifestHash,
   parseDiagnosticManifest,
   parseRuntimeManifest,
@@ -2908,7 +2910,7 @@ function readAdapterGenerationIndex(
     environment,
   );
   if (record === null) return null;
-  if (`${canonicalJson(record.value)}\n` !== record.content) {
+  if (!isCanonicalJsonFileText(record.content, record.value)) {
     throw new Error("adapter generation index is not canonical JSON");
   }
   return parseAdapterGenerationIndex(record.value);
@@ -2923,7 +2925,7 @@ function readAdapterGenerationTransaction(
     environment,
   );
   if (record === null) return null;
-  if (`${canonicalJson(record.value)}\n` !== record.content) {
+  if (!isCanonicalJsonFileText(record.content, record.value)) {
     throw new Error("adapter generation transaction is not canonical JSON");
   }
   return Object.freeze({
@@ -3135,7 +3137,7 @@ function parseAdapterGenerationObjectContent(
   }
   try {
     const value = JSON.parse(content) as unknown;
-    if (`${canonicalJson(value)}\n` !== content) {
+    if (!isCanonicalJsonFileText(content, value)) {
       throw new Error("adapter generation object is not canonical JSON");
     }
     const result = parseInstalled(value);
@@ -3143,7 +3145,7 @@ function parseAdapterGenerationObjectContent(
       result.ok
       && (
         result.value.id !== entry.id
-        || manifestHash(result.value) !== entry.manifestHash
+        || !canonicalJsonSha256Matches(entry.manifestHash, result.value)
       )
     ) {
       return {

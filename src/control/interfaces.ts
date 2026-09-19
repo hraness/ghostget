@@ -1,6 +1,13 @@
 import { join } from "node:path";
 
-import { canonicalJson, manifestHash, parseRuntimeManifest, sha256, type GhostgetManifest } from "../model";
+import {
+  canonicalJson,
+  canonicalJsonSha256Matches,
+  manifestHash,
+  parseRuntimeManifest,
+  sha256,
+  type GhostgetManifest,
+} from "../model";
 import type { ProviderPluginRegistry } from "../provider-plugin-registry";
 import {
   createPrivateJsonIfAbsent,
@@ -320,9 +327,9 @@ function view(stored: Pick<StoredInterface, "record" | "parsed">, context: Inter
     }
     if (adapter.manifest !== null) activationTargets.push({ adapterId: adapter.id, installedDigest: snapshot?.contentSha256 ?? null });
     const active = record.active.find((entry) => entry.adapterId === adapter.id);
-    const matches = installed !== null && active !== undefined && active.manifestDigest === manifestHash(installed);
+    const matches = installed !== null && active !== undefined && canonicalJsonSha256Matches(active.manifestDigest, installed);
     if (matches) knownActiveDigests.add(active.documentDigest);
-    if (!matches || active?.documentDigest !== parsed.digest || adapter.manifest === null || manifestHash(adapter.manifest) !== active.manifestDigest) allActive = false;
+    if (!matches || active?.documentDigest !== parsed.digest || adapter.manifest === null || !canonicalJsonSha256Matches(active.manifestDigest, adapter.manifest)) allActive = false;
   }
   return Object.freeze({
     id: parsed.id, title: parsed.title, source: record.source, digest: parsed.digest,

@@ -1,5 +1,9 @@
 import { join } from "node:path";
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonFileText,
+  sha256,
+} from "./canonical-json";
 import { createPrivateJsonIfAbsent, ensurePrivateStateDirectory, ghostgetStateHome, privateStateFilesMayExist, readPrivateStateFileIfPresent, writePrivateJsonIfUnchanged } from "./storage";
 import type { PermissionDecision } from "./control/protocol";
 
@@ -50,14 +54,14 @@ export function readOperationPolicy(environment: PermissionEnvironment = process
     }
     const selected = paths(environment);
     const markerText = readPrivateStateFileIfPresent(selected.marker, 256, "operation policy marker", environment);
-    if (markerText !== null && markerText !== `${canonicalJson(marker)}\n`) throw new Error("marker");
+    if (markerText !== null && !isCanonicalJsonFileText(markerText, marker)) throw new Error("marker");
     const text = readPrivateStateFileIfPresent(selected.policy, MAX_POLICY_BYTES, "operation permission policy", environment);
     if (text === null) {
       if (markerText !== null) throw new Error("missing policy");
       return Object.freeze({ managed: false, revision: 0, entries: Object.freeze([]), contentSha256: null });
     }
     const policy = parseOperationPolicy(JSON.parse(text) as unknown);
-    if (text !== `${canonicalJson(policy)}\n`) throw new Error("noncanonical policy");
+    if (!isCanonicalJsonFileText(text, policy)) throw new Error("noncanonical policy");
     return Object.freeze({ managed: true, revision: policy.revision, entries: policy.entries, contentSha256: sha256(text) });
   } catch {
     throw new OperationPermissionError("OPERATION_POLICY_INVALID", "Operation permission state is missing or invalid; execution is blocked until it is repaired.");

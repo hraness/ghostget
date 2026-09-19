@@ -6,7 +6,10 @@ import {
 } from "node:crypto";
 import { join } from "node:path";
 
-import { canonicalJson } from "./canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonFileText,
+} from "./canonical-json";
 import {
   projectionAuthIdentityHash,
   withReadProjectionAuthAdmission,
@@ -220,10 +223,16 @@ function parseCoordinateState(
     authIdentityHash: value.authIdentityHash,
     generation: value.generation,
   });
-  if (text !== `${canonicalJson(normalized)}\n`) {
+  if (!isCanonicalJsonFileText(text, normalized)) {
     throw new Error("session-secret coordinate state is not canonical JSON");
   }
-  return coordinateSnapshot(normalized);
+  // The snapshot must stay bound to the exact persisted bytes: a file written
+  // under the legacy canonical ordering hashes differently than the current
+  // re-serialization of the same value.
+  return Object.freeze({
+    value: normalized,
+    contentSha256: createHash("sha256").update(text, "utf8").digest("hex"),
+  });
 }
 
 function readCoordinateState(

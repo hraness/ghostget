@@ -8,7 +8,7 @@ import { redactSensitiveText } from "@hraness/kb/clip/persist";
 
 import { executeBrowserRecipe, PreservedBrowserArtifactsError, type BrowserDispatchEvent } from "./browser";
 import { assertOperationPermission, checkOperationPermission, readOperationPolicy } from "./operation-permission";
-import { canonicalJson, DOM_ACTION_TRANSPORT_DISABLED_MESSAGE, expandBrowserRecipe, isLocalCliOperation, isProviderOperation, isReviewedTemplateOperation, isWebSessionOperation, manifestHash, sha256, type FileInputValue, type InputValue, type GhostgetManifest } from "./model";
+import { canonicalJson, DOM_ACTION_TRANSPORT_DISABLED_MESSAGE, expandBrowserRecipe, isLocalCliOperation, isProviderOperation, isReviewedTemplateOperation, isWebSessionOperation, legacyCanonicalJson, manifestHash, sha256, type FileInputValue, type InputValue, type GhostgetManifest } from "./model";
 
 import { localCliContractIdentity } from "./local-cli-contracts";
 import type { LocalCliDispatchEvent, LocalCliExecutionOptions } from "./local-cli-execution";
@@ -83,8 +83,8 @@ export interface ConfirmedWriteKernel {
   readonly validateFreshPlan: (stored: StoredPlan, environment: Readonly<Record<string, string | undefined>>, now: Date, registry: ProviderPluginRegistry, loadManifest: typeof loadInstalledManifest) => PreparedInvocation;
   readonly isDispatchProgress: (value: unknown) => value is RunReceipt["dispatch"];
   readonly ledgerPath: (adapterHash: string, authHashValue: string, operationId: string, inputHash: string, environment: Readonly<Record<string, string | undefined>>, duplicateIntentHash?: string) => string;
-  readonly acquireLedger: (path: string, entry: LedgerEntry, environment: Readonly<Record<string, string | undefined>>, now: Date) => | { readonly acquired: true; readonly snapshot: LedgerSnapshot }
-    | { readonly acquired: false; readonly existing: LedgerEntry };
+  readonly acquireLedger: (path: string, entry: LedgerEntry, environment: Readonly<Record<string, string | undefined>>, now: Date, alternatePaths?: readonly string[]) => | { readonly acquired: true; readonly snapshot: LedgerSnapshot }
+    | { readonly acquired: false; readonly existing: LedgerEntry; readonly viaAlternatePath?: boolean };
   readonly writeReceipt: (receipt: RunReceipt, environment: Readonly<Record<string, string | undefined>>) => void;
   readonly runJournalReceipt: (journal: RunJournal) => RunReceipt;
   readonly relativeStatePath: (path: string, environment: Readonly<Record<string, string | undefined>>) => string;
@@ -603,8 +603,17 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
       persistProvisional: attempt("projection", () => persistReceipt(durableReceipt, options.environment)),
       clock: () => attempt("journal", () => observedTime().toISOString()),
       // Path and entry construction happen before the acquire-specific recovery branch.
-      ledgerRequest: attempt("journal", () => ({
+      // Pre-migration dispatches claimed ledger coordinates derived from the
+      // legacy canonical digests of the same manifest and input; probe that
+      // path read-only so an in-flight legacy claim still blocks redispatch.
+      ledgerRequest: attempt("journal", () => {
+        const legacyInputHash = sha256(legacyCanonicalJson(invocation.input));
+        const legacyAdapterHash = sha256(legacyCanonicalJson(invocation.manifest));
+        return {
         path: ledgerPath(adapter.hash, auth.hash, invocation.operationId, inputHash, options.environment, options.duplicateRisk?.intentHash),
+        alternatePaths: legacyInputHash === inputHash && legacyAdapterHash === adapter.hash
+          ? []
+          : [ledgerPath(legacyAdapterHash, auth.hash, invocation.operationId, legacyInputHash, options.environment, options.duplicateRisk?.intentHash)],
         entry: {
           schemaVersion: options.duplicateRisk === undefined ? 2 : 3,
           keyHash: options.duplicateRisk?.intentHash ?? inputHash,
@@ -613,8 +622,9 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
           expiresAt: new Date(Date.parse(startedAt) + operation.dedupeWindowMs).toISOString(),
           ...(options.duplicateRisk === undefined ? {} : { duplicateIntentHash: options.duplicateRisk.intentHash }),
         } satisfies LedgerEntry,
-      })),
-      acquireLedger: (request: { readonly path: string; readonly entry: LedgerEntry }) => attempt("journal", () => acquireLedger(request.path, request.entry, options.environment, observedTime())),
+        };
+      }),
+      acquireLedger: (request: { readonly path: string; readonly entry: LedgerEntry; readonly alternatePaths?: readonly string[] }) => attempt("journal", () => acquireLedger(request.path, request.entry, options.environment, observedTime(), request.alternatePaths ?? [])),
       ledgerRelativePath: (path: string) => attempt("journal", () => relativeStatePath(path, options.environment)),
       readReceipt: (id: string) => attempt("projection", () => readRunReceipt(id, options.environment)),
       storeCapsule: attempt("journal", () => writeRecoveryCapsule({

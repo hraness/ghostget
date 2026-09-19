@@ -1,6 +1,9 @@
 import { types as nodeTypes } from "node:util";
 
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Variants,
+} from "./canonical-json";
 import { openCursorToken, sealCursorToken } from "./cursor-token";
 import {
   OMNI_MAX_CURSOR_CHARACTERS,
@@ -291,13 +294,19 @@ function withoutCursor(request: OmniViewRequestV1): unknown {
 }
 
 export function omniRequestDigest(requestValue: OmniViewRequestV1): string {
+  return omniRequestDigestVariants(requestValue)[0]!;
+}
+
+function omniRequestDigestVariants(
+  requestValue: OmniViewRequestV1,
+): readonly string[] {
   const request = parseOmniViewRequestV1(requestValue);
-  return sha256(canonicalJson(withoutCursor(request)));
+  return canonicalJsonSha256Variants(withoutCursor(request));
 }
 
 function cursorPayload(
   value: unknown,
-  expectedRequestDigest: string,
+  expectedRequestDigests: readonly string[],
   expectedSourceSetDigest: string,
   expectedViewDigest: string,
 ): OmniCursorAnchorV1 {
@@ -309,7 +318,11 @@ function cursorPayload(
     "omni cursor payload",
   );
   if (source.schemaVersion !== 1) return fail("omni cursor payload.schemaVersion", "must be 1");
-  if (digest(source.requestDigest, "omni cursor payload.requestDigest") !== expectedRequestDigest) {
+  if (
+    !expectedRequestDigests.includes(
+      digest(source.requestDigest, "omni cursor payload.requestDigest"),
+    )
+  ) {
     return fail("omni cursor", "does not belong to this request");
   }
   if (digest(source.sourceSetDigest, "omni cursor payload.sourceSetDigest") !== expectedSourceSetDigest) {
@@ -350,7 +363,7 @@ export function sealOmniViewCursorV1(
     sourceSetDigest,
     viewDigest,
     anchor: anchorValue,
-  }, omniRequestDigest(request), sourceSetDigest, viewDigest);
+  }, omniRequestDigestVariants(request), sourceSetDigest, viewDigest);
   return sealCursorToken("omni-view", "omni-view", sourceSetDigest, {
     schemaVersion: 1,
     requestDigest: omniRequestDigest(request),
@@ -372,7 +385,7 @@ export function openOmniViewCursorV1(
   const viewDigest = digest(viewDigestValue, "omni cursor view digest");
   return cursorPayload(
     openCursorToken("omni-view", "omni-view", sourceSetDigest, token, environment),
-    omniRequestDigest(request),
+    omniRequestDigestVariants(request),
     sourceSetDigest,
     viewDigest,
   );

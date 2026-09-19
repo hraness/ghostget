@@ -1,7 +1,11 @@
 import { isIP } from "node:net";
 
 import { isPrivateAddress, isPrivateHostname } from "@hraness/kb/clip/network";
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Variants,
+  sha256,
+} from "./canonical-json";
 import {
   platformSurfaceIds,
   semanticOperationNames,
@@ -29,7 +33,19 @@ import { parseWebSessionTemplate, type WebSessionTemplate } from "./web-session-
 import type { WebSessionSiteId } from "./web-session-sites";
 import { DOM_ACTION_TRANSPORT_DISABLED_MESSAGE } from "./transport-policy";
 
-export { canonicalJson, sha256 } from "./canonical-json";
+export {
+  canonicalJson,
+  canonicalJsonFileSerializations,
+  canonicalJsonFileSha256Matches,
+  canonicalJsonFileSha256Variants,
+  canonicalJsonSerializations,
+  canonicalJsonSha256Matches,
+  canonicalJsonSha256Variants,
+  isCanonicalJsonFileText,
+  isCanonicalJsonText,
+  legacyCanonicalJson,
+  sha256,
+} from "./canonical-json";
 export { DOM_ACTION_TRANSPORT_DISABLED_MESSAGE } from "./transport-policy";
 export type { WebSessionSiteId } from "./web-session-sites";
 
@@ -1996,13 +2012,13 @@ function parseManifestWithContractValidation(
   // These two frozen manifests predate the source-only local-CLI binding. They
   // remain parseable only as exact inert migration evidence: no synthetic
   // session route is installed and parseRuntimeManifest still rejects them.
-  const retiredBeeperDiagnosticHash =
+  const retiredBeeperDiagnosticHashes =
     !requireCurrentCodeOwnedContracts
       && schemaVersion === GHOSTGET_WEB_SESSION_MANIFEST_SCHEMA_VERSION
       && id !== null
       && version !== null
       && displayName !== null
-      ? sha256(canonicalJson({
+      ? canonicalJsonSha256Variants({
           schemaVersion,
           id,
           version,
@@ -2011,13 +2027,15 @@ function parseManifestWithContractValidation(
           origins,
           browserDomains,
           operations,
-        }))
-      : null;
+        })
+      : [];
   const isExactRetiredBeeperDiagnostic =
-    retiredBeeperDiagnosticHash ===
-      "2662d0b8f1580ce19085bc5f0b6b03e8f30e7a143f385a64ab6ecdea7fc0f3bd"
-    || retiredBeeperDiagnosticHash ===
-      "7da2914ae8660108e31be2032c10678a5deee2129fd02186a2844329808754fa";
+    retiredBeeperDiagnosticHashes.includes(
+      "2662d0b8f1580ce19085bc5f0b6b03e8f30e7a143f385a64ab6ecdea7fc0f3bd",
+    )
+    || retiredBeeperDiagnosticHashes.includes(
+      "7da2914ae8660108e31be2032c10678a5deee2129fd02186a2844329808754fa",
+    );
   const matchingKnownSurfaces = platformSurfaceIds.filter((candidate) =>
     origins.some((origin) => socialPlatformCatalog[candidate].originPolicy.exactOrigins.includes(origin as `https://${string}`)));
   if (schemaVersion === GHOSTGET_LEGACY_MANIFEST_SCHEMA_VERSION && matchingKnownSurfaces.length > 0) {
@@ -2356,7 +2374,9 @@ function parseManifestWithContractValidation(
   if (
     schemaVersion === GHOSTGET_LEGACY_MANIFEST_SCHEMA_VERSION
     && id === "linkedin"
-    && sha256(canonicalJson(value)) !== GHOSTGET_LEGACY_LINKEDIN_MANIFEST_HASH
+    && !canonicalJsonSha256Variants(value).includes(
+      GHOSTGET_LEGACY_LINKEDIN_MANIFEST_HASH,
+    )
   ) {
     return {
       ok: false,

@@ -3,7 +3,12 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { types as nodeTypes } from "node:util";
 
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Matches,
+  canonicalJsonSha256Variants,
+  sha256,
+} from "./canonical-json";
 import type {
   CapabilityReadRequest,
   InvokeCapabilityOptions,
@@ -1021,8 +1026,9 @@ function parseExecutionPreview(
     const authority = publicWebSessionAuthority(request);
     if (
       value.transport !== "web-session-api"
-      || realmFingerprint
-        !== sha256(canonicalJson(authority)).slice(0, 16)
+      || !canonicalJsonSha256Variants(authority).some(
+        (digest) => digest.slice(0, 16) === realmFingerprint,
+      )
       || binding.status !== "public"
       || binding.subject !== authority.subject
       || binding.accountActor !== null
@@ -2192,7 +2198,7 @@ function parseLiveReceipt(
     if (
       receipt.schemaVersion !== 4
       || receipt.transport !== "web-session-api"
-      || common.auth.hash !== sha256(canonicalJson(authority))
+      || !canonicalJsonSha256Matches(common.auth.hash, authority)
     ) {
       throw new Error("Ghostget live receipt public authority is malformed");
     }

@@ -1,6 +1,10 @@
 import { types as nodeTypes } from "node:util";
 
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Matches,
+  sha256,
+} from "./canonical-json";
 
 export const OMNI_SCHEMA_VERSION = 1 as const;
 export const OMNI_MAX_PAGE_ENTITIES = 1_000;
@@ -802,7 +806,7 @@ function parsePublicEntity(value: unknown, label: string): OmniEntityV1 {
       : digest(source.conversationId, `${label}.conversationId`),
   });
   const revision = digest(source.revision, `${label}.revision`);
-  if (sha256(canonicalJson(semantic)) !== revision) {
+  if (!canonicalJsonSha256Matches(revision, semantic)) {
     return fail(`${label}.revision`, "does not authenticate the normalized semantic bytes");
   }
   return Object.freeze({ ...semantic, revision });
@@ -1107,7 +1111,7 @@ export function parseOmniSourceStateV1(value: unknown): OmniSourceStateV1 {
       coverage === undefined
       || coverage.pageKey !== page.key
       || coverage.observationOrder !== page.observationOrder
-      || coverage.pageRevision !== sha256(canonicalJson(page))
+      || !canonicalJsonSha256Matches(coverage.pageRevision, page)
     ) {
       return fail(
         "omni source state.pages",
@@ -1124,7 +1128,7 @@ export function parseOmniSourceStateV1(value: unknown): OmniSourceStateV1 {
       || (
         retainedSnapshot.partition !== coverage.partition
         || retainedSnapshot.completeness.kind !== "complete"
-        || sha256(canonicalJson(retainedSnapshot)) !== coverage.pageRevision
+        || !canonicalJsonSha256Matches(coverage.pageRevision, retainedSnapshot)
       )
     ) {
       return fail(

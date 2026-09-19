@@ -9,7 +9,11 @@ import {
   PreservedBrowserArtifactsError,
   type BrowserFileResolver,
 } from "../browser";
-import { canonicalJson, sha256 } from "../canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonText,
+  sha256,
+} from "../canonical-json";
 import type { FileInputValue, OperationInput, WebSessionRecipe } from "../model";
 import { OperationDeadlineError } from "../operation-deadline";
 import { openCursorToken, sealCursorToken } from "../cursor-token";
@@ -1738,7 +1742,7 @@ function parseThreadsPublishedMutationTarget(
   const url = parseThreadsPublishedPermalink(value.url, value.code);
   if (keys === "code,id,url") {
     const parsed = Object.freeze({ code: value.code, id: value.id, url: url.href });
-    if (canonicalJson(parsed) !== identifier) {
+    if (!isCanonicalJsonText(identifier, parsed)) {
       throw new Error("Threads provider-accepted post target is not canonical");
     }
     return parsed;
@@ -1767,7 +1771,7 @@ function parseThreadsPublishedMutationTarget(
       "Threads provider-accepted post target width",
     ),
   });
-  if (canonicalJson(parsed) !== identifier) {
+  if (!isCanonicalJsonText(identifier, parsed)) {
     throw new Error("Threads provider-accepted post target is not canonical");
   }
   return parsed;

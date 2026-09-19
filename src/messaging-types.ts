@@ -7,7 +7,11 @@
 
 import { types as nodeTypes } from "node:util";
 
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Matches,
+  sha256,
+} from "./canonical-json";
 import {
   GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_DESCRIPTOR,
   GHOSTGET_MESSAGING_CONTEXT_BINDING_V1_CONTRACT_HASH,
@@ -1533,7 +1537,7 @@ export function parseMessagingReceiptBindingV1(
     source.receiptSha256,
     "messaging receipt binding V1.receiptSha256",
   );
-  if (sha256(canonicalJson(normalizedWithoutReceipt)) !== receiptSha256) {
+  if (!canonicalJsonSha256Matches(receiptSha256, normalizedWithoutReceipt)) {
     return fail(
       "messaging receipt binding V1.receiptSha256",
       "does not bind the canonical receipt",
@@ -1624,7 +1628,7 @@ export function parseMessagingReceiptBindingV2(
     source.receiptSha256,
     "messaging receipt binding.receiptSha256",
   );
-  if (sha256(canonicalJson(normalizedWithoutReceipt)) !== receiptSha256) {
+  if (!canonicalJsonSha256Matches(receiptSha256, normalizedWithoutReceipt)) {
     return fail("messaging receipt binding.receiptSha256", "does not bind the canonical receipt");
   }
   return Object.freeze({

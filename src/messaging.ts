@@ -10,7 +10,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Matches,
+} from "./canonical-json";
 import {
   parseMessagingContextRequestV1,
   parseMessagingContextV1,
@@ -281,7 +284,7 @@ async function runCli(
     } catch {
       throw new Error("Ghostget messaging private artifact is malformed JSON");
     }
-    if (sha256(canonicalJson(artifact)) !== receipt.artifactSha256) {
+    if (!canonicalJsonSha256Matches(receipt.artifactSha256, artifact)) {
       throw new Error("Ghostget messaging private artifact does not match its receipt");
     }
     return artifact;
