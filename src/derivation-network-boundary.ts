@@ -431,8 +431,8 @@ export async function closeInterruptedDerivationNetworkBoundary(input: {
   }
 
   const configPath = join(input.directory, DERIVATION_GUARD_PROXY_CONFIG);
-  const configRead = readGuardPrivateFile(configPath, 128 * 1024);
-  const readyRead = readGuardPrivateFile(readyPath, 64 * 1024);
+  const configRead = await readGuardPrivateFile(configPath, 128 * 1024);
+  const readyRead = await readGuardPrivateFile(readyPath, 64 * 1024);
   let configValue: unknown;
   let readyValue: unknown;
   try {
@@ -453,12 +453,12 @@ export async function closeInterruptedDerivationNetworkBoundary(input: {
     || config.socketIdentity.inode !== input.socketIdentity.inode
     || ready.policySha256 !== config.policySha256
   ) throw new Error("interrupted derivation network evidence changed identity");
-  verifyGuardPrivateFile(
+  await verifyGuardPrivateFile(
     configPath,
     configRead.evidence,
     proxyHelperConfigContent(config),
   );
-  verifyGuardPrivateFile(
+  await verifyGuardPrivateFile(
     readyPath,
     readyRead.evidence,
     proxyHelperReadyContent(ready),
@@ -553,7 +553,7 @@ export async function createDerivationNetworkBoundary(input: {
   if (input.failHelperAtForTest !== undefined && process.env.NODE_ENV !== "test") {
     throw new Error("derivation proxy helper fault injection is available only in tests");
   }
-  const extension = createDerivationGuardExtension(input.directory, input.browserDomains);
+  const extension = await createDerivationGuardExtension(input.directory, input.browserDomains);
   const policySha256 = derivationProxyPolicySha256(input.browserDomains);
   const controlNonce = randomBytes(32).toString("hex");
   const parentOwner = captureProcessOwnerIdentity(process.pid);
@@ -567,7 +567,7 @@ export async function createDerivationNetworkBoundary(input: {
     controlNonce,
     policySha256,
   });
-  const configFile = writeGuardPrivateFile(
+  const configFile = await writeGuardPrivateFile(
     join(input.directory, DERIVATION_GUARD_PROXY_CONFIG),
     proxyHelperConfigContent(config),
   );
@@ -594,12 +594,12 @@ export async function createDerivationNetworkBoundary(input: {
   });
   const readyPath = join(input.directory, DERIVATION_GUARD_PROXY_READY);
   const deadline = Date.now() + PROXY_START_TIMEOUT_MS;
-  let readyRead: ReturnType<typeof readGuardPrivateFile> | null = null;
+  let readyRead: Awaited<ReturnType<typeof readGuardPrivateFile>> | null = null;
   try {
     for (;;) {
       if (existsSync(readyPath)) {
         try {
-          readyRead = readGuardPrivateFile(readyPath, 64 * 1024);
+          readyRead = await readGuardPrivateFile(readyPath, 64 * 1024);
           break;
         } catch {
           // The helper creates the ready path with O_EXCL before the write
@@ -745,7 +745,7 @@ export async function verifyDerivationNetworkBoundary(input: {
   if (input.guard.proxy.policySha256 !== derivationProxyPolicySha256(input.browserDomains)) {
     throw new Error("derivation network proxy policy changed");
   }
-  verifyDerivationGuardExtension(input.directory, input.browserDomains, input.guard.extension);
+  await verifyDerivationGuardExtension(input.directory, input.browserDomains, input.guard.extension);
   const config = expectedProxyConfig({
     derivationId: input.derivationId,
     directoryIdentity: input.directoryIdentity,
@@ -756,12 +756,12 @@ export async function verifyDerivationNetworkBoundary(input: {
     controlNonce: input.guard.proxy.controlNonce,
     policySha256: input.guard.proxy.policySha256,
   });
-  verifyGuardPrivateFile(
+  await verifyGuardPrivateFile(
     join(input.directory, DERIVATION_GUARD_PROXY_CONFIG),
     input.guard.proxy.configFile,
     proxyHelperConfigContent(config),
   );
-  verifyGuardPrivateFile(
+  await verifyGuardPrivateFile(
     join(input.directory, DERIVATION_GUARD_PROXY_READY),
     input.guard.proxy.readyFile,
     proxyHelperReadyContent(expectedReady(input.guard, input.derivationId)),

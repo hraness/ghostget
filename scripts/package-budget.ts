@@ -1057,9 +1057,17 @@
 // encoder repacked the rebuilt chunks: two npm 11.19.0 packs on this branch
 // were byte-identical at 11,680,809 packed bytes on macOS. Retain the
 // existing ceiling.
+//
+// Staged local-custody sidecar adoption adds exactly one packed file,
+// src/custody-engine.ts (+1,026 source bytes), inside the unchanged
+// entrypoint set: a clean npm 11.19.0 pack --ignore-scripts on this branch
+// measured 11,681,840 packed bytes / 22,677,414 unpacked bytes across
+// exactly 565 files on macOS, archive SHA-256
+// c47c8d3767080acddfa48b353aff98fae738c45a5ba16708d63e857dd839480a. Raise the
+// packed inventory to 565 and retain the existing packed ceiling.
 export const MAX_PACKED_BYTES = 11_693_939;
-export const MAX_PACKED_ENTRIES = 564;
-export const MAX_PACKED_FILES = 564;
+export const MAX_PACKED_ENTRIES = 565;
+export const MAX_PACKED_FILES = 565;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
 //
@@ -1084,7 +1092,14 @@ export const MAX_PACKED_FILES = 564;
 // 22,673,853 unpacked bytes across the unchanged 564-file inventory.
 // Retain the existing ceiling; the residual allowance is now 1,150 bytes:
 // 22,673,853 + 1,150 = 22,675,003.
-export const MAX_UNPACKED_BYTES = 22_675_003;
+//
+// Staged local-custody sidecar adoption adds src/custody-engine.ts (+1,026)
+// and grows the guard, boundary, helper, and semantic-identity sources plus
+// rebuilt dist chunks by +2,476 payload bytes over the 22,674,938
+// measurement: a clean npm 11.19.0 pack --ignore-scripts on this branch
+// measured 22,677,414 unpacked bytes across the new 565-file inventory.
+// Retain the reviewed 65-byte allowance: 22,677,414 + 65 = 22,677,479.
+export const MAX_UNPACKED_BYTES = 22_677_479;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
