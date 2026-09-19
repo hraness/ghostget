@@ -7,6 +7,23 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.17
+
+- Add `ghostget tui`, a keyboard-driven control panel for setup, accounts,
+  permissions, approvals, gateway activity, and interface activation. It uses
+  the existing Bun installation, restores terminal modes on exit, and keeps
+  consequential actions bound to the exact reviewed account and revision.
+- Keep menu-bar permissions editable after enabling them, add account selection,
+  restore provider-specific browser reconnect, and review interface activation
+  before applying it. Unsupported browser connections on Linux point to CLI
+  setup. Honor the documented companion binary override.
+- Expose the existing macOS 1Password X-token importer through `ghostget vault
+  import-x`. It verifies the expected X user before saving a private token copy;
+  replacing an account requires an explicit flag and unchanged revision.
+- Lead the website, README, and CLI help with a no-account public-page read,
+  then explain saving, connecting a service, and optional agent integration.
+  Separate Markdown vaults from the limited password-vault token importer.
+
 ## 0.18.15
 
 - Refresh the X web descriptor evidence for the 2026-09-17 authenticated

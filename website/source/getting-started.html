@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#f8f7f4" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#12100f" media="(prefers-color-scheme: dark)">
     <title>Install Ghostget: CLI and TypeScript SDK getting started guide</title>
-    <meta name="description" content="Install Ghostget with Bun, verify local readiness, capture a first URL, and inspect the exact capabilities available on your machine.">
+    <meta name="description" content="Install Ghostget and read a public page with no account or API key. Then choose page saving, an agent skill, or connected services.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/getting-started/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
@@ -18,7 +18,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Ghostget">
     <meta property="og:title" content="Install Ghostget: CLI and TypeScript SDK getting started guide">
-    <meta property="og:description" content="Install Ghostget with Bun, verify local readiness, capture a first URL, and inspect the exact capabilities available on your machine.">
+    <meta property="og:description" content="Install Ghostget and read a public page with no account or API key. Then choose page saving, an agent skill, or connected services.">
     <meta property="og:url" content="https://ghostget.com/getting-started/">
     <meta property="og:image" content="https://ghostget.com/og.png">
     <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
@@ -26,7 +26,7 @@
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Install Ghostget: CLI and TypeScript SDK getting started guide">
-    <meta name="twitter:description" content="Install Ghostget with Bun, verify local readiness, capture a first URL, and inspect the exact capabilities available on your machine.">
+    <meta name="twitter:description" content="Install Ghostget and read a public page with no account or API key. Then choose page saving, an agent skill, or connected services.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
     <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
@@ -51,45 +51,66 @@
         <header class="guide-hero">
           <p class="eyebrow">Getting started · Ghostget {{GHOSTGET_VERSION}}</p>
           <h1>Install Ghostget and capture your first URL.</h1>
-          <p class="answer-lede">Ghostget is an open-source CLI and TypeScript SDK for command-capable AI agents. Install the immutable release with Bun 1.3.14, synchronize its reviewed adapter manifests, run the local readiness doctor, then start with a public URL.</p>
+          <p class="answer-lede">Give your agent local tools to read pages, save media, and use connected accounts. Start with one public-page read. No Ghostget account, API key, provider connection, or Markdown vault is needed.</p>
           <p class="review-note">This guide describes {{GHOSTGET_RELEASE}} and was checked against the public source for that immutable release.</p>
         </header>
 
         <section aria-labelledby="requirements">
           <h2 id="requirements">What you need</h2>
-          <p>Ghostget runs on macOS and Linux and requires Bun 1.3.14. It supplies a capability and custody layer for an agent or application that can invoke commands. The caller supplies the AI model and planner. The menu-bar companion reviews accounts, approvals, and permissions and browses local output files. Run it with <code>ghostget menubar</code>; CLI use remains available without the companion.</p>
-          <p>A public page capture is the smallest useful first run. Authenticated providers add separate dependencies, account bindings, and contract requirements, so their commands remain unavailable until <code>ghostget doctor</code> and the relevant capability report say they are ready.</p>
+          <p>A macOS or Linux computer, a terminal, and <a href="https://bun.sh/docs/installation">Bun 1.3.14</a>. Check it with <code>bun --version</code>. Ghostget is free and MIT licensed. You can use it directly or with an agent that can run commands, such as Codex, Claude Code, or Cursor.</p>
         </section>
 
         <section aria-labelledby="install">
-          <h2 id="install">1. Install the immutable release</h2>
+          <h2 id="install">1. Install Ghostget</h2>
           <div class="command-panel">
             <div class="command-label"><span>terminal</span><span>{{GHOSTGET_RELEASE}}</span></div>
-            <pre><code>{{GHOSTGET_INSTALL_COMMAND}}
-ghostget adapter sync-bundled --json
-ghostget doctor</code></pre>
+            <pre><code>{{GHOSTGET_INSTALL_COMMAND}}</code></pre>
           </div>
-          <p>The global install pins the canonical GitHub archive to the release version shown above. <code>adapter sync-bundled</code> atomically installs the reviewed data manifests shipped by that exact package version. It upgrades an exact bundled baseline, including an older generation whose bytes later drifted, and preserves an independently modified current or newer install.</p>
-          <p>The matching GitHub tag and immutable Release bind the same checked source and package version. The Agent Skill remains available through skills.sh.</p>
-          <p>Upgrading from Wrench? Follow the <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/ghostget-migration.md">Ghostget migration guide</a> to keep existing local state, adapter manifests, and recovery records in place.</p>
+          <p>This installs the CLI from the exact published GitHub release. If your shell cannot find <code>ghostget</code>, open a new terminal or run <code>export PATH="$(bun pm bin -g):$PATH"</code>.</p>
+          <p>Upgrading from Wrench? Follow the <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/ghostget-migration.md">Ghostget migration guide</a> to keep existing local state and recovery records in place.</p>
         </section>
 
         <section aria-labelledby="first-read">
-          <h2 id="first-read">2. Inspect a page before saving it</h2>
-          <div class="command-panel"><pre><code>ghostget read https://example.com/article</code></pre></div>
-          <p><code>ghostget read</code> returns a readable page result without persisting it. To save the page as durable Markdown in a configured knowledge base, pass the URL directly:</p>
-          <div class="command-panel"><pre><code>ghostget https://example.com/article</code></pre></div>
-          <p>Use only material you are authorized to access. Ghostget does not bypass login, payment, access controls, or DRM. The <a href="/capture-and-archives/">capture and archives guide</a> explains the difference between page capture and a verified media archive.</p>
+          <h2 id="first-read">2. Read a public page</h2>
+          <div class="command-panel"><pre><code>ghostget read https://example.com</code></pre></div>
+          <p>Success prints <strong>Example Domain</strong>, source metadata, and the page as Markdown. <code>read</code> does not save the page. Replace the URL with a page you want your agent to use.</p>
+          <p>A plain public-page read needs no connected account, media downloader, transcription model, or menu-bar companion. Pages that require JavaScript or sign-in can need additional setup. Ghostget does not bypass login, payment, access controls, or DRM.</p>
+        </section>
+
+        <section aria-labelledby="agent-skill">
+          <h2 id="agent-skill">Use Ghostget with your agent</h2>
+          <p>Add the optional Agent Skill to teach a compatible agent the commands and supported workflows:</p>
+          <div class="command-panel"><pre><code>{{GHOSTGET_SKILL_INSTALL_COMMAND}}</code></pre></div>
+          <p>With Bun, use <code>{{GHOSTGET_SKILL_INSTALL_COMMAND_BUNX}}</code>. Start a new agent session, then ask: “Use Ghostget to read https://example.com and summarize it.” The skill supplies instructions; the CLI you installed supplies the executable.</p>
+        </section>
+
+        <section aria-labelledby="save-pages">
+          <h2 id="save-pages">Save and search pages</h2>
+          <p>Choose a new directory for a local Markdown vault, then save your first page there:</p>
+          <div class="command-panel"><pre><code>ghostget init ./ghostget-notes
+ghostget https://example.com --output ./ghostget-notes/articles
+ghostget search "Example Domain" --root ./ghostget-notes --mode exact</code></pre></div>
+          <p>Your saved page and capture metadata stay in that directory. Exact search needs no embedding model. The Markdown vault stores documents; it is separate from account credentials and 1Password. The <a href="/capture-and-archives/">capture and archives guide</a> covers saving pages and downloading one accessible media item.</p>
         </section>
 
         <section aria-labelledby="inspect-capabilities">
-          <h2 id="inspect-capabilities">3. Ask the installed system what it can do</h2>
-          <div class="command-panel"><pre><code>ghostget capabilities --json
-ghostget plugin list --json
-ghostget platforms --json
+          <h2 id="inspect-capabilities">Connect one service</h2>
+          <p>When you need a signed-in action, install this release’s bundled provider definitions and check the service you want:</p>
+          <div class="command-panel"><pre><code>ghostget adapter sync-bundled --json
+ghostget capabilities
+ghostget menubar</code></pre></div>
+          <p>On macOS, the menu companion can connect X, LinkedIn, and Reddit browser sessions. Other providers and Linux account setup use the CLI instructions in the <a href="/provider-capabilities/">provider directory</a>, including the focused guides for <a href="/providers/beeper/">Beeper</a> and <a href="/providers/whatsapp/">WhatsApp</a>. Some providers need their own local tool or OAuth client. Installing Ghostget does not connect any account automatically.</p>
+          <p>Use <code>ghostget menubar doctor</code> for companion platform and unsigned-binary guidance. See the <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/menubar-release.md">control guide</a> for startup, approvals, and credential import.</p>
+          <p>For keyboard controls, run <code>ghostget menubar stop</code>, then <code>ghostget tui</code>. Press Tab to change sections, Enter to open actions, and <code>?</code> for help. Quit the TUI before restarting the menu. No Rust compiler or separate TUI install is needed.</p>
+          <details class="demo-transcript"><summary>Understand capability status</summary><p><code>ghostget capabilities --json</code> reports installed operation contracts. An <code>observed</code> contract still needs current account and runtime admission. A <code>capture-required</code> operation is unavailable until its contract is reviewed. The separate <code>messaging.automation.*</code> entries are owner-host permission ceilings and cannot dispatch through generic <code>invoke</code> or <code>confirm</code>.</p></details>
+        </section>
+
+        <section aria-labelledby="troubleshooting">
+          <h2 id="troubleshooting">If a workflow is unavailable</h2>
+          <div class="command-panel"><pre><code>ghostget doctor
 ghostget plugin doctor --json</code></pre></div>
-          <p><code>ghostget capabilities</code> reports the installed operation contracts. An <code>observed</code> contract still needs current account and runtime admission. The separate <code>messaging.automation.*</code> entries are owner-host permission ceilings and cannot dispatch through generic <code>invoke</code> or <code>confirm</code>. A <code>capture-required</code> operation is an inert reservation, not partial support and not permission to improvise with a browser fallback.</p>
-          <p>Review the <a href="/provider-capabilities/">provider capability attestation</a> before adding account credentials. It lists every bundled adapter operation and the reviewed completeness of that contract.</p>
+          <p>Doctor reports capture, media, provider setup, and durable recovery. It can also finish safe recovery of interrupted work. Install only the dependencies needed by your chosen workflow. Missing media tools or unconnected providers do not prevent a plain public-page read, and the overall provider-readiness result can be false on a fresh installation.</p>
+          <p>For an account error, check that the intended account is connected and the requested action is listed. For a capture error, try a public page first. Keep indeterminate writes for reconciliation; do not repeat a send because its response was lost.</p>
         </section>
 
         <section id="demo" aria-labelledby="first-capture-demo">
@@ -127,7 +148,7 @@ This domain is for use in documentation examples without needing permission. Avo
         </section>
 
         <section aria-labelledby="sdk">
-          <h2 id="sdk">4. Use Ghostget from TypeScript</h2>
+          <h2 id="sdk">Use Ghostget from TypeScript</h2>
           <p>Applications can pin the same release and import its side-effect-free package entrypoints:</p>
           <div class="command-panel"><pre><code>bun add {{GHOSTGET_PACKAGE_ARTIFACT}}</code></pre></div>
           <div class="command-panel"><pre><code>import {
@@ -161,8 +182,8 @@ const plugin = candidate satisfies ProviderPluginDefinitionV1</code></pre></div>
         </section>
 
         <aside class="guide-callout" aria-labelledby="next-step">
-          <h2 id="next-step">Choose the next boundary</h2>
-          <p>Learn how Ghostget keeps credentials opaque and provider changes visible in the <a href="/security/">security guide</a>, or start an inert integration with the <a href="/plugins/">plugin authoring guide</a>.</p>
+          <h2 id="next-step">Choose your next task</h2>
+          <p>Save a page with the <a href="/capture-and-archives/">capture guide</a>, find an account action in the <a href="/provider-capabilities/">provider directory</a>, or read how Ghostget stores credentials in the <a href="/security/">security guide</a>.</p>
         </aside>
       </article>
     </main>

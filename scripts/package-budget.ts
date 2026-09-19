@@ -1,3 +1,25 @@
+// Ghostget 0.18.17 onboarding and local-control release candidate adds seven
+// packed production files: helper-client.ts, control-response.ts, vault-input.ts,
+// vault-cli.ts, tui.ts, tui-model.ts, and tui-terminal.ts under src/control.
+// The CLI, menu, credential validation, docs, and generated version chunk also
+// change. `npm pack --ignore-scripts --json --pack-destination <private-dir>
+// --registry=https://registry.npmjs.org` with Node 24.18.1, npm 11.16.0,
+// zlib 1.3.1-e00f703 on darwin arm64 measured exactly 573 files/entries,
+// 11,717,815 compressed bytes and 22,769,813 payload bytes. Every packed
+// file's bytes matched the converged source. Archive SHA-256:
+// cca7868892b6c57901c581f10e714292086d7b38a1b4b261df7216dacd8367f0.
+// Retain the reviewed 65-byte payload allowance:
+// 22,769,813 + 65 = 22,769,878. For local compression, retain the documented
+// 148,155-byte platform/compressor spread from the 9af4d34 measurements below
+// and the existing 4,096-byte portability allowance:
+// 11,717,815 + 148,155 + 4,096 = 11,870,066. This is local evidence, not a
+// claim of identical canonical gzip bytes. Required Linux CI and Release
+// independently admit their actual Node 24.20.0/npm 11.19.0 archives.
+// The final helper framing and menu lifecycle repairs add exactly 641 and
+// 1,182 source payload bytes. Rechecking every path in the measured inventory
+// gives 22,771,636 bytes across the same 573 files. Keep the compressed ceiling
+// and restore the 65-byte payload allowance: 22,771,636 + 65 = 22,771,701.
+//
 // PR #301 Linux CI run 35449445752 attempt 1, package job 105913938839,
 // packed reviewed tree 355a85fac97013265c44b480921591d9d0323614 with npm
 // 11.19.0: 11,696,091 compressed / 22,689,627 payload bytes and 566 files
@@ -1088,9 +1110,9 @@
 // exactly 565 files on macOS, archive SHA-256
 // c47c8d3767080acddfa48b353aff98fae738c45a5ba16708d63e857dd839480a. Raise the
 // packed inventory to 565 and retain the existing packed ceiling.
-export const MAX_PACKED_BYTES = 11_700_187;
-export const MAX_PACKED_ENTRIES = 566;
-export const MAX_PACKED_FILES = 566;
+export const MAX_PACKED_BYTES = 11_870_066;
+export const MAX_PACKED_ENTRIES = 573;
+export const MAX_PACKED_FILES = 573;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
 //
@@ -1124,7 +1146,9 @@ export const MAX_PACKED_FILES = 566;
 // Retain the reviewed 65-byte allowance: 22,677,414 + 65 = 22,677,479.
 // The final consumer reference measurement retains the original allowance:
 // 22,689,627 + 65 = 22,689,692.
-export const MAX_UNPACKED_BYTES = 22_689_692;
+// The 0.18.17 measurement restores that same allowance over the new source:
+// 22,769,813 + 65 = 22,769,878.
+export const MAX_UNPACKED_BYTES = 22_771_701;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

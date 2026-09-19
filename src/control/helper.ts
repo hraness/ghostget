@@ -76,4 +76,4 @@ export async function runControlHelper(environment:ControlEnvironment=process.en
     if(buffer.length!==0)throw new Error("partial control frame");
   } finally {process.off("SIGTERM",termination);process.off("SIGINT",termination);await shutdown();}
 }
-if(import.meta.main){try{await runControlHelper();}catch{process.stderr.write("Ghostget control helper stopped safely.\n");process.exitCode=1;}}
+if(import.meta.main){try{await runControlHelper();}catch(error){process.stdout.write(controlResponseLine("helper",controlFailure(error)));process.stderr.write("Ghostget control helper stopped safely.\n");process.exitCode=1;}}

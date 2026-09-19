@@ -72,10 +72,10 @@
 
         <section aria-labelledby="page-capture">
           <h2 id="page-capture">Capture readable web knowledge</h2>
-          <div class="command-panel"><pre><code>ghostget read https://example.com/article
-ghostget https://example.com/article
-ghostget search "bounded provider contracts"
-ghostget context path/to/code</code></pre></div>
+          <div class="command-panel"><pre><code>ghostget read https://example.com
+ghostget init ./ghostget-notes
+ghostget https://example.com --output ./ghostget-notes/articles
+ghostget search "Example Domain" --root ./ghostget-notes --mode exact</code></pre></div>
           <p>The saved form is Markdown intended to remain inspectable and searchable in local knowledge. <code>ghostget context</code> resolves nearby agent context for a repository path, while <code>ghostget search</code> queries the knowledge already kept locally.</p>
           <p>Ghostget also exposes the shared <code>@hraness/kb</code> URL-intelligence boundary:</p>
           <div class="command-panel"><pre><code>ghostget url-metadata backfill --root kb</code></pre></div>
