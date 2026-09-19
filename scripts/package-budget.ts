@@ -1,3 +1,14 @@
+// PR #301 Linux CI run 35449445752 attempt 1, package job 105913938839,
+// packed reviewed tree 355a85fac97013265c44b480921591d9d0323614 with npm
+// 11.19.0: 11,696,091 compressed / 22,689,627 payload bytes and 566 files
+// (archive SHA-1 04a2ec29cf69d5edf31c37b5fb9a1c51db431585). The Linux
+// compressed archive exceeds the older platform ceiling; retain its existing
+// 4,096-byte margin: 11,696,091 + 4,096 = 11,700,187.
+// Static job 105913938951 also measured the existing private-field fixture
+// at 22,689,648 bytes. Restore the original 65-byte payload allowance over
+// the final documentation, rather than consuming it with the last edit:
+// 22,689,627 + 65 = 22,689,692. Keep the exact 566-file/entry inventory.
+//
 // The initial consumer candidate-decisions reference added one packed file and
 // 12,158 payload bytes over main b518370: candidate-decisions.md +11,628,
 // SKILL.md +277, and references/messaging.md +253. A Bun 1.3.14 pack
@@ -1077,7 +1088,7 @@
 // exactly 565 files on macOS, archive SHA-256
 // c47c8d3767080acddfa48b353aff98fae738c45a5ba16708d63e857dd839480a. Raise the
 // packed inventory to 565 and retain the existing packed ceiling.
-export const MAX_PACKED_BYTES = 11_693_939;
+export const MAX_PACKED_BYTES = 11_700_187;
 export const MAX_PACKED_ENTRIES = 566;
 export const MAX_PACKED_FILES = 566;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
@@ -1111,9 +1122,9 @@ export const MAX_PACKED_FILES = 566;
 // measurement: a clean npm 11.19.0 pack --ignore-scripts on this branch
 // measured 22,677,414 unpacked bytes across the new 565-file inventory.
 // Retain the reviewed 65-byte allowance: 22,677,414 + 65 = 22,677,479.
-// The integrated consumer reference measurement retains the same allowance:
-// 22,689,572 + 65 = 22,689,637.
-export const MAX_UNPACKED_BYTES = 22_689_637;
+// The final consumer reference measurement retains the original allowance:
+// 22,689,627 + 65 = 22,689,692.
+export const MAX_UNPACKED_BYTES = 22_689_692;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
