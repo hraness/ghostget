@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { types as nodeTypes } from "node:util";
 
+import { canonicalJsonWithDefinedMembers } from "./canonical-json";
 import type {
   BrowserDispatchPlan,
   IdempotencyKind,
@@ -121,20 +122,7 @@ export function parseLocalCliContractIdentityV1(
 }
 
 function stableJson(value: unknown): string {
-  if (value === null || typeof value === "boolean" || typeof value === "string") {
-    return JSON.stringify(value);
-  }
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new Error("local CLI contract contains a non-finite number");
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  if (typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record).sort().map((key) =>
-      `${JSON.stringify(key)}:${stableJson(record[key])}`).join(",")}}`;
-  }
-  throw new Error("local CLI contract contains an unsupported value");
+  return canonicalJsonWithDefinedMembers(value, "local CLI contract");
 }
 
 function requireLocalCliOperation(

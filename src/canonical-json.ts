@@ -56,6 +56,37 @@ export function canonicalJson(value: unknown): string {
   return canonicalJsonWithOrder(value, compareUtf16CodeUnits);
 }
 
+function assertDefinedJsonMembers(value: unknown, context: string): void {
+  if (Array.isArray(value)) {
+    for (const item of value) assertDefinedJsonMembers(item, context);
+    return;
+  }
+  if (isRecord(value)) {
+    for (const item of Object.values(value)) {
+      if (item === undefined) {
+        throw new Error(`${context} contains an unsupported value`);
+      }
+      assertDefinedJsonMembers(item, context);
+    }
+  }
+}
+
+/**
+ * Canonical JSON requiring every nested object member to be defined.
+ * canonicalJson drops `undefined` members before serializing; a serializer
+ * whose preimage is a reviewed durable contract must instead reject them
+ * exactly as the retired sorted-key serializers did, so this validates
+ * membership first and then delegates to the shared encoder. `context`
+ * names the contract vocabulary in the raised error.
+ */
+export function canonicalJsonWithDefinedMembers(
+  value: unknown,
+  context: string,
+): string {
+  assertDefinedJsonMembers(value, context);
+  return canonicalJson(value);
+}
+
 /**
  * The pre-migration canonical JSON encoding whose members are ordered by
  * locale collation. Retained exclusively for verifying data persisted before

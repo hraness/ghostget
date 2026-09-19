@@ -67,7 +67,12 @@ describe("canonicalJson RFC 8785 member ordering", () => {
   test("round-trips generated JSON values", () => {
     fc.assert(
       fc.property(fc.jsonValue(), (value) => {
-        expect(JSON.parse(canonicalJson(value))).toEqual(value);
+        // JSON cannot represent -0 distinctly: RFC 8785 serializes it as 0,
+        // so the round trip is measured against the value the standard
+        // JSON.stringify/JSON.parse pair produces, not the raw input.
+        expect(JSON.parse(canonicalJson(value))).toEqual(
+          JSON.parse(JSON.stringify(value)),
+        );
       }),
     );
   });

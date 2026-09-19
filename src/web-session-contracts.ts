@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { canonicalJsonWithDefinedMembers } from "./canonical-json";
 import type {
   BrowserDispatchPlan,
   OperationInput,
@@ -17,22 +18,7 @@ import type {
 export type { WebSessionContract, WebSessionContractState };
 
 function stableJson(value: unknown): string {
-  if (value === null || typeof value === "boolean" || typeof value === "string") {
-    return JSON.stringify(value);
-  }
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) {
-      throw new Error("authenticated web contract contains a non-finite number");
-    }
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  if (typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record).sort().map((key) =>
-      `${JSON.stringify(key)}:${stableJson(record[key])}`).join(",")}}`;
-  }
-  throw new Error("authenticated web contract contains an unsupported value");
+  return canonicalJsonWithDefinedMembers(value, "authenticated web contract");
 }
 
 const currentMarketplaceCursorDescription =
