@@ -2,17 +2,15 @@ import { createHash } from "node:crypto";
 
 import { canonicalJsonWithDefinedMembers } from "./canonical-json";
 
-function stableJson(value: unknown): string {
-  return canonicalJsonWithDefinedMembers(
-    value,
-    "provider plugin semantic identity",
-  );
-}
-
 /**
  * Hash an exact provider-owned contract projection. Functions are deliberately
  * excluded: shared planners are implementation sources, while provider-local
  * validators are declared as provider-specific implementation sources.
+ *
+ * The contract ordering uses UTF-16 code-unit comparison, not locale-aware
+ * collation: a pinned reviewed identity must not depend on the host's ICU
+ * locale data. Verified byte-identical to the previous localeCompare ordering
+ * for every pinned built-in contract set.
  */
 export function contractSemanticIdentity(
   contracts: readonly object[],
@@ -22,9 +20,11 @@ export function contractSemanticIdentity(
     const rightRecord = right as Readonly<Record<string, unknown>>;
     const leftKey = `${String(leftRecord.provider ?? leftRecord.site)}/${String(leftRecord.operation)}@${String(leftRecord.contractVersion)}`;
     const rightKey = `${String(rightRecord.provider ?? rightRecord.site)}/${String(rightRecord.operation)}@${String(rightRecord.contractVersion)}`;
-    return leftKey.localeCompare(rightKey);
+    return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
   });
-  return createHash("sha256").update(stableJson(ordered)).digest("hex");
+  return createHash("sha256").update(
+    canonicalJsonWithDefinedMembers(ordered, "provider plugin semantic identity"),
+  ).digest("hex");
 }
 
 export function assertContractSemanticIdentity(
