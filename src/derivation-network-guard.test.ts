@@ -112,21 +112,21 @@ describe("contained derivation MV3 guard", () => {
     ]) expect(wildcardRegex.test(value)).toBeFalse();
   });
 
-  test("binds exact private extension identities and detects byte, mode, and inode drift", () => {
+  test("binds exact private extension identities and detects byte, mode, and inode drift", async () => {
     const root = mkdtempSync(join(tmpdir(), "wrench-guard-files-test-"));
     chmodSync(root, 0o700);
     const domains = ["example.com"];
     try {
-      const extension = createDerivationGuardExtension(root, domains);
-      expect(() => verifyDerivationGuardExtension(root, domains, extension)).not.toThrow();
+      const extension = await createDerivationGuardExtension(root, domains);
+      await expect(verifyDerivationGuardExtension(root, domains, extension)).resolves.toBeUndefined();
       const rulesPath = join(root, DERIVATION_GUARD_EXTENSION_DIRECTORY, "rules.json");
       const original = readFileSync(rulesPath, "utf8");
       writeFileSync(rulesPath, original.replace("https", "httpx"), { mode: 0o600 });
-      expect(() => verifyDerivationGuardExtension(root, domains, extension)).toThrow("changed");
+      await expect(verifyDerivationGuardExtension(root, domains, extension)).rejects.toThrow("changed");
       rmSync(rulesPath);
       let failure: unknown = null;
       try {
-        verifyDerivationGuardExtension(root, domains, extension);
+        await verifyDerivationGuardExtension(root, domains, extension);
       } catch (error) {
         failure = error;
       }

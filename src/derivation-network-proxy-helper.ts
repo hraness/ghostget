@@ -18,9 +18,10 @@ import {
   derivationGuardControlSocketPath,
   parseProxyHelperConfig,
   proxyHelperReadyContent,
-  verifyGuardPrivateFile,
-  writeGuardPrivateFile,
+  verifyGuardPrivateFileSync,
+  writeGuardPrivateFileSync,
   type GuardDirectoryIdentity,
+  type GuardPrivateFileEvidence,
 } from "./derivation-network-guard";
 import { startDerivationNetworkProxy } from "./derivation-network-proxy";
 import { captureProcessOwnerIdentity, processOwnerStatus } from "./process-identity";
@@ -66,10 +67,10 @@ function removeAbandonedSocketDirectory(
 
 function removeProvisionalReadyFile(
   expectedContent: string,
-  expected: ReturnType<typeof writeGuardPrivateFile>,
+  expected: GuardPrivateFileEvidence,
 ): boolean {
   try {
-    verifyGuardPrivateFile(DERIVATION_GUARD_PROXY_READY, expected, expectedContent);
+    verifyGuardPrivateFileSync(DERIVATION_GUARD_PROXY_READY, expected, expectedContent);
     unlinkSync(DERIVATION_GUARD_PROXY_READY);
     return true;
   } catch {
@@ -276,7 +277,7 @@ async function main(): Promise<void> {
   let controlListen: Promise<void> | null = null;
   const controlSockets = new Set<Socket>();
   let readyContent: string | null = null;
-  let readyFile: ReturnType<typeof writeGuardPrivateFile> | null = null;
+  let readyFile: GuardPrivateFileEvidence | null = null;
   let stopping: Promise<void> | null = null;
   let adopted = false;
   const adoptionDeadline = Date.now() + ADOPTION_TIMEOUT_MS;
@@ -385,7 +386,7 @@ async function main(): Promise<void> {
       port: proxy.port,
       owner,
     });
-    readyFile = writeGuardPrivateFile(DERIVATION_GUARD_PROXY_READY, readyContent);
+    readyFile = writeGuardPrivateFileSync(DERIVATION_GUARD_PROXY_READY, readyContent);
     injectFailureForTest("after-ready-write");
     for (;;) {
       if (stopping !== null) {

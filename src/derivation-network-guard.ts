@@ -10,6 +10,7 @@ import {
 import { createPrivateFileOnceSync } from "@hraness/local-custody/atomic-publish";
 
 import { canonicalJson, sha256 } from "./canonical-json";
+import { localCustodyEngine } from "./custody-engine";
 import type { ProcessOwnerIdentity } from "./process-identity";
 
 export const DERIVATION_GUARD_EXTENSION_DIRECTORY = "network-guard-extension";
@@ -309,28 +310,58 @@ function sameIdentity(left: GuardDirectoryIdentity, right: GuardDirectoryIdentit
   return left.device === right.device && left.inode === right.inode;
 }
 
-export function writeGuardPrivateFile(path: string, content: string): GuardPrivateFileEvidence {
+function guardFileEvidence(
+  identity: { readonly dev: number; readonly ino: number },
+  content: string,
+): GuardPrivateFileEvidence {
+  return {
+    device: identity.dev.toString(),
+    inode: identity.ino.toString(),
+    byteLength: Buffer.byteLength(content, "utf8"),
+    sha256: sha256(content),
+  };
+}
+
+/**
+ * Synchronous guard-file creation for the spawned proxy helper. The helper's
+ * stderr must stay silent, so it cannot route through the Rust-first engine:
+ * per-operation fallback emits a bounded stderr notice, and its provisional
+ * cleanup runs inside a signal-teardown path where synchronous custody is the
+ * safer contract anyway.
+ */
+export function writeGuardPrivateFileSync(path: string, content: string): GuardPrivateFileEvidence {
   try {
     const outcome = createPrivateFileOnceSync(dirname(path), basename(path), content);
     if (outcome !== "created") throw new Error("exists");
     const identity = assertOwnedPathSync(path, { kind: "file", exactMode: 0o600 });
-    return {
-      device: identity.dev.toString(),
-      inode: identity.ino.toString(),
-      byteLength: Buffer.byteLength(content, "utf8"),
-      sha256: sha256(content),
-    };
+    return guardFileEvidence(identity, content);
   } catch {
     throw new Error("derivation network guard file could not be secured");
   }
 }
 
-export function readGuardPrivateFile(
+export async function writeGuardPrivateFile(
+  path: string,
+  content: string,
+): Promise<GuardPrivateFileEvidence> {
+  try {
+    const custody = await localCustodyEngine();
+    const outcome = await custody.createPrivateFileOnce(dirname(path), basename(path), content);
+    if (outcome !== "created") throw new Error("exists");
+    const identity = await custody.assertOwnedPath(path, { kind: "file", exactMode: 0o600 });
+    return guardFileEvidence(identity, content);
+  } catch {
+    throw new Error("derivation network guard file could not be secured");
+  }
+}
+
+export async function readGuardPrivateFile(
   path: string,
   maximumBytes = 4 * 1024 * 1024,
-): { readonly content: string; readonly evidence: GuardPrivateFileEvidence } {
+): Promise<{ readonly content: string; readonly evidence: GuardPrivateFileEvidence }> {
   try {
-    const read = readOwnedFileStableSync(path, maximumBytes, {
+    const custody = await localCustodyEngine();
+    const read = await custody.readOwnedFileStable(path, maximumBytes, {
       exactMode: 0o600,
       minimumBytes: 1n,
     });
@@ -349,10 +380,10 @@ export function readGuardPrivateFile(
   }
 }
 
-export function createDerivationGuardExtension(
+export async function createDerivationGuardExtension(
   directory: string,
   browserDomains: readonly string[],
-): DerivationGuardExtension {
+): Promise<DerivationGuardExtension> {
   if (extensionIdFromKey() !== DERIVATION_GUARD_EXTENSION_ID) {
     throw new Error("derivation network guard extension identity changed");
   }
@@ -365,10 +396,10 @@ export function createDerivationGuardExtension(
   }
   const directoryIdentity = inspectDirectory(extensionDirectory);
   const contents = derivationGuardExtensionFiles(browserDomains);
-  const files = Object.fromEntries(extensionFileNames.map((name) => [
+  const files = Object.fromEntries(await Promise.all(extensionFileNames.map(async (name) => [
     name,
-    writeGuardPrivateFile(join(extensionDirectory, name), contents[name]),
-  ])) as Record<(typeof extensionFileNames)[number], GuardPrivateFileEvidence>;
+    await writeGuardPrivateFile(join(extensionDirectory, name), contents[name]),
+  ] as const))) as Record<(typeof extensionFileNames)[number], GuardPrivateFileEvidence>;
   if (!sameIdentity(inspectDirectory(extensionDirectory), directoryIdentity)) {
     throw new Error("derivation network guard directory changed during creation");
   }
@@ -379,7 +410,22 @@ export function createDerivationGuardExtension(
   });
 }
 
-export function verifyGuardPrivateFile(
+function guardFileDrifted(
+  read: { readonly dev: number; readonly ino: number; readonly bytes: Buffer },
+  expected: GuardPrivateFileEvidence,
+  expectedContent: string,
+): boolean {
+  return (
+    read.dev.toString() !== expected.device
+    || read.ino.toString() !== expected.inode
+    || read.bytes.byteLength !== expected.byteLength
+    || read.bytes.toString("utf8") !== expectedContent
+    || sha256(expectedContent) !== expected.sha256
+  );
+}
+
+/** Synchronous twin of {@link verifyGuardPrivateFile} for the spawned helper. */
+export function verifyGuardPrivateFileSync(
   path: string,
   expected: GuardPrivateFileEvidence,
   expectedContent: string,
@@ -389,23 +435,38 @@ export function verifyGuardPrivateFile(
       exactMode: 0o600,
       minimumBytes: 1n,
     });
-    if (
-      read.dev.toString() !== expected.device
-      || read.ino.toString() !== expected.inode
-      || read.bytes.byteLength !== expected.byteLength
-      || read.bytes.toString("utf8") !== expectedContent
-      || sha256(expectedContent) !== expected.sha256
-    ) throw new Error("derivation network guard file changed");
+    if (guardFileDrifted(read, expected, expectedContent)) {
+      throw new Error("derivation network guard file changed");
+    }
   } catch {
     throw new Error("derivation network guard file changed or is unavailable");
   }
 }
 
-export function verifyDerivationGuardExtension(
+export async function verifyGuardPrivateFile(
+  path: string,
+  expected: GuardPrivateFileEvidence,
+  expectedContent: string,
+): Promise<void> {
+  try {
+    const custody = await localCustodyEngine();
+    const read = await custody.readOwnedFileStable(path, expected.byteLength, {
+      exactMode: 0o600,
+      minimumBytes: 1n,
+    });
+    if (guardFileDrifted(read, expected, expectedContent)) {
+      throw new Error("derivation network guard file changed");
+    }
+  } catch {
+    throw new Error("derivation network guard file changed or is unavailable");
+  }
+}
+
+export async function verifyDerivationGuardExtension(
   directory: string,
   browserDomains: readonly string[],
   extension: DerivationGuardExtension,
-): void {
+): Promise<void> {
   if (extension.id !== DERIVATION_GUARD_EXTENSION_ID || extensionIdFromKey() !== extension.id) {
     throw new Error("derivation network guard extension identity changed");
   }
@@ -415,7 +476,7 @@ export function verifyDerivationGuardExtension(
   }
   const contents = derivationGuardExtensionFiles(browserDomains);
   for (const name of extensionFileNames) {
-    verifyGuardPrivateFile(join(extensionDirectory, name), extension.files[name], contents[name]);
+    await verifyGuardPrivateFile(join(extensionDirectory, name), extension.files[name], contents[name]);
   }
 }
 
