@@ -1,3 +1,7 @@
+// Integrating main 639825a preserves the Jev reference retirement below:
+// 22,771,636 - 12,213 = 22,759,423 across exactly 572 files. Restore the
+// same payload allowance: 22,759,423 + 65 = 22,759,488.
+//
 // Ghostget 0.18.17 onboarding and local-control release candidate adds seven
 // packed production files: helper-client.ts, control-response.ts, vault-input.ts,
 // vault-cli.ts, tui.ts, tui-model.ts, and tui-terminal.ts under src/control.
@@ -19,6 +23,13 @@
 // 1,182 source payload bytes. Rechecking every path in the measured inventory
 // gives 22,771,636 bytes across the same 573 files. Keep the compressed ceiling
 // and restore the 65-byte payload allowance: 22,771,636 + 65 = 22,771,701.
+//
+// Jev example retirement removes one packed reference and 12,213 payload bytes
+// from the reviewed PR #301 tree: 22,689,627 - 12,213 = 22,677,414.
+// Restore the exact 565-file inventory and the same 65-byte payload allowance:
+// 22,677,414 + 65 = 22,677,479. Retain the proven Linux compressed ceiling;
+// required package CI independently checks the resulting canonical archive.
+// Earlier measurement receipts below remain historical evidence.
 //
 // PR #301 Linux CI run 35449445752 attempt 1, package job 105913938839,
 // packed reviewed tree 355a85fac97013265c44b480921591d9d0323614 with npm
@@ -1111,8 +1122,8 @@
 // c47c8d3767080acddfa48b353aff98fae738c45a5ba16708d63e857dd839480a. Raise the
 // packed inventory to 565 and retain the existing packed ceiling.
 export const MAX_PACKED_BYTES = 11_870_066;
-export const MAX_PACKED_ENTRIES = 573;
-export const MAX_PACKED_FILES = 573;
+export const MAX_PACKED_ENTRIES = 572;
+export const MAX_PACKED_FILES = 572;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
 //
@@ -1148,7 +1159,7 @@ export const MAX_PACKED_FILES = 573;
 // 22,689,627 + 65 = 22,689,692.
 // The 0.18.17 measurement restores that same allowance over the new source:
 // 22,769,813 + 65 = 22,769,878.
-export const MAX_UNPACKED_BYTES = 22_771_701;
+export const MAX_UNPACKED_BYTES = 22_759_488;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
