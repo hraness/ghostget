@@ -16,7 +16,7 @@ import {
 } from "./index-n4szk3nw.js";
 import {
   canonicalJson
-} from "./index-ad2rp8dr.js";
+} from "./index-ab98ss4x.js";
 import"./index-z1w83f81.js";
 
 // src/providers/whatsapp-automation-runtime.ts

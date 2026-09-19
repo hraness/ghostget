@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { canonicalJsonWithDefinedMembers } from "./canonical-json";
 import {
   type providerContractDefinitions,
   type ProviderContract,
@@ -36,22 +37,7 @@ type ProjectedProviderContractCatalog = Readonly<
 };
 
 function stableJson(value: unknown): string {
-  if (value === null || typeof value === "boolean" || typeof value === "string") {
-    return JSON.stringify(value);
-  }
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) {
-      throw new Error("provider contract contains a non-finite number");
-    }
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  if (typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record).sort().map((key) =>
-      `${JSON.stringify(key)}:${stableJson(record[key])}`).join(",")}}`;
-  }
-  throw new Error("provider contract contains an unsupported value");
+  return canonicalJsonWithDefinedMembers(value, "provider contract");
 }
 
 function requireProviderOperation(

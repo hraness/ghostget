@@ -23,7 +23,7 @@ import {
   canonicalJson,
   canonicalJsonSha256Matches,
   sha256
-} from "./index-ad2rp8dr.js";
+} from "./index-ab98ss4x.js";
 import {
   MESSAGING_AUTOMATION_PROTOCOL
 } from "./index-01eeae9e.js";

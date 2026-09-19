@@ -1053,6 +1053,10 @@
 // manifest's dependency spec (+28 bytes): a clean npm 11.19.0 pack
 // --ignore-scripts on this branch measured 11,680,330 packed bytes on macOS,
 // 8 below the same-run baseline's 11,680,338. Retain the existing ceiling.
+// The contract stableJson consolidation onto the shared canonical-JSON
+// encoder repacked the rebuilt chunks: two npm 11.19.0 packs on this branch
+// were byte-identical at 11,680,809 packed bytes on macOS. Retain the
+// existing ceiling.
 export const MAX_PACKED_BYTES = 11_693_939;
 export const MAX_PACKED_ENTRIES = 564;
 export const MAX_PACKED_FILES = 564;
@@ -1074,6 +1078,12 @@ export const MAX_PACKED_FILES = 564;
 // this branch measured 22,674,966 unpacked bytes across the unchanged
 // 564-file inventory. Retain the existing ceiling; the residual allowance
 // is now 37 bytes: 22,674,966 + 37 = 22,675,003.
+// Consolidating the four contract stableJson serializers onto the shared
+// canonicalJson encoder shrank source and rebuilt payload bytes: two npm
+// 11.19.0 packs --ignore-scripts on this branch were byte-identical at
+// 22,673,853 unpacked bytes across the unchanged 564-file inventory.
+// Retain the existing ceiling; the residual allowance is now 1,150 bytes:
+// 22,673,853 + 1,150 = 22,675,003.
 export const MAX_UNPACKED_BYTES = 22_675_003;
 
 const TAR_BLOCK_BYTES = 512;

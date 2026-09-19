@@ -1,22 +1,12 @@
 import { createHash } from "node:crypto";
 
+import { canonicalJsonWithDefinedMembers } from "./canonical-json";
+
 function stableJson(value: unknown): string {
-  if (value === null || typeof value === "boolean" || typeof value === "string") {
-    return JSON.stringify(value);
-  }
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) {
-      throw new Error("provider plugin semantic identity contains a non-finite number");
-    }
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  if (typeof value === "object") {
-    const record = value as Readonly<Record<string, unknown>>;
-    return `{${Object.keys(record).sort().map((key) =>
-      `${JSON.stringify(key)}:${stableJson(record[key])}`).join(",")}}`;
-  }
-  throw new Error("provider plugin semantic identity contains an unsupported value");
+  return canonicalJsonWithDefinedMembers(
+    value,
+    "provider plugin semantic identity",
+  );
 }
 
 /**
