@@ -1,7 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
 
-import { canonicalJson } from "./canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonFileSha256Matches,
+  isCanonicalJsonFileText,
+} from "./canonical-json";
 import {
   currentProcessStartIdentity,
   processOwnerStatus,
@@ -1261,12 +1265,23 @@ function assertSnapshot(
   const canonical = snapshot(
     parseLinkedDeviceLifecycleJournal(record.journal),
   );
-  if (canonical.contentSha256 !== record.contentSha256) {
+  // The recorded content hash authenticates whichever accepted canonical
+  // serialization the journal file actually holds, so a snapshot produced
+  // under the legacy member ordering stays content-bound.
+  if (
+    !canonicalJsonFileSha256Matches(
+      record.contentSha256,
+      canonical.journal,
+    )
+  ) {
     throw new Error(
       "linked-device lifecycle journal snapshot is not content-bound",
     );
   }
-  return canonical;
+  return Object.freeze({
+    journal: canonical.journal,
+    contentSha256: record.contentSha256,
+  });
 }
 
 function parseSnapshotText(text: string): LinkedDeviceLifecycleJournalSnapshot {
@@ -1277,8 +1292,7 @@ function parseSnapshotText(text: string): LinkedDeviceLifecycleJournalSnapshot {
     throw new Error("linked-device lifecycle journal is malformed");
   }
   const parsed = parseLinkedDeviceLifecycleJournal(value);
-  const canonical = `${canonicalJson(parsed)}\n`;
-  if (text !== canonical) {
+  if (!isCanonicalJsonFileText(text, parsed)) {
     throw new Error("linked-device lifecycle journal is not canonical JSON");
   }
   return Object.freeze({

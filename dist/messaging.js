@@ -14,11 +14,12 @@ import {
   GHOSTGET_MESSAGING_RECEIPT_BINDING_V2_CONTRACT_ID,
   parseGhostgetMessagingContextBindingV1,
   parseGhostgetMessagingContextBindingV2
-} from "./index-9t13b4k7.js";
+} from "./index-pjd4b3yc.js";
 import {
   canonicalJson,
+  canonicalJsonSha256Matches,
   sha256
-} from "./index-gwk7rbyj.js";
+} from "./index-ad2rp8dr.js";
 import"./index-z1w83f81.js";
 
 // src/messaging.ts
@@ -790,7 +791,7 @@ function parseMessagingReceiptBindingV1(value) {
     recordedAt: utcTimestamp(source.recordedAt, "messaging receipt binding V1.recordedAt")
   });
   const receiptSha256 = sha256Digest(source.receiptSha256, "messaging receipt binding V1.receiptSha256");
-  if (sha256(canonicalJson(normalizedWithoutReceipt)) !== receiptSha256) {
+  if (!canonicalJsonSha256Matches(receiptSha256, normalizedWithoutReceipt)) {
     return fail("messaging receipt binding V1.receiptSha256", "does not bind the canonical receipt");
   }
   return Object.freeze({ ...normalizedWithoutReceipt, receiptSha256 });
@@ -844,7 +845,7 @@ function parseMessagingReceiptBindingV2(value) {
     recordedAt: utcTimestamp(source.recordedAt, "messaging receipt binding.recordedAt")
   });
   const receiptSha256 = sha256Digest(source.receiptSha256, "messaging receipt binding.receiptSha256");
-  if (sha256(canonicalJson(normalizedWithoutReceipt)) !== receiptSha256) {
+  if (!canonicalJsonSha256Matches(receiptSha256, normalizedWithoutReceipt)) {
     return fail("messaging receipt binding.receiptSha256", "does not bind the canonical receipt");
   }
   return Object.freeze({
@@ -1066,7 +1067,7 @@ async function runCli(operation, request, clientOptions) {
     } catch {
       throw new Error("Ghostget messaging private artifact is malformed JSON");
     }
-    if (sha256(canonicalJson(artifact)) !== receipt.artifactSha256) {
+    if (!canonicalJsonSha256Matches(receipt.artifactSha256, artifact)) {
       throw new Error("Ghostget messaging private artifact does not match its receipt");
     }
     return artifact;

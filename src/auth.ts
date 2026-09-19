@@ -13,7 +13,10 @@ import {
 } from "node:path";
 
 import { cookieSources, type CookieSource } from "@hraness/kb/clip/args";
-import { canonicalJson } from "./canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonFileText,
+} from "./canonical-json";
 import {
   assertLinkedDeviceLifecycleAdmissionHeld,
   linkedDeviceLifecycleAdmissionStore,
@@ -772,7 +775,7 @@ function parseAuthSnapshotText(
   if (snapshot.auth.id !== id) {
     throw new Error("auth record ID does not match its filename");
   }
-  if (content !== `${canonicalJson(snapshot.auth)}\n`) {
+  if (!isCanonicalJsonFileText(content, snapshot.auth)) {
     throw new Error("auth record is not canonical JSON");
   }
   return Object.freeze({

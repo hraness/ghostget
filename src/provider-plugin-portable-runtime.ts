@@ -24,6 +24,7 @@ import {
   type GhostgetManifest,
   type OperationInput,
   canonicalJson,
+  canonicalJsonSerializations,
 } from "./model";
 import { OperationDeadline } from "./operation-deadline";
 import {
@@ -710,6 +711,7 @@ function statePath(
   auth: GhostgetAuth,
   key: string,
   environment: Environment,
+  serializedAuth = canonicalJson(auth),
 ): string {
   return join(
     ghostgetStateHome(environment),
@@ -717,9 +719,32 @@ function statePath(
     packageValue.manifest.id,
     packageValue.bundleSha256,
     binding.adapterId,
-    sha256(canonicalJson(auth)),
+    sha256(serializedAuth),
     `${sha256(key)}.json`,
   );
+}
+
+/**
+ * State directories created before the RFC 8785 canonical ordering migration
+ * were named by the legacy serialization's auth digest. Reads check the
+ * current name first, then the legacy name when it differs.
+ */
+function statePaths(
+  packageValue: VerifiedPortableProviderPluginPackage,
+  binding: PortableProviderPluginBindingV1,
+  auth: GhostgetAuth,
+  key: string,
+  environment: Environment,
+): readonly string[] {
+  return canonicalJsonSerializations(auth).map((serializedAuth) =>
+    statePath(
+      packageValue,
+      binding,
+      auth,
+      key,
+      environment,
+      serializedAuth,
+    ));
 }
 
 function parseStoredState(
@@ -1101,18 +1126,22 @@ function capabilityHost(options: {
         };
       }
       if (request.kind === "state.read") {
-        const content = readPrivateStateFileIfPresent(
-          statePath(
-            options.package,
-            options.binding,
-            options.auth,
-            request.key,
-            options.environment,
-          ),
-          MAX_PORTABLE_STATE_BYTES,
-          "portable plugin namespaced state",
+        let content: string | null = null;
+        for (const path of statePaths(
+          options.package,
+          options.binding,
+          options.auth,
+          request.key,
           options.environment,
-        );
+        )) {
+          content = readPrivateStateFileIfPresent(
+            path,
+            MAX_PORTABLE_STATE_BYTES,
+            "portable plugin namespaced state",
+            options.environment,
+          );
+          if (content !== null) break;
+        }
         if (content !== null) {
           return parseStoredState(
             content,
@@ -1131,13 +1160,31 @@ function capabilityHost(options: {
         return missing;
       }
       if (request.kind === "state.write") {
-        const path = statePath(
+        const paths = statePaths(
           options.package,
           options.binding,
           options.auth,
           request.key,
           options.environment,
         );
+        // A state file created under the legacy canonical ordering lives at
+        // the legacy-derived path. Conditional writes must verify and update
+        // whichever file is actually present, so resolve the holding path
+        // first and fall back to the current encoding's path for new files.
+        let path = paths[0]!;
+        for (const candidate of paths) {
+          if (
+            readPrivateStateFileIfPresent(
+              candidate,
+              MAX_PORTABLE_STATE_BYTES,
+              "portable plugin namespaced state",
+              options.environment,
+            ) !== null
+          ) {
+            path = candidate;
+            break;
+          }
+        }
         const state = portableStateRecord(request.key, request.value);
         const serialized = `${canonicalJson(state)}\n`;
         if (
@@ -1153,10 +1200,11 @@ function capabilityHost(options: {
           writePrivateJson(path, state, { privateParent: true });
           stored = true;
         } else if (request.expectedVersion === null) {
-          stored = createPrivateJsonIfAbsent(path, state, {
-            environment: options.environment,
-            privateParent: true,
-          }).created;
+          stored = path === paths[0]!
+            && createPrivateJsonIfAbsent(path, state, {
+              environment: options.environment,
+              privateParent: true,
+            }).created;
         } else {
           stored = writePrivateJsonIfUnchanged(path, state, {
             expectedCurrentContentSha256: request.expectedVersion,
@@ -1177,7 +1225,7 @@ function capabilityHost(options: {
         return versioned;
       }
       if (request.kind === "state.delete") {
-        const path = statePath(
+        const paths = statePaths(
           options.package,
           options.binding,
           options.auth,
@@ -1185,21 +1233,30 @@ function capabilityHost(options: {
           options.environment,
         );
         if (request.expectedVersion === undefined) {
+          let removed = false;
+          for (const path of paths) {
+            removed = removePrivateStateFile(path, options.environment)
+              || removed;
+          }
           return {
             kind: "state.delete",
-            removed: removePrivateStateFile(
-              path,
-              options.environment,
-            ),
+            removed,
           };
         }
-        return {
-          kind: "state.delete",
-          removed: removePrivateStateFileIfUnchanged(
+        // The file may live at the legacy-derived path; the conditional
+        // delete verifies whichever file is actually present.
+        let removed = false;
+        for (const path of paths) {
+          removed = removePrivateStateFileIfUnchanged(
             path,
             { expectedCurrentContentSha256: request.expectedVersion },
             options.environment,
-          ),
+          ) || removed;
+          if (removed) break;
+        }
+        return {
+          kind: "state.delete",
+          removed,
         };
       }
         return { kind: "log.write", accepted: true };

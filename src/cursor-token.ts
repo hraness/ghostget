@@ -5,7 +5,10 @@ import {
 } from "node:crypto";
 import { join } from "node:path";
 
-import { canonicalJson } from "./canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonText,
+} from "./canonical-json";
 import {
   createPrivateJsonIfAbsent,
   readRegularFile,
@@ -220,7 +223,9 @@ export function openCursorToken(
     throw invalidToken("is malformed");
   }
   try {
-    if (canonicalJson(payload) !== text) throw invalidToken("is malformed");
+    if (!isCanonicalJsonText(text, payload)) {
+      throw invalidToken("is malformed");
+    }
   } catch {
     throw invalidToken("is malformed");
   }

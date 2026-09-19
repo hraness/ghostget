@@ -5,7 +5,7 @@ import {
 import {
   canonicalJson,
   sha256
-} from "./index-gwk7rbyj.js";
+} from "./index-ad2rp8dr.js";
 import"./index-z1w83f81.js";
 
 // src/apple-photos-client.ts

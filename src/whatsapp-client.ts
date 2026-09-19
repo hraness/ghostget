@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { types as nodeTypes } from "node:util";
 
-import { canonicalJson, sha256 } from "./canonical-json";
+import { canonicalJsonSha256Matches } from "./canonical-json";
 import { requireWhatsAppMessageLikeMeReceiptRequestBinding } from "./whatsapp-client-binding";
 import type {
   WhatsAppMessageLikeMeClientOptions,
@@ -297,7 +297,7 @@ export function parseWhatsAppMessageLikeMeExportReceipt(
       cloudSync: "none" as const,
     }),
   });
-  if (sha256(canonicalJson(projection)) !== expectedDigest) {
+  if (!canonicalJsonSha256Matches(expectedDigest, projection)) {
     return fail("receipt digest does not match its canonical projection");
   }
   return Object.freeze({

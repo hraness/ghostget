@@ -72,6 +72,7 @@ import { derivationFixtureSummaries } from "./derive-fixtures";
 import { analyzeHarFile, emptyManifest, writeDerivationScaffold } from "./har";
 import {
   canonicalJson,
+  canonicalJsonSha256Matches,
   DOM_ACTION_TRANSPORT_DISABLED_MESSAGE,
   isProviderOperation,
   isLocalCliOperation,
@@ -1837,7 +1838,7 @@ function previewView(
     || invocation.operationId !== stored.plan.operation
     || invocation.auth.id !== stored.plan.auth.id
     || invocation.auth.kind !== stored.plan.auth.kind
-    || sha256(canonicalJson(invocation.auth)) !== stored.plan.auth.hash
+    || !canonicalJsonSha256Matches(stored.plan.auth.hash, invocation.auth)
   ) throw new Error("prepared invocation no longer matches its confirmation plan");
   const operation = invocation.manifest.operations[invocation.operationId];
   if (operation === undefined) throw new Error("operation disappeared while previewing its confirmation plan");
@@ -2958,8 +2959,10 @@ async function runCommand(
           result.value.schemaVersion === 1
           && (
             result.value.id !== "linkedin"
-            || manifestHash(result.value)
-              !== GHOSTGET_LEGACY_LINKEDIN_MANIFEST_HASH
+            || !canonicalJsonSha256Matches(
+              GHOSTGET_LEGACY_LINKEDIN_MANIFEST_HASH,
+              result.value,
+            )
           )
         ) {
           throw new Error(

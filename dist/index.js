@@ -44,10 +44,11 @@ import {
   parseGhostgetMessagingContextBindingV1,
   parseGhostgetMessagingContextBindingV2,
   parseMessageLikeMeSourceConversationCoordinateV1
-} from "./index-9t13b4k7.js";
+} from "./index-pjd4b3yc.js";
 import {
-  canonicalJson
-} from "./index-gwk7rbyj.js";
+  canonicalJson,
+  isCanonicalJsonText
+} from "./index-ad2rp8dr.js";
 import"./index-z1w83f81.js";
 
 // src/local-cli-tool-identity.ts
@@ -325,7 +326,7 @@ function parseArticleDraftDocument(value, limitsValue) {
   } catch {
     throw new Error("input.document must be valid ArticleDraftDocument JSON");
   }
-  if (canonicalJson(parsed) !== value) {
+  if (!isCanonicalJsonText(value, parsed)) {
     throw new Error("input.document must use canonical JSON encoding");
   }
   const root = record2(parsed, "input.document");
@@ -447,7 +448,7 @@ function parseArticleDraftDocumentV2(value, limitsValue) {
   } catch {
     throw new Error("input.document must be valid ArticleDraftDocument JSON");
   }
-  if (canonicalJson(parsed) !== value) {
+  if (!isCanonicalJsonText(value, parsed)) {
     throw new Error("input.document must use canonical JSON encoding");
   }
   const root = record2(parsed, "input.document");

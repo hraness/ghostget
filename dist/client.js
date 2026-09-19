@@ -7,8 +7,10 @@ import {
 } from "./index-26yq8q16.js";
 import {
   canonicalJson,
+  canonicalJsonSha256Matches,
+  canonicalJsonSha256Variants,
   sha256
-} from "./index-gwk7rbyj.js";
+} from "./index-ad2rp8dr.js";
 import"./index-z1w83f81.js";
 
 // src/client.ts
@@ -643,7 +645,7 @@ function parseExecutionPreview(value, request) {
   }
   if (authKind === PUBLIC_WEB_SESSION_AUTHORITY_KIND) {
     const authority = publicWebSessionAuthority(request);
-    if (value.transport !== "web-session-api" || realmFingerprint !== sha256(canonicalJson(authority)).slice(0, 16) || binding.status !== "public" || binding.subject !== authority.subject || binding.accountActor !== null || binding.requestedActor !== null) {
+    if (value.transport !== "web-session-api" || !canonicalJsonSha256Variants(authority).some((digest2) => digest2.slice(0, 16) === realmFingerprint) || binding.status !== "public" || binding.subject !== authority.subject || binding.accountActor !== null || binding.requestedActor !== null) {
       throw new Error("Ghostget execution identity preview public authority is malformed");
     }
   }
@@ -1347,7 +1349,7 @@ function parseLiveReceipt(value, request, expectedInputHash) {
   }
   if (common.auth.kind === PUBLIC_WEB_SESSION_AUTHORITY_KIND) {
     const authority = publicWebSessionAuthority(request);
-    if (receipt.schemaVersion !== 4 || receipt.transport !== "web-session-api" || common.auth.hash !== sha256(canonicalJson(authority))) {
+    if (receipt.schemaVersion !== 4 || receipt.transport !== "web-session-api" || !canonicalJsonSha256Matches(common.auth.hash, authority)) {
       throw new Error("Ghostget live receipt public authority is malformed");
     }
   }

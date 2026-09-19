@@ -3,7 +3,11 @@ import { checkOperationPermission } from "./operation-permission";
 import { isAbsolute, resolve } from "node:path";
 
 import type { GhostgetAuth } from "./auth";
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Matches,
+  sha256,
+} from "./canonical-json";
 import {
   parseMessageLikeMeSourceConversationCoordinateBindingV1,
   ghostgetMessagingContextBindingSha256V2,
@@ -410,7 +414,7 @@ function assertRouteIdentity(
   }
   if (
     canonicalJson(invocation.input) !== canonicalJson(record.list.input)
-    || record.list.inputHash !== sha256(canonicalJson(record.list.input))
+    || !canonicalJsonSha256Matches(record.list.inputHash, record.list.input)
   ) {
     throw new Error("messaging route list input changed; discover a new route");
   }
@@ -1379,7 +1383,7 @@ export async function previewMessagingTurnInternal(
   );
   if (
     context.routeRef !== record.routeRef
-    || context.routeRecordHash !== messagingRouteRecordHash(record)
+    || !canonicalJsonSha256Matches(context.routeRecordHash, record)
     || context.sourceConversationCoordinate === null
     || context.sourceConversationCoordinate.sha256
       !== record.sourceConversationCoordinate.sha256
@@ -1545,7 +1549,7 @@ export function verifyStoredMessagingPreview(stored: StoredPlan): MessagingPrevi
   const composite = stored.plan.messagingComposite;
   if (composite === undefined) throw new Error("confirmation plan is not a messaging composite");
   const preview = previewFromStoredMessagingPlan(stored);
-  if (sha256(canonicalJson(preview)) !== composite.previewDigest) {
+  if (!canonicalJsonSha256Matches(composite.previewDigest, preview)) {
     throw new Error("messaging preview digest does not match the exact reconstructed artifact");
   }
   return preview;

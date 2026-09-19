@@ -23,7 +23,11 @@ import {
   type BrowserFileResolver,
 } from "../browser";
 import type { FileInputValue, OperationInput, WebSessionRecipe } from "../model";
-import { canonicalJson, sha256 } from "../canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonText,
+  sha256,
+} from "../canonical-json";
 import {
   parseArticleDraftDocument,
   parseArticleDraftDocumentV2,
@@ -1261,7 +1265,7 @@ function parseLinkedInAcceptedPostTarget(
     throw new Error("LinkedIn accepted post target changed shape");
   }
   exactKeys(value, ["entityUrn", "mediaUrn"], "LinkedIn accepted post target");
-  if (canonicalJson(value) !== identifier) {
+  if (!isCanonicalJsonText(identifier, value)) {
     throw new Error("LinkedIn accepted post target must use canonical JSON");
   }
   return Object.freeze({

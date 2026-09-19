@@ -6,7 +6,10 @@ import {
   parseLinkedDeviceLifecycleOwner,
   type LinkedDeviceLifecycleOwner,
 } from "./linked-device-lifecycle-journal";
-import { canonicalJson } from "./canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonFileText,
+} from "./canonical-json";
 import { processOwnerStatus } from "./process-identity";
 import {
   createPrivateJsonIfAbsent,
@@ -228,7 +231,7 @@ function readLinkedDeviceLifecycleAdmissionClaim(
       "linked-device lifecycle admission does not match its filename",
     );
   }
-  if (content !== `${canonicalJson(claim)}\n`) {
+  if (!isCanonicalJsonFileText(content, claim)) {
     throw new Error("linked-device lifecycle admission is not canonical JSON");
   }
   return Object.freeze({

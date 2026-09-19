@@ -18,7 +18,11 @@ import type {
   GhostgetManifest,
   WebSessionRecipe,
 } from "../model";
-import { canonicalJson, sha256 } from "../canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonText,
+  sha256,
+} from "../canonical-json";
 import { OperationDeadline, OperationDeadlineError } from "../operation-deadline";
 import { pinnedHttpsFetch } from "../pinned-https";
 import {
@@ -1316,7 +1320,7 @@ function parseBlueskyPublishedMutationTarget(
     createdAt: target.createdAt,
     media,
   });
-  if (canonicalJson(parsed) !== identifier) {
+  if (!isCanonicalJsonText(identifier, parsed)) {
     throw new Error("Bluesky provider-accepted post target is not canonical");
   }
   return parsed;

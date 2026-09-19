@@ -2,7 +2,10 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
 
-import { canonicalJson } from "./canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonFileText,
+} from "./canonical-json";
 import {
   currentProcessStartIdentity,
   processOwnerStatus,
@@ -296,10 +299,13 @@ function parseCanonicalSnapshot<T>(
     throw new Error(`${label} is malformed JSON`);
   }
   const value = parse(parsed);
-  if (content !== `${canonicalJson(value)}\n`) {
+  if (!isCanonicalJsonFileText(content, value)) {
     throw new Error(`${label} is not canonical JSON`);
   }
-  return canonicalSnapshot(value);
+  // Keep the snapshot bound to the exact persisted bytes: a file serialized
+  // under the legacy canonical ordering hashes differently than the current
+  // re-serialization of the same value.
+  return Object.freeze({ value, contentSha256: hash(content) });
 }
 
 function readAdmissionClaim(

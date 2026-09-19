@@ -3,7 +3,10 @@ import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { join } from "node:path";
 import type { GhostgetAuth } from "../auth";
-import { canonicalJson } from "../canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Variants,
+} from "../canonical-json";
 import type { LocalCliExecutionOptions } from "../local-cli-execution";
 import { OperationDeadline } from "../operation-deadline";
 import type { AutomationAction, AutomationConversation, AutomationCoordinate, AutomationIdentity, AutomationMessage, AutomationProviderStatus, AutomationProviderSendResult, MessagingAutomationProvider } from "../messaging-automation-types";
@@ -77,7 +80,11 @@ function cursor(value: string | null, identity: AutomationIdentity, coordinates:
   const decoded = Buffer.from(value, "base64url");
   if (decoded.toString("base64url") !== value) throw new Error("Noncanonical iMessage cursor");
   const parsed = automationRecord(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(decoded)), ["version", "identity", "coordinates", "rows", "anchors"]);
-  if (parsed.version !== 1 || parsed.identity !== sha(identity) || parsed.coordinates !== sha(coordinates)) throw new Error("iMessage cursor generation or scope changed");
+  if (
+    parsed.version !== 1
+    || !canonicalJsonSha256Variants(identity).includes(parsed.identity as string)
+    || !canonicalJsonSha256Variants(coordinates).includes(parsed.coordinates as string)
+  ) throw new Error("iMessage cursor generation or scope changed");
   const rows = automationArray(parsed.rows, 50).map(value => automationInteger(value, 0, Number.MAX_SAFE_INTEGER));
   if (rows.length !== coordinates.length) throw new Error("iMessage cursor scope changed");
   const anchors = automationArray(parsed.anchors, 50).map((value, index) => {

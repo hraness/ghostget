@@ -1,7 +1,12 @@
 import { join } from "node:path";
 
 import { loadAuth } from "./auth";
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Matches,
+  isCanonicalJsonFileText,
+  sha256,
+} from "./canonical-json";
 import {
   parsePortableOperationIdentityV1,
   type PortableOperationIdentityV1,
@@ -231,7 +236,7 @@ export function readPortableRunResolution(
   const resolution = parseResolution(value);
   if (
     resolution.runId !== runId
-    || text !== `${canonicalJson(resolution)}\n`
+    || !isCanonicalJsonFileText(text, resolution)
   ) {
     throw new Error(
       "portable run resolution does not match its durable coordinate",
@@ -403,7 +408,7 @@ export function reconcilePortableProviderPluginRun(
     const auth = loadAuth(receipt.auth.id, environment);
     if (
       auth.kind !== receipt.auth.kind
-      || sha256(canonicalJson(auth)) !== receipt.auth.hash
+      || !canonicalJsonSha256Matches(receipt.auth.hash, auth)
     ) {
       throw new Error(
         "current auth locator no longer matches the unsettled portable run",

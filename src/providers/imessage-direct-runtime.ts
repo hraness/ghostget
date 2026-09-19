@@ -12,7 +12,10 @@ import { isAbsolute, join } from "node:path";
 import { types as nodeTypes } from "node:util";
 
 import type { GhostgetAuth } from "../auth";
-import { canonicalJson } from "../canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonText,
+} from "../canonical-json";
 import type { LocalCliRecipe, OperationInput } from "../model";
 import type {
   LocalCliExecution,
@@ -1471,7 +1474,7 @@ function parseAcceptedTarget(
   } catch {
     throw new Error("direct iMessage accepted target is malformed");
   }
-  if (canonicalJson(parsed) !== context.target.identifier) {
+  if (!isCanonicalJsonText(context.target.identifier, parsed)) {
     throw new Error("direct iMessage accepted target is not canonical");
   }
   const source = record(parsed, "direct iMessage accepted target");

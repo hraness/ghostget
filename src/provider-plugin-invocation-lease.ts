@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonFileText,
+  sha256,
+} from "./canonical-json";
 import {
   parsePortableOperationIdentityV1,
   type PortableOperationIdentityV1,
@@ -667,7 +671,7 @@ export function listPortableProviderPluginInvocationLeases(
       );
       if (
         lease.leaseId !== leaseId
-        || file.content !== `${canonicalJson(lease)}\n`
+        || !isCanonicalJsonFileText(file.content, lease)
       ) {
         return { leaseId, invalid: true as const };
       }

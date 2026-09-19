@@ -9,6 +9,7 @@ import { join } from "node:path";
 import type { GhostgetAuth } from "./auth";
 import {
   canonicalJson,
+  canonicalJsonSha256Matches,
   sha256,
   type OperationInput,
   type OperationRisk,
@@ -421,7 +422,7 @@ function parseCapsule(value: unknown): RecoveryCapsule {
   }
   if (!isRecord(value.input)) throw new Error("recovery capsule input must be an object");
   assertHash(value.inputHash, "recovery capsule input hash");
-  if (sha256(canonicalJson(value.input)) !== value.inputHash) {
+  if (!canonicalJsonSha256Matches(value.inputHash, value.input)) {
     throw new Error("recovery capsule input no longer matches its canonical hash");
   }
   if (!isRecord(value.adapter)) throw new Error("recovery capsule adapter must be an object");

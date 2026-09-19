@@ -14,7 +14,10 @@ import { extname, isAbsolute, join } from "node:path";
 import { types as nodeTypes } from "node:util";
 
 import type { GhostgetAuth } from "../auth";
-import { canonicalJson } from "../canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonText,
+} from "../canonical-json";
 import type { LocalCliRecipe, OperationInput } from "../model";
 import type {
   LocalCliExecution,
@@ -3701,7 +3704,7 @@ function acceptedReconciliationTarget(
   } catch {
     throw new Error("Beeper accepted reconciliation target is malformed");
   }
-  if (canonicalJson(parsed) !== identifier) {
+  if (!isCanonicalJsonText(identifier, parsed)) {
     throw new Error("Beeper accepted reconciliation target is not canonical");
   }
   const target = strictRecord(parsed, "Beeper accepted reconciliation target");

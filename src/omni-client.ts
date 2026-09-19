@@ -3,7 +3,11 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { types as nodeTypes } from "node:util";
 
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Matches,
+  sha256,
+} from "./canonical-json";
 import {
   boundedOmniText,
   OMNI_MAX_CURSOR_CHARACTERS as MAX_CURSOR_CHARACTERS,
@@ -733,7 +737,7 @@ function verifyEntityRevision<T extends Omit<OmniEntityV1, "revision">>(
   label: string,
 ): T & { readonly revision: string } {
   const revision = digest(revisionValue, `${label}.revision`);
-  if (sha256(canonicalJson(semantic)) !== revision) {
+  if (!canonicalJsonSha256Matches(revision, semantic)) {
     return fail(`${label}.revision`, "does not authenticate its semantic fields");
   }
   return Object.freeze({ ...semantic, revision });

@@ -2,6 +2,7 @@ import type { GhostgetAuth } from "./auth";
 import { loadAuth } from "./auth";
 import {
   canonicalJson,
+  canonicalJsonSha256Matches,
   sha256,
   type LocalCliRecipe,
   type OperationInput,
@@ -477,7 +478,7 @@ function selectReconciliation(
     resolution,
     providedInput as OperationInput,
   );
-  if (sha256(canonicalJson(input)) !== receipt.inputHash) {
+  if (!canonicalJsonSha256Matches(receipt.inputHash, input)) {
     throw new Error(
       "provided reconciliation input does not match the run's canonical input hash",
     );
@@ -689,7 +690,7 @@ export async function reconcileWebSessionRun(
 
   const auth = loadAuth(receipt.auth.id, environment);
   if (
-    sha256(canonicalJson(auth)) !== receipt.auth.hash
+    !canonicalJsonSha256Matches(receipt.auth.hash, auth)
     || auth.kind !== receipt.auth.kind
   ) {
     throw new Error(
@@ -705,7 +706,7 @@ export async function reconcileWebSessionRun(
       "the current auth locator no longer has the plugin's exact bound subject",
     );
   }
-  if (sha256(canonicalJson(selected.input)) !== receipt.inputHash) {
+  if (!canonicalJsonSha256Matches(receipt.inputHash, selected.input)) {
     throw new Error(
       "reconciliation input does not match the run's canonical input hash",
     );

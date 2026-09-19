@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import type { GhostgetAuth } from "../auth";
-import { canonicalJson } from "../canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Variants,
+} from "../canonical-json";
 import type { LocalCliExecutionOptions } from "../local-cli-execution";
 import type { LocalCliRecipe, OperationInput } from "../model";
 import type { AutomationAction, AutomationConversation, AutomationIdentity, AutomationMessage, AutomationProviderPage, AutomationProviderStatus, AutomationProviderSendResult, MessagingAutomationProvider } from "../messaging-automation-types";
@@ -152,7 +155,11 @@ function parseCursor(value: string | null, current: AutomationIdentity, coordina
   const decoded = Buffer.from(value, "base64url");
   if (decoded.toString("base64url") !== value) throw new Error("Noncanonical Beeper cursor");
   const row = automationRecord(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(decoded)), ["version", "identity", "scope", "states"]);
-  if (row.version !== 1 || row.identity !== initial.identity || row.scope !== initial.scope) throw new Error("Beeper cursor identity or scope changed");
+  if (
+    row.version !== 1
+    || !canonicalJsonSha256Variants(current).includes(row.identity as string)
+    || !canonicalJsonSha256Variants(coordinates).includes(row.scope as string)
+  ) throw new Error("Beeper cursor identity or scope changed");
   const stateKeys = Object.keys(row.states as object);
   if (stateKeys.length > 50) throw new Error("Beeper cursor carries too many scopes");
   const rawStates = automationRecord(row.states, stateKeys);

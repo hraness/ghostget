@@ -21,8 +21,9 @@ import {
 } from "./index-wwtk6nnt.js";
 import {
   canonicalJson,
+  canonicalJsonSha256Matches,
   sha256
-} from "./index-gwk7rbyj.js";
+} from "./index-ad2rp8dr.js";
 import {
   MESSAGING_AUTOMATION_PROTOCOL
 } from "./index-01eeae9e.js";
@@ -57,7 +58,7 @@ function planData(value) {
   const binding = { enrollmentId: automationId(r.enrollmentId), expectedRevision: automationInteger(r.expectedRevision, 0, Number.MAX_SAFE_INTEGER), intentId: automationId(r.intentId), actions: Object.freeze(actions), bindingDigest: automationDigest(r.bindingDigest), expiresAt: automationDate(r.expiresAt) };
   const digest = automationDigest(r.digest);
   const id = automationId(r.id);
-  if (sha256(canonicalJson(binding)) !== digest || id !== `plan:${digest}`)
+  if (!canonicalJsonSha256Matches(digest, binding) || id !== `plan:${digest}`)
     throw new Error("Messaging plan binding is invalid.");
   return Object.freeze({ ...binding, id, digest });
 }
@@ -199,7 +200,7 @@ class MessagingAutomationHost {
     const identity = parseAutomationIdentity(r.identity);
     const selected = conversation(r.conversation);
     const bindingDigest = automationDigest(r.bindingDigest);
-    if (sha256(canonicalJson(authority(identity, selected))) !== bindingDigest)
+    if (!canonicalJsonSha256Matches(bindingDigest, authority(identity, selected)))
       throw new Error("Messaging enrollment binding is invalid.");
     const ready = automationInteger(row.ready, 0, 1);
     const baselining = automationInteger(row.baselining, 0, 1);

@@ -23,7 +23,10 @@ import type {
   WebSessionRecipe,
 } from "../model";
 import { OperationDeadlineError } from "../operation-deadline";
-import { canonicalJson } from "../canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonText,
+} from "../canonical-json";
 import {
   createWebSessionClient,
   fetchPublicWebAsset,
@@ -1274,7 +1277,7 @@ function parseXWebPublishedMutationTarget(
         "X provider-accepted post target media ID",
       );
   const parsed = Object.freeze({ postId: postIdValue, mediaId });
-  if (canonicalJson(parsed) !== identifier) {
+  if (!isCanonicalJsonText(identifier, parsed)) {
     throw new Error("X provider-accepted post target is not canonical");
   }
   return parsed;

@@ -85,7 +85,11 @@ function prepareAndExecute(
     const acquired = ledger.right;
     if (!acquired.acquired) {
       yield* finalizePreDispatchFailure(state, "another run already owns this idempotency scope");
-      if (acquired.existing.inputHash !== state.inputHash || acquired.existing.adapterHash !== state.adapter.hash || acquired.existing.authHash !== state.auth.hash) {
+      // A hit on a pre-migration ledger path already binds the same intent:
+      // that path was derived from this input and manifest under the legacy
+      // encoding, so its stored digests differ from the current ones only by
+      // canonical ordering.
+      if (!acquired.viaAlternatePath && (acquired.existing.inputHash !== state.inputHash || acquired.existing.adapterHash !== state.adapter.hash || acquired.existing.authHash !== state.auth.hash)) {
         return yield* refuse("journal", "idempotency key was already used in a different action scope");
       }
       if (acquired.existing.status === "succeeded") return {

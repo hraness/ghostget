@@ -10,7 +10,11 @@ import {
   acquireBrowser as acquireKbBrowser,
   type AcquiredPage,
 } from "@hraness/kb/clip/acquire";
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonFileText,
+  sha256,
+} from "./canonical-json";
 import {
   currentProcessStartIdentity,
   processOwnerStatus,
@@ -288,7 +292,7 @@ function readClaim(
       "browser admission claim does not match its slot",
     );
   }
-  if (content !== `${canonicalJson(claim)}\n`) {
+  if (!isCanonicalJsonFileText(content, claim)) {
     throw new BrowserAdmissionClaimError(
       "browser admission claim is not canonical JSON",
     );

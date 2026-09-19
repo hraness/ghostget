@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { lstat, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
-import { canonicalJson, sha256 } from "./canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonFileText,
+  sha256,
+} from "./canonical-json";
 import {
   captureProcessOwnerIdentity,
   currentProcessStartIdentity,
@@ -390,7 +394,7 @@ function readExportAdmission(
     return fail("export admission is not valid JSON");
   }
   const claim = parseExportAdmission(decoded);
-  if (content !== exportAdmissionBytes(claim)) {
+  if (!isCanonicalJsonFileText(content, claim)) {
     return fail("export admission is not canonical");
   }
   return Object.freeze({ claim, contentSha256: sha256(content) });
@@ -865,7 +869,7 @@ export async function recoverBeeperMessageLikeMeDirectoryLeases(options: Readonl
       const claim = parseClaim(decoded);
       if (
         file.name !== `${claim.id}.json`
-        || file.content !== claimBytes(claim)
+        || !isCanonicalJsonFileText(file.content, claim)
       ) return fail("directory lease is not canonical");
       const claimPath = join(root, file.name);
       const ownerStatus = inspectOwner(claim.owner);

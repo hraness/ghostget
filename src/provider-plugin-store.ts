@@ -21,7 +21,10 @@ import {
 } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 
-import { canonicalJson } from "./canonical-json";
+import {
+  canonicalJson,
+  isCanonicalJsonFileText,
+} from "./canonical-json";
 import {
   PORTABLE_PROVIDER_PLUGIN_HOST_API_VERSION,
   PORTABLE_PROVIDER_PLUGIN_MANIFEST_NAME,
@@ -684,7 +687,7 @@ function readPrivateRecordSnapshotIfPresent<T>(
       throw new Error(`${label} must contain valid JSON`);
     }
     const result = parse(value);
-    if (text !== `${canonicalJson(result)}\n`) {
+    if (!isCanonicalJsonFileText(text, result)) {
       throw new Error(`${label} must use canonical JSON encoding`);
     }
     return Object.freeze({ value: result, identity: after });

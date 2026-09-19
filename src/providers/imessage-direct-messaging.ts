@@ -1,4 +1,8 @@
-import { canonicalJson, sha256 } from "../canonical-json";
+import {
+  canonicalJson,
+  canonicalJsonSha256Matches,
+  sha256,
+} from "../canonical-json";
 import {
   messageLikeMeSourceConversationCoordinateBindingV1,
 } from "../message-like-me-agentic-messaging";
@@ -464,7 +468,7 @@ export const imsgDirectMessagingDefinition = Object.freeze({
           return expected !== undefined
             && message.providerRevision === expected.providerRevision
             && message.orderedAt === expected.orderedAt
-            && sha256(canonicalJson(message)) === expected.messageSha256;
+            && canonicalJsonSha256Matches(expected.messageSha256, message);
         });
       if (
         exactBaseWindow
@@ -499,7 +503,7 @@ export const imsgDirectMessagingDefinition = Object.freeze({
           if (
             message.providerRevision !== baseMessage.providerRevision
             || message.orderedAt !== baseMessage.orderedAt
-            || sha256(canonicalJson(message)) !== baseMessage.messageSha256
+            || !canonicalJsonSha256Matches(baseMessage.messageSha256, message)
           ) return Object.freeze({ state: "drift" as const });
           continue;
         }
