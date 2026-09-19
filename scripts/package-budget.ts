@@ -1049,6 +1049,10 @@
 // 11,680,162 (a 9,681-byte gzip spread across the new dual-read serializer
 // and verification-path helpers). Retain 4,096 packed bytes of headroom over
 // the larger measurement: 11,689,843 + 4,096 = 11,693,939.
+// The local-custody v0.6.0 release-asset pin changes only the packed
+// manifest's dependency spec (+28 bytes): a clean npm 11.19.0 pack
+// --ignore-scripts on this branch measured 11,680,330 packed bytes on macOS,
+// 8 below the same-run baseline's 11,680,338. Retain the existing ceiling.
 export const MAX_PACKED_BYTES = 11_693_939;
 export const MAX_PACKED_ENTRIES = 564;
 export const MAX_PACKED_FILES = 564;
@@ -1064,6 +1068,12 @@ export const MAX_PACKED_FILES = 564;
 // legacy serializer (stable reviewed identifiers, not new writes) added 337
 // source bytes: a clean pack now measures 22,674,938. Retain the reviewed
 // 65-byte allowance: 22,674,938 + 65 = 22,675,003.
+// The local-custody v0.6.0 release-asset pin replaces the 69-byte git-SHA
+// spec with the 97-byte immutable release-tarball URL, adding exactly 28
+// package.json payload bytes: a clean npm 11.19.0 pack --ignore-scripts on
+// this branch measured 22,674,966 unpacked bytes across the unchanged
+// 564-file inventory. Retain the existing ceiling; the residual allowance
+// is now 37 bytes: 22,674,966 + 37 = 22,675,003.
 export const MAX_UNPACKED_BYTES = 22_675_003;
 
 const TAR_BLOCK_BYTES = 512;
