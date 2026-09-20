@@ -1034,6 +1034,36 @@ export function loadAuth(
   return loadAuthSnapshot(id, environment).auth;
 }
 
+/**
+ * Every stored locator with the exact content hash it was read with, from one
+ * batched directory read. Callers that need both the record and its snapshot
+ * use this instead of `listAuth` followed by `loadAuthSnapshot` per account:
+ * the two-pass form reads each record twice, so an account removed between
+ * the passes made the whole listing fail, and every extra private-state read
+ * is its own bound helper process.
+ */
+export function listAuthSnapshots(environment: Readonly<Record<string, string | undefined>> = process.env): readonly AuthSnapshot[] {
+  const directory = join(ghostgetStateHome(environment), "auth");
+  const snapshot = snapshotPrivateStateDirectory(directory, environment);
+  if (snapshot.identity === null) return [];
+  const names = snapshot.entries
+    .filter((entry) => entry.kind === "file" && entry.name.endsWith(".json"))
+    .map((entry) => entry.name);
+  return readPrivateStateFilesBatched(directory, names, {
+    maximumBytesPerFile: MAX_WRENCH_JSON_BYTES,
+    environment,
+    expectedDirectoryIdentity: snapshot.identity,
+  }).flatMap((file) => {
+    const id = basename(file.name, ".json");
+    if (file.status !== "present") return [];
+    try {
+      return [parseAuthSnapshotText(id, file.content)];
+    } catch {
+      return [];
+    }
+  });
+}
+
 export function listAuth(environment: Readonly<Record<string, string | undefined>> = process.env): readonly GhostgetAuth[] {
   const directory = join(ghostgetStateHome(environment), "auth");
   const snapshot = snapshotPrivateStateDirectory(directory, environment);

@@ -10,6 +10,7 @@ import { readOperationPolicy } from "../operation-permission-store";
 import { TRAY_ICON } from "./menubar-icon";
 import { companionOptions as createCompanionOptions, menuLabel, readOutputs, runMenubarCommand, snapshotItems, type Attempt, type OutputsView } from "./menubar-cli";
 import type { ControlRequest, ControlResponse, ControlSnapshot } from "./protocol";
+import type { BrowserChoice } from "./browser-choices";
 
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup(); });
@@ -67,6 +68,18 @@ describe("menu label presentation", () => {
 });
 
 describe("snapshot menu mapping", () => {
+  test("sign-in offers the browser profiles discovery found, not a fixed list", () => {
+    const discovered: readonly BrowserChoice[] = [
+      { key: "safari", label: "Safari", browser: "safari", profile: null },
+      { key: "chrome-profile-9", label: "Chrome \u00b7 Your Chrome (Profile 9)", browser: "chrome", profile: "Profile 9" },
+    ];
+    const items = snapshotItems(base(), new Map(), { confirmedAgeSeconds: 0, fresh: true }, [], undefined, null, null, "darwin", discovered);
+    const ids = actionIds(items);
+    expect(ids).toContain("connect:x-web:chrome-profile-9");
+    expect(ids).not.toContain("connect:x-web:chrome-default");
+    expect(labels(items)).toContain("Chrome \u00b7 Your Chrome (Profile 9)");
+  });
+
   test("maps approvals, accounts, providers, permissions and vault onto the wire contract", () => {
     const items = snapshotItems(base({
       accounts: [

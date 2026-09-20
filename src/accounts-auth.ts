@@ -10,6 +10,7 @@ import {
   type DeviceLoginResult,
   type TokenStorage,
 } from "@hraness/accounts-cli";
+import { sha256 } from "./canonical-json";
 import { ghostgetStateHome } from "./storage";
 
 const GHOSTGET_CLIENT_ID = "hraness:ghostget:production:v1";
@@ -32,16 +33,42 @@ export type AccountsAuthHandlers = Readonly<{
   onSlowDown?: (intervalMs: number) => void;
 }>;
 
+/** Names of the environment variables that select a separate state root. */
+const STATE_HOME_VARIABLES = [
+  "GHOSTGET_STATE_HOME",
+  "WRENCH_STATE_HOME",
+  "OH_STATE_HOME",
+  "IO_HOME",
+] as const;
+
+/**
+ * The Keychain slot for one state directory. The default state home keeps the
+ * original slot so an existing sign-in survives; a deliberately separate state
+ * directory gets its own, because two state directories are two accounts and
+ * must not silently share one stored credential.
+ */
+export function accountsKeychainSlot(
+  environment: Readonly<Record<string, string | undefined>>,
+  stateHome: string,
+): string {
+  const selected = STATE_HOME_VARIABLES.some(
+    (name) => (environment[name] ?? "").trim() !== "",
+  );
+  return selected
+    ? `hraness-accounts-${sha256(stateHome).slice(0, 16)}`
+    : "hraness-accounts";
+}
+
 export function createGhostgetTokenStorage(
   environment: Readonly<Record<string, string | undefined>>,
   storage?: TokenStorage,
 ): TokenStorage {
   if (storage !== undefined) return storage;
+  const stateHome = ghostgetStateHome(environment);
   const keychain = createKeychainTokenStorage(
     "ghostget",
-    "hraness-accounts",
+    accountsKeychainSlot(environment, stateHome),
   );
-  const stateHome = ghostgetStateHome(environment);
   const file = createEncryptedFileTokenStorage(
     join(stateHome, "accounts", "refresh-token.enc"),
   );
@@ -57,13 +84,21 @@ export function createGhostgetTokenStorage(
       return file.loadRefreshToken();
     },
     saveRefreshToken: async (token) => {
+      let stored = false;
       try {
         await keychain.saveRefreshToken(token);
+        stored = true;
       } catch {
         // Keychain may be unavailable in headless/CI; the encrypted file
         // fallback still gives a machine-bound local secret.
       }
-      await file.saveRefreshToken(token);
+      if (!stored) {
+        await file.saveRefreshToken(token);
+        return;
+      }
+      // The Keychain holds the credential. The weaker file copy is not kept
+      // beside it, and an earlier fallback must not outlive the token it held.
+      await file.deleteRefreshToken();
     },
   };
 }
@@ -124,7 +159,7 @@ export async function runAccountsDeviceLogin(
 
   try {
     const result = (await Promise.race([device.poll(), abortPromise])) as DeviceLoginResult;
-    return handlePollResult(result, session);
+    return await handlePollResult(result, session);
   } catch (error) {
     return {
       kind: "error",
@@ -133,13 +168,25 @@ export async function runAccountsDeviceLogin(
   }
 }
 
-function handlePollResult(
+async function handlePollResult(
   result: DeviceLoginResult,
   session: CliSession,
-): AccountsAuthResult {
+): Promise<AccountsAuthResult> {
   switch (result.kind) {
     case "token":
-      void session.saveRefreshToken(result.refreshToken);
+      // Sign-in is complete only once the refresh token is durably stored.
+      // Reporting success before the write settled left the next command
+      // signed out with no error to explain it.
+      try {
+        await session.saveRefreshToken(result.refreshToken);
+      } catch (error) {
+        return {
+          kind: "error",
+          message: `Signed in, but the credential could not be saved: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        };
+      }
       return {
         kind: "success",
         message: "Signed in to Hraness Accounts. You can return to your terminal.",
@@ -185,4 +232,5 @@ export const accountsAuthInternals = {
   TOKEN_ENDPOINT,
   GHOSTGET_CLIENT_ID,
   createMemoryTokenStorage,
+  handlePollResult,
 };
