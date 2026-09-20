@@ -1,3 +1,11 @@
+// Ghostget 0.18.19 resolves protected comparison roots with metadata alone.
+// Linux PR CI run 35529349206, package job 106127069274, measured 22,800,871
+// payload bytes. The unchanged 575-file inventory matches the prior archive:
+// storage.ts +3,484, its generated SDK chunk +3,036, changelog +299 = +6,819.
+// Keep the compressed and file-count ceilings; retain the 65-byte allowance:
+// 22,800,871 + 65 = 22,800,936. Current-head CI and canonical Release must
+// independently admit their exact archives.
+//
 // Ghostget 0.18.18 carries the fixed adjacent iMessage resource materialization,
 // its generated SDK closure and release coordinates. npm 11.16.0 / Node 24.18.1
 // with zlib 1.3.1-e00f703 on darwin arm64 measured 11,723,565 compressed bytes,
@@ -1191,7 +1199,7 @@ export const MAX_PACKED_FILES = 575;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 22_794_117;
+export const MAX_UNPACKED_BYTES = 22_800_936;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
