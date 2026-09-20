@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.18
+
+- Keep the pinned PhoneNumberKit resource bundle beside each temporary iMessage
+  executable. Account binding and messaging operations can initialize the native
+  transport without crashing after relocation. Resource materialization verifies
+  exact bundled bytes, private ownership, and physical paths before launch.
+
 ## 0.18.17
 
 - Add `ghostget tui`, a keyboard-driven control panel for setup, accounts,

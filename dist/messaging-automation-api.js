@@ -12,7 +12,7 @@ async function createMessagingAutomationHost(providers, environment) {
   return new MessagingAutomationHost(providers, environment);
 }
 async function installBundledMessagingRuntime(provider, environment) {
-  return (await import("./messaging-native-install-dnpfvdr1.js")).installBundledMessagingRuntime(provider, environment);
+  return (await import("./messaging-native-install-6bhr6hnw.js")).installBundledMessagingRuntime(provider, environment);
 }
 export {
   installBundledMessagingRuntime,

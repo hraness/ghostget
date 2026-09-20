@@ -1,3 +1,12 @@
+// Ghostget 0.18.18 carries the fixed adjacent iMessage resource materialization,
+// its generated SDK closure and release coordinates. npm 11.16.0 / Node 24.18.1
+// with zlib 1.3.1-e00f703 on darwin arm64 measured 11,723,565 compressed bytes,
+// 22,794,052 payload bytes and the unchanged 575-file inventory. Archive SHA-256:
+// c482efe748f880e3717727d6d39fd92a68953e6eea766642b329ba47ae772d80.
+// Keep the proven compressed ceiling and restore the 65-byte payload allowance:
+// 22,794,052 + 65 = 22,794,117. Required Linux CI and Release independently
+// measure and admit their exact canonical archives.
+//
 // Final 0.18.17 first-launch and concise-catalog repairs, with matching built
 // SDK bytes, measure 572 files/entries and 22,764,262 payload bytes. npm 11.16.0
 // with Node 24.18.1 / zlib 1.3.1-e00f703 on darwin arm64 packed 11,714,977
@@ -1182,7 +1191,7 @@ export const MAX_PACKED_FILES = 575;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 22_786_339;
+export const MAX_UNPACKED_BYTES = 22_794_117;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

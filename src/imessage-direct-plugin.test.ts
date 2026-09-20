@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import type { GhostgetAuth } from "./auth";
 import imsgManifest from "./assets/adapters/imessage/wrench-web-adapter.json";
@@ -29,6 +29,7 @@ import {
   installReviewedImsgBinary,
 } from "./providers/imessage-direct-install";
 import { imsgDirectMessagingDefinition } from "./providers/imessage-direct-messaging";
+import { installBundledMessagingRuntime, verifyImsgNativeResources } from "./providers/messaging-native-install";
 import {
   imsgMessageProviderId,
   materializeImsgMessagingRead,
@@ -37,6 +38,7 @@ import {
   executeImsgDirectOperation,
   executeImsgDirectMessagingPart,
   parseImsgPrivateIndeterminateOutcome,
+  probeImsgDirectSubject,
   runImsgRpc,
   type ImsgIndeterminateTransportOutcome,
   type ImsgRpcInvocation,
@@ -761,4 +763,56 @@ describe("reviewed direct iMessage provider", () => {
       cleanupTemporaryRoots();
     }
   });
+
+  test.skipIf(process.platform !== "darwin" || process.arch !== "arm64")(
+    "relocated production imsg initializes its pinned resources before any RPC request",
+    async () => {
+      const state = temporaryRoot("ghostget-imsg-resource-state-");
+      const store = temporaryRoot("ghostget-imsg-resource-store-");
+      let operationRoot: string | undefined;
+      const environment = { GHOSTGET_STATE_HOME: state };
+      let startupObserved = false;
+      try {
+        await installBundledMessagingRuntime("imessage", environment);
+        const subject = await probeImsgDirectSubject(auth(store), {
+          environment,
+          dependencies: {
+            expectedMessagesStorePath: store,
+            run: async (invocation) => {
+              operationRoot = dirname(invocation.binary);
+              expect(invocation.binary).toBe(join(operationRoot, "imsg"));
+              await verifyImsgNativeResources(operationRoot);
+              // EOF initializes PhoneNumberKit but dispatches no RPC request.
+              // The explicit synthetic database can never reach the user's store.
+              const child = Bun.spawn([
+                invocation.binary, "rpc", "--db", join(store, "chat.db"),
+              ], {
+                env: invocation.environment,
+                stdin: "pipe", stdout: "pipe", stderr: "pipe",
+                timeout: 5_000, killSignal: "SIGKILL",
+              });
+              child.stdin.end();
+              const [exitCode, stdout, stderr] = await Promise.all([
+                child.exited,
+                new Response(child.stdout).text(),
+                new Response(child.stderr).text(),
+              ]);
+              expect(exitCode).toBe(0);
+              expect(child.signalCode).toBeNull();
+              expect(stdout).toBe("");
+              expect(stderr).not.toContain("PhoneNumberKit resource bundle is missing");
+              startupObserved = true;
+              return { exitCode: 0, stdout: `${response("status", statusResult(join(store, "chat.db")))}\n`, stderr: "" };
+            },
+          },
+        });
+        expect(startupObserved).toBeTrue();
+        expect(subject).toBeString();
+        expect(operationRoot).toBeString();
+        expect(existsSync(operationRoot!)).toBeFalse();
+      } finally {
+        cleanupTemporaryRoots();
+      }
+    },
+  );
 });
