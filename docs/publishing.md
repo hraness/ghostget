@@ -201,7 +201,6 @@ delivery proceeds through a new source-qualified version.
 ## Install the canonical release
 
 These commands require the matching published immutable v0.18.18 release.
-The prior published release is v0.18.16.
 
 For the CLI:
 
