@@ -7,6 +7,13 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.19
+
+- Validate unrelated home-directory exclusions through bounded metadata reads.
+  Commands using an explicit private state directory no longer open Desktop
+  or other protected folders during startup. Symlink aliases, broad-root
+  exclusions, and physical state custody remain enforced.
+
 ## 0.18.18
 
 - Keep the pinned PhoneNumberKit resource bundle beside each temporary iMessage
