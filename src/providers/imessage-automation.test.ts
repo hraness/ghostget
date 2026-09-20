@@ -17,7 +17,7 @@ function fixture() {
   const database = join(directory, "chat.db"); writeFileSync(database, "synthetic", { mode: 0o600 });
   const calls: { method: string; params: Record<string, unknown> }[] = [];
   const admissions: ImsgAutomationOperation[] = []; const barriers: Promise<void>[] = [];
-  const state = { bridge: true, malformed: false, linkQueued: false, linkConflict: false, accountIdentity: "a".repeat(64), foreign: false, replace: false, anchorChanged: false, authorizationError: false, revokeOnAsset: false, bytes: Buffer.from("test attachment"), hash: "" };
+  const state = { bridge: true, malformed: false, linkQueued: false, linkConflict: false, accountIdentity: "a".repeat(64), foreign: false, replace: false, anchorChanged: false, authorizationError: false, revokeOnAsset: false, bytes: Buffer.from("test attachment"), hash: "", chats: [chat] as Record<string, unknown>[], exactChat: chat as Record<string, unknown> };
   state.hash = createHash("sha256").update(state.bytes).digest("hex");
   const readMethods = ["status", "chats.list", "chats.get", "messages.history", "messages.after", "send", "message.send_status"];
   const provider = createImsgAutomationProvider({
@@ -33,8 +33,8 @@ function fixture() {
           const request = JSON.parse(line) as { id: string; method: string; params: Record<string, unknown> }; calls.push(request);
           let result: unknown;
           if (request.method === "status") { const methods = [...readMethods, ...(state.bridge ? ["tapback", "send.sticker", "send.rich", "poll.send"] : [])]; result = { version: "0.14.1", protocol_version: 1, database: { ready: true, path: database }, bridge: { ready: state.bridge }, contacts: { available: true }, methods, supported_methods: methods }; }
-          else if (request.method === "chats.list") result = { chats: [chat] };
-          else if (request.method === "chats.get") result = { chat: { ...chat, ...(state.foreign ? { guid: "iMessage;-;another@example.test" } : {}) } };
+          else if (request.method === "chats.list") result = { chats: state.chats };
+          else if (request.method === "chats.get") result = { chat: { ...state.exactChat, ...(state.foreign ? { guid: "iMessage;-;another@example.test" } : {}) } };
           else if (request.method === "messages.history") result = { messages: [rawMessage()] };
           else if (request.method === "messages.after") {
             const since = Number(request.params.since_rowid);
@@ -64,6 +64,45 @@ test("iMessage bounded reads preserve exact coordinates and source generation", 
   const f = fixture(); const list = await f.provider.conversations({ limit: 10 }); expect(list.conversations[0]!.coordinate).toEqual(target);
   const history = await f.provider.history({ coordinate: target, limit: 10 }); expect(history.identity).toEqual(list.identity); expect(history.messages[0]!.id).toBe("fixture-guid"); expect(history.caughtUp).toBe(false);
   f.state.foreign = true; await expect(f.provider.resolve(target)).rejects.toThrow("exact"); await f.close();
+});
+test("iMessage discovery preserves eligible rows when native single-chat metadata cannot be enrolled", async () => {
+  const f = fixture();
+  const row = (id: number, fields: Record<string, unknown>) => ({ ...chat, id, guid: `iMessage;-;fixture-${id}@example.test`, ...fields });
+  f.state.chats = [chat,
+    row(8, { participants: [] }),
+    row(9, { participants: ["one", "two", "three"] }),
+    row(10, { participants: ["same", "same"] }),
+    row(11, { participants: ["é".repeat(257)] }),
+    row(12, { name: "é".repeat(257) }),
+    row(13, { name: "é".repeat(256), participants: ["é".repeat(256), "another"] }),
+  ];
+  const result = await f.provider.conversations({ limit: 10 });
+  expect(result.conversations.map(value => value.coordinate)).toEqual([target, { ...target, chatGuid: "iMessage;-;fixture-13@example.test", observedChatRowId: 13 }]);
+  expect(result.complete).toBe(false);
+  expect(f.calls.filter(call => call.method !== "status").map(({ method, params }) => ({ method, params }))).toEqual([{ method: "chats.list", params: { limit: 10 } }]);
+  f.state.chats = [row(8, { participants: [] })];
+  expect((await f.provider.conversations({ limit: 1 })).conversations).toHaveLength(0);
+  await f.close();
+});
+test("discovery still rejects malformed native rows and coordinates even when they are ineligible", async () => {
+  const f = fixture();
+  for (const fields of [{ unexpected: true }, { participants: [7] }, { guid: "SMS;-;fixture@example.test" }, { guid: `iMessage;-;${"a".repeat(1024)}` }]) {
+    f.state.chats = [chat, { ...chat, id: 8, guid: "iMessage;-;ineligible@example.test", participants: [], ...fields }];
+    await expect(f.provider.conversations({ limit: 10 })).rejects.toThrow();
+  }
+  f.state.chats = [chat, { ...chat, participants: [] }];
+  await expect(f.provider.conversations({ limit: 10 })).rejects.toThrow("repeated an exact chat coordinate");
+  expect(f.calls.every(call => call.method === "status" || call.method === "chats.list")).toBe(true);
+  await f.close();
+});
+test("omitting an ineligible discovery row never relaxes exact dispatch eligibility", async () => {
+  const f = fixture();
+  f.state.exactChat = { ...chat, participants: [] }; f.state.chats = [f.state.exactChat];
+  expect((await f.provider.conversations({ limit: 1 })).conversations).toHaveLength(0);
+  expect((await f.provider.resolve(target)).conversation.participants).toHaveLength(0);
+  expect((await f.send({ kind: "text", text: "Synthetic fixture" })).state).toBe("not-started");
+  expect(f.calls.filter(call => call.method === "send")).toHaveLength(0);
+  await f.close();
 });
 test("iMessage cursor resumes physical rows and validates its old anchor", async () => {
   const f = fixture(); const first = await f.provider.events({ coordinates: [target], cursor: null, limit: 10 }); expect(first.messages).toHaveLength(1); expect(first.caughtUp).toBe(true);

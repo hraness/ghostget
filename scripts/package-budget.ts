@@ -1,3 +1,15 @@
+// Ghostget 0.18.20 filters only valid native discovery rows that exceed the
+// owner's existing conversation metadata bounds. npm 11.16.0 / Node 24.18.1
+// with zlib 1.3.1-e00f703 on darwin arm64 measured 11,726,065 compressed bytes,
+// 22,801,968 payload bytes and the unchanged 575-file inventory. Every archive
+// file matches source; the prior payload grows by exactly 1,097 bytes:
+// imessage-automation.ts +796 and changelog +301. Version replacements and
+// the renamed generated version chunk preserve their byte counts. SHA-256:
+// 0d807b34de1a8f66089c650b6f90903266c4c325e188c9d168e1fd9e8709bf11.
+// Keep the compressed/file ceilings and the same 65-byte payload allowance:
+// 22,801,968 + 65 = 22,802,033. Current-head CI and canonical Release must
+// independently admit their exact archives.
+//
 // Ghostget 0.18.19 resolves protected comparison roots with metadata alone.
 // Linux PR CI run 35529349206, package job 106127069274, measured 22,800,871
 // payload bytes. The unchanged 575-file inventory matches the prior archive:
@@ -1199,7 +1211,7 @@ export const MAX_PACKED_FILES = 575;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 22_800_936;
+export const MAX_UNPACKED_BYTES = 22_802_033;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
