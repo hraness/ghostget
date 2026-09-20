@@ -64,6 +64,7 @@ import {
   imsgArtifactForCurrentRuntime,
   resolvePinnedImsgBinary,
 } from "./imessage-direct-install";
+import { materializeImsgNativeResources } from "./messaging-native-install";
 
 const MAX_STDERR_BYTES = 64 * 1024;
 const MAX_STATUS_BYTES = 512 * 1024;
@@ -1119,6 +1120,9 @@ async function withRuntime<T>(
           operationRoot,
           imsgArtifactForCurrentRuntime().executableSha256,
         );
+    if (dependencies?.binaryPath === undefined) {
+      await materializeImsgNativeResources(operationRoot);
+    }
     const runner = dependencies?.run ?? runImsgRpc;
     const run = async (
       requests: readonly ImsgRpcRequest[],
