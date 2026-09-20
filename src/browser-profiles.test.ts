@@ -43,7 +43,7 @@ describe("browser profile discovery", () => {
   test("reports the Chrome profiles that exist with the name the browser shows", () => {
     const root = home();
     chromeProfile(root, "Profile 9", "Your Chrome");
-    const chrome = discoverBrowserProfiles({ HOME: root }).find((entry) => entry.source === "chrome");
+    const chrome = discoverBrowserProfiles({ HOME: root }, "darwin").find((entry) => entry.source === "chrome");
     expect(chrome?.installed).toBe(true);
     expect(chrome?.profiles).toEqual([
       { source: "chrome", profile: "Your Chrome", directory: "Profile 9", cookies: true },
@@ -54,7 +54,7 @@ describe("browser profile discovery", () => {
   test("a profile without metadata keeps its directory name and a missing cookie store is reported", () => {
     const root = home();
     chromeProfile(root, "Default", null, false);
-    const chrome = discoverBrowserProfiles({ HOME: root }).find((entry) => entry.source === "chrome");
+    const chrome = discoverBrowserProfiles({ HOME: root }, "darwin").find((entry) => entry.source === "chrome");
     expect(chrome?.profiles).toEqual([
       { source: "chrome", profile: "Default", directory: "Default", cookies: false },
     ]);
@@ -64,7 +64,7 @@ describe("browser profile discovery", () => {
   test("an application-support folder without profiles is not an installed browser", () => {
     const root = home();
     mkdirSync(join(root, "Library", "Application Support", "BraveSoftware", "Brave-Browser", "NativeMessagingHosts"), { recursive: true });
-    const brave = discoverBrowserProfiles({ HOME: root }).find((entry) => entry.source === "brave");
+    const brave = discoverBrowserProfiles({ HOME: root }, "darwin").find((entry) => entry.source === "brave");
     expect(brave).toEqual({ source: "brave", installed: false, profiles: [] });
     cleanup();
   });
@@ -74,7 +74,7 @@ describe("browser profile discovery", () => {
     chromeProfile(root, "Profile 10", "Ten");
     chromeProfile(root, "Profile 2", "Two");
     chromeProfile(root, "Default", "First");
-    const chrome = discoverBrowserProfiles({ HOME: root }).find((entry) => entry.source === "chrome");
+    const chrome = discoverBrowserProfiles({ HOME: root }, "darwin").find((entry) => entry.source === "chrome");
     expect(chrome?.profiles.map((profile) => profile.directory)).toEqual(["Default", "Profile 2", "Profile 10"]);
     cleanup();
   });
@@ -82,14 +82,22 @@ describe("browser profile discovery", () => {
   test("a hostile profile name falls back to the directory name", () => {
     const root = home();
     chromeProfile(root, "Profile 1", "Work‮exe");
-    const chrome = discoverBrowserProfiles({ HOME: root }).find((entry) => entry.source === "chrome");
+    const chrome = discoverBrowserProfiles({ HOME: root }, "darwin").find((entry) => entry.source === "chrome");
     expect(chrome?.profiles[0]?.profile).toBe("Profile 1");
     cleanup();
   });
 
+  test("a platform without a described layout discovers nothing", () => {
+    const root = home();
+    chromeProfile(root, "Default", "Personal");
+    expect(discoverBrowserProfiles({ HOME: root }, "linux")).toEqual([]);
+    expect(browserChoices({ HOME: root }, "linux")).toEqual(DEFAULT_BROWSER_CHOICES);
+    cleanup();
+  });
+
   test("an unreadable or absent home discovers nothing", () => {
-    expect(discoverBrowserProfiles({ HOME: "/tmp/ghostget-absent-home-does-not-exist" })).toEqual([]);
-    expect(discoverBrowserProfiles({ HOME: "" })).toEqual([]);
+    expect(discoverBrowserProfiles({ HOME: "/tmp/ghostget-absent-home-does-not-exist" }, "darwin")).toEqual([]);
+    expect(discoverBrowserProfiles({ HOME: "" }, "darwin")).toEqual([]);
   });
 
   test("Arc profiles come from its nested user-data root", () => {
@@ -98,7 +106,7 @@ describe("browser profile discovery", () => {
     mkdirSync(join(arc, "Profile 1"), { recursive: true });
     writeFileSync(join(arc, "Profile 1", "Cookies"), "");
     writeFileSync(join(arc, "Local State"), JSON.stringify({ profile: { info_cache: { "Profile 1": { name: "Life" } } } }));
-    const found = discoverBrowserProfiles({ HOME: root }).find((entry) => entry.source === "arc");
+    const found = discoverBrowserProfiles({ HOME: root }, "darwin").find((entry) => entry.source === "arc");
     expect(found?.profiles).toEqual([{ source: "arc", profile: "Life", directory: "Profile 1", cookies: true }]);
     cleanup();
   });
@@ -112,7 +120,7 @@ describe("browser profile discovery", () => {
       "[Profile0]", "Name=default", "IsRelative=1", "Path=Profiles/abc.default", "",
       "[Profile1]", "Name=escape", "IsRelative=1", "Path=../../../etc", "",
     ].join("\n"));
-    const found = discoverBrowserProfiles({ HOME: root }).find((entry) => entry.source === "firefox");
+    const found = discoverBrowserProfiles({ HOME: root }, "darwin").find((entry) => entry.source === "firefox");
     expect(found?.profiles).toEqual([{ source: "firefox", profile: "default", directory: null, cookies: true }]);
     cleanup();
   });
@@ -122,7 +130,7 @@ describe("browser profile discovery", () => {
     for (let index = 1; index <= MAX_DISCOVERED_PROFILES_PER_BROWSER + 5; index += 1) {
       chromeProfile(root, `Profile ${index}`, `Name ${index}`);
     }
-    const chrome = discoverBrowserProfiles({ HOME: root }).find((entry) => entry.source === "chrome");
+    const chrome = discoverBrowserProfiles({ HOME: root }, "darwin").find((entry) => entry.source === "chrome");
     expect(chrome?.profiles.length).toBe(MAX_DISCOVERED_PROFILES_PER_BROWSER);
     cleanup();
   });
@@ -158,7 +166,7 @@ describe("browsers command output", () => {
   test("every listed profile carries the exact flags that select it", () => {
     const root = home();
     chromeProfile(root, "Profile 9", "Your Chrome");
-    const discovery = discoverBrowserProfiles({ HOME: root });
+    const discovery = discoverBrowserProfiles({ HOME: root }, "darwin");
     const json = browserProfilesJson(discovery) as { browsers: { source: string; profiles: { flags: string }[] }[] };
     const chrome = json.browsers.find((entry) => entry.source === "chrome");
     expect(chrome?.profiles[0]?.flags).toBe("--cookie-source chrome --cookie-profile 'Your Chrome'");
@@ -173,7 +181,7 @@ describe("browsers command output", () => {
   test("the rendered list names the browsers that are absent", () => {
     const root = home();
     chromeProfile(root, "Default", "Personal");
-    const text = renderBrowserProfiles(discoverBrowserProfiles({ HOME: root }));
+    const text = renderBrowserProfiles(discoverBrowserProfiles({ HOME: root }, "darwin"));
     expect(text).toContain("--cookie-source chrome --cookie-profile 'Personal'");
     expect(text).toContain("Not installed:");
     expect(text).toContain("ghostget auth bind");
@@ -183,7 +191,7 @@ describe("browsers command output", () => {
   test("a profile with no cookie store is listed without selectable flags", () => {
     const root = home();
     chromeProfile(root, "Default", "Fresh", false);
-    const text = renderBrowserProfiles(discoverBrowserProfiles({ HOME: root }));
+    const text = renderBrowserProfiles(discoverBrowserProfiles({ HOME: root }, "darwin"));
     expect(text).toContain("no cookie store yet");
     expect(text).not.toContain("--cookie-profile 'Fresh'");
     cleanup();
@@ -194,7 +202,7 @@ describe("control browser choices", () => {
   test("controls offer the profiles this machine has, not a fixed list", () => {
     const root = home();
     chromeProfile(root, "Profile 9", "Your Chrome");
-    expect(browserChoices({ HOME: root })).toEqual([
+    expect(browserChoices({ HOME: root }, "darwin")).toEqual([
       { key: "safari", label: "Safari", browser: "safari", profile: null },
       { key: "chrome-profile-9", label: "Chrome · Your Chrome (Profile 9)", browser: "chrome", profile: "Profile 9" },
     ]);
@@ -203,14 +211,14 @@ describe("control browser choices", () => {
 
   test("a machine with no discoverable Chrome profile still offers the browser default", () => {
     const root = home();
-    expect(browserChoices({ HOME: root })).toEqual(DEFAULT_BROWSER_CHOICES);
+    expect(browserChoices({ HOME: root }, "darwin")).toEqual(DEFAULT_BROWSER_CHOICES);
     cleanup();
   });
 
   test("the offered list stays bounded and every key is unique", () => {
     const root = home();
     for (let index = 1; index <= 20; index += 1) chromeProfile(root, `Profile ${index}`, `Name ${index}`);
-    const choices = browserChoices({ HOME: root });
+    const choices = browserChoices({ HOME: root }, "darwin");
     expect(choices.length).toBe(MAX_BROWSER_CHOICES);
     expect(new Set(choices.map((choice) => choice.key)).size).toBe(choices.length);
     cleanup();
@@ -220,7 +228,7 @@ describe("control browser choices", () => {
     const root = home();
     chromeProfile(root, "Profile 9", "Your Chrome");
     chromeProfile(root, "Default", "Personal");
-    for (const choice of browserChoices({ HOME: root })) {
+    for (const choice of browserChoices({ HOME: root }, "darwin")) {
       if (choice.browser !== "chrome" || choice.profile === null) continue;
       expect(/^(?:Default|Profile [1-9][0-9]{0,2})$/u.test(choice.profile)).toBe(true);
     }

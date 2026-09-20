@@ -34,8 +34,9 @@ function profileKey(directory: string): string {
  */
 export function browserChoices(
   environment: Readonly<Record<string, string | undefined>> = process.env,
+  platform: NodeJS.Platform = process.platform,
 ): readonly BrowserChoice[] {
-  const discovered = discoverChromeProfileChoices(environment);
+  const discovered = discoverChromeProfileChoices(environment, platform);
   const chrome = (discovered.length > 0
     ? discovered
     : [{ directory: "Default", label: "Default" }]

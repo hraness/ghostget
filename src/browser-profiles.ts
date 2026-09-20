@@ -253,8 +253,11 @@ function discoverSafari(home: string): BrowserProfileDiscovery {
  */
 export function discoverBrowserProfiles(
   environment: Readonly<Record<string, string | undefined>> = process.env,
+  platform: NodeJS.Platform = process.platform,
 ): readonly BrowserProfileDiscovery[] {
-  if (process.platform !== "darwin") return [];
+  // Only the macOS profile layout is described here. Another platform reports
+  // nothing rather than guessing at paths it has not been checked against.
+  if (platform !== "darwin") return [];
   const home = environment.HOME ?? homedir();
   if (home === "" || !isRealDirectory(home)) return [];
   return cookieSources.map((source) =>
@@ -268,8 +271,9 @@ export function discoverBrowserProfiles(
 /** The Chromium profiles local controls can offer for browser sign-in. */
 export function discoverChromeProfileChoices(
   environment: Readonly<Record<string, string | undefined>> = process.env,
+  platform: NodeJS.Platform = process.platform,
 ): readonly { readonly directory: string; readonly label: string }[] {
-  const chrome = discoverBrowserProfiles(environment).find((entry) => entry.source === "chrome");
+  const chrome = discoverBrowserProfiles(environment, platform).find((entry) => entry.source === "chrome");
   if (chrome === undefined) return [];
   return chrome.profiles.flatMap((profile) =>
     profile.directory === null
