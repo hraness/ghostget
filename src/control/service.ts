@@ -1,4 +1,4 @@
-import { listAuth, loadAuthSnapshot } from "../auth";
+import { listAuthSnapshots } from "../auth";
 import { canonicalJson, sha256 } from "../canonical-json";
 import { isLocalCliOperation, isProviderOperation, isWebSessionOperation, manifestHash, type GhostgetManifest } from "../model";
 import { checkProviderApproval, describeOperationPermissions, enableOperationPermissions, readOperationPolicy, recheckProviderApproval, setOperationPermission } from "../operation-permission";
@@ -33,7 +33,7 @@ export class ControlService {
   private async check(target:ApprovalTarget){return target.kind==="web"?checkWebRequest(target.method,target.url,this.environment).approval:await checkProviderApproval(target,{environment:this.environment,registry:this.registry()});}
   snapshot(accountId:string|null):ControlSnapshot {
     const registry=this.registry();const context={environment:this.environment,registry};
-    const accounts=listAuth(this.environment).map(auth=>({id:auth.id,provider:"provider" in auth?auth.provider:null,kind:auth.kind,subject:auth.subject??null,revision:connectionAccountRevision(loadAuthSnapshot(auth.id,this.environment),this.environment),status:"configured" as const,source:auth.kind==="cookie-source"?auth.source:auth.kind==="browser-profile"?"Browser profile":null,tokenStorage:auth.kind==="oauth-token-file"?(auth.managed===true?"managed-oauth" as const:auth.ownedImport===true?"ghostget-import" as const:"external" as const):null}));
+    const accounts=listAuthSnapshots(this.environment).map(({auth,...stored})=>({id:auth.id,provider:"provider" in auth?auth.provider:null,kind:auth.kind,subject:auth.subject??null,revision:connectionAccountRevision({auth,...stored},this.environment),status:"configured" as const,source:auth.kind==="cookie-source"?auth.source:auth.kind==="browser-profile"?"Browser profile":null,tokenStorage:auth.kind==="oauth-token-file"?(auth.managed===true?"managed-oauth" as const:auth.ownedImport===true?"ghostget-import" as const:"external" as const):null}));
     if(accountId!==null&&!accounts.some(account=>account.id===accountId))throw new ControlError("ACCOUNT_UNAVAILABLE","The selected account is no longer configured.");
     const interfaces=listInterfaces(context);const manifests=new Map<string,GhostgetManifest>();
     for(const item of listInstalledManifests(this.environment,registry))if(item.result.ok)manifests.set(item.id,item.result.value);

@@ -9,6 +9,7 @@ import { TRAY_ICON } from "./menubar-icon";
 import { ensurePrivateStateDirectory, ghostgetStateHome } from "../storage";
 import { type ActivityRow, type ApprovalView, type CapabilityView, type ControlRequest, type ControlResponse, type ControlSnapshot } from "./protocol";
 import { spawnHelper, type HelperClient } from "./helper-client";
+import { DEFAULT_BROWSER_CHOICES, browserChoices, type BrowserChoice } from "./browser-choices";
 import type { ControlEnvironment } from "./web-policy";
 
 const WEBSITE = "https://ghostget.com/getting-started";
@@ -22,12 +23,6 @@ const SUPPORT_ACTIONS = createSupportOffer(ghostgetSupportProfile, "desktop").ac
 const OUTPUTS_LIMIT = 12;
 const OUTPUTS_SCAN_BOUND = 512;
 const OPENABLE_EXTENSIONS = new Set(["pdf", "txt", "md", "csv", "json", "png", "jpg", "jpeg", "gif", "webp", "tiff"]);
-const BROWSERS = [
-  { key: "safari", label: "Safari", browser: "safari", profile: null },
-  { key: "chrome-default", label: "Chrome · Default", browser: "chrome", profile: "Default" },
-  { key: "chrome-profile-1", label: "Chrome · Profile 1", browser: "chrome", profile: "Profile 1" },
-  { key: "chrome-profile-2", label: "Chrome · Profile 2", browser: "chrome", profile: "Profile 2" },
-] as const;
 type Output = { readonly stdout: (text: string) => unknown; readonly stderr: (text: string) => unknown };
 
 /** Presentation never lets control data add lines, bidi overrides or unbounded menus. */
@@ -166,7 +161,7 @@ function reconnectProviders(snapshot: ControlSnapshot, account: ControlSnapshot[
     || account.provider === null && account.id.startsWith(`${provider.id}-`));
 }
 
-function accountItems(snapshot: ControlSnapshot, enabled: boolean, platform: NodeJS.Platform): MenuItem[] {
+function accountItems(snapshot: ControlSnapshot, enabled: boolean, platform: NodeJS.Platform, browsers: readonly BrowserChoice[]): MenuItem[] {
   const accounts = snapshot.accounts;
   const rows: MenuItem[] = accounts.slice(0, 20).map((account) => {
     const status = account.status === "verified" ? "Verified" : account.status === "configured" ? "Configured" : "Reconnect required";
@@ -183,7 +178,7 @@ function accountItems(snapshot: ControlSnapshot, enabled: boolean, platform: Nod
         items: providers.map((provider) => ({
           kind: "submenu" as const,
           label: menuLabel(provider.title) || "Provider",
-          items: BROWSERS.map((choice) => ({ kind: "action" as const, id: `reconnect:${account.id}:${provider.id}:${choice.key}`, label: choice.label, enabled: enabled && platform === "darwin" })),
+          items: browsers.map((choice) => ({ kind: "action" as const, id: `reconnect:${account.id}:${provider.id}:${choice.key}`, label: choice.label, enabled: enabled && platform === "darwin" })),
         })),
       });
     }
@@ -228,7 +223,7 @@ function approvalItems(approvals: readonly ApprovalView[], enabled: boolean): Me
 }
 
 export interface Attempt { readonly attemptId: string; readonly title: string; status: "awaiting-sign-in" | "verified"; subject: string | null }
-function connectItems(snapshot: ControlSnapshot, attempts: ReadonlyMap<string, Attempt>, enabled: boolean, platform: NodeJS.Platform): MenuItem[] {
+function connectItems(snapshot: ControlSnapshot, attempts: ReadonlyMap<string, Attempt>, enabled: boolean, platform: NodeJS.Platform, browsers: readonly BrowserChoice[]): MenuItem[] {
   const rows: MenuItem[] = [];
   if (platform !== "darwin") rows.push({ kind: "label", label: "Browser sign-in requires macOS. Open a provider guide for CLI setup." });
   for (const attempt of [...attempts.values()].slice(0, 8)) {
@@ -250,7 +245,7 @@ function connectItems(snapshot: ControlSnapshot, attempts: ReadonlyMap<string, A
       kind: "submenu",
       label: menuLabel(provider.title) || "Provider",
       items: [
-        ...BROWSERS.map((choice) => ({ kind: "action" as const, id: `connect:${provider.id}:${choice.key}`, label: choice.label, enabled: enabled && platform === "darwin" })),
+        ...browsers.map((choice) => ({ kind: "action" as const, id: `connect:${provider.id}:${choice.key}`, label: choice.label, enabled: enabled && platform === "darwin" })),
         ...(guide === undefined ? [] : [{ kind: "action" as const, id: `provider:help:${provider.id}`, label: `Open ${guide.title} capabilities and setup…` }]),
       ],
     });
@@ -350,6 +345,7 @@ export function snapshotItems(
   notice: string | null = null,
   pendingActivation: PendingActivation | null = null,
   platform: NodeJS.Platform = process.platform,
+  browsers: readonly BrowserChoice[] = DEFAULT_BROWSER_CHOICES,
 ): MenuItem[] {
   const confirmed = snapshot !== null && status.fresh;
   const age = status.confirmedAgeSeconds;
@@ -383,8 +379,8 @@ export function snapshotItems(
     { kind: "label", label: menuLabel(`${snapshot.accounts.length} account${snapshot.accounts.length === 1 ? "" : "s"}${reconnect > 0 ? ` · ${reconnect} need reconnect` : ""} · ${pending} pending approval${pending === 1 ? "" : "s"}`) },
     { kind: "separator" },
     { kind: "submenu", label: `Approvals · ${pending}`, items: approvalItems(snapshot.approvals, confirmed) },
-    { kind: "submenu", label: `Accounts · ${snapshot.accounts.length}`, items: accountItems(snapshot, confirmed, platform) },
-    { kind: "submenu", label: "Connect X, LinkedIn, or Reddit", items: connectItems(snapshot, attempts, confirmed, platform) },
+    { kind: "submenu", label: `Accounts · ${snapshot.accounts.length}`, items: accountItems(snapshot, confirmed, platform, browsers) },
+    { kind: "submenu", label: "Connect X, LinkedIn, or Reddit", items: connectItems(snapshot, attempts, confirmed, platform, browsers) },
     { kind: "submenu", label: "Permissions", items: permissionItems(snapshot, confirmed) },
     { kind: "submenu", label: `Capabilities · ${snapshot.capabilities.length}`, items: capabilityItems(snapshot.capabilities) },
     { kind: "submenu", label: `Web rules · ${snapshot.web.rules.length}`, items: webItems(snapshot) },
@@ -421,6 +417,9 @@ export function companionOptions(
   let administrativeConfirmed = false;
   let pendingActivation: PendingActivation | null = null;
   const attempts = new Map<string, Attempt>();
+  // One list for this controller's lifetime, so a rendered action id always
+  // resolves to the same browser and profile when it is dispatched.
+  const browsers = browserChoices(environment);
   const outputsDirectory = join(ghostgetStateHome(environment), "outputs");
   const drop = (): Promise<void> => {
     const current = helper;
@@ -489,7 +488,7 @@ export function companionOptions(
         if (page.ok && page.data.kind === "activity") activity = page.data.page.rows;
       }
       lastOutputs = readOutputs(outputsDirectory);
-      return snapshotItems(lastSnapshot, attempts, { confirmedAgeSeconds: confirmedAt === null ? null : Math.max(0, Math.floor((Date.now() - confirmedAt) / 1000)), fresh: fresh && administrativeConfirmed, detail: response.ok ? undefined : response.message }, activity, lastOutputs, notice, pendingActivation, platform);
+      return snapshotItems(lastSnapshot, attempts, { confirmedAgeSeconds: confirmedAt === null ? null : Math.max(0, Math.floor((Date.now() - confirmedAt) / 1000)), fresh: fresh && administrativeConfirmed, detail: response.ok ? undefined : response.message }, activity, lastOutputs, notice, pendingActivation, platform, browsers);
     },
     onAction: async (id) => {
       if (id === "refresh") { notice = null; return; } // the runner re-reads state after every action
@@ -575,7 +574,7 @@ export function companionOptions(
       if (parts[0] === "connect" && parts.length === 3) {
         if (platform !== "darwin") throw new Error("ghostget-CONNECTION_PLATFORM_UNSUPPORTED");
         const provider = snapshot.connectionProviders.find((item) => item.id === parts[1]);
-        const choice = BROWSERS.find((item) => item.key === parts[2]);
+        const choice = browsers.find((item) => item.key === parts[2]);
         if (provider === undefined || choice === undefined) return;
         const response = await request({ action: "connection.begin", id: `${provider.id}-${randomUUID().slice(0, 8)}`, provider: provider.id, browser: choice.browser, profile: choice.profile, expectedRevision: null });
         fail(response);
@@ -586,7 +585,7 @@ export function companionOptions(
         if (platform !== "darwin") throw new Error("ghostget-CONNECTION_PLATFORM_UNSUPPORTED");
         const account = snapshot.accounts.find((item) => item.id === parts[1]);
         const provider = snapshot.connectionProviders.find((item) => item.id === parts[2]);
-        const choice = BROWSERS.find((item) => item.key === parts[3]);
+        const choice = browsers.find((item) => item.key === parts[3]);
         if (account === undefined || provider === undefined || choice === undefined || !reconnectProviders(snapshot, account).some((item) => item.id === provider.id)) return;
         const response = await request({ action: "connection.begin", id: account.id, provider: provider.id, browser: choice.browser, profile: choice.profile, expectedRevision: account.revision });
         fail(response);

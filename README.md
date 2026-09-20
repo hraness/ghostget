@@ -94,6 +94,20 @@ ghostget menubar
 `ghostget capabilities gmail`, to see its operations and required inputs. Add
 `--json` when your agent needs the complete contracts.
 
+To reuse a browser session you are already signed in to, list the profiles on
+this machine first. `ghostget browsers` prints each one with the exact flags
+that select it, so neither you nor your agent has to guess a profile name:
+
+```sh
+ghostget browsers
+ghostget auth add x-main --cookie-source chrome --cookie-profile 'Your Chrome'
+ghostget auth bind x-main --site x
+```
+
+`auth add` records the locator; `auth bind` performs the live identity check
+that proves the profile is signed in. A listed profile is a name you can
+select, not proof of a usable session.
+
 On macOS, the companion can connect X, LinkedIn, and Reddit browser sessions.
 For Gmail, Beeper, WhatsApp, and other services, follow their CLI setup guides;
 Linux account setup also uses the CLI. The

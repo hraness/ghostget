@@ -91,6 +91,8 @@ Command reference:
                         [--preview] [--headed] [--json]
   ghostget operator doctor [--json]                Compatibility alias for 'ghostget doctor'
 
+  ghostget browsers [--json]                      List local browser profiles usable as cookie sources
+
   ghostget auth list [--json]
   ghostget auth login <id> --client-file <desktop-client.json>
                          [--no-open] [--force] [--json]
