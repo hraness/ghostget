@@ -268,6 +268,8 @@
     "src/whatsapp-message-like-me-source.ts",
     "src/fixtures/beeper-message-like-me-v1",
     "src/browser-admission.ts",
+    "src/browser-profiles.ts",
+    "src/browser-profiles-cli.ts",
     "src/browser-snapshots.ts",
     "src/browser.ts",
     "src/canonical-json.ts",
@@ -597,6 +599,7 @@
     "src/control/account-revision.ts",
     "src/control/interface-cli.ts",
     "src/control/menubar-cli.ts",
+    "src/control/browser-choices.ts",
     "src/control/menubar-icon.ts",
     "src/control/bundled-interfaces.ts"
   ],

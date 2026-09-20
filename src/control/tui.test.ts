@@ -164,6 +164,21 @@ describe("reviewed control actions", () => {
     expect(controller.state.dialog).toBeNull();
     expect(fake.requests.filter((request) => request.action === "approval.decide")).toHaveLength(1);
   });
+  test("sign-in offers the Chrome profile discovery found on this machine", async () => {
+    const browsers = [
+      { key: "safari", label: "Safari", browser: "safari" as const, profile: null },
+      { key: "chrome-profile-9", label: "Chrome \u00b7 Your Chrome (Profile 9)", browser: "chrome" as const, profile: "Profile 9" },
+    ];
+    const fake = helper(snapshot({ accounts: [], accountId: null }));
+    const controller = new TuiController(fake.client, null, () => {}, "darwin", browsers);
+    await controller.refresh();
+    await controller.key({ text: "2" }); await controller.key({ text: "c" }); await controller.key("enter");
+    expect(JSON.stringify(controller.state.dialog)).toContain("Your Chrome (Profile 9)");
+    await controller.key("down"); await controller.key("enter"); await controller.key("enter");
+    fake.setMutation({ ok: true, data: { kind: "connection", attemptId: "attempt", status: "awaiting-sign-in", subject: null } });
+    await confirm(controller);
+    expect(fake.requests).toContainEqual({ action: "connection.begin", id: "x-main", provider: "x-web", browser: "chrome", profile: "Profile 9", expectedRevision: null });
+  });
   test("sign-in saves only the independently verified subject", async () => {
     const fake = helper(snapshot({ accounts: [], accountId: null })); const controller = new TuiController(fake.client, null, () => {}, "darwin"); await controller.refresh();
     await controller.key({ text: "2" }); await controller.key({ text: "c" }); await controller.key("enter"); await controller.key("enter"); await controller.key("enter");

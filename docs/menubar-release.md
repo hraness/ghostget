@@ -61,11 +61,14 @@ the TUI, then replace the example identifiers with your own:
 ```sh
 ghostget vault import-x \
   --id x-main \
-  --account my.1password.com \
+  --account 'Personal' \
   --reference 'op://Personal/X/access-token' \
   --subject 123456789 \
   --scopes tweet.read,users.read
 ```
+
+`--account` is the 1Password account name shown at the top left of the
+desktop app, or its account UUID. It is not the sign-in domain.
 
 Pass only the `op://` field reference, never the token itself. Required scopes
 are `tweet.read` and `users.read`; declare any additional supported scopes the

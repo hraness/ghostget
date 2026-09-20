@@ -1130,9 +1130,21 @@
 // exactly 565 files on macOS, archive SHA-256
 // c47c8d3767080acddfa48b353aff98fae738c45a5ba16708d63e857dd839480a. Raise the
 // packed inventory to 565 and retain the existing packed ceiling.
+// Browser-profile discovery adds exactly three packed production files:
+// src/browser-profiles.ts, src/browser-profiles-cli.ts and
+// src/control/browser-choices.ts, alongside edits to the CLI, usage, auth,
+// control service, menu, TUI and vault sources and the rebuilt dist chunks.
+// `bun pm pack --ignore-scripts` with Bun 1.3.14 on darwin arm64 measured
+// exactly 575 files/entries and 22,786,274 payload bytes; archive SHA-256
+// 6fba42075451240d07bf5ecdad5d9ce485754e6604277ae8811c03e92355a457. Linux CI
+// measured the same 22,786,274 payload bytes. Raise the inventory to 575 and
+// restore the reviewed 65-byte payload allowance:
+// 22,786,274 + 65 = 22,786,339. Retain the proven compressed ceiling; this
+// local pack measured 11,572,706 compressed bytes, under it. Required Linux
+// CI and Release independently measure and admit their exact npm archives.
 export const MAX_PACKED_BYTES = 11_870_066;
-export const MAX_PACKED_ENTRIES = 572;
-export const MAX_PACKED_FILES = 572;
+export const MAX_PACKED_ENTRIES = 575;
+export const MAX_PACKED_FILES = 575;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
 //
@@ -1168,7 +1180,9 @@ export const MAX_PACKED_FILES = 572;
 // 22,689,627 + 65 = 22,689,692.
 // The 0.18.17 measurement restores that same allowance over the new source:
 // 22,769,813 + 65 = 22,769,878.
-export const MAX_UNPACKED_BYTES = 22_764_327;
+// The browser-profile discovery measurement restores it again:
+// 22,786,274 + 65 = 22,786,339.
+export const MAX_UNPACKED_BYTES = 22_786_339;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

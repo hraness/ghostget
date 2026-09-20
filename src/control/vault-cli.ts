@@ -3,12 +3,13 @@ import { parseVaultImport, type VaultImportRequest } from "./vault-input";
 import type { ControlEnvironment } from "./web-policy";
 
 type Output = { readonly stdout: (text: string) => unknown; readonly stderr: (text: string) => unknown };
-export const vaultUsage = `Usage: ghostget vault import-x --id <account-id> --account <1password-account>
+export const vaultUsage = `Usage: ghostget vault import-x --id <account-id> --account <1password-account-name-or-uuid>
          --reference <op://vault/item/field> --subject <numeric-x-user-id>
          --scopes <comma-list> [--expires-at <ISO-date>] [--replace]
 
 Import an X OAuth 2.0 user access token from 1Password on macOS.
 Unlock the 1Password desktop app and enable its app integration first.
+--account is the account name shown at the app's top left, or its UUID.
 Pass the field reference, never the token itself. Ghostget verifies the X user
 before storing a private local token copy. It does not renew imported tokens.
 Scopes must include tweet.read and users.read; declare the token's actual scopes.

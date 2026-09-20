@@ -151,13 +151,19 @@ Ghostget refuses update, disable, or removal while a live invocation, preview, c
 
 ## Configure one stable auth realm
 
-Store a locator, not copied secrets:
+Store a locator, not copied secrets. Discover the profiles on this machine
+instead of guessing a name; `browsers` prints the exact flags for each one:
 
 ```sh
+ghostget browsers --json
 ghostget auth add example-main --cookie-source arc --cookie-profile "Profile 1"
 ghostget auth bind example-main --site example
 ghostget auth list --json
 ```
+
+`auth add` only records the locator. `auth bind` runs the live identity probe
+that proves the profile is signed in, so treat a bind failure as "not signed
+in", not as a malformed command.
 
 Use OAuth only for a reviewed `provider-api` plugin. Use browser cookies or a private profile only for a reviewed `web-session-api` plugin. Use a linked-device store locator for the reviewed Beeper `local-cli` binding; that locator selects the already-authorized Desktop realm, not arbitrary process authority. Never silently switch transports. A profile snapshot requires the source browser to be closed and may require `--browser-executable` plus explicit `--trust-profile-egress` because a path-backed browser has no domain-containment boundary.
 
