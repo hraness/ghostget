@@ -24,7 +24,7 @@ Install [Bun 1.3.14](https://bun.sh/docs/installation) if needed, then install
 Ghostget and read a public page:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.17/hraness-ghostget-0.18.17.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.20/hraness-ghostget-0.18.20.tgz
 ghostget read https://example.com
 ```
 
@@ -45,9 +45,9 @@ always names the latest completed release. Upgrading from Wrench? Read the
 The optional Agent Skill teaches your agent when and how to use Ghostget:
 
 ```sh
-npx skills add hraness/ghostget#v0.18.17
+npx skills add hraness/ghostget#v0.18.20
 # With Bun instead:
-bunx skills add hraness/ghostget#v0.18.17
+bunx skills add hraness/ghostget#v0.18.20
 ```
 
 Start a new agent session, then ask: “Use Ghostget to read https://example.com
@@ -94,6 +94,20 @@ ghostget menubar
 `ghostget capabilities gmail`, to see its operations and required inputs. Add
 `--json` when your agent needs the complete contracts.
 
+To reuse a browser session you are already signed in to, list the profiles on
+this machine first. `ghostget browsers` prints each one with the exact flags
+that select it, so neither you nor your agent has to guess a profile name:
+
+```sh
+ghostget browsers
+ghostget auth add x-main --cookie-source chrome --cookie-profile 'Your Chrome'
+ghostget auth bind x-main --site x
+```
+
+`auth add` records the locator; `auth bind` performs the live identity check
+that proves the profile is signed in. A listed profile is a name you can
+select, not proof of a usable session.
+
 On macOS, the companion can connect X, LinkedIn, and Reddit browser sessions.
 For Gmail, Beeper, WhatsApp, and other services, follow their CLI setup guides;
 Linux account setup also uses the CLI. The
@@ -132,7 +146,7 @@ firewall.
 
 ## Built-in provider catalog
 
-This v0.18.17 source tree supports executable actions for 20 services: Beeper,
+This v0.18.20 source tree supports executable actions for 20 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WhatsApp, X, and YouTube.
@@ -201,7 +215,7 @@ For that same released coordinate, install Ghostget in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.17/hraness-ghostget-0.18.17.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.20/hraness-ghostget-0.18.20.tgz
 ```
 
 ```ts

@@ -38,6 +38,16 @@ function target(value: AutomationCoordinate): ImsgChatCoordinate {
 function conversation(chat: ImsgChatProjection): AutomationConversation {
   return { coordinate: coordinate({ provider: "imessage", chatGuid: chat.guid, service: "iMessage", observedChatRowId: chat.id }), title: chat.title, kind: chat.kind, participants: chat.participants };
 }
+function discoverableConversation(value: AutomationConversation): boolean {
+  if (value.kind !== "single") return true;
+  // Native chat metadata can be valid without meeting the owner's bounded
+  // individual-conversation contract. Omit those rows from this incomplete
+  // discovery page; exact resolution, enrollment and dispatch stay strict.
+  return value.participants.length >= 1 && value.participants.length <= 2
+    && new Set(value.participants).size === value.participants.length
+    && value.participants.every(participant => Buffer.byteLength(participant) <= 512)
+    && (value.title === null || Buffer.byteLength(value.title) <= 512);
+}
 async function exactConversation(session: Session, value: AutomationCoordinate): Promise<AutomationConversation> {
   const selected = target(value);
   const output = await session.run([request("chats.get", { chat_id: selected.observedChatRowId })]);
@@ -127,7 +137,9 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
       const limit = automationInteger(input.limit, 1, 200);
       return run("conversations", signal, async (session, identity) => {
         const result = await session.run([request("chats.list", { limit })]);
-        return { identity, conversations: project.parseChats(result.get("operation")).map(conversation), complete: false };
+        // Validate every native row and coordinate before filtering eligibility.
+        const conversations = project.parseChats(result.get("operation")).map(conversation).filter(discoverableConversation);
+        return { identity, conversations, complete: false };
       });
     },
     resolve(value, signal) { const selected = coordinate(value); return run("resolve", signal, async (session, identity) => ({ identity, conversation: await exactConversation(session, selected) })); },

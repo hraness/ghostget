@@ -2,15 +2,17 @@
 import {
   ensureImsgNativeResources,
   installBundledMessagingRuntime,
+  materializeImsgNativeResources,
   readBundledMessagingAsset,
   verifyImsgNativeResources
-} from "./index-3m752gk1.js";
-import"./index-78368s4p.js";
+} from "./index-j7wb6bva.js";
+import"./index-cf2w5xjy.js";
 import"./index-ab98ss4x.js";
 import"./index-z1w83f81.js";
 export {
   verifyImsgNativeResources,
   readBundledMessagingAsset,
+  materializeImsgNativeResources,
   installBundledMessagingRuntime,
   ensureImsgNativeResources
 };

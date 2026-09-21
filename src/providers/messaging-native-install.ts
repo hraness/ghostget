@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
-import { constants } from "node:fs";
-import { chmod, link, lstat, mkdtemp, open, realpath, rmdir, unlink } from "node:fs/promises";
+import { constants, type Stats } from "node:fs";
+import { chmod, link, lstat, mkdir, mkdtemp, open, readdir, realpath, rmdir, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 import { ensurePrivateStateDirectory } from "../storage";
@@ -39,12 +39,64 @@ export async function readBundledMessagingAsset(asset: Asset): Promise<Buffer> {
 }
 async function verifyResource(path: string, asset: Asset): Promise<void> {
   const expected = MESSAGING_NATIVE_ARTIFACTS[asset], handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-  try { const info = await handle.stat(); if (!info.isFile() || info.nlink !== 1 || info.uid !== process.getuid?.() || (info.mode & 0o777) !== 0o600 || info.size !== expected.bytes || await realpath(path) !== path || sha(await handle.readFile()) !== expected.sha256) throw new Error("Installed iMessage resource differs from its pin"); }
+  try {
+    const info = await handle.stat();
+    if (!info.isFile() || info.nlink !== 1 || info.uid !== process.getuid?.() || (info.mode & 0o7777) !== 0o600 || info.size !== expected.bytes || await realpath(path) !== path) throw new Error("Installed iMessage resource differs from its pin");
+    const bytes = Buffer.alloc(expected.bytes + 1); let offset = 0;
+    while (offset < bytes.length) { const { bytesRead } = await handle.read(bytes, offset, bytes.length - offset, offset); if (bytesRead === 0) break; offset += bytesRead; }
+    const after = await handle.stat(), named = await lstat(path);
+    const unchanged = (other: Stats) => (["dev", "ino", "size", "uid", "gid", "mode", "nlink", "mtimeMs", "ctimeMs"] as const).every(key => info[key] === other[key]);
+    if (offset !== expected.bytes || sha(bytes.subarray(0, offset)) !== expected.sha256 || !unchanged(after) || !unchanged(named)) throw new Error("Installed iMessage resource differs from its pin");
+  }
   finally { await handle.close(); }
 }
 export async function verifyImsgNativeResources(installDirectory: string): Promise<void> {
   for (const [asset, relative] of resources) await verifyResource(join(installDirectory, "PhoneNumberKit_PhoneNumberKit.bundle", relative), asset);
 }
+
+async function operationDirectory(path: string, expected?: Stats): Promise<Stats> {
+  if (!isAbsolute(path) || resolve(path) !== path || Buffer.byteLength(path) > 4096 || /[\u0000-\u001f\u007f]/u.test(path)) throw new Error("iMessage resource operation directory must be a physical private path");
+  const info = await lstat(path);
+  if (!info.isDirectory() || info.isSymbolicLink() || info.uid !== process.getuid?.() || (info.mode & 0o7777) !== 0o700 || await realpath(path) !== path
+    || expected !== undefined && (info.dev !== expected.dev || info.ino !== expected.ino || info.birthtimeMs !== expected.birthtimeMs)) throw new Error("iMessage resource operation directory changed or is unsafe");
+  return info;
+}
+
+/** Runtime custody owns the existing operation root and its cleanup. Populate
+ * only a fresh adjacent bundle from the fixed package pins; never create an
+ * installation directory, repair an existing bundle, or copy caller input. */
+export async function materializeImsgNativeResources(operationRoot: string): Promise<void> {
+  const directories = new Map<string, Stats>([[operationRoot, await operationDirectory(operationRoot)]]);
+  const bundle = join(operationRoot, "PhoneNumberKit_PhoneNumberKit.bundle"), contents = join(bundle, "Contents"), resourceDirectory = join(contents, "Resources");
+  const validateDirectories = async () => { for (const [path, identity] of directories) await operationDirectory(path, identity); };
+  // Admit every source before making any destination. A missing or corrupt
+  // package leaves the operation namespace unchanged.
+  const admitted = await Promise.all(resources.map(async ([asset, relative]) => ({ asset, relative, bytes: await readBundledMessagingAsset(asset) })));
+  for (const path of [bundle, contents, resourceDirectory]) {
+    await validateDirectories();
+    // No recursive mkdir and no EEXIST recovery: even a valid existing bundle
+    // belongs to a different materialization attempt and must be preserved.
+    await mkdir(path, { mode: 0o700 });
+    directories.set(path, await operationDirectory(path));
+  }
+  for (const { asset, relative, bytes } of admitted) {
+    await validateDirectories();
+    const path = join(bundle, relative), file = await open(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
+    try {
+      const info = await file.stat();
+      if (!info.isFile() || info.nlink !== 1 || info.uid !== process.getuid?.() || (info.mode & 0o7777) !== 0o600) throw new Error("iMessage resource output has unsafe metadata");
+      await file.writeFile(bytes); await file.sync();
+    } finally { await file.close(); }
+    await verifyResource(path, asset);
+  }
+  await validateDirectories();
+  for (const [path, names] of [[bundle, ["Contents"]], [contents, ["Info.plist", "Resources"]], [resourceDirectory, ["PhoneNumberMetadata.json", "PrivacyInfo.xcprivacy"]]] as const) {
+    if (JSON.stringify((await readdir(path)).sort()) !== JSON.stringify([...names].sort())) throw new Error("iMessage resource bundle contains unexpected files");
+  }
+  await verifyImsgNativeResources(operationRoot);
+  await validateDirectories();
+}
+
 export async function ensureImsgNativeResources(installDirectory: string, environment: Environment): Promise<void> {
   for (const [asset, relative] of resources) {
     const path = join(installDirectory, "PhoneNumberKit_PhoneNumberKit.bundle", relative), parent = dirname(path);

@@ -77,6 +77,7 @@ export type GhostgetArguments =
       readonly json: boolean;
     }
   | { readonly command: "doctor"; readonly json: boolean }
+  | { readonly command: "browsers"; readonly json: boolean }
   | MessagingArguments
   | { readonly command: "capabilities"; readonly adapterId?: string; readonly json: boolean }
   | { readonly command: "plugin-list"; readonly json: boolean }
@@ -1019,6 +1020,10 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
   if (first === "doctor") {
     const json = simpleJsonOptions(raw.slice(1), "doctor");
     return typeof json === "boolean" ? { ok: true, value: { command: "doctor", json } } : json;
+  }
+  if (first === "browsers") {
+    const json = simpleJsonOptions(raw.slice(1), "browsers");
+    return typeof json === "boolean" ? { ok: true, value: { command: "browsers", json } } : json;
   }
   if (first === "capabilities") {
     const positional = raw.slice(1).filter((argument) => !argument.startsWith("--"));

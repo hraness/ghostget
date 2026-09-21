@@ -1,16 +1,11 @@
 import { spawnHelper, type HelperClient } from "./helper-client";
+import { DEFAULT_BROWSER_CHOICES, browserChoices, type BrowserChoice } from "./browser-choices";
 import type { ControlRequest, ControlResponse, PermissionDecision } from "./protocol";
 import { applyTuiSnapshot, createTuiState, renderTui, renderTuiSnapshot, selectTuiSection, TUI_SECTIONS, tuiRows, tuiText, type TuiChoice, type TuiState } from "./tui-model";
 import { processTerminal, TuiInput, withTuiTerminal, type TuiKey, type TuiTerminal } from "./tui-terminal";
 import type { ControlEnvironment } from "./web-policy";
 
 type Output = { readonly stdout: (text: string) => unknown; readonly stderr: (text: string) => unknown };
-const BROWSERS = [
-  { title: "Safari", browser: "safari", profile: null },
-  { title: "Chrome · Default", browser: "chrome", profile: "Default" },
-  { title: "Chrome · Profile 1", browser: "chrome", profile: "Profile 1" },
-  { title: "Chrome · Profile 2", browser: "chrome", profile: "Profile 2" },
-] as const;
 const USAGE = `Usage: ghostget tui [--account <id>] [--snapshot]
 
 Open local controls for setup, accounts, capabilities, approvals, activity,
@@ -43,7 +38,7 @@ export class TuiController {
   readonly state: TuiState = createTuiState();
   accountId: string | null;
   closed = false;
-  constructor(private readonly helper: HelperClient, accountId: string | null = null, private readonly changed: () => void = () => {}, platform: NodeJS.Platform = process.platform) { this.accountId = accountId; this.state.browserConnections = platform === "darwin"; }
+  constructor(private readonly helper: HelperClient, accountId: string | null = null, private readonly changed: () => void = () => {}, platform: NodeJS.Platform = process.platform, private readonly browsers: readonly BrowserChoice[] = DEFAULT_BROWSER_CHOICES) { this.accountId = accountId; this.state.browserConnections = platform === "darwin"; }
 
   private choices(title: string, choices: readonly TuiChoice[]): void {
     this.state.dialog = { kind: "choices", title, choices: choices.slice(0, 2_000), selected: 0 };
@@ -165,12 +160,12 @@ export class TuiController {
       case "account": this.accountId = parts[1] === "public" ? null : snapshot.accounts[Number(parts[1])]?.id ?? this.accountId; await this.refresh(); break;
       case "provider": {
         const provider = snapshot.connectionProviders[Number(parts[1])];
-        if (provider !== undefined) this.choices(`Connect ${provider.title} · choose browser`, BROWSERS.map((browser, index) => ({ label: browser.title, action: `browser:${parts[1]}:${index}` })));
+        if (provider !== undefined) this.choices(`Connect ${provider.title} · choose browser`, this.browsers.map((browser, index) => ({ label: browser.label, action: `browser:${parts[1]}:${index}` })));
         break;
       }
       case "browser": {
-        const provider = snapshot.connectionProviders[Number(parts[1])]; const browser = BROWSERS[Number(parts[2])];
-        if (provider !== undefined && browser !== undefined) this.state.dialog = { kind: "input", title: `Connect ${provider.title} · ${browser.title}`, value: `${provider.id.replace(/-web$/u, "")}-main`, provider: provider.id, browser: browser.browser, profile: browser.profile };
+        const provider = snapshot.connectionProviders[Number(parts[1])]; const browser = this.browsers[Number(parts[2])];
+        if (provider !== undefined && browser !== undefined) this.state.dialog = { kind: "input", title: `Connect ${provider.title} · ${browser.label}`, value: `${provider.id.replace(/-web$/u, "")}-main`, provider: provider.id, browser: browser.browser, profile: browser.profile };
         break;
       }
       case "permission": {
@@ -281,7 +276,7 @@ export class TuiController {
   }
 }
 
-export async function runInteractiveTui(helper: HelperClient, terminal: TuiTerminal, accountId: string | null = null): Promise<void> {
+export async function runInteractiveTui(helper: HelperClient, terminal: TuiTerminal, accountId: string | null = null, browsers: readonly BrowserChoice[] = DEFAULT_BROWSER_CHOICES): Promise<void> {
   let stopped = false;
   let finish = (): void => {};
   let drawFailed = false;
@@ -300,7 +295,7 @@ export async function runInteractiveTui(helper: HelperClient, terminal: TuiTermi
       terminal.write(`\x1b[H\x1b[2J${screen.text.replace(/\n/gu, "\r\n")}`);
     } catch { drawFailed = true; finish(); }
   };
-  const controller = new TuiController(helper, accountId, draw);
+  const controller = new TuiController(helper, accountId, draw, process.platform, browsers);
   await withTuiTerminal(terminal, async () => {
     const disposers: (() => void)[] = [];
     let escapeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -353,11 +348,11 @@ export async function runTuiCommand(args: readonly string[], environment: Contro
   try {
     helper = (dependencies.helper ?? spawnHelper)(environment);
     if (snapshot) {
-      const controller = new TuiController(helper, accountId);
+      const controller = new TuiController(helper, accountId, () => {}, process.platform, browserChoices(environment));
       await controller.refresh();
       if (!controller.state.fresh) { output.stderr(`${tuiText(controller.state.notice)}\n`); return 1; }
       output.stdout(renderTuiSnapshot(controller.state));
-    } else await runInteractiveTui(helper, terminal, accountId);
+    } else await runInteractiveTui(helper, terminal, accountId, browserChoices(environment));
     return 0;
   } catch {
     output.stderr("Ghostget's terminal controls could not start or stopped unexpectedly. Stop the menu bar with ghostget menubar stop, quit any other controller, then try ghostget tui again.\n");

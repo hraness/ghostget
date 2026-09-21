@@ -1,7 +1,7 @@
 // @bun
 import {
   ensurePrivateStateDirectory
-} from "./index-78368s4p.js";
+} from "./index-cf2w5xjy.js";
 import {
   __require
 } from "./index-z1w83f81.js";
@@ -9,9 +9,9 @@ import {
 // src/providers/messaging-native-install.ts
 import { createHash, randomBytes } from "crypto";
 import { constants } from "fs";
-import { chmod, link, lstat, mkdtemp, open, realpath, rmdir, unlink } from "fs/promises";
+import { chmod, link, lstat, mkdir, mkdtemp, open, readdir, realpath, rmdir, unlink } from "fs/promises";
 import { tmpdir } from "os";
-import { dirname, join } from "path";
+import { dirname, isAbsolute, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { gunzipSync } from "zlib";
 
@@ -95,7 +95,19 @@ async function verifyResource(path, asset) {
   const expected = MESSAGING_NATIVE_ARTIFACTS[asset], handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const info = await handle.stat();
-    if (!info.isFile() || info.nlink !== 1 || info.uid !== process.getuid?.() || (info.mode & 511) !== 384 || info.size !== expected.bytes || await realpath(path) !== path || sha(await handle.readFile()) !== expected.sha256)
+    if (!info.isFile() || info.nlink !== 1 || info.uid !== process.getuid?.() || (info.mode & 4095) !== 384 || info.size !== expected.bytes || await realpath(path) !== path)
+      throw new Error("Installed iMessage resource differs from its pin");
+    const bytes = Buffer.alloc(expected.bytes + 1);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const { bytesRead } = await handle.read(bytes, offset, bytes.length - offset, offset);
+      if (bytesRead === 0)
+        break;
+      offset += bytesRead;
+    }
+    const after = await handle.stat(), named = await lstat(path);
+    const unchanged = (other) => ["dev", "ino", "size", "uid", "gid", "mode", "nlink", "mtimeMs", "ctimeMs"].every((key) => info[key] === other[key]);
+    if (offset !== expected.bytes || sha(bytes.subarray(0, offset)) !== expected.sha256 || !unchanged(after) || !unchanged(named))
       throw new Error("Installed iMessage resource differs from its pin");
   } finally {
     await handle.close();
@@ -104,6 +116,49 @@ async function verifyResource(path, asset) {
 async function verifyImsgNativeResources(installDirectory) {
   for (const [asset, relative] of resources)
     await verifyResource(join(installDirectory, "PhoneNumberKit_PhoneNumberKit.bundle", relative), asset);
+}
+async function operationDirectory(path, expected) {
+  if (!isAbsolute(path) || resolve(path) !== path || Buffer.byteLength(path) > 4096 || /[\u0000-\u001f\u007f]/u.test(path))
+    throw new Error("iMessage resource operation directory must be a physical private path");
+  const info = await lstat(path);
+  if (!info.isDirectory() || info.isSymbolicLink() || info.uid !== process.getuid?.() || (info.mode & 4095) !== 448 || await realpath(path) !== path || expected !== undefined && (info.dev !== expected.dev || info.ino !== expected.ino || info.birthtimeMs !== expected.birthtimeMs))
+    throw new Error("iMessage resource operation directory changed or is unsafe");
+  return info;
+}
+async function materializeImsgNativeResources(operationRoot) {
+  const directories = new Map([[operationRoot, await operationDirectory(operationRoot)]]);
+  const bundle = join(operationRoot, "PhoneNumberKit_PhoneNumberKit.bundle"), contents = join(bundle, "Contents"), resourceDirectory = join(contents, "Resources");
+  const validateDirectories = async () => {
+    for (const [path, identity] of directories)
+      await operationDirectory(path, identity);
+  };
+  const admitted = await Promise.all(resources.map(async ([asset, relative]) => ({ asset, relative, bytes: await readBundledMessagingAsset(asset) })));
+  for (const path of [bundle, contents, resourceDirectory]) {
+    await validateDirectories();
+    await mkdir(path, { mode: 448 });
+    directories.set(path, await operationDirectory(path));
+  }
+  for (const { asset, relative, bytes } of admitted) {
+    await validateDirectories();
+    const path = join(bundle, relative), file = await open(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW | constants.O_NONBLOCK, 384);
+    try {
+      const info = await file.stat();
+      if (!info.isFile() || info.nlink !== 1 || info.uid !== process.getuid?.() || (info.mode & 4095) !== 384)
+        throw new Error("iMessage resource output has unsafe metadata");
+      await file.writeFile(bytes);
+      await file.sync();
+    } finally {
+      await file.close();
+    }
+    await verifyResource(path, asset);
+  }
+  await validateDirectories();
+  for (const [path, names] of [[bundle, ["Contents"]], [contents, ["Info.plist", "Resources"]], [resourceDirectory, ["PhoneNumberMetadata.json", "PrivacyInfo.xcprivacy"]]]) {
+    if (JSON.stringify((await readdir(path)).sort()) !== JSON.stringify([...names].sort()))
+      throw new Error("iMessage resource bundle contains unexpected files");
+  }
+  await verifyImsgNativeResources(operationRoot);
+  await validateDirectories();
 }
 async function ensureImsgNativeResources(installDirectory, environment) {
   for (const [asset, relative] of resources) {
@@ -162,11 +217,11 @@ async function installBundledMessagingRuntime(provider, environment = process.en
       await file.close();
     }
     if (provider === "imessage") {
-      const { installReviewedImsgBinary } = await import("./imessage-direct-install-2tjttg52.js");
+      const { installReviewedImsgBinary } = await import("./imessage-direct-install-ke2gvpf9.js");
       const result = await installReviewedImsgBinary(path, environment);
       return { version: result.version, sha256: result.executableSha256, alreadyPresent: result.alreadyPresent };
     }
-    const { installReviewedWhatsAppAutomationBinary } = await import("./whatsapp-automation-runtime-yzk2g101.js");
+    const { installReviewedWhatsAppAutomationBinary } = await import("./whatsapp-automation-runtime-acsmvk28.js");
     return await installReviewedWhatsAppAutomationBinary(path, environment);
   } finally {
     await unlink(path);
@@ -174,4 +229,4 @@ async function installBundledMessagingRuntime(provider, environment = process.en
   }
 }
 
-export { readBundledMessagingAsset, verifyImsgNativeResources, ensureImsgNativeResources, installBundledMessagingRuntime };
+export { readBundledMessagingAsset, verifyImsgNativeResources, materializeImsgNativeResources, ensureImsgNativeResources, installBundledMessagingRuntime };

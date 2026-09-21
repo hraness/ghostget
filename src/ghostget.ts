@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { browserProfilesResult } from "./browser-profiles-cli";
 import { existsSync, lstatSync } from "node:fs";
 import { join, resolve } from "node:path";
 
@@ -536,7 +537,12 @@ function exactTerminalJson(value: unknown): string {
 }
 
 function print(output: Output, value: unknown, json: boolean): void {
-  output.stdout(json ? safeJson(value) : `${safe(typeof value === "string" ? value : JSON.stringify(value, null, 2))}\n`);
+  if (json) { output.stdout(safeJson(value)); return; }
+  // A serialized structure keeps its line breaks; only a single line is
+  // collapsed. Line sanitization used to flatten `auth list` into one row.
+  output.stdout(typeof value === "string"
+    ? `${safe(value)}\n`
+    : `${sanitizeTerminalText(redactSensitiveText(JSON.stringify(value, null, 2)))}\n`);
 }
 
 function beeperProgressInteger(value: number, minimum: number): number {
@@ -2304,6 +2310,12 @@ async function runCommand(
       output,
       dependencies.providerPluginRegistry,
     );
+  }
+  if (arguments_.command === "browsers") {
+    const { json, text } = browserProfilesResult(environment);
+    if (arguments_.json) output.stdout(safeJson(json));
+    else output.stdout(sanitizeTerminalText(redactSensitiveText(text)));
+    return 0;
   }
   if (arguments_.command === "platforms") {
     if (arguments_.json) {

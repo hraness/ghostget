@@ -7,6 +7,27 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.20
+
+- Keep eligible iMessage conversations discoverable when other native chat rows
+  have missing, repeated, or oversized participant metadata or oversized titles.
+  Discovery stays incomplete; native response and coordinate validation, exact
+  enrollment, and send checks remain unchanged.
+
+## 0.18.19
+
+- Validate unrelated home-directory exclusions through bounded metadata reads.
+  Commands using an explicit private state directory no longer open Desktop
+  or other protected folders during startup. Symlink aliases, broad-root
+  exclusions, and physical state custody remain enforced.
+
+## 0.18.18
+
+- Keep the pinned PhoneNumberKit resource bundle beside each temporary iMessage
+  executable. Account binding and messaging operations can initialize the native
+  transport without crashing after relocation. Resource materialization verifies
+  exact bundled bytes, private ownership, and physical paths before launch.
+
 ## 0.18.17
 
 - Add `ghostget tui`, a keyboard-driven control panel for setup, accounts,

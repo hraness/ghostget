@@ -12,6 +12,7 @@ import {
   mkdtempSync,
   openSync,
   opendirSync,
+  readlinkSync,
   realpathSync,
   rmSync,
   writeFileSync
@@ -794,17 +795,88 @@ function assertSafeStatePath(path, environment = process.env, includeTarget = tr
 function canonicalPotentialPath(value) {
   const suffix = [];
   let ancestor = resolve(value);
-  while (!existsSync(ancestor)) {
-    const parent = dirname(ancestor);
-    if (parent === ancestor)
-      throw new Error(`path has no existing ancestor: ${value}`);
-    suffix.unshift(ancestor.slice(parent.length + (parent.endsWith("/") ? 0 : 1)));
-    ancestor = parent;
+  let stats;
+  for (;; ) {
+    try {
+      stats = lstatSync(ancestor);
+      break;
+    } catch (error) {
+      if (!hasCode(error, "ENOENT"))
+        throw error;
+      const parent = dirname(ancestor);
+      if (parent === ancestor)
+        throw new Error(`path has no existing ancestor: ${value}`);
+      suffix.unshift(ancestor.slice(parent.length + (parent.endsWith("/") ? 0 : 1)));
+      ancestor = parent;
+    }
   }
-  const stats = lstatSync(ancestor);
-  if (stats.isSymbolicLink())
-    return resolve(realpathSync(ancestor), ...suffix);
+  const target = stats.isSymbolicLink() ? lstatSync(canonicalComparisonPath(ancestor)) : stats;
+  if (!target.isDirectory()) {
+    throw new Error("GHOSTGET_STATE_HOME path contains a non-directory ancestor");
+  }
   return resolve(realpathSync(ancestor), ...suffix);
+}
+function canonicalComparisonPath(value) {
+  const absolute = resolve(value);
+  const components = (path) => path.split(process.platform === "win32" ? /[/\\]/u : /\//u).filter(Boolean);
+  let current = parse(absolute).root;
+  let remaining = components(absolute.slice(current.length));
+  let links = 0, steps = 0;
+  while (remaining.length > 0) {
+    if (++steps > 1024 || Buffer.byteLength(current, "utf8") > 4096) {
+      throw new Error("state comparison path exceeds its metadata resolution bound");
+    }
+    const part = remaining.shift();
+    if (part === ".")
+      continue;
+    if (part === "..") {
+      current = dirname(current);
+      continue;
+    }
+    const candidate = join(current, part);
+    let before;
+    try {
+      before = lstatSync(candidate, { bigint: true });
+    } catch (error) {
+      if (!hasCode(error, "ENOENT"))
+        throw error;
+      if (remaining.includes(".."))
+        throw new Error("state comparison path has an unresolved parent");
+      return resolve(candidate, ...remaining);
+    }
+    if (before.isSymbolicLink()) {
+      if (++links > 40)
+        throw new Error("state comparison path has too many symbolic links");
+      const target = readlinkSync(candidate);
+      if (Buffer.byteLength(target, "utf8") > 4096)
+        throw new Error("state comparison link exceeds its metadata resolution bound");
+      const after = lstatSync(candidate, { bigint: true });
+      if (before.dev !== after.dev || before.ino !== after.ino || before.mode !== after.mode || before.size !== after.size || before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs) {
+        throw new Error("state comparison symbolic link changed during inspection");
+      }
+      const targetRoot = isAbsolute(target) ? parse(target).root : "";
+      if (targetRoot !== "")
+        current = targetRoot;
+      remaining = [...components(target.slice(targetRoot.length)), ...remaining];
+      if (remaining.length > 1024)
+        throw new Error("state comparison path exceeds its metadata resolution bound");
+      continue;
+    }
+    if (remaining.length > 0 && !before.isDirectory()) {
+      throw new Error("state comparison path contains a non-directory parent");
+    }
+    current = candidate;
+  }
+  return current;
+}
+function comparisonIdentity(path) {
+  try {
+    return lstatSync(path, { bigint: true });
+  } catch (error) {
+    if (hasCode(error, "ENOENT"))
+      return null;
+    throw error;
+  }
 }
 function ownedByCurrentUser(stats) {
   const currentUid = typeof process.getuid === "function" ? process.getuid() : undefined;
@@ -945,10 +1017,15 @@ function selectStateHome(environment) {
     dirname(home),
     canonicalPotentialPath(tmpdir()),
     canonicalPotentialPath(process.cwd()),
-    ...["Desktop", "Documents", "Downloads", "Library", ".cache", ".config", ".local"].map((name) => canonicalPotentialPath(join(home, name))),
+    ...["Desktop", "Documents", "Downloads", "Library", ".cache", ".config", ".local"].map((name) => canonicalComparisonPath(join(home, name))),
     ...environment.XDG_DATA_HOME === undefined || environment.XDG_DATA_HOME.trim() === "" ? [] : [canonicalPotentialPath(environment.XDG_DATA_HOME)]
   ]);
-  if (forbiddenRoots.has(root) || isWithinPath(ghostgetSourcePackageRoot, root)) {
+  const selectedIdentity = comparisonIdentity(root);
+  const aliasesForbiddenRoot = selectedIdentity !== null && [...forbiddenRoots].some((path) => {
+    const identity = comparisonIdentity(path);
+    return identity !== null && identity.dev === selectedIdentity.dev && identity.ino === selectedIdentity.ino;
+  });
+  if (forbiddenRoots.has(root) || aliasesForbiddenRoot || isWithinPath(ghostgetSourcePackageRoot, root)) {
     throw new Error(`GHOSTGET_STATE_HOME must be a dedicated child directory, not a filesystem, home, temporary, repository, or shared data root: ${root}`);
   }
   return root;
