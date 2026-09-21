@@ -2719,8 +2719,7 @@ async function recoverPinnedAgentBrowserCleanupResourceCore(
             throw new Error("browser cleanup daemon did not accept graceful termination");
           }
         }
-        const ownerDeadline = postClose
-          && postCloseEffectDeadline !== null
+        const ownerDeadline = postCloseEffectDeadline !== null
           ? Math.min(now() + 5_000, postCloseEffectDeadline)
           : now() + 5_000;
         let ownerSleeps = 0;
@@ -2758,8 +2757,7 @@ async function recoverPinnedAgentBrowserCleanupResourceCore(
   if (inactive.state !== "inactive") {
     throw new Error("browser cleanup session remained active");
   }
-  const endpointDeadline = postClose
-    && postCloseEffectDeadline !== null
+  const endpointDeadline = postCloseEffectDeadline !== null
     ? Math.min(now() + 5_000, postCloseEffectDeadline)
     : now() + 5_000;
   let consecutiveRefusals = 0;
@@ -2907,6 +2905,18 @@ export async function refreshBrowserCleanupResourceQuiescence(
   value: BrowserCleanupResourceIdentityV2,
   dependencies: AgentBrowserLifecycleDependencies = {},
 ): Promise<BrowserCleanupResourceIdentityV2> {
+  return refreshBrowserCleanupResourceQuiescenceBounded(
+    value,
+    dependencies,
+    null,
+  );
+}
+
+async function refreshBrowserCleanupResourceQuiescenceBounded(
+  value: BrowserCleanupResourceIdentityV2,
+  dependencies: AgentBrowserLifecycleDependencies,
+  effectDeadline: number | null,
+): Promise<BrowserCleanupResourceIdentityV2> {
   const resource = parseBrowserCleanupResourceIdentity(value);
   if (resource.kind !== "agent-browser-session-v2") {
     throw new Error("browser cleanup resource is not recoverable");
@@ -2918,9 +2928,135 @@ export async function refreshBrowserCleanupResourceQuiescence(
     );
   }
   if (resource.phase === "controlled") {
-    return recoverPinnedAgentBrowserCleanupResource(resource, dependencies);
+    return recoverPinnedAgentBrowserCleanupResourceCore(
+      resource,
+      dependencies,
+      "may-close-browser",
+      effectDeadline,
+    );
   }
   throw new Error("browser cleanup launch intent is not durably controlled");
+}
+
+/**
+ * Cleanup-proof failures that describe a teardown still converging rather
+ * than a violated boundary. Retrying inside the bounded convergence window
+ * re-runs the full proof; identity, boundary, and indeterminate-state errors
+ * stay fail-closed and are never retried.
+ */
+const BROWSER_CLEANUP_PROOF_SETTLING_MESSAGES: ReadonlySet<string> = new Set([
+  "agent-browser graceful close could not be verified",
+  "browser cleanup daemon did not stop after SIGTERM",
+  "browser cleanup daemon quiescence changed",
+  "browser cleanup daemon quiescence is unproved",
+  "browser cleanup endpoint refusal is unproved",
+  "browser cleanup endpoint remained available",
+  "browser cleanup pinned owner is not quiescent",
+  "browser cleanup pinned owner quiescence changed",
+  "browser cleanup post-close convergence deadline expired",
+  "browser cleanup session inspection could not be verified",
+  "browser cleanup session remained active",
+  "browser cleanup session quiescence changed",
+  "browser cleanup session state changed before termination",
+]);
+
+/**
+ * Run one cleanup proof inside the post-close convergence window. A healthy
+ * close can be acknowledged while the pinned daemon, session store, and CDP
+ * endpoint are still settling; each attempt re-proves the whole boundary and
+ * only settling-class failures are retried. The shared deadline caps every
+ * inner command and wait, keeping the whole proof inside the outer
+ * web-session cleanup join.
+ */
+export async function convergeBrowserCleanupResourceProof(
+  value: BrowserCleanupResourceIdentityV2,
+  boundary: "full-roots" | "deletion-boundary",
+  dependencies: AgentBrowserLifecycleDependencies = {},
+): Promise<BrowserCleanupResourceIdentityV2> {
+  const resource = parseBrowserCleanupResourceIdentity(value);
+  if (resource.kind !== "agent-browser-session-v2") {
+    throw new Error("browser cleanup resource is not recoverable");
+  }
+  const sleep = dependencies.sleep
+    ?? ((milliseconds: number) => Bun.sleep(milliseconds));
+  const suppliedNow = dependencies.now ?? (() => performance.now());
+  let lastNow = Number.NEGATIVE_INFINITY;
+  const now = (): number => {
+    const value = suppliedNow();
+    if (!Number.isFinite(value) || value < lastNow) {
+      throw new Error("browser cleanup monotonic clock is invalid");
+    }
+    lastNow = value;
+    return value;
+  };
+  const deadline = now() + BROWSER_POST_CLOSE_CONVERGENCE_TIMEOUT_MS;
+  const retryIntervalMs = 25;
+  const maximumAttempts = Math.ceil(
+    BROWSER_POST_CLOSE_CONVERGENCE_TIMEOUT_MS / retryIntervalMs,
+  ) + 1;
+  const originalCommandTimeoutMs = dependencies.commandTimeoutMs;
+  const boundedDependencies: AgentBrowserLifecycleDependencies = {
+    ...dependencies,
+    now,
+    commandTimeoutMs: () => Math.max(
+      1,
+      Math.min(
+        originalCommandTimeoutMs?.() ?? 10_000,
+        Math.max(0, deadline - now()),
+      ),
+    ),
+  };
+  const assertBoundary = boundary === "deletion-boundary"
+    ? () => assertBrowserDeletionBoundaryRoots(resource)
+    : () => assertBrowserCleanupResourceRootsMatch(resource);
+  const inspectOwner = dependencies.ownerStatus ?? processOwnerStatus;
+  let attempts = 0;
+  let lastSettlingFailure: unknown = new Error(
+    "browser cleanup proof convergence did not start",
+  );
+  while (
+    attempts < maximumAttempts
+    && (attempts === 0 || now() < deadline)
+  ) {
+    attempts += 1;
+    try {
+      return boundary === "deletion-boundary"
+        ? await reproveBrowserCleanupAfterArtifactsRemoval(
+            resource,
+            boundedDependencies,
+          )
+        : await refreshBrowserCleanupResourceQuiescenceBounded(
+            resource,
+            boundedDependencies,
+            deadline,
+          );
+    } catch (error) {
+      let retryable = error
+        instanceof AgentBrowserPostCloseTransitionStillSettlingError
+        || error instanceof AgentBrowserCleanupOwnerStillLiveError
+        || (
+          error instanceof Error
+          && BROWSER_CLEANUP_PROOF_SETTLING_MESSAGES.has(error.message)
+        );
+      if (error instanceof AgentBrowserLifecycleCommandUnavailableError) {
+        assertBoundary();
+        if (resource.phase === "controlled") {
+          const ownerStatus = inspectOwner(resource.control.daemonOwner);
+          if (ownerStatus === "unknown") {
+            throw new Error(
+              "browser cleanup daemon state became indeterminate",
+            );
+          }
+        }
+        retryable = true;
+      }
+      if (!retryable) throw error;
+      lastSettlingFailure = error;
+      if (attempts >= maximumAttempts || now() >= deadline) throw error;
+      await sleep(retryIntervalMs);
+    }
+  }
+  throw lastSettlingFailure;
 }
 
 function assertBrowserDeletionBoundaryRoots(
@@ -2955,6 +3091,78 @@ async function proveControlledDeletionBoundary(
   if (inspectOwner(resource.control.daemonOwner) !== "different-or-dead") {
     throw new Error("browser cleanup pinned owner quiescence changed");
   }
+}
+
+/**
+ * Prove a pinned cleanup resource quiescent when at least one private root is
+ * already absent. An absent socket root takes the daemon session store with
+ * it, so the proof rests on the pinned owner being dead and the pinned CDP
+ * endpoint being unavailable, each observed repeatedly while the surviving
+ * boundary stays unchanged. A prepared resource never bound a daemon, so
+ * twice-observed absent roots alone satisfy it. A replaced root remains a
+ * hard conflict: only exact matches and verified absences are accepted.
+ */
+export async function provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+  value: BrowserCleanupResourceIdentityV2,
+  dependencies: AgentBrowserLifecycleDependencies = {},
+): Promise<BrowserCleanupResourceIdentityV2> {
+  const resource = parseBrowserCleanupResourceIdentity(value);
+  if (resource.kind !== "agent-browser-session-v2") {
+    throw new Error("browser cleanup resource is not recoverable");
+  }
+  const assertAbsentRootBoundary = (): void => {
+    const artifactsStatus = browserCleanupResourceRootStatus(
+      resource,
+      "artifacts",
+    );
+    const socketStatus = browserCleanupResourceRootStatus(resource, "socket");
+    if (artifactsStatus === "conflict" || socketStatus === "conflict") {
+      throw new Error("browser cleanup private root identity changed");
+    }
+    if (artifactsStatus === "match" && socketStatus === "match") {
+      throw new Error("browser cleanup absent-root boundary is not absent");
+    }
+  };
+  assertAbsentRootBoundary();
+  if (resource.phase === "prepared") {
+    assertAbsentRootBoundary();
+    return resource;
+  }
+  if (resource.phase !== "controlled") {
+    throw new Error("browser cleanup resource is not durably controlled");
+  }
+  const inspectOwner = dependencies.ownerStatus ?? processOwnerStatus;
+  const endpointStatus = dependencies.cdpEndpointStatus
+    ?? exactAgentBrowserCdpEndpointStatus;
+  const sleep = dependencies.sleep
+    ?? ((milliseconds: number) => Bun.sleep(milliseconds));
+  for (let observation = 0; observation < 2; observation += 1) {
+    const ownerStatus = inspectOwner(resource.control.daemonOwner);
+    if (ownerStatus === "unknown") {
+      throw new Error("browser cleanup daemon state is indeterminate");
+    }
+    if (ownerStatus !== "different-or-dead") {
+      throw new Error("browser cleanup pinned owner is not quiescent");
+    }
+    assertAbsentRootBoundary();
+    if (observation === 0) await sleep(25);
+  }
+  for (let refusal = 0; refusal < 3; refusal += 1) {
+    const status = await endpointStatus(resource.control.cdpUrl);
+    if (status === "indeterminate") {
+      throw new Error("browser cleanup endpoint state is indeterminate");
+    }
+    if (status !== "unavailable") {
+      throw new Error("browser cleanup endpoint remained available");
+    }
+    assertAbsentRootBoundary();
+    if (refusal < 2) await sleep(25);
+  }
+  if (inspectOwner(resource.control.daemonOwner) !== "different-or-dead") {
+    throw new Error("browser cleanup daemon quiescence changed");
+  }
+  assertAbsentRootBoundary();
+  return resource;
 }
 
 /**
@@ -3573,8 +3781,9 @@ export async function createBrowserSession(
             // This transition must commit while both roots still match. Once
             // durable, recovery may accept an absent root as a crash between
             // its removal and the following journal CAS.
-            await refreshBrowserCleanupResourceQuiescence(
+            await convergeBrowserCleanupResourceProof(
               resource,
+              "full-roots",
               {
                 ...options.dependencies?.cleanupLifecycle,
                 runCommand: runBrowserCommand,
@@ -3612,8 +3821,9 @@ export async function createBrowserSession(
           }
           if (rootName === "artifacts" && publisher !== undefined) {
             try {
-              await reproveBrowserCleanupAfterArtifactsRemoval(
+              await convergeBrowserCleanupResourceProof(
                 resource,
+                "deletion-boundary",
                 {
                   ...options.dependencies?.cleanupLifecycle,
                   runCommand: runBrowserCommand,

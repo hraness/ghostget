@@ -30,6 +30,7 @@ import {
   classifyBrowserProcessGroupProbe,
   cloneBrowserProfile,
   cloneProfile,
+  convergeBrowserCleanupResourceProof,
   createBrowserSession,
   executeBrowserRecipe,
   isolatedEnvironment,
@@ -42,6 +43,7 @@ import {
   parseLastJsonWithExactLaunchHashes,
   PreservedBrowserArtifactsError,
   profilePath,
+  provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence,
   provePreparedAgentBrowserCleanupResourceQuiescent,
   refreshBrowserCleanupResourceQuiescence,
   recoverPinnedAgentBrowserCleanupResource,
@@ -3216,6 +3218,256 @@ describe("browser process isolation helpers", () => {
       )).toContain("ineligible");
     } finally {
       launchIntent.cleanup();
+    }
+  });
+
+  test("proves a pinned controlled session quiescent when a private root is already absent", async () => {
+    const bothAbsent = createPinnedBrowserRecoveryFixture();
+    let ownerReads = 0;
+    let endpointRefusals = 0;
+    rmSync(bothAbsent.socketDirectory, { recursive: true, force: true });
+    rmSync(bothAbsent.artifactsDirectory, { recursive: true, force: true });
+    try {
+      expect(
+        await provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+          bothAbsent.resource,
+          {
+            ownerStatus: (owner) => {
+              expect(owner).toEqual(bothAbsent.owner);
+              ownerReads += 1;
+              return "different-or-dead";
+            },
+            cdpEndpointStatus: (cdpUrl) => {
+              expect(cdpUrl).toBe(bothAbsent.cdpUrl);
+              endpointRefusals += 1;
+              return Promise.resolve("unavailable");
+            },
+            runCommand: () => {
+              throw new Error("absent-root proof probed the session store");
+            },
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          },
+        ),
+      ).toEqual(bothAbsent.resource);
+      expect(ownerReads).toBe(3);
+      expect(endpointRefusals).toBe(3);
+    } finally {
+      bothAbsent.cleanup();
+    }
+
+    const socketAbsent = createPinnedBrowserRecoveryFixture();
+    rmSync(socketAbsent.socketDirectory, { recursive: true, force: true });
+    try {
+      expect(
+        await provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+          socketAbsent.resource,
+          {
+            ownerStatus: () => "different-or-dead",
+            cdpEndpointStatus: () => Promise.resolve("unavailable"),
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          },
+        ),
+      ).toEqual(socketAbsent.resource);
+    } finally {
+      socketAbsent.cleanup();
+    }
+
+    const prepared = createPinnedBrowserRecoveryFixture();
+    const preparedResource = parseBrowserCleanupResourceIdentity({
+      ...prepared.resource,
+      phase: "prepared",
+      control: null,
+    }) as BrowserCleanupResourceIdentityV2;
+    rmSync(prepared.socketDirectory, { recursive: true, force: true });
+    rmSync(prepared.artifactsDirectory, { recursive: true, force: true });
+    try {
+      expect(
+        await provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+          preparedResource,
+        ),
+      ).toEqual(preparedResource);
+    } finally {
+      prepared.cleanup();
+    }
+  });
+
+  test("fails closed when an absent-root proof still has live or conflicting state", async () => {
+    const matching = createPinnedBrowserRecoveryFixture();
+    try {
+      expect(await rejectionMessage(
+        provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+          matching.resource,
+        ),
+      )).toContain("absent-root boundary is not absent");
+    } finally {
+      matching.cleanup();
+    }
+
+    const liveOwner = createPinnedBrowserRecoveryFixture();
+    rmSync(liveOwner.socketDirectory, { recursive: true, force: true });
+    try {
+      expect(await rejectionMessage(
+        provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+          liveOwner.resource,
+          {
+            ownerStatus: () => "exact-live-owner",
+            cdpEndpointStatus: () => Promise.resolve("unavailable"),
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          },
+        ),
+      )).toContain("pinned owner is not quiescent");
+      expect(existsSync(liveOwner.artifactsDirectory)).toBeTrue();
+    } finally {
+      liveOwner.cleanup();
+    }
+
+    const liveEndpoint = createPinnedBrowserRecoveryFixture();
+    rmSync(liveEndpoint.socketDirectory, { recursive: true, force: true });
+    rmSync(liveEndpoint.artifactsDirectory, { recursive: true, force: true });
+    try {
+      expect(await rejectionMessage(
+        provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+          liveEndpoint.resource,
+          {
+            ownerStatus: () => "different-or-dead",
+            cdpEndpointStatus: () => Promise.resolve("available"),
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          },
+        ),
+      )).toContain("endpoint remained available");
+    } finally {
+      liveEndpoint.cleanup();
+    }
+
+    const replaced = createPinnedBrowserRecoveryFixture();
+    rmSync(replaced.socketDirectory, { recursive: true, force: true });
+    rmSync(replaced.artifactsDirectory, { recursive: true, force: true });
+    mkdirSync(replaced.artifactsDirectory, { mode: 0o700 });
+    chmodSync(replaced.artifactsDirectory, 0o700);
+    try {
+      expect(await rejectionMessage(
+        provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+          replaced.resource,
+          {
+            ownerStatus: () => "different-or-dead",
+            cdpEndpointStatus: () => Promise.resolve("unavailable"),
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          },
+        ),
+      )).toContain("private root identity changed");
+    } finally {
+      replaced.cleanup();
+    }
+  });
+
+  test("converges a still-settling cleanup proof inside the shared deadline", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    let sessionReads = 0;
+    let endpointRefusals = 0;
+    try {
+      const recovered = await convergeBrowserCleanupResourceProof(
+        fixture.resource,
+        "full-roots",
+        {
+          runCommand: (command) => {
+            if (command.includes("info")) {
+              sessionReads += 1;
+              return Promise.resolve(fixture.commandResult(
+                fixture.sessionInfo(
+                  sessionReads === 1 ? "closed" : "inactive",
+                ),
+              ));
+            }
+            throw new Error("unexpected convergence command");
+          },
+          ownerStatus: () => "different-or-dead",
+          cdpEndpointStatus: (cdpUrl) => {
+            expect(cdpUrl).toBe(fixture.cdpUrl);
+            endpointRefusals += 1;
+            return Promise.resolve("unavailable");
+          },
+          sleep: () => Promise.resolve(),
+          now: () => 0,
+        },
+      );
+      expect(recovered).toEqual(fixture.resource);
+      expect(sessionReads).toBe(4);
+      expect(endpointRefusals).toBe(3);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test("keeps cleanup proof convergence fail-closed for boundary and identity failures", async () => {
+    const fixture = createPinnedBrowserRecoveryFixture();
+    let sessionReads = 0;
+    try {
+      expect(await rejectionMessage(
+        convergeBrowserCleanupResourceProof(
+          fixture.resource,
+          "full-roots",
+          {
+            runCommand: (command) => {
+              if (command.includes("info")) {
+                sessionReads += 1;
+                return Promise.resolve(fixture.commandResult(
+                  fixture.sessionInfo("inactive"),
+                ));
+              }
+              throw new Error("unexpected convergence command");
+            },
+            ownerStatus: () => "different-or-dead",
+            cdpEndpointStatus: () => Promise.resolve("indeterminate"),
+            sleep: () => Promise.resolve(),
+            now: () => 0,
+          },
+        ),
+      )).toContain("endpoint state is indeterminate");
+      expect(sessionReads).toBe(2);
+      expect(existsSync(fixture.socketDirectory)).toBeTrue();
+      expect(existsSync(fixture.artifactsDirectory)).toBeTrue();
+    } finally {
+      fixture.cleanup();
+    }
+
+    const exhausted = createPinnedBrowserRecoveryFixture();
+    let clock = 0;
+    let exhaustedReads = 0;
+    try {
+      expect(await rejectionMessage(
+        convergeBrowserCleanupResourceProof(
+          exhausted.resource,
+          "full-roots",
+          {
+            runCommand: (command) => {
+              if (command.includes("info")) {
+                exhaustedReads += 1;
+                return Promise.resolve(exhausted.commandResult(
+                  exhausted.sessionInfo("closed"),
+                ));
+              }
+              throw new Error("unexpected convergence command");
+            },
+            ownerStatus: () => "different-or-dead",
+            cdpEndpointStatus: () => Promise.resolve("unavailable"),
+            sleep: () => Promise.resolve(),
+            now: () => {
+              clock += 50;
+              return clock;
+            },
+          },
+        ),
+      )).toContain("session remained active");
+      expect(exhaustedReads).toBeGreaterThan(1);
+      expect(existsSync(exhausted.socketDirectory)).toBeTrue();
+      expect(existsSync(exhausted.artifactsDirectory)).toBeTrue();
+    } finally {
+      exhausted.cleanup();
     }
   });
 
