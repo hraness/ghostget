@@ -8,7 +8,7 @@ import { listInstalledManifests } from "../storage";
 import { GHOSTGET_VERSION } from "../version";
 import { ActivityStore } from "./activity";
 import { bundledInterfaceDigests } from "./bundled-interfaces";
-import { connectionAccountRevision } from "./account-revision";
+import { connectionAccountSnapshotRevisions } from "./account-revision";
 import { ApprovalBroker } from "./approval-broker";
 import { Connections, connectionProviders } from "./connections";
 import { activateInterface, exportInterfaces, interfaceSources, listInterfaces, saveInterface } from "./interfaces";
@@ -33,7 +33,8 @@ export class ControlService {
   private async check(target:ApprovalTarget){return target.kind==="web"?checkWebRequest(target.method,target.url,this.environment).approval:await checkProviderApproval(target,{environment:this.environment,registry:this.registry()});}
   snapshot(accountId:string|null):ControlSnapshot {
     const registry=this.registry();const context={environment:this.environment,registry};
-    const accounts=listAuthSnapshots(this.environment).map(({auth,...stored})=>({id:auth.id,provider:"provider" in auth?auth.provider:null,kind:auth.kind,subject:auth.subject??null,revision:connectionAccountRevision({auth,...stored},this.environment),status:"configured" as const,source:auth.kind==="cookie-source"?auth.source:auth.kind==="browser-profile"?"Browser profile":null,tokenStorage:auth.kind==="oauth-token-file"?(auth.managed===true?"managed-oauth" as const:auth.ownedImport===true?"ghostget-import" as const:"external" as const):null}));
+    const listed=listAuthSnapshots(this.environment);const revisions=connectionAccountSnapshotRevisions(listed,this.environment);
+    const accounts=listed.map(({auth})=>({id:auth.id,provider:"provider" in auth?auth.provider:null,kind:auth.kind,subject:auth.subject??null,revision:revisions.get(auth.id)!,status:"configured" as const,source:auth.kind==="cookie-source"?auth.source:auth.kind==="browser-profile"?"Browser profile":null,tokenStorage:auth.kind==="oauth-token-file"?(auth.managed===true?"managed-oauth" as const:auth.ownedImport===true?"ghostget-import" as const:"external" as const):null}));
     if(accountId!==null&&!accounts.some(account=>account.id===accountId))throw new ControlError("ACCOUNT_UNAVAILABLE","The selected account is no longer configured.");
     const interfaces=listInterfaces(context);const manifests=new Map<string,GhostgetManifest>();
     for(const item of listInstalledManifests(this.environment,registry))if(item.result.ok)manifests.set(item.id,item.result.value);
