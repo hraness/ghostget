@@ -4,7 +4,8 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MessagingAutomationHost } from "./messaging-automation";
-import { MessagingAutomationRpcServer } from "./messaging-automation-server";
+import { discoveryDiagnostic } from "./messaging-automation-diagnostics";
+import { MessagingAutomationRpcServer, AutomationHostRecoveryRequired } from "./messaging-automation-server";
 import { AUTOMATION_ACTION_KINDS } from "./messaging-automation-validation";
 import { MESSAGING_AUTOMATION_PROTOCOL as protocol, type AutomationProviderStatus, type MessagingAutomationProvider } from "./messaging-automation-types";
 import { providerPluginRegistry as registry } from "./provider-plugins";
@@ -129,4 +130,26 @@ test("priority cancel and revoke run during pending submit, while ordinary work 
   expect(await f.request("revoke", { grantId: grant.id })).toMatchObject({ ok: true, result: { revoked: true } });
   expect(await f.request("cancel", { planId: plan.id })).toMatchObject({ ok: true, result: { cancelled: true } });
   expect((await sending).ok).toBe(true); expect(calls).toBe(1);
+});
+
+
+test("discovery serializes only authored markers and preserves recovery precedence", async () => {
+  const f = await fixture();
+  for (const [error, code, expected] of [
+    [new Error("Sensitive raw error /synthetic/private"), "unavailable", null],
+    [new Error("ghostget.discovery.v1:native-chats:process-failed"), "unavailable", null],
+    [Object.assign(new Error("Sensitive forged fields"), { phase: "native-chats", code: "process-failed" }), "unavailable", null],
+    [discoveryDiagnostic(new Error("Sensitive typed cause"), "native-chats", "process-failed"), "unavailable", "ghostget.discovery.v1:native-chats:process-failed"],
+    [discoveryDiagnostic(new AutomationHostRecoveryRequired("Sensitive recovery"), "native-finalization", "cleanup-unverified"), "recovery-required", null],
+  ] as const) {
+    f.host.conversations = async () => { throw error; };
+    const reply = await f.request("conversations", { provider: "whatsapp", limit: 1 });
+    expect(reply.ok).toBe(false); expect(reply.error?.code).toBe(code);
+    expect(JSON.stringify(reply)).not.toContain("Sensitive");
+    if (expected) expect(reply.error?.message).toBe(expected);
+    else expect(reply.error?.message).not.toStartWith("ghostget.discovery.v1:");
+  }
+  const tagged = discoveryDiagnostic(new Error("Sensitive status cause"), "host-status");
+  f.host.providerStatus = async () => { throw tagged; };
+  expect((await f.request("status", { provider: "whatsapp" })).error?.message).not.toStartWith("ghostget.discovery.v1:");
 });

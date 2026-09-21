@@ -7,6 +7,17 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.21
+
+- Keep supported iMessage conversations discoverable when other valid native
+  rows have legacy GUID prefixes or exceed the owner's coordinate byte bound.
+  Parse all native rows and duplicate coordinates before omitting unsupported
+  routes; exact enrollment and sends remain unchanged.
+- Report closed, body-free iMessage discovery failure categories through the
+  private owner protocol. Native execution, response validation, exact identity,
+  permission and cleanup boundaries remain enforced; raw provider diagnostics
+  and conversation details are never included in error responses.
+
 ## 0.18.20
 
 - Keep eligible iMessage conversations discoverable when other native chat rows

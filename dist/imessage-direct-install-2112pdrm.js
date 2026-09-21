@@ -2,7 +2,7 @@
 import {
   ensureImsgNativeResources,
   verifyImsgNativeResources
-} from "./index-j7wb6bva.js";
+} from "./index-15d1p3jf.js";
 import {
   ensurePrivateStateDirectory,
   ghostgetStateHome

@@ -22,6 +22,7 @@ import type {
   LocalCliExecutionOptions,
 } from "../local-cli-execution";
 import { OperationDeadline } from "../operation-deadline";
+import { nativeDiagnostic, type DiscoveryDiagnosticPhase, type DiscoveryDiagnosticCode } from "../messaging-automation-diagnostics";
 import type {
   LocalCliPluginRuntimeStatusV1,
   ProviderPluginReconciliationContextV1,
@@ -147,6 +148,7 @@ class ImsgCleanupUnverifiedError extends Error {
   constructor() {
     super("direct iMessage process cleanup could not be proven; retry remains unsafe");
     this.name = "ImsgCleanupUnverifiedError";
+    nativeDiagnostic(this, "cleanup-unverified");
   }
 }
 
@@ -155,9 +157,11 @@ class ImsgRpcFailure extends Error {
 
   constructor(
     outcome: Exclude<ImsgTransportOutcome, "accepted" | "unknown_post_dispatch"> | null,
+    diagnosticCode: DiscoveryDiagnosticCode = "rpc-rejected",
   ) {
     super("imsg RPC returned a categorical failure");
     this.name = "ImsgRpcFailure";
+    nativeDiagnostic(this, diagnosticCode);
     this.outcome = outcome;
   }
 }
@@ -425,11 +429,11 @@ export async function runImsgRpc(
 ): Promise<ImsgRpcInvocationResult> {
   const isAborted = (): boolean => invocation.signal?.aborted === true;
   if (isAborted()) {
-    throw new Error("imsg RPC invocation was cancelled");
+    throw nativeDiagnostic(new Error("imsg RPC invocation was cancelled"), "cancelled");
   }
   await invocation.beforeSpawn?.();
   if (isAborted()) {
-    throw new Error("imsg RPC invocation was cancelled");
+    throw nativeDiagnostic(new Error("imsg RPC invocation was cancelled"), "cancelled");
   }
   const child = Bun.spawn([invocation.binary, ...invocation.arguments], {
     env: { ...invocation.environment },
@@ -523,9 +527,9 @@ export async function runImsgRpc(
       stdinResult.status === "rejected"
       || stdoutResult.status === "rejected"
       || stderrResult.status === "rejected"
-    ) throw new Error("imsg RPC stream failed within its bound");
-    if (cancelled) throw new Error("imsg RPC invocation was cancelled");
-    if (timedOut) throw new Error("imsg RPC invocation timed out");
+    ) throw nativeDiagnostic(new Error("imsg RPC stream failed within its bound"), "streams-failed");
+    if (cancelled) throw nativeDiagnostic(new Error("imsg RPC invocation was cancelled"), "cancelled");
+    if (timedOut) throw nativeDiagnostic(new Error("imsg RPC invocation timed out"), "deadline");
     return Object.freeze({
       exitCode: exitResult.value,
       stdout: stdoutResult.value,
@@ -550,7 +554,7 @@ function remainingTimeoutMs(
 ): number {
   deadline?.throwIfUnavailable(OPERATION_LABEL);
   const remaining = Math.min(timeoutMs, deadline?.remainingTimeMs() ?? timeoutMs);
-  if (remaining < 1) throw new Error("direct iMessage operation timed out");
+  if (remaining < 1) throw nativeDiagnostic(new Error("direct iMessage operation timed out"), "deadline");
   return remaining;
 }
 
@@ -570,12 +574,13 @@ function rpcInput(requests: readonly ImsgRpcRequest[]): string {
 function parseRpcError(value: unknown): never {
   const error = record(value, "imsg RPC error");
   exactKeys(error, ["code", "message"], ["data"], "imsg RPC error");
-  integer(error.code, "imsg RPC error.code", -32_768, 32_767);
+  const code = integer(error.code, "imsg RPC error.code", -32_768, 32_767);
+  const diagnosticCode = code === -32602 ? "rpc-invalid-params" : code === -32601 ? "rpc-method-unavailable" : "rpc-rejected";
   boundedImsgString(error.message, "imsg RPC error.message", 4_096, {
     allowEmpty: true,
     allowNewlines: true,
   });
-  if (error.data === undefined) throw new ImsgRpcFailure(null);
+  if (error.data === undefined) throw new ImsgRpcFailure(null, diagnosticCode);
   const data = record(error.data, "imsg RPC error.data");
   exactKeys(
     data,
@@ -592,8 +597,8 @@ function parseRpcError(value: unknown): never {
     disposition !== "not_started"
     && disposition !== "may_have_completed"
     && disposition !== "still_in_flight"
-  ) throw new ImsgRpcFailure(null);
-  if (typeof data.retry_safe !== "boolean") throw new ImsgRpcFailure(null);
+  ) throw new ImsgRpcFailure(null, diagnosticCode);
+  if (typeof data.retry_safe !== "boolean") throw new ImsgRpcFailure(null, diagnosticCode);
   boundedImsgString(data.transport, "imsg RPC error.data.transport", 64);
   boundedImsgString(data.operation, "imsg RPC error.data.operation", 128);
   boundedImsgString(data.detail, "imsg RPC error.data.detail", 8_192, {
@@ -603,8 +608,8 @@ function parseRpcError(value: unknown): never {
   if (
     (disposition === "not_started" && data.retry_safe !== true)
     || (disposition !== "not_started" && data.retry_safe !== false)
-  ) throw new ImsgRpcFailure(null);
-  throw new ImsgRpcFailure(disposition);
+  ) throw new ImsgRpcFailure(null, diagnosticCode);
+  throw new ImsgRpcFailure(disposition, diagnosticCode);
 }
 
 function parseRpcResponses(
@@ -612,11 +617,11 @@ function parseRpcResponses(
   requests: readonly ImsgRpcRequest[],
 ): ReadonlyMap<string, unknown> {
   if (result.exitCode !== 0 || result.stderr.trim().length !== 0) {
-    throw new Error("imsg RPC process failed before reviewed output was obtained");
+    throw nativeDiagnostic(new Error("imsg RPC process failed before reviewed output was obtained"), result.exitCode !== 0 ? "process-failed" : "process-stderr");
   }
   const lines = result.stdout.split("\n").filter((line) => line.length > 0);
   if (lines.length !== requests.length) {
-    throw new Error("imsg RPC returned an unexpected response count");
+    throw nativeDiagnostic(new Error("imsg RPC returned an unexpected response count"), "response-invalid");
   }
   const expected = new Set(requests.map((request) => request.id));
   const responses = new Map<string, unknown>();
@@ -625,7 +630,7 @@ function parseRpcResponses(
     try {
       parsed = JSON.parse(line) as unknown;
     } catch {
-      throw new Error("imsg RPC returned malformed JSON");
+      throw nativeDiagnostic(new Error("imsg RPC returned malformed JSON"), "response-invalid");
     }
     const envelope = record(parsed, `imsg RPC response ${index}`);
     const hasResult = Object.hasOwn(envelope, "result");
@@ -637,11 +642,11 @@ function parseRpcResponses(
       `imsg RPC response ${index}`,
     );
     if (hasResult === hasError || envelope.jsonrpc !== "2.0") {
-      throw new Error("imsg RPC returned an invalid response envelope");
+      throw nativeDiagnostic(new Error("imsg RPC returned an invalid response envelope"), "response-invalid");
     }
     const id = boundedImsgString(envelope.id, `imsg RPC response ${index}.id`, 128);
     if (!expected.has(id) || responses.has(id)) {
-      throw new Error("imsg RPC returned an unbound response ID");
+      throw nativeDiagnostic(new Error("imsg RPC returned an unbound response ID"), "response-invalid");
     }
     if (hasError) parseRpcError(envelope.error);
     responses.set(id, envelope.result);
@@ -665,7 +670,7 @@ function parseStatus(value: unknown): string {
   }
   const database = record(source.database, "imsg status.database");
   exactKeys(database, ["ready"], ["path", "features", "error"], "imsg status.database");
-  if (database.ready !== true) throw new Error("Messages database is not currently readable");
+  if (database.ready !== true) throw nativeDiagnostic(new Error("Messages database is not currently readable"), "database-unreadable");
   const databasePath = nullableString(database.path, "imsg status.database.path", 4_096);
   if (databasePath === null || databasePath.length === 0 || !isAbsolute(databasePath)) {
     throw new Error("imsg status omitted its absolute Messages database path");
@@ -1071,6 +1076,7 @@ async function withRuntime<T>(
       beforeSpawn?: () => Promise<void>,
     ) => Promise<ReadonlyMap<string, unknown>>;
   }>) => Promise<T>,
+  discoveryPhase?: (phase: DiscoveryDiagnosticPhase) => void,
 ): Promise<T> {
   if (durableCleanupAdmissionRequired && publishCleanupResource === undefined) {
     const error = new ImsgCleanupUnverifiedError();
@@ -1140,18 +1146,23 @@ async function withRuntime<T>(
         ...(beforeSpawn === undefined ? {} : { beforeSpawn }),
         ...(afterSpawn === undefined ? {} : { afterSpawn }),
       }));
-      return parseRpcResponses(result, requests);
+      try { return parseRpcResponses(result, requests); }
+      catch (error) { throw error instanceof Error ? nativeDiagnostic(error, "response-invalid") : error; }
     };
+    discoveryPhase?.("native-status");
     const status = await run([imsgStatusRequest()], undefined);
-    const reportedDatabasePath = parseStatus(status.get("status"));
+    let reportedDatabasePath: string;
+    try { reportedDatabasePath = parseStatus(status.get("status")); }
+    catch (error) { throw error instanceof Error ? nativeDiagnostic(error, "schema-invalid") : error; }
     if (
       await realpath(reportedDatabasePath) !== reportedDatabasePath
       || reportedDatabasePath !== store.databasePath
-    ) throw new Error("imsg status reported a different Messages database than the bound subject");
+    ) throw nativeDiagnostic(new Error("imsg status reported a different Messages database than the bound subject"), "identity-changed");
     const result = await operation(Object.freeze({ subject, sourceGeneration, status: status.get("status"), operationRoot, run }));
+    discoveryPhase?.("native-finalization");
     const after = await lstat(store.databasePath, { bigint: true });
     if (after.dev !== databaseIdentity.dev || after.ino !== databaseIdentity.ino || after.birthtimeNs !== databaseIdentity.birthtimeNs || after.isSymbolicLink()) {
-      throw new Error("Messages database generation changed during the operation");
+      throw nativeDiagnostic(new Error("Messages database generation changed during the operation"), "identity-changed");
     }
     return result;
   } finally {
@@ -1188,13 +1199,13 @@ async function withRuntime<T>(
  * Callers build only reviewed semantic requests; this is never an agent tool. */
 export async function withImsgAutomationRuntime<T>(
   auth: GhostgetAuth,
-  options: LocalCliExecutionOptions & Readonly<{ dependencies?: ImsgDirectRuntimeDependencies }>,
+  options: LocalCliExecutionOptions & Readonly<{ dependencies?: ImsgDirectRuntimeDependencies; discoveryPhase?: (phase: DiscoveryDiagnosticPhase) => void }>,
   operation: Parameters<typeof withRuntime<T>>[9],
 ): Promise<T> {
   if (options.registerCleanupBarrier === undefined) throw new Error("Messaging automation requires durable provider cleanup custody");
   return startProviderPluginCleanupTrackedOperation(options.registerCleanupBarrier, (publish, cleanup) => withRuntime(
     requireImsgAuth(auth), 30_000, 10 * 1024 * 1024, options.dependencies,
-    options.environment ?? process.env, options.operationDeadline, publish, cleanup, true, operation,
+    options.environment ?? process.env, options.operationDeadline, publish, cleanup, true, operation, options.discoveryPhase,
   ));
 }
 

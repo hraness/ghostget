@@ -217,11 +217,11 @@ async function installBundledMessagingRuntime(provider, environment = process.en
       await file.close();
     }
     if (provider === "imessage") {
-      const { installReviewedImsgBinary } = await import("./imessage-direct-install-ke2gvpf9.js");
+      const { installReviewedImsgBinary } = await import("./imessage-direct-install-2112pdrm.js");
       const result = await installReviewedImsgBinary(path, environment);
       return { version: result.version, sha256: result.executableSha256, alreadyPresent: result.alreadyPresent };
     }
-    const { installReviewedWhatsAppAutomationBinary } = await import("./whatsapp-automation-runtime-acsmvk28.js");
+    const { installReviewedWhatsAppAutomationBinary } = await import("./whatsapp-automation-runtime-5q24a7dd.js");
     return await installReviewedWhatsAppAutomationBinary(path, environment);
   } finally {
     await unlink(path);

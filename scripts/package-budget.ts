@@ -1,3 +1,26 @@
+// Ghostget 0.18.21 local coordinate repair follows the observed closed
+// native-projection/coordinate-invalid failure. Whole native parsing remains
+// strict; discovery omits only unsupported GUID prefix/owner-byte-bound rows.
+// npm 11.16.0 measures 11,729,759 compressed / 22,815,337 payload bytes in the
+// same 576-file inventory. All source bytes match: provider +514, changelog
+// +288, owner protocol docs +629 = +1,431; every other archive file is unchanged.
+// SHA-256 dc4e1816acc67c990554a71c9e59e00ebed2eee5f13dedb1d583073d934e2e3a.
+// Preserve compressed/file ceilings and 22,815,337 + 65 = 22,815,402 payload.
+// Local diagnostic verification is separate from required source/release gates.
+//
+// Ghostget 0.18.21 development discovery diagnostics add one closed metadata
+// module and preserve the existing native/host failure behavior. The reviewed
+// local npm 11.16.0 / Node 24.18.1 darwin arm64 archive measures 11,729,305
+// compressed bytes, 22,813,906 payload bytes and exactly 576 files. The entire
+// inventory equals source: new module +2,370, runtime +1,536, provider +1,289,
+// host +645, server +179, package allowlist +47, changelog +315, generated SDK
+// chunks +5,557 = +11,938 bytes over 0.18.20. Version/import chunk renames are
+// equal-size. Archive SHA-256:
+// 34d071b68b74dbfb1d9332b4c1fc0f2f6d5d786578e89143cf129582539f6b71.
+// Preserve the compressed ceiling and 65-byte payload allowance:
+// 22,813,906 + 65 = 22,813,971. This measurement is development-only; current
+// source CI and canonical release admission are still required for publication.
+//
 // Ghostget 0.18.20 filters only valid native discovery rows that exceed the
 // owner's existing conversation metadata bounds. npm 11.16.0 / Node 24.18.1
 // with zlib 1.3.1-e00f703 on darwin arm64 measured 11,726,065 compressed bytes,
@@ -1172,8 +1195,8 @@
 // local pack measured 11,572,706 compressed bytes, under it. Required Linux
 // CI and Release independently measure and admit their exact npm archives.
 export const MAX_PACKED_BYTES = 11_870_066;
-export const MAX_PACKED_ENTRIES = 575;
-export const MAX_PACKED_FILES = 575;
+export const MAX_PACKED_ENTRIES = 576;
+export const MAX_PACKED_FILES = 576;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
 //
@@ -1211,7 +1234,7 @@ export const MAX_PACKED_FILES = 575;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 22_802_033;
+export const MAX_UNPACKED_BYTES = 22_815_402;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

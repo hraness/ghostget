@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { createImsgAutomationProvider, type ImsgAutomationOperation } from "./imessage-automation";
 import type { AutomationAction, AutomationCoordinate } from "../messaging-automation-types";
 import { fc, propertyParameters } from "../test-support";
+import { discoveryDiagnosticMessage, nativeDiagnostic, type DiscoveryDiagnosticCode } from "../messaging-automation-diagnostics";
 
 const roots: string[] = [];
 afterEach(() => { for (const path of roots.splice(0)) rmSync(path, { recursive: true, force: true }); });
@@ -17,7 +18,7 @@ function fixture() {
   const database = join(directory, "chat.db"); writeFileSync(database, "synthetic", { mode: 0o600 });
   const calls: { method: string; params: Record<string, unknown> }[] = [];
   const admissions: ImsgAutomationOperation[] = []; const barriers: Promise<void>[] = [];
-  const state = { bridge: true, malformed: false, linkQueued: false, linkConflict: false, accountIdentity: "a".repeat(64), foreign: false, replace: false, anchorChanged: false, authorizationError: false, revokeOnAsset: false, bytes: Buffer.from("test attachment"), hash: "", chats: [chat] as Record<string, unknown>[], exactChat: chat as Record<string, unknown> };
+  const state = { faultMethod: "chats.list", fault: "", databaseReady: true, revokeOnChats: false, changeIdentityOnChats: false, injectedCode: null as DiscoveryDiagnosticCode | null, bridge: true, malformed: false, linkQueued: false, linkConflict: false, accountIdentity: "a".repeat(64), foreign: false, replace: false, anchorChanged: false, authorizationError: false, revokeOnAsset: false, bytes: Buffer.from("test attachment"), hash: "", chats: [chat] as Record<string, unknown>[], exactChat: chat as Record<string, unknown> };
   state.hash = createHash("sha256").update(state.bytes).digest("hex");
   const readMethods = ["status", "chats.list", "chats.get", "messages.history", "messages.after", "send", "message.send_status"];
   const provider = createImsgAutomationProvider({
@@ -31,9 +32,20 @@ function fixture() {
         const replies = [];
         for (const line of invocation.stdin.trim().split("\n")) {
           const request = JSON.parse(line) as { id: string; method: string; params: Record<string, unknown> }; calls.push(request);
+          if (request.method === state.faultMethod) {
+            if (state.injectedCode) throw nativeDiagnostic(new Error("Sensitive fixture path /synthetic/private and content"), state.injectedCode);
+            if (state.fault === "exit") return { exitCode: 1, stdout: "", stderr: "Sensitive native diagnostic" };
+            if (state.fault === "stderr") return { exitCode: 0, stdout: "", stderr: "Sensitive native diagnostic" };
+            if (state.fault === "json") return { exitCode: 0, stdout: "not-json\n", stderr: "" };
+            if (state.fault.startsWith("rpc")) return { exitCode: 0, stdout: JSON.stringify({ jsonrpc: "2.0", id: request.id, error: { code: state.fault === "rpc-params" ? -32602 : state.fault === "rpc-method" ? -32601 : -32000, message: "Sensitive provider error" } }) + "\n", stderr: "" };
+          }
           let result: unknown;
-          if (request.method === "status") { const methods = [...readMethods, ...(state.bridge ? ["tapback", "send.sticker", "send.rich", "poll.send"] : [])]; result = { version: "0.14.1", protocol_version: 1, database: { ready: true, path: database }, bridge: { ready: state.bridge }, contacts: { available: true }, methods, supported_methods: methods }; }
-          else if (request.method === "chats.list") result = { chats: state.chats };
+          if (request.method === "status") { const methods = [...readMethods, ...(state.bridge ? ["tapback", "send.sticker", "send.rich", "poll.send"] : [])]; result = { version: "0.14.1", protocol_version: 1, database: { ready: state.databaseReady, path: database }, bridge: { ready: state.bridge }, contacts: { available: true }, methods, supported_methods: methods }; }
+          else if (request.method === "chats.list") {
+            result = { chats: state.chats };
+            if (state.revokeOnChats) state.authorizationError = true;
+            if (state.changeIdentityOnChats) state.accountIdentity = "c".repeat(64);
+          }
           else if (request.method === "chats.get") result = { chat: { ...state.exactChat, ...(state.foreign ? { guid: "iMessage;-;another@example.test" } : {}) } };
           else if (request.method === "messages.history") result = { messages: [rawMessage()] };
           else if (request.method === "messages.after") {
@@ -86,7 +98,7 @@ test("iMessage discovery preserves eligible rows when native single-chat metadat
 });
 test("discovery still rejects malformed native rows and coordinates even when they are ineligible", async () => {
   const f = fixture();
-  for (const fields of [{ unexpected: true }, { participants: [7] }, { guid: "SMS;-;fixture@example.test" }, { guid: `iMessage;-;${"a".repeat(1024)}` }]) {
+  for (const fields of [{ unexpected: true }, { participants: [7] }, { id: 0 }, { guid: "iMessage;\u0000invalid" }, { guid: `iMessage;-;${"a".repeat(2048)}` }]) {
     f.state.chats = [chat, { ...chat, id: 8, guid: "iMessage;-;ineligible@example.test", participants: [], ...fields }];
     await expect(f.provider.conversations({ limit: 10 })).rejects.toThrow();
   }
@@ -166,4 +178,77 @@ test("permission revoked during attachment admission prevents the provider send"
   const f = fixture(); f.state.revokeOnAsset = true;
   expect((await f.send({ kind: "attachment", assetId: "asset-1", name: "fixture.txt", mimeType: "text/plain" })).state).toBe("not-started");
   expect(f.calls.filter(call => call.method === "send")).toHaveLength(0); await f.close();
+});
+
+
+test("discovery reports authored native causes without native output or private values", async () => {
+  for (const [fault, code] of [["exit", "process-failed"], ["stderr", "process-stderr"], ["json", "response-invalid"], ["rpc-params", "rpc-invalid-params"], ["rpc-method", "rpc-method-unavailable"], ["rpc-other", "rpc-rejected"]] as const) {
+    const f = fixture(); f.state.fault = fault;
+    const error = await f.provider.conversations({ limit: 10 }).catch(error => error);
+    expect(discoveryDiagnosticMessage(error)).toBe(`ghostget.discovery.v1:native-chats:${code}`);
+    expect(error.message).not.toContain("Sensitive");
+    expect(f.calls.map(call => call.method)).toEqual(["status", "chats.list"]);
+    await f.close();
+  }
+  for (const code of ["deadline", "cancelled", "streams-failed", "cleanup-unverified"] as const) {
+    const f = fixture(); f.state.injectedCode = code;
+    const error = await f.provider.conversations({ limit: 10 }).catch(error => error);
+    expect(discoveryDiagnosticMessage(error)).toBe(`ghostget.discovery.v1:native-chats:${code}`);
+    expect(discoveryDiagnosticMessage(error)).not.toContain("Sensitive");
+    await f.close();
+  }
+});
+
+test("discovery separates native status, strict schema, coordinate and reauthorization failures", async () => {
+  const cases = [
+    { set: (f: ReturnType<typeof fixture>) => { f.state.authorizationError = true; }, marker: "admission:failed", calls: [] },
+    { set: (f: ReturnType<typeof fixture>) => { f.state.databaseReady = false; }, marker: "native-status:database-unreadable", calls: ["status"] },
+    { set: (f: ReturnType<typeof fixture>) => { f.state.faultMethod = "status"; f.state.fault = "exit"; }, marker: "native-status:process-failed", calls: ["status"] },
+    { set: (f: ReturnType<typeof fixture>) => { f.state.chats = [{ ...chat, unexpected: "Sensitive fixture" }]; }, marker: "native-projection:schema-invalid", calls: ["status", "chats.list"] },
+    { set: (f: ReturnType<typeof fixture>) => { f.state.revokeOnChats = true; }, marker: "reauthorization:failed", calls: ["status", "chats.list"] },
+    { set: (f: ReturnType<typeof fixture>) => { f.state.changeIdentityOnChats = true; }, marker: "reauthorization:identity-changed", calls: ["status", "chats.list"] },
+  ];
+  for (const value of cases) {
+    const f = fixture(); value.set(f);
+    const error = await f.provider.conversations({ limit: 10 }).catch(error => error);
+    expect(discoveryDiagnosticMessage(error)).toBe(`ghostget.discovery.v1:${value.marker}`);
+    expect(f.calls.map(call => call.method)).toEqual(value.calls);
+    await f.close();
+  }
+});
+
+
+test("valid native legacy and oversized GUIDs cannot poison supported discovery or acquire a route", async () => {
+  const f = fixture();
+  const maximum = "iMessage;".padEnd(1024, "x");
+  const unsupported = ["any;-;fixture@example.test", "SMS;-;fixture@example.test", "iMessage;".padEnd(1025, "x"), "iMessage;" + "é".repeat(1019)];
+  f.state.chats = [chat, ...unsupported.map((guid, index) => ({ ...chat, id: index + 8, guid })), { ...chat, id: 12, guid: maximum }];
+  const result = await f.provider.conversations({ limit: 10 });
+  expect(result.complete).toBe(false);
+  expect(result.conversations.map(row => row.coordinate)).toEqual([target, { ...target, chatGuid: maximum, observedChatRowId: 12 }]);
+  const priorAdmissions = f.admissions.length;
+  for (const guid of unsupported) expect(() => f.provider.resolve({ ...target, chatGuid: guid })).toThrow();
+  expect(f.admissions).toHaveLength(priorAdmissions);
+  expect(f.calls.map(call => call.method)).toEqual(["status", "chats.list"]);
+  f.state.chats = unsupported.map((guid, index) => ({ ...chat, id: index + 8, guid }));
+  expect((await f.provider.conversations({ limit: 10 })).conversations).toHaveLength(0);
+  f.state.exactChat = { ...chat, guid: unsupported[0] };
+  await expect(f.provider.resolve(target)).rejects.toThrow("exact");
+  expect((await f.send({ kind: "text", text: "Synthetic never sent" })).state).toBe("not-started");
+  expect(f.calls.some(call => call.method === "send")).toBe(false);
+  await f.close();
+});
+
+test("unsupported discovery coordinates still undergo full native schema and duplicate validation", async () => {
+  const f = fixture();
+  for (const extra of [{ unexpected: true }, { participants: [7] }, { id: 0 }, { name: "invalid\u0000name" }]) {
+    f.state.chats = [chat, { ...chat, id: 8, guid: "any;-;fixture@example.test", ...extra }];
+    const error = await f.provider.conversations({ limit: 10 }).catch(error => error);
+    expect(discoveryDiagnosticMessage(error)).toBe("ghostget.discovery.v1:native-projection:schema-invalid");
+  }
+  const legacy = { ...chat, id: 8, guid: "any;-;fixture@example.test" };
+  f.state.chats = [chat, legacy, legacy];
+  await expect(f.provider.conversations({ limit: 10 })).rejects.toThrow("repeated an exact chat coordinate");
+  expect(f.calls.every(call => call.method === "status" || call.method === "chats.list")).toBe(true);
+  await f.close();
 });

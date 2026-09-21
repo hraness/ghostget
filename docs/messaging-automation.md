@@ -51,6 +51,15 @@ ASCII identifiers of at most 64 bytes. Successful responses contain
 provider state paths, or message contents. Clients must correlate IDs: priority
 responses can arrive before a pending ordinary response.
 
+iMessage discovery validates the entire native response before omitting rows
+whose GUID is outside the owner's exact `iMessage;` prefix and 1024-byte bound,
+or whose individual-conversation metadata exceeds its existing bounds. The page
+remains incomplete; no GUID is rewritten, and enrollment and sending still
+revalidate the exact native route. A discovery failure may carry the fixed
+`ghostget.discovery.v1:<phase>:<code>` marker in `error.message` with the existing
+`unavailable` code. These closed diagnostic categories contain no row indexes,
+coordinates or provider error text; unknown failures keep the generic message.
+
 | Method | Exact params | Result |
 | --- | --- | --- |
 | initialize | providers: 1–3 `{provider,authId}`, distinct networks | `{initialized:true}` |

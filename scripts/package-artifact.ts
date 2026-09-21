@@ -43,6 +43,7 @@ const requiredPaths = Object.freeze([
   "src/messaging.ts",
   "src/messaging-automation-api.ts",
   "src/messaging-automation-descriptors.ts",
+  "src/messaging-automation-diagnostics.ts",
   "src/messaging-automation-types.ts",
   "src/messaging-automation-validation.ts",
   "src/messaging-automation.ts",
