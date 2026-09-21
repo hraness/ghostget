@@ -134,6 +134,10 @@ export const imessageDirectPlugin = defineProviderPlugin({
       url: new URL("./vendor/0003-feat-rpc-add-no-fetch-rich-cards.patch", import.meta.url),
     }),
     Object.freeze({
+      label: "vendor/exact-chat-service-guard.patch",
+      url: new URL("./vendor/0004-fix-enforce-exact-chat-service-before-dispatch.patch", import.meta.url),
+    }),
+    Object.freeze({
       label: "vendor/provenance.json",
       url: new URL("./vendor/provenance.json", import.meta.url),
     }),

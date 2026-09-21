@@ -377,6 +377,7 @@
     "src/plugins/imessage-direct/vendor/0001-fix-keep-AppleScript-send-payloads-out-of-child-argv.patch",
     "src/plugins/imessage-direct/vendor/0002-feat-rpc-add-exact-chat-lookup.patch",
     "src/plugins/imessage-direct/vendor/0003-feat-rpc-add-no-fetch-rich-cards.patch",
+    "src/plugins/imessage-direct/vendor/0004-fix-enforce-exact-chat-service-before-dispatch.patch",
     "src/plugins/imessage-direct/vendor/provenance.json",
     "src/plugins/linkedin-official/plugin.ts",
     "src/plugins/linkedin-web/plugin.ts",

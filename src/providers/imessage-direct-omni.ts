@@ -3,6 +3,7 @@ import { types as nodeTypes } from "node:util";
 import type { OperationInput } from "../model";
 import { OmniMaterializerDriftError } from "../omni-model";
 import type {
+  OmniAttachmentV1,
   OmniParticipantV1,
   ProviderConversationV1,
   ProviderMaterializedPageV1,
@@ -93,6 +94,17 @@ function integer(value: unknown, path: string, minimum = 0): number {
 function boolean(value: unknown, path: string): boolean {
   if (typeof value !== "boolean") return drift(path, "must be boolean");
   return value;
+}
+
+function attachmentKind(mimeType: string | null): OmniAttachmentV1["kind"] {
+  if (mimeType === null) return "unknown";
+  const lower = mimeType.toLowerCase();
+  if (lower.startsWith("image/")) return "image";
+  if (lower.startsWith("audio/")) return "audio";
+  if (lower.startsWith("video/")) return "video";
+  if (lower === "application/vnd.apple.sticker") return "sticker";
+  if (lower === "text/uri-list" || lower === "text/html") return "link";
+  return "document";
 }
 
 function timestamp(value: unknown, path: string): string {
@@ -218,7 +230,7 @@ function message(value: unknown, path: string, target: ImsgChatCoordinate): Prov
     "text",
     "createdAt",
     "replyToGuid",
-  ], [], path);
+  ], ["attachments"], path);
   integer(source.id, `${path}.id`, 1);
   const guid = string(source.guid, `${path}.guid`, 2_048);
   if (
@@ -231,6 +243,19 @@ function message(value: unknown, path: string, target: ImsgChatCoordinate): Prov
   const body = string(source.text, `${path}.text`, 4 * 1024 * 1024, true);
   const orderedAt = timestamp(source.createdAt, `${path}.createdAt`);
   const replyToGuid = nullableString(source.replyToGuid, `${path}.replyToGuid`, 2_048);
+  const attachments = source.attachments === undefined
+    ? Object.freeze([])
+    : Object.freeze(array(source.attachments, `${path}.attachments`, 20).map((item, index) => {
+        const attachmentPath = `${path}.attachments[${index}]`;
+        const metadata = record(item, attachmentPath);
+        exactKeys(metadata, ["name", "mimeType", "sizeBytes"], [], attachmentPath);
+        const name = nullableString(metadata.name, `${attachmentPath}.name`, 512);
+        const mimeType = nullableString(metadata.mimeType, `${attachmentPath}.mimeType`, 256);
+        const sizeBytes = metadata.sizeBytes === null
+          ? null
+          : integer(metadata.sizeBytes, `${attachmentPath}.sizeBytes`);
+        return Object.freeze({ kind: attachmentKind(mimeType), name, mimeType, sizeBytes });
+      }));
   return Object.freeze({
     kind: "message",
     providerId: imsgMessageProviderId(guid),
@@ -256,7 +281,7 @@ function message(value: unknown, path: string, target: ImsgChatCoordinate): Prov
       ? null
       : imsgMessageProviderId(replyToGuid),
     state: "active",
-    attachments: Object.freeze([]),
+    attachments,
   });
 }
 

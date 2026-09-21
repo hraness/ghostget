@@ -19,6 +19,7 @@ import { providerPluginRegistry } from "./provider-plugins";
 import {
   IMSG_DIRECT_OPERATION_NAMES,
   IMSG_EXACT_CHAT_PATCH_SHA256,
+  IMSG_EXACT_CHAT_SERVICE_PATCH_SHA256,
   IMSG_NO_FETCH_RICH_CARDS_PATCH_SHA256,
   IMSG_PRIVATE_TRANSPORT_PATCH_SHA256,
   IMSG_REVIEWED_VERSION,
@@ -738,7 +739,12 @@ describe("reviewed direct iMessage provider", () => {
     const bytes = readFileSync(join(import.meta.dir, "plugins", "imessage-direct", "vendor",
       "0003-feat-rpc-add-no-fetch-rich-cards.patch"));
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(IMSG_NO_FETCH_RICH_CARDS_PATCH_SHA256);
-    expect(IMSG_TOOL_PIN.reviewedPatches.at(-1)?.sha256).toBe(IMSG_NO_FETCH_RICH_CARDS_PATCH_SHA256);
+    expect(IMSG_TOOL_PIN.reviewedPatches.map((patch) => patch.sha256)).toEqual([
+      IMSG_PRIVATE_TRANSPORT_PATCH_SHA256,
+      IMSG_EXACT_CHAT_PATCH_SHA256,
+      IMSG_NO_FETCH_RICH_CARDS_PATCH_SHA256,
+      IMSG_EXACT_CHAT_SERVICE_PATCH_SHA256,
+    ]);
     const source = bytes.toString("utf8");
     expect(source).toContain("richLinkPreparerNoFetchNeverLoadsOrStagesResources");
     expect(source).toContain("rpcSendRichNoFetchBuildsNativeCardWithoutMetadataPreparation");
