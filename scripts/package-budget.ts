@@ -1,3 +1,18 @@
+// Ghostget 0.18.23 adds the machine-checkable contracts surface: nine new
+// packed source files (src/contracts.ts, src/contracts-catalog.ts,
+// src/contracts-check.ts, src/contracts-cli.ts, src/contracts-invoke-read.ts,
+// src/contracts-plan.ts, src/contracts-schema.ts, src/contracts-shape.ts,
+// src/contracts-vocabulary.ts) plus the ninth inert SDK entrypoint
+// dist/contracts.js and its rebuilt shared chunks. A clean
+// `bun pm pack --ignore-scripts` with Bun 1.3.14 on darwin arm64 measured
+// 11,798,754 compressed bytes, 23,182,612 payload bytes and exactly 588
+// files/entries. Archive SHA-256
+// 6b0afd720195e1103c8819176a7c189e56267a8bd1be76a3d1cde67b27332595.
+// Raise the inventory to 588, retain the proven compressed ceiling, and carry
+// the reviewed darwin-to-Linux projection plus the 65-byte allowance:
+// 23,182,612 + 353 + 65 = 23,183,030. Current source CI and canonical Release
+// must independently measure and admit their exact archives.
+
 // Ghostget 0.18.22 converges settling post-close browser cleanup proofs,
 // admits exact absent-root admission recovery, and follows the aichartsio X
 // rename. A clean npm 11.16.0 pack --ignore-scripts on darwin arm64 measured
@@ -1218,8 +1233,8 @@
 // local pack measured 11,572,706 compressed bytes, under it. Required Linux
 // CI and Release independently measure and admit their exact npm archives.
 export const MAX_PACKED_BYTES = 11_920_893;
-export const MAX_PACKED_ENTRIES = 577;
-export const MAX_PACKED_FILES = 577;
+export const MAX_PACKED_ENTRIES = 588;
+export const MAX_PACKED_FILES = 588;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
 //
@@ -1257,7 +1272,7 @@ export const MAX_PACKED_FILES = 577;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 23_030_169;
+export const MAX_UNPACKED_BYTES = 23_183_030;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
