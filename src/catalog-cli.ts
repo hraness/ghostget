@@ -298,7 +298,7 @@ function renderPortableProviderPluginText(
   ].join("\n");
 }
 
-function installedOperationTransport(
+export function installedOperationTransport(
   operation: GhostgetOperation,
 ): "provider-api" | "web-session-api" | "local-cli" | "reviewed-template-api" {
   if (isProviderOperation(operation)) return "provider-api";
@@ -308,13 +308,13 @@ function installedOperationTransport(
   throw new Error(DOM_ACTION_TRANSPORT_DISABLED_MESSAGE);
 }
 
-function reviewedTemplateHash(
+export function reviewedTemplateHash(
   recipe: Extract<GhostgetOperation, { readonly reviewedTemplate: unknown }>["reviewedTemplate"],
 ): string {
   return sha256(canonicalJson(recipe));
 }
 
-function listRuntimeManifests(
+export function listRuntimeManifests(
   environment: Readonly<Record<string, string | undefined>>,
   registry: ProviderPluginRegistry,
 ): ReturnType<typeof listInstalledManifests> {

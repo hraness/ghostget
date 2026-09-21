@@ -1,6 +1,7 @@
 import type { GhostgetAuth } from "./auth";
 import { canonicalJson, sha256 } from "./canonical-json";
 import type { WebSessionRecipe } from "./model";
+import type { ProviderPluginOperationResolutionV1 } from "./provider-plugin-registry";
 
 export const PUBLIC_WEB_SESSION_AUTHORITY_KIND = "public-web-session";
 
@@ -82,6 +83,43 @@ export function webSessionAuthenticationPolicy(
     });
   }
   return requiredPolicy;
+}
+
+/**
+ * Resolve the authentication policy of one installed web-session operation
+ * from its registry resolution. The invoke path and the contract catalog share
+ * this function so `authority: "public"` in a catalog means exactly "this
+ * operation runs without an auth locator".
+ */
+export function resolvedWebSessionOperationAuthenticationPolicy(
+  adapterId: string,
+  operationId: string,
+  recipe: WebSessionRecipe,
+  resolution: ProviderPluginOperationResolutionV1,
+): WebSessionAuthenticationPolicy {
+  if (
+    resolution.binding.transport === "provider-api"
+    || resolution.binding.transport === "local-cli"
+  ) {
+    throw new Error("authenticated session operation resolved to the wrong plugin transport");
+  }
+  return webSessionAuthenticationPolicy({
+    adapterId,
+    // Access policy belongs only to the descriptor's active contract. A
+    // historical routing alias remains readable for archive compatibility,
+    // but cannot inherit a newer public-authority/cache coordinate.
+    ...(resolution.contractVersion !== resolution.operation.contractVersion
+      || resolution.operation.access === undefined
+      ? {}
+      : { access: resolution.operation.access }),
+    operationId,
+    recipe,
+    pluginSourceKind: resolution.plugin.sourceKind,
+    portable: resolution.portableIdentity !== null,
+    risk: resolution.operation.risk,
+    state: resolution.operation.state,
+    dispatch: resolution.operation.dispatch,
+  });
 }
 
 export function isPublicWebSessionInvocationAuthority(

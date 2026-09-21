@@ -38,7 +38,7 @@ automation.
 - Read without persistence: `ghostget read <url>`.
 - Archive media: `ghostget archive <url>` or `ghostget audio|video|transcript <url>`.
 - Discover supported article embeds through the provider's bounded semantic media read, then archive each exact returned finite item separately. Do not treat a collection page as one media item or scrape its DOM to manufacture asset routes.
-- Inspect support: `ghostget plugin list`, `ghostget plugin show <id>`, and `ghostget capabilities [adapter]`.
+- Inspect support: `ghostget plugin list`, `ghostget plugin show <id>`, and `ghostget capabilities [adapter]`. For a typed, schema-backed projection use `ghostget contracts catalog --json`; check a read-only collection plan with `ghostget contracts check --plan <file> --json`.
 - Read Reddit post or community user flair choices: follow [Reddit flair](references/reddit-flair.md), including installed capability, same-account evidence, and the separate selection boundary.
 - Search public Puerto Rico rentals: `ghostget clasificados-web listings.search --input '{"location":"San Juan, PR","beds_min":2,"max_price":5500}' --json`. Keep `location` to the reviewed San Juan tokens. Neighborhood comes from street, ZIP, known address, or list-card coordinates, never from broker copy. Zillow-group and Puerto Rico MLS public search are not installed.
 - Operate Beeper: inspect `ghostget capabilities beeper-local --json`, then use

@@ -28,12 +28,16 @@ as foreign JSON, reject unknown fields and duplicate account keys, then flatten
 each account's ordered `reads` array without changing order. Its auth IDs are
 local Ghostget locators, not credentials.
 
-Before invoking a read, confirm that the current installed adapter still owns
-the named operation with `state: "observed"`, `risk: "R1"`, and
-`sideEffect: "none"`. Confirm its public or authenticated authority kind, exact
-input, output provider and canonical target URL, metric keys, expected gaps,
-and `requiredDelayBeforeMs`. A mismatch is a categorical contract gap for that
-read. Do not reinterpret the manifest or fall back to a different capability.
+Before invoking any read, run
+`ghostget contracts check --plan <path-to-hraness-social-profile-stats.json> --json`.
+It parses the manifest as a `ghostget.collection-plan.v1` document and binds
+every read to the installed adapter's exact operation, `state: "observed"`,
+`risk: "R1"`, `sideEffect: "none"`, public or authenticated authority, input
+schema, and durable contract hash without contacting a provider. Exit 4 with
+`ok: false` means at least one read has a categorical contract gap; record its
+closed `gap.reason` for that read and continue with the independent rows. Add
+`--auth-state` to also confirm each named auth locator is stored. Do not
+reinterpret the manifest or fall back to a different capability.
 The current X accounts are `x-hraness` and `x-aichartsio`.
 The second exact handle is `aichartsio`.
 

@@ -107,6 +107,7 @@ const publicExportKeys = Object.freeze([
   "./omni",
   "./messaging",
   "./messaging-automation",
+  "./contracts",
 ]);
 const publicImportSpecifiers = Object.freeze([
   "@hraness/ghostget",
@@ -117,6 +118,7 @@ const publicImportSpecifiers = Object.freeze([
   "@hraness/ghostget/omni",
   "@hraness/ghostget/messaging",
   "@hraness/ghostget/messaging-automation",
+  "@hraness/ghostget/contracts",
 ]);
 const publicDistEntrypoints = Object.freeze([
   "dist/index.js",
@@ -127,6 +129,7 @@ const publicDistEntrypoints = Object.freeze([
   "dist/omni-client.js",
   "dist/messaging.js",
   "dist/messaging-automation-api.js",
+  "dist/contracts.js",
 ]);
 
 function workflowStepScript(workflow: string, name: string): string {
@@ -1166,7 +1169,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_621_632);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_785_984);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1348,8 +1351,8 @@ describe("npm publication contract", () => {
     expect(MAX_PACKED_BYTES).toBe(11_916_797 + 4_096);
     expect(budget).toContain("11,696,091 + 4,096 = 11,700,187");
     expect(budget).toContain("35449445752 attempt 1, package job 105913938839");
-    expect(MAX_PACKED_ENTRIES).toBe(577);
-    expect(MAX_PACKED_FILES).toBe(577);
+    expect(MAX_PACKED_ENTRIES).toBe(588);
+    expect(MAX_PACKED_FILES).toBe(588);
     expect(budget).toContain("Ghostget 0.18.6 same-boot setup-cleanup candidate over main edbe567");
     expect(budget).toContain("11,656,173");
     expect(budget).toContain("22,513,450 payload bytes across exactly 557 files");
@@ -1370,10 +1373,12 @@ describe("npm publication contract", () => {
     expect(budget).toContain("34d071b68b74dbfb1d9332b4c1fc0f2f6d5d786578e89143cf129582539f6b71");
     expect(budget).toContain("23,019,689 + 65 = 23,019,754");
     expect(budget).toContain("23,029,751 + 353 + 65 = 23,030,169");
-    expect(MAX_UNPACKED_BYTES).toBe(23_030_169);
+    expect(budget).toContain("23,182,612 + 353 + 65 = 23,183,030");
+    expect(budget).toContain("6b0afd720195e1103c8819176a7c189e56267a8bd1be76a3d1cde67b27332595");
+    expect(MAX_UNPACKED_BYTES).toBe(23_183_030);
     expect(budget).toContain("22,689,627 + 10 = 22,689,637");
     expect(budget).toContain("22,689,627 + 65 = 22,689,692");
-    expect(MAX_UNPACKED_BYTES).toBe(23_030_104 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(23_182_965 + 65);
     expect(budget).toContain("22,794,052 + 65 = 22,794,117");
     expect(budget).toContain("c482efe748f880e3717727d6d39fd92a68953e6eea766642b329ba47ae772d80");
     expect(budget).toContain("22,759,423 + 65 = 22,759,488");
@@ -1407,10 +1412,10 @@ describe("npm publication contract", () => {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 577, max: 577 },
-      fileCount: { min: 577, max: 577 },
+      entryCount: { min: 588, max: 588 },
+      fileCount: { min: 588, max: 588 },
       packedBytes: { min: 1_600_000, max: 11_920_893 },
-      unpackedBytes: { min: 9_000_000, max: 23_030_169 },
+      unpackedBytes: { min: 9_000_000, max: 23_183_030 },
     });
   });
 
@@ -1425,7 +1430,7 @@ describe("npm publication contract", () => {
     });
   });
 
-  test("keeps the exact eight public SDK entrypoints and required source inventory", async () => {
+  test("keeps the exact nine public SDK entrypoints and required source inventory", async () => {
     const [manifestSource, tsconfigSource, artifact, packageSmoke, standaloneSmoke, releaseWorkflow]
       = await Promise.all([
         readFile(manifestUrl, "utf8"),
@@ -1474,6 +1479,7 @@ describe("npm publication contract", () => {
       "@hraness/ghostget/omni": ["./src/omni-client.ts"],
       "@hraness/ghostget/messaging": ["./src/messaging.ts"],
       "@hraness/ghostget/messaging-automation": ["./src/messaging-automation-types.ts"],
+      "@hraness/ghostget/contracts": ["./src/contracts.ts"],
     });
     const releaseNodeImports = releaseWorkflow.match(/await Promise\.all\(\[(.*?)\]\.map/u)?.[1];
     expect(releaseNodeImports).toBeDefined();

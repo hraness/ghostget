@@ -20,6 +20,7 @@ const importSpecifiers = [
   "@hraness/ghostget/omni",
   "@hraness/ghostget/messaging",
   "@hraness/ghostget/messaging-automation",
+  "@hraness/ghostget/contracts",
 ];
 const binNames = ["ghostget"];
 const packageDiscoveryKeywords = [
@@ -833,6 +834,21 @@ import * as surface4 from "@hraness/ghostget/apple-photos";
 import * as surface5 from "@hraness/ghostget/whatsapp";
 import * as surface6 from "@hraness/ghostget/messaging";
 import * as surface7 from "@hraness/ghostget/messaging-automation";
+import * as surface8 from "@hraness/ghostget/contracts";
+import {
+  checkCollectionPlan,
+  contractSchema,
+  parseCollectionPlan,
+  parseContractCatalog,
+  parseContractCheck,
+  parseInvokeReadResult,
+  readFailureDispositions,
+  type CollectionPlanV1,
+  type ContractCatalogV1,
+  type ContractCheckV1,
+  type InvokeReadResultV1,
+  type RetryDisposition,
+} from "@hraness/ghostget/contracts";
 import {
   createMessagingAutomationHost,
   installBundledMessagingRuntime,
@@ -882,6 +898,22 @@ void installBundledMessagingRuntime("other");
 const acceptedRun: AutomationRun = submitted;
 // @ts-expect-error private persistence is never exposed by the owner SDK
 void automationHost.db;
+const contractCatalog: ContractCatalogV1 = parseContractCatalog({});
+const collectionPlan: CollectionPlanV1 = parseCollectionPlan({});
+const contractCheck: ContractCheckV1 = checkCollectionPlan(collectionPlan, contractCatalog, { storedAuthIds: [] });
+const parsedCheck: ContractCheckV1 = parseContractCheck(contractCheck);
+const invokeResult: InvokeReadResultV1 = parseInvokeReadResult({});
+const disposition: RetryDisposition = readFailureDispositions["provider-throttled"];
+if (invokeResult.status === "failed") {
+  const failedDisposition: RetryDisposition = invokeResult.readFailure.retryDisposition;
+  void failedDisposition;
+}
+if (invokeResult.status === "succeeded") {
+  // @ts-expect-error a succeeded result never carries a read failure
+  void invokeResult.readFailure.category;
+}
+// @ts-expect-error schema names are a closed set
+void contractSchema("receipt");
 void [
   surface0,
   surface1,
@@ -891,6 +923,10 @@ void [
   surface5,
   surface6,
   surface7,
+  surface8,
+  parsedCheck,
+  disposition,
+  contractSchema("catalog"),
   discovered,
   resolved,
   createdHost,
