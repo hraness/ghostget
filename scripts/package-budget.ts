@@ -1211,7 +1211,10 @@ export const MAX_PACKED_FILES = 575;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 22_802_033;
+// Locked Wordcell repository search adds exactly 278 package.json bytes.
+// npm pack --ignore-scripts measures 22,802,246 unpacked bytes across the
+// unchanged 575-file inventory. Retain the existing 65-byte allowance.
+export const MAX_UNPACKED_BYTES = 22_802_311;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
