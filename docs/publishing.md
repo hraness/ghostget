@@ -485,6 +485,15 @@ with a residual administrator-toggle window that repeated workflow reads
 cannot remove. The created and terminal
 Release readbacks and tag reads must still report exact immutable authority.
 
+For an owner-requested release, the agent may run these administrator readbacks
+and the subsequent exact tag push programmatically through the existing owner
+User `894119` session. Verify the signed-in User identity and administrator
+access to `hraness/ghostget` before use. The release request supplies
+conversational approval; the fresh readbacks and all source, tag,
+immutable-release, and delivery gates remain required. Stop on missing access,
+control drift, or a provider or runtime denial. Keep the existing tag actors and
+workflow permissions unchanged.
+
 Run this with the signed-in administrator session immediately before creating
 the tag. First resolve the two unique candidates from the repository ruleset
 list, then set the IDs below to those captured numeric IDs. The validation
