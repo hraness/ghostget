@@ -14,9 +14,13 @@ import {
 import {
   createPrivateJsonIfAbsent,
   ensurePrivateStateDirectory,
+  MAX_PRIVATE_STATE_BATCH_FILES,
   readPrivateStateFileIfPresent,
+  readPrivateStateFilesBatch,
+  readPrivateStateFilesBatched,
   removePrivateStateFileIfUnchanged,
   ghostgetStateHome,
+  snapshotPrivateStateDirectory,
   writePrivateJsonIfUnchanged,
 } from "./storage";
 
@@ -869,4 +873,126 @@ export function projectionAuthIdentityHash(
       `wrench-read-projection-auth-identity-v1\0${id}\0${exactAuthContentHash}\0${incarnation}`,
     );
   });
+}
+
+/**
+ * The same identity digest projectionAuthIdentityHash produces, read without
+ * an admission and without creating missing state. Listing paths use it so
+ * enumerating many accounts does not pay a settled admission per account.
+ * Returns null when no incarnation exists; a rotated or mid-write incarnation
+ * yields a digest that no longer matches admitted state, which fails closed at
+ * the authoritative revision comparison.
+ */
+export function readProjectionAuthIdentityHashIfPresent(
+  authIdValue: string,
+  exactAuthContentHashValue: string,
+  environment: Environment = process.env,
+): string | null {
+  const id = authId(authIdValue);
+  const exactAuthContentHash = digest(
+    exactAuthContentHashValue,
+    "exact auth content hash",
+  );
+  const incarnation = readIncarnation(id, environment);
+  if (incarnation === null) return null;
+  return hash(
+    `wrench-read-projection-auth-identity-v1\0${id}\0${exactAuthContentHash}\0${incarnation.value.incarnation}`,
+  );
+}
+
+/**
+ * The same identity digests projectionAuthIdentityHash produces for many
+ * accounts in one bounded batch read, without admissions and without creating
+ * missing state. Listing paths use it so enumerating accounts does not pay a
+ * settled admission per account. Accounts without a readable incarnation are
+ * absent from the result; their callers fall back to the admitted path, which
+ * still creates the incarnation. A rotated or mid-write incarnation yields a
+ * digest that no longer matches admitted state, which fails closed at the
+ * authoritative revision comparison.
+ */
+export function readProjectionAuthIdentityHashesIfPresent(
+  requests: readonly Readonly<{
+    authId: string;
+    exactAuthContentHash: string;
+  }>[],
+  environment: Environment = process.env,
+): ReadonlyMap<string, string> {
+  const resolved = new Map<string, string>();
+  if (requests.length === 0) return resolved;
+  const entries = requests.map((request) => {
+    const id = authId(request.authId);
+    return {
+      id,
+      coordinate: `${authCoordinate(id)}.json`,
+      exactAuthContentHash: digest(
+        request.exactAuthContentHash,
+        "exact auth content hash",
+      ),
+    };
+  });
+  let results: readonly {
+    readonly name: string;
+    readonly status: "present" | "absent" | "invalid";
+    readonly content?: string;
+  }[];
+  try {
+    const directory = incarnationsDirectory(environment);
+    const names = entries.map((entry) => entry.coordinate);
+    results = names.length <= MAX_PRIVATE_STATE_BATCH_FILES
+      ? readPrivateStateFilesBatch(
+          directory,
+          names,
+          {
+            maximumBytesPerFile: MAX_CONTROL_RECORD_BYTES,
+            maximumTotalBytes: MAX_CONTROL_RECORD_BYTES * names.length,
+            environment,
+          },
+        )
+      : (() => {
+          const observed = snapshotPrivateStateDirectory(directory, environment);
+          if (observed.identity === null) return [];
+          return readPrivateStateFilesBatched(
+            directory,
+            names,
+            {
+              maximumBytesPerFile: MAX_CONTROL_RECORD_BYTES,
+              environment,
+              expectedDirectoryIdentity: observed.identity,
+            },
+          );
+        })();
+  } catch (error) {
+    // No incarnation collection yet: every account takes the admitted fallback.
+    if (error instanceof Error && error.message.includes("directory is absent")) {
+      return resolved;
+    }
+    throw error;
+  }
+  const byCoordinate = new Map(
+    entries.map((entry) => [entry.coordinate, entry] as const),
+  );
+  for (const result of results) {
+    if (result.status !== "present" || result.content === undefined) continue;
+    const entry = byCoordinate.get(result.name);
+    if (entry === undefined) continue;
+    let snapshot: Snapshot<ReadProjectionIncarnation>;
+    try {
+      snapshot = parseCanonicalSnapshot(
+        result.content,
+        "read projection auth incarnation",
+        incarnationRecord,
+      );
+    } catch {
+      // Unreadable state stays absent here; the admitted fallback reports it.
+      continue;
+    }
+    if (snapshot.value.authId !== entry.id) continue;
+    resolved.set(
+      entry.id,
+      hash(
+        `wrench-read-projection-auth-identity-v1\0${entry.id}\0${entry.exactAuthContentHash}\0${snapshot.value.incarnation}`,
+      ),
+    );
+  }
+  return resolved;
 }

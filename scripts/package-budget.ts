@@ -1,18 +1,38 @@
-// Ghostget 0.18.23 adds the machine-checkable contracts surface: nine new
-// packed source files (src/contracts.ts, src/contracts-catalog.ts,
-// src/contracts-check.ts, src/contracts-cli.ts, src/contracts-invoke-read.ts,
-// src/contracts-plan.ts, src/contracts-schema.ts, src/contracts-shape.ts,
-// src/contracts-vocabulary.ts) plus the ninth inert SDK entrypoint
-// dist/contracts.js and its rebuilt shared chunks. A clean
-// `bun pm pack --ignore-scripts` with Bun 1.3.14 on darwin arm64 measured
-// 11,798,754 compressed bytes, 23,182,612 payload bytes and exactly 588
+// Ghostget 0.18.23 adds the machine-checkable contracts surface on top of the
+// control snapshot revision batching merged from main: nine new packed source
+// files (src/contracts.ts, src/contracts-catalog.ts, src/contracts-check.ts,
+// src/contracts-cli.ts, src/contracts-invoke-read.ts, src/contracts-plan.ts,
+// src/contracts-schema.ts, src/contracts-shape.ts, src/contracts-vocabulary.ts)
+// plus the ninth inert SDK entrypoint dist/contracts.js and its rebuilt shared
+// chunks. A clean npm pack --ignore-scripts on darwin arm64 measured
+// 11,941,906 compressed bytes, 23,191,418 payload bytes and exactly 588
 // files/entries. Archive SHA-256
-// 6b0afd720195e1103c8819176a7c189e56267a8bd1be76a3d1cde67b27332595.
-// Raise the inventory to 588, retain the proven compressed ceiling, and carry
-// the reviewed darwin-to-Linux projection plus the 65-byte allowance:
-// 23,182,612 + 353 + 65 = 23,183,030. Current source CI and canonical Release
+// 7826b2c9bddd12b5d982eda11ca114b7e98d7d4f649d1984490272241b31afbd.
+// Raise the inventory to 588, preserve the 4,096-byte packed portability
+// allowance (11,941,906 + 4,096 = 11,946,002), and carry the reviewed
+// darwin-to-Linux projection plus the 65-byte allowance:
+// 23,191,418 + 353 + 65 = 23,191,836. Current source CI and canonical Release
 // must independently measure and admit their exact archives.
 
+// Control snapshot revision batching adds a chunked fallback for incarnation
+// collections larger than one helper batch. A clean npm 11.19.0 pack
+// --ignore-scripts on darwin arm64 measured 11,906,030 compressed bytes,
+// 23,038,557 payload bytes and exactly 577 files/entries. Archive SHA-256
+// d00d126b6fc2e3d214287e1a642c5eb712062f332e4f81217f7a815fef44cd49.
+// Preserve the packed ceiling and restore the reviewed 65-byte payload
+// allowance: 23,038,557 + 65 = 23,038,622. Current source CI and canonical
+// Release must independently measure and admit their exact archives.
+//
+// Control snapshot revision batching and TUI refresh work add the batched
+// incarnation read and its colocated test, and grow the TUI and admission
+// sources. A clean npm 11.19.0 pack --ignore-scripts on darwin arm64 measured
+// 11,905,953 compressed bytes, 23,037,873 payload bytes and exactly 577
+// files/entries; the Linux CI pack measured the same 23,037,873 payload bytes.
+// Archive SHA-256 f9f3ab38a682690ceaa2699a7309997512030f0fa500a9dc29dcd108123dc41f.
+// Preserve the packed ceiling and restore the reviewed 65-byte payload
+// allowance: 23,037,873 + 65 = 23,037,938. Current source CI and canonical
+// Release must independently measure and admit their exact archives.
+//
 // Ghostget 0.18.22 converges settling post-close browser cleanup proofs,
 // admits exact absent-root admission recovery, and follows the aichartsio X
 // rename. A clean npm 11.16.0 pack --ignore-scripts on darwin arm64 measured
@@ -1232,7 +1252,7 @@
 // 22,786,274 + 65 = 22,786,339. Retain the proven compressed ceiling; this
 // local pack measured 11,572,706 compressed bytes, under it. Required Linux
 // CI and Release independently measure and admit their exact npm archives.
-export const MAX_PACKED_BYTES = 11_920_893;
+export const MAX_PACKED_BYTES = 11_946_002;
 export const MAX_PACKED_ENTRIES = 588;
 export const MAX_PACKED_FILES = 588;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
@@ -1272,7 +1292,7 @@ export const MAX_PACKED_FILES = 588;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 23_183_030;
+export const MAX_UNPACKED_BYTES = 23_191_836;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

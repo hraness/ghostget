@@ -27,6 +27,7 @@ function helper(initial = snapshot()) {
     request: async (request) => {
       requests.push(request);
       if (request.action === "snapshot") return { ok: true, data: { kind: "snapshot", snapshot: { ...current, accountId: request.accountId } } };
+      if (request.action === "approval.list") return { ok: true, data: { kind: "approvals", approvals: current.approvals } };
       if (request.action === "activity.query") return { ok: true, data: { kind: "activity", page: { rows: [], nextCursor: "next", snapshotSequence: 1, matchingCount: 0, newerCount: 0 } } };
       return nextMutation;
     },
@@ -190,6 +191,59 @@ describe("reviewed control actions", () => {
     fake.setMutation({ ok: true, data: { kind: "success", message: "Connected" } });
     await controller.key({ text: "s" }); await confirm(controller);
     expect(fake.requests).toContainEqual({ action: "connection.commit", attemptId: "attempt", expectedSubject: "verified-owner" });
+  });
+  test("a background refresh keeps navigation live and holds confirmed actions until it settles", async () => {
+    let release = (): void => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const fake = helper(); const inner = fake.client.request; let hold = false;
+    fake.client.request = async (request) => { if (hold && request.action === "snapshot") await gate; return inner(request); };
+    const controller = new TuiController(fake.client, "personal");
+    await controller.refresh();
+    hold = true;
+    const refreshing = controller.refresh(true);
+    expect(controller.state.refreshing).toBe(true); expect(controller.state.busy).toBe(false);
+    await controller.key({ text: "4" });
+    expect(controller.state.section).toBe("Approvals");
+    await controller.key("enter"); await controller.key("enter");
+    const dialog = controller.state.dialog; expect(dialog?.kind).toBe("confirm");
+    if (dialog?.kind === "confirm") dialog.reviewed = true;
+    for (const text of "yes") await controller.key({ text });
+    await controller.key("enter");
+    expect(controller.state.notice).toContain("refresh is in progress");
+    expect(fake.requests.filter((request) => request.action === "approval.decide")).toHaveLength(0);
+    release(); await refreshing;
+    expect(controller.state.refreshing).toBe(false);
+    await controller.key("enter");
+    expect(fake.requests.filter((request) => request.action === "approval.decide")).toHaveLength(1);
+  });
+  test("approval polling merges new requests without paying for another snapshot", async () => {
+    const base = snapshot(); const fake = helper({ ...base, approvals: [] });
+    const controller = new TuiController(fake.client, "personal");
+    await controller.refresh();
+    expect(controller.state.snapshot?.approvals).toHaveLength(0);
+    fake.setSnapshot(base);
+    await controller.refreshApprovals();
+    expect(controller.state.snapshot?.approvals).toHaveLength(1);
+    expect(controller.state.fresh).toBe(true);
+    expect(fake.requests.filter((request) => request.action === "snapshot")).toHaveLength(1);
+    expect(fake.requests.filter((request) => request.action === "approval.list")).toHaveLength(1);
+  });
+  test("approval polling never marks stale state fresh again", async () => {
+    const fake = helper(); const controller = new TuiController(fake.client, "personal");
+    await controller.refresh();
+    controller.state.fresh = false;
+    await controller.refreshApprovals();
+    expect(controller.state.fresh).toBe(false);
+  });
+  test("a regressed policy revision never overwrites newer snapshot state", async () => {
+    const base = snapshot(); const fake = helper(base);
+    const controller = new TuiController(fake.client, "personal");
+    await controller.refresh();
+    fake.setSnapshot({ ...base, accounts: [], approvals: [], policy: { managed: true, revision: 3 } });
+    await controller.refresh(true);
+    expect(controller.state.snapshot?.policy.revision).toBe(7);
+    expect(controller.state.snapshot?.accounts).toHaveLength(1);
+    expect(controller.state.snapshot?.approvals).toHaveLength(1);
   });
   test("Linux retains account management but does not offer the macOS browser flow", async () => {
     const fake = helper(); const controller = new TuiController(fake.client, null, () => {}, "linux"); await controller.refresh();

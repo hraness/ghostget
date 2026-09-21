@@ -49,6 +49,8 @@ export {
   acquireReadProjectionAuthAdmission,
   ensureReadProjectionAuthIncarnation,
   projectionAuthIdentityHash,
+  readProjectionAuthIdentityHashIfPresent,
+  readProjectionAuthIdentityHashesIfPresent,
   removeReadProjectionAuthIncarnation,
   rotateReadProjectionAuthIncarnation,
   withReadProjectionAuthAdmission,
