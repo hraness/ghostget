@@ -388,7 +388,7 @@ describe("packaged Hraness social-profile collection contract", () => {
     const manifest = parseCollectionManifest(readSourceManifest());
     expect(manifest.accounts.map((account) => account.accountKey)).toEqual([
       "x-hraness",
-      "x-lifedaysleft",
+      "x-aichartsio",
       "linkedin-personal",
       "linkedin-company-hraness",
       "youtube-hraness",
@@ -404,9 +404,9 @@ describe("packaged Hraness social-profile collection contract", () => {
     ]);
 
     const byKey = new Map(manifest.accounts.map((account) => [account.accountKey, account]));
-    expect(byKey.get("x-lifedaysleft")?.reads[0]).toMatchObject({
-      input: { handle: "lifedaysleft" },
-      expectedOutput: { targetUrl: "https://x.com/lifedaysleft" },
+    expect(byKey.get("x-aichartsio")?.reads[0]).toMatchObject({
+      input: { handle: "aichartsio" },
+      expectedOutput: { targetUrl: "https://x.com/aichartsio" },
     });
     expect(byKey.get("linkedin-company-hraness")?.reads[0]?.requiredDelayBeforeMs)
       .toBe(60_000);
@@ -491,13 +491,13 @@ describe("packaged Hraness social-profile collection contract", () => {
   test("keeps the prose and package boundary aligned with the authoritative JSON", () => {
     const manifest = parseCollectionManifest(readSourceManifest());
     const byKey = new Map(manifest.accounts.map((account) => [account.accountKey, account]));
-    const lifeDaysLeft = byKey.get("x-lifedaysleft")?.reads[0];
+    const aichartsIo = byKey.get("x-aichartsio")?.reads[0];
     const linkedInCompany = byKey.get("linkedin-company-hraness")?.reads[0];
     const threads = byKey.get("threads-hraness")?.reads[0];
     const reference = readFileSync(referencePath, "utf8");
     expect(reference).toContain("[Hraness social-profile manifest](hraness-social-profile-stats.json)");
-    expect(reference).toContain(`\`${byKey.get("x-lifedaysleft")?.accountKey}\``);
-    expect(reference).toContain(`second exact handle is \`${String(lifeDaysLeft?.input.handle)}\``);
+    expect(reference).toContain(`\`${byKey.get("x-aichartsio")?.accountKey}\``);
+    expect(reference).toContain(`second exact handle is \`${String(aichartsIo?.input.handle)}\``);
     expect(reference).toContain(
       `${String((linkedInCompany?.requiredDelayBeforeMs ?? 0) / 1_000)}-second idle interval`,
     );

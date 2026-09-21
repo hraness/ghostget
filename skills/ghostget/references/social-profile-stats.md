@@ -34,8 +34,8 @@ the named operation with `state: "observed"`, `risk: "R1"`, and
 input, output provider and canonical target URL, metric keys, expected gaps,
 and `requiredDelayBeforeMs`. A mismatch is a categorical contract gap for that
 read. Do not reinterpret the manifest or fall back to a different capability.
-The current X accounts are `x-hraness` and `x-lifedaysleft`.
-The second exact handle is `lifedaysleft`.
+The current X accounts are `x-hraness` and `x-aichartsio`.
+The second exact handle is `aichartsio`.
 
 Bluesky and GitHub profile and organization statistics come from public target-bound APIs.
 Invoke these rows without `--auth`. Ghostget assigns each reviewed operation a
