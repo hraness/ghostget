@@ -55,7 +55,7 @@ function parseAutomationCoordinate(value) {
   if (provider === "imessage") {
     const r2 = automationRecord(value, ["provider", "chatGuid", "service", "observedChatRowId"]);
     const chatGuid = automationText(r2.chatGuid, 1024);
-    if (!chatGuid.startsWith("iMessage;") || r2.service !== "iMessage")
+    if (!(chatGuid.startsWith("iMessage;") || chatGuid.startsWith("any;")) || r2.service !== "iMessage")
       throw new Error("Only exact iMessage conversations are supported.");
     return Object.freeze({ provider, chatGuid, service: "iMessage", observedChatRowId: automationInteger(r2.observedChatRowId, 1, Number.MAX_SAFE_INTEGER) });
   }
