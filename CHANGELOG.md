@@ -7,7 +7,7 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
-## 0.18.23
+## 0.18.24
 
 - Add machine-checkable contracts. `ghostget contracts catalog --json` prints
   `ghostget.contract-catalog.v1`, a compact typed projection of the installed
@@ -25,6 +25,24 @@ Historical entries retain their original delivery coordinates.
   `parseInvokeReadResult`, `checkCollectionPlan`, `contractSchema`, and
   `readFailureDispositions`. The Hraness social-profile reference now preflights
   its manifest through `contracts check`.
+
+## 0.18.23
+
+- Recover cross-boot `cleanup-unsafe` browser admissions whose recorded private
+  artifact and socket roots are already absent. A claim from an earlier boot
+  previously stayed retained forever and admission-gated its realm on every
+  later read, even though every recorded owner is provably dead across the
+  boot boundary. Recovery still runs the full absent-root proof — dead pinned
+  owner, refusing CDP endpoint, stable boundary — and never deletes; a claim
+  with any surviving root keeps same-boot-only custody.
+- Accept the `not_configured` lifecycle vocabulary agent-browser reports for a
+  session that never configured state restore or save. The strict
+  non-mutating-CDP lifecycle gate pinned `not_attempted` for `saveStatus`, so
+  every live post-close session inspection failed `cleanup-required` even
+  while the exact pinned teardown was proceeding normally. Both non-mutating
+  tokens are now accepted for `restoreStatus` and `saveStatus`; any lifecycle
+  record showing a launch, relaunch, restart, restore, or save still fails
+  closed.
 
 ## 0.18.22
 

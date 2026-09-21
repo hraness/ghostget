@@ -1832,8 +1832,14 @@ function parseAgentBrowserLifecycle(
         lifecycle.launched !== false
         || lifecycle.relaunchedBrowser !== false
         || lifecycle.restartedBackground !== false
-        || lifecycle.restoreStatus !== "not_configured"
-        || lifecycle.saveStatus !== "not_attempted"
+        || (
+          lifecycle.restoreStatus !== "not_configured"
+          && lifecycle.restoreStatus !== "not_attempted"
+        )
+        || (
+          lifecycle.saveStatus !== "not_attempted"
+          && lifecycle.saveStatus !== "not_configured"
+        )
       )
     )
   ) throw new Error("agent-browser lifecycle changed shape");

@@ -1,19 +1,33 @@
-// Ghostget 0.18.23 adds the machine-checkable contracts surface on top of the
-// control snapshot revision batching merged from main: nine new packed source
-// files (src/contracts.ts, src/contracts-catalog.ts, src/contracts-check.ts,
-// src/contracts-cli.ts, src/contracts-invoke-read.ts, src/contracts-plan.ts,
-// src/contracts-schema.ts, src/contracts-shape.ts, src/contracts-vocabulary.ts)
-// plus the ninth inert SDK entrypoint dist/contracts.js and its rebuilt shared
-// chunks. A clean npm pack --ignore-scripts on darwin arm64 measured
-// 11,941,906 compressed bytes, 23,191,418 payload bytes and exactly 588
-// files/entries. Archive SHA-256
-// 7826b2c9bddd12b5d982eda11ca114b7e98d7d4f649d1984490272241b31afbd.
+// Ghostget 0.18.24 adds the machine-checkable contracts surface on top of the
+// 0.18.23 browser-admission recovery released from main: nine new packed
+// source files (src/contracts.ts, src/contracts-catalog.ts,
+// src/contracts-check.ts, src/contracts-cli.ts, src/contracts-invoke-read.ts,
+// src/contracts-plan.ts, src/contracts-schema.ts, src/contracts-shape.ts,
+// src/contracts-vocabulary.ts) plus the ninth inert SDK entrypoint
+// dist/contracts.js and its rebuilt shared chunks. A clean npm pack
+// --ignore-scripts on darwin arm64 measured 11,942,741 compressed bytes,
+// 23,193,728 payload bytes and exactly 588 files/entries. Archive SHA-256
+// 47684b3e2eb5cf3ed07fbb520aade8c7251d993f75262fbf1af627d9081a1a5f.
 // Raise the inventory to 588, preserve the 4,096-byte packed portability
-// allowance (11,941,906 + 4,096 = 11,946,002), and carry the reviewed
+// allowance (11,942,741 + 4,096 = 11,946,837), and carry the reviewed
 // darwin-to-Linux projection plus the 65-byte allowance:
-// 23,191,418 + 353 + 65 = 23,191,836. Current source CI and canonical Release
+// 23,193,728 + 353 + 65 = 23,194,146. Current source CI and canonical Release
 // must independently measure and admit their exact archives.
 
+// Ghostget 0.18.23 admits cross-boot cleanup-unsafe browser admissions whose
+// published roots are already absent into the existing absent-root recovery
+// proof and accepts the not_configured lifecycle save/restore vocabulary
+// agent-browser 0.32.3 reports for sessions that never configured those
+// features. A clean npm 11.16.0 pack --ignore-scripts on darwin arm64
+// measured 11,919,738 compressed bytes, 23,040,867 payload bytes and exactly
+// 577 files/entries. Archive SHA-256
+// feefdaa288454938b6e6598b0cd19be5bcecbb2cca307bebafee6a32495c47e8.
+// Preserve the 4,096-byte packed portability allowance: 11,919,738 + 4,096 =
+// 11,923,834. The prior darwin-to-Linux payload delta was +353 bytes; carry
+// the same projection plus the reviewed 65-byte allowance:
+// 23,040,867 + 353 + 65 = 23,041,285. Current source CI and canonical Release
+// must independently measure and admit their exact archives.
+//
 // Control snapshot revision batching adds a chunked fallback for incarnation
 // collections larger than one helper batch. A clean npm 11.19.0 pack
 // --ignore-scripts on darwin arm64 measured 11,906,030 compressed bytes,
@@ -1252,7 +1266,7 @@
 // 22,786,274 + 65 = 22,786,339. Retain the proven compressed ceiling; this
 // local pack measured 11,572,706 compressed bytes, under it. Required Linux
 // CI and Release independently measure and admit their exact npm archives.
-export const MAX_PACKED_BYTES = 11_946_002;
+export const MAX_PACKED_BYTES = 11_946_837;
 export const MAX_PACKED_ENTRIES = 588;
 export const MAX_PACKED_FILES = 588;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
@@ -1292,7 +1306,7 @@ export const MAX_PACKED_FILES = 588;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 23_191_836;
+export const MAX_UNPACKED_BYTES = 23_194_146;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
