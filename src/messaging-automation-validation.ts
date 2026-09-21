@@ -50,7 +50,7 @@ export function parseAutomationCoordinate(value: unknown): AutomationCoordinate 
   if (provider === "imessage") {
     const r = automationRecord(value, ["provider", "chatGuid", "service", "observedChatRowId"]);
     const chatGuid = automationText(r.chatGuid, 1024);
-    if (!chatGuid.startsWith("iMessage;") || r.service !== "iMessage") throw new Error("Only exact iMessage conversations are supported.");
+    if (!(chatGuid.startsWith("iMessage;") || chatGuid.startsWith("any;")) || r.service !== "iMessage") throw new Error("Only exact iMessage conversations are supported.");
     return Object.freeze({ provider, chatGuid, service: "iMessage", observedChatRowId: automationInteger(r.observedChatRowId, 1, Number.MAX_SAFE_INTEGER) });
   }
   if (provider === "beeper") {

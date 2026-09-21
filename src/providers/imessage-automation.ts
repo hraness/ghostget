@@ -40,10 +40,10 @@ function conversation(chat: ImsgChatProjection): AutomationConversation {
   return { coordinate: coordinate({ provider: "imessage", chatGuid: chat.guid, service: "iMessage", observedChatRowId: chat.id }), title: chat.title, kind: chat.kind, participants: chat.participants };
 }
 function supportedDiscoveryCoordinate(chat: ImsgChatProjection): boolean {
-  // Native Messages metadata admits GUIDs outside the owner's exact iMessage
-  // coordinate contract. Omit these rows only after the whole native response
-  // has passed parsing and duplicate checks; never rewrite a GUID or route it.
-  return chat.guid.startsWith("iMessage;") && Buffer.byteLength(chat.guid) <= 1024;
+  // The native parser has already required observed service=iMessage. Modern
+  // any; GUIDs remain literal route identities, not permission to use SMS.
+  // Parse the whole page before omitting unsupported prefixes or larger GUIDs.
+  return (chat.guid.startsWith("iMessage;") || chat.guid.startsWith("any;")) && Buffer.byteLength(chat.guid) <= 1024;
 }
 function discoverableConversation(value: AutomationConversation): boolean {
   if (value.kind !== "single") return true;
@@ -74,13 +74,13 @@ function providerStatus(session: Session, identity: AutomationIdentity): Automat
   })) as AutomationProviderStatus["actions"];
   return { identity, connected: true, events: { available: available.has("messages.after"), reason: available.has("messages.after") ? null : "The pinned database cursor operation is unavailable." }, actions };
 }
-function message(value: unknown, selected: AutomationCoordinate): AutomationMessage {
-  const projected = project.parseMessage(value, "automation message", target(selected));
+function message(value: unknown, selected: AutomationCoordinate, attachmentMetadata = false): AutomationMessage {
+  const projected = project.parseMessage(value, "automation message", target(selected), { attachmentMetadata });
   const raw = value as Record<string, unknown>;
   if (raw.is_reaction !== undefined && typeof raw.is_reaction !== "boolean") throw new Error("Invalid reaction marker");
   const related = raw.is_reaction === true ? automationText(raw.reacted_to_guid, 256) : projected.replyToGuid;
   if (Buffer.byteLength(projected.text) > 65_536) throw new Error("Automation message exceeds its text bound");
-  return { id: automationText(projected.guid, 256), coordinate: selected, direction: projected.isFromMe ? "outgoing" : "incoming", occurredAt: projected.createdAt, text: projected.text, kind: raw.is_reaction === true ? "reaction" : "message", relatedMessageId: related, attachments: [] };
+  return { id: automationText(projected.guid, 256), coordinate: selected, direction: projected.isFromMe ? "outgoing" : "incoming", occurredAt: projected.createdAt, text: projected.text, kind: raw.is_reaction === true ? "reaction" : "message", relatedMessageId: related, attachments: projected.attachments };
 }
 async function historyMessages(session: Session, selected: AutomationCoordinate, limit: number): Promise<readonly AutomationMessage[]> {
   await exactConversation(session, selected);
@@ -155,7 +155,7 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
         phase("native-chats");
         const result = await session.run([request("chats.list", { limit })]);
         // Parse every native row and duplicate coordinate before selecting only
-        // coordinates supported by the owner's unchanged exact route contract.
+        // coordinates supported by the owner's exact route contract.
         phase("native-projection");
         let conversations: AutomationConversation[];
         try { conversations = project.parseChats(result.get("operation")).filter(supportedDiscoveryCoordinate).map(chat => {
@@ -171,9 +171,9 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
       const selected = coordinate(input.coordinate), limit = automationInteger(input.limit, 1, 200);
       return run("history", signal, async (session, identity) => {
         await exactConversation(session, selected);
-        const response = await session.run([request("messages.history", { chat_id: selected.observedChatRowId, limit, attachments: false })]);
+        const response = await session.run([request("messages.history", { chat_id: selected.observedChatRowId, limit, attachments: true, convert_attachments: false })]);
         const raw = automationArray(automationRecord(response.get("operation"), ["messages"]).messages, limit);
-        const messages = raw.map(value => message(value, selected));
+        const messages = raw.map(value => message(value, selected, true));
         if (new Set(messages.map(item => item.id)).size !== messages.length) throw new Error("Repeated history identity");
         const next = cursor(null, identity, [selected]);
         for (const [index, value] of raw.entries()) {

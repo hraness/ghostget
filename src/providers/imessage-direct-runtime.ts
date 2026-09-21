@@ -101,6 +101,8 @@ export type ImsgMessageProjection = Readonly<{
   text: string;
   createdAt: string;
   replyToGuid: string | null;
+  /** Explicitly requested metadata only; native paths never leave this parser. */
+  attachments: readonly Readonly<{ name: string | null; mimeType: string | null; sizeBytes: number | null }>[];
 }>;
 
 export type ImsgTransportOutcome =
@@ -821,10 +823,33 @@ function exactChat(
   return chat;
 }
 
+function parseAttachmentMetadata(value: unknown, label: string): ImsgMessageProjection["attachments"] {
+  const items = array(value, label, 20);
+  return Object.freeze(Array.from({ length: items.length }, (_, index) => {
+    const descriptor = Object.getOwnPropertyDescriptor(items, String(index));
+    if (descriptor === undefined || !("value" in descriptor)) throw new Error(`${label} must contain only data items`);
+    const source = record(descriptor.value, `${label}[${index}]`), itemLabel = `${label}[${index}]`;
+    // Pinned AttachmentPayload omits both converted fields with conversion off.
+    // Reject them rather than accepting bytes or metadata from a conversion.
+    exactKeys(source, ["filename", "transfer_name", "uti", "mime_type", "total_bytes", "is_sticker", "original_path", "missing"], [], itemLabel);
+    for (const key of ["filename", "original_path"]) boundedImsgString(source[key], `${itemLabel}.${key}`, 8_192, { allowEmpty: true });
+    boundedImsgString(source.uti, `${itemLabel}.uti`, 512, { allowEmpty: true });
+    const name = boundedImsgString(source.transfer_name, `${itemLabel}.transfer_name`, 512, { allowEmpty: true });
+    const mimeType = boundedImsgString(source.mime_type, `${itemLabel}.mime_type`, 256, { allowEmpty: true });
+    if (/[\\/]/u.test(name) || name === "." || name === "..") throw new Error(`${itemLabel}.transfer_name must be a filename, not a path`);
+    if (mimeType !== "" && !/^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/u.test(mimeType)) throw new Error(`${itemLabel}.mime_type must be a media type`);
+    if (typeof source.is_sticker !== "boolean" || typeof source.missing !== "boolean") throw new Error(`${itemLabel} must contain boolean flags`);
+    const sizeBytes = integer(source.total_bytes, `${itemLabel}.total_bytes`, 0, 1024 * 1024 * 1024);
+    // No fallback to filename/original_path, no path resolution or file reads.
+    return Object.freeze({ name: name === "" ? null : name, mimeType: mimeType === "" ? null : mimeType, sizeBytes });
+  }));
+}
+
 function parseMessage(
   value: unknown,
   label: string,
   target: ImsgChatCoordinate,
+  options: Readonly<{ attachmentMetadata?: boolean }> = {},
 ): ImsgMessageProjection {
   const source = record(value, label);
   exactKeys(source, [
@@ -879,9 +904,10 @@ function parseMessage(
   });
   const createdAt = timestamp(source.created_at, `${label}.created_at`);
   const replyToGuid = nullableString(source.reply_to_guid, `${label}.reply_to_guid`, 2_048);
-  if (array(source.attachments, `${label}.attachments`, 64).length !== 0) {
+  if (options.attachmentMetadata !== true && array(source.attachments, `${label}.attachments`, 64).length !== 0) {
     throw new Error(`${label}.attachments must remain empty when attachment reads are disabled`);
   }
+  const attachments = options.attachmentMetadata === true ? parseAttachmentMetadata(source.attachments, `${label}.attachments`) : Object.freeze([]);
   array(source.reactions, `${label}.reactions`, 10_000);
   boundedImsgString(source.chat_identifier, `${label}.chat_identifier`, 2_048, {
     allowEmpty: true,
@@ -901,6 +927,7 @@ function parseMessage(
     text,
     createdAt,
     replyToGuid: replyToGuid === "" ? null : replyToGuid,
+    attachments,
   });
 }
 
