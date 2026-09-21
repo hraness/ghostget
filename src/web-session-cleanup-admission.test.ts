@@ -1527,6 +1527,223 @@ describe("web-session cleanup admission", () => {
     });
   });
 
+  test("repairs a browser-closed admission whose private roots are already absent", async () => {
+    await withState(async (environment) => {
+      const fixture = pinnedBrowserCleanupResourceFixture();
+      try {
+        const current = currentProcessStartIdentity();
+        writeAdmissionFixture(
+          environment,
+          { status: "cleanup-unsafe" },
+          { processStartId: differentDigest(current.processStartId) },
+          [{
+            resourceId: randomUUID(),
+            status: "browser-closed-artifacts",
+            identity: fixture.resource,
+          }],
+          {},
+          2,
+        );
+        rmSync(fixture.socketDirectory, { recursive: true, force: true });
+        rmSync(fixture.artifactsDirectory, { recursive: true, force: true });
+        let ownerReads = 0;
+        let endpointRefusals = 0;
+        const report = await recoverWebSessionCleanupAdmissionsCore(
+          environment,
+          {
+            currentBootId: current.bootId,
+            inspectOwner: () => "different-or-dead",
+            browserLifecycle: {
+              ownerStatus: () => {
+                ownerReads += 1;
+                return "different-or-dead";
+              },
+              cdpEndpointStatus: () => {
+                endpointRefusals += 1;
+                return Promise.resolve("unavailable");
+              },
+              runCommand: () => {
+                throw new Error("absent-root recovery probed the session store");
+              },
+              sleep: () => Promise.resolve(),
+              now: () => 0,
+            },
+          },
+        );
+        expect(report).toMatchObject({
+          scanned: 1,
+          repaired: 1,
+          retained: 0,
+          invalid: 0,
+          issues: [],
+        });
+        expect(ownerReads).toBeGreaterThan(0);
+        expect(endpointRefusals).toBe(3);
+        expect(listWebSessionCleanupAdmissions(environment)).toHaveLength(0);
+      } finally {
+        rmSync(fixture.socketDirectory, { recursive: true, force: true });
+        rmSync(fixture.artifactsDirectory, { recursive: true, force: true });
+      }
+    });
+  });
+
+  test("repairs a browser-closed admission after the socket root reaps first", async () => {
+    await withState(async (environment) => {
+      const fixture = pinnedBrowserCleanupResourceFixture();
+      try {
+        const current = currentProcessStartIdentity();
+        writeAdmissionFixture(
+          environment,
+          { status: "cleanup-unsafe" },
+          { processStartId: differentDigest(current.processStartId) },
+          [{
+            resourceId: randomUUID(),
+            status: "browser-closed-artifacts",
+            identity: fixture.resource,
+          }],
+          {},
+          2,
+        );
+        rmSync(fixture.socketDirectory, { recursive: true, force: true });
+        const report = await recoverWebSessionCleanupAdmissionsCore(
+          environment,
+          {
+            currentBootId: current.bootId,
+            inspectOwner: () => "different-or-dead",
+            browserLifecycle: {
+              ownerStatus: () => "different-or-dead",
+              cdpEndpointStatus: () => Promise.resolve("unavailable"),
+              runCommand: () => {
+                throw new Error("absent-socket recovery probed the session store");
+              },
+              sleep: () => Promise.resolve(),
+              now: () => 0,
+            },
+          },
+        );
+        expect(report).toMatchObject({
+          scanned: 1,
+          repaired: 1,
+          retained: 0,
+          issues: [],
+        });
+        expect(existsSync(fixture.artifactsDirectory)).toBeFalse();
+        expect(listWebSessionCleanupAdmissions(environment)).toHaveLength(0);
+      } finally {
+        rmSync(fixture.socketDirectory, { recursive: true, force: true });
+        rmSync(fixture.artifactsDirectory, { recursive: true, force: true });
+      }
+    });
+  });
+
+  test("repairs a browser-closed admission after the artifacts root reaps first", async () => {
+    await withState(async (environment) => {
+      const fixture = pinnedBrowserCleanupResourceFixture();
+      try {
+        const current = currentProcessStartIdentity();
+        writeAdmissionFixture(
+          environment,
+          { status: "cleanup-unsafe" },
+          { processStartId: differentDigest(current.processStartId) },
+          [{
+            resourceId: randomUUID(),
+            status: "browser-closed-artifacts",
+            identity: fixture.resource,
+          }],
+          {},
+          2,
+        );
+        rmSync(fixture.artifactsDirectory, { recursive: true, force: true });
+        const report = await recoverWebSessionCleanupAdmissionsCore(
+          environment,
+          {
+            currentBootId: current.bootId,
+            inspectOwner: () => "different-or-dead",
+            browserLifecycle: {
+              ownerStatus: () => "different-or-dead",
+              cdpEndpointStatus: () => Promise.resolve("unavailable"),
+              runCommand: (command) => {
+                expect(command.slice(-3)).toEqual([
+                  "session",
+                  "info",
+                  "--json",
+                ]);
+                return Promise.resolve(
+                  inactiveAgentBrowserSessionResult(fixture.resource),
+                );
+              },
+              sleep: () => Promise.resolve(),
+              now: () => 0,
+            },
+          },
+        );
+        expect(report).toMatchObject({
+          scanned: 1,
+          repaired: 1,
+          retained: 0,
+          issues: [],
+        });
+        expect(existsSync(fixture.socketDirectory)).toBeFalse();
+        expect(listWebSessionCleanupAdmissions(environment)).toHaveLength(0);
+      } finally {
+        rmSync(fixture.socketDirectory, { recursive: true, force: true });
+        rmSync(fixture.artifactsDirectory, { recursive: true, force: true });
+      }
+    });
+  });
+
+  test("retains an absent-root admission while its pinned daemon owner stays live", async () => {
+    await withState(async (environment) => {
+      const fixture = pinnedBrowserCleanupResourceFixture();
+      try {
+        const current = currentProcessStartIdentity();
+        writeAdmissionFixture(
+          environment,
+          { status: "cleanup-unsafe" },
+          { processStartId: differentDigest(current.processStartId) },
+          [{
+            resourceId: randomUUID(),
+            status: "browser-closed-artifacts",
+            identity: fixture.resource,
+          }],
+          {},
+          2,
+        );
+        rmSync(fixture.socketDirectory, { recursive: true, force: true });
+        rmSync(fixture.artifactsDirectory, { recursive: true, force: true });
+        const report = await recoverWebSessionCleanupAdmissionsCore(
+          environment,
+          {
+            currentBootId: current.bootId,
+            inspectOwner: () => "different-or-dead",
+            browserLifecycle: {
+              ownerStatus: (owner) =>
+                owner.pid === 424_242
+                  ? "exact-live-owner"
+                  : "different-or-dead",
+              cdpEndpointStatus: () => Promise.resolve("unavailable"),
+              runCommand: () => {
+                throw new Error("absent-root recovery probed the session store");
+              },
+              sleep: () => Promise.resolve(),
+              now: () => 0,
+            },
+          },
+        );
+        expect(report).toMatchObject({
+          scanned: 1,
+          repaired: 0,
+          retained: 1,
+          issues: [{ kind: "recovery-conflict" }],
+        });
+        expect(listWebSessionCleanupAdmissions(environment)).toHaveLength(1);
+      } finally {
+        rmSync(fixture.socketDirectory, { recursive: true, force: true });
+        rmSync(fixture.artifactsDirectory, { recursive: true, force: true });
+      }
+    });
+  });
+
   test("repairs pre-resource owner death and retains unproved resource state", async () => {
     await withState(async (environment) => {
       const current = currentProcessStartIdentity();

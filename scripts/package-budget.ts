@@ -1,3 +1,15 @@
+// Ghostget 0.18.22 converges settling post-close browser cleanup proofs,
+// admits exact absent-root admission recovery, and follows the aichartsio X
+// rename. A clean npm 11.16.0 pack --ignore-scripts on darwin arm64 measured
+// 11,916,797 compressed bytes, 23,029,751 payload bytes and exactly 577
+// files/entries. Archive SHA-256
+// 701376d7856ad330a34338e07eb3af7f3039e4e033b7ed10d27e3dd769f8729b.
+// Preserve the 4,096-byte packed portability allowance: 11,916,797 + 4,096 =
+// 11,920,893. The prior darwin-to-Linux payload delta was +353 bytes; carry
+// the same projection plus the reviewed 65-byte allowance:
+// 23,029,751 + 353 + 65 = 23,030,169. Current source CI and canonical Release
+// must independently measure and admit their exact archives.
+
 // Ghostget 0.18.21 native exact-service guard candidate adds one reviewed
 // package source patch and its provenance metadata. A clean npm 11.16.0 pack
 // --ignore-scripts on darwin arm64 measured 11,915,051 compressed bytes,
@@ -1205,7 +1217,7 @@
 // 22,786,274 + 65 = 22,786,339. Retain the proven compressed ceiling; this
 // local pack measured 11,572,706 compressed bytes, under it. Required Linux
 // CI and Release independently measure and admit their exact npm archives.
-export const MAX_PACKED_BYTES = 11_919_147;
+export const MAX_PACKED_BYTES = 11_920_893;
 export const MAX_PACKED_ENTRIES = 577;
 export const MAX_PACKED_FILES = 577;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
@@ -1245,7 +1257,7 @@ export const MAX_PACKED_FILES = 577;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 23_019_754;
+export const MAX_UNPACKED_BYTES = 23_030_169;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

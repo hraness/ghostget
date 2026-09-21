@@ -15,6 +15,7 @@ import {
   bindLiveAgentBrowserCleanupResource,
   parseBrowserCleanupResourceIdentity,
   PreservedBrowserArtifactsError,
+  provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence,
   provePreparedAgentBrowserCleanupResourceQuiescent,
   recoverPinnedAgentBrowserCleanupResource,
   refreshBrowserCleanupResourceQuiescence,
@@ -1598,18 +1599,23 @@ async function finalizeRecoveredBrowserResource(
     if (rootStatus === "match") {
       try {
         if (rootName === "artifacts") {
-          if (
-            browserCleanupResourceRootStatus(
+          const socketStatus = browserCleanupResourceRootStatus(
+            selected.identity,
+            "socket",
+          );
+          if (socketStatus === "match") {
+            await refreshBrowserCleanupResourceQuiescence(
               selected.identity,
-              "socket",
-            ) !== "match"
-          ) {
+              lifecycle,
+            );
+          } else if (socketStatus === "absent") {
+            await provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+              selected.identity,
+              lifecycle,
+            );
+          } else {
             return { status: "artifact-conflict", snapshot: current };
           }
-          await refreshBrowserCleanupResourceQuiescence(
-            selected.identity,
-            lifecycle,
-          );
         } else {
           if (
             browserCleanupResourceRootStatus(
@@ -1769,10 +1775,31 @@ async function recoverBrowserCleanupUnsafe(
         return "claim-conflict";
       }
       if (pinned.phase === "prepared") {
-        await provePreparedAgentBrowserCleanupResourceQuiescent(
+        if (
+          browserCleanupResourceRootStatus(pinned, "artifacts") !== "match"
+          || browserCleanupResourceRootStatus(pinned, "socket") !== "match"
+        ) {
+          await provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+            pinned,
+            lifecycle,
+          );
+        } else {
+          await provePreparedAgentBrowserCleanupResourceQuiescent(
+            pinned,
+            lifecycle,
+          );
+        }
+      } else if (
+        browserCleanupResourceRootStatus(pinned, "socket") === "absent"
+      ) {
+        await provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
           pinned,
           lifecycle,
         );
+      } else if (
+        browserCleanupResourceRootStatus(pinned, "artifacts") === "absent"
+      ) {
+        await reproveBrowserCleanupAfterArtifactsRemoval(pinned, lifecycle);
       } else {
         await recoverPinnedAgentBrowserCleanupResource(pinned, lifecycle);
       }

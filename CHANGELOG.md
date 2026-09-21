@@ -7,6 +7,21 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.22
+
+- Converge browser cleanup quiescence proofs while the session, daemon owner,
+  and CDP endpoint settle after a close attempt. Cleanup now retries lifecycle
+  observations inside the bounded post-close convergence window instead of
+  faulting a read on transient state, and still retains durable custody when
+  exact quiescence cannot be proved.
+- Recover `browser-closed-artifacts` admissions whose private artifact and
+  socket roots are already absent: after exact resource identity, dead or
+  stale owner, and endpoint-refusal proofs hold at a stable boundary, the
+  durable admission closes without probing the absent session store or
+  deleting replacement artifacts.
+- Follow the `lifedaysleft` X account rename to `aichartsio` in the Hraness
+  social-profile reference manifest, guide, and contract tests.
+
 ## 0.18.21
 
 - Preserve modern `any;` iMessage GUIDs as exact routes alongside `iMessage;`

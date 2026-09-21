@@ -20,14 +20,14 @@
       ]
     },
     {
-      "accountKey": "x-lifedaysleft",
+      "accountKey": "x-aichartsio",
       "reads": [
         {
           "adapter": "x-web",
           "operation": "profiles.read",
           "authority": { "kind": "auth", "authId": "x-chrome" },
-          "input": { "handle": "lifedaysleft" },
-          "expectedOutput": { "provider": "x", "targetUrl": "https://x.com/lifedaysleft" },
+          "input": { "handle": "aichartsio" },
+          "expectedOutput": { "provider": "x", "targetUrl": "https://x.com/aichartsio" },
           "metricKeys": ["followers", "following"],
           "expectedCategoricalGaps": [],
           "requiredDelayBeforeMs": 0,
