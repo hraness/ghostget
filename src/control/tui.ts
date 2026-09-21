@@ -31,6 +31,16 @@ function failure(response: Extract<ControlResponse, { readonly ok: false }>): st
   return `${tuiText(response.code, 64)}: ${tuiText(response.message, 640)}`;
 }
 
+// Snapshots re-verify the plugin store and every account revision; the menu
+// controller uses the same bound for all of its requests.
+const SNAPSHOT_REQUEST_TIMEOUT_MS = 90_000;
+const VERIFY_REQUEST_TIMEOUT_MS = 70_000;
+const REQUEST_TIMEOUT_MS = 15_000;
+// A full snapshot is real verification work; the cheap in-memory approval list
+// keeps human review latency low between refreshes.
+const SNAPSHOT_INTERVAL_MS = 30_000;
+const APPROVAL_INTERVAL_MS = 3_000;
+
 /** The controller only sends closed protocol requests. Reviews retain the exact
  * account, capability digest and revision; neither refresh nor failures retry a
  * mutation. The helper remains the authority for all admission decisions. */
@@ -49,22 +59,47 @@ export class TuiController {
     this.state.dialog = { kind: "confirm", title, detail, request, value: "", scroll: 0, reviewed: false };
   }
   private async request(request: ControlRequest): Promise<ControlResponse> {
-    try { return await this.helper.request(request, request.action === "connection.verify" ? 70_000 : 15_000); }
+    try { return await this.helper.request(request, request.action === "connection.verify" ? VERIFY_REQUEST_TIMEOUT_MS : request.action === "snapshot" ? SNAPSHOT_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS); }
     catch { return { ok: false, code: "CONTROL_DISCONNECTED", message: "The local helper is unavailable. Stop the menu bar or quit the other controller, then restart ghostget tui." }; }
   }
+  /** Background refreshes set refreshing instead of busy so navigation stays
+   * live; mutations still wait for a settled foreground state. */
   async refresh(background = false): Promise<void> {
-    if (this.closed || this.state.busy) return;
-    this.state.busy = true; if (!background) this.changed();
+    if (this.closed || this.state.busy || this.state.refreshing) return;
+    if (background) this.state.refreshing = true; else { this.state.busy = true; this.changed(); }
     try {
       const response = await this.request({ action: "snapshot", accountId: this.accountId });
       if (this.closed) return;
       if (!response.ok) { this.state.fresh = false; this.state.dialog = null; this.state.notice = failure(response); return; }
       if (response.data.kind !== "snapshot") { this.state.fresh = false; this.state.notice = "Unexpected control response. Restart the panel."; return; }
+      // A late or replayed response must never undo newer owner state.
+      if (this.state.snapshot !== null && response.data.snapshot.policy.revision < this.state.snapshot.policy.revision) return;
       applyTuiSnapshot(this.state, response.data.snapshot);
       this.accountId = response.data.snapshot.accountId;
       if (this.state.notice === "Loading local controls…") this.state.notice = "Start with a public page; connect an account when you need it.";
       if (this.state.section === "Activity") await this.loadActivity();
-    } finally { this.state.busy = false; this.changed(); }
+    } finally { this.state.busy = false; this.state.refreshing = false; this.changed(); }
+  }
+  /** Approval requests live in the helper's memory; polling them does not pay
+   * the snapshot's verification cost and never marks stale state fresh. */
+  private approvalsPolling = false;
+  async refreshApprovals(): Promise<void> {
+    if (this.closed || this.state.busy || this.state.refreshing || this.approvalsPolling || this.state.snapshot === null) return;
+    this.approvalsPolling = true;
+    try {
+      const response = await this.request({ action: "approval.list" });
+      if (this.closed || !response.ok || response.data.kind !== "approvals") return;
+      const current = this.state.snapshot;
+      if (current === null) return;
+      const approvals = response.data.approvals;
+      if (current.approvals.length === approvals.length && current.approvals.every((approval, index) => approval.id === approvals[index]!.id && approval.digest === approvals[index]!.digest)) return;
+      const selectedId = tuiRows(this.state)[this.state.selected]?.id;
+      this.state.snapshot = { ...current, approvals };
+      const rows = tuiRows(this.state);
+      const selected = rows.findIndex((row) => row.id === selectedId);
+      this.state.selected = selected >= 0 ? selected : Math.max(0, Math.min(this.state.selected, rows.length - 1));
+      this.changed();
+    } finally { this.approvalsPolling = false; }
   }
   private async loadActivity(): Promise<void> {
     const response = await this.request({ action: "activity.query", query: { search: "", method: "all", outcome: "all", origin: null, since: null, order: "newest", cursor: this.state.activityCursor, limit: 50 } });
@@ -79,6 +114,7 @@ export class TuiController {
   }
   private async mutate(request: ControlRequest): Promise<void> {
     if (this.closed || !this.state.fresh || this.state.busy) return;
+    if (this.state.refreshing) { this.state.notice = "A state refresh is in progress — review and confirm again when it finishes."; this.changed(); return; }
     this.state.busy = true; this.state.dialog = null; this.state.notice = "Applying the reviewed action…"; this.changed();
     try {
       const response = await this.request(request);
@@ -300,6 +336,7 @@ export async function runInteractiveTui(helper: HelperClient, terminal: TuiTermi
     const disposers: (() => void)[] = [];
     let escapeTimer: ReturnType<typeof setTimeout> | undefined;
     let refreshTimer: ReturnType<typeof setInterval> | undefined;
+    let approvalTimer: ReturnType<typeof setInterval> | undefined;
     try {
       await new Promise<void>((resolve) => {
         finish = () => { if (stopped) return; stopped = true; controller.closed = true; resolve(); };
@@ -322,12 +359,14 @@ export async function runInteractiveTui(helper: HelperClient, terminal: TuiTermi
         }), terminal.onResize(draw), terminal.onSignal(finish));
         draw();
         void controller.refresh().catch(() => finish());
-        refreshTimer = setInterval(() => { if (!controller.state.busy && controller.state.dialog === null && !controller.state.filtering) void controller.refresh(true).catch(() => finish()); }, 3_000);
+        refreshTimer = setInterval(() => { if (controller.state.dialog === null && !controller.state.filtering) void controller.refresh(true).catch(() => finish()); }, SNAPSHOT_INTERVAL_MS);
+        approvalTimer = setInterval(() => { void controller.refreshApprovals().catch(() => {}); }, APPROVAL_INTERVAL_MS);
       });
     } finally {
       stopped = true; controller.closed = true;
       if (escapeTimer !== undefined) clearTimeout(escapeTimer);
       if (refreshTimer !== undefined) clearInterval(refreshTimer);
+      if (approvalTimer !== undefined) clearInterval(approvalTimer);
       for (const dispose of disposers.reverse()) dispose();
     }
   });

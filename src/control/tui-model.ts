@@ -28,6 +28,7 @@ export interface TuiState {
   notice: string;
   fresh: boolean;
   busy: boolean;
+  refreshing: boolean;
   dialog: TuiDialog | null;
   activity: ActivityPage | null;
   activityPrevious: (string | null)[];
@@ -37,7 +38,7 @@ export interface TuiState {
 }
 
 export function createTuiState(): TuiState {
-  return { snapshot: null, section: "Setup", selected: 0, filter: "", filtering: false, notice: "Loading local controls…", fresh: false, busy: false, dialog: null, activity: null, activityPrevious: [], activityCursor: null, attempt: null, browserConnections: process.platform === "darwin" };
+  return { snapshot: null, section: "Setup", selected: 0, filter: "", filtering: false, notice: "Loading local controls…", fresh: false, busy: false, refreshing: false, dialog: null, activity: null, activityPrevious: [], activityCursor: null, attempt: null, browserConnections: process.platform === "darwin" };
 }
 
 /** Treat every displayed provider string as data, including terminal sequences,
@@ -156,12 +157,12 @@ export function renderTui(state: TuiState, columns = 100, rows = 28): { readonly
   const snapshot = state.snapshot;
   const header = `Ghostget${snapshot === null ? "" : ` ${snapshot.version}`} · Local controls`;
   if (width < 44 || height < 12) return { text: [fit(header, width), fit("Enlarge terminal to 45 × 12 or larger.", width), fit("q / Esc / Ctrl-C exits", width)].slice(0, height).join("\n"), reviewEndVisible: false, reviewOffset: 0 };
-  const chrome = [header, `${snapshot?.accountId ?? "No account (public scope)"} · ${snapshot?.approvals.length ?? 0} pending · ${state.busy ? "Working…" : state.fresh ? "Connected" : "State unavailable — refresh before changes"}`, TUI_SECTIONS.map((section, index) => `${index + 1} ${section === state.section ? `[${section}]` : section}`).join("  ")];
+  const chrome = [header, `${snapshot?.accountId ?? "No account (public scope)"} · ${snapshot?.approvals.length ?? 0} pending · ${state.busy ? "Working…" : state.refreshing ? "Refreshing…" : state.fresh ? "Connected" : "State unavailable — refresh before changes"}`, TUI_SECTIONS.map((section, index) => `${index + 1} ${section === state.section ? `[${section}]` : section}`).join("  ")];
   const bodyHeight = height - 6;
   let body: string[] = [];
   let reviewEndVisible = false;
   let reviewOffset = 0;
-  if (snapshot === null && !state.busy && state.notice !== "Loading local controls…") {
+  if (snapshot === null && !state.busy && !state.refreshing && state.notice !== "Loading local controls…") {
     body = ["Local controls unavailable", ...wrap(state.notice, width), "", "Stop the menu bar: ghostget menubar stop", "Quit any other terminal controller, then restart ghostget tui.", "q or Ctrl-C exits this panel."];
   } else if (state.dialog?.kind === "confirm" || state.dialog?.kind === "help" || state.dialog?.kind === "detail") {
     const dialog = state.dialog;
