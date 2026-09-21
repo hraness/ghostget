@@ -1,3 +1,18 @@
+// Renewable X vault imports over Ghostget 0.18.23 add the public-client
+// refresh module (src/oauth-x.ts), expiry and renewal metadata on the
+// account surfaces, and the desktop-wide 1Password platform gate. A clean
+// npm 11.19.0 pack --ignore-scripts on darwin arm64 measured 11,910,740
+// compressed bytes, 23,060,195 payload bytes and exactly 578 files/entries.
+// Archive SHA-256
+// c58f27d5b9f06040d27ca361e7816a0cde2d69c3fb26ed76649fd3f160f348f9. The
+// prior darwin-to-Linux packed delta for this inventory was +12,387 bytes;
+// carry that projection plus the 4,096-byte packed portability allowance:
+// 11,910,740 + 12,387 + 4,096 = 11,927,223. The prior darwin-to-Linux
+// payload delta was +353 bytes; carry the same projection plus the reviewed
+// 65-byte allowance: 23,060,195 + 353 + 65 = 23,060,613. Current source CI
+// and canonical Release must independently measure and admit their exact
+// archives.
+//
 // Renewable X vault imports add the public-client refresh module
 // (src/oauth-x.ts), expiry and renewal metadata on the account surfaces, and
 // the desktop-wide 1Password platform gate. A clean npm 11.19.0 pack
@@ -9,6 +24,20 @@
 // 65-byte payload allowance: 11,922,389 + 4,096 = 11,926,485 and
 // 23,057,885 + 65 = 23,057,950. Current source CI and canonical
 // Release must independently measure and admit their exact archives.
+//
+// Ghostget 0.18.23 admits cross-boot cleanup-unsafe browser admissions whose
+// published roots are already absent into the existing absent-root recovery
+// proof and accepts the not_configured lifecycle save/restore vocabulary
+// agent-browser 0.32.3 reports for sessions that never configured those
+// features. A clean npm 11.16.0 pack --ignore-scripts on darwin arm64
+// measured 11,919,738 compressed bytes, 23,040,867 payload bytes and exactly
+// 577 files/entries. Archive SHA-256
+// feefdaa288454938b6e6598b0cd19be5bcecbb2cca307bebafee6a32495c47e8.
+// Preserve the 4,096-byte packed portability allowance: 11,919,738 + 4,096 =
+// 11,923,834. The prior darwin-to-Linux payload delta was +353 bytes; carry
+// the same projection plus the reviewed 65-byte allowance:
+// 23,040,867 + 353 + 65 = 23,041,285. Current source CI and canonical Release
+// must independently measure and admit their exact archives.
 //
 // Control snapshot revision batching adds a chunked fallback for incarnation
 // collections larger than one helper batch. A clean npm 11.19.0 pack
@@ -1248,7 +1277,7 @@
 // 22,786,274 + 65 = 22,786,339. Retain the proven compressed ceiling; this
 // local pack measured 11,572,706 compressed bytes, under it. Required Linux
 // CI and Release independently measure and admit their exact npm archives.
-export const MAX_PACKED_BYTES = 11_926_485;
+export const MAX_PACKED_BYTES = 11_927_223;
 export const MAX_PACKED_ENTRIES = 578;
 export const MAX_PACKED_FILES = 578;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
@@ -1288,7 +1317,7 @@ export const MAX_PACKED_FILES = 578;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 23_057_950;
+export const MAX_UNPACKED_BYTES = 23_060_613;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
