@@ -1,11 +1,12 @@
 // Ghostget 0.18.21 native exact-service guard candidate adds one reviewed
 // package source patch and its provenance metadata. A clean npm 11.16.0 pack
 // --ignore-scripts on darwin arm64 measured 11,915,051 compressed bytes,
-// 23,019,336 payload bytes and exactly 577 files/entries; archive SHA-256
+// 23,019,336 payload bytes and exactly 577 files/entries; the Linux CI pack
+// measured 23,019,689 payload bytes for the same inventory. Archive SHA-256
 // b425b3c568bddf328b667867c53e8f0a3aba02cfa7727fadd3d77cf6e9dc6f0f.
 // Preserve the 4,096-byte packed portability allowance and the reviewed
 // 65-byte payload allowance: 11,915,051 + 4,096 = 11,919,147 and
-// 23,019,336 + 65 = 23,019,401. Current source CI and canonical Release must
+// 23,019,689 + 65 = 23,019,754. Current source CI and canonical Release must
 // independently measure and admit their exact archives.
 
 // Ghostget 0.18.21 local coordinate repair follows the observed closed
@@ -1244,7 +1245,7 @@ export const MAX_PACKED_FILES = 577;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 23_019_401;
+export const MAX_UNPACKED_BYTES = 23_019_754;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
