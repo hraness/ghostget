@@ -787,3 +787,79 @@ describe("bounded official-provider HTTP", () => {
     expect(() => expectResponseBodyUnlocked(response)).not.toThrow();
   });
 });
+
+describe("owned-import X refresh credentials", () => {
+  function ownedFixture() {
+    const root = mkdtempSync(join(realpathSync(tmpdir()), "wrench-x-owned-token-test-"));
+    chmodSync(root, 0o700);
+    const path = join(root, "token.json");
+    const auth = createAuth("x-owned", {
+      oauthProvider: "x",
+      tokenFile: path,
+      scopes: ["offline.access", "tweet.read", "users.read"],
+      subject: "12345",
+      ownedImport: true,
+    });
+    if (auth.kind !== "oauth-token-file") throw new Error("expected an OAuth locator");
+    return { root, path, auth };
+  }
+  const document = (refresh: unknown) => ({
+    schemaVersion: 2,
+    provider: "x",
+    subject: "12345",
+    scopes: ["offline.access", "tweet.read", "users.read"],
+    accessToken: "private-access-token-value",
+    expiresAt: "2027-01-01T00:00:00.000Z",
+    refresh,
+  });
+  const refresh = {
+    kind: "x-oauth2-public-client" as const,
+    clientId: "publicClient-1x",
+    refreshToken: "private-x-refresh-token",
+    refreshTokenExpiresAt: null,
+  };
+
+  test("parses a locator-bound renewable credential without exposing secrets", () => {
+    const value = ownedFixture();
+    try {
+      writeFileSync(value.path, JSON.stringify(document(refresh)), { mode: 0o600 });
+      const credential = loadOAuthCredential(value.auth);
+      expect(credential.refresh).toEqual(refresh);
+      expect(credential.expiresAt).toBe("2027-01-01T00:00:00.000Z");
+    } finally { rmSync(value.root, { recursive: true, force: true }); }
+  });
+
+  test("rejects drifted, widened or weak refresh shapes without echoing secrets", () => {
+    const value = ownedFixture();
+    try {
+      for (const bad of [
+        { ...refresh, kind: "google-installed-app" },
+        { ...refresh, extra: "field" },
+        { ...refresh, clientId: "has spaces" },
+        { ...refresh, clientId: "short" },
+        { ...refresh, refreshToken: "short" },
+        { ...refresh, refreshTokenExpiresAt: "not-a-date" },
+        { ...refresh, refreshToken: "private-x-refresh-token\n" },
+        "not-an-object",
+        null,
+      ]) {
+        writeFileSync(value.path, JSON.stringify(document(bad)), { mode: 0o600 });
+        let message = "";
+        try { loadOAuthCredential(value.auth); } catch (error) { message = error instanceof Error ? error.message : String(error); }
+        expect(message.length).toBeGreaterThan(0);
+        expect(message).not.toContain("private-x-refresh-token");
+      }
+    } finally { rmSync(value.root, { recursive: true, force: true }); }
+  });
+
+  test("a refresh document cannot attach to an external or non-X locator", () => {
+    const external = fixture();
+    try {
+      writeFileSync(external.path, JSON.stringify({
+        ...document(refresh),
+        scopes: ["tweet.read", "users.read"],
+      }), { mode: 0o600 });
+      expect(() => loadOAuthCredential(external.auth)).toThrow("owned-import X");
+    } finally { rmSync(external.root, { recursive: true, force: true }); }
+  });
+});

@@ -3,6 +3,7 @@ import { canonicalJson, sha256 } from "../canonical-json";
 import { isLocalCliOperation, isProviderOperation, isWebSessionOperation, manifestHash, type GhostgetManifest } from "../model";
 import { checkProviderApproval, describeOperationPermissions, enableOperationPermissions, readOperationPolicy, recheckProviderApproval, setOperationPermission } from "../operation-permission";
 import { providerPluginRegistry } from "../provider-plugins";
+import { loadOAuthCredential } from "../provider-http";
 import { createPortableProviderPluginCatalog } from "../provider-plugin-portable-catalog";
 import { listInstalledManifests } from "../storage";
 import { GHOSTGET_VERSION } from "../version";
@@ -34,7 +35,11 @@ export class ControlService {
   snapshot(accountId:string|null):ControlSnapshot {
     const registry=this.registry();const context={environment:this.environment,registry};
     const listed=listAuthSnapshots(this.environment);const revisions=connectionAccountSnapshotRevisions(listed,this.environment);
-    const accounts=listed.map(({auth})=>({id:auth.id,provider:"provider" in auth?auth.provider:null,kind:auth.kind,subject:auth.subject??null,revision:revisions.get(auth.id)!,status:"configured" as const,source:auth.kind==="cookie-source"?auth.source:auth.kind==="browser-profile"?"Browser profile":null,tokenStorage:auth.kind==="oauth-token-file"?(auth.managed===true?"managed-oauth" as const:auth.ownedImport===true?"ghostget-import" as const:"external" as const):null}));
+    const accounts=listed.map(({auth})=>{
+      let tokenExpiresAt:string|null=null;let tokenRefreshable=false;
+      if(auth.kind==="oauth-token-file"){try{const credential=loadOAuthCredential(auth);tokenExpiresAt=credential.expiresAt;tokenRefreshable=credential.refresh!==null;}catch{/* an unreadable credential reports no expiry rather than failing the listing */}}
+      return {id:auth.id,provider:"provider" in auth?auth.provider:null,kind:auth.kind,subject:auth.subject??null,revision:revisions.get(auth.id)!,status:"configured" as const,source:auth.kind==="cookie-source"?auth.source:auth.kind==="browser-profile"?"Browser profile":null,tokenStorage:auth.kind==="oauth-token-file"?(auth.managed===true?"managed-oauth" as const:auth.ownedImport===true?"ghostget-import" as const:"external" as const):null,tokenExpiresAt,tokenRefreshable};
+    });
     if(accountId!==null&&!accounts.some(account=>account.id===accountId))throw new ControlError("ACCOUNT_UNAVAILABLE","The selected account is no longer configured.");
     const interfaces=listInterfaces(context);const manifests=new Map<string,GhostgetManifest>();
     for(const item of listInstalledManifests(this.environment,registry))if(item.result.ok)manifests.set(item.id,item.result.value);
@@ -58,7 +63,7 @@ export class ControlService {
       }
     }
     const policy=readOperationPolicy(this.environment);const web=readWebPolicy(this.environment);
-    return {version:GHOSTGET_VERSION,accountId,accounts,capabilities,interfaces,policy:{managed:policy.managed,revision:policy.revision},web:{revision:web.revision,gatewayOnly:web.gatewayOnly,rules:web.rules},approvals:this.approvals.list(),connectionProviders,vault:{provider:"1password",available:process.platform==="darwin",purpose:"x-user-token-import"}};
+    return {version:GHOSTGET_VERSION,accountId,accounts,capabilities,interfaces,policy:{managed:policy.managed,revision:policy.revision},web:{revision:web.revision,gatewayOnly:web.gatewayOnly,rules:web.rules},approvals:this.approvals.list(),connectionProviders,vault:{provider:"1password",available:["darwin","linux","win32"].includes(process.platform),purpose:"x-user-token-import"}};
   }
   async request(request:ControlRequest):Promise<ControlResponse> {
     try {return {ok:true,data:await this.execute(request)};} catch(error){return controlFailure(error);}

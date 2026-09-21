@@ -83,8 +83,8 @@ describe("snapshot menu mapping", () => {
   test("maps approvals, accounts, providers, permissions and vault onto the wire contract", () => {
     const items = snapshotItems(base({
       accounts: [
-        { id: "acct-one", provider: "x", kind: "browser-profile", subject: "owner", revision: "a".repeat(64), status: "verified", source: "Browser profile", tokenStorage: null },
-        { id: "x-web-acct-two", provider: null, kind: "cookie-source", subject: null, revision: "b".repeat(64), status: "reconnect-required", source: "safari", tokenStorage: null },
+        { id: "acct-one", provider: "x", kind: "browser-profile", subject: "owner", revision: "a".repeat(64), status: "verified", source: "Browser profile", tokenStorage: null, tokenExpiresAt: null, tokenRefreshable: false },
+        { id: "x-web-acct-two", provider: null, kind: "cookie-source", subject: null, revision: "b".repeat(64), status: "reconnect-required", source: "safari", tokenStorage: null, tokenExpiresAt: null, tokenRefreshable: false },
       ],
       approvals: [{ id: "appr-1", digest: "c".repeat(64), kind: "web", title: "Fetch docs page", account: null, effect: "retrieval", preview: "GET https://docs.example.com", expiresAt: "2026-09-16T00:00:00Z" }],
       capabilities: [
@@ -104,7 +104,7 @@ describe("snapshot menu mapping", () => {
     expect(all).toContain("Gateway-only mode");
     expect(all).toContain("Docs interface · draft");
     expect(all).toContain("1Password · X token import");
-    expect(all).toContain("macOS supported; desktop access has not been checked.");
+    expect(all).toContain("Desktop platform supported; 1Password access has not been checked.");
     expect(all).toContain("Updated 3s ago");
     expect(ids).toContain("approval:allow:appr-1");
     expect(ids).toContain("approval:deny:appr-1");
@@ -142,7 +142,7 @@ describe("snapshot menu mapping", () => {
     const capabilities = Array.from({ length: 40 }, (_, index) => ({
       digest: "f".repeat(64), adapterId: `adapter-${index}`, operationId: `op-${index}`, pluginId: null, surface: "x", transport: "web-session", risk: "read", effect: "reads", state: "available" as const, executorSource: "built-in" as const, interfaceSource: "bundled" as const, permission: "unmanaged" as const,
     }));
-    const accounts = Array.from({ length: 25 }, (_, index) => ({ id: `acct-${index}`, provider: null, kind: "cookie-source", subject: null, revision: "a".repeat(64), status: "configured" as const, source: null, tokenStorage: null }));
+    const accounts = Array.from({ length: 25 }, (_, index) => ({ id: `acct-${index}`, provider: null, kind: "cookie-source", subject: null, revision: "a".repeat(64), status: "configured" as const, source: null, tokenStorage: null, tokenExpiresAt: null, tokenRefreshable: false }));
     const items = snapshotItems(base({ accounts, capabilities, policy: { managed: true, revision: 9 } }), new Map(), { confirmedAgeSeconds: 61, fresh: false });
     wire(items);
     const all = labels(items);
@@ -152,9 +152,9 @@ describe("snapshot menu mapping", () => {
   });
   test("configured browser accounts offer a matching reconnect without offering token replacement", () => {
     const accounts: ControlSnapshot["accounts"] = [
-      { id: "x-web-123", provider: null, kind: "cookie-source", subject: "12345", revision: "a".repeat(64), status: "configured", source: "chrome", tokenStorage: null },
-      { id: "x-token", provider: "x", kind: "oauth-token-file", subject: "12345", revision: "b".repeat(64), status: "configured", source: null, tokenStorage: "ghostget-import" },
-      { id: "unknown-browser", provider: null, kind: "cookie-source", subject: "12345", revision: "c".repeat(64), status: "configured", source: "chrome", tokenStorage: null },
+      { id: "x-web-123", provider: null, kind: "cookie-source", subject: "12345", revision: "a".repeat(64), status: "configured", source: "chrome", tokenStorage: null, tokenExpiresAt: null, tokenRefreshable: false },
+      { id: "x-token", provider: "x", kind: "oauth-token-file", subject: "12345", revision: "b".repeat(64), status: "configured", source: null, tokenStorage: "ghostget-import", tokenExpiresAt: null, tokenRefreshable: false },
+      { id: "unknown-browser", provider: null, kind: "cookie-source", subject: "12345", revision: "c".repeat(64), status: "configured", source: "chrome", tokenStorage: null, tokenExpiresAt: null, tokenRefreshable: false },
     ];
     const ids = actionIds(snapshotItems(base({ accounts, connectionProviders: [{ id: "x-web", title: "X" }, { id: "linkedin-web", title: "LinkedIn" }] }), new Map(), { confirmedAgeSeconds: 0, fresh: true }));
     expect(ids).toContain("reconnect:x-web-123:x-web:chrome-default");
@@ -169,7 +169,7 @@ describe("snapshot menu mapping", () => {
     expect(actions.get("refresh")).toBe(true);
   });
   test("Linux keeps browser connection controls disabled and offers provider-specific guidance", () => {
-    const state = base({ accounts: [{ id: "x-web-main", provider: null, kind: "cookie-source", subject: "12345", revision: "a".repeat(64), status: "configured", source: "chrome", tokenStorage: null }] });
+    const state = base({ accounts: [{ id: "x-web-main", provider: null, kind: "cookie-source", subject: "12345", revision: "a".repeat(64), status: "configured", source: "chrome", tokenStorage: null, tokenExpiresAt: null, tokenRefreshable: false }] });
     const items = snapshotItems(state, new Map(), { confirmedAgeSeconds: 0, fresh: true }, [], undefined, null, null, "linux");
     const actions = wire(items);
     expect(actions.get("connect:x-web:safari")).toBe(false);

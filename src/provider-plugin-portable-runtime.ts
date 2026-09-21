@@ -78,8 +78,8 @@ import {
   normalizePortablePluginJsonValue,
 } from "./provider-plugin-protocol";
 import {
-  loadOAuthToken,
-} from "./provider-http";
+  resolveOAuthToken,
+} from "./oauth-google";
 import { summarizePlanFile } from "./plan-assets";
 import {
   createPrivateJsonIfAbsent,
@@ -141,7 +141,7 @@ export type PortableProviderRuntimeDependencies = {
   readonly runHost: typeof runPortableProviderPluginHost;
   readonly createFetchScope: typeof createPinnedHttpsFetchScope;
   readonly acquireCookies: typeof acquireCookieRecords;
-  readonly loadToken: typeof loadOAuthToken;
+  readonly loadToken: typeof resolveOAuthToken;
   readonly closeBoundFile: (descriptor: number) => void;
   /** Internal deterministic seam for pre-transfer descriptor cleanup. */
   readonly closePlanFileBindingDescriptor: (descriptor: number) => void;
@@ -156,7 +156,7 @@ const defaultDependencies: PortableProviderRuntimeDependencies = {
   runHost: runPortableProviderPluginHost,
   createFetchScope: createPinnedHttpsFetchScope,
   acquireCookies: acquireCookieRecords,
-  loadToken: loadOAuthToken,
+  loadToken: resolveOAuthToken,
   closeBoundFile: closeSync,
   closePlanFileBindingDescriptor: closeSync,
   removePlanFileBindingDirectory: (path, force) =>
@@ -971,10 +971,13 @@ function capabilityHost(options: {
           && options.binding.transport === "provider-api"
           && options.auth.kind === "oauth-token-file"
         ) {
-          const token = options.dependencies.loadToken(
+          const token = await options.dependencies.loadToken(
             options.auth,
-            new Date(),
-            30_000,
+            {
+              now: new Date(),
+              minimumValidityMs: 30_000,
+              signal: options.operationDeadline?.signal ?? context.signal,
+            },
           );
           material = { kind: "oauth-access-token", value: token.accessToken };
         } else if (

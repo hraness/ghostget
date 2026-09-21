@@ -38,6 +38,7 @@ import {
   type OAuthTokenAuth,
   type ProviderFetch,
 } from "./provider-http";
+import { resolveXOAuthToken } from "./oauth-x";
 import { isGmailAccountSubject } from "./provider-subject";
 import { pinnedHttpsFetch, type PinnedHttpsFetch } from "./pinned-https";
 import {
@@ -810,11 +811,15 @@ export function resolveOAuthToken(
     environment?: Readonly<Record<string, string | undefined>>;
     now?: Date;
     minimumValidityMs?: number;
+    force?: boolean;
     fetch?: ProviderFetch;
     pinnedFetch?: PinnedHttpsFetch;
     signal?: AbortSignal;
   }> = {},
 ): LoadedOAuthToken | Promise<LoadedOAuthToken> {
+  if (auth.ownedImport === true && auth.provider === "x") {
+    return resolveXOAuthToken(auth, options);
+  }
   const environment = options.environment ?? process.env;
   const now = options.now ?? new Date();
   const nowMs = now.getTime();
@@ -832,6 +837,7 @@ export function resolveOAuthToken(
   if (
     credential.schemaVersion !== 2
     || credential.refresh === null
+    || credential.refresh.kind !== "google-installed-app"
     || !isManagedTokenPath(auth, environment)
   ) {
     return loadOAuthToken(auth, now, minimumValidityMs);

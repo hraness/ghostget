@@ -154,7 +154,7 @@ import {
   WEB_SESSION_CLEANUP_JOIN_TIMEOUT_MS,
 } from "./web-session-execution";
 import { reconcileWebSessionRun } from "./web-session-recovery";
-import { loadOAuthToken, requireOAuthScopes } from "./provider-http";
+import { loadOAuthCredential, loadOAuthToken, requireOAuthScopes } from "./provider-http";
 import {
   installManagedGoogleOAuth,
   loginGoogleOAuth,
@@ -1288,6 +1288,20 @@ function capabilitySummary(
     : { id, invalid: true, issues: result.issues });
 }
 
+function oauthTokenListEntry(
+  auth: Extract<GhostgetAuth, { readonly kind: "oauth-token-file" }>,
+): { readonly expiresAt: string | null; readonly refreshable: boolean } {
+  try {
+    const credential = loadOAuthCredential(auth);
+    return Object.freeze({
+      expiresAt: credential.expiresAt,
+      refreshable: credential.refresh !== null,
+    });
+  } catch {
+    return Object.freeze({ expiresAt: null, refreshable: false });
+  }
+}
+
 function listRuntimeManifests(
   environment: Readonly<Record<string, string | undefined>>,
   registry: ProviderPluginRegistry,
@@ -1344,8 +1358,10 @@ function officialProviderReadiness(
       }));
     const locators = auth.filter((entry) => entry.provider === provider).map((entry) => {
       let tokenReady = false;
+      let tokenRefreshable = false;
       let usableOperations = 0;
       try {
+        tokenRefreshable = loadOAuthCredential(entry).refresh !== null;
         loadOAuthToken(entry);
         tokenReady = true;
         usableOperations = operations.filter((operation) => {
@@ -1360,7 +1376,7 @@ function officialProviderReadiness(
       } catch {
         // Doctor reports only readiness metadata and never token contents or paths.
       }
-      return { id: entry.id, tokenReady, usableOperations };
+      return { id: entry.id, tokenReady, tokenRefreshable, usableOperations };
     });
     return {
       provider,
@@ -2400,6 +2416,7 @@ async function runCommand(
         provider: auth.provider,
         scopes: auth.scopes,
         managed: auth.managed === true,
+        token: oauthTokenListEntry(auth),
       } : {}),
       ...(auth.kind === "linked-device-store" ? {
         provider: auth.provider,

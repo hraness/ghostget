@@ -1166,7 +1166,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_630_336);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_650_304);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1348,8 +1348,8 @@ describe("npm publication contract", () => {
     expect(MAX_PACKED_BYTES).toBe(11_916_797 + 4_096);
     expect(budget).toContain("11,696,091 + 4,096 = 11,700,187");
     expect(budget).toContain("35449445752 attempt 1, package job 105913938839");
-    expect(MAX_PACKED_ENTRIES).toBe(577);
-    expect(MAX_PACKED_FILES).toBe(577);
+    expect(MAX_PACKED_ENTRIES).toBe(578);
+    expect(MAX_PACKED_FILES).toBe(578);
     expect(budget).toContain("Ghostget 0.18.6 same-boot setup-cleanup candidate over main edbe567");
     expect(budget).toContain("11,656,173");
     expect(budget).toContain("22,513,450 payload bytes across exactly 557 files");
@@ -1374,10 +1374,12 @@ describe("npm publication contract", () => {
     expect(budget).toContain("f9f3ab38a682690ceaa2699a7309997512030f0fa500a9dc29dcd108123dc41f");
     expect(budget).toContain("23,038,557 + 65 = 23,038,622");
     expect(budget).toContain("d00d126b6fc2e3d214287e1a642c5eb712062f332e4f81217f7a815fef44cd49");
-    expect(MAX_UNPACKED_BYTES).toBe(23_038_622);
+    expect(budget).toContain("23,057,885 + 65 = 23,057,950");
+    expect(budget).toContain("794cbe482b03bffac194def947d3f3fcc246015fec2589e017564d3a08b3a9b0");
+    expect(MAX_UNPACKED_BYTES).toBe(23_057_950);
     expect(budget).toContain("22,689,627 + 10 = 22,689,637");
     expect(budget).toContain("22,689,627 + 65 = 22,689,692");
-    expect(MAX_UNPACKED_BYTES).toBe(23_038_557 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(23_057_885 + 65);
     expect(budget).toContain("22,794,052 + 65 = 22,794,117");
     expect(budget).toContain("c482efe748f880e3717727d6d39fd92a68953e6eea766642b329ba47ae772d80");
     expect(budget).toContain("22,759,423 + 65 = 22,759,488");
@@ -1411,10 +1413,10 @@ describe("npm publication contract", () => {
       expect(Object.isFrozen(range)).toBe(true);
     }
     expect(packageArtifactBudget).toEqual({
-      entryCount: { min: 577, max: 577 },
-      fileCount: { min: 577, max: 577 },
+      entryCount: { min: 578, max: 578 },
+      fileCount: { min: 578, max: 578 },
       packedBytes: { min: 1_600_000, max: 11_920_893 },
-      unpackedBytes: { min: 9_000_000, max: 23_038_622 },
+      unpackedBytes: { min: 9_000_000, max: 23_057_950 },
     });
   });
 

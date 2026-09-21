@@ -96,7 +96,7 @@ export function parseControlRequest(value: unknown): ControlRequest {
     case "connection.verify": case "connection.cancel": exact("attemptId"); return {action,attemptId:identifier(v.attemptId)};
     case "connection.commit": exact("attemptId","expectedSubject"); return {action,attemptId:identifier(v.attemptId),expectedSubject:string(v.expectedSubject,256)};
     case "connection.disconnect": exact("id","expectedRevision"); return {action,id:identifier(v.id),expectedRevision:digest(v.expectedRevision)};
-    case "vault.import": exact("id","account","reference","expectedSubject","scopes","expiresAt","expectedRevision"); return {action,id:identifier(v.id),account:string(v.account,256),reference:string(v.reference,1024),expectedSubject:string(v.expectedSubject,256),scopes:strings(v.scopes,32),expiresAt:nullable(v.expiresAt,32),expectedRevision:v.expectedRevision===null?null:digest(v.expectedRevision)};
+    case "vault.import": exact("id","account","reference","expectedSubject","scopes","expiresAt","refreshReference","clientId","expectedRevision"); return {action,id:identifier(v.id),account:string(v.account,256),reference:string(v.reference,1024),expectedSubject:string(v.expectedSubject,256),scopes:strings(v.scopes,32),expiresAt:nullable(v.expiresAt,32),refreshReference:nullable(v.refreshReference,1024),clientId:nullable(v.clientId,256),expectedRevision:v.expectedRevision===null?null:digest(v.expectedRevision)};
     case "prompt": exact("kind","adapterId"); return {action,kind:oneOf(v.kind,["install","use","extend","gateway"]),adapterId:nullable(v.adapterId,128)};
     default: return invalid();
   }

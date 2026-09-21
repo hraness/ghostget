@@ -4,8 +4,9 @@ import { createAuth, loadAuthSnapshotIfPresent, replaceAuthIfUnchanged, saveAuth
 import { canonicalJson } from "../canonical-json";
 import { OperationDeadline } from "../operation-deadline";
 import { createPinnedHttpsFetchScope, type PinnedHttpsFetch } from "../pinned-https";
-import { bearerHeaders, loadOAuthCredential, loadOAuthToken, ProviderHttpClient, type OAuthTokenAuth } from "../provider-http";
+import { bearerHeaders, loadOAuthCredential, loadOAuthToken, ProviderHttpClient, type OAuthTokenAuth, type XPublicClientRefresh } from "../provider-http";
 import { isXAccountSubject } from "../provider-subject";
+import { exchangeXRefreshToken } from "../oauth-x";
 import { withReadProjectionAuthAdmission } from "../read-projections";
 import { createPrivateJsonIfAbsent, ghostgetStateHome, removePrivateStateFileIfUnchanged } from "../storage";
 import { GHOSTGET_VERSION } from "../version";
@@ -46,7 +47,22 @@ async function resolveDesktopSecret(account: string, reference: string): Promise
 export type CredentialImportDependencies = {
   readonly resolve?: (account: string, reference: string) => Promise<string>;
   readonly probe?: (auth: OAuthTokenAuth, signal: AbortSignal) => Promise<string>;
+  readonly exchange?: (
+    auth: OAuthTokenAuth,
+    refresh: XPublicClientRefresh,
+    expectedContentSha256: string,
+    now: Date,
+    options: { readonly environment: Environment; readonly signal?: AbortSignal },
+  ) => Promise<{ readonly accessToken: string; readonly expiresAt: string }>;
 };
+
+const OAUTH_TOKEN_PATTERN = /^[A-Za-z0-9._~+/-]+=*$/u;
+function validTokenBytes(value: unknown): value is string {
+  return typeof value === "string"
+    && value.length >= 8
+    && Buffer.byteLength(value) <= 16_384
+    && OAUTH_TOKEN_PATTERN.test(value);
+}
 
 /** Runs only in the credential process. Never returns secret values or raw errors. */
 export async function runCredentialImport(value: unknown, environment: Environment, signal: AbortSignal, dependencies: CredentialImportDependencies = {}): Promise<VaultImportResult> {
@@ -65,11 +81,25 @@ export async function runCredentialImport(value: unknown, environment: Environme
     });
     failure = "VAULT_UNAVAILABLE";
     const accessToken = await deadline.run(() => (dependencies.resolve ?? resolveDesktopSecret)(request.account, request.reference), "vault access");
-    if (typeof accessToken !== "string" || accessToken.length < 8 || Buffer.byteLength(accessToken) > 16_384 || !/^[A-Za-z0-9._~+/-]+=*$/u.test(accessToken)) return { ok: false, code: "TOKEN_UNVERIFIED" };
+    if (!validTokenBytes(accessToken)) return { ok: false, code: "TOKEN_UNVERIFIED" };
+    const renewing = request.refreshReference !== null && request.clientId !== null;
+    let refresh: XPublicClientRefresh | null = null;
+    if (renewing) {
+      const refreshToken = await deadline.run(() => (dependencies.resolve ?? resolveDesktopSecret)(request.account, request.refreshReference!), "vault access");
+      if (!validTokenBytes(refreshToken)) return { ok: false, code: "TOKEN_UNVERIFIED" };
+      refresh = Object.freeze({
+        kind: "x-oauth2-public-client" as const,
+        clientId: request.clientId!,
+        refreshToken,
+        refreshTokenExpiresAt: null,
+      });
+    }
     deadline.throwIfUnavailable("token import");
     failure = "IMPORT_FAILED";
     const path = join(ghostgetStateHome(environment), "auth", "oauth-tokens", `${request.id}-${randomUUID()}.json`);
-    const credential = { schemaVersion: 1, provider: "x", subject: request.expectedSubject, scopes: request.scopes, accessToken, expiresAt: request.expiresAt };
+    const credential = refresh === null
+      ? { schemaVersion: 1, provider: "x", subject: request.expectedSubject, scopes: request.scopes, accessToken, expiresAt: request.expiresAt }
+      : { schemaVersion: 2, provider: "x", subject: request.expectedSubject, scopes: request.scopes, accessToken, expiresAt: null, refresh };
     const expectedContent = `${canonicalJson(credential)}\n`;
     stage = { path, contentSha256: null };
     if (!createPrivateJsonIfAbsent(path, credential, { privateParent: true, environment }).created) { stage = null; throw new Error(); }
@@ -78,6 +108,21 @@ export async function runCredentialImport(value: unknown, environment: Environme
     const { contentSha256 } = loadOAuthCredential(auth, { expectedContent });
     stage = { path, contentSha256 };
     failure = "TOKEN_UNVERIFIED";
+    if (refresh !== null) {
+      // Prove the imported refresh token is live before commit: one exchange
+      // yields a rotated pair and the real access-token expiry.
+      await deadline.run(
+        activeSignal => (dependencies.exchange ?? exchangeXRefreshToken)(
+          auth,
+          refresh,
+          stage!.contentSha256!,
+          new Date(),
+          { environment, signal: activeSignal },
+        ),
+        "token renewal",
+      );
+      stage = { path, contentSha256: loadOAuthCredential(auth).contentSha256 };
+    }
     const subject = await deadline.run(activeSignal => (dependencies.probe ?? probeImportedXToken)(auth, activeSignal), "account verification");
     if (subject !== request.expectedSubject) throw new Error();
     failure = "ACCOUNT_CHANGED";
@@ -87,7 +132,7 @@ export async function runCredentialImport(value: unknown, environment: Environme
       parseVaultImport(request);
       const observed = loadAuthSnapshotIfPresent(request.id, environment);
       if ((observed === null ? null : connectionAccountRevision(observed, environment)) !== request.expectedRevision) throw new Error();
-      if (loadOAuthCredential(auth, { expectedContent }).contentSha256 !== contentSha256) throw new Error();
+      if (loadOAuthCredential(auth, refresh === null ? { expectedContent } : {}).contentSha256 !== stage!.contentSha256) throw new Error();
       if (current === null) saveAuth(auth, environment);
       else if (!replaceAuthIfUnchanged(current, auth, environment).replaced) throw new Error();
     });

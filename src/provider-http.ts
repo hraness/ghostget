@@ -36,7 +36,16 @@ export type GoogleInstalledAppRefresh = Readonly<{
 export type LoadedOAuthCredential = LoadedOAuthToken & Readonly<{
   schemaVersion: 1 | 2;
   contentSha256: string;
-  refresh: GoogleInstalledAppRefresh | null;
+  refresh: GoogleInstalledAppRefresh | XPublicClientRefresh | null;
+}>;
+
+/** A public-client (PKCE) X OAuth 2.0 renewal configuration. The client has no
+ * secret; the single-use refresh token rotates on every exchange. */
+export type XPublicClientRefresh = Readonly<{
+  kind: "x-oauth2-public-client";
+  clientId: string;
+  refreshToken: string;
+  refreshTokenExpiresAt: string | null;
 }>;
 
 const MAX_TOKEN_FILE_BYTES = 64 * 1024;
@@ -194,6 +203,31 @@ function parseGoogleInstalledAppRefresh(value: unknown): GoogleInstalledAppRefre
   });
 }
 
+function parseXPublicClientRefresh(value: unknown): XPublicClientRefresh {
+  if (!isRecord(value)) throw new Error("OAuth token document refresh configuration must be an object");
+  if (!exactKeys(value, [
+    "kind",
+    "clientId",
+    "refreshToken",
+    "refreshTokenExpiresAt",
+  ])) throw new Error("OAuth token document refresh configuration has unsupported fields");
+  if (value.kind !== "x-oauth2-public-client") {
+    throw new Error("OAuth token document has an unsupported refresh configuration");
+  }
+  const clientId = boundedOAuthSecret(value.clientId, "X OAuth clientId", 8, 256);
+  if (!/^[A-Za-z0-9_-]+$/u.test(clientId)) {
+    throw new Error("OAuth token document contains an invalid X OAuth clientId");
+  }
+  const refreshToken = boundedOAuthSecret(value.refreshToken, "X OAuth refreshToken", 8, 16 * 1_024);
+  const refreshTokenExpiresAt = tokenExpiry(value.refreshTokenExpiresAt);
+  return Object.freeze({
+    kind: "x-oauth2-public-client" as const,
+    clientId,
+    refreshToken,
+    refreshTokenExpiresAt,
+  });
+}
+
 /** Load and strictly bind a private token document without enforcing freshness. */
 export function loadOAuthCredential(
   auth: OAuthTokenAuth,
@@ -246,19 +280,32 @@ export function loadOAuthCredential(
       contentSha256: createHash("sha256").update(content, "utf8").digest("hex"),
     });
   }
-  if (auth.managed !== true || auth.provider !== "gmail") {
-    throw new Error("renewable OAuth credentials require a Ghostget-managed Gmail auth locator");
+  if (auth.managed === true && auth.provider === "gmail") {
+    if (expiresAt === null) {
+      throw new Error("renewable OAuth credentials require an access-token expiry");
+    }
+    const refresh = parseGoogleInstalledAppRefresh(parsed.refresh);
+    return Object.freeze({
+      schemaVersion,
+      accessToken,
+      expiresAt,
+      refresh,
+      contentSha256: createHash("sha256").update(content, "utf8").digest("hex"),
+    });
   }
-  if (expiresAt === null) {
-    throw new Error("renewable OAuth credentials require an access-token expiry");
+  if (auth.ownedImport === true && auth.provider === "x") {
+    const refresh = parseXPublicClientRefresh(parsed.refresh);
+    return Object.freeze({
+      schemaVersion,
+      accessToken,
+      expiresAt,
+      refresh,
+      contentSha256: createHash("sha256").update(content, "utf8").digest("hex"),
+    });
   }
-  return Object.freeze({
-    schemaVersion,
-    accessToken,
-    expiresAt,
-    refresh: parseGoogleInstalledAppRefresh(parsed.refresh),
-    contentSha256: createHash("sha256").update(content, "utf8").digest("hex"),
-  });
+  throw new Error(
+    "renewable OAuth credentials require a Ghostget-managed Gmail or owned-import X auth locator",
+  );
 }
 
 /**

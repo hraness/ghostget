@@ -1,3 +1,13 @@
+// Renewable X vault imports add the public-client refresh module
+// (src/oauth-x.ts), expiry and renewal metadata on the account surfaces, and
+// the desktop-wide 1Password platform gate. A clean npm 11.19.0 pack
+// --ignore-scripts on darwin arm64 measured 11,910,002 compressed bytes,
+// 23,057,885 payload bytes and exactly 578 files/entries. Archive SHA-256
+// 794cbe482b03bffac194def947d3f3fcc246015fec2589e017564d3a08b3a9b0.
+// Preserve the packed ceiling and restore the reviewed 65-byte payload
+// allowance: 23,057,885 + 65 = 23,057,950. Current source CI and canonical
+// Release must independently measure and admit their exact archives.
+//
 // Control snapshot revision batching adds a chunked fallback for incarnation
 // collections larger than one helper batch. A clean npm 11.19.0 pack
 // --ignore-scripts on darwin arm64 measured 11,906,030 compressed bytes,
@@ -1237,8 +1247,8 @@
 // local pack measured 11,572,706 compressed bytes, under it. Required Linux
 // CI and Release independently measure and admit their exact npm archives.
 export const MAX_PACKED_BYTES = 11_920_893;
-export const MAX_PACKED_ENTRIES = 577;
-export const MAX_PACKED_FILES = 577;
+export const MAX_PACKED_ENTRIES = 578;
+export const MAX_PACKED_FILES = 578;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
 //
@@ -1276,7 +1286,7 @@ export const MAX_PACKED_FILES = 577;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 23_038_622;
+export const MAX_UNPACKED_BYTES = 23_057_950;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
