@@ -6,7 +6,7 @@
     "baseCommit": "25beb76c902b0acf2dd7ae392f1b0792f6813240"
   },
   "reviewedPatchStack": {
-    "tipCommit": "520b82ab025c1d4d57333b552aa65c9ae3fdb5fd",
+    "tipCommit": "533789195c48480aef2cdc3a2377038301d5b861",
     "patches": [
       {
         "file": "0001-fix-keep-AppleScript-send-payloads-out-of-child-argv.patch",
@@ -53,17 +53,27 @@
           "docs/rpc.md",
           "scripts/patch-deps.sh"
         ]
+      },
+      {
+        "file": "0004-fix-enforce-exact-chat-service-before-dispatch.patch",
+        "commit": "533789195c48480aef2cdc3a2377038301d5b861",
+        "sha256": "381ca328c396268cf074975b687344c12156007faba43914e3092699201c1e78",
+        "purpose": "Require the selected iMessage or SMS chat service immediately before each text and attachment dispatch, while preserving uncertain-delivery outcomes.",
+        "changedFiles": [
+          "Sources/IMsgCore/MessageSender.swift",
+          "Tests/IMsgCoreTests/MessageSenderServiceGuardTests.swift"
+        ]
       }
     ]
   },
   "artifact": {
     "platform": "darwin",
     "arch": "arm64",
-    "executableSha256": "46c4c73c81c7db2d516c2d467c66aff03c73de196996d646bc8afce0ea85cff6",
+    "executableSha256": "60201a816f33acc4d1926680badbf1e3c01f772aa4e8d3e2957bbe82cb06f073",
     "reportedVersion": "0.14.1",
     "build": {
-      "swift": "Apple Swift 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)",
-      "sdk": "MacOSX26.5.sdk",
+      "swift": "Apple Swift 6.2.3 (swiftlang-6.2.3.2.1 clang-1700.6.3.2)",
+      "sdk": "MacOSX26.2.sdk",
       "command": [
         "swift",
         "build",
@@ -92,24 +102,26 @@
       "linking": "Apple linker omits STABS/DWARF at link time before its default content-derived UUID and ad-hoc signature; no post-link byte rewriting.",
       "dependencyPatches": [
         "Pinned upstream patch-deps.sh retains PhoneNumberKit command-line/symlink bundle lookup and SQLite resource preparation.",
-        "Third reviewed patch keeps the generated Bundle.module fallback only in DEBUG; release builds require the adjacent shipped bundle and otherwise fail explicitly."
+        "Third reviewed patch keeps the generated Bundle.module fallback only in DEBUG; release builds require the adjacent shipped bundle and otherwise fail explicitly.",
+        "Fourth reviewed patch checks the exact selected Messages chat service immediately before each text or attachment dispatch and adds native guard tests."
       ]
     },
-    "executableBytes": 4525960,
+    "executableBytes": 5430872,
     "compression": "gzip",
     "validation": {
-      "targetedSwiftTests": 35,
-      "signedBytesIdentical": true,
+      "targetedSwiftTests": 679,
+      "signedBytesIdentical": false,
       "strictAdHocSignatureVerification": true,
       "userAndWorkspacePathsAbsent": true,
       "installedLayoutVersion": "0.14.1",
       "installedReleasePhoneNumberKitResourceParse": true,
       "liveAccountOrSendQualification": false,
-      "releaseBuilds": 2,
-      "cleanRebuilds": 1
+      "releaseBuilds": 1,
+      "cleanRebuilds": 0,
+      "nativeServiceGuardTests": true
     },
-    "compressedSha256": "12861bdb93779405f7cc4cb4a47fc1d6ea3bf2fc8cec5ed69f2197ce96804532",
-    "compressedBytes": 1490956
+    "compressedSha256": "a8b2026eeaf5bd2041b3266cca4b7ce6f711ecd25a78d3da7fa5de1163e7149f",
+    "compressedBytes": 1680150
   },
   "reviewBoundary": {
     "liveSendPerformed": false,
@@ -125,7 +137,8 @@
     "smsFallback": false,
     "exactRouteLookup": "chats.get(chat_id) returns one exact current chat projection and rejects an unknown row",
     "noFetchNativeCards": "Owner automation requests send.rich fetch_metadata=false; helper metadata/image loading is bypassed while native rich-card dispatch remains. Messages/recipient network behavior is outside this helper claim.",
-    "nativeRichBridge": "Requires an already-working compatible injected bridge; upstream setup requires disabled SIP. Installation and tests change no security setting or Messages process."
+    "nativeRichBridge": "Requires an already-working compatible injected bridge; upstream setup requires disabled SIP. Installation and tests change no security setting or Messages process.",
+    "exactChatServiceGuard": "Before dispatch, AppleScript re-reads the target chat service and rejects mismatches; delivery remains may_have_completed when dispatch uncertainty is reported."
   },
   "bundledResources": {
     "repository": "https://github.com/marmelroy/PhoneNumberKit",

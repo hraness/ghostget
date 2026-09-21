@@ -8,11 +8,11 @@ import {
 
 // src/messaging-automation-api.ts
 async function createMessagingAutomationHost(providers, environment) {
-  const { MessagingAutomationHost } = await import("./messaging-automation-wtg72vjt.js");
+  const { MessagingAutomationHost } = await import("./messaging-automation-kj87n3ar.js");
   return new MessagingAutomationHost(providers, environment);
 }
 async function installBundledMessagingRuntime(provider, environment) {
-  return (await import("./messaging-native-install-7071mrz2.js")).installBundledMessagingRuntime(provider, environment);
+  return (await import("./messaging-native-install-sahtppe4.js")).installBundledMessagingRuntime(provider, environment);
 }
 export {
   installBundledMessagingRuntime,

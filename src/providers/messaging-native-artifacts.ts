@@ -2,10 +2,10 @@
 export const MESSAGING_NATIVE_ARTIFACTS = Object.freeze({
   "imessage": {
     "file": "imsg-darwin-arm64.gz",
-    "sha256": "46c4c73c81c7db2d516c2d467c66aff03c73de196996d646bc8afce0ea85cff6",
-    "bytes": 4525960,
-    "compressedSha256": "12861bdb93779405f7cc4cb4a47fc1d6ea3bf2fc8cec5ed69f2197ce96804532",
-    "compressedBytes": 1490956
+    "sha256": "60201a816f33acc4d1926680badbf1e3c01f772aa4e8d3e2957bbe82cb06f073",
+    "bytes": 5430872,
+    "compressedSha256": "a8b2026eeaf5bd2041b3266cca4b7ce6f711ecd25a78d3da7fa5de1163e7149f",
+    "compressedBytes": 1680150
   },
   "whatsapp": {
     "file": "wacli-darwin-arm64.gz",

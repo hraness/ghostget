@@ -1,4 +1,5 @@
 import { Database, constants as sqlite } from "bun:sqlite";
+import { discoveryDiagnostic, type DiscoveryDiagnosticPhase, type DiscoveryDiagnosticCode } from "./messaging-automation-diagnostics";
 import { closeSync, constants, fstatSync, lstatSync, openSync } from "node:fs";
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { join } from "node:path";
@@ -157,13 +158,26 @@ export class MessagingAutomationHost {
   async conversations(raw: Readonly<{ provider: string; limit: number }>, signal?: AbortSignal) {
     this.ready(); const r = automationRecord(raw, ["provider", "limit"]);
     const provider = this.provider(automationId(r.provider)), limit = automationInteger(r.limit, 1, 200);
-    const status = await this.status(provider, signal);
-    const result = automationRecord(await provider.conversations({ limit }, signal), ["identity", "conversations", "complete"]); stopped(signal);
-    const identity = parseAutomationIdentity(result.identity);
-    if (!same(identity, status.identity) || typeof result.complete !== "boolean") throw new Error("Messaging discovery identity changed.");
-    const rows = automationArray(result.conversations, limit).filter(value => automationRecord(value, ["coordinate", "title", "kind", "participants"]).kind === "single").map(conversation);
-    if (rows.some(row => row.coordinate.provider !== identity.provider) || new Set(rows.map(row => canonicalJson(row.coordinate))).size !== rows.length) throw new Error("Messaging discovery contains conflicting conversations.");
-    return Object.freeze({ identity, conversations: Object.freeze(rows), complete: result.complete });
+    let phase: DiscoveryDiagnosticPhase = "host-status";
+    let code: DiscoveryDiagnosticCode = "failed";
+    try {
+      const status = await this.status(provider, signal);
+      phase = "host-response";
+      const rawResult = await provider.conversations({ limit }, signal); stopped(signal);
+      code = "schema-invalid";
+      const result = automationRecord(rawResult, ["identity", "conversations", "complete"]);
+      phase = "host-identity";
+      const identity = parseAutomationIdentity(result.identity);
+      code = "identity-changed";
+      if (!same(identity, status.identity) || typeof result.complete !== "boolean") throw new Error("Messaging discovery identity changed.");
+      phase = "host-response";
+      code = "schema-invalid";
+      const rows = automationArray(result.conversations, limit).filter(value => automationRecord(value, ["coordinate", "title", "kind", "participants"]).kind === "single").map(conversation);
+      if (rows.some(row => row.coordinate.provider !== identity.provider) || new Set(rows.map(row => canonicalJson(row.coordinate))).size !== rows.length) throw new Error("Messaging discovery contains conflicting conversations.");
+      return Object.freeze({ identity, conversations: Object.freeze(rows), complete: result.complete });
+    } catch (error) {
+      throw provider.provider === "imessage" ? discoveryDiagnostic(error, phase, signal?.aborted ? "cancelled" : code) : error;
+    }
   }
   history(raw: Readonly<{ enrollmentId: string; limit: number }>) {
     this.ready(); const r = automationRecord(raw, ["enrollmentId", "limit"]), limit = automationInteger(r.limit, 1, 200);

@@ -2,7 +2,7 @@
 import {
   ensureImsgNativeResources,
   verifyImsgNativeResources
-} from "./index-j7wb6bva.js";
+} from "./index-dy1g0x6j.js";
 import {
   ensurePrivateStateDirectory,
   ghostgetStateHome
@@ -32,7 +32,9 @@ var IMSG_EXACT_CHAT_PATCH_COMMIT = "c5994f00d17969fd7772fd2772e7b3591089513a";
 var IMSG_EXACT_CHAT_PATCH_SHA256 = "b05aa92a078930f96fda611c674436638843f7b148d7bfa3b65ed1ccb0885c13";
 var IMSG_NO_FETCH_RICH_CARDS_PATCH_COMMIT = "520b82ab025c1d4d57333b552aa65c9ae3fdb5fd";
 var IMSG_NO_FETCH_RICH_CARDS_PATCH_SHA256 = "c2346afca4dd0f9721c235db4f692d6a2d6dece36481e074d94b5ce78f2e019b";
-var IMSG_REVIEWED_PATCH_COMMIT = IMSG_NO_FETCH_RICH_CARDS_PATCH_COMMIT;
+var IMSG_EXACT_CHAT_SERVICE_PATCH_COMMIT = "533789195c48480aef2cdc3a2377038301d5b861";
+var IMSG_EXACT_CHAT_SERVICE_PATCH_SHA256 = "381ca328c396268cf074975b687344c12156007faba43914e3092699201c1e78";
+var IMSG_REVIEWED_PATCH_COMMIT = IMSG_EXACT_CHAT_SERVICE_PATCH_COMMIT;
 var IMSG_REVIEWED_PATCHES = Object.freeze([
   Object.freeze({
     commit: IMSG_PRIVATE_TRANSPORT_PATCH_COMMIT,
@@ -45,10 +47,14 @@ var IMSG_REVIEWED_PATCHES = Object.freeze([
   Object.freeze({
     commit: IMSG_NO_FETCH_RICH_CARDS_PATCH_COMMIT,
     sha256: IMSG_NO_FETCH_RICH_CARDS_PATCH_SHA256
+  }),
+  Object.freeze({
+    commit: IMSG_EXACT_CHAT_SERVICE_PATCH_COMMIT,
+    sha256: IMSG_EXACT_CHAT_SERVICE_PATCH_SHA256
   })
 ]);
-var IMSG_REVIEWED_VERSION = "0.14.1+private-transport.3";
-var IMSG_DARWIN_ARM64_EXECUTABLE_SHA256 = "46c4c73c81c7db2d516c2d467c66aff03c73de196996d646bc8afce0ea85cff6";
+var IMSG_REVIEWED_VERSION = "0.14.1+private-transport.4";
+var IMSG_DARWIN_ARM64_EXECUTABLE_SHA256 = "60201a816f33acc4d1926680badbf1e3c01f772aa4e8d3e2957bbe82cb06f073";
 var IMSG_TOOL_PIN = Object.freeze({
   id: "imsg-private-transport",
   implementation: "github.com/openclaw/imsg+reviewed-patch",

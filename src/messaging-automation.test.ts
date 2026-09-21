@@ -5,6 +5,7 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MessagingAutomationHost } from "./messaging-automation";
+import { discoveryDiagnosticMessage } from "./messaging-automation-diagnostics";
 import { AUTOMATION_ACTION_KINDS, parseAutomationAction, parseAutomationCoordinate } from "./messaging-automation-validation";
 import type { AutomationActionKind, AutomationCapability, AutomationCoordinate, AutomationIdentity, AutomationMessage, AutomationProviderSendResult, MessagingAutomationProvider } from "./messaging-automation-types";
 
@@ -16,13 +17,13 @@ const identity: AutomationIdentity = { provider: "whatsapp", authId: "fixture", 
 function message(id: string, selected: AutomationCoordinate = coordinate): AutomationMessage {
   return { id, coordinate: selected, direction: "incoming", occurredAt: at, text: "Synthetic fixture", kind: "message", relatedMessageId: null, attachments: [] };
 }
-function fixture() {
+function fixture(network: "whatsapp" | "imessage" = "whatsapp") {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "ghostget-automation-")));
   const environment = { GHOSTGET_STATE_HOME: join(root, "ghostget-state") };
-  let events: AutomationMessage[] = []; let current = identity; let gap = false; let now = Date.parse(at); const calls: unknown[] = [];
+  let events: AutomationMessage[] = []; let current: AutomationIdentity = network === "whatsapp" ? identity : { ...identity, provider: "imessage", accountSubject: `imessage:device-default:${"a".repeat(64)}` }; let gap = false; let now = Date.parse(at); const calls: unknown[] = [];
   let send: MessagingAutomationProvider["send"] = async request => { calls.push(request); return { state: "accepted", messageId: `sent:${calls.length}`, providerReceiptId: null, delivery: "unknown" }; };
   const provider: MessagingAutomationProvider = {
-    provider: "whatsapp",
+    provider: network,
     inspect: async () => ({ identity: current, connected: true, events: { available: true, reason: null }, actions: Object.fromEntries(AUTOMATION_ACTION_KINDS.map(kind => [kind, { available: true, reason: null }])) as Record<AutomationActionKind, AutomationCapability> }),
     conversations: async () => ({ identity: current, conversations: [], complete: true }),
     resolve: async selected => ({ identity: current, conversation: { coordinate: selected, title: "Synthetic contact", kind: "single", participants: ["15551234567@s.whatsapp.net"] } }),
@@ -212,4 +213,22 @@ test("priority cancellation stops remaining actions without discarding accepted 
   const plan = f.host.prepare({ enrollmentId: enrollment.id, expectedRevision: 0, intentId: "fixture:cancel", actions: [{ kind: "text", text: "Disclosure" }, { kind: "reaction", messageId: "history:1", emoji: "👍", remove: false }] });
   f.send(async request => { f.calls.push(request); expect(f.host.cancel(plan.id)).toBe(true); return { state: "accepted", messageId: "accepted:1", providerReceiptId: null, delivery: "unknown" }; });
   const run = await f.host.submit({ planId: plan.id, grantId: grant.id }); expect(run.state).toBe("partial"); expect(run.accepted).toHaveLength(1); expect(f.calls).toHaveLength(1); expect(f.host.cancel(plan.id)).toBe(false);
+});
+
+
+test("iMessage discovery tags host status, identity and response boundaries without changing failures", async () => {
+  const f = fixture("imessage"); const status = await f.provider.inspect();
+  f.provider.inspect = async () => { throw new Error("Sensitive status error"); };
+  let error = await f.host.conversations({ provider: "imessage", limit: 10 }).catch(error => error);
+  expect(discoveryDiagnosticMessage(error)).toBe("ghostget.discovery.v1:host-status:failed");
+  f.provider.inspect = async () => status;
+  f.provider.conversations = async () => ({ identity: { ...status.identity, sourceGeneration: "changed" }, conversations: [], complete: false });
+  error = await f.host.conversations({ provider: "imessage", limit: 10 }).catch(error => error);
+  expect(discoveryDiagnosticMessage(error)).toBe("ghostget.discovery.v1:host-identity:identity-changed");
+  f.provider.conversations = async () => ({ identity: status.identity, conversations: [{ coordinate, title: "Synthetic", kind: "single", participants: [] }], complete: false });
+  error = await f.host.conversations({ provider: "imessage", limit: 10 }).catch(error => error);
+  expect(discoveryDiagnosticMessage(error)).toBe("ghostget.discovery.v1:host-response:schema-invalid");
+  f.provider.conversations = async () => { throw new Error("Sensitive unexpected provider rejection"); };
+  error = await f.host.conversations({ provider: "imessage", limit: 10 }).catch(error => error);
+  expect(discoveryDiagnosticMessage(error)).toBe("ghostget.discovery.v1:host-response:failed");
 });

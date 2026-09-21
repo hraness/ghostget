@@ -9,6 +9,7 @@ import {
 } from "../canonical-json";
 import type { LocalCliExecutionOptions } from "../local-cli-execution";
 import { OperationDeadline } from "../operation-deadline";
+import { discoveryDiagnostic, nativeDiagnostic, type DiscoveryDiagnosticPhase } from "../messaging-automation-diagnostics";
 import type { AutomationAction, AutomationConversation, AutomationCoordinate, AutomationIdentity, AutomationMessage, AutomationProviderStatus, AutomationProviderSendResult, MessagingAutomationProvider } from "../messaging-automation-types";
 import { AUTOMATION_ACTION_KINDS, automationArray, automationDigest, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationCoordinate, parseAutomationIdentity } from "../messaging-automation-validation";
 import { IMSG_NO_FETCH_RICH_CARDS_AVAILABLE, type ImsgChatCoordinate, type ImsgRpcRequest } from "./imessage-direct";
@@ -37,6 +38,12 @@ function target(value: AutomationCoordinate): ImsgChatCoordinate {
 }
 function conversation(chat: ImsgChatProjection): AutomationConversation {
   return { coordinate: coordinate({ provider: "imessage", chatGuid: chat.guid, service: "iMessage", observedChatRowId: chat.id }), title: chat.title, kind: chat.kind, participants: chat.participants };
+}
+function supportedDiscoveryCoordinate(chat: ImsgChatProjection): boolean {
+  // The native parser has already required observed service=iMessage. Modern
+  // any; GUIDs remain literal route identities, not permission to use SMS.
+  // Parse the whole page before omitting unsupported prefixes or larger GUIDs.
+  return (chat.guid.startsWith("iMessage;") || chat.guid.startsWith("any;")) && Buffer.byteLength(chat.guid) <= 1024;
 }
 function discoverableConversation(value: AutomationConversation): boolean {
   if (value.kind !== "single") return true;
@@ -67,13 +74,13 @@ function providerStatus(session: Session, identity: AutomationIdentity): Automat
   })) as AutomationProviderStatus["actions"];
   return { identity, connected: true, events: { available: available.has("messages.after"), reason: available.has("messages.after") ? null : "The pinned database cursor operation is unavailable." }, actions };
 }
-function message(value: unknown, selected: AutomationCoordinate): AutomationMessage {
-  const projected = project.parseMessage(value, "automation message", target(selected));
+function message(value: unknown, selected: AutomationCoordinate, attachmentMetadata = false): AutomationMessage {
+  const projected = project.parseMessage(value, "automation message", target(selected), { attachmentMetadata });
   const raw = value as Record<string, unknown>;
   if (raw.is_reaction !== undefined && typeof raw.is_reaction !== "boolean") throw new Error("Invalid reaction marker");
   const related = raw.is_reaction === true ? automationText(raw.reacted_to_guid, 256) : projected.replyToGuid;
   if (Buffer.byteLength(projected.text) > 65_536) throw new Error("Automation message exceeds its text bound");
-  return { id: automationText(projected.guid, 256), coordinate: selected, direction: projected.isFromMe ? "outgoing" : "incoming", occurredAt: projected.createdAt, text: projected.text, kind: raw.is_reaction === true ? "reaction" : "message", relatedMessageId: related, attachments: [] };
+  return { id: automationText(projected.guid, 256), coordinate: selected, direction: projected.isFromMe ? "outgoing" : "incoming", occurredAt: projected.createdAt, text: projected.text, kind: raw.is_reaction === true ? "reaction" : "message", relatedMessageId: related, attachments: projected.attachments };
 }
 async function historyMessages(session: Session, selected: AutomationCoordinate, limit: number): Promise<readonly AutomationMessage[]> {
   await exactConversation(session, selected);
@@ -110,35 +117,52 @@ function cursor(value: string | null, identity: AutomationIdentity, coordinates:
  * bridge, changes OS permissions, or falls back to SMS or another transport. */
 export function createImsgAutomationProvider(options: ImsgAutomationOptions): MessagingAutomationProvider {
   let closed = false; let inFlight: Promise<unknown> | undefined;
-  async function run<T>(operation: ImsgAutomationOperation, signal: AbortSignal | undefined, work: (session: Session, identity: AutomationIdentity, reauthorize: () => Promise<void>) => Promise<T>): Promise<T> {
+  async function run<T>(operation: ImsgAutomationOperation, signal: AbortSignal | undefined, work: (session: Session, identity: AutomationIdentity, reauthorize: () => Promise<void>, phase: (phase: DiscoveryDiagnosticPhase) => void) => Promise<T>): Promise<T> {
     if (closed || inFlight) throw new Error("iMessage provider is closed or busy");
+    let diagnosticPhase: DiscoveryDiagnosticPhase = "admission";
+    const phase = (value: DiscoveryDiagnosticPhase): void => { diagnosticPhase = value; };
     const pending = (async () => {
       signal?.throwIfAborted();
       const admission = await options.authorize(operation, signal);
       if (admission.auth.kind !== "linked-device-store" || admission.auth.provider !== "imessage") throw new Error("iMessage account required");
       const deadline = new OperationDeadline(30_000, signal ? { signal } : {});
       try {
-        return await withImsgAutomationRuntime(admission.auth, { ...options.execution, operationDeadline: deadline, ...(options.dependencies ? { dependencies: options.dependencies } : {}) }, async session => {
+        phase("native-preflight");
+        return await withImsgAutomationRuntime(admission.auth, { ...options.execution, operationDeadline: deadline, ...(operation === "conversations" ? { discoveryPhase: phase } : {}), ...(options.dependencies ? { dependencies: options.dependencies } : {}) }, async session => {
           const identity = parseAutomationIdentity({ provider: "imessage", authId: admission.auth.id, accountIdentity: admission.accountIdentity, accountSubject: session.subject, implementationIdentity: admission.implementationIdentity, sourceGeneration: session.sourceGeneration });
-          const reauthorize = async () => { signal?.throwIfAborted(); const after = await options.authorize(operation, signal); if (sha(after) !== sha(admission)) throw new Error("iMessage account or permission changed during the operation"); };
-          const result = await work(session, identity, reauthorize);
+          const reauthorize = async () => { signal?.throwIfAborted(); const after = await options.authorize(operation, signal); if (sha(after) !== sha(admission)) throw nativeDiagnostic(new Error("iMessage account or permission changed during the operation"), "identity-changed"); };
+          const result = await work(session, identity, reauthorize, phase);
+          phase("reauthorization");
           await reauthorize();
           return result;
         });
+      } catch (error) {
+        if (operation === "conversations" && !signal?.aborted && deadline.remainingTimeMs() === 0) throw discoveryDiagnostic(error, diagnosticPhase, "deadline");
+        throw error;
       } finally { deadline.dispose(); }
     })();
     inFlight = pending;
-    try { return await pending; } finally { if (inFlight === pending) inFlight = undefined; }
+    try { return await pending; }
+    catch (error) { throw operation === "conversations" ? discoveryDiagnostic(error, diagnosticPhase, signal?.aborted ? "cancelled" : "failed") : error; }
+    finally { if (inFlight === pending) inFlight = undefined; }
   }
   return {
     provider: "imessage",
     inspect(signal) { return run("inspect", signal, async (session, identity) => providerStatus(session, identity)); },
     conversations(input, signal) {
       const limit = automationInteger(input.limit, 1, 200);
-      return run("conversations", signal, async (session, identity) => {
+      return run("conversations", signal, async (session, identity, _reauthorize, phase) => {
+        phase("native-chats");
         const result = await session.run([request("chats.list", { limit })]);
-        // Validate every native row and coordinate before filtering eligibility.
-        const conversations = project.parseChats(result.get("operation")).map(conversation).filter(discoverableConversation);
+        // Parse every native row and duplicate coordinate before selecting only
+        // coordinates supported by the owner's exact route contract.
+        phase("native-projection");
+        let conversations: AutomationConversation[];
+        try { conversations = project.parseChats(result.get("operation")).filter(supportedDiscoveryCoordinate).map(chat => {
+          try { return conversation(chat); }
+          catch (error) { throw error instanceof Error ? nativeDiagnostic(error, "coordinate-invalid") : error; }
+        }).filter(discoverableConversation); }
+        catch (error) { throw discoveryDiagnostic(error, "native-projection", "schema-invalid"); }
         return { identity, conversations, complete: false };
       });
     },
@@ -147,9 +171,9 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
       const selected = coordinate(input.coordinate), limit = automationInteger(input.limit, 1, 200);
       return run("history", signal, async (session, identity) => {
         await exactConversation(session, selected);
-        const response = await session.run([request("messages.history", { chat_id: selected.observedChatRowId, limit, attachments: false })]);
+        const response = await session.run([request("messages.history", { chat_id: selected.observedChatRowId, limit, attachments: true, convert_attachments: false })]);
         const raw = automationArray(automationRecord(response.get("operation"), ["messages"]).messages, limit);
-        const messages = raw.map(value => message(value, selected));
+        const messages = raw.map(value => message(value, selected, true));
         if (new Set(messages.map(item => item.id)).size !== messages.length) throw new Error("Repeated history identity");
         const next = cursor(null, identity, [selected]);
         for (const [index, value] of raw.entries()) {

@@ -7,6 +7,20 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.21
+
+- Preserve modern `any;` iMessage GUIDs as exact routes alongside `iMessage;`
+  GUIDs, with observed service fixed to iMessage. Parse all native rows and
+  duplicate coordinates before omitting unsupported prefixes or oversized
+  coordinates; enrollment, history and sends retain exact GUID/row/service
+  revalidation without rewriting routes.
+- Include bounded iMessage attachment names, MIME types and sizes in history,
+  without exposing local paths, reading media contents or converting files.
+- Report closed, body-free iMessage discovery failure categories through the
+  private owner protocol. Native execution, response validation, exact identity,
+  permission and cleanup boundaries remain enforced; raw provider diagnostics
+  and conversation details are never included in error responses.
+
 ## 0.18.20
 
 - Keep eligible iMessage conversations discoverable when other native chat rows

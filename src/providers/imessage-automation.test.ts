@@ -6,18 +6,20 @@ import { tmpdir } from "node:os";
 import { createImsgAutomationProvider, type ImsgAutomationOperation } from "./imessage-automation";
 import type { AutomationAction, AutomationCoordinate } from "../messaging-automation-types";
 import { fc, propertyParameters } from "../test-support";
+import { parseAutomationCoordinate } from "../messaging-automation-validation";
+import { discoveryDiagnosticMessage, nativeDiagnostic, type DiscoveryDiagnosticCode } from "../messaging-automation-diagnostics";
 
 const roots: string[] = [];
 afterEach(() => { for (const path of roots.splice(0)) rmSync(path, { recursive: true, force: true }); });
 const target: Extract<AutomationCoordinate, { provider: "imessage" }> = { provider: "imessage", chatGuid: "iMessage;-;fixture@example.test", observedChatRowId: 7, service: "iMessage" };
 const chat = { id: 7, name: "Fixture", identifier: "fixture@example.test", service: "iMessage", last_message_at: "2026-09-11T12:00:00.000Z", guid: target.chatGuid, is_group: false, participants: ["fixture@example.test"] };
-function rawMessage(id = 10, guid = "fixture-guid"): Record<string, unknown> { return { id, guid, chat_id: 7, sender: "fixture@example.test", is_from_me: false, text: "butler hello", created_at: "2026-09-11T12:00:00.000Z", attachments: [], reactions: [], chat_identifier: chat.identifier, chat_guid: target.chatGuid, chat_name: "Fixture", participants: chat.participants, is_group: false }; }
-function fixture() {
+function rawMessage(id = 10, guid = "fixture-guid", route = target): Record<string, unknown> { return { id, guid, chat_id: route.observedChatRowId, sender: "fixture@example.test", is_from_me: false, text: "butler hello", created_at: "2026-09-11T12:00:00.000Z", attachments: [], reactions: [], chat_identifier: chat.identifier, chat_guid: route.chatGuid, chat_name: "Fixture", participants: chat.participants, is_group: false }; }
+function fixture(route = target) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), "ghostget-imessage-automation-"))); roots.push(directory); chmodSync(directory, 0o700);
   const database = join(directory, "chat.db"); writeFileSync(database, "synthetic", { mode: 0o600 });
   const calls: { method: string; params: Record<string, unknown> }[] = [];
   const admissions: ImsgAutomationOperation[] = []; const barriers: Promise<void>[] = [];
-  const state = { bridge: true, malformed: false, linkQueued: false, linkConflict: false, accountIdentity: "a".repeat(64), foreign: false, replace: false, anchorChanged: false, authorizationError: false, revokeOnAsset: false, bytes: Buffer.from("test attachment"), hash: "", chats: [chat] as Record<string, unknown>[], exactChat: chat as Record<string, unknown> };
+  const state = { faultMethod: "chats.list", fault: "", databaseReady: true, revokeOnChats: false, changeIdentityOnChats: false, injectedCode: null as DiscoveryDiagnosticCode | null, bridge: true, malformed: false, linkQueued: false, linkConflict: false, accountIdentity: "a".repeat(64), foreign: false, replace: false, anchorChanged: false, authorizationError: false, revokeOnAsset: false, bytes: Buffer.from("test attachment"), hash: "", historyAttachments: [] as unknown[], chats: [{ ...chat, id: route.observedChatRowId, guid: route.chatGuid }] as Record<string, unknown>[], exactChat: { ...chat, id: route.observedChatRowId, guid: route.chatGuid } as Record<string, unknown> };
   state.hash = createHash("sha256").update(state.bytes).digest("hex");
   const readMethods = ["status", "chats.list", "chats.get", "messages.history", "messages.after", "send", "message.send_status"];
   const provider = createImsgAutomationProvider({
@@ -31,19 +33,30 @@ function fixture() {
         const replies = [];
         for (const line of invocation.stdin.trim().split("\n")) {
           const request = JSON.parse(line) as { id: string; method: string; params: Record<string, unknown> }; calls.push(request);
+          if (request.method === state.faultMethod) {
+            if (state.injectedCode) throw nativeDiagnostic(new Error("Sensitive fixture path /synthetic/private and content"), state.injectedCode);
+            if (state.fault === "exit") return { exitCode: 1, stdout: "", stderr: "Sensitive native diagnostic" };
+            if (state.fault === "stderr") return { exitCode: 0, stdout: "", stderr: "Sensitive native diagnostic" };
+            if (state.fault === "json") return { exitCode: 0, stdout: "not-json\n", stderr: "" };
+            if (state.fault.startsWith("rpc")) return { exitCode: 0, stdout: JSON.stringify({ jsonrpc: "2.0", id: request.id, error: { code: state.fault === "rpc-params" ? -32602 : state.fault === "rpc-method" ? -32601 : -32000, message: "Sensitive provider error" } }) + "\n", stderr: "" };
+          }
           let result: unknown;
-          if (request.method === "status") { const methods = [...readMethods, ...(state.bridge ? ["tapback", "send.sticker", "send.rich", "poll.send"] : [])]; result = { version: "0.14.1", protocol_version: 1, database: { ready: true, path: database }, bridge: { ready: state.bridge }, contacts: { available: true }, methods, supported_methods: methods }; }
-          else if (request.method === "chats.list") result = { chats: state.chats };
+          if (request.method === "status") { const methods = [...readMethods, ...(state.bridge ? ["tapback", "send.sticker", "send.rich", "poll.send"] : [])]; result = { version: "0.14.1", protocol_version: 1, database: { ready: state.databaseReady, path: database }, bridge: { ready: state.bridge }, contacts: { available: true }, methods, supported_methods: methods }; }
+          else if (request.method === "chats.list") {
+            result = { chats: state.chats };
+            if (state.revokeOnChats) state.authorizationError = true;
+            if (state.changeIdentityOnChats) state.accountIdentity = "c".repeat(64);
+          }
           else if (request.method === "chats.get") result = { chat: { ...state.exactChat, ...(state.foreign ? { guid: "iMessage;-;another@example.test" } : {}) } };
-          else if (request.method === "messages.history") result = { messages: [rawMessage()] };
+          else if (request.method === "messages.history") result = { messages: [{ ...rawMessage(10, "fixture-guid", route), attachments: request.params.attachments === true ? state.historyAttachments : [] }] };
           else if (request.method === "messages.after") {
             const since = Number(request.params.since_rowid);
-            result = { messages: since < 10 ? [rawMessage(10, state.anchorChanged ? "replaced-guid" : "fixture-guid")] : [], next_rowid: Math.max(10, since), has_more: false };
+            result = { messages: since < 10 ? [rawMessage(10, state.anchorChanged ? "replaced-guid" : "fixture-guid", route)] : [], next_rowid: Math.max(10, since), has_more: false };
           } else if (request.method === "tapback") result = { ok: true, reaction: 2000 };
           else if (request.method === "send.sticker") result = { ok: true, transfer_guid: "fixture-transfer" };
           else if (request.method === "poll.send") result = { ok: true, event: "imessage.poll.created", guid: "fixture-poll" };
-          else if (request.method === "send.rich") result = state.linkQueued ? { ok: true, queued: true, chat_guid: target.chatGuid } : { ok: true, messageGuid: state.linkConflict ? "conflicting-guid" : "fixture-link", guid: "fixture-link", message_id: "fixture-link", chat_guid: target.chatGuid, service: "iMessage", richLinkImageUsed: false };
-          else result = state.malformed ? { ok: true, unexpected: true } : request.method === "send" ? { ok: true, transport: "applescript", id: 11, guid: "fixture-sent", message_id: "fixture-sent", chat_guid: target.chatGuid, service: "iMessage" } : { ok: true, guid: "fixture-sent" };
+          else if (request.method === "send.rich") result = state.linkQueued ? { ok: true, queued: true, chat_guid: route.chatGuid } : { ok: true, messageGuid: state.linkConflict ? "conflicting-guid" : "fixture-link", guid: "fixture-link", message_id: "fixture-link", chat_guid: route.chatGuid, service: "iMessage", richLinkImageUsed: false };
+          else result = state.malformed ? { ok: true, unexpected: true } : request.method === "send" ? { ok: true, transport: "applescript", id: 11, guid: "fixture-sent", message_id: "fixture-sent", chat_guid: route.chatGuid, service: "iMessage" } : { ok: true, guid: "fixture-sent" };
           if (state.replace && request.method === "send") { rmSync(database); writeFileSync(database, "replacement", { mode: 0o600 }); }
           replies.push(JSON.stringify({ jsonrpc: "2.0", id: request.id, result }));
         }
@@ -51,7 +64,7 @@ function fixture() {
       },
     },
   });
-  return { provider, state, calls, admissions, async send(action: AutomationAction) { const { identity } = await provider.inspect(); return provider.send({ identity, coordinate: target, action, intentId: "fixture-intent" }); }, async close() { await provider.close(); await Promise.all(barriers); } };
+  return { provider, state, calls, admissions, async send(action: AutomationAction) { const { identity } = await provider.inspect(); return provider.send({ identity, coordinate: route, action, intentId: "fixture-intent" }); }, async close() { await provider.close(); await Promise.all(barriers); } };
 }
 test("iMessage capabilities reflect current helper methods without starting bridge", async () => {
   const f = fixture(); expect(f.calls).toHaveLength(0);
@@ -86,7 +99,7 @@ test("iMessage discovery preserves eligible rows when native single-chat metadat
 });
 test("discovery still rejects malformed native rows and coordinates even when they are ineligible", async () => {
   const f = fixture();
-  for (const fields of [{ unexpected: true }, { participants: [7] }, { guid: "SMS;-;fixture@example.test" }, { guid: `iMessage;-;${"a".repeat(1024)}` }]) {
+  for (const fields of [{ unexpected: true }, { participants: [7] }, { id: 0 }, { guid: "iMessage;\u0000invalid" }, { guid: `iMessage;-;${"a".repeat(2048)}` }]) {
     f.state.chats = [chat, { ...chat, id: 8, guid: "iMessage;-;ineligible@example.test", participants: [], ...fields }];
     await expect(f.provider.conversations({ limit: 10 })).rejects.toThrow();
   }
@@ -166,4 +179,164 @@ test("permission revoked during attachment admission prevents the provider send"
   const f = fixture(); f.state.revokeOnAsset = true;
   expect((await f.send({ kind: "attachment", assetId: "asset-1", name: "fixture.txt", mimeType: "text/plain" })).state).toBe("not-started");
   expect(f.calls.filter(call => call.method === "send")).toHaveLength(0); await f.close();
+});
+
+
+test("discovery reports authored native causes without native output or private values", async () => {
+  for (const [fault, code] of [["exit", "process-failed"], ["stderr", "process-stderr"], ["json", "response-invalid"], ["rpc-params", "rpc-invalid-params"], ["rpc-method", "rpc-method-unavailable"], ["rpc-other", "rpc-rejected"]] as const) {
+    const f = fixture(); f.state.fault = fault;
+    const error = await f.provider.conversations({ limit: 10 }).catch(error => error);
+    expect(discoveryDiagnosticMessage(error)).toBe(`ghostget.discovery.v1:native-chats:${code}`);
+    expect(error.message).not.toContain("Sensitive");
+    expect(f.calls.map(call => call.method)).toEqual(["status", "chats.list"]);
+    await f.close();
+  }
+  for (const code of ["deadline", "cancelled", "streams-failed", "cleanup-unverified"] as const) {
+    const f = fixture(); f.state.injectedCode = code;
+    const error = await f.provider.conversations({ limit: 10 }).catch(error => error);
+    expect(discoveryDiagnosticMessage(error)).toBe(`ghostget.discovery.v1:native-chats:${code}`);
+    expect(discoveryDiagnosticMessage(error)).not.toContain("Sensitive");
+    await f.close();
+  }
+});
+
+test("discovery separates native status, strict schema, coordinate and reauthorization failures", async () => {
+  const cases = [
+    { set: (f: ReturnType<typeof fixture>) => { f.state.authorizationError = true; }, marker: "admission:failed", calls: [] },
+    { set: (f: ReturnType<typeof fixture>) => { f.state.databaseReady = false; }, marker: "native-status:database-unreadable", calls: ["status"] },
+    { set: (f: ReturnType<typeof fixture>) => { f.state.faultMethod = "status"; f.state.fault = "exit"; }, marker: "native-status:process-failed", calls: ["status"] },
+    { set: (f: ReturnType<typeof fixture>) => { f.state.chats = [{ ...chat, unexpected: "Sensitive fixture" }]; }, marker: "native-projection:schema-invalid", calls: ["status", "chats.list"] },
+    { set: (f: ReturnType<typeof fixture>) => { f.state.revokeOnChats = true; }, marker: "reauthorization:failed", calls: ["status", "chats.list"] },
+    { set: (f: ReturnType<typeof fixture>) => { f.state.changeIdentityOnChats = true; }, marker: "reauthorization:identity-changed", calls: ["status", "chats.list"] },
+  ];
+  for (const value of cases) {
+    const f = fixture(); value.set(f);
+    const error = await f.provider.conversations({ limit: 10 }).catch(error => error);
+    expect(discoveryDiagnosticMessage(error)).toBe(`ghostget.discovery.v1:${value.marker}`);
+    expect(f.calls.map(call => call.method)).toEqual(value.calls);
+    await f.close();
+  }
+});
+
+
+test("valid native legacy and oversized GUIDs cannot poison supported discovery or acquire a route", async () => {
+  const f = fixture();
+  const maximum = "iMessage;".padEnd(1024, "x");
+  const unsupported = ["unknown;-;fixture@example.test", "SMS;-;fixture@example.test", "iMessage;".padEnd(1025, "x"), "iMessage;" + "é".repeat(1019)];
+  f.state.chats = [chat, ...unsupported.map((guid, index) => ({ ...chat, id: index + 8, guid })), { ...chat, id: 12, guid: maximum }];
+  const result = await f.provider.conversations({ limit: 10 });
+  expect(result.complete).toBe(false);
+  expect(result.conversations.map(row => row.coordinate)).toEqual([target, { ...target, chatGuid: maximum, observedChatRowId: 12 }]);
+  const priorAdmissions = f.admissions.length;
+  for (const guid of unsupported) expect(() => f.provider.resolve({ ...target, chatGuid: guid })).toThrow();
+  expect(f.admissions).toHaveLength(priorAdmissions);
+  expect(f.calls.map(call => call.method)).toEqual(["status", "chats.list"]);
+  f.state.chats = unsupported.map((guid, index) => ({ ...chat, id: index + 8, guid }));
+  expect((await f.provider.conversations({ limit: 10 })).conversations).toHaveLength(0);
+  f.state.exactChat = { ...chat, guid: unsupported[0] };
+  await expect(f.provider.resolve(target)).rejects.toThrow("exact");
+  expect((await f.send({ kind: "text", text: "Synthetic never sent" })).state).toBe("not-started");
+  expect(f.calls.some(call => call.method === "send")).toBe(false);
+  await f.close();
+});
+
+test("unsupported discovery coordinates still undergo full native schema and duplicate validation", async () => {
+  const f = fixture();
+  for (const extra of [{ unexpected: true }, { participants: [7] }, { id: 0 }, { name: "invalid\u0000name" }]) {
+    f.state.chats = [chat, { ...chat, id: 8, guid: "unknown;-;fixture@example.test", ...extra }];
+    const error = await f.provider.conversations({ limit: 10 }).catch(error => error);
+    expect(discoveryDiagnosticMessage(error)).toBe("ghostget.discovery.v1:native-projection:schema-invalid");
+  }
+  const legacy = { ...chat, id: 8, guid: "unknown;-;fixture@example.test" };
+  f.state.chats = [chat, legacy, legacy];
+  await expect(f.provider.conversations({ limit: 10 })).rejects.toThrow("repeated an exact chat coordinate");
+  expect(f.calls.every(call => call.method === "status" || call.method === "chats.list")).toBe(true);
+  await f.close();
+});
+
+
+test("modern any GUIDs preserve literal discovery, history and text/attachment routes without SMS fallback", async () => {
+  const route = { ...target, chatGuid: "any;-;fixture@example.test" };
+  const f = fixture(route);
+  const page = await f.provider.conversations({ limit: 10 });
+  expect(page.conversations.map(row => row.coordinate)).toEqual([route]);
+  expect((await f.provider.resolve(route)).conversation.coordinate).toEqual(route);
+  const history = await f.provider.history({ coordinate: route, limit: 10 });
+  expect(history.messages[0]!.coordinate).toEqual(route);
+  expect((await f.provider.events({ coordinates: [route], cursor: history.nextCursor, limit: 10 })).messages).toEqual([]);
+  for (const action of [{ kind: "text", text: "Synthetic test" }, { kind: "attachment", assetId: "asset-1", name: "fixture.txt", mimeType: "text/plain" }] as const) {
+    const before = f.calls.length;
+    expect((await f.send(action)).state).toBe("accepted");
+    const calls = f.calls.slice(before);
+    expect(calls.filter(call => call.method === "chats.get")).toHaveLength(2);
+    expect(calls.filter(call => call.method === "chats.get").every(call => call.params.chat_id === route.observedChatRowId)).toBe(true);
+    const sent = calls.filter(call => call.method === "send");
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.params).toMatchObject({ chat_guid: route.chatGuid, service: "imessage", transport: "applescript", allow_sms_fallback: false });
+    expect(sent[0]!.params).not.toHaveProperty("to");
+  }
+  await f.close();
+});
+
+test("any GUIDs require exact iMessage service and never authorize rewritten or drifted routes", async () => {
+  const route = { ...target, chatGuid: "any;-;fixture@example.test" };
+  const f = fixture(route);
+  for (const fields of [{ service: "SMS" }, { service: "any" }, { guid: target.chatGuid }, { id: 8 }]) {
+    f.state.exactChat = { ...chat, guid: route.chatGuid, ...fields };
+    await expect(f.provider.resolve(route)).rejects.toThrow("exact");
+    await expect(f.provider.history({ coordinate: route, limit: 10 })).rejects.toThrow("exact");
+    expect((await f.send({ kind: "text", text: "Never dispatched" })).state).toBe("not-started");
+  }
+  f.state.exactChat = { ...chat, guid: route.chatGuid };
+  await expect(f.provider.resolve(target)).rejects.toThrow("exact");
+  f.state.chats = [{ ...chat, guid: route.chatGuid, service: "SMS" }, { ...chat, id: 8, guid: route.chatGuid, service: "any" }];
+  expect((await f.provider.conversations({ limit: 10 })).conversations).toEqual([]);
+  expect(f.calls.some(call => call.method === "send" || call.method === "messages.history")).toBe(false);
+  await f.close();
+});
+
+test("iMessage coordinate prefixes preserve exact bounded bytes and service instead of normalizing", () => {
+  for (const prefix of ["iMessage;", "any;"]) {
+    const route = { ...target, chatGuid: prefix + "é".repeat((1024 - prefix.length) / 2) };
+    expect(parseAutomationCoordinate(route)).toEqual(route);
+    expect(() => parseAutomationCoordinate({ ...route, chatGuid: route.chatGuid + "é" })).toThrow();
+    for (const fields of [{ service: "SMS" }, { service: "any" }, { observedChatRowId: 0 }, { observedChatRowId: Number.MAX_SAFE_INTEGER + 1 }, { chatGuid: prefix + "invalid\0guid" }]) {
+      expect(() => parseAutomationCoordinate({ ...route, ...fields })).toThrow();
+    }
+  }
+  for (const prefix of ["SMS;", "Any;", "unknown;", "any:", " any;", "imessage;"]) {
+    expect(() => parseAutomationCoordinate({ ...target, chatGuid: prefix + "-;fixture@example.test" })).toThrow();
+  }
+});
+
+
+test("history alone requests unconverted attachment metadata and exposes no native paths", async () => {
+  const route = { ...target, chatGuid: "any;-;fixture@example.test" };
+  const f = fixture(route);
+  f.state.historyAttachments = [{ filename: "/synthetic/private/a.jpg", transfer_name: "photo.jpg", uti: "public.jpeg", mime_type: "image/jpeg", total_bytes: 1234, is_sticker: false, original_path: "/synthetic/private/a.jpg", missing: false }];
+  const history = await f.provider.history({ coordinate: route, limit: 10 });
+  expect(history.messages[0]!.attachments).toEqual([{ name: "photo.jpg", mimeType: "image/jpeg", sizeBytes: 1234 }]);
+  expect(history.messages[0]!.coordinate).toEqual(route);
+  expect(JSON.stringify(history)).not.toContain("/synthetic/private");
+  expect(JSON.stringify(history)).not.toContain("original_path");
+  expect(JSON.stringify(history)).not.toContain("public.jpeg");
+  const request = f.calls.find(call => call.method === "messages.history")!;
+  expect(request.params).toEqual({ chat_id: route.observedChatRowId, limit: 10, attachments: true, convert_attachments: false });
+  const events = await f.provider.events({ coordinates: [route], cursor: null, limit: 10 });
+  expect(events.messages[0]!.attachments).toEqual([]);
+  expect(f.calls.filter(call => call.method === "messages.after").every(call => call.params.attachments === false && call.params.convert_attachments === false)).toBe(true);
+  expect((await f.send({ kind: "reaction", messageId: "fixture-guid", emoji: "❤️", remove: false })).state).toBe("accepted");
+  const histories = f.calls.filter(call => call.method === "messages.history");
+  expect(histories).toHaveLength(2);
+  expect(histories[1]!.params.attachments).toBe(false);
+  await f.close();
+});
+
+test("converted or malformed native attachment metadata fails history without requesting media bytes", async () => {
+  const f = fixture();
+  f.state.historyAttachments = [{ filename: "/synthetic/private/a.jpg", transfer_name: "photo.jpg", uti: "public.jpeg", mime_type: "image/jpeg", total_bytes: 1234, is_sticker: false, original_path: "/synthetic/private/a.jpg", missing: false, converted_path: "/synthetic/private/converted.png" }];
+  await expect(f.provider.history({ coordinate: target, limit: 10 })).rejects.toThrow();
+  expect(f.calls.every(call => ["status", "chats.get", "messages.history"].includes(call.method))).toBe(true);
+  expect(f.calls.find(call => call.method === "messages.history")!.params.convert_attachments).toBe(false);
+  await f.close();
 });

@@ -51,6 +51,23 @@ ASCII identifiers of at most 64 bytes. Successful responses contain
 provider state paths, or message contents. Clients must correlate IDs: priority
 responses can arrive before a pending ordinary response.
 
+iMessage coordinates preserve literal `iMessage;` and `any;` GUIDs up to 1024
+bytes and require the observed service to be exactly `iMessage`. The native
+Messages database uses `any;` for some iMessage chats; the prefix does not grant
+SMS access. Discovery validates the entire native response before omitting
+unsupported prefixes, larger GUIDs, or individual-conversation metadata outside
+the owner's bounds. The page remains incomplete. Enrollment, history and sends
+revalidate the exact GUID, row and service; no GUID is rewritten. A discovery
+failure may carry the fixed
+`ghostget.discovery.v1:<phase>:<code>` marker in `error.message` with the existing
+`unavailable` code. These closed diagnostic categories contain no row indexes,
+coordinates or provider error text; unknown failures keep the generic message.
+
+iMessage history includes bounded attachment names, MIME types and byte sizes.
+It never returns local paths or file contents and disables native conversion.
+The native metadata query may check whether the stored file exists. Live event
+pages and internal send-validation history keep attachment metadata disabled.
+
 | Method | Exact params | Result |
 | --- | --- | --- |
 | initialize | providers: 1–3 `{provider,authId}`, distinct networks | `{initialized:true}` |
