@@ -2,10 +2,12 @@
 // (src/oauth-x.ts), expiry and renewal metadata on the account surfaces, and
 // the desktop-wide 1Password platform gate. A clean npm 11.19.0 pack
 // --ignore-scripts on darwin arm64 measured 11,910,002 compressed bytes,
-// 23,057,885 payload bytes and exactly 578 files/entries. Archive SHA-256
+// 23,057,885 payload bytes and exactly 578 files/entries; the Linux CI pack
+// measured 11,922,389 compressed bytes for the same inventory. Archive SHA-256
 // 794cbe482b03bffac194def947d3f3fcc246015fec2589e017564d3a08b3a9b0.
-// Preserve the packed ceiling and restore the reviewed 65-byte payload
-// allowance: 23,057,885 + 65 = 23,057,950. Current source CI and canonical
+// Preserve the 4,096-byte packed portability allowance and the reviewed
+// 65-byte payload allowance: 11,922,389 + 4,096 = 11,926,485 and
+// 23,057,885 + 65 = 23,057,950. Current source CI and canonical
 // Release must independently measure and admit their exact archives.
 //
 // Control snapshot revision batching adds a chunked fallback for incarnation
@@ -1246,7 +1248,7 @@
 // 22,786,274 + 65 = 22,786,339. Retain the proven compressed ceiling; this
 // local pack measured 11,572,706 compressed bytes, under it. Required Linux
 // CI and Release independently measure and admit their exact npm archives.
-export const MAX_PACKED_BYTES = 11_920_893;
+export const MAX_PACKED_BYTES = 11_926_485;
 export const MAX_PACKED_ENTRIES = 578;
 export const MAX_PACKED_FILES = 578;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
