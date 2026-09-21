@@ -1,0 +1,204 @@
+From 533789195c48480aef2cdc3a2377038301d5b861 Mon Sep 17 00:00:00 2001
+From: 0thernet <894119+0thernet@users.noreply.github.com>
+Date: Sun, 20 Sep 2026 21:09:47 -0400
+Subject: [PATCH] fix: enforce exact chat service before dispatch
+
+---
+ Sources/IMsgCore/MessageSender.swift          |  19 ++-
+ .../MessageSenderServiceGuardTests.swift      | 140 ++++++++++++++++++
+ 2 files changed, 158 insertions(+), 1 deletion(-)
+ create mode 100644 Tests/IMsgCoreTests/MessageSenderServiceGuardTests.swift
+
+diff --git a/Sources/IMsgCore/MessageSender.swift b/Sources/IMsgCore/MessageSender.swift
+index 195311f..fa70108 100644
+--- a/Sources/IMsgCore/MessageSender.swift
++++ b/Sources/IMsgCore/MessageSender.swift
+@@ -186,9 +186,24 @@ public struct MessageSender {
+   private func appleScript() -> String {
+     return """
+       on readPrivateField(payloadRoot, fieldName)
+-          return read POSIX file (payloadRoot & "/" & fieldName) as «class utf8»
++          set fieldFile to POSIX file (payloadRoot & "/" & fieldName)
++          if (get eof fieldFile) is 0 then return ""
++          return read fieldFile as «class utf8»
+       end readPrivateField
+ 
++      on requireChatService(targetChat, requestedService)
++          if requestedService is "auto" then return
++          tell application "Messages"
++              set actualService to service type of account of targetChat
++              if requestedService is "imessage" then
++                  if actualService is iMessage then return
++              else if requestedService is "sms" then
++                  if actualService is SMS then return
++              end if
++          end tell
++          error number -1700
++      end requireChatService
++
+       on run argv
+           set dispatchPhase to "pre_dispatch"
+           try
+@@ -206,11 +221,13 @@ public struct MessageSender {
+               if useChat is "1" then
+                   set targetChat to chat id chatId
+                   if theMessage is not "" then
++                      my requireChatService(targetChat, theService)
+                       set dispatchPhase to "dispatch_started"
+                       send theMessage to targetChat
+                   end if
+                   if useAttachment is "1" then
+                       set theFile to POSIX file theFilePath as alias
++                      my requireChatService(targetChat, theService)
+                       set dispatchPhase to "dispatch_started"
+                       send theFile to targetChat
+                   end if
+diff --git a/Tests/IMsgCoreTests/MessageSenderServiceGuardTests.swift b/Tests/IMsgCoreTests/MessageSenderServiceGuardTests.swift
+new file mode 100644
+index 0000000..6912012
+--- /dev/null
++++ b/Tests/IMsgCoreTests/MessageSenderServiceGuardTests.swift
+@@ -0,0 +1,140 @@
++import Foundation
++import Testing
++
++@testable import IMsgCore
++
++#if os(macOS)
++  private func serviceGuardScript() throws -> String {
++    var source = ""
++    let sender = MessageSender(runner: { script, _ in source = script })
++    try sender.send(
++      MessageSendOptions(
++        recipient: "", text: "fixture", service: .imessage,
++        chatGUID: "any;-;fixture")
++    )
++    return source
++  }
++
++  private struct ServiceGuardResult {
++    let failure: DeliveryFailure?
++    let dispatched: [String]
++  }
++
++  /// Executes the production guard and delivery-phase logic against local records.
++  /// All application tells and send commands are removed before osascript runs.
++  private func exerciseServiceGuard(
++    requested: MessageService,
++    actual: String,
++    afterText: String? = nil,
++    text: Bool = true,
++    attachment: Bool = false
++  ) throws -> ServiceGuardResult {
++    let fixture = try PrivateTransportFixture()
++    defer { fixture.cleanup() }
++    let marker = fixture.root.appendingPathComponent("dispatches")
++    let file = fixture.root.appendingPathComponent("attachment")
++    try Data("fixture".utf8).write(to: file)
++    let initialChat = "{account:{service type:\(actual)}}"
++    let nextChat = "{account:{service type:\(afterText ?? actual)}}"
++    var source = try serviceGuardScript()
++    source = source.replacingOccurrences(
++      of: "tell application \"Messages\"", with: "using terms from application \"Messages\""
++    )
++    .replacingOccurrences(of: "end tell", with: "end using terms from")
++    .replacingOccurrences(
++      of: "set targetChat to chat id chatId",
++      with: "set targetChat to \(initialChat)"
++    )
++    .replacingOccurrences(
++      of: "send theMessage to targetChat",
++      with: "my recordMockDispatch(\"text\")\nset targetChat to \(nextChat)"
++    )
++    .replacingOccurrences(
++      of: "send theFile to targetChat",
++      with: "my recordMockDispatch(\"file\")"
++    )
++    .replacingOccurrences(of: "send theMessage to targetBuddy", with: "error number -1701")
++    .replacingOccurrences(of: "send theFile to targetBuddy", with: "error number -1701")
++    try #require(!source.contains("tell application"))
++    try #require(source.range(of: #"(?m)^\s*send\s+"#, options: .regularExpression) == nil)
++    source += """
++
++      on recordMockDispatch(kind)
++          set outputFile to open for access POSIX file "\(marker.path)" with write permission
++          write (kind & linefeed) to outputFile starting at eof
++          close access outputFile
++      end recordMockDispatch
++      """
++    let failure = deliveryFailure {
++      try AppleScriptSendTransport.run(
++        source: source,
++        arguments: [
++          "", text ? "fixture" : "", requested.rawValue,
++          attachment ? file.path : "", attachment ? "1" : "0", "any;-;fixture", "1",
++        ],
++        processTimeout: 5
++      )
++    }
++    let dispatched = ((try? String(contentsOf: marker, encoding: .utf8)) ?? "")
++      .split(separator: "\n").map(String.init)
++    return ServiceGuardResult(failure: failure, dispatched: dispatched)
++  }
++
++  @Test(arguments: [MessageService.imessage, .sms])
++  func explicitChatServiceMatchesBeforeTextAndAttachment(_ service: MessageService) throws {
++    let actual = service == .imessage ? "iMessage" : "SMS"
++    let result = try exerciseServiceGuard(requested: service, actual: actual, attachment: true)
++    #expect(result.failure == nil)
++    #expect(result.dispatched == ["text", "file"])
++  }
++
++  @Test(arguments: [MessageService.imessage, .sms], [true, false])
++  func explicitChatServiceMismatchNeverStarts(
++    _ service: MessageService, _ text: Bool
++  ) throws {
++    let actual = service == .imessage ? "SMS" : "iMessage"
++    let result = try exerciseServiceGuard(
++      requested: service, actual: actual, text: text, attachment: !text)
++    #expect(result.failure?.disposition == .notStarted)
++    #expect(result.failure?.detail == "Messages automation failed with AppleScript error -1700.")
++    #expect(result.failure?.retrySafe == true)
++    #expect(result.dispatched.isEmpty)
++  }
++
++  @Test(arguments: ["missing value", "\"unknown\""])
++  func explicitChatUnknownServiceFailsClosed(_ actual: String) throws {
++    let result = try exerciseServiceGuard(requested: .imessage, actual: actual)
++    #expect(result.failure?.disposition == .notStarted)
++    #expect(result.failure?.detail == "Messages automation failed with AppleScript error -1700.")
++    #expect(result.dispatched.isEmpty)
++  }
++
++  @Test
++  func chatServiceChangeAfterTextPreservesIndeterminatePhase() throws {
++    let result = try exerciseServiceGuard(
++      requested: .imessage, actual: "iMessage", afterText: "SMS", attachment: true)
++    #expect(result.failure?.disposition == .mayHaveCompleted)
++    #expect(result.failure?.retrySafe == false)
++    #expect(result.dispatched == ["text"])
++  }
++
++  @Test(arguments: ["iMessage", "SMS"])
++  func nativeAutoChatKeepsExistingRouteChoice(_ actual: String) throws {
++    let result = try exerciseServiceGuard(requested: .auto, actual: actual, attachment: true)
++    #expect(result.failure == nil)
++    #expect(result.dispatched == ["text", "file"])
++  }
++
++  @Test(arguments: MessageService.allCases)
++  func exactChatPreservesResolvedServiceArgument(_ service: MessageService) throws {
++    var captured: [String] = []
++    let sender = MessageSender(runner: { _, arguments in captured = arguments })
++    try sender.send(
++      MessageSendOptions(
++        recipient: "", text: "fixture", service: service,
++        chatGUID: "any;-;fixture", allowSMSFallback: false)
++    )
++    #expect(captured[2] == service.rawValue)
++    #expect(captured[6] == "1")
++  }
++#endif
+-- 
+2.50.1 (Apple Git-155)
+
