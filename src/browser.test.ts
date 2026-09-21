@@ -2172,6 +2172,31 @@ describe("browser process isolation helpers", () => {
         }
       }
 
+      for (const statusDrift of [
+        { saveStatus: "not_configured" },
+        { restoreStatus: "not_attempted" },
+        { restoreStatus: "not_attempted", saveStatus: "not_configured" },
+      ] as const) {
+        const driftedInfo = activeInfo(false);
+        const bound = await bindWith(
+          agentBrowserBoundaryEnvelope({
+            ...driftedInfo,
+            data: {
+              ...driftedInfo.data,
+              runtime: {
+                ...driftedInfo.data.runtime,
+                lifecycle: {
+                  ...driftedInfo.data.runtime.lifecycle,
+                  ...statusDrift,
+                },
+              },
+            },
+          }),
+          agentBrowserBoundaryEnvelope(cdpInfo(false)),
+        );
+        expect(bound.phase).toBe("controlled");
+      }
+
       expect(await rejectionMessage(bindWith(
         agentBrowserBoundaryEnvelope({
           ...activeInfo(false),

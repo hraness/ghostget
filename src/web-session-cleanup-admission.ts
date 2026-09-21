@@ -1839,6 +1839,38 @@ async function recoverBrowserCleanupUnsafe(
     : "claim-conflict";
 }
 
+/**
+ * A cross-boot claim may enter browser cleanup recovery only when every
+ * published browser root is already absent: every recorded owner is provably
+ * dead across the boot boundary, so recovery only confirms quiescence and
+ * journals the record away without deleting anything. A published root that
+ * still exists keeps custody retained for a same-boot repair.
+ */
+function publishedBrowserCleanupRootsAbsent(
+  claim: WebSessionCleanupAdmissionClaim,
+): boolean {
+  let published = 0;
+  for (const resource of claim.resources) {
+    if (
+      resource.status === "unpublished"
+      || resource.identity.kind === "local-cli-private-root-v1"
+    ) {
+      continue;
+    }
+    published += 1;
+    if (
+      resource.identity.kind !== "agent-browser-session-v2"
+      || browserCleanupResourceRootStatus(resource.identity, "artifacts")
+        !== "absent"
+      || browserCleanupResourceRootStatus(resource.identity, "socket")
+        !== "absent"
+    ) {
+      return false;
+    }
+  }
+  return published > 0;
+}
+
 function removeRecoverableLocalCliRoots(
   claim: WebSessionCleanupAdmissionClaim,
   inspectOwner: (owner: ProcessOwnerIdentity) => ProcessOwnerStatus,
@@ -2322,6 +2354,7 @@ export async function recoverWebSessionCleanupAdmissionsCore(
             inspectOwner,
           )
         : claim.owner.bootId !== currentBootId
+            && !publishedBrowserCleanupRootsAbsent(claim)
           ? "proof-unavailable"
           : await recoverBrowserCleanupUnsafe(
               entry,
