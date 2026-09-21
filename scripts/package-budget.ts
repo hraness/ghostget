@@ -1,3 +1,12 @@
+// Control snapshot revision batching adds a chunked fallback for incarnation
+// collections larger than one helper batch. A clean npm 11.19.0 pack
+// --ignore-scripts on darwin arm64 measured 11,906,030 compressed bytes,
+// 23,038,557 payload bytes and exactly 577 files/entries. Archive SHA-256
+// d00d126b6fc2e3d214287e1a642c5eb712062f332e4f81217f7a815fef44cd49.
+// Preserve the packed ceiling and restore the reviewed 65-byte payload
+// allowance: 23,038,557 + 65 = 23,038,622. Current source CI and canonical
+// Release must independently measure and admit their exact archives.
+//
 // Control snapshot revision batching and TUI refresh work add the batched
 // incarnation read and its colocated test, and grow the TUI and admission
 // sources. A clean npm 11.19.0 pack --ignore-scripts on darwin arm64 measured
@@ -1267,7 +1276,7 @@ export const MAX_PACKED_FILES = 577;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 23_037_938;
+export const MAX_UNPACKED_BYTES = 23_038_622;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

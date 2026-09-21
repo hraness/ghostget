@@ -14,10 +14,13 @@ import {
 import {
   createPrivateJsonIfAbsent,
   ensurePrivateStateDirectory,
+  MAX_PRIVATE_STATE_BATCH_FILES,
   readPrivateStateFileIfPresent,
   readPrivateStateFilesBatch,
+  readPrivateStateFilesBatched,
   removePrivateStateFileIfUnchanged,
   ghostgetStateHome,
+  snapshotPrivateStateDirectory,
   writePrivateJsonIfUnchanged,
 } from "./storage";
 
@@ -933,15 +936,31 @@ export function readProjectionAuthIdentityHashesIfPresent(
     readonly content?: string;
   }[];
   try {
-    results = readPrivateStateFilesBatch(
-      incarnationsDirectory(environment),
-      entries.map((entry) => entry.coordinate),
-      {
-        maximumBytesPerFile: MAX_CONTROL_RECORD_BYTES,
-        maximumTotalBytes: MAX_CONTROL_RECORD_BYTES * entries.length,
-        environment,
-      },
-    );
+    const directory = incarnationsDirectory(environment);
+    const names = entries.map((entry) => entry.coordinate);
+    results = names.length <= MAX_PRIVATE_STATE_BATCH_FILES
+      ? readPrivateStateFilesBatch(
+          directory,
+          names,
+          {
+            maximumBytesPerFile: MAX_CONTROL_RECORD_BYTES,
+            maximumTotalBytes: MAX_CONTROL_RECORD_BYTES * names.length,
+            environment,
+          },
+        )
+      : (() => {
+          const observed = snapshotPrivateStateDirectory(directory, environment);
+          if (observed.identity === null) return [];
+          return readPrivateStateFilesBatched(
+            directory,
+            names,
+            {
+              maximumBytesPerFile: MAX_CONTROL_RECORD_BYTES,
+              environment,
+              expectedDirectoryIdentity: observed.identity,
+            },
+          );
+        })();
   } catch (error) {
     // No incarnation collection yet: every account takes the admitted fallback.
     if (error instanceof Error && error.message.includes("directory is absent")) {
