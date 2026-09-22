@@ -15,6 +15,10 @@ import { types as nodeTypes } from "node:util";
 
 import type { GhostgetAuth } from "../auth";
 import {
+  loadAuthSnapshotIfPresent,
+  replaceAuthIfUnchanged,
+} from "../auth";
+import {
   canonicalJson,
   isCanonicalJsonText,
 } from "../canonical-json";
@@ -205,6 +209,7 @@ export type BeeperDirectReadOptions = Readonly<{
   signal?: AbortSignal;
   operationDeadline?: WebSessionOperationDeadline;
   dependencies?: BeeperDirectDependencies;
+  environment?: Readonly<Record<string, string | undefined>>;
 }>;
 
 export type BeeperUserProjection = Readonly<{
@@ -639,13 +644,14 @@ export function beeperSubjectFromAccounts(
   return `beeper:local:${digest}`;
 }
 
-export function beeperSubjectFromAccountsAndTarget(
-  accounts: readonly BeeperAccountProjection[],
+/** The realm subject over already-derived parts — the account identity,
+ * loopback target, bundle ID, and provider target version all bind. */
+export function beeperSubjectFromTargetParts(
+  accountSubject: string,
   targetBaseUrl: string,
   targetBundleId: typeof BEEPER_DESKTOP_BUNDLE_IDS[number],
   targetVersion: string,
 ): string {
-  const accountSubject = beeperSubjectFromAccounts(accounts);
   const reviewedBaseUrl = localDesktopBaseUrl(
     targetBaseUrl,
     "Beeper bound target base URL",
@@ -671,6 +677,107 @@ export function beeperSubjectFromAccountsAndTarget(
     .update(reviewedVersion, "utf8")
     .digest("hex");
   return `beeper:local:${digest}`;
+}
+
+export function beeperSubjectFromAccountsAndTarget(
+  accounts: readonly BeeperAccountProjection[],
+  targetBaseUrl: string,
+  targetBundleId: typeof BEEPER_DESKTOP_BUNDLE_IDS[number],
+  targetVersion: string,
+): string {
+  return beeperSubjectFromTargetParts(
+    beeperSubjectFromAccounts(accounts),
+    targetBaseUrl,
+    targetBundleId,
+    targetVersion,
+  );
+}
+
+/** Repairs a bound subject that drifted only in the provider target
+ * version — the routine Desktop update case. The proof is exact:
+ * recomputing the recorded subject with the realm's recorded
+ * `boundVersion` must still yield it, which means the account identity,
+ * loopback target, and bundle ID are all unchanged and only the version
+ * moved. Anything else still fails closed. Returns the rebound auth on a
+ * durable CAS write, or null when the drift is not provably version-only. */
+async function repairBeeperBoundVersionDrift(
+  authId: string,
+  current: {
+    readonly accountSubject: string;
+    readonly baseUrl: string;
+    readonly bundleId: typeof BEEPER_DESKTOP_BUNDLE_IDS[number];
+    readonly version: string;
+  },
+  environment: Readonly<Record<string, string | undefined>>,
+): Promise<GhostgetAuth | null> {
+  try {
+    const snapshot = loadAuthSnapshotIfPresent(authId, environment);
+    if (snapshot === null || snapshot.auth.kind !== "linked-device-store") {
+      return null;
+    }
+    const stored = snapshot.auth;
+    if (stored.subject === undefined || stored.boundVersion === undefined) {
+      return null;
+    }
+    const expected = beeperSubjectFromTargetParts(
+      current.accountSubject,
+      current.baseUrl,
+      current.bundleId,
+      stored.boundVersion,
+    );
+    if (expected !== stored.subject) return null;
+    const subject = beeperSubjectFromTargetParts(
+      current.accountSubject,
+      current.baseUrl,
+      current.bundleId,
+      current.version,
+    );
+    const rebound: GhostgetAuth = {
+      ...stored,
+      subject,
+      boundVersion: current.version,
+    };
+    if (replaceAuthIfUnchanged(snapshot, rebound, environment).replaced) {
+      return rebound;
+    }
+    // A concurrent repair may have already rebound the realm.
+    const fresh = loadAuthSnapshotIfPresent(authId, environment);
+    return fresh !== null
+      && fresh.auth.kind === "linked-device-store"
+      && fresh.auth.subject === subject
+      ? rebound
+      : null;
+  } catch {
+    // A lifecycle admission, missing record, or malformed record is not
+    // proof of version-only drift — the caller fails closed as before.
+    return null;
+  }
+}
+
+/** Records the provider target version the bound subject was computed
+ * under so a later version-only drift can prove itself and self-repair.
+ * Best-effort: a lost CAS or a missing record never fails the operation. */
+async function recordBeeperBoundVersion(
+  authId: string,
+  version: string,
+  environment: Readonly<Record<string, string | undefined>>,
+): Promise<void> {
+  try {
+    const snapshot = loadAuthSnapshotIfPresent(authId, environment);
+    if (
+      snapshot === null
+      || snapshot.auth.kind !== "linked-device-store"
+      || snapshot.auth.subject === undefined
+      || snapshot.auth.boundVersion === version
+    ) return;
+    replaceAuthIfUnchanged(
+      snapshot,
+      { ...snapshot.auth, boundVersion: version },
+      environment,
+    );
+  } catch {
+    // Provenance only — the subject already matched; never fail the run.
+  }
 }
 
 export type BeeperTargetRealmProof = Readonly<{
@@ -2304,6 +2411,7 @@ async function bindBeeperDirectRealm(
   dependencies: BeeperDirectDependencies | undefined,
   signal: AbortSignal | undefined,
   enforceBoundSubject = true,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<BeeperDirectRealm> {
   const auth = requireBeeperAuth(authValue);
   if (enforceBoundSubject && auth.subject === undefined) {
@@ -2338,14 +2446,29 @@ async function bindBeeperDirectRealm(
     dependencies,
     signal,
   ));
-  const subject = beeperSubjectFromAccountsAndTarget(
-    accounts,
+  const accountSubject = beeperSubjectFromAccounts(accounts);
+  const subject = beeperSubjectFromTargetParts(
+    accountSubject,
     info.baseUrl,
     info.bundleId,
     info.version,
   );
   if (enforceBoundSubject && subject !== auth.subject) {
-    throw new Error("Beeper Desktop direct account did not match the bound auth realm");
+    const repaired = await repairBeeperBoundVersionDrift(
+      auth.id,
+      {
+        accountSubject,
+        baseUrl: info.baseUrl,
+        bundleId: info.bundleId,
+        version: info.version,
+      },
+      environment,
+    );
+    if (repaired === null) {
+      throw new Error("Beeper Desktop direct account did not match the bound auth realm");
+    }
+  } else if (enforceBoundSubject && auth.boundVersion !== info.version) {
+    await recordBeeperBoundVersion(auth.id, info.version, environment);
   }
   return Object.freeze({
     accounts,
@@ -3045,6 +3168,8 @@ export async function executeBeeperDirectReadOperation(
     authValue,
     options.dependencies,
     signal,
+    true,
+    options.environment ?? process.env,
   );
   options.operationDeadline?.throwIfUnavailable("Beeper Desktop direct read");
   let raw: unknown;
@@ -3257,14 +3382,29 @@ export async function executeBeeperDirectMessagingPart(
     attempt.signal,
   ));
   requireBoundAccount(accounts, input.accountId, "Beeper direct messaging");
-  const subject = beeperSubjectFromAccountsAndTarget(
-    accounts,
+  const accountSubject = beeperSubjectFromAccounts(accounts);
+  const subject = beeperSubjectFromTargetParts(
+    accountSubject,
     info.baseUrl,
     info.bundleId,
     info.version,
   );
   if (subject !== auth.subject) {
-    throw new Error("Beeper Desktop direct account did not match the bound auth realm");
+    const repaired = await repairBeeperBoundVersionDrift(
+      auth.id,
+      {
+        accountSubject,
+        baseUrl: info.baseUrl,
+        bundleId: info.bundleId,
+        version: info.version,
+      },
+      attempt.environment ?? process.env,
+    );
+    if (repaired === null) {
+      throw new Error("Beeper Desktop direct account did not match the bound auth realm");
+    }
+  } else if (auth.boundVersion !== info.version) {
+    await recordBeeperBoundVersion(auth.id, info.version, attempt.environment ?? process.env);
   }
   const chatPath = `/v1/chats/${encodeURIComponent(input.conversationId)}`;
   exactConversation(
@@ -3586,14 +3726,29 @@ async function withRuntime<T>(
       privateStore.targetBaseUrl,
     );
     const accounts = parseAccounts(await run(planBeeperAccountsListCommand(timeoutMs), 8 * 1024 * 1024));
-    const subject = beeperSubjectFromAccountsAndTarget(
-      accounts,
+    const accountSubject = beeperSubjectFromAccounts(accounts);
+    const subject = beeperSubjectFromTargetParts(
+      accountSubject,
       privateStore.targetBaseUrl,
       targetProof.bundleId,
       targetProof.version,
     );
     if (auth.subject !== undefined && auth.subject !== subject) {
-      throw new Error("Beeper CLI current account did not match the bound auth realm");
+      const repaired = await repairBeeperBoundVersionDrift(
+        auth.id,
+        {
+          accountSubject,
+          baseUrl: privateStore.targetBaseUrl,
+          bundleId: targetProof.bundleId,
+          version: targetProof.version,
+        },
+        environment,
+      );
+      if (repaired === null) {
+        throw new Error("Beeper CLI current account did not match the bound auth realm");
+      }
+    } else if (auth.subject !== undefined && auth.boundVersion !== targetProof.version) {
+      await recordBeeperBoundVersion(auth.id, targetProof.version, environment);
     }
     return await operation(Object.freeze({
       binary,
@@ -3650,6 +3805,7 @@ export async function probeBeeperLocalSubject(
       options.directDependencies,
       deadline.signal,
       false,
+      options.environment ?? process.env,
     );
     deadline.throwIfUnavailable("Beeper subject probe");
     return realm.subject;
