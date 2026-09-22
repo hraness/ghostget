@@ -90,6 +90,7 @@ import {
   normalizeInstagramFeed,
   normalizeInstagramInbox,
   normalizeInstagramPost,
+  normalizeInstagramProfileHtmlStats,
   normalizeInstagramProfileStats,
   normalizeThreadsFeedHtml,
   normalizeThreadsPostHtml,
@@ -2601,13 +2602,32 @@ async function executeInstagramProfileRead(
       );
     }
     failureStage = "target";
-    const response = await transport.readProfileJson(prepared.profile);
-    const output = normalizeInstagramProfileStats(
-      response,
-      viewerId,
-      prepared.profile,
-      new Date((options.dependencies?.now ?? Date.now)()).toISOString(),
-    );
+    const observedAt = new Date(
+      (options.dependencies?.now ?? Date.now)(),
+    ).toISOString();
+    let output: Readonly<Record<string, unknown>>;
+    try {
+      const response = await transport.readProfileJson(prepared.profile);
+      output = normalizeInstagramProfileStats(
+        response,
+        viewerId,
+        prepared.profile,
+        observedAt,
+      );
+    } catch (error) {
+      if (
+        !(
+          error instanceof InstagramProfileBrowserResponseRejectedError
+          && error.status === 429
+        )
+      ) throw error;
+      output = normalizeInstagramProfileHtmlStats(
+        await transport.readProfileHtml(prepared.profile),
+        viewerId,
+        prepared.profile,
+        observedAt,
+      );
+    }
     return {
       status: "succeeded",
       output,

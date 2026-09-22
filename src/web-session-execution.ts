@@ -44,6 +44,18 @@ export class WebSessionCleanupUnverifiedError extends Error {
   }
 }
 
+/** A bound account realm drifted in a way the provider cannot repair on
+ * its own — e.g. the signed-in account or provider target changed, or the
+ * record predates bound-version provenance. The realm needs an explicit
+ * operator rebind (`ghostget auth bind`), which the caller can surface as
+ * `auth-repair-required`/`repair-auth` instead of opaque contract drift. */
+export class AuthRepairRequiredError extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause });
+    this.name = "AuthRepairRequiredError";
+  }
+}
+
 export type ReadFailureProjection =
   | {
       readonly category: "target-unavailable";

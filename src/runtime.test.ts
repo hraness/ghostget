@@ -37,6 +37,7 @@ import {
   type GhostgetManifest,
 } from "./model";
 import { OperationDeadlineError } from "./operation-deadline";
+import { AuthRepairRequiredError } from "./web-session-execution";
 import {
   readProviderAcceptedMutationTargetEvidence,
   readRecoveryCapsule,
@@ -4456,6 +4457,48 @@ describe("receipts", () => {
       }
     },
   );
+
+  test("projects a bound-realm repair requirement as auth-repair-required", async () => {
+    const testState = state();
+    try {
+      const selectedManifest = xWebManifest();
+      const selectedAuth = createAuth("x-web-repair", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      installManifest(selectedManifest, {
+        force: false,
+        environment: testState.environment,
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const result = await executeReadInvocation({
+        manifest: selectedManifest,
+        operationId: "posts.read",
+        input: { post_id: "2078889282404569267" },
+        auth: selectedAuth,
+      }, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: () => Promise.reject(
+          new AuthRepairRequiredError("the bound realm drifted; repair it with ghostget auth bind"),
+        ),
+      });
+      expect(result).toMatchObject({
+        readFailure: {
+          category: "auth-repair-required",
+          retryDisposition: "repair-auth",
+        },
+        receipt: {
+          status: "failed",
+          dispatchStarted: false,
+          dispatch: { planned: 0, started: 0, verified: 0 },
+        },
+      });
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
 
   test("rejects browser-only recovery fields from an official-provider executor", async () => {
     const testState = state();

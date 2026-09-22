@@ -1,16 +1,16 @@
-// Usage-driven contract repair over Ghostget 0.18.24 adds the bounded
+// Usage-driven contract repair over Ghostget 0.18.25 adds the bounded
 // repair-signal inbox (src/contract-repair-inbox.ts) and the repair-handoff
 // assessment (src/contracts-repair.ts) alongside the runtime, CLI, schema and
 // vocabulary edits and the regenerated dist bundles: two additional packed
 // source files. A clean npm 11.19.0 pack --ignore-scripts on darwin arm64
-// measured 11,954,952 compressed bytes, 23,251,469 payload bytes and exactly
+// measured 11,959,007 compressed bytes, 23,268,400 payload bytes and exactly
 // 591 files/entries. Archive SHA-256
-// bff4d929cac0d41f56d8d67b003c64f582a80d3a9773a69568d3fb2912a7b8ea. The
+// c347ae9a739bd49660b7daea38fc799a08389616bad7b99801b00eb6e9ace7d1. The
 // largest observed darwin-to-Linux packed delta for this inventory shape was
 // +12,387 bytes; carry that projection plus the 4,096-byte portability
-// allowance: 11,954,952 + 12,387 + 4,096 = 11,971,435. Carry the
+// allowance: 11,959,007 + 12,387 + 4,096 = 11,975,490. Carry the
 // conservative +353-byte payload projection plus the reviewed 65-byte
-// allowance: 23,251,469 + 353 + 65 = 23,251,887. Current source CI and
+// allowance: 23,268,400 + 353 + 65 = 23,268,818. Current source CI and
 // canonical Release must independently measure and admit their exact
 // archives.
 //
@@ -1333,22 +1333,22 @@
 // (src/contract-repair-inbox.ts and src/contracts-repair.ts) alongside the
 // runtime, CLI, schema and vocabulary edits and the regenerated dist
 // bundles. `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
-// measured 11,954,952 packed bytes, 23,251,469 unpacked bytes across
+// measured 11,959,007 packed bytes, 23,268,400 unpacked bytes across
 // exactly 591 files; archive SHA-256
-// bff4d929cac0d41f56d8d67b003c64f582a80d3a9773a69568d3fb2912a7b8ea. Carry the
+// c347ae9a739bd49660b7daea38fc799a08389616bad7b99801b00eb6e9ace7d1. Carry the
 // largest observed darwin-to-Linux packed projection for this inventory
 // (+12,387 bytes) plus the reviewed 4,096-byte portability allowance:
-// 11,954,952 + 12,387 + 4,096 = 11,971,435. The payload ceiling carries the
+// 11,959,007 + 12,387 + 4,096 = 11,975,490. The payload ceiling carries the
 // observed 353-byte projection plus the reviewed 65-byte allowance:
-// 23,251,469 + 353 + 65 = 23,251,887.
+// 23,268,400 + 353 + 65 = 23,268,818.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Usage-driven repair handoffs over Ghostget 0.18.24; two additional source files and regenerated bundles",
+  scope: "Usage-driven repair handoffs over Ghostget 0.18.25; two additional source files and regenerated bundles",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "bff4d929cac0d41f56d8d67b003c64f582a80d3a9773a69568d3fb2912a7b8ea",
-  packedBytes: 11_954_952,
-  unpackedBytes: 23_251_469,
+  archiveSha256: "c347ae9a739bd49660b7daea38fc799a08389616bad7b99801b00eb6e9ace7d1",
+  packedBytes: 11_959_007,
+  unpackedBytes: 23_268_400,
   entryCount: 591,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
@@ -1396,6 +1396,28 @@ export const MAX_PACKED_FILES = repairPackageMeasurement.entryCount;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
+// The bound-version realm repair adds the subject parts split plus the
+// drift-repair and boundVersion provenance helpers to
+// beeper-local-runtime, the boundVersion field to the linked-device auth
+// record, and three internal tests: measured 23,219,374 unpacked bytes on
+// the Linux package job, restoring the same 65-byte allowance.
+// 23,219,374 + 65 = 23,219,439.
+// The auth-repair-required signal adds the typed error class, its wiring
+// through the bound-subject checks and the read envelope projection, and
+// the accompanying tests: measured 23,220,534 unpacked bytes on the Linux
+// package job, restoring the same 65-byte allowance.
+// 23,220,534 + 65 = 23,220,599.
+// The mid-read realm retry adds the LiveReadDiscardedError type and the
+// bounded re-prepare to read-client plus its regression tests: measured
+// 23,222,059 unpacked bytes, restoring the same 65-byte allowance.
+// 23,222,059 + 65 = 23,222,124.
+// The Instagram profile-page fallback adds the profile-html transport binding
+// and the Open Graph fallback normalizer across meta-web, its runtime, the
+// contained browser transport, and rebuilt dist chunks: a clean
+// `bun pm pack --ignore-scripts` with Bun 1.3.14 on darwin arm64 measured
+// exactly 589 files/entries and 23,229,987 payload bytes; archive SHA-256
+// 7aaeba9a98900ed8083f4ec0a7d36d137cbc7585c1a5a676c8b092d7f3e486cb. Retain the
+// reviewed 65-byte allowance: 23,229,987 + 65 = 23,230,052.
 export const MAX_UNPACKED_BYTES = repairPackageMeasurement.unpackedBytes
   + repairPackageMeasurement.payloadPlatformProjection + repairPackageMeasurement.payloadAllowance;
 

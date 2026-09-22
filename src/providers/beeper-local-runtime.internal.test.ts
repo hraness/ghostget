@@ -19,7 +19,9 @@ import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
 import type { GhostgetAuth } from "../auth";
+import { loadAuth, saveAuth } from "../auth";
 import { canonicalJson } from "../canonical-json";
+import { AuthRepairRequiredError } from "../web-session-execution";
 import type { LocalCliRecipe, OperationInput } from "../model";
 import { OperationDeadline } from "../operation-deadline";
 import type { ProviderPluginReconciliationContextV1 } from "../provider-plugin";
@@ -1090,6 +1092,118 @@ describe("Beeper local read runtime", () => {
       expect(rejectedCalls.some((call) => call.arguments[0] === "accounts")).toBeFalse();
     } finally {
       rmSync(path, { recursive: true, force: true });
+    }
+  });
+
+  test("records the bound target version and self-repairs version-only drift", async () => {
+    const path = privateStore();
+    const state = mkdtempSync(join(tmpdir(), "wrench-beeper-drift-"));
+    chmodSync(state, 0o700);
+    const environment = { GHOSTGET_STATE_HOME: state };
+    const calls: BeeperCliInvocation[] = [];
+    const stored = { ...auth(path), boundVersion: "4.2.0-fixture" };
+    try {
+      saveAuth(stored, environment);
+      // First run: the recorded version matches the live target — no drift,
+      // no rewrite beyond the backfilled field that is already present.
+      const ok = await executeBeeperLocalOperation(
+        recipe("accounts.list"),
+        {},
+        stored,
+        { dependencies: { binaryPath: "/fixture/beeper-0.6.2", run: runner(calls) }, environment },
+      );
+      expect(ok.status).toBe("succeeded");
+      expect(loadAuth("beeper-fixture", environment)).toMatchObject({
+        subject: SUBJECT,
+        boundVersion: "4.2.0-fixture",
+      });
+
+      // The provider target moved to a new version: the bound subject
+      // drifted, but every other component is identical, so the realm
+      // rebinds itself durably and the operation still succeeds.
+      const drifted = targetStatus({ version: "4.3.0-drift" });
+      const repaired = await executeBeeperLocalOperation(
+        recipe("accounts.list"),
+        {},
+        stored,
+        { dependencies: { binaryPath: "/fixture/beeper-0.6.2", run: runner(calls, { targetStatusData: drifted }) }, environment },
+      );
+      expect(repaired.status).toBe("succeeded");
+      const rebound = loadAuth("beeper-fixture", environment);
+      expect(rebound.kind === "linked-device-store" ? rebound.boundVersion : undefined).toBe("4.3.0-drift");
+      expect(rebound.subject).toBe(
+        beeperSubjectFromAccountsAndTarget(
+          parseBeeperExportAccounts(accounts()),
+          "http://127.0.0.1:23384",
+          BUNDLE_ID,
+          "4.3.0-drift",
+        ),
+      );
+      expect(rebound.subject).not.toBe(SUBJECT);
+    } finally {
+      rmSync(path, { recursive: true, force: true });
+      rmSync(state, { recursive: true, force: true });
+    }
+  });
+
+  test("backfills boundVersion onto a bound record so later drift can self-repair", async () => {
+    const path = privateStore();
+    const state = mkdtempSync(join(tmpdir(), "wrench-beeper-backfill-"));
+    chmodSync(state, 0o700);
+    const environment = { GHOSTGET_STATE_HOME: state };
+    const calls: BeeperCliInvocation[] = [];
+    try {
+      saveAuth(auth(path), environment); // bound subject, no boundVersion
+      const ok = await executeBeeperLocalOperation(
+        recipe("accounts.list"),
+        {},
+        auth(path),
+        { dependencies: { binaryPath: "/fixture/beeper-0.6.2", run: runner(calls) }, environment },
+      );
+      expect(ok.status).toBe("succeeded");
+      expect(
+        (loadAuth("beeper-fixture", environment) as { boundVersion?: string }).boundVersion,
+      ).toBe("4.2.0-fixture");
+    } finally {
+      rmSync(path, { recursive: true, force: true });
+      rmSync(state, { recursive: true, force: true });
+    }
+  });
+
+  test("still fails closed when the drift is not provably version-only", async () => {
+    const path = privateStore();
+    const state = mkdtempSync(join(tmpdir(), "wrench-beeper-nodrift-"));
+    chmodSync(state, 0o700);
+    const environment = { GHOSTGET_STATE_HOME: state };
+    const calls: BeeperCliInvocation[] = [];
+    try {
+      // A record whose stored boundVersion cannot reproduce its subject —
+      // the drift is not provably version-only, so nothing rebinds and the
+      // caller gets the typed auth-repair signal instead of opaque drift.
+      saveAuth({ ...auth(path), boundVersion: "0.0.0-never" }, environment);
+      const drifted = targetStatus({ version: "4.3.0-drift" });
+      await expect(executeBeeperLocalOperation(
+        recipe("accounts.list"),
+        {},
+        auth(path),
+        { dependencies: { binaryPath: "/fixture/beeper-0.6.2", run: runner(calls, { targetStatusData: drifted }) }, environment },
+      )).rejects.toThrow(AuthRepairRequiredError);
+      expect(loadAuth("beeper-fixture", environment)).toMatchObject({
+        subject: SUBJECT,
+        boundVersion: "0.0.0-never",
+      });
+
+      // And a bound record with no boundVersion reports auth repair too.
+      saveAuth(auth(path), environment, { force: true });
+      await expect(executeBeeperLocalOperation(
+        recipe("accounts.list"),
+        {},
+        auth(path),
+        { dependencies: { binaryPath: "/fixture/beeper-0.6.2", run: runner(calls, { targetStatusData: drifted }) }, environment },
+      )).rejects.toThrow(AuthRepairRequiredError);
+    } finally {
+      rmSync(path, { recursive: true, force: true });
+      rmSync(state, { recursive: true, force: true });
     }
   });
 
