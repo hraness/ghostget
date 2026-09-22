@@ -16,6 +16,10 @@ const MESSAGES: Readonly<Record<VaultImportCode, string>> = {
   IMPORT_UNCERTAIN: "Import or cleanup could not be confirmed. Refresh Accounts before retrying; private recovery evidence was retained.",
 };
 
+/** 1Password desktop integration is available on the desktop platforms; when the
+ * app or its integration is missing the helper still reports VAULT_UNAVAILABLE. */
+const VAULT_DESKTOP_PLATFORMS: readonly NodeJS.Platform[] = ["darwin", "linux", "win32"];
+
 export function parseCredentialResult(text: string): VaultImportResult {
   let value: unknown;
   try { value = readInterfaceJson(text, 1024); } catch { throw new Error("invalid credential response"); }
@@ -28,7 +32,7 @@ export function parseCredentialResult(text: string): VaultImportResult {
 
 /** No vault value travels through control IPC, argv, environment or the agent socket. */
 export async function importVaultToken(request: Extract<ControlRequest, { action: "vault.import" }>, environment: Readonly<Record<string, string | undefined>>, signal?: AbortSignal): Promise<void> {
-  if (process.platform !== "darwin") throw new ControlError("VAULT_UNAVAILABLE", "1Password desktop token import currently requires macOS.");
+  if (!VAULT_DESKTOP_PLATFORMS.includes(process.platform)) throw new ControlError("VAULT_UNAVAILABLE", "1Password desktop token import requires a desktop platform (macOS, Linux, or Windows).");
   if (signal?.aborted) throw new ControlError("IMPORT_CANCELLED", MESSAGES.IMPORT_CANCELLED);
   const launch = credentialProcessSpec(environment);
   const child = Bun.spawn(launch.command, { stdin: "pipe", stdout: "pipe", stderr: "ignore", env: launch.environment, cwd: launch.cwd });

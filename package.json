@@ -376,6 +376,7 @@
     "src/omni-runtime.ts",
     "src/operation-deadline.ts",
     "src/oauth-google.ts",
+    "src/oauth-x.ts",
     "src/path-helper.ts",
     "src/pinned-https.ts",
     "src/plan-assets.ts",

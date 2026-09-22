@@ -1,3 +1,46 @@
+// Renewable X vault imports over Ghostget 0.18.24 add the public-client
+// refresh module (src/oauth-x.ts), expiry and renewal metadata on the
+// account surfaces, and the desktop-wide 1Password platform gate on top of
+// the contracts surface: one additional packed source file. A clean npm
+// 11.19.0 pack --ignore-scripts on darwin arm64 measured 11,946,327
+// compressed bytes, 23,213,056 payload bytes and exactly 589 files/entries.
+// Archive SHA-256
+// f67a9230983bf87b02352ed91e8dc368ff214e19fd4aecaf4a0b3476fdb3b164. The
+// 0.18.24 release measured a +11,158-byte darwin-to-Linux packed delta for
+// the same inventory shape; carry that projection plus the 4,096-byte
+// portability allowance: 11,946,327 + 11,158 + 4,096 = 11,961,581. Carry
+// the conservative +353-byte payload projection plus the reviewed 65-byte
+// allowance: 23,213,056 + 353 + 65 = 23,213,474. Current source CI and
+// canonical Release must independently measure and admit their exact
+// archives.
+//
+// Renewable X vault imports over Ghostget 0.18.23 add the public-client
+// refresh module (src/oauth-x.ts), expiry and renewal metadata on the
+// account surfaces, and the desktop-wide 1Password platform gate. A clean
+// npm 11.19.0 pack --ignore-scripts on darwin arm64 measured 11,910,740
+// compressed bytes, 23,060,195 payload bytes and exactly 578 files/entries.
+// Archive SHA-256
+// c58f27d5b9f06040d27ca361e7816a0cde2d69c3fb26ed76649fd3f160f348f9. The
+// prior darwin-to-Linux packed delta for this inventory was +12,387 bytes;
+// carry that projection plus the 4,096-byte packed portability allowance:
+// 11,910,740 + 12,387 + 4,096 = 11,927,223. The prior darwin-to-Linux
+// payload delta was +353 bytes; carry the same projection plus the reviewed
+// 65-byte allowance: 23,060,195 + 353 + 65 = 23,060,613. Current source CI
+// and canonical Release must independently measure and admit their exact
+// archives.
+//
+// Renewable X vault imports add the public-client refresh module
+// (src/oauth-x.ts), expiry and renewal metadata on the account surfaces, and
+// the desktop-wide 1Password platform gate. A clean npm 11.19.0 pack
+// --ignore-scripts on darwin arm64 measured 11,910,002 compressed bytes,
+// 23,057,885 payload bytes and exactly 578 files/entries; the Linux CI pack
+// measured 11,922,389 compressed bytes for the same inventory. Archive SHA-256
+// 794cbe482b03bffac194def947d3f3fcc246015fec2589e017564d3a08b3a9b0.
+// Preserve the 4,096-byte packed portability allowance and the reviewed
+// 65-byte payload allowance: 11,922,389 + 4,096 = 11,926,485 and
+// 23,057,885 + 65 = 23,057,950. Current source CI and canonical
+// Release must independently measure and admit their exact archives.
+//
 // Ghostget 0.18.24 adds the machine-checkable contracts surface on top of the
 // 0.18.23 browser-admission recovery released from main: nine new packed
 // source files (src/contracts.ts, src/contracts-catalog.ts,
@@ -17,7 +60,6 @@
 // 47684b3e2eb5cf3ed07fbb520aade8c7251d993f75262fbf1af627d9081a1a5f; a
 // compressed archive is platform-specific, so source CI and the canonical
 // Release still measure and admit their own exact archives.
-
 // Ghostget 0.18.23 admits cross-boot cleanup-unsafe browser admissions whose
 // published roots are already absent into the existing absent-root recovery
 // proof and accepts the not_configured lifecycle save/restore vocabulary
@@ -1270,9 +1312,9 @@
 // 22,786,274 + 65 = 22,786,339. Retain the proven compressed ceiling; this
 // local pack measured 11,572,706 compressed bytes, under it. Required Linux
 // CI and Release independently measure and admit their exact npm archives.
-export const MAX_PACKED_BYTES = 11_957_995;
-export const MAX_PACKED_ENTRIES = 588;
-export const MAX_PACKED_FILES = 588;
+export const MAX_PACKED_BYTES = 11_961_581;
+export const MAX_PACKED_ENTRIES = 589;
+export const MAX_PACKED_FILES = 589;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
 //
@@ -1310,7 +1352,7 @@ export const MAX_PACKED_FILES = 588;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 23_193_793;
+export const MAX_UNPACKED_BYTES = 23_213_474;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

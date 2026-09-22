@@ -13,6 +13,10 @@ export interface AccountView {
   readonly status: "configured" | "verified" | "reconnect-required";
   readonly source: string | null;
   readonly tokenStorage: "external" | "ghostget-import" | "managed-oauth" | null;
+  /** Stored access-token expiry for OAuth accounts; null when unknown or absent. */
+  readonly tokenExpiresAt: string | null;
+  /** A stored refresh credential can renew the access token without the vault. */
+  readonly tokenRefreshable: boolean;
 }
 
 export interface CapabilityView {
@@ -133,7 +137,7 @@ export type ControlRequest =
   | { readonly action: "connection.commit"; readonly attemptId: string; readonly expectedSubject: string }
   | { readonly action: "connection.cancel"; readonly attemptId: string }
   | { readonly action: "connection.disconnect"; readonly id: string; readonly expectedRevision: string }
-  | { readonly action: "vault.import"; readonly id: string; readonly account: string; readonly reference: string; readonly expectedSubject: string; readonly scopes: readonly string[]; readonly expiresAt: string | null; readonly expectedRevision: string | null }
+  | { readonly action: "vault.import"; readonly id: string; readonly account: string; readonly reference: string; readonly expectedSubject: string; readonly scopes: readonly string[]; readonly expiresAt: string | null; readonly refreshReference: string | null; readonly clientId: string | null; readonly expectedRevision: string | null }
   | { readonly action: "prompt"; readonly kind: "install" | "use" | "extend" | "gateway"; readonly adapterId: string | null };
 
 export type ControlData =

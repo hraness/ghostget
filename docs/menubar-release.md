@@ -48,15 +48,15 @@ needed for an ordinary public-page read.
 
 ## Import one X token from 1Password
 
-The password-vault integration currently imports one X OAuth 2.0 user access
-token. It does not manage passwords, fill web forms, import a whole vault, or
-renew an expired token. The Markdown vault created by `ghostget init` is a
-separate document store.
+The password-vault integration imports one X OAuth 2.0 user credential. It does
+not manage passwords, fill web forms, or import a whole vault. The Markdown
+vault created by `ghostget init` is a separate document store.
 
-On macOS, unlock the 1Password desktop app and enable its app integration. Keep
-the existing X token in a 1Password field. Obtain the numeric X user ID for that
-token and its actual scopes before importing. Stop the menu companion and quit
-the TUI, then replace the example identifiers with your own:
+On a supported desktop platform (macOS, Linux, or Windows), unlock the 1Password
+desktop app and enable its app integration. Keep the existing X token in a
+1Password field. Obtain the numeric X user ID for that token and its actual
+scopes before importing. The TUI and menu companion may stay open; the import
+binds the exact account revision:
 
 ```sh
 ghostget vault import-x \
@@ -72,9 +72,30 @@ desktop app, or its account UUID. It is not the sign-in domain.
 
 Pass only the `op://` field reference, never the token itself. Required scopes
 are `tweet.read` and `users.read`; declare any additional supported scopes the
-token actually has. The importer does not prove declared scopes or expiry.
-Use `--expires-at` with the token’s known future ISO timestamp, such as
-`2030-01-01T00:00:00.000Z`, when available. Do not invent a later expiry.
+token actually has. A plain import does not renew: use `--expires-at` with the
+token’s known future ISO timestamp, such as `2030-01-01T00:00:00.000Z`, when
+available. Do not invent a later expiry.
+
+For a renewable import, keep the X OAuth 2.0 public client's refresh token in a
+second 1Password field and pass `--refresh-reference` with `--client-id`
+together, declaring `offline.access` in `--scopes`:
+
+```sh
+ghostget vault import-x \
+  --id x-main \
+  --account 'Personal' \
+  --reference 'op://Personal/X/access-token' \
+  --refresh-reference 'op://Personal/X/refresh-token' \
+  --client-id 'public-client-id-from-x' \
+  --subject 123456789 \
+  --scopes tweet.read,users.read,offline.access
+```
+
+Ghostget proves the refresh token with one live exchange during import and then
+renews the stored access token automatically as it nears expiry, persisting
+each rotated refresh token under conditional writes. A renewable import takes no
+`--expires-at`: the exchange supplies the real expiry. Account surfaces show
+each OAuth account's token expiry and whether it renews.
 
 Ghostget verifies the token against the expected X user before storing a local
 copy. The credential helper resolves the field in a separate process; token
@@ -85,8 +106,8 @@ removes the exact owned copy but does not revoke the token at X.
 An existing account ID requires explicit `--replace` and a matching current
 revision. If an import’s outcome is unknown, inspect `ghostget auth list`
 before starting another import. Use `ghostget vault --help` for the current
-options. Linux token import through the 1Password desktop integration is not
-supported.
+options. Where the 1Password desktop integration is unavailable, the import
+reports the vault as unavailable rather than guessing.
 
 ## Companion implementation
 

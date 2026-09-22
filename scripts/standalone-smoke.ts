@@ -185,7 +185,7 @@ async function exercisePackedControls(
     if (vaultHelp.stderr !== ""
       || !vaultHelp.stdout.startsWith("Usage: ghostget vault import-x ")
       || !vaultHelp.stdout.includes("--reference <op://vault/item/field>")
-      || !vaultHelp.stdout.includes("Import an X OAuth 2.0 user access token from 1Password on macOS.")
+      || !vaultHelp.stdout.includes("Import an X OAuth 2.0 user access token from 1Password on a supported desktop.")
       || existsSync(controlsState)) {
       throw new Error(`${target.label} vault help did not remain an account-free help route`);
     }

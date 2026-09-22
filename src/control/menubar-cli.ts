@@ -168,6 +168,7 @@ function accountItems(snapshot: ControlSnapshot, enabled: boolean, platform: Nod
     const items: MenuItem[] = [
       { kind: "label", label: status },
       ...detailItems([account.provider, account.kind, account.subject].filter((part): part is string => part !== null).join(" · ") || "No subject recorded"),
+      ...(account.kind === "oauth-token-file" ? detailItems(`${account.tokenRefreshable ? "Renews automatically" : "No renewal"}${account.tokenExpiresAt === null ? "" : ` · expires ${account.tokenExpiresAt}`}`) : []),
       { kind: "action", id: `account:select:${account.id}`, label: snapshot.accountId === account.id ? "Selected for permissions" : "Review this account's permissions", enabled },
     ];
     const providers = reconnectProviders(snapshot, account);
@@ -387,8 +388,8 @@ export function snapshotItems(
     { kind: "submenu", label: `Interfaces · ${snapshot.interfaces.length}`, items: interfaceItems(snapshot, confirmed, pendingActivation) },
     { kind: "submenu", label: "Recent activity", items: activityItems(activity) },
     { kind: "submenu", label: "1Password · X token import", items: [
-      { kind: "label", label: snapshot.vault.available ? "macOS supported; desktop access has not been checked." : "Import requires macOS and the 1Password desktop app." },
-      { kind: "label", label: "Imports one X token to a private local copy; no token renewal." },
+      { kind: "label", label: snapshot.vault.available ? "Desktop platform supported; 1Password access has not been checked." : "Import requires a desktop platform and the 1Password desktop app." },
+      { kind: "label", label: "Imports one X token to a private local copy; optional renewal." },
       { kind: "action", id: "clip:3", label: "Copy import help command" },
     ] },
     ...tail,

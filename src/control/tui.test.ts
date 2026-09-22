@@ -9,7 +9,7 @@ import type { ControlRequest, ControlResponse, ControlSnapshot } from "./protoco
 
 function snapshot(overrides: Partial<ControlSnapshot> = {}): ControlSnapshot {
   return {
-    version: "0.18.16", accountId: "personal", accounts: [{ id: "personal", provider: "x", kind: "cookie-source", subject: "123", revision: "a".repeat(64), status: "configured", source: "safari", tokenStorage: null }],
+    version: "0.18.16", accountId: "personal", accounts: [{ id: "personal", provider: "x", kind: "cookie-source", subject: "123", revision: "a".repeat(64), status: "configured", source: "safari", tokenStorage: null, tokenExpiresAt: null, tokenRefreshable: false }],
     capabilities: [{ digest: "b".repeat(64), adapterId: "x-web", operationId: "post", pluginId: null, surface: "x", transport: "web-session", risk: "write", effect: "create-post", state: "available", executorSource: "built-in", interfaceSource: "bundled", permission: "ask" }],
     interfaces: [{ id: "draft", title: "Example draft", source: "user", digest: "c".repeat(64), activeDigest: null, state: "draft", operationCount: 1, adapterIds: ["x-web"], activationTargets: [{ adapterId: "x-web", installedDigest: "d".repeat(64) }], issues: [] }],
     policy: { managed: true, revision: 7 }, web: { revision: 0, gatewayOnly: false, rules: [] },

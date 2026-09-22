@@ -12,7 +12,7 @@ import { connectionAccountRevision } from "./account-revision";
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 const token = "synthetic-token-never-a-real-credential";
-const request: VaultImportRequest = { action: "vault.import", id: "x-private", account: "Synthetic account", reference: "op://Private Vault/X token/credential", expectedSubject: "12345", scopes: ["tweet.read", "users.read"], expiresAt: null, expectedRevision: null };
+const request: VaultImportRequest = { action: "vault.import", id: "x-private", account: "Synthetic account", reference: "op://Private Vault/X token/credential", expectedSubject: "12345", scopes: ["tweet.read", "users.read"], expiresAt: null, refreshReference: null, clientId: null, expectedRevision: null };
 function state() {
   const raw = mkdtempSync(join(tmpdir(), "ghostget-vault-")); chmodSync(raw, 0o700); roots.push(raw);
   const environment = { ...process.env, GHOSTGET_STATE_HOME: raw };
@@ -162,6 +162,90 @@ describe("1Password exact X token import", () => {
     expect(loadAuthSnapshotIfPresent(request.id, fixture.environment)).toBeNull();
     const retained = tokens(fixture.root); expect(retained).toHaveLength(1);
     expect(readFileSync(join(fixture.root, "auth", "oauth-tokens", retained[0]!))).toEqual(altered);
+  });
+});
+
+describe("renewable X token import", () => {
+  const refreshRequest: VaultImportRequest = {
+    ...request,
+    scopes: ["offline.access", ...request.scopes],
+    refreshReference: "op://Private Vault/X token/refresh",
+    clientId: "publicClient-1x",
+  };
+  const rotatedRefresh = "synthetic-rotated-refresh-token";
+  const exchangedToken = "synthetic-exchanged-access-token";
+  const exchange = async (auth: OAuthTokenAuth) => {
+    const stored = JSON.parse(readFileSync(auth.path, "utf8")) as Record<string, unknown>;
+    const refresh = { ...(stored.refresh as Record<string, unknown>), refreshToken: rotatedRefresh };
+    writeFileSync(auth.path, `${JSON.stringify({ ...stored, accessToken: exchangedToken, expiresAt: "2026-01-01T02:00:00.000Z", refresh })}\n`, { mode: 0o600 });
+    return { accessToken: exchangedToken, expiresAt: "2026-01-01T02:00:00.000Z" };
+  };
+
+  test("proves the refresh token during import and commits the rotated durable credential", async () => {
+    const fixture = state(); let exchanged = false; const probed: string[] = [];
+    const result = await runCredentialImport(refreshRequest, fixture.environment, signal(), {
+      resolve: async (account, reference) => {
+        expect(account).toBe(refreshRequest.account);
+        return reference === refreshRequest.refreshReference ? "synthetic-refresh-token" : token;
+      },
+      exchange: async (auth, refresh, expectedSha256, _now, options) => {
+        exchanged = true;
+        expect(refresh).toMatchObject({ kind: "x-oauth2-public-client", clientId: "publicClient-1x", refreshToken: "synthetic-refresh-token" });
+        expect(typeof expectedSha256).toBe("string"); expect(options.environment).toBe(fixture.environment);
+        return exchange(auth);
+      },
+      probe: async auth => { probed.push(loadOAuthCredential(auth).accessToken); return request.expectedSubject; },
+    });
+    expect(result).toEqual({ ok: true }); expect(exchanged).toBe(true); expect(probed).toEqual([exchangedToken]);
+    const auth = loadAuth(request.id, fixture.environment) as OAuthTokenAuth;
+    const stored = loadOAuthCredential(auth);
+    expect(stored.schemaVersion).toBe(2); expect(stored.expiresAt).toBe("2026-01-01T02:00:00.000Z");
+    expect(stored.refresh).toMatchObject({ kind: "x-oauth2-public-client", clientId: "publicClient-1x", refreshToken: rotatedRefresh });
+    expect(JSON.stringify(result)).not.toContain(token); expect(JSON.stringify(result)).not.toContain(rotatedRefresh);
+  });
+
+  test("a rejected refresh exchange unpublishes the staged credential", async () => {
+    const fixture = state();
+    const result = await runCredentialImport(refreshRequest, fixture.environment, signal(), {
+      resolve: async (_account, reference) => reference === refreshRequest.refreshReference ? "synthetic-refresh-token" : token,
+      exchange: async () => { throw new Error("invalid_grant"); },
+      probe: async () => request.expectedSubject,
+    });
+    expect(result).toEqual({ ok: false, code: "TOKEN_UNVERIFIED" });
+    expect(loadAuthSnapshotIfPresent(request.id, fixture.environment)).toBeNull(); expect(tokens(fixture.root)).toEqual([]);
+  });
+
+  test("an invalid refresh secret or a tampered exchange output fails verification", async () => {
+    for (const resolve of [
+      async (_account: string, reference: string) => reference === refreshRequest.refreshReference ? "short" : token,
+      async (_account: string, reference: string) => reference === refreshRequest.refreshReference ? `${token}\n` : token,
+    ]) {
+      const fixture = state();
+      const result = await runCredentialImport(refreshRequest, fixture.environment, signal(), { ...dependencies, resolve });
+      expect(result).toEqual({ ok: false, code: "TOKEN_UNVERIFIED" }); expect(tokens(fixture.root)).toEqual([]);
+    }
+    const fixture = state();
+    const result = await runCredentialImport(refreshRequest, fixture.environment, signal(), {
+      resolve: async (_account, reference) => reference === refreshRequest.refreshReference ? "synthetic-refresh-token" : token,
+      exchange: async (auth) => { writeFileSync(auth.path, "tampered-during-exchange\n"); throw new Error(); },
+      probe: async () => request.expectedSubject,
+    });
+    expect(result.ok).toBe(false); expect(loadAuthSnapshotIfPresent(request.id, fixture.environment)).toBeNull();
+  });
+
+  test("renewable metadata requires its pair, offline.access and no declared expiry", async () => {
+    const fixture = state(); let calls = 0;
+    const resolve = async () => { calls++; return token; };
+    for (const invalid of [
+      { refreshReference: "op://Private Vault/X token/refresh", clientId: null },
+      { clientId: "publicClient-1x", refreshReference: null },
+      { refreshReference: "op://Private Vault/X token/refresh", clientId: "publicClient-1x", scopes: ["tweet.read", "users.read"] },
+      { clientId: "bad id!" },
+      { expiresAt: "2030-01-01T00:00:00.000Z" },
+    ]) {
+      expect(await runCredentialImport({ ...refreshRequest, ...invalid }, fixture.environment, signal(), { resolve })).toEqual({ ok: false, code: "INVALID_IMPORT" });
+    }
+    expect(calls).toBe(0);
   });
 });
 

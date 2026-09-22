@@ -17,7 +17,7 @@ Control Ghostget:
   ghostget tui --snapshot                             Print a plain-text control overview
   ghostget menubar                                    Start the menu-bar companion
   ghostget menubar doctor                             Check companion installation
-  ghostget vault --help                               Import an X token from 1Password on macOS
+  ghostget vault --help                               Import an X token from 1Password on a desktop
 
 Use one controller at a time. Run ghostget menubar stop before opening the TUI.
 Setup guide: https://ghostget.com/getting-started

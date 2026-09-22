@@ -32,7 +32,7 @@ automation.
 ## Choose the smallest path
 
 - Use `ghostget menubar` or `ghostget tui` for accounts, operation permissions, and human approvals. Only one control client can own the state home: stop the menu with `ghostget menubar stop` before opening the TUI, and quit the TUI before starting the menu. Use `ghostget interface` for user-space OpenAPI drafts.
-- Use `ghostget vault import-x` only for a human-selected 1Password X token on macOS. Run `ghostget vault --help`, declare its actual scopes and numeric X user ID, and pass an `op://` field reference rather than a secret. Stop the menu and quit the TUI before importing. This is not a general password manager or the Markdown vault.
+- Use `ghostget vault import-x` only for a human-selected 1Password X token on a supported desktop (macOS, Linux, or Windows). Run `ghostget vault --help`, declare its actual scopes and numeric X user ID, and pass an `op://` field reference rather than a secret. For a renewable import, pass `--refresh-reference` and `--client-id` together and declare `offline.access`; the TUI and menubar may stay open either way. This is not a general password manager or the Markdown vault.
 
 - Capture a URL: `ghostget <url>` or `ghostget clip <url>`.
 - Read without persistence: `ghostget read <url>`.
