@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.18.23",
+  "version": "0.18.24",
   "description": "Open-source CLI and TypeScript SDK for precise web capabilities for AI agents: page capture, verified media archives, encrypted reads, and typed provider operations.",
   "license": "MIT",
   "type": "module",
@@ -78,6 +78,10 @@
     "./messaging-automation": {
       "types": "./src/messaging-automation-types.ts",
       "import": "./dist/messaging-automation-api.js"
+    },
+    "./contracts": {
+      "types": "./src/contracts.ts",
+      "import": "./dist/contracts.js"
     }
   },
   "bin": {
@@ -275,6 +279,15 @@
     "src/canonical-json.ts",
     "src/catalog-cli.ts",
     "src/client-types.ts",
+    "src/contracts.ts",
+    "src/contracts-catalog.ts",
+    "src/contracts-check.ts",
+    "src/contracts-cli.ts",
+    "src/contracts-invoke-read.ts",
+    "src/contracts-plan.ts",
+    "src/contracts-schema.ts",
+    "src/contracts-shape.ts",
+    "src/contracts-vocabulary.ts",
     "src/client.ts",
     "src/cli.ts",
     "src/cli-intro.ts",
@@ -613,7 +626,7 @@
     "website:test": "bun test ./website ./edge",
     "website:typecheck": "tsc --noEmit --project website/tsconfig.json && tsc --noEmit --project edge/tsconfig.json",
     "website:check": "bun run check:theme && bun run website:typecheck && bun run website:test && bun run website:build",
-    "build": "bun -e 'await (await import(\"node:fs/promises\")).rm(\"./dist\", { recursive: true, force: true })' && bun build ./src/index.ts ./src/client.ts ./src/beeper-client.ts ./src/apple-photos-client.ts ./src/whatsapp-client.ts ./src/omni-client.ts ./src/messaging.ts ./src/messaging-automation-api.ts --outdir ./dist --root ./src --target bun --format esm --splitting --packages external",
+    "build": "bun -e 'await (await import(\"node:fs/promises\")).rm(\"./dist\", { recursive: true, force: true })' && bun build ./src/index.ts ./src/client.ts ./src/beeper-client.ts ./src/apple-photos-client.ts ./src/whatsapp-client.ts ./src/omni-client.ts ./src/messaging.ts ./src/messaging-automation-api.ts ./src/contracts.ts --outdir ./dist --root ./src --target bun --format esm --splitting --packages external",
     "typecheck": "tsc --noEmit",
     "whatsapp:transport:install": "sh src/scripts/install-whatsapp-protocol.sh",
     "test:unit": "bun test --no-orphans --timeout 180000 --max-concurrency \"${GOMAXPROCS:-4}\" ./src --path-ignore-patterns='**/src/omni-runtime.test.ts'",

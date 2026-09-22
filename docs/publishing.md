@@ -68,7 +68,7 @@ selected as a substitute for the unique-run gate.
 
 After admission, Release still performs a fresh frozen install and deterministic
 build, checks generated `dist` and `bun.lock` cleanliness, dry packing and all
-eight Node imports. Its new exact npm archive passes the strict artifact parser
+nine Node imports. Its new exact npm archive passes the strict artifact parser
 and isolated consumer smoke before attestation or publication capability is
 available. CI also packs with the same Node/npm versions and canonical npm
 command, then checks the archive parser and calls the actual canonical
@@ -200,12 +200,12 @@ delivery proceeds through a new source-qualified version.
 
 ## Install the canonical release
 
-These commands require the matching published immutable v0.18.23 release.
+These commands require the matching published immutable v0.18.24 release.
 
 For the CLI:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.23/hraness-ghostget-0.18.23.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.24/hraness-ghostget-0.18.24.tgz
 ghostget --version
 ghostget doctor --json
 ```
