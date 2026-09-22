@@ -43,6 +43,7 @@ import {
 } from "../provider-plugin-cleanup-resource";
 import type { ProviderPluginCleanupProofController } from "../provider-plugin-cleanup-execution";
 import { removePrivateDirectoryTree, ghostgetStateHome } from "../storage";
+import { AuthRepairRequiredError } from "../web-session-execution";
 import type {
   ProviderPluginCleanupResourcePublisher,
   WebSessionOperationDeadline,
@@ -2465,7 +2466,9 @@ async function bindBeeperDirectRealm(
       environment,
     );
     if (repaired === null) {
-      throw new Error("Beeper Desktop direct account did not match the bound auth realm");
+      throw new AuthRepairRequiredError(
+        "Beeper Desktop direct account did not match the bound auth realm; repair it with ghostget auth bind",
+      );
     }
   } else if (enforceBoundSubject && auth.boundVersion !== info.version) {
     await recordBeeperBoundVersion(auth.id, info.version, environment);
@@ -3401,7 +3404,9 @@ export async function executeBeeperDirectMessagingPart(
       attempt.environment ?? process.env,
     );
     if (repaired === null) {
-      throw new Error("Beeper Desktop direct account did not match the bound auth realm");
+      throw new AuthRepairRequiredError(
+        "Beeper Desktop direct account did not match the bound auth realm; repair it with ghostget auth bind",
+      );
     }
   } else if (auth.boundVersion !== info.version) {
     await recordBeeperBoundVersion(auth.id, info.version, attempt.environment ?? process.env);
@@ -3745,7 +3750,9 @@ async function withRuntime<T>(
         environment,
       );
       if (repaired === null) {
-        throw new Error("Beeper CLI current account did not match the bound auth realm");
+        throw new AuthRepairRequiredError(
+          "Beeper CLI current account did not match the bound auth realm; repair it with ghostget auth bind",
+        );
       }
     } else if (auth.subject !== undefined && auth.boundVersion !== targetProof.version) {
       await recordBeeperBoundVersion(auth.id, targetProof.version, environment);
@@ -4063,6 +4070,7 @@ export async function reconcileBeeperLocalOperation(
     );
   } catch (error) {
     if (error instanceof BeeperLocalCleanupUnverifiedError) throw error;
+    if (error instanceof AuthRepairRequiredError) throw error;
     throw new Error("Beeper reconciliation could not obtain definitive protected evidence");
   } finally {
     deadline.dispose();
@@ -5620,6 +5628,7 @@ export async function executeBeeperLocalOperation(
     );
   } catch (error) {
     if (error instanceof BeeperLocalCleanupUnverifiedError) throw error;
+    if (error instanceof AuthRepairRequiredError) throw error;
     throw new Error("Beeper local execution failed at a protected local boundary");
   }
 }
