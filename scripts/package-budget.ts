@@ -1341,14 +1341,23 @@
 // 11,959,007 + 12,387 + 4,096 = 11,975,490. The payload ceiling carries the
 // observed 353-byte projection plus the reviewed 65-byte allowance:
 // 23,268,400 + 353 + 65 = 23,268,818.
+// The Ghostget 0.18.26 website /docs/ move and comparison pages lengthen the
+// shipped README's canonical guide URLs by 124 bytes and add a new 874-byte
+// CHANGELOG section, over the unchanged 591-file usage-repair inventory and
+// same-length version strings: `npm pack --ignore-scripts` with npm 11.19.0
+// on darwin arm64 measured 11,959,411 packed bytes, 23,269,398 unpacked
+// bytes; archive SHA-256
+// 6cd3c8989b9258ae9007aa5509cfd16171375f5d1b5916c7439644fbecc6dfa8. Carry the
+// same projections and allowances: 11,959,411 + 12,387 + 4,096 = 11,975,894
+// packed; 23,269,398 + 353 + 65 = 23,269,816 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Usage-driven repair handoffs over Ghostget 0.18.25; two additional source files and regenerated bundles",
+  scope: "Ghostget 0.18.26 website /docs/ tree, comparison pages, and release identity; README and CHANGELOG payload growth over the usage-repair inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "c347ae9a739bd49660b7daea38fc799a08389616bad7b99801b00eb6e9ace7d1",
-  packedBytes: 11_959_007,
-  unpackedBytes: 23_268_400,
+  archiveSha256: "6cd3c8989b9258ae9007aa5509cfd16171375f5d1b5916c7439644fbecc6dfa8",
+  packedBytes: 11_959_411,
+  unpackedBytes: 23_269_398,
   entryCount: 591,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
@@ -1418,14 +1427,7 @@ export const MAX_PACKED_FILES = repairPackageMeasurement.entryCount;
 // exactly 589 files/entries and 23,229,987 payload bytes; archive SHA-256
 // 7aaeba9a98900ed8083f4ec0a7d36d137cbc7585c1a5a676c8b092d7f3e486cb. Retain the
 // reviewed 65-byte allowance: 23,229,987 + 65 = 23,230,052.
-// The website /docs/ move lengthens the shipped README's canonical guide URLs
-// by exactly 124 payload bytes over the repairPackageMeasurement inventory,
-// with unchanged file count and structure. The payload ceiling carries the
-// same platform projection and reviewed 65-byte allowance:
-// (23,268,400 + 124) + 353 + 65 = 23,268,942.
-const README_DOCS_MOVE_PAYLOAD_BYTES = 124;
 export const MAX_UNPACKED_BYTES = repairPackageMeasurement.unpackedBytes
-  + README_DOCS_MOVE_PAYLOAD_BYTES
   + repairPackageMeasurement.payloadPlatformProjection + repairPackageMeasurement.payloadAllowance;
 
 const TAR_BLOCK_BYTES = 512;

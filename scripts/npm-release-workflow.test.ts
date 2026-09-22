@@ -1170,7 +1170,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_874_560);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(23_875_584);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1350,17 +1350,22 @@ describe("npm publication contract", () => {
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
     expect(Object.isFrozen(repairPackageMeasurement)).toBeTrue();
     expect(repairPackageMeasurement).toMatchObject({
-      archiveSha256: "c347ae9a739bd49660b7daea38fc799a08389616bad7b99801b00eb6e9ace7d1",
-      packedBytes: 11_959_007, unpackedBytes: 23_268_400, entryCount: 591,
+      archiveSha256: "6cd3c8989b9258ae9007aa5509cfd16171375f5d1b5916c7439644fbecc6dfa8",
+      packedBytes: 11_959_411, unpackedBytes: 23_269_398, entryCount: 591,
       packedPlatformProjection: 12_387, packedPortabilityAllowance: 4_096,
       payloadPlatformProjection: 353, payloadAllowance: 65,
     });
-    expect(MAX_PACKED_BYTES).toBe(11_975_490);
-    expect(MAX_PACKED_BYTES).toBe(11_959_007 + 12_387 + 4_096);
+    expect(MAX_PACKED_BYTES).toBe(11_975_894);
+    expect(MAX_PACKED_BYTES).toBe(11_959_411 + 12_387 + 4_096);
     expect(budget).toContain("11,959,007 + 12,387 + 4,096 = 11,975,490");
+    expect(budget).toContain("11,959,411 + 12,387 + 4,096 = 11,975,894");
     expect(budget).toContain("23,268,400 + 353 + 65 = 23,268,818");
+    expect(budget).toContain("23,269,398 + 353 + 65 = 23,269,816");
     expect(budget).toContain(
       "c347ae9a739bd49660b7daea38fc799a08389616bad7b99801b00eb6e9ace7d1",
+    );
+    expect(budget).toContain(
+      "6cd3c8989b9258ae9007aa5509cfd16171375f5d1b5916c7439644fbecc6dfa8",
     );
     expect(budget).toContain("exactly 591 files");
     expect(budget).toContain("11,946,327 + 11,158 + 4,096 = 11,961,581");
@@ -1393,7 +1398,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("23,029,751 + 353 + 65 = 23,030,169");
     expect(budget).toContain("23,193,728 + 65 = 23,193,793");
     expect(budget).toContain("47684b3e2eb5cf3ed07fbb520aade8c7251d993f75262fbf1af627d9081a1a5f");
-    expect(MAX_UNPACKED_BYTES).toBe(23_268_942);
+    expect(MAX_UNPACKED_BYTES).toBe(23_269_816);
     expect(budget).toContain("23,037,873 + 65 = 23,037,938");
     expect(budget).toContain("f9f3ab38a682690ceaa2699a7309997512030f0fa500a9dc29dcd108123dc41f");
     expect(budget).toContain("23,038,557 + 65 = 23,038,622");
@@ -1404,7 +1409,6 @@ describe("npm publication contract", () => {
     expect(budget).toContain("23,222,059 + 65 = 23,222,124");
     expect(budget).toContain("7aaeba9a98900ed8083f4ec0a7d36d137cbc7585c1a5a676c8b092d7f3e486cb");
     expect(budget).toContain("23,229,987 + 65 = 23,230,052");
-    expect(budget).toContain("(23,268,400 + 124) + 353 + 65 = 23,268,942");
     expect(budget).toContain("f67a9230983bf87b02352ed91e8dc368ff214e19fd4aecaf4a0b3476fdb3b164");
     expect(budget).toContain("23,060,195 + 353 + 65 = 23,060,613");
     expect(budget).toContain("c58f27d5b9f06040d27ca361e7816a0cde2d69c3fb26ed76649fd3f160f348f9");
@@ -1414,7 +1418,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("feefdaa288454938b6e6598b0cd19be5bcecbb2cca307bebafee6a32495c47e8");
     expect(budget).toContain("22,689,627 + 10 = 22,689,637");
     expect(budget).toContain("22,689,627 + 65 = 22,689,692");
-    expect(MAX_UNPACKED_BYTES).toBe(23_268_400 + 124 + 353 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(23_269_398 + 353 + 65);
     expect(budget).toContain("22,794,052 + 65 = 22,794,117");
     expect(budget).toContain("c482efe748f880e3717727d6d39fd92a68953e6eea766642b329ba47ae772d80");
     expect(budget).toContain("22,759,423 + 65 = 22,759,488");
@@ -1450,8 +1454,8 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 591, max: 591 },
       fileCount: { min: 591, max: 591 },
-      packedBytes: { min: 1_600_000, max: 11_975_490 },
-      unpackedBytes: { min: 9_000_000, max: 23_268_942 },
+      packedBytes: { min: 1_600_000, max: 11_975_894 },
+      unpackedBytes: { min: 9_000_000, max: 23_269_816 },
     });
   });
 
