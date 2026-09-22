@@ -9,7 +9,7 @@
     <title>Install Ghostget: CLI and TypeScript SDK getting started guide</title>
     <meta name="description" content="Install Ghostget and read a public page with no account or API key. Then choose page saving, an agent skill, or connected services.">
     <meta name="robots" content="max-image-preview:large">
-    <link rel="canonical" href="https://ghostget.com/getting-started/">
+    <link rel="canonical" href="https://ghostget.com/docs/tutorials/getting-started/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
     <link rel="stylesheet" href="{{CSS_ASSET}}">
@@ -19,7 +19,7 @@
     <meta property="og:site_name" content="Ghostget">
     <meta property="og:title" content="Install Ghostget: CLI and TypeScript SDK getting started guide">
     <meta property="og:description" content="Install Ghostget and read a public page with no account or API key. Then choose page saving, an agent skill, or connected services.">
-    <meta property="og:url" content="https://ghostget.com/getting-started/">
+    <meta property="og:url" content="https://ghostget.com/docs/tutorials/getting-started/">
     <meta property="og:image" content="https://ghostget.com/og.png">
     <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
     <meta property="og:image:width" content="1200">
@@ -40,16 +40,17 @@
     <header class="topbar guide-topbar">
       <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><img alt="" height="20" src="/icon.png" width="20" /> Ghostget</a>
       <nav aria-label="Primary">
-        <a aria-current="page" href="/getting-started/">Install</a>
-        <a href="/provider-capabilities/">Providers</a>
+        <a aria-current="page" href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
         <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
       </nav>
     </header>
     <main class="guide-main" id="main">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li aria-current="page">Getting started</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li><a href="/docs/">Docs</a></li><li aria-current="page">Getting started</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero">
-          <p class="eyebrow">Getting started · Ghostget {{GHOSTGET_VERSION}}</p>
+          <p class="eyebrow">Tutorial · getting started · Ghostget {{GHOSTGET_VERSION}}</p>
           <h1>Install Ghostget and capture your first URL.</h1>
           <p class="answer-lede">Give your agent local tools to read pages, save media, and use connected accounts. Start with one public-page read. No Ghostget account, API key, provider connection, or Markdown vault is needed.</p>
           <p class="review-note">This guide describes {{GHOSTGET_RELEASE}} and was checked against the public source for that immutable release.</p>
@@ -90,7 +91,7 @@
           <div class="command-panel"><pre><code>ghostget init ./ghostget-notes
 ghostget https://example.com --output ./ghostget-notes/articles
 ghostget search "Example Domain" --root ./ghostget-notes --mode exact</code></pre></div>
-          <p>Your saved page and capture metadata stay in that directory. Exact search needs no embedding model. The Markdown vault stores documents; it is separate from account credentials and 1Password. The <a href="/capture-and-archives/">capture and archives guide</a> covers saving pages and downloading one accessible media item.</p>
+          <p>Your saved page and capture metadata stay in that directory. Exact search needs no embedding model. The Markdown vault stores documents; it is separate from account credentials and 1Password. The <a href="/docs/how-to/capture-and-archive/">capture and archives guide</a> covers saving pages and downloading one accessible media item.</p>
         </section>
 
         <section aria-labelledby="inspect-capabilities">
@@ -100,7 +101,7 @@ ghostget search "Example Domain" --root ./ghostget-notes --mode exact</code></pr
 ghostget capabilities
 ghostget menubar</code></pre></div>
           <p><code>capabilities</code> lists installed adapters. Add an adapter ID, such as <code>ghostget capabilities gmail</code>, to see its operations and required inputs. Add <code>--json</code> when your agent needs the complete contracts.</p>
-          <p>On macOS, the menu companion can connect X, LinkedIn, and Reddit browser sessions. Other providers and Linux account setup use the CLI instructions in the <a href="/provider-capabilities/">provider directory</a>, including the focused guides for <a href="/providers/beeper/">Beeper</a> and <a href="/providers/whatsapp/">WhatsApp</a>. Some providers need their own local tool or OAuth client. Installing Ghostget does not connect any account automatically.</p>
+          <p>On macOS, the menu companion can connect X, LinkedIn, and Reddit browser sessions. Other providers and Linux account setup use the CLI instructions in the <a href="/docs/reference/provider-capabilities/">provider directory</a>, including the focused guides for <a href="/docs/how-to/connect-beeper/">Beeper</a> and <a href="/docs/how-to/export-whatsapp/">WhatsApp</a>. Some providers need their own local tool or OAuth client. Installing Ghostget does not connect any account automatically.</p>
           <p>Use <code>ghostget menubar doctor</code> for companion platform and unsigned-binary guidance. See the <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/menubar-release.md">control guide</a> for startup, approvals, and credential import.</p>
           <p>For keyboard controls, run <code>ghostget menubar stop</code>, then <code>ghostget tui</code>. Press Tab to change sections, Enter to open actions, and <code>?</code> for help. Quit the TUI before restarting the menu. No Rust compiler or separate TUI install is needed.</p>
           <details class="demo-transcript"><summary>Understand capability status</summary><p><code>ghostget capabilities --json</code> reports installed operation contracts. An <code>observed</code> contract still needs current account and runtime admission. A <code>capture-required</code> operation is unavailable until its contract is reviewed. The separate <code>messaging.automation.*</code> entries are owner-host permission ceilings and cannot dispatch through generic <code>invoke</code> or <code>confirm</code>.</p></details>
@@ -171,11 +172,11 @@ const plugin = candidate satisfies ProviderPluginDefinitionV1</code></pre></div>
           <ul class="guide-list">
             <li><a href="{{GHOSTGET_PACKAGE_ARTIFACT}}">Install the <code>@hraness/ghostget</code> CLI and TypeScript SDK from GitHub Releases</a></li>
             <li><a href="{{GHOSTGET_SKILLS}}">Install the Ghostget Agent Skill from skills.sh</a> with <code>{{GHOSTGET_SKILL_INSTALL_COMMAND}}</code></li>
-            <li><a href="/capture-and-archives/">Capture URLs and create verified media archives</a></li>
-            <li><a href="/getting-started/#demo">Watch and download the first-capture demo</a></li>
-            <li><a href="/provider-capabilities/">Provider capability attestation</a></li>
-            <li><a href="/security/">Security and local custody</a></li>
-            <li><a href="/plugins/">Author and verify provider plugins</a></li>
+            <li><a href="/docs/how-to/capture-and-archive/">Capture URLs and create verified media archives</a></li>
+            <li><a href="/docs/tutorials/getting-started/#demo">Watch and download the first-capture demo</a></li>
+            <li><a href="/docs/reference/provider-capabilities/">Provider capability attestation</a></li>
+            <li><a href="/docs/explanation/security-model/">Security and local custody</a></li>
+            <li><a href="/docs/how-to/author-provider-plugin/">Author and verify provider plugins</a></li>
             <li><a href="{{GHOSTGET_REPOSITORY}}">Source, issues, and release tags</a></li>
             <li><a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/plugins.md">Plugin protocol guide for {{GHOSTGET_RELEASE}}</a></li>
             <li><a href="/llms.txt">Agent site guide (llms.txt)</a></li>
@@ -184,7 +185,7 @@ const plugin = candidate satisfies ProviderPluginDefinitionV1</code></pre></div>
 
         <aside class="guide-callout" aria-labelledby="next-step">
           <h2 id="next-step">Choose your next task</h2>
-          <p>Save a page with the <a href="/capture-and-archives/">capture guide</a>, find an account action in the <a href="/provider-capabilities/">provider directory</a>, or read how Ghostget stores credentials in the <a href="/security/">security guide</a>.</p>
+          <p>Save a page with the <a href="/docs/how-to/capture-and-archive/">capture guide</a>, find an account action in the <a href="/docs/reference/provider-capabilities/">provider directory</a>, or read how Ghostget stores credentials in the <a href="/docs/explanation/security-model/">security guide</a>.</p>
         </aside>
       </article>
     </main>

@@ -44,7 +44,7 @@ describe("provider presentation", () => {
       adapterIdentities: [{ id: "beeper-local", version: "2.5.0" }],
       captureRequiredCount: 0,
       contractVersions: [1, 2, 3],
-      href: "/providers/beeper/",
+      href: "/docs/how-to/connect-beeper/",
       name: "Beeper",
       observedCount: 34,
       operationCount: 34,
@@ -55,7 +55,7 @@ describe("provider presentation", () => {
     });
     expect(directory.entries.find((entry) => entry.surfaceId === "whatsapp")).toMatchObject({
       adapterIdentities: [{ id: "whatsapp-web", version: "1.4.0" }],
-      href: "/providers/whatsapp/",
+      href: "/docs/how-to/export-whatsapp/",
       observedCount: 12,
       ownerPermissionCount: 8,
       supportedActionCount: 4,

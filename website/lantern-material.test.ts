@@ -49,7 +49,7 @@ test("keeps the Lantern wall on the homepage hero and preserves ordinary reading
   expect(home.match(/hraness-material-wall/gu)).toHaveLength(1);
   expect(home).toContain('class="hraness-marketing-hero ghostget-product-hero hraness-material-wall"');
   expect(home).not.toContain('class="hraness-marketing-field"');
-  expect(home.match(/class="hraness-marketing-question hraness-material-disclosure"/gu)).toHaveLength(11);
+  expect(home.match(/class="hraness-marketing-question hraness-material-disclosure"/gu)).toHaveLength(14);
   expect(home).not.toMatch(/<iframe\b/gu);
   expect(home).not.toContain("/control/accounts.html");
   for (const name of await readdir(directory)) {

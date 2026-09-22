@@ -489,7 +489,7 @@ describe("ghostget.com static site", () => {
     expect(html).not.toContain("@jungle/");
     expect(html).not.toContain("hraness.com/ghostget");
     expect(html.match(/<h1\b/gu)).toHaveLength(1);
-    expect(html.match(/<details\b/gu)).toHaveLength(13);
+    expect(html.match(/<details\b/gu)).toHaveLength(16);
     expect(html.match(/<iframe\b/gu)).toBeNull();
     expect(html).toContain("ghostget menubar");
     expect(html).toContain("Review connected accounts, permissions, pending approvals, and recent activity in your menu bar or terminal");
@@ -507,8 +507,8 @@ describe("ghostget.com static site", () => {
     expect(html).toContain('href="/paypal-grapheneos-attestation/"');
     expect(html).toContain('href="/rumour-is-the-exploit/"');
     expect(html).toContain('href="/omarchy-root-escalation/"');
-    expect(html).toContain('href="/providers/beeper/"');
-    expect(html).toContain('href="/providers/whatsapp/"');
+    expect(html).toContain('href="/docs/how-to/connect-beeper/"');
+    expect(html).toContain('href="/docs/how-to/export-whatsapp/"');
     const argumentsSection = /<section aria-labelledby="arguments-title" class="section editorial-cluster">[\s\S]*?<\/section>/u
       .exec(html)?.[0];
     const guidesSection = /<section aria-labelledby="guides-title" class="section guide-cluster">[\s\S]*?<\/section>/u
@@ -517,8 +517,8 @@ describe("ghostget.com static site", () => {
     expect(guidesSection).toBeDefined();
     expect(argumentsSection).toContain('<h2 id="arguments-title">Arguments and comparisons</h2>');
     expect(argumentsSection).toContain('<div class="card-grid editorial-card-grid">');
-    expect(argumentsSection?.match(/<article class="card(?: editorial-card)?">/gu)).toHaveLength(6);
-    expect(guidesSection?.match(/<article class="card">/gu)).toHaveLength(5);
+    expect(argumentsSection?.match(/<article class="card(?: editorial-card)?">/gu)).toHaveLength(7);
+    expect(guidesSection?.match(/<article class="card">/gu)).toHaveLength(6);
     expect(argumentsSection).toContain('href="/paypal-grapheneos-attestation/"');
     expect(argumentsSection).toContain('href="/rumour-is-the-exploit/"');
     expect(argumentsSection).toContain('href="/omarchy-root-escalation/"');
@@ -532,7 +532,7 @@ describe("ghostget.com static site", () => {
     expect(guidesSection).not.toContain('class="card editorial-card"');
     expect(html.indexOf(argumentsSection ?? "")).toBeLessThan(html.indexOf(guidesSection ?? ""));
     expect(html).toContain(
-      '<h1 class="hraness-marketing-hero__heading" id="brand-name">Read, archive, and act with your coding agent</h1>',
+      '<h1 class="hraness-marketing-hero__heading" id="brand-name">Web operations, not web browsing.</h1>',
     );
     expect(html).not.toContain("Give your coding agent bounded access to the web.");
     const indeterminateWriteBoundary =
@@ -602,7 +602,7 @@ describe("ghostget.com static site", () => {
     expect(notFound).toContain("Privacy: this page uses cookieless, personless PostHog analytics");
     expect(notFound).toContain('href="/llms.txt"');
     expect(notFound).toContain('href="/sitemap.xml"');
-    expect(notFound).toContain('href="/getting-started/"');
+    expect(notFound).toContain('href="/docs/tutorials/getting-started/"');
     expect(notFound).not.toContain('type="application/ld+json"');
     expect(notFoundMarkdown).toContain("# This handle does not exist.");
     expect(notFoundMarkdown).toContain("https://ghostget.com/llms.txt");
@@ -611,14 +611,14 @@ describe("ghostget.com static site", () => {
     expect(llms).toContain("## When to use Ghostget");
     expect(llms).toContain("## Ghostget developer resources");
     expect(llms).toContain("Do not use Ghostget as an AI agent");
-    expect(llms).toContain(`${SITE_ORIGIN}/getting-started/`);
+    expect(llms).toContain(`${SITE_ORIGIN}/docs/tutorials/getting-started/`);
     expect(llms).toContain(`${SITE_ORIGIN}/compare/personal-agents-browser-use/`);
     expect(llms).toContain(`${SITE_ORIGIN}/paypal-grapheneos-attestation/`);
     expect(llms).toContain(`${SITE_ORIGIN}/rumour-is-the-exploit/`);
     expect(llms).toContain(`${SITE_ORIGIN}/omarchy-root-escalation/`);
     expect(llms).not.toContain(`${SITE_ORIGIN}/agentic-web-spoofing/`);
     expect(llms).not.toContain(`${SITE_ORIGIN}/vms-cannot-contain-agents/`);
-    expect(llms).toContain(`${SITE_ORIGIN}/providers/beeper/`);
+    expect(llms).toContain(`${SITE_ORIGIN}/docs/how-to/connect-beeper/`);
     expect(llms).toContain(
       `${String(beeperOperationCount)} supported actions. ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} run through the pinned \`@beeper/cli\` 0.6.2 executable and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} use fixed Desktop loopback reads.`,
     );
@@ -628,7 +628,7 @@ describe("ghostget.com static site", () => {
     expect(llms).toContain("pending message ID proves submission to Desktop only, not network delivery");
     expect(llms).toContain("Tagged `packages/cli/package.json` declares 0.6.1 and is provenance-only");
     expect(llms).toContain("exact executable runtime identity remains authoritative");
-    expect(llms).toContain(`${SITE_ORIGIN}/providers/whatsapp/`);
+    expect(llms).toContain(`${SITE_ORIGIN}/docs/how-to/export-whatsapp/`);
     expect(llms).toContain("does not pair, sync, or send");
     expect(llms).toContain("submission is not a delivery claim");
     expect(llms.replaceAll(/https:\/\/ghostget\.com\/[a-z0-9-/]+/gu, "")).not.toMatch(
@@ -712,8 +712,8 @@ describe("ghostget.com static site", () => {
       expect(contentFooter).toContain('aria-label="Ghostget" class="hraness-marketing-footer" data-hraness-marketing="footer"');
       expect(contentFooter).toContain('<a class="hraness-marketing-footer__brand" href="/" aria-label="Ghostget home"><img alt="" height="20" src="/icon.png" width="20" /><span class="hraness-marketing-footer__name">Ghostget</span></a>');
       expect(contentFooter).toContain('<nav aria-label="Footer navigation" class="hraness-marketing-footer__nav">');
-      expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/getting-started/"');
-      expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/provider-capabilities/"');
+      expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/docs/"');
+      expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/docs/reference/provider-capabilities/"');
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/about/"');
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/contact/"');
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/privacy/"');
@@ -797,7 +797,7 @@ describe("ghostget.com static site", () => {
     expect(markdownRewrite?.destination).toBe("/:path.md");
     const markdownRewritePattern = /^\/((?!preview\/).*)\/$/u;
     expect(markdownRewritePattern.test("/preview/")).toBe(false);
-    for (const path of ["/getting-started/", "/providers/beeper/", "/missing/"]) {
+    for (const path of ["/docs/tutorials/getting-started/", "/docs/how-to/connect-beeper/", "/missing/"]) {
       expect(markdownRewritePattern.test(path)).toBe(true);
     }
     const commonHeaders = vercel.headers.find((rule: { source: string }) =>
@@ -834,7 +834,7 @@ describe("ghostget.com static site", () => {
       "/preview",
       "/preview/index.html",
       "/preview/anything",
-      "/security/",
+      "/docs/explanation/security-model/",
       "/assets/example.css",
     ]) {
       expect(frameDenyPattern.test(deniedPath)).toBe(true);
@@ -1145,13 +1145,13 @@ describe("ghostget.com static site", () => {
     expect(html).toContain("Hosted integration breadth and managed end-user authentication");
     expect(html).toContain('href="https://docs.apify.com/integrations/mcp">Apify MCP</a>');
     expect(html).toContain("Discovering and running eligible Apify Store Actors");
-    expect(html).toContain('href="https://docs.browserbase.com/platform/browser/observability/session-recording">Browserbase</a>');
-    expect(html).toContain("Parallel browser automation on managed cloud sessions");
+    expect(html).toContain('href="/compare/browserbase/">Browserbase + Stagehand</a>');
+    expect(html).toContain("Managed cloud browser sessions at scale, with proxies, stealth, and session replay");
     expect(html).toContain(
       "Encrypted provider snapshots and projections, mutation previews and receipts, and fail-closed contract drift",
     );
 
-    const gettingStarted = pages.find((page) => page.definition.canonicalPath === "/getting-started/");
+    const gettingStarted = pages.find((page) => page.definition.canonicalPath === "/docs/tutorials/getting-started/");
     expect(gettingStarted?.html).toContain("Ghostget developer resources");
     expect(gettingStarted?.html).toContain(
       `<a href="${npmPackageUrl}">Install the <code>@hraness/ghostget</code> CLI and TypeScript SDK from GitHub Releases</a>`,
@@ -1225,13 +1225,13 @@ describe("ghostget.com static site", () => {
     }
 
     const providerCapabilities = pages.find((page) =>
-      page.definition.canonicalPath === "/provider-capabilities/");
+      page.definition.canonicalPath === "/docs/reference/provider-capabilities/");
     const attestation = await loadProviderCapabilityAttestation(repositoryRoot);
     const providerDirectory = createProviderDirectory(attestation);
     const providerCards = renderProviderOverviewCards(providerDirectory);
     const providerGroups = renderProviderAttestationGroups(providerDirectory, attestation);
     const providerMarkdown = await readFile(
-      join(websiteRoot, "dist", markdownSiblingPath("/provider-capabilities/").slice(1)),
+      join(websiteRoot, "dist", markdownSiblingPath("/docs/reference/provider-capabilities/").slice(1)),
       "utf8",
     );
     expect(providerCapabilities?.html).toContain(
@@ -1303,7 +1303,7 @@ describe("ghostget.com static site", () => {
       /^- \*\*[^*]+\*\* — `[^`]+` · [^\s].+$/u.test(line))).toBe(true);
     expect(providerMarkdown).not.toMatch(/observed|capture-required|reservation|completeness|adapter/iu);
 
-    const beeper = pages.find((page) => page.definition.canonicalPath === "/providers/beeper/");
+    const beeper = pages.find((page) => page.definition.canonicalPath === "/docs/how-to/connect-beeper/");
     const beeperFacts = createBeeperPresentationFacts(providerDirectory);
     expect(beeper?.html).toContain(`<title>${beeperFacts.pageTitle}</title>`);
     expect(beeper?.html).toContain(
@@ -1328,7 +1328,7 @@ describe("ghostget.com static site", () => {
     expect(beeper?.html).toContain(
       `&lt;GHOSTGET_STATE_HOME&gt;/tools/beeper/${beeperFacts.cliVersion}/beeper`,
     );
-    expect(beeper?.html).toContain('aria-current="location" href="/provider-capabilities/"');
+    expect(beeper?.html).toContain('aria-current="location" href="/docs/reference/provider-capabilities/"');
     expect(beeper?.html).toContain("one fixed POST");
     expect(beeper?.html).toContain("pendingMessageID");
     expect(beeper?.html).toContain("proves submission to Desktop only, not network delivery");
@@ -1392,13 +1392,13 @@ describe("ghostget.com static site", () => {
       "@graph"?: ReadonlyArray<Readonly<Record<string, unknown>>>;
     };
     const beeperBreadcrumb = beeperStructured["@graph"]?.find((node) =>
-      node["@id"] === `${SITE_ORIGIN}/providers/beeper/#breadcrumb`);
+      node["@id"] === `${SITE_ORIGIN}/docs/how-to/connect-beeper/#breadcrumb`);
     expect(beeperBreadcrumb).toMatchObject({
       "@type": "BreadcrumbList",
       itemListElement: [
         { name: "Ghostget", position: 1, item: `${SITE_ORIGIN}/` },
-        { name: "Providers", position: 2, item: `${SITE_ORIGIN}/provider-capabilities/` },
-        { name: "Beeper", position: 3, item: `${SITE_ORIGIN}/providers/beeper/` },
+        { name: "Documentation", position: 2, item: `${SITE_ORIGIN}/docs/` },
+        { name: beeperFacts.pageTitle, position: 3, item: `${SITE_ORIGIN}/docs/how-to/connect-beeper/` },
       ],
     });
     const agentFacingMessagingDocs = [
@@ -1426,7 +1426,7 @@ describe("ghostget.com static site", () => {
     }
 
     const whatsapp = pages.find((page) =>
-      page.definition.canonicalPath === "/providers/whatsapp/");
+      page.definition.canonicalPath === "/docs/how-to/export-whatsapp/");
     const whatsappFacts = createWhatsAppPresentationFacts(providerDirectory, attestation);
     expect(whatsapp?.html).toContain(`<title>${whatsappFacts.pageTitle}</title>`);
     expect(whatsapp?.html).toContain(
@@ -1459,13 +1459,13 @@ describe("ghostget.com static site", () => {
       "@graph"?: ReadonlyArray<Readonly<Record<string, unknown>>>;
     };
     const whatsappBreadcrumb = whatsappStructured["@graph"]?.find((node) =>
-      node["@id"] === `${SITE_ORIGIN}/providers/whatsapp/#breadcrumb`);
+      node["@id"] === `${SITE_ORIGIN}/docs/how-to/export-whatsapp/#breadcrumb`);
     expect(whatsappBreadcrumb).toMatchObject({
       "@type": "BreadcrumbList",
       itemListElement: [
         { name: "Ghostget", position: 1, item: `${SITE_ORIGIN}/` },
-        { name: "Providers", position: 2, item: `${SITE_ORIGIN}/provider-capabilities/` },
-        { name: "WhatsApp", position: 3, item: `${SITE_ORIGIN}/providers/whatsapp/` },
+        { name: "Documentation", position: 2, item: `${SITE_ORIGIN}/docs/` },
+        { name: whatsappFacts.pageTitle, position: 3, item: `${SITE_ORIGIN}/docs/how-to/export-whatsapp/` },
       ],
     });
 
@@ -1478,8 +1478,8 @@ describe("ghostget.com static site", () => {
       "https://hraness.com/reading/personal-agents-notes-instinct-grok-bots-chatgpt-work",
     );
     expect(personalAgents?.html).toContain("https://ghostget.com/");
-    expect(personalAgents?.html).toContain("https://ghostget.com/provider-capabilities/");
-    expect(personalAgents?.html).toContain("https://ghostget.com/security/");
+    expect(personalAgents?.html).toContain("https://ghostget.com/docs/reference/provider-capabilities/");
+    expect(personalAgents?.html).toContain("https://ghostget.com/docs/explanation/security-model/");
     expect(personalAgents?.html).toContain(
       `The current release offers ${providerDirectory.entries.reduce((sum, entry) => sum + entry.supportedActionCount, 0)} supported provider actions.`,
     );
@@ -1504,8 +1504,8 @@ describe("ghostget.com static site", () => {
     );
     expect(agenticWebSpoofing?.html).toContain("https://hraness.com");
     expect(agenticWebSpoofing?.html).toContain("https://ghostget.com/");
-    expect(agenticWebSpoofing?.html).toContain("https://ghostget.com/provider-capabilities/");
-    expect(agenticWebSpoofing?.html).toContain("https://ghostget.com/security/");
+    expect(agenticWebSpoofing?.html).toContain("https://ghostget.com/docs/reference/provider-capabilities/");
+    expect(agenticWebSpoofing?.html).toContain("https://ghostget.com/docs/explanation/security-model/");
     expect(agenticWebSpoofing?.html).toContain(
       "https://ghostget.com/compare/personal-agents-browser-use/",
     );
@@ -1551,7 +1551,7 @@ describe("ghostget.com static site", () => {
     expect(vmsCannotContainAgents?.html).toContain("Trail of Bits argues VMs cannot reliably contain cyber-capable AI agents");
     expect(vmsCannotContainAgents?.html).toContain("https://hraness.com");
     expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/");
-    expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/provider-capabilities/");
+    expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/docs/reference/provider-capabilities/");
     expect(vmsCannotContainAgents?.html).toContain("https://ghostget.com/agentic-web-spoofing/");
     expect(vmsCannotContainAgents?.html).toContain(
       "https://ghostget.com/compare/personal-agents-browser-use/",
@@ -1592,7 +1592,7 @@ describe("ghostget.com static site", () => {
     );
     expect(paypalGrapheneOsAttestation?.html).toContain("https://hraness.com");
     expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/");
-    expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/provider-capabilities/");
+    expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/docs/reference/provider-capabilities/");
     expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/agentic-web-spoofing/");
     expect(paypalGrapheneOsAttestation?.html).toContain("https://ghostget.com/vms-cannot-contain-agents/");
     expect(paypalGrapheneOsAttestation?.html).toContain(
@@ -1629,7 +1629,7 @@ describe("ghostget.com static site", () => {
     expect(rumourIsTheExploit?.html).toContain("22 August 2026");
     expect(rumourIsTheExploit?.html).toContain("https://hraness.com");
     expect(rumourIsTheExploit?.html).toContain("https://ghostget.com/");
-    expect(rumourIsTheExploit?.html).toContain("https://ghostget.com/provider-capabilities/");
+    expect(rumourIsTheExploit?.html).toContain("https://ghostget.com/docs/reference/provider-capabilities/");
     expect(rumourIsTheExploit?.html).toContain("https://ghostget.com/vms-cannot-contain-agents/");
     expect(rumourIsTheExploit?.html).toContain("https://ghostget.com/paypal-grapheneos-attestation/");
     expect(rumourIsTheExploit?.html).toContain(
@@ -1664,7 +1664,7 @@ describe("ghostget.com static site", () => {
     );
     expect(omarchyRootEscalation?.html).toContain("https://hraness.com");
     expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/");
-    expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/provider-capabilities/");
+    expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/docs/reference/provider-capabilities/");
     expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/vms-cannot-contain-agents/");
     expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/paypal-grapheneos-attestation/");
     expect(omarchyRootEscalation?.html).toContain("https://ghostget.com/rumour-is-the-exploit/");
@@ -1684,6 +1684,144 @@ describe("ghostget.com static site", () => {
     expect(omarchyRootEscalation?.html).not.toMatch(
       /percent-encod|proof.of.concept|PoC|payload|exploit step|docker\.sock|\/etc\/shadow/iu,
     );
+    const docsIndex = pages.find((page) =>
+      page.definition.canonicalPath === "/docs/");
+    expect(docsIndex?.html).toContain(
+      "<h1>Pick the document that matches your job.</h1>",
+    );
+    for (const quadrant of ["Tutorials", "How-to guides", "Explanation", "Reference"]) {
+      expect(docsIndex?.html).toContain(`<h2 id="${quadrant === "How-to guides" ? "how-to" : quadrant.toLowerCase()}">${quadrant}</h2>`);
+    }
+    for (const movedPath of [
+      "/docs/tutorials/getting-started/",
+      "/docs/how-to/capture-and-archive/",
+      "/docs/how-to/connect-beeper/",
+      "/docs/how-to/export-whatsapp/",
+      "/docs/how-to/author-provider-plugin/",
+      "/docs/explanation/security-model/",
+      "/docs/reference/provider-capabilities/",
+    ]) {
+      const moved = pages.find((page) => page.definition.canonicalPath === movedPath);
+      expect(moved).toBeDefined();
+      expect(moved?.html).toContain('aria-label="Breadcrumb"');
+      expect(moved?.html).toContain('href="/docs/"');
+      expect(moved?.html).toContain(`<link rel="canonical" href="${SITE_ORIGIN}${movedPath}">`);
+      const movedJson = /<script type="application\/ld\+json">([^<]+)<\/script>/u
+        .exec(moved?.html ?? "");
+      const movedGraph = JSON.parse(movedJson?.[1] ?? "null") as {
+        "@graph"?: ReadonlyArray<Readonly<Record<string, unknown>>>;
+      };
+      const movedBreadcrumb = movedGraph["@graph"]?.find((node) =>
+        node["@id"] === `${SITE_ORIGIN}${movedPath}#breadcrumb`) as
+        { itemListElement?: ReadonlyArray<Readonly<Record<string, unknown>>> } | undefined;
+      expect(movedBreadcrumb?.itemListElement).toHaveLength(3);
+      expect(movedBreadcrumb?.itemListElement?.slice(0, 2)).toEqual([
+        { "@type": "ListItem", item: `${SITE_ORIGIN}/`, name: "Ghostget", position: 1 },
+        { "@type": "ListItem", item: `${SITE_ORIGIN}/docs/`, name: "Documentation", position: 2 },
+      ]);
+      expect(movedBreadcrumb?.itemListElement?.[2]).toMatchObject({
+        item: `${SITE_ORIGIN}${movedPath}`,
+        position: 3,
+      });
+      const movedMarkdown = await readFile(
+        join(websiteRoot, "dist", markdownSiblingPath(movedPath).slice(1)),
+        "utf8",
+      );
+      expect(movedMarkdown.length).toBeGreaterThan(400);
+    }
+    for (const [source, destination] of [
+      ["/getting-started", "/docs/tutorials/getting-started/"],
+      ["/getting-started/index.html", "/docs/tutorials/getting-started/"],
+      ["/getting-started/:path*", "/docs/tutorials/getting-started/:path*"],
+      ["/capture-and-archives", "/docs/how-to/capture-and-archive/"],
+      ["/capture-and-archives/:path*", "/docs/how-to/capture-and-archive/:path*"],
+      ["/provider-capabilities", "/docs/reference/provider-capabilities/"],
+      ["/provider-capabilities/:path*", "/docs/reference/provider-capabilities/:path*"],
+      ["/providers/beeper", "/docs/how-to/connect-beeper/"],
+      ["/providers/beeper/:path*", "/docs/how-to/connect-beeper/:path*"],
+      ["/providers/whatsapp", "/docs/how-to/export-whatsapp/"],
+      ["/providers/whatsapp/:path*", "/docs/how-to/export-whatsapp/:path*"],
+      ["/security", "/docs/explanation/security-model/"],
+      ["/security/:path*", "/docs/explanation/security-model/:path*"],
+      ["/plugins", "/docs/how-to/author-provider-plugin/"],
+      ["/plugins/:path*", "/docs/how-to/author-provider-plugin/:path*"],
+      ["/getting-started.md", "/docs/tutorials/getting-started.md"],
+      ["/security.md", "/docs/explanation/security-model.md"],
+    ] as const) {
+      expect(vercel.redirects).toEqual(expect.arrayContaining([
+        { destination, permanent: true, source },
+      ]));
+    }
+
+    const compareIndex = pages.find((page) =>
+      page.definition.canonicalPath === "/compare/");
+    expect(compareIndex?.html).toContain(
+      "<h1>How agents reach the web, lane by lane.</h1>",
+    );
+    for (const comparePath of [
+      "/compare/browser-use/",
+      "/compare/browserbase/",
+      "/compare/playwright-mcp/",
+      "/compare/agent-browser/",
+    ]) {
+      const comparison = pages.find((page) =>
+        page.definition.canonicalPath === comparePath);
+      expect(comparison).toBeDefined();
+      expect(compareIndex?.html).toContain(`href="${comparePath}"`);
+      expect(comparison?.html).toContain(
+        `<link rel="canonical" href="${SITE_ORIGIN}${comparePath}">`,
+      );
+      expect(comparison?.html).toContain('href="/compare/"');
+      expect(comparison?.html).toContain(
+        '<meta property="og:image" content="https://ghostget.com/og.png">',
+      );
+      expect(comparison?.html.match(/<meta name="twitter:image"/gu)).toHaveLength(1);
+      const compareJson = /<script type="application\/ld\+json">([^<]+)<\/script>/u
+        .exec(comparison?.html ?? "");
+      const compareGraph = JSON.parse(compareJson?.[1] ?? "null") as {
+        "@graph"?: ReadonlyArray<Readonly<Record<string, unknown>>>;
+      };
+      const compareBreadcrumb = compareGraph["@graph"]?.find((node) =>
+        node["@id"] === `${SITE_ORIGIN}${comparePath}#breadcrumb`) as
+        { itemListElement?: ReadonlyArray<Readonly<Record<string, unknown>>> } | undefined;
+      expect(compareBreadcrumb?.itemListElement).toHaveLength(3);
+      expect(compareBreadcrumb?.itemListElement?.slice(0, 2)).toEqual([
+        { "@type": "ListItem", item: `${SITE_ORIGIN}/`, name: "Ghostget", position: 1 },
+        { "@type": "ListItem", item: `${SITE_ORIGIN}/compare/`, name: "Comparisons", position: 2 },
+      ]);
+      expect(compareBreadcrumb?.itemListElement?.[2]).toMatchObject({
+        item: `${SITE_ORIGIN}${comparePath}`,
+        position: 3,
+      });
+      const comparisonMarkdown = await readFile(
+        join(websiteRoot, "dist", markdownSiblingPath(comparePath).slice(1)),
+        "utf8",
+      );
+      expect(comparisonMarkdown.length).toBeGreaterThan(400);
+    }
+    const agentBrowser = pages.find((page) =>
+      page.definition.canonicalPath === "/compare/agent-browser/");
+    expect(agentBrowser?.html).toContain("agent-browser");
+    expect(agentBrowser?.html).toContain("0.32.3");
+    expect(agentBrowser?.html).toContain("the agent can never steer");
+    const browserUsePage = pages.find((page) =>
+      page.definition.canonicalPath === "/compare/browser-use/");
+    expect(browserUsePage?.html).toContain("model-driven");
+    const playwrightMcpPage = pages.find((page) =>
+      page.definition.canonicalPath === "/compare/playwright-mcp/");
+    expect(playwrightMcpPage?.html).toContain("accessibility tree");
+    const browserbasePage = pages.find((page) =>
+      page.definition.canonicalPath === "/compare/browserbase/");
+    expect(browserbasePage?.html).toContain("Stagehand");
+
+    expect(html).toContain('id="measured"');
+    expect(html).toContain("145,617 bytes");
+    expect(html).toContain("9.7×");
+    expect(html).toContain('id="boundary"');
+    expect(html).toContain("Your agent never steers a browser.");
+    expect(html).toContain("ghostget vault import-x");
+    expect(html).toContain('href="/compare/"');
+
     const software = (graph as ReadonlyArray<Readonly<Record<string, unknown>>>).find((node) =>
       node["@id"] === `${SITE_ORIGIN}/#software`);
     expect(software).toMatchObject({
@@ -1714,19 +1852,19 @@ describe("ghostget.com static site", () => {
         : new Response(body, { status: 200 });
     };
     const negotiated = await handleDocumentNegotiation(
-      new Request(`${SITE_ORIGIN}/getting-started/`, { headers: { Accept: "text/markdown" } }),
+      new Request(`${SITE_ORIGIN}/docs/tutorials/getting-started/`, { headers: { Accept: "text/markdown" } }),
       retrieve,
     );
     expect(negotiated?.status).toBe(200);
     expect(negotiated?.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
     expect(negotiated?.headers.get("vary")).toBe("Accept");
     expect(negotiated?.headers.get("link")).toBe(
-      '<https://ghostget.com/getting-started/>; rel="canonical", </getting-started.md>; rel="alternate"; type="text/markdown"',
+      '<https://ghostget.com/docs/tutorials/getting-started/>; rel="canonical", </docs/tutorials/getting-started.md>; rel="alternate"; type="text/markdown"',
     );
     expect(await negotiated?.text()).toContain("# Install Ghostget and capture your first URL.");
 
     const direct = await handleDocumentNegotiation(
-      new Request(`${SITE_ORIGIN}/getting-started.md`),
+      new Request(`${SITE_ORIGIN}/docs/tutorials/getting-started.md`),
       retrieve,
     );
     expect(direct?.status).toBe(200);

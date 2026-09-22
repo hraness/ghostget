@@ -137,7 +137,7 @@ describe("public production outcome transport", () => {
       }
       const canonical = parsed.pathname === "/"
         ? "https://ghostget.com/"
-        : "https://ghostget.com/providers/beeper/";
+        : "https://ghostget.com/docs/how-to/connect-beeper/";
       return responseAt(
         url,
         `<!doctype html>\n<link rel="canonical" href="${canonical}">\n`,
@@ -153,7 +153,7 @@ describe("public production outcome transport", () => {
     expect(marker.bodySha256).toBe(createHash("sha256").update(markerBody).digest("hex"));
     expect(marker.requestPath).toBe(new URL(expectedMarkerUrl()).pathname + new URL(expectedMarkerUrl()).search);
     await site.readHealthRoute("/", tag, sourceSha, { timeoutMilliseconds: 9_999 });
-    await site.readHealthRoute("/providers/beeper/", tag, sourceSha, {
+    await site.readHealthRoute("/docs/how-to/connect-beeper/", tag, sourceSha, {
       timeoutMilliseconds: 9_998,
     });
     await site.readHealthRoute("/llms.txt", tag, sourceSha, { timeoutMilliseconds: 9_997 });
@@ -162,7 +162,7 @@ describe("public production outcome transport", () => {
     expect(calls.map((call) => new URL(call.url).pathname)).toEqual([
       "/.well-known/wrench-release.json",
       "/",
-      "/providers/beeper/",
+      "/docs/how-to/connect-beeper/",
       "/llms.txt",
       "/.well-known/wrench-release.json",
     ]);
@@ -347,8 +347,8 @@ describe("public production outcome transport", () => {
     const canonicalBodies = new Map([
       ["/", '<!doctype html>\n<link rel="canonical" href="https://ghostget.com/">\n'],
       [
-        "/providers/beeper/",
-        '<!doctype html>\n<link rel="canonical" href="https://ghostget.com/providers/beeper/">\n',
+        "/docs/how-to/connect-beeper/",
+        '<!doctype html>\n<link rel="canonical" href="https://ghostget.com/docs/how-to/connect-beeper/">\n',
       ],
       ["/llms.txt", "# Ghostget\nProvider documentation.\n"],
     ]);
@@ -376,7 +376,7 @@ describe("public production outcome transport", () => {
     for (const [route, body, expected] of [
       ["/", "not ghostget", "not the canonical Ghostget document"],
       [
-        "/providers/beeper/",
+        "/docs/how-to/connect-beeper/",
         '<!doctype html>\n<link rel="canonical" href="https://ghostget.com/">\n',
         "not the canonical Ghostget document",
       ],

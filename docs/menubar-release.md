@@ -18,7 +18,7 @@ On macOS, choose X, LinkedIn, or Reddit under account connections and finish
 sign-in in the selected browser. Use Verify sign-in, then Connect to save the
 verified account. The companion does not offer Gmail, Beeper, or WhatsApp
 sign-in, and its browser connection flow does not run on Linux. Use the CLI
-setup instructions in the [provider directory](https://ghostget.com/provider-capabilities/)
+setup instructions in the [provider directory](https://ghostget.com/docs/reference/provider-capabilities/)
 for those routes. Once configured, select an account under Accounts to review
 its permissions.
 

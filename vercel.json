@@ -156,73 +156,273 @@
       "permanent": true
     },
     {
+      "source": "/docs",
+      "destination": "/docs/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/index.html",
+      "destination": "/docs/",
+      "permanent": true
+    },
+    {
       "source": "/getting-started",
-      "destination": "/getting-started/",
+      "destination": "/docs/tutorials/getting-started/",
       "permanent": true
     },
     {
       "source": "/getting-started/index.html",
-      "destination": "/getting-started/",
+      "destination": "/docs/tutorials/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/getting-started/:path*",
+      "destination": "/docs/tutorials/getting-started/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/getting-started.md",
+      "destination": "/docs/tutorials/getting-started.md",
+      "permanent": true
+    },
+    {
+      "source": "/docs/tutorials/getting-started",
+      "destination": "/docs/tutorials/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/tutorials/getting-started/index.html",
+      "destination": "/docs/tutorials/getting-started/",
       "permanent": true
     },
     {
       "source": "/capture-and-archives",
-      "destination": "/capture-and-archives/",
+      "destination": "/docs/how-to/capture-and-archive/",
       "permanent": true
     },
     {
       "source": "/capture-and-archives/index.html",
-      "destination": "/capture-and-archives/",
+      "destination": "/docs/how-to/capture-and-archive/",
+      "permanent": true
+    },
+    {
+      "source": "/capture-and-archives/:path*",
+      "destination": "/docs/how-to/capture-and-archive/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/capture-and-archives.md",
+      "destination": "/docs/how-to/capture-and-archive.md",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/capture-and-archive",
+      "destination": "/docs/how-to/capture-and-archive/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/capture-and-archive/index.html",
+      "destination": "/docs/how-to/capture-and-archive/",
       "permanent": true
     },
     {
       "source": "/provider-capabilities",
-      "destination": "/provider-capabilities/",
+      "destination": "/docs/reference/provider-capabilities/",
       "permanent": true
     },
     {
       "source": "/provider-capabilities/index.html",
-      "destination": "/provider-capabilities/",
+      "destination": "/docs/reference/provider-capabilities/",
+      "permanent": true
+    },
+    {
+      "source": "/provider-capabilities/:path*",
+      "destination": "/docs/reference/provider-capabilities/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/provider-capabilities.md",
+      "destination": "/docs/reference/provider-capabilities.md",
+      "permanent": true
+    },
+    {
+      "source": "/docs/reference/provider-capabilities",
+      "destination": "/docs/reference/provider-capabilities/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/reference/provider-capabilities/index.html",
+      "destination": "/docs/reference/provider-capabilities/",
       "permanent": true
     },
     {
       "source": "/providers/beeper",
-      "destination": "/providers/beeper/",
+      "destination": "/docs/how-to/connect-beeper/",
       "permanent": true
     },
     {
       "source": "/providers/beeper/index.html",
-      "destination": "/providers/beeper/",
+      "destination": "/docs/how-to/connect-beeper/",
+      "permanent": true
+    },
+    {
+      "source": "/providers/beeper/:path*",
+      "destination": "/docs/how-to/connect-beeper/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/providers/beeper.md",
+      "destination": "/docs/how-to/connect-beeper.md",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/connect-beeper",
+      "destination": "/docs/how-to/connect-beeper/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/connect-beeper/index.html",
+      "destination": "/docs/how-to/connect-beeper/",
       "permanent": true
     },
     {
       "source": "/providers/whatsapp",
-      "destination": "/providers/whatsapp/",
+      "destination": "/docs/how-to/export-whatsapp/",
       "permanent": true
     },
     {
       "source": "/providers/whatsapp/index.html",
-      "destination": "/providers/whatsapp/",
+      "destination": "/docs/how-to/export-whatsapp/",
+      "permanent": true
+    },
+    {
+      "source": "/providers/whatsapp/:path*",
+      "destination": "/docs/how-to/export-whatsapp/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/providers/whatsapp.md",
+      "destination": "/docs/how-to/export-whatsapp.md",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/export-whatsapp",
+      "destination": "/docs/how-to/export-whatsapp/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/export-whatsapp/index.html",
+      "destination": "/docs/how-to/export-whatsapp/",
       "permanent": true
     },
     {
       "source": "/security",
-      "destination": "/security/",
+      "destination": "/docs/explanation/security-model/",
       "permanent": true
     },
     {
       "source": "/security/index.html",
-      "destination": "/security/",
+      "destination": "/docs/explanation/security-model/",
+      "permanent": true
+    },
+    {
+      "source": "/security/:path*",
+      "destination": "/docs/explanation/security-model/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/security.md",
+      "destination": "/docs/explanation/security-model.md",
+      "permanent": true
+    },
+    {
+      "source": "/docs/explanation/security-model",
+      "destination": "/docs/explanation/security-model/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/explanation/security-model/index.html",
+      "destination": "/docs/explanation/security-model/",
       "permanent": true
     },
     {
       "source": "/plugins",
-      "destination": "/plugins/",
+      "destination": "/docs/how-to/author-provider-plugin/",
       "permanent": true
     },
     {
       "source": "/plugins/index.html",
-      "destination": "/plugins/",
+      "destination": "/docs/how-to/author-provider-plugin/",
+      "permanent": true
+    },
+    {
+      "source": "/plugins/:path*",
+      "destination": "/docs/how-to/author-provider-plugin/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/plugins.md",
+      "destination": "/docs/how-to/author-provider-plugin.md",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/author-provider-plugin",
+      "destination": "/docs/how-to/author-provider-plugin/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/author-provider-plugin/index.html",
+      "destination": "/docs/how-to/author-provider-plugin/",
+      "permanent": true
+    },
+    {
+      "source": "/compare",
+      "destination": "/compare/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/index.html",
+      "destination": "/compare/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/browser-use",
+      "destination": "/compare/browser-use/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/browser-use/index.html",
+      "destination": "/compare/browser-use/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/browserbase",
+      "destination": "/compare/browserbase/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/browserbase/index.html",
+      "destination": "/compare/browserbase/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/playwright-mcp",
+      "destination": "/compare/playwright-mcp/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/playwright-mcp/index.html",
+      "destination": "/compare/playwright-mcp/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/agent-browser",
+      "destination": "/compare/agent-browser/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/agent-browser/index.html",
+      "destination": "/compare/agent-browser/",
       "permanent": true
     },
     {

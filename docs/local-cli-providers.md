@@ -18,8 +18,8 @@ descriptors served only through the `ghostget messaging automation` host; they
 have no generic command path. The source plugin owns executable and endpoint
 verification, Desktop-target and account binding, strict projections, process
 bounds, and mutation recovery.
-See the public [Beeper provider guide](https://ghostget.com/providers/beeper/) and
-the current release's [supported-action directory](https://ghostget.com/provider-capabilities/#provider-beeper).
+See the public [Beeper provider guide](https://ghostget.com/docs/how-to/connect-beeper/) and
+the current release's [supported-action directory](https://ghostget.com/docs/reference/provider-capabilities/#provider-beeper).
 
 The selected operation set is 25 operations at contract version 1, five at
 version 2, and two at version 3: `contacts.list` and `messaging.read`. The six

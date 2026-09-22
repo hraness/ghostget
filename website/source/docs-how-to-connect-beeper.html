@@ -9,7 +9,7 @@
     <title>{{BEEPER_PAGE_TITLE}}</title>
     <meta name="description" content="{{BEEPER_PAGE_DESCRIPTION}}">
     <meta name="robots" content="max-image-preview:large">
-    <link rel="canonical" href="https://ghostget.com/providers/beeper/">
+    <link rel="canonical" href="https://ghostget.com/docs/how-to/connect-beeper/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
     <link rel="stylesheet" href="{{CSS_ASSET}}">
@@ -19,7 +19,7 @@
     <meta property="og:site_name" content="Ghostget">
     <meta property="og:title" content="{{BEEPER_PAGE_TITLE}}">
     <meta property="og:description" content="{{BEEPER_PAGE_DESCRIPTION}}">
-    <meta property="og:url" content="https://ghostget.com/providers/beeper/">
+    <meta property="og:url" content="https://ghostget.com/docs/how-to/connect-beeper/">
     <meta property="og:image" content="https://ghostget.com/og.png">
     <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
     <meta property="og:image:width" content="1200">
@@ -40,16 +40,17 @@
     <header class="topbar guide-topbar">
       <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><img alt="" height="20" src="/icon.png" width="20" /> Ghostget</a>
       <nav aria-label="Primary">
-        <a href="/getting-started/">Install</a>
-        <a aria-current="location" href="/provider-capabilities/">Providers</a>
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a aria-current="location" href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
         <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
       </nav>
     </header>
     <main class="guide-main" id="main">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li><a href="/provider-capabilities/">Providers</a></li><li aria-current="page">Beeper</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li><a href="/docs/">Docs</a></li><li aria-current="page">Beeper</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero provider-guide-hero">
-          <p class="eyebrow">Beeper adapter · {{GHOSTGET_RELEASE}}</p>
+          <p class="eyebrow">How-to guide · Beeper adapter · {{GHOSTGET_RELEASE}}</p>
           <h1>Use Beeper through {{BEEPER_OBSERVED_OPERATION_COUNT}} supported actions.</h1>
           <p class="answer-lede">Ghostget exposes {{BEEPER_OBSERVED_OPERATION_COUNT}} semantic operations for one already-authorized <a href="https://www.beeper.com/">Beeper Desktop</a> account: {{BEEPER_CLI_BACKED_OPERATION_COUNT}} operations use the pinned official Beeper CLI {{BEEPER_CLI_VERSION}}, while {{BEEPER_DESKTOP_LOOPBACK_OPERATION_COUNT}} are fixed Desktop loopback reads. Each request binds its executable or fixed endpoint, account realm, Desktop target, operation contract, input, output, and risk level.</p>
           <p class="review-note">This page describes adapter <code>beeper-local</code> {{BEEPER_ADAPTER_VERSION}} in {{GHOSTGET_RELEASE}}. Run <code>ghostget capabilities beeper-local --json</code> for the exact state installed on your machine.</p>
@@ -77,7 +78,7 @@
               <p>Send text, files, stickers, or voice; edit an authored message; start a conversation; change read state or group metadata; set disappearing-message retention; send Notify Anyway; and emit bounded presence.</p>
             </article>
           </div>
-          <p>Browse <a href="/provider-capabilities/#provider-beeper">Beeper's supported action names and access methods</a>.</p>
+          <p>Browse <a href="/docs/reference/provider-capabilities/#provider-beeper">Beeper's supported action names and access methods</a>.</p>
         </section>
 
         <section aria-labelledby="setup">
@@ -167,7 +168,7 @@ ghostget beeper export-contact-interactions --auth beeper-main --json \
 
         <aside class="guide-callout" aria-labelledby="beeper-next">
           <h2 id="beeper-next">Inspect the local state before binding an account</h2>
-          <p>Install <a href="/getting-started/">Ghostget {{GHOSTGET_RELEASE}}</a>, run <code>ghostget doctor --json</code>, browse <a href="/provider-capabilities/#provider-beeper">Beeper's supported action names and access methods</a>, then read the <a href="/security/">security and local-custody guide</a>.</p>
+          <p>Install <a href="/docs/tutorials/getting-started/">Ghostget {{GHOSTGET_RELEASE}}</a>, run <code>ghostget doctor --json</code>, browse <a href="/docs/reference/provider-capabilities/#provider-beeper">Beeper's supported action names and access methods</a>, then read the <a href="/docs/explanation/security-model/">security and local-custody guide</a>.</p>
         </aside>
       </article>
     </main>

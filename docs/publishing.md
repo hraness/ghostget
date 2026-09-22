@@ -919,7 +919,7 @@ readbacks, repeats the complete deployment inventory after the final status
 read, and sandwiches terminal state with exact tag, Release, Latest, ref,
 workflow-source, and canonical-host authority reads. Each public readback
 requires the target marker plus bounded canonical responses from
-`https://ghostget.com/`, `/providers/beeper/`, and `/llms.txt`; it also requires
+`https://ghostget.com/`, `/docs/how-to/connect-beeper/`, and `/llms.txt`; it also requires
 `https://www.ghostget.com` to return one no-follow 308 whose `Location` preserves
 the marker path and query exactly. The project-domain aliases are not release
 authorities. The two complete public readbacks must be byte-stable by digest.

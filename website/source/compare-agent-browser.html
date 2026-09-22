@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en" data-hraness-theme="paper">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#f8f7f4" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#12100f" media="(prefers-color-scheme: dark)">
+    <title>Ghostget vs agent-browser: a browser the agent can never steer</title>
+    <meta name="description" content="agent-browser is a CLI that lets an agent open, click, type, and snapshot a real browser. Ghostget pins it internally for page capture but never exposes steering to the caller.">
+    <meta name="robots" content="max-image-preview:large">
+    <link rel="canonical" href="https://ghostget.com/compare/agent-browser/">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
+    <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
+    <link rel="stylesheet" href="{{CSS_ASSET}}">
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+    {{MARKDOWN_ALTERNATE}}
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Ghostget">
+    <meta property="og:title" content="Ghostget vs agent-browser: a browser the agent can never steer">
+    <meta property="og:description" content="agent-browser is a CLI that lets an agent open, click, type, and snapshot a real browser. Ghostget pins it internally for page capture but never exposes steering to the caller.">
+    <meta property="og:url" content="https://ghostget.com/compare/agent-browser/">
+    <meta property="og:image" content="https://ghostget.com/og.png">
+    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Ghostget vs agent-browser: a browser the agent can never steer">
+    <meta name="twitter:description" content="agent-browser is a CLI that lets an agent open, click, type, and snapshot a real browser. Ghostget pins it internally for page capture but never exposes steering to the caller.">
+    <meta name="twitter:image" content="https://ghostget.com/og.png">
+    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
+    <script type="application/ld+json">{{JSON_LD}}</script>
+    <script type="module" src="{{ANALYTICS_ASSET}}"></script>
+    <script type="module" src="{{FOIL_ASSET}}"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar guide-topbar">
+      <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><img alt="" height="20" src="/icon.png" width="20" /> Ghostget</a>
+      <nav aria-label="Primary">
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+      </nav>
+    </header>
+    <main class="guide-main" id="main">
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li><a href="/compare/">Comparisons</a></li><li aria-current="page">agent-browser</li></ol></nav>
+      <article class="guide-article">
+        <header class="guide-hero">
+          <p class="eyebrow">Comparison · Ghostget {{GHOSTGET_VERSION}}</p>
+          <h1>agent-browser hands the agent a browser. Ghostget keeps the keys.</h1>
+          <p class="answer-lede"><a href="https://github.com/vercel-labs/agent-browser">agent-browser</a> is Vercel Labs' Rust CLI for agent-driven browsing: <code>open</code>, <code>click</code>, <code>type</code>, <code>fill</code>, <code>snapshot</code>, <code>screenshot</code>, and <code>eval</code>, with sessions and profiles your agent composes as shell commands. The comparison has a twist: Ghostget pins agent-browser 0.32.3 as an internal dependency for page captures that need rendering. Same engine, opposite exposure.</p>
+          <p class="review-note">This page describes agent-browser's published command surface and Ghostget's {{GHOSTGET_RELEASE}} contract, checked against each project's public source in September 2026. The pin is visible in Ghostget's <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/package.json">release manifest</a>.</p>
+        </header>
+
+        <section aria-labelledby="ab-model">
+          <h2 id="ab-model">The difference is exposure, not machinery</h2>
+          <p>Used directly, agent-browser is a steering surface: the agent decides which URL to open, which selector to click, what to type, and what JavaScript to evaluate. Disk-first snapshots keep the token cost lower than streamed MCP state, but the authority model is unchanged. Every reachable page is a place the agent can act, and every action is one the caller chose.</p>
+          <p>Ghostget uses the same class of engine inside a bounded capture path. When an HTTP fetch cannot produce the requested result, an internal browser acquisition may render the page under an admission cap of two across all Ghostget processes sharing a state home. The caller supplies a URL and a result contract; it cannot supply a selector, a coordinate, a keystroke, or a script. The engine is a component, not an interface.</p>
+        </section>
+
+        <section aria-labelledby="ab-table">
+          <h2 id="ab-table">Side by side</h2>
+          <div class="table-scroll" role="region" aria-labelledby="ab-table" tabindex="0">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Decision</th>
+                  <th scope="col">agent-browser, used directly</th>
+                  <th scope="col">Ghostget</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Interface</th>
+                  <td>Shell commands the agent composes itself</td>
+                  <td>Named operations plus page reads and archives; no browser commands</td>
+                </tr>
+                <tr>
+                  <th scope="row">Who chooses the steps</th>
+                  <td>The agent: selectors, coordinates, JavaScript, session state</td>
+                  <td>The reviewed contract; the agent picks only the outcome</td>
+                </tr>
+                <tr>
+                  <th scope="row">Browser exposure</th>
+                  <td>Full steering, including <code>eval</code> on live pages</td>
+                  <td>Internal capture only, behind an admission gate; no steering surface exists</td>
+                </tr>
+                <tr>
+                  <th scope="row">Credentials</th>
+                  <td>Whatever the agent's browser profile or typed input contains</td>
+                  <td>Opaque auth locators bound to one account realm and transport</td>
+                </tr>
+                <tr>
+                  <th scope="row">Result shape</th>
+                  <td>Snapshots, screenshots, and command output on disk or stdout</td>
+                  <td>Typed Markdown, archive manifests, receipts, or typed errors</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section aria-labelledby="ab-choose">
+          <h2 id="ab-choose">When to pick which</h2>
+          <p>Pick agent-browser directly when your agent needs to compose its own browsing: exploratory sessions, form experiments, or flows where the steps are the deliverable. It is a well-shaped tool for that job, which is part of why Ghostget builds on it rather than reinventing the engine.</p>
+          <p>Pick Ghostget when the deliverable is the result, not the session. A page read returns bounded Markdown; an account action returns a typed receipt; and the agent cannot turn the capture engine into a navigation surface because no command, selector, or script channel reaches it. If your threat model is "the agent must not click around the web," that closure is the product.</p>
+        </section>
+
+        <aside class="guide-callout" aria-labelledby="ab-next">
+          <h2 id="ab-next">Verify the pin yourself</h2>
+          <p>The dependency is declared in the release's <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/package.json">package.json</a>, and the admission bound is documented in the <a href="/docs/how-to/capture-and-archive/">capture guide</a>. The lane map is at <a href="/compare/">How agents reach the web</a>.</p>
+        </aside>
+      </article>
+    </main>
+    <aside aria-label="Ghostget project information" class="site-disclosure">
+      <p>Ghostget {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
+      <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
+    </aside>
+    {{HRANESS_SITE_FOOTER}}
+  </body>
+</html>

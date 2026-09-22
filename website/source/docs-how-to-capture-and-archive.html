@@ -9,7 +9,7 @@
     <title>Capture URLs and create verified media archives with Ghostget</title>
     <meta name="description" content="Capture public URLs as Markdown and preserve one authorized media item with manifests, transcripts, provenance, and SHA-256 verification.">
     <meta name="robots" content="max-image-preview:large">
-    <link rel="canonical" href="https://ghostget.com/capture-and-archives/">
+    <link rel="canonical" href="https://ghostget.com/docs/how-to/capture-and-archive/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
     <link rel="stylesheet" href="{{CSS_ASSET}}">
@@ -19,7 +19,7 @@
     <meta property="og:site_name" content="Ghostget">
     <meta property="og:title" content="Capture URLs and create verified media archives with Ghostget">
     <meta property="og:description" content="Capture public URLs as Markdown and preserve one authorized media item with manifests, transcripts, provenance, and SHA-256 verification.">
-    <meta property="og:url" content="https://ghostget.com/capture-and-archives/">
+    <meta property="og:url" content="https://ghostget.com/docs/how-to/capture-and-archive/">
     <meta property="og:image" content="https://ghostget.com/og.png">
     <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
     <meta property="og:image:width" content="1200">
@@ -40,16 +40,17 @@
     <header class="topbar guide-topbar">
       <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><img alt="" height="20" src="/icon.png" width="20" /> Ghostget</a>
       <nav aria-label="Primary">
-        <a href="/getting-started/">Install</a>
-        <a href="/provider-capabilities/">Providers</a>
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
         <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
       </nav>
     </header>
     <main class="guide-main" id="main">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li aria-current="page">Capture and archives</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li><a href="/docs/">Docs</a></li><li aria-current="page">Capture and archives</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero">
-          <p class="eyebrow">Capture and preservation · Ghostget {{GHOSTGET_VERSION}}</p>
+          <p class="eyebrow">How-to guide · capture and preservation · Ghostget {{GHOSTGET_VERSION}}</p>
           <h1>Capture a URL or preserve one verified media item.</h1>
           <p class="answer-lede">Use <code>ghostget read</code> for a non-persistent inspection, pass a URL to Ghostget for durable Markdown capture, or use <code>ghostget archive</code> for one authorized, accessible, finite, non-DRM media item with integrity evidence.</p>
           <p class="review-note">This guide describes {{GHOSTGET_RELEASE}} and was checked against the public source for that immutable release.</p>
@@ -99,12 +100,12 @@ ghostget verify path/to/archive-item</code></pre></div>
         <section aria-labelledby="gmail-clip">
           <h2 id="gmail-clip">Email thread clipping is a separate authenticated path</h2>
           <p>A Gmail <code>messaging.list</code> result includes a provider-derived <code>threadUrl</code>. Pass that URL to <code>ghostget read</code> or <code>ghostget clip</code> with the same Gmail auth locator. Gmail clips default to private Ghostget state; <code>--output &lt;directory&gt;</code> is the explicit plaintext export boundary.</p>
-          <p>The default and <code>--media all</code> include every MIME attachment. <code>--media none</code> omits attachment bytes, while <code>--media images</code> is rejected because it would misrepresent non-image files. Attachment objects are content-addressed, integrity-recorded, and stored under deterministic SHA-256 names. See the <a href="/provider-capabilities/">provider support directory</a> for available inbox, search, thread, and contact actions.</p>
+          <p>The default and <code>--media all</code> include every MIME attachment. <code>--media none</code> omits attachment bytes, while <code>--media images</code> is rejected because it would misrepresent non-image files. Attachment objects are content-addressed, integrity-recorded, and stored under deterministic SHA-256 names. See the <a href="/docs/reference/provider-capabilities/">provider support directory</a> for available inbox, search, thread, and contact actions.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="capture-next">
           <h2 id="capture-next">Keep the capture boundary explicit</h2>
-          <p>Install and verify the CLI with the <a href="/getting-started/">getting started guide</a>. For account-bound reads, review <a href="/security/">local custody and provider contracts</a> before adding credentials.</p>
+          <p>Install and verify the CLI with the <a href="/docs/tutorials/getting-started/">getting started guide</a>. For account-bound reads, review <a href="/docs/explanation/security-model/">local custody and provider contracts</a> before adding credentials.</p>
         </aside>
       </article>
     </main>

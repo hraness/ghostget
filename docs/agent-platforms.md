@@ -78,6 +78,6 @@ Platforms whose agents cannot execute local commands cannot reach Ghostget.
   documents with their parsers.
 - `docs/plugins.md` — the content-addressed provider-plugin contract a
   platform can extend under an explicit trust decision.
-- `SECURITY.md`, ghostget.com/security/, and ghostget.com/privacy/ — custody,
+- `SECURITY.md`, ghostget.com/docs/explanation/security-model/, and ghostget.com/privacy/ — custody,
   account binding, and reporting boundaries.
 - ghostget.com/llms.txt — the public agent-facing summary of the same claims.

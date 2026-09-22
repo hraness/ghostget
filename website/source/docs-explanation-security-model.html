@@ -9,7 +9,7 @@
     <title>Ghostget security: local custody and bounded provider contracts</title>
     <meta name="description" content="Understand Ghostget local custody, encrypted snapshots, exact account binding, fail-closed provider contracts, risk levels, and mutation recovery.">
     <meta name="robots" content="max-image-preview:large">
-    <link rel="canonical" href="https://ghostget.com/security/">
+    <link rel="canonical" href="https://ghostget.com/docs/explanation/security-model/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
     <link rel="stylesheet" href="{{CSS_ASSET}}">
@@ -19,7 +19,7 @@
     <meta property="og:site_name" content="Ghostget">
     <meta property="og:title" content="Ghostget security: local custody and bounded provider contracts">
     <meta property="og:description" content="Understand Ghostget local custody, encrypted snapshots, exact account binding, fail-closed provider contracts, risk levels, and mutation recovery.">
-    <meta property="og:url" content="https://ghostget.com/security/">
+    <meta property="og:url" content="https://ghostget.com/docs/explanation/security-model/">
     <meta property="og:image" content="https://ghostget.com/og.png">
     <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
     <meta property="og:image:width" content="1200">
@@ -40,16 +40,17 @@
     <header class="topbar guide-topbar">
       <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><img alt="" height="20" src="/icon.png" width="20" /> Ghostget</a>
       <nav aria-label="Primary">
-        <a href="/getting-started/">Install</a>
-        <a href="/provider-capabilities/">Providers</a>
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
         <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
       </nav>
     </header>
     <main class="guide-main" id="main">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li aria-current="page">Security</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li><a href="/docs/">Docs</a></li><li aria-current="page">Security</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero">
-          <p class="eyebrow">Security model · Ghostget {{GHOSTGET_VERSION}}</p>
+          <p class="eyebrow">Explanation · security model · Ghostget {{GHOSTGET_VERSION}}</p>
           <h1>Ghostget limits authority before an agent reaches the web.</h1>
           <p class="answer-lede">An authenticated Ghostget operation binds one named outcome to an exact provider, transport, account realm, contract version, implementation, input, and risk. Credentials stay opaque to the caller. When those facts drift, the operation stops instead of changing transports or falling back to general browser control.</p>
           <p class="review-note">This guide summarizes the public security contract for {{GHOSTGET_RELEASE}} and was checked against that immutable release. Report vulnerabilities through <a href="https://github.com/hraness/ghostget/security/advisories/new">GitHub private vulnerability reporting</a>, never a public issue containing private material.</p>
@@ -82,7 +83,7 @@
         <section aria-labelledby="drift">
           <h2 id="drift">Provider drift fails closed</h2>
           <p>A changed origin, account proof, request, status, field, or response shape returns the affected operation to <code>capture-required</code>. That state is an inert reservation. It cannot plan or execute until authorized evidence establishes a newly reviewed contract.</p>
-          <p>This rule keeps capability gaps visible. For example, LinkedIn's official contact adapter does not grant authority to its separate consumer-web inbox adapter, and an Instagram inbox summary does not authorize an individual thread read. Review current state in the <a href="/provider-capabilities/">provider capability attestation</a>.</p>
+          <p>This rule keeps capability gaps visible. For example, LinkedIn's official contact adapter does not grant authority to its separate consumer-web inbox adapter, and an Instagram inbox summary does not authorize an individual thread read. Review current state in the <a href="/docs/reference/provider-capabilities/">provider capability attestation</a>.</p>
         </section>
 
         <section aria-labelledby="native-cli">
@@ -94,7 +95,7 @@
         <section aria-labelledby="plugins-boundary">
           <h2 id="plugins-boundary">Portable plugins are contained, not treated as hostile code</h2>
           <p>Source plugins ship as trusted in-process code. A portable plugin requires an explicit trust decision for one verified, content-addressed bundle and runs through a denied-by-default child-process protocol. The protocol limits the services a well-behaved plugin can request and contains ordinary crashes.</p>
-          <p>It is not a hostile native-code sandbox. Plugin code still runs with the ambient operating-system authority of the current account. Review code before trusting it, keep Ghostget state on a trusted local filesystem protected for that account, and follow the <a href="/plugins/">plugin verification workflow</a>.</p>
+          <p>It is not a hostile native-code sandbox. Plugin code still runs with the ambient operating-system authority of the current account. Review code before trusting it, keep Ghostget state on a trusted local filesystem protected for that account, and follow the <a href="/docs/how-to/author-provider-plugin/">plugin verification workflow</a>.</p>
         </section>
 
         <section aria-labelledby="media-security">
@@ -105,7 +106,7 @@
 
         <aside class="guide-callout" aria-labelledby="security-next">
           <h2 id="security-next">Use only authorized material and accounts</h2>
-          <p>Start with a public URL in the <a href="/getting-started/">getting started guide</a>. The <a href="/capture-and-archives/">capture guide</a> documents media authorization and integrity limits in more detail.</p>
+          <p>Start with a public URL in the <a href="/docs/tutorials/getting-started/">getting started guide</a>. The <a href="/docs/how-to/capture-and-archive/">capture guide</a> documents media authorization and integrity limits in more detail.</p>
         </aside>
       </article>
     </main>
