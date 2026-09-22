@@ -7,6 +7,21 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.26
+
+- Collect bounded usage repair leads: failed invocations now leave
+  deduplicated, content-bound repair signals in a private capped inbox
+  (`repair-signals/`, 128 entries, 30-day TTL, fail-closed). `ghostget
+  contracts repair` inspects leads or previews plan demand; handoffs recompute
+  their assessment on parse and grant no capture, retry, activation, or
+  publication authority. A changed contract is only an update candidate.
+- Fix a latent parser bug where own `__proto__` keys in arbitrary JSON and
+  record payloads were silently dropped during result construction.
+- Reposition ghostget.com around named web operations: the homepage leads
+  with measured read sizes and the deterministic-operations boundary, the
+  guides moved under a `/docs/` Diataxis tree with permanent redirects, and
+  new `/compare/` pages map the browser-agent tooling lanes.
+
 ## 0.18.25
 
 - Recover exact Instagram self-profile metrics when the contained
