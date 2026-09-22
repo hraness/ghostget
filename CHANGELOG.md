@@ -7,6 +7,17 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.25
+
+- Recover exact Instagram self-profile metrics when the contained
+  `web_profile_info` read is throttled. A 429 rejection now falls back to one
+  bounded first-party fetch of the exact `/<profile>/` page inside the same
+  signed-in browser session and projects counts from the page's reviewed Open
+  Graph document, bound to the confirmed viewer, the exact `og:url` target,
+  and the handle inside the description. Missing or abbreviated values stay
+  unavailable instead of being approximated, conflicting page data fails
+  closed, and every non-429 rejection keeps its prior typed projection.
+
 ## 0.18.24
 
 - Add machine-checkable contracts. `ghostget contracts catalog --json` prints

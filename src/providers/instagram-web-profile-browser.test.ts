@@ -48,7 +48,7 @@ const cookiesFileAuth = {
 } as const satisfies GhostgetAuth;
 
 type BrowserReadBinding = {
-  readonly kind: "html" | "json";
+  readonly kind: "html" | "json" | "profile-html";
   readonly maxBytes: number;
   readonly path: string;
   readonly referrer: string;
@@ -230,6 +230,59 @@ describe("Instagram profile stats contained-browser transport", () => {
       .allowCodeOwnedEvaluation).toBeTrue();
     expect((receivedOptions as unknown as CreateBrowserSessionOptions).headed)
       .toBeTrue();
+    expect(lifecycle).toEqual({ closed: true, cleaned: true });
+  });
+
+  test("reads the exact profile page only after a throttled target response", async () => {
+    const bindings: BrowserReadBinding[] = [];
+    const lifecycle = { closed: false, cleaned: false };
+    const profileHtml = "<html><body>profile</body></html>";
+    const transport = await createInstagramProfileBrowserTransport(profileAuth, {
+      timeoutMs: 2_000,
+      maxOutputBytes: 2 * 1024 * 1024,
+      dependencies: {
+        createBrowserSession: () => Promise.resolve(sessionFor([
+          bodyRecord(viewerHtml(), "text/html"),
+          rejectionRecord(429, "application/json"),
+          bodyRecord(profileHtml, "text/html"),
+        ], bindings, lifecycle)),
+      },
+    });
+
+    await expect(transport.readProfileHtml(PROFILE)).rejects.toThrow(
+      "Instagram profile browser page fallback is out of order",
+    );
+    expect(await transport.readCurrentViewerHtml()).toBe(viewerHtml());
+    await expect(transport.readProfileJson(PROFILE)).rejects.toMatchObject({
+      name: "InstagramProfileBrowserResponseRejectedError",
+      status: 429,
+    });
+    expect(await transport.readProfileHtml(PROFILE)).toBe(profileHtml);
+    await expect(transport.readProfileHtml(PROFILE)).rejects.toThrow(
+      "Instagram profile browser page fallback is out of order",
+    );
+    await transport.close();
+
+    expect(bindings).toEqual([
+      {
+        kind: "html",
+        maxBytes: 2 * 1024 * 1024,
+        path: "/",
+        referrer: "https://www.instagram.com/",
+      },
+      {
+        kind: "json",
+        maxBytes: 2 * 1024 * 1024,
+        path: PROFILE_PATH,
+        referrer: "https://www.instagram.com/hranessdotcom/",
+      },
+      {
+        kind: "profile-html",
+        maxBytes: 2 * 1024 * 1024,
+        path: "/hranessdotcom/",
+        referrer: "https://www.instagram.com/",
+      },
+    ]);
     expect(lifecycle).toEqual({ closed: true, cleaned: true });
   });
 

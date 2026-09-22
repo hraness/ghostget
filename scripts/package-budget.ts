@@ -1367,7 +1367,14 @@ export const MAX_PACKED_FILES = 589;
 // bounded re-prepare to read-client plus its regression tests: measured
 // 23,222,059 unpacked bytes, restoring the same 65-byte allowance.
 // 23,222,059 + 65 = 23,222,124.
-export const MAX_UNPACKED_BYTES = 23_222_124;
+// The Instagram profile-page fallback adds the profile-html transport binding
+// and the Open Graph fallback normalizer across meta-web, its runtime, the
+// contained browser transport, and rebuilt dist chunks: a clean
+// `bun pm pack --ignore-scripts` with Bun 1.3.14 on darwin arm64 measured
+// exactly 589 files/entries and 23,229,987 payload bytes; archive SHA-256
+// 7aaeba9a98900ed8083f4ec0a7d36d137cbc7585c1a5a676c8b092d7f3e486cb. Retain the
+// reviewed 65-byte allowance: 23,229,987 + 65 = 23,230,052.
+export const MAX_UNPACKED_BYTES = 23_230_052;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

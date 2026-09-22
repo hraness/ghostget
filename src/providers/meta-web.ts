@@ -1251,6 +1251,176 @@ export function normalizeInstagramProfileStats(
   });
 }
 
+const INSTAGRAM_PROFILE_PAGE_MAX_BYTES = 12 * 1024 * 1024;
+const INSTAGRAM_OG_TAG_PATTERN = /<meta\b[^>]*>/giu;
+const INSTAGRAM_OG_ATTRIBUTE_PATTERN =
+  /\b(property|content)\s*=\s*(?:"([^"]{0,4096})"|'([^']{0,4096})')/giu;
+const INSTAGRAM_OG_DESCRIPTION_PATTERN =
+  /^([0-9][0-9,]*) Followers, ([0-9][0-9,]*) Following, ([0-9][0-9,]*) Posts - See Instagram photos and videos from ([\s\S]{0,300}) \(@([a-z0-9._]{1,30})\)$/u;
+
+function decodeInstagramOgText(value: string): string {
+  return value.replace(
+    /&#(\d{1,7});|&#x([0-9a-fA-F]{1,6});|&(amp|quot|apos|lt|gt);/gu,
+    (entity, decimal, hex, named) => {
+      const code = decimal !== undefined
+        ? Number(decimal)
+        : hex !== undefined
+          ? Number.parseInt(hex, 16)
+          : null;
+      if (code !== null) {
+        if (code > 0x10FFFF || (code >= 0xD800 && code <= 0xDFFF)) {
+          return entity;
+        }
+        return String.fromCodePoint(code);
+      }
+      switch (named.toLowerCase()) {
+        case "amp": return "&";
+        case "quot": return "\"";
+        case "apos": return "'";
+        case "lt": return "<";
+        case "gt": return ">";
+        default: return entity;
+      }
+    },
+  );
+}
+
+function instagramOgMetaContents(
+  html: string,
+  property: string,
+): readonly string[] {
+  const contents: string[] = [];
+  for (const tagMatch of html.matchAll(INSTAGRAM_OG_TAG_PATTERN)) {
+    const tag = tagMatch[0];
+    if (tag.length > 8_192) continue;
+    let tagProperty: string | null = null;
+    let tagContent: string | null = null;
+    for (const attribute of tag.matchAll(INSTAGRAM_OG_ATTRIBUTE_PATTERN)) {
+      const name = attribute[1];
+      if (name === undefined) continue;
+      const value = attribute[2] ?? attribute[3] ?? "";
+      if (name.toLowerCase() === "property") tagProperty = value;
+      if (name.toLowerCase() === "content") tagContent = value;
+    }
+    if (
+      tagProperty === property
+      && tagContent !== null
+      && tagContent.length < 1
+    ) throw new Error(`Instagram profile page ${property} tag was empty`);
+    if (tagProperty === property && tagContent !== null) {
+      contents.push(tagContent);
+    }
+  }
+  return Object.freeze(contents);
+}
+
+function oneInstagramOgContent(
+  html: string,
+  property: string,
+): string | null {
+  const contents = instagramOgMetaContents(html, property);
+  if (contents.length < 1) return null;
+  const decoded = contents.map((content) => decodeInstagramOgText(content));
+  const first = decoded[0]!;
+  if (decoded.some((candidate) => candidate !== first)) {
+    throw new Error(
+      `Instagram profile page ${property} tags returned conflicting values`,
+    );
+  }
+  return first;
+}
+
+function exactInstagramOgCount(value: string): ProfileMetric {
+  if (!/^\d{1,3}(?:,\d{3})*$|^[0-9]+$/u.test(value)) {
+    return unavailableProfileMetric("provider-drift");
+  }
+  return exactProfileMetric(Number(value.replaceAll(",", "")));
+}
+
+/** Project the exact signed-in Instagram profile-page fallback document. */
+export function normalizeInstagramProfileHtmlStats(
+  html: unknown,
+  expectedViewerId: string,
+  expectedProfile: string,
+  observedAt: string,
+): Readonly<Record<string, unknown>> {
+  if (!isCanonicalMetaNumericId(expectedViewerId)) {
+    throw new Error("Instagram profile expected viewer ID is invalid");
+  }
+  const profile = canonicalMetaProfileHandle(
+    expectedProfile,
+    "Instagram profile target",
+    30,
+  );
+  const source = boundedString(
+    html,
+    "Instagram profile page response",
+    INSTAGRAM_PROFILE_PAGE_MAX_BYTES,
+  );
+  if (parseInstagramViewerId(source) !== expectedViewerId) {
+    throw new Error(
+      "Instagram profile response did not bind the current viewer ID",
+    );
+  }
+  const canonicalUrl = `https://www.instagram.com/${profile}/`;
+  const ogUrl = oneInstagramOgContent(source, "og:url");
+  if (ogUrl !== canonicalUrl) {
+    throw new Error(
+      "Instagram profile response did not bind the requested handle",
+    );
+  }
+  let followers = unavailableProfileMetric("not-exposed");
+  let following = unavailableProfileMetric("not-exposed");
+  let posts = unavailableProfileMetric("not-exposed");
+  let displayName: string | null = null;
+  const description = oneInstagramOgContent(source, "og:description");
+  if (description !== null) {
+    const match = INSTAGRAM_OG_DESCRIPTION_PATTERN.exec(description);
+    if (match !== null) {
+      const boundHandle = canonicalMetaProfileHandle(
+        match[5],
+        "Instagram profile page description handle",
+        30,
+      );
+      if (boundHandle !== profile) {
+        throw new Error(
+          "Instagram profile response did not bind the requested handle",
+        );
+      }
+      followers = exactInstagramOgCount(match[1]!);
+      following = exactInstagramOgCount(match[2]!);
+      posts = exactInstagramOgCount(match[3]!);
+      displayName = optionalString(
+        match[4],
+        "Instagram profile page description name",
+        300,
+      );
+    } else {
+      followers = unavailableProfileMetric("provider-drift");
+      following = unavailableProfileMetric("provider-drift");
+      posts = unavailableProfileMetric("provider-drift");
+    }
+  }
+  const complete = [followers, following, posts]
+    .every((metric) => metric.status === "available");
+  return Object.freeze({
+    schemaVersion: 1,
+    provider: "instagram",
+    target: Object.freeze({
+      kind: "profile",
+      id: expectedViewerId,
+      url: canonicalUrl,
+    }),
+    observedAt: exactProfileObservedAt(observedAt),
+    completeness: complete ? "complete" : "partial",
+    metrics: Object.freeze({ followers, following, posts }),
+    metadata: Object.freeze({
+      handle: profile,
+      ...(displayName === null ? {} : { displayName }),
+    }),
+  });
+}
+
 type ThreadsProfileCandidate = Readonly<{
   id: string;
   handle: string;

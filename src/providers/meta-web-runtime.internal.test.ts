@@ -109,6 +109,14 @@ const instagramHtml = script({
   require: [["PolarisViewer", [], { id: "12345", data: {} }, 1]],
 });
 
+const instagramProfilePageHtml = [
+  instagramHtml,
+  "<html><head>",
+  '<meta property="og:url" content="https://www.instagram.com/viewer/" />',
+  '<meta property="og:description" content="101 Followers, 20 Following, 7 Posts - See Instagram photos and videos from Viewer (&#064;viewer)" />',
+  "</head></html>",
+].join("");
+
 const instagramRemovedHtml = [
   "<html><head><title>Page not found • Instagram</title></head><body>",
   "Sorry, this page isn't available.",
@@ -1294,6 +1302,10 @@ describe("Meta authenticated internal-data runtime", () => {
           },
         });
       },
+      readProfileHtml: (profile) => {
+        instagramBrowserCalls.push(`profile-html:${profile}`);
+        return Promise.reject(new Error("unexpected Instagram profile page read"));
+      },
       close: () => {
         instagramBrowserCalls.push("close");
         return Promise.resolve();
@@ -1561,6 +1573,10 @@ describe("Meta authenticated internal-data runtime", () => {
           },
         });
       },
+      readProfileHtml: (profile) => {
+        instagramBrowserCalls.push(`profile-html:${profile}`);
+        return Promise.reject(new Error("unexpected Instagram profile page read"));
+      },
       close: () => {
         instagramBrowserCalls.push("close");
         return Promise.resolve();
@@ -1724,6 +1740,10 @@ describe("Meta authenticated internal-data runtime", () => {
           browserCalls.push(`profile:${profile}`);
           return Promise.reject(item.failure);
         },
+        readProfileHtml: (profile) => {
+          browserCalls.push(`profile-html:${profile}`);
+          return Promise.reject(item.failure);
+        },
         close: () => {
           browserCalls.push("close");
           return Promise.resolve();
@@ -1769,6 +1789,254 @@ describe("Meta authenticated internal-data runtime", () => {
     }
   });
 
+  test("reads exact Instagram self-profile metrics through the reviewed page fallback", async () => {
+    const observedAt = Date.UTC(2026, 7, 21, 15, 0, 0);
+    const cases = [
+      {
+        pageHtml: instagramProfilePageHtml,
+        expected: {
+          status: "succeeded",
+          finalUrl: "https://www.instagram.com/viewer/",
+          dispatchStarted: false,
+          output: {
+            schemaVersion: 1,
+            provider: "instagram",
+            target: {
+              kind: "profile",
+              id: "12345",
+              url: "https://www.instagram.com/viewer/",
+            },
+            observedAt: "2026-08-21T15:00:00.000Z",
+            completeness: "complete",
+            metrics: {
+              followers: { status: "available", value: 101, precision: "exact" },
+              following: { status: "available", value: 20, precision: "exact" },
+              posts: { status: "available", value: 7, precision: "exact" },
+            },
+            metadata: { handle: "viewer", displayName: "Viewer" },
+          },
+        },
+      },
+      {
+        pageHtml: instagramProfilePageHtml.replace(
+          "https://www.instagram.com/viewer/",
+          "https://www.instagram.com/other/",
+        ),
+        expected: {
+          status: "failed",
+          readFailure: {
+            category: "account-mismatch",
+            retryDisposition: "do-not-retry",
+          },
+        },
+      },
+      {
+        pageHtml: instagramProfilePageHtml.replaceAll("12345", "99999"),
+        expected: {
+          status: "failed",
+          readFailure: {
+            category: "account-mismatch",
+            retryDisposition: "do-not-retry",
+          },
+        },
+      },
+      {
+        pageHtml: instagramProfilePageHtml
+          .replace("&#064;viewer", "&#064;other"),
+        expected: {
+          status: "failed",
+          readFailure: {
+            category: "account-mismatch",
+            retryDisposition: "do-not-retry",
+          },
+        },
+      },
+      {
+        pageHtml: instagramProfilePageHtml.replace(
+          /<meta property="og:description"[^>]+\/>/u,
+          "",
+        ),
+        expected: {
+          status: "succeeded",
+          output: {
+            completeness: "partial",
+            metrics: {
+              followers: { status: "unavailable", reason: "not-exposed" },
+              following: { status: "unavailable", reason: "not-exposed" },
+              posts: { status: "unavailable", reason: "not-exposed" },
+            },
+            metadata: { handle: "viewer" },
+          },
+        },
+      },
+      {
+        pageHtml: instagramProfilePageHtml.replace(
+          "101 Followers",
+          "101K Followers",
+        ),
+        expected: {
+          status: "succeeded",
+          output: {
+            completeness: "partial",
+            metrics: {
+              followers: { status: "unavailable", reason: "provider-drift" },
+              following: { status: "unavailable", reason: "provider-drift" },
+              posts: { status: "unavailable", reason: "provider-drift" },
+            },
+          },
+        },
+      },
+      {
+        pageHtml: instagramProfilePageHtml.replace(
+          '<meta property="og:url" content="https://www.instagram.com/viewer/" />',
+          '<meta property="og:url" content="https://www.instagram.com/viewer/" />'
+            + '<meta property="og:url" content="https://www.instagram.com/other/" />',
+        ),
+        expected: {
+          status: "failed",
+          readFailure: {
+            category: "contract-drift",
+            retryDisposition: "do-not-retry",
+          },
+        },
+      },
+    ] as const;
+
+    for (const item of cases) {
+      const directCalls: Call[] = [];
+      const browserCalls: string[] = [];
+      const transport: InstagramProfileBrowserTransport = {
+        readCurrentViewerHtml: () => {
+          browserCalls.push("viewer");
+          return Promise.resolve(instagramHtml);
+        },
+        readProfileJson: (profile) => {
+          browserCalls.push(`profile:${profile}`);
+          return Promise.reject(
+            new InstagramProfileBrowserResponseRejectedError(
+              429,
+              "application/json",
+            ),
+          );
+        },
+        readProfileHtml: (profile) => {
+          browserCalls.push(`profile-html:${profile}`);
+          return Promise.resolve(item.pageHtml);
+        },
+        close: () => {
+          browserCalls.push("close");
+          return Promise.resolve();
+        },
+      };
+      const result = await executeMetaWebOperation(
+        recipe("instagram", "profiles.read"),
+        { profile: "viewer" },
+        auth("instagram"),
+        {
+          dependencies: {
+            ...dependencies("instagram", directCalls, () => {
+              throw new Error("Instagram page fallback used direct network access");
+            }),
+            createInstagramProfileBrowserTransport: () => Promise.resolve(
+              transport,
+            ),
+            now: () => observedAt,
+          },
+        },
+      );
+      expect(result).toMatchObject(item.expected);
+      expect(browserCalls).toEqual(
+        ["viewer", "profile:viewer", "profile-html:viewer", "close"],
+      );
+      expect(directCalls).toHaveLength(0);
+    }
+  });
+
+  test("does not read the Instagram profile page after non-throttled profile rejections", async () => {
+    const cases = [
+      {
+        failure: new InstagramProfileBrowserResponseRejectedError(
+          401,
+          "text/html",
+        ),
+        category: "auth-repair-required",
+        retryDisposition: "repair-auth",
+      },
+      {
+        failure: new InstagramProfileBrowserResponseRejectedError(
+          404,
+          "text/html",
+        ),
+        category: "contract-drift",
+        retryDisposition: "do-not-retry",
+      },
+      {
+        failure: new InstagramProfileBrowserResponseRejectedError(
+          503,
+          "text/html",
+        ),
+        category: "provider-temporary",
+        retryDisposition: "retry-once-after-60s",
+      },
+      {
+        failure: new InstagramProfileBrowserFailure(
+          "profile-json",
+          "private Instagram browser response-shape detail",
+        ),
+        category: "contract-drift",
+        retryDisposition: "do-not-retry",
+      },
+    ] as const;
+
+    for (const item of cases) {
+      const directCalls: Call[] = [];
+      const browserCalls: string[] = [];
+      const transport: InstagramProfileBrowserTransport = {
+        readCurrentViewerHtml: () => {
+          browserCalls.push("viewer");
+          return Promise.resolve(instagramHtml);
+        },
+        readProfileJson: (profile) => {
+          browserCalls.push(`profile:${profile}`);
+          return Promise.reject(item.failure);
+        },
+        readProfileHtml: (profile) => {
+          browserCalls.push(`profile-html:${profile}`);
+          return Promise.resolve(instagramProfilePageHtml);
+        },
+        close: () => {
+          browserCalls.push("close");
+          return Promise.resolve();
+        },
+      };
+      const result = await executeMetaWebOperation(
+        recipe("instagram", "profiles.read"),
+        { profile: "viewer" },
+        auth("instagram"),
+        {
+          dependencies: {
+            ...dependencies("instagram", directCalls, () => {
+              throw new Error("Instagram non-throttled read used direct network access");
+            }),
+            createInstagramProfileBrowserTransport: () => Promise.resolve(
+              transport,
+            ),
+          },
+        },
+      );
+      expect(result).toMatchObject({
+        status: "failed",
+        output: null,
+        readFailure: {
+          category: item.category,
+          retryDisposition: item.retryDisposition,
+        },
+      });
+      expect(browserCalls).toEqual(["viewer", "profile:viewer", "close"]);
+      expect(directCalls).toHaveLength(0);
+    }
+  });
+
   test("tracks Instagram browser cleanup and preserves finalization failures", async () => {
     const directCalls: Call[] = [];
     const browserCalls: string[] = [];
@@ -1798,6 +2066,10 @@ describe("Meta authenticated internal-data runtime", () => {
             },
           },
         });
+      },
+      readProfileHtml: (profile) => {
+        browserCalls.push(`profile-html:${profile}`);
+        return Promise.reject(new Error("unexpected Instagram profile page read"));
       },
       close: () => {
         browserCalls.push("close");
