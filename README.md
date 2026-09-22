@@ -24,7 +24,7 @@ Install [Bun 1.3.14](https://bun.sh/docs/installation) if needed, then install
 Ghostget and read a public page:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.23/hraness-ghostget-0.18.23.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.24/hraness-ghostget-0.18.24.tgz
 ghostget read https://example.com
 ```
 
@@ -45,9 +45,9 @@ always names the latest completed release. Upgrading from Wrench? Read the
 The optional Agent Skill teaches your agent when and how to use Ghostget:
 
 ```sh
-npx skills add hraness/ghostget#v0.18.23
+npx skills add hraness/ghostget#v0.18.24
 # With Bun instead:
-bunx skills add hraness/ghostget#v0.18.23
+bunx skills add hraness/ghostget#v0.18.24
 ```
 
 Start a new agent session, then ask: “Use Ghostget to read https://example.com
@@ -146,7 +146,7 @@ firewall.
 
 ## Built-in provider catalog
 
-This v0.18.23 source tree supports executable actions for 20 services: Beeper,
+This v0.18.24 source tree supports executable actions for 20 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WhatsApp, X, and YouTube.
@@ -215,7 +215,7 @@ For that same released coordinate, install Ghostget in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.23/hraness-ghostget-0.18.23.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.24/hraness-ghostget-0.18.24.tgz
 ```
 
 ```ts
@@ -233,7 +233,7 @@ const plugin = candidate satisfies ProviderPluginDefinitionV1
 void plugin
 ```
 
-The package exposes eight public TypeScript entrypoints. Its root exposes
+The package exposes nine public TypeScript entrypoints. Its root exposes
 programmatic plugin types and bounded validators.
 `@hraness/ghostget/client` exposes persistent-read and strict live-invocation
 helpers, `@hraness/ghostget/beeper` exposes the body-free Beeper contact
@@ -241,7 +241,7 @@ interaction export, `@hraness/ghostget/apple-photos` exposes exact local Photos
 contact evidence, `@hraness/ghostget/whatsapp` exposes the bounded private
 Message Like Me export, `@hraness/ghostget/omni` exposes normalized
 cross-provider reads, and `@hraness/ghostget/messaging` exposes agentic messaging
-route discovery and resolution, and `@hraness/ghostget/messaging-automation` exposes the trusted owner messaging host. Importing any SDK entrypoint does not start the CLI.
+route discovery and resolution, `@hraness/ghostget/messaging-automation` exposes the trusted owner messaging host, and `@hraness/ghostget/contracts` exposes the machine-checkable contract parsers and schemas. Importing any SDK entrypoint does not start the CLI.
 Importing the package root also does not inspect local state or load provider
 runtimes.
 
@@ -272,6 +272,33 @@ the raw process envelope. The receipt-bound top-level `status` narrows both
 branches in ordinary TypeScript control flow. Failed results carry one closed
 `readFailure` category and retry disposition. Consumers use that policy field
 for control flow and never inspect the receipt's bounded diagnostic text.
+
+### Machine-checkable contracts
+
+`ghostget contracts catalog --json` prints a compact, schema-backed projection
+of the installed catalog (`ghostget.contract-catalog.v1`): every adapter,
+operation, transport, risk, state, durable contract hash, input schema, and
+whether the operation runs as `public` or needs `--auth`. `ghostget contracts
+check --plan <file> --json` checks a read-only `ghostget.collection-plan.v1`
+against that catalog and reports one closed gap reason per read (exit 4 on any
+gap), without contacting a provider. `ghostget contracts schema <name> --json`
+prints the JSON Schema for the catalog, check, plan, and R1 invoke result
+documents.
+
+```ts
+import { checkCollectionPlan, parseCollectionPlan, parseContractCatalog, parseInvokeReadResult } from "@hraness/ghostget/contracts"
+
+const check = checkCollectionPlan(parseCollectionPlan(plan), parseContractCatalog(catalog))
+if (check.ok) {
+  const result = parseInvokeReadResult(JSON.parse(invokeStdout))
+  if (result.status === "failed") act(result.readFailure.retryDisposition)
+}
+```
+
+The subpath is side-effect free, the same `checkCollectionPlan` backs the CLI,
+and the schemas are generated from the parsers' shape tables. Read
+[docs/contracts.md](docs/contracts.md) for the documents, exit codes, and
+semantic rules.
 
 ## Capture and inspect
 

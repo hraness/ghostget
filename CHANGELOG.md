@@ -7,6 +7,25 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.24
+
+- Add machine-checkable contracts. `ghostget contracts catalog --json` prints
+  `ghostget.contract-catalog.v1`, a compact typed projection of the installed
+  catalog with each operation's transport, `public` or `auth` authority (decided
+  by the same code-owned policy the invoke path uses), risk, state, durable
+  contract hash, and input schema. `ghostget contracts check --plan <file> --json`
+  binds a read-only `ghostget.collection-plan.v1` to that catalog and reports
+  one closed gap reason per read, exiting 4 on any gap without contacting a
+  provider. `ghostget contracts schema <catalog|check|plan|invoke-read> --json`
+  prints JSON Schema draft 2020-12 generated from the parsers' shape tables; the
+  `invoke-read` schema documents the existing R1 `ghostget invoke --json`
+  envelope unchanged.
+- Add the side-effect-free `@hraness/ghostget/contracts` SDK subpath with
+  `parseContractCatalog`, `parseCollectionPlan`, `parseContractCheck`,
+  `parseInvokeReadResult`, `checkCollectionPlan`, `contractSchema`, and
+  `readFailureDispositions`. The Hraness social-profile reference now preflights
+  its manifest through `contracts check`.
+
 ## 0.18.23
 
 - Recover cross-boot `cleanup-unsafe` browser admissions whose recorded private

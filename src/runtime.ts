@@ -102,7 +102,7 @@ import {
   persistedAuthAuthority,
   publicWebSessionInvocationAuthority,
   publicWebSessionAuthorityIdentityHash,
-  webSessionAuthenticationPolicy,
+  resolvedWebSessionOperationAuthenticationPolicy,
   type InvocationAuthority,
   type WebSessionAuthenticationPolicy,
 } from "./web-session-authentication-policy";
@@ -439,30 +439,15 @@ function resolvedWebSessionAuthenticationPolicy(
   resolution: ProviderPluginOperationResolutionV1 | null,
 ): WebSessionAuthenticationPolicy {
   if (!isWebSessionOperation(operation)) return Object.freeze({ kind: "required" });
-  if (
-    resolution === null
-    || resolution.binding.transport === "provider-api"
-    || resolution.binding.transport === "local-cli"
-  ) {
+  if (resolution === null) {
     throw new Error("authenticated session operation resolved to the wrong plugin transport");
   }
-  return webSessionAuthenticationPolicy({
+  return resolvedWebSessionOperationAuthenticationPolicy(
     adapterId,
-    // Access policy belongs only to the descriptor's active contract. A
-    // historical routing alias remains readable for archive compatibility,
-    // but cannot inherit a newer public-authority/cache coordinate.
-    ...(resolution.contractVersion !== resolution.operation.contractVersion
-      || resolution.operation.access === undefined
-      ? {}
-      : { access: resolution.operation.access }),
     operationId,
-    recipe: operation.webSession,
-    pluginSourceKind: resolution.plugin.sourceKind,
-    portable: resolution.portableIdentity !== null,
-    risk: resolution.operation.risk,
-    state: resolution.operation.state,
-    dispatch: resolution.operation.dispatch,
-  });
+    operation.webSession,
+    resolution,
+  );
 }
 
 function assertCodeOwnedWriteSubject(

@@ -56,6 +56,12 @@ Command reference:
   ghostget transcriber setup --engine whisper-cpp --model <file> [media-options]
   ghostget doctor [--json]                         Check capture, media, auth, and action dependencies
   ghostget capabilities [adapter] [--json]         List installed semantic capabilities
+  ghostget contracts catalog [--adapter <id>]... [--json]
+                                                 Emit the machine-checkable contract catalog
+  ghostget contracts check --plan <file|-> [--auth-state] [--json]
+                                                 Check a collection plan against installed contracts
+  ghostget contracts schema <catalog|check|plan|invoke-read> [--json]
+                                                 Print one contract document's JSON Schema
   ghostget web request <https-url> [--method GET|HEAD]
                                                  Retrieve public text through native web rules and approvals
   ghostget interface list                          List user and imported OpenAPI drafts

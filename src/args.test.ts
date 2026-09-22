@@ -1563,7 +1563,47 @@ describe("ghostget CLI grammar", () => {
     });
   });
 
+  test("parses the contracts catalog, check, and schema commands", () => {
+    expect(parseGhostgetArguments(["contracts", "catalog", "--json"])).toEqual({
+      ok: true,
+      value: { command: "contracts-catalog", adapterIds: [], json: true },
+    });
+    expect(parseGhostgetArguments(["contracts", "catalog", "--adapter", "bluesky-web", "--adapter", "github-web"])).toEqual({
+      ok: true,
+      value: { command: "contracts-catalog", adapterIds: ["bluesky-web", "github-web"], json: false },
+    });
+    expect(parseGhostgetArguments(["contracts", "check", "--plan", "plans/social.json", "--auth-state", "--json"])).toEqual({
+      ok: true,
+      value: { command: "contracts-check", planSource: "plans/social.json", authState: true, json: true },
+    });
+    expect(parseGhostgetArguments(["contracts", "check", "--plan", "-"])).toEqual({
+      ok: true,
+      value: { command: "contracts-check", planSource: "-", authState: false, json: false },
+    });
+    expect(parseGhostgetArguments(["contracts", "schema", "invoke-read", "--json"])).toEqual({
+      ok: true,
+      value: { command: "contracts-schema", name: "invoke-read", json: true },
+    });
+    for (const raw of [
+      ["contracts"],
+      ["contracts", "catalog", "bluesky-web"],
+      ["contracts", "catalog", "--adapter", "Bad Id"],
+      ["contracts", "catalog", "--adapter", "x-web", "--adapter", "x-web"],
+      ["contracts", "check"],
+      ["contracts", "check", "--plan"],
+      ["contracts", "check", "--plan", "--json"],
+      ["contracts", "check", "--plan", "a\nb"],
+      ["contracts", "check", "--plan", "x", "--headed"],
+      ["contracts", "schema"],
+      ["contracts", "schema", "receipt"],
+      ["contracts", "schema", "plan", "--adapter", "x"],
+    ]) expect(parseGhostgetArguments(raw).ok).toBeFalse();
+  });
+
   test.each([
+    { arguments: ["contracts", "verify"], message: "contracts requires catalog, check, or schema" },
+    { arguments: ["contracts", "check", "--auth-state"], message: "contracts check requires --plan <file|->" },
+    { arguments: ["contracts", "schema", "receipt"], message: "contracts schema requires one of catalog, check, plan, invoke-read" },
     { arguments: ["help", "capabilities"], message: "help accepts no arguments" },
     { arguments: ["--help", "--json"], message: "help accepts no arguments" },
     { arguments: ["-h", "doctor"], message: "help accepts no arguments" },

@@ -6,6 +6,10 @@ import {
   type LinkedDeviceProvider,
   type OAuthProvider,
 } from "./auth";
+import {
+  contractSchemaNames,
+  type ContractSchemaName,
+} from "./contracts-vocabulary";
 import type { HarContentMode } from "./derive";
 import { platformSurfaceIds, type PlatformSurfaceId } from "./platform-catalog";
 import {
@@ -80,6 +84,9 @@ export type GhostgetArguments =
   | { readonly command: "browsers"; readonly json: boolean }
   | MessagingArguments
   | { readonly command: "capabilities"; readonly adapterId?: string; readonly json: boolean }
+  | { readonly command: "contracts-catalog"; readonly adapterIds: readonly string[]; readonly json: boolean }
+  | { readonly command: "contracts-check"; readonly planSource: string; readonly authState: boolean; readonly json: boolean }
+  | { readonly command: "contracts-schema"; readonly name: ContractSchemaName; readonly json: boolean }
   | { readonly command: "plugin-list"; readonly json: boolean }
   | { readonly command: "plugin-show"; readonly id: string; readonly json: boolean }
   | { readonly command: "platforms"; readonly surfaceId?: PlatformSurfaceId; readonly json: boolean }
@@ -439,6 +446,69 @@ function parseExactHttpsOriginOption(
     return { ok: false, message: `${label} must be an exact HTTPS origin` };
   }
   return origin.origin;
+}
+
+function validPlanSource(value: string): string | null {
+  if (value === "-") return null;
+  return value.length > 0
+    && Buffer.byteLength(value, "utf8") <= 4_096
+    && !/[\0\r\n]/u.test(value)
+    && !value.startsWith("--")
+    ? null
+    : "contracts check --plan requires a plan file path or - for stdin";
+}
+
+function parseContractsArguments(raw: readonly string[]): ParseGhostgetResult {
+  const subcommand = raw[0];
+  if (subcommand === "catalog") {
+    const parsed = optionValues(raw.slice(1), [], ["--json"], ["--adapter"]);
+    if (isFailure(parsed)) return parsed;
+    const adapterIds = parsed.repeatedValues["--adapter"] ?? [];
+    for (const adapterId of adapterIds) {
+      const issue = validId(adapterId, "adapter ID");
+      if (issue !== null) return { ok: false, message: issue };
+    }
+    if (new Set(adapterIds).size !== adapterIds.length) {
+      return { ok: false, message: "contracts catalog --adapter must not repeat an adapter ID" };
+    }
+    return {
+      ok: true,
+      value: { command: "contracts-catalog", adapterIds, json: parsed.booleans.has("--json") },
+    };
+  }
+  if (subcommand === "check") {
+    const parsed = optionValues(raw.slice(1), ["--plan"], ["--auth-state", "--json"]);
+    if (isFailure(parsed)) return parsed;
+    const planSource = parsed.values["--plan"];
+    if (planSource === undefined) {
+      return { ok: false, message: "contracts check requires --plan <file|->" };
+    }
+    const issue = validPlanSource(planSource);
+    if (issue !== null) return { ok: false, message: issue };
+    return {
+      ok: true,
+      value: {
+        command: "contracts-check",
+        planSource,
+        authState: parsed.booleans.has("--auth-state"),
+        json: parsed.booleans.has("--json"),
+      },
+    };
+  }
+  if (subcommand === "schema") {
+    const name = raw[1];
+    if (name === undefined || !(contractSchemaNames as readonly string[]).includes(name)) {
+      return {
+        ok: false,
+        message: `contracts schema requires one of ${contractSchemaNames.join(", ")}`,
+      };
+    }
+    const json = simpleJsonOptions(raw.slice(2), "contracts schema");
+    return typeof json === "boolean"
+      ? { ok: true, value: { command: "contracts-schema", name: name as ContractSchemaName, json } }
+      : json;
+  }
+  return { ok: false, message: "contracts requires catalog, check, or schema" };
 }
 
 function simpleJsonOptions(raw: readonly string[], label: string): ParseGhostgetResult | boolean {
@@ -1025,6 +1095,7 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
     const json = simpleJsonOptions(raw.slice(1), "browsers");
     return typeof json === "boolean" ? { ok: true, value: { command: "browsers", json } } : json;
   }
+  if (first === "contracts") return parseContractsArguments(raw.slice(1));
   if (first === "capabilities") {
     const positional = raw.slice(1).filter((argument) => !argument.startsWith("--"));
     const options = raw.slice(1).filter((argument) => argument.startsWith("--"));

@@ -55,6 +55,11 @@ import {
   runPluginShow,
 } from "./catalog-cli";
 import {
+  runContractsCatalog,
+  runContractsCheck,
+  runContractsSchema,
+} from "./contracts-cli";
+import {
   discardDerivation,
   finishDerivation,
   listDerivations,
@@ -2311,6 +2316,26 @@ async function runCommand(
       dependencies.providerPluginRegistry,
     );
   }
+  if (arguments_.command === "contracts-catalog") {
+    return runContractsCatalog(
+      arguments_,
+      environment,
+      output,
+      dependencies.providerPluginRegistry,
+    );
+  }
+  if (arguments_.command === "contracts-check") {
+    return await runContractsCheck(
+      arguments_,
+      environment,
+      output,
+      dependencies.providerPluginRegistry,
+      { readStdin: readStdinBounded },
+    );
+  }
+  if (arguments_.command === "contracts-schema") {
+    return runContractsSchema(arguments_, output);
+  }
   if (arguments_.command === "plugin-list") {
     return await runPluginList(
       arguments_,
@@ -3669,6 +3694,8 @@ function commandUsesPortableProviderCatalog(
 ): boolean {
   return command === "doctor"
     || command === "capabilities"
+    || command === "contracts-catalog"
+    || command === "contracts-check"
     || command === "adapter-validate"
     || command === "derive-analyze"
     || command === "derive-finish"

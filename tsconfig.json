@@ -32,6 +32,9 @@
       ],
       "@hraness/ghostget/messaging-automation": [
         "./src/messaging-automation-types.ts"
+      ],
+      "@hraness/ghostget/contracts": [
+        "./src/contracts.ts"
       ]
     },
     "verbatimModuleSyntax": true,
