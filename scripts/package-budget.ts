@@ -1352,7 +1352,13 @@ export const MAX_PACKED_FILES = 589;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 23_213_474;
+// The bound-version realm repair adds the subject parts split plus the
+// drift-repair and boundVersion provenance helpers to
+// beeper-local-runtime, the boundVersion field to the linked-device auth
+// record, and three internal tests: measured 23,219,374 unpacked bytes on
+// the Linux package job, restoring the same 65-byte allowance.
+// 23,219,374 + 65 = 23,219,439.
+export const MAX_UNPACKED_BYTES = 23_219_439;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
