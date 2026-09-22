@@ -1379,7 +1379,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("23,029,751 + 353 + 65 = 23,030,169");
     expect(budget).toContain("23,193,728 + 65 = 23,193,793");
     expect(budget).toContain("47684b3e2eb5cf3ed07fbb520aade8c7251d993f75262fbf1af627d9081a1a5f");
-    expect(MAX_UNPACKED_BYTES).toBe(23_230_052);
+    expect(MAX_UNPACKED_BYTES).toBe(23_230_176);
     expect(budget).toContain("23,037,873 + 65 = 23,037,938");
     expect(budget).toContain("f9f3ab38a682690ceaa2699a7309997512030f0fa500a9dc29dcd108123dc41f");
     expect(budget).toContain("23,038,557 + 65 = 23,038,622");
@@ -1390,6 +1390,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("23,222,059 + 65 = 23,222,124");
     expect(budget).toContain("7aaeba9a98900ed8083f4ec0a7d36d137cbc7585c1a5a676c8b092d7f3e486cb");
     expect(budget).toContain("23,229,987 + 65 = 23,230,052");
+    expect(budget).toContain("23,230,111 + 65 = 23,230,176");
     expect(budget).toContain("f67a9230983bf87b02352ed91e8dc368ff214e19fd4aecaf4a0b3476fdb3b164");
     expect(budget).toContain("23,060,195 + 353 + 65 = 23,060,613");
     expect(budget).toContain("c58f27d5b9f06040d27ca361e7816a0cde2d69c3fb26ed76649fd3f160f348f9");
@@ -1399,7 +1400,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("feefdaa288454938b6e6598b0cd19be5bcecbb2cca307bebafee6a32495c47e8");
     expect(budget).toContain("22,689,627 + 10 = 22,689,637");
     expect(budget).toContain("22,689,627 + 65 = 22,689,692");
-    expect(MAX_UNPACKED_BYTES).toBe(23_229_987 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(23_230_111 + 65);
     expect(budget).toContain("22,794,052 + 65 = 22,794,117");
     expect(budget).toContain("c482efe748f880e3717727d6d39fd92a68953e6eea766642b329ba47ae772d80");
     expect(budget).toContain("22,759,423 + 65 = 22,759,488");
@@ -1436,7 +1437,7 @@ describe("npm publication contract", () => {
       entryCount: { min: 589, max: 589 },
       fileCount: { min: 589, max: 589 },
       packedBytes: { min: 1_600_000, max: 11_961_581 },
-      unpackedBytes: { min: 9_000_000, max: 23_230_052 },
+      unpackedBytes: { min: 9_000_000, max: 23_230_176 },
     });
   });
 

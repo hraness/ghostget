@@ -1374,7 +1374,11 @@ export const MAX_PACKED_FILES = 589;
 // exactly 589 files/entries and 23,229,987 payload bytes; archive SHA-256
 // 7aaeba9a98900ed8083f4ec0a7d36d137cbc7585c1a5a676c8b092d7f3e486cb. Retain the
 // reviewed 65-byte allowance: 23,229,987 + 65 = 23,230,052.
-export const MAX_UNPACKED_BYTES = 23_230_052;
+// The website /docs/ move lengthens the shipped README's canonical guide URLs
+// by 124 payload bytes: the Linux package job measured 23,230,111 unpacked
+// bytes across the unchanged 589-file inventory. Retain the reviewed 65-byte
+// allowance: 23,230,111 + 65 = 23,230,176.
+export const MAX_UNPACKED_BYTES = 23_230_176;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
