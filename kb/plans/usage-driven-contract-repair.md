@@ -1,7 +1,7 @@
 ---
 type: plan
 area: contracts
-status: in-progress
+status: completed
 repository_scopes:
   - ghostget
   - peopleblade
@@ -96,3 +96,26 @@ The inbox is derived and rebuildable; deleting it loses only diagnostic leads.
 A disabled or full inbox never changes the original invocation outcome. The
 consumer workflow (PeopleBlade) keeps exact receipt binding and proposes its
 own update PR only after upstream gates pass.
+
+## Result
+
+Shipped in PR #323 (squash `1006964` on `main`, 2026-09-22): bounded private
+repair-signal inbox, typed capture-required boundary errors, drift-lead
+collection for no-dispatch failed R1 results, `ghostget contracts repair`,
+the `ghostget.contract-repair.v1` handoff schema, SDK exports, docs, and the
+`__proto__` payload-construction fix. PeopleBlade's matching repair guidance
+shipped independently in its PR #185 (`a443ec5`). The synthetic lifecycle
+spike qualified exactly one candidate — the one passing identity plus
+negative fixtures — which is the intended promotion boundary.
+
+## Durable memory
+
+Two conclusions generalize beyond this change. First, a classifier fallback
+is a lead, not evidence: `contract-drift` also absorbs unclassified failures,
+so demand collection, diagnosis, repair, and activation must stay separate
+stages with explicit authority at each boundary. Second, result construction
+by ordinary assignment is unsafe for arbitrary keys — `result[key] = …`
+silently drops an own `__proto__`; `Object.defineProperty` is the correct
+primitive for parsed object construction (see `src/contracts-shape.ts`
+`setJsonField`). No new maintained note was created; both facts live in the
+shipped code, tests, and this plan's history.
