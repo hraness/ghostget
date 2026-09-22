@@ -106,6 +106,12 @@ export type GhostgetAuth =
       /** Stable, secret-free lifecycle serialization coordinate. */
       readonly realmKey?: string;
       readonly subject?: string;
+      /** The provider target version `subject` was bound against, when the
+       * provider binds one. Lets the runtime prove a version-only drift —
+       * recomputing the stored subject with this version still yields it —
+       * and rebind the realm automatically instead of failing every invoke
+       * after a routine provider app update. */
+      readonly boundVersion?: string;
     };
 
 export type AuthInput =
@@ -690,6 +696,7 @@ export function parseAuth(value: unknown): GhostgetAuth {
     const expected = ["schemaVersion", "id", "kind", "provider", "path"];
     if (record.realmKey !== undefined) expected.push("realmKey");
     if (record.subject !== undefined) expected.push("subject");
+    if (record.boundVersion !== undefined) expected.push("boundVersion");
     if (!exactKeys(record, expected)) throw new Error("auth record has unsupported fields");
     if (!isProviderPluginSurfaceId(record.provider)) {
       throw new Error("auth record has an invalid linked-device provider");
@@ -733,6 +740,18 @@ export function parseAuth(value: unknown): GhostgetAuth {
     const subject = typeof record.subject === "string"
       ? normalizeAuthSubject(record.subject)
       : undefined;
+    if (
+      record.boundVersion !== undefined
+      && (typeof record.boundVersion !== "string"
+        || record.boundVersion.length < 1
+        || record.boundVersion.length > 256
+        || !/^[\x21-\x7e]+$/u.test(record.boundVersion))
+    ) {
+      throw new Error("auth record has an invalid linked-device bound version");
+    }
+    const boundVersion = typeof record.boundVersion === "string"
+      ? record.boundVersion
+      : undefined;
     return {
       schemaVersion: 1,
       id: record.id,
@@ -741,6 +760,7 @@ export function parseAuth(value: unknown): GhostgetAuth {
       path: record.path,
       ...(record.realmKey === undefined ? {} : { realmKey }),
       ...(subject === undefined ? {} : { subject }),
+      ...(boundVersion === undefined ? {} : { boundVersion }),
     };
   }
   throw new Error("auth record kind is not supported");
