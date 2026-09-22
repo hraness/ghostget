@@ -34,6 +34,7 @@ import {
   normalizeInstagramFeed,
   normalizeInstagramInbox,
   normalizeInstagramPost,
+  normalizeInstagramProfileHtmlStats,
   normalizeInstagramProfileStats,
   normalizeThreadsFeedHtml,
   normalizeThreadsPostHtml,
@@ -766,6 +767,90 @@ describe("Meta consumer-web policy", () => {
       "viewer",
       "2026-08-21T15:00:00.000Z",
     )).toThrow("current viewer ID");
+  });
+
+  test("projects only exact target-bound Instagram profile page counts", () => {
+    const pageHtml = [
+      instagramHtml,
+      "<html><head>",
+      '<meta property="og:url" content="https://www.instagram.com/viewer/" />',
+      '<meta property="og:description" content="1,234 Followers, 45 Following, 6 Posts - See Instagram photos and videos from Viewer (&#064;viewer)" />',
+      "</head></html>",
+    ].join("");
+    expect(normalizeInstagramProfileHtmlStats(
+      pageHtml,
+      "12345",
+      "viewer",
+      "2026-08-21T15:00:00.000Z",
+    )).toEqual({
+      schemaVersion: 1,
+      provider: "instagram",
+      target: {
+        kind: "profile",
+        id: "12345",
+        url: "https://www.instagram.com/viewer/",
+      },
+      observedAt: "2026-08-21T15:00:00.000Z",
+      completeness: "complete",
+      metrics: {
+        followers: { status: "available", value: 1234, precision: "exact", unit: "count" },
+        following: { status: "available", value: 45, precision: "exact", unit: "count" },
+        posts: { status: "available", value: 6, precision: "exact", unit: "count" },
+      },
+      metadata: {
+        handle: "viewer",
+        displayName: "Viewer",
+      },
+    });
+    expect(() => normalizeInstagramProfileHtmlStats(
+      pageHtml,
+      "99999",
+      "viewer",
+      "2026-08-21T15:00:00.000Z",
+    )).toThrow("current viewer ID");
+    expect(() => normalizeInstagramProfileHtmlStats(
+      pageHtml,
+      "12345",
+      "other",
+      "2026-08-21T15:00:00.000Z",
+    )).toThrow("requested handle");
+    expect(normalizeInstagramProfileHtmlStats(
+      pageHtml
+        .replace(/<meta property="og:description"[^>]+\/>/u, ""),
+      "12345",
+      "viewer",
+      "2026-08-21T15:00:00.000Z",
+    )).toMatchObject({
+      completeness: "partial",
+      metrics: {
+        followers: { status: "unavailable", reason: "not-exposed" },
+        following: { status: "unavailable", reason: "not-exposed" },
+        posts: { status: "unavailable", reason: "not-exposed" },
+      },
+    });
+    expect(normalizeInstagramProfileHtmlStats(
+      pageHtml.replace("1,234 Followers", "1.2K Followers"),
+      "12345",
+      "viewer",
+      "2026-08-21T15:00:00.000Z",
+    )).toMatchObject({
+      completeness: "partial",
+      metrics: {
+        followers: { status: "unavailable", reason: "provider-drift" },
+        following: { status: "unavailable", reason: "provider-drift" },
+        posts: { status: "unavailable", reason: "provider-drift" },
+      },
+    });
+    expect(() => normalizeInstagramProfileHtmlStats(
+      pageHtml.replace(
+        '<meta property="og:url" content="https://www.instagram.com/viewer/" />',
+        '<meta property="og:url" content="https://www.instagram.com/viewer/" />'
+          + '<meta property="og:url" content="https://www.instagram.com/other/" />',
+      ),
+      "12345",
+      "viewer",
+      "2026-08-21T15:00:00.000Z",
+    )).toThrow("conflicting");
   });
 
   test("projects exact Threads followers and explicit Insights unavailability", () => {
