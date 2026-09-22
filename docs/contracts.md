@@ -3,7 +3,7 @@
 `ghostget contracts` and the `@hraness/ghostget/contracts` SDK subpath give a
 consumer a typed, schema-backed view of what this installation can run, and a
 way to check a read-only collection plan against it before any provider is
-contacted. Four documents make up the surface:
+contacted. Five documents make up the surface:
 
 | Document | Produced by | Parsed by |
 |---|---|---|
@@ -11,16 +11,17 @@ contacted. Four documents make up the surface:
 | `ghostget.collection-plan.v1` | the consumer | `parseCollectionPlan` |
 | `ghostget.contract-check.v1` | `ghostget contracts check --plan <file> --json` or `checkCollectionPlan` | `parseContractCheck` |
 | R1 invoke result envelope | `ghostget invoke <adapter> <operation> --json` | `parseInvokeReadResult` |
+| `ghostget.contract-repair.v1` | Each handoff in `ghostget contracts repair --json` | `parseContractRepairHandoff` |
 
-`ghostget contracts schema <catalog|check|plan|invoke-read> --json` prints the
+`ghostget contracts schema <catalog|check|plan|invoke-read|repair> --json` prints the
 JSON Schema (draft 2020-12) for each document. The schema is generated from the
 same shape table the parser uses, so the two cannot drift. Rules a schema cannot
 express are listed under [Semantic rules](#semantic-rules).
 
-Every command is a read-only projection. It reads installed manifests and the
-code-owned registry, never binds an account, contacts a provider, or prints a
-subject, credential, or local path. The catalog and check commands are not
-available while a state home is in gateway-only mode.
+Catalog, check, schema, and repair inspection are read-only projections. They
+never bind an account or contact a provider. `repair --plan ... --record` also
+writes bounded local diagnostic metadata. The catalog, check, and repair
+commands are not available while a state home is in gateway-only mode.
 
 ## The consumer loop
 
@@ -38,6 +39,78 @@ available while a state home is in gateway-only mode.
    `repair-auth` means the locator must be repaired before any retry, and
    `do-not-retry` ends the read. `readFailureDispositions` exports the same
    closed table.
+
+## Repair handoffs
+
+Failed invocation attempts, including SDK execution previews, cache a lead when
+an installed operation is `capture-required`. Failed live R1 invocations cache
+suspected drift when their typed failure category is `contract-drift`. Other
+categories retain their own recovery instructions. Cache-only and identity-only
+inspection, cancellation, replayed results, and preserved-artifact failures do
+not collect leads. The invocation result envelope and retry policy are unchanged.
+
+`contract-drift` can also represent an unclassified failure. A lead is a reason
+to investigate, not proof that a provider changed. `observed` means the installed
+contract was reviewed; it does not prove current provider availability or that a
+particular account can use it.
+
+```sh
+ghostget contracts repair --json
+ghostget contracts repair --id <signal-sha256> --json
+ghostget contracts repair --plan <file|-> --json
+ghostget contracts repair --plan <file|-> --record --json
+```
+
+A plan preview collects only requested, installed, input-valid R1 reservations.
+Unknown adapters, missing operations, and other plan errors remain the job of
+`contracts check`; an empty repair report does not certify the plan. `--record`
+retains those leads locally without retaining the plan. Each report has `status`,
+`capacityReached`, `recording`, and `repairs`; each repair contains `recordedAt`
+and a `handoff`. Exit 3 means unavailable storage, a missing requested signal,
+or an unsuccessful explicit recording. A disabled inbox reports `disabled`.
+
+The inbox is a private derived cache: at most 128 distinct identities, 2 KiB per
+signal, and 256 KiB total. An identity binds reason, adapter version and manifest
+hash, operation, transport, authority kind, risk, state, and contract version and
+hash. It contains no account ID, subject, input or input hash, provider output,
+URL, credential, raw diagnostic, or HAR. Duplicate delivery does not rewrite the
+entry or count as additional evidence. Entries expire after 30 days; inspection
+hides expired entries and the next admitted write compacts them. Full storage
+retains existing leads and refuses new ones. It is not a complete audit log.
+
+Set `GHOSTGET_REPAIR_SIGNALS=off` to disable collection and inbox inspection.
+No existing entries are deleted. Malformed, unsafe, or contended storage never
+changes the original operation outcome. Writes use private conditional storage;
+inspection never repairs or replaces the cache.
+
+| Handoff status | Next step |
+|---|---|
+| `capture-required` | Reproduce the gap and obtain the missing authorized evidence or implementation. A browser capture may be insufficient. |
+| `investigate` | Reproduce a suspected failure against the exact recorded identity. |
+| `update-candidate` | A different observed contract is installed. Verify it, then suggest a consumer update PR if its pins or parser need changing. This is not a successful live qualification. |
+| `blocked` | Review the authority or risk boundary, disabled transport, or version regression. Do not widen permissions or replace pins automatically. |
+| `unavailable` | Inspect the installed catalog; the recorded operation is missing or invalid. |
+
+Every handoff fixes `authority.recapture`, `retry`, `activate`, and `publish` to
+`false`. It contains bounded next-step names rather than provider-supplied
+instructions. A content hash binds the diagnostic bytes; it is not authentication
+or provider attestation. Treat local or supplied catalogs and handoffs as evidence
+for review, never as permission to run code.
+
+The calling agent owns a repair attempt. First create a failing synthetic fixture
+for the intended semantics. Review the minimum authorized first-party evidence,
+including subject, target, paging, completeness, acknowledgement behavior, and
+negative cases. A read label or HTTP method alone does not authorize browser
+interaction. Encrypted or unimplemented surfaces may need new runtime support.
+Keep real traffic private; a secret scan alone does not make a fixture safe to
+publish. Propose the smallest provider patch and run its regression and repository
+gates. A consumer update must independently review an immutable released artifact,
+route pins, parser behavior, and consumer tests before enabling anything.
+
+Ghostget starts no model, browser capture, repair worker, pull request, or retry.
+An external workflow host may retain the handoff across pauses and validate a
+patch against a host-selected checkout and test commands. Its receipts do not
+replace provider evidence or the repository's merge and release gates.
 
 ## `ghostget contracts catalog [--adapter <id>]... [--json]`
 

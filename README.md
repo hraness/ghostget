@@ -282,8 +282,15 @@ whether the operation runs as `public` or needs `--auth`. `ghostget contracts
 check --plan <file> --json` checks a read-only `ghostget.collection-plan.v1`
 against that catalog and reports one closed gap reason per read (exit 4 on any
 gap), without contacting a provider. `ghostget contracts schema <name> --json`
-prints the JSON Schema for the catalog, check, plan, and R1 invoke result
-documents.
+prints the JSON Schema for the catalog, check, plan, R1 invoke result, and
+repair handoff documents.
+
+`ghostget contracts repair --json` inspects private, deduplicated repair leads
+from failed invocation attempts. It reports missing coverage or suspected drift,
+and suggests consumer review when a different contract is installed. It never
+captures, retries, activates a contract, or opens a PR. Plan demand can be
+previewed with `--plan <file>` and retained explicitly with `--record`.
+`GHOSTGET_REPAIR_SIGNALS=off` disables this bounded diagnostic cache.
 
 ```ts
 import { checkCollectionPlan, parseCollectionPlan, parseContractCatalog, parseInvokeReadResult } from "@hraness/ghostget/contracts"

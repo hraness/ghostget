@@ -238,6 +238,31 @@ independently observed, secret-free evidence only when the installed exact
 contract advertises reconciliation; image-upload draft contracts deliberately
 do not. Reconciliation never repeats the original mutation.
 
+## Repair leads from usage
+
+When a failed invocation prints a repair lead, inspect its exact
+`ghostget contracts repair --id <sha256> --json` handoff. Inspect all retained
+leads with `ghostget contracts repair --json`. A failed collection plan can
+produce a preview with `ghostget contracts repair --plan <file> --json`; add
+`--record` only to retain those metadata-only leads. The cache is bounded and
+local; `GHOSTGET_REPAIR_SIGNALS=off` disables collection and inspection.
+
+A `contract-drift` lead is suspected failure, not proof of provider drift.
+Keep auth repair, unavailable targets, throttling, timeouts, account mismatch,
+and unresolved cleanup on their own recovery paths. Neither `observed` nor a
+new contract hash proves the operation works live. `update-candidate` means
+review the current contract and, if needed, propose a PR to the consuming
+product for its immutable dependency, route pins, parser, and fixtures. Do not
+replace a pin merely to accept the returned receipt.
+
+The handoff grants no authority to recapture, retry, activate, or publish. If
+repository work is authorized, start with a failing synthetic fixture and
+propose a bounded provider patch through its normal gates. Obtain separate,
+exact authority for any new browser or provider evidence. A read label does
+not authorize arbitrary clicks or acknowledgement-producing requests. Keep
+real traffic private; do not copy a HAR or private content into a PR. An agent
+or external workflow owns the repair; Ghostget runs no model or repair worker.
+
 ## Derive only when a contract is missing
 
 Use a managed derivation to capture the minimum authorized first-party exchange. Seal and inspect the HAR through `ghostget derive review`, finish into a private directory, and scaffold one inert operation with `ghostget plugin scaffold`. Generic derivation output is evidence, not an executable client. Implement and promote only the exact reviewed contract; never fall back to DOM clicking. See [derivation](references/derivation.md) and [the code-owned scaffold](references/code-owned-provider-scaffold.md).

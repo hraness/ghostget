@@ -1,5 +1,14 @@
 {
   "version": 1,
-  "surfaces": {},
+  "surfaces": {
+    "local:contract-repair-inbox": {
+      "kind": "derived",
+      "retention": "ttl:P30D",
+      "owner": "src/contract-repair-inbox.ts",
+      "source": "Validated invocation failures and explicit collection-plan demand; advisory only",
+      "budget": { "maxEntries": 128, "maxBytes": 262144, "maxBytesPerSignal": 2048 },
+      "expiry": "Hidden after 30 days; expired entries are compacted on the next admitted write"
+    }
+  },
   "exempt": []
 }

@@ -3,7 +3,10 @@ import {
   validateOperationInput
 } from "./index-dw20pbkj.js";
 import"./index-26yq8q16.js";
-import"./index-ab98ss4x.js";
+import {
+  canonicalJson,
+  sha256
+} from "./index-ab98ss4x.js";
 import"./index-z1w83f81.js";
 
 // src/contracts-vocabulary.ts
@@ -57,7 +60,8 @@ var contractSchemaNames = Object.freeze([
   "catalog",
   "check",
   "plan",
-  "invoke-read"
+  "invoke-read",
+  "repair"
 ]);
 var contractPatterns = Object.freeze({
   adapterId: /^[a-z][a-z0-9-]{0,47}$/u,
@@ -90,6 +94,9 @@ function isPlainObject(value) {
   }
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
+}
+function setJsonField(target, key, value) {
+  Object.defineProperty(target, key, { value, writable: true, enumerable: true, configurable: true });
 }
 function jsonEquals(left, right) {
   if (left === null || typeof left !== "object")
@@ -138,7 +145,7 @@ function parseJson(value, path, maxDepth, maxNodes, depth, budget) {
     if (key.length > MAX_JSON_KEY_LENGTH || key.includes("\x00")) {
       throw new ContractParseError(path, "has an invalid JSON key");
     }
-    result[key] = parseJson(item, `${path}.${key}`, maxDepth, maxNodes, depth + 1, budget);
+    setJsonField(result, key, parseJson(item, `${path}.${key}`, maxDepth, maxNodes, depth + 1, budget));
   }
   return result;
 }
@@ -289,7 +296,7 @@ function parseResolved(shape, value, path, definitions, depth) {
             continue;
           throw new ContractParseError(path, `is missing required key ${key}`);
         }
-        result[key] = parseResolved(property, value[key], `${path}.${key}`, definitions, depth + 1);
+        setJsonField(result, key, parseResolved(property, value[key], `${path}.${key}`, definitions, depth + 1));
       }
       return Object.freeze(result);
     }
@@ -305,7 +312,7 @@ function parseResolved(shape, value, path, definitions, depth) {
         if (key.length === 0 || key.length > MAX_JSON_KEY_LENGTH || shape.keyPattern !== undefined && !shape.keyPattern.test(key)) {
           throw new ContractParseError(path, "has a key that does not match its required pattern");
         }
-        result[key] = parseResolved(shape.values, value[key], `${path}.${key}`, definitions, depth + 1);
+        setJsonField(result, key, parseResolved(shape.values, value[key], `${path}.${key}`, definitions, depth + 1));
       }
       return Object.freeze(result);
     }
@@ -1064,7 +1071,7 @@ var MAX_OUTPUT_NODES = 4000000;
 var MAX_TEXT_LENGTH = 4096;
 var MAX_ERROR_LENGTH = 8192;
 var MAX_KEY_LENGTH = 512;
-var sha256 = { kind: "string", minLength: 64, maxLength: 64, pattern: contractPatterns.sha256 };
+var sha2562 = { kind: "string", minLength: 64, maxLength: 64, pattern: contractPatterns.sha256 };
 var text = (maxLength, description2) => ({
   kind: "string",
   minLength: 1,
@@ -1081,17 +1088,17 @@ var receiptCommon = {
     properties: {
       id: { kind: "string", minLength: 1, maxLength: 48, pattern: contractPatterns.adapterId },
       version: { kind: "string", minLength: 5, maxLength: 64, pattern: contractPatterns.semanticVersion },
-      hash: sha256
+      hash: sha2562
     }
   },
   operation: { kind: "string", minLength: 3, maxLength: 163, pattern: contractPatterns.operationId },
   risk: { kind: "literal", value: "R1" },
-  inputHash: sha256,
+  inputHash: sha2562,
   auth: {
     kind: "object",
     properties: {
       id: text(128, "Auth locator ID, or the kernel-owned public authority ID; never a credential."),
-      hash: sha256,
+      hash: sha2562,
       kind: {
         kind: "enum",
         values: [
@@ -1138,14 +1145,14 @@ var portableContract = {
     pluginId: text(63),
     pluginVersion: text(64),
     hostApiVersion: { kind: "literal", value: 1 },
-    bundleSha256: sha256,
-    manifestSha256: sha256,
+    bundleSha256: sha2562,
+    manifestSha256: sha2562,
     adapterId: { kind: "string", minLength: 1, maxLength: 48, pattern: contractPatterns.adapterId },
     transport: { kind: "enum", values: ["linked-device", "provider-api", "web-session-api"] },
     surfaceId: text(63),
     operation: { kind: "string", minLength: 3, maxLength: 163, pattern: contractPatterns.operationId },
     contractVersion: { kind: "integer", minimum: 1, maximum: 1e6 },
-    descriptorSha256: sha256
+    descriptorSha256: sha2562
   }
 };
 var localCliContract = {
@@ -1154,7 +1161,7 @@ var localCliContract = {
     surface: text(63),
     action: { kind: "string", minLength: 3, maxLength: 163, pattern: contractPatterns.operationId },
     version: { kind: "integer", minimum: 1, maximum: 1e6 },
-    hash: sha256,
+    hash: sha2562,
     tool: {
       kind: "object",
       properties: {
@@ -1164,7 +1171,7 @@ var localCliContract = {
         versionScheme: { kind: "enum", values: ["semver", "opaque"] },
         version: text(128),
         releaseCommit: text(128),
-        releaseManifestSha256: sha256,
+        releaseManifestSha256: sha2562,
         releaseManifestUrl: text(MAX_TEXT_LENGTH),
         sourceUrl: text(MAX_TEXT_LENGTH),
         artifacts: {
@@ -1174,8 +1181,8 @@ var localCliContract = {
             properties: {
               platform: text(64),
               arch: text(64),
-              executableSha256: sha256,
-              archiveSha256: sha256,
+              executableSha256: sha2562,
+              archiveSha256: sha2562,
               downloadUrl: text(MAX_TEXT_LENGTH)
             },
             optional: ["archiveSha256", "downloadUrl"]
@@ -1191,9 +1198,9 @@ var receipt = {
   kind: "union",
   variants: [
     receiptVariant(2, "browser", {}),
-    receiptVariant(3, "provider-api", { providerContractHash: sha256 }),
-    receiptVariant(4, "web-session-api", { webSessionContractHash: sha256 }),
-    receiptVariant(5, "reviewed-template-api", { reviewedTemplateContractHash: sha256 }),
+    receiptVariant(3, "provider-api", { providerContractHash: sha2562 }),
+    receiptVariant(4, "web-session-api", { webSessionContractHash: sha2562 }),
+    receiptVariant(5, "reviewed-template-api", { reviewedTemplateContractHash: sha2562 }),
     receiptVariant(6, "portable-provider-plugin", { portablePluginContract: portableContract }),
     receiptVariant(7, "local-cli", { localCliContract })
   ],
@@ -1320,6 +1327,173 @@ function parseInvokeReadResult(value) {
   return result;
 }
 
+// src/contracts-repair.ts
+var statuses = ["capture-required", "investigate", "update-candidate", "blocked", "unavailable"];
+var steps = [
+  "reproduce-with-synthetic-fixture",
+  "review-authorized-evidence",
+  "propose-provider-patch",
+  "run-provider-gates",
+  "verify-current-contract",
+  "propose-consumer-update",
+  "run-consumer-gates",
+  "review-authority-boundary",
+  "inspect-installed-catalog"
+];
+var hash = { kind: "string", minLength: 64, maxLength: 64, pattern: contractPatterns.sha256 };
+var contractRepairBindingShape = {
+  kind: "object",
+  properties: {
+    adapterId: { kind: "string", minLength: 1, maxLength: 48, pattern: contractPatterns.adapterId },
+    adapterVersion: { kind: "string", minLength: 5, maxLength: 64, pattern: contractPatterns.semanticVersion },
+    manifestHash: hash,
+    operationId: { kind: "string", minLength: 3, maxLength: 163, pattern: contractPatterns.operationId },
+    transport: { kind: "enum", values: contractTransports },
+    authority: { kind: "enum", values: operationAuthorities },
+    risk: { kind: "enum", values: operationRisks },
+    readOnly: { kind: "boolean" },
+    state: { kind: "enum", values: contractStates },
+    contractVersion: { kind: "integer", minimum: 1, maximum: 1e6 },
+    contractHash: hash
+  }
+};
+var contractRepairSignalShape = {
+  kind: "object",
+  properties: {
+    contract: { kind: "literal", value: "ghostget.contract-repair-signal.v1" },
+    id: hash,
+    reason: { kind: "enum", values: ["capture-required", "contract-drift"] },
+    binding: contractRepairBindingShape
+  }
+};
+var contractRepairShape = {
+  kind: "object",
+  properties: {
+    contract: { kind: "literal", value: "ghostget.contract-repair.v1" },
+    signal: contractRepairSignalShape,
+    current: { kind: "union", variants: [contractRepairBindingShape, { kind: "null" }] },
+    status: { kind: "enum", values: statuses },
+    steps: { kind: "array", items: { kind: "enum", values: steps }, maxItems: steps.length },
+    consumerAction: { kind: "enum", values: ["none", "suggest-update-pr"] },
+    authority: {
+      kind: "object",
+      properties: {
+        recapture: { kind: "literal", value: false },
+        retry: { kind: "literal", value: false },
+        activate: { kind: "literal", value: false },
+        publish: { kind: "literal", value: false }
+      }
+    }
+  }
+};
+function checkBinding(binding) {
+  if (binding.readOnly && binding.risk !== "R1") {
+    throw new ContractParseError("repair.binding.readOnly", "requires R1");
+  }
+}
+function contractRepairBinding(adapter, operation) {
+  const binding = parseShape(contractRepairBindingShape, {
+    adapterId: adapter.id,
+    adapterVersion: adapter.version,
+    manifestHash: adapter.manifestHash,
+    operationId: operation.id,
+    transport: operation.transport,
+    authority: operation.authority,
+    risk: operation.risk,
+    readOnly: operation.risk === "R1" && operation.sideEffect === "none",
+    state: operation.state,
+    contractVersion: operation.contractVersion,
+    contractHash: operation.contractHash
+  }, "repair.binding");
+  checkBinding(binding);
+  return binding;
+}
+function createContractRepairSignal(reason, bindingValue) {
+  const binding = parseShape(contractRepairBindingShape, bindingValue, "repair.binding");
+  const identity = { contract: "ghostget.contract-repair-signal.v1", reason, binding };
+  return parseContractRepairSignal({ ...identity, id: sha256(canonicalJson(identity)) });
+}
+function parseContractRepairSignal(value) {
+  const signal = parseShape(contractRepairSignalShape, value, "repair.signal");
+  checkBinding(signal.binding);
+  const { id, ...identity } = signal;
+  if (id !== sha256(canonicalJson(identity))) {
+    throw new ContractParseError("repair.signal.id", "does not bind the exact signal");
+  }
+  if (signal.reason === "capture-required" !== (signal.binding.state === "capture-required")) {
+    throw new ContractParseError("repair.signal.reason", "does not match the contract state");
+  }
+  return signal;
+}
+function assessment(signal, current) {
+  if (current === null)
+    return "unavailable";
+  const previous = signal.binding;
+  if (current.adapterId !== previous.adapterId || current.operationId !== previous.operationId) {
+    throw new ContractParseError("repair.current", "does not match the signal route");
+  }
+  checkBinding(current);
+  if (!previous.readOnly || !current.readOnly || current.risk !== previous.risk || current.transport !== previous.transport || current.authority !== previous.authority || current.transport === "reviewed-template-api" || current.contractVersion < previous.contractVersion)
+    return "blocked";
+  if (current.state === "capture-required")
+    return "capture-required";
+  if (current.contractHash !== previous.contractHash || current.contractVersion !== previous.contractVersion) {
+    return "update-candidate";
+  }
+  return signal.reason === "capture-required" ? "blocked" : "investigate";
+}
+function nextSteps(status) {
+  if (status === "blocked")
+    return ["review-authority-boundary"];
+  if (status === "unavailable")
+    return ["inspect-installed-catalog"];
+  if (status === "update-candidate")
+    return ["verify-current-contract", "propose-consumer-update", "run-consumer-gates"];
+  return ["reproduce-with-synthetic-fixture", "review-authorized-evidence", "propose-provider-patch", "run-provider-gates"];
+}
+function parseContractRepairHandoff(value) {
+  const handoff = parseShape(contractRepairShape, value, "repair");
+  const signal = parseContractRepairSignal(handoff.signal);
+  const status = assessment(signal, handoff.current);
+  if (handoff.status !== status || canonicalJson(handoff.steps) !== canonicalJson(nextSteps(status)) || handoff.consumerAction !== (status === "update-candidate" ? "suggest-update-pr" : "none")) {
+    throw new ContractParseError("repair", "assessment or next steps are inconsistent");
+  }
+  return handoff;
+}
+function createContractRepairHandoff(signalValue, catalogValue) {
+  const signal = parseContractRepairSignal(signalValue);
+  const catalog = parseContractCatalog(catalogValue);
+  const adapter = catalog.adapters.find((entry) => entry.id === signal.binding.adapterId);
+  const operation = adapter === undefined || isInvalidCatalogAdapter(adapter) ? undefined : adapter.operations.find((entry) => entry.id === signal.binding.operationId);
+  const current = adapter === undefined || isInvalidCatalogAdapter(adapter) || operation === undefined ? null : contractRepairBinding(adapter, operation);
+  const status = assessment(signal, current);
+  return parseContractRepairHandoff({
+    contract: "ghostget.contract-repair.v1",
+    signal,
+    current,
+    status,
+    steps: nextSteps(status),
+    consumerAction: status === "update-candidate" ? "suggest-update-pr" : "none",
+    authority: { recapture: false, retry: false, activate: false, publish: false }
+  });
+}
+function contractRepairSignalsForPlan(planValue, catalogValue) {
+  const plan = parseCollectionPlan(planValue);
+  const catalog = parseContractCatalog(catalogValue);
+  const signals = new Map;
+  for (const { read } of collectionPlanReads(plan)) {
+    const adapter = catalog.adapters.find((entry) => entry.id === read.adapter);
+    if (adapter === undefined || isInvalidCatalogAdapter(adapter))
+      continue;
+    const operation = adapter.operations.find((entry) => entry.id === read.operation);
+    if (operation === undefined || operation.state !== "capture-required" || operation.risk !== "R1" || operation.sideEffect !== "none" || operation.authority !== read.authority.kind || !validateOperationInput(operation.input, read.input, adapter.origins).ok)
+      continue;
+    const signal = createContractRepairSignal("capture-required", contractRepairBinding(adapter, operation));
+    signals.set(signal.id, signal);
+  }
+  return Object.freeze([...signals.values()].sort((left, right) => left.id.localeCompare(right.id)));
+}
+
 // src/contracts-schema.ts
 var schemas = Object.freeze({
   catalog: () => shapeJsonSchema(catalogShape, {
@@ -1339,6 +1513,10 @@ var schemas = Object.freeze({
     title: "ghostget.invoke-read.v1",
     description: "R1 result envelope printed by `ghostget invoke <adapter> <operation> --json`.",
     definitions: invokeReadDefinitions
+  }),
+  repair: () => shapeJsonSchema(contractRepairShape, {
+    title: "ghostget.contract-repair.v1",
+    description: "An advisory, revision-bound repair handoff. It grants no capture, retry, activation, or publication authority."
   })
 });
 function contractSchema(name) {
@@ -1357,13 +1535,21 @@ var parseContractCatalog2 = parseContractCatalog;
 var parseContractCheck2 = parseContractCheck;
 var parseInvokeReadResult2 = parseInvokeReadResult;
 var readFailureDispositions2 = readFailureDispositions;
+var contractRepairSignalsForPlan2 = contractRepairSignalsForPlan;
+var createContractRepairHandoff2 = createContractRepairHandoff;
+var parseContractRepairHandoff2 = parseContractRepairHandoff;
+var parseContractRepairSignal2 = parseContractRepairSignal;
 export {
   readFailureDispositions2 as readFailureDispositions,
   parseInvokeReadResult2 as parseInvokeReadResult,
+  parseContractRepairSignal2 as parseContractRepairSignal,
+  parseContractRepairHandoff2 as parseContractRepairHandoff,
   parseContractCheck2 as parseContractCheck,
   parseContractCatalog2 as parseContractCatalog,
   parseCollectionPlan2 as parseCollectionPlan,
+  createContractRepairHandoff2 as createContractRepairHandoff,
   contractSchema2 as contractSchema,
+  contractRepairSignalsForPlan2 as contractRepairSignalsForPlan,
   checkCollectionPlan2 as checkCollectionPlan,
   ContractParseError2 as ContractParseError
 };

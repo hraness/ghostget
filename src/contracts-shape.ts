@@ -113,6 +113,11 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return prototype === Object.prototype || prototype === null;
 }
 
+/** A literal "__proto__" key must become an own data property, never a prototype write. */
+function setJsonField<T>(target: Record<string, T>, key: string, value: T): void {
+  Object.defineProperty(target, key, { value, writable: true, enumerable: true, configurable: true });
+}
+
 function jsonEquals(left: JsonValue, right: unknown): boolean {
   if (left === null || typeof left !== "object") return Object.is(left, right);
   if (Array.isArray(left)) {
@@ -175,7 +180,7 @@ function parseJson(
     if (key.length > MAX_JSON_KEY_LENGTH || key.includes("\0")) {
       throw new ContractParseError(path, "has an invalid JSON key");
     }
-    result[key] = parseJson(item, `${path}.${key}`, maxDepth, maxNodes, depth + 1, budget);
+    setJsonField(result, key, parseJson(item, `${path}.${key}`, maxDepth, maxNodes, depth + 1, budget));
   }
   return result;
 }
@@ -348,7 +353,7 @@ function parseResolved(
           if (optional.has(key)) continue;
           throw new ContractParseError(path, `is missing required key ${key}`);
         }
-        result[key] = parseResolved(property, value[key], `${path}.${key}`, definitions, depth + 1);
+        setJsonField(result, key, parseResolved(property, value[key], `${path}.${key}`, definitions, depth + 1));
       }
       return Object.freeze(result);
     }
@@ -367,7 +372,7 @@ function parseResolved(
         ) {
           throw new ContractParseError(path, "has a key that does not match its required pattern");
         }
-        result[key] = parseResolved(shape.values, value[key], `${path}.${key}`, definitions, depth + 1);
+        setJsonField(result, key, parseResolved(shape.values, value[key], `${path}.${key}`, definitions, depth + 1));
       }
       return Object.freeze(result);
     }

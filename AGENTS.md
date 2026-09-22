@@ -78,6 +78,7 @@
 - `costs.json` at the repository root is the checked registry of every product data surface: store, kind (`authoritative` | `derived` | `telemetry` | `served`), retention class (`ephemeral` | `ttl:<ISO-8601>` | `account` | `tombstone` | `persistent`), owner module, and budget. A new table, bucket, stream, dynamic route, blob, or provider meter fails `check:cost-surfaces` until it registers.
 - Bound every input before storage or provider I/O: request bytes, row counts, page sizes, batch sizes, retry counts, and event payloads. Unbounded input is a contract violation.
 - No writes on read paths. Reads may cache; they never mutate.
+- `repair-signals` is a bounded derived diagnostic cache, not execution authority or an audit log. Keep failed-invocation signals free of account identifiers, inputs, private content, and raw errors. Catalog/check/cache-only/identity-only inspection must not record demand. Repair handoffs never authorize capture, retry, activation, or publication; changed contracts remain unverified candidates.
 - Derived state is rebuildable and lives in the cheapest tier that can serve it. Only authoritative state pays for transactional storage.
 - Every mutation carries an idempotency key; a retried write never double-charges storage, quota, or provider spend.
 - Analytics and metering events come from a checked allowlist with a byte ceiling per event.
