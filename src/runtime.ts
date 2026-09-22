@@ -94,7 +94,7 @@ import {
   getWebSessionContract,
   webSessionContractHash,
 } from "./web-session-contracts";
-import { parseReadFailureProjection, readFailureProjection, WebSessionCleanupUnverifiedError, type ReadFailureProjection, type WebSessionExecutionOptions, type WebSessionOperationExecutor, type PublicWebSessionOperationExecutor } from "./web-session-execution";
+import { parseReadFailureProjection, readFailureProjection, WebSessionCleanupUnverifiedError, AuthRepairRequiredError, type ReadFailureProjection, type WebSessionExecutionOptions, type WebSessionOperationExecutor, type PublicWebSessionOperationExecutor } from "./web-session-execution";
 import { WebSessionCleanupAdmissionBlockedError, type WebSessionCleanupAdmissionIdentity } from "./web-session-cleanup-admission";
 import {
   isPublicWebSessionInvocationAuthority,
@@ -4422,10 +4422,12 @@ async function runPreparedReadCore(invocation: PreparedInvocation, planDigest: s
           : boundedThrownExecutorReason(error),
       ...(cleanupRequired
         ? { readFailure: readFailureProjection("cleanup-required") }
-        : error instanceof OperationDeadlineError
-          && error.failure === "timed-out"
-          ? { readFailure: readFailureProjection("operation-timeout") }
-          : {}),
+        : error instanceof AuthRepairRequiredError
+          ? { readFailure: readFailureProjection("auth-repair-required") }
+          : error instanceof OperationDeadlineError
+            && error.failure === "timed-out"
+            ? { readFailure: readFailureProjection("operation-timeout") }
+            : {}),
       ...(preservedArtifactsError === null
         ? {}
         : {

@@ -21,6 +21,7 @@ import { describe, expect, test } from "bun:test";
 import type { GhostgetAuth } from "../auth";
 import { loadAuth, saveAuth } from "../auth";
 import { canonicalJson } from "../canonical-json";
+import { AuthRepairRequiredError } from "../web-session-execution";
 import type { LocalCliRecipe, OperationInput } from "../model";
 import { OperationDeadline } from "../operation-deadline";
 import type { ProviderPluginReconciliationContextV1 } from "../provider-plugin";
@@ -1177,7 +1178,8 @@ describe("Beeper local read runtime", () => {
     const calls: BeeperCliInvocation[] = [];
     try {
       // A record whose stored boundVersion cannot reproduce its subject —
-      // the drift is not provably version-only, so nothing rebinds.
+      // the drift is not provably version-only, so nothing rebinds and the
+      // caller gets the typed auth-repair signal instead of opaque drift.
       saveAuth({ ...auth(path), boundVersion: "0.0.0-never" }, environment);
       const drifted = targetStatus({ version: "4.3.0-drift" });
       await expect(executeBeeperLocalOperation(
@@ -1185,20 +1187,20 @@ describe("Beeper local read runtime", () => {
         {},
         auth(path),
         { dependencies: { binaryPath: "/fixture/beeper-0.6.2", run: runner(calls, { targetStatusData: drifted }) }, environment },
-      )).rejects.toThrow("failed at a protected local boundary");
+      )).rejects.toThrow(AuthRepairRequiredError);
       expect(loadAuth("beeper-fixture", environment)).toMatchObject({
         subject: SUBJECT,
         boundVersion: "0.0.0-never",
       });
 
-      // And a bound record with no boundVersion keeps the old strict behavior.
+      // And a bound record with no boundVersion reports auth repair too.
       saveAuth(auth(path), environment, { force: true });
       await expect(executeBeeperLocalOperation(
         recipe("accounts.list"),
         {},
         auth(path),
         { dependencies: { binaryPath: "/fixture/beeper-0.6.2", run: runner(calls, { targetStatusData: drifted }) }, environment },
-      )).rejects.toThrow("failed at a protected local boundary");
+      )).rejects.toThrow(AuthRepairRequiredError);
     } finally {
       rmSync(path, { recursive: true, force: true });
       rmSync(state, { recursive: true, force: true });
