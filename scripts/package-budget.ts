@@ -1,3 +1,19 @@
+// Usage-driven contract repair over Ghostget 0.18.25 adds the bounded
+// repair-signal inbox (src/contract-repair-inbox.ts) and the repair-handoff
+// assessment (src/contracts-repair.ts) alongside the runtime, CLI, schema and
+// vocabulary edits and the regenerated dist bundles: two additional packed
+// source files. A clean npm 11.19.0 pack --ignore-scripts on darwin arm64
+// measured 11,959,007 compressed bytes, 23,268,400 payload bytes and exactly
+// 591 files/entries. Archive SHA-256
+// c347ae9a739bd49660b7daea38fc799a08389616bad7b99801b00eb6e9ace7d1. The
+// largest observed darwin-to-Linux packed delta for this inventory shape was
+// +12,387 bytes; carry that projection plus the 4,096-byte portability
+// allowance: 11,959,007 + 12,387 + 4,096 = 11,975,490. Carry the
+// conservative +353-byte payload projection plus the reviewed 65-byte
+// allowance: 23,268,400 + 353 + 65 = 23,268,818. Current source CI and
+// canonical Release must independently measure and admit their exact
+// archives.
+//
 // Renewable X vault imports over Ghostget 0.18.24 add the public-client
 // refresh module (src/oauth-x.ts), expiry and renewal metadata on the
 // account surfaces, and the desktop-wide 1Password platform gate on top of
@@ -1312,9 +1328,37 @@
 // 22,786,274 + 65 = 22,786,339. Retain the proven compressed ceiling; this
 // local pack measured 11,572,706 compressed bytes, under it. Required Linux
 // CI and Release independently measure and admit their exact npm archives.
-export const MAX_PACKED_BYTES = 11_961_581;
-export const MAX_PACKED_ENTRIES = 589;
-export const MAX_PACKED_FILES = 589;
+//
+// Usage-driven contract repair adds two packed source files
+// (src/contract-repair-inbox.ts and src/contracts-repair.ts) alongside the
+// runtime, CLI, schema and vocabulary edits and the regenerated dist
+// bundles. `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
+// measured 11,959,007 packed bytes, 23,268,400 unpacked bytes across
+// exactly 591 files; archive SHA-256
+// c347ae9a739bd49660b7daea38fc799a08389616bad7b99801b00eb6e9ace7d1. Carry the
+// largest observed darwin-to-Linux packed projection for this inventory
+// (+12,387 bytes) plus the reviewed 4,096-byte portability allowance:
+// 11,959,007 + 12,387 + 4,096 = 11,975,490. The payload ceiling carries the
+// observed 353-byte projection plus the reviewed 65-byte allowance:
+// 23,268,400 + 353 + 65 = 23,268,818.
+export const repairPackageMeasurement = Object.freeze({
+  scope: "Usage-driven repair handoffs over Ghostget 0.18.25; two additional source files and regenerated bundles",
+  command: "npm pack --ignore-scripts",
+  npmVersion: "11.19.0",
+  platform: "darwin-arm64",
+  archiveSha256: "c347ae9a739bd49660b7daea38fc799a08389616bad7b99801b00eb6e9ace7d1",
+  packedBytes: 11_959_007,
+  unpackedBytes: 23_268_400,
+  entryCount: 591,
+  packedPlatformProjection: 12_387,
+  packedPortabilityAllowance: 4_096,
+  payloadPlatformProjection: 353,
+  payloadAllowance: 65,
+});
+export const MAX_PACKED_BYTES = repairPackageMeasurement.packedBytes
+  + repairPackageMeasurement.packedPlatformProjection + repairPackageMeasurement.packedPortabilityAllowance;
+export const MAX_PACKED_ENTRIES = repairPackageMeasurement.entryCount;
+export const MAX_PACKED_FILES = repairPackageMeasurement.entryCount;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
 //
@@ -1375,10 +1419,14 @@ export const MAX_PACKED_FILES = 589;
 // 7aaeba9a98900ed8083f4ec0a7d36d137cbc7585c1a5a676c8b092d7f3e486cb. Retain the
 // reviewed 65-byte allowance: 23,229,987 + 65 = 23,230,052.
 // The website /docs/ move lengthens the shipped README's canonical guide URLs
-// by 124 payload bytes: the Linux package job measured 23,230,111 unpacked
-// bytes across the unchanged 589-file inventory. Retain the reviewed 65-byte
-// allowance: 23,230,111 + 65 = 23,230,176.
-export const MAX_UNPACKED_BYTES = 23_230_176;
+// by exactly 124 payload bytes over the repairPackageMeasurement inventory,
+// with unchanged file count and structure. The payload ceiling carries the
+// same platform projection and reviewed 65-byte allowance:
+// (23,268,400 + 124) + 353 + 65 = 23,268,942.
+const README_DOCS_MOVE_PAYLOAD_BYTES = 124;
+export const MAX_UNPACKED_BYTES = repairPackageMeasurement.unpackedBytes
+  + README_DOCS_MOVE_PAYLOAD_BYTES
+  + repairPackageMeasurement.payloadPlatformProjection + repairPackageMeasurement.payloadAllowance;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

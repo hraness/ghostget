@@ -130,6 +130,28 @@ describe("contract shape parsing", () => {
     expect(() => parseShape({ kind: "string", maxLength: 8 }, `a${String.fromCharCode(0xd800)}`, "doc")).toThrow("well-formed Unicode");
   });
 
+  test("keeps a literal __proto__ key as an own data property in JSON and record values", () => {
+    const protoKeyed = JSON.parse('{"__proto__":0,"b":2}') as Record<string, unknown>;
+    const jsonParsed = parseShape<Record<string, unknown>>(
+      { kind: "json", maxDepth: 4, maxNodes: 16 }, protoKeyed, "doc");
+    expect(jsonParsed).toEqual(protoKeyed);
+    expect(Object.hasOwn(jsonParsed, "__proto__")).toBeTrue();
+    expect(Object.getPrototypeOf(jsonParsed)).toBe(Object.prototype);
+
+    const objectValued = JSON.parse('{"__proto__":{"nested":1}}') as Record<string, unknown>;
+    const jsonObjectParsed = parseShape<Record<string, unknown>>(
+      { kind: "json", maxDepth: 4, maxNodes: 16 }, objectValued, "doc");
+    expect(Object.hasOwn(jsonObjectParsed, "__proto__")).toBeTrue();
+    expect(Object.getPrototypeOf(jsonObjectParsed)).toBe(Object.prototype);
+
+    const recordParsed = parseShape<Record<string, unknown>>(
+      { kind: "record", values: { kind: "integer", minimum: 0, maximum: 8 }, maxProperties: 4 },
+      protoKeyed, "doc");
+    expect(recordParsed).toEqual(protoKeyed);
+    expect(Object.hasOwn(recordParsed, "__proto__")).toBeTrue();
+    expect(Object.getPrototypeOf(recordParsed)).toBe(Object.prototype);
+  });
+
   test("literal shapes compare arrays and objects deeply and reject reordered keys only by value", () => {
     const literal: Shape = { kind: "literal", value: { a: [1, 2], b: "x" } };
     expect(parseShape<unknown>(literal, { b: "x", a: [1, 2] }, "doc")).toEqual({ a: [1, 2], b: "x" });

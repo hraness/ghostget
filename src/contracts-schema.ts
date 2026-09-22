@@ -1,11 +1,12 @@
 /**
- * JSON Schema draft 2020-12 for the four contract documents, generated from
+ * JSON Schema draft 2020-12 for the five contract documents, generated from
  * the same shape tables the parsers use.
  */
 import { catalogDefinitions, catalogShape } from "./contracts-catalog";
 import { checkShape } from "./contracts-check";
 import { invokeReadDefinitions, invokeReadShape } from "./contracts-invoke-read";
 import { planShape } from "./contracts-plan";
+import { contractRepairShape } from "./contracts-repair";
 import { shapeJsonSchema, type JsonSchema } from "./contracts-shape";
 import {
   CONTRACT_CATALOG_V1,
@@ -34,6 +35,10 @@ const schemas: Readonly<Record<ContractSchemaName, () => JsonSchema>> = Object.f
     title: "ghostget.invoke-read.v1",
     description: "R1 result envelope printed by `ghostget invoke <adapter> <operation> --json`.",
     definitions: invokeReadDefinitions,
+  }),
+  repair: () => shapeJsonSchema(contractRepairShape, {
+    title: "ghostget.contract-repair.v1",
+    description: "An advisory, revision-bound repair handoff. It grants no capture, retry, activation, or publication authority.",
   }),
 });
 

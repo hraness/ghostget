@@ -1600,10 +1600,20 @@ describe("ghostget CLI grammar", () => {
     ]) expect(parseGhostgetArguments(raw).ok).toBeFalse();
   });
 
+  test("bounds repair selection and requires explicit plan recording", () => {
+    expect(parseGhostgetArguments(["contracts", "repair", "--json"])).toEqual({ ok: true, value: { command: "contracts-repair", record: false, json: true } });
+    expect(parseGhostgetArguments(["contracts", "repair", "--plan", "-", "--record"])).toEqual({ ok: true, value: { command: "contracts-repair", planSource: "-", record: true, json: false } });
+    expect(parseGhostgetArguments(["contracts", "repair", "--id", "a".repeat(64)]).ok).toBeTrue();
+    for (const args of [
+      ["--record"], ["--id", "private-account"], ["--plan", "-", "--id", "a".repeat(64)],
+      ["--plan", "-", "--plan", "other"], ["--execute"], ["--plan", "a\nb"],
+    ]) expect(parseGhostgetArguments(["contracts", "repair", ...args]).ok).toBeFalse();
+  });
+
   test.each([
-    { arguments: ["contracts", "verify"], message: "contracts requires catalog, check, or schema" },
+    { arguments: ["contracts", "verify"], message: "contracts requires catalog, check, repair, or schema" },
     { arguments: ["contracts", "check", "--auth-state"], message: "contracts check requires --plan <file|->" },
-    { arguments: ["contracts", "schema", "receipt"], message: "contracts schema requires one of catalog, check, plan, invoke-read" },
+    { arguments: ["contracts", "schema", "receipt"], message: "contracts schema requires one of catalog, check, plan, invoke-read, repair" },
     { arguments: ["help", "capabilities"], message: "help accepts no arguments" },
     { arguments: ["--help", "--json"], message: "help accepts no arguments" },
     { arguments: ["-h", "doctor"], message: "help accepts no arguments" },

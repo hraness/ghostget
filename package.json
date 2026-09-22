@@ -285,6 +285,8 @@
     "src/contracts-cli.ts",
     "src/contracts-invoke-read.ts",
     "src/contracts-plan.ts",
+    "src/contracts-repair.ts",
+    "src/contract-repair-inbox.ts",
     "src/contracts-schema.ts",
     "src/contracts-shape.ts",
     "src/contracts-vocabulary.ts",

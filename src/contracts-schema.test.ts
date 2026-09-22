@@ -36,11 +36,12 @@ describe("contractSchema", () => {
       check: "ghostget.contract-check.v1",
       plan: "ghostget.collection-plan.v1",
       "invoke-read": "ghostget.invoke-read.v1",
+      repair: "ghostget.contract-repair.v1",
     });
   });
 
-  test("names exactly the four documents", () => {
-    expect([...contractSchemaNames]).toEqual(["catalog", "check", "plan", "invoke-read"]);
+  test("names exactly the five documents", () => {
+    expect([...contractSchemaNames]).toEqual(["catalog", "check", "plan", "invoke-read", "repair"]);
     expect(isContractSchemaName("plan")).toBeTrue();
     expect(isContractSchemaName("receipt")).toBeFalse();
     expect(() => contractSchema("receipt" as never)).toThrow("unknown contract schema");

@@ -22,6 +22,15 @@ import {
 } from "./contracts-catalog";
 import { checkCollectionPlan, type ContractCheckV1 } from "./contracts-check";
 import { parseCollectionPlan } from "./contracts-plan";
+import { cacheContractRepairSignals, readContractRepairInbox } from "./contract-repair-inbox";
+import {
+  contractRepairBinding,
+  contractRepairSignalsForPlan,
+  createContractRepairHandoff,
+  createContractRepairSignal,
+  type ContractRepairReason,
+  type ContractRepairSignal,
+} from "./contracts-repair";
 import { contractSchema } from "./contracts-schema";
 import {
   CONTRACT_CATALOG_V1,
@@ -70,6 +79,13 @@ export type GhostgetContractsCommand =
   | {
       readonly command: "contracts-schema";
       readonly name: ContractSchemaName;
+      readonly json: boolean;
+    }
+  | {
+      readonly command: "contracts-repair";
+      readonly id?: string;
+      readonly planSource?: string;
+      readonly record: boolean;
       readonly json: boolean;
     };
 
@@ -324,4 +340,55 @@ export function runContractsSchema(
 ): number {
   output.stdout(exactContractJson(contractSchema(command.name)));
   return 0;
+}
+
+export function projectContractRepairSignal(
+  manifest: GhostgetManifest,
+  operationId: string,
+  reason: ContractRepairReason,
+  registry: ProviderPluginRegistry,
+): ContractRepairSignal {
+  const operation = manifest.operations[operationId];
+  if (operation === undefined) throw new Error("repair operation is unavailable");
+  return createContractRepairSignal(reason, contractRepairBinding({
+    id: manifest.id, version: manifest.version, manifestHash: manifestHash(manifest),
+  }, projectOperation(manifest.id, operationId, operation, registry)));
+}
+
+export async function runContractsRepair(
+  command: Extract<GhostgetContractsCommand, { readonly command: "contracts-repair" }>,
+  environment: Readonly<Record<string, string | undefined>>,
+  output: GhostgetContractsOutput,
+  registry: ProviderPluginRegistry,
+  dependencies: ContractsCheckDependencies,
+): Promise<number> {
+  const plan = command.planSource === undefined ? null
+    : parseCollectionPlan(await readPlanSource(command.planSource, dependencies.readStdin));
+  const now = dependencies.now ?? new Date();
+  const catalog = projectContractCatalog(listRuntimeManifests(environment, registry), registry, { now });
+  const planned = plan === null ? null : contractRepairSignalsForPlan(plan, catalog);
+  const recording = command.record && planned !== null ? cacheContractRepairSignals(planned, environment, now) : null;
+  const inbox = planned === null ? readContractRepairInbox(environment, now) : null;
+  const entries = planned === null ? inbox!.entries : planned.map(signal => ({ signal, recordedAt: null }));
+  const selected = command.id === undefined ? entries : entries.filter(entry => entry.signal.id === command.id);
+  const status = command.id !== undefined && selected.length === 0 && inbox?.status === "ready"
+    ? "not-found" : inbox?.status ?? "plan";
+  const ok = status !== "unavailable" && status !== "not-found"
+    && (recording === null || recording.every(value => value === "stored" || value === "duplicate"));
+  const repairs = selected.map(entry => ({ recordedAt: entry.recordedAt, handoff: createContractRepairHandoff(entry.signal, catalog) }));
+  const report = { ok, status, capacityReached: inbox?.capacityReached ?? recording?.includes("full") ?? false, recording, repairs };
+  if (command.json) output.stdout(exactContractJson(report));
+  else {
+    const lines = [`Repair inbox: ${status}; ${String(repairs.length)} leads.`, "Leads are diagnostics, not proof of drift or permission to retry, capture, activate, or publish."];
+    if (report.capacityReached) lines.push("The bounded inbox is full; new leads may not have been retained.");
+    if (planned !== null && !command.record) lines.push("Plan preview only; use --plan <file|-> --record to retain these leads locally.");
+    for (const [index, { handoff }] of repairs.entries()) {
+      lines.push(`  ${handoff.signal.binding.adapterId} ${handoff.signal.binding.operationId}: ${handoff.status}`);
+      if (planned === null || recording?.[index] === "stored" || recording?.[index] === "duplicate") {
+        lines.push(`    ghostget contracts repair --id ${handoff.signal.id} --json`);
+      }
+    }
+    output.stdout(`${lines.join("\n")}\n`);
+  }
+  return ok ? 0 : 3;
 }

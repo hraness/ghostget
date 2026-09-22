@@ -36,6 +36,7 @@ export type {
   CollectionRead,
   CollectionReadAuthority,
 } from "./contracts-plan";
+export type { ContractRepairBinding, ContractRepairHandoff, ContractRepairReason, ContractRepairSignal } from "./contracts-repair";
 export type { JsonSchema } from "./contracts-schema";
 export type {
   ContractGapReason,
@@ -56,6 +57,12 @@ import {
 } from "./contracts-check";
 import { parseInvokeReadResult as parseInvokeReadResultImplementation } from "./contracts-invoke-read";
 import { parseCollectionPlan as parseCollectionPlanImplementation } from "./contracts-plan";
+import {
+  contractRepairSignalsForPlan as contractRepairSignalsForPlanImplementation,
+  createContractRepairHandoff as createContractRepairHandoffImplementation,
+  parseContractRepairHandoff as parseContractRepairHandoffImplementation,
+  parseContractRepairSignal as parseContractRepairSignalImplementation,
+} from "./contracts-repair";
 import { contractSchema as contractSchemaImplementation } from "./contracts-schema";
 import { ContractParseError as ContractParseErrorImplementation } from "./contracts-shape";
 import { readFailureDispositions as readFailureDispositionsImplementation } from "./contracts-vocabulary";
@@ -71,3 +78,7 @@ export const parseContractCatalog = parseContractCatalogImplementation;
 export const parseContractCheck = parseContractCheckImplementation;
 export const parseInvokeReadResult = parseInvokeReadResultImplementation;
 export const readFailureDispositions = readFailureDispositionsImplementation;
+export const contractRepairSignalsForPlan = contractRepairSignalsForPlanImplementation;
+export const createContractRepairHandoff = createContractRepairHandoffImplementation;
+export const parseContractRepairHandoff = parseContractRepairHandoffImplementation;
+export const parseContractRepairSignal = parseContractRepairSignalImplementation;

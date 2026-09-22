@@ -57,8 +57,12 @@ import {
 import {
   runContractsCatalog,
   runContractsCheck,
+  runContractsRepair,
   runContractsSchema,
+  projectContractRepairSignal,
 } from "./contracts-cli";
+import { cacheContractRepairSignal } from "./contract-repair-inbox";
+import { ContractCaptureRequiredError, type ContractRepairSignal } from "./contracts-repair";
 import {
   discardDerivation,
   finishDerivation,
@@ -2000,6 +2004,25 @@ function printPreview(output: Output, value: Record<string, unknown>, json: bool
   output.stdout(json ? exactTerminalJson(value) : exactTerminalJson(value));
 }
 
+function reportContractRepairLead(
+  createSignal: () => ContractRepairSignal,
+  environment: Readonly<Record<string, string | undefined>>,
+  output: Output,
+): void {
+  if (environment.GHOSTGET_REPAIR_SIGNALS === "off") return;
+  try {
+    const signal = createSignal();
+    const status = cacheContractRepairSignal(signal, environment);
+    if (status === "stored" || status === "duplicate") {
+      output.stderr(`ghostget: repair lead only; do not retry automatically. Inspect: ghostget contracts repair --id ${signal.id} --json\n`);
+    } else {
+      output.stderr(`ghostget: repair diagnostics ${status}; the original operation outcome is unchanged.\n`);
+    }
+  } catch {
+    output.stderr("ghostget: repair diagnostics unavailable; the original operation outcome is unchanged.\n");
+  }
+}
+
 async function runCommand(
   arguments_: GhostgetArguments,
   environment: Readonly<Record<string, string | undefined>>,
@@ -2335,6 +2358,9 @@ async function runCommand(
   }
   if (arguments_.command === "contracts-schema") {
     return runContractsSchema(arguments_, output);
+  }
+  if (arguments_.command === "contracts-repair") {
+    return await runContractsRepair(arguments_, environment, output, dependencies.providerPluginRegistry, { readStdin: readStdinBounded });
   }
   if (arguments_.command === "plugin-list") {
     return await runPluginList(
@@ -3376,6 +3402,14 @@ async function runCommand(
       const view = revalidatedInvocationView(result);
       if (arguments_.json) output.stdout(exactTerminalJson(view));
       else print(output, view, false);
+      if (result.live.receipt.status === "failed" && result.live.readFailure?.category === "contract-drift"
+        && result.live.receipt.risk === "R1" && result.live.output === null
+        && result.live.receipt.dispatchStarted === false && result.live.receipt.dispatch.planned === 0
+        && result.live.receipt.dispatch.started === 0 && result.live.receipt.dispatch.verified === 0
+        && result.live.receipt.adapter.id === invocation.manifest.id && result.live.receipt.operation === invocation.operationId
+        && !result.live.replayed && result.live.privateArtifactsPreserved !== true && signal?.aborted !== true) {
+        reportContractRepairLead(() => projectContractRepairSignal(invocation.manifest, invocation.operationId, "contract-drift", dependencies.providerPluginRegistry), environment, output);
+      }
       if (result.live.receipt.status === "succeeded" || result.live.receipt.status === "submitted") onUsefulResult?.();
       return result.live.receipt.status === "succeeded" || result.live.receipt.status === "submitted" ? 0 : result.live.receipt.status === "indeterminate" ? 5 : 3;
     }
@@ -3646,6 +3680,10 @@ export async function main(
     }
     return code;
   } catch (error) {
+    if (error instanceof ContractCaptureRequiredError && parsed.value.command === "invoke"
+      && !parsed.value.cacheOnly && !parsed.value.projectionIdentityOnly && signal?.aborted !== true) {
+      reportContractRepairLead(() => error.signal, environment, output);
+    }
     if (error instanceof LinkedDeviceLifecycleIndeterminateError) {
       const failure = {
         ok: false,
@@ -3696,6 +3734,7 @@ function commandUsesPortableProviderCatalog(
     || command === "capabilities"
     || command === "contracts-catalog"
     || command === "contracts-check"
+    || command === "contracts-repair"
     || command === "adapter-validate"
     || command === "derive-analyze"
     || command === "derive-finish"
