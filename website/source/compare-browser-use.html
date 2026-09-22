@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en" data-hraness-theme="paper">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#f8f7f4" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#12100f" media="(prefers-color-scheme: dark)">
+    <title>Ghostget vs browser-use: named operations instead of a model-driven browser</title>
+    <meta name="description" content="browser-use lets a model drive a browser through a observe-plan-click loop. Ghostget removes the driving surface: agents call named, reviewed operations that return one bounded result.">
+    <meta name="robots" content="max-image-preview:large">
+    <link rel="canonical" href="https://ghostget.com/compare/browser-use/">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
+    <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
+    <link rel="stylesheet" href="{{CSS_ASSET}}">
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+    {{MARKDOWN_ALTERNATE}}
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Ghostget">
+    <meta property="og:title" content="Ghostget vs browser-use: named operations instead of a model-driven browser">
+    <meta property="og:description" content="browser-use lets a model drive a browser through a observe-plan-click loop. Ghostget removes the driving surface: agents call named, reviewed operations that return one bounded result.">
+    <meta property="og:url" content="https://ghostget.com/compare/browser-use/">
+    <meta property="og:image" content="https://ghostget.com/og.png">
+    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Ghostget vs browser-use: named operations instead of a model-driven browser">
+    <meta name="twitter:description" content="browser-use lets a model drive a browser through a observe-plan-click loop. Ghostget removes the driving surface: agents call named, reviewed operations that return one bounded result.">
+    <meta name="twitter:image" content="https://ghostget.com/og.png">
+    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
+    <script type="application/ld+json">{{JSON_LD}}</script>
+    <script type="module" src="{{ANALYTICS_ASSET}}"></script>
+    <script type="module" src="{{FOIL_ASSET}}"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar guide-topbar">
+      <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><img alt="" height="20" src="/icon.png" width="20" /> Ghostget</a>
+      <nav aria-label="Primary">
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+      </nav>
+    </header>
+    <main class="guide-main" id="main">
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li><a href="/compare/">Comparisons</a></li><li aria-current="page">browser-use</li></ol></nav>
+      <article class="guide-article">
+        <header class="guide-hero">
+          <p class="eyebrow">Comparison · Ghostget {{GHOSTGET_VERSION}}</p>
+          <h1>browser-use drives a browser. Ghostget removes the wheel.</h1>
+          <p class="answer-lede"><a href="https://github.com/browser-use/browser-use">browser-use</a> is the open-source Python library that turns an LLM into a web agent: the model observes the page, plans, clicks, and repeats until the goal is done. Ghostget answers a different need. It is a local CLI and TypeScript SDK where the agent names a reviewed outcome and gets one bounded result, with no browser it can steer at all.</p>
+          <p class="review-note">This page describes browser-use's published model and Ghostget's {{GHOSTGET_RELEASE}} contract, checked against each project's public source in September 2026.</p>
+        </header>
+
+        <section aria-labelledby="bu-model">
+          <h2 id="bu-model">Two execution models</h2>
+          <p>browser-use owns the loop. The model sees the current page through DOM serialization and optional screenshots, decides the next action, executes it through CDP, and observes again. Persistent sessions, multi-tab flows, and self-recovery are the point: when a flow breaks, the model finds another path through the live page.</p>
+          <p>Ghostget owns the operation. The agent asks for an outcome such as <code>messaging.list</code> or a URL read. The kernel binds the exact provider, account realm, transport, contract version, and risk level, runs one exchange, and returns a typed result. There is no session the model can improvise inside: no selectors, no coordinates, no next click to invent.</p>
+        </section>
+
+        <section aria-labelledby="bu-cost">
+          <h2 id="bu-cost">The context bill is the loop</h2>
+          <p>A browser-use step re-reads the page, so the token cost of a task grows with its step count and page complexity. Every screenshot and DOM dump joins the context. That is the price of open-ended reach, and for genuinely novel tasks it is often worth paying.</p>
+          <p>Ghostget pays once. A measured September 2026 read of a Wikipedia article returned 15,021 bytes of Markdown where the raw page served 145,617 bytes of HTML, roughly 3,800 tokens against 36,000, from a single HTTP request with no browser process. The number that matters is not one page but the shape of the curve: one bounded result per call, not page state per step.</p>
+        </section>
+
+        <section aria-labelledby="bu-table">
+          <h2 id="bu-table">Side by side</h2>
+          <div class="table-scroll" role="region" aria-labelledby="bu-table" tabindex="0">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Decision</th>
+                  <th scope="col">browser-use</th>
+                  <th scope="col">Ghostget</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">What the caller supplies</th>
+                  <td>A goal in plain language; the library picks the steps</td>
+                  <td>A named operation and its typed input; the contract picks the exchange</td>
+                </tr>
+                <tr>
+                  <th scope="row">What enters model context</th>
+                  <td>Page state on every step, plus action history</td>
+                  <td>Only the result: Markdown, an archive, a typed receipt, or a typed error</td>
+                </tr>
+                <tr>
+                  <th scope="row">Credentials</th>
+                  <td>Live in the driven browser's session, reachable by the model's actions</td>
+                  <td>Opaque to the caller and bound to one account realm, provider target, and transport</td>
+                </tr>
+                <tr>
+                  <th scope="row">When a page changes</th>
+                  <td>The model adapts mid-flow, for better or worse</td>
+                  <td>The operation fails closed until its contract is reviewed; there is no DOM fallback</td>
+                </tr>
+                <tr>
+                  <th scope="row">Reach</th>
+                  <td>Anything a real browser can do, including flows nobody reviewed</td>
+                  <td>Only the reviewed operations in the installed release</td>
+                </tr>
+                <tr>
+                  <th scope="row">Runs where</th>
+                  <td>Local Python, or hosted through Browser Use Cloud</td>
+                  <td>Local CLI or TypeScript SDK on macOS or Linux; nothing is hosted</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section aria-labelledby="bu-choose">
+          <h2 id="bu-choose">When to pick which</h2>
+          <p>Pick browser-use when the task is open-ended, the path is unknown, and recovery matters more than auditability: research crawls, one-off flows, sites with no stable contract. The model's freedom to improvise is the feature.</p>
+          <p>Pick Ghostget when the task recurs and the boundary is the point: reading a connected inbox, publishing through a reviewed operation, archiving one authorized media item, or capturing a page as durable Markdown. You give up reach and gain a call you can reason about, diff in review, and firewall behind an exact operation set.</p>
+          <p>They compose cleanly: keep a driver for the long tail, and put Ghostget in front of the paths that must behave the same way every run.</p>
+        </section>
+
+        <aside class="guide-callout" aria-labelledby="bu-next">
+          <h2 id="bu-next">See the boundary before you install</h2>
+          <p>Browse the <a href="/docs/reference/provider-capabilities/">supported action set</a> for {{GHOSTGET_RELEASE}}, read the <a href="/docs/explanation/security-model/">security model</a>, then <a href="/docs/tutorials/getting-started/">install the CLI</a>. The lane map is at <a href="/compare/">How agents reach the web</a>.</p>
+        </aside>
+      </article>
+    </main>
+    <aside aria-label="Ghostget project information" class="site-disclosure">
+      <p>Ghostget {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
+      <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
+    </aside>
+    {{HRANESS_SITE_FOOTER}}
+  </body>
+</html>

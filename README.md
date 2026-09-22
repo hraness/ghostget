@@ -16,7 +16,7 @@ Start with a public page. You need no Ghostget account, API key, connected
 service, or Markdown vault. Ghostget is free, MIT licensed, and runs on macOS
 and Linux with Bun 1.3.14.
 
-[Get started](#install) · [Choose a task](#choose-your-next-task) · [Supported services](https://ghostget.com/provider-capabilities/) · [Docs](https://ghostget.com/getting-started/) · [Security](SECURITY.md)
+[Get started](#install) · [Choose a task](#choose-your-next-task) · [Supported services](https://ghostget.com/docs/reference/provider-capabilities/) · [Docs](https://ghostget.com/docs/tutorials/getting-started/) · [Security](SECURITY.md)
 
 ## Install
 
@@ -36,7 +36,7 @@ If your shell cannot find `ghostget`, open a new terminal or add Bun’s global
 binary directory to `PATH` with `export PATH="$(bun pm bin -g):$PATH"`.
 
 This README follows the source version. Use this archive after its matching
-immutable GitHub Release is published; the [production getting-started guide](https://ghostget.com/getting-started/)
+immutable GitHub Release is published; the [production getting-started guide](https://ghostget.com/docs/tutorials/getting-started/)
 always names the latest completed release. Upgrading from Wrench? Read the
 [migration guide](docs/ghostget-migration.md) to keep your existing state in place.
 
@@ -60,7 +60,7 @@ above supplies the executable.
 | --- | --- |
 | Read a page without saving | `ghostget read https://example.com` |
 | Save and search pages | [Create a Markdown vault](#save-and-search-pages) |
-| Download one accessible video or audio item | [Capture and archives guide](https://ghostget.com/capture-and-archives/) |
+| Download one accessible video or audio item | [Capture and archives guide](https://ghostget.com/docs/how-to/capture-and-archive/) |
 | Connect Gmail, Beeper, X, or another service | [Connect one service](#connect-one-service) |
 | Review accounts, permissions, and approvals | [Menu-bar and terminal controls](docs/menubar-release.md) |
 | Use Ghostget from TypeScript | [SDK and code mode](#sdk-and-code-mode) |
@@ -111,10 +111,10 @@ select, not proof of a usable session.
 On macOS, the companion can connect X, LinkedIn, and Reddit browser sessions.
 For Gmail, Beeper, WhatsApp, and other services, follow their CLI setup guides;
 Linux account setup also uses the CLI. The
-[provider directory](https://ghostget.com/provider-capabilities/) names supported
+[provider directory](https://ghostget.com/docs/reference/provider-capabilities/) names supported
 actions and access methods. Start with [Gmail](#gmail),
-[Beeper](https://ghostget.com/providers/beeper/), or
-[WhatsApp](https://ghostget.com/providers/whatsapp/) if that is the service you
+[Beeper](https://ghostget.com/docs/how-to/connect-beeper/), or
+[WhatsApp](https://ghostget.com/docs/how-to/export-whatsapp/) if that is the service you
 need. A provider can require its own local tool or OAuth client. Installing
 Ghostget does not grant access to your existing accounts.
 
@@ -151,7 +151,7 @@ Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WhatsApp, X, and YouTube.
 LinkedIn and X each have separate official and authenticated-web adapters. The
-[release-bound provider directory](https://ghostget.com/provider-capabilities/)
+[release-bound provider directory](https://ghostget.com/docs/reference/provider-capabilities/)
 lists only executable actions, grouped by the tasks each service supports and
 the access method each action uses. Inspect `ghostget capabilities --json` for
 the exact installed contract state.
@@ -186,7 +186,7 @@ ID, name, handle, title, or participant match. Preview is draft-only until the
 owner reviews the exact private recipient and bubbles and makes a fresh
 same-turn send request.
 
-Read the focused [Beeper guide](https://ghostget.com/providers/beeper/) for setup,
+Read the focused [Beeper guide](https://ghostget.com/docs/how-to/connect-beeper/) for setup,
 version identities, action boundaries, export workflows, and exclusions.
 
 ## Why Ghostget is different
@@ -565,7 +565,7 @@ and message-history completeness without weakening the linked-device boundary.
 
 ### Native WhatsApp Message Like Me export
 
-The [WhatsApp provider guide](https://ghostget.com/providers/whatsapp/) documents
+The [WhatsApp provider guide](https://ghostget.com/docs/how-to/export-whatsapp/) documents
 the pinned macOS arm64 Wacli runtime, bounded local reads, and private export.
 Export one existing account-bound local projection without pairing, syncing,
 or sending:

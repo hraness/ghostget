@@ -1418,7 +1418,14 @@ export const MAX_PACKED_FILES = repairPackageMeasurement.entryCount;
 // exactly 589 files/entries and 23,229,987 payload bytes; archive SHA-256
 // 7aaeba9a98900ed8083f4ec0a7d36d137cbc7585c1a5a676c8b092d7f3e486cb. Retain the
 // reviewed 65-byte allowance: 23,229,987 + 65 = 23,230,052.
+// The website /docs/ move lengthens the shipped README's canonical guide URLs
+// by exactly 124 payload bytes over the repairPackageMeasurement inventory,
+// with unchanged file count and structure. The payload ceiling carries the
+// same platform projection and reviewed 65-byte allowance:
+// (23,268,400 + 124) + 353 + 65 = 23,268,942.
+const README_DOCS_MOVE_PAYLOAD_BYTES = 124;
 export const MAX_UNPACKED_BYTES = repairPackageMeasurement.unpackedBytes
+  + README_DOCS_MOVE_PAYLOAD_BYTES
   + repairPackageMeasurement.payloadPlatformProjection + repairPackageMeasurement.payloadAllowance;
 
 const TAR_BLOCK_BYTES = 512;

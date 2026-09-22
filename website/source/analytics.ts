@@ -7,26 +7,54 @@ const NOT_FOUND_PATH = "/not-found" as const;
 const POSTHOG_SDK_VERSION = "1.412.1" as const;
 const CANONICAL_ROUTES = new Map<string, Readonly<{ canonicalPath: string; pageKind: string }>>([
   ["/", { canonicalPath: "/", pageKind: "product_landing" }],
-  ["/capture-and-archives", {
-    canonicalPath: "/capture-and-archives/",
-    pageKind: "capture_and_archives",
-  }],
   ["/about", { canonicalPath: "/about/", pageKind: "about" }],
   ["/contact", { canonicalPath: "/contact/", pageKind: "contact" }],
-  ["/getting-started", { canonicalPath: "/getting-started/", pageKind: "getting_started" }],
-  ["/plugins", { canonicalPath: "/plugins/", pageKind: "plugin_authoring" }],
-  ["/privacy", { canonicalPath: "/privacy/", pageKind: "privacy" }],
-  ["/provider-capabilities", {
-    canonicalPath: "/provider-capabilities/",
-    pageKind: "provider_capabilities",
+  ["/docs", { canonicalPath: "/docs/", pageKind: "docs_index" }],
+  ["/docs/tutorials/getting-started", {
+    canonicalPath: "/docs/tutorials/getting-started/",
+    pageKind: "getting_started",
   }],
-  ["/providers/beeper", {
-    canonicalPath: "/providers/beeper/",
+  ["/docs/how-to/capture-and-archive", {
+    canonicalPath: "/docs/how-to/capture-and-archive/",
+    pageKind: "capture_and_archives",
+  }],
+  ["/docs/how-to/connect-beeper", {
+    canonicalPath: "/docs/how-to/connect-beeper/",
     pageKind: "provider_beeper",
   }],
-  ["/providers/whatsapp", {
-    canonicalPath: "/providers/whatsapp/",
+  ["/docs/how-to/export-whatsapp", {
+    canonicalPath: "/docs/how-to/export-whatsapp/",
     pageKind: "provider_whatsapp",
+  }],
+  ["/docs/how-to/author-provider-plugin", {
+    canonicalPath: "/docs/how-to/author-provider-plugin/",
+    pageKind: "plugin_authoring",
+  }],
+  ["/docs/explanation/security-model", {
+    canonicalPath: "/docs/explanation/security-model/",
+    pageKind: "security",
+  }],
+  ["/docs/reference/provider-capabilities", {
+    canonicalPath: "/docs/reference/provider-capabilities/",
+    pageKind: "provider_capabilities",
+  }],
+  ["/privacy", { canonicalPath: "/privacy/", pageKind: "privacy" }],
+  ["/compare", { canonicalPath: "/compare/", pageKind: "compare_index" }],
+  ["/compare/browser-use", {
+    canonicalPath: "/compare/browser-use/",
+    pageKind: "compare_browser_use",
+  }],
+  ["/compare/browserbase", {
+    canonicalPath: "/compare/browserbase/",
+    pageKind: "compare_browserbase",
+  }],
+  ["/compare/playwright-mcp", {
+    canonicalPath: "/compare/playwright-mcp/",
+    pageKind: "compare_playwright_mcp",
+  }],
+  ["/compare/agent-browser", {
+    canonicalPath: "/compare/agent-browser/",
+    pageKind: "compare_agent_browser",
   }],
   ["/compare/personal-agents-browser-use", {
     canonicalPath: "/compare/personal-agents-browser-use/",
@@ -36,7 +64,6 @@ const CANONICAL_ROUTES = new Map<string, Readonly<{ canonicalPath: string; pageK
     canonicalPath: "/agentic-web-spoofing/",
     pageKind: "agentic_web_spoofing",
   }],
-  ["/security", { canonicalPath: "/security/", pageKind: "security" }],
   ["/vms-cannot-contain-agents", {
     canonicalPath: "/vms-cannot-contain-agents/",
     pageKind: "vms_cannot_contain_agents",

@@ -70,7 +70,7 @@ const PUBLIC_RELEASE_MARKER_FIRST_TAG = "v0.16.5";
 const PUBLIC_PROBE_NONCE = /^[A-Za-z0-9_-]{8,128}$/u;
 const PUBLIC_HTML_ROUTES = Object.freeze([
   Object.freeze({ canonical: "https://ghostget.com/", path: "/" }),
-  Object.freeze({ canonical: "https://ghostget.com/providers/beeper/", path: "/providers/beeper/" }),
+  Object.freeze({ canonical: "https://ghostget.com/docs/how-to/connect-beeper/", path: "/docs/how-to/connect-beeper/" }),
 ]);
 const PUBLIC_TEXT_ROUTES = Object.freeze([
   Object.freeze({ prefix: "# Ghostget\n", path: "/llms.txt" }),

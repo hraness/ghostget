@@ -79,57 +79,65 @@ export const PUBLIC_PAGES = [
     title: SITE_TITLE,
   },
   {
-    canonicalPath: "/getting-started/",
+    canonicalPath: "/docs/",
+    description:
+      "Ghostget documentation organized by job: a getting-started tutorial, task how-to guides, security explanation, and the provider capability reference.",
+    outputFile: "docs/index.html",
+    sourceFile: "docs-index.html",
+    title: "Ghostget documentation: tutorials, how-to guides, explanation, and reference",
+  },
+  {
+    canonicalPath: "/docs/tutorials/getting-started/",
     description:
       "Install Ghostget and read a public page with no account or API key. Then choose page saving, an agent skill, or connected services.",
-    outputFile: "getting-started/index.html",
-    sourceFile: "getting-started.html",
+    outputFile: "docs/tutorials/getting-started/index.html",
+    sourceFile: "docs-tutorials-getting-started.html",
     title: "Install Ghostget: CLI and TypeScript SDK getting started guide",
   },
   {
-    canonicalPath: "/capture-and-archives/",
+    canonicalPath: "/docs/how-to/capture-and-archive/",
     description:
       "Capture public URLs as Markdown and preserve one authorized media item with manifests, transcripts, provenance, and SHA-256 verification.",
-    outputFile: "capture-and-archives/index.html",
-    sourceFile: "capture-and-archives.html",
+    outputFile: "docs/how-to/capture-and-archive/index.html",
+    sourceFile: "docs-how-to-capture-and-archive.html",
     title: "Capture URLs and create verified media archives with Ghostget",
   },
   {
-    canonicalPath: "/provider-capabilities/",
+    canonicalPath: "/docs/reference/provider-capabilities/",
     description:
       "See which provider actions Ghostget supports in the current release and how each service connects.",
-    outputFile: "provider-capabilities/index.html",
-    sourceFile: "provider-capabilities.html",
+    outputFile: "docs/reference/provider-capabilities/index.html",
+    sourceFile: "docs-reference-provider-capabilities.html",
     title: "Provider support in Ghostget",
   },
   {
-    canonicalPath: "/providers/beeper/",
+    canonicalPath: "/docs/how-to/connect-beeper/",
     description: BEEPER_PAGE_METADATA.description,
-    outputFile: "providers/beeper/index.html",
-    sourceFile: "provider-beeper.html",
+    outputFile: "docs/how-to/connect-beeper/index.html",
+    sourceFile: "docs-how-to-connect-beeper.html",
     title: BEEPER_PAGE_METADATA.title,
   },
   {
-    canonicalPath: "/providers/whatsapp/",
+    canonicalPath: "/docs/how-to/export-whatsapp/",
     description: WHATSAPP_PAGE_METADATA.description,
-    outputFile: "providers/whatsapp/index.html",
-    sourceFile: "provider-whatsapp.html",
+    outputFile: "docs/how-to/export-whatsapp/index.html",
+    sourceFile: "docs-how-to-export-whatsapp.html",
     title: WHATSAPP_PAGE_METADATA.title,
   },
   {
-    canonicalPath: "/security/",
+    canonicalPath: "/docs/explanation/security-model/",
     description:
       "Understand Ghostget local custody, encrypted snapshots, exact account binding, fail-closed provider contracts, risk levels, and mutation recovery.",
-    outputFile: "security/index.html",
-    sourceFile: "security.html",
+    outputFile: "docs/explanation/security-model/index.html",
+    sourceFile: "docs-explanation-security-model.html",
     title: "Ghostget security: local custody and bounded provider contracts",
   },
   {
-    canonicalPath: "/plugins/",
+    canonicalPath: "/docs/how-to/author-provider-plugin/",
     description:
       "Create, statically check, test, reproducibly pack, trust, and install a content-addressed Ghostget provider plugin without weakening the kernel boundary.",
-    outputFile: "plugins/index.html",
-    sourceFile: "plugins.html",
+    outputFile: "docs/how-to/author-provider-plugin/index.html",
+    sourceFile: "docs-how-to-author-provider-plugin.html",
     title: "Author and verify Ghostget provider plugins",
   },
   {
@@ -155,6 +163,46 @@ export const PUBLIC_PAGES = [
     outputFile: "privacy/index.html",
     sourceFile: "privacy.html",
     title: "Ghostget privacy and data custody: CLI, providers, and website",
+  },
+  {
+    canonicalPath: "/compare/",
+    description:
+      "How agents reach the web: agent libraries, browser tool servers, hosted browser infrastructure, and Ghostget's named-operation boundary, mapped lane by lane.",
+    outputFile: "compare/index.html",
+    sourceFile: "compare-index.html",
+    title: "How agents reach the web: browser-use, Playwright MCP, hosted browsers, and Ghostget",
+  },
+  {
+    canonicalPath: "/compare/browser-use/",
+    description:
+      "browser-use lets a model drive a browser through a observe-plan-click loop. Ghostget removes the driving surface: agents call named, reviewed operations that return one bounded result.",
+    outputFile: "compare/browser-use/index.html",
+    sourceFile: "compare-browser-use.html",
+    title: "Ghostget vs browser-use: named operations instead of a model-driven browser",
+  },
+  {
+    canonicalPath: "/compare/browserbase/",
+    description:
+      "Browserbase hosts cloud browser sessions for Playwright, Puppeteer, and Stagehand code. Ghostget keeps work local and replaces steerable browsers with named, reviewed operations.",
+    outputFile: "compare/browserbase/index.html",
+    sourceFile: "compare-browserbase.html",
+    title: "Ghostget vs Browserbase: local named operations instead of hosted browser sessions",
+  },
+  {
+    canonicalPath: "/compare/playwright-mcp/",
+    description:
+      "Playwright MCP streams a page's accessibility tree into agent context on every step. Ghostget returns one bounded result per named operation and keeps the browser away from the caller.",
+    outputFile: "compare/playwright-mcp/index.html",
+    sourceFile: "compare-playwright-mcp.html",
+    title: "Ghostget vs Playwright MCP: bounded operation results instead of streamed page state",
+  },
+  {
+    canonicalPath: "/compare/agent-browser/",
+    description:
+      "agent-browser is a CLI that lets an agent open, click, type, and snapshot a real browser. Ghostget pins it internally for page capture but never exposes steering to the caller.",
+    outputFile: "compare/agent-browser/index.html",
+    sourceFile: "compare-agent-browser.html",
+    title: "Ghostget vs agent-browser: a browser the agent can never steer",
   },
   {
     canonicalPath: "/compare/personal-agents-browser-use/",
@@ -461,7 +509,7 @@ function sharedJsonLd(identity: PackageIdentity): ReadonlyArray<Readonly<Record<
         "Pinned Beeper CLI operations",
         "Fail-closed provider contract drift",
       ],
-      installUrl: `${SITE_ORIGIN}/getting-started/`,
+      installUrl: `${SITE_ORIGIN}/docs/tutorials/getting-started/`,
       isAccessibleForFree: true,
       license: "https://opensource.org/license/mit",
       name: "Ghostget",
@@ -499,21 +547,22 @@ function jsonLd(identity: PackageIdentity, page: PublicPage): Readonly<Record<st
   const url = `${SITE_ORIGIN}${page.canonicalPath}`;
   const pageId = `${url}#webpage`;
   const isHome = page.canonicalPath === "/";
+  const homeCrumb = { item: `${SITE_ORIGIN}/`, name: "Ghostget" } as const;
   const breadcrumbItems = isHome
     ? undefined
-    : page.canonicalPath === "/providers/beeper/"
+    : page.canonicalPath !== "/docs/" && page.canonicalPath.startsWith("/docs/")
       ? [
-        { item: `${SITE_ORIGIN}/`, name: "Ghostget" },
-        { item: `${SITE_ORIGIN}/provider-capabilities/`, name: "Providers" },
-        { item: url, name: "Beeper" },
+        homeCrumb,
+        { item: `${SITE_ORIGIN}/docs/`, name: "Documentation" },
+        { item: url, name: page.title },
       ]
-      : page.canonicalPath === "/providers/whatsapp/"
+      : page.canonicalPath !== "/compare/" && page.canonicalPath.startsWith("/compare/")
         ? [
-          { item: `${SITE_ORIGIN}/`, name: "Ghostget" },
-          { item: `${SITE_ORIGIN}/provider-capabilities/`, name: "Providers" },
-          { item: url, name: "WhatsApp" },
+          homeCrumb,
+          { item: `${SITE_ORIGIN}/compare/`, name: "Comparisons" },
+          { item: url, name: page.title },
         ]
-        : [{ item: `${SITE_ORIGIN}/`, name: "Ghostget" }, { item: url, name: page.title }];
+        : [homeCrumb, { item: url, name: page.title }];
   const pageGraph: Array<Readonly<Record<string, unknown>>> = [
     {
       "@id": pageId,
@@ -563,8 +612,9 @@ function jsonLd(identity: PackageIdentity, page: PublicPage): Readonly<Record<st
 }
 
 const CONTENT_FOOTER_LINKS = [
-  { href: "/getting-started/", label: "Install" },
-  { href: "/provider-capabilities/", label: "Providers" },
+  { href: "/docs/", label: "Docs" },
+  { href: "/docs/reference/provider-capabilities/", label: "Providers" },
+  { href: "/compare/", label: "Compare" },
   { href: "/about/", label: "About" },
   { href: "/contact/", label: "Contact" },
   { href: "/privacy/", label: "Privacy" },
@@ -572,7 +622,7 @@ const CONTENT_FOOTER_LINKS = [
 ] as const;
 
 // The in-flow product footer is Ghostget's own composition around the shared
-// Hraness network footer: same row contract, Ghostget brand, six links.
+// Hraness network footer: same row contract, Ghostget brand, seven links.
 function renderGhostgetContentFooter(): string {
   const links = CONTENT_FOOTER_LINKS
     .map(({ href, label }) => `<a class="hraness-marketing-footer__link" href="${href}">${label}</a>`)
@@ -653,7 +703,7 @@ function renderTemplate(
   }
   rendered = replaceHtmlRequired(rendered, "{{POSTHOG_HOST}}", escapeHtml(options.postHogHost));
   rendered = replaceHtmlRequired(rendered, "{{POSTHOG_KEY}}", escapeHtml(options.postHogKey));
-  if (page?.canonicalPath === "/" || page?.canonicalPath === "/provider-capabilities/") {
+  if (page?.canonicalPath === "/" || page?.canonicalPath === "/docs/reference/provider-capabilities/") {
     rendered = replaceRequired(
       rendered,
       "{{PROVIDER_OVERVIEW_CARDS}}",
@@ -662,7 +712,7 @@ function renderTemplate(
   } else if (rendered.includes("{{PROVIDER_OVERVIEW_CARDS}}")) {
     throw new Error("Only the homepage and provider capability page may include provider cards.");
   }
-  if (page?.canonicalPath === "/provider-capabilities/") {
+  if (page?.canonicalPath === "/docs/reference/provider-capabilities/") {
     rendered = replaceRequired(
       rendered,
       "{{PROVIDER_ATTESTATION_GROUPS}}",
@@ -671,7 +721,7 @@ function renderTemplate(
   } else if (rendered.includes("{{PROVIDER_ATTESTATION_GROUPS}}")) {
     throw new Error("Only the provider capability page may include provider operation groups.");
   }
-  if (page?.canonicalPath === "/providers/beeper/") {
+  if (page?.canonicalPath === "/docs/how-to/connect-beeper/") {
     rendered = replaceRequired(
       rendered,
       "{{BEEPER_ARTIFACT_TABLE}}",

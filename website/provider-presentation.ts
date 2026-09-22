@@ -160,6 +160,13 @@ export const WHATSAPP_PAGE_METADATA = Object.freeze({
   title: "WhatsApp support in Ghostget: bounded local reads and private export",
 } as const);
 
+/** Providers with a dedicated how-to guide get its canonical path; every other
+ * surface anchors into the capability reference. */
+const PROVIDER_GUIDE_PATHS: Readonly<Record<string, string>> = {
+  beeper: "/docs/how-to/connect-beeper/",
+  whatsapp: "/docs/how-to/export-whatsapp/",
+};
+
 function capabilityLabel(operation: string): string {
   switch (operation.split(".")[0]) {
     case "accounts": return "Accounts";
@@ -347,9 +354,8 @@ export function createProviderDirectory(
         capabilityLabel(row.operation)))].sort(compareStrings)),
       captureRequiredCount,
       contractVersions: Object.freeze(contractVersions),
-      href: definition.surfaceId === "beeper" || definition.surfaceId === "whatsapp"
-        ? `/providers/${definition.surfaceId}/`
-        : `/provider-capabilities/#provider-${definition.surfaceId}`,
+      href: PROVIDER_GUIDE_PATHS[definition.surfaceId]
+        ?? `/docs/reference/provider-capabilities/#provider-${definition.surfaceId}`,
       icon: definition.icon,
       name: definition.name,
       observedCount,

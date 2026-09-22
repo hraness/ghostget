@@ -40,8 +40,9 @@
     <header class="topbar guide-topbar">
       <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><img alt="" height="20" src="/icon.png" width="20" /> Ghostget</a>
       <nav aria-label="Primary">
-        <a href="/getting-started/">Install</a>
-        <a href="/provider-capabilities/">Providers</a>
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
         <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
       </nav>
     </header>
@@ -53,7 +54,7 @@
           <h1>Browser-using personal agents still need named web operations.</h1>
           <p class="answer-lede"><a href="https://hraness.com/reading/personal-agents-notes-instinct-grok-bots-chatgpt-work">Anish Acharya's notes on Instinct, Grok Bots, and ChatGPT Work</a> describe persistent personal agents with cloud(ish) computers, browser access, cached credentials, and recurring loops. <a href="https://ghostget.com/">Ghostget</a> is not that agent. It is a local capability and custody layer that exposes named operations and keeps general browser control behind the contract.</p>
           {{EDITORIAL_FIGURE}}
-          <p class="review-note">This comparison uses only Acharya's published notes and the public {{GHOSTGET_RELEASE}} pages for <a href="https://ghostget.com/">Ghostget home</a>, <a href="https://ghostget.com/provider-capabilities/">provider support</a>, and <a href="https://ghostget.com/security/">security</a>.</p>
+          <p class="review-note">This comparison uses only Acharya's published notes and the public {{GHOSTGET_RELEASE}} pages for <a href="https://ghostget.com/">Ghostget home</a>, <a href="https://ghostget.com/docs/reference/provider-capabilities/">provider support</a>, and <a href="https://ghostget.com/docs/explanation/security-model/">security</a>.</p>
         </header>
 
         <section aria-labelledby="acharya-notes">
@@ -66,14 +67,14 @@
 
         <section aria-labelledby="attested-set">
           <h2 id="attested-set">Ghostget exposes a finite supported set</h2>
-          <p>The current release offers {{PROVIDER_CALLABLE_ACTION_COUNT}} supported provider actions. That count covers generic commands; owner-only messaging permissions are listed separately. The <a href="https://ghostget.com/provider-capabilities/">provider support directory</a> groups those actions by service and access method. This page does not add a provider or invent an extra operation.</p>
+          <p>The current release offers {{PROVIDER_CALLABLE_ACTION_COUNT}} supported provider actions. That count covers generic commands; owner-only messaging permissions are listed separately. The <a href="https://ghostget.com/docs/reference/provider-capabilities/">provider support directory</a> groups those actions by service and access method. This page does not add a provider or invent an extra operation.</p>
           <p>An action that is missing, blocked, or no longer matches its reviewed contract stays unavailable. Telegram is not supported in this release, and Ghostget does not install a Telegram Bot API substitute or claim Telegram contact access.</p>
           <p>The <a href="https://ghostget.com/">Ghostget home</a> states the same boundary in product terms. Ghostget lets an agent capture pages, preserve media, read supported connected services, and invoke reviewed account operations. Each authenticated operation is typed, bounded, and tied to one account and transport. The caller brings the model and interface. Ghostget supplies the local capability and custody layer. It supplies no AI model or planner; its menu-bar companion reviews accounts, approvals, and permissions and browses local output files.</p>
         </section>
 
         <section aria-labelledby="browser-vs-named">
           <h2 id="browser-vs-named">General browser use is a different contract</h2>
-          <p>Acharya's agents keep a live browser, cached credentials, and a recurring loop. Ghostget begins with the exact outcome an agent may request. It exposes a small semantic operation such as <code>messaging.list</code> and keeps the browser, provider plumbing, account session, and credentials inside a local kernel. The <a href="https://ghostget.com/security/">security guide</a> states that credentials stay opaque to the caller, and that Ghostget does not silently move between an official API, browser session, linked-device store, or portable plugin.</p>
+          <p>Acharya's agents keep a live browser, cached credentials, and a recurring loop. Ghostget begins with the exact outcome an agent may request. It exposes a small semantic operation such as <code>messaging.list</code> and keeps the browser, provider plumbing, account session, and credentials inside a local kernel. The <a href="https://ghostget.com/docs/explanation/security-model/">security guide</a> states that credentials stay opaque to the caller, and that Ghostget does not silently move between an official API, browser session, linked-device store, or portable plugin.</p>
           <div class="table-scroll" role="region" aria-labelledby="browser-vs-named" tabindex="0">
             <table>
               <thead>
@@ -117,14 +118,14 @@
 
         <section aria-labelledby="reservations">
           <h2 id="reservations">Unavailable actions fail closed</h2>
-          <p>When an origin, account proof, request, status, field, or response shape changes, the affected operation stops. That is the fail-closed rule documented on the <a href="https://ghostget.com/security/">security page</a>. The action cannot run until authorized evidence establishes a newly reviewed contract.</p>
+          <p>When an origin, account proof, request, status, field, or response shape changes, the affected operation stops. That is the fail-closed rule documented on the <a href="https://ghostget.com/docs/explanation/security-model/">security page</a>. The action cannot run until authorized evidence establishes a newly reviewed contract.</p>
           <p>The same rule keeps neighboring surfaces from inheriting authority. LinkedIn's official contact adapter does not grant authority to its separate consumer-web inbox adapter. An Instagram inbox summary does not authorize an individual thread read. Those examples are published on the security page so a gap stays visible instead of being filled by the next available tab.</p>
           <p>Acharya's password-reset recovery is the opposite move: the agent used the live site to create a new path to the original job. Ghostget refuses that substitution. A missing, blocked, or drifted contract stays unavailable. It does not become general browser control, caller-selected HTTP, or another transport.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="compare-next">
           <h2 id="compare-next">Read the notes, then the current contract</h2>
-          <p>Start with <a href="https://hraness.com/reading/personal-agents-notes-instinct-grok-bots-chatgpt-work">Acharya's Instinct, Grok Bots, and ChatGPT Work notes</a>. Then read the <a href="https://ghostget.com/">Ghostget home</a> for the capability-layer claim, the <a href="https://ghostget.com/provider-capabilities/">provider support directory</a> for every current action, and the <a href="https://ghostget.com/security/">security guide</a> before binding an account. Separate arguments cover <a href="https://ghostget.com/agentic-web-spoofing/">inbound index spoofing and why a claimed bot identity still does not establish an outbound operation</a>, and <a href="https://ghostget.com/vms-cannot-contain-agents/">why a VM does not establish a safe web operation</a>.</p>
+          <p>Start with <a href="https://hraness.com/reading/personal-agents-notes-instinct-grok-bots-chatgpt-work">Acharya's Instinct, Grok Bots, and ChatGPT Work notes</a>. Then read the <a href="https://ghostget.com/">Ghostget home</a> for the capability-layer claim, the <a href="https://ghostget.com/docs/reference/provider-capabilities/">provider support directory</a> for every current action, and the <a href="https://ghostget.com/docs/explanation/security-model/">security guide</a> before binding an account. Separate arguments cover <a href="https://ghostget.com/agentic-web-spoofing/">inbound index spoofing and why a claimed bot identity still does not establish an outbound operation</a>, and <a href="https://ghostget.com/vms-cannot-contain-agents/">why a VM does not establish a safe web operation</a>.</p>
         </aside>
       </article>
     </main>

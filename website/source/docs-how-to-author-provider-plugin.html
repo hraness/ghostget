@@ -9,7 +9,7 @@
     <title>Author and verify Ghostget provider plugins</title>
     <meta name="description" content="Create, statically check, test, reproducibly pack, trust, and install a content-addressed Ghostget provider plugin without weakening the kernel boundary.">
     <meta name="robots" content="max-image-preview:large">
-    <link rel="canonical" href="https://ghostget.com/plugins/">
+    <link rel="canonical" href="https://ghostget.com/docs/how-to/author-provider-plugin/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
     <link rel="stylesheet" href="{{CSS_ASSET}}">
@@ -19,7 +19,7 @@
     <meta property="og:site_name" content="Ghostget">
     <meta property="og:title" content="Author and verify Ghostget provider plugins">
     <meta property="og:description" content="Create, statically check, test, reproducibly pack, trust, and install a content-addressed Ghostget provider plugin without weakening the kernel boundary.">
-    <meta property="og:url" content="https://ghostget.com/plugins/">
+    <meta property="og:url" content="https://ghostget.com/docs/how-to/author-provider-plugin/">
     <meta property="og:image" content="https://ghostget.com/og.png">
     <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
     <meta property="og:image:width" content="1200">
@@ -40,16 +40,17 @@
     <header class="topbar guide-topbar">
       <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><img alt="" height="20" src="/icon.png" width="20" /> Ghostget</a>
       <nav aria-label="Primary">
-        <a href="/getting-started/">Install</a>
-        <a href="/provider-capabilities/">Providers</a>
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
         <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
       </nav>
     </header>
     <main class="guide-main" id="main">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li aria-current="page">Provider plugins</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li><a href="/docs/">Docs</a></li><li aria-current="page">Provider plugins</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero">
-          <p class="eyebrow">Plugin authoring · Ghostget {{GHOSTGET_VERSION}}</p>
+          <p class="eyebrow">How-to guide · plugin authoring · Ghostget {{GHOSTGET_VERSION}}</p>
           <h1>Start a provider plugin inert, then prove one operation.</h1>
           <p class="answer-lede">A Ghostget portable plugin begins as a private, network-inert <code>capture-required</code> reservation. It becomes executable only after its exact provider contract and secret-free fixtures are reviewed, the package passes static and runtime verification, and the operator explicitly trusts that content-addressed bundle.</p>
           <p class="review-note">This guide describes {{GHOSTGET_RELEASE}} and was checked against the public plugin protocol and authoring guide for that immutable release.</p>
@@ -106,7 +107,7 @@ ghostget plugin install /absolute/private/example-web.wrenchplugin \
             <li>Declared session-material handles.</li>
           </ul>
           <p>The host does not expose a shell, package manager, ambient environment, raw auth locator, unrestricted filesystem, arbitrary redirect, automatic retry, or caller-chosen network primitive. Native code and undeclared module imports are rejected.</p>
-          <p>This protocol contains ordinary failures but is not a hostile-code sandbox. Plugin code runs with the current account's ambient operating-system authority. Review it before trust and read the <a href="/security/">security guide</a> for the exact boundary.</p>
+          <p>This protocol contains ordinary failures but is not a hostile-code sandbox. Plugin code runs with the current account's ambient operating-system authority. Review it before trust and read the <a href="/docs/explanation/security-model/">security guide</a> for the exact boundary.</p>
         </section>
 
         <section aria-labelledby="types">
@@ -117,7 +118,7 @@ ghostget plugin install /absolute/private/example-web.wrenchplugin \
 
         <aside class="guide-callout" aria-labelledby="plugins-next">
           <h2 id="plugins-next">Inspect before you extend</h2>
-          <p>Install and inspect the existing catalog with the <a href="/getting-started/">getting started guide</a>. If your operation overlaps an existing surface, compare its limitations with the <a href="/provider-capabilities/">current provider attestation</a>.</p>
+          <p>Install and inspect the existing catalog with the <a href="/docs/tutorials/getting-started/">getting started guide</a>. If your operation overlaps an existing surface, compare its limitations with the <a href="/docs/reference/provider-capabilities/">current provider attestation</a>.</p>
         </aside>
       </article>
     </main>

@@ -9,7 +9,7 @@
     <title>Provider support in Ghostget</title>
     <meta name="description" content="See which provider actions Ghostget supports in the current release and how each service connects.">
     <meta name="robots" content="max-image-preview:large">
-    <link rel="canonical" href="https://ghostget.com/provider-capabilities/">
+    <link rel="canonical" href="https://ghostget.com/docs/reference/provider-capabilities/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
     <link rel="stylesheet" href="{{CSS_ASSET}}">
@@ -19,7 +19,7 @@
     <meta property="og:site_name" content="Ghostget">
     <meta property="og:title" content="Provider support in Ghostget">
     <meta property="og:description" content="See which provider actions Ghostget supports in the current release and how each service connects.">
-    <meta property="og:url" content="https://ghostget.com/provider-capabilities/">
+    <meta property="og:url" content="https://ghostget.com/docs/reference/provider-capabilities/">
     <meta property="og:image" content="https://ghostget.com/og.png">
     <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
     <meta property="og:image:width" content="1200">
@@ -40,16 +40,17 @@
     <header class="topbar guide-topbar">
       <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><img alt="" height="20" src="/icon.png" width="20" /> Ghostget</a>
       <nav aria-label="Primary">
-        <a href="/getting-started/">Install</a>
-        <a aria-current="page" href="/provider-capabilities/">Providers</a>
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a aria-current="page" href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
         <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
       </nav>
     </header>
     <main class="guide-main" id="main">
-      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li aria-current="page">Provider support</li></ol></nav>
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li><a href="/docs/">Docs</a></li><li aria-current="page">Provider support</li></ol></nav>
       <article class="guide-article">
         <header class="guide-hero">
-          <p class="eyebrow">Provider support · Ghostget {{GHOSTGET_VERSION}}</p>
+          <p class="eyebrow">Reference · provider support · Ghostget {{GHOSTGET_VERSION}}</p>
           <h1>Choose a service. See what your agent can do.</h1>
           <p class="answer-lede">This directory lists the current release's generic actions and, separately, owner-only messaging permissions. Each service names its access method. A listed contract still needs the required account, permissions, and runtime capabilities; an absent action is unavailable.</p>
           <p class="review-note">Run <code>ghostget capabilities --json</code> to inspect installed contracts, then check readiness for the account and runtime you intend to use.</p>
@@ -79,7 +80,7 @@
 
         <aside class="guide-callout" aria-labelledby="provider-next">
           <h2 id="provider-next">Set up only the service you need</h2>
-          <p>Follow the <a href="/getting-started/">installation guide</a>, inspect <code>ghostget capabilities PROVIDER --json</code>, then read the <a href="/security/">security and local-custody guide</a> before connecting an account. The <a href="/providers/beeper/">Beeper guide</a> documents its local app integration in detail.</p>
+          <p>Follow the <a href="/docs/tutorials/getting-started/">installation guide</a>, inspect <code>ghostget capabilities PROVIDER --json</code>, then read the <a href="/docs/explanation/security-model/">security and local-custody guide</a> before connecting an account. The <a href="/docs/how-to/connect-beeper/">Beeper guide</a> documents its local app integration in detail.</p>
         </aside>
       </article>
     </main>

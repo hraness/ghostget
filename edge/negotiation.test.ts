@@ -97,8 +97,8 @@ describe("document Accept negotiation", () => {
 describe("document negotiation runtime", () => {
   test("maps canonical document paths to sibling markdown assets", () => {
     expect(markdownAssetPath("/")).toBe("/index.md");
-    expect(markdownAssetPath("/getting-started/")).toBe("/getting-started.md");
-    expect(markdownAssetPath("/getting-started")).toBe("/getting-started.md");
+    expect(markdownAssetPath("/docs/tutorials/getting-started/")).toBe("/docs/tutorials/getting-started.md");
+    expect(markdownAssetPath("/docs/tutorials/getting-started")).toBe("/docs/tutorials/getting-started.md");
     expect(markdownAssetPath("/about/")).toBe("/about.md");
     expect(markdownAssetPath("/preview")).toBeNull();
     expect(markdownAssetPath("/preview/")).toBeNull();
@@ -139,7 +139,7 @@ describe("document negotiation runtime", () => {
     const retrieve = async (): Promise<Response> => {
       throw new Error("static HTML and assets must not be fetched by the negotiator");
     };
-    expect(await handleDocumentNegotiation(request("/getting-started/", "text/html"), retrieve))
+    expect(await handleDocumentNegotiation(request("/docs/tutorials/getting-started/", "text/html"), retrieve))
       .toBeNull();
     expect(await handleDocumentNegotiation(request("/llms.txt", "text/markdown"), retrieve))
       .toBeNull();
@@ -193,8 +193,8 @@ describe("document negotiation runtime", () => {
 
   test("serves direct markdown requests with canonical and alternate links", async () => {
     const files = new Map([
-      ["/getting-started.md", "# Install\n"],
-      ["/providers/beeper.md", "# Beeper\n"],
+      ["/docs/tutorials/getting-started.md", "# Install\n"],
+      ["/docs/how-to/connect-beeper.md", "# Beeper\n"],
       ["/404.md", "# Missing\n"],
     ]);
     const retrieve = async (url: URL): Promise<Response> => {
@@ -205,8 +205,8 @@ describe("document negotiation runtime", () => {
     };
 
     for (const [path, canonical] of [
-      ["/getting-started.md", "https://ghostget.com/getting-started/"],
-      ["/providers/beeper.md", "https://ghostget.com/providers/beeper/"],
+      ["/docs/tutorials/getting-started.md", "https://ghostget.com/docs/tutorials/getting-started/"],
+      ["/docs/how-to/connect-beeper.md", "https://ghostget.com/docs/how-to/connect-beeper/"],
     ] as const) {
       const direct = await handleDocumentNegotiation(request(path), retrieve);
       expect(direct?.status).toBe(200);
@@ -230,7 +230,7 @@ describe("document negotiation runtime", () => {
     expect(await missingMirror?.text()).toBe("# Missing\n");
 
     const headMirror = await handleDocumentNegotiation(
-      request("/getting-started.md", undefined, "HEAD"),
+      request("/docs/tutorials/getting-started.md", undefined, "HEAD"),
       retrieve,
     );
     expect(headMirror?.status).toBe(200);

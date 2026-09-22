@@ -10,7 +10,7 @@ describe("HTML main-to-markdown conversion", () => {
           <div aria-hidden="true" class="hero-field"><span>🔧</span></div>
           <h1>Install Ghostget</h1>
           <a class="button" href="#start">Get started</a>
-          <p>Use <code>ghostget doctor</code> and the <a href="/security/">security guide</a>.</p>
+          <p>Use <code>ghostget doctor</code> and the <a href="/docs/explanation/security-model/">security guide</a>.</p>
           <figure>
             <img alt="A bounded path [with proof]" src="/images/editorial/example.webp">
             <figcaption><span>One named operation.</span><small>Generated for Ghostget.</small></figcaption>
@@ -24,14 +24,14 @@ describe("HTML main-to-markdown conversion", () => {
           <details><summary>Is Ghostget an AI agent?</summary><p>No. Your agent owns the model.</p></details>
         </main>
       </body></html>
-    `, "https://ghostget.com/getting-started/");
+    `, "https://ghostget.com/docs/tutorials/getting-started/");
 
     expect(markdown).toBe([
       "# Install Ghostget",
       "",
-      "[Get started](https://ghostget.com/getting-started/#start)",
+      "[Get started](https://ghostget.com/docs/tutorials/getting-started/#start)",
       "",
-      "Use `ghostget doctor` and the [security guide](https://ghostget.com/security/).",
+      "Use `ghostget doctor` and the [security guide](https://ghostget.com/docs/explanation/security-model/).",
       "",
       "![A bounded path \\[with proof\\]](https://ghostget.com/images/editorial/example.webp)",
       "",

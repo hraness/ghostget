@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en" data-hraness-theme="paper">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#f8f7f4" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#12100f" media="(prefers-color-scheme: dark)">
+    <title>How agents reach the web: browser-use, Playwright MCP, hosted browsers, and Ghostget</title>
+    <meta name="description" content="How agents reach the web: agent libraries, browser tool servers, hosted browser infrastructure, and Ghostget's named-operation boundary, mapped lane by lane.">
+    <meta name="robots" content="max-image-preview:large">
+    <link rel="canonical" href="https://ghostget.com/compare/">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
+    <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
+    <link rel="stylesheet" href="{{CSS_ASSET}}">
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+    {{MARKDOWN_ALTERNATE}}
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Ghostget">
+    <meta property="og:title" content="How agents reach the web: browser-use, Playwright MCP, hosted browsers, and Ghostget">
+    <meta property="og:description" content="How agents reach the web: agent libraries, browser tool servers, hosted browser infrastructure, and Ghostget's named-operation boundary, mapped lane by lane.">
+    <meta property="og:url" content="https://ghostget.com/compare/">
+    <meta property="og:image" content="https://ghostget.com/og.png">
+    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="How agents reach the web: browser-use, Playwright MCP, hosted browsers, and Ghostget">
+    <meta name="twitter:description" content="How agents reach the web: agent libraries, browser tool servers, hosted browser infrastructure, and Ghostget's named-operation boundary, mapped lane by lane.">
+    <meta name="twitter:image" content="https://ghostget.com/og.png">
+    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
+    <script type="application/ld+json">{{JSON_LD}}</script>
+    <script type="module" src="{{ANALYTICS_ASSET}}"></script>
+    <script type="module" src="{{FOIL_ASSET}}"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar guide-topbar">
+      <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><img alt="" height="20" src="/icon.png" width="20" /> Ghostget</a>
+      <nav aria-label="Primary">
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+      </nav>
+    </header>
+    <main class="guide-main" id="main">
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li aria-current="page">Comparisons</li></ol></nav>
+      <article class="guide-article">
+        <header class="guide-hero">
+          <p class="eyebrow">Comparison · Ghostget {{GHOSTGET_VERSION}}</p>
+          <h1>How agents reach the web, lane by lane.</h1>
+          <p class="answer-lede">"Browser use for agents" covers four different kinds of product, and most bad picks come from comparing across lanes. Agent libraries drive the browser for you. Tool servers hand your agent browser controls. Hosted browsers rent you the machine. Ghostget is a fourth thing: named, reviewed operations that return one bounded result and never expose a steering surface.</p>
+          <p class="review-note">This map describes the public state of each named project and the Ghostget {{GHOSTGET_RELEASE}} contract as of September 2026. Linked pages cover one tool each in more detail.</p>
+        </header>
+
+        <section aria-labelledby="lane-libraries">
+          <h2 id="lane-libraries">Lane one: agent libraries drive the browser for you</h2>
+          <p><a href="https://github.com/browser-use/browser-use">browser-use</a>, <a href="https://github.com/browserbase/stagehand">Stagehand</a>, and <a href="https://www.skyvern.com/">Skyvern</a> own the whole job. You hand them a goal in plain language, and the model loops: observe the page through a DOM serialization or screenshot, plan the next step, act through CDP or Playwright, and repeat until the goal is done. This is the right shape for open-ended multi-step work, and it is why these tools dominate the space. The cost profile is the loop itself: every step re-reads the page, so context grows with task length, and the model decides each click inside a surface you cannot enumerate in advance.</p>
+          <p><a href="/compare/browser-use/">Ghostget vs browser-use</a> covers the detailed boundary difference.</p>
+        </section>
+
+        <section aria-labelledby="lane-tools">
+          <h2 id="lane-tools">Lane two: tool servers give your agent browser controls</h2>
+          <p><a href="https://github.com/microsoft/playwright-mcp">Playwright MCP</a> and <a href="https://github.com/ChromeDevTools/chrome-devtools-mcp">chrome-devtools-mcp</a> keep the agent you already run in charge and expose browser actions as MCP tools. Your agent calls <code>browser_click</code> or <code>browser_snapshot</code>; the page's accessibility tree streams back into its context after each call. Microsoft's own reported benchmark puts a typical Playwright MCP task near 114,000 tokens against about 27,000 for its disk-first CLI sibling, so this lane pays for flexibility in context size. Your harness's permission prompts are the guardrail; the page decides what the agent sees next.</p>
+          <p><a href="/compare/playwright-mcp/">Ghostget vs Playwright MCP</a> covers the token and authority trade in detail.</p>
+        </section>
+
+        <section aria-labelledby="lane-cli">
+          <h2 id="lane-cli">Lane three: browser CLIs put steering in the shell</h2>
+          <p><a href="https://github.com/vercel-labs/agent-browser">agent-browser</a> and the <a href="https://playwright.dev/">Playwright CLI</a> turn browser control into commands an agent composes: <code>open</code>, <code>click</code>, <code>type</code>, <code>snapshot</code>, <code>eval</code>. The token cost is lower than streamed page state because snapshots land on disk or stdout when asked. The authority question stays open: the agent chooses selectors, coordinates, and JavaScript, so every page it reaches is a place it can act.</p>
+          <p>Ghostget itself pins <code>agent-browser</code> 0.32.3 as an internal dependency for page captures that need rendering. The agent never reaches it: captures pass through a bounded admission gate, and no Ghostget interface accepts a selector, coordinate, or script. <a href="/compare/agent-browser/">Ghostget vs agent-browser</a> explains how the same engine sits inside the boundary instead of outside it.</p>
+        </section>
+
+        <section aria-labelledby="lane-hosted">
+          <h2 id="lane-hosted">Lane four: hosted browsers rent you the machine</h2>
+          <p><a href="https://www.browserbase.com/">Browserbase</a>, <a href="https://steel.dev/">Steel</a>, and <a href="https://www.hyperbrowser.ai/">Hyperbrowser</a> sell managed cloud sessions: parallel Chromium with proxies, stealth, replay, and compliance tiers that lanes one through three run on top of. They answer where the browser runs and at what scale, not what the agent is allowed to do once it is inside one.</p>
+          <p><a href="/compare/browserbase/">Ghostget vs Browserbase</a> covers when hosted sessions are the right tool and when local named operations replace the session entirely.</p>
+        </section>
+
+        <section aria-labelledby="lane-named">
+          <h2 id="lane-named">Ghostget: the agent names the outcome, never the path</h2>
+          <p>Ghostget does not give the agent a browser at any layer. The agent requests a reviewed outcome such as <code>messaging.list</code> or a page read; the kernel binds the exact account, transport, contract version, and risk level; one exchange runs; the result comes back typed and bounded. There is no navigation surface to wander, no selector to guess, and no cookie the caller can exfiltrate. When a service changes shape, the operation fails closed until its contract is reviewed again rather than improvising a new path.</p>
+          <p>This trades reach for certainty: anything not in the <a href="/docs/reference/provider-capabilities/">supported action set</a> is unavailable, by design. Public-page reads need no account; a measured article read returns about a tenth of the raw page's bytes, and the homepage shows the numbers.</p>
+        </section>
+
+        <section aria-labelledby="lane-table">
+          <h2 id="lane-table">The same task in each lane</h2>
+          <div class="table-scroll" role="region" aria-labelledby="lane-table" tabindex="0">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Approach</th>
+                  <th scope="col">What the agent receives</th>
+                  <th scope="col">What the agent can reach</th>
+                  <th scope="col">When it fits</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row"><a href="/compare/browser-use/">browser-use</a></th>
+                  <td>Page state on every step of a model-driven loop</td>
+                  <td>Whatever the browser can reach, decided step by step</td>
+                  <td>Open-ended multi-step work that has no fixed contract</td>
+                </tr>
+                <tr>
+                  <th scope="row"><a href="/compare/playwright-mcp/">Playwright MCP</a></th>
+                  <td>The accessibility tree plus action results, streamed per call</td>
+                  <td>Every action the tool server exposes, on any reachable page</td>
+                  <td>An existing agent that needs occasional live browser control</td>
+                </tr>
+                <tr>
+                  <th scope="row"><a href="/compare/agent-browser/">agent-browser</a></th>
+                  <td>Command output and on-disk snapshots the agent requests</td>
+                  <td>Any page plus arbitrary selectors, keystrokes, and JavaScript</td>
+                  <td>Scripted exploration and agent-composed sessions</td>
+                </tr>
+                <tr>
+                  <th scope="row"><a href="/compare/browserbase/">Browserbase</a></th>
+                  <td>A cloud browser session your code or agent drives</td>
+                  <td>Scale, stealth, and replay for the lanes above</td>
+                  <td>Browser workloads that need managed infrastructure</td>
+                </tr>
+                <tr>
+                  <th scope="row">Ghostget</th>
+                  <td>One typed result per named operation</td>
+                  <td>Only the reviewed operations in the installed release</td>
+                  <td>Repeatable account and page work where the boundary is the point</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section aria-labelledby="lane-choose">
+          <h2 id="lane-choose">Choose the lane before the tool</h2>
+          <p>If the job is genuinely open-ended, a browser-driving agent earns its context cost. If the job recurs, the fixed contract wins: a named operation is cheaper in tokens, safer in blast radius, and reviewable in a way a thousand improvised clicks are not. Most production agent stacks end up with both: a driver for the long tail, and a capability layer for the paths that must be right every time.</p>
+          <p>Ghostget is that layer. It publishes no hosted browser, no MCP server, and no agent loop; it supplies the local operations your agent calls from whatever harness you already use.</p>
+        </section>
+
+        <aside class="guide-callout" aria-labelledby="compare-next">
+          <h2 id="compare-next">Read the detailed comparisons</h2>
+          <p>Per-tool pages: <a href="/compare/browser-use/">browser-use</a>, <a href="/compare/playwright-mcp/">Playwright MCP</a>, <a href="/compare/agent-browser/">agent-browser</a>, and <a href="/compare/browserbase/">Browserbase</a>. A separate piece covers <a href="/compare/personal-agents-browser-use/">persistent personal agents that keep a live browser</a>. Then check the <a href="/docs/reference/provider-capabilities/">supported action set</a> and the <a href="/docs/explanation/security-model/">security model</a>.</p>
+        </aside>
+      </article>
+    </main>
+    <aside aria-label="Ghostget project information" class="site-disclosure">
+      <p>Ghostget {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
+      <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
+    </aside>
+    {{HRANESS_SITE_FOOTER}}
+  </body>
+</html>
