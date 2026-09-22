@@ -1358,7 +1358,12 @@ export const MAX_PACKED_FILES = 589;
 // record, and three internal tests: measured 23,219,374 unpacked bytes on
 // the Linux package job, restoring the same 65-byte allowance.
 // 23,219,374 + 65 = 23,219,439.
-export const MAX_UNPACKED_BYTES = 23_219_439;
+// The auth-repair-required signal adds the typed error class, its wiring
+// through the bound-subject checks and the read envelope projection, and
+// the accompanying tests: measured 23,220,534 unpacked bytes on the Linux
+// package job, restoring the same 65-byte allowance.
+// 23,220,534 + 65 = 23,220,599.
+export const MAX_UNPACKED_BYTES = 23_220_599;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);
