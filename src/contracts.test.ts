@@ -56,10 +56,14 @@ describe("@hraness/ghostget/contracts", () => {
     expect(Object.keys(contracts).sort()).toEqual([
       "ContractParseError",
       "checkCollectionPlan",
+      "contractRepairSignalsForPlan",
       "contractSchema",
+      "createContractRepairHandoff",
       "parseCollectionPlan",
       "parseContractCatalog",
       "parseContractCheck",
+      "parseContractRepairHandoff",
+      "parseContractRepairSignal",
       "parseInvokeReadResult",
       "readFailureDispositions",
     ]);
@@ -109,6 +113,7 @@ describe("@hraness/ghostget/contracts", () => {
       "contracts-check.ts",
       "contracts-invoke-read.ts",
       "contracts-plan.ts",
+      "contracts-repair.ts",
       "contracts-schema.ts",
       "contracts-shape.ts",
       "contracts-vocabulary.ts",

@@ -87,6 +87,7 @@ export type GhostgetArguments =
   | { readonly command: "contracts-catalog"; readonly adapterIds: readonly string[]; readonly json: boolean }
   | { readonly command: "contracts-check"; readonly planSource: string; readonly authState: boolean; readonly json: boolean }
   | { readonly command: "contracts-schema"; readonly name: ContractSchemaName; readonly json: boolean }
+  | { readonly command: "contracts-repair"; readonly id?: string; readonly planSource?: string; readonly record: boolean; readonly json: boolean }
   | { readonly command: "plugin-list"; readonly json: boolean }
   | { readonly command: "plugin-show"; readonly id: string; readonly json: boolean }
   | { readonly command: "platforms"; readonly surfaceId?: PlatformSurfaceId; readonly json: boolean }
@@ -495,6 +496,23 @@ function parseContractsArguments(raw: readonly string[]): ParseGhostgetResult {
       },
     };
   }
+  if (subcommand === "repair") {
+    const parsed = optionValues(raw.slice(1), ["--plan", "--id"], ["--record", "--json"]);
+    if (isFailure(parsed)) return parsed;
+    const planSource = parsed.values["--plan"];
+    const id = parsed.values["--id"];
+    const record = parsed.booleans.has("--record");
+    if (id !== undefined && !/^[a-f0-9]{64}$/u.test(id)) return { ok: false, message: "contracts repair --id requires a signal SHA-256" };
+    if (planSource !== undefined && validPlanSource(planSource) !== null) return { ok: false, message: "contracts repair --plan requires a plan file path or - for stdin" };
+    if ((id !== undefined && planSource !== undefined) || (record && planSource === undefined)) {
+      return { ok: false, message: "contracts repair accepts --id or --plan; --record requires --plan" };
+    }
+    return { ok: true, value: {
+      command: "contracts-repair", record, json: parsed.booleans.has("--json"),
+      ...(id === undefined ? {} : { id }),
+      ...(planSource === undefined ? {} : { planSource }),
+    } };
+  }
   if (subcommand === "schema") {
     const name = raw[1];
     if (name === undefined || !(contractSchemaNames as readonly string[]).includes(name)) {
@@ -508,7 +526,7 @@ function parseContractsArguments(raw: readonly string[]): ParseGhostgetResult {
       ? { ok: true, value: { command: "contracts-schema", name: name as ContractSchemaName, json } }
       : json;
   }
-  return { ok: false, message: "contracts requires catalog, check, or schema" };
+  return { ok: false, message: "contracts requires catalog, check, repair, or schema" };
 }
 
 function simpleJsonOptions(raw: readonly string[], label: string): ParseGhostgetResult | boolean {

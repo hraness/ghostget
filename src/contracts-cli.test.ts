@@ -281,7 +281,7 @@ describe("ghostget contracts check", () => {
 
 describe("ghostget contracts schema and CLI dispatch", () => {
   test("prints each schema exactly as the SDK exposes it", () => {
-    for (const name of ["catalog", "check", "plan", "invoke-read"] as const) {
+    for (const name of ["catalog", "check", "plan", "invoke-read", "repair"] as const) {
       const stdout: string[] = [];
       const exitCode = runContractsSchema(
         { command: "contracts-schema", name, json: true },
@@ -318,7 +318,7 @@ describe("ghostget contracts schema and CLI dispatch", () => {
       expect(JSON.parse(schema.stdout)).toEqual(contractSchema("invoke-read"));
       const usage = await run(["contracts", "nothing"]);
       expect(usage.exitCode).toBe(2);
-      expect(usage.stderr.join("")).toContain("contracts requires catalog, check, or schema");
+      expect(usage.stderr.join("")).toContain("contracts requires catalog, check, repair, or schema");
     } finally {
       state.dispose();
     }

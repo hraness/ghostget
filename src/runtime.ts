@@ -30,6 +30,8 @@ import {
   type ReadProjectionQuery,
 } from "./read-projections";
 import { executeBrowserRecipe, PreservedBrowserArtifactsError } from "./browser";
+import { ContractCaptureRequiredError, createContractRepairSignal } from "./contracts-repair";
+import type { ContractTransport } from "./contracts-vocabulary";
 import {
   canonicalJson,
   canonicalJsonSha256Matches,
@@ -479,6 +481,30 @@ function assertCodeOwnedWriteSubject(
   }
 }
 
+function captureRequiredError(
+  manifest: GhostgetManifest,
+  operationId: string,
+  operation: GhostgetManifest["operations"][string],
+  transport: ContractTransport,
+  contractVersion: number,
+  contractHash: string,
+  message: string,
+): ContractCaptureRequiredError {
+  return new ContractCaptureRequiredError(message, createContractRepairSignal("capture-required", {
+    adapterId: manifest.id,
+    adapterVersion: manifest.version,
+    manifestHash: manifestHash(manifest),
+    operationId,
+    transport,
+    authority: "auth",
+    risk: operation.risk,
+    readOnly: operation.risk === "R1" && operation.sideEffect === "none",
+    state: "capture-required",
+    contractVersion,
+    contractHash,
+  }));
+}
+
 function assertInvocationTransport(
   manifest: GhostgetManifest,
   operationId: string,
@@ -519,9 +545,8 @@ function assertInvocationTransport(
       throw new Error(`official provider contract semantics changed for ${operation.provider.provider}/${operationId}`);
     }
     if (resolution.operation.state !== "observed") {
-      throw new Error(
-        `${operation.provider.provider} ${operation.provider.action} is capture-required: ${resolution.operation.implementation}`,
-      );
+      throw captureRequiredError(manifest, operationId, operation, "provider-api", contract.contractVersion, providerContractHash(contract, registry),
+        `${operation.provider.provider} ${operation.provider.action} is capture-required: ${resolution.operation.implementation}`);
     }
     const conditionalIssues = resolution.operation.validateInput(input);
     if (conditionalIssues.length > 0) throw new Error(conditionalIssues.join("; "));
@@ -567,7 +592,8 @@ function assertInvocationTransport(
       throw new Error(`authenticated web contract semantics changed for ${operation.webSession.site}/${operationId}`);
     }
     if (contract.state !== "observed") {
-      throw new Error(`${operation.webSession.site} ${operation.webSession.action} is capture-required: ${contract.implementation}`);
+      throw captureRequiredError(manifest, operationId, operation, "web-session-api", contract.contractVersion, webSessionContractHash(contract, registry),
+        `${operation.webSession.site} ${operation.webSession.action} is capture-required: ${contract.implementation}`);
     }
     const inputIssues = resolution.operation.validateInput(input);
     if (inputIssues.length > 0) throw new Error(inputIssues.join("; "));
@@ -594,16 +620,16 @@ function assertInvocationTransport(
       );
     }
     if (contract.state !== "observed") {
-      throw new Error(
-        `${operation.localCli.surface} ${operation.localCli.action} is capture-required: ${contract.implementation}`,
-      );
+      throw captureRequiredError(manifest, operationId, operation, "local-cli", contract.contractVersion, localCliContractHash(contract, registry),
+        `${operation.localCli.surface} ${operation.localCli.action} is capture-required: ${contract.implementation}`);
     }
     const inputIssues = resolution.operation.validateInput(input);
     if (inputIssues.length > 0) throw new Error(inputIssues.join("; "));
   } else if (isReviewedTemplateOperation(operation)) {
     const auth = persistedAuthAuthority(authority);
     if (operation.reviewedTemplate.state !== "reviewed") {
-      throw new Error(`${operationId} is capture-required: ${operation.reviewedTemplate.instructions}`);
+      throw captureRequiredError(manifest, operationId, operation, "reviewed-template-api", operation.reviewedTemplate.contractVersion, reviewedTemplateHash(operation.reviewedTemplate),
+        `${operationId} is capture-required: ${operation.reviewedTemplate.instructions}`);
     }
     if (!isCookieCapableWebAuth(auth)) {
       throw new Error("reviewed templates require cookie-source, cookies-file, or cookie-backed browser-profile auth");

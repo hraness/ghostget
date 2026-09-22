@@ -60,7 +60,9 @@ Command reference:
                                                  Emit the machine-checkable contract catalog
   ghostget contracts check --plan <file|-> [--auth-state] [--json]
                                                  Check a collection plan against installed contracts
-  ghostget contracts schema <catalog|check|plan|invoke-read> [--json]
+  ghostget contracts repair [--id <sha256>|--plan <file|-> [--record]] [--json]
+                                                 Inspect bounded repair leads without executing them
+  ghostget contracts schema <catalog|check|plan|invoke-read|repair> [--json]
                                                  Print one contract document's JSON Schema
   ghostget web request <https-url> [--method GET|HEAD]
                                                  Retrieve public text through native web rules and approvals

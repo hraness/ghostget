@@ -1,3 +1,19 @@
+// Usage-driven contract repair over Ghostget 0.18.24 adds the bounded
+// repair-signal inbox (src/contract-repair-inbox.ts) and the repair-handoff
+// assessment (src/contracts-repair.ts) alongside the runtime, CLI, schema and
+// vocabulary edits and the regenerated dist bundles: two additional packed
+// source files. A clean npm 11.19.0 pack --ignore-scripts on darwin arm64
+// measured 11,954,952 compressed bytes, 23,251,469 payload bytes and exactly
+// 591 files/entries. Archive SHA-256
+// bff4d929cac0d41f56d8d67b003c64f582a80d3a9773a69568d3fb2912a7b8ea. The
+// largest observed darwin-to-Linux packed delta for this inventory shape was
+// +12,387 bytes; carry that projection plus the 4,096-byte portability
+// allowance: 11,954,952 + 12,387 + 4,096 = 11,971,435. Carry the
+// conservative +353-byte payload projection plus the reviewed 65-byte
+// allowance: 23,251,469 + 353 + 65 = 23,251,887. Current source CI and
+// canonical Release must independently measure and admit their exact
+// archives.
+//
 // Renewable X vault imports over Ghostget 0.18.24 add the public-client
 // refresh module (src/oauth-x.ts), expiry and renewal metadata on the
 // account surfaces, and the desktop-wide 1Password platform gate on top of
@@ -1312,9 +1328,37 @@
 // 22,786,274 + 65 = 22,786,339. Retain the proven compressed ceiling; this
 // local pack measured 11,572,706 compressed bytes, under it. Required Linux
 // CI and Release independently measure and admit their exact npm archives.
-export const MAX_PACKED_BYTES = 11_961_581;
-export const MAX_PACKED_ENTRIES = 589;
-export const MAX_PACKED_FILES = 589;
+//
+// Usage-driven contract repair adds two packed source files
+// (src/contract-repair-inbox.ts and src/contracts-repair.ts) alongside the
+// runtime, CLI, schema and vocabulary edits and the regenerated dist
+// bundles. `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
+// measured 11,954,952 packed bytes, 23,251,469 unpacked bytes across
+// exactly 591 files; archive SHA-256
+// bff4d929cac0d41f56d8d67b003c64f582a80d3a9773a69568d3fb2912a7b8ea. Carry the
+// largest observed darwin-to-Linux packed projection for this inventory
+// (+12,387 bytes) plus the reviewed 4,096-byte portability allowance:
+// 11,954,952 + 12,387 + 4,096 = 11,971,435. The payload ceiling carries the
+// observed 353-byte projection plus the reviewed 65-byte allowance:
+// 23,251,469 + 353 + 65 = 23,251,887.
+export const repairPackageMeasurement = Object.freeze({
+  scope: "Usage-driven repair handoffs over Ghostget 0.18.24; two additional source files and regenerated bundles",
+  command: "npm pack --ignore-scripts",
+  npmVersion: "11.19.0",
+  platform: "darwin-arm64",
+  archiveSha256: "bff4d929cac0d41f56d8d67b003c64f582a80d3a9773a69568d3fb2912a7b8ea",
+  packedBytes: 11_954_952,
+  unpackedBytes: 23_251_469,
+  entryCount: 591,
+  packedPlatformProjection: 12_387,
+  packedPortabilityAllowance: 4_096,
+  payloadPlatformProjection: 353,
+  payloadAllowance: 65,
+});
+export const MAX_PACKED_BYTES = repairPackageMeasurement.packedBytes
+  + repairPackageMeasurement.packedPlatformProjection + repairPackageMeasurement.packedPortabilityAllowance;
+export const MAX_PACKED_ENTRIES = repairPackageMeasurement.entryCount;
+export const MAX_PACKED_FILES = repairPackageMeasurement.entryCount;
 // The Ghostget 0.18.15 candidate measured 22,656,407 unpacked bytes; the
 // ceiling carries the reviewed 65-byte allowance over that measurement.
 //
@@ -1352,7 +1396,8 @@ export const MAX_PACKED_FILES = 589;
 // 22,769,813 + 65 = 22,769,878.
 // The browser-profile discovery measurement restores it again:
 // 22,786,274 + 65 = 22,786,339.
-export const MAX_UNPACKED_BYTES = 23_213_474;
+export const MAX_UNPACKED_BYTES = repairPackageMeasurement.unpackedBytes
+  + repairPackageMeasurement.payloadPlatformProjection + repairPackageMeasurement.payloadAllowance;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

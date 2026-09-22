@@ -1,5 +1,5 @@
 /**
- * Closed vocabularies shared by the four contract documents.
+ * Closed vocabularies shared by the contract documents.
  *
  * Every value is derived from, or type-bound to, the runtime source it
  * projects, so a change in the runtime union fails typechecking here instead of
@@ -99,6 +99,7 @@ export const contractSchemaNames = Object.freeze([
   "check",
   "plan",
   "invoke-read",
+  "repair",
 ] as const);
 export type ContractSchemaName = (typeof contractSchemaNames)[number];
 

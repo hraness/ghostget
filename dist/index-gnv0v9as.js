@@ -351,6 +351,7 @@ var stateDirectoryNames = [
   "read-projection-control",
   "read-projections",
   "recovery",
+  "repair-signals",
   "run-journals",
   "runs",
   "session-secrets",
