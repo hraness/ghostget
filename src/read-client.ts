@@ -134,11 +134,24 @@ function withInvocationAuthorityAdmission<T>(
       );
 }
 
+/** The auth realm record moved while a live read was in flight, so its
+ * result was discarded rather than delivered under a stale realm binding.
+ * A provider runtime can legitimately rewrite the record mid-read — e.g. a
+ * provably version-only drift rebinds the realm — so callers that prepared
+ * the invocation may re-prepare against the current record and retry once.
+ */
+export class LiveReadDiscardedError extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause });
+    this.name = "LiveReadDiscardedError";
+  }
+}
+
 function liveReadDiscardedError(
   invocation: PreparedInvocation,
   cause?: unknown,
 ): Error {
-  return new Error(
+  return new LiveReadDiscardedError(
     `auth locator ${invocation.auth.id} changed while the live read was running; its result was discarded`,
     cause === undefined ? undefined : { cause },
   );
@@ -448,7 +461,7 @@ async function revalidatePreparedCapabilityCore(
       }
       if (authRealmState(invocation, query, environment) !== "matches") {
         removeReadProjection(query, environment);
-        throw new Error(
+        throw new LiveReadDiscardedError(
           `auth locator ${invocation.auth.id} changed while the live read was being published; its result was discarded`,
         );
       }
@@ -474,7 +487,27 @@ async function revalidatePreparedCapabilityCore(
 export async function revalidatePreparedCapability(invocation: PreparedInvocation, options: PreparedReadOptions, cachedBeforeOverride?: ReadProjectionCacheResult | null): Promise<RevalidatedCapability> {
   const environment = options.environment ?? process.env;
   return withOperationPermission(invocation, { environment, registry: options.registry, ...(options.signal === undefined ? {} : { signal: options.signal }) },
-    () => revalidatePreparedCapabilityCore(invocation, options, cachedBeforeOverride));
+    async () => {
+      try {
+        return await revalidatePreparedCapabilityCore(invocation, options, cachedBeforeOverride);
+      } catch (error) {
+        if (!(error instanceof LiveReadDiscardedError)) throw error;
+        if (isPublicWebSessionInvocationAuthority(invocation.auth)) throw error;
+        // A provider runtime may legitimately rewrite the auth record
+        // mid-read — a provably version-only realm drift rebinds the record
+        // under the live-verified subject. Re-prepare against the current
+        // record and retry the read once; a second discard fails closed.
+        const reprepared = prepareInvocation(
+          invocation.manifest.id,
+          invocation.operationId,
+          invocation.input,
+          invocation.auth.id,
+          environment,
+          selectedRegistry(environment, options.registry),
+        );
+        return await revalidatePreparedCapabilityCore(reprepared, options, cachedBeforeOverride);
+      }
+    });
 }
 
 export async function revalidateCapability(

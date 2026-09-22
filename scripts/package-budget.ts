@@ -1363,7 +1363,11 @@ export const MAX_PACKED_FILES = 589;
 // the accompanying tests: measured 23,220,534 unpacked bytes on the Linux
 // package job, restoring the same 65-byte allowance.
 // 23,220,534 + 65 = 23,220,599.
-export const MAX_UNPACKED_BYTES = 23_220_599;
+// The mid-read realm retry adds the LiveReadDiscardedError type and the
+// bounded re-prepare to read-client plus its regression tests: measured
+// 23,222,059 unpacked bytes, restoring the same 65-byte allowance.
+// 23,222,059 + 65 = 23,222,124.
+export const MAX_UNPACKED_BYTES = 23_222_124;
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_ENTRY_ALLOWANCE_BYTES = TAR_BLOCK_BYTES + (TAR_BLOCK_BYTES - 1);

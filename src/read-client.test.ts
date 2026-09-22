@@ -742,17 +742,22 @@ describe("persistent read client", () => {
         startedAt: UNCHANGED_STARTED_AT,
         finishedAt: UNCHANGED_FINISHED_AT,
       });
+      let executions = 0;
       const raced = await rejectedError(revalidatePreparedCapability(testState.invocation, {
         environment: testState.environment,
         registry: providerPluginRegistry,
         executeRead: () => {
-          saveAuth(replacementAuth(testState, "67890"), testState.environment, {
+          // Churn the record on every attempt — including the one bounded
+          // retry — so both live reads discard and the error propagates.
+          executions += 1;
+          saveAuth(replacementAuth(testState, `6789${executions}`), testState.environment, {
             force: true,
           });
           return Promise.resolve(changedRealmResult);
         },
       }));
 
+      expect(executions).toBe(2);
       expect(raced).toMatchObject({
         message: "auth locator x-messages changed while the live read was running; its result was discarded",
       });
@@ -762,6 +767,48 @@ describe("persistent read client", () => {
       });
       expect(after.status).toBe("miss");
       expect(after.key).toMatch(/^[a-f0-9]{64}$/u);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("re-prepares and retries once when the auth realm record moves mid-read", async () => {
+    const testState = state();
+    try {
+      let executions = 0;
+      const retryOutput = { conversations: [{ id: "conversation-repaired" }] };
+      const live = await revalidatePreparedCapability(testState.invocation, {
+        environment: testState.environment,
+        registry: providerPluginRegistry,
+        executeRead: (invocation) => {
+          executions += 1;
+          if (executions === 1) {
+            // The runtime self-repaired the realm binding mid-read — the
+            // first read's result is correctly discarded, then re-prepared.
+            saveAuth(replacementAuth(testState, "67890"), testState.environment, {
+              force: true,
+            });
+            return Promise.resolve(result(testState.invocation, {
+              conversations: [{ id: "conversation-discarded" }],
+            }, {
+              runId: "00000000-0000-4000-8000-000000000041",
+              startedAt: FIRST_STARTED_AT,
+              finishedAt: FIRST_FINISHED_AT,
+            }));
+          }
+          return Promise.resolve(result(invocation, retryOutput, {
+            runId: "00000000-0000-4000-8000-000000000042",
+            startedAt: UNCHANGED_STARTED_AT,
+            finishedAt: UNCHANGED_FINISHED_AT,
+          }));
+        },
+      });
+
+      expect(executions).toBe(2);
+      expect(live.live.output).toEqual(retryOutput);
+      expect(live.live.receipt.status).toBe("succeeded");
+      // The published projection binds the reprepared realm, not the stale one.
+      expect(live.live.receipt.auth.id).toBe("x-messages");
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }
@@ -787,10 +834,18 @@ describe("persistent read client", () => {
             environment: testState.environment,
             registry: providerPluginRegistry,
             executeRead: async () => {
-              holder.current = await startCrossProcessAdmissionHolder(testState, {
-                kind: "replace-auth",
-                replacements,
-              });
+              if (holder.current === null) {
+                holder.current = await startCrossProcessAdmissionHolder(testState, {
+                  kind: "replace-auth",
+                  replacements,
+                });
+              } else {
+                // The bounded retry re-prepares against the holder's result;
+                // move the record again so the second read also discards.
+                saveAuth(replacementAuth(testState, "99999", "retry-x-token.json"), testState.environment, {
+                  force: true,
+                });
+              }
               return result(testState.invocation, {
                 conversations: [{ id: `discarded-${cycle}` }],
               }, {
@@ -837,11 +892,13 @@ describe("persistent read client", () => {
         })),
       });
 
+      let executions = 0;
       const failed = await rejectedError(revalidatePreparedCapability(testState.invocation, {
         environment: testState.environment,
         registry: providerPluginRegistry,
         executeRead: () => {
-          saveAuth(replacementAuth(testState, "67890"), testState.environment, {
+          executions += 1;
+          saveAuth(replacementAuth(testState, `6789${executions}`), testState.environment, {
             force: true,
           });
           return Promise.resolve(result(testState.invocation, null, {
@@ -853,6 +910,7 @@ describe("persistent read client", () => {
         },
       }));
 
+      expect(executions).toBe(2);
       expect(failed).toMatchObject({
         message: "auth locator x-messages changed while the live read was running; its result was discarded",
       });
