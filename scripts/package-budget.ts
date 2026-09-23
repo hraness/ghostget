@@ -1415,14 +1415,22 @@
 // b6366e9a5eb4060629075ef2650f63c5a8939ffedde396301ebb43f0124a5980. Carry
 // the same projections and allowances: 11,971,298 + 12,387 + 4,096 =
 // 11,987,781 packed; 23,341,797 + 353 + 65 = 23,342,215 unpacked.
+// Ghostget 0.18.32 adds the homepage related-product family section
+// (website-only, excluded from the package), its CHANGELOG section and the
+// release identity over the unchanged 596-file inventory: `npm pack
+// --ignore-scripts` with npm 11.19.0 on darwin arm64 measured 11,983,933
+// packed bytes, 23,342,196 unpacked bytes; archive SHA-256
+// 647187cc462dcd40a127f5a2c2f17513196a4d71bec94e95a967b6f5256e75b1. Carry
+// the same projections and allowances: 11,983,933 + 12,387 + 4,096 =
+// 12,000,416 packed; 23,342,196 + 353 + 65 = 23,342,614 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.31 release identity over the WebMCP Registry provider inventory",
+  scope: "Ghostget 0.18.32 related-product family section and release identity over the 0.18.31 WebMCP inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "b6366e9a5eb4060629075ef2650f63c5a8939ffedde396301ebb43f0124a5980",
-  packedBytes: 11_971_298,
-  unpackedBytes: 23_341_797,
+  archiveSha256: "647187cc462dcd40a127f5a2c2f17513196a4d71bec94e95a967b6f5256e75b1",
+  packedBytes: 11_983_933,
+  unpackedBytes: 23_342_196,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

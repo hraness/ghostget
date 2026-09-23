@@ -7,6 +7,15 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.32
+
+- Link the related product family from the homepage with the shared
+  grouped related-products section: the agent platform (Gobstopper,
+  xcb, Aicharts) first and the personal apps (PeopleBlade, Soulscrape,
+  Textbutler, Wordcell) second. The static build now compiles the
+  marketing grammar's bounded syntax-highlighting import, and the site
+  moves to `@hraness/design-kit` v0.15.0.
+
 ## 0.18.31
 
 - Add the built-in WebMCP Registry provider: the bundled `webmcp` adapter
