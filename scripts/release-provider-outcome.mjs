@@ -203,14 +203,21 @@ const IMMUTABLE_RELEASE_REST_REQUESTS =
 const WEBSITE_AUTHORITY_REST_REQUESTS =
   2 + 4 * (2 * (7 + 1 + 1 + 1)) +
   1 + // one initial exact Release workflow-run read
-  1; // manual recovery's bounded job inventory for an unsuccessful latest attempt
+  2; // manual recovery's latest-attempt and receipt-attempt bounded job inventories
+const CANONICAL_DOWNLOAD_REST_REQUESTS =
+  1 + // exact by-tag Release read
+  2 + // receipt attempt and its bounded job inventory
+  2; // current run and its attempt's inventory when a later attempt completed publication
 const SURROUNDING_RELEASE_REST_REQUESTS =
-  IMMUTABLE_RELEASE_REST_REQUESTS + WEBSITE_AUTHORITY_REST_REQUESTS;
+  IMMUTABLE_RELEASE_REST_REQUESTS +
+  WEBSITE_AUTHORITY_REST_REQUESTS +
+  CANONICAL_DOWNLOAD_REST_REQUESTS;
 const BASELINE_GRAPHQL_REQUESTS = 2 * MAX_GRAPHQL_DEPLOYMENT_PAGES;
 const OUTCOME_GRAPHQL_REQUESTS =
   (MAX_PROVIDER_POLLS + 2) * MAX_GRAPHQL_DEPLOYMENT_PAGES;
 
 export const releaseRestRequestBudget = Object.freeze({
+  canonicalDownload: CANONICAL_DOWNLOAD_REST_REQUESTS,
   githubTokenLimit: GITHUB_TOKEN_REST_REQUEST_LIMIT,
   headroom:
     GITHUB_TOKEN_REST_REQUEST_LIMIT -
@@ -2100,6 +2107,59 @@ export function exactReleaseWorkflowRun({
   return run;
 }
 
+const RELEASE_ATTEMPT_RECEIPT = /^ghostget-release-attempt-v1 run_attempt=([1-9][0-9]{0,8})$/u;
+
+/**
+ * The attempt line the publisher writes after the source receipt. The body is
+ * mutable control-plane data, so this only selects which bounded job inventory
+ * to read; that inventory alone is authority.
+ */
+function releaseReceiptAttemptHint(value) {
+  const body = expectRecord(value, "Release receipt").body;
+  if (typeof body !== "string") return undefined;
+  const lines = body.split("\n", 3);
+  const match = lines[1] === "" ? RELEASE_ATTEMPT_RECEIPT.exec(lines[2] ?? "") : null;
+  return match === null ? undefined : Number(match[1]);
+}
+
+/**
+ * Manual recovery reads the run's latest attempt. When a later npm job failed
+ * after its four canonical jobs published the immutable Release, that exact
+ * attempt's bounded job inventory admits it. When the latest attempt did not
+ * publish (for example, all jobs were re-run after publication and the new
+ * attempt's publish was rejected), the earlier receipt attempt named by the
+ * Release can admit it only through its own inventory proving all four jobs.
+ */
+async function admitRecoveredReleaseRun(api, endpoint, { runAttempt, runId, sha }, releaseValue) {
+  const readJobs = (attempt) => api.get(
+    `${endpoint}/attempts/${String(attempt)}/jobs?per_page=100`,
+    Object.freeze({ timeoutMilliseconds: RELEASE_WORKFLOW_REQUEST_TIMEOUT_MILLISECONDS }),
+  );
+  const label = "Release workflow run jobs";
+  const latest = Object.freeze({ runId, runAttempt, sha });
+  const jobs = exactReleaseJobInventory(await readJobs(runAttempt), label);
+  const unsuccessful = CANONICAL_RELEASE_JOBS.filter((name) => {
+    const job = exactReleaseJob(jobs, name, label);
+    if (!completedReleaseJob(job, latest)) {
+      fail(`${label} ${name} job did not succeed in the latest attempt`);
+    }
+    return job.conclusion !== "success";
+  });
+  if (unsuccessful.length === 0) return;
+  const receiptAttempt = releaseReceiptAttemptHint(releaseValue);
+  if (receiptAttempt === undefined || receiptAttempt >= runAttempt) {
+    fail(`${label} ${unsuccessful[0]} job did not succeed in the latest attempt`);
+  }
+  const receiptLabel = "Release workflow run receipt attempt jobs";
+  exactSuccessfulReleaseJobs(
+    exactReleaseJobInventory(await readJobs(receiptAttempt), receiptLabel),
+    CANONICAL_RELEASE_JOBS,
+    Object.freeze({ runId, runAttempt: receiptAttempt, sha }),
+    receiptLabel,
+    "the receipt attempt",
+  );
+}
+
 export async function resolveReleaseAuthority({
   api,
   defaultBranch,
@@ -2165,18 +2225,12 @@ export async function resolveReleaseAuthority({
     workflowRunId: releaseWorkflowRunId,
   });
   const releaseRun = exactCompletedReleaseWorkflowRun(releaseRunCoordinates);
-  exactReleaseWorkflowRun({
-    ...releaseRunCoordinates,
-    // Manual recovery reads the run's latest attempt. When a later npm job
-    // failed after its four canonical jobs published the immutable Release,
-    // only that exact attempt's bounded job inventory can admit it.
-    canonicalJobs: eventName === "workflow_dispatch" && releaseRun.run.conclusion !== "success"
-      ? await api.get(
-        `${releaseRunEndpoint}/attempts/${String(releaseRun.runAttempt)}/jobs?per_page=100`,
-        Object.freeze({ timeoutMilliseconds: RELEASE_WORKFLOW_REQUEST_TIMEOUT_MILLISECONDS }),
-      )
-      : undefined,
-  });
+  if (releaseRun.run.conclusion !== "success") {
+    if (eventName !== "workflow_dispatch") {
+      fail("Release workflow run does not have the exact successful Release workflow identity");
+    }
+    await admitRecoveredReleaseRun(api, releaseRunEndpoint, releaseRun, firstReleaseValue);
+  }
   const firstPublished = parseSecondTimestamp(
     expectRecord(firstReleaseValue, `Release ${tag}`).published_at,
     `Release ${tag}.published_at`,

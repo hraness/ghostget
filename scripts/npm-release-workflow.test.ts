@@ -3085,7 +3085,8 @@ fi
     expect(helper.match(/\/actions\/runs\//gu) ?? []).toHaveLength(1);
     expect(helper).toContain("/actions/runs/${releaseWorkflowRunId}");
     expect(helper.match(/\/attempts\//gu) ?? []).toHaveLength(1);
-    expect(helper).toContain("`${releaseRunEndpoint}/attempts/${String(releaseRun.runAttempt)}/jobs?per_page=100`");
+    expect(helper).toContain("`${endpoint}/attempts/${String(attempt)}/jobs?per_page=100`");
+    expect(helper).toContain("admitRecoveredReleaseRun(api, releaseRunEndpoint, releaseRun, firstReleaseValue)");
     expect(helper).toContain("RELEASE_WORKFLOW_REQUEST_TIMEOUT_MILLISECONDS = 10_000");
     expect(helper).toContain("advanceWebsiteProductionRefFromEnvironment");
     expect(helper).toContain('key.startsWith("WRENCH_RELEASE_APP_")');
@@ -3132,8 +3133,9 @@ fi
       "/docs/publishing.md @0thernet",
     ]);
     expect(releaseRestRequestBudget).toEqual({
+      canonicalDownload: 5,
       githubTokenLimit: 1_000,
-      headroom: 648,
+      headroom: 642,
       immutableRelease: 36,
       maxPolls: 20,
       observationDeadlineMilliseconds: 1_200_000,
@@ -3142,9 +3144,9 @@ fi
       providerBaseline: 2,
       providerOutcome: 209,
       providerPromotion: 21,
-      surroundingRelease: 120,
-      total: 352,
-      websiteAuthority: 84,
+      surroundingRelease: 126,
+      total: 358,
+      websiteAuthority: 85,
     });
     expect(releaseGraphqlRequestBudget).toEqual({
       githubPointLimit: 1_000,
@@ -5805,6 +5807,62 @@ fi
       });
       await expect(recover(api)).rejects.toThrow(message);
       expect(actionsCalls(api)).toEqual([`GET ${runEndpoint}`, `GET ${jobsEndpoint(3)}`]);
+    }
+
+    // Regression: attempt 1 published the immutable Release and failed npm; the
+    // operator then re-ran all jobs, and attempt 2's rebuilt publish was
+    // rejected as another attempt. The Release's receipt attempt still proves
+    // canonical publication through its own inventory, so it stays promotable.
+    const receipt = releaseSourceReceipt({
+      repository: providerRepository,
+      verifiedSha: providerVerifiedSha,
+      verifiedTag: providerTag,
+      workflowRunId: providerReleaseWorkflowRunId,
+    });
+    const attemptBody = (line: string): string => `${receipt}\n\n${line}`;
+    const rebuiltLatest = providerReleaseWorkflowRun({ conclusion: "failure", run_attempt: 2 });
+    const rebuiltJobs = providerReleaseJobs(2, {
+      "Publish immutable GitHub Release": { conclusion: "failure" },
+      "Publish exact npm package through OIDC": { conclusion: "skipped" },
+      "Admit exact public npm package": { conclusion: "skipped" },
+    });
+    const rerunAll = (body: string, receiptJobs: ProviderJson): ProviderApiFixture => new ProviderApiFixture({
+      latestSnapshots: [providerLatest({ body })],
+      releaseSnapshots: [providerRelease({ body })],
+      workflowRunJobs: new Map([[1, receiptJobs], [2, rebuiltJobs]]),
+      workflowRunSnapshots: [rebuiltLatest],
+    });
+    const admitted = rerunAll(attemptBody("ghostget-release-attempt-v1 run_attempt=1"), providerReleaseJobs(1, npmFailed));
+    expect(await recover(admitted)).toEqual({ releaseWorkflowRunId: providerReleaseWorkflowRunId });
+    expect(actionsCalls(admitted)).toEqual([`GET ${runEndpoint}`, `GET ${jobsEndpoint(2)}`, `GET ${jobsEndpoint(1)}`]);
+    expect(admitted.timedCalls.filter((call) => call.endpoint.includes("/actions/runs/")).map((call) => call.timeoutMilliseconds))
+      .toEqual([10_000, 10_000, 10_000]);
+    for (const [receiptJobs, message] of [
+      [providerReleaseJobs(1, { ...npmFailed, "Publish immutable GitHub Release": { conclusion: "failure" } }),
+        "receipt attempt jobs Publish immutable GitHub Release job did not succeed in the receipt attempt"],
+      [providerReleaseJobs(1, { ...npmFailed, Verify: { run_attempt: 2 } }), "receipt attempt jobs Verify job did not succeed"],
+      [providerReleaseJobs(1, { ...npmFailed, "Attest exact canonical build files": { head_sha: "3".repeat(40) } }),
+        "receipt attempt jobs Attest exact canonical build files job did not succeed"],
+      [{ ...providerReleaseJobs(1, npmFailed) as Record<string, ProviderJson>, total_count: 9 }, "complete bounded job inventory"],
+    ] as const) {
+      const api = rerunAll(attemptBody("ghostget-release-attempt-v1 run_attempt=1"), receiptJobs);
+      await expect(recover(api)).rejects.toThrow(message);
+      expect(actionsCalls(api)).toEqual([`GET ${runEndpoint}`, `GET ${jobsEndpoint(2)}`, `GET ${jobsEndpoint(1)}`]);
+    }
+    // Without an earlier receipt attempt the latest attempt's failure stands,
+    // and no second inventory is read.
+    for (const line of [
+      "ghostget-release-attempt-v1 run_attempt=2",
+      "ghostget-release-attempt-v1 run_attempt=3",
+      "ghostget-release-attempt-v1 run_attempt=01",
+      "ghostget-release-attempt-v1 run_attempt=1 ",
+      "## What's Changed",
+    ] as const) {
+      const api = rerunAll(attemptBody(line), providerReleaseJobs(1, npmFailed));
+      await expect(recover(api)).rejects.toThrow(
+        "Release workflow run jobs Publish immutable GitHub Release job did not succeed in the latest attempt",
+      );
+      expect(actionsCalls(api)).toEqual([`GET ${runEndpoint}`, `GET ${jobsEndpoint(2)}`]);
     }
 
     // Identity, completion, and trigger drift fail before any job inventory read.

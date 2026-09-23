@@ -7,8 +7,11 @@ signed provenance keep that original identity. npm carries the identical
 canonical archive: the same tag Release workflow publishes it through OIDC
 trusted publishing immediately after the immutable GitHub Release, with no
 dispatch, staged approval, or two-factor prompt. An npm failure never unpublishes
-or blocks the GitHub Release or its website promotion; it is rerun from the
-same run. Historical versions and assetless Releases through v0.16.12 remain
+or blocks the GitHub Release, and it is rerun from the same run. Automatic
+website promotion admits only a first attempt that succeeded, so after an npm
+failure or any rerun the website is promoted through the manual recovery
+dispatch, which admits the published Release through its run's job inventory.
+Historical versions and assetless Releases through v0.16.12 remain
 unchanged.
 
 ## Admit the canonical GitHub artifact
@@ -161,7 +164,9 @@ draft or another attempt fails closed and retains evidence;
 never delete/recreate it or silently relabel it. A completed release is accepted
 only with its original signed identity, never with a newly rebuilt artifact.
 Re-running all jobs after publication rebuilds under a new attempt, which that
-body check rejects, and leaves the release unpromotable; publish a new version.
+body check rejects, so that run can no longer complete npm. Manual website
+recovery still admits the Release through its earlier receipt attempt's job
+inventory.
 
 The Release workflow does not hold the production App key, touch production
 refs, or wait for Vercel. The separate production workflow cryptographically
@@ -645,8 +650,8 @@ while a front-run Release or a Release from another run fails closed. Promotion
 derives the Release workflow run ID only from that sampled exact source receipt.
 The automatic path requires it to equal the triggering payload run ID and first
 attempt; manual recovery accepts no run-ID input and requires the receipt's exact
-run to have one positive current attempt. The initial verification job reads that
-Actions run exactly once. It binds workflow ID `323493609`, path
+run to have one positive current attempt. Authority resolution in the initial
+verification job reads that Actions run exactly once. It binds workflow ID `323493609`, path
 `.github/workflows/release.yml`, tag push, head tag and SHA, completed success,
 stable numeric IDs and types for the owner actor and triggering actor, and the
 exact public Ghostget repository and head repository. Manual recovery may admit
@@ -654,7 +659,14 @@ a completed latest attempt without a successful conclusion only through one
 more bounded read of that exact attempt's job inventory, which must show the
 four canonical jobs (authorize, verify, attest, publish) succeeded in that same
 run, attempt, and source SHA; a later npm job failure cannot revoke a published
-immutable Release. The automatic path never reads a job inventory. Mutable
+immutable Release. When that latest attempt did not publish, for example
+because all jobs were re-run after publication, the Release body's attempt line
+selects one earlier receipt attempt of the same run, and one more bounded read
+of that attempt's job inventory must show all four canonical jobs succeeded in
+it. The body is mutable, so it only selects which inventory to read; a missing,
+malformed, equal, or later attempt fails closed without that read. Authority
+resolution reads no job inventory on the automatic path; the canonical download
+below reads the receipt attempt's inventory on both paths. Mutable
 actor logins, the run display name, and the Release display title are
 presentation, not authority.
 The body receipt is mutable GitHub control-plane data, so each accepted Release
@@ -693,7 +705,12 @@ succeeded in it. Another run, an earlier or equal attempt, or a later attempt
 that did not publish fails closed. A rerun that
 completes npm makes the run's latest attempt successful, but automatic
 promotion still requires the first attempt, so that release is promoted through
-the manual recovery dispatch. Only the initial
+the manual recovery dispatch. An automatic promotion run whose upstream first
+attempt failed only npm, or whose upstream is a rerun, therefore fails its
+trigger gate with `Upstream Release must succeed on its first attempt`. That
+red run is the expected hand-off to manual recovery, not a regression; admitting
+such attempts automatically would change the first-attempt guard and needs a
+reviewed policy change. Only the initial
 verification job has `actions: read`; baseline, both promotion paths,
 receipt selection, and provider outcome carry the verified run ID but cannot
 read Actions.
@@ -981,11 +998,14 @@ post-reauthorization publication helper's worst missing-Release path uses 30
 calls, including all five bounded release pages plus the empty sentinel page;
 the full immutable Release path uses 36 after its six terminal source-
 reauthorization calls. The immutable Release and downstream
-promotion workflows together use at most 352 REST calls, leaving 648 calls
+promotion workflows together use at most 358 REST calls, leaving 642 calls
 under the repository `GITHUB_TOKEN` limit of 1,000 REST requests per hour. The
-website authority sandwiches use at most 84 calls, including manual recovery's
-single bounded job-inventory read, the surrounding immutable
-Release and website authority paths use at most 120, and the promotion helper
+website authority sandwiches use at most 85 calls, including manual recovery's
+latest-attempt and receipt-attempt job-inventory reads. The canonical download
+uses at most five: the by-tag Release, the receipt attempt and its job
+inventory, and, only when a later attempt completed publication, the current
+run and that attempt's inventory. The surrounding immutable Release, website
+authority, and canonical download paths use at most 126, and the promotion helper
 itself uses at most 21 read-only REST calls. Its leased Git
 push and at most fourteen App REST requests do not consume that `GITHUB_TOKEN`
 budget. Those App requests are the three setup and mint calls, one DELETE, and
