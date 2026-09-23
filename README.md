@@ -1,6 +1,6 @@
 # Ghostget
 
-[![Ghostget: precise web capabilities for AI agents](https://ghostget.com/og.png)](https://ghostget.com)
+[![The title “Ghostget: named web actions for AI agents” and the Ghostget ghost mark on a light card](https://ghostget.com/og.png)](https://ghostget.com)
 
 [![skills.sh](https://skills.sh/b/hraness/ghostget)](https://www.skills.sh/hraness/ghostget/ghostget)
 
@@ -35,9 +35,9 @@ to use.
 If your shell cannot find `ghostget`, open a new terminal or add Bun’s global
 binary directory to `PATH` with `export PATH="$(bun pm bin -g):$PATH"`.
 
-This README follows the source version. Use this archive after its matching
-immutable GitHub Release is published; the [production getting-started guide](https://ghostget.com/docs/tutorials/getting-started/)
-always names the latest completed release. Upgrading from Wrench? Read the
+If the release in these commands isn't on GitHub yet, use the version in the
+[getting-started guide](https://ghostget.com/docs/tutorials/getting-started/),
+which always names the latest published release. Upgrading from Wrench? Read the
 [migration guide](docs/ghostget-migration.md) to keep your existing state in place.
 
 ### Add Ghostget to your agent
@@ -153,8 +153,8 @@ Threads, TikTok, Twitch, WebMCP Registry, WhatsApp, X, and YouTube.
 LinkedIn and X each have separate official and authenticated-web adapters. The
 WebMCP Registry adapter is a public, credential-free route to `wmcp.ai`: it
 searches listed sites, reads one site's current tool schemas, and calls only
-tools the site declares `readOnlyHint` for — the registry executes the tool in
-a fresh headless page and returns untrusted site content. The
+tools the site declares `readOnlyHint` for. The registry runs the tool in a
+fresh headless page and returns untrusted site content. The
 [release-bound provider directory](https://ghostget.com/docs/reference/provider-capabilities/)
 lists only executable actions, grouped by the tasks each service supports and
 the access method each action uses. Inspect `ghostget capabilities --json` for
@@ -193,21 +193,24 @@ same-turn send request.
 Read the focused [Beeper guide](https://ghostget.com/docs/how-to/connect-beeper/) for setup,
 version identities, action boundaries, export workflows, and exclusions.
 
-## Why Ghostget is different
+## How Ghostget handles accounts and changes
 
-- **Intent over mechanism.** Agents receive labeled operations, not credentials,
-  selectors, scripts, caller-selected endpoints, or unrestricted browser access.
-- **Exact identity.** Authenticated calls bind the provider, origin, transport,
-  account, contract, and implementation instead of relying on ambient state.
-- **Visible drift.** A changed origin, account proof, status, field, or response
-  shape returns to `capture-required` rather than guessing or changing tools.
-- **Local custody.** Archives remain inspectable and exact provider snapshots
-  remain encrypted. Verified cached reads can work without a provider roundtrip.
-- **Honest mutations.** Consequential writes require an exact preview and durable
-  dispatch evidence. An indeterminate write is never blindly retried and remains
-  unsettled until separate exact evidence can reconcile it.
-- **Content-bound trust.** Portable plugin approval applies to one verified
-  content-addressed bundle, so changed code requires a new trust decision.
+Your agent calls named actions. It never receives credentials, selectors,
+scripts, endpoints it picked, or open browser access. Each signed-in call is
+tied to one provider, origin, transport, account, contract, and implementation,
+so Ghostget never borrows whatever session happens to be open.
+
+When a service changes an origin, account check, status, field, or response
+shape, the affected action switches to `capture-required` and stops rather than
+guessing or changing tools. Archives stay readable on disk and exact provider
+snapshots stay encrypted, so a verified cached read can run without contacting
+the provider.
+
+Writes that matter need an exact preview and leave a durable dispatch record.
+If a write went out and its result is unknown, Ghostget won't send it again. It
+stays marked unsettled until separate evidence shows what happened. Approving a
+portable plugin covers one verified content-addressed bundle, so changed code
+needs a new approval.
 
 Ghostget complements browser automation, direct API clients, MCP, and agent
 frameworks. Those tools own interfaces, transports, models, and planning. Ghostget
@@ -865,8 +868,8 @@ absorbed into explicit account IDs; `targets status`, `version`, and top-level
 `export` are internal; `accounts add`, `accounts remove`, and `messages delete`
 are R4 and unavailable to provider dispatch; and plain `status` is among the
 53 unsupported paths. None of those three R4 paths appears in the selected
-32-operation provider adapter. Two additional scoped permission descriptors —
-`messaging.automation.read` and `messaging.automation.send.text` — belong only
+32-operation provider adapter. Two additional scoped permission descriptors
+(`messaging.automation.read` and `messaging.automation.send.text`) belong only
 to the owner-driven automation host and admit no generic invocation. Ghostget does not turn administrative,
 destructive, caller-selected network, or arbitrary-filesystem commands into
 agent authority.
@@ -1364,8 +1367,8 @@ ghostget plugin init example-web \
 ghostget plugin check /absolute/private/example-web --json
 ghostget plugin test /absolute/private/example-web --trust-code --json
 ghostget plugin pack /absolute/private/example-web \
-  --output /absolute/private/example-web.wrenchplugin --json
-ghostget plugin install /absolute/private/example-web.wrenchplugin \
+  --output /absolute/private/example-web.ghostgetplugin --json
+ghostget plugin install /absolute/private/example-web.ghostgetplugin \
   --trust-code --json
 ```
 

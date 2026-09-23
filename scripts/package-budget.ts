@@ -1432,14 +1432,26 @@
 // e1e1ebb75b1c4c64e67c84bfc5087626258fab6e20ed6285390da4c320bb4d8e. Carry
 // the same projections and allowances: 11,971,738 + 12,387 + 4,096 =
 // 11,988,221 packed; 23,342,705 + 353 + 65 = 23,343,123 unpacked.
+// The unreleased copy pass over 0.18.33 rewrites the package description,
+// README, Agent Skill summary and plugin examples, CLI banner, TUI strings,
+// and support value proposition, and adds an Unreleased CHANGELOG section,
+// over the unchanged 596-file inventory. `npm pack --ignore-scripts` with npm
+// 11.19.0 on darwin arm64 measured 11,984,255 packed bytes, 23,343,358
+// unpacked bytes; archive SHA-256
+// 0799f964bdaea81f452f797a471d68f8aed98b2acb60ad1b29d9802837194e7e. The
+// same toolchain re-measured unchanged main 6478d55 at 11,984,071 packed and
+// exactly the recorded 23,342,705 unpacked bytes, so the pass adds 653
+// payload bytes; compressed size varies with the local zlib. Carry the same
+// projections and allowances: 11,984,255 + 12,387 + 4,096 = 12,000,738
+// packed; 23,343,358 + 353 + 65 = 23,343,776 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.33 re-tag release identity over the WebMCP Registry provider inventory",
+  scope: "Unreleased copy pass over Ghostget 0.18.33: package description, README, skill, CLI, and CHANGELOG text",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "e1e1ebb75b1c4c64e67c84bfc5087626258fab6e20ed6285390da4c320bb4d8e",
-  packedBytes: 11_971_738,
-  unpackedBytes: 23_342_705,
+  archiveSha256: "0799f964bdaea81f452f797a471d68f8aed98b2acb60ad1b29d9802837194e7e",
+  packedBytes: 11_984_255,
+  unpackedBytes: 23_343_358,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

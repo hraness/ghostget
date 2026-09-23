@@ -1,20 +1,20 @@
 ---
 name: ghostget
 description: >-
-  Use Ghostget for bounded, local-first web work: capture public/signed-in pages
-  as Markdown; archive authorized, verified audio, video, and transcripts; query
-  encrypted cached email, contacts, inboxes, and messages; resolve live
-  conversations, read fresh context, preview ordered bubbles, and execute
-  exactly authorized turns through one provider route; publish and reconcile
-  text/image/video posts through observed installed routes; save private native
-  article drafts; inspect/build/run typed contracts/plugins for X, LinkedIn,
-  Bluesky, Substack Notes, Threads, TikTok, Instagram, YouTube Shorts from
+  Use Ghostget for local web work: capture public or signed-in pages as
+  Markdown; archive authorized audio, video, and transcripts with verification;
+  query encrypted cached email, contacts, inboxes, and messages; resolve live
+  conversations, read fresh context, preview message bubbles, and send
+  owner-confirmed turns through one provider route; publish and reconcile text,
+  image, and video posts through reviewed routes; save private native article
+  drafts; and build or run typed contracts and plugins for X, LinkedIn,
+  Bluesky, Substack Notes, Threads, TikTok, Instagram, and YouTube Shorts from
   recorded browser APIs or versioned CLIs.
-  Use Beeper messaging across the pinned official CLI and fixed Desktop loopback operations.
+  Covers Beeper messaging across the pinned official CLI and fixed Desktop loopback operations.
   Trigger for scraping, URL clipping, authenticated sites, media downloads,
-  transcription, email/messaging, cross-posting, HAR-to-API workflows,
-  browser-session API automation, semantic operations, and bounded mutations. Raw HTTP,
-  DOM control, cookies, and credentials stay outside the agent.
+  transcription, email and messaging, cross-posting, HAR-to-API workflows,
+  browser-session API automation, semantic operations, and confirmed writes.
+  The agent never handles raw HTTP, DOM control, cookies, or credentials.
 ---
 
 # Ghostget
@@ -132,8 +132,8 @@ Verify the package in order:
 ghostget plugin check /absolute/private/example-web --json
 ghostget plugin test /absolute/private/example-web --trust-code --json
 ghostget plugin pack /absolute/private/example-web \
-  --output /absolute/private/example-web.wrenchplugin --json
-ghostget plugin install /absolute/private/example-web.wrenchplugin \
+  --output /absolute/private/example-web.ghostgetplugin --json
+ghostget plugin install /absolute/private/example-web.ghostgetplugin \
   --trust-code --json
 ghostget capabilities example-web --json
 ```
@@ -144,7 +144,7 @@ For updates, bind the transition to the installed digest:
 
 ```sh
 ghostget plugin show example-web --json
-ghostget plugin install /absolute/private/example-web.wrenchplugin \
+ghostget plugin install /absolute/private/example-web.ghostgetplugin \
   --trust-code --expected-current <bundle-sha256> --json
 ```
 
@@ -177,7 +177,7 @@ ghostget auth login gmail-main --client-file /absolute/path/to/google-desktop-cl
 Ghostget opens the system browser, uses PKCE plus a loopback callback, verifies
 the Gmail subject, stores the refresh credential and Desktop client fields in
 a mode-restricted local JSON file, and renews access tokens. This is not an OS
-keychain or encrypted-at-rest store. The user—not browser automation—handles
+keychain or encrypted-at-rest store. The user, not browser automation, handles
 Google sign-in, account choice, warnings, and consent. Tell them that
 `gmail.readonly` is a Google restricted mailbox-read grant even though the
 relationship contract fetches metadata only. Never ask the user to paste a

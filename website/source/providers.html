@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#f8f7f4" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#12100f" media="(prefers-color-scheme: dark)">
     <title>Providers Ghostget works with: supported services and the WebMCP Registry</title>
-    <meta name="description" content="Every service Ghostget supports: bundled typed providers plus the public WebMCP Registry, where listed sites publish live tool schemas agents can read and call read-only tools through.">
+    <meta name="description" content="Every service Ghostget supports: its built-in providers, plus sites in the public WebMCP Registry whose read-only tools your agent can call.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/providers/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
@@ -18,17 +18,17 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Ghostget">
     <meta property="og:title" content="Providers Ghostget works with: supported services and the WebMCP Registry">
-    <meta property="og:description" content="Every service Ghostget supports: bundled typed providers plus the public WebMCP Registry, where listed sites publish live tool schemas agents can read and call read-only tools through.">
+    <meta property="og:description" content="Every service Ghostget supports: its built-in providers, plus sites in the public WebMCP Registry whose read-only tools your agent can call.">
     <meta property="og:url" content="https://ghostget.com/providers/">
     <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Providers Ghostget works with: supported services and the WebMCP Registry">
-    <meta name="twitter:description" content="Every service Ghostget supports: bundled typed providers plus the public WebMCP Registry, where listed sites publish live tool schemas agents can read and call read-only tools through.">
+    <meta name="twitter:description" content="Every service Ghostget supports: its built-in providers, plus sites in the public WebMCP Registry whose read-only tools your agent can call.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -51,19 +51,19 @@
       <article class="guide-article">
         <header class="guide-hero provider-guide-hero">
           <p class="eyebrow">Provider directory · {{GHOSTGET_RELEASE}}</p>
-          <h1>Every provider your agent can use through Ghostget.</h1>
-          <p class="answer-lede">Ghostget ships typed adapters for the services below — each exposes named, bounded operations with receipts — and a public <code>webmcp</code> adapter that reads the WebMCP Registry's live tool schemas for {{WEBMCP_REGISTRY_SITE_COUNT}} listed sites.</p>
+          <h1>Every provider your agent can use through Ghostget</h1>
+          <p class="answer-lede">Ghostget ships adapters for the services below, each with a fixed set of named actions that leave a record when they run. It also ships a public <code>webmcp</code> adapter that reads the WebMCP Registry's tool schemas for {{WEBMCP_REGISTRY_SITE_COUNT}} listed sites.</p>
         </header>
 
         <section aria-labelledby="bundled-providers">
           <h2 id="bundled-providers">Bundled providers</h2>
-          <p>These adapters ship with {{GHOSTGET_RELEASE}}. The <a href="/docs/reference/provider-capabilities/">provider capabilities</a> page lists every attested operation.</p>
+          <p>These adapters ship with {{GHOSTGET_RELEASE}}. The <a href="/docs/reference/provider-capabilities/">provider support reference</a> lists every supported action.</p>
           <div class="provider-directory">{{PROVIDER_OVERVIEW_CARDS}}</div>
         </section>
 
         <section aria-labelledby="webmcp-registry">
           <h2 id="webmcp-registry">WebMCP Registry sites</h2>
-          <p>The <a href="https://wmcp.ai">WebMCP Registry</a> tracks websites that publish WebMCP tools. Ghostget's <code>webmcp</code> adapter reads each site's live schema and calls only tools declared read-only; this snapshot lists {{WEBMCP_REGISTRY_SITE_COUNT}} sites and {{WEBMCP_REGISTRY_TOOL_COUNT}} tools ({{WEBMCP_REGISTRY_READONLY_TOOL_COUNT}} read-only), synchronized {{WEBMCP_SYNCED_AT}}. Each domain page shows its tools and the exact agent commands.</p>
+          <p>The <a href="https://wmcp.ai">WebMCP Registry</a> tracks websites that publish WebMCP tools. Ghostget's <code>webmcp</code> adapter reads each site's tool schema from the registry and calls only tools declared read-only. The snapshot on this site, taken {{WEBMCP_SYNCED_AT}}, lists {{WEBMCP_REGISTRY_SITE_COUNT}} sites and {{WEBMCP_REGISTRY_TOOL_COUNT}} tools, {{WEBMCP_REGISTRY_READONLY_TOOL_COUNT}} of them read-only. Each site's page shows its tools and the commands your agent runs.</p>
           {{WEBMCP_INDEX_TABLE}}
         </section>
       </article>

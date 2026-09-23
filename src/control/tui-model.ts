@@ -92,7 +92,7 @@ export function tuiRows(state: TuiState): readonly TuiRow[] {
   let rows: readonly TuiRow[];
   switch (state.section) {
     case "Setup": rows = [
-      { id: "first-read", label: "1. Try a public page · no account needed", detail: ["Give your agent precise web tools, with connected accounts under your control.", "Run in another terminal: ghostget read https://example.com", "This first read needs no account or password vault. Browser dependencies may be requested on first use.", "Capture into Markdown: ghostget https://example.com", "This control panel does not run an AI agent. Use the CLI or Ghostget skill from your preferred agent."] },
+      { id: "first-read", label: "1. Try a public page · no account needed", detail: ["Give your agent named web actions, with connected accounts under your control.", "Run in another terminal: ghostget read https://example.com", "This first read needs no account or password vault. Browser dependencies may be requested on first use.", "Capture into Markdown: ghostget https://example.com", "This control panel does not run an AI agent. Use the CLI or Ghostget skill from your preferred agent."] },
       { id: "connect", label: `2. Connect an account · ${snapshot.accounts.length} configured`, detail: [state.browserConnections ? "Press Enter to choose a provider and browser. Sign in there, return here, verify the account, then review and save." : "Browser sign-in from this panel currently requires macOS. Connect supported providers using ghostget auth --help; existing accounts remain manageable here.", "Passwords stay in your browser. Other providers: ghostget auth --help"] },
       { id: "permissions", label: `3. Review access · ${snapshot.policy.managed ? "managed permissions on" : "managed permissions off"}`, detail: ["Press Enter to inspect capabilities and choose Ask, Allow, or Deny for the selected account.", "Enabling managed permissions changes how operations are admitted. Review the confirmation before enabling.", "An allowed operation still follows Ghostget's exact preview and write confirmation rules."] },
       { id: "vault", label: "Optional · import an X API token from 1Password", detail: ["The password vault is optional. It imports one verified X user token through the 1Password desktop app on a supported desktop.", "It is not a general password manager and is not needed for browser sign-in.", "This panel may stay open; run: ghostget vault --help", "Supply the secret reference to the CLI; never paste a password or token into this panel or agent chat."] },
@@ -144,7 +144,7 @@ function emptyMessage(state: TuiState): readonly string[] {
     case "Accounts": return ["No accounts connected yet.", state.browserConnections ? "Press c to connect a browser account. Public page reads work without an account." : "Use ghostget auth --help to connect supported providers. Browser sign-in from this panel requires macOS."];
     case "Capabilities": return ["No installed capabilities to display.", "Run ghostget capabilities --json or connect an account to install its bundled interface."];
     case "Approvals": return ["No requests waiting for your approval.", "Keep this panel open while your agent uses Ghostget; requests appear here."];
-    case "Activity": return ["No public gateway requests recorded on this page.", "Provider dispatch history is separate; this screen does not claim to list all Ghostget activity."];
+    case "Activity": return ["No public gateway requests recorded on this page.", "Provider dispatch history is kept separately and isn't shown here."];
     case "Interfaces": return ["No imported or user interfaces.", "Bundled operations appear in Capabilities. To add a draft: ghostget interface import <openapi.json>"];
     default: return ["Loading local state…"];
   }
@@ -157,7 +157,7 @@ export function renderTui(state: TuiState, columns = 100, rows = 28): { readonly
   const snapshot = state.snapshot;
   const header = `Ghostget${snapshot === null ? "" : ` ${snapshot.version}`} · Local controls`;
   if (width < 44 || height < 12) return { text: [fit(header, width), fit("Enlarge terminal to 45 × 12 or larger.", width), fit("q / Esc / Ctrl-C exits", width)].slice(0, height).join("\n"), reviewEndVisible: false, reviewOffset: 0 };
-  const chrome = [header, `${snapshot?.accountId ?? "No account (public scope)"} · ${snapshot?.approvals.length ?? 0} pending · ${state.busy ? "Working…" : state.refreshing ? "Refreshing…" : state.fresh ? "Connected" : "State unavailable — refresh before changes"}`, TUI_SECTIONS.map((section, index) => `${index + 1} ${section === state.section ? `[${section}]` : section}`).join("  ")];
+  const chrome = [header, `${snapshot?.accountId ?? "No account (public scope)"} · ${snapshot?.approvals.length ?? 0} pending · ${state.busy ? "Working…" : state.refreshing ? "Refreshing…" : state.fresh ? "Connected" : "State unavailable. Refresh before making changes."}`, TUI_SECTIONS.map((section, index) => `${index + 1} ${section === state.section ? `[${section}]` : section}`).join("  ")];
   const bodyHeight = height - 6;
   let body: string[] = [];
   let reviewEndVisible = false;

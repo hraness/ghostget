@@ -7,6 +7,18 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Rewrite the ghostget.com title, description, social card, homepage, docs,
+  comparison, about, contact, and 404 copy in plain words, and match the
+  package description, `llms.txt` lead, CLI banner, and Agent Skill summary to
+  the new one-line description. Correct the SDK entrypoint count on the site
+  and in `llms.txt` to nine, including `@hraness/ghostget/contracts`. Name
+  Textbutler (formerly Message Like Me) as the consumer of the WhatsApp export,
+  and use `.ghostgetplugin` in new plugin examples.
+- WebMCP provider pages make every count agree with its noun, clip
+  third-party tool descriptions at a word boundary, drop em dashes, show
+  registry dates as dates, and promise use only for sites that list a tool the
+  agent can call.
+
 ## 0.18.33
 
 - Re-tag the 0.18.31 content for npm publication and website promotion.

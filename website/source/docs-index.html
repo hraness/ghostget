@@ -21,14 +21,14 @@
     <meta property="og:description" content="Ghostget documentation organized by job: a getting-started tutorial, task how-to guides, security explanation, and the provider capability reference.">
     <meta property="og:url" content="https://ghostget.com/docs/">
     <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Ghostget documentation: tutorials, how-to guides, explanation, and reference">
     <meta name="twitter:description" content="Ghostget documentation organized by job: a getting-started tutorial, task how-to guides, security explanation, and the provider capability reference.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -51,45 +51,45 @@
       <article class="guide-article">
         <header class="guide-hero">
           <p class="eyebrow">Documentation · Ghostget {{GHOSTGET_VERSION}}</p>
-          <h1>Pick the document that matches your job.</h1>
-          <p class="answer-lede">These pages follow the <a href="https://diataxis.fr/">Diataxis</a> documentation model: a tutorial teaches, a how-to guide solves a task, explanation orients a decision, and reference describes what exists. Each page states the release it was checked against.</p>
-          <p class="review-note">This index describes {{GHOSTGET_RELEASE}}. Every linked page keeps one canonical URL that also serves Markdown when the request prefers it.</p>
+          <h1>Ghostget documentation</h1>
+          <p class="answer-lede">Start with the tutorial if you’re new. Each how-to guide finishes one task, the explanation pages cover how Ghostget protects your accounts and how it compares with browser tools, and the reference lists every supported action. The pages follow the <a href="https://diataxis.fr/">Diátaxis</a> documentation model.</p>
+          <p class="review-note">These pages describe Ghostget {{GHOSTGET_RELEASE}}. Each one also serves Markdown at the same URL when a request asks for it.</p>
         </header>
 
         <section aria-labelledby="tutorials">
           <h2 id="tutorials">Tutorials</h2>
-          <p>A tutorial is a guided first success. It assumes nothing beyond a terminal and Bun.</p>
+          <p>The tutorial needs only a terminal and Bun.</p>
           <ul class="guide-list">
-            <li><a href="/docs/tutorials/getting-started/">Install Ghostget and capture your first URL</a>. Install the CLI, read a public page with no account or API key, then choose saving, an agent skill, or connected services.</li>
+            <li><a href="/docs/tutorials/getting-started/">Install Ghostget and read your first page</a>. Install the CLI, read a public page with no account or API key, then choose saving, an agent skill, or connected services.</li>
           </ul>
         </section>
 
         <section aria-labelledby="how-to">
           <h2 id="how-to">How-to guides</h2>
-          <p>A how-to guide completes one named task. Prerequisite state and limits sit beside the commands.</p>
+          <p>Each guide finishes one task, with its requirements and limits beside the commands.</p>
           <ul class="guide-list">
             <li><a href="/docs/how-to/capture-and-archive/">Capture URLs and archive media</a>. Choose inspection, durable Markdown capture, or one verified finite-item media archive.</li>
             <li><a href="/docs/how-to/connect-beeper/">Connect Beeper</a>. Bind the pinned official CLI and one Desktop target, then use its supported actions.</li>
-            <li><a href="/docs/how-to/export-whatsapp/">Export WhatsApp history</a>. Read four bounded local projections and write one private Message Like Me bundle.</li>
-            <li><a href="/docs/how-to/author-provider-plugin/">Author a provider plugin</a>. Define one operation, prove its contract, then check, test, pack, trust, and install the exact bundle.</li>
+            <li><a href="/docs/how-to/export-whatsapp/">Export WhatsApp history</a>. Use four read-only actions on local WhatsApp data and write one private bundle for Textbutler (formerly Message Like Me).</li>
+            <li><a href="/docs/how-to/author-provider-plugin/">Author a provider plugin</a>. Define one operation, prove what it sends and returns, then check, test, pack, trust, and install the exact bundle.</li>
           </ul>
         </section>
 
         <section aria-labelledby="explanation">
           <h2 id="explanation">Explanation</h2>
-          <p>Explanation pages describe how the boundary works and why, plus honest comparisons with the tools Ghostget sits beside.</p>
+          <p>These pages explain how Ghostget protects your accounts and how it compares with other ways agents reach the web.</p>
           <ul class="guide-list">
-            <li><a href="/docs/explanation/security-model/">Security and local custody</a>. Account binding, encrypted snapshots, risk levels, and fail-closed drift.</li>
-            <li><a href="/compare/">How agents reach the web</a>. The four approaches to browser use, and where Ghostget's named operations sit.</li>
+            <li><a href="/docs/explanation/security-model/">Security model</a>. How Ghostget ties each action to one account, encrypts cached reads, separates reads from writes, and stops actions when a service changes.</li>
+            <li><a href="/compare/">How agents reach the web</a>. Four approaches to browser use, compared with Ghostget's named actions.</li>
           </ul>
         </section>
 
         <section aria-labelledby="reference">
           <h2 id="reference">Reference</h2>
-          <p>Reference pages enumerate what exists in the release. They state facts; they do not teach.</p>
+          <p>The reference lists what this release supports.</p>
           <ul class="guide-list">
             <li><a href="/docs/reference/provider-capabilities/">Provider capability reference</a>. Every supported action in {{GHOSTGET_RELEASE}}, grouped by service and access method.</li>
-            <li><a href="/llms.txt">llms.txt</a>. The agent-readable site summary of the same contract.</li>
+            <li><a href="/llms.txt">llms.txt</a>. A summary of this site for agents.</li>
           </ul>
           <p>Source-level contracts that belong with the code live in the repository's <a href="{{GHOSTGET_REPOSITORY}}/tree/{{GHOSTGET_RELEASE}}/docs"><code>docs/</code> directory</a>: plugin protocol, messaging automation, publishing, and local development.</p>
         </section>
