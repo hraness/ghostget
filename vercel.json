@@ -341,6 +341,16 @@
       "permanent": true
     },
     {
+      "source": "/docs/how-to/use-webmcp-sites",
+      "destination": "/docs/how-to/use-webmcp-sites/",
+      "permanent": true
+    },
+    {
+      "source": "/docs/how-to/use-webmcp-sites/index.html",
+      "destination": "/docs/how-to/use-webmcp-sites/",
+      "permanent": true
+    },
+    {
       "source": "/providers",
       "destination": "/providers/",
       "permanent": true
@@ -558,6 +568,16 @@
     {
       "source": "/omarchy-root-escalation/index.html",
       "destination": "/omarchy-root-escalation/",
+      "permanent": true
+    },
+    {
+      "source": "/webmcp",
+      "destination": "/webmcp/",
+      "permanent": true
+    },
+    {
+      "source": "/webmcp/index.html",
+      "destination": "/webmcp/",
       "permanent": true
     }
   ]

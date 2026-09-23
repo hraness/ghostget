@@ -149,12 +149,14 @@ firewall.
 This v0.18.33 source tree supports executable actions for 21 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
-Threads, TikTok, Twitch, WebMCP Registry, WhatsApp, X, and YouTube.
-LinkedIn and X each have separate official and authenticated-web adapters. The
-WebMCP Registry adapter is a public, credential-free route to `wmcp.ai`: it
-searches listed sites, reads one site's current tool schemas, and calls only
-tools the site declares `readOnlyHint` for — the registry executes the tool in
-a fresh headless page and returns untrusted site content. The
+Threads, TikTok, Twitch, WebMCP Registry, WhatsApp, X, and YouTube. LinkedIn
+and X each have separate official and authenticated-web adapters. The bundled
+`webmcp` adapter additionally reaches every site listed in the public WebMCP
+Registry — 1,800+ domains publishing live `navigator.modelContext` tool
+schemas. It is a public, credential-free route to `wmcp.ai`: it searches listed
+sites, reads one site's current tool schemas, and calls only tools the site
+declares `readOnlyHint` for — the registry executes the tool in a fresh
+headless page and returns untrusted site content. The
 [release-bound provider directory](https://ghostget.com/docs/reference/provider-capabilities/)
 lists only executable actions, grouped by the tasks each service supports and
 the access method each action uses. Inspect `ghostget capabilities --json` for
