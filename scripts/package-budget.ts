@@ -1432,14 +1432,23 @@
 // e1e1ebb75b1c4c64e67c84bfc5087626258fab6e20ed6285390da4c320bb4d8e. Carry
 // the same projections and allowances: 11,971,738 + 12,387 + 4,096 =
 // 11,988,221 packed; 23,342,705 + 353 + 65 = 23,343,123 unpacked.
+// Ghostget 0.18.34 adds the WebMCP explainer and how-to pages plus the
+// registry-scale README and homepage copy (website-only sources stay
+// outside the package); its CHANGELOG section and rebuilt dist chunks
+// shift the unchanged 596-file inventory: `npm pack --ignore-scripts`
+// with npm 11.19.0 on darwin arm64 measured 11,971,987 packed bytes,
+// 23,343,331 unpacked bytes; archive SHA-256
+// 045a8cf8389e54e18c28e7580a9c6c5494d9c6cca38f39bc1e4ece4b4b079e05. Carry
+// the same projections and allowances: 11,971,987 + 12,387 + 4,096 =
+// 11,988,470 packed; 23,343,331 + 353 + 65 = 23,343,749 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.33 re-tag release identity over the WebMCP Registry provider inventory",
+  scope: "Ghostget 0.18.34 WebMCP documentation release identity over the unchanged inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "e1e1ebb75b1c4c64e67c84bfc5087626258fab6e20ed6285390da4c320bb4d8e",
-  packedBytes: 11_971_738,
-  unpackedBytes: 23_342_705,
+  archiveSha256: "045a8cf8389e54e18c28e7580a9c6c5494d9c6cca38f39bc1e4ece4b4b079e05",
+  packedBytes: 11_971_987,
+  unpackedBytes: 23_343_331,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
