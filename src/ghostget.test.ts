@@ -489,6 +489,19 @@ describe("run reconciliation CLI", () => {
         outcome: "not-applied",
         evidenceHash: "8".repeat(64),
       } as const;
+      const fenceRetained = {
+        ok: false,
+        kind: "portable-provider-plugin-reconciliation",
+        runId,
+        originalReceiptStatus: "indeterminate",
+        receiptUnchanged: true,
+        providerWriteDispatched: false,
+        outcome: "not-applied",
+        status: "fence-retained",
+        evidenceHash: "8".repeat(64),
+        claimRecorded: true,
+        recoveryArtifactsReleased: false,
+      } as const;
       let observed: unknown;
       const code = await main(
         [
@@ -512,33 +525,49 @@ describe("run reconciliation CLI", () => {
               input,
               environment: options.environment,
             };
-            return {
-              ok: true,
-              kind: "portable-provider-plugin-reconciliation",
-              runId: selectedRunId,
-              originalReceiptStatus: "indeterminate",
-              receiptUnchanged: true,
-              providerWriteDispatched: false,
-              outcome: "not-applied",
-              status: "safe-retry",
-              evidenceHash: "8".repeat(64),
-              recoveryArtifactsReleased: true,
-            };
+            return fenceRetained;
           },
         },
       );
-      expect(code).toBe(0);
+      // A caller's not-applied claim leaves the run fenced and unsettled.
+      expect(code).toBe(5);
       expect(wrench.stderr()).toBe("");
       expect(observed).toEqual({
         selectedRunId: runId,
         input: evidence,
         environment: testState.environment,
       });
-      expect(JSON.parse(wrench.stdout())).toMatchObject({
+      expect(JSON.parse(wrench.stdout())).toEqual(fenceRetained);
+
+      const appliedGhostget = capture();
+      const applied = {
+        ok: true,
         kind: "portable-provider-plugin-reconciliation",
-        outcome: "not-applied",
-        status: "safe-retry",
-      });
+        runId,
+        originalReceiptStatus: "indeterminate",
+        receiptUnchanged: true,
+        providerWriteDispatched: false,
+        outcome: "applied",
+        status: "succeeded",
+        evidenceHash: "9".repeat(64),
+        recoveryArtifactsReleased: true,
+      } as const;
+      const appliedCode = await main(
+        [
+          "runs",
+          "reconcile",
+          runId,
+          "--input",
+          JSON.stringify({ outcome: "applied", evidenceHash: "9".repeat(64) }),
+          "--json",
+        ],
+        testState.environment,
+        appliedGhostget.output,
+        { reconcilePortableProviderPluginRun: () => applied },
+      );
+      expect(appliedCode).toBe(0);
+      expect(appliedGhostget.stderr()).toBe("");
+      expect(JSON.parse(appliedGhostget.stdout())).toEqual(applied);
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }
