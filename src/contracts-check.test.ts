@@ -35,7 +35,7 @@ describe("checkCollectionPlan", () => {
     const check = checkCollectionPlan(examplePlan(), exampleCatalog());
     expect(check.ok).toBeTrue();
     expect(check.contract).toBe("ghostget.contract-check.v1");
-    expect(check.ghostget).toEqual({ version: "0.18.34" });
+    expect(check.ghostget).toEqual({ version: "0.18.35" });
     expect(check.plan).toEqual({ collectionKey: "example-social-statistics", reads: 3 });
     expect(check.reads[0]).toEqual({
       index: 0,

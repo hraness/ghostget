@@ -1448,24 +1448,43 @@
 // archive SHA-256 041f172721702456c214f78cd390417e285aed417e72bd0b45372fefd71bfa6c.
 // Carry the same projections and allowances: 11,972,555 + 12,387 + 4,096 =
 // 11,989,038 packed; 23,346,582 + 353 + 65 = 23,347,000 unpacked.
+// Ghostget 0.18.35 adds the WebMCP editorial figure and homepage registry
+// panel (website-only sources stay outside the package); its CHANGELOG
+// section and rebuilt dist chunks shift the unchanged 596-file inventory:
+// `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64 measured
+// 11,972,733 packed bytes, 23,346,995 unpacked bytes; archive SHA-256
+// 1a9a87defe7a0f4f7a628f6cb2ce70d701fe500770df1184c96c87874620cc97. Carry
+// the same projections and allowances: 11,972,733 + 12,387 + 4,096 =
+// 11,989,216 packed; 23,346,995 + 353 + 65 = 23,347,413 unpacked.
+// The confirmed-write intent fence adds the intent type, intent ledger
+// claim, run-journal scan, per-pass generation-chain memory, terminal
+// intent projection, and the auth-record refusals to the confirmed-write
+// model, platform, program, and runtime sources: exactly 10,511 payload
+// bytes over the unchanged 596-file 0.18.35 inventory. Two
+// `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin arm64 were
+// byte-identical at 11,975,697 packed bytes, 23,357,506 unpacked bytes;
+// archive SHA-256
+// 444e23bbbe782aa5bf22980a28bdde76b474bd299039eb1a610e4211f05895e5. Carry
+// the same projections and allowances: 11,975,697 + 12,387 + 4,096 =
+// 11,992,180 packed; 23,357,506 + 353 + 65 = 23,357,924 unpacked.
 // The portable `not-applied` claim fence records a caller's claim and keeps
 // the idempotency ledger. Its edits to the portable recovery module,
 // runtime, run-journal and CLI sources and the provider-plugins reference
-// add exactly 8,842 payload bytes to the unchanged 596-file
-// launch-intent cleanup inventory: `npm pack --ignore-scripts` with npm
-// 11.19.0 on darwin arm64 measured 11,975,052 packed bytes, 23,355,424
-// unpacked bytes; archive SHA-256
-// 9305e8683b4ed5d6d8563625aa37ee7ace6101bc027a4e18b8de61977c90b1a7. Carry
-// the same projections and allowances: 11,975,052 + 12,387 + 4,096 =
-// 11,991,535 packed; 23,355,424 + 353 + 65 = 23,355,842 unpacked.
+// add exactly 8,842 payload bytes over the unchanged 596-file intent-fence
+// inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin
+// arm64 were byte-identical at 11,977,961 packed bytes, 23,366,348 unpacked
+// bytes; archive SHA-256
+// 5300d2503ae48a50ace5e1edc76a45d8b2e32724d8fd34fad09cf7405e083e85. Carry
+// the same projections and allowances: 11,977,961 + 12,387 + 4,096 =
+// 11,994,444 packed; 23,366,348 + 353 + 65 = 23,366,766 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Portable not-applied claim fence over the launch-intent cleanup inventory",
+  scope: "Portable not-applied claim fence over the confirmed-write intent fence inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "9305e8683b4ed5d6d8563625aa37ee7ace6101bc027a4e18b8de61977c90b1a7",
-  packedBytes: 11_975_052,
-  unpackedBytes: 23_355_424,
+  archiveSha256: "5300d2503ae48a50ace5e1edc76a45d8b2e32724d8fd34fad09cf7405e083e85",
+  packedBytes: 11_977_961,
+  unpackedBytes: 23_366_348,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

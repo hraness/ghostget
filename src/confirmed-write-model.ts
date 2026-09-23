@@ -29,6 +29,22 @@ export type LedgerSnapshot = {
   readonly contentSha256: string;
 };
 
+/**
+ * The effect a confirmed write may cause at most once: one account realm
+ * (auth locator), provider target (adapter ID), operation, and canonical
+ * input, narrowed to one duplicate-risk successor when present. It carries no
+ * adapter or auth hash, because a manifest revision or a reconnect rewrites
+ * those bytes without changing the effect.
+ */
+export type ConfirmedWriteIntent = {
+  readonly adapterId: string;
+  readonly authId: string;
+  readonly operationId: string;
+  /** The current canonical input hash first, then any pre-migration encoding of the same input. */
+  readonly inputHashes: readonly string[];
+  readonly duplicateIntentHash?: string;
+};
+
 export type BoundedExecution = {
   readonly status: "succeeded" | "failed" | "partial" | "indeterminate";
   readonly output: unknown;
