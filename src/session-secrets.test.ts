@@ -868,11 +868,22 @@ function writtenSecretNames(root: string): readonly string[] {
     .sort();
 }
 
-/** Recreate a file exactly as a writer before injective names left it. */
+type LegacyAmbiguousFiles = {
+  readonly path: string;
+  readonly text: string;
+  readonly coordinatePath: string;
+  readonly coordinateText: string;
+};
+
+/**
+ * Recreate the secret and coordinate files exactly as a writer before
+ * injective names left them for account `old--work`: the same bytes, under the
+ * historical name `bluesky--old--work.json` that `bluesky--old`/`work` shares.
+ */
 function legacyAmbiguousSecret(
   state: ReturnType<typeof environment>,
   authHash: string,
-): { readonly path: string; readonly text: string } {
+): LegacyAmbiguousFiles {
   writeSessionSecret(
     "bluesky",
     "old--work",
@@ -881,14 +892,25 @@ function legacyAmbiguousSecret(
     state.value,
   );
   const directory = join(state.root, "session-secrets");
-  const written = writtenSecretNames(state.root);
-  if (written.length !== 1) throw new Error("legacy fixture wrote more than one secret");
-  const path = join(directory, "bluesky--old--work.json");
-  renameSync(join(directory, written[0]!), path);
-  for (const name of readdirSync(join(directory, "coordinates"))) {
-    rmSync(join(directory, "coordinates", name));
+  const injective = sessionSecretFileName("bluesky", "old--work");
+  const historical = "bluesky--old--work.json";
+  if (writtenSecretNames(state.root).join(",") !== injective) {
+    throw new Error("legacy fixture wrote an unexpected secret");
   }
-  return { path, text: readFileSync(path, "utf8") };
+  const path = join(directory, historical);
+  const coordinatePath = join(directory, "coordinates", historical);
+  renameSync(join(directory, injective), path);
+  renameSync(join(directory, "coordinates", injective), coordinatePath);
+  return {
+    path,
+    text: readFileSync(path, "utf8"),
+    coordinatePath,
+    coordinateText: readFileSync(coordinatePath, "utf8"),
+  };
+}
+
+function coordinateNames(root: string): readonly string[] {
+  return readdirSync(join(root, "session-secrets", "coordinates")).sort();
 }
 
 describe("session-secret file ownership", () => {
@@ -927,6 +949,117 @@ describe("session-secret file ownership", () => {
     expect(readFileSync(legacy.path, "utf8")).toBe(legacy.text);
     expect(removeSessionSecretsForAuth("old--work", state.value)).toBe(1);
     expect(existsSync(legacy.path)).toBeFalse();
+  });
+
+  test("adopts a legacy ambiguous session its envelope names and keeps it rotating", () => {
+    const state = environment();
+    const authHash = "b".repeat(64);
+    const legacy = legacyAmbiguousSecret(state, authHash);
+    const injective = sessionSecretFileName("bluesky", "old--work");
+
+    const snapshot = readSessionSecretSnapshot("bluesky", "old--work", authHash, state.value);
+    expect(snapshot.value).toEqual({ refreshJwt: "old-work-private-refresh-token" });
+    expect(existsSync(legacy.path)).toBeFalse();
+    expect(existsSync(legacy.coordinatePath)).toBeFalse();
+    expect(writtenSecretNames(state.root)).toEqual([injective]);
+    expect(coordinateNames(state.root)).toEqual([injective]);
+    expect(readFileSync(join(state.root, "session-secrets", injective), "utf8"))
+      .toBe(legacy.text);
+    expect(readFileSync(join(state.root, "session-secrets", "coordinates", injective), "utf8"))
+      .toBe(legacy.coordinateText);
+
+    expect(writeSessionSecretIfUnchanged(
+      "bluesky",
+      "old--work",
+      authHash,
+      { refreshJwt: "rotated-private-refresh-token" },
+      snapshot.contentSha256,
+      state.value,
+    ).written).toBeTrue();
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value))
+      .toEqual({ refreshJwt: "rotated-private-refresh-token" });
+  });
+
+  test("resumes an interrupted adoption after only the coordinate moved", () => {
+    const state = environment();
+    const authHash = "c".repeat(64);
+    const legacy = legacyAmbiguousSecret(state, authHash);
+    renameSync(
+      legacy.coordinatePath,
+      join(state.root, "session-secrets", "coordinates", sessionSecretFileName("bluesky", "old--work")),
+    );
+
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value))
+      .toEqual({ refreshJwt: "old-work-private-refresh-token" });
+    expect(existsSync(legacy.path)).toBeFalse();
+  });
+
+  test("never adopts a legacy ambiguous file for the other candidate coordinate", () => {
+    const state = environment();
+    const authHash = "d".repeat(64);
+    const legacy = legacyAmbiguousSecret(state, authHash);
+
+    expect(readSessionSecret("bluesky--old", "work", authHash, state.value)).toBeNull();
+    expect(writeSessionSecret("bluesky--old", "work", authHash, { owner: "work" }, state.value))
+      .toBeUndefined();
+    expect(readFileSync(legacy.path, "utf8")).toBe(legacy.text);
+    expect(readFileSync(legacy.coordinatePath, "utf8")).toBe(legacy.coordinateText);
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value))
+      .toEqual({ refreshJwt: "old-work-private-refresh-token" });
+    expect(readSessionSecret("bluesky--old", "work", authHash, state.value))
+      .toEqual({ owner: "work" });
+  });
+
+  test("leaves a legacy file in place when its envelope fails authentication for the named coordinate", () => {
+    const state = environment();
+    const authHash = "e".repeat(64);
+    writeSessionSecret("bluesky--old", "work", authHash, { owner: "work" }, state.value);
+    const directory = join(state.root, "session-secrets");
+    const written = jsonRecord(
+      readFileSync(join(directory, sessionSecretFileName("bluesky--old", "work")), "utf8"),
+      "encrypted session secret",
+    );
+    const path = join(directory, "bluesky--old--work.json");
+    const forged = `${canonicalJson({ ...written, namespace: "bluesky", authId: "old--work" })}\n`;
+    writeFileSync(path, forged, { mode: 0o600 });
+
+    expect(() => readSessionSecret("bluesky", "old--work", authHash, state.value))
+      .toThrow("encrypted session secret failed authentication");
+    expect(readFileSync(path, "utf8")).toBe(forged);
+    expect(existsSync(join(directory, sessionSecretFileName("bluesky", "old--work"))))
+      .toBeFalse();
+  });
+
+  test("auth removal adopts and advances the realm's historical coordinate", () => {
+    const state = environment();
+    const authHash = "f".repeat(64);
+    const legacy = legacyAmbiguousSecret(state, authHash);
+    const injective = sessionSecretFileName("bluesky", "old--work");
+
+    expect(removeSessionSecretsForAuth("work", state.value)).toBe(0);
+    expect(readFileSync(legacy.coordinatePath, "utf8")).toBe(legacy.coordinateText);
+    expect(removeSessionSecretsForAuth("old--work", state.value)).toBe(1);
+    expect(existsSync(legacy.path)).toBeFalse();
+    expect(coordinateNames(state.root)).toEqual([injective]);
+    const advanced = jsonRecord(
+      readFileSync(join(state.root, "session-secrets", "coordinates", injective), "utf8"),
+      "session-secret coordinate state",
+    );
+    expect(advanced.generation)
+      .not.toBe(jsonRecord(legacy.coordinateText, "legacy coordinate").generation);
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value)).toBeNull();
+  });
+
+  test("single-coordinate removal clears a legacy ambiguous session without the key", () => {
+    const state = environment();
+    const authHash = "1".repeat(64);
+    const legacy = legacyAmbiguousSecret(state, authHash);
+    rmSync(join(state.root, ".session-encryption-key"));
+
+    expect(removeSessionSecret("bluesky", "old--work", state.value)).toBeTrue();
+    expect(existsSync(legacy.path)).toBeFalse();
+    expect(coordinateNames(state.root))
+      .toEqual([sessionSecretFileName("bluesky", "old--work")]);
   });
 
   test("fails closed on an ambiguous historical file with no verifiable owner", () => {
