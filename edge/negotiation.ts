@@ -198,6 +198,16 @@ export function markdownAssetPath(pathname: string): string | null {
   return `${trimmed}.md`;
 }
 
+// Every retrieval stays on the request origin. A path that starts with "//" or
+// holds a backslash would parse as a protocol-relative reference to another
+// host, so it is rejected before URL resolution, and the resolved origin is
+// checked again after it.
+function sameOriginAssetUrl(path: string, url: URL): URL | null {
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) return null;
+  const resolved = new URL(path, url.origin);
+  return resolved.origin === url.origin ? resolved : null;
+}
+
 function markdownHeaders(): Headers {
   return new Headers({
     "Cache-Control": "public, max-age=0, must-revalidate",
@@ -217,7 +227,11 @@ async function markdownNotFound(
   url: URL,
   retrieve: DocumentRetrieve,
 ): Promise<Response> {
-  const missing = await retrieve(new URL(MARKDOWN_NOT_FOUND_PATH, url.origin));
+  const notFoundUrl = sameOriginAssetUrl(MARKDOWN_NOT_FOUND_PATH, url);
+  if (notFoundUrl === null) {
+    throw new Error("The markdown 404 document path left the request origin.");
+  }
+  const missing = await retrieve(notFoundUrl);
   if (!missing.ok) {
     throw new Error("The markdown 404 document is missing.");
   }
@@ -255,7 +269,9 @@ export async function handleDocumentNegotiation(
   // bytes with the canonical document and alternate representation headers the
   // negotiated response carries. Missing markdown stays an HTTP 404.
   if (!htmlOnly && url.pathname.endsWith(".md")) {
-    const asset = await retrieve(new URL(url.pathname, url.origin));
+    const assetUrl = sameOriginAssetUrl(url.pathname, url);
+    if (assetUrl === null) return await markdownNotFound(request, url, retrieve);
+    const asset = await retrieve(assetUrl);
     if (!asset.ok) return await markdownNotFound(request, url, retrieve);
     const headers = markdownHeaders();
     if (url.pathname === MARKDOWN_NOT_FOUND_PATH) {
@@ -291,8 +307,9 @@ export async function handleDocumentNegotiation(
   }
 
   const assetPath = markdownAssetPath(url.pathname);
-  if (assetPath !== null) {
-    const asset = await retrieve(new URL(assetPath, url.origin));
+  const assetUrl = assetPath === null ? null : sameOriginAssetUrl(assetPath, url);
+  if (assetPath !== null && assetUrl !== null) {
+    const asset = await retrieve(assetUrl);
     if (asset.ok) {
       const headers = markdownHeaders();
       headers.set("Link", markdownDocumentLink(assetPath));
