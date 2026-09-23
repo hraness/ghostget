@@ -88,14 +88,27 @@ function prepareAndExecute(
       // A hit on a pre-migration ledger path already binds the same intent:
       // that path was derived from this input and manifest under the legacy
       // encoding, so its stored digests differ from the current ones only by
-      // canonical ordering.
-      if (!acquired.viaAlternatePath && (acquired.existing.inputHash !== state.inputHash || acquired.existing.adapterHash !== state.adapter.hash || acquired.existing.authHash !== state.auth.hash)) {
+      // canonical ordering. An intent-fence hit binds the same account realm,
+      // provider target, operation, and input under possibly older adapter or
+      // auth bytes.
+      const viaIntent = "viaIntent" in acquired;
+      if (!viaIntent && !acquired.viaAlternatePath && (acquired.existing.inputHash !== state.inputHash || acquired.existing.adapterHash !== state.adapter.hash || acquired.existing.authHash !== state.auth.hash)) {
         return yield* refuse("journal", "idempotency key was already used in a different action scope");
       }
-      if (acquired.existing.status === "succeeded") return {
-        receipt: yield* state.readReceipt(acquired.existing.runId), output: null, replayed: true, privateArtifactsPreserved: false,
-      };
-      return yield* refuse("journal", `a prior attempt (${acquired.existing.runId}) may have reached the provider; inspect 'ghostget runs show ${acquired.existing.runId}' and reconcile it before retrying`);
+      const prior = acquired.existing.runId;
+      // The realm is the locator ID, and journals keep no account subject, so
+      // other auth bytes may be another account. Such a run never replays as
+      // this account's result, and reconciling it needs its exact auth record.
+      const otherAuth = viaIntent && acquired.existing.authHash !== state.auth.hash;
+      if (acquired.existing.status === "succeeded") {
+        if (otherAuth) return yield* refuse("journal", `a prior run (${prior}) already fulfilled this intent under a different auth record for locator '${state.auth.id}', so its receipt is not replayed as this account's result; inspect 'ghostget runs show ${prior}', and ${acquired.existing.duplicateIntentHash === undefined ? `retry after its dedupe window ends (${acquired.existing.expiresAt}) or ` : ""}reconnect '${state.auth.id}' with the settings that run used to replay it`);
+        return {
+          receipt: yield* state.readReceipt(prior), output: null, replayed: true, privateArtifactsPreserved: false,
+        };
+      }
+      return yield* refuse("journal", `a prior attempt (${prior}) may have reached the provider; inspect 'ghostget runs show ${prior}' and reconcile it before retrying${otherAuth
+        ? `; it ran under a different auth record for locator '${state.auth.id}', and reconciliation needs that exact record, so reconnect '${state.auth.id}' with the settings that run used first`
+        : ""}`);
     }
     const claimed = yield* Effect.either(Effect.gen(function*() {
       yield* state.record({ type: "ledger-claimed", ledgerRelativePath: yield* state.ledgerRelativePath(acquired.snapshot.path), at: yield* state.clock() });

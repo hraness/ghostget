@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
 
+import { assertAsyncProperty } from "../src/test-support";
 import {
   handleDocumentNegotiation,
   isHtmlOnlyDocumentPath,
@@ -236,5 +237,51 @@ describe("document negotiation runtime", () => {
     expect(headMirror?.status).toBe(200);
     expect(headMirror?.headers.get("link")).toContain('rel="canonical"');
     expect(await headMirror?.text()).toBe("");
+  });
+
+  test("D12: direct markdown requests never retrieve off the request origin", async () => {
+    const origin = "https://ghostget.com";
+    for (const raw of [`${origin}//evil.example/x.md`, `${origin}/\\evil.example/x.md`]) {
+      const seen: URL[] = [];
+      const retrieve = async (url: URL): Promise<Response> => {
+        seen.push(url);
+        return url.origin === origin && url.pathname === "/404.md"
+          ? new Response("# Missing\n", { status: 200 })
+          : new Response("off-origin body", { status: 200 });
+      };
+      const response = await handleDocumentNegotiation(new Request(raw), retrieve);
+      expect(seen.map((url) => url.origin)).toEqual(seen.map(() => origin));
+      expect(response?.status).toBe(404);
+      expect(response?.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+      expect(await response?.text()).toBe("# Missing\n");
+    }
+  });
+
+  test("property: every retrieved URL keeps the request origin", async () => {
+    const origin = "https://ghostget.com";
+    const path = fc.oneof(
+      fc.string(),
+      fc.tuple(fc.constantFrom("/", "\\", "/\\", "\\/", "%2F"), fc.string())
+        .map(([prefix, rest]) => `${prefix}${rest}`),
+    );
+    await assertAsyncProperty(fc.asyncProperty(
+      path,
+      fc.boolean(),
+      fc.constantFrom(undefined, "text/markdown", "text/markdown, text/html;q=0.5", "*/*"),
+      fc.constantFrom("GET", "HEAD"),
+      async (rest, direct, accept, method) => {
+        const raw = `${origin}/${rest}${direct ? ".md" : ""}`;
+        const seen: URL[] = [];
+        const retrieve = async (url: URL): Promise<Response> => {
+          seen.push(url);
+          return new Response("# Body\n", { status: url.pathname === "/404.md" ? 200 : 404 });
+        };
+        await handleDocumentNegotiation(
+          new Request(raw, accept === undefined ? { method } : { headers: { Accept: accept }, method }),
+          retrieve,
+        );
+        for (const url of seen) expect(url.origin).toBe(origin);
+      },
+    ));
   });
 });
