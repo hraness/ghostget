@@ -233,9 +233,21 @@ ghostget read https://example.com</code></pre>
             <div class="provider-directory">
               {{PROVIDER_OVERVIEW_CARDS}}
             </div>
-            <p class="provider-status-note">
-              Plus the public <a href="https://wmcp.ai">WebMCP Registry</a>: the bundled <code>webmcp</code> adapter reads live tool schemas for {{WEBMCP_REGISTRY_SITE_COUNT}} listed sites and calls the {{WEBMCP_REGISTRY_READONLY_TOOL_COUNT}} tools declared read-only — no account needed. <a href="/providers/">Browse every provider and registered site</a> or read <a href="/webmcp/">how WebMCP works with your agent</a>.
-            </p>
+            <div class="registry-panel">
+              <div class="registry-panel-copy">
+                <h3>Plus {{WEBMCP_REGISTRY_SITE_COUNT}} sites publishing WebMCP tools</h3>
+                <p>
+                  The bundled <code>webmcp</code> adapter reads the public
+                  <a href="https://wmcp.ai">WebMCP Registry</a>: live schemas for
+                  {{WEBMCP_REGISTRY_SITE_COUNT}} listed sites covering
+                  {{WEBMCP_REGISTRY_TOOL_COUNT}} published tools — and calls the
+                  {{WEBMCP_REGISTRY_READONLY_TOOL_COUNT}} declared read-only, no
+                  account needed. <a href="/webmcp/">How WebMCP works with your agent</a> ·
+                  <a href="/docs/how-to/use-webmcp-sites/">Use WebMCP sites</a>
+                </p>
+              </div>
+              {{WEBMCP_DOMAIN_SAMPLE}}
+            </div>
             <p class="provider-status-note">
               Provider names identify compatible services and do not imply endorsement. Counts are for release {{GHOSTGET_RELEASE}}.
             </p>
