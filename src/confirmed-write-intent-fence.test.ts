@@ -212,10 +212,6 @@ function refusal(settled: Settled): string {
   return settled.message;
 }
 
-function receiptHash(result: InvocationResult): string {
-  return sha256(canonicalJson(result.receipt));
-}
-
 /** Simulate the owning process dying: the journal owner no longer names a live process. */
 function killRunOwner(testState: FenceState, runId: string): void {
   const entry = listRunJournalSnapshots(testState.environment).find((candidate) =>
@@ -313,7 +309,7 @@ type Step =
   | { readonly kind: "revise" }
   | { readonly kind: "advance" }
   | { readonly kind: "repair" }
-  | { readonly kind: "reconcile"; readonly outcome: "applied" | "not-applied" };
+  | { readonly kind: "reconcile" };
 
 /**
  * What earlier steps allow for the one intent. `unsettled` may have reached
@@ -355,8 +351,7 @@ const scheduleStep = fc.oneof(
   { weight: 1, arbitrary: fc.constant<Step>({ kind: "repair" }) },
   {
     weight: 2,
-    arbitrary: fc.constantFrom("applied" as const, "not-applied" as const)
-      .map((outcome): Step => ({ kind: "reconcile", outcome })),
+    arbitrary: fc.constant<Step>({ kind: "reconcile" }),
   },
   { weight: 2, arbitrary: dispatchStep },
 );
@@ -402,10 +397,9 @@ async function runScheduleStep(schedule: Schedule, step: Step): Promise<void> {
         sha256(canonicalJson(readRunReceipt(runId, environment))),
         environment,
         schedule.clock,
-        step.outcome,
       )).toBe("journal-released");
       schedule.model.unsettled = null;
-      if (step.outcome === "applied") schedule.model.applied = runId;
+      schedule.model.applied = runId;
       return;
     }
     case "confirm":
@@ -657,41 +651,6 @@ describe("intent-level confirmed-write fence", () => {
     }
   });
 
-  // This drives the recovery release primitive directly. The provider
-  // reconciler (reconcileWebSessionRun) also requires the run's exact auth
-  // record, so after a reconnect it first needs the original settings back;
-  // the refusal names that step.
-  test("a not-applied reconciliation reopens the intent exactly once across a reconnect", async () => {
-    const testState = fenceState();
-    try {
-      install(testState);
-      const probe: Probe = { crossings: 0 };
-      const first = requireResult(await confirm(testState, "indeterminate", probe));
-
-      connectAccount(testState, 1);
-      expect(refusal(await confirm(testState, "succeeded", probe))).toContain("reconcile it before retrying");
-      expect(probe.crossings).toBe(1);
-
-      expect(releaseReconciledRunRecovery(
-        first.receipt.runId,
-        receiptHash(first),
-        testState.environment,
-        new Date(),
-        "not-applied",
-      )).toBe("journal-released");
-      const reopened = requireResult(await confirm(testState, "succeeded", probe));
-      expect(reopened.receipt.status).toBe("submitted");
-      expect(probe.crossings).toBe(2);
-
-      const replay = requireResult(await confirm(testState, "succeeded", probe));
-      expect(replay.replayed).toBeTrue();
-      expect(replay.receipt.runId).toBe(reopened.receipt.runId);
-      expect(probe.crossings).toBe(2);
-    } finally {
-      rmSync(testState.directory, { recursive: true, force: true });
-    }
-  });
-
   test("a pre-dispatch failure leaves no idempotency state behind", async () => {
     const testState = fenceState();
     try {
@@ -771,7 +730,8 @@ describe("intent-level confirmed-write fence", () => {
   // reconciled as applied, or succeeded inside its dedupe window, no
   // confirmation crosses the dispatch boundary, whatever reconnects and
   // manifest revisions came between. Every crossing therefore needs a prior
-  // not-applied reconciliation, pre-dispatch failure, or expired window.
+  // pre-dispatch failure or expired window; reconciliation only settles a run
+  // as applied, because caller not-applied claims never release the fence.
   // Assumptions: one state home, an injected clock that only moves forward,
   // owners die only at crash steps, and reconciliation reports exact evidence.
   test("property: reconnects and manifest revisions never reopen a fenced intent", async () => {

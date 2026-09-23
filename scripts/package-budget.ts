@@ -1467,25 +1467,35 @@
 // 444e23bbbe782aa5bf22980a28bdde76b474bd299039eb1a610e4211f05895e5. Carry
 // the same projections and allowances: 11,975,697 + 12,387 + 4,096 =
 // 11,992,180 packed; 23,357,506 + 353 + 65 = 23,357,924 unpacked.
-// The unreleased copy pass over the confirmed-write intent fence rewrites the
-// package description, README, Agent Skill summary and plugin examples, CLI
-// banner, TUI strings, and support value proposition, and adds an Unreleased
-// CHANGELOG section, over the unchanged 596-file inventory: 637 payload bytes
-// over the intent-fence measurement. `npm pack --ignore-scripts` with npm
-// 11.16.0 on darwin arm64 measured 11,986,967 packed bytes, 23,358,143
-// unpacked bytes; archive SHA-256
-// bd2cf1fe849569fc2ac4052598a6b8d7882177d12480966fc8919038607e1181.
+// The portable `not-applied` claim fence records a caller's claim and keeps
+// the idempotency ledger. Its edits to the portable recovery module,
+// runtime, run-journal and CLI sources and the provider-plugins reference
+// add exactly 8,842 payload bytes over the unchanged 596-file intent-fence
+// inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin
+// arm64 were byte-identical at 11,977,961 packed bytes, 23,366,348 unpacked
+// bytes; archive SHA-256
+// 5300d2503ae48a50ace5e1edc76a45d8b2e32724d8fd34fad09cf7405e083e85. Carry
+// the same projections and allowances: 11,977,961 + 12,387 + 4,096 =
+// 11,994,444 packed; 23,366,348 + 353 + 65 = 23,366,766 unpacked.
+// The unreleased copy pass over the portable not-applied claim fence rewrites
+// the package description, README, Agent Skill summary and plugin examples,
+// CLI banner, TUI strings, and support value proposition, and adds an
+// Unreleased CHANGELOG section, over the unchanged 596-file inventory: 637
+// payload bytes over the claim-fence measurement. `npm pack --ignore-scripts`
+// with npm 11.16.0 on darwin arm64 measured 11,988,415 packed bytes,
+// 23,366,985 unpacked bytes; archive SHA-256
+// 7bfcd6ecb840e97cfc43666b06ce0d847d1c4541e7d23e5f90d5b9a08f439e49.
 // Compressed size varies with the local zlib. Carry the same projections and
-// allowances: 11,986,967 + 12,387 + 4,096 = 12,003,450 packed;
-// 23,358,143 + 353 + 65 = 23,358,561 unpacked.
+// allowances: 11,988,415 + 12,387 + 4,096 = 12,004,898 packed;
+// 23,366,985 + 353 + 65 = 23,367,403 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Unreleased copy pass over the confirmed-write intent fence: package description, README, skill, CLI, and CHANGELOG text",
+  scope: "Unreleased copy pass over the portable not-applied claim fence: package description, README, skill, CLI, and CHANGELOG text",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "bd2cf1fe849569fc2ac4052598a6b8d7882177d12480966fc8919038607e1181",
-  packedBytes: 11_986_967,
-  unpackedBytes: 23_358_143,
+  archiveSha256: "7bfcd6ecb840e97cfc43666b06ce0d847d1c4541e7d23e5f90d5b9a08f439e49",
+  packedBytes: 11_988_415,
+  unpackedBytes: 23_366_985,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
