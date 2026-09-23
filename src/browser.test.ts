@@ -3235,12 +3235,20 @@ describe("browser process isolation helpers", () => {
     }) as BrowserCleanupResourceIdentityV2;
     try {
       expect(await rejectionMessage(
-        refreshBrowserCleanupResourceQuiescence(unpinned),
-      )).toContain("not durably controlled");
+        refreshBrowserCleanupResourceQuiescence(unpinned, {
+          runCommand: () => Promise.resolve(launchIntent.commandResult(
+            launchIntent.sessionInfo("launched"),
+          )),
+        }),
+      )).toContain("remained active");
       rmSync(launchIntent.artifactsDirectory, { recursive: true });
       expect(await rejectionMessage(
-        reproveBrowserCleanupAfterArtifactsRemoval(unpinned),
-      )).toContain("ineligible");
+        reproveBrowserCleanupAfterArtifactsRemoval(unpinned, {
+          runCommand: () => Promise.resolve(launchIntent.commandResult(
+            launchIntent.sessionInfo("launched"),
+          )),
+        }),
+      )).toContain("remained active");
     } finally {
       launchIntent.cleanup();
     }

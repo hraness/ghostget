@@ -1441,14 +1441,21 @@
 // 045a8cf8389e54e18c28e7580a9c6c5494d9c6cca38f39bc1e4ece4b4b079e05. Carry
 // the same projections and allowances: 11,971,987 + 12,387 + 4,096 =
 // 11,988,470 packed; 23,343,331 + 353 + 65 = 23,343,749 unpacked.
+// The launch-intent cleanup recovery adds the unbound launch-intent
+// quiescence proof, its recovery admission wiring, and the replacement
+// repair/retention tests: a clean npm 11.19.0 pack --ignore-scripts on
+// darwin arm64 measured 596 files/entries and 23,346,582 payload bytes;
+// archive SHA-256 041f172721702456c214f78cd390417e285aed417e72bd0b45372fefd71bfa6c.
+// Carry the same projections and allowances: 11,972,555 + 12,387 + 4,096 =
+// 11,989,038 packed; 23,346,582 + 353 + 65 = 23,347,000 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.34 WebMCP documentation release identity over the unchanged inventory",
+  scope: "Ghostget 0.18.34 launch-intent cleanup recovery over the WebMCP documentation inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "045a8cf8389e54e18c28e7580a9c6c5494d9c6cca38f39bc1e4ece4b4b079e05",
-  packedBytes: 11_971_987,
-  unpackedBytes: 23_343_331,
+  archiveSha256: "041f172721702456c214f78cd390417e285aed417e72bd0b45372fefd71bfa6c",
+  packedBytes: 11_972_555,
+  unpackedBytes: 23_346_582,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
