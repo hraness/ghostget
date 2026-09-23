@@ -951,6 +951,8 @@ export async function buildWebsite(
     llmsTemplate,
     css,
     paperThemeCss,
+    paletteSystemCss,
+    paletteBridgeCss,
     uiCss,
     designKitFontsCss,
     designKitProductMarketingCss,
@@ -969,6 +971,8 @@ export async function buildWebsite(
     readFile(join(sourceRoot, "llms.txt"), "utf8"),
     readFile(join(sourceRoot, "styles.css"), "utf8"),
     readFile(join(repositoryRoot, "website/vendor/paper-theme/paper-theme.css"), "utf8"),
+    readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/palette-system.css")), "utf8"),
+    readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/palette-bridge.css")), "utf8"),
     readUiStylesheet(),
     readFile(designKitFontsStylesPath, "utf8"),
     Promise.all([
@@ -1052,7 +1056,7 @@ export async function buildWebsite(
   const lanternCss = lanternMaterial.files.get("lantern-material.css");
   const lanternLicense = lanternMaterial.files.get("LICENSE");
   if (lanternCss === undefined || lanternLicense === undefined) throw new Error("The complete Lantern build snapshot is required.");
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${lanternCss.toString("utf8")}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${lanternCss.toString("utf8")}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;

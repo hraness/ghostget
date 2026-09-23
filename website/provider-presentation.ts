@@ -547,7 +547,7 @@ function renderFieldCard(surfaceId: string): string {
     throw new Error(`Hero field card names an unknown provider surface: ${surfaceId}`);
   }
   return [
-    `<div class="ghostget-card ghostget-card--${surfaceId} provider-accent-${provider.accent}" data-gg-prox>`,
+    `<div class="ghostget-card ghostget-card--${surfaceId} provider-accent-${provider.accent}" data-hraness-hero-item>`,
     `<span class="ghostget-card__mark provider-mark" data-provider-icon="${provider.icon}">${renderProviderIcon(provider.icon)}</span>`,
     `<span class="ghostget-card__name">${escapeHtml(provider.name)}</span>`,
     "</div>",
@@ -556,7 +556,7 @@ function renderFieldCard(surfaceId: string): string {
 
 function renderFieldSpirit(index: number): string {
   return [
-    `<div class="ghostget-spirit ghostget-spirit--${String(index)}" data-gg-prox data-gg-spirit>`,
+    `<div class="ghostget-spirit ghostget-spirit--${String(index)}" data-hraness-hero-item>`,
     '<svg aria-hidden="true" class="ghostget-spirit__body" focusable="false" viewBox="0 0 48 56">',
     '<path class="ghostget-spirit__shape" d="M24 3.5c-8.8 0-15.5 6.9-15.5 15.6v29.3c0 2.8 3.4 4.1 5.3 2.1l1.5-1.4c1.6-1.5 4-1.5 5.6 0l1.3 1.2c1.3 1.2 3.2 1.2 4.5 0l1.3-1.2c1.6-1.5 4-1.5 5.6 0l1.5 1.4c1.9 2 5.3.7 5.3-2.1V19.1C40.5 10.4 33.8 3.5 24 3.5Z"></path>',
     '<ellipse class="ghostget-spirit__blush" cx="14.5" cy="28.5" rx="2.4" ry="1.5"></ellipse>',
@@ -572,8 +572,8 @@ function renderFieldSpirit(index: number): string {
 }
 
 export function renderGhostgetField(): string {
-  const edges = FIELD_EDGES.map((d) => `<path class="ghostget-edge" data-gg-prox d="${d}"></path>`).join("");
-  const blobs = FIELD_BLOBS.map((hue) => `<span class="ghostget-blob ghostget-blob--${hue}" data-gg-blob></span>`).join("");
+  const edges = FIELD_EDGES.map((d) => `<path class="ghostget-edge" d="${d}"></path>`).join("");
+  const blobs = FIELD_BLOBS.map((hue) => `<span class="ghostget-blob ghostget-blob--${hue}"></span>`).join("");
   return [
     '<div aria-hidden="true" class="ghostget-field">',
     blobs,

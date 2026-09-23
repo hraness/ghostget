@@ -531,9 +531,7 @@ describe("ghostget.com static site", () => {
     expect(field?.match(/class="ghostget-spirit /gu)).toHaveLength(3);
     expect(field?.match(/class="ghostget-blob /gu)).toHaveLength(3);
     expect(field?.match(/class="ghostget-edge"/gu)).toHaveLength(8);
-    expect(field?.match(/data-gg-prox/gu)?.length).toBeGreaterThanOrEqual(21);
-    expect(field?.match(/data-gg-spirit/gu)).toHaveLength(3);
-    expect(field?.match(/data-gg-blob/gu)).toHaveLength(3);
+    expect(field?.match(/data-hraness-hero-item/gu)).toHaveLength(13);
     expect(field).toContain('class="ghostget-card__name">Beeper<');
     expect(field).toContain('class="ghostget-card__name">Gmail<');
     expect(field).toContain('class="ghostget-card__name">WhatsApp<');
@@ -660,10 +658,10 @@ describe("ghostget.com static site", () => {
     expect(await Bun.file(join(websiteRoot, "dist/preview.md")).exists()).toBe(false);
     expect(notFound).toContain('<meta name="robots" content="noindex, nofollow">');
     expect(notFound).toContain(
-      '<meta name="theme-color" content="#f8f7f4" media="(prefers-color-scheme: light)">',
+      '<meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">',
     );
     expect(notFound).toContain(
-      '<meta name="theme-color" content="#12100f" media="(prefers-color-scheme: dark)">',
+      '<meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">',
     );
     expect(notFound).toContain("Privacy: this page uses cookieless, personless PostHog analytics");
     expect(notFound).toContain('href="/llms.txt"');
@@ -1032,10 +1030,10 @@ describe("ghostget.com static site", () => {
       expect(pageHtml).toContain('href="/privacy/"');
       expect(pageHtml).toContain('href="/llms.txt"');
       expect(pageHtml).toContain(
-        '<meta name="theme-color" content="#f8f7f4" media="(prefers-color-scheme: light)">',
+        '<meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">',
       );
       expect(pageHtml).toContain(
-        '<meta name="theme-color" content="#12100f" media="(prefers-color-scheme: dark)">',
+        '<meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">',
       );
       expect(pageHtml.match(/<meta name="theme-color"/gu)).toHaveLength(2);
       expect(pageHtml.match(/<h1\b/gu)).toHaveLength(1);

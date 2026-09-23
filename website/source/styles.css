@@ -57,7 +57,7 @@
   }
 }
 
-/* The shared paper palette owns ordinary pages. Fixed terminal and preview
+/* The shared palette owns ordinary pages. Fixed terminal and preview
  * colors remain product-owned, independent of the document appearance. */
 :root[data-hraness-theme="paper"] {
   --ghostget-action: var(--primary);
@@ -2959,8 +2959,8 @@ body {
 /* --------------------------------------------------------------------------
  * Hero field: drifting provider cards, wandering blur blobs, and ghosts.
  * Decorative only; the field is aria-hidden and pointer-transparent. Cards
- * and edges sharpen under --prox (pointer proximity, set by the field
- * controller) while CSS drift keeps the scene moving without a pointer.
+ * sharpen under shared pointer proximity. Motion rests when the pointer
+ * leaves, the hero is offscreen, or a motion preference changes.
  * ----------------------------------------------------------------------- */
 
 .ghostget-product-hero {
@@ -2981,10 +2981,9 @@ body {
   z-index: 0;
 }
 
-/* --- blur blobs: organic drift plus a slow pointer chase (--bx/--by) ------ */
+/* --- organic light, moved by the shared bounded pointer drift ----------- */
 
 .ghostget-blob {
-  animation: ghostget-blob-drift var(--s, 80s) ease-in-out infinite;
   aspect-ratio: 1;
   border-radius: 50%;
   filter: blur(68px);
@@ -2993,7 +2992,7 @@ body {
   opacity: 0.5;
   position: absolute;
   top: var(--y);
-  translate: calc(-50% + var(--bx, 0px)) calc(-50% + var(--by, 0px));
+  translate: calc(-50% + var(--hraness-hero-drift-x, 0px) * 2.5) calc(-50% + var(--hraness-hero-drift-y, 0px) * 2.5);
 }
 
 .ghostget-blob--blue {
@@ -3009,28 +3008,22 @@ body {
   background: radial-gradient(closest-side, color-mix(in oklch, #d86a4b 26%, transparent), transparent);
 }
 
-@keyframes ghostget-blob-drift {
-  0% { transform: translate(-4%, -3%) scale(1); }
-  33% { transform: translate(3%, -1%) scale(1.07); }
-  66% { transform: translate(-1%, 4%) scale(0.96); }
-  100% { transform: translate(-4%, -3%) scale(1); }
-}
+
 
 /* --- provider cards ----------------------------------------------------- */
 
 .ghostget-card {
   align-items: center;
-  animation: ghostget-card-drift var(--s, 42s) ease-in-out var(--d, 0s) infinite alternate;
   background: var(--surface-raised);
   border: 1px solid color-mix(in srgb, var(--line) 80%, var(--provider-accent));
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-low);
   display: flex;
-  filter: blur(calc((1 - var(--prox, 0)) * 1.5px));
+  filter: blur(calc((1 - var(--hraness-hero-proximity, 0)) * 1.5px));
   gap: 0.55rem;
   inline-size: var(--w);
   left: var(--x);
-  opacity: calc(0.4 + var(--prox, 0) * 0.6);
+  opacity: calc(0.4 + var(--hraness-hero-proximity, 0) * 0.6);
   padding: 0.6rem 0.8rem;
   position: absolute;
   rotate: var(--r, 0deg);
@@ -3039,10 +3032,7 @@ body {
   transition: filter 0.5s, opacity 0.5s;
 }
 
-@keyframes ghostget-card-drift {
-  0% { transform: translate(calc(var(--dx, 0px) * -1), calc(var(--dy, 0px) * -1)); }
-  100% { transform: translate(var(--dx, 0px), var(--dy, 0px)); }
-}
+
 
 .ghostget-card__mark {
   align-items: center;
@@ -3075,27 +3065,23 @@ body {
 }
 
 .ghostget-edge {
-  animation: ghostget-edge-flow 26s linear infinite;
   fill: none;
-  opacity: calc(0.14 + var(--prox, 0) * 0.6);
+  opacity: calc(0.14 + var(--hraness-hero-proximity, 0) * 0.6);
   stroke: var(--muted);
   stroke-dasharray: 1.8 3.4;
   stroke-width: 0.28;
   transition: opacity 0.5s;
 }
 
-@keyframes ghostget-edge-flow {
-  to { stroke-dashoffset: -52; }
-}
+
 
 /* --- spirits: cute ghosts drifting between the providers ---------------- */
 
 .ghostget-spirit {
-  animation: ghostget-card-drift var(--s, 52s) ease-in-out var(--d, 0s) infinite alternate;
-  filter: blur(calc((1 - var(--prox, 0)) * 1.2px)) drop-shadow(0 6px 14px color-mix(in oklch, var(--ink) 10%, transparent));
+  filter: blur(calc((1 - var(--hraness-hero-proximity, 0)) * 1.2px)) drop-shadow(0 6px 14px color-mix(in oklch, var(--foreground) 10%, transparent));
   inline-size: var(--w);
   left: var(--x);
-  opacity: calc(0.5 + var(--prox, 0) * 0.5);
+  opacity: calc(0.5 + var(--hraness-hero-proximity, 0) * 0.5);
   position: absolute;
   top: var(--y);
   translate: -50% -50%;
@@ -3103,15 +3089,11 @@ body {
 }
 
 .ghostget-spirit__body {
-  animation: ghostget-spirit-bob var(--bob, 8s) ease-in-out infinite alternate;
   display: block;
   inline-size: 100%;
 }
 
-@keyframes ghostget-spirit-bob {
-  0% { transform: translateY(-5%); }
-  100% { transform: translateY(5%); }
-}
+
 
 .ghostget-spirit__shape {
   fill: var(--surface-raised);
@@ -3119,17 +3101,17 @@ body {
   stroke-width: 1.1;
 }
 
-.ghostget-spirit__eye { fill: var(--ink); }
+.ghostget-spirit__eye { fill: var(--foreground); }
 .ghostget-spirit__blush { fill: color-mix(in oklch, #d86a4b 32%, transparent); }
 .ghostget-spirit__mouth {
   fill: none;
-  stroke: var(--ink);
+  stroke: var(--foreground);
   stroke-linecap: round;
   stroke-width: 1.4;
 }
 
 .ghostget-spirit__eyes {
-  transform: translate(var(--gx, 0px), var(--gy, 0px));
+  transform: translate(calc(var(--hraness-hero-drift-x, 0px) * 0.4), calc(var(--hraness-hero-drift-y, 0px) * 0.4));
   transform-box: fill-box;
   transition: transform 0.25s ease-out;
 }
@@ -3188,4 +3170,84 @@ body {
   .ghostget-spirit { inline-size: calc(var(--w) * 0.72); }
   .ghostget-blob { filter: blur(48px); opacity: 0.4; }
   .ghostget-edges { display: none; }
+}
+
+/* Shared material, with quieter reference pages and clear reading measures. */
+:root[data-palette] .guide-hero h1 {
+  font-weight: 650;
+  letter-spacing: -0.05em;
+  line-height: 1.04;
+}
+
+:root[data-palette] :is(.guide-article h2, .guide-callout h2) {
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.14;
+}
+
+:root[data-palette] :is(.answer-lede, .guide-article section > p, .guide-list, .guide-steps) {
+  max-inline-size: 70ch;
+  text-wrap: pretty;
+}
+
+:root[data-palette] :is(.breadcrumbs, .review-note, .provider-adapter summary span:last-child) {
+  font-size: 0.875rem;
+}
+
+:root[data-palette] :is(.breadcrumbs, .guide-article > section, .provider-attestation-group) {
+  border: 0;
+}
+
+:root[data-palette] :is(.card, .provider-card, .provider-card-featured, .guide-callout, .demo-media video, .prompt-card) {
+  border: 0;
+  box-shadow: var(--hraness-material-lift, var(--elevation-low));
+}
+
+:root[data-palette] :is(.provider-mark, .editorial-card img) {
+  border: 0;
+}
+
+:root[data-palette] .command-panel {
+  border: 0;
+  box-shadow: var(--hraness-material-inset, var(--elevation-low));
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+:root[data-palette] :is(pre, .table-scroll) {
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+:root[data-palette] .command-panel code {
+  font-size: 0.875rem;
+}
+
+.ghostget-field::after {
+  background: radial-gradient(ellipse at 25% 48%, color-mix(in srgb, var(--background) 94%, transparent), color-mix(in srgb, var(--background) 74%, transparent) 42%, transparent 74%);
+  content: "";
+  inset: 0;
+  position: absolute;
+}
+
+.ghostget-card {
+  border: 0;
+  box-shadow: var(--hraness-material-lift, var(--elevation-low));
+}
+
+.ghostget-card,
+.ghostget-spirit {
+  transform: translate(var(--hraness-hero-drift-x, 0px), var(--hraness-hero-drift-y, 0px));
+}
+
+@media (forced-colors: active), print {
+  .ghostget-field { display: none; }
+}
+
+@media (forced-colors: active) {
+  :root[data-palette] :is(.card, .provider-card, .provider-card-featured, .guide-callout, .prompt-card, .command-panel) {
+    border: 1px solid CanvasText;
+  }
 }
