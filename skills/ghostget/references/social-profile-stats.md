@@ -110,12 +110,14 @@ pagination before summing `stargazers_count`. It returns `stars` only when the
 complete repository set is available and bound; it never substitutes a partial
 page, a rounded display total, or a prior observation.
 
-The manifest marks Threads `recentViews` with the exact unavailable reason
-`not-authorized` as an expected categorical gap until the account becomes
-eligible. Keep reporting only that reason as unavailable. Treat
-`provider-drift`, `not-exposed`, and every other unavailable reason as an
-unexpected failure. Accept the metric normally once the same target-bound read
-returns an exact available count.
+Threads `recentViews` publishes the target-bound public trailing-window views
+counter when the provider exposes it on the signed-in profile record. The
+manifest keeps the exact unavailable reason `not-authorized` as an expected
+categorical gap for sub-eligibility accounts that do not expose the counter.
+Keep reporting only that reason as unavailable. Treat `provider-drift`,
+`not-exposed`, and every other unavailable reason as an unexpected failure.
+Accept the metric normally once the same target-bound read returns an exact
+available count.
 
 Do not put an auth ID, provider receipt, cache key, run ID, subject identifier,
 or raw provider response in the consumer snapshot. Do not print or persist

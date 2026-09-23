@@ -1476,6 +1476,68 @@ describe("Meta authenticated internal-data runtime", () => {
       "/insights",
     ]);
 
+    const profileCarriedViewsCalls: Call[] = [];
+    const threadsWithProfileViews = await executeMetaWebOperation(
+      recipe("threads", "profiles.read"),
+      { profile: "viewer" },
+      auth("threads"),
+      {
+        dependencies: {
+          ...dependencies("threads", profileCarriedViewsCalls, (call) => {
+            if (call.url.pathname === "/") {
+              return new Response(threadsHtml, {
+                status: 200,
+                headers: { "content-type": "text/html" },
+              });
+            }
+            if (call.url.pathname === "/@viewer") {
+              return new Response(threadsHtml + script({
+                profile: {
+                  pk: "12345",
+                  username: "viewer",
+                  follower_count: 144,
+                  text_post_app_public_views: {
+                    text_post_app_public_view_count: "147843",
+                  },
+                },
+              }), {
+                status: 200,
+                headers: { "content-type": "text/html" },
+              });
+            }
+            if (call.url.pathname === "/insights") {
+              return new Response("temporarily unavailable", {
+                status: 503,
+                headers: { "content-type": "text/html" },
+              });
+            }
+            throw new Error(`unexpected Threads profile request ${call.url.href}`);
+          }),
+          now: () => observedAt,
+        },
+      },
+    );
+    expect(threadsWithProfileViews).toMatchObject({
+      status: "succeeded",
+      dispatchStarted: false,
+      dispatch: { planned: 0, started: 0, verified: 0 },
+      output: {
+        schemaVersion: 1,
+        provider: "threads",
+        target: { kind: "profile", id: "12345" },
+        completeness: "complete",
+        metrics: {
+          followers: { status: "available", value: 144, precision: "exact" },
+          recentViews: { status: "available", value: 147843, precision: "exact" },
+        },
+      },
+    });
+    expect(profileCarriedViewsCalls.map((call) => call.url.pathname)).toEqual([
+      "/",
+      "/@viewer",
+      "/insights",
+    ]);
+
     for (const failure of ["cancelled", "timed-out"] as const) {
       const deadlineCalls: Call[] = [];
       let now = 0;

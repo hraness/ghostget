@@ -1,3 +1,16 @@
+// The Threads public views counter over Ghostget 0.18.28 adds the
+// target-bound `text_post_app_public_views` carrier extraction to
+// meta-web.ts, its unit and runtime coverage, the threads-web 1.9.0
+// adapter manifest, and the retained 1.8.0 predecessor snapshot: one
+// additional packed source file. A clean npm 11.19.0 pack
+// --ignore-scripts on darwin arm64 measured 11,974,295 compressed bytes,
+// 23,294,815 payload bytes and exactly 592 files/entries. Archive SHA-256
+// 0725e564d463965ca9b6ca8fdfb80eb712c7f4573c9a73acf499a398882cf49f. Carry
+// the same projections and allowances: 11,974,295 + 12,387 + 4,096 =
+// 11,990,778 packed; 23,294,815 + 353 + 65 = 23,295,233 unpacked. Current
+// source CI and canonical Release must independently measure and admit
+// their exact archives.
+//
 // Usage-driven contract repair over Ghostget 0.18.25 adds the bounded
 // repair-signal inbox (src/contract-repair-inbox.ts) and the repair-handoff
 // assessment (src/contracts-repair.ts) alongside the runtime, CLI, schema and
@@ -1366,15 +1379,24 @@
 // b68abd4a40f98b0ea466f78fa4383c481f8cd5b7c0c96d57127b75ae2792b5d5. Carry
 // the same projections and allowances: 11,959,793 + 12,387 + 4,096 = 11,976,276
 // packed; 23,270,453 + 353 + 65 = 23,270,871 unpacked.
+// Ghostget 0.18.29 adds the Threads public trailing-window views counter:
+// the meta-web carrier extraction and coverage, the threads-web 1.9.0
+// manifest, and the retained 1.8.0 predecessor snapshot raise the inventory
+// to exactly 592 files. `npm pack --ignore-scripts` with npm 11.19.0 on
+// darwin arm64 measured 11,974,295 packed bytes, 23,294,815 unpacked bytes;
+// archive SHA-256
+// 0725e564d463965ca9b6ca8fdfb80eb712c7f4573c9a73acf499a398882cf49f. Carry the
+// same projections and allowances: 11,974,295 + 12,387 + 4,096 = 11,990,778
+// packed; 23,294,815 + 353 + 65 = 23,295,233 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.28 plain-language homepage and package description; payload growth over the 0.18.27 inventory",
+  scope: "Ghostget 0.18.29 Threads public views counter and release identity; one additional packed adapter snapshot over the 0.18.28 inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "b68abd4a40f98b0ea466f78fa4383c481f8cd5b7c0c96d57127b75ae2792b5d5",
-  packedBytes: 11_959_793,
-  unpackedBytes: 23_270_453,
-  entryCount: 591,
+  archiveSha256: "0725e564d463965ca9b6ca8fdfb80eb712c7f4573c9a73acf499a398882cf49f",
+  packedBytes: 11_974_295,
+  unpackedBytes: 23_294_815,
+  entryCount: 592,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

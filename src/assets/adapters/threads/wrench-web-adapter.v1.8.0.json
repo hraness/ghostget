@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "id": "threads-web",
-  "version": "1.9.0",
+  "version": "1.8.0",
   "displayName": "Threads (Authenticated Internal API)",
   "surfaceId": "threads",
   "origins": [
@@ -546,7 +546,7 @@
       }
     },
     "profiles.read": {
-      "description": "Observed contract: read an exact target-bound Threads follower count and the target-bound public trailing-window views counter from the signed-in profile page, preserving explicit Insights-gated unavailability.",
+      "description": "Observed contract: read an exact target-bound Threads follower count and explicit recent-views availability from the signed-in profile and Insights pages.",
       "risk": "R1",
       "sideEffect": "none",
       "idempotency": "none",
