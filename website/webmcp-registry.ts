@@ -346,14 +346,24 @@ export function renderWebmcpIndexList(snapshot: WebmcpRegistrySnapshot): string 
   ].join("");
 }
 
-export function webmcpIndexTemplateValues(snapshot: WebmcpRegistrySnapshot): Readonly<Record<string, string>> {
+// Registry-wide counts any public page may quote; per-site and index values
+// layer their own placeholders on top of this base.
+export function webmcpSharedTemplateValues(
+  snapshot: WebmcpRegistrySnapshot,
+): Readonly<Record<string, string>> {
   const totalTools = snapshot.sites.reduce((sum, site) => sum + site.toolCount, 0);
   const readOnlyTools = snapshot.sites.reduce((sum, site) => sum + site.readOnlyToolCount, 0);
   return Object.freeze({
-    "{{WEBMCP_INDEX_TABLE}}": renderWebmcpIndexList(snapshot),
     "{{WEBMCP_REGISTRY_READONLY_TOOL_COUNT}}": String(readOnlyTools),
     "{{WEBMCP_REGISTRY_SITE_COUNT}}": String(snapshot.siteCount),
     "{{WEBMCP_REGISTRY_TOOL_COUNT}}": String(totalTools),
     "{{WEBMCP_SYNCED_AT}}": escapeHtml(snapshot.syncedAt),
+  });
+}
+
+export function webmcpIndexTemplateValues(snapshot: WebmcpRegistrySnapshot): Readonly<Record<string, string>> {
+  return Object.freeze({
+    ...webmcpSharedTemplateValues(snapshot),
+    "{{WEBMCP_INDEX_TABLE}}": renderWebmcpIndexList(snapshot),
   });
 }

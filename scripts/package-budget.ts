@@ -1432,24 +1432,23 @@
 // e1e1ebb75b1c4c64e67c84bfc5087626258fab6e20ed6285390da4c320bb4d8e. Carry
 // the same projections and allowances: 11,971,738 + 12,387 + 4,096 =
 // 11,988,221 packed; 23,342,705 + 353 + 65 = 23,343,123 unpacked.
-// The confirmed-write intent fence adds the intent type, intent ledger
-// claim, run-journal scan, and terminal intent projection to the
-// confirmed-write model, platform, program, and runtime sources: exactly
-// 8,130 payload bytes over the unchanged 596-file 0.18.33 inventory. Two
-// `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin arm64 were
-// byte-identical at 11,973,935 packed bytes, 23,350,835 unpacked bytes;
-// archive SHA-256
-// db61c011c9674b451137c899374ff7fa482ae92d01dee4852a12b1ba11ef42f2. Carry
-// the same projections and allowances: 11,973,935 + 12,387 + 4,096 =
-// 11,990,418 packed; 23,350,835 + 353 + 65 = 23,351,253 unpacked.
+// Ghostget 0.18.34 adds the WebMCP explainer and how-to pages plus the
+// registry-scale README and homepage copy (website-only sources stay
+// outside the package); its CHANGELOG section and rebuilt dist chunks
+// shift the unchanged 596-file inventory: `npm pack --ignore-scripts`
+// with npm 11.19.0 on darwin arm64 measured 11,971,987 packed bytes,
+// 23,343,331 unpacked bytes; archive SHA-256
+// 045a8cf8389e54e18c28e7580a9c6c5494d9c6cca38f39bc1e4ece4b4b079e05. Carry
+// the same projections and allowances: 11,971,987 + 12,387 + 4,096 =
+// 11,988,470 packed; 23,343,331 + 353 + 65 = 23,343,749 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Confirmed-write intent fence over the Ghostget 0.18.33 inventory",
+  scope: "Ghostget 0.18.34 WebMCP documentation release identity over the unchanged inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "db61c011c9674b451137c899374ff7fa482ae92d01dee4852a12b1ba11ef42f2",
-  packedBytes: 11_973_935,
-  unpackedBytes: 23_350_835,
+  archiveSha256: "045a8cf8389e54e18c28e7580a9c6c5494d9c6cca38f39bc1e4ece4b4b079e05",
+  packedBytes: 11_971_987,
+  unpackedBytes: 23_343_331,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
