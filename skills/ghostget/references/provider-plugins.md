@@ -256,15 +256,27 @@ shape:
 {"outcome":"applied","evidenceHash":"<sha256>"}
 ```
 
-Before cleanup, Ghostget binds that observation to the immutable receipt, bundle,
-manifest, descriptor, auth, input, plan, and encrypted recovery capsule and
-publishes a create-once resolution record. Repeating the exact observation is
-idempotent; a different outcome or evidence digest is rejected. `applied`
-retains the at-most-once ledger. Only `not-applied` releases the ledger for a
-new, separately previewed and confirmed attempt, and only when the journal has
-no verified dispatch. A verified dispatch permanently retains the fence even
-if later plugin work became indeterminate. This reconciliation path does not
-start portable code, call a provider, mutate the receipt, or retry a dispatch.
+Ghostget binds that observation to the immutable receipt, bundle, manifest,
+descriptor, auth, input, plan, and encrypted recovery capsule before it records
+anything. `applied` publishes a create-once resolution record, releases the
+recovery capsule, and retains the at-most-once ledger, so the same intent stays
+refused. Repeating the exact observation is idempotent; a different outcome or
+evidence digest is rejected.
+
+Ghostget treats `not-applied` as your unverified claim, so it never reopens
+the fence. It records the claim create-once, reports
+`"status":"fence-retained"`, and exits with status `5`. The ledger, recovery
+capsule, and journal stay unchanged, and the bundle stays blocked from update,
+disable, and removal. Ghostget refuses a claim after a verified dispatch or an
+existing resolution, and rejects a different claim for the same run.
+Releasing the ledger would need readback evidence that Ghostget observes itself
+or an owner approval, and the portable protocol has neither. Settle the run
+with `applied` evidence when you have it. A new attempt after an effect that
+did not apply is a duplicate-risk successor
+([settlement and duplicate cleanup](settlement-and-duplicate-cleanup.md)).
+Version 1 admits successors only for web-session `posts.publish`, so a
+portable run stays fenced. This reconciliation path does not start portable
+code, call a provider, mutate the receipt, or retry a dispatch.
 
 Every operation resolves to an exact immutable identity: plugin ID and
 version, host API version, bundle and manifest SHA-256, adapter, transport,

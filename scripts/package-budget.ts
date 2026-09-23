@@ -1432,14 +1432,24 @@
 // e1e1ebb75b1c4c64e67c84bfc5087626258fab6e20ed6285390da4c320bb4d8e. Carry
 // the same projections and allowances: 11,971,738 + 12,387 + 4,096 =
 // 11,988,221 packed; 23,342,705 + 353 + 65 = 23,343,123 unpacked.
+// The portable `not-applied` claim fence records a caller's claim and keeps
+// the idempotency ledger. Its edits to the portable recovery module,
+// runtime, run-journal and CLI sources and the provider-plugins reference
+// add exactly 8,189 payload bytes to the unchanged 596-file 0.18.33
+// inventory: `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
+// measured 11,973,998 packed bytes, 23,350,894 unpacked bytes; archive
+// SHA-256
+// e2beecabaf23294854c466e41e1fbf8373d63741c20148253f3ba97df78f8bf2. Carry
+// the same projections and allowances: 11,973,998 + 12,387 + 4,096 =
+// 11,990,481 packed; 23,350,894 + 353 + 65 = 23,351,312 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.33 re-tag release identity over the WebMCP Registry provider inventory",
+  scope: "Portable not-applied claim fence over the Ghostget 0.18.33 inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "e1e1ebb75b1c4c64e67c84bfc5087626258fab6e20ed6285390da4c320bb4d8e",
-  packedBytes: 11_971_738,
-  unpackedBytes: 23_342_705,
+  archiveSha256: "e2beecabaf23294854c466e41e1fbf8373d63741c20148253f3ba97df78f8bf2",
+  packedBytes: 11_973_998,
+  unpackedBytes: 23_350_894,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

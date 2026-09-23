@@ -3921,12 +3921,16 @@ export function repairInterruptedRunJournals(
   });
 }
 
+/**
+ * Release a reconciled run's recovery material and keep its idempotency
+ * ledger. No reconciler observes that a write did not apply, and a caller's
+ * claim is not that evidence, so reconciliation never reopens the fence.
+ */
 export function releaseReconciledRunRecovery(
   runId: string,
   expectedReceiptHash: string,
   environment: Readonly<Record<string, string | undefined>> = process.env,
   now = new Date(),
-  outcome: "applied" | "not-applied" = "applied",
 ):
   | "journal-released"
   | "journal-retained-for-duplicate-successor"
@@ -3964,7 +3968,7 @@ export function releaseReconciledRunRecovery(
     try {
       snapshot = updateRunJournal(snapshot, {
         type: "recovery-released",
-        outcome,
+        outcome: "applied",
         at: new Date(Math.max(
           now.getTime(),
           Date.parse(snapshot.journal.updatedAt),
@@ -3982,7 +3986,7 @@ export function releaseReconciledRunRecovery(
     // same reconciliation outcome as the durable journal.
     transitionRunJournal(snapshot.journal, {
       type: "recovery-released",
-      outcome,
+      outcome: "applied",
       at: snapshot.journal.updatedAt,
     });
   }

@@ -33,9 +33,14 @@ type PortableReceipt = Extract<
   RunReceipt,
   { readonly schemaVersion: 6 }
 >;
+type RecoverablePortableReceipt = PortableReceipt & {
+  readonly risk: "R2" | "R3";
+  readonly planDigest: string;
+};
 
 const RESOLUTION_DIRECTORY = "recovery/portable-resolutions";
-const MAX_RESOLUTION_BYTES = 32 * 1024;
+const NOT_APPLIED_CLAIM_DIRECTORY = "recovery/portable-not-applied-claims";
+const MAX_RECORD_BYTES = 32 * 1024;
 const sha256Pattern = /^[a-f0-9]{64}$/u;
 const runIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
@@ -45,6 +50,11 @@ export type PortableRunReconciliationInput = {
   readonly evidenceHash: string;
 };
 
+/**
+ * The create-once record that settles a run as applied. Before caller claims
+ * were fenced, `not-applied` was also written here and released the ledger.
+ * Those historical records stay readable, but Ghostget never writes one again.
+ */
 export type PortableRunResolutionV1 = {
   readonly schemaVersion: 1;
   readonly runId: string;
@@ -60,18 +70,49 @@ export type PortableRunResolutionV1 = {
   readonly evidenceHash: string;
 };
 
-export type ReconcilePortableRunResult = {
-  readonly ok: true;
+/**
+ * A caller's create-once `not-applied` assertion. Ghostget did not observe the
+ * provider state, so the claim is kept on record only. It never releases the
+ * ledger, the recovery capsule, or the plugin bundle.
+ */
+export type PortableRunNotAppliedClaimV1 = {
+  readonly schemaVersion: 1;
+  readonly kind: "caller-asserted-not-applied";
+  readonly runId: string;
+  readonly claimedAt: string;
+  readonly receiptHash: string;
+  readonly planDigest: string;
+  readonly adapterHash: string;
+  readonly inputHash: string;
+  readonly authHash: string;
+  readonly contractHash: string;
+  readonly portablePluginContract: PortableOperationIdentityV1;
+  readonly evidenceHash: string;
+};
+
+type ReconcilePortableRunCommon = {
   readonly kind: "portable-provider-plugin-reconciliation";
   readonly runId: string;
   readonly originalReceiptStatus: PortableReceipt["status"];
   readonly receiptUnchanged: true;
   readonly providerWriteDispatched: false;
-  readonly outcome: PortableRunReconciliationInput["outcome"];
-  readonly status: "succeeded" | "safe-retry";
   readonly evidenceHash: string;
-  readonly recoveryArtifactsReleased: true;
 };
+
+export type ReconcilePortableRunResult =
+  | ReconcilePortableRunCommon & {
+    readonly ok: true;
+    readonly outcome: "applied";
+    readonly status: "succeeded";
+    readonly recoveryArtifactsReleased: true;
+  }
+  | ReconcilePortableRunCommon & {
+    readonly ok: false;
+    readonly outcome: "not-applied";
+    readonly status: "fence-retained";
+    readonly claimRecorded: true;
+    readonly recoveryArtifactsReleased: false;
+  };
 
 function strictRecord(
   value: unknown,
@@ -133,15 +174,37 @@ export function parsePortableRunReconciliationInput(
   });
 }
 
-function canonicalTimestamp(value: unknown): string {
+function canonicalTimestamp(value: unknown, label: string): string {
   if (
     typeof value !== "string"
     || !Number.isFinite(Date.parse(value))
     || new Date(value).toISOString() !== value
   ) {
-    throw new Error("portable run resolution timestamp is malformed");
+    throw new Error(`${label} timestamp is malformed`);
   }
   return value;
+}
+
+const BOUND_HASH_FIELDS = [
+  ["receipt", "receiptHash"],
+  ["plan", "planDigest"],
+  ["adapter", "adapterHash"],
+  ["input", "inputHash"],
+  ["auth", "authHash"],
+  ["contract", "contractHash"],
+  ["evidence", "evidenceHash"],
+] as const;
+
+function assertBoundHashes(
+  record: Readonly<Record<string, unknown>>,
+  label: string,
+): void {
+  for (const [name, key] of BOUND_HASH_FIELDS) {
+    const candidate = record[key];
+    if (typeof candidate !== "string" || !sha256Pattern.test(candidate)) {
+      throw new Error(`${label} ${name} hash is malformed`);
+    }
+  }
 }
 
 function parseResolution(value: unknown): PortableRunResolutionV1 {
@@ -174,23 +237,14 @@ function parseResolution(value: unknown): PortableRunResolutionV1 {
   ) {
     throw new Error("portable run resolution is malformed");
   }
-  for (const [key, candidate] of [
-    ["receipt", record.receiptHash],
-    ["plan", record.planDigest],
-    ["adapter", record.adapterHash],
-    ["input", record.inputHash],
-    ["auth", record.authHash],
-    ["contract", record.contractHash],
-    ["evidence", record.evidenceHash],
-  ] as const) {
-    if (typeof candidate !== "string" || !sha256Pattern.test(candidate)) {
-      throw new Error(`portable run resolution ${key} hash is malformed`);
-    }
-  }
+  assertBoundHashes(record, "portable run resolution");
   return Object.freeze({
     schemaVersion: 1,
     runId: record.runId,
-    resolvedAt: canonicalTimestamp(record.resolvedAt),
+    resolvedAt: canonicalTimestamp(
+      record.resolvedAt,
+      "portable run resolution",
+    ),
     receiptHash: record.receiptHash as string,
     planDigest: record.planDigest as string,
     adapterHash: record.adapterHash as string,
@@ -205,25 +259,81 @@ function parseResolution(value: unknown): PortableRunResolutionV1 {
   });
 }
 
-function resolutionDirectory(environment: Environment): string {
-  return join(ghostgetStateHome(environment), ...RESOLUTION_DIRECTORY.split("/"));
+export function parsePortableRunNotAppliedClaim(
+  value: unknown,
+): PortableRunNotAppliedClaimV1 {
+  const label = "portable run not-applied claim";
+  const record = strictRecord(
+    value,
+    [
+      "schemaVersion",
+      "kind",
+      "runId",
+      "claimedAt",
+      "receiptHash",
+      "planDigest",
+      "adapterHash",
+      "inputHash",
+      "authHash",
+      "contractHash",
+      "portablePluginContract",
+      "evidenceHash",
+    ],
+    label,
+  );
+  if (
+    record.schemaVersion !== 1
+    || record.kind !== "caller-asserted-not-applied"
+    || typeof record.runId !== "string"
+    || !runIdPattern.test(record.runId)
+  ) {
+    throw new Error(`${label} is malformed`);
+  }
+  assertBoundHashes(record, label);
+  return Object.freeze({
+    schemaVersion: 1,
+    kind: "caller-asserted-not-applied",
+    runId: record.runId,
+    claimedAt: canonicalTimestamp(record.claimedAt, label),
+    receiptHash: record.receiptHash as string,
+    planDigest: record.planDigest as string,
+    adapterHash: record.adapterHash as string,
+    inputHash: record.inputHash as string,
+    authHash: record.authHash as string,
+    contractHash: record.contractHash as string,
+    portablePluginContract: parsePortableOperationIdentityV1(
+      record.portablePluginContract,
+    ),
+    evidenceHash: record.evidenceHash as string,
+  });
 }
 
-function resolutionPath(runId: string, environment: Environment): string {
+function recordDirectory(directory: string, environment: Environment): string {
+  return join(ghostgetStateHome(environment), ...directory.split("/"));
+}
+
+function recordPath(
+  directory: string,
+  runId: string,
+  environment: Environment,
+): string {
   if (!runIdPattern.test(runId)) {
     throw new Error("portable reconciliation run ID is malformed");
   }
-  return join(resolutionDirectory(environment), `${runId}.json`);
+  return join(recordDirectory(directory, environment), `${runId}.json`);
 }
 
-export function readPortableRunResolution(
+function readRunRecord<Value extends { readonly runId: string }>(
+  directory: string,
   runId: string,
-  environment: Environment = process.env,
-): PortableRunResolutionV1 | null {
+  label: string,
+  parse: (value: unknown) => Value,
+  environment: Environment,
+): Value | null {
   const text = readPrivateStateFileIfPresent(
-    resolutionPath(runId, environment),
-    MAX_RESOLUTION_BYTES,
-    "portable run resolution",
+    recordPath(directory, runId, environment),
+    MAX_RECORD_BYTES,
+    label,
     environment,
   );
   if (text === null) return null;
@@ -231,26 +341,78 @@ export function readPortableRunResolution(
   try {
     value = JSON.parse(text) as unknown;
   } catch {
-    throw new Error("portable run resolution is malformed JSON");
+    throw new Error(`${label} is malformed JSON`);
   }
-  const resolution = parseResolution(value);
-  if (
-    resolution.runId !== runId
-    || !isCanonicalJsonFileText(text, resolution)
-  ) {
-    throw new Error(
-      "portable run resolution does not match its durable coordinate",
-    );
+  const record = parse(value);
+  if (record.runId !== runId || !isCanonicalJsonFileText(text, record)) {
+    throw new Error(`${label} does not match its durable coordinate`);
   }
-  return resolution;
+  return record;
+}
+
+/** Publish a create-once run record, or return the one that already exists. */
+function publishRunRecordOnce<Value extends { readonly runId: string }>(
+  directory: string,
+  record: Value,
+  label: string,
+  parse: (value: unknown) => Value,
+  environment: Environment,
+): Value {
+  const directoryIdentity = ensurePrivateStateDirectory(
+    recordDirectory(directory, environment),
+    environment,
+  );
+  const created = createPrivateJsonIfAbsent(
+    recordPath(directory, record.runId, environment),
+    record,
+    {
+      environment,
+      expectedStateParent: directoryIdentity,
+    },
+  );
+  if (created.created) return record;
+  const existing = readRunRecord(
+    directory,
+    record.runId,
+    label,
+    parse,
+    environment,
+  );
+  if (existing === null) {
+    throw new Error(`${label} disappeared during publication`);
+  }
+  return existing;
+}
+
+export function readPortableRunResolution(
+  runId: string,
+  environment: Environment = process.env,
+): PortableRunResolutionV1 | null {
+  return readRunRecord(
+    RESOLUTION_DIRECTORY,
+    runId,
+    "portable run resolution",
+    parseResolution,
+    environment,
+  );
+}
+
+export function readPortableRunNotAppliedClaim(
+  runId: string,
+  environment: Environment = process.env,
+): PortableRunNotAppliedClaimV1 | null {
+  return readRunRecord(
+    NOT_APPLIED_CLAIM_DIRECTORY,
+    runId,
+    "portable run not-applied claim",
+    parsePortableRunNotAppliedClaim,
+    environment,
+  );
 }
 
 function assertPortableReceipt(
   receipt: RunReceipt,
-): asserts receipt is PortableReceipt & {
-  readonly risk: "R2" | "R3";
-  readonly planDigest: string;
-} {
+): asserts receipt is RecoverablePortableReceipt {
   if (
     receipt.schemaVersion !== 6
     || receipt.transport !== "portable-provider-plugin"
@@ -303,10 +465,7 @@ function assertCurrentContract(
 }
 
 function assertCapsuleMatchesReceipt(
-  receipt: PortableReceipt & {
-    readonly risk: "R2" | "R3";
-    readonly planDigest: string;
-  },
+  receipt: RecoverablePortableReceipt,
   environment: Environment,
 ): void {
   const capsule = readRecoveryCapsule(
@@ -334,21 +493,38 @@ function assertCapsuleMatchesReceipt(
   }
 }
 
-function resolutionFor(
-  receipt: PortableReceipt & {
-    readonly risk: "R2" | "R3";
-    readonly planDigest: string;
-  },
-  input: PortableRunReconciliationInput,
-  now: Date,
-): PortableRunResolutionV1 {
+/**
+ * Bind a first record to the exact current contract, auth locator, and
+ * encrypted recovery capsule of the unsettled run.
+ */
+function assertRunStillBound(
+  receipt: RecoverablePortableReceipt,
+  registry: ProviderPluginRegistry,
+  environment: Environment,
+): void {
+  assertCurrentContract(receipt, registry);
+  const auth = loadAuth(receipt.auth.id, environment);
+  if (
+    auth.kind !== receipt.auth.kind
+    || !canonicalJsonSha256Matches(receipt.auth.hash, auth)
+  ) {
+    throw new Error(
+      "current auth locator no longer matches the unsettled portable run",
+    );
+  }
+  assertCapsuleMatchesReceipt(receipt, environment);
+}
+
+function recordTimestamp(now: Date): string {
   if (!Number.isFinite(now.valueOf())) {
     throw new Error("portable reconciliation clock is invalid");
   }
-  return parseResolution({
-    schemaVersion: 1,
+  return now.toISOString();
+}
+
+function runBinding(receipt: RecoverablePortableReceipt) {
+  return {
     runId: receipt.runId,
-    resolvedAt: now.toISOString(),
     receiptHash: sha256(canonicalJson(receipt)),
     planDigest: receipt.planDigest,
     adapterHash: receipt.adapter.hash,
@@ -359,8 +535,34 @@ function resolutionFor(
       identity: receipt.portablePluginContract,
     }),
     portablePluginContract: receipt.portablePluginContract,
-    outcome: input.outcome,
-    evidenceHash: input.evidenceHash,
+  };
+}
+
+function appliedResolutionFor(
+  receipt: RecoverablePortableReceipt,
+  evidenceHash: string,
+  now: Date,
+): PortableRunResolutionV1 {
+  return parseResolution({
+    schemaVersion: 1,
+    ...runBinding(receipt),
+    resolvedAt: recordTimestamp(now),
+    outcome: "applied",
+    evidenceHash,
+  });
+}
+
+function notAppliedClaimFor(
+  receipt: RecoverablePortableReceipt,
+  evidenceHash: string,
+  now: Date,
+): PortableRunNotAppliedClaimV1 {
+  return parsePortableRunNotAppliedClaim({
+    schemaVersion: 1,
+    kind: "caller-asserted-not-applied",
+    ...runBinding(receipt),
+    claimedAt: recordTimestamp(now),
+    evidenceHash,
   });
 }
 
@@ -379,6 +581,62 @@ function assertResolutionMatches(
   }
 }
 
+/**
+ * Keep a caller's `not-applied` assertion without acting on it. The caller
+ * typed the evidence hash, and a provider's current absence of a target does
+ * not prove that an earlier write never applied. Only evidence that Ghostget
+ * observes itself, or an owner approval, could release the fence, and the
+ * portable protocol has neither, so the ledger, capsule, and journal stay
+ * exactly as they are.
+ */
+function recordNotAppliedClaim(
+  receipt: RecoverablePortableReceipt,
+  evidenceHash: string,
+  registry: ProviderPluginRegistry,
+  environment: Environment,
+  now: Date,
+): void {
+  if (receipt.dispatch.verified !== 0) {
+    throw new Error(
+      "a not-applied claim contradicts a verified dispatch of this portable run",
+    );
+  }
+  if (readPortableRunResolution(receipt.runId, environment) !== null) {
+    throw new Error(
+      "portable run already has a durable resolution; a not-applied claim cannot change it",
+    );
+  }
+  const expected = notAppliedClaimFor(receipt, evidenceHash, now);
+  let claim = readPortableRunNotAppliedClaim(receipt.runId, environment);
+  if (claim === null) {
+    assertRunStillBound(receipt, registry, environment);
+    claim = publishRunRecordOnce(
+      NOT_APPLIED_CLAIM_DIRECTORY,
+      expected,
+      "portable run not-applied claim",
+      parsePortableRunNotAppliedClaim,
+      environment,
+    );
+  }
+  if (
+    canonicalJson({ ...claim, claimedAt: expected.claimedAt })
+      !== canonicalJson(expected)
+  ) {
+    throw new Error(
+      "a different not-applied claim is already recorded for this portable run",
+    );
+  }
+}
+
+/**
+ * Reconcile an unsettled portable write from explicit external evidence.
+ *
+ * `applied` settles the run: Ghostget publishes a create-once resolution,
+ * releases the recovery material, and keeps the at-most-once ledger, so the
+ * same intent stays refused. A caller-asserted `not-applied` is recorded as a
+ * create-once claim and reported as `fence-retained`; it releases nothing.
+ * Neither outcome starts plugin code, calls a provider, or changes the receipt.
+ */
 export function reconcilePortableProviderPluginRun(
   runId: string,
   inputValue: unknown,
@@ -390,51 +648,42 @@ export function reconcilePortableProviderPluginRun(
 ): ReconcilePortableRunResult {
   const input = parsePortableRunReconciliationInput(inputValue);
   const environment = options.environment ?? process.env;
+  const now = options.now ?? new Date();
   const receipt = readRunReceipt(runId, environment);
   assertPortableReceipt(receipt);
-  if (input.outcome === "not-applied" && receipt.dispatch.verified !== 0) {
-    throw new Error(
-      "not-applied evidence cannot release a run with a verified dispatch",
+  if (input.outcome === "not-applied") {
+    recordNotAppliedClaim(
+      receipt,
+      input.evidenceHash,
+      options.registry,
+      environment,
+      now,
     );
+    return Object.freeze({
+      ok: false,
+      kind: "portable-provider-plugin-reconciliation",
+      runId: receipt.runId,
+      originalReceiptStatus: receipt.status,
+      receiptUnchanged: true,
+      providerWriteDispatched: false,
+      outcome: "not-applied",
+      status: "fence-retained",
+      evidenceHash: input.evidenceHash,
+      claimRecorded: true,
+      recoveryArtifactsReleased: false,
+    });
   }
-  const expected = resolutionFor(
-    receipt,
-    input,
-    options.now ?? new Date(),
-  );
+  const expected = appliedResolutionFor(receipt, input.evidenceHash, now);
   let resolution = readPortableRunResolution(runId, environment);
   if (resolution === null) {
-    assertCurrentContract(receipt, options.registry);
-    const auth = loadAuth(receipt.auth.id, environment);
-    if (
-      auth.kind !== receipt.auth.kind
-      || !canonicalJsonSha256Matches(receipt.auth.hash, auth)
-    ) {
-      throw new Error(
-        "current auth locator no longer matches the unsettled portable run",
-      );
-    }
-    assertCapsuleMatchesReceipt(receipt, environment);
-    const directoryIdentity = ensurePrivateStateDirectory(
-      resolutionDirectory(environment),
+    assertRunStillBound(receipt, options.registry, environment);
+    resolution = publishRunRecordOnce(
+      RESOLUTION_DIRECTORY,
+      expected,
+      "portable run resolution",
+      parseResolution,
       environment,
     );
-    const created = createPrivateJsonIfAbsent(
-      resolutionPath(runId, environment),
-      expected,
-      {
-        environment,
-        expectedStateParent: directoryIdentity,
-      },
-    );
-    resolution = created.created
-      ? expected
-      : readPortableRunResolution(runId, environment);
-    if (resolution === null) {
-      throw new Error(
-        "portable run resolution disappeared during publication",
-      );
-    }
   }
   assertResolutionMatches(resolution, expected);
   try {
@@ -442,8 +691,7 @@ export function reconcilePortableProviderPluginRun(
       receipt.runId,
       expected.receiptHash,
       environment,
-      options.now ?? new Date(),
-      input.outcome,
+      now,
     );
     if (released !== "journal-released") {
       throw new Error(
@@ -463,8 +711,8 @@ export function reconcilePortableProviderPluginRun(
     originalReceiptStatus: receipt.status,
     receiptUnchanged: true,
     providerWriteDispatched: false,
-    outcome: input.outcome,
-    status: input.outcome === "applied" ? "succeeded" : "safe-retry",
+    outcome: "applied",
+    status: "succeeded",
     evidenceHash: input.evidenceHash,
     recoveryArtifactsReleased: true,
   });
