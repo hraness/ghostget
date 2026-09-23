@@ -661,6 +661,95 @@ describe("bound path helper traversal", () => {
     }
   });
 
+  test("sweeps a dead reaper and its recovery quarantine once the reaped claim has left the lock", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wrench-path-helper-reaper-residue-"));
+    const actors: StepActor[] = [];
+    try {
+      writeFileSync(join(root, "target.json"), "initial\n", { mode: 0o600 });
+      writeDeadPathMutationClaim(root, "target.json");
+      const lockName = pathMutationLockName("target.json");
+      const targetSha256 = lockName.slice(".io-path-mutation-".length, -".lock".length);
+      const expectedRoot = identity(lstatSync(root, { bigint: true }));
+      const doomed = spawnStepActor(root, expectedRoot, "doomed reaper", "doomed\n");
+      actors.push(doomed);
+      await settleStepActor(root, doomed);
+      await advanceStepActorUntil(root, actors, doomed, (step) => step === "claim-quarantine");
+      const doomedPid = doomed.child.pid;
+      await killStepActor(doomed);
+      // The state a SIGKILL right after the quarantine rename leaves: the
+      // elected reaper file and the moved claim, with the lock name free.
+      renameSync(
+        join(root, lockName),
+        join(root, `.io-path-mutation-recovery-${targetSha256}-${doomedPid}-${randomUUID()}.tmp`),
+      );
+      writeFileSync(
+        join(root, `.io-path-mutation-release-${targetSha256}-${doomedPid}-${randomUUID()}.tmp`),
+        "released\n",
+        { mode: 0o600, flag: "wx" },
+      );
+      expect(helperLeftovers(root).filter((name) =>
+        name.startsWith(".io-path-mutation-reaper-"))).toHaveLength(1);
+
+      const next = runHelper(root, expectedRoot, {
+        kind: "write-file",
+        segments: ["target.json"],
+        directoryExpectations: [],
+        content: "next\n",
+        createOnly: false,
+      });
+      expect(next.stderr).toBe("");
+      expect(next.status).toBe(0);
+      expect(readFileSync(join(root, "target.json"), "utf8")).toBe("next\n");
+      expect(helperLeftovers(root).filter((name) =>
+        name.startsWith(".io-path-mutation-"))).toEqual([]);
+    } finally {
+      await stopStepActors(actors);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps a dead reaper while its claim still holds the lock name", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wrench-path-helper-reaper-kept-"));
+    const actors: StepActor[] = [];
+    try {
+      writeFileSync(join(root, "target.json"), "initial\n", { mode: 0o600 });
+      writeDeadPathMutationClaim(root, "target.json");
+      const expectedRoot = identity(lstatSync(root, { bigint: true }));
+      const doomed = spawnStepActor(root, expectedRoot, "doomed reaper", "doomed\n");
+      const successor = spawnStepActor(root, expectedRoot, "successor", "successor\n");
+      actors.push(doomed, successor);
+      for (const actor of actors) await settleStepActor(root, actor);
+      await advanceStepActorUntil(root, actors, doomed, (step) => step === "claim-quarantine");
+      await killStepActor(doomed);
+      await advanceStepActorUntil(root, actors, successor, (step) => step === "claim-quarantine");
+      const reapers = () => helperLeftovers(root).filter((name) =>
+        name.startsWith(".io-path-mutation-reaper-"));
+      expect(reapers()).toHaveLength(2);
+
+      // Sweeping the dead generation-0 reaper here would let this writer win
+      // generation 0 beside the live generation-1 successor.
+      const late = runHelper(root, expectedRoot, {
+        kind: "write-file",
+        segments: ["target.json"],
+        directoryExpectations: [],
+        content: "late\n",
+        createOnly: false,
+      });
+      expect(late.status).not.toBe(0);
+      expect(late.stderr).toContain("file mutation is already active");
+      expect(reapers()).toHaveLength(2);
+
+      await drainStepActors(root, actors);
+      expect(successor.exitCode).toBe(0);
+      expect(readFileSync(join(root, "target.json"), "utf8")).toBe("successor\n");
+      expect(helperLeftovers(root).filter((name) =>
+        name.startsWith(".io-path-mutation-"))).toEqual([]);
+    } finally {
+      await stopStepActors(actors);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test("admits at most one live claim holder across bounded reaper schedules", async () => {
     await assertAsyncProperty(fc.asyncProperty(
       fc.oneof(
@@ -714,9 +803,11 @@ describe("bound path helper traversal", () => {
           expect(next.stderr).toBe("");
           expect(next.exitCode).toBe(0);
           expect(readFileSync(join(root, "target.json"), "utf8")).toBe("next\n");
-          if (actors.every((actor) => !actor.killed)) {
-            expect(helperLeftovers(root)).toEqual([]);
-          }
+          // The next writer sweeps the claim-protocol files killed helpers
+          // left; their test step files and write temporaries may remain.
+          expect(helperLeftovers(root).filter((name) =>
+            actors.every((actor) => !actor.killed)
+            || name.startsWith(".io-path-mutation-"))).toEqual([]);
         } finally {
           await stopStepActors(actors);
           rmSync(root, { recursive: true, force: true });

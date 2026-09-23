@@ -44,8 +44,11 @@ const removeQuarantineScanMaximum = (() => {
 })();
 const writeTemporaryNamePattern =
   /^\.io-write-([1-9][0-9]{0,9})-([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.tmp$/u;
-const pathMutationStageNamePattern =
-  /^\.io-path-mutation-stage-([a-f0-9]{64})-([1-9][0-9]{0,9})-([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.tmp$/u;
+/** Stage, recovery-quarantine, and release names carry their creator's pid. */
+const pathMutationTemporaryNamePattern =
+  /^\.io-path-mutation-(?:stage|recovery|release)-([a-f0-9]{64})-([1-9][0-9]{0,9})-([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.tmp$/u;
+const pathMutationReaperNamePattern =
+  /^\.io-path-mutation-reaper-([a-f0-9]{64})-[a-f0-9]{64}\.lock$/u;
 /**
  * Each reaper generation needs one more process to die mid-recovery, so a
  * longer chain means repeated crashes or drift and fails closed.
@@ -1106,10 +1109,11 @@ function publishPathMutationLockFile(
  *
  * Generation 0 is named by the claim fingerprint, so every process that saw
  * the same dead claim contends for the same no-clobber name. A dead reaper is
- * never removed; its successor is named by the dead reaper's own fingerprint,
- * so every process that saw that reaper contends for the next name instead.
- * Reaper files are removed only after the claim has left the lock name, which
- * is permanent because a claim's fingerprint never recurs.
+ * never removed while its claim holds the lock name; its successor is named by
+ * the dead reaper's own fingerprint, so every process that saw that reaper
+ * contends for the next name instead. Reaper files are removed, by their
+ * holder or by the residue sweep, only after the claim has left the lock name,
+ * which is permanent because a claim's fingerprint never recurs.
  */
 function acquirePathMutationReaper(
   targetSha256: string,
@@ -1181,31 +1185,83 @@ function samePathMutationClaimSnapshot(
     && left.stats.nlink === right.stats.nlink;
 }
 
-function recoverDefinitelyOrphanedPathMutationStages(): void {
+/**
+ * A dead reaper is residue only once its claim has left the lock name. The
+ * claim held that name before its first reaper existed, and a departed claim
+ * never returns, so the reaper is read before the lock. A dead reaper whose
+ * claim is still present stays: it names the successor election.
+ */
+function pathMutationReaperIsResidue(name: string, targetSha256: string): boolean {
+  try {
+    const file = readPathMutationLockFile(name, "path mutation reaper");
+    if (file === null) return false;
+    const value = JSON.parse(file.content.toString("utf8")) as unknown;
+    if (
+      !isRecord(value)
+      || typeof value.claimFingerprint !== "string"
+      || !/^[a-f0-9]{64}$/u.test(value.claimFingerprint)
+      || typeof value.generation !== "number"
+      || !Number.isSafeInteger(value.generation)
+      || value.generation < 0
+      || value.generation >= PATH_MUTATION_REAPER_GENERATION_MAXIMUM
+    ) return false;
+    const reaper = parsePathMutationReaper(
+      file.content,
+      targetSha256,
+      value.claimFingerprint,
+      value.generation,
+    );
+    if (!processIsDefinitelyMissing(reaper.pid)) return false;
+    const lock = readPathMutationLockFile(
+      pathMutationLockName(targetSha256),
+      "path mutation claim",
+    );
+    return lock === null || pathMutationLockFileFingerprint(
+      "io-path-mutation-claim",
+      targetSha256,
+      lock,
+    ) !== reaper.claimFingerprint;
+  } catch {
+    // Unrecognized or unreadable files are never swept.
+    return false;
+  }
+}
+
+/**
+ * Removes path-mutation residue left by helpers that died mid-protocol:
+ * stage, recovery-quarantine, and release temporaries whose creator is
+ * definitely gone, and dead reapers whose claim has left the lock name.
+ */
+function recoverDefinitelyOrphanedPathMutationResidue(): void {
   let removed = false;
   for (const name of readdirSync(".")) {
-    const pidText = pathMutationStageNamePattern.exec(name)?.[2];
-    if (pidText === undefined) continue;
-    const pid = Number(pidText);
-    if (
-      !Number.isSafeInteger(pid)
-      || pid < 1
-      || pid > 2_147_483_647
-      || !processIsDefinitelyMissing(pid)
-    ) continue;
-    let stats: BigIntStats;
-    try {
-      stats = lstatSync(name, { bigint: true });
-    } catch (error) {
-      if (hasCode(error, "ENOENT")) continue;
-      throw error;
+    const reaperTarget = pathMutationReaperNamePattern.exec(name)?.[1];
+    if (reaperTarget !== undefined) {
+      if (!pathMutationReaperIsResidue(name, reaperTarget)) continue;
+    } else {
+      const pidText = pathMutationTemporaryNamePattern.exec(name)?.[2];
+      if (pidText === undefined) continue;
+      const pid = Number(pidText);
+      if (
+        !Number.isSafeInteger(pid)
+        || pid < 1
+        || pid > 2_147_483_647
+        || !processIsDefinitelyMissing(pid)
+      ) continue;
+      let stats: BigIntStats;
+      try {
+        stats = lstatSync(name, { bigint: true });
+      } catch (error) {
+        if (hasCode(error, "ENOENT")) continue;
+        throw error;
+      }
+      if (
+        stats.isSymbolicLink()
+        || !stats.isFile()
+        || !ownedByCurrentUser(stats)
+        || (stats.mode & 0o077n) !== 0n
+      ) continue;
     }
-    if (
-      stats.isSymbolicLink()
-      || !stats.isFile()
-      || !ownedByCurrentUser(stats)
-      || (stats.mode & 0o077n) !== 0n
-    ) continue;
     try {
       unlinkSync(name);
       removed = true;
@@ -1263,7 +1319,7 @@ function recoverDefinitelyOrphanedPathMutationClaim(
   unlinkSync(quarantine);
   syncDirectory(".");
   releasePathMutationReapers(reaper.names);
-  recoverDefinitelyOrphanedPathMutationStages();
+  recoverDefinitelyOrphanedPathMutationResidue();
   return true;
 }
 
@@ -1364,7 +1420,7 @@ function acquirePathMutationClaim(
 ): (() => void) | null {
   const targetSha256 = pathMutationTargetSha256(leaf);
   const lockName = pathMutationLockName(targetSha256);
-  recoverDefinitelyOrphanedPathMutationStages();
+  recoverDefinitelyOrphanedPathMutationResidue();
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const claim: PathMutationClaim = {
       kind: "io-path-mutation-claim",
