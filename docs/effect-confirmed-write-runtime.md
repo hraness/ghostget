@@ -23,6 +23,16 @@ output-limit validation retains its post-capsule, pre-dispatch position. A
 changed duplicate-risk witness retains the existing confirmation claim so the
 ordinary recovery path can inspect it.
 
+The ledger claim takes an intent fence before the hash-keyed ledger. An intent
+is one account realm (the auth locator), provider target (adapter ID),
+operation, and canonical input, narrowed to an elected duplicate-risk
+successor. The fence ignores adapter and auth hashes because a reconnect or a
+manifest revision rewrites those bytes without changing the effect. While an
+earlier run of the same intent is unsettled, confirmation refuses; while a
+succeeded run is inside its dedupe window, confirmation replays its receipt.
+The fence scans run journals before its exclusive create under
+`idempotency/intents`, so a run recorded before the fence existed still blocks.
+
 ## Synchronous dispatch evidence
 
 Dispatch and accepted-target callbacks validate and persist their transitions
