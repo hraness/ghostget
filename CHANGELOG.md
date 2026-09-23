@@ -7,6 +7,15 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.35
+
+- Ship the WebMCP editorial figure and homepage registry surface merged in
+  #350: a Slopcamera-generated dark-duotone illustration for `/webmcp/` with
+  committed prompt/job/receipt provenance and 384/768 derivatives, the
+  1,800-site registry panel with a popularity-ordered domain strip on the
+  homepage providers section, and a registry stat row on the explainer.
+  No runtime behavior changes.
+
 ## 0.18.34
 
 - Publish the WebMCP editorial and documentation surfaces: a `/webmcp/`
