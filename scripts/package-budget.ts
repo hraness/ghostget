@@ -1401,20 +1401,28 @@
 // src/plugins/webmcp/plugin.ts and the bundled
 // src/assets/adapters/webmcp/wrench-web-adapter.json) alongside generated
 // catalog, contract-identity, documentation and rebuilt dist edits, raising
-// the inventory to exactly 596 files. `npm pack --ignore-scripts` on this
+// the inventory to exactly 596 files. `npm pack --ignore-scripts` on that
 // branch measured 11,970,845 packed bytes, 23,340,769 unpacked bytes;
 // archive SHA-256
-// df22787bbd6619f9b6f980505ed62a8f186bff0080cc269fd7ebcb21baa6d4eb. Carry
-// the same projections and allowances: 11,970,845 + 12,387 + 4,096 = 11,987,328
-// packed; 23,340,769 + 353 + 65 = 23,341,187 unpacked.
+// df22787bbd6619f9b6f980505ed62a8f186bff0080cc269fd7ebcb21baa6d4eb. The same
+// projections and allowances then gave 11,970,845 + 12,387 + 4,096 =
+// 11,987,328 packed; 23,340,769 + 353 + 65 = 23,341,187 unpacked.
+// Ghostget 0.18.31 adds its release identity: package and source version
+// strings, the new CHANGELOG section, README, docs, install references, and
+// rebuilt dist chunks over the unchanged 596-file WebMCP inventory:
+// `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64 measured
+// 11,971,298 packed bytes, 23,341,797 unpacked bytes; archive SHA-256
+// b6366e9a5eb4060629075ef2650f63c5a8939ffedde396301ebb43f0124a5980. Carry
+// the same projections and allowances: 11,971,298 + 12,387 + 4,096 =
+// 11,987,781 packed; 23,341,797 + 353 + 65 = 23,342,215 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "WebMCP Registry provider over the Ghostget 0.18.30 homepage-hero inventory",
+  scope: "Ghostget 0.18.31 release identity over the WebMCP Registry provider inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "df22787bbd6619f9b6f980505ed62a8f186bff0080cc269fd7ebcb21baa6d4eb",
-  packedBytes: 11_970_845,
-  unpackedBytes: 23_340_769,
+  archiveSha256: "b6366e9a5eb4060629075ef2650f63c5a8939ffedde396301ebb43f0124a5980",
+  packedBytes: 11_971_298,
+  unpackedBytes: 23_341_797,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
