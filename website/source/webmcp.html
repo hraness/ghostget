@@ -20,15 +20,15 @@
     <meta property="og:title" content="WebMCP for agents: call website-published tools through Ghostget">
     <meta property="og:description" content="WebMCP lets websites publish typed tools through navigator.modelContext. Ghostget's webmcp adapter reads the public WebMCP Registry's live schemas and calls only declared read-only tools.">
     <meta property="og:url" content="https://ghostget.com/webmcp/">
-    <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
+    <meta property="og:image" content="{{EDITORIAL_IMAGE_URL}}">
+    <meta property="og:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
+    <meta property="og:image:width" content="{{EDITORIAL_IMAGE_WIDTH}}">
+    <meta property="og:image:height" content="{{EDITORIAL_IMAGE_HEIGHT}}">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="WebMCP for agents: call website-published tools through Ghostget">
     <meta name="twitter:description" content="WebMCP lets websites publish typed tools through navigator.modelContext. Ghostget's webmcp adapter reads the public WebMCP Registry's live schemas and calls only declared read-only tools.">
-    <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="twitter:image" content="{{EDITORIAL_IMAGE_URL}}">
+    <meta name="twitter:image:alt" content="{{EDITORIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -53,6 +53,12 @@
           <p class="eyebrow">Explainer · Ghostget {{GHOSTGET_VERSION}}</p>
           <h1>Websites publish tools now. Your agent can call them.</h1>
           <p class="answer-lede">WebMCP is a browser-native contract: a site declares typed tools on <code>navigator.modelContext</code> so an agent can call a named capability with a JSON input instead of scraping the page. The <a href="https://wmcp.ai">WebMCP Registry</a> crawls the web for sites that publish those tools, and Ghostget's built-in <code>webmcp</code> adapter turns the registry into three bounded commands — search the sites, read one site's current tool schema, and call a declared read-only tool.</p>
+          {{EDITORIAL_FIGURE}}
+          <dl class="registry-stats" aria-label="WebMCP Registry snapshot totals">
+            <div class="registry-stat"><dt>{{WEBMCP_REGISTRY_SITE_COUNT}}</dt><dd>registered sites</dd></div>
+            <div class="registry-stat"><dt>{{WEBMCP_REGISTRY_TOOL_COUNT}}</dt><dd>published tools</dd></div>
+            <div class="registry-stat"><dt>{{WEBMCP_REGISTRY_READONLY_TOOL_COUNT}}</dt><dd>callable read-only</dd></div>
+          </dl>
           <p class="review-note">This page describes the <code>webmcp</code> adapter in {{GHOSTGET_RELEASE}} and the public WebMCP Registry snapshot synchronized {{WEBMCP_SYNCED_AT}}: {{WEBMCP_REGISTRY_SITE_COUNT}} listed sites publishing {{WEBMCP_REGISTRY_TOOL_COUNT}} tools, {{WEBMCP_REGISTRY_READONLY_TOOL_COUNT}} of them callable read-only today. Registry listings and tool declarations drift between checks; <code>ghostget webmcp sites.get</code> reads the live-checked state.</p>
         </header>
 
