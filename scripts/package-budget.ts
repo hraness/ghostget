@@ -1407,14 +1407,27 @@
 // df22787bbd6619f9b6f980505ed62a8f186bff0080cc269fd7ebcb21baa6d4eb. Carry
 // the same projections and allowances: 11,970,845 + 12,387 + 4,096 = 11,987,328
 // packed; 23,340,769 + 353 + 65 = 23,341,187 unpacked.
+// Ghostget 0.18.31 carries the built-in WebMCP Registry provider (exactly
+// four packed production files: src/providers/webmcp.ts,
+// src/providers/webmcp-runtime.ts, src/plugins/webmcp/plugin.ts and the
+// bundled src/assets/adapters/webmcp/wrench-web-adapter.json) alongside
+// generated catalog, contract-identity, documentation and rebuilt dist
+// edits, plus the homepage related-product family section (website-only,
+// excluded from the package) and its CHANGELOG sections, raising the
+// inventory to exactly 596 files. `npm pack --ignore-scripts` with npm
+// 11.19.0 on darwin arm64 measured 11,983,797 packed bytes, 23,341,689
+// unpacked bytes; archive SHA-256
+// b54e5c850e37ad2bd3ad0826b7c3f9c1f58de4f3845f8185ddeef9337244575c. Carry
+// the same projections and allowances: 11,983,797 + 12,387 + 4,096 =
+// 12,000,280 packed; 23,341,689 + 353 + 65 = 23,342,107 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "WebMCP Registry provider over the Ghostget 0.18.30 homepage-hero inventory",
+  scope: "Ghostget 0.18.31 WebMCP Registry provider and related-product family release over the 0.18.30 hero inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "df22787bbd6619f9b6f980505ed62a8f186bff0080cc269fd7ebcb21baa6d4eb",
-  packedBytes: 11_970_845,
-  unpackedBytes: 23_340_769,
+  archiveSha256: "b54e5c850e37ad2bd3ad0826b7c3f9c1f58de4f3845f8185ddeef9337244575c",
+  packedBytes: 11_983_797,
+  unpackedBytes: 23_341_689,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

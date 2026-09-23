@@ -7,6 +7,23 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.31
+
+- Add the WebMCP Registry provider and generated provider directory: a
+  bundled `webmcp` adapter reads the public `wmcp.ai` registry live REST
+  surface, with `sites.search` enumerating listed domains, `sites.get`
+  returning one domain's tools and input schemas, and `tools.call`
+  invoking only tools the site declares `readOnlyHint` for through the
+  registry read-only guard. The website gains a checked-in registry
+  snapshot plus deterministic generation of `/providers/` and one landing
+  page per listed domain.
+- Link the related product family from the homepage with the shared
+  grouped related-products section: the agent platform (Gobstopper,
+  xcb, Aicharts) first and the personal apps (PeopleBlade, Soulscrape,
+  Textbutler, Wordcell) second. The static build now compiles the
+  marketing grammar's bounded syntax-highlighting import, and the site
+  moves to `@hraness/design-kit` v0.15.0.
+
 ## 0.18.30
 
 - Add the hero field: drifting provider cards and small ghosts behind the

@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.18.30",
+  "version": "0.18.31",
   "description": "Ghostget gives your AI agent safe access to the web: it reads pages, saves media, and uses connected accounts through a fixed list of reviewed actions instead of driving a browser. Free and open source.",
   "license": "MIT",
   "type": "module",
