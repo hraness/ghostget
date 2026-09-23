@@ -1448,14 +1448,22 @@
 // archive SHA-256 041f172721702456c214f78cd390417e285aed417e72bd0b45372fefd71bfa6c.
 // Carry the same projections and allowances: 11,972,555 + 12,387 + 4,096 =
 // 11,989,038 packed; 23,346,582 + 353 + 65 = 23,347,000 unpacked.
+// Ghostget 0.18.35 ships that recovery as the released version: its
+// CHANGELOG section, version pins, and rebuilt dist chunks shift the
+// unchanged 596-file inventory: `npm pack --ignore-scripts` with npm
+// 11.19.0 on darwin arm64 measured 11,972,740 packed bytes, 23,347,074
+// unpacked bytes; archive SHA-256
+// 72f1c95883b4541752396bdd89d0c370839c43aa365b42cd17ea01579b661f9b. Carry
+// the same projections and allowances: 11,972,740 + 12,387 + 4,096 =
+// 11,989,223 packed; 23,347,074 + 353 + 65 = 23,347,492 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.34 launch-intent cleanup recovery over the WebMCP documentation inventory",
+  scope: "Ghostget 0.18.35 release over the launch-intent cleanup recovery",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "041f172721702456c214f78cd390417e285aed417e72bd0b45372fefd71bfa6c",
-  packedBytes: 11_972_555,
-  unpackedBytes: 23_346_582,
+  archiveSha256: "72f1c95883b4541752396bdd89d0c370839c43aa365b42cd17ea01579b661f9b",
+  packedBytes: 11_972_740,
+  unpackedBytes: 23_347_074,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

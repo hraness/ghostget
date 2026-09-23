@@ -7,6 +7,16 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.35
+
+- Recover unbound `launch-intent` browser cleanup admissions after their
+  daemon exits before the control witness binds. Recovery now proves the
+  recorded session inactive through two exact `session info` inspections
+  bracketing unchanged pinned roots, retains an active or indeterminate
+  session, and keeps every existing controlled/prepared quiescence proof
+  unchanged. Previously these records stayed `cleanup-unsafe` forever and
+  blocked the realm until manual repair.
+
 ## 0.18.34
 
 - Publish the WebMCP editorial and documentation surfaces: a `/webmcp/`
