@@ -1497,14 +1497,23 @@
 // 9b9f358333b911d0ffbfa0602b77281c8b3fa7476c6baba9a376ca14f0f76dc3. Carry the
 // same projections and allowances: 11,983,769 + 12,387 + 4,096 = 12,000,252
 // packed; 23,390,228 + 353 + 65 = 23,390,646 unpacked.
+// The path-helper reaper election lets exactly one recoverer quarantine a
+// dead owner's claim, verifies the moved claim's identity, and restores any
+// live claim it moved by a no-clobber link. This adds 10,948 payload bytes
+// over the unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs
+// with npm 11.19.0 on darwin arm64 were byte-identical at 11,986,281 packed
+// bytes, 23,401,176 unpacked bytes; archive SHA-256
+// a93c3400369b926d7dc23451d8ddb5b2b2cb47ccd733b09fda9000345415b16c. Carry the
+// same projections and allowances: 11,986,281 + 12,387 + 4,096 = 12,002,764
+// packed; 23,401,176 + 353 + 65 = 23,401,594 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Injective session-secret names over the strict canonical JSON inventory",
+  scope: "Path-helper reaper election over the injective session-secret inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "9b9f358333b911d0ffbfa0602b77281c8b3fa7476c6baba9a376ca14f0f76dc3",
-  packedBytes: 11_983_769,
-  unpackedBytes: 23_390_228,
+  archiveSha256: "a93c3400369b926d7dc23451d8ddb5b2b2cb47ccd733b09fda9000345415b16c",
+  packedBytes: 11_986_281,
+  unpackedBytes: 23_401_176,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
