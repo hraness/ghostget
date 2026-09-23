@@ -5,11 +5,11 @@ import {
   materializeImsgNativeResources,
   readBundledMessagingAsset,
   verifyImsgNativeResources
-} from "./index-x5838n3a.js";
+} from "./index-r4839cs2.js";
 import"./index-gnv0v9as.js";
 import"./index-dw20pbkj.js";
 import"./index-26yq8q16.js";
-import"./index-axvy9dr9.js";
+import"./index-zf8ss45d.js";
 import"./index-z1w83f81.js";
 export {
   verifyImsgNativeResources,

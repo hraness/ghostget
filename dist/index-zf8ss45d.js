@@ -69,13 +69,18 @@ function encodeCanonical(value, encoding, path, ancestors) {
       return `[${encoded2.join(",")}]`;
     }
     const members = [...plainJsonObjectMembers(value, fail, {
-      skipNonEnumerable: encoding.omitLikeJsonStringify
+      skipNonEnumerable: encoding.skipNonEnumerable
     })].sort(([left], [right]) => encoding.compare(left, right));
     const encoded = [];
     for (const [key, item] of members) {
-      if (item === undefined && encoding.omitLikeJsonStringify)
-        continue;
       path.push(key);
+      if (item === undefined) {
+        if (encoding.rejectUndefinedMember !== undefined) {
+          return encoding.rejectUndefinedMember(path);
+        }
+        path.pop();
+        continue;
+      }
       encoded.push(`${JSON.stringify(key)}:${encodeCanonical(item, encoding, path, ancestors)}`);
       path.pop();
     }
@@ -91,7 +96,7 @@ function failCanonicalJson(violation) {
   throw new Error(`canonical JSON supports only JSON-compatible values: ${violation}`);
 }
 function canonicalJsonWithOrder(value, compare) {
-  return encodeCanonical(value, { compare, omitLikeJsonStringify: true, fail: failCanonicalJson }, [], new Set);
+  return encodeCanonical(value, { compare, skipNonEnumerable: true, fail: failCanonicalJson }, [], new Set);
 }
 function canonicalJson(value) {
   return canonicalJsonWithOrder(value, compareUtf16CodeUnits);

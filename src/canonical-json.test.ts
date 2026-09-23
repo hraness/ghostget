@@ -11,6 +11,7 @@ import {
   canonicalJsonSerializations,
   canonicalJsonSha256Matches,
   canonicalJsonSha256Variants,
+  canonicalJsonWithDefinedMembers,
   isCanonicalJsonFileText,
   isCanonicalJsonText,
   jsonScriptLiteral,
@@ -438,6 +439,33 @@ describe("canonicalJson value domain", () => {
       .toBe(canonicalJson({ b: [true, null], a: "x" }));
   });
 
+  test("the defined-members encoder shares the single getter-free pass", () => {
+    // It used to pre-walk the input with Object.values, which ran enumerable
+    // getters before the domain check and overflowed the stack on a cycle.
+    let reads = 0;
+    const accessor = Object.defineProperty({}, "a", {
+      get: () => {
+        reads += 1;
+        return 1;
+      },
+      enumerable: true,
+    });
+    expect(() => canonicalJsonWithDefinedMembers(accessor, "contract"))
+      .toThrow("accessor or non-enumerable member");
+    expect(reads).toBe(0);
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    expect(() => canonicalJsonWithDefinedMembers(cyclic, "contract")).toThrow("cycle");
+    expect(() => canonicalJsonWithDefinedMembers({ b: [{ a: undefined }] }, "contract"))
+      .toThrow("contract contains an unsupported value");
+    expect(() => canonicalJsonWithDefinedMembers([undefined], "contract"))
+      .toThrow("supports only JSON-compatible values: non-JSON value");
+    const hidden = Object.defineProperty({ b: 2 }, "a", { value: undefined });
+    expect(canonicalJsonWithDefinedMembers(hidden, "contract")).toBe('{"b":2}');
+    expect(canonicalJsonWithDefinedMembers({ b: [true, null], a: "x" }, "contract"))
+      .toBe(canonicalJson({ b: [true, null], a: "x" }));
+  });
+
   test("the legacy verifier shares the same value domain", () => {
     for (const [, violation] of domainViolations) {
       expect(() => legacyCanonicalJson(violation())).toThrow();
@@ -503,6 +531,7 @@ describe("canonicalJson value domain", () => {
         }
         expect(() => canonicalJson(value)).toThrow();
         expect(() => strictCanonicalJson(value, "value")).toThrow();
+        expect(() => canonicalJsonWithDefinedMembers(value, "value")).toThrow();
       },
     ));
   });
@@ -517,6 +546,7 @@ describe("canonicalJson value domain", () => {
       expect(JSON.parse(encoded)).toEqual(normalize(value));
       expect(canonicalJson(JSON.parse(encoded))).toBe(encoded);
       expect(strictCanonicalJson(value, "value")).toBe(encoded);
+      expect(canonicalJsonWithDefinedMembers(value, "value")).toBe(encoded);
     }));
     assertProperty(fc.property(
       fc.jsonValue({ maxDepth: 2 }),

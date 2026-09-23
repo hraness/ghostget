@@ -1443,14 +1443,21 @@
 // 4eb35fd63488e7a5348b21dd1e6a7068f3b6162bf5e7e0ecd2a66dcfc83cc5d2. Carry
 // the same projections and allowances: 11,975,121 + 12,387 + 4,096 =
 // 11,991,604 packed; 23,352,141 + 353 + 65 = 23,352,559 unpacked.
+// Building canonicalJsonWithDefinedMembers on the same single-pass encoder
+// removes its Object.values pre-walk; two npm 11.19.0 packs on darwin arm64
+// were byte-identical at 11,974,944 packed bytes, 23,352,386 unpacked bytes;
+// archive SHA-256
+// ad7ef72aa6dfbe0bcaf444bed7f15db72e19551edacf6e8264a10607be6ba50c. Carry
+// the same projections and allowances: 11,974,944 + 12,387 + 4,096 =
+// 11,991,427 packed; 23,352,386 + 353 + 65 = 23,352,804 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Strict canonical JSON value domain over the Ghostget 0.18.33 WebMCP Registry provider inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "4eb35fd63488e7a5348b21dd1e6a7068f3b6162bf5e7e0ecd2a66dcfc83cc5d2",
-  packedBytes: 11_975_121,
-  unpackedBytes: 23_352_141,
+  archiveSha256: "ad7ef72aa6dfbe0bcaf444bed7f15db72e19551edacf6e8264a10607be6ba50c",
+  packedBytes: 11_974_944,
+  unpackedBytes: 23_352_386,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

@@ -1,9 +1,5 @@
 import { createHash } from "node:crypto";
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 type KeyCompare = (left: string, right: string) => number;
 
 /**
@@ -126,10 +122,15 @@ type JsonPath = readonly (string | number)[];
 type CanonicalEncoding = {
   readonly compare: KeyCompare;
   /**
-   * Drop `undefined` and non-enumerable object members, as JSON.stringify
-   * does (true), or reject them (false).
+   * Leave out non-enumerable object members, as JSON.stringify does (true),
+   * or reject them (false).
    */
-  readonly omitLikeJsonStringify: boolean;
+  readonly skipNonEnumerable: boolean;
+  /**
+   * Reject an `undefined` object member at `path`. When absent, the member is
+   * left out, as JSON.stringify leaves it out.
+   */
+  readonly rejectUndefinedMember?: (path: JsonPath) => never;
   readonly fail: (violation: JsonDomainViolation, path: JsonPath) => never;
 };
 
@@ -163,13 +164,19 @@ function encodeCanonical(
       return `[${encoded.join(",")}]`;
     }
     const members = [...plainJsonObjectMembers(value, fail, {
-      skipNonEnumerable: encoding.omitLikeJsonStringify,
+      skipNonEnumerable: encoding.skipNonEnumerable,
     })]
       .sort(([left], [right]) => encoding.compare(left, right));
     const encoded: string[] = [];
     for (const [key, item] of members) {
-      if (item === undefined && encoding.omitLikeJsonStringify) continue;
       path.push(key);
+      if (item === undefined) {
+        if (encoding.rejectUndefinedMember !== undefined) {
+          return encoding.rejectUndefinedMember(path);
+        }
+        path.pop();
+        continue;
+      }
       encoded.push(`${JSON.stringify(key)}:${encodeCanonical(item, encoding, path, ancestors)}`);
       path.pop();
     }
@@ -193,7 +200,7 @@ function failCanonicalJson(violation: JsonDomainViolation): never {
 function canonicalJsonWithOrder(value: unknown, compare: KeyCompare): string {
   return encodeCanonical(
     value,
-    { compare, omitLikeJsonStringify: true, fail: failCanonicalJson },
+    { compare, skipNonEnumerable: true, fail: failCanonicalJson },
     [],
     new Set(),
   );
@@ -219,16 +226,18 @@ const strictViolationText: Readonly<Record<JsonDomainViolation, string>> = {
  * it accepts.
  */
 export function strictCanonicalJson(value: unknown, label: string): string {
+  const fail = (violation: JsonDomainViolation, path: JsonPath): never => {
+    const location = path.map((segment) =>
+      typeof segment === "number" ? `[${segment}]` : `.${segment}`).join("");
+    throw new Error(`${label}${location} contains ${strictViolationText[violation]}`);
+  };
   return encodeCanonical(
     value,
     {
       compare: compareUtf16CodeUnits,
-      omitLikeJsonStringify: false,
-      fail: (violation, path) => {
-        const location = path.map((segment) =>
-          typeof segment === "number" ? `[${segment}]` : `.${segment}`).join("");
-        throw new Error(`${label}${location} contains ${strictViolationText[violation]}`);
-      },
+      skipNonEnumerable: false,
+      rejectUndefinedMember: (path) => fail("non-JSON value", path),
+      fail,
     },
     [],
     new Set(),
@@ -251,35 +260,32 @@ export function canonicalJson(value: unknown): string {
   return canonicalJsonWithOrder(value, compareUtf16CodeUnits);
 }
 
-function assertDefinedJsonMembers(value: unknown, context: string): void {
-  if (Array.isArray(value)) {
-    for (const item of value) assertDefinedJsonMembers(item, context);
-    return;
-  }
-  if (isRecord(value)) {
-    for (const item of Object.values(value)) {
-      if (item === undefined) {
-        throw new Error(`${context} contains an unsupported value`);
-      }
-      assertDefinedJsonMembers(item, context);
-    }
-  }
-}
-
 /**
  * Canonical JSON requiring every nested object member to be defined.
  * canonicalJson drops `undefined` members before serializing; a serializer
  * whose preimage is a reviewed durable contract must instead reject them
- * exactly as the retired sorted-key serializers did, so this validates
- * membership first and then delegates to the shared encoder. `context`
- * names the contract vocabulary in the raised error.
+ * exactly as the retired sorted-key serializers did. It shares the strict
+ * value domain, ordering, and single getter-free pass of canonicalJson, and
+ * like it leaves out non-enumerable members. `context` names the contract
+ * vocabulary in the error raised for an `undefined` member.
  */
 export function canonicalJsonWithDefinedMembers(
   value: unknown,
   context: string,
 ): string {
-  assertDefinedJsonMembers(value, context);
-  return canonicalJson(value);
+  return encodeCanonical(
+    value,
+    {
+      compare: compareUtf16CodeUnits,
+      skipNonEnumerable: true,
+      rejectUndefinedMember: () => {
+        throw new Error(`${context} contains an unsupported value`);
+      },
+      fail: failCanonicalJson,
+    },
+    [],
+    new Set(),
+  );
 }
 
 /**

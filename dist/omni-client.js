@@ -3,7 +3,7 @@ import {
   canonicalJson,
   canonicalJsonSha256Matches,
   sha256
-} from "./index-axvy9dr9.js";
+} from "./index-zf8ss45d.js";
 import"./index-z1w83f81.js";
 
 // src/omni-client.ts
