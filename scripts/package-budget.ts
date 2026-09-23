@@ -1448,14 +1448,22 @@
 // archive SHA-256 041f172721702456c214f78cd390417e285aed417e72bd0b45372fefd71bfa6c.
 // Carry the same projections and allowances: 11,972,555 + 12,387 + 4,096 =
 // 11,989,038 packed; 23,346,582 + 353 + 65 = 23,347,000 unpacked.
+// Ghostget 0.18.35 adds the WebMCP editorial figure and homepage registry
+// panel (website-only sources stay outside the package); its CHANGELOG
+// section and rebuilt dist chunks shift the unchanged 596-file inventory:
+// `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64 measured
+// 11,972,733 packed bytes, 23,346,995 unpacked bytes; archive SHA-256
+// 1a9a87defe7a0f4f7a628f6cb2ce70d701fe500770df1184c96c87874620cc97. Carry
+// the same projections and allowances: 11,972,733 + 12,387 + 4,096 =
+// 11,989,216 packed; 23,346,995 + 353 + 65 = 23,347,413 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.34 launch-intent cleanup recovery over the WebMCP documentation inventory",
+  scope: "Ghostget 0.18.35 WebMCP editorial-figure release identity over the launch-intent recovery inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "041f172721702456c214f78cd390417e285aed417e72bd0b45372fefd71bfa6c",
-  packedBytes: 11_972_555,
-  unpackedBytes: 23_346_582,
+  archiveSha256: "1a9a87defe7a0f4f7a628f6cb2ce70d701fe500770df1184c96c87874620cc97",
+  packedBytes: 11_972_733,
+  unpackedBytes: 23_346_995,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
