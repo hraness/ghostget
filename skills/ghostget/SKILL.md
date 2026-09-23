@@ -14,7 +14,7 @@ description: >-
   Trigger for scraping, URL clipping, authenticated sites, media downloads,
   transcription, email and messaging, cross-posting, HAR-to-API workflows,
   browser-session API automation, semantic operations, and confirmed writes.
-  The agent never handles raw HTTP, DOM control, cookies, or credentials.
+  Named actions never expose raw HTTP, DOM, cookies, or credentials.
 ---
 
 # Ghostget

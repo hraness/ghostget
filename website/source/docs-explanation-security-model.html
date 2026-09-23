@@ -65,7 +65,7 @@
         <section aria-labelledby="custody">
           <h2 id="custody">Account-bound reads stay under local custody</h2>
           <p>A successful R1 provider read with a verified account subject can publish an encrypted snapshot of the exact validated query and bounded provider output. The same query can later load from local ciphertext without contacting the provider. Within those snapshots, inputs, account subjects, cursors, private identifiers, and provider output remain inside authenticated local encryption. The separate owner messaging host retains private plaintext history and journals; see the <a href="/privacy/">privacy guide</a> for storage and retention boundaries.</p>
-          <p>A failed refresh or publication does not erase the last verified snapshot. Replacing or removing an auth locator rotates its local lifetime identity, so ciphertext from an earlier account incarnation cannot become current after recreation. Ghostget reports the provider’s own paging and completeness as they are, so a partial result is never presented as complete.</p>
+          <p>A failed refresh or publication does not erase the last verified snapshot. Replacing or removing an auth locator rotates its local lifetime identity, so ciphertext from an earlier account incarnation cannot become current after recreation. Ghostget reports the provider’s own paging and completeness as they are and never claims a result is more complete than the provider reported.</p>
         </section>
 
         <section aria-labelledby="risk">
