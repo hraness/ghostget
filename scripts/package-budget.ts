@@ -1441,25 +1441,40 @@
 // 045a8cf8389e54e18c28e7580a9c6c5494d9c6cca38f39bc1e4ece4b4b079e05. Carry
 // the same projections and allowances: 11,971,987 + 12,387 + 4,096 =
 // 11,988,470 packed; 23,343,331 + 353 + 65 = 23,343,749 unpacked.
+// The launch-intent cleanup recovery adds the unbound launch-intent
+// quiescence proof, its recovery admission wiring, and the replacement
+// repair/retention tests: a clean npm 11.19.0 pack --ignore-scripts on
+// darwin arm64 measured 596 files/entries and 23,346,582 payload bytes;
+// archive SHA-256 041f172721702456c214f78cd390417e285aed417e72bd0b45372fefd71bfa6c.
+// Carry the same projections and allowances: 11,972,555 + 12,387 + 4,096 =
+// 11,989,038 packed; 23,346,582 + 353 + 65 = 23,347,000 unpacked.
+// Ghostget 0.18.35 adds the WebMCP editorial figure and homepage registry
+// panel (website-only sources stay outside the package); its CHANGELOG
+// section and rebuilt dist chunks shift the unchanged 596-file inventory:
+// `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64 measured
+// 11,972,733 packed bytes, 23,346,995 unpacked bytes; archive SHA-256
+// 1a9a87defe7a0f4f7a628f6cb2ce70d701fe500770df1184c96c87874620cc97. Carry
+// the same projections and allowances: 11,972,733 + 12,387 + 4,096 =
+// 11,989,216 packed; 23,346,995 + 353 + 65 = 23,347,413 unpacked.
 // The confirmed-write intent fence adds the intent type, intent ledger
 // claim, run-journal scan, per-pass generation-chain memory, terminal
 // intent projection, and the auth-record refusals to the confirmed-write
 // model, platform, program, and runtime sources: exactly 10,511 payload
-// bytes over the unchanged 596-file 0.18.34 inventory. Two
+// bytes over the unchanged 596-file 0.18.35 inventory. Two
 // `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin arm64 were
-// byte-identical at 11,975,057 packed bytes, 23,353,842 unpacked bytes;
+// byte-identical at 11,975,697 packed bytes, 23,357,506 unpacked bytes;
 // archive SHA-256
-// f514d0deb5fdac7876ed2a44b8ed496e98cbfbd64f8f9bc7534e922ecf3bd922. Carry
-// the same projections and allowances: 11,975,057 + 12,387 + 4,096 =
-// 11,991,540 packed; 23,353,842 + 353 + 65 = 23,354,260 unpacked.
+// 444e23bbbe782aa5bf22980a28bdde76b474bd299039eb1a610e4211f05895e5. Carry
+// the same projections and allowances: 11,975,697 + 12,387 + 4,096 =
+// 11,992,180 packed; 23,357,506 + 353 + 65 = 23,357,924 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Confirmed-write intent fence over the Ghostget 0.18.34 inventory",
+  scope: "Confirmed-write intent fence over the Ghostget 0.18.35 inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "f514d0deb5fdac7876ed2a44b8ed496e98cbfbd64f8f9bc7534e922ecf3bd922",
-  packedBytes: 11_975_057,
-  unpackedBytes: 23_353_842,
+  archiveSha256: "444e23bbbe782aa5bf22980a28bdde76b474bd299039eb1a610e4211f05895e5",
+  packedBytes: 11_975_697,
+  unpackedBytes: 23_357_506,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
