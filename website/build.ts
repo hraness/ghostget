@@ -55,6 +55,7 @@ import {
   substituteTemplateValues,
   webmcpIndexTemplateValues,
   webmcpProviderPages,
+  webmcpSharedTemplateValues,
   webmcpSiteCanonicalPath,
   webmcpSiteTemplateValues,
   type WebmcpRegistrySnapshot,
@@ -73,7 +74,7 @@ export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const HRANESS_URL = "https://hraness.com/" as const;
 export const HRANESS_ORGANIZATION_ID = `${HRANESS_URL}#organization` as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.33" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.34" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",
@@ -138,12 +139,28 @@ export const PUBLIC_PAGES = [
     title: WHATSAPP_PAGE_METADATA.title,
   },
   {
+    canonicalPath: "/docs/how-to/use-webmcp-sites/",
+    description:
+      "Search the WebMCP Registry, read one site's tool schema, and call its read-only tools through Ghostget's bundled webmcp adapter, with no account or API key.",
+    outputFile: "docs/how-to/use-webmcp-sites/index.html",
+    sourceFile: "docs-how-to-use-webmcp-sites.html",
+    title: "Use WebMCP sites with your agent through Ghostget",
+  },
+  {
     canonicalPath: "/providers/",
     description:
       "Every service Ghostget supports: its built-in providers, plus sites in the public WebMCP Registry whose read-only tools your agent can call.",
     outputFile: "providers/index.html",
     sourceFile: "providers.html",
     title: "Providers Ghostget works with: supported services and the WebMCP Registry",
+  },
+  {
+    canonicalPath: "/webmcp/",
+    description:
+      "WebMCP lets a website publish tools through navigator.modelContext. Ghostget reads them from the public WebMCP Registry and calls only tools declared read-only.",
+    outputFile: "webmcp/index.html",
+    sourceFile: "webmcp.html",
+    title: "WebMCP for agents: call website-published tools through Ghostget",
   },
   {
     canonicalPath: "/docs/explanation/security-model/",
@@ -1085,9 +1102,12 @@ export async function buildWebsite(
     ghostgetField: renderGhostgetField(),
     skillInstallAsset,
     webmcpValues: (canonicalPath: string) => {
+      const shared = webmcpSharedTemplateValues(webmcpSnapshot);
       if (canonicalPath === "/providers/") return webmcpIndexValues;
       const site = webmcpSitesByPath.get(canonicalPath);
-      return site === undefined ? undefined : webmcpSiteTemplateValues(site);
+      return site === undefined
+        ? shared
+        : { ...shared, ...webmcpSiteTemplateValues(site) };
     },
     whatsappFacts,
   } as const;
