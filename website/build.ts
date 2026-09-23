@@ -49,6 +49,16 @@ import {
   type ProviderDirectory,
   type WhatsAppPresentationFacts,
 } from "./provider-presentation";
+import webmcpRegistrySource from "./source/webmcp-registry.json";
+import {
+  parseWebmcpRegistrySnapshot,
+  substituteTemplateValues,
+  webmcpIndexTemplateValues,
+  webmcpProviderPages,
+  webmcpSiteCanonicalPath,
+  webmcpSiteTemplateValues,
+  type WebmcpRegistrySnapshot,
+} from "./webmcp-registry";
 
 export const SITE_ORIGIN = "https://ghostget.com" as const;
 export const SITE_TITLE = "Ghostget: precise web capabilities for AI agents" as const;
@@ -124,6 +134,14 @@ export const PUBLIC_PAGES = [
     outputFile: "docs/how-to/export-whatsapp/index.html",
     sourceFile: "docs-how-to-export-whatsapp.html",
     title: WHATSAPP_PAGE_METADATA.title,
+  },
+  {
+    canonicalPath: "/providers/",
+    description:
+      "Every service Ghostget supports: bundled typed providers plus the public WebMCP Registry, where listed sites publish live tool schemas agents can read and call read-only tools through.",
+    outputFile: "providers/index.html",
+    sourceFile: "providers.html",
+    title: "Providers Ghostget works with: supported services and the WebMCP Registry",
   },
   {
     canonicalPath: "/docs/explanation/security-model/",
@@ -255,7 +273,13 @@ export const PUBLIC_PAGES = [
   },
 ] as const;
 
-export type PublicPage = (typeof PUBLIC_PAGES)[number];
+export type PublicPage = Readonly<{
+  canonicalPath: string;
+  description: string;
+  outputFile: string;
+  sourceFile: string;
+  title: string;
+}>;
 
 export function renderAskAiAboutThis(canonicalUrl: string): string {
   return renderToStaticMarkup(createElement(AskAiAboutThis, {
@@ -398,6 +422,7 @@ type RenderOptions = Readonly<{
   providerDirectory: ProviderDirectory;
   providerOverviewCards: string;
   skillInstallAsset: string;
+  webmcpValues: (canonicalPath: string) => Readonly<Record<string, string>> | undefined;
   whatsappFacts: WhatsAppPresentationFacts;
 }>;
 
@@ -576,6 +601,9 @@ function jsonLd(identity: PackageIdentity, page: PublicPage): Readonly<Record<st
   const pageId = `${url}#webpage`;
   const isHome = page.canonicalPath === "/";
   const homeCrumb = { item: `${SITE_ORIGIN}/`, name: "Ghostget" } as const;
+  const providerSegment = page.canonicalPath.startsWith("/providers/")
+    ? page.canonicalPath.slice("/providers/".length, -1)
+    : undefined;
   const breadcrumbItems = isHome
     ? undefined
     : page.canonicalPath !== "/docs/" && page.canonicalPath.startsWith("/docs/")
@@ -590,7 +618,15 @@ function jsonLd(identity: PackageIdentity, page: PublicPage): Readonly<Record<st
           { item: `${SITE_ORIGIN}/compare/`, name: "Comparisons" },
           { item: url, name: page.title },
         ]
-        : [homeCrumb, { item: url, name: page.title }];
+        : page.canonicalPath === "/providers/"
+          ? [homeCrumb, { item: url, name: "Providers" }]
+          : providerSegment !== undefined
+            ? [
+              homeCrumb,
+              { item: `${SITE_ORIGIN}/providers/`, name: "Providers" },
+              { item: url, name: providerSegment },
+            ]
+            : [homeCrumb, { item: url, name: page.title }];
   const pageGraph: Array<Readonly<Record<string, unknown>>> = [
     {
       "@id": pageId,
@@ -732,7 +768,7 @@ function renderTemplate(
   }
   rendered = replaceHtmlRequired(rendered, "{{POSTHOG_HOST}}", escapeHtml(options.postHogHost));
   rendered = replaceHtmlRequired(rendered, "{{POSTHOG_KEY}}", escapeHtml(options.postHogKey));
-  if (page?.canonicalPath === "/" || page?.canonicalPath === "/docs/reference/provider-capabilities/") {
+  if (page?.canonicalPath === "/" || page?.canonicalPath === "/docs/reference/provider-capabilities/" || page?.canonicalPath === "/providers/") {
     rendered = replaceRequired(
       rendered,
       "{{PROVIDER_OVERVIEW_CARDS}}",
@@ -827,6 +863,13 @@ function renderTemplate(
       rendered = rendered.replaceAll(placeholder, escapeHtml(value));
     }
   }
+  if (page !== undefined && rendered.includes("{{WEBMCP_")) {
+    const webmcpValues = options.webmcpValues(page.canonicalPath);
+    if (webmcpValues === undefined) {
+      throw new Error(`No WebMCP template values exist for ${page.canonicalPath}.`);
+    }
+    rendered = substituteTemplateValues(rendered, webmcpValues);
+  }
   if (/\{\{[A-Z0-9_]+\}\}/u.test(rendered)) {
     throw new Error("The rendered page contains an unresolved template value.");
   }
@@ -841,8 +884,8 @@ export function renderPreview(template: string, cssAsset: string): string {
   return rendered;
 }
 
-export function renderSitemapXml(): string {
-  const urls = PUBLIC_PAGES.map((page) => {
+export function renderSitemapXml(pages: readonly PublicPage[] = PUBLIC_PAGES): string {
+  const urls = pages.map((page) => {
     const image = editorialImage(page.canonicalPath);
     const imageMarkup = image === undefined ? "" : `
     <image:image>
@@ -968,6 +1011,15 @@ export async function buildWebsite(
     }),
     loadProviderCapabilityAttestation(repositoryRoot),
   ]);
+  const webmcpSnapshot: WebmcpRegistrySnapshot = parseWebmcpRegistrySnapshot(
+    webmcpRegistrySource,
+  );
+  const webmcpPages = webmcpProviderPages(webmcpSnapshot);
+  const webmcpSitesByPath = new Map(
+    webmcpSnapshot.sites.map((site) => [webmcpSiteCanonicalPath(site.domain), site] as const),
+  );
+  const webmcpIndexValues = webmcpIndexTemplateValues(webmcpSnapshot);
+  const allPages: readonly PublicPage[] = [...PUBLIC_PAGES, ...webmcpPages];
   if (!analyticsBuild.success || analyticsBuild.outputs.length !== 1) {
     const messages = analyticsBuild.logs.map((log) => log.message).join("\n");
     throw new Error(`Analytics build failed: ${messages || "no browser output"}`);
@@ -1029,6 +1081,11 @@ export async function buildWebsite(
     fieldAsset,
     ghostgetField: renderGhostgetField(),
     skillInstallAsset,
+    webmcpValues: (canonicalPath: string) => {
+      if (canonicalPath === "/providers/") return webmcpIndexValues;
+      const site = webmcpSitesByPath.get(canonicalPath);
+      return site === undefined ? undefined : webmcpSiteTemplateValues(site);
+    },
     whatsappFacts,
   } as const;
 
@@ -1045,13 +1102,20 @@ export async function buildWebsite(
     await mkdir(dirname(destination), { recursive: true });
     await writeFile(destination, bytes);
   }
-  await Promise.all(PUBLIC_PAGES.map((page) => mkdir(dirname(join(outputRoot, page.outputFile)), {
+  const webmcpSiteTemplate = await readFile(join(sourceRoot, "provider-webmcp-site.html"), "utf8");
+  await Promise.all(allPages.map((page) => mkdir(dirname(join(outputRoot, page.outputFile)), {
     recursive: true,
   })));
-  const renderedPages = PUBLIC_PAGES.map((page, index) => ({
+  const renderedPages: { page: PublicPage; html: string }[] = PUBLIC_PAGES.map((page, index) => ({
     page,
     html: renderTemplate(publicTemplates[index]!, renderOptions, page),
   }));
+  for (const page of webmcpPages) {
+    renderedPages.push({
+      page,
+      html: renderTemplate(webmcpSiteTemplate, renderOptions, page),
+    });
+  }
   await Promise.all([
     cp(designKitFontsDirectory, join(outputRoot, "assets/fonts"), {
       dereference: true,
@@ -1079,7 +1143,7 @@ export async function buildWebsite(
     ),
     writeFile(
       join(outputRoot, "sitemap.xml"),
-      renderSitemapXml(),
+      renderSitemapXml(allPages),
     ),
     cp(join(publicRoot, "images"), join(outputRoot, "images"), {
       dereference: true,

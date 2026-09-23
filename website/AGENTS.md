@@ -2,8 +2,10 @@
 
 - `vendor/lantern-material/` owns the asset-free immutable Lantern CSS, license, checker and provenance. `lantern-material.ts` verifies its complete inventory and retains bounded hash-matched CSS/license bytes for the static build.
 - `vendor/marketing-preset/` owns the immutable shared editorial CSS, licensed Instrument Serif, field textures, and source/hash provenance. `marketing-preset.ts` verifies that closed snapshot before `build.ts` publishes its bytes.
-- `source/` – checked HTML, CSS, analytics, discovery, fallback, markdown, and llms.txt sources.
+- `source/` – checked HTML, CSS, analytics, discovery, fallback, markdown, llms.txt, and WebMCP registry snapshot sources.
 - `public/` – checked public icon, social, caption, and reusable demo assets.
+- `webmcp-registry.ts` – strict checked-in snapshot parser plus `/providers/<domain>/` page descriptors and untrusted-text rendering.
+- `sync-webmcp-registry.ts` – bounded wmcp.ai REST synchronization that rewrites the checked snapshot deterministically.
 - `build.ts` – deterministic static output generation from the root package release.
 - `production-release-verifier.ts` – streaming, bounded production checks that bind package version, checked-out HEAD, the GitHub tag commit, the canonical GitHub archive, and the immutable Latest GitHub Release.
 - `vercel-build.ts` – fail-closed Vercel admission that validates the build-owned marker and platform state, runs external release verification only for production, and keeps previews independently buildable.

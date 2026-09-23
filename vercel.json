@@ -341,6 +341,16 @@
       "permanent": true
     },
     {
+      "source": "/providers",
+      "destination": "/providers/",
+      "permanent": true
+    },
+    {
+      "source": "/providers/index.html",
+      "destination": "/providers/",
+      "permanent": true
+    },
+    {
       "source": "/security",
       "destination": "/docs/explanation/security-model/",
       "permanent": true

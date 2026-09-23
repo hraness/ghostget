@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 4,
+  "id": "webmcp",
+  "version": "1.0.0",
+  "displayName": "WebMCP Registry",
+  "surfaceId": "webmcp",
+  "origins": [
+    "https://www.wmcp.ai",
+    "https://wmcp.ai"
+  ],
+  "browserDomains": [
+    "www.wmcp.ai",
+    "wmcp.ai"
+  ],
+  "operations": {
+    "sites.search": {
+      "description": "Search the WebMCP Registry for websites that register WebMCP tools, by domain, name, or what their tools do; returns one bounded page with a provider-owned continuation cursor.",
+      "risk": "R1",
+      "sideEffect": "none",
+      "idempotency": "none",
+      "dedupeWindowMs": 0,
+      "input": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Words to match by domain, name, or what the tools do; empty lists the most popular",
+            "minLength": 0,
+            "maxLength": 200
+          },
+          "tag": {
+            "type": "string",
+            "description": "Only sites with this registry tag",
+            "enum": [
+              "yc",
+              "ai",
+              "saas",
+              "devtools",
+              "fintech",
+              "ecommerce",
+              "security",
+              "health",
+              "shopify"
+            ]
+          },
+          "sort": {
+            "type": "string",
+            "description": "Result ordering",
+            "enum": [
+              "popular",
+              "newest",
+              "tools"
+            ]
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum sites to return",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Continuation cursor from a prior search's nextCursor",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": []
+      },
+      "webSession": {
+        "site": "webmcp",
+        "action": "sites.search",
+        "contractVersion": 1,
+        "timeoutMs": 30000,
+        "maxOutputBytes": 4194304
+      }
+    },
+    "sites.get": {
+      "description": "Read one exact registry site's live-checked WebMCP tools: each tool's description, input schema, annotations, and page URL.",
+      "risk": "R1",
+      "sideEffect": "none",
+      "idempotency": "none",
+      "dedupeWindowMs": 0,
+      "input": {
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "Exact site domain as the registry lists it",
+            "minLength": 4,
+            "maxLength": 253
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "webSession": {
+        "site": "webmcp",
+        "action": "sites.get",
+        "contractVersion": 1,
+        "timeoutMs": 30000,
+        "maxOutputBytes": 4194304
+      }
+    },
+    "tools.call": {
+      "description": "Run one listed site's readOnlyHint-declared WebMCP tool through the registry's fresh headless page; the registry refuses non-read-only tools and the result is projected as untrusted site content.",
+      "risk": "R1",
+      "sideEffect": "none",
+      "idempotency": "none",
+      "dedupeWindowMs": 0,
+      "input": {
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "Exact site domain as the registry lists it",
+            "minLength": 4,
+            "maxLength": 253
+          },
+          "tool": {
+            "type": "string",
+            "description": "Tool name exactly as sites.get lists it",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "input": {
+            "type": "string",
+            "description": "Tool input as a JSON object literal matching the tool's input schema; defaults to {}",
+            "minLength": 0,
+            "maxLength": 16384
+          }
+        },
+        "required": [
+          "domain",
+          "tool"
+        ]
+      },
+      "webSession": {
+        "site": "webmcp",
+        "action": "tools.call",
+        "contractVersion": 1,
+        "timeoutMs": 45000,
+        "maxOutputBytes": 4194304
+      }
+    }
+  }
+}
