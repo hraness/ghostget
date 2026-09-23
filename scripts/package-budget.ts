@@ -1432,14 +1432,26 @@
 // e1e1ebb75b1c4c64e67c84bfc5087626258fab6e20ed6285390da4c320bb4d8e. Carry
 // the same projections and allowances: 11,971,738 + 12,387 + 4,096 =
 // 11,988,221 packed; 23,342,705 + 353 + 65 = 23,343,123 unpacked.
+// Single-reaper election for dead path-mutation claims, with the residue
+// sweep for dead reapers and recovery/release temporaries, grows the shipped
+// src/path-helper.ts by 10,948 payload bytes over the unchanged 596-file
+// inventory. Two clean `npm pack --ignore-scripts` runs with npm 11.19.0 on
+// darwin arm64 were byte-identical at 11,974,817 packed bytes and 23,353,800
+// unpacked bytes; archive SHA-256
+// 27c233013db9c4d1d091887e0c3137b2aec496169cdc2f6c6e2394c0db9f4d17. The
+// same-run pack of main f4959dc measured 11,971,810 packed and 23,342,852
+// unpacked bytes, so the delta is +3,007 packed and +10,948 unpacked, all in
+// src/path-helper.ts. Carry the same projections and allowances:
+// 11,974,817 + 12,387 + 4,096 = 11,991,300 packed; 23,353,800 + 353 + 65 =
+// 23,354,218 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.33 re-tag release identity over the WebMCP Registry provider inventory",
+  scope: "Single-reaper path-mutation recovery over the Ghostget 0.18.33 WebMCP Registry provider inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "e1e1ebb75b1c4c64e67c84bfc5087626258fab6e20ed6285390da4c320bb4d8e",
-  packedBytes: 11_971_738,
-  unpackedBytes: 23_342_705,
+  archiveSha256: "27c233013db9c4d1d091887e0c3137b2aec496169cdc2f6c6e2394c0db9f4d17",
+  packedBytes: 11_974_817,
+  unpackedBytes: 23_353_800,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
