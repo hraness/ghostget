@@ -1460,21 +1460,21 @@
 // README, Agent Skill summary and plugin examples, CLI banner, TUI strings,
 // and support value proposition, and adds an Unreleased CHANGELOG section,
 // over the unchanged 596-file inventory. `npm pack --ignore-scripts` with npm
-// 11.16.0 on darwin arm64 measured 11,984,874 packed bytes, 23,347,637
+// 11.16.0 on darwin arm64 measured 11,984,867 packed bytes, 23,347,632
 // unpacked bytes; archive SHA-256
-// dcdd233b8d4b807ed3fedf3118af66bc1dd2a30a6eb995d2142074250dbf6861. The pass
-// adds 642 payload bytes over the recorded 0.18.35 measurement; compressed
+// 6cfa4a6b1a0d8832854c8bd07d48c47db10e3398be8ce3358d58d20b44b687b8. The pass
+// adds 637 payload bytes over the recorded 0.18.35 measurement; compressed
 // size varies with the local zlib. Carry the same projections and
-// allowances: 11,984,874 + 12,387 + 4,096 = 12,001,357 packed;
-// 23,347,637 + 353 + 65 = 23,348,055 unpacked.
+// allowances: 11,984,867 + 12,387 + 4,096 = 12,001,350 packed;
+// 23,347,632 + 353 + 65 = 23,348,050 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Unreleased copy pass over Ghostget 0.18.35: package description, README, skill, CLI, and CHANGELOG text",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "dcdd233b8d4b807ed3fedf3118af66bc1dd2a30a6eb995d2142074250dbf6861",
-  packedBytes: 11_984_874,
-  unpackedBytes: 23_347_637,
+  archiveSha256: "6cfa4a6b1a0d8832854c8bd07d48c47db10e3398be8ce3358d58d20b44b687b8",
+  packedBytes: 11_984_867,
+  unpackedBytes: 23_347_632,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
