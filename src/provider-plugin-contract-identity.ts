@@ -443,6 +443,14 @@ const identities = Object.freeze({
     legacyReadImplementationSha256: null,
     legacyE71ReadImplementationSha256: null,
   },
+  "webmcp": {
+    schemaVersion: 1,
+    pluginVersion: "1.0.0",
+    implementationSha256: "7e05446a12a3201c75df65f6823b4e76ba5899acb13e304dcd3d69ba95905372",
+    legacyCurrentReadImplementationSha256: [],
+    legacyReadImplementationSha256: null,
+    legacyE71ReadImplementationSha256: null,
+  },
   "whatsapp-linked-device": {
     schemaVersion: 1,
     pluginVersion: "1.2.0",

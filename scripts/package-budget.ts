@@ -1396,15 +1396,26 @@
 // 20f08e21c8f2063334e77597453bf984dcc1849c2447689fb166b23e35f76eb0. Carry
 // the same projections and allowances: 11,962,148 + 12,387 + 4,096 = 11,978,631
 // packed; 23,295,338 + 353 + 65 = 23,295,756 unpacked.
+// The built-in WebMCP Registry provider adds exactly four packed production
+// files (src/providers/webmcp.ts, src/providers/webmcp-runtime.ts,
+// src/plugins/webmcp/plugin.ts and the bundled
+// src/assets/adapters/webmcp/wrench-web-adapter.json) alongside generated
+// catalog, contract-identity, documentation and rebuilt dist edits, raising
+// the inventory to exactly 596 files. `npm pack --ignore-scripts` on this
+// branch measured 11,970,845 packed bytes, 23,340,769 unpacked bytes;
+// archive SHA-256
+// df22787bbd6619f9b6f980505ed62a8f186bff0080cc269fd7ebcb21baa6d4eb. Carry
+// the same projections and allowances: 11,970,845 + 12,387 + 4,096 = 11,987,328
+// packed; 23,340,769 + 353 + 65 = 23,341,187 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.30 homepage hero field and release identity over the 0.18.29 Threads inventory",
+  scope: "WebMCP Registry provider over the Ghostget 0.18.30 homepage-hero inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "20f08e21c8f2063334e77597453bf984dcc1849c2447689fb166b23e35f76eb0",
-  packedBytes: 11_962_148,
-  unpackedBytes: 23_295_338,
-  entryCount: 592,
+  archiveSha256: "df22787bbd6619f9b6f980505ed62a8f186bff0080cc269fd7ebcb21baa6d4eb",
+  packedBytes: 11_970_845,
+  unpackedBytes: 23_340_769,
+  entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

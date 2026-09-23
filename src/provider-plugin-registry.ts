@@ -606,6 +606,7 @@ const reviewedKbDynamicInstalledPluginIds = new Set([
   "substack-web",
   "tiktok-web",
   "twitch-web",
+  "webmcp",
   "whatsapp-linked-device",
   "x-web",
   "youtube-web",

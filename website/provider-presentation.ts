@@ -52,6 +52,7 @@ export const PROVIDER_PRESENTATIONS = Object.freeze([
   { accent: "ink", icon: "community", name: "Threads", surfaceId: "threads" },
   { accent: "violet", icon: "video", name: "TikTok", surfaceId: "tiktok" },
   { accent: "violet", icon: "broadcast", name: "Twitch", surfaceId: "twitch" },
+  { accent: "blue", icon: "network", name: "WebMCP Registry", surfaceId: "webmcp" },
   { accent: "green", icon: "chat", name: "WhatsApp", surfaceId: "whatsapp" },
   { accent: "ink", icon: "publish", name: "X", surfaceId: "x" },
   { accent: "coral", icon: "video", name: "YouTube", surfaceId: "youtube" },
@@ -59,6 +60,7 @@ export const PROVIDER_PRESENTATIONS = Object.freeze([
 
 export type ProviderDirectoryEntry = Readonly<{
   accent: ProviderPresentationDefinition["accent"];
+  accessLabels: readonly string[];
   adapterIdentities: readonly Readonly<{
     id: string;
     version: string;
@@ -190,7 +192,9 @@ function capabilityLabel(operation: string): string {
     case "reactions": return "Reactions";
     case "relationships": return "Relationships";
     case "replies": return "Replies";
+    case "sites": return "Registry sites";
     case "threads": return "Threads";
+    case "tools": return "Registry tools";
     default: throw new Error(`provider operation ${operation} has no public capability label`);
   }
 }
@@ -340,6 +344,7 @@ export function createProviderDirectory(
     const contractVersions = [...new Set(supportedRows.map((row) => row.contractVersion))]
       .sort((left, right) => left - right);
     const transports = [...new Set(supportedRows.map((row) => row.transport))].sort(compareStrings);
+    const accessLabels = [...new Set(supportedRows.map(accessLabel))].sort(compareStrings);
     const observedCount = rows.filter((row) => row.completeness === "observed").length;
     const captureRequiredCount = rows.filter((row) =>
       row.completeness === "capture-required").length;
@@ -348,6 +353,7 @@ export function createProviderDirectory(
     }
     return [Object.freeze({
       accent: definition.accent,
+      accessLabels: Object.freeze(accessLabels),
       adapterCount: adapterIdentities.length,
       adapterIdentities: Object.freeze(adapterIdentities),
       capabilities: Object.freeze([...new Set(supportedRows.map((row) =>
@@ -415,6 +421,14 @@ function transportLabel(transport: ProviderCapabilityAttestationRow["transport"]
     case "provider-api": return "Official API";
     case "web-session-api": return "Signed-in web session";
   }
+}
+
+/** Public access is a stronger claim than the transport name alone. */
+function accessLabel(row: ProviderCapabilityAttestationRow): string {
+  if (row.access === "public" && row.transport === "web-session-api") {
+    return "Public web session";
+  }
+  return transportLabel(row.transport);
 }
 
 function entryCountLabel(entry: ProviderDirectoryEntry): string {
@@ -488,7 +502,7 @@ export function renderProviderOverviewCards(directory: ProviderDirectory): strin
     "</div>",
     `<p class="provider-state"><strong>${entryCountLabel(entry)}</strong></p>`,
     `<p class="provider-capabilities">${entry.capabilities.map(escapeHtml).join(" · ")}</p>`,
-    `<p class="provider-transport">${entry.transports.map(transportLabel).join(" + ")}</p>`,
+    `<p class="provider-transport">${entry.accessLabels.map(escapeHtml).join(" + ")}</p>`,
     entry.surfaceId === "beeper"
       ? `<p class="provider-feature-copy">${String(BEEPER_LOCAL_OPERATION_NAMES.length)} reviewed actions: ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} through one pinned CLI and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} fixed Desktop reads; writes are previewed and uncertain outcomes stay unretriable.</p>`
       : "",
@@ -599,6 +613,9 @@ const operationTitleOverrides: Readonly<Record<string, string>> = Object.freeze(
   "messaging.send": "Send message",
   "relationships.follow.set": "Update follow relationship",
   "relationships.recommendations.read": "Read account recommendations",
+  "sites.get": "Read one registry site",
+  "sites.search": "Search registry sites",
+  "tools.call": "Call a read-only site tool",
 });
 
 const operationVerbLabels: Readonly<Record<string, string>> = Object.freeze({
@@ -648,7 +665,7 @@ export function renderProviderAttestationGroups(
     }
     const actions = [...rowsByOperation.entries()].sort(([left], [right]) =>
       compareStrings(left, right)).map(([operation, rows]) => {
-      const access = [...new Set(rows.map((row) => transportLabel(row.transport)))]
+      const access = [...new Set(rows.map(accessLabel))]
         .sort(compareStrings).join(" + ");
       return [
         "<li>",

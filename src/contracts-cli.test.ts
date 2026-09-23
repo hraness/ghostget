@@ -107,6 +107,9 @@ describe("ghostget contracts catalog", () => {
         "clasificados-web/listings.search",
         "github-web/organizations.read",
         "github-web/profiles.read",
+        "webmcp/sites.get",
+        "webmcp/sites.search",
+        "webmcp/tools.call",
       ]);
       for (const adapter of catalog.adapters) {
         if ("invalid" in adapter) throw new Error(`bundled adapter ${adapter.id} is invalid`);

@@ -20,6 +20,7 @@ export type CurrentAdapterManifestFile = (typeof CURRENT_ADAPTER_MANIFEST_FILES)
 export type ProviderCapabilityCompleteness = ProviderPluginContractStateV1;
 
 export type ProviderCapabilityAttestationRow = Readonly<{
+  access: "public" | undefined;
   adapterId: string;
   adapterVersion: string;
   completeness: ProviderCapabilityCompleteness;
@@ -323,6 +324,7 @@ export async function loadProviderCapabilityAttestation(
           throw new Error(`plugin ${plugin.id} operation ${operationName} has an unattested completeness state`);
         }
         rows.push(Object.freeze({
+          access: pluginOperation.access,
           adapterId: manifest.id,
           adapterVersion: manifest.version,
           completeness: pluginOperation.state,

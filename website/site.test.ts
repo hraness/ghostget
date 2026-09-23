@@ -37,6 +37,11 @@ import {
   ghostgetMailingListConfig,
   type UiStylesheetImport,
 } from "./build";
+import webmcpRegistrySource from "./source/webmcp-registry.json";
+import {
+  parseWebmcpRegistrySnapshot,
+  webmcpProviderPages,
+} from "./webmcp-registry";
 import { handleDocumentNegotiation } from "../edge/negotiation";
 import { ghostgetSupportProfile } from "../src/support-profile";
 import {
@@ -685,10 +690,17 @@ describe("ghostget.com static site", () => {
     expect(llms).toContain("Accept: text/markdown");
     expect(llms).not.toContain("{{");
     expect(robots).toBe(`User-agent: *\nAllow: /\n\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`);
-    expect(sitemap.match(/<url>/gu)).toHaveLength(PUBLIC_PAGES.length);
+    const webmcpPages = webmcpProviderPages(
+      parseWebmcpRegistrySnapshot(webmcpRegistrySource),
+    );
+    expect(sitemap.match(/<url>/gu)).toHaveLength(PUBLIC_PAGES.length + webmcpPages.length);
     expect(sitemap).toContain('xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"');
     expect(sitemap.match(/<image:image>/gu)).toHaveLength(editorialImages.length);
     for (const page of PUBLIC_PAGES) {
+      expect(sitemap).toContain(`<loc>${SITE_ORIGIN}${page.canonicalPath}</loc>`);
+    }
+    expect(sitemap).toContain(`<loc>${SITE_ORIGIN}/providers/</loc>`);
+    for (const page of webmcpPages.slice(0, 25)) {
       expect(sitemap).toContain(`<loc>${SITE_ORIGIN}${page.canonicalPath}</loc>`);
     }
     for (const image of editorialImages) {
@@ -1948,8 +1960,8 @@ describe("ghostget.com static site", () => {
       .map((match) => match[0]);
     expect(referencedReleases.length).toBeGreaterThan(0);
     expect(new Set(referencedReleases)).toEqual(new Set([identity.release]));
-    expect(catalogServiceCount).toBe(21);
-    expect(executableServiceCount).toBe(20);
+    expect(catalogServiceCount).toBe(22);
+    expect(executableServiceCount).toBe(21);
     expect(readme).toContain(
       `This ${identity.release} source tree supports executable actions for ${String(executableServiceCount)} services:`,
     );
