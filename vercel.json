@@ -171,6 +171,11 @@
       "permanent": true
     },
     {
+      "source": "/getting-started/",
+      "destination": "/docs/tutorials/getting-started/",
+      "permanent": true
+    },
+    {
       "source": "/getting-started/index.html",
       "destination": "/docs/tutorials/getting-started/",
       "permanent": true
@@ -197,6 +202,11 @@
     },
     {
       "source": "/capture-and-archives",
+      "destination": "/docs/how-to/capture-and-archive/",
+      "permanent": true
+    },
+    {
+      "source": "/capture-and-archives/",
       "destination": "/docs/how-to/capture-and-archive/",
       "permanent": true
     },
@@ -231,6 +241,11 @@
       "permanent": true
     },
     {
+      "source": "/provider-capabilities/",
+      "destination": "/docs/reference/provider-capabilities/",
+      "permanent": true
+    },
+    {
       "source": "/provider-capabilities/index.html",
       "destination": "/docs/reference/provider-capabilities/",
       "permanent": true
@@ -257,6 +272,11 @@
     },
     {
       "source": "/providers/beeper",
+      "destination": "/docs/how-to/connect-beeper/",
+      "permanent": true
+    },
+    {
+      "source": "/providers/beeper/",
       "destination": "/docs/how-to/connect-beeper/",
       "permanent": true
     },
@@ -291,6 +311,11 @@
       "permanent": true
     },
     {
+      "source": "/providers/whatsapp/",
+      "destination": "/docs/how-to/export-whatsapp/",
+      "permanent": true
+    },
+    {
       "source": "/providers/whatsapp/index.html",
       "destination": "/docs/how-to/export-whatsapp/",
       "permanent": true
@@ -321,6 +346,11 @@
       "permanent": true
     },
     {
+      "source": "/security/",
+      "destination": "/docs/explanation/security-model/",
+      "permanent": true
+    },
+    {
       "source": "/security/index.html",
       "destination": "/docs/explanation/security-model/",
       "permanent": true
@@ -347,6 +377,11 @@
     },
     {
       "source": "/plugins",
+      "destination": "/docs/how-to/author-provider-plugin/",
+      "permanent": true
+    },
+    {
+      "source": "/plugins/",
       "destination": "/docs/how-to/author-provider-plugin/",
       "permanent": true
     },
