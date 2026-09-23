@@ -158,8 +158,8 @@ export const BEEPER_PAGE_METADATA = Object.freeze({
 
 export const WHATSAPP_PAGE_METADATA = Object.freeze({
   description:
-    `Read four bounded local WhatsApp projections and export an existing Wacli ${WHATSAPP_PROTOCOL_PIN.version} store as a private Message Like Me bundle without pairing, syncing, or sending.`,
-  title: "WhatsApp support in Ghostget: bounded local reads and private export",
+    `Use four read-only actions on local WhatsApp data. The private export of an existing Wacli ${WHATSAPP_PROTOCOL_PIN.version} store for Textbutler never pairs, syncs, or sends.`,
+  title: "WhatsApp support in Ghostget: local reads and a private export for Textbutler",
 } as const);
 
 /** Providers with a dedicated how-to guide get its canonical path; every other
@@ -426,7 +426,7 @@ function transportLabel(transport: ProviderCapabilityAttestationRow["transport"]
 /** Public access is a stronger claim than the transport name alone. */
 function accessLabel(row: ProviderCapabilityAttestationRow): string {
   if (row.access === "public" && row.transport === "web-session-api") {
-    return "Public web session";
+    return "Public web, no sign-in";
   }
   return transportLabel(row.transport);
 }
@@ -504,7 +504,7 @@ export function renderProviderOverviewCards(directory: ProviderDirectory): strin
     `<p class="provider-capabilities">${entry.capabilities.map(escapeHtml).join(" · ")}</p>`,
     `<p class="provider-transport">${entry.accessLabels.map(escapeHtml).join(" + ")}</p>`,
     entry.surfaceId === "beeper"
-      ? `<p class="provider-feature-copy">${String(BEEPER_LOCAL_OPERATION_NAMES.length)} reviewed actions: ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} through one pinned CLI and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} fixed Desktop reads; writes are previewed and uncertain outcomes stay unretriable.</p>`
+      ? `<p class="provider-feature-copy">${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} actions run through a pinned version of Beeper's official CLI, and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} are fixed reads from Beeper Desktop. Writes need a preview first, and Ghostget never resends a write whose outcome is unknown.</p>`
       : "",
     "</article>",
   ].join("")).join("");
@@ -604,6 +604,7 @@ const operationTitleOverrides: Readonly<Record<string, string>> = Object.freeze(
   "flair.post.choices": "Read post flair choices",
   "flair.user.choices": "Read user flair choices",
   "messaging.content.search": "Search message content",
+  "messaging.delivery.read": "Read message delivery status",
   "messaging.context.read": "Read message context",
   "messaging.edit": "Edit message",
   "messaging.list": "List messages",
@@ -669,7 +670,7 @@ export function renderProviderAttestationGroups(
         .sort(compareStrings).join(" + ");
       return [
         "<li>",
-        `<span><strong>${escapeHtml(operationTitle(operation))}</strong> — <code>${escapeHtml(operation)}</code></span>`,
+        `<span><strong>${escapeHtml(operationTitle(operation))}</strong> (<code>${escapeHtml(operation)}</code>)</span>`,
         " ",
         `<span>· ${escapeHtml(access)}</span>`,
         "</li>",

@@ -21,14 +21,14 @@
     <meta property="og:description" content="Capture public URLs as Markdown and preserve one authorized media item with manifests, transcripts, provenance, and SHA-256 verification.">
     <meta property="og:url" content="https://ghostget.com/docs/how-to/capture-and-archive/">
     <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Capture URLs and create verified media archives with Ghostget">
     <meta name="twitter:description" content="Capture public URLs as Markdown and preserve one authorized media item with manifests, transcripts, provenance, and SHA-256 verification.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -51,9 +51,9 @@
       <article class="guide-article">
         <header class="guide-hero">
           <p class="eyebrow">How-to guide · capture and preservation · Ghostget {{GHOSTGET_VERSION}}</p>
-          <h1>Capture a URL or preserve one verified media item.</h1>
+          <h1>Capture a URL or preserve one verified media item</h1>
           <p class="answer-lede">Use <code>ghostget read</code> for a non-persistent inspection, pass a URL to Ghostget for durable Markdown capture, or use <code>ghostget archive</code> for one authorized, accessible, finite, non-DRM media item with integrity evidence.</p>
-          <p class="review-note">This guide describes {{GHOSTGET_RELEASE}} and was checked against the public source for that immutable release.</p>
+          <p class="review-note">This guide describes Ghostget {{GHOSTGET_RELEASE}}.</p>
         </header>
 
         <section aria-labelledby="choose-mode">
@@ -78,9 +78,9 @@ ghostget init ./ghostget-notes
 ghostget https://example.com --output ./ghostget-notes/articles
 ghostget search "Example Domain" --root ./ghostget-notes --mode exact</code></pre></div>
           <p>The saved form is Markdown intended to remain inspectable and searchable in local knowledge. <code>ghostget context</code> resolves nearby agent context for a repository path, while <code>ghostget search</code> queries the knowledge already kept locally.</p>
-          <p>Ghostget also exposes the shared <code>@hraness/kb</code> URL-intelligence boundary:</p>
+          <p>To add metadata to URLs you’ve already saved, run:</p>
           <div class="command-panel"><pre><code>ghostget url-metadata backfill --root kb</code></pre></div>
-          <p>The backfill uses a pinned Rust search helper for bounded metadata lookup, writes resumable <code>url-metadata.json</code> sidecars beside saved URLs, and performs read-only Archive.today discovery, including archive.is URLs, by default. <code>--no-archive</code> disables archive discovery; <code>--refresh</code> replaces an existing sidecar after a fresh bounded lookup.</p>
+          <p>The backfill uses the shared <code>@hraness/kb</code> URL tools. It looks up metadata with a pinned Rust search helper and writes a <code>url-metadata.json</code> file next to each saved URL, so you can stop and resume it. By default it also checks Archive.today, including archive.is URLs, for archived copies, read-only. <code>--no-archive</code> turns that check off; <code>--refresh</code> replaces an existing metadata file after a fresh lookup.</p>
         </section>
 
         <section aria-labelledby="media-archive">
@@ -92,7 +92,7 @@ ghostget verify path/to/archive-item</code></pre></div>
         </section>
 
         <section aria-labelledby="browser-admission">
-          <h2 id="browser-admission">Local browser work is bounded</h2>
+          <h2 id="browser-admission">Page captures share two local browser slots</h2>
           <p>Fresh and profile-backed page capture share at most two locally owned browser acquisitions across Ghostget processes using the same state home. Admission consumes the capture timeout and remains held through browser, proxy, process, and isolation cleanup.</p>
           <p>An explicit <code>--cdp</code> or <code>--browser-live</code> attachment does not launch a Ghostget-owned browser and does not consume one of those two slots. Ambiguous same-boot admission state stays occupied rather than allowing capacity to exceed the bound. Run <code>ghostget doctor --json</code> for the exact state home and recovery evidence.</p>
         </section>
@@ -104,8 +104,8 @@ ghostget verify path/to/archive-item</code></pre></div>
         </section>
 
         <aside class="guide-callout" aria-labelledby="capture-next">
-          <h2 id="capture-next">Keep the capture boundary explicit</h2>
-          <p>Install and verify the CLI with the <a href="/docs/tutorials/getting-started/">getting started guide</a>. For account-bound reads, review <a href="/docs/explanation/security-model/">local custody and provider contracts</a> before adding credentials.</p>
+          <h2 id="capture-next">Before you connect an account</h2>
+          <p>Install and verify the CLI with the <a href="/docs/tutorials/getting-started/">getting started guide</a>. Before adding credentials for account reads, read the <a href="/docs/explanation/security-model/">security model</a>.</p>
         </aside>
       </article>
     </main>

@@ -17,6 +17,11 @@ describe("packaged Ghostget skill", () => {
       "across the pinned official CLI and fixed Desktop loopback operations",
     );
     expect(description).not.toContain("through an exact pinned native CLI");
+    // skills.sh and the Agent Skills format cap a description at 1,024 characters.
+    const folded = description.slice(description.indexOf("description: >-") + "description: >-".length)
+      .split(/\s+/u).filter(Boolean).join(" ");
+    expect(folded.length).toBeLessThanOrEqual(1024);
+    expect(folded).not.toContain("—");
   });
 
   test("routes user-supplied cross-post copy through a fail-closed unlabeled rule", () => {
