@@ -101,9 +101,18 @@ export async function verifyReleaseDirectory(
   directory: string,
   expected: Partial<ReleaseManifest>,
   runGh: (args: readonly string[]) => string = runReadOnlyGh,
+  { latestRunAttempt }: Readonly<{ latestRunAttempt?: number }> = {},
 ): Promise<ReleaseManifest> {
+  if (latestRunAttempt !== undefined && (!Number.isSafeInteger(latestRunAttempt) || latestRunAttempt < 1)) {
+    throw new Error("Latest release run attempt is not one positive Actions run coordinate");
+  }
   await regularDirectory(directory);
   const manifest = parseReleaseManifest(JSON.parse((await regularBytes(join(directory, "release-manifest.json"), maximumJsonBytes)).toString("utf8")) as unknown, expected);
+  // A failed-jobs rerun carries the bytes an earlier attempt of this same run
+  // attested; bytes naming an attempt that has not run yet were never attested.
+  if (latestRunAttempt !== undefined && manifest.runAttempt > latestRunAttempt) {
+    throw new Error("Canonical release manifest names a later attempt than the current run attempt");
+  }
   const names = releaseAssetNames(manifest.tag);
   if ((await readdir(directory)).sort().join(",") !== [...names].sort().join(",")) {
     throw new Error("Release directory must contain exactly the five canonical files");
@@ -161,13 +170,30 @@ export async function downloadReleaseDirectory(
     await writeFile(join(directory, asset.name), bytes, { flag: "wx", mode: 0o600 });
   }
   const manifest = await verifyReleaseDirectory(directory, { ...expected, runId: Number(runId) }, runGh);
-  const attemptPath = `repos/${GITHUB_RELEASE_REPOSITORY}/actions/runs/${runId}/attempts/${manifest.runAttempt}`;
+  verifyCanonicalReleaseRun(runId, manifest, expected, runGh);
+  return manifest;
+}
+
+/**
+ * Admit the run attempt that attested a published canonical Release. When its
+ * publish job failed, only a later attempt of the same run whose own four
+ * canonical jobs succeeded can have completed that exact publication.
+ */
+export function verifyCanonicalReleaseRun(
+  runId: string,
+  manifest: ReleaseManifest,
+  expected: Readonly<{ tag: string; sourceSha: string }>,
+  runGh: (args: readonly string[]) => string = runReadOnlyGh,
+): void {
+  const runPath = `repos/${GITHUB_RELEASE_REPOSITORY}/actions/runs/${runId}`;
+  const attemptPath = `${runPath}/attempts/${manifest.runAttempt}`;
   exactReleaseWorkflowRun({ repository: GITHUB_RELEASE_REPOSITORY,
     value: JSON.parse(runGh(["api", attemptPath])),
     canonicalJobs: JSON.parse(runGh(["api", `${attemptPath}/jobs?per_page=100`])),
+    readCurrentRun: (): unknown => JSON.parse(runGh(["api", runPath])),
+    readAttemptJobs: (attempt: number): unknown => JSON.parse(runGh(["api", `${runPath}/attempts/${String(attempt)}/jobs?per_page=100`])),
     verifiedSha: expected.sourceSha, verifiedTag: expected.tag, workflowRunId: runId,
     expectedRunAttempt: String(manifest.runAttempt) });
-  return manifest;
 }
 
 if (import.meta.main) {

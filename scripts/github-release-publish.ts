@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { verifyBuildHandoff, verifyReleaseDirectory } from "./github-release-artifact.js";
+import { runReadOnlyGh, verifyBuildHandoff, verifyReleaseDirectory } from "./github-release-artifact.js";
 import { parseReleaseAssetDescriptors, releaseAssetNames, releaseAssetByteLimit, verifyReleaseAssetBytes, type ReleaseManifest, type ReleaseAssetDescriptor } from "../website/github-release-artifact.mjs";
 import {
   assertReleaseTagNewerThanPublished, exactLatestPredecessor, exactWorkflowPublishedRelease,
@@ -200,13 +200,36 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
   await revalidateLatestReleaseProjection({ api, repository, targetRelease: readback, verifiedTag: manifest.tag });
 }
 
+export function actionsRunCoordinate(value: string | undefined, label: string): number {
+  const coordinate = /^[1-9][0-9]*$/u.test(value ?? "") ? Number(value) : Number.NaN;
+  if (!Number.isSafeInteger(coordinate)) throw new Error(`${label} is not one positive Actions run coordinate`);
+  return coordinate;
+}
+
+/**
+ * Verify the exact attested handoff this run carries. Rerunning only the failed
+ * jobs of a run reuses the artifact that an earlier attempt of the same run
+ * built and signed, so the manifest may name that attempt but never another
+ * run or an attempt that has not happened yet; its signed certificate must
+ * name that same attempt.
+ */
+export async function verifyPublicationHandoff(
+  directory: string,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  runGh: (args: readonly string[]) => string = runReadOnlyGh,
+): Promise<ReleaseManifest> {
+  const runId = actionsRunCoordinate(environment.GITHUB_RUN_ID, "GITHUB_RUN_ID");
+  const latestRunAttempt = actionsRunCoordinate(environment.GITHUB_RUN_ATTEMPT, "GITHUB_RUN_ATTEMPT");
+  await verifyBuildHandoff(directory, environment.VERIFIED_TAG ?? "",
+    JSON.parse(environment.EXPECTED_ARTIFACT_HASHES ?? "null") as unknown, environment.EXPECTED_BUNDLE_SHA256);
+  return verifyReleaseDirectory(directory, { sourceSha: environment.VERIFIED_SHA ?? "", tag: environment.VERIFIED_TAG ?? "",
+    workflowSha: environment.WORKFLOW_SHA ?? "", runId }, runGh, { latestRunAttempt });
+}
+
 if (import.meta.main) {
   const [directoryValue, ...extra] = process.argv.slice(2);
   if (directoryValue === undefined || extra.length !== 0) throw new Error("Usage: github-release-publish.ts <verified-directory>");
   const directory = resolve(directoryValue);
-  await verifyBuildHandoff(directory, process.env.VERIFIED_TAG ?? "",
-    JSON.parse(process.env.EXPECTED_ARTIFACT_HASHES ?? "null") as unknown, process.env.EXPECTED_BUNDLE_SHA256);
-  const manifest = await verifyReleaseDirectory(directory, { sourceSha: process.env.VERIFIED_SHA ?? "", tag: process.env.VERIFIED_TAG ?? "", workflowSha: process.env.WORKFLOW_SHA ?? "",
-    runId: Number(process.env.GITHUB_RUN_ID), runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT) });
+  const manifest = await verifyPublicationHandoff(directory);
   await publishCanonicalRelease(directory, manifest);
 }
