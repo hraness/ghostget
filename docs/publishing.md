@@ -7,8 +7,11 @@ signed provenance keep that original identity. npm carries the identical
 canonical archive: the same tag Release workflow publishes it through OIDC
 trusted publishing immediately after the immutable GitHub Release, with no
 dispatch, staged approval, or two-factor prompt. An npm failure never unpublishes
-or blocks the GitHub Release or its website promotion; it is rerun from the
-same run. Historical versions and assetless Releases through v0.16.12 remain
+or blocks the GitHub Release, and it is rerun from the same run. Automatic
+website promotion admits only a first attempt that succeeded, so after an npm
+failure or any rerun the website is promoted through the manual recovery
+dispatch, which admits the published Release through its run's job inventory.
+Historical versions and assetless Releases through v0.16.12 remain
 unchanged.
 
 ## Admit the canonical GitHub artifact
@@ -131,6 +134,16 @@ publisher independently reauthorizes the run before checkout, verifies each
 file with `gh attestation verify`, and binds the successful verifier's signed
 certificate to the exact numeric repository/owner IDs, source/ref, workflow,
 GitHub-hosted push, and run ID/attempt. Predicate metadata alone is not authority.
+The publisher downloads the attested artifact only by the numeric artifact ID
+that the attestation job output, after a step proves that ID and the carried
+handoff identities are exact; an empty ID would select every run artifact.
+Re-running only the failed jobs of a run carries the verify and attestation
+outputs and that artifact unchanged, so the rerun publishes the exact bytes an
+earlier attempt of the same run attested. Its manifest may name that earlier
+attempt, never another run or a later attempt, and every signed certificate
+must name the same attempt. A failed attestation job cannot be recovered that
+way because attestation downloads the build of its own attempt; re-run all jobs
+instead.
 The source archive and npm receipt must also agree on every inspected safe
 USTAR entry, mode, count, size, and integrity. Reject extra files, traversal,
 links, malformed receipts, unsafe package configuration, and mismatched bytes.
@@ -144,11 +157,16 @@ SHA-256 to the verified local artifact. It rechecks current protected
 main/tag/release-control closure and stable Release ordering, then publishes it
 as immutable Latest and repeats the exact downloaded-byte proof. Keep the
 existing bounded Latest convergence check and terminal authority readback.
-A matching partial draft from the same run attempt
-may resume only with matching source, bot, body, and every already uploaded
-asset. A mismatched draft or another attempt fails closed and retains evidence;
+A matching partial draft or published Release from the same attesting attempt,
+including one a failed-jobs rerun of that run resumes, may resume only with
+matching source, bot, body, and every already uploaded asset. A mismatched
+draft or another attempt fails closed and retains evidence;
 never delete/recreate it or silently relabel it. A completed release is accepted
 only with its original signed identity, never with a newly rebuilt artifact.
+Re-running all jobs after publication rebuilds under a new attempt, which that
+body check rejects, so that run can no longer complete npm. Manual website
+recovery still admits the Release through its earlier receipt attempt's job
+inventory.
 
 The Release workflow does not hold the production App key, touch production
 refs, or wait for Vercel. The separate production workflow cryptographically
@@ -632,12 +650,25 @@ while a front-run Release or a Release from another run fails closed. Promotion
 derives the Release workflow run ID only from that sampled exact source receipt.
 The automatic path requires it to equal the triggering payload run ID and first
 attempt; manual recovery accepts no run-ID input and requires the receipt's exact
-run to have one positive current attempt. The initial verification job reads that
-Actions run exactly once. It binds workflow ID `323493609`, path
+run to have one positive current attempt. Authority resolution in the initial
+verification job reads that Actions run exactly once. It binds workflow ID `323493609`, path
 `.github/workflows/release.yml`, tag push, head tag and SHA, completed success,
 stable numeric IDs and types for the owner actor and triggering actor, and the
-exact public Ghostget repository and head repository. Mutable actor logins, the
-run display name, and the Release display title are presentation, not authority.
+exact public Ghostget repository and head repository. Manual recovery may admit
+a completed latest attempt without a successful conclusion only through one
+more bounded read of that exact attempt's job inventory, which must show the
+four canonical jobs (authorize, verify, attest, publish) succeeded in that same
+run, attempt, and source SHA; a later npm job failure cannot revoke a published
+immutable Release. When that latest attempt did not publish, for example
+because all jobs were re-run after publication, the Release body's attempt line
+selects one earlier receipt attempt of the same run, and one more bounded read
+of that attempt's job inventory must show all four canonical jobs succeeded in
+it. The body is mutable, so it only selects which inventory to read; a missing,
+malformed, equal, or later attempt fails closed without that read. Authority
+resolution reads no job inventory on the automatic path; the canonical download
+below reads the receipt attempt's inventory on both paths. Mutable
+actor logins, the run display name, and the Release display title are
+presentation, not authority.
 The body receipt is mutable GitHub control-plane data, so each accepted Release
 read samples and validates it exactly; the protected tag and stable numeric
 identities remain the durable authority. Later strict by-tag Release reads
@@ -666,10 +697,20 @@ for protected current main `M` before any provider or ref work. The canonical
 download binds the receipt attempt: a successful attempt is admitted outright,
 and an attempt that published the Release and then failed a later npm job is
 admitted only when its complete job inventory shows the four canonical jobs
-(authorize, verify, attest, publish) succeeded in that attempt. A rerun that
+(authorize, verify, attest, publish) succeeded in that attempt. When the
+receipt attempt attested the bytes but its publish job did not succeed, only a
+strictly later completed current attempt of the same run can admit it, and only
+when that attempt's own complete job inventory shows all four canonical jobs
+succeeded in it. Another run, an earlier or equal attempt, or a later attempt
+that did not publish fails closed. A rerun that
 completes npm makes the run's latest attempt successful, but automatic
 promotion still requires the first attempt, so that release is promoted through
-the manual recovery dispatch. Only the initial
+the manual recovery dispatch. An automatic promotion run whose upstream first
+attempt failed only npm, or whose upstream is a rerun, therefore fails its
+trigger gate with `Upstream Release must succeed on its first attempt`. That
+red run is the expected hand-off to manual recovery, not a regression; admitting
+such attempts automatically would change the first-attempt guard and needs a
+reviewed policy change. Only the initial
 verification job has `actions: read`; baseline, both promotion paths,
 receipt selection, and provider outcome carry the verified run ID but cannot
 read Actions.
@@ -957,10 +998,14 @@ post-reauthorization publication helper's worst missing-Release path uses 30
 calls, including all five bounded release pages plus the empty sentinel page;
 the full immutable Release path uses 36 after its six terminal source-
 reauthorization calls. The immutable Release and downstream
-promotion workflows together use at most 351 REST calls, leaving 649 calls
+promotion workflows together use at most 358 REST calls, leaving 642 calls
 under the repository `GITHUB_TOKEN` limit of 1,000 REST requests per hour. The
-website authority sandwiches use at most 83 calls, the surrounding immutable
-Release and website authority paths use at most 119, and the promotion helper
+website authority sandwiches use at most 85 calls, including manual recovery's
+latest-attempt and receipt-attempt job-inventory reads. The canonical download
+uses at most five: the by-tag Release, the receipt attempt and its job
+inventory, and, only when a later attempt completed publication, the current
+run and that attempt's inventory. The surrounding immutable Release, website
+authority, and canonical download paths use at most 126, and the promotion helper
 itself uses at most 21 read-only REST calls. Its leased Git
 push and at most fourteen App REST requests do not consume that `GITHUB_TOKEN`
 budget. Those App requests are the three setup and mint calls, one DELETE, and
