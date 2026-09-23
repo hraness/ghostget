@@ -496,6 +496,80 @@ export function renderProviderOverviewCards(directory: ProviderDirectory): strin
   ].join("")).join("");
 }
 
+// Provider cards drifting behind the hero, in field order. Positions,
+// rotation, and drift rhythm live in styles.css as .ghostget-card--<id>
+// modifiers so the markup stays free of inline presentation.
+const FIELD_CARD_SURFACES: readonly string[] = Object.freeze([
+  "beeper",
+  "gmail",
+  "whatsapp",
+  "imessage",
+  "x",
+  "instagram",
+  "youtube",
+  "github",
+  "reddit",
+  "linkedin",
+]);
+
+const FIELD_SPIRIT_COUNT = 3;
+
+const FIELD_EDGES: readonly string[] = Object.freeze([
+  "M 7 14 Q 16 4 26 8",
+  "M 26 8 Q 36 2 47 10",
+  "M 47 10 Q 56 2 66 8",
+  "M 66 8 Q 77 2 87 14",
+  "M 87 14 Q 94 26 94 42",
+  "M 94 42 Q 96 62 90 82",
+  "M 90 82 Q 80 90 68 93",
+  "M 40 94 Q 24 90 9 78",
+]);
+
+const FIELD_BLOBS = Object.freeze(["blue", "violet", "coral"] as const);
+
+function renderFieldCard(surfaceId: string): string {
+  const provider = PROVIDER_PRESENTATIONS.find((entry) => entry.surfaceId === surfaceId);
+  if (provider === undefined) {
+    throw new Error(`Hero field card names an unknown provider surface: ${surfaceId}`);
+  }
+  return [
+    `<div class="ghostget-card ghostget-card--${surfaceId} provider-accent-${provider.accent}" data-gg-prox>`,
+    `<span class="ghostget-card__mark provider-mark" data-provider-icon="${provider.icon}">${renderProviderIcon(provider.icon)}</span>`,
+    `<span class="ghostget-card__name">${escapeHtml(provider.name)}</span>`,
+    "</div>",
+  ].join("");
+}
+
+function renderFieldSpirit(index: number): string {
+  return [
+    `<div class="ghostget-spirit ghostget-spirit--${String(index)}" data-gg-prox data-gg-spirit>`,
+    '<svg aria-hidden="true" class="ghostget-spirit__body" focusable="false" viewBox="0 0 48 56">',
+    '<path class="ghostget-spirit__shape" d="M24 3.5c-8.8 0-15.5 6.9-15.5 15.6v29.3c0 2.8 3.4 4.1 5.3 2.1l1.5-1.4c1.6-1.5 4-1.5 5.6 0l1.3 1.2c1.3 1.2 3.2 1.2 4.5 0l1.3-1.2c1.6-1.5 4-1.5 5.6 0l1.5 1.4c1.9 2 5.3.7 5.3-2.1V19.1C40.5 10.4 33.8 3.5 24 3.5Z"></path>',
+    '<ellipse class="ghostget-spirit__blush" cx="14.5" cy="28.5" rx="2.4" ry="1.5"></ellipse>',
+    '<ellipse class="ghostget-spirit__blush" cx="33.5" cy="28.5" rx="2.4" ry="1.5"></ellipse>',
+    '<path class="ghostget-spirit__mouth" d="M21.5 28.5q2.5 2.2 5 0"></path>',
+    '<g class="ghostget-spirit__eyes">',
+    '<ellipse class="ghostget-spirit__eye" cx="18.5" cy="21.5" rx="2.8" ry="3.6"></ellipse>',
+    '<ellipse class="ghostget-spirit__eye" cx="29.5" cy="21.5" rx="2.8" ry="3.6"></ellipse>',
+    "</g>",
+    "</svg>",
+    "</div>",
+  ].join("");
+}
+
+export function renderGhostgetField(): string {
+  const edges = FIELD_EDGES.map((d) => `<path class="ghostget-edge" data-gg-prox d="${d}"></path>`).join("");
+  const blobs = FIELD_BLOBS.map((hue) => `<span class="ghostget-blob ghostget-blob--${hue}" data-gg-blob></span>`).join("");
+  return [
+    '<div aria-hidden="true" class="ghostget-field">',
+    blobs,
+    `<svg class="ghostget-edges" preserveAspectRatio="none" viewBox="0 0 100 100">${edges}</svg>`,
+    FIELD_CARD_SURFACES.map(renderFieldCard).join(""),
+    Array.from({ length: FIELD_SPIRIT_COUNT }, (_, index) => renderFieldSpirit(index + 1)).join(""),
+    "</div>",
+  ].join("");
+}
+
 const operationTitleOverrides: Readonly<Record<string, string>> = Object.freeze({
   "articles.draft.save": "Save article draft",
   "communities.membership.set": "Update community membership",

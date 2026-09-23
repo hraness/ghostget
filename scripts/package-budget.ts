@@ -1388,14 +1388,22 @@
 // 0725e564d463965ca9b6ca8fdfb80eb712c7f4573c9a73acf499a398882cf49f. Carry the
 // same projections and allowances: 11,974,295 + 12,387 + 4,096 = 11,990,778
 // packed; 23,294,815 + 353 + 65 = 23,295,233 unpacked.
+// Ghostget 0.18.30 adds the homepage hero field (website-only, excluded from
+// the package) and a 523-byte CHANGELOG section over the 0.18.29 inventory:
+// `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64 measured
+// 11,962,148 packed bytes, 23,295,338 unpacked bytes across exactly 592
+// files; archive SHA-256
+// 20f08e21c8f2063334e77597453bf984dcc1849c2447689fb166b23e35f76eb0. Carry
+// the same projections and allowances: 11,962,148 + 12,387 + 4,096 = 11,978,631
+// packed; 23,295,338 + 353 + 65 = 23,295,756 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.29 Threads public views counter and release identity; one additional packed adapter snapshot over the 0.18.28 inventory",
+  scope: "Ghostget 0.18.30 homepage hero field and release identity over the 0.18.29 Threads inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "0725e564d463965ca9b6ca8fdfb80eb712c7f4573c9a73acf499a398882cf49f",
-  packedBytes: 11_974_295,
-  unpackedBytes: 23_294_815,
+  archiveSha256: "20f08e21c8f2063334e77597453bf984dcc1849c2447689fb166b23e35f76eb0",
+  packedBytes: 11_962_148,
+  unpackedBytes: 23_295_338,
   entryCount: 592,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

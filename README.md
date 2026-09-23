@@ -24,7 +24,7 @@ Install [Bun 1.3.14](https://bun.sh/docs/installation) if needed, then install
 Ghostget and read a public page:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.29/hraness-ghostget-0.18.29.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.30/hraness-ghostget-0.18.30.tgz
 ghostget read https://example.com
 ```
 
@@ -45,9 +45,9 @@ always names the latest completed release. Upgrading from Wrench? Read the
 The optional Agent Skill teaches your agent when and how to use Ghostget:
 
 ```sh
-npx skills add hraness/ghostget#v0.18.29
+npx skills add hraness/ghostget#v0.18.30
 # With Bun instead:
-bunx skills add hraness/ghostget#v0.18.29
+bunx skills add hraness/ghostget#v0.18.30
 ```
 
 Start a new agent session, then ask: “Use Ghostget to read https://example.com
@@ -146,7 +146,7 @@ firewall.
 
 ## Built-in provider catalog
 
-This v0.18.29 source tree supports executable actions for 20 services: Beeper,
+This v0.18.30 source tree supports executable actions for 20 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
 Threads, TikTok, Twitch, WhatsApp, X, and YouTube.
@@ -215,7 +215,7 @@ For that same released coordinate, install Ghostget in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.29/hraness-ghostget-0.18.29.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.30/hraness-ghostget-0.18.30.tgz
 ```
 
 ```ts
