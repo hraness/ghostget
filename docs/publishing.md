@@ -271,8 +271,11 @@ verify, attest, and publish jobs. It is checkout-free, runs no product source or
    guard stays active, and requires the returned identity and integrity to
    match the tarball.
 
-`admit_npm` then checks out the verified source read-only, downloads the
-registry tarball and metadata, and runs `scripts/npm-package-identity.ts`
+`admit_npm` then checks out the verified source read-only, first waits inside
+a bounded propagation window until `npm view` reports the exact candidate
+version (OIDC provenance publishing is asynchronous on the registry side),
+downloads the registry tarball and metadata, and runs
+`scripts/npm-package-identity.ts`
 against the canonical asset plus `npm audit signatures --include-attestations`
 through `scripts/npm-provenance-identity.ts`, which binds the registry publish
 and SLSA attestations to the tag push, the verified commit, and

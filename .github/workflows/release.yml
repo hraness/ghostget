@@ -1167,6 +1167,17 @@ jobs:
             echo "::error::Downloaded canonical archive does not match the verified build hash"
             exit 1
           fi
+          propagation_deadline=$((SECONDS + 840))
+          until npm view "@hraness/ghostget@$version" version \
+              --registry=https://registry.npmjs.org 2>/dev/null \
+              | grep -Fqx "$version"; do
+            if (( SECONDS >= propagation_deadline )); then
+              echo "::error::npm registry did not publish @hraness/ghostget@$version inside the bounded propagation window"
+              exit 1
+            fi
+            echo "Waiting for npm registry propagation of @hraness/ghostget@$version"
+            sleep 20
+          done
           registry_directory="$RUNNER_TEMP/ghostget-registry"
           mkdir -m 700 "$registry_directory"
           (cd "$registry_directory" && npm pack "@hraness/ghostget@$version" --ignore-scripts --json \
