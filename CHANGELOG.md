@@ -7,6 +7,23 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.31
+
+- Add the built-in WebMCP Registry provider: the bundled `webmcp` adapter
+  reads the public wmcp.ai registry so agents always see a site's current
+  tool contracts instead of a frozen copy. `sites.search` enumerates and
+  tag-filters listed domains, `sites.get` returns one domain's live-checked
+  tools with input schemas and annotations, and `tools.call` invokes only
+  tools the site declares `readOnlyHint` for through the registry's
+  read-only guard, returning untrusted site content. All three operations
+  are public, credential-free, R1, observed, and non-dispatching.
+- Generate a provider directory at ghostget.com/providers/ plus one landing
+  page per listed WebMCP domain from a checked-in registry snapshot, with
+  honest callable-vs-listed status, exact adapter commands, markdown
+  siblings, sitemap entries, and llms.txt alignment. Public credential-free
+  operations now render as "Public web session" in the provider attestation.
+- Remove an accidentally committed registry-definition fixture.
+
 ## 0.18.30
 
 - Add the hero field: drifting provider cards and small ghosts behind the
