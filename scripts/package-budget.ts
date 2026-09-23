@@ -1423,14 +1423,23 @@
 // 647187cc462dcd40a127f5a2c2f17513196a4d71bec94e95a967b6f5256e75b1. Carry
 // the same projections and allowances: 11,983,933 + 12,387 + 4,096 =
 // 12,000,416 packed; 23,342,196 + 353 + 65 = 23,342,614 unpacked.
+// Ghostget 0.18.33 re-tags the 0.18.31 WebMCP content for npm publication
+// and website promotion after the durable by-tag Release projection
+// failure; its CHANGELOG section and rebuilt dist chunks shift the
+// unchanged 596-file inventory: `npm pack --ignore-scripts` with npm
+// 11.19.0 on darwin arm64 measured 11,971,738 packed bytes, 23,342,705
+// unpacked bytes; archive SHA-256
+// e1e1ebb75b1c4c64e67c84bfc5087626258fab6e20ed6285390da4c320bb4d8e. Carry
+// the same projections and allowances: 11,971,738 + 12,387 + 4,096 =
+// 11,988,221 packed; 23,342,705 + 353 + 65 = 23,343,123 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.32 related-product family section and release identity over the 0.18.31 WebMCP inventory",
+  scope: "Ghostget 0.18.33 re-tag release identity over the WebMCP Registry provider inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "647187cc462dcd40a127f5a2c2f17513196a4d71bec94e95a967b6f5256e75b1",
-  packedBytes: 11_983_933,
-  unpackedBytes: 23_342_196,
+  archiveSha256: "e1e1ebb75b1c4c64e67c84bfc5087626258fab6e20ed6285390da4c320bb4d8e",
+  packedBytes: 11_971_738,
+  unpackedBytes: 23_342_705,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
