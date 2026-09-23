@@ -670,10 +670,10 @@
     "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.7.0/hraness-desktop-foundation-0.7.0.tgz"
   },
   "devDependencies": {
-    "@hraness/design-kit": "github:hraness/design-kit#v0.10.0",
+    "@hraness/design-kit": "github:hraness/design-kit#v0.15.0",
     "@hraness/direct": "https://github.com/hraness/direct/releases/download/v0.7.21/hraness-direct-0.7.21.tgz",
     "@hraness/site-footer": "github:hraness/site-footer#v0.15.0",
-    "@hraness/ui": "github:hraness/ui#v0.5.13",
+    "@hraness/ui": "github:hraness/ui#v0.5.16",
     "@hraness/web-discovery": "github:hraness/web-discovery#v0.6.0",
     "@resvg/resvg-js": "2.6.2",
     "@steipete/sweet-cookie": "0.4.3",

@@ -174,13 +174,13 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.10.0",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.15.0",
         "@hraness/site-footer": "github:hraness/site-footer#v0.15.0",
-        "@hraness/ui": "github:hraness/ui#v0.5.13",
+        "@hraness/ui": "github:hraness/ui#v0.5.16",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.10.0"');
-    expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.13"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.15.0"');
+    expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.16"');
     expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.15.0"');
     expect(lockfile).toContain(
       '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#8b6336d"', 
@@ -372,7 +372,7 @@ describe("ghostget.com static site", () => {
       "@hraness/ui/reset.css",
       "@hraness/ui/components.css",
       "@hraness/ui/stylex.css",
-      "@hraness/design-kit/product-marketing.css",
+      "@hraness/design-kit/syntax-highlighting.css",
       "@hraness/site-footer/stylex.css",
     ]) {
       const stylesheet = (await readFile(
@@ -381,6 +381,13 @@ describe("ghostget.com static site", () => {
       )).trim();
       expect(builtCss.split(stylesheet)).toHaveLength(2);
     }
+    const marketingGrammar = (await readFile(
+      new URL(import.meta.resolve("@hraness/design-kit/product-marketing.css")),
+      "utf8",
+    )).trim();
+    expect(marketingGrammar).toMatch(/^@import\b/iu);
+    const grammarWithoutImport = marketingGrammar.replace(/^@import[^\n]*\n/u, "").trim();
+    expect(builtCss.split(grammarWithoutImport)).toHaveLength(2);
 
     expect(vercel.git).toEqual({
       deploymentEnabled: {
@@ -592,6 +599,14 @@ describe("ghostget.com static site", () => {
     expect(html).toContain('data-hraness-marketing="interfaces"');
     expect(html).toContain('data-hraness-marketing="trust"');
     expect(html).toContain('data-hraness-marketing="questions"');
+    expect(html).toContain('data-hraness-marketing="related"');
+    const relatedSection = /<section\b[^>]*data-hraness-marketing="related"[\s\S]*?<\/section>/u.exec(html)?.[0];
+    expect(relatedSection).toBeDefined();
+    expect(relatedSection).toContain('hraness-marketing-related__group-heading');
+    for (const href of ["https://gobstopper.sh", "https://xcb.sh", "https://aicharts.io", "https://peopleblade.com", "https://soulscrape.com", "https://textbutler.app", "https://wordcell.io"]) {
+      expect(relatedSection).toContain(`href="${href}"`);
+    }
+    expect(html.indexOf('data-hraness-marketing="related"')).toBeLessThan(html.indexOf('data-hraness-marketing="cta"'));
     expect(html).toContain('data-hraness-marketing="cta"');
     expect(html).toContain("Use an Agent Skill, CLI, or TypeScript SDK");
     expect(html).not.toContain('class="hraness-marketing-hero__eyebrow"');

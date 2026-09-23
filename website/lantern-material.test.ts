@@ -9,7 +9,7 @@ const source = join(import.meta.dir, "vendor/lantern-material");
 
 test("retains the exact admitted asset-free Lantern CSS and attribution", async () => {
   const snapshot = await snapshotLanternMaterial(source);
-  expect(snapshot.manifest.source.commit).toBe("0e089bc18f9a0409f0e74b1fb7192f468956e386");
+  expect(snapshot.manifest.source.commit).toBe("a89034f457cfe2a09297610c74a8ce9d82ae8a5a");
   expect([...snapshot.files.keys()]).toEqual(["lantern-material.css", "LICENSE"]);
   for (const name of ["lantern-material.css", "LICENSE"] as const) {
     const bytes = snapshot.files.get(name);
