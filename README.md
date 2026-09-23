@@ -24,7 +24,7 @@ Install [Bun 1.3.14](https://bun.sh/docs/installation) if needed, then install
 Ghostget and read a public page:
 
 ```sh
-bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.32/hraness-ghostget-0.18.32.tgz
+bun add --global https://github.com/hraness/ghostget/releases/download/v0.18.35/hraness-ghostget-0.18.35.tgz
 ghostget read https://example.com
 ```
 
@@ -45,9 +45,9 @@ always names the latest completed release. Upgrading from Wrench? Read the
 The optional Agent Skill teaches your agent when and how to use Ghostget:
 
 ```sh
-npx skills add hraness/ghostget#v0.18.32
+npx skills add hraness/ghostget#v0.18.35
 # With Bun instead:
-bunx skills add hraness/ghostget#v0.18.32
+bunx skills add hraness/ghostget#v0.18.35
 ```
 
 Start a new agent session, then ask: “Use Ghostget to read https://example.com
@@ -146,15 +146,17 @@ firewall.
 
 ## Built-in provider catalog
 
-This v0.18.32 source tree supports executable actions for 21 services: Beeper,
+This v0.18.35 source tree supports executable actions for 21 services: Beeper,
 Bluesky, ClasificadosOnline, Facebook, Facebook Groups, Facebook Marketplace,
 GitHub, Gmail, Hacker News, Instagram, iMessage, LinkedIn, Reddit, Substack,
-Threads, TikTok, Twitch, WebMCP Registry, WhatsApp, X, and YouTube.
-LinkedIn and X each have separate official and authenticated-web adapters. The
-WebMCP Registry adapter is a public, credential-free route to `wmcp.ai`: it
-searches listed sites, reads one site's current tool schemas, and calls only
-tools the site declares `readOnlyHint` for — the registry executes the tool in
-a fresh headless page and returns untrusted site content. The
+Threads, TikTok, Twitch, WebMCP Registry, WhatsApp, X, and YouTube. LinkedIn
+and X each have separate official and authenticated-web adapters. The bundled
+`webmcp` adapter additionally reaches every site listed in the public WebMCP
+Registry — 1,800+ domains publishing live `navigator.modelContext` tool
+schemas. It is a public, credential-free route to `wmcp.ai`: it searches listed
+sites, reads one site's current tool schemas, and calls only tools the site
+declares `readOnlyHint` for — the registry executes the tool in a fresh
+headless page and returns untrusted site content. The
 [release-bound provider directory](https://ghostget.com/docs/reference/provider-capabilities/)
 lists only executable actions, grouped by the tasks each service supports and
 the access method each action uses. Inspect `ghostget capabilities --json` for
@@ -219,7 +221,7 @@ For that same released coordinate, install Ghostget in an agent or application
 that owns its own model, planning, tool loop, approvals, and interface:
 
 ```sh
-bun add https://github.com/hraness/ghostget/releases/download/v0.18.32/hraness-ghostget-0.18.32.tgz
+bun add https://github.com/hraness/ghostget/releases/download/v0.18.35/hraness-ghostget-0.18.35.tgz
 ```
 
 ```ts

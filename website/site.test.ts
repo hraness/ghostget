@@ -455,6 +455,22 @@ describe("ghostget.com static site", () => {
     }
 
     expect(html).toContain(`<title>${SITE_TITLE}</title>`);
+    /* The shared brand lockup on every page: the pointer-tracked foil-text
+       name plus the foil-mark icon whose paint is masked by the product
+       mark's alpha — the same header convention across Hraness sites. */
+    expect(sourceCss).toContain('--hraness-foil-mask: url("/marks/wrench.svg")');
+    for (const page of pages) {
+      const brand = page.html.match(
+        /<a[^>]*aria-label="Ghostget home"[^>]*>[\s\S]*?<\/a>/u,
+      )?.[0];
+      expect(brand).toBeDefined();
+      expect(brand).toContain('data-foil=""');
+      expect(brand).toMatch(/hraness-foil-text|hraness-marketing-header__brand/u);
+      expect(brand).toContain('hraness-foil-mark');
+      expect(brand).toContain('hraness-foil-mark__image');
+      expect(brand).toContain('hraness-foil-mark__paint');
+      expect(brand).toContain('src="/marks/wrench.svg"');
+    }
     for (const page of pages) {
       expect(page.html.match(/data-slot="ask-ai-about-this"/gu)).toHaveLength(1);
       const destination = new URL("https://chatgpt.com/");
@@ -559,7 +575,7 @@ describe("ghostget.com static site", () => {
     expect(guidesSection).toBeDefined();
     expect(argumentsSection).toContain('<h2 id="arguments-title">Arguments and comparisons</h2>');
     expect(argumentsSection).toContain('<div class="card-grid editorial-card-grid">');
-    expect(argumentsSection?.match(/<article class="card(?: editorial-card)?">/gu)).toHaveLength(7);
+    expect(argumentsSection?.match(/<article class="card(?: editorial-card)?">/gu)).toHaveLength(8);
     expect(guidesSection?.match(/<article class="card">/gu)).toHaveLength(6);
     expect(argumentsSection).toContain('href="/paypal-grapheneos-attestation/"');
     expect(argumentsSection).toContain('href="/rumour-is-the-exploit/"');
@@ -619,7 +635,7 @@ describe("ghostget.com static site", () => {
     expect(html).not.toContain('class="hraness-marketing-hero__example"');
     expect(html).toContain('import { isProviderPluginId } from "@hraness/ghostget"');
     expect(html).toMatch(/Reviewed operations across \d+ supported services\./u);
-    expect(html).toContain('aria-label="Ghostget home" class="hraness-marketing-header__brand" data-foil="" href="/"><img alt="" height="20" src="/icon.png" width="20" /> Ghostget</a>');
+    expect(html).toContain('aria-label="Ghostget home" class="hraness-marketing-header__brand" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> Ghostget</a>');
     expect(html).not.toMatch(/hero-field|hero-orbit|hero-glyph/u);
     expect(html).not.toMatch(/observed provider operations|capture-required|unavailable reservations/iu);
     expect(html).not.toContain("🔧");
@@ -1001,7 +1017,7 @@ describe("ghostget.com static site", () => {
       const canonicalUrl = `${SITE_ORIGIN}${definition.canonicalPath}`;
       expect(pageHtml).toContain(`<title>${definition.title}</title>`);
       expect(pageHtml).toContain(`<meta name="description" content="${definition.description}">`);
-      expect(pageHtml).toMatch(/aria-label="Ghostget home" class="(?:hraness-marketing-header__brand|wordmark hraness-foil-text)" data-foil="" href="\/"><img alt="" height="20" src="\/icon\.png" width="20" \/> Ghostget<\/a>/u);
+      expect(pageHtml).toMatch(/aria-label="Ghostget home" class="(?:hraness-marketing-header__brand|wordmark hraness-foil-text)" data-foil="" href="\/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="\/marks\/wrench\.svg" width="20" \/><span aria-hidden="true" class="hraness-foil-mark__paint"><\/span><\/span> Ghostget<\/a>/u);
       expect(pageHtml).not.toContain('class="wordmark" href="/">GHOSTGET</a>');
       expect(pageHtml).toContain(`<link rel="canonical" href="${canonicalUrl}">`);
       expect(pageHtml).toContain(`<meta property="og:title" content="${definition.title}">`);
@@ -1127,7 +1143,9 @@ describe("ghostget.com static site", () => {
       expect(page?.html).toContain(`alt="${image.alt}"`);
       expect(page?.html).toContain(image.caption);
       expect(page?.html).toContain(image.credit);
-      expect(image.credit).toBe("Editorial illustration generated with Atet.");
+      expect(image.credit).toMatch(
+        /^Editorial illustration generated with (?:Atet|Slopcamera)\.$/u,
+      );
       expect(page?.html).not.toContain("editorial-provenance/");
       expect(page?.html).not.toContain("gateway_");
       const answerLedeIndex = page?.html.indexOf('class="answer-lede"') ?? -1;
@@ -1186,6 +1204,7 @@ describe("ghostget.com static site", () => {
       const job = await Bun.file(join(websiteRoot, image.provenance.job)).json() as {
         clientMaxRetries?: number;
         noAtetRetry?: boolean;
+        noSlopcameraRetry?: boolean;
         request?: { promptSha256?: string };
         state?: string;
       };
@@ -1194,11 +1213,17 @@ describe("ghostget.com static site", () => {
       expect(receipt.localValidation?.status).toBe("decode-passed");
       expect(job).toMatchObject({
         clientMaxRetries: 0,
-        noAtetRetry: true,
         state: "completed",
       });
-      const promptSha256 = createHash("sha256").update(prompt.trim()).digest("hex");
-      expect(promptSha256).toBe(image.provenance.promptSha256);
+      expect(job.noAtetRetry === true || job.noSlopcameraRetry === true).toBe(true);
+      // Atet pinned the trimmed prompt text; Slopcamera pins the exact file
+      // bytes. Either derivation is valid as long as the generator's own
+      // receipt and job record the registered value.
+      const promptHashes = new Set([
+        createHash("sha256").update(prompt).digest("hex"),
+        createHash("sha256").update(prompt.trim()).digest("hex"),
+      ]);
+      expect(promptHashes.has(image.provenance.promptSha256)).toBe(true);
       expect(job.request?.promptSha256).toBe(image.provenance.promptSha256);
       expect(receipt.request?.promptSha256).toBe(image.provenance.promptSha256);
     }

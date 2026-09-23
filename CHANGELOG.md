@@ -7,6 +7,35 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.35
+
+- Ship the WebMCP editorial figure and homepage registry surface merged in
+  #350: a Slopcamera-generated dark-duotone illustration for `/webmcp/` with
+  committed prompt/job/receipt provenance and 384/768 derivatives, the
+  1,800-site registry panel with a popularity-ordered domain strip on the
+  homepage providers section, and a registry stat row on the explainer.
+  No runtime behavior changes.
+
+## 0.18.34
+
+- Publish the WebMCP editorial and documentation surfaces: a `/webmcp/`
+  explainer page covering `navigator.modelContext`, the public WebMCP
+  Registry, and Ghostget's three bounded `webmcp` operations; a
+  `/docs/how-to/use-webmcp-sites/` task guide for search, schema
+  inspection, and read-only tool calls; the registry's 1,800+ site scale
+  on the homepage providers section, provider directory, docs index,
+  llms.txt, and README. No runtime behavior changes.
+
+## 0.18.33
+
+- Re-tag the 0.18.31 content for npm publication and website promotion.
+  The v0.18.31 Release published immutably with all five canonical assets
+  and serves complete downloads, but GitHub's by-tag and list Release
+  projections durably omit its asset inventory, so the release chain could
+  not complete npm publication or production promotion on that tag. The
+  v0.18.31 tag, Release, and failed run stay retained; this version is the
+  source-qualified delivery. No runtime behavior changes.
+
 ## 0.18.32
 
 - Link the related product family from the homepage with the shared
