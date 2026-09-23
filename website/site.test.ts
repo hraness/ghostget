@@ -455,6 +455,22 @@ describe("ghostget.com static site", () => {
     }
 
     expect(html).toContain(`<title>${SITE_TITLE}</title>`);
+    /* The shared brand lockup on every page: the pointer-tracked foil-text
+       name plus the foil-mark icon whose paint is masked by the product
+       mark's alpha — the same header convention across Hraness sites. */
+    expect(sourceCss).toContain('--hraness-foil-mask: url("/marks/wrench.svg")');
+    for (const page of pages) {
+      const brand = page.html.match(
+        /<a[^>]*aria-label="Ghostget home"[^>]*>[\s\S]*?<\/a>/u,
+      )?.[0];
+      expect(brand).toBeDefined();
+      expect(brand).toContain('data-foil=""');
+      expect(brand).toMatch(/hraness-foil-text|hraness-marketing-header__brand/u);
+      expect(brand).toContain('hraness-foil-mark');
+      expect(brand).toContain('hraness-foil-mark__image');
+      expect(brand).toContain('hraness-foil-mark__paint');
+      expect(brand).toContain('src="/marks/wrench.svg"');
+    }
     for (const page of pages) {
       expect(page.html.match(/data-slot="ask-ai-about-this"/gu)).toHaveLength(1);
       const destination = new URL("https://chatgpt.com/");
@@ -619,7 +635,7 @@ describe("ghostget.com static site", () => {
     expect(html).not.toContain('class="hraness-marketing-hero__example"');
     expect(html).toContain('import { isProviderPluginId } from "@hraness/ghostget"');
     expect(html).toMatch(/Reviewed operations across \d+ supported services\./u);
-    expect(html).toContain('aria-label="Ghostget home" class="hraness-marketing-header__brand" data-foil="" href="/"><img alt="" height="20" src="/icon.png" width="20" /> Ghostget</a>');
+    expect(html).toContain('aria-label="Ghostget home" class="hraness-marketing-header__brand" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> Ghostget</a>');
     expect(html).not.toMatch(/hero-field|hero-orbit|hero-glyph/u);
     expect(html).not.toMatch(/observed provider operations|capture-required|unavailable reservations/iu);
     expect(html).not.toContain("🔧");
@@ -1001,7 +1017,7 @@ describe("ghostget.com static site", () => {
       const canonicalUrl = `${SITE_ORIGIN}${definition.canonicalPath}`;
       expect(pageHtml).toContain(`<title>${definition.title}</title>`);
       expect(pageHtml).toContain(`<meta name="description" content="${definition.description}">`);
-      expect(pageHtml).toMatch(/aria-label="Ghostget home" class="(?:hraness-marketing-header__brand|wordmark hraness-foil-text)" data-foil="" href="\/"><img alt="" height="20" src="\/icon\.png" width="20" \/> Ghostget<\/a>/u);
+      expect(pageHtml).toMatch(/aria-label="Ghostget home" class="(?:hraness-marketing-header__brand|wordmark hraness-foil-text)" data-foil="" href="\/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="\/marks\/wrench\.svg" width="20" \/><span aria-hidden="true" class="hraness-foil-mark__paint"><\/span><\/span> Ghostget<\/a>/u);
       expect(pageHtml).not.toContain('class="wordmark" href="/">GHOSTGET</a>');
       expect(pageHtml).toContain(`<link rel="canonical" href="${canonicalUrl}">`);
       expect(pageHtml).toContain(`<meta property="og:title" content="${definition.title}">`);
