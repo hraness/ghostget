@@ -1432,24 +1432,33 @@
 // e1e1ebb75b1c4c64e67c84bfc5087626258fab6e20ed6285390da4c320bb4d8e. Carry
 // the same projections and allowances: 11,971,738 + 12,387 + 4,096 =
 // 11,988,221 packed; 23,342,705 + 353 + 65 = 23,343,123 unpacked.
+// Ghostget 0.18.34 adds the WebMCP explainer and how-to pages plus the
+// registry-scale README and homepage copy (website-only sources stay
+// outside the package); its CHANGELOG section and rebuilt dist chunks
+// shift the unchanged 596-file inventory: `npm pack --ignore-scripts`
+// with npm 11.19.0 on darwin arm64 measured 11,971,987 packed bytes,
+// 23,343,331 unpacked bytes; archive SHA-256
+// 045a8cf8389e54e18c28e7580a9c6c5494d9c6cca38f39bc1e4ece4b4b079e05. Carry
+// the same projections and allowances: 11,971,987 + 12,387 + 4,096 =
+// 11,988,470 packed; 23,343,331 + 353 + 65 = 23,343,749 unpacked.
 // The portable `not-applied` claim fence records a caller's claim and keeps
 // the idempotency ledger. Its edits to the portable recovery module,
 // runtime, run-journal and CLI sources and the provider-plugins reference
-// add exactly 8,189 payload bytes to the unchanged 596-file 0.18.33
+// add exactly 8,842 payload bytes to the unchanged 596-file 0.18.34
 // inventory: `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
-// measured 11,973,998 packed bytes, 23,350,894 unpacked bytes; archive
+// measured 11,974,533 packed bytes, 23,352,173 unpacked bytes; archive
 // SHA-256
-// e2beecabaf23294854c466e41e1fbf8373d63741c20148253f3ba97df78f8bf2. Carry
-// the same projections and allowances: 11,973,998 + 12,387 + 4,096 =
-// 11,990,481 packed; 23,350,894 + 353 + 65 = 23,351,312 unpacked.
+// 6416284de4d27252c6c69be61651b602b5d9b768791ae13e4249744e21998017. Carry
+// the same projections and allowances: 11,974,533 + 12,387 + 4,096 =
+// 11,991,016 packed; 23,352,173 + 353 + 65 = 23,352,591 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Portable not-applied claim fence over the Ghostget 0.18.33 inventory",
+  scope: "Portable not-applied claim fence over the Ghostget 0.18.34 inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "e2beecabaf23294854c466e41e1fbf8373d63741c20148253f3ba97df78f8bf2",
-  packedBytes: 11_973_998,
-  unpackedBytes: 23_350_894,
+  archiveSha256: "6416284de4d27252c6c69be61651b602b5d9b768791ae13e4249744e21998017",
+  packedBytes: 11_974_533,
+  unpackedBytes: 23_352_173,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

@@ -7,6 +7,16 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.34
+
+- Publish the WebMCP editorial and documentation surfaces: a `/webmcp/`
+  explainer page covering `navigator.modelContext`, the public WebMCP
+  Registry, and Ghostget's three bounded `webmcp` operations; a
+  `/docs/how-to/use-webmcp-sites/` task guide for search, schema
+  inspection, and read-only tool calls; the registry's 1,800+ site scale
+  on the homepage providers section, provider directory, docs index,
+  llms.txt, and README. No runtime behavior changes.
+
 ## 0.18.33
 
 - Re-tag the 0.18.31 content for npm publication and website promotion.
