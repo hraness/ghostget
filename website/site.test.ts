@@ -491,6 +491,36 @@ describe("ghostget.com static site", () => {
     expect(html.match(/<h1\b/gu)).toHaveLength(1);
     expect(html.match(/<details\b/gu)).toHaveLength(18);
     expect(html.match(/<iframe\b/gu)).toBeNull();
+    // The decorative hero field: provider cards, ghosts, edges, and blur
+    // blobs, all inert to readers and input devices.
+    const fieldStart = html.indexOf('aria-hidden="true" class="ghostget-field"');
+    const copyStart = html.indexOf('class="hraness-marketing-hero__copy"');
+    const field = fieldStart >= 0 && copyStart > fieldStart
+      ? html.slice(fieldStart, copyStart)
+      : undefined;
+    expect(field).toBeDefined();
+    expect(field?.match(/class="ghostget-card /gu)).toHaveLength(10);
+    expect(field?.match(/class="ghostget-spirit /gu)).toHaveLength(3);
+    expect(field?.match(/class="ghostget-blob /gu)).toHaveLength(3);
+    expect(field?.match(/class="ghostget-edge"/gu)).toHaveLength(8);
+    expect(field?.match(/data-gg-prox/gu)?.length).toBeGreaterThanOrEqual(21);
+    expect(field?.match(/data-gg-spirit/gu)).toHaveLength(3);
+    expect(field?.match(/data-gg-blob/gu)).toHaveLength(3);
+    expect(field).toContain('class="ghostget-card__name">Beeper<');
+    expect(field).toContain('class="ghostget-card__name">Gmail<');
+    expect(field).toContain('class="ghostget-card__name">WhatsApp<');
+    expect(field).toContain('class="ghostget-card__name">iMessage<');
+    expect(field).toContain('class="ghostget-spirit__eyes"');
+    expect(field).not.toContain("<a ");
+    expect(html.indexOf('class="ghostget-field"')).toBeLessThan(
+      html.indexOf('class="hraness-marketing-hero__copy"'),
+    );
+    expect(html).toContain('/assets/field-');
+    for (const page of pages) {
+      if (page.definition.canonicalPath === "/") continue;
+      expect(page.html).not.toContain("ghostget-field");
+      expect(page.html).not.toContain("/assets/field-");
+    }
     expect(html).toContain("ghostget menubar");
     expect(html).toContain("Review connected accounts, permissions, pending approvals, and recent activity in your menu bar or terminal");
     expect(html).toContain("ghostget tui");
@@ -681,6 +711,17 @@ describe("ghostget.com static site", () => {
       expect(css).toMatch(
         /\.ghostget-product-hero\s*\{[^{}]*\bgrid-column:\s*1\s*\/\s*-1\s*;/u,
       );
+      for (const keyframes of [
+        "ghostget-card-drift",
+        "ghostget-blob-drift",
+        "ghostget-spirit-bob",
+        "ghostget-edge-flow",
+      ]) {
+        expect(css).toContain(`@keyframes ${keyframes}`);
+      }
+      expect(css).toContain(".ghostget-field");
+      expect(css).toContain("--prox");
+      expect(css).toMatch(/prefers-reduced-motion: reduce[^}]*\}[^}]*\.ghostget-card/u);
       expect(cssPropertyValues(css, ".ghostget-product-hero .hero-explainer", "color").at(-1))
         .toBe("var(--hraness-material-muted, var(--muted))");
       expect(cssPropertyValues(css, '.hraness-marketing-action[data-emphasis="primary"]', "color").at(-1))

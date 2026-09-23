@@ -7,6 +7,16 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.30
+
+- Add the hero field: drifting provider cards and small ghosts behind the
+  homepage hero, inspired by wordcell.io's note wall. Blur blobs wander on
+  their own and slowly chase the pointer, cards and connecting edges sharpen
+  near the cursor through a proximity variable, ghost eyes track the pointer,
+  and every element keeps moving without a pointer through CSS drift. The
+  field is decorative, aria-hidden, pointer-transparent, reduced-motion
+  aware, and degrades to a static scene on coarse pointers.
+
 ## 0.18.29
 
 - Publish the exact public Threads trailing-window views counter. Eligible

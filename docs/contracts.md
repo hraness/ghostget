@@ -124,7 +124,7 @@ matches some IDs lists the installed ones and exits 0.
 {
   "ok": true,
   "contract": "ghostget.contract-catalog.v1",
-  "ghostget": { "version": "0.18.29" },
+  "ghostget": { "version": "0.18.30" },
   "generatedAt": "2026-09-21T20:00:00.000Z",
   "vocabulary": {
     "risks": ["R1", "R2", "R3", "R4"],
@@ -182,7 +182,7 @@ does not parse is an error (exit 3) and no catalog is read.
 {
   "ok": false,
   "contract": "ghostget.contract-check.v1",
-  "ghostget": { "version": "0.18.29" },
+  "ghostget": { "version": "0.18.30" },
   "plan": { "collectionKey": "hraness-social-profile-statistics", "reads": 15 },
   "reads": [
     { "index": 0, "accountKey": "x-hraness", "adapter": "x-web", "operation": "profiles.read",

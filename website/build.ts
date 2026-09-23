@@ -42,6 +42,7 @@ import {
   createBeeperPresentationFacts,
   createProviderDirectory,
   createWhatsAppPresentationFacts,
+  renderGhostgetField,
   renderProviderAttestationGroups,
   renderProviderOverviewCards,
   type BeeperPresentationFacts,
@@ -60,7 +61,7 @@ export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const HRANESS_URL = "https://hraness.com/" as const;
 export const HRANESS_ORGANIZATION_ID = `${HRANESS_URL}#organization` as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.29" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.30" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",
@@ -360,7 +361,9 @@ type RenderOptions = Readonly<{
   attestation: ProviderCapabilityAttestation;
   beeperFacts: BeeperPresentationFacts;
   cssAsset: string;
+  fieldAsset: string;
   foilAsset: string;
+  ghostgetField: string;
   ghostgetContentFooter: string;
   hranessSiteFooter: string;
   packageIdentity: PackageIdentity;
@@ -693,8 +696,9 @@ function renderTemplate(
     }
     if (page.canonicalPath === "/") {
       rendered = replaceRequired(rendered, "{{EDITORIAL_CARDS}}", renderEditorialCards());
-    } else if (rendered.includes("{{EDITORIAL_CARDS}}")) {
-      throw new Error("Editorial cards belong only on the homepage.");
+      rendered = replaceRequired(rendered, "{{GHOSTGET_FIELD}}", options.ghostgetField);
+    } else if (rendered.includes("{{EDITORIAL_CARDS}}") || rendered.includes("{{GHOSTGET_FIELD}}")) {
+      throw new Error("Editorial cards and the hero field belong only on the homepage.");
     }
   } else if (rendered.includes("{{JSON_LD}}")) {
     throw new Error("A non-indexable page must not include structured data.");
@@ -757,6 +761,7 @@ function renderTemplate(
     ["{{GHOSTGET_REPOSITORY}}", REPOSITORY_URL],
     ["{{GHOSTGET_SKILLS}}", SKILLS_URL],
     ["{{GHOSTGET_SKILL_INSTALL_ASSET}}", options.skillInstallAsset],
+    ["{{GHOSTGET_FIELD_ASSET}}", options.fieldAsset],
     ["{{GHOSTGET_SKILL_INSTALL_COMMAND}}", skillInstallCommands.npx],
     ["{{GHOSTGET_SKILL_INSTALL_COMMAND_BUNX}}", skillInstallCommands.bunx],
     ["{{GHOSTGET_VERSION}}", identity.version],
@@ -885,6 +890,7 @@ export async function buildWebsite(
     analyticsBuild,
     skillInstallBuild,
     foilBuild,
+    fieldBuild,
     attestation,
   ] = await Promise.all([
     Bun.file(join(repositoryRoot, "package.json")).json(),
@@ -923,6 +929,13 @@ export async function buildWebsite(
       sourcemap: "none",
       target: "browser",
     }),
+    Bun.build({
+      entrypoints: [join(sourceRoot, "ghostget-field.ts")],
+      format: "esm",
+      minify: true,
+      sourcemap: "none",
+      target: "browser",
+    }),
     loadProviderCapabilityAttestation(repositoryRoot),
   ]);
   if (!analyticsBuild.success || analyticsBuild.outputs.length !== 1) {
@@ -940,6 +953,11 @@ export async function buildWebsite(
     throw new Error(`Foil controller build failed: ${messages || "no browser output"}`);
   }
   const foil = new Uint8Array(await foilBuild.outputs[0]!.arrayBuffer());
+  if (!fieldBuild.success || fieldBuild.outputs.length !== 1) {
+    const messages = fieldBuild.logs.map((log) => log.message).join("\n");
+    throw new Error(`Ghostget field controller build failed: ${messages || "no browser output"}`);
+  }
+  const field = new Uint8Array(await fieldBuild.outputs[0]!.arrayBuffer());
   const identity = parsePackageIdentity(manifest);
   if (identity.release !== CONTENT_REVIEWED_RELEASE) {
     throw new Error(
@@ -957,6 +975,7 @@ export async function buildWebsite(
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
   const foilAsset = `/assets/foil-${contentHash(foil)}.js`;
+  const fieldAsset = `/assets/field-${contentHash(field)}.js`;
   const providerDirectory = createProviderDirectory(attestation);
   const beeperFacts = createBeeperPresentationFacts(providerDirectory);
   const whatsappFacts = createWhatsAppPresentationFacts(providerDirectory, attestation);
@@ -977,6 +996,8 @@ export async function buildWebsite(
     providerAttestationGroups: renderProviderAttestationGroups(providerDirectory, attestation),
     providerDirectory,
     providerOverviewCards: renderProviderOverviewCards(providerDirectory),
+    fieldAsset,
+    ghostgetField: renderGhostgetField(),
     skillInstallAsset,
     whatsappFacts,
   } as const;
@@ -1021,6 +1042,7 @@ export async function buildWebsite(
     writeFile(join(outputRoot, analyticsAsset.slice(1)), analytics),
     writeFile(join(outputRoot, skillInstallAsset.slice(1)), skillInstall),
     writeFile(join(outputRoot, foilAsset.slice(1)), foil),
+    writeFile(join(outputRoot, fieldAsset.slice(1)), field),
     writeFile(
       join(outputRoot, "robots.txt"),
       `User-agent: *\nAllow: /\n\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`,
