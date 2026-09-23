@@ -68,7 +68,22 @@ describe("item locks", () => {
     await lock.release();
   });
 
-  test("never reclaims a parseable owner while its PID is alive, even with an old heartbeat", async () => {
+  test("holds a parseable owner whose PID is alive and whose heartbeat is fresh", async () => {
+    const { lockPath } = await fixture();
+    await writeFile(lockPath, `${JSON.stringify({
+      version: 1,
+      pid: 1234,
+      token: "11111111-1111-4111-8111-111111111111",
+      acquiredAt: "2026-07-21T11:59:59.000Z",
+    })}\n`, { mode: 0o600 });
+    const fresh = new Date("2026-07-21T11:59:30.000Z");
+    await utimes(lockPath, fresh, fresh);
+    await expectBusy(acquireItemLock(lockPath, dependencies()));
+  });
+
+  test("reclaims an owner whose heartbeat is stale even when its PID still answers", async () => {
+    // On a shared or namespaced filesystem kill(pid, 0) can find an unrelated
+    // process with the same PID. The stale heartbeat is the owner's evidence.
     const { lockPath } = await fixture();
     await writeFile(lockPath, `${JSON.stringify({
       version: 1,
@@ -78,7 +93,44 @@ describe("item locks", () => {
     })}\n`, { mode: 0o600 });
     const old = new Date("2026-07-20T00:00:00.000Z");
     await utimes(lockPath, old, old);
-    expect(acquireItemLock(lockPath, dependencies())).rejects.toBeInstanceOf(ItemLockBusyError);
+    const lock = await acquireItemLock(lockPath, dependencies({ isProcessAlive: () => true }));
+    await lock.assertOwned();
+    await lock.release();
+  });
+
+  test("fences a rename with the owner generation and refuses it after a reclaim", async () => {
+    const { root, lockPath } = await fixture();
+    const source = join(root, "staged");
+    const destination = join(root, "promoted");
+    await mkdir(source);
+    const lock = await acquireItemLock(lockPath, dependencies());
+    await rm(lockPath);
+    await writeFile(lockPath, `${JSON.stringify({
+      version: 1,
+      pid: 5678,
+      token: "22222222-2222-4222-8222-222222222222",
+      acquiredAt: "2026-07-21T12:00:00.000Z",
+    })}\n`, { mode: 0o600 });
+    expect(lock.fencedRename(source, destination)).rejects.toBeInstanceOf(ItemLockLostError);
+    expect((await lstat(source)).isDirectory()).toBeTrue();
+    expect(lstat(destination)).rejects.toThrow();
+    await lock.release();
+  });
+
+  test("runs the fence guard after the ownership check and before the rename", async () => {
+    const { root, lockPath } = await fixture();
+    const source = join(root, "staged");
+    const destination = join(root, "promoted");
+    await mkdir(source);
+    const lock = await acquireItemLock(lockPath, dependencies());
+    const cancelled = new Error("cancelled at the fence");
+    expect(lock.fencedRename(source, destination, () => { throw cancelled; })).rejects.toBe(cancelled);
+    expect((await lstat(source)).isDirectory()).toBeTrue();
+    let guarded = 0;
+    await lock.fencedRename(source, destination, () => { guarded += 1; });
+    expect(guarded).toBe(1);
+    expect((await lstat(destination)).isDirectory()).toBeTrue();
+    await lock.release();
   });
 
   test("holds a recent incomplete owner but reclaims it after the lease expires", async () => {

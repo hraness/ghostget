@@ -1506,14 +1506,24 @@
 // a93c3400369b926d7dc23451d8ddb5b2b2cb47ccd733b09fda9000345415b16c. Carry the
 // same projections and allowances: 11,986,281 + 12,387 + 4,096 = 12,002,764
 // packed; 23,401,176 + 353 + 65 = 23,401,594 unpacked.
+// Media lifecycle fences run yt-dlp in its own process group and kill the
+// group on cancel, flush each revision with F_FULLFSYNC before and after a
+// promotion rename fenced by the lock token, and quarantine a torn head
+// revision. This adds 13,683 payload bytes over the unchanged 596-file
+// inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin
+// arm64 were byte-identical at 11,990,001 packed bytes, 23,414,859 unpacked
+// bytes; archive SHA-256
+// c52ca17b3e9af7f3e31dbc7957452421dd21bc5ef52b95c87f95101242cd95b8. Carry the
+// same projections and allowances: 11,990,001 + 12,387 + 4,096 = 12,006,484
+// packed; 23,414,859 + 353 + 65 = 23,415,277 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Path-helper reaper election over the injective session-secret inventory",
+  scope: "Media lifecycle fences over the path-helper reaper inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "a93c3400369b926d7dc23451d8ddb5b2b2cb47ccd733b09fda9000345415b16c",
-  packedBytes: 11_986_281,
-  unpackedBytes: 23_401_176,
+  archiveSha256: "c52ca17b3e9af7f3e31dbc7957452421dd21bc5ef52b95c87f95101242cd95b8",
+  packedBytes: 11_990_001,
+  unpackedBytes: 23_414_859,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

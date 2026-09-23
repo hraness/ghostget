@@ -1,7 +1,8 @@
+import { dlopen } from "bun:ffi";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, open, opendir, readdir, realpath, rename, unlink, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { lstat, open, opendir, readdir, realpath, rename, unlink, type FileHandle } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { CaptureMode } from "./args";
 import { directHttpMediaForContainer } from "./http";
 import {
@@ -1537,7 +1538,14 @@ function checksumLine(digest: string, path: string): string {
 
 async function atomicWrite(path: string, contents: string): Promise<void> {
   const temporary = `${path}.tmp-${crypto.randomUUID()}`;
-  await writeFile(temporary, contents, { encoding: "utf8", flag: "wx", mode: 0o600 });
+  const handle = await open(temporary, "wx", 0o600);
+  try {
+    await handle.writeFile(contents, { encoding: "utf8" });
+    // The rename must never expose a name whose bytes are still in memory.
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
   await rename(temporary, path);
 }
 
@@ -1709,4 +1717,124 @@ export function relativeArtifactPath(itemRoot: string, artifactPath: string): st
   const value = relative(resolve(itemRoot), resolve(artifactPath)).split(sep).join("/");
   if (!safeRelativePath(value)) throw new Error("artifact path is outside the item directory");
   return value;
+}
+
+/** Darwin `fcntl` command that asks the drive to flush its write cache. */
+const F_FULLFSYNC = 51;
+const MAX_SYNC_TREE_ENTRIES = 100_000;
+const MAX_SYNC_TREE_DEPTH = 32;
+
+/**
+ * Makes archive files and directory entries durable before and after a
+ * promotion rename.
+ */
+export interface MediaDurability {
+  /** Flushes every regular file and directory under `root`, deepest first. */
+  readonly syncTree: (root: string) => Promise<void>;
+  /** Flushes one directory's entries, such as a new name from `rename`. */
+  readonly syncDirectory: (path: string) => Promise<void>;
+}
+
+type FullSync = (fd: number) => boolean;
+
+let cachedFullSync: FullSync | null | undefined;
+
+/**
+ * On macOS `fsync` reaches only the drive's cache. `F_FULLFSYNC` also flushes
+ * that cache. Bun reaches it through `bun:ffi`. If the loader or the
+ * filesystem refuses, the caller falls back to `fsync`, which still orders
+ * the writes against the kernel but not against drive-cache loss.
+ */
+function darwinFullSync(): FullSync | null {
+  if (cachedFullSync !== undefined) return cachedFullSync;
+  if (process.platform !== "darwin") {
+    cachedFullSync = null;
+    return null;
+  }
+  try {
+    // fcntl is variadic. F_FULLFSYNC reads no third argument, so the two fixed
+    // arguments use the ordinary register convention on arm64 and x86-64.
+    const library = dlopen("/usr/lib/libSystem.B.dylib", {
+      fcntl: { args: ["int", "int"], returns: "int" },
+    } as const);
+    cachedFullSync = (fd) => library.symbols.fcntl(fd, F_FULLFSYNC) !== -1;
+  } catch {
+    return null;
+  }
+  return cachedFullSync;
+}
+
+/** Reports whether this process can issue `F_FULLFSYNC`. */
+export function mediaFullSyncAvailable(): boolean {
+  return darwinFullSync() !== null;
+}
+
+async function syncHandle(handle: FileHandle): Promise<void> {
+  const fullSync = darwinFullSync();
+  if (fullSync !== null && fullSync(handle.fd)) return;
+  await handle.sync();
+}
+
+async function syncOpened(path: string, directory: boolean): Promise<void> {
+  const flags = constants.O_RDONLY
+    | constants.O_NOFOLLOW
+    | (directory ? constants.O_DIRECTORY : 0);
+  const handle = await open(path, flags);
+  try {
+    await syncHandle(handle);
+  } finally {
+    await handle.close();
+  }
+}
+
+async function syncDirectory(path: string): Promise<void> {
+  await syncOpened(resolve(path), true);
+}
+
+async function syncTree(rootInput: string): Promise<void> {
+  const root = resolve(rootInput);
+  const metadata = await lstat(root);
+  if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
+    throw new Error("a durable tree root must be a physical directory");
+  }
+  let entries = 0;
+  const walk = async (directory: string, depth: number): Promise<void> => {
+    if (depth > MAX_SYNC_TREE_DEPTH) throw new Error("a durable tree exceeds its depth bound");
+    const handle = await opendir(directory);
+    for await (const entry of handle) {
+      entries += 1;
+      if (entries > MAX_SYNC_TREE_ENTRIES) throw new Error("a durable tree exceeds its entry bound");
+      const path = join(directory, entry.name);
+      if (entry.isSymbolicLink()) throw new Error("a durable tree contains a symbolic link");
+      if (entry.isDirectory()) await walk(path, depth + 1);
+      else if (entry.isFile()) await syncOpened(path, false);
+      else throw new Error("a durable tree contains a special file");
+    }
+    // Children first, so each directory flush records names of durable data.
+    await syncOpened(directory, true);
+  };
+  await walk(root, 0);
+}
+
+export const nativeMediaDurability: MediaDurability = { syncTree, syncDirectory };
+
+/**
+ * Flushes `from` and each ancestor up to and including `through`. A new
+ * directory's name is durable only after its parent is flushed.
+ */
+export async function syncDirectoryChain(
+  durability: MediaDurability,
+  from: string,
+  through: string,
+): Promise<void> {
+  const stop = resolve(through);
+  let current = resolve(from);
+  for (let depth = 0; depth <= MAX_SYNC_TREE_DEPTH; depth += 1) {
+    await durability.syncDirectory(current);
+    if (current === stop) return;
+    const parent = dirname(current);
+    if (parent === current) throw new Error("a durable directory chain left its root");
+    current = parent;
+  }
+  throw new Error("a durable directory chain exceeds its depth bound");
 }

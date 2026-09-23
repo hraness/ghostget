@@ -1,7 +1,7 @@
 import { persistLocalTranscript } from "./transcript-persistence-runtime";
 import type { TranscriptArtifactsResult } from "./transcript-persistence-model";
 import { randomUUID } from "node:crypto";
-import { existsSync, type Dirent } from "node:fs";
+import { constants as fsConstants, existsSync, type Dirent } from "node:fs";
 import { chmod, lstat, mkdir, mkdtemp, open, opendir, readFile, readdir, realpath, rename, rm, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -9,18 +9,23 @@ import type { CaptureMode } from "./args";
 import { parseFfmpegVersion } from "./doctor";
 import { createMediaDerivatives, type CreateMediaDerivativesOptions, type MediaDerivativeReport, type MediaDerivativeRole } from "./ffmpeg";
 import {
+  GHOSTGET_MEDIA_MANIFEST_FILE,
   GHOSTGET_MEDIA_PCM_NORMALIZATION_PROFILE,
   GHOSTGET_MEDIA_SCHEMA_VERSION,
   GHOSTGET_MEDIA_YT_DLP_YOUTUBE_IDENTITY_PROFILE,
   GHOSTGET_MEDIA_VERSION,
   createMediaArtifact,
   localTranscriptVariantSegments,
+  nativeMediaDurability,
   parseMediaDirectHttpProvenance,
+  parseMediaManifest,
   readMediaManifest,
   relativeArtifactPath,
+  syncDirectoryChain,
   verifyMediaItem,
   writeMediaManifest,
   type ArtifactRole,
+  type MediaDurability,
   type MediaArtifact,
   type MediaManifest,
   type MediaYtDlpManifest,
@@ -117,6 +122,8 @@ import {
   type MediaTrackedRevision,
 } from "./revision";
 
+const MEDIA_QUARANTINE_DIRECTORY = ".wrench-media-quarantine";
+const MAX_TORN_MANIFEST_BYTES = 1024 * 1024;
 const imageExtensions = new Set(["avif", "gif", "jpeg", "jpg", "png", "webp"]);
 export const FOCUSED_CAPTURE_NAMESPACE = ".wrench-media-variants" as const;
 export const DIRECT_HTTP_CAPTURE_NAMESPACE = "direct-http-v1" as const;
@@ -199,6 +206,8 @@ export interface MediaArchiveDependencies {
     options: TranscribeAudioLocallyOptions,
   ) => Promise<LocalTranscriptionResult>;
   readonly now: () => Date;
+  /** Flushes promoted files and directories. Defaults to native fsync. */
+  readonly durability?: MediaDurability;
 }
 
 const defaultDependencies: MediaArchiveDependencies = {
@@ -654,6 +663,43 @@ async function adoptCaptureAttempt(source: string, destination: string): Promise
   await rename(source, destination);
 }
 
+/**
+ * Promotes a verified staging item into the archive.
+ *
+ * Before the rename, every staged file and directory and every archive
+ * directory from the new parent up to the library root is flushed. The lock
+ * fence then checks this acquisition's generation token, and its guard makes
+ * a cancellation that arrived during the flush win over promotion. After the
+ * rename, both parents are flushed so the move itself survives power loss.
+ */
+async function promoteDurably(input: Readonly<{
+  root: string;
+  stagingItem: string;
+  itemDirectory: string;
+  itemLock: ItemLock;
+  lockPath: string;
+  durability: MediaDurability;
+  signal: AbortSignal | undefined;
+}>): Promise<void> {
+  const destinationParent = dirname(input.itemDirectory);
+  await input.durability.syncTree(input.stagingItem);
+  await syncDirectoryChain(input.durability, destinationParent, input.root);
+  try {
+    await input.itemLock.fencedRename(input.stagingItem, input.itemDirectory, () => {
+      if (isCancelled(input.signal)) {
+        throw new MediaArchiveError("CANCELLED", "capture was cancelled before promotion");
+      }
+    });
+  } catch (error) {
+    if (error instanceof ItemLockLostError) {
+      throw new MediaArchiveError("BUSY", error.message, { lockPath: input.lockPath });
+    }
+    throw error;
+  }
+  await input.durability.syncDirectory(destinationParent);
+  await input.durability.syncDirectory(dirname(input.stagingItem));
+}
+
 async function ensurePhysicalDirectorySegments(
   base: string,
   segments: readonly string[],
@@ -1051,6 +1097,12 @@ function manifestAuthenticationMatchesRequest(
     && manifest.authentication.context.sha256 === privateAccess.contextSha256;
 }
 
+type YtDlpHeadDiscovery = Readonly<{
+  head: YtDlpArchiveHead | null;
+  /** The newest revision when it failed verification like a torn write. */
+  tornHead: string | null;
+}>;
+
 type YtDlpArchiveHead = Readonly<{
   itemDirectory: string;
   manifest: MediaYtDlpManifest;
@@ -1096,7 +1148,7 @@ async function trackedYtDlpHead(
     mode: "browser" | "ambient_config";
     contextSha256: string;
   }> | undefined,
-): Promise<YtDlpArchiveHead | null> {
+): Promise<YtDlpHeadDiscovery> {
   const parent = await ensurePhysicalDirectorySegments(
     providerDirectory,
     lineage.itemParentPathSegments,
@@ -1117,12 +1169,13 @@ async function trackedYtDlpHead(
     entries.push(entry);
   }
   entries.sort((left, right) => compareUtf8(left.name, right.name));
-  if (entries.length === 0) return null;
+  if (entries.length === 0) return { head: null, tornHead: null };
 
   const revisions: Array<{
     readonly itemDirectory: string;
     readonly manifest: MediaYtDlpManifest;
   }> = [];
+  let tornHead: string | null = null;
   for (const entry of entries) {
     const leaf = parseRevisionItemLeaf(entry.name);
     if (
@@ -1137,7 +1190,23 @@ async function trackedYtDlpHead(
       );
     }
     const itemDirectory = join(parent, entry.name);
-    const manifest = await readExistingManifest(itemDirectory);
+    let manifest: MediaManifest;
+    try {
+      manifest = await readExistingManifest(itemDirectory);
+    } catch (error) {
+      // Only the newest revision can be torn by a crash during its promotion.
+      // An older unverifiable revision still stops the lineage.
+      if (
+        entry === entries.at(-1)
+        && error instanceof MediaArchiveError
+        && error.code === "ARCHIVE_INVALID"
+        && await isTornRevision(itemDirectory)
+      ) {
+        tornHead = itemDirectory;
+        continue;
+      }
+      throw error;
+    }
     if (
       !("revision" in manifest)
       || manifest.acquisition.adapter !== "yt-dlp"
@@ -1180,12 +1249,70 @@ async function trackedYtDlpHead(
     previous = revision.manifest;
   }
   const head = revisions.at(-1);
-  if (head === undefined) return null;
   return {
-    itemDirectory: head.itemDirectory,
-    manifest: head.manifest,
-    contentSha256: head.manifest.revision.content.sha256,
+    head: head === undefined
+      ? null
+      : {
+          itemDirectory: head.itemDirectory,
+          manifest: head.manifest,
+          contentSha256: head.manifest.revision.content.sha256,
+        },
+    tornHead,
   };
+}
+
+/**
+ * Decides whether an unverifiable revision looks like an interrupted write.
+ * A missing or unparseable manifest qualifies, and so does a manifest that
+ * this schema accepts but whose files fail their recorded sizes or digests.
+ * A well-formed manifest that this schema rejects does not qualify: it may be
+ * a newer Ghostget's revision or a deliberate edit, so it is never moved.
+ * An unreadable manifest does not qualify either.
+ */
+async function isTornRevision(itemDirectory: string): Promise<boolean> {
+  let source: string;
+  try {
+    const handle = await open(
+      join(itemDirectory, GHOSTGET_MEDIA_MANIFEST_FILE),
+      fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK,
+    );
+    try {
+      const metadata = await handle.stat();
+      if (!metadata.isFile() || metadata.size > MAX_TORN_MANIFEST_BYTES) return false;
+      source = await handle.readFile({ encoding: "utf8" });
+    } finally {
+      await handle.close();
+    }
+  } catch (error) {
+    return isErrno(error, "ENOENT");
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(source);
+  } catch {
+    return true;
+  }
+  return parseMediaManifest(value).ok;
+}
+
+/**
+ * Moves a torn head out of its lineage without deleting it. The caller must
+ * own the lineage lock. The quarantine lives under the same library root, so
+ * the move is one rename on one filesystem.
+ */
+async function quarantineTornRevision(
+  root: string,
+  itemDirectory: string,
+  durability: MediaDurability,
+): Promise<string> {
+  const quarantineRoot = join(root, MEDIA_QUARANTINE_DIRECTORY);
+  await ensurePhysicalChildDirectory(quarantineRoot);
+  await durability.syncDirectory(root);
+  const destination = join(quarantineRoot, `${randomUUID()}-${basename(itemDirectory)}`);
+  await rename(itemDirectory, destination);
+  await durability.syncDirectory(quarantineRoot);
+  await durability.syncDirectory(dirname(itemDirectory));
+  return destination;
 }
 
 async function discoverYtDlpHead(
@@ -1198,7 +1325,7 @@ async function discoverYtDlpHead(
     mode: "browser" | "ambient_config";
     contextSha256: string;
   }> | undefined,
-): Promise<YtDlpArchiveHead | null> {
+): Promise<YtDlpHeadDiscovery> {
   return await trackedYtDlpHead(
     providerDirectory,
     metadata,
@@ -1795,7 +1922,15 @@ async function mediaDirectHttp(
     } catch (error) {
       if (!isErrno(error, "ENOENT")) throw error;
     }
-    await rename(stagingItem, itemDirectory);
+    await promoteDurably({
+      root,
+      stagingItem,
+      itemDirectory,
+      itemLock,
+      lockPath,
+      durability: dependencies.durability ?? nativeMediaDurability,
+      signal: options.signal,
+    });
     return {
       status: "created",
       itemDirectory,
@@ -1914,7 +2049,10 @@ async function mediaWithYtDlp(
   const lineage = revisionLineageIdentity(metadata, identityRequest);
   const providerDirectory = join(root, metadata.extractorDirectory);
   await ensurePhysicalChildDirectory(providerDirectory);
-  const initialHead = await discoverYtDlpHead(
+  const durability = dependencies.durability ?? nativeMediaDurability;
+  // This unlocked read never repairs. A torn head sends the run on to the
+  // lineage lock, where the repair happens.
+  const initial = await discoverYtDlpHead(
     providerDirectory,
     metadata,
     lineage,
@@ -1922,11 +2060,11 @@ async function mediaWithYtDlp(
     caption,
     privateAccess,
   );
-  if (initialHead !== null && options.refresh !== true) {
+  if (initial.head !== null && initial.tornHead === null && options.refresh !== true) {
     return {
       status: "existing",
-      itemDirectory: initialHead.itemDirectory,
-      manifest: initialHead.manifest,
+      itemDirectory: initial.head.itemDirectory,
+      manifest: initial.head.manifest,
       warnings: [],
     };
   }
@@ -1966,7 +2104,7 @@ async function mediaWithYtDlp(
   try {
     // A cache miss can race a completed promotion. Refresh also re-reads the
     // exact chain head while holding the stable subject lock before capture.
-    const currentHead = await discoverYtDlpHead(
+    let current = await discoverYtDlpHead(
       providerDirectory,
       metadata,
       lineage,
@@ -1974,7 +2112,31 @@ async function mediaWithYtDlp(
       caption,
       privateAccess,
     );
-    if (currentHead !== null && options.refresh !== true) {
+    const repairedLineage = current.tornHead !== null;
+    if (current.tornHead !== null) {
+      // Bounded repair: move one torn head aside and re-read. A second torn
+      // head means more than one interrupted promotion, so it stays a failure.
+      await quarantineTornRevision(root, current.tornHead, durability);
+      current = await discoverYtDlpHead(
+        providerDirectory,
+        metadata,
+        lineage,
+        options.mode,
+        caption,
+        privateAccess,
+      );
+      if (current.tornHead !== null) {
+        throw new MediaArchiveError(
+          "ARCHIVE_INVALID",
+          "the revision history has more than one unverifiable head",
+          { itemDirectory: current.tornHead },
+        );
+      }
+    }
+    const currentHead = current.head;
+    // After a repair, the torn head's capture is recaptured rather than
+    // answered with an older revision.
+    if (currentHead !== null && options.refresh !== true && !repairedLineage) {
       return {
         status: "existing",
         itemDirectory: currentHead.itemDirectory,
@@ -2210,7 +2372,15 @@ async function mediaWithYtDlp(
     );
     const itemDirectory = join(promotionParentDirectory, revisionLeaf);
     try { await lstat(itemDirectory); throw new MediaArchiveError("ARCHIVE_CONFLICT", "the completed item path appeared during capture"); } catch (error) { if (!isErrno(error, "ENOENT")) throw error; }
-    await rename(stagingItem, itemDirectory);
+    await promoteDurably({
+      root,
+      stagingItem,
+      itemDirectory,
+      itemLock,
+      lockPath,
+      durability,
+      signal: options.signal,
+    });
     return {
       status: "created",
       itemDirectory,
@@ -2220,14 +2390,14 @@ async function mediaWithYtDlp(
         : [],
     };
   } catch (error) {
-    if (error instanceof MediaArchiveError && error.code === "CANCELLED") {
-      try {
-        await itemLock.assertOwned();
-        await discardStagingItem(stagingItem);
-      } catch {
-        // Preserve cancellation. A lost lock means another owner controls the
-        // staging identity; a failed discard is retried on the next run.
-      }
+    // Every failure discards staging. Unverified bytes are never resumed, so
+    // keeping them would only hold disk space until the next reset.
+    try {
+      await itemLock.assertOwned();
+      await discardStagingItem(stagingItem);
+    } catch {
+      // Preserve the primary failure. A lost lock means another owner controls
+      // the staging identity; a failed discard is retried on the next run.
     }
     if (error instanceof MediaArchiveError) {
       throw new MediaArchiveError(

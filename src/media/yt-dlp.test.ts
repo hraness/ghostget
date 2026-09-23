@@ -304,6 +304,7 @@ describe("yt-dlp capture identity", () => {
   test("returns the identity only after an untruncated successful process", async () => {
     let maximumStdoutBytes: number | undefined;
     let redactions: readonly string[] = [];
+    let processGroup: boolean | undefined;
     const result = await captureWithYtDlp(captureOptions({
       url: "https://example.com/private%20route/signed%20basename.mp4?signature=query%20token#fragment%20token",
       privateRedactions: ["raw-private-id", "normalized-private-title"],
@@ -311,6 +312,7 @@ describe("yt-dlp capture identity", () => {
       runProcess: (_argv, options) => {
         maximumStdoutBytes = options.maxStdoutBytes;
         redactions = options.redactions ?? [];
+        processGroup = options.processGroup;
         return Promise.resolve({
           ok: true,
           command: [],
@@ -324,6 +326,8 @@ describe("yt-dlp capture identity", () => {
       },
     });
     expect(maximumStdoutBytes).toBe(16 * 1024);
+    // FFmpeg and HLS helpers must share the cancellable group.
+    expect(processGroup).toBeTrue();
     for (const secret of [
       "signed basename",
       "private route",

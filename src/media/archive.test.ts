@@ -1,10 +1,11 @@
 import { observeTranscriptNativeFailure } from "./transcript-persistence-native.test-support";
 import { afterEach, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { ghostgetStateHome } from "../storage";
+import { assertAsyncProperty, fc } from "../test-support";
 import type { CaptureMode } from "./args";
 import {
   DIRECT_HTTP_CAPTURE_NAMESPACE,
@@ -28,6 +29,7 @@ import {
   GHOSTGET_MEDIA_SCHEMA_VERSION,
   GHOSTGET_MEDIA_WHISPER_CPP_PROFILE,
   createMediaArtifact,
+  nativeMediaDurability,
   verifyMediaItem,
   writeMediaManifest,
   type MediaLocalTranscriptProvenance,
@@ -872,40 +874,205 @@ describe("mediaUrl", () => {
     expect(calls.value).toBe(0);
   });
 
-  test("preserves staging when derivation fails", async () => {
+  test("discards staging when derivation fails and permits a stable retry", async () => {
     const root = await mkdtemp(join(tmpdir(), "media-archive-test-"));
     roots.push(root);
     const calls = { value: 0 };
     const deps = dependencies(calls);
-    const rejection = mediaUrl({
-      url: "https://example.com/failure",
+    const options = {
+      url: metadata.canonicalUrl,
+      mode: "archive" as const,
+      language: "en",
+      libraryDirectory: root,
+      inheritYtDlpConfig: false,
+    };
+    await expectMediaRejection(mediaUrl(options, {
+      ...deps,
+      derive: (deriveOptions) => Promise.resolve({
+        probe: { ok: false, reason: "process", diagnostic: "probe failed" },
+        video: { role: "video", path: join(deriveOptions.derivativesDirectory, "video.mkv"), status: "failed", stage: "probe", diagnostic: "probe failed" },
+        audio: { role: "audio", path: join(deriveOptions.derivativesDirectory, "audio.mka"), status: "failed", stage: "probe", diagnostic: "probe failed" },
+      }),
+    }), "DERIVATION_FAILED");
+    const lineage = revisionLineageIdentity(metadata, { mode: "archive" });
+    expect(lstat(join(root, ".wrench-media-staging", ...lineage.storagePathSegments)))
+      .rejects.toMatchObject({ code: "ENOENT" });
+    await expectRevisionParentEmpty(root, metadata, { mode: "archive" });
+
+    const retried = await mediaUrl(options, deps);
+    expect(retried.status).toBe("created");
+    expect(await verifyMediaItem(retried.itemDirectory)).toMatchObject({ ok: true });
+  });
+
+  test("does not return created when cancellation arrives after transcription", async () => {
+    const root = await mkdtemp(join(tmpdir(), "media-late-cancel-test-"));
+    roots.push(root);
+    const controller = new AbortController();
+    const base = dependencies({ value: 0 });
+    const options = {
+      url: metadata.canonicalUrl,
+      mode: "archive" as const,
+      language: "en",
+      libraryDirectory: root,
+      inheritYtDlpConfig: false,
+    };
+    // The version probe runs after capture, derivation, and transcripts, when
+    // every earlier cancellation check has already passed.
+    await expectMediaRejection(mediaUrl({ ...options, signal: controller.signal }, {
+      ...base,
+      ytDlpVersion: () => {
+        controller.abort();
+        return Promise.resolve("2026.07.04");
+      },
+    }), "CANCELLED");
+    const lineage = revisionLineageIdentity(metadata, { mode: "archive" });
+    expect(lstat(join(root, ".wrench-media-staging", ...lineage.storagePathSegments)))
+      .rejects.toMatchObject({ code: "ENOENT" });
+    await expectRevisionParentEmpty(root, metadata, { mode: "archive" });
+  });
+
+  test("flushes the staged revision before promotion and both parents after it", async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), "media-durable-promotion-test-")));
+    roots.push(root);
+    const events: string[] = [];
+    const lineage = revisionLineageIdentity(metadata, { mode: "archive" });
+    const stagingItem = join(root, ".wrench-media-staging", ...lineage.storagePathSegments);
+    const revisionParent = join(root, metadata.extractorDirectory, ...lineage.itemParentPathSegments);
+    const result = await mediaUrl({
+      url: metadata.canonicalUrl,
       mode: "archive",
       language: "en",
       libraryDirectory: root,
       inheritYtDlpConfig: false,
     }, {
-      ...deps,
-      derive: (options) => Promise.resolve({
-        probe: { ok: false, reason: "process", diagnostic: "probe failed" },
-        video: { role: "video", path: join(options.derivativesDirectory, "video.mkv"), status: "failed", stage: "probe", diagnostic: "probe failed" },
-        audio: { role: "audio", path: join(options.derivativesDirectory, "audio.mka"), status: "failed", stage: "probe", diagnostic: "probe failed" },
-      }),
+      ...dependencies({ value: 0 }),
+      durability: {
+        syncTree: async (path) => {
+          const promoted = (await readdir(revisionParent)).length > 0;
+          events.push(`tree:${path === stagingItem ? "staging" : path}:${promoted ? "after" : "before"}`);
+        },
+        syncDirectory: async (path) => {
+          const promoted = (await readdir(revisionParent)).length > 0;
+          const label = path === revisionParent
+            ? "revision-parent"
+            : path === dirname(stagingItem)
+              ? "staging-parent"
+              : path === root
+                ? "root"
+                : "ancestor";
+          events.push(`dir:${label}:${promoted ? "after" : "before"}`);
+        },
+      },
     });
-    try {
-      await rejection;
-      throw new Error("expected derivation to fail");
-    } catch (error) {
-      expect(error).toBeInstanceOf(MediaArchiveError);
-    }
-    const lineage = revisionLineageIdentity(metadata, { mode: "archive" });
-    expect(await readFile(join(
-      root,
-      ".wrench-media-staging",
-      ...lineage.storagePathSegments,
-      "data",
-      "capture",
-      "media.webm",
-    ), "utf8")).toBe("original-media");
+    expect(result.status).toBe("created");
+    expect(events[0]).toBe("tree:staging:before");
+    expect(events).toContain("dir:revision-parent:before");
+    expect(events).toContain("dir:root:before");
+    expect(events.slice(-2).toSorted()).toEqual([
+      "dir:revision-parent:after",
+      "dir:staging-parent:after",
+    ]);
+    expect(events.filter((event) => event.endsWith(":after"))).toHaveLength(2);
+  });
+
+  test("quarantines a torn head revision and continues the lineage from the last verified one", async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), "media-torn-head-test-")));
+    roots.push(root);
+    const calls = { value: 0 };
+    const base = dependencies(calls);
+    let providerBytes = "provider-A";
+    const deps: MediaArchiveDependencies = {
+      ...base,
+      capture: async (options) => {
+        const result = await base.capture(options);
+        if (result.ok) await writeFile(join(options.captureDirectory, "media.webm"), providerBytes);
+        return result;
+      },
+    };
+    const options = {
+      url: metadata.canonicalUrl,
+      mode: "archive" as const,
+      language: "en",
+      libraryDirectory: root,
+      inheritYtDlpConfig: false,
+    };
+    const first = await mediaUrl(options, deps);
+    providerBytes = "provider-B";
+    const second = await mediaUrl({ ...options, refresh: true }, deps);
+    expect(trackedManifest(second.manifest).revision.sequence).toBe(2);
+
+    // Power loss after a durable rename but before the data reached disk.
+    const tornCapture = join(second.itemDirectory, "data", "capture", "media.webm");
+    await chmod(tornCapture, 0o600);
+    await writeFile(tornCapture, "");
+    const secondLeaf = basename(second.itemDirectory);
+
+    const repaired = await mediaUrl(options, deps);
+    expect(repaired.status).toBe("created");
+    expect(trackedManifest(repaired.manifest).revision).toMatchObject({
+      sequence: 2,
+      previousAssetKey: first.manifest.assetKey,
+    });
+    expect(await verifyMediaItem(repaired.itemDirectory)).toMatchObject({ ok: true });
+    expect(await verifyMediaItem(first.itemDirectory)).toMatchObject({ ok: true });
+    expect((await readdir(dirname(first.itemDirectory))).toSorted(compareUtf8)).toEqual(
+      [basename(first.itemDirectory), basename(repaired.itemDirectory)].toSorted(compareUtf8),
+    );
+    expect(calls.value).toBe(3);
+
+    // The unverifiable bytes are moved aside, never deleted.
+    const quarantine = join(root, ".wrench-media-quarantine");
+    const quarantined = await readdir(quarantine);
+    expect(quarantined).toHaveLength(1);
+    expect(quarantined[0]?.endsWith(secondLeaf)).toBeTrue();
+    expect(await readFile(
+      join(quarantine, quarantined[0] ?? "missing", "data", "capture", "media.webm"),
+      "utf8",
+    )).toBe("");
+  });
+
+  test("never quarantines a head written by a newer schema or an unverifiable older revision", async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), "media-torn-guard-test-")));
+    roots.push(root);
+    const calls = { value: 0 };
+    const base = dependencies(calls);
+    let providerBytes = "provider-A";
+    const deps: MediaArchiveDependencies = {
+      ...base,
+      capture: async (options) => {
+        const result = await base.capture(options);
+        if (result.ok) await writeFile(join(options.captureDirectory, "media.webm"), providerBytes);
+        return result;
+      },
+    };
+    const options = {
+      url: metadata.canonicalUrl,
+      mode: "archive" as const,
+      language: "en",
+      libraryDirectory: root,
+      inheritYtDlpConfig: false,
+    };
+    const first = await mediaUrl(options, deps);
+    providerBytes = "provider-B";
+    const second = await mediaUrl({ ...options, refresh: true }, deps);
+    const revisionParent = dirname(first.itemDirectory);
+    const before = (await readdir(revisionParent)).toSorted(compareUtf8);
+
+    const headManifest = join(second.itemDirectory, "wrench-media.json");
+    const original = await readFile(headManifest, "utf8");
+    await chmod(headManifest, 0o600);
+    await writeFile(headManifest, original.replace('"schemaVersion": 1', '"schemaVersion": 2'));
+    await expectMediaRejection(mediaUrl(options, deps), "ARCHIVE_INVALID");
+    expect((await readdir(revisionParent)).toSorted(compareUtf8)).toEqual(before);
+    await writeFile(headManifest, original);
+
+    const olderCapture = join(first.itemDirectory, "data", "capture", "media.webm");
+    await chmod(olderCapture, 0o600);
+    await writeFile(olderCapture, "");
+    await expectMediaRejection(mediaUrl(options, deps), "ARCHIVE_INVALID");
+    expect((await readdir(revisionParent)).toSorted(compareUtf8)).toEqual(before);
+    expect(lstat(join(root, ".wrench-media-quarantine"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(calls.value).toBe(2);
   });
 
   test("discards identity-mismatched staging before a stable retry", async () => {
@@ -2802,6 +2969,124 @@ describe("direct HTTP archive routing", () => {
   });
 });
 
+test("direct: a cancellation after transcription never returns created", async () => {
+  const root = await mkdtemp(join(tmpdir(), "media-direct-late-cancel-test-"));
+  roots.push(root);
+  const body = directMediaBody(43);
+  const url = "https://example.com/late-cancel/media.mp4";
+  const controller = new AbortController();
+  const base = directDependencies(() => body, { value: 0 });
+  await expectMediaRejection(mediaUrl({
+    url,
+    mode: "archive",
+    language: "en",
+    libraryDirectory: root,
+    inheritYtDlpConfig: false,
+    signal: controller.signal,
+  }, {
+    ...base,
+    // Tool versions are read after derivation and transcription.
+    ffmpegVersion: () => {
+      controller.abort();
+      return Promise.resolve("8.1.2");
+    },
+  }), "CANCELLED");
+  expect(lstat(join(root, ".wrench-media-staging", DIRECT_HTTP_CAPTURE_NAMESPACE, sha256(url))))
+    .rejects.toMatchObject({ code: "ENOENT" });
+  // Promotion may leave empty identity parents, but never an item.
+  const promoted = (await readdir(root, { recursive: true }))
+    .filter((entry) => !entry.startsWith(".") && basename(entry) === "wrench-media.json");
+  expect(promoted).toEqual([]);
+});
+
+type LifecycleFault =
+  | "capture-fails"
+  | "derive-fails"
+  | "abort-during-derive"
+  | "abort-after-transcription"
+  | "version-throws"
+  | "abort-during-flush"
+  | "flush-fails";
+
+test("property: every failed yt-dlp run leaves no staging, lock, or revision and a retry succeeds", async () => {
+  await assertAsyncProperty(
+    fc.asyncProperty(
+      fc.constantFrom<LifecycleFault>(
+        "capture-fails",
+        "derive-fails",
+        "abort-during-derive",
+        "abort-after-transcription",
+        "version-throws",
+        "abort-during-flush",
+        "flush-fails",
+      ),
+      fc.constantFrom<"archive" | "audio" | "video">("archive", "audio", "video"),
+      async (fault, mode) => {
+        const root = await realpath(await mkdtemp(join(tmpdir(), "media-lifecycle-property-")));
+        roots.push(root);
+        const controller = new AbortController();
+        const base = dependencies({ value: 0 });
+        const faulty: MediaArchiveDependencies = {
+          ...base,
+          capture: async (options) => fault === "capture-fails"
+            ? { ok: false, diagnostic: "capture failed", processReason: "exit" }
+            : await base.capture(options),
+          derive: async (options) => {
+            const report = await base.derive(options);
+            if (fault === "abort-during-derive") controller.abort();
+            if (fault !== "derive-fails") return report;
+            return {
+              ...report,
+              video: { role: "video", path: report.video.path, status: "failed", stage: "remux", diagnostic: "remux failed" },
+            } satisfies MediaDerivativeReport;
+          },
+          ytDlpVersion: () => {
+            if (fault === "version-throws") return Promise.reject(new Error("version probe failed"));
+            if (fault === "abort-after-transcription") controller.abort();
+            return Promise.resolve("2026.07.04");
+          },
+          durability: {
+            syncTree: (path) => {
+              if (fault === "abort-during-flush") controller.abort();
+              if (fault === "flush-fails") return Promise.reject(new Error("flush failed"));
+              return nativeMediaDurability.syncTree(path);
+            },
+            syncDirectory: (path) => nativeMediaDurability.syncDirectory(path),
+          },
+        };
+        const options = {
+          url: metadata.canonicalUrl,
+          mode,
+          language: "en",
+          libraryDirectory: root,
+          inheritYtDlpConfig: false,
+        };
+        let failed = false;
+        try {
+          await mediaUrl({ ...options, signal: controller.signal }, faulty);
+        } catch (error) {
+          expect(error).toBeInstanceOf(MediaArchiveError);
+          failed = true;
+        }
+        expect(failed).toBeTrue();
+        const lineage = revisionLineageIdentity(metadata, { mode });
+        const leaf = lineage.storagePathSegments.at(-1) ?? "missing";
+        expect(lstat(join(root, ".wrench-media-staging", ...lineage.storagePathSegments)))
+          .rejects.toMatchObject({ code: "ENOENT" });
+        expect(lstat(join(root, ".wrench-media-locks", ...lineage.storagePathSegments.slice(0, -1), `${leaf}.lock`)))
+          .rejects.toMatchObject({ code: "ENOENT" });
+        const revisionParent = join(root, metadata.extractorDirectory, ...lineage.itemParentPathSegments);
+        expect(await readdir(revisionParent).catch(() => [])).toEqual([]);
+
+        const retried = await mediaUrl(options, base);
+        expect(retried.status).toBe("created");
+        expect(await verifyMediaItem(retried.itemDirectory)).toMatchObject({ ok: true });
+      },
+    ),
+    { numRuns: 21 },
+  );
+});
+
 describe("local transcript native sibling custody", () => {
   for (const route of ["direct", "yt-dlp"] as const) {
     for (const phase of ["write", "hash"] as const) {
@@ -2824,7 +3109,8 @@ describe("local transcript native sibling custody", () => {
         expect(observed.after.pending).toBe(false);
         expect(observed.after.activeHashes).toBe(0);
         expect(observed.after.lockExists).toBe(false);
-        expect(observed.after.stagingExists).toBe(route === "yt-dlp");
+        // Both pipelines discard staging on every failure.
+        expect(observed.after.stagingExists).toBe(false);
         expect(observed.writes).toBe(3);
         expect(observed.result.ok).toBe(false);
         if (!observed.result.ok) {
@@ -2836,7 +3122,7 @@ describe("local transcript native sibling custody", () => {
         }
         expect(observed.events.some(event => event.name === "lock-release-completed")).toBe(true);
         expect(observed.events.filter(event => event.name.startsWith("lock-release") || event.name.startsWith("quarantine")).every(event => !event.pending)).toBe(true);
-        expect(observed.events.some(event => event.name === "quarantine-completed")).toBe(route === "direct");
+        expect(observed.events.some(event => event.name === "quarantine-completed")).toBe(true);
         if (phase === "hash") {
           expect(observed.after.hashClosed).toBe(true);
           expect(observed.events.filter(event => event.name === "hash-settled" && event.path?.startsWith("data/captions/transcript.")).length).toBe(3);

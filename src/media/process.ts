@@ -57,6 +57,11 @@ export type SpawnedProcess = Readonly<{
 export type ProcessSpawnOptions = Readonly<{
   cwd?: string;
   env?: Readonly<Record<string, string | undefined>>;
+  /**
+   * Starts the tool as the leader of a new process group. `kill` then signals
+   * the whole group, so helper children such as FFmpeg stop with the tool.
+   */
+  processGroup?: boolean;
 }>;
 
 export type ProcessTimer = Readonly<{
@@ -81,6 +86,12 @@ export type RunProcessOptions = Readonly<{
   maxStdoutBytes?: number;
   maxStderrBytes?: number;
   redactions?: readonly string[];
+  /**
+   * Runs the tool in its own process group. Cancellation and timeout then
+   * signal the group and finish with a group SIGKILL, so no child outlives
+   * the call. Ignored on Windows.
+   */
+  processGroup?: boolean;
 }>;
 
 type ProcessOutput = Readonly<{
@@ -145,9 +156,12 @@ const defaultTimer: ProcessTimer = {
 
 const defaultProcessDependencies: ProcessDependencies = {
   spawn: (argv, options) => {
+    const grouped = options.processGroup === true && process.platform !== "win32";
     const child = Bun.spawn([...argv], {
       ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
       ...(options.env === undefined ? {} : { env: { ...options.env } }),
+      // setsid() makes the child a group leader, so its group ID is its PID.
+      ...(grouped ? { detached: true } : {}),
       stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
@@ -156,7 +170,9 @@ const defaultProcessDependencies: ProcessDependencies = {
       stdout: child.stdout,
       stderr: child.stderr,
       exited: child.exited,
-      kill: (signal) => child.kill(signal),
+      kill: grouped
+        ? (signal) => signalProcessGroup(child.pid, signal)
+        : (signal) => child.kill(signal),
     };
   },
   timer: defaultTimer,
@@ -225,6 +241,7 @@ export async function runProcess(
     child = dependencies.spawn(argv, {
       ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
       ...(options.env === undefined ? {} : { env: options.env }),
+      ...(options.processGroup === undefined ? {} : { processGroup: options.processGroup }),
     });
   } catch (error) {
     const detail = redactDiagnostic(errorMessage(error), redactionOptions(options));
@@ -263,6 +280,11 @@ export async function runProcess(
     if (exitResult.kind === "timeout") {
       safelyKill(child, "SIGKILL");
       exitResult = await waitFor(child.exited, killGraceMs, dependencies.timer);
+    }
+    if (options.processGroup === true) {
+      // The leader can exit on SIGTERM while a helper child is still writing.
+      // One group SIGKILL ends the escalation, and an empty group ignores it.
+      safelyKill(child, "SIGKILL");
     }
   }
 
@@ -638,6 +660,17 @@ function failureDetailFor(
   const stderrSummary = stderr.text.trim();
   const suffix = stderrSummary.length === 0 ? "" : `; stderr: ${stderrSummary}`;
   return `exited with code ${String(exitCode)}${suffix}`;
+}
+
+function signalProcessGroup(pid: number, signal: ProcessSignal): void {
+  if (!Number.isSafeInteger(pid) || pid <= 1) return;
+  try {
+    // A negative PID addresses the process group that `detached` created.
+    process.kill(-pid, signal);
+  } catch (error) {
+    // ESRCH means every member of the group has already exited.
+    if (!(typeof error === "object" && error !== null && "code" in error && error.code === "ESRCH")) throw error;
+  }
 }
 
 function safelyKill(child: SpawnedProcess, signal: ProcessSignal): void {
