@@ -422,6 +422,24 @@ export function renderWebmcpIndexList(snapshot: WebmcpRegistrySnapshot): string 
   ].join("");
 }
 
+// The snapshot is stored in the registry's popularity order, so a leading
+// slice is the recognizable head of the catalog rather than an arbitrary pick.
+const WEBMCP_DOMAIN_SAMPLE_LIMIT = 15;
+
+export function renderWebmcpDomainSample(snapshot: WebmcpRegistrySnapshot): string {
+  const shown = snapshot.sites.slice(0, WEBMCP_DOMAIN_SAMPLE_LIMIT);
+  const rest = snapshot.siteCount - shown.length;
+  const items = shown.map((site) =>
+    `<li><a href="${webmcpSiteCanonicalPath(site.domain)}">${escapeHtml(site.domain)}</a></li>`,
+  );
+  if (rest > 0) {
+    items.push(
+      `<li class="registry-domain-more"><a href="/providers/">and ${rest.toLocaleString("en-US")} more →</a></li>`,
+    );
+  }
+  return `<ul aria-label="Sample of the most-registered WebMCP sites" class="registry-domain-strip">${items.join("")}</ul>`;
+}
+
 // Registry-wide counts any public page may quote; per-site and index values
 // layer their own placeholders on top of this base.
 export function webmcpSharedTemplateValues(
@@ -430,6 +448,7 @@ export function webmcpSharedTemplateValues(
   const totalTools = snapshot.sites.reduce((sum, site) => sum + site.toolCount, 0);
   const readOnlyTools = snapshot.sites.reduce((sum, site) => sum + site.readOnlyToolCount, 0);
   return Object.freeze({
+    "{{WEBMCP_DOMAIN_SAMPLE}}": renderWebmcpDomainSample(snapshot),
     "{{WEBMCP_REGISTRY_READONLY_TOOL_COUNT}}": readOnlyTools.toLocaleString("en-US"),
     "{{WEBMCP_REGISTRY_SITE_COUNT}}": snapshot.siteCount.toLocaleString("en-US"),
     "{{WEBMCP_REGISTRY_TOOL_COUNT}}": totalTools.toLocaleString("en-US"),

@@ -3,7 +3,8 @@ export type EditorialImage = Readonly<{
   canonicalPath:
     | "/compare/personal-agents-browser-use/"
     | "/agentic-web-spoofing/"
-    | "/vms-cannot-contain-agents/";
+    | "/vms-cannot-contain-agents/"
+    | "/webmcp/";
   caption: string;
   cardDescription: string;
   cardTitle: string;
@@ -25,6 +26,7 @@ export type EditorialImage = Readonly<{
   height: 864;
   imageSha256: string;
   provenance: Readonly<{
+    generator?: string;
     job: string;
     prompt: string;
     promptSha256: string;
@@ -135,6 +137,41 @@ export const editorialImages = [
     },
     src: "/images/editorial/vms-cannot-contain-agents.webp",
     title: "VMs cannot contain agents, and why attested web operations still matter",
+    width: 1536,
+  },
+  {
+    alt: "A dark field of faint site tiles each bearing a socket mark, crossed by one ivory channel whose gold thread lights a subset of sockets",
+    canonicalPath: "/webmcp/",
+    caption: "Many sites publish their own tools; Ghostget calls only the ones declared read-only.",
+    cardDescription: "How WebMCP sites publish tools, what the public registry adds, and the three commands Ghostget runs against it.",
+    cardTitle: "WebMCP sites and the tools your agent can call",
+    credit: "Editorial illustration generated with Slopcamera.",
+    derivatives: [
+      {
+        height: 216,
+        sha256: "339c27da0aa8c319b4d7254ec5ddd4e656495c88a260ef54d9376f00b9e5a9ec",
+        src: "/images/editorial/webmcp-384.webp",
+        width: 384,
+      },
+      {
+        height: 432,
+        sha256: "b3ad3d785e0a5dd7a090cbd3aee16955535e545b7786cd5d5b8feabcb9b09b4f",
+        src: "/images/editorial/webmcp-768.webp",
+        width: 768,
+      },
+    ],
+    height: 864,
+    imageSha256: "639cc4bce3a64fd7e705855516447aa23f43debb713a3a67d632dc65e2c9e6d9",
+    provenance: {
+      generator:
+        "@hraness/slopcamera source commit 6d08486ef5eac38720a436c50b8ff018c90fd334",
+      job: "editorial-provenance/webmcp/job.json",
+      prompt: "editorial-provenance/webmcp/prompt.txt",
+      promptSha256: "8ddeacb2ccc9459cd5ac28089fb1da952867f7c7b2acb86bdaa182826926887a",
+      receipt: "editorial-provenance/webmcp/receipt.json",
+    },
+    src: "/images/editorial/webmcp.webp",
+    title: "WebMCP for agents: call website-published tools through Ghostget",
     width: 1536,
   },
 ] as const satisfies readonly EditorialImage[];
