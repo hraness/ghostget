@@ -7,6 +7,14 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.27
+
+- Fix the moved guide redirects: the prior trailing-slash URLs
+  (`/security/`, `/getting-started/`, `/plugins/`, `/providers/beeper/`,
+  `/providers/whatsapp/`, `/provider-capabilities/`, and
+  `/capture-and-archives/`) now 301 to their `/docs/` locations instead of
+  returning 404; the `:path*` wildcard did not match the empty-path form.
+
 ## 0.18.26
 
 - Collect bounded usage repair leads: failed invocations now leave

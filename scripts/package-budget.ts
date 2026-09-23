@@ -1350,14 +1350,22 @@
 // 6cd3c8989b9258ae9007aa5509cfd16171375f5d1b5916c7439644fbecc6dfa8. Carry the
 // same projections and allowances: 11,959,411 + 12,387 + 4,096 = 11,975,894
 // packed; 23,269,398 + 353 + 65 = 23,269,816 unpacked.
+// Ghostget 0.18.27 adds the trailing-slash moved-guide redirects to
+// vercel.json (outside the package) and a 355-byte CHANGELOG section over
+// the 0.18.26 inventory: `npm pack --ignore-scripts` with npm 11.19.0 on
+// darwin arm64 measured 11,959,529 packed bytes, 23,269,753 unpacked bytes
+// across exactly 591 files; archive SHA-256
+// dc1e8d6d400a601b22224111403a1fe50f96ac4d0461571d8a763b72ceeda2c2. Carry the
+// same projections and allowances: 11,959,529 + 12,387 + 4,096 = 11,976,012
+// packed; 23,269,753 + 353 + 65 = 23,270,171 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.26 website /docs/ tree, comparison pages, and release identity; README and CHANGELOG payload growth over the usage-repair inventory",
+  scope: "Ghostget 0.18.27 trailing-slash redirect repair and release identity; CHANGELOG payload growth over the 0.18.26 inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "6cd3c8989b9258ae9007aa5509cfd16171375f5d1b5916c7439644fbecc6dfa8",
-  packedBytes: 11_959_411,
-  unpackedBytes: 23_269_398,
+  archiveSha256: "dc1e8d6d400a601b22224111403a1fe50f96ac4d0461571d8a763b72ceeda2c2",
+  packedBytes: 11_959_529,
+  unpackedBytes: 23_269_753,
   entryCount: 591,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
