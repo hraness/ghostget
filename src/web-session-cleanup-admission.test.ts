@@ -314,6 +314,68 @@ function inactiveAgentBrowserSessionResult(
   });
 }
 
+function activeAgentBrowserSessionResult(
+  resource: BrowserCleanupResourceIdentity,
+): {
+  readonly stdout: string;
+  readonly stderr: "";
+  readonly exitCode: 0;
+} {
+  const lifecycle = {
+    effectiveLaunch: {
+      browserLaunched: false,
+      engine: "chrome",
+      launchHash: null,
+    },
+    launched: false,
+    relaunchedBrowser: false,
+    restartedBackground: false,
+    restoreStatus: "not_configured",
+    reused: true,
+    saveStatus: "not_attempted",
+  };
+  return Object.freeze({
+    stdout: `${JSON.stringify({
+      success: true,
+      data: {
+        active: true,
+        namespace: null,
+        pid: 424242,
+        runtime: {
+          backgroundPid: 424242,
+          browserLaunched: false,
+          compatibilityStatus: "current",
+          effectiveLaunch: lifecycle.effectiveLaunch,
+          engine: "chrome",
+          launchHash: null,
+          lifecycle,
+          namespace: null,
+          pageCount: 0,
+          restoreCheckFn: null,
+          restoreCheckText: null,
+          restoreCheckUrl: null,
+          restoreKey: null,
+          restoreLoadedPath: null,
+          restoreSave: "auto",
+          restoreSavedPath: null,
+          restoreStatus: "not_configured",
+          restoreStatusDetail: null,
+          restoreValidationPending: false,
+          saveStatus: "not_attempted",
+          session: resource.session,
+          socketDir: resource.socketDirectory,
+        },
+        runtimeError: null,
+        session: resource.session,
+        socketDir: resource.socketDirectory,
+        version: "0.32.3",
+      },
+    })}\n`,
+    stderr: "",
+    exitCode: 0,
+  });
+}
+
 describe("web-session cleanup admission", () => {
   test("persists resource ownership before registration returns", async () => {
     await withState((environment) => {
@@ -1241,7 +1303,64 @@ describe("web-session cleanup admission", () => {
     });
   });
 
-  test("retains an unpinned launch-intent crash when the live control is absent", async () => {
+  test("repairs an unbound launch-intent crash once the session is provably inactive", async () => {
+    await withState(async (environment) => {
+      const fixture = pinnedBrowserCleanupResourceFixture();
+      const launchIntent: BrowserCleanupResourceIdentityV2 = Object.freeze({
+        ...fixture.resource,
+        phase: "launch-intent",
+        control: null,
+      });
+      let sessionReads = 0;
+      try {
+        const current = currentProcessStartIdentity();
+        writeAdmissionFixture(
+          environment,
+          { status: "cleanup-unsafe" },
+          { processStartId: differentDigest(current.processStartId) },
+          [{
+            resourceId: randomUUID(),
+            status: "active",
+            identity: launchIntent,
+          }],
+          {},
+          2,
+        );
+
+        const report = await recoverWebSessionCleanupAdmissionsCore(
+          environment,
+          {
+            currentBootId: current.bootId,
+            inspectOwner: () => "different-or-dead",
+            browserLifecycle: {
+              runCommand: () => {
+                sessionReads += 1;
+                return Promise.resolve(
+                  inactiveAgentBrowserSessionResult(launchIntent),
+                );
+              },
+            },
+          },
+        );
+
+        expect(report).toMatchObject({
+          scanned: 1,
+          repaired: 1,
+          retained: 0,
+          issues: [],
+        });
+        expect(existsSync(fixture.socketDirectory)).toBeFalse();
+        expect(existsSync(fixture.artifactsDirectory)).toBeFalse();
+        expect(sessionReads).toBe(7);
+        expect(listWebSessionCleanupAdmissions(environment)).toEqual([]);
+      } finally {
+        rmSync(fixture.socketDirectory, { recursive: true, force: true });
+        rmSync(fixture.artifactsDirectory, { recursive: true, force: true });
+      }
+    });
+  });
+
+  test("retains an unbound launch-intent claim while the session stays active", async () => {
     await withState(async (environment) => {
       const fixture = pinnedBrowserCleanupResourceFixture();
       const launchIntent: BrowserCleanupResourceIdentityV2 = Object.freeze({
@@ -1271,7 +1390,7 @@ describe("web-session cleanup admission", () => {
             inspectOwner: () => "different-or-dead",
             browserLifecycle: {
               runCommand: () => Promise.resolve(
-                inactiveAgentBrowserSessionResult(launchIntent),
+                activeAgentBrowserSessionResult(launchIntent),
               ),
             },
           },
@@ -1279,7 +1398,6 @@ describe("web-session cleanup admission", () => {
 
         expect(report).toMatchObject({
           scanned: 1,
-          repaired: 0,
           retained: 1,
           issues: [{ kind: "recovery-conflict" }],
         });

@@ -1441,24 +1441,31 @@
 // 045a8cf8389e54e18c28e7580a9c6c5494d9c6cca38f39bc1e4ece4b4b079e05. Carry
 // the same projections and allowances: 11,971,987 + 12,387 + 4,096 =
 // 11,988,470 packed; 23,343,331 + 353 + 65 = 23,343,749 unpacked.
+// The launch-intent cleanup recovery adds the unbound launch-intent
+// quiescence proof, its recovery admission wiring, and the replacement
+// repair/retention tests: a clean npm 11.19.0 pack --ignore-scripts on
+// darwin arm64 measured 596 files/entries and 23,346,582 payload bytes;
+// archive SHA-256 041f172721702456c214f78cd390417e285aed417e72bd0b45372fefd71bfa6c.
+// Carry the same projections and allowances: 11,972,555 + 12,387 + 4,096 =
+// 11,989,038 packed; 23,346,582 + 353 + 65 = 23,347,000 unpacked.
 // The portable `not-applied` claim fence records a caller's claim and keeps
 // the idempotency ledger. Its edits to the portable recovery module,
 // runtime, run-journal and CLI sources and the provider-plugins reference
-// add exactly 8,842 payload bytes to the unchanged 596-file 0.18.34
-// inventory: `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
-// measured 11,974,533 packed bytes, 23,352,173 unpacked bytes; archive
-// SHA-256
-// 6416284de4d27252c6c69be61651b602b5d9b768791ae13e4249744e21998017. Carry
-// the same projections and allowances: 11,974,533 + 12,387 + 4,096 =
-// 11,991,016 packed; 23,352,173 + 353 + 65 = 23,352,591 unpacked.
+// add exactly 8,842 payload bytes to the unchanged 596-file
+// launch-intent cleanup inventory: `npm pack --ignore-scripts` with npm
+// 11.19.0 on darwin arm64 measured 11,975,052 packed bytes, 23,355,424
+// unpacked bytes; archive SHA-256
+// 9305e8683b4ed5d6d8563625aa37ee7ace6101bc027a4e18b8de61977c90b1a7. Carry
+// the same projections and allowances: 11,975,052 + 12,387 + 4,096 =
+// 11,991,535 packed; 23,355,424 + 353 + 65 = 23,355,842 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Portable not-applied claim fence over the Ghostget 0.18.34 inventory",
+  scope: "Portable not-applied claim fence over the launch-intent cleanup inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "6416284de4d27252c6c69be61651b602b5d9b768791ae13e4249744e21998017",
-  packedBytes: 11_974_533,
-  unpackedBytes: 23_352_173,
+  archiveSha256: "9305e8683b4ed5d6d8563625aa37ee7ace6101bc027a4e18b8de61977c90b1a7",
+  packedBytes: 11_975_052,
+  unpackedBytes: 23_355_424,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
