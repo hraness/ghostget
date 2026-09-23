@@ -1945,6 +1945,14 @@ body {
   inline-size: auto;
 }
 
+/* The shared metallic foil mark: the brand icon's alpha is the mask for the
+   pointer-tracked chrome paint layer — the same lockup every Hraness site
+   carries in its header. */
+.brand-mark {
+  --hraness-foil-size: 1.25rem;
+  --hraness-foil-mask: url("/marks/wrench.svg");
+}
+
 /* Labels: sentence case in the text face. Monospace stays with code. */
 .eyebrow,
 .prompt-label,
