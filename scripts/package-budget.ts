@@ -1487,14 +1487,24 @@
 // cfcd1f3db620ed7529a54f65fd374959154f9417399443f994f035f060feefab. Carry the
 // same projections and allowances: 11,980,765 + 12,387 + 4,096 = 11,997,248
 // packed; 23,376,029 + 353 + 65 = 23,376,447 unpacked.
+// Injective session-secret file names keep every unambiguous historical name,
+// give coordinates whose historical stem splits more than one way a
+// dot-joined name, and let the owning coordinate adopt an ambiguous
+// historical file only when its body names that coordinate. This adds 14,199
+// payload bytes over the unchanged 596-file inventory. Two `npm pack
+// --ignore-scripts` runs with npm 11.19.0 on darwin arm64 were byte-identical
+// at 11,983,769 packed bytes, 23,390,228 unpacked bytes; archive SHA-256
+// 9b9f358333b911d0ffbfa0602b77281c8b3fa7476c6baba9a376ca14f0f76dc3. Carry the
+// same projections and allowances: 11,983,769 + 12,387 + 4,096 = 12,000,252
+// packed; 23,390,228 + 353 + 65 = 23,390,646 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Strict canonical JSON value domain over the portable not-applied claim fence inventory",
+  scope: "Injective session-secret names over the strict canonical JSON inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "cfcd1f3db620ed7529a54f65fd374959154f9417399443f994f035f060feefab",
-  packedBytes: 11_980_765,
-  unpackedBytes: 23_376_029,
+  archiveSha256: "9b9f358333b911d0ffbfa0602b77281c8b3fa7476c6baba9a376ca14f0f76dc3",
+  packedBytes: 11_983_769,
+  unpackedBytes: 23_390_228,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
