@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { strictCanonicalJson } from "./canonical-json";
+
 import type {
   PortableProviderPluginBindingV1,
   PortableProviderPluginCapabilitiesV1,
@@ -68,57 +70,12 @@ function ownDataValue(
   return descriptor.value as unknown;
 }
 
+/**
+ * Descriptor encodings reject `undefined` members and name the offending
+ * path; the shared strict encoder keeps them byte-identical to canonicalJson.
+ */
 function canonicalPortableJson(value: unknown, label: string): string {
-  if (value === null) return "null";
-  if (typeof value === "string" || typeof value === "boolean") {
-    return JSON.stringify(value);
-  }
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) {
-      throw new Error(`${label} contains a non-finite number`);
-    }
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) {
-    if ((Object.getPrototypeOf(value) as unknown) !== Array.prototype) {
-      throw new Error(`${label} contains a non-plain array`);
-    }
-    const length = value.length;
-    const keys = Reflect.ownKeys(value);
-    if (
-      keys.length !== length + 1
-      || !keys.includes("length")
-      || Array.from({ length }, (_unused, index) => String(index))
-        .some((key) => !keys.includes(key))
-    ) {
-      throw new Error(`${label} contains a sparse or decorated array`);
-    }
-    return `[${Array.from(
-      { length },
-      (_unused, index) =>
-        canonicalPortableJson(
-          ownDataValue(value, String(index), `${label}[${index}]`),
-          `${label}[${index}]`,
-        ),
-    ).join(",")}]`;
-  }
-  if (typeof value !== "object") {
-    throw new Error(`${label} contains a non-JSON value`);
-  }
-  const prototype: unknown = Object.getPrototypeOf(value) as unknown;
-  if (prototype !== Object.prototype && prototype !== null) {
-    throw new Error(`${label} contains a non-plain object`);
-  }
-  const keys = Reflect.ownKeys(value);
-  if (keys.some((key) => typeof key !== "string")) {
-    throw new Error(`${label} contains a symbol field`);
-  }
-  const sorted = (keys as string[]).sort();
-  return `{${sorted.map((key) =>
-    `${JSON.stringify(key)}:${canonicalPortableJson(
-      ownDataValue(value, key, `${label}.${key}`),
-      `${label}.${key}`,
-    )}`).join(",")}}`;
+  return strictCanonicalJson(value, label);
 }
 
 function assertPackageMetadata(

@@ -2126,6 +2126,43 @@ export async function provePreparedAgentBrowserCleanupResourceQuiescent(
   return resource;
 }
 
+/**
+ * Prove that an unbound launch-intent resource's session is quiescent. A
+ * daemon can exit between the published launch intent and the control-witness
+ * bind; the pinned roots then outlive the session with no recorded owner.
+ * Two exact inactive reads bracket unchanged roots. A session that still
+ * reports active fails closed so a live daemon must bind control or converge
+ * before its roots can be released.
+ */
+export async function proveLaunchIntentAgentBrowserCleanupResourceQuiescent(
+  value: BrowserCleanupResourceIdentityV2,
+  dependencies: AgentBrowserLifecycleDependencies = {},
+): Promise<BrowserCleanupResourceIdentityV2> {
+  const resource = parseBrowserCleanupResourceIdentity(value);
+  if (
+    resource.kind !== "agent-browser-session-v2"
+    || resource.phase !== "launch-intent"
+    || resource.control !== null
+  ) {
+    throw new Error("browser cleanup resource is not an unbound launch intent");
+  }
+  const lifecycle = browserLifecycleCommandContext(resource, dependencies);
+  assertBrowserCleanupResourceRootsMatch(resource);
+  for (let read = 0; read < 2; read += 1) {
+    const inactive = parseAgentBrowserSessionState(
+      await lifecycle.inspectSession(),
+      resource,
+    );
+    if (inactive.state !== "inactive") {
+      throw new Error(read === 0
+        ? "browser cleanup launch-intent session remained active"
+        : "browser cleanup launch-intent session quiescence changed");
+    }
+    assertBrowserCleanupResourceRootsMatch(resource);
+  }
+  return resource;
+}
+
 function exactActiveAgentBrowserControl(
   state: AgentBrowserSessionState,
   control: AgentBrowserControlWitnessV1,
@@ -2941,6 +2978,12 @@ async function refreshBrowserCleanupResourceQuiescenceBounded(
       effectDeadline,
     );
   }
+  if (resource.phase === "launch-intent" && resource.control === null) {
+    return proveLaunchIntentAgentBrowserCleanupResourceQuiescent(
+      resource,
+      dependencies,
+    );
+  }
   throw new Error("browser cleanup launch intent is not durably controlled");
 }
 
@@ -3134,6 +3177,12 @@ export async function provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence
     assertAbsentRootBoundary();
     return resource;
   }
+  if (resource.phase === "launch-intent" && resource.control === null) {
+    // An unbound launch intent holds no daemon owner or endpoint; once the
+    // pinned roots are absent nothing reachable remains to prove.
+    assertAbsentRootBoundary();
+    return resource;
+  }
   if (resource.phase !== "controlled") {
     throw new Error("browser cleanup resource is not durably controlled");
   }
@@ -3184,7 +3233,7 @@ export async function reproveBrowserCleanupAfterArtifactsRemoval(
   const resource = parseBrowserCleanupResourceIdentity(value);
   if (
     resource.kind !== "agent-browser-session-v2"
-    || resource.phase === "launch-intent"
+    || (resource.phase === "launch-intent" && resource.control !== null)
   ) {
     throw new Error("browser cleanup resource is ineligible for deletion reproof");
   }

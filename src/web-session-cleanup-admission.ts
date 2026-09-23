@@ -15,6 +15,7 @@ import {
   bindLiveAgentBrowserCleanupResource,
   parseBrowserCleanupResourceIdentity,
   PreservedBrowserArtifactsError,
+  proveLaunchIntentAgentBrowserCleanupResourceQuiescent,
   provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence,
   provePreparedAgentBrowserCleanupResourceQuiescent,
   recoverPinnedAgentBrowserCleanupResource,
@@ -1751,13 +1752,27 @@ async function recoverBrowserCleanupUnsafe(
             : "artifact-conflict";
         }
       } else {
-        pinned = selected.identity.phase === "launch-intent"
+        if (
+          selected.identity.phase === "launch-intent"
           && selected.identity.control === null
-          ? await bindLiveAgentBrowserCleanupResource(
+        ) {
+          try {
+            pinned = await bindLiveAgentBrowserCleanupResource(
               selected.identity,
               lifecycle,
-            )
-          : selected.identity;
+            );
+          } catch (error) {
+            if (!(error instanceof AgentBrowserLiveControlUnavailableError)) {
+              throw error;
+            }
+            // The daemon exited before its control witness was bound; keep
+            // the unbound launch-intent identity so the quiescence proof can
+            // confirm the session is inactive before its roots are released.
+            pinned = selected.identity;
+          }
+        } else {
+          pinned = selected.identity;
+        }
       }
       if (
         selected.identity.kind !== "agent-browser-session-v2"
@@ -1785,6 +1800,27 @@ async function recoverBrowserCleanupUnsafe(
           );
         } else {
           await provePreparedAgentBrowserCleanupResourceQuiescent(
+            pinned,
+            lifecycle,
+          );
+        }
+      } else if (
+        pinned.phase === "launch-intent"
+        && pinned.control === null
+      ) {
+        if (
+          browserCleanupResourceRootStatus(pinned, "socket") === "absent"
+        ) {
+          await provePinnedAgentBrowserCleanupResourceAbsentRootQuiescence(
+            pinned,
+            lifecycle,
+          );
+        } else if (
+          browserCleanupResourceRootStatus(pinned, "artifacts") === "absent"
+        ) {
+          await reproveBrowserCleanupAfterArtifactsRemoval(pinned, lifecycle);
+        } else {
+          await proveLaunchIntentAgentBrowserCleanupResourceQuiescent(
             pinned,
             lifecycle,
           );
