@@ -2820,14 +2820,20 @@ describe("local at-most-once dispatch ledger", () => {
         environment: testState.environment,
         executeProvider: executor,
       });
-      const idempotencyRoot = join(testState.directory, "idempotency");
-      const bucketPrefix = readdirSync(idempotencyRoot)[0] as string;
-      const ledgerName = readdirSync(join(idempotencyRoot, bucketPrefix))[0] as string;
-      const ledgerPath = join(idempotencyRoot, bucketPrefix, ledgerName);
+      const ledgerRelativePath = readRunJournal(first.receipt.runId, testState.environment)
+        ?.journal.ledgerRelativePath;
+      if (ledgerRelativePath === undefined || ledgerRelativePath === null) {
+        throw new Error("expected the first run to own an idempotency ledger");
+      }
+      const ledgerPath = join(testState.directory, ...ledgerRelativePath.split("/"));
       const legacyLedger = JSON.parse(readFileSync(ledgerPath, "utf8")) as Record<string, unknown>;
       legacyLedger.schemaVersion = 1;
       delete legacyLedger.dispatch;
       writeFileSync(ledgerPath, `${JSON.stringify(legacyLedger)}\n`, { mode: 0o600 });
+      // A schema 1 ledger predates run journals and the intent fence, so only
+      // the legacy ledger read can recognize the completed action.
+      rmSync(join(testState.directory, "run-journals", `${first.receipt.runId}.json`));
+      rmSync(join(testState.directory, "idempotency", "intents"), { recursive: true, force: true });
       const secondPlan = createInvocationPlan(prepared(testState));
       saveInvocationPlan(secondPlan, testState.environment);
       const second = await confirmInvocation(secondPlan.digest, {

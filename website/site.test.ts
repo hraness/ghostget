@@ -575,7 +575,7 @@ describe("ghostget.com static site", () => {
     expect(guidesSection).toBeDefined();
     expect(argumentsSection).toContain('<h2 id="arguments-title">Arguments and comparisons</h2>');
     expect(argumentsSection).toContain('<div class="card-grid editorial-card-grid">');
-    expect(argumentsSection?.match(/<article class="card(?: editorial-card)?">/gu)).toHaveLength(7);
+    expect(argumentsSection?.match(/<article class="card(?: editorial-card)?">/gu)).toHaveLength(8);
     expect(guidesSection?.match(/<article class="card">/gu)).toHaveLength(6);
     expect(argumentsSection).toContain('href="/paypal-grapheneos-attestation/"');
     expect(argumentsSection).toContain('href="/rumour-is-the-exploit/"');
@@ -1143,7 +1143,9 @@ describe("ghostget.com static site", () => {
       expect(page?.html).toContain(`alt="${image.alt}"`);
       expect(page?.html).toContain(image.caption);
       expect(page?.html).toContain(image.credit);
-      expect(image.credit).toBe("Editorial illustration generated with Atet.");
+      expect(image.credit).toMatch(
+        /^Editorial illustration generated with (?:Atet|Slopcamera)\.$/u,
+      );
       expect(page?.html).not.toContain("editorial-provenance/");
       expect(page?.html).not.toContain("gateway_");
       const answerLedeIndex = page?.html.indexOf('class="answer-lede"') ?? -1;
@@ -1202,6 +1204,7 @@ describe("ghostget.com static site", () => {
       const job = await Bun.file(join(websiteRoot, image.provenance.job)).json() as {
         clientMaxRetries?: number;
         noAtetRetry?: boolean;
+        noSlopcameraRetry?: boolean;
         request?: { promptSha256?: string };
         state?: string;
       };
@@ -1210,11 +1213,17 @@ describe("ghostget.com static site", () => {
       expect(receipt.localValidation?.status).toBe("decode-passed");
       expect(job).toMatchObject({
         clientMaxRetries: 0,
-        noAtetRetry: true,
         state: "completed",
       });
-      const promptSha256 = createHash("sha256").update(prompt.trim()).digest("hex");
-      expect(promptSha256).toBe(image.provenance.promptSha256);
+      expect(job.noAtetRetry === true || job.noSlopcameraRetry === true).toBe(true);
+      // Atet pinned the trimmed prompt text; Slopcamera pins the exact file
+      // bytes. Either derivation is valid as long as the generator's own
+      // receipt and job record the registered value.
+      const promptHashes = new Set([
+        createHash("sha256").update(prompt).digest("hex"),
+        createHash("sha256").update(prompt.trim()).digest("hex"),
+      ]);
+      expect(promptHashes.has(image.provenance.promptSha256)).toBe(true);
       expect(job.request?.promptSha256).toBe(image.provenance.promptSha256);
       expect(receipt.request?.promptSha256).toBe(image.provenance.promptSha256);
     }
