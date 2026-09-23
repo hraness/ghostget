@@ -1477,25 +1477,54 @@
 // 5300d2503ae48a50ace5e1edc76a45d8b2e32724d8fd34fad09cf7405e083e85. Carry
 // the same projections and allowances: 11,977,961 + 12,387 + 4,096 =
 // 11,994,444 packed; 23,366,348 + 353 + 65 = 23,366,766 unpacked.
-// The unreleased copy pass over the portable not-applied claim fence rewrites
-// the package description, README, Agent Skill summary and plugin examples,
-// CLI banner, TUI strings, and support value proposition, and adds an
-// Unreleased CHANGELOG section, over the unchanged 596-file inventory: 637
-// payload bytes over the claim-fence measurement. `npm pack --ignore-scripts`
-// with npm 11.16.0 on darwin arm64 measured 11,988,415 packed bytes,
-// 23,366,985 unpacked bytes; archive SHA-256
-// 7bfcd6ecb840e97cfc43666b06ce0d847d1c4541e7d23e5f90d5b9a08f439e49.
+// The strict canonical JSON value domain rejects sparse arrays, non-plain
+// prototypes, accessors, symbols and non-finite numbers in canonicalJson and
+// the provider-plugin semantic value, and adds the named __proto__
+// read-result regression. This adds 9,681 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0
+// on darwin arm64 were byte-identical at 11,980,765 packed bytes, 23,376,029
+// unpacked bytes; archive SHA-256
+// cfcd1f3db620ed7529a54f65fd374959154f9417399443f994f035f060feefab. Carry the
+// same projections and allowances: 11,980,765 + 12,387 + 4,096 = 11,997,248
+// packed; 23,376,029 + 353 + 65 = 23,376,447 unpacked.
+// Injective session-secret file names keep every unambiguous historical name,
+// give coordinates whose historical stem splits more than one way a
+// dot-joined name, and let the owning coordinate adopt an ambiguous
+// historical file only when its body names that coordinate. This adds 14,199
+// payload bytes over the unchanged 596-file inventory. Two `npm pack
+// --ignore-scripts` runs with npm 11.19.0 on darwin arm64 were byte-identical
+// at 11,983,769 packed bytes, 23,390,228 unpacked bytes; archive SHA-256
+// 9b9f358333b911d0ffbfa0602b77281c8b3fa7476c6baba9a376ca14f0f76dc3. Carry the
+// same projections and allowances: 11,983,769 + 12,387 + 4,096 = 12,000,252
+// packed; 23,390,228 + 353 + 65 = 23,390,646 unpacked.
+// The path-helper reaper election lets exactly one recoverer quarantine a
+// dead owner's claim, verifies the moved claim's identity, and restores any
+// live claim it moved by a no-clobber link. This adds 10,948 payload bytes
+// over the unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs
+// with npm 11.19.0 on darwin arm64 were byte-identical at 11,986,281 packed
+// bytes, 23,401,176 unpacked bytes; archive SHA-256
+// a93c3400369b926d7dc23451d8ddb5b2b2cb47ccd733b09fda9000345415b16c. Carry the
+// same projections and allowances: 11,986,281 + 12,387 + 4,096 = 12,002,764
+// packed; 23,401,176 + 353 + 65 = 23,401,594 unpacked.
+// The unreleased copy pass over the path-helper reaper election rewrites the
+// package description, README, Agent Skill summary and plugin examples, CLI
+// banner, TUI strings, and support value proposition, and adds an Unreleased
+// CHANGELOG section, over the unchanged 596-file inventory: 637 payload bytes
+// over the reaper-election measurement. `npm pack --ignore-scripts` with npm
+// 11.16.0 on darwin arm64 measured 11,997,841 packed bytes, 23,401,813
+// unpacked bytes; archive SHA-256
+// 8614f1f031979371907772a6284888527064014b18f81cc26c4ee2f1f2bdcb56.
 // Compressed size varies with the local zlib. Carry the same projections and
-// allowances: 11,988,415 + 12,387 + 4,096 = 12,004,898 packed;
-// 23,366,985 + 353 + 65 = 23,367,403 unpacked.
+// allowances: 11,997,841 + 12,387 + 4,096 = 12,014,324 packed;
+// 23,401,813 + 353 + 65 = 23,402,231 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Unreleased copy pass over the portable not-applied claim fence: package description, README, skill, CLI, and CHANGELOG text",
+  scope: "Unreleased copy pass over the path-helper reaper election: package description, README, skill, CLI, and CHANGELOG text",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "7bfcd6ecb840e97cfc43666b06ce0d847d1c4541e7d23e5f90d5b9a08f439e49",
-  packedBytes: 11_988_415,
-  unpackedBytes: 23_366_985,
+  archiveSha256: "8614f1f031979371907772a6284888527064014b18f81cc26c4ee2f1f2bdcb56",
+  packedBytes: 11_997_841,
+  unpackedBytes: 23_401_813,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

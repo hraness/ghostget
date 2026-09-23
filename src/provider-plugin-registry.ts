@@ -24,6 +24,11 @@ import {
   sep,
 } from "node:path";
 import ts from "typescript";
+import {
+  plainJsonArrayItems,
+  plainJsonObjectMembers,
+  type JsonDomainFailure,
+} from "./canonical-json";
 import { scanProviderPluginValueImports } from "./provider-plugin-import-analysis";
 import {
   hasNonLiteralModuleLoad,
@@ -487,6 +492,12 @@ function computeProviderPluginClosureHash(
   return hash.digest("hex");
 }
 
+const failProviderPluginSemanticValue: JsonDomainFailure = (violation) => {
+  throw new Error(
+    `provider plugin semantic identity is not JSON-compatible: ${violation}`,
+  );
+};
+
 function providerPluginSemanticValue(
   value: unknown,
   ancestors: Set<object>,
@@ -506,15 +517,29 @@ function providerPluginSemanticValue(
   }
   ancestors.add(value);
   try {
+    // Map, Date, typed arrays, and other class instances have no enumerable
+    // own members, so reading them as records would collapse distinct
+    // definitions onto "{}"; holes would read as null.
     if (Array.isArray(value)) {
-      return value.map((entry) =>
-        providerPluginSemanticValue(entry, ancestors));
+      return plainJsonArrayItems(value, failProviderPluginSemanticValue)
+        .map((entry) => providerPluginSemanticValue(entry, ancestors));
     }
     const result: Record<string, unknown> = {};
-    for (const key of Object.keys(value).sort(compareIdentityText)) {
-      const entry = (value as Readonly<Record<string, unknown>>)[key];
+    const members = [
+      ...plainJsonObjectMembers(value, failProviderPluginSemanticValue, {
+        skipNonEnumerable: true,
+      }),
+    ].sort(([left], [right]) => compareIdentityText(left, right));
+    for (const [key, entry] of members) {
       if (entry === undefined) continue;
-      result[key] = providerPluginSemanticValue(entry, ancestors);
+      // A literal "__proto__" member must stay an own member, never a
+      // prototype write that drops it from the identity.
+      Object.defineProperty(result, key, {
+        value: providerPluginSemanticValue(entry, ancestors),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     }
     return result;
   } finally {
@@ -522,15 +547,23 @@ function providerPluginSemanticValue(
   }
 }
 
+/**
+ * The JSON text a provider plugin's evaluated semantics contribute to its
+ * implementation identity. Exported for the value-domain regression tests.
+ */
+export function providerPluginSemanticIdentityText(value: unknown): string {
+  return JSON.stringify(providerPluginSemanticValue(value, new Set()));
+}
+
 function providerPluginSemanticIdentity(plugin: ProviderPluginV1): Buffer {
-  const encoded = JSON.stringify(providerPluginSemanticValue({
+  const encoded = providerPluginSemanticIdentityText({
     apiVersion: plugin.apiVersion,
     bindings: plugin.bindings,
     displayName: plugin.displayName,
     id: plugin.id,
     sourceKind: plugin.sourceKind,
     version: plugin.version,
-  }, new Set()));
+  });
   return Buffer.from(encoded, "utf8");
 }
 

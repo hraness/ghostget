@@ -25,6 +25,7 @@ import {
   ghostgetStateHome,
   writePrivateJson,
   writePrivateJsonIfUnchanged,
+  type PrivateDirectoryIdentity,
 } from "./storage";
 
 const SESSION_SECRET_DIRECTORY = "session-secrets";
@@ -150,12 +151,113 @@ function directory(environment: Environment): string {
   return join(ghostgetStateHome(environment), SESSION_SECRET_DIRECTORY);
 }
 
+export type SessionSecretCoordinate = {
+  readonly namespace: string;
+  readonly authId: string;
+};
+
+export type SessionSecretFileName =
+  | ({ readonly kind: "coordinate" } & SessionSecretCoordinate)
+  | {
+    /**
+     * A name that writers before injective naming could produce for more
+     * than one coordinate. Only the body inside can say which coordinate
+     * wrote it; that coordinate adopts it to its injective name on first use,
+     * and current code never writes it.
+     */
+    readonly kind: "ambiguous-historical";
+    readonly candidates: readonly SessionSecretCoordinate[];
+  };
+
+function isSessionSecretNamePart(value: string): boolean {
+  return /^[a-z][a-z0-9-]{0,47}$/u.test(value);
+}
+
+function historicalStem(namespace: string, authId: string): string {
+  return `${namespace}--${authId}`;
+}
+
+/** The name every writer before injective naming used for a coordinate. */
+function historicalFileName(namespace: string, authId: string): string {
+  return `${historicalStem(namespace, authId)}.json`;
+}
+
+/** Every coordinate whose historical `${namespace}--${authId}` stem is `stem`. */
+function historicalStemCoordinates(
+  stem: string,
+): readonly SessionSecretCoordinate[] {
+  const coordinates: SessionSecretCoordinate[] = [];
+  for (
+    let index = stem.indexOf("--");
+    index !== -1;
+    index = stem.indexOf("--", index + 1)
+  ) {
+    const namespace = stem.slice(0, index);
+    const authId = stem.slice(index + 2);
+    if (isSessionSecretNamePart(namespace) && isSessionSecretNamePart(authId)) {
+      coordinates.push(Object.freeze({ namespace, authId }));
+    }
+  }
+  return Object.freeze(coordinates);
+}
+
+/**
+ * Name the secret and coordinate files for one coordinate, injectively.
+ *
+ * Both grammars admit "--", so the historical `${namespace}--${authId}` stem
+ * can name two coordinates. It stays the name only when it has exactly one
+ * valid split, which keeps every existing unambiguous file in place with no
+ * migration. Any other coordinate joins its parts with ".", which neither
+ * grammar admits. The two forms share no names, so no two coordinates share a
+ * file.
+ */
+export function sessionSecretFileName(
+  namespace: string,
+  authId: string,
+): string {
+  if (!isSessionSecretNamePart(namespace) || !isSessionSecretNamePart(authId)) {
+    throw new Error("session-secret coordinate must be lowercase kebab-case");
+  }
+  const stem = historicalStem(namespace, authId);
+  return historicalStemCoordinates(stem).length === 1
+    ? `${stem}.json`
+    : `${namespace}.${authId}.json`;
+}
+
+/**
+ * Parse a directory entry name. Returns null for a name no writer produces,
+ * including a "." name for a coordinate whose canonical name is historical.
+ */
+export function parseSessionSecretFileName(
+  name: string,
+): SessionSecretFileName | null {
+  if (!name.endsWith(".json")) return null;
+  const stem = name.slice(0, -".json".length);
+  const separator = stem.indexOf(".");
+  if (separator !== -1) {
+    const namespace = stem.slice(0, separator);
+    const authId = stem.slice(separator + 1);
+    if (
+      !isSessionSecretNamePart(namespace)
+      || !isSessionSecretNamePart(authId)
+      || sessionSecretFileName(namespace, authId) !== name
+    ) return null;
+    return Object.freeze({ kind: "coordinate", namespace, authId });
+  }
+  const candidates = historicalStemCoordinates(stem);
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) {
+    return Object.freeze({ kind: "coordinate", ...candidates[0]! });
+  }
+  return Object.freeze({ kind: "ambiguous-historical", candidates });
+}
+
 function secretPath(
   namespace: string,
   authId: string,
   environment: Environment,
 ): string {
-  return join(directory(environment), `${namespace}--${authId}.json`);
+  return join(directory(environment), sessionSecretFileName(namespace, authId));
 }
 
 function coordinateDirectory(environment: Environment): string {
@@ -169,7 +271,7 @@ function coordinatePath(
 ): string {
   return join(
     coordinateDirectory(environment),
-    `${namespace}--${authId}.json`,
+    sessionSecretFileName(namespace, authId),
   );
 }
 
@@ -525,6 +627,7 @@ export function writeSessionSecret(
       authHash,
       environment,
     );
+    adoptHistoricalCoordinate(namespace, authId, environment);
     const coordinate = replaceCoordinateState(
       readCoordinateState(namespace, authId, environment),
       namespace,
@@ -574,6 +677,7 @@ export function writeSessionSecretIfUnchanged(
     if (expectedContentSha256 === null) {
       return Object.freeze({ written: false });
     }
+    adoptHistoricalCoordinate(namespace, authId, environment);
     const coordinate = ensureCoordinateState(
       namespace,
       authId,
@@ -966,11 +1070,198 @@ function assertSessionKeyOwnsEncryptedStore(
       throw new Error("encrypted session store changed while validating its key");
     }
     const encrypted = parseEncryptedSessionSecret(text);
-    if (entry.name !== `${encrypted.namespace}--${encrypted.authId}.json`) {
+    // An ambiguous historical name stays admitted, and still proves key
+    // ownership, until its own realm adopts or removes it.
+    if (
+      entry.name !== sessionSecretFileName(encrypted.namespace, encrypted.authId)
+      && entry.name !== historicalFileName(encrypted.namespace, encrypted.authId)
+    ) {
       throw new Error("encrypted session store is malformed");
     }
     parsedPlaintext(decryptSessionSecret(encrypted, key));
   }
+}
+
+function textSha256(text: string): string {
+  return createHash("sha256").update(text, "utf8").digest("hex");
+}
+
+/**
+ * Whether a historical coordinate file's body names this coordinate. A body
+ * that is not JSON names no one; parseCoordinateState validates the rest.
+ */
+function coordinateBodyNames(
+  text: string,
+  namespace: string,
+  authId: string,
+): boolean {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text) as unknown;
+  } catch {
+    return false;
+  }
+  return isRecord(parsed)
+    && parsed.namespace === namespace
+    && parsed.authId === authId;
+}
+
+/**
+ * Publish an adopted value at its injective name, read it back, and only then
+ * remove the historical file by compare-and-swap on the bytes that were
+ * validated. When the injective name already exists it is authoritative, and
+ * the historical copy is a stale duplicate of this coordinate.
+ */
+function adoptHistoricalFile(
+  historicalPath: string,
+  historicalText: string,
+  injectivePath: string,
+  value: unknown,
+  maximumBytes: number,
+  label: string,
+  environment: Environment,
+): void {
+  if (createPrivateJsonIfAbsent(injectivePath, value, { environment }).created) {
+    const readback = readPrivateStateFileIfPresent(
+      injectivePath,
+      maximumBytes,
+      label,
+      environment,
+    );
+    if (readback !== `${canonicalJson(value)}\n`) {
+      throw new Error(`${label} changed during historical-name migration`);
+    }
+  }
+  if (!removePrivateStateFileIfUnchanged(
+    historicalPath,
+    { expectedCurrentContentSha256: textSha256(historicalText) },
+    environment,
+  )) {
+    throw new Error(`${label} changed during historical-name migration`);
+  }
+}
+
+/**
+ * Carry one coordinate's historical coordinate state to its injective name.
+ *
+ * Only a coordinate whose historical name was ambiguous has anything to
+ * adopt. The file is adopted only when its body names this coordinate, which
+ * the body of every historical writer recorded; a file naming the other
+ * candidate is left for that realm.
+ */
+function adoptHistoricalCoordinateState(
+  namespace: string,
+  authId: string,
+  environment: Environment,
+): void {
+  const historicalName = historicalFileName(namespace, authId);
+  if (sessionSecretFileName(namespace, authId) === historicalName) return;
+  const controlDirectory = coordinateDirectory(environment);
+  ensurePrivateStateDirectory(controlDirectory, environment);
+  const historicalPath = join(controlDirectory, historicalName);
+  const text = readPrivateStateFileIfPresent(
+    historicalPath,
+    MAX_COORDINATE_BYTES,
+    "session-secret coordinate state",
+    environment,
+  );
+  if (text === null || !coordinateBodyNames(text, namespace, authId)) return;
+  adoptHistoricalFile(
+    historicalPath,
+    text,
+    coordinatePath(namespace, authId, environment),
+    parseCoordinateState(text, namespace, authId).value,
+    MAX_COORDINATE_BYTES,
+    "session-secret coordinate state",
+    environment,
+  );
+}
+
+type HistoricalSessionSecret = {
+  readonly path: string;
+  readonly text: string;
+  readonly encrypted: EncryptedSessionSecret;
+};
+
+/**
+ * Read this coordinate's ambiguous historical secret when its envelope names
+ * this coordinate. A file with no readable envelope, or one naming the other
+ * candidate, is not this coordinate's and is left for auth removal.
+ */
+function ownedHistoricalSessionSecret(
+  namespace: string,
+  authId: string,
+  environment: Environment,
+): HistoricalSessionSecret | null {
+  const historicalName = historicalFileName(namespace, authId);
+  if (sessionSecretFileName(namespace, authId) === historicalName) return null;
+  const sessionDirectory = directory(environment);
+  const identity = ensurePrivateStateDirectory(sessionDirectory, environment);
+  const path = join(sessionDirectory, historicalName);
+  const text = readPrivateStateFileIfPresent(
+    path,
+    MAX_ENCRYPTED_BYTES,
+    "encrypted session secret",
+    environment,
+    [identity],
+  );
+  if (text === null) return null;
+  let encrypted: EncryptedSessionSecret;
+  try {
+    encrypted = parseEncryptedSessionSecret(text);
+  } catch {
+    return null;
+  }
+  return encrypted.namespace === namespace && encrypted.authId === authId
+    ? Object.freeze({ path, text, encrypted })
+    : null;
+}
+
+/**
+ * Carry one coordinate's historical encrypted secret to its injective name.
+ *
+ * The envelope must name this coordinate and decrypt under this coordinate's
+ * additional data before it moves. The AEAD data binds the namespace and auth
+ * ID, so a file another coordinate wrote can never be adopted here.
+ */
+function adoptHistoricalSessionSecret(
+  namespace: string,
+  authId: string,
+  environment: Environment,
+): void {
+  const historical = ownedHistoricalSessionSecret(
+    namespace,
+    authId,
+    environment,
+  );
+  if (historical === null) return;
+  parsedPlaintext(
+    decryptSessionSecret(historical.encrypted, sessionKey(environment)),
+  );
+  adoptHistoricalFile(
+    historical.path,
+    historical.text,
+    secretPath(namespace, authId, environment),
+    historical.encrypted,
+    MAX_ENCRYPTED_BYTES,
+    "encrypted session secret",
+    environment,
+  );
+}
+
+/**
+ * Migrate a coordinate whose name changed with injective naming. It runs
+ * inside the coordinate's auth admission before any other access, adopting
+ * the coordinate state first so a v3 envelope still matches its generation.
+ * Each step is idempotent, so an interrupted migration resumes on next use.
+ */
+function adoptHistoricalCoordinate(
+  namespace: string,
+  authId: string,
+  environment: Environment,
+): void {
+  adoptHistoricalCoordinateState(namespace, authId, environment);
+  adoptHistoricalSessionSecret(namespace, authId, environment);
 }
 
 export function readSessionSecretSnapshot(
@@ -986,6 +1277,7 @@ export function readSessionSecretSnapshot(
       authHash,
       environment,
     );
+    adoptHistoricalCoordinate(namespace, authId, environment);
     let coordinate = ensureCoordinateState(
       namespace,
       authId,
@@ -1082,6 +1374,9 @@ export function removeSessionSecret(
 ): boolean {
   validateCoordinate(namespace, authId, "0".repeat(64));
   return withReadProjectionAuthAdmission(authId, environment, () => {
+    // Removal needs no key, so an owned historical secret is removed by its
+    // envelope instead of being authenticated and adopted first.
+    adoptHistoricalCoordinateState(namespace, authId, environment);
     const coordinate = readCoordinateState(namespace, authId, environment);
     if (coordinate !== null) {
       replaceCoordinateState(
@@ -1092,10 +1387,62 @@ export function removeSessionSecret(
         environment,
       );
     }
+    const historical = ownedHistoricalSessionSecret(
+      namespace,
+      authId,
+      environment,
+    );
+    if (
+      historical !== null
+      && !removePrivateStateFileIfUnchanged(
+        historical.path,
+        { expectedCurrentContentSha256: textSha256(historical.text) },
+        environment,
+      )
+    ) {
+      throw new Error(
+        "ambiguous historical session secret changed during removal",
+      );
+    }
     return removePrivateStateFile(
       secretPath(namespace, authId, environment),
       environment,
-    );
+    ) || historical !== null;
+  });
+}
+
+export type SessionSecretRemovalPlan = {
+  /** Names whose single coordinate belongs to the removed auth realm. */
+  readonly owned: readonly string[];
+  /**
+   * Ambiguous historical names with the removed realm among their candidates.
+   * Each is removed only when its envelope names that realm.
+   */
+  readonly ambiguous: readonly string[];
+};
+
+/**
+ * Select the entries one auth realm may remove. A name that parses to another
+ * realm's coordinate is never selected.
+ */
+export function planSessionSecretRemoval(
+  names: readonly string[],
+  authId: string,
+): SessionSecretRemovalPlan {
+  const owned: string[] = [];
+  const ambiguous: string[] = [];
+  for (const name of names) {
+    const parsed = parseSessionSecretFileName(name);
+    if (parsed === null) continue;
+    if (parsed.kind === "coordinate") {
+      if (parsed.authId === authId) owned.push(name);
+    } else if (parsed.candidates.some((candidate) => candidate.authId === authId)) {
+      ambiguous.push(name);
+    }
+  }
+  return Object.freeze({
+    owned: Object.freeze(owned),
+    ambiguous: Object.freeze(ambiguous),
   });
 }
 
@@ -1112,21 +1459,32 @@ function coordinateStatesForAuth(
     controlDirectory,
     environment,
   );
-  const suffix = `--${authId}.json`;
-  const snapshots: SessionSecretCoordinateSnapshot[] = [];
-  for (const entry of listPrivateStateDirectory(
+  const listEntryKinds = () => new Map(listPrivateStateDirectory(
     controlDirectory,
     environment,
     controlIdentity,
-  )) {
-    if (!entry.name.endsWith(suffix)) continue;
-    const namespace = entry.name.slice(0, -suffix.length);
-    if (
-      entry.kind !== "file"
-      || !/^[a-z][a-z0-9-]{0,47}$/u.test(namespace)
-    ) throw new Error("session-secret coordinate store is malformed");
+  ).map((entry) => [entry.name, entry.kind]));
+  let kinds = listEntryKinds();
+  // Adopt this realm's ambiguous historical coordinates first, so removal
+  // advances them like any other. A file naming another realm stays for it.
+  const ambiguous = planSessionSecretRemoval([...kinds.keys()], authId).ambiguous;
+  for (const name of ambiguous) {
+    const parsed = parseSessionSecretFileName(name);
+    if (parsed?.kind !== "ambiguous-historical") continue;
+    for (const candidate of parsed.candidates) {
+      if (candidate.authId !== authId) continue;
+      adoptHistoricalCoordinateState(candidate.namespace, authId, environment);
+    }
+  }
+  if (ambiguous.length > 0) kinds = listEntryKinds();
+  const snapshots: SessionSecretCoordinateSnapshot[] = [];
+  for (const name of planSessionSecretRemoval([...kinds.keys()], authId).owned) {
+    const parsed = parseSessionSecretFileName(name);
+    if (kinds.get(name) !== "file" || parsed?.kind !== "coordinate") {
+      throw new Error("session-secret coordinate store is malformed");
+    }
     const text = readPrivateStateFileIfPresent(
-      join(controlDirectory, entry.name),
+      join(controlDirectory, name),
       MAX_COORDINATE_BYTES,
       "session-secret coordinate state",
       environment,
@@ -1137,16 +1495,72 @@ function coordinateStatesForAuth(
         "session-secret coordinate store changed during auth cleanup",
       );
     }
-    snapshots.push(parseCoordinateState(text, namespace, authId));
+    snapshots.push(parseCoordinateState(text, parsed.namespace, authId));
   }
   return Object.freeze(snapshots);
 }
 
 /**
+ * Remove an ambiguous historical secret only when its envelope names this
+ * realm. Every writer recorded its own coordinate in the envelope and bound it
+ * into the AEAD data. The header is read without decryption: a local writer
+ * able to forge it could already delete the file. Returns whether the file was
+ * removed, and throws, leaving the file in place, when no owner can be read.
+ */
+function removeAmbiguousHistoricalSecret(
+  name: string,
+  authId: string,
+  sessionDirectory: string,
+  directoryIdentity: PrivateDirectoryIdentity,
+  environment: Environment,
+): boolean {
+  const path = join(sessionDirectory, name);
+  const text = readPrivateStateFileIfPresent(
+    path,
+    MAX_ENCRYPTED_BYTES,
+    "encrypted session secret",
+    environment,
+    [directoryIdentity],
+  );
+  if (text === null) return false;
+  let encrypted: EncryptedSessionSecret;
+  try {
+    encrypted = parseEncryptedSessionSecret(text);
+  } catch {
+    throw new Error(
+      "ambiguous historical session secret has no verifiable owner; it was left in place",
+    );
+  }
+  if (historicalFileName(encrypted.namespace, encrypted.authId) !== name) {
+    throw new Error(
+      "ambiguous historical session secret has no verifiable owner; it was left in place",
+    );
+  }
+  if (encrypted.authId !== authId) return false;
+  if (!removePrivateStateFileIfUnchanged(
+    path,
+    {
+      expectedCurrentContentSha256: createHash("sha256")
+        .update(text, "utf8")
+        .digest("hex"),
+    },
+    environment,
+  )) {
+    throw new Error(
+      "ambiguous historical session secret changed during auth cleanup",
+    );
+  }
+  return true;
+}
+
+/**
  * Remove every plugin-owned rotating secret for one auth realm.
  *
- * Session-secret filenames end in the validated auth ID, so cleanup can stay
- * provider-neutral without parsing or decrypting secret material. Directory
+ * File names encode the coordinate injectively, so cleanup stays
+ * provider-neutral without decrypting secret material and never selects
+ * another realm's file. An ambiguous historical secret is removed only when
+ * its envelope names this realm, and an ambiguous historical coordinate whose
+ * body names this realm is adopted and advanced like any other. Directory
  * identity is held across the bounded listing and each removal.
  */
 export function removeSessionSecretsForAuth(
@@ -1169,20 +1583,33 @@ export function removeSessionSecretsForAuth(
       sessionDirectory,
       environment,
     );
-    const suffix = `--${authId}.json`;
-    let removed = 0;
-    for (const entry of listPrivateStateDirectory(
-      sessionDirectory,
-      environment,
-      directoryIdentity,
-    )) {
-      if (entry.kind !== "file" || !entry.name.endsWith(suffix)) continue;
-      const namespace = entry.name.slice(0, -suffix.length);
-      if (!/^[a-z][a-z0-9-]{0,47}$/u.test(namespace)) continue;
-      if (removePrivateStateFile(
-        join(sessionDirectory, entry.name),
+    const plan = planSessionSecretRemoval(
+      listPrivateStateDirectory(
+        sessionDirectory,
         environment,
         directoryIdentity,
+      )
+        .filter((entry) => entry.kind === "file")
+        .map((entry) => entry.name),
+      authId,
+    );
+    let removed = 0;
+    for (const name of plan.owned) {
+      if (removePrivateStateFile(
+        join(sessionDirectory, name),
+        environment,
+        directoryIdentity,
+      )) {
+        removed += 1;
+      }
+    }
+    for (const name of plan.ambiguous) {
+      if (removeAmbiguousHistoricalSecret(
+        name,
+        authId,
+        sessionDirectory,
+        directoryIdentity,
+        environment,
       )) {
         removed += 1;
       }
