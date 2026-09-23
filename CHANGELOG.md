@@ -7,6 +7,16 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.33
+
+- Re-tag the 0.18.31 content for npm publication and website promotion.
+  The v0.18.31 Release published immutably with all five canonical assets
+  and serves complete downloads, but GitHub's by-tag and list Release
+  projections durably omit its asset inventory, so the release chain could
+  not complete npm publication or production promotion on that tag. The
+  v0.18.31 tag, Release, and failed run stay retained; this version is the
+  source-qualified delivery. No runtime behavior changes.
+
 ## 0.18.32
 
 - Link the related product family from the homepage with the shared
