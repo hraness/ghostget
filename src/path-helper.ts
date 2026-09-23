@@ -44,8 +44,16 @@ const removeQuarantineScanMaximum = (() => {
 })();
 const writeTemporaryNamePattern =
   /^\.io-write-([1-9][0-9]{0,9})-([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.tmp$/u;
-const pathMutationStageNamePattern =
-  /^\.io-path-mutation-stage-([a-f0-9]{64})-([1-9][0-9]{0,9})-([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.tmp$/u;
+/** Stage, recovery-quarantine, and release names carry their creator's pid. */
+const pathMutationTemporaryNamePattern =
+  /^\.io-path-mutation-(?:stage|recovery|release)-([a-f0-9]{64})-([1-9][0-9]{0,9})-([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.tmp$/u;
+const pathMutationReaperNamePattern =
+  /^\.io-path-mutation-reaper-([a-f0-9]{64})-[a-f0-9]{64}\.lock$/u;
+/**
+ * Each reaper generation needs one more process to die mid-recovery, so a
+ * longer chain means repeated crashes or drift and fails closed.
+ */
+const PATH_MUTATION_REAPER_GENERATION_MAXIMUM = 8;
 const removeQuarantineNamePattern =
   /^\.io-remove-([1-9][0-9]{0,9})-([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.quarantine$/u;
 
@@ -75,6 +83,23 @@ type PathMutationClaim = {
   readonly requestId: string;
   readonly pid: number;
 };
+type PathMutationReaper = {
+  readonly kind: "io-path-mutation-reaper";
+  readonly schemaVersion: 1;
+  readonly targetSha256: string;
+  readonly claimFingerprint: string;
+  readonly generation: number;
+  readonly pid: number;
+  readonly reaperId: string;
+};
+type PathMutationLockFile = {
+  readonly content: Buffer;
+  readonly stats: BigIntStats;
+};
+type PathMutationReaperAcquisition =
+  | { readonly kind: "held"; readonly names: readonly string[] }
+  | { readonly kind: "busy" }
+  | { readonly kind: "claim-gone" };
 type PathMutationClaimSnapshot = {
   readonly claim: PathMutationClaim;
   readonly content: Buffer;
@@ -894,10 +919,10 @@ function parsePathMutationClaim(
   return claim;
 }
 
-function readPathMutationClaimSnapshot(
+function readPathMutationLockFile(
   name: string,
-  targetSha256: string,
-): PathMutationClaimSnapshot | null {
+  subject: "path mutation claim" | "path mutation reaper",
+): PathMutationLockFile | null {
   let before: BigIntStats;
   try {
     before = lstatSync(name, { bigint: true });
@@ -911,7 +936,7 @@ function readPathMutationClaimSnapshot(
     || !ownedByCurrentUser(before)
     || (before.mode & 0o077n) !== 0n
     || (before.nlink !== 1n && before.nlink !== 2n)
-  ) throw new Error("path mutation claim is not one private owned file");
+  ) throw new Error(`${subject} is not one private owned file`);
   const content = readBoundLeaf(name, 4 * 1024);
   const after = lstatSync(name, { bigint: true });
   if (
@@ -920,12 +945,232 @@ function readPathMutationClaimSnapshot(
     || before.uid !== after.uid
     || before.gid !== after.gid
     || before.nlink !== after.nlink
-  ) throw new Error("path mutation claim changed while it was read");
+  ) throw new Error(`${subject} changed while it was read`);
+  return { content, stats: after };
+}
+
+function readPathMutationClaimSnapshot(
+  name: string,
+  targetSha256: string,
+): PathMutationClaimSnapshot | null {
+  const file = readPathMutationLockFile(name, "path mutation claim");
+  if (file === null) return null;
   return {
-    claim: parsePathMutationClaim(content, targetSha256),
-    content,
-    stats: after,
+    claim: parsePathMutationClaim(file.content, targetSha256),
+    content: file.content,
+    stats: file.stats,
   };
+}
+
+/**
+ * Names one published lock file for its whole life. Link, stage cleanup, and
+ * directory sync change ctime and nlink, so neither belongs in the name.
+ */
+function pathMutationLockFileFingerprint(
+  domain: string,
+  prefix: string,
+  file: PathMutationLockFile,
+): string {
+  return createHash("sha256")
+    .update(domain, "utf8")
+    .update("\0", "utf8")
+    .update(prefix, "utf8")
+    .update("\0", "utf8")
+    .update(file.stats.dev.toString(), "utf8")
+    .update("\0", "utf8")
+    .update(file.stats.ino.toString(), "utf8")
+    .update("\0", "utf8")
+    .update(file.content)
+    .digest("hex");
+}
+
+function pathMutationClaimFingerprint(snapshot: PathMutationClaimSnapshot): string {
+  return pathMutationLockFileFingerprint(
+    "io-path-mutation-claim",
+    snapshot.claim.targetSha256,
+    snapshot,
+  );
+}
+
+function pathMutationReaperName(targetSha256: string, key: string): string {
+  return `.io-path-mutation-reaper-${targetSha256}-${key}.lock`;
+}
+
+function renderPathMutationReaper(reaper: PathMutationReaper): string {
+  return `${JSON.stringify(reaper)}\n`;
+}
+
+function parsePathMutationReaper(
+  content: Buffer,
+  targetSha256: string,
+  claimFingerprint: string,
+  generation: number,
+): PathMutationReaper {
+  let value: unknown;
+  try {
+    value = JSON.parse(new TextDecoder("utf-8", {
+      fatal: true,
+      ignoreBOM: true,
+    }).decode(content)) as unknown;
+  } catch (error) {
+    throw new Error("path mutation reaper is not canonical JSON", { cause: error });
+  }
+  if (
+    !isRecord(value)
+    || !exactKeys(value, [
+      "kind",
+      "schemaVersion",
+      "targetSha256",
+      "claimFingerprint",
+      "generation",
+      "pid",
+      "reaperId",
+    ])
+    || value.kind !== "io-path-mutation-reaper"
+    || value.schemaVersion !== 1
+    || value.targetSha256 !== targetSha256
+    || value.claimFingerprint !== claimFingerprint
+    || value.generation !== generation
+    || typeof value.pid !== "number"
+    || !Number.isSafeInteger(value.pid)
+    || value.pid < 1
+    || value.pid > 2_147_483_647
+    || typeof value.reaperId !== "string"
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
+      .test(value.reaperId)
+  ) throw new Error("path mutation reaper is invalid");
+  const reaper: PathMutationReaper = {
+    kind: "io-path-mutation-reaper",
+    schemaVersion: 1,
+    targetSha256,
+    claimFingerprint,
+    generation,
+    pid: value.pid,
+    reaperId: value.reaperId,
+  };
+  if (renderPathMutationReaper(reaper) !== content.toString("utf8")) {
+    throw new Error("path mutation reaper is not canonical JSON");
+  }
+  return reaper;
+}
+
+/**
+ * Publishes complete private content at `name` only if the name is free, and
+ * returns false, leaving no stage behind, when another file already holds it.
+ */
+function publishPathMutationLockFile(
+  name: string,
+  content: string,
+  targetSha256: string,
+): boolean {
+  const stage =
+    `.io-path-mutation-stage-${targetSha256}-${process.pid}-${crypto.randomUUID()}.tmp`;
+  let descriptor: number | null = null;
+  let stageExists = false;
+  try {
+    descriptor = openSync(
+      stage,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL
+        | ("O_NOFOLLOW" in constants ? constants.O_NOFOLLOW : 0),
+      0o600,
+    );
+    stageExists = true;
+    writeFileSync(descriptor, content, "utf8");
+    fchmodSync(descriptor, 0o600);
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = null;
+    let published = true;
+    try {
+      linkSync(stage, name);
+    } catch (error) {
+      if (!hasCode(error, "EEXIST")) throw error;
+      published = false;
+    }
+    unlinkSync(stage);
+    stageExists = false;
+    syncDirectory(".");
+    return published;
+  } finally {
+    if (descriptor !== null) closeSync(descriptor);
+    if (stageExists) {
+      try {
+        unlinkSync(stage);
+        syncDirectory(".");
+      } catch {
+        // A dead helper's private stage is recoverable by the next writer.
+      }
+    }
+  }
+}
+
+/**
+ * Elects the single live reaper for one exact dead claim.
+ *
+ * Generation 0 is named by the claim fingerprint, so every process that saw
+ * the same dead claim contends for the same no-clobber name. A dead reaper is
+ * never removed while its claim holds the lock name; its successor is named by
+ * the dead reaper's own fingerprint, so every process that saw that reaper
+ * contends for the next name instead. Reaper files are removed, by their
+ * holder or by the residue sweep, only after the claim has left the lock name,
+ * which is permanent because a claim's fingerprint never recurs.
+ */
+function acquirePathMutationReaper(
+  targetSha256: string,
+  claimFingerprint: string,
+  requestId: string,
+): PathMutationReaperAcquisition {
+  const names: string[] = [];
+  let key = claimFingerprint;
+  for (
+    let generation = 0;
+    generation < PATH_MUTATION_REAPER_GENERATION_MAXIMUM;
+    generation += 1
+  ) {
+    const name = pathMutationReaperName(targetSha256, key);
+    pausePathMutationStepForTest("reaper-link", requestId);
+    if (publishPathMutationLockFile(name, renderPathMutationReaper({
+      kind: "io-path-mutation-reaper",
+      schemaVersion: 1,
+      targetSha256,
+      claimFingerprint,
+      generation,
+      pid: process.pid,
+      reaperId: crypto.randomUUID(),
+    }), targetSha256)) {
+      names.push(name);
+      return { kind: "held", names };
+    }
+    const existing = readPathMutationLockFile(name, "path mutation reaper");
+    // Reapers are removed only after their claim left the lock name.
+    if (existing === null) return { kind: "claim-gone" };
+    const reaper = parsePathMutationReaper(
+      existing.content,
+      targetSha256,
+      claimFingerprint,
+      generation,
+    );
+    if (!processIsDefinitelyMissing(reaper.pid)) return { kind: "busy" };
+    names.push(name);
+    key = pathMutationLockFileFingerprint(
+      "io-path-mutation-reaper-successor",
+      key,
+      existing,
+    );
+  }
+  throw new Error("path mutation claim recovery exceeds its reaper generation bound");
+}
+
+/** Call only after the reaped claim has left the lock name. */
+function releasePathMutationReapers(names: readonly string[]): void {
+  for (const name of names) {
+    try {
+      unlinkSync(name);
+    } catch (error) {
+      if (!hasCode(error, "ENOENT")) throw error;
+    }
+  }
+  syncDirectory(".");
 }
 
 function samePathMutationClaimSnapshot(
@@ -940,31 +1185,83 @@ function samePathMutationClaimSnapshot(
     && left.stats.nlink === right.stats.nlink;
 }
 
-function recoverDefinitelyOrphanedPathMutationStages(): void {
+/**
+ * A dead reaper is residue only once its claim has left the lock name. The
+ * claim held that name before its first reaper existed, and a departed claim
+ * never returns, so the reaper is read before the lock. A dead reaper whose
+ * claim is still present stays: it names the successor election.
+ */
+function pathMutationReaperIsResidue(name: string, targetSha256: string): boolean {
+  try {
+    const file = readPathMutationLockFile(name, "path mutation reaper");
+    if (file === null) return false;
+    const value = JSON.parse(file.content.toString("utf8")) as unknown;
+    if (
+      !isRecord(value)
+      || typeof value.claimFingerprint !== "string"
+      || !/^[a-f0-9]{64}$/u.test(value.claimFingerprint)
+      || typeof value.generation !== "number"
+      || !Number.isSafeInteger(value.generation)
+      || value.generation < 0
+      || value.generation >= PATH_MUTATION_REAPER_GENERATION_MAXIMUM
+    ) return false;
+    const reaper = parsePathMutationReaper(
+      file.content,
+      targetSha256,
+      value.claimFingerprint,
+      value.generation,
+    );
+    if (!processIsDefinitelyMissing(reaper.pid)) return false;
+    const lock = readPathMutationLockFile(
+      pathMutationLockName(targetSha256),
+      "path mutation claim",
+    );
+    return lock === null || pathMutationLockFileFingerprint(
+      "io-path-mutation-claim",
+      targetSha256,
+      lock,
+    ) !== reaper.claimFingerprint;
+  } catch {
+    // Unrecognized or unreadable files are never swept.
+    return false;
+  }
+}
+
+/**
+ * Removes path-mutation residue left by helpers that died mid-protocol:
+ * stage, recovery-quarantine, and release temporaries whose creator is
+ * definitely gone, and dead reapers whose claim has left the lock name.
+ */
+function recoverDefinitelyOrphanedPathMutationResidue(): void {
   let removed = false;
   for (const name of readdirSync(".")) {
-    const pidText = pathMutationStageNamePattern.exec(name)?.[2];
-    if (pidText === undefined) continue;
-    const pid = Number(pidText);
-    if (
-      !Number.isSafeInteger(pid)
-      || pid < 1
-      || pid > 2_147_483_647
-      || !processIsDefinitelyMissing(pid)
-    ) continue;
-    let stats: BigIntStats;
-    try {
-      stats = lstatSync(name, { bigint: true });
-    } catch (error) {
-      if (hasCode(error, "ENOENT")) continue;
-      throw error;
+    const reaperTarget = pathMutationReaperNamePattern.exec(name)?.[1];
+    if (reaperTarget !== undefined) {
+      if (!pathMutationReaperIsResidue(name, reaperTarget)) continue;
+    } else {
+      const pidText = pathMutationTemporaryNamePattern.exec(name)?.[2];
+      if (pidText === undefined) continue;
+      const pid = Number(pidText);
+      if (
+        !Number.isSafeInteger(pid)
+        || pid < 1
+        || pid > 2_147_483_647
+        || !processIsDefinitelyMissing(pid)
+      ) continue;
+      let stats: BigIntStats;
+      try {
+        stats = lstatSync(name, { bigint: true });
+      } catch (error) {
+        if (hasCode(error, "ENOENT")) continue;
+        throw error;
+      }
+      if (
+        stats.isSymbolicLink()
+        || !stats.isFile()
+        || !ownedByCurrentUser(stats)
+        || (stats.mode & 0o077n) !== 0n
+      ) continue;
     }
-    if (
-      stats.isSymbolicLink()
-      || !stats.isFile()
-      || !ownedByCurrentUser(stats)
-      || (stats.mode & 0o077n) !== 0n
-    ) continue;
     try {
       unlinkSync(name);
       removed = true;
@@ -978,6 +1275,7 @@ function recoverDefinitelyOrphanedPathMutationStages(): void {
 function recoverDefinitelyOrphanedPathMutationClaim(
   lockName: string,
   targetSha256: string,
+  requestId: string,
 ): boolean {
   const first = readPathMutationClaimSnapshot(lockName, targetSha256);
   if (first === null) return true;
@@ -988,30 +1286,63 @@ function recoverDefinitelyOrphanedPathMutationClaim(
     !samePathMutationClaimSnapshot(first, second)
     || !processIsDefinitelyMissing(second.claim.pid)
   ) return false;
+  // A rename moves whatever holds the lock name. Without an elected reaper, a
+  // slower process that also saw this dead claim could move a fresh live
+  // claim instead, and a third writer would then claim beside its owner.
+  const claimFingerprint = pathMutationClaimFingerprint(second);
+  const reaper = acquirePathMutationReaper(targetSha256, claimFingerprint, requestId);
+  if (reaper.kind === "busy") return false;
+  if (reaper.kind === "claim-gone") return true;
+  const current = readPathMutationClaimSnapshot(lockName, targetSha256);
+  if (current === null || pathMutationClaimFingerprint(current) !== claimFingerprint) {
+    releasePathMutationReapers(reaper.names);
+    return current === null;
+  }
+  // Only this process may now move the dead claim, so the rename below moves
+  // exactly `current`. The identity check and restore remain as a fail-closed
+  // guard against a helper that does not follow this protocol.
+  pausePathMutationStepForTest("claim-quarantine", requestId);
   const quarantine =
     `.io-path-mutation-recovery-${targetSha256}-${process.pid}-${crypto.randomUUID()}.tmp`;
   try {
     renameSync(lockName, quarantine);
   } catch (error) {
-    if (hasCode(error, "ENOENT")) return true;
-    throw error;
+    if (!hasCode(error, "ENOENT")) throw error;
+    releasePathMutationReapers(reaper.names);
+    return true;
   }
   const moved = lstatSync(quarantine, { bigint: true });
-  if (!sameIdentity(identity(moved), identity(second.stats))) {
+  if (!sameIdentity(identity(moved), identity(current.stats))) {
+    restoreDisplacedPathMutationClaim(quarantine, lockName);
     throw new Error("path mutation claim changed while it was quarantined");
   }
   unlinkSync(quarantine);
   syncDirectory(".");
-  recoverDefinitelyOrphanedPathMutationStages();
+  releasePathMutationReapers(reaper.names);
+  recoverDefinitelyOrphanedPathMutationResidue();
   return true;
 }
 
-function pauseAfterPathMutationClaimForTest(
-  targetSha256: string,
-  requestId: string,
+function restoreDisplacedPathMutationClaim(quarantine: string, lockName: string): void {
+  try {
+    // A rename back would overwrite a claim published after the move.
+    linkSync(quarantine, lockName);
+  } catch {
+    return;
+  }
+  try {
+    unlinkSync(quarantine);
+    syncDirectory(".");
+  } catch {
+    // Both names still identify the displaced claim; keep the extra name.
+  }
+}
+
+function awaitPathMutationTestRelease(
+  prefix: string,
+  pollMilliseconds: number,
+  durable: boolean,
 ): void {
-  if (pathMutationFaultForTest !== "pause-after-claim") return;
-  const prefix = `.wrench-test-path-mutation-${targetSha256}-${requestId}`;
   const readyName = `${prefix}-ready`;
   const releaseName = `${prefix}-release`;
   const descriptor = openSync(
@@ -1025,7 +1356,7 @@ function pauseAfterPathMutationClaimForTest(
   } finally {
     closeSync(descriptor);
   }
-  syncDirectory(".");
+  if (durable) syncDirectory(".");
   const deadline = Date.now() + 60_000;
   for (;;) {
     try {
@@ -1043,11 +1374,44 @@ function pauseAfterPathMutationClaimForTest(
     if (Date.now() >= deadline) {
       throw new Error("path mutation overlap test timed out");
     }
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, pollMilliseconds);
   }
   unlinkSync(readyName);
   unlinkSync(releaseName);
-  syncDirectory(".");
+  if (durable) syncDirectory(".");
+}
+
+function pauseAfterPathMutationClaimForTest(
+  targetSha256: string,
+  requestId: string,
+): void {
+  if (pathMutationFaultForTest !== "pause-after-claim") return;
+  awaitPathMutationTestRelease(
+    `.wrench-test-path-mutation-${targetSha256}-${requestId}`,
+    10,
+    true,
+  );
+}
+
+/**
+ * Lets a test scheduler interleave helper processes at each claim-protocol
+ * step. `claim-held` and `claim-release` are inside the critical section.
+ */
+function pausePathMutationStepForTest(
+  point:
+    | "claim-link"
+    | "reaper-link"
+    | "claim-quarantine"
+    | "claim-held"
+    | "claim-release",
+  requestId: string,
+): void {
+  if (pathMutationFaultForTest !== "pause-at-every-step") return;
+  awaitPathMutationTestRelease(
+    `.wrench-test-path-mutation-step-${requestId}-${point}`,
+    1,
+    false,
+  );
 }
 
 function acquirePathMutationClaim(
@@ -1056,7 +1420,7 @@ function acquirePathMutationClaim(
 ): (() => void) | null {
   const targetSha256 = pathMutationTargetSha256(leaf);
   const lockName = pathMutationLockName(targetSha256);
-  recoverDefinitelyOrphanedPathMutationStages();
+  recoverDefinitelyOrphanedPathMutationResidue();
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const claim: PathMutationClaim = {
       kind: "io-path-mutation-claim",
@@ -1065,67 +1429,41 @@ function acquirePathMutationClaim(
       requestId,
       pid: process.pid,
     };
-    const stage =
-      `.io-path-mutation-stage-${targetSha256}-${process.pid}-${crypto.randomUUID()}.tmp`;
-    let descriptor: number | null = null;
-    let stageExists = false;
-    try {
-      descriptor = openSync(
-        stage,
-        constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL
-          | ("O_NOFOLLOW" in constants ? constants.O_NOFOLLOW : 0),
-        0o600,
-      );
-      stageExists = true;
-      writeFileSync(descriptor, renderPathMutationClaim(claim), "utf8");
-      fchmodSync(descriptor, 0o600);
-      fsyncSync(descriptor);
-      closeSync(descriptor);
-      descriptor = null;
-      try {
-        linkSync(stage, lockName);
-      } catch (error) {
-        if (!hasCode(error, "EEXIST")) throw error;
-        unlinkSync(stage);
-        stageExists = false;
-        syncDirectory(".");
-        if (recoverDefinitelyOrphanedPathMutationClaim(lockName, targetSha256)) {
-          continue;
-        }
-        return null;
+    pausePathMutationStepForTest("claim-link", requestId);
+    if (!publishPathMutationLockFile(
+      lockName,
+      renderPathMutationClaim(claim),
+      targetSha256,
+    )) {
+      if (recoverDefinitelyOrphanedPathMutationClaim(
+        lockName,
+        targetSha256,
+        requestId,
+      )) {
+        continue;
       }
-      unlinkSync(stage);
-      stageExists = false;
-      syncDirectory(".");
-      pauseAfterPathMutationClaimForTest(targetSha256, requestId);
-      return () => {
-        const held = readPathMutationClaimSnapshot(lockName, targetSha256);
-        if (
-          held === null
-          || held.claim.pid !== process.pid
-          || held.claim.requestId !== requestId
-        ) throw new Error("path mutation claim changed before release");
-        const releaseName =
-          `.io-path-mutation-release-${targetSha256}-${process.pid}-${crypto.randomUUID()}.tmp`;
-        renameSync(lockName, releaseName);
-        const moved = lstatSync(releaseName, { bigint: true });
-        if (!sameIdentity(identity(moved), identity(held.stats))) {
-          throw new Error("path mutation claim changed while it was released");
-        }
-        unlinkSync(releaseName);
-        syncDirectory(".");
-      };
-    } finally {
-      if (descriptor !== null) closeSync(descriptor);
-      if (stageExists) {
-        try {
-          unlinkSync(stage);
-          syncDirectory(".");
-        } catch {
-          // A dead helper's private stage is recoverable by the next writer.
-        }
-      }
+      return null;
     }
+    pauseAfterPathMutationClaimForTest(targetSha256, requestId);
+    pausePathMutationStepForTest("claim-held", requestId);
+    return () => {
+      pausePathMutationStepForTest("claim-release", requestId);
+      const held = readPathMutationClaimSnapshot(lockName, targetSha256);
+      if (
+        held === null
+        || held.claim.pid !== process.pid
+        || held.claim.requestId !== requestId
+      ) throw new Error("path mutation claim changed before release");
+      const releaseName =
+        `.io-path-mutation-release-${targetSha256}-${process.pid}-${crypto.randomUUID()}.tmp`;
+      renameSync(lockName, releaseName);
+      const moved = lstatSync(releaseName, { bigint: true });
+      if (!sameIdentity(identity(moved), identity(held.stats))) {
+        throw new Error("path mutation claim changed while it was released");
+      }
+      unlinkSync(releaseName);
+      syncDirectory(".");
+    };
   }
   return null;
 }
