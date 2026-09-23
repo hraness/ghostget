@@ -4,7 +4,7 @@ import type { ApprovalTarget } from "./control/protocol";
 import { ConfirmedWritePlatform, makeConfirmedWritePlatform } from "./confirmed-write-platform";
 import { confirmedWriteProgram } from "./confirmed-write-program";
 import { runConfirmedWrite } from "./confirmed-write-runtime";
-import { GENERIC_EXECUTOR_TERMINATION, type LedgerEntry, type LedgerSnapshot, type BoundedExecution, type RunPreparedOptions } from "./confirmed-write-model";
+import { GENERIC_EXECUTOR_TERMINATION, type ConfirmedWriteIntent, type LedgerEntry, type LedgerSnapshot, type BoundedExecution, type RunPreparedOptions } from "./confirmed-write-model";
 import { withReadCleanupAdmission, withPortableReadAdmission } from "./read-admission-runtime";
 import { runWebSessionReadWithDeadline } from "./web-session-read-runtime";
 import { runReadInvocation } from "./invocation-read-runtime";
@@ -3082,6 +3082,29 @@ function ledgerPath(
   return join(ghostgetStateHome(environment), "idempotency", bucket.slice(0, 2), `${bucket}.json`);
 }
 
+const CONFIRMED_WRITE_INTENT_DOMAIN = "ghostget-confirmed-write-intent-v1";
+
+/**
+ * One intent is one account realm (auth locator), provider target (adapter
+ * ID), operation, and canonical input, narrowed to one duplicate-risk
+ * successor when present. The key excludes adapter and auth hashes: a
+ * manifest revision or a reconnect rewrites those bytes, not the effect.
+ */
+function intentLedgerPath(
+  adapterId: string,
+  authId: string,
+  operationId: string,
+  inputHash: string,
+  environment: Readonly<Record<string, string | undefined>>,
+  duplicateIntentHash?: string,
+): string {
+  const key = sha256([
+    CONFIRMED_WRITE_INTENT_DOMAIN, adapterId, authId, operationId, inputHash,
+    ...(duplicateIntentHash === undefined ? [] : ["duplicate-intent-v1", duplicateIntentHash]),
+  ].join("\0"));
+  return join(ghostgetStateHome(environment), "idempotency", "intents", key.slice(0, 2), `${key}.json`);
+}
+
 function parseLedger(value: unknown): LedgerEntry {
   if (!isRecord(value)) {
     throw new Error("idempotency ledger is malformed");
@@ -3218,6 +3241,80 @@ function acquireLedger(
     candidatePath = join(dirname(path), `${stem}.${sha256(existing.runId)}.json`);
   }
   throw new Error("idempotency ledger exceeded its bounded generation history");
+}
+
+function journalFencesIntent(
+  journal: RunJournal,
+  intent: ConfirmedWriteIntent,
+  now: Date,
+): "unsettled" | "fulfilled" | null {
+  if (
+    journal.adapter.id !== intent.adapterId
+    || journal.auth.id !== intent.authId
+    || journal.operation !== intent.operationId
+    || !intent.inputHashes.includes(journal.inputHash)
+    || journal.duplicateIntent?.intentHash !== intent.duplicateIntentHash
+  ) return null;
+  if (journal.ledgerState === "unclaimed" || journal.ledgerState === "released") return null;
+  if (journal.ledgerState !== "succeeded") return "unsettled";
+  return journal.duplicateIntent !== undefined || Date.parse(journal.dedupeExpiresAt) >= now.getTime()
+    ? "fulfilled"
+    : null;
+}
+
+/**
+ * Check and claim the intent fence before the hash-keyed ledger. Journals
+ * recorded before this fence existed have no intent ledger, so every
+ * unsettled or still-fulfilled journal for the same intent blocks first,
+ * whatever adapter or auth hash it used. The claim itself is one exclusive
+ * create through the same bounded generation rule as the hash-keyed ledger.
+ */
+function acquireIntentLedger(
+  intent: ConfirmedWriteIntent,
+  entry: LedgerEntry,
+  environment: Readonly<Record<string, string | undefined>>,
+  now: Date,
+):
+  | { readonly acquired: true; readonly snapshot: LedgerSnapshot }
+  | { readonly acquired: false; readonly existing: LedgerEntry; readonly viaIntent: true } {
+  if (!intent.inputHashes.includes(entry.inputHash)) {
+    throw new Error("confirmed-write intent does not bind its ledger input");
+  }
+  let fulfilled: RunJournal | null = null;
+  for (const candidate of listRunJournalSnapshots(environment)) {
+    if ("invalid" in candidate) {
+      throw new Error("invalid run journals make the confirmed-write intent unresolved");
+    }
+    if (candidate.journal.runId === entry.runId) continue;
+    const fence = journalFencesIntent(candidate.journal, intent, now);
+    if (fence === "unsettled") {
+      return { acquired: false, existing: runJournalLedgerEntry(candidate.journal), viaIntent: true };
+    }
+    if (
+      fence === "fulfilled"
+      && (fulfilled === null || Date.parse(candidate.journal.dedupeExpiresAt) > Date.parse(fulfilled.dedupeExpiresAt))
+    ) fulfilled = candidate.journal;
+  }
+  if (fulfilled !== null) {
+    return { acquired: false, existing: runJournalLedgerEntry(fulfilled), viaIntent: true };
+  }
+  const claimed = acquireLedger(
+    intentLedgerPath(intent.adapterId, intent.authId, intent.operationId, entry.inputHash, environment, intent.duplicateIntentHash),
+    entry,
+    environment,
+    now,
+  );
+  if (claimed.acquired) return claimed;
+  const existing = claimed.existing;
+  if (
+    existing.schemaVersion !== entry.schemaVersion
+    || existing.keyHash !== entry.keyHash
+    || existing.inputHash !== entry.inputHash
+    || existing.duplicateIntentHash !== entry.duplicateIntentHash
+  ) {
+    throw new Error("idempotency intent ledger belongs to a different intent");
+  }
+  return { acquired: false, existing, viaIntent: true };
 }
 
 function updateLedger(
@@ -3562,6 +3659,62 @@ function matchingJournalLedgers(
   return Object.freeze(snapshots);
 }
 
+/** Follow only immutable fulfilled generations, exactly as a claimant would. */
+function journalIntentLedger(
+  journal: RunJournal,
+  environment: Readonly<Record<string, string | undefined>>,
+): LedgerSnapshot | null {
+  const base = intentLedgerPath(
+    journal.adapter.id,
+    journal.auth.id,
+    journal.operation,
+    journal.inputHash,
+    environment,
+    journal.duplicateIntent?.intentHash,
+  );
+  const stem = basename(base, ".json");
+  let path = base;
+  for (let generation = 0; generation < 10_000; generation += 1) {
+    let snapshot: LedgerSnapshot | null;
+    try {
+      snapshot = readLedgerSnapshot(path, environment);
+    } catch {
+      // An invalid ledger is preserved for inspection and still blocks reuse.
+      return null;
+    }
+    if (snapshot === null) return null;
+    if (ledgerBelongsToJournal(snapshot.entry, journal)) return snapshot;
+    if (snapshot.entry.schemaVersion === 3 || snapshot.entry.status !== "succeeded") return null;
+    path = join(dirname(base), `${stem}.${sha256(snapshot.entry.runId)}.json`);
+  }
+  throw new Error("idempotency intent ledger exceeded its bounded generation history");
+}
+
+/**
+ * Keep this run's intent claim in step with its terminal journal. Journals
+ * from before the intent fence have no claim here and stay fenced by the
+ * journal scan in acquireIntentLedger, so projection never creates one.
+ */
+function projectRunJournalIntent(
+  journal: RunJournal,
+  environment: Readonly<Record<string, string | undefined>>,
+): void {
+  const current = journalIntentLedger(journal, environment);
+  if (current === null) return;
+  if (journal.ledgerState === "released") {
+    removeLedger(current, environment);
+    return;
+  }
+  const desired = runJournalLedgerEntry(journal);
+  if (canonicalJson(current.entry) === canonicalJson(desired)) return;
+  try {
+    updateLedger(current, desired);
+  } catch (error) {
+    const raced = journalIntentLedger(journal, environment);
+    if (raced === null || canonicalJson(raced.entry) !== canonicalJson(desired)) throw error;
+  }
+}
+
 function projectRunJournalReceipt(
   journal: RunJournal,
   environment: Readonly<Record<string, string | undefined>>,
@@ -3704,6 +3857,7 @@ function projectRunJournal(
       updateLedger(existing, desired);
     }
   }
+  projectRunJournalIntent(journal, environment);
   if (journal.recoveryState === "released") {
     removeProviderAcceptedMutationTargetEvidence(journal.runId, environment);
     removeRecoveryCapsule(journal.runId, environment);
@@ -4757,6 +4911,7 @@ async function confirmInvocationCore(
     isDispatchProgress,
     ledgerPath,
     acquireLedger,
+    acquireIntentLedger,
     writeReceipt,
     runJournalReceipt,
     relativeStatePath,

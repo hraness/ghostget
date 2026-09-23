@@ -88,8 +88,10 @@ function prepareAndExecute(
       // A hit on a pre-migration ledger path already binds the same intent:
       // that path was derived from this input and manifest under the legacy
       // encoding, so its stored digests differ from the current ones only by
-      // canonical ordering.
-      if (!acquired.viaAlternatePath && (acquired.existing.inputHash !== state.inputHash || acquired.existing.adapterHash !== state.adapter.hash || acquired.existing.authHash !== state.auth.hash)) {
+      // canonical ordering. An intent-fence hit binds the same account realm,
+      // provider target, operation, and input under possibly older adapter or
+      // auth bytes.
+      if (!acquired.viaAlternatePath && !acquired.viaIntent && (acquired.existing.inputHash !== state.inputHash || acquired.existing.adapterHash !== state.adapter.hash || acquired.existing.authHash !== state.auth.hash)) {
         return yield* refuse("journal", "idempotency key was already used in a different action scope");
       }
       if (acquired.existing.status === "succeeded") return {
