@@ -29,9 +29,29 @@ operation, and canonical input, narrowed to an elected duplicate-risk
 successor. The fence ignores adapter and auth hashes because a reconnect or a
 manifest revision rewrites those bytes without changing the effect. While an
 earlier run of the same intent is unsettled, confirmation refuses; while a
-succeeded run is inside its dedupe window, confirmation replays its receipt.
+succeeded run is inside its dedupe window, confirmation replays its receipt
+when it ran under the current auth record and refuses otherwise.
 The fence scans run journals before its exclusive create under
 `idempotency/intents`, so a run recorded before the fence existed still blocks.
+
+The realm is the locator ID, not the provider account, because the verified
+subject is optional and journals do not record it. Three limits follow:
+
+- The same account connected under a second locator ID is a different intent
+  and is not fenced against the first locator's runs.
+- A fulfilled run whose auth record differs from the current one (a reconnect
+  with new settings, or `--force` onto another account) is not replayed as the
+  current account's result. Confirmation refuses until the dedupe window ends
+  or the locator is reconnected with the settings that run used.
+- Reconciliation and duplicate-successor election still require the unsettled
+  run's exact auth record. After a reconnect with new settings, the refusal
+  says to reconnect with the settings that run used before reconciling; auth
+  records carry no timestamps, so the same settings restore the same bytes.
+
+A repair pass remembers each intent's generation chain, so projecting every
+terminal journal reads each generation once. The chain never resets on a
+reconnect or a manifest revision, so one intent holds at most the same 10,000
+fulfilled generations as a hash-keyed ledger.
 
 ## Synchronous dispatch evidence
 

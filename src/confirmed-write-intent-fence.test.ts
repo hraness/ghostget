@@ -83,14 +83,18 @@ function installAdapter(testState: FenceState, revision: number): void {
   });
 }
 
-/** Connect or reconnect the same account; each generation has new record bytes. */
-function connectAccount(testState: FenceState, generation: number): void {
+/**
+ * Connect or reconnect the same account; each generation has new record
+ * bytes, and reconnecting with an earlier generation's settings restores
+ * that generation's exact record.
+ */
+function connectAccount(testState: FenceState, generation: number, force = generation !== 0): void {
   saveAuth(createAuth(ACCOUNT, {
     oauthProvider: "x",
     tokenFile: join(testState.directory, `x-token-${generation}.json`),
     scopes: ["tweet.read", "tweet.write", "users.read"],
     subject: "12345",
-  }), testState.environment, generation === 0 ? {} : { force: true });
+  }), testState.environment, force ? { force: true } : {});
 }
 
 function install(testState: FenceState): void {
@@ -319,7 +323,7 @@ type Step =
 type IntentModel = {
   unsettled: string | null;
   applied: string | null;
-  fulfilled: { readonly runId: string; readonly until: number } | null;
+  fulfilled: { readonly runId: string; readonly until: number; readonly authGeneration: number } | null;
 };
 
 type Schedule = {
@@ -357,13 +361,17 @@ const scheduleStep = fc.oneof(
   { weight: 2, arbitrary: dispatchStep },
 );
 
-function expectedFence(model: IntentModel, at: Date):
-  | { readonly kind: "refused" | "replayed"; readonly runId: string }
+function expectedFence(model: IntentModel, at: Date, authGeneration: number):
+  | { readonly kind: "refused" | "replayed" | "withheld"; readonly runId: string }
   | null {
   const unsettled = model.unsettled ?? model.applied;
   if (unsettled !== null) return { kind: "refused", runId: unsettled };
   if (model.fulfilled !== null && at.getTime() <= model.fulfilled.until) {
-    return { kind: "replayed", runId: model.fulfilled.runId };
+    // Another auth record may be another account, so its receipt is withheld.
+    return {
+      kind: model.fulfilled.authGeneration === authGeneration ? "replayed" : "withheld",
+      runId: model.fulfilled.runId,
+    };
   }
   return null;
 }
@@ -402,7 +410,7 @@ async function runScheduleStep(schedule: Schedule, step: Step): Promise<void> {
     }
     case "confirm":
     case "crash": {
-      const fence = expectedFence(schedule.model, schedule.clock);
+      const fence = expectedFence(schedule.model, schedule.clock, schedule.authGeneration);
       const before = schedule.probe.crossings;
       let settled: Settled | undefined;
       let crashed: Crash | null = null;
@@ -419,6 +427,8 @@ async function runScheduleStep(schedule: Schedule, step: Step): Promise<void> {
         if (settled === undefined) throw new Error("a fenced confirmation reached the provider executor");
         if (fence.kind === "refused") {
           expect(refusal(settled)).toContain(`a prior attempt (${fence.runId}) may have reached the provider`);
+        } else if (fence.kind === "withheld") {
+          expect(refusal(settled)).toContain(`a prior run (${fence.runId}) already fulfilled this intent under a different auth record`);
         } else {
           const replay = requireResult(settled);
           expect(replay.replayed).toBeTrue();
@@ -440,6 +450,7 @@ async function runScheduleStep(schedule: Schedule, step: Step): Promise<void> {
         schedule.model.fulfilled = {
           runId: result.receipt.runId,
           until: schedule.clock.getTime() + DEDUPE_WINDOW_MS,
+          authGeneration: schedule.authGeneration,
         };
       } else if (step.outcome === "indeterminate") {
         schedule.model.unsettled = result.receipt.runId;
@@ -459,10 +470,19 @@ describe("intent-level confirmed-write fence", () => {
       expect(first.receipt).toMatchObject({ status: "indeterminate", dispatchStarted: true });
 
       connectAccount(testState, 1);
-      const retry = await confirm(testState, "succeeded", probe);
+      const retry = refusal(await confirm(testState, "succeeded", probe));
 
       expect(probe.crossings).toBe(1);
-      expect(refusal(retry)).toContain(`a prior attempt (${first.receipt.runId}) may have reached the provider`);
+      expect(retry).toContain(`a prior attempt (${first.receipt.runId}) may have reached the provider`);
+      // Reconciliation needs the run's exact auth record, so the refusal says
+      // how to restore it instead of pointing only at a reconcile that fails.
+      expect(retry).toContain(`reconnect '${ACCOUNT}' with the settings that run used first`);
+
+      connectAccount(testState, 0, true);
+      const restored = refusal(await confirm(testState, "succeeded", probe));
+      expect(probe.crossings).toBe(1);
+      expect(restored).toContain("reconcile it before retrying");
+      expect(restored).not.toContain("with the settings that run used");
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }
@@ -486,7 +506,7 @@ describe("intent-level confirmed-write fence", () => {
     }
   });
 
-  test("replays a fulfilled intent inside its window after a reconnect and a manifest revision", async () => {
+  test("replays a fulfilled intent inside its window after a manifest revision", async () => {
     const testState = fenceState();
     try {
       install(testState);
@@ -494,10 +514,36 @@ describe("intent-level confirmed-write fence", () => {
       const first = requireResult(await confirm(testState, "succeeded", probe));
       expect(first.receipt.status).toBe("submitted");
 
-      connectAccount(testState, 1);
       installAdapter(testState, 1);
       const replay = requireResult(await confirm(testState, "succeeded", probe));
 
+      expect(probe.crossings).toBe(1);
+      expect(replay.replayed).toBeTrue();
+      expect(replay.receipt.runId).toBe(first.receipt.runId);
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  // `auth add --force` can point the same locator at another account, and a
+  // journal records no subject to tell the two apart. The fence still holds,
+  // but the other record's receipt must not read as this account's success.
+  test("a fulfilled intent under another auth record refuses without dispatching or replaying", async () => {
+    const testState = fenceState();
+    try {
+      install(testState);
+      const probe: Probe = { crossings: 0 };
+      const first = requireResult(await confirm(testState, "succeeded", probe));
+
+      connectAccount(testState, 1);
+      installAdapter(testState, 1);
+      const withheld = refusal(await confirm(testState, "succeeded", probe));
+      expect(probe.crossings).toBe(1);
+      expect(withheld).toContain(`a prior run (${first.receipt.runId}) already fulfilled this intent under a different auth record for locator '${ACCOUNT}'`);
+      expect(withheld).toContain("retry after its dedupe window ends");
+
+      connectAccount(testState, 0, true);
+      const replay = requireResult(await confirm(testState, "succeeded", probe));
       expect(probe.crossings).toBe(1);
       expect(replay.replayed).toBeTrue();
       expect(replay.receipt.runId).toBe(first.receipt.runId);
@@ -549,6 +595,72 @@ describe("intent-level confirmed-write fence", () => {
     }
   });
 
+  test("a crash, repair, expired window, and reconnect still leave the intent fenced", async () => {
+    const testState = fenceState();
+    const crashes: Crash[] = [];
+    try {
+      install(testState);
+      const probe: Probe = { crossings: 0 };
+      const started = new Date();
+      const crashed = await crashConfirm(testState, true, probe, started);
+      if (crashed.crash === null) throw new Error("expected the first confirmation to reach the provider");
+      crashes.push(crashed.crash);
+      expect(repairInterruptedRunJournals(testState.environment, started).issues).toEqual([]);
+
+      const later = new Date(started.getTime() + DEDUPE_WINDOW_MS + 1);
+      connectAccount(testState, 1);
+      const retry = await confirm(testState, "succeeded", probe, later);
+
+      expect(probe.crossings).toBe(1);
+      expect(refusal(retry)).toContain(`a prior attempt (${crashed.crash.runId}) may have reached the provider`);
+    } finally {
+      await releaseCrashes(crashes);
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("one repair pass projects every generation of a repeatedly fulfilled intent", async () => {
+    const testState = fenceState();
+    const crashes: Crash[] = [];
+    try {
+      install(testState);
+      const probe: Probe = { crossings: 0 };
+      const start = Date.now();
+      const at = (generation: number) => new Date(start + generation * (DEDUPE_WINDOW_MS + 1));
+      const fulfilled: string[] = [];
+      for (let generation = 0; generation < 3; generation += 1) {
+        const result = requireResult(await confirm(testState, "succeeded", probe, at(generation)));
+        expect(result.replayed).toBeFalse();
+        fulfilled.push(result.receipt.runId);
+      }
+      const crashed = await crashConfirm(testState, true, probe, at(3));
+      if (crashed.crash === null) throw new Error("expected the fourth generation to reach the provider");
+      crashes.push(crashed.crash);
+      expect(probe.crossings).toBe(4);
+
+      const report = repairInterruptedRunJournals(testState.environment, at(3));
+      expect(report.issues).toEqual([]);
+      expect(report.repaired).toBe(1);
+
+      const intents = stateFiles(join(testState.directory, "idempotency", "intents")).map((path) =>
+        JSON.parse(readFileSync(path, "utf8")) as { readonly runId: string; readonly status: string });
+      expect(intents.map(({ runId, status }) => `${runId}:${status}`).sort()).toEqual([
+        ...fulfilled.map((runId) => `${runId}:succeeded`),
+        `${crashed.crash.runId}:indeterminate`,
+      ].sort());
+      expect(refusal(await confirm(testState, "succeeded", probe, at(4))))
+        .toContain(`a prior attempt (${crashed.crash.runId}) may have reached the provider`);
+      expect(probe.crossings).toBe(4);
+    } finally {
+      await releaseCrashes(crashes);
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  // This drives the recovery release primitive directly. The provider
+  // reconciler (reconcileWebSessionRun) also requires the run's exact auth
+  // record, so after a reconnect it first needs the original settings back;
+  // the refusal names that step.
   test("a not-applied reconciliation reopens the intent exactly once across a reconnect", async () => {
     const testState = fenceState();
     try {

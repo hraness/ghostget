@@ -3659,10 +3659,23 @@ function matchingJournalLedgers(
   return Object.freeze(snapshots);
 }
 
-/** Follow only immutable fulfilled generations, exactly as a claimant would. */
+/**
+ * One repair pass's memory of each intent chain. A generation's successor
+ * name depends on its predecessor's run ID, so without it every terminal
+ * journal would re-walk its chain from generation 0 and a pass would read
+ * O(n^2) ledgers for an intent fulfilled n times.
+ */
+type IntentChainWalks = Map<string, { readonly paths: Map<string, string>; next: string; generations: number }>;
+
+/**
+ * Follow only immutable fulfilled generations, exactly as a claimant would.
+ * The walk advances only past a generation it read as fulfilled, which never
+ * changes, and rereads the returned generation and the chain head fresh.
+ */
 function journalIntentLedger(
   journal: RunJournal,
   environment: Readonly<Record<string, string | undefined>>,
+  walks?: IntentChainWalks,
 ): LedgerSnapshot | null {
   const base = intentLedgerPath(
     journal.adapter.id,
@@ -3672,22 +3685,38 @@ function journalIntentLedger(
     environment,
     journal.duplicateIntent?.intentHash,
   );
-  const stem = basename(base, ".json");
-  let path = base;
-  for (let generation = 0; generation < 10_000; generation += 1) {
-    let snapshot: LedgerSnapshot | null;
+  const walk = walks?.get(base) ?? { paths: new Map<string, string>(), next: base, generations: 0 };
+  walks?.set(base, walk);
+  const read = (path: string): LedgerSnapshot | null => {
     try {
-      snapshot = readLedgerSnapshot(path, environment);
+      return readLedgerSnapshot(path, environment);
     } catch {
       // An invalid ledger is preserved for inspection and still blocks reuse.
       return null;
     }
-    if (snapshot === null) return null;
-    if (ledgerBelongsToJournal(snapshot.entry, journal)) return snapshot;
-    if (snapshot.entry.schemaVersion === 3 || snapshot.entry.status !== "succeeded") return null;
-    path = join(dirname(base), `${stem}.${sha256(snapshot.entry.runId)}.json`);
+  };
+  const known = walk.paths.get(journal.runId);
+  if (known !== undefined) {
+    const snapshot = read(known);
+    return snapshot !== null && ledgerBelongsToJournal(snapshot.entry, journal) ? snapshot : null;
   }
-  throw new Error("idempotency intent ledger exceeded its bounded generation history");
+  const stem = basename(base, ".json");
+  for (;;) {
+    if (walk.generations >= 10_000) {
+      throw new Error("idempotency intent ledger exceeded its bounded generation history");
+    }
+    const path = walk.next;
+    const snapshot = read(path);
+    if (snapshot === null) return null;
+    walk.paths.set(snapshot.entry.runId, path);
+    const fulfilled = snapshot.entry.schemaVersion !== 3 && snapshot.entry.status === "succeeded";
+    if (fulfilled) {
+      walk.next = join(dirname(base), `${stem}.${sha256(snapshot.entry.runId)}.json`);
+      walk.generations += 1;
+    }
+    if (ledgerBelongsToJournal(snapshot.entry, journal)) return snapshot;
+    if (!fulfilled) return null;
+  }
 }
 
 /**
@@ -3698,8 +3727,9 @@ function journalIntentLedger(
 function projectRunJournalIntent(
   journal: RunJournal,
   environment: Readonly<Record<string, string | undefined>>,
+  walks?: IntentChainWalks,
 ): void {
-  const current = journalIntentLedger(journal, environment);
+  const current = journalIntentLedger(journal, environment, walks);
   if (current === null) return;
   if (journal.ledgerState === "released") {
     removeLedger(current, environment);
@@ -3710,7 +3740,7 @@ function projectRunJournalIntent(
   try {
     updateLedger(current, desired);
   } catch (error) {
-    const raced = journalIntentLedger(journal, environment);
+    const raced = journalIntentLedger(journal, environment, walks);
     if (raced === null || canonicalJson(raced.entry) !== canonicalJson(desired)) throw error;
   }
 }
@@ -3816,6 +3846,7 @@ function planAssetsHaveAnotherOwner(
 function projectRunJournal(
   journal: RunJournal,
   environment: Readonly<Record<string, string | undefined>>,
+  intentWalks?: IntentChainWalks,
 ): void {
   if (journal.phase !== "terminal") {
     throw new Error("only terminal run journals can be projected");
@@ -3857,7 +3888,7 @@ function projectRunJournal(
       updateLedger(existing, desired);
     }
   }
-  projectRunJournalIntent(journal, environment);
+  projectRunJournalIntent(journal, environment, intentWalks);
   if (journal.recoveryState === "released") {
     removeProviderAcceptedMutationTargetEvidence(journal.runId, environment);
     removeRecoveryCapsule(journal.runId, environment);
@@ -4004,6 +4035,7 @@ export function repairInterruptedRunJournals(
   let repaired = 0;
   let projected = 0;
   let invalid = 0;
+  const intentWalks: IntentChainWalks = new Map();
   for (const entry of entries) {
     if ("invalid" in entry) {
       invalid += 1;
@@ -4057,7 +4089,7 @@ export function repairInterruptedRunJournals(
     }
     if (snapshot.journal.phase !== "terminal") continue;
     try {
-      projectRunJournal(snapshot.journal, environment);
+      projectRunJournal(snapshot.journal, environment, intentWalks);
       projected += 1;
     } catch {
       issues.push({

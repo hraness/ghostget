@@ -1441,14 +1441,25 @@
 // 045a8cf8389e54e18c28e7580a9c6c5494d9c6cca38f39bc1e4ece4b4b079e05. Carry
 // the same projections and allowances: 11,971,987 + 12,387 + 4,096 =
 // 11,988,470 packed; 23,343,331 + 353 + 65 = 23,343,749 unpacked.
+// The confirmed-write intent fence adds the intent type, intent ledger
+// claim, run-journal scan, per-pass generation-chain memory, terminal
+// intent projection, and the auth-record refusals to the confirmed-write
+// model, platform, program, and runtime sources: exactly 10,511 payload
+// bytes over the unchanged 596-file 0.18.34 inventory. Two
+// `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin arm64 were
+// byte-identical at 11,975,057 packed bytes, 23,353,842 unpacked bytes;
+// archive SHA-256
+// f514d0deb5fdac7876ed2a44b8ed496e98cbfbd64f8f9bc7534e922ecf3bd922. Carry
+// the same projections and allowances: 11,975,057 + 12,387 + 4,096 =
+// 11,991,540 packed; 23,353,842 + 353 + 65 = 23,354,260 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.34 WebMCP documentation release identity over the unchanged inventory",
+  scope: "Confirmed-write intent fence over the Ghostget 0.18.34 inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "045a8cf8389e54e18c28e7580a9c6c5494d9c6cca38f39bc1e4ece4b4b079e05",
-  packedBytes: 11_971_987,
-  unpackedBytes: 23_343_331,
+  archiveSha256: "f514d0deb5fdac7876ed2a44b8ed496e98cbfbd64f8f9bc7534e922ecf3bd922",
+  packedBytes: 11_975_057,
+  unpackedBytes: 23_353_842,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

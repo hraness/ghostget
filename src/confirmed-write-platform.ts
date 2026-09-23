@@ -84,7 +84,7 @@ export interface ConfirmedWriteKernel {
   readonly isDispatchProgress: (value: unknown) => value is RunReceipt["dispatch"];
   readonly ledgerPath: (adapterHash: string, authHashValue: string, operationId: string, inputHash: string, environment: Readonly<Record<string, string | undefined>>, duplicateIntentHash?: string) => string;
   readonly acquireLedger: (path: string, entry: LedgerEntry, environment: Readonly<Record<string, string | undefined>>, now: Date, alternatePaths?: readonly string[]) => | { readonly acquired: true; readonly snapshot: LedgerSnapshot }
-    | { readonly acquired: false; readonly existing: LedgerEntry; readonly viaAlternatePath?: boolean; readonly viaIntent?: boolean };
+    | { readonly acquired: false; readonly existing: LedgerEntry; readonly viaAlternatePath?: boolean };
   readonly acquireIntentLedger: (intent: ConfirmedWriteIntent, entry: LedgerEntry, environment: Readonly<Record<string, string | undefined>>, now: Date) => | { readonly acquired: true; readonly snapshot: LedgerSnapshot }
     | { readonly acquired: false; readonly existing: LedgerEntry; readonly viaIntent: true };
   readonly writeReceipt: (receipt: RunReceipt, environment: Readonly<Record<string, string | undefined>>) => void;
@@ -634,7 +634,7 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
       }),
       // The intent fence is claimed first, so a reconnect or a manifest
       // revision cannot move the same effect to a fresh hash-keyed ledger.
-      acquireLedger: (request: { readonly path: string; readonly entry: LedgerEntry; readonly alternatePaths?: readonly string[]; readonly intent: ConfirmedWriteIntent }) => attempt("journal", (): ReturnType<ConfirmedWriteKernel["acquireLedger"]> => {
+      acquireLedger: (request: { readonly path: string; readonly entry: LedgerEntry; readonly alternatePaths?: readonly string[]; readonly intent: ConfirmedWriteIntent }) => attempt("journal", (): ReturnType<ConfirmedWriteKernel["acquireLedger"]> | ReturnType<ConfirmedWriteKernel["acquireIntentLedger"]> => {
         const at = observedTime();
         const fenced = acquireIntentLedger(request.intent, request.entry, options.environment, at);
         if (!fenced.acquired) return fenced;
