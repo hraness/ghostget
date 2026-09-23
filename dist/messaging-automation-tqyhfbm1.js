@@ -26,7 +26,7 @@ import {
   canonicalJson,
   canonicalJsonSha256Matches,
   sha256
-} from "./index-ab98ss4x.js";
+} from "./index-zf8ss45d.js";
 import {
   MESSAGING_AUTOMATION_PROTOCOL
 } from "./index-01eeae9e.js";

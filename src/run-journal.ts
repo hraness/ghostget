@@ -180,9 +180,12 @@ export type RunJournalEvent =
       /** A successful read-only reconciliation authorized local cleanup. */
       readonly type: "recovery-released";
       /**
-       * Explicit not-applied evidence also releases the idempotency ledger,
-       * authorizing a fresh confirmed attempt. Omitted means the provider
-       * effect was observed/applied and the at-most-once fence remains.
+       * `not-applied` also releases the idempotency ledger, authorizing a
+       * fresh confirmed attempt. Only not-applied evidence that Ghostget
+       * observes itself may carry it; no current reconciler has such
+       * evidence, and a caller's claim never qualifies. Omitted means the
+       * provider effect was observed/applied and the at-most-once fence
+       * remains.
        */
       readonly outcome?: "applied" | "not-applied";
       readonly at: string;

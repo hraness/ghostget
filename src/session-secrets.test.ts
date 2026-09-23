@@ -9,7 +9,9 @@ import {
   existsSync,
   lstatSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -19,13 +21,17 @@ import { join } from "node:path";
 import { canonicalJson } from "./model";
 import { rotateReadProjectionAuthIncarnation } from "./read-projection-admission";
 import {
+  parseSessionSecretFileName,
+  planSessionSecretRemoval,
   readSessionSecret,
   readSessionSecretSnapshot,
   removeSessionSecret,
   removeSessionSecretsForAuth,
+  sessionSecretFileName,
   writeSessionSecret,
   writeSessionSecretIfUnchanged,
 } from "./session-secrets";
+import { assertProperty, fc } from "./test-support";
 
 const TEST_CHILD_SIGNAL_TIMEOUT_MS = 45_000;
 const roots: string[] = [];
@@ -834,5 +840,315 @@ describe("encrypted provider-session cache", () => {
       authHash,
       state.value,
     )).toEqual({ refreshJwt: "new-private-refresh-token" });
+  });
+});
+
+// Both the namespace and auth-ID grammars admit "--", so these segments make
+// the historical `${namespace}--${authId}` stems collide as often as possible.
+const collisionProneName = fc
+  .array(fc.constantFrom("a", "b", "a-b", "b-"), { minLength: 1, maxLength: 3 })
+  .map((segments) => segments.join("--"));
+const coordinateName = fc.oneof(
+  collisionProneName,
+  fc.stringMatching(/^[a-z][a-z0-9-]{0,47}$/u),
+);
+const coordinate = fc.record({
+  namespace: coordinateName,
+  authId: coordinateName,
+});
+const coordinates = fc.uniqueArray(coordinate, {
+  minLength: 1,
+  maxLength: 8,
+  selector: ({ namespace, authId }) => `${namespace}\0${authId}`,
+});
+
+function writtenSecretNames(root: string): readonly string[] {
+  return readdirSync(join(root, "session-secrets"))
+    .filter((name) => name !== "coordinates")
+    .sort();
+}
+
+type LegacyAmbiguousFiles = {
+  readonly path: string;
+  readonly text: string;
+  readonly coordinatePath: string;
+  readonly coordinateText: string;
+};
+
+/**
+ * Recreate the secret and coordinate files exactly as a writer before
+ * injective names left them for account `old--work`: the same bytes, under the
+ * historical name `bluesky--old--work.json` that `bluesky--old`/`work` shares.
+ */
+function legacyAmbiguousSecret(
+  state: ReturnType<typeof environment>,
+  authHash: string,
+): LegacyAmbiguousFiles {
+  writeSessionSecret(
+    "bluesky",
+    "old--work",
+    authHash,
+    { refreshJwt: "old-work-private-refresh-token" },
+    state.value,
+  );
+  const directory = join(state.root, "session-secrets");
+  const injective = sessionSecretFileName("bluesky", "old--work");
+  const historical = "bluesky--old--work.json";
+  if (writtenSecretNames(state.root).join(",") !== injective) {
+    throw new Error("legacy fixture wrote an unexpected secret");
+  }
+  const path = join(directory, historical);
+  const coordinatePath = join(directory, "coordinates", historical);
+  renameSync(join(directory, injective), path);
+  renameSync(join(directory, "coordinates", injective), coordinatePath);
+  return {
+    path,
+    text: readFileSync(path, "utf8"),
+    coordinatePath,
+    coordinateText: readFileSync(coordinatePath, "utf8"),
+  };
+}
+
+function coordinateNames(root: string): readonly string[] {
+  return readdirSync(join(root, "session-secrets", "coordinates")).sort();
+}
+
+describe("session-secret file ownership", () => {
+  test("keeps coordinates whose historical names collide on `--` separate", () => {
+    const state = environment();
+    const authHash = "5".repeat(64);
+    writeSessionSecret("a--b", "c", authHash, { owner: "a--b/c" }, state.value);
+    writeSessionSecret("a", "b--c", authHash, { owner: "a/b--c" }, state.value);
+
+    expect(readSessionSecret("a--b", "c", authHash, state.value))
+      .toEqual({ owner: "a--b/c" });
+    expect(readSessionSecret("a", "b--c", authHash, state.value))
+      .toEqual({ owner: "a/b--c" });
+    expect(writtenSecretNames(state.root)).toHaveLength(2);
+  });
+
+  test("removing an auth realm never touches an auth ID that ends in `--` plus its name", () => {
+    const state = environment();
+    const authHash = "6".repeat(64);
+    writeSessionSecret("bluesky", "old--work", authHash, { owner: "old--work" }, state.value);
+    writeSessionSecret("bluesky", "work", authHash, { owner: "work" }, state.value);
+
+    expect(removeSessionSecretsForAuth("work", state.value)).toBe(1);
+    expect(readSessionSecret("bluesky", "work", authHash, state.value)).toBeNull();
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value))
+      .toEqual({ owner: "old--work" });
+    expect(removeSessionSecretsForAuth("old--work", state.value)).toBe(1);
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value)).toBeNull();
+  });
+
+  test("leaves an ambiguous historical file in place unless its envelope names the removed realm", () => {
+    const state = environment();
+    const legacy = legacyAmbiguousSecret(state, "7".repeat(64));
+
+    expect(removeSessionSecretsForAuth("work", state.value)).toBe(0);
+    expect(readFileSync(legacy.path, "utf8")).toBe(legacy.text);
+    expect(removeSessionSecretsForAuth("old--work", state.value)).toBe(1);
+    expect(existsSync(legacy.path)).toBeFalse();
+  });
+
+  test("adopts a legacy ambiguous session its envelope names and keeps it rotating", () => {
+    const state = environment();
+    const authHash = "b".repeat(64);
+    const legacy = legacyAmbiguousSecret(state, authHash);
+    const injective = sessionSecretFileName("bluesky", "old--work");
+
+    const snapshot = readSessionSecretSnapshot("bluesky", "old--work", authHash, state.value);
+    expect(snapshot.value).toEqual({ refreshJwt: "old-work-private-refresh-token" });
+    expect(existsSync(legacy.path)).toBeFalse();
+    expect(existsSync(legacy.coordinatePath)).toBeFalse();
+    expect(writtenSecretNames(state.root)).toEqual([injective]);
+    expect(coordinateNames(state.root)).toEqual([injective]);
+    expect(readFileSync(join(state.root, "session-secrets", injective), "utf8"))
+      .toBe(legacy.text);
+    expect(readFileSync(join(state.root, "session-secrets", "coordinates", injective), "utf8"))
+      .toBe(legacy.coordinateText);
+
+    expect(writeSessionSecretIfUnchanged(
+      "bluesky",
+      "old--work",
+      authHash,
+      { refreshJwt: "rotated-private-refresh-token" },
+      snapshot.contentSha256,
+      state.value,
+    ).written).toBeTrue();
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value))
+      .toEqual({ refreshJwt: "rotated-private-refresh-token" });
+  });
+
+  test("resumes an interrupted adoption after only the coordinate moved", () => {
+    const state = environment();
+    const authHash = "c".repeat(64);
+    const legacy = legacyAmbiguousSecret(state, authHash);
+    renameSync(
+      legacy.coordinatePath,
+      join(state.root, "session-secrets", "coordinates", sessionSecretFileName("bluesky", "old--work")),
+    );
+
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value))
+      .toEqual({ refreshJwt: "old-work-private-refresh-token" });
+    expect(existsSync(legacy.path)).toBeFalse();
+  });
+
+  test("never adopts a legacy ambiguous file for the other candidate coordinate", () => {
+    const state = environment();
+    const authHash = "d".repeat(64);
+    const legacy = legacyAmbiguousSecret(state, authHash);
+
+    expect(readSessionSecret("bluesky--old", "work", authHash, state.value)).toBeNull();
+    expect(writeSessionSecret("bluesky--old", "work", authHash, { owner: "work" }, state.value))
+      .toBeUndefined();
+    expect(readFileSync(legacy.path, "utf8")).toBe(legacy.text);
+    expect(readFileSync(legacy.coordinatePath, "utf8")).toBe(legacy.coordinateText);
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value))
+      .toEqual({ refreshJwt: "old-work-private-refresh-token" });
+    expect(readSessionSecret("bluesky--old", "work", authHash, state.value))
+      .toEqual({ owner: "work" });
+  });
+
+  test("leaves a legacy file in place when its envelope fails authentication for the named coordinate", () => {
+    const state = environment();
+    const authHash = "e".repeat(64);
+    writeSessionSecret("bluesky--old", "work", authHash, { owner: "work" }, state.value);
+    const directory = join(state.root, "session-secrets");
+    const written = jsonRecord(
+      readFileSync(join(directory, sessionSecretFileName("bluesky--old", "work")), "utf8"),
+      "encrypted session secret",
+    );
+    const path = join(directory, "bluesky--old--work.json");
+    const forged = `${canonicalJson({ ...written, namespace: "bluesky", authId: "old--work" })}\n`;
+    writeFileSync(path, forged, { mode: 0o600 });
+
+    expect(() => readSessionSecret("bluesky", "old--work", authHash, state.value))
+      .toThrow("encrypted session secret failed authentication");
+    expect(readFileSync(path, "utf8")).toBe(forged);
+    expect(existsSync(join(directory, sessionSecretFileName("bluesky", "old--work"))))
+      .toBeFalse();
+  });
+
+  test("auth removal adopts and advances the realm's historical coordinate", () => {
+    const state = environment();
+    const authHash = "f".repeat(64);
+    const legacy = legacyAmbiguousSecret(state, authHash);
+    const injective = sessionSecretFileName("bluesky", "old--work");
+
+    expect(removeSessionSecretsForAuth("work", state.value)).toBe(0);
+    expect(readFileSync(legacy.coordinatePath, "utf8")).toBe(legacy.coordinateText);
+    expect(removeSessionSecretsForAuth("old--work", state.value)).toBe(1);
+    expect(existsSync(legacy.path)).toBeFalse();
+    expect(coordinateNames(state.root)).toEqual([injective]);
+    const advanced = jsonRecord(
+      readFileSync(join(state.root, "session-secrets", "coordinates", injective), "utf8"),
+      "session-secret coordinate state",
+    );
+    expect(advanced.generation)
+      .not.toBe(jsonRecord(legacy.coordinateText, "legacy coordinate").generation);
+    expect(readSessionSecret("bluesky", "old--work", authHash, state.value)).toBeNull();
+  });
+
+  test("single-coordinate removal clears a legacy ambiguous session without the key", () => {
+    const state = environment();
+    const authHash = "1".repeat(64);
+    const legacy = legacyAmbiguousSecret(state, authHash);
+    rmSync(join(state.root, ".session-encryption-key"));
+
+    expect(removeSessionSecret("bluesky", "old--work", state.value)).toBeTrue();
+    expect(existsSync(legacy.path)).toBeFalse();
+    expect(coordinateNames(state.root))
+      .toEqual([sessionSecretFileName("bluesky", "old--work")]);
+  });
+
+  test("fails closed on an ambiguous historical file with no verifiable owner", () => {
+    const state = environment();
+    writeSessionSecret("linkedin", "unrelated", "9".repeat(64), { owner: "unrelated" }, state.value);
+    const path = join(state.root, "session-secrets", "bluesky--old--work.json");
+    writeFileSync(path, "not an envelope\n", { mode: 0o600 });
+
+    expect(() => removeSessionSecretsForAuth("work", state.value))
+      .toThrow("ambiguous historical session secret has no verifiable owner");
+    expect(readFileSync(path, "utf8")).toBe("not an envelope\n");
+    expect(removeSessionSecretsForAuth("unrelated", state.value)).toBe(1);
+  });
+
+  test("keeps unambiguous historical names byte-identical so existing files still load", () => {
+    const state = environment();
+    const authHash = "a".repeat(64);
+    const coordinates = [
+      ["linkedin", "linkedin-main"],
+      ["a-", "b-c"],
+    ] as const;
+    for (const [namespace, authId] of coordinates) {
+      writeSessionSecret(namespace, authId, authHash, { namespace, authId }, state.value);
+    }
+    const names = coordinates.map(([namespace, authId]) => `${namespace}--${authId}.json`).sort();
+    expect(writtenSecretNames(state.root)).toEqual(names);
+    expect(readdirSync(join(state.root, "session-secrets", "coordinates")).sort())
+      .toEqual(names);
+    for (const [namespace, authId] of coordinates) {
+      expect(readSessionSecret(namespace, authId, authHash, state.value))
+        .toEqual({ namespace, authId });
+    }
+  });
+
+  test("property: file names are injective and parse back to their coordinate", () => {
+    assertProperty(fc.property(coordinates, (values) => {
+      const names = values.map(({ namespace, authId }) =>
+        sessionSecretFileName(namespace, authId));
+      expect(new Set(names).size).toBe(values.length);
+      values.forEach(({ namespace, authId }, index) => {
+        expect(parseSessionSecretFileName(names[index]!))
+          .toEqual({ kind: "coordinate", namespace, authId });
+      });
+    }));
+  });
+
+  test("property: removal selects only the removed realm's names", () => {
+    assertProperty(fc.property(coordinates, fc.nat(), (values, choice) => {
+      const target = values[choice % values.length]!.authId;
+      const canonical = values.map(({ namespace, authId }) =>
+        sessionSecretFileName(namespace, authId));
+      const historical = values
+        .map(({ namespace, authId }) => `${namespace}--${authId}.json`)
+        .filter((name) => !canonical.includes(name));
+      const plan = planSessionSecretRemoval(
+        [...canonical, ...historical, "coordinates"],
+        target,
+      );
+
+      expect([...plan.owned].sort()).toEqual(values
+        .filter(({ authId }) => authId === target)
+        .map(({ namespace, authId }) => sessionSecretFileName(namespace, authId))
+        .sort());
+      for (const name of plan.ambiguous) {
+        expect(canonical).not.toContain(name);
+        const parsed = parseSessionSecretFileName(name);
+        if (parsed?.kind !== "ambiguous-historical") {
+          throw new Error("removal inspected a name with one owner");
+        }
+        expect(parsed.candidates.map(({ authId }) => authId)).toContain(target);
+      }
+    }));
+  });
+
+  test("rejects a dotted name for a coordinate whose canonical name is historical", () => {
+    expect(sessionSecretFileName("a--b", "c")).toBe("a--b.c.json");
+    expect(sessionSecretFileName("a", "b--c")).toBe("a.b--c.json");
+    expect(sessionSecretFileName("a", "b")).toBe("a--b.json");
+    expect(sessionSecretFileName("a-", "b-c")).toBe("a---b-c.json");
+    expect(sessionSecretFileName("a-", "b---c")).toBe("a-.b---c.json");
+    expect(parseSessionSecretFileName("a.b.json")).toBeNull();
+    expect(parseSessionSecretFileName("a--b--c.json")).toEqual({
+      kind: "ambiguous-historical",
+      candidates: [
+        { namespace: "a", authId: "b--c" },
+        { namespace: "a--b", authId: "c" },
+      ],
+    });
+    expect(planSessionSecretRemoval(["bluesky--old--work.json"], "work"))
+      .toEqual({ owned: [], ambiguous: ["bluesky--old--work.json"] });
   });
 });

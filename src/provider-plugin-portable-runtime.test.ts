@@ -63,6 +63,7 @@ import {
   installPortableProviderPlugin,
 } from "./provider-plugin-lifecycle";
 import {
+  readPortableRunNotAppliedClaim,
   readPortableRunResolution,
   reconcilePortableProviderPluginRun,
 } from "./portable-run-recovery";
@@ -79,6 +80,7 @@ import {
 import { createProviderPluginRegistry } from "./provider-plugin-registry";
 import { installPortableProviderPluginPackage } from "./provider-plugin-store";
 import { readRecoveryCapsule } from "./recovery";
+import { readRunJournal } from "./run-journal";
 import type { ProviderActionContext } from "./provider";
 import {
   createInvocationPlan,
@@ -87,6 +89,7 @@ import {
   createAndSaveInvocationPlan,
   executeReadInvocation,
   loadInvocationPlan,
+  readRunReceipt,
   saveInvocationPlan,
 } from "./runtime";
 import { runWebSessionOperationWithDeadline } from "./web-session";
@@ -1524,7 +1527,7 @@ describe("portable provider runtime catalog", () => {
     }).activation).toBe("enabled");
   });
 
-  test("reconciles an indeterminate portable write from exact explicit evidence", async () => {
+  test("reconciles an indeterminate portable write from exact applied evidence", async () => {
     const auth = cookiesAuth(cookiePath);
     saveAuth(auth, environment, { force: true });
     const catalog = createPortableProviderPluginCatalog(
@@ -1581,25 +1584,38 @@ describe("portable provider runtime catalog", () => {
 
     const first = await confirmOnce();
     expect(first.receipt.status).toBe("indeterminate");
-    const notApplied = reconcilePortableProviderPluginRun(
+    const applied = reconcilePortableProviderPluginRun(
       first.receipt.runId,
-      { outcome: "not-applied", evidenceHash: "a".repeat(64) },
+      { outcome: "applied", evidenceHash: "a".repeat(64) },
       { environment, registry: catalog.registry },
     );
-    expect(notApplied).toMatchObject({
+    expect(applied).toEqual({
       ok: true,
-      outcome: "not-applied",
-      status: "safe-retry",
+      kind: "portable-provider-plugin-reconciliation",
+      runId: first.receipt.runId,
+      originalReceiptStatus: "indeterminate",
+      receiptUnchanged: true,
+      providerWriteDispatched: false,
+      outcome: "applied",
+      status: "succeeded",
+      evidenceHash: "a".repeat(64),
       recoveryArtifactsReleased: true,
+    });
+    expect(readPortableRunResolution(
+      first.receipt.runId,
+      environment,
+    )).toMatchObject({
+      outcome: "applied",
+      evidenceHash: "a".repeat(64),
     });
     expect(reconcilePortableProviderPluginRun(
       first.receipt.runId,
-      { outcome: "not-applied", evidenceHash: "a".repeat(64) },
+      { outcome: "applied", evidenceHash: "a".repeat(64) },
       { environment, registry: catalog.registry },
-    )).toEqual(notApplied);
+    )).toEqual(applied);
     expect(() => reconcilePortableProviderPluginRun(
       first.receipt.runId,
-      { outcome: "applied", evidenceHash: "a".repeat(64) },
+      { outcome: "applied", evidenceHash: "b".repeat(64) },
       { environment, registry: catalog.registry },
     )).toThrow("different evidence or outcome");
     expect(inspectPortableProviderPluginQuiescence(
@@ -1607,19 +1623,8 @@ describe("portable provider runtime catalog", () => {
       environment,
     ).quiescent).toBeTrue();
 
-    // Not-applied evidence released the exact idempotency fence, so a fresh
-    // confirmed attempt can cross dispatch. Applied evidence then settles the
-    // bundle without authorizing another same-input retry.
-    const second = await confirmOnce();
-    expect(second.receipt.status).toBe("indeterminate");
-    expect(reconcilePortableProviderPluginRun(
-      second.receipt.runId,
-      { outcome: "applied", evidenceHash: "b".repeat(64) },
-      { environment, registry: catalog.registry },
-    )).toMatchObject({
-      outcome: "applied",
-      status: "succeeded",
-    });
+    // Applied evidence settles the bundle without authorizing another
+    // same-input attempt.
     let retryError = "";
     try {
       await confirmOnce();
@@ -1631,6 +1636,189 @@ describe("portable provider runtime catalog", () => {
       installed.package.bundleSha256,
       environment,
     ).quiescent).toBeTrue();
+  });
+
+  test("keeps the at-most-once fence when the caller asserts not-applied", async () => {
+    const isolatedRoot = mkdtempSync(join(fixtureRoot, "caller-not-applied-"));
+    chmodSync(isolatedRoot, 0o700);
+    const isolatedEnvironment = {
+      GHOSTGET_STATE_HOME: isolatedRoot,
+      HOME: fixtureRoot,
+    };
+    try {
+      installPackage(mainPackageRoot, isolatedEnvironment);
+      const auth = cookiesAuth(cookiePath);
+      saveAuth(auth, isolatedEnvironment, { force: true });
+      let dispatches = 0;
+      const catalog = createPortableProviderPluginCatalog(
+        emptyRegistry(),
+        isolatedEnvironment,
+        {
+          runHost: async (invocation) => {
+            if (invocation.capabilityHost === undefined) {
+              throw new Error("portable capability host is unavailable");
+            }
+            const begun = await invocation.capabilityHost.handle(
+              {
+                kind: "dispatch.begin",
+                dispatchId: "messages.send",
+              },
+              {
+                invocationId: "portable-caller-claim-fixture",
+                requestId: "dispatch-begin",
+                route: invocation.route,
+                signal: invocation.signal
+                  ?? new AbortController().signal,
+              },
+            );
+            if (begun.kind !== "dispatch.begin") {
+              throw new Error("portable dispatch did not begin");
+            }
+            dispatches += 1;
+            return {
+              output: null,
+              finalUrl: null,
+              dispatch: { planned: 1, started: 1, verified: 0 },
+            };
+          },
+        },
+      );
+      const manifest = catalog.registry.resolveOwnedManifest("portable-web");
+      const installed = catalog.installed[0];
+      if (manifest === undefined || installed === undefined) {
+        throw new Error("portable caller-claim fixture is unavailable");
+      }
+      const confirmOnce = async () => {
+        const stored = createAndSaveInvocationPlan({
+          manifest,
+          operationId: "messages.send",
+          input: { mode: "normal" },
+          auth,
+        }, isolatedEnvironment, new Date(), catalog.registry);
+        return confirmInvocation(stored.digest, {
+          headed: false,
+          environment: isolatedEnvironment,
+          registry: catalog.registry,
+          loadManifest: () => ({ ok: true, value: manifest }),
+        });
+      };
+      const confirmAgain = async (): Promise<string> => {
+        try {
+          const retry = await confirmOnce();
+          return `dispatched again as ${retry.receipt.status}`;
+        } catch (error) {
+          return error instanceof Error ? error.message : String(error);
+        }
+      };
+
+      const first = await confirmOnce();
+      expect(first.receipt.status).toBe("indeterminate");
+      expect(dispatches).toBe(1);
+      const reconcile = (outcome: "applied" | "not-applied", evidence: string) =>
+        reconcilePortableProviderPluginRun(
+          first.receipt.runId,
+          { outcome, evidenceHash: evidence.repeat(64) },
+          { environment: isolatedEnvironment, registry: catalog.registry },
+        );
+      const capsule = () => readRecoveryCapsule(
+        first.receipt.runId,
+        first.receipt.auth.id,
+        first.receipt.auth.hash,
+        isolatedEnvironment,
+      );
+      const quiescent = () => inspectPortableProviderPluginQuiescence(
+        installed.package.bundleSha256,
+        isolatedEnvironment,
+      ).quiescent;
+
+      // A hash the caller typed is not evidence that Ghostget observed. It
+      // must not release the fence, so the same intent cannot dispatch again.
+      const claim = reconcile("not-applied", "d");
+      const afterClaim = await confirmAgain();
+      expect(dispatches).toBe(1);
+      expect(afterClaim).toContain("prior attempt");
+      expect(claim).toEqual({
+        ok: false,
+        kind: "portable-provider-plugin-reconciliation",
+        runId: first.receipt.runId,
+        originalReceiptStatus: "indeterminate",
+        receiptUnchanged: true,
+        providerWriteDispatched: false,
+        outcome: "not-applied",
+        status: "fence-retained",
+        evidenceHash: "d".repeat(64),
+        claimRecorded: true,
+        recoveryArtifactsReleased: false,
+      });
+      expect(readRunJournal(
+        first.receipt.runId,
+        isolatedEnvironment,
+      )?.journal).toMatchObject({
+        status: "indeterminate",
+        ledgerState: "indeterminate",
+        recoveryState: "retained",
+      });
+      expect(capsule()).not.toBeNull();
+      expect(readPortableRunResolution(
+        first.receipt.runId,
+        isolatedEnvironment,
+      )).toBeNull();
+      expect(quiescent()).toBeFalse();
+
+      // The claim stays on record, bound to the exact unsettled run.
+      const recordedClaim = readPortableRunNotAppliedClaim(
+        first.receipt.runId,
+        isolatedEnvironment,
+      );
+      expect(recordedClaim).toMatchObject({
+        kind: "caller-asserted-not-applied",
+        runId: first.receipt.runId,
+        receiptHash: createHash("sha256")
+          .update(canonicalJson(readRunReceipt(
+            first.receipt.runId,
+            isolatedEnvironment,
+          )))
+          .digest("hex"),
+        adapterHash: first.receipt.adapter.hash,
+        inputHash: first.receipt.inputHash,
+        authHash: first.receipt.auth.hash,
+        evidenceHash: "d".repeat(64),
+      });
+
+      // The claim is create-once: the exact claim is idempotent and a
+      // different one cannot replace it.
+      expect(reconcile("not-applied", "d")).toEqual(claim);
+      expect(() => reconcile("not-applied", "e"))
+        .toThrow("different not-applied claim");
+
+      // Applied evidence still settles the run. It keeps the fence, so the
+      // intent stays refused and the bundle becomes quiescent.
+      expect(reconcile("applied", "f")).toMatchObject({
+        ok: true,
+        outcome: "applied",
+        status: "succeeded",
+        recoveryArtifactsReleased: true,
+      });
+      expect(readRunJournal(
+        first.receipt.runId,
+        isolatedEnvironment,
+      )?.journal).toMatchObject({
+        ledgerState: "indeterminate",
+        recoveryState: "released",
+      });
+      expect(capsule()).toBeNull();
+      expect(quiescent()).toBeTrue();
+      expect(readPortableRunNotAppliedClaim(
+        first.receipt.runId,
+        isolatedEnvironment,
+      )).toEqual(recordedClaim);
+      expect(await confirmAgain()).toContain("prior attempt");
+      expect(dispatches).toBe(1);
+      expect(() => reconcile("not-applied", "d"))
+        .toThrow("already has a durable resolution");
+    } finally {
+      rmSync(isolatedRoot, { recursive: true, force: true });
+    }
   });
 
   test("never reports recovery release when a schema-6 journal is missing", async () => {
@@ -1710,7 +1898,7 @@ describe("portable provider runtime catalog", () => {
       );
       expect(() => reconcilePortableProviderPluginRun(
         result.receipt.runId,
-        { outcome: "not-applied", evidenceHash: "c".repeat(64) },
+        { outcome: "applied", evidenceHash: "c".repeat(64) },
         { environment: isolatedEnvironment, registry: catalog.registry },
       )).toThrow("could not be fully released");
       expect(readPortableRunResolution(
