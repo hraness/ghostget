@@ -1432,23 +1432,39 @@
 // e1e1ebb75b1c4c64e67c84bfc5087626258fab6e20ed6285390da4c320bb4d8e. Carry
 // the same projections and allowances: 11,971,738 + 12,387 + 4,096 =
 // 11,988,221 packed; 23,342,705 + 353 + 65 = 23,343,123 unpacked.
+// Ghostget 0.18.34 adds the WebMCP explainer and how-to pages plus the
+// registry-scale README and homepage copy (website-only sources stay
+// outside the package); its CHANGELOG section and rebuilt dist chunks
+// shift the unchanged 596-file inventory: `npm pack --ignore-scripts`
+// with npm 11.19.0 on darwin arm64 measured 11,971,987 packed bytes,
+// 23,343,331 unpacked bytes; archive SHA-256
+// 045a8cf8389e54e18c28e7580a9c6c5494d9c6cca38f39bc1e4ece4b4b079e05. Carry
+// the same projections and allowances: 11,971,987 + 12,387 + 4,096 =
+// 11,988,470 packed; 23,343,331 + 353 + 65 = 23,343,749 unpacked.
+// The launch-intent cleanup recovery adds the unbound launch-intent
+// quiescence proof, its recovery admission wiring, and the replacement
+// repair/retention tests: a clean npm 11.19.0 pack --ignore-scripts on
+// darwin arm64 measured 596 files/entries and 23,346,582 payload bytes;
+// archive SHA-256 041f172721702456c214f78cd390417e285aed417e72bd0b45372fefd71bfa6c.
+// Carry the same projections and allowances: 11,972,555 + 12,387 + 4,096 =
+// 11,989,038 packed; 23,346,582 + 353 + 65 = 23,347,000 unpacked.
 // Injective session-secret file names add the name encoder and parser, the
-// removal planner, and envelope-owned cleanup of ambiguous historical files
-// to src/session-secrets.ts over the unchanged 596-file inventory: two
-// `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin arm64 were
-// byte-identical at 11,973,606 packed bytes, 23,349,430 unpacked bytes;
-// archive SHA-256
-// 956f6c1637e217af60316379aa171f71a161eb1f8ef16cf2b4438de7437974f0. Carry
-// the same projections and allowances: 11,973,606 + 12,387 + 4,096 =
-// 11,990,089 packed; 23,349,430 + 353 + 65 = 23,349,848 unpacked.
+// removal planner, envelope-owned cleanup of ambiguous historical files, and
+// adoption of a coordinate's own historical files to src/session-secrets.ts
+// over the unchanged 596-file inventory: two `npm pack --ignore-scripts` runs
+// with npm 11.19.0 on darwin arm64 were byte-identical at 11,975,928 packed
+// bytes, 23,360,781 unpacked bytes; archive SHA-256
+// fd2dbe9f012ec12017d3de702bf18871bd8ccddb5b91397105429c19e0badd11. Carry
+// the same projections and allowances: 11,975,928 + 12,387 + 4,096 =
+// 11,992,411 packed; 23,360,781 + 353 + 65 = 23,361,199 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Injective session-secret file names over the Ghostget 0.18.33 inventory",
+  scope: "Injective session-secret file names over the Ghostget 0.18.34 launch-intent inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "956f6c1637e217af60316379aa171f71a161eb1f8ef16cf2b4438de7437974f0",
-  packedBytes: 11_973_606,
-  unpackedBytes: 23_349_430,
+  archiveSha256: "fd2dbe9f012ec12017d3de702bf18871bd8ccddb5b91397105429c19e0badd11",
+  packedBytes: 11_975_928,
+  unpackedBytes: 23_360_781,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
