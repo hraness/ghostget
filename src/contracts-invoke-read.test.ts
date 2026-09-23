@@ -208,6 +208,22 @@ describe("parseInvokeReadResult", () => {
     }
   });
 
+  test("round-trips an output with an own __proto__ member (CI seed 455347073, path 3:1:86:86)", () => {
+    // The minimized counterexample from Required run 35687468171. JSON.parse
+    // makes "__proto__" an own data member; a parser that copies members by
+    // assignment would instead write the copy's prototype and drop the key.
+    for (const text of ['{"__proto__":0}', '{"__proto__":{"nested":[1]},"b":2}']) {
+      const output = JSON.parse(text) as unknown;
+      const parsed = parseInvokeReadResult({ ...succeededEnvelope(), output });
+      if (parsed.status !== "succeeded") throw new Error("expected a succeeded result");
+      expect(parsed.output).toEqual(output);
+      expect(Object.hasOwn(parsed.output as object, "__proto__")).toBeTrue();
+      expect([Object.prototype, null]).toContain(Object.getPrototypeOf(parsed.output));
+      expect(JSON.stringify(parsed.output)).toBe(text);
+      expect(parseInvokeReadResult(JSON.parse(JSON.stringify(parsed)))).toEqual(parsed);
+    }
+  });
+
   test("property: bounded arbitrary outputs round-trip; an unsupported key at any envelope path is rejected", () => {
     assertProperty(fc.property(fc.jsonValue({ maxDepth: 6 }), (generated) => {
       // JSON has no negative zero; compare what a consumer can actually receive.

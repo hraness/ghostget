@@ -1477,14 +1477,24 @@
 // 5300d2503ae48a50ace5e1edc76a45d8b2e32724d8fd34fad09cf7405e083e85. Carry
 // the same projections and allowances: 11,977,961 + 12,387 + 4,096 =
 // 11,994,444 packed; 23,366,348 + 353 + 65 = 23,366,766 unpacked.
+// The strict canonical JSON value domain rejects sparse arrays, non-plain
+// prototypes, accessors, symbols and non-finite numbers in canonicalJson and
+// the provider-plugin semantic value, and adds the named __proto__
+// read-result regression. This adds 9,681 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0
+// on darwin arm64 were byte-identical at 11,980,765 packed bytes, 23,376,029
+// unpacked bytes; archive SHA-256
+// cfcd1f3db620ed7529a54f65fd374959154f9417399443f994f035f060feefab. Carry the
+// same projections and allowances: 11,980,765 + 12,387 + 4,096 = 11,997,248
+// packed; 23,376,029 + 353 + 65 = 23,376,447 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Portable not-applied claim fence over the confirmed-write intent fence inventory",
+  scope: "Strict canonical JSON value domain over the portable not-applied claim fence inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "5300d2503ae48a50ace5e1edc76a45d8b2e32724d8fd34fad09cf7405e083e85",
-  packedBytes: 11_977_961,
-  unpackedBytes: 23_366_348,
+  archiveSha256: "cfcd1f3db620ed7529a54f65fd374959154f9417399443f994f035f060feefab",
+  packedBytes: 11_980_765,
+  unpackedBytes: 23_376_029,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
