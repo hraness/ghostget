@@ -351,7 +351,9 @@ describe("complete local and release check composition", () => {
 
 const NPM_RELEASE_ENVIRONMENT = "npm-release";
 const NPM_RELEASE_OWNER = { file: "release.yml", job: "publish_npm" } as const;
-const NPM_RELEASE_TOKEN = /(?<![\w./-])npm-release(?![\w./-])/gu;
+// GitHub environment names are case-insensitive, so `NPM-Release` selects the
+// same protected environment and must count as a reference.
+const NPM_RELEASE_TOKEN = /(?<![\w./-])npm-release(?![\w./-])/giu;
 
 const workflowsUrl = new URL("../.github/workflows/", import.meta.url);
 const agentsUrl = new URL("../AGENTS.md", import.meta.url);
@@ -365,6 +367,16 @@ function environmentName(environment: unknown): unknown {
   return environment;
 }
 
+function namesNpmRelease(environment: unknown): boolean {
+  const name = environmentName(environment);
+  return typeof name === "string" && name.toLowerCase() === NPM_RELEASE_ENVIRONMENT;
+}
+
+function isComputedEnvironment(environment: unknown): boolean {
+  const name = environmentName(environment);
+  return typeof name === "string" && name.includes("${{");
+}
+
 function isOwner(file: string, job: string): boolean {
   return file === NPM_RELEASE_OWNER.file && job === NPM_RELEASE_OWNER.job;
 }
@@ -373,7 +385,9 @@ function isOwner(file: string, job: string): boolean {
  * Return every place outside `release.yml` `publish_npm` that names the
  * `npm-release` environment. A textual mention that no job environment
  * accounts for is also a violation, so reusable-workflow inputs, expressions,
- * and step-level references cannot hide a second consumer.
+ * and step-level references cannot hide a second consumer. Names compare
+ * case-insensitively, as GitHub resolves them, and a job environment built
+ * from an expression is rejected because the scan cannot resolve it.
  */
 function npmReleaseViolations(workflows: readonly WorkflowSource[]): readonly string[] {
   const violations: string[] = [];
@@ -382,7 +396,11 @@ function npmReleaseViolations(workflows: readonly WorkflowSource[]): readonly st
     const parsed = Bun.YAML.parse(source) as { jobs?: Record<string, { environment?: unknown }> } | null;
     let structured = 0;
     for (const [job, definition] of Object.entries(parsed?.jobs ?? {})) {
-      if (environmentName(definition?.environment) !== NPM_RELEASE_ENVIRONMENT) continue;
+      if (isComputedEnvironment(definition?.environment)) {
+        violations.push(`${file} job ${job} computes its environment name`);
+        continue;
+      }
+      if (!namesNpmRelease(definition?.environment)) continue;
       structured += 1;
       if (isOwner(file, job)) {
         ownerReferences += 1;
@@ -438,6 +456,14 @@ describe("npm-release environment scan", () => {
       file: "website-production.yml",
       source: "jobs:\n  call:\n    uses: ./.github/workflows/x.yml\n    with:\n      target: npm-release\n",
     }])).toEqual(["website-production.yml mentions npm-release 1 time(s) outside a job environment"]);
+    expect(npmReleaseViolations([owner, {
+      file: "ci.yml",
+      source: "jobs:\n  test:\n    environment: NPM-Release\n",
+    }])).toEqual(["ci.yml job test references npm-release"]);
+    expect(npmReleaseViolations([owner, {
+      file: "ci.yml",
+      source: "jobs:\n  test:\n    environment: npm-${{ 'release' }}\n",
+    }])).toEqual(["ci.yml job test computes its environment name"]);
     expect(npmReleaseViolations([{ file: "release.yml", source: "jobs:\n  publish_npm: {}\n" }]))
       .toEqual(["release.yml job publish_npm must reference npm-release exactly once"]);
   });
@@ -447,6 +473,8 @@ describe("npm-release environment scan", () => {
       undefined,
       NPM_RELEASE_ENVIRONMENT,
       { name: NPM_RELEASE_ENVIRONMENT },
+      "NPM-Release",
+      { name: "Npm-Release" },
       "production-ref-writer-key",
       { name: "website-production" },
     );
@@ -466,7 +494,10 @@ describe("npm-release environment scan", () => {
       }));
       const references = Object.entries(generated).flatMap(([file, jobMap]) =>
         Object.entries(jobMap)
-          .filter(([, job]) => environmentName(job.environment) === NPM_RELEASE_ENVIRONMENT)
+          .filter(([, job]) => {
+            const name = environmentName(job.environment);
+            return typeof name === "string" && name.toLowerCase() === NPM_RELEASE_ENVIRONMENT;
+          })
           .map(([job]) => ({ file, job }))
       );
       const sole = references.length === 1 && references.every(({ file, job }) => isOwner(file, job));
