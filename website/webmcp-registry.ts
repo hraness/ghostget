@@ -346,14 +346,43 @@ export function renderWebmcpIndexList(snapshot: WebmcpRegistrySnapshot): string 
   ].join("");
 }
 
-export function webmcpIndexTemplateValues(snapshot: WebmcpRegistrySnapshot): Readonly<Record<string, string>> {
+// The snapshot is stored in the registry's popularity order, so a leading
+// slice is the recognizable head of the catalog rather than an arbitrary pick.
+const WEBMCP_DOMAIN_SAMPLE_LIMIT = 15;
+
+export function renderWebmcpDomainSample(snapshot: WebmcpRegistrySnapshot): string {
+  const shown = snapshot.sites.slice(0, WEBMCP_DOMAIN_SAMPLE_LIMIT);
+  const rest = snapshot.siteCount - shown.length;
+  const items = shown.map((site) =>
+    `<li><a href="${webmcpSiteCanonicalPath(site.domain)}">${escapeHtml(site.domain)}</a></li>`,
+  );
+  if (rest > 0) {
+    items.push(
+      `<li class="registry-domain-more"><a href="/providers/">and ${rest.toLocaleString("en-US")} more →</a></li>`,
+    );
+  }
+  return `<ul aria-label="Sample of the most-registered WebMCP sites" class="registry-domain-strip">${items.join("")}</ul>`;
+}
+
+// Registry-wide counts any public page may quote; per-site and index values
+// layer their own placeholders on top of this base.
+export function webmcpSharedTemplateValues(
+  snapshot: WebmcpRegistrySnapshot,
+): Readonly<Record<string, string>> {
   const totalTools = snapshot.sites.reduce((sum, site) => sum + site.toolCount, 0);
   const readOnlyTools = snapshot.sites.reduce((sum, site) => sum + site.readOnlyToolCount, 0);
   return Object.freeze({
-    "{{WEBMCP_INDEX_TABLE}}": renderWebmcpIndexList(snapshot),
-    "{{WEBMCP_REGISTRY_READONLY_TOOL_COUNT}}": String(readOnlyTools),
-    "{{WEBMCP_REGISTRY_SITE_COUNT}}": String(snapshot.siteCount),
-    "{{WEBMCP_REGISTRY_TOOL_COUNT}}": String(totalTools),
+    "{{WEBMCP_DOMAIN_SAMPLE}}": renderWebmcpDomainSample(snapshot),
+    "{{WEBMCP_REGISTRY_READONLY_TOOL_COUNT}}": readOnlyTools.toLocaleString("en-US"),
+    "{{WEBMCP_REGISTRY_SITE_COUNT}}": snapshot.siteCount.toLocaleString("en-US"),
+    "{{WEBMCP_REGISTRY_TOOL_COUNT}}": totalTools.toLocaleString("en-US"),
     "{{WEBMCP_SYNCED_AT}}": escapeHtml(snapshot.syncedAt),
+  });
+}
+
+export function webmcpIndexTemplateValues(snapshot: WebmcpRegistrySnapshot): Readonly<Record<string, string>> {
+  return Object.freeze({
+    ...webmcpSharedTemplateValues(snapshot),
+    "{{WEBMCP_INDEX_TABLE}}": renderWebmcpIndexList(snapshot),
   });
 }

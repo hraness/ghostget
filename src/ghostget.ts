@@ -3564,7 +3564,8 @@ async function runCommand(
         },
       );
       print(output, result, arguments_.json);
-      return 0;
+      // A recorded not-applied claim leaves the run fenced and unsettled.
+      return result.ok ? 0 : 5;
     }
     const result = await dependencies.reconcileWebSessionRun(
       arguments_.runId,
