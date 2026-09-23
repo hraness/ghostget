@@ -1,7 +1,7 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.18.27",
-  "description": "Open-source CLI and TypeScript SDK for precise web capabilities for AI agents: page capture, verified media archives, encrypted reads, and typed provider operations.",
+  "version": "0.18.28",
+  "description": "Ghostget gives your AI agent safe access to the web: it reads pages, saves media, and uses connected accounts through a fixed list of reviewed actions instead of driving a browser. Free and open source.",
   "license": "MIT",
   "type": "module",
   "sideEffects": [

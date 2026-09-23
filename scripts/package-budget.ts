@@ -1358,14 +1358,22 @@
 // dc1e8d6d400a601b22224111403a1fe50f96ac4d0461571d8a763b72ceeda2c2. Carry the
 // same projections and allowances: 11,959,529 + 12,387 + 4,096 = 11,976,012
 // packed; 23,269,753 + 353 + 65 = 23,270,171 unpacked.
+// Ghostget 0.18.28 rewrites the homepage and package description in plain
+// language (+36 shipped bytes in package.json) and adds a 664-byte
+// CHANGELOG section over the 0.18.27 inventory: `npm pack --ignore-scripts`
+// with npm 11.19.0 on darwin arm64 measured 11,959,793 packed bytes,
+// 23,270,453 unpacked bytes across exactly 591 files; archive SHA-256
+// b68abd4a40f98b0ea466f78fa4383c481f8cd5b7c0c96d57127b75ae2792b5d5. Carry
+// the same projections and allowances: 11,959,793 + 12,387 + 4,096 = 11,976,276
+// packed; 23,270,453 + 353 + 65 = 23,270,871 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.27 trailing-slash redirect repair and release identity; CHANGELOG payload growth over the 0.18.26 inventory",
+  scope: "Ghostget 0.18.28 plain-language homepage and package description; payload growth over the 0.18.27 inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "dc1e8d6d400a601b22224111403a1fe50f96ac4d0461571d8a763b72ceeda2c2",
-  packedBytes: 11_959_529,
-  unpackedBytes: 23_269_753,
+  archiveSha256: "b68abd4a40f98b0ea466f78fa4383c481f8cd5b7c0c96d57127b75ae2792b5d5",
+  packedBytes: 11_959_793,
+  unpackedBytes: 23_270_453,
   entryCount: 591,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

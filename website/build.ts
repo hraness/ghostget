@@ -52,7 +52,7 @@ import {
 export const SITE_ORIGIN = "https://ghostget.com" as const;
 export const SITE_TITLE = "Ghostget: precise web capabilities for AI agents" as const;
 export const SITE_DESCRIPTION =
-  "Open-source CLI and TypeScript SDK for precise web capabilities for AI agents: page capture, verified media archives, encrypted reads, and typed provider operations." as const;
+  "Ghostget gives your AI agent safe access to the web: it reads pages, saves media, and uses connected accounts through a fixed list of reviewed actions instead of driving a browser. Free and open source." as const;
 export const REPOSITORY_URL = "https://github.com/hraness/ghostget" as const;
 export const GITHUB_RELEASES_URL = "https://github.com/hraness/ghostget/releases" as const;
 export const SKILLS_URL = "https://www.skills.sh/hraness/ghostget/ghostget" as const;
@@ -60,7 +60,7 @@ export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const HRANESS_URL = "https://hraness.com/" as const;
 export const HRANESS_ORGANIZATION_ID = `${HRANESS_URL}#organization` as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.27" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.28" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",

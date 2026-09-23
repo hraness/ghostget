@@ -7,6 +7,19 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.28
+
+- Rewrite the homepage in plain language: the hero now leads with a
+  paste-able "tell your agent" install prompt, the measured-stats section
+  explains why smaller answers cost fewer tokens, credential and browser
+  internals are described without jargon, and the FAQ opens with
+  "How do I set it up?" and "Which agents does it work with?"
+- Fix the release pipeline's npm admission race: `admit_npm` now waits
+  inside a bounded window for the registry to publish the exact candidate
+  version before its first registry read, instead of racing npm's
+  asynchronous provenance processing and failing `ETARGET` (seen on both
+  0.18.26 and 0.18.27).
+
 ## 0.18.27
 
 - Fix the moved guide redirects: the prior trailing-slash URLs
