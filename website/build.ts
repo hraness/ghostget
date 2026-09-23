@@ -311,6 +311,31 @@ export function compileUiStylesheet(
   return compiled.trim();
 }
 
+const designKitMarketingStylesImports = {
+  "./syntax-highlighting.css": "@hraness/design-kit/syntax-highlighting.css",
+} as const;
+
+/** Inline the pinned marketing grammar's bounded imports before bundling. */
+export function compileDesignKitMarketingStyles(
+  grammar: string,
+  imports: Readonly<Record<keyof typeof designKitMarketingStylesImports, string>>,
+): string {
+  const remaining = new Set(Object.keys(designKitMarketingStylesImports));
+  const compiled = grammar.replace(
+    /^[\t ]*@import\s+(["'])([^"'\r\n]+)\1\s*;[\t ]*$/gmu,
+    (_statement: string, _quote: string, source: string): string => {
+      if (!remaining.delete(source as keyof typeof designKitMarketingStylesImports)) {
+        throw new Error(`Unsupported or repeated marketing stylesheet import: ${source}`);
+      }
+      return imports[source as keyof typeof designKitMarketingStylesImports].trim();
+    },
+  );
+  if (remaining.size !== 0 || /@import\b/iu.test(compiled)) {
+    throw new Error("Marketing stylesheet imports must match the complete pinned public CSS exports.");
+  }
+  return compiled.trim();
+}
+
 async function readUiStylesheet(): Promise<string> {
   const entries = Object.entries(uiStylesheetImports);
   const [facade, ...stylesheets] = await Promise.all([
@@ -903,7 +928,12 @@ export async function buildWebsite(
     readFile(join(repositoryRoot, "website/vendor/paper-theme/paper-theme.css"), "utf8"),
     readUiStylesheet(),
     readFile(designKitFontsStylesPath, "utf8"),
-    readFile(designKitProductMarketingStylesPath, "utf8"),
+    Promise.all([
+      readFile(designKitProductMarketingStylesPath, "utf8"),
+      readFile(fileURLToPath(import.meta.resolve(designKitMarketingStylesImports["./syntax-highlighting.css"])), "utf8"),
+    ]).then(([grammar, syntax]) => compileDesignKitMarketingStyles(grammar, {
+      "./syntax-highlighting.css": syntax,
+    })),
     readFile(
       fileURLToPath(import.meta.resolve("@hraness/site-footer/stylex.css")),
       "utf8",
