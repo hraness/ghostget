@@ -946,7 +946,7 @@ describe("session-secret file ownership", () => {
     const authHash = "a".repeat(64);
     const coordinates = [
       ["linkedin", "linkedin-main"],
-      ["a-", "b---c"],
+      ["a-", "b-c"],
     ] as const;
     for (const [namespace, authId] of coordinates) {
       writeSessionSecret(namespace, authId, authHash, { namespace, authId }, state.value);
@@ -1005,6 +1005,8 @@ describe("session-secret file ownership", () => {
     expect(sessionSecretFileName("a--b", "c")).toBe("a--b.c.json");
     expect(sessionSecretFileName("a", "b--c")).toBe("a.b--c.json");
     expect(sessionSecretFileName("a", "b")).toBe("a--b.json");
+    expect(sessionSecretFileName("a-", "b-c")).toBe("a---b-c.json");
+    expect(sessionSecretFileName("a-", "b---c")).toBe("a-.b---c.json");
     expect(parseSessionSecretFileName("a.b.json")).toBeNull();
     expect(parseSessionSecretFileName("a--b--c.json")).toEqual({
       kind: "ambiguous-historical",
