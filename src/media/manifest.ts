@@ -1759,7 +1759,7 @@ function darwinFullSync(): FullSync | null {
     } as const);
     cachedFullSync = (fd) => library.symbols.fcntl(fd, F_FULLFSYNC) !== -1;
   } catch {
-    return null;
+    cachedFullSync = null;
   }
   return cachedFullSync;
 }

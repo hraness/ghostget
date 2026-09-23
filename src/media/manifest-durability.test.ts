@@ -36,7 +36,7 @@ describe("media durability", () => {
     await mkdir(join(root, "item"));
     await writeFile(join(root, "outside"), "caller-owned");
     await symlink(join(root, "outside"), join(root, "item", "link"));
-    expect(nativeMediaDurability.syncTree(join(root, "item"))).rejects.toThrow("symbolic link");
+    await expect(nativeMediaDurability.syncTree(join(root, "item"))).rejects.toThrow("symbolic link");
   });
 
   test.skipIf(process.platform !== "darwin")("reaches F_FULLFSYNC on macOS", () => {

@@ -111,9 +111,9 @@ describe("item locks", () => {
       token: "22222222-2222-4222-8222-222222222222",
       acquiredAt: "2026-07-21T12:00:00.000Z",
     })}\n`, { mode: 0o600 });
-    expect(lock.fencedRename(source, destination)).rejects.toBeInstanceOf(ItemLockLostError);
+    await expect(lock.fencedRename(source, destination)).rejects.toBeInstanceOf(ItemLockLostError);
     expect((await lstat(source)).isDirectory()).toBeTrue();
-    expect(lstat(destination)).rejects.toThrow();
+    await expect(lstat(destination)).rejects.toThrow();
     await lock.release();
   });
 
@@ -124,7 +124,7 @@ describe("item locks", () => {
     await mkdir(source);
     const lock = await acquireItemLock(lockPath, dependencies());
     const cancelled = new Error("cancelled at the fence");
-    expect(lock.fencedRename(source, destination, () => { throw cancelled; })).rejects.toBe(cancelled);
+    await expect(lock.fencedRename(source, destination, () => { throw cancelled; })).rejects.toBe(cancelled);
     expect((await lstat(source)).isDirectory()).toBeTrue();
     let guarded = 0;
     await lock.fencedRename(source, destination, () => { guarded += 1; });

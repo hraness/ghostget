@@ -1,7 +1,7 @@
 import { observeTranscriptNativeFailure } from "./transcript-persistence-native.test-support";
 import { afterEach, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, symlink, unlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { ghostgetStateHome } from "../storage";
@@ -1009,6 +1009,9 @@ describe("mediaUrl", () => {
 
     const repaired = await mediaUrl(options, deps);
     expect(repaired.status).toBe("created");
+    expect(repaired.warnings).toHaveLength(1);
+    expect(repaired.warnings[0]).toContain(".wrench-media-quarantine");
+    expect(repaired.warnings[0]).toContain(secondLeaf);
     expect(trackedManifest(repaired.manifest).revision).toMatchObject({
       sequence: 2,
       previousAssetKey: first.manifest.assetKey,
@@ -1029,6 +1032,40 @@ describe("mediaUrl", () => {
       join(quarantine, quarantined[0] ?? "missing", "data", "capture", "media.webm"),
       "utf8",
     )).toBe("");
+  });
+
+  test("quarantines a head revision whose artifact name was lost", async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), "media-lost-name-test-")));
+    roots.push(root);
+    const calls = { value: 0 };
+    const base = dependencies(calls);
+    let providerBytes = "provider-A";
+    const deps: MediaArchiveDependencies = {
+      ...base,
+      capture: async (options) => {
+        const result = await base.capture(options);
+        if (result.ok) await writeFile(join(options.captureDirectory, "media.webm"), providerBytes);
+        return result;
+      },
+    };
+    const options = {
+      url: metadata.canonicalUrl,
+      mode: "archive" as const,
+      language: "en",
+      libraryDirectory: root,
+      inheritYtDlpConfig: false,
+    };
+    await mediaUrl(options, deps);
+    providerBytes = "provider-B";
+    const second = await mediaUrl({ ...options, refresh: true }, deps);
+    // A crash can lose a directory entry whose parent was never flushed.
+    await unlink(join(second.itemDirectory, "data", "capture", "media.webm"));
+
+    const repaired = await mediaUrl(options, deps);
+    expect(repaired.status).toBe("created");
+    expect(trackedManifest(repaired.manifest).revision.sequence).toBe(2);
+    expect(await readdir(join(root, ".wrench-media-quarantine"))).toHaveLength(1);
+    expect(calls.value).toBe(3);
   });
 
   test("never quarantines a head written by a newer schema or an unverifiable older revision", async () => {
@@ -1071,7 +1108,30 @@ describe("mediaUrl", () => {
     await writeFile(olderCapture, "");
     await expectMediaRejection(mediaUrl(options, deps), "ARCHIVE_INVALID");
     expect((await readdir(revisionParent)).toSorted(compareUtf8)).toEqual(before);
-    expect(lstat(join(root, ".wrench-media-quarantine"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(calls.value).toBe(2);
+    await writeFile(olderCapture, "provider-A");
+    await chmod(olderCapture, 0o400);
+    expect(await verifyMediaItem(first.itemDirectory)).toMatchObject({ ok: true });
+
+    // An extra file, such as Finder's .DS_Store, is not a torn write. The
+    // verified head stays in the lineage and the run fails closed.
+    const finderFile = join(second.itemDirectory, ".DS_Store");
+    await writeFile(finderFile, "finder");
+    await expectMediaRejection(mediaUrl(options, deps), "ARCHIVE_INVALID");
+    expect((await readdir(revisionParent)).toSorted(compareUtf8)).toEqual(before);
+    await unlink(finderFile);
+
+    // A permission error is not a torn write either.
+    const headCapture = join(second.itemDirectory, "data", "capture", "media.webm");
+    await chmod(headCapture, 0o000);
+    try {
+      await expectMediaRejection(mediaUrl(options, deps), "ARCHIVE_INVALID");
+    } finally {
+      await chmod(headCapture, 0o400);
+    }
+    expect((await readdir(revisionParent)).toSorted(compareUtf8)).toEqual(before);
+    expect(await verifyMediaItem(second.itemDirectory)).toMatchObject({ ok: true });
+    await expect(lstat(join(root, ".wrench-media-quarantine"))).rejects.toMatchObject({ code: "ENOENT" });
     expect(calls.value).toBe(2);
   });
 

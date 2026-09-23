@@ -1200,7 +1200,7 @@ async function trackedYtDlpHead(
         entry === entries.at(-1)
         && error instanceof MediaArchiveError
         && error.code === "ARCHIVE_INVALID"
-        && await isTornRevision(itemDirectory)
+        && await isTornRevision(itemDirectory, error.details.failures)
       ) {
         tornHead = itemDirectory;
         continue;
@@ -1261,15 +1261,50 @@ async function trackedYtDlpHead(
   };
 }
 
+/** Verification failures that an interrupted write can leave behind. */
+const TORN_CONTENT_FAILURES: readonly RegExp[] = [
+  /: byte length mismatch$/u,
+  /: SHA-256 mismatch$/u,
+  /^wrench-media\.json checksum mismatch$/u,
+  /^manifest-sha256\.txt is invalid$/u,
+  /^checksum file does not name exactly the manifest and recorded artifacts$/u,
+];
+const MISSING_FILE_FAILURE = /^ENOENT\b/u;
+const MEMBERSHIP_FAILURES = new Set([
+  "item directory does not contain exactly the recorded artifacts and control files",
+  "item directory changed or contains an unrecorded file",
+]);
+
+/**
+ * Accepts only failures that a lost or short write explains: a size or digest
+ * mismatch, a torn checksum file, or a missing file. A membership failure
+ * counts only next to a missing file, because an extra file such as Finder's
+ * `.DS_Store` also breaks membership. Any other failure, such as a permission
+ * error, a symbolic link, or a transient I/O error, leaves the revision where
+ * it is.
+ */
+function failuresLookTorn(failures: unknown): boolean {
+  if (!Array.isArray(failures) || failures.length === 0) return false;
+  let missing = false;
+  let membership = false;
+  for (const failure of failures) {
+    if (typeof failure !== "string") return false;
+    if (MISSING_FILE_FAILURE.test(failure)) missing = true;
+    else if (MEMBERSHIP_FAILURES.has(failure)) membership = true;
+    else if (!TORN_CONTENT_FAILURES.some((pattern) => pattern.test(failure))) return false;
+  }
+  return missing || !membership;
+}
+
 /**
  * Decides whether an unverifiable revision looks like an interrupted write.
- * A missing or unparseable manifest qualifies, and so does a manifest that
- * this schema accepts but whose files fail their recorded sizes or digests.
- * A well-formed manifest that this schema rejects does not qualify: it may be
- * a newer Ghostget's revision or a deliberate edit, so it is never moved.
- * An unreadable manifest does not qualify either.
+ * A missing or unparseable manifest qualifies. So does a manifest that this
+ * schema accepts when every verification failure is one a short write
+ * explains. A well-formed manifest that this schema rejects does not
+ * qualify: it may be a newer Ghostget's revision or a deliberate edit, so it
+ * is never moved. An unreadable manifest does not qualify either.
  */
-async function isTornRevision(itemDirectory: string): Promise<boolean> {
+async function isTornRevision(itemDirectory: string, failures: unknown): Promise<boolean> {
   let source: string;
   try {
     const handle = await open(
@@ -1292,7 +1327,7 @@ async function isTornRevision(itemDirectory: string): Promise<boolean> {
   } catch {
     return true;
   }
-  return parseMediaManifest(value).ok;
+  return parseMediaManifest(value).ok && failuresLookTorn(failures);
 }
 
 /**
@@ -1304,12 +1339,21 @@ async function quarantineTornRevision(
   root: string,
   itemDirectory: string,
   durability: MediaDurability,
+  itemLock: ItemLock,
+  lockPath: string,
 ): Promise<string> {
   const quarantineRoot = join(root, MEDIA_QUARANTINE_DIRECTORY);
   await ensurePhysicalChildDirectory(quarantineRoot);
   await durability.syncDirectory(root);
   const destination = join(quarantineRoot, `${randomUUID()}-${basename(itemDirectory)}`);
-  await rename(itemDirectory, destination);
+  try {
+    await itemLock.fencedRename(itemDirectory, destination);
+  } catch (error) {
+    if (error instanceof ItemLockLostError) {
+      throw new MediaArchiveError("BUSY", error.message, { lockPath });
+    }
+    throw error;
+  }
   await durability.syncDirectory(quarantineRoot);
   await durability.syncDirectory(dirname(itemDirectory));
   return destination;
@@ -2113,10 +2157,20 @@ async function mediaWithYtDlp(
       privateAccess,
     );
     const repairedLineage = current.tornHead !== null;
+    const repairWarnings: string[] = [];
     if (current.tornHead !== null) {
       // Bounded repair: move one torn head aside and re-read. A second torn
       // head means more than one interrupted promotion, so it stays a failure.
-      await quarantineTornRevision(root, current.tornHead, durability);
+      const quarantined = await quarantineTornRevision(
+        root,
+        current.tornHead,
+        durability,
+        itemLock,
+        lockPath,
+      );
+      repairWarnings.push(
+        `the newest revision failed verification and was moved, not deleted, to ${quarantined}`,
+      );
       current = await discoverYtDlpHead(
         providerDirectory,
         metadata,
@@ -2283,7 +2337,7 @@ async function mediaWithYtDlp(
         status: "existing",
         itemDirectory: currentHead.itemDirectory,
         manifest: currentHead.manifest,
-        warnings: [],
+        warnings: repairWarnings,
       };
     }
     const revisionSequence = currentHead === null
@@ -2385,9 +2439,10 @@ async function mediaWithYtDlp(
       status: "created",
       itemDirectory,
       manifest: written,
-      warnings: options.mode === "archive"
-        ? archiveTranscriptWarnings(written.transcript)
-        : [],
+      warnings: [
+        ...repairWarnings,
+        ...(options.mode === "archive" ? archiveTranscriptWarnings(written.transcript) : []),
+      ],
     };
   } catch (error) {
     // Every failure discards staging. Unverified bytes are never resumed, so
