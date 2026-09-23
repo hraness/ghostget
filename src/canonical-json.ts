@@ -243,8 +243,9 @@ export function strictCanonicalJson(value: unknown, label: string): string {
  * Only the strict JSON value domain encodes. Like JSON.stringify, it drops
  * `undefined` and non-enumerable object members. Sparse or decorated arrays,
  * class instances such as Map, Date, and typed arrays, enumerable accessors,
- * symbol-keyed members, cycles, and non-finite numbers are rejected, so distinct inputs cannot collapse onto
- * one encoding and the output always parses as JSON.
+ * symbol-keyed members, cycles, and non-finite numbers are rejected, so
+ * distinct inputs cannot collapse onto one encoding and the output always
+ * parses as JSON.
  */
 export function canonicalJson(value: unknown): string {
   return canonicalJsonWithOrder(value, compareUtf16CodeUnits);

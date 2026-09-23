@@ -1432,14 +1432,25 @@
 // e1e1ebb75b1c4c64e67c84bfc5087626258fab6e20ed6285390da4c320bb4d8e. Carry
 // the same projections and allowances: 11,971,738 + 12,387 + 4,096 =
 // 11,988,221 packed; 23,342,705 + 353 + 65 = 23,343,123 unpacked.
+// The strict canonical JSON value domain adds the shared plain-array and
+// plain-object member readers, the strict path-reporting encoder, and the
+// semantic-identity text export to canonical-json and provider-plugin-registry,
+// removes the duplicate portable-identity walker, and rebuilds the dist
+// chunks that bundle them over the unchanged 596-file inventory: two
+// `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin arm64 were
+// byte-identical at 11,975,121 packed bytes, 23,352,141 unpacked bytes;
+// archive SHA-256
+// 4eb35fd63488e7a5348b21dd1e6a7068f3b6162bf5e7e0ecd2a66dcfc83cc5d2. Carry
+// the same projections and allowances: 11,975,121 + 12,387 + 4,096 =
+// 11,991,604 packed; 23,352,141 + 353 + 65 = 23,352,559 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Ghostget 0.18.33 re-tag release identity over the WebMCP Registry provider inventory",
+  scope: "Strict canonical JSON value domain over the Ghostget 0.18.33 WebMCP Registry provider inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "e1e1ebb75b1c4c64e67c84bfc5087626258fab6e20ed6285390da4c320bb4d8e",
-  packedBytes: 11_971_738,
-  unpackedBytes: 23_342_705,
+  archiveSha256: "4eb35fd63488e7a5348b21dd1e6a7068f3b6162bf5e7e0ecd2a66dcfc83cc5d2",
+  packedBytes: 11_975_121,
+  unpackedBytes: 23_352_141,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

@@ -9,7 +9,7 @@ import {
   canonicalJson,
   canonicalJsonSha256Matches,
   sha256
-} from "./index-ab98ss4x.js";
+} from "./index-axvy9dr9.js";
 import"./index-z1w83f81.js";
 
 // src/beeper-client.ts
