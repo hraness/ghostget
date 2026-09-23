@@ -7,6 +7,18 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.29
+
+- Publish the exact public Threads trailing-window views counter. Eligible
+  profiles carry `text_post_app_public_views.text_post_app_public_view_count`
+  on their own signed-in profile preload record; `profiles.read` now projects
+  that target-bound count as an exact `recentViews` value, identical to the
+  figure heading the provider's Insights summary. Carriers bound to another
+  handle are ignored, conflicting or malformed carriers report
+  `provider-drift` without suppressing exact followers, an absent container
+  stays `not-exposed`, and the sub-eligibility `not-authorized` projection is
+  preserved. The bundled `threads-web` adapter advances to 1.9.0.
+
 ## 0.18.28
 
 - Rewrite the homepage in plain language: the hero now leads with a

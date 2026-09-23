@@ -479,7 +479,7 @@ describe("Meta consumer-web policy", () => {
       .toEqual(instagramV17Manifest.operations["profiles.read"]);
     expect(instagramV15Manifest.version).toBe("1.5.0");
     expect(instagramV1Manifest.version).toBe("1.0.0");
-    expect(threadsManifest.version).toBe("1.8.0");
+    expect(threadsManifest.version).toBe("1.9.0");
     expect(threadsV1Manifest.version).toBe("1.0.0");
 
     for (const [site, operation, current, prior] of affected) {
@@ -930,6 +930,131 @@ describe("Meta consumer-web policy", () => {
         recentViews: { status: "unavailable", reason: "not-authorized" },
       },
     });
+  });
+
+  test("projects the target-bound public Threads views counter", () => {
+    const withViews = threadsHtml + html({
+      profile: {
+        pk: "12345",
+        username: "viewer",
+        follower_count: 144,
+        text_post_app_public_views: { text_post_app_public_view_count: "147843" },
+      },
+    });
+    expect(normalizeThreadsProfileStats(
+      withViews,
+      "12345",
+      "viewer",
+      { status: "unavailable", reason: "provider-drift" },
+      "2026-08-21T15:00:00.000Z",
+    )).toMatchObject({
+      completeness: "complete",
+      metrics: {
+        followers: { status: "available", value: 144, precision: "exact" },
+        recentViews: { status: "available", value: 147843, precision: "exact", unit: "count" },
+      },
+    });
+
+    // The public counter also publishes below the Insights eligibility
+    // threshold when the provider exposes it on the profile record.
+    expect(normalizeThreadsProfileStats(
+      threadsHtml + html({
+        profile: {
+          pk: "12345",
+          username: "viewer",
+          follower_count: 42,
+          text_post_app_public_views: { text_post_app_public_view_count: "7" },
+        },
+      }),
+      "12345",
+      "viewer",
+      { status: "unavailable", reason: "not-authorized" },
+      "2026-08-21T15:00:00.000Z",
+    )).toMatchObject({
+      completeness: "complete",
+      metrics: {
+        recentViews: { status: "available", value: 7, precision: "exact" },
+      },
+    });
+
+    // A zero count is an exact publishable value, not absence.
+    expect(normalizeThreadsProfileStats(
+      threadsHtml + html({
+        profile: {
+          pk: "12345",
+          username: "viewer",
+          follower_count: 144,
+          text_post_app_public_views: { text_post_app_public_view_count: "0" },
+        },
+      }),
+      "12345",
+      "viewer",
+      { status: "unavailable", reason: "provider-drift" },
+      "2026-08-21T15:00:00.000Z",
+    )).toMatchObject({
+      metrics: {
+        recentViews: { status: "available", value: 0, precision: "exact" },
+      },
+    });
+
+    // Another account's counter never binds to the requested target.
+    expect(normalizeThreadsProfileStats(
+      threadsHtml + html({
+        profile: {
+          pk: "12345",
+          username: "viewer",
+          follower_count: 144,
+        },
+        facepile: {
+          username: "other",
+          text_post_app_public_views: { text_post_app_public_view_count: "999" },
+        },
+      }),
+      "12345",
+      "viewer",
+      { status: "unavailable", reason: "provider-drift" },
+      "2026-08-21T15:00:00.000Z",
+    )).toMatchObject({
+      completeness: "partial",
+      metrics: {
+        recentViews: { status: "unavailable", reason: "provider-drift" },
+      },
+    });
+
+    // Conflicting or malformed carriers drift without suppressing followers.
+    for (const carriers of [
+      [
+        { text_post_app_public_views: { text_post_app_public_view_count: "147843" } },
+        { text_post_app_public_views: { text_post_app_public_view_count: "148000" } },
+      ],
+      [{ text_post_app_public_views: { other_count: "147843" } }],
+      [{ text_post_app_public_views: "147843" }],
+      [{ text_post_app_public_views: { text_post_app_public_view_count: "147.8K" } }],
+    ]) {
+      expect(normalizeThreadsProfileStats(
+        threadsHtml + html({
+          profile: {
+            pk: "12345",
+            username: "viewer",
+            follower_count: 144,
+          },
+          ...Object.fromEntries(carriers.map((carrier, index) => [
+            `carrier${index}`,
+            { username: "viewer", ...carrier },
+          ])),
+        }),
+        "12345",
+        "viewer",
+        { status: "unavailable", reason: "provider-drift" },
+        "2026-08-21T15:00:00.000Z",
+      )).toMatchObject({
+        completeness: "partial",
+        metrics: {
+          followers: { status: "available", value: 144, precision: "exact" },
+          recentViews: { status: "unavailable", reason: "provider-drift" },
+        },
+      });
+    }
   });
 
   test("projects bounded Instagram timeline, post, comments, and inbox shapes", () => {

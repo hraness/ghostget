@@ -227,7 +227,7 @@ export const META_WEB_OPERATIONS = Object.freeze({
       1,
     ),
     "profiles.read": observed(
-      "live direct target-bound signed-in Threads profile HTML preload with exact current-viewer ID binding; recent views remain explicitly unavailable while this account is below the provider's Insights eligibility threshold",
+      "live direct target-bound signed-in Threads profile HTML preload with exact current-viewer ID binding, exact follower count, and the target-bound public trailing-window views counter when the provider exposes it; recent views remain explicitly unavailable while the account is below the provider's Insights eligibility threshold or the counter is absent",
     ),
     "messaging.list": captureRequired(
       "messaging.list",
@@ -1460,6 +1460,34 @@ function sameThreadsProfile(
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+/**
+ * Project the exact public views counter carried on the bound target's own
+ * profile record. The provider exposes the trailing-window total as
+ * `text_post_app_public_views.text_post_app_public_view_count` on profile
+ * pages; the same figure heads the eligible account's Insights summary. The
+ * counter is a supplemental metric: a missing container stays unexposed while
+ * a malformed or ambiguous one drifts without suppressing exact followers.
+ */
+function threadsRecentViewsCarrier(
+  value: JsonRecord,
+  expectedProfile: string,
+): ProfileMetric | null {
+  const views = value.text_post_app_public_views;
+  if (views === undefined || value.username === undefined) return null;
+  const handle = canonicalMetaProfileHandle(
+    value.username,
+    "Threads profile username",
+    30,
+  );
+  if (handle !== expectedProfile) return null;
+  if (!isRecord(views)) return unavailableProfileMetric("provider-drift");
+  const keys = Object.keys(views);
+  if (keys.length !== 1 || keys[0] !== "text_post_app_public_view_count") {
+    return unavailableProfileMetric("provider-drift");
+  }
+  return exactProfileMetric(views.text_post_app_public_view_count);
+}
+
 /** Project one exact signed-in Threads profile preload. */
 export function normalizeThreadsProfileStats(
   html: unknown,
@@ -1476,10 +1504,13 @@ export function normalizeThreadsProfileStats(
     throw new Error("Threads profile response changed its bound viewer");
   }
   const candidates: ThreadsProfileCandidate[] = [];
+  const carriedViews: ProfileMetric[] = [];
   walk(parseMetaJsonScripts(html), (candidate) => {
     if (!isRecord(candidate)) return;
     const projected = threadsProfileCandidate(candidate, profile);
     if (projected !== null) candidates.push(projected);
+    const views = threadsRecentViewsCarrier(candidate, profile);
+    if (views !== null) carriedViews.push(views);
   });
   if (candidates.length < 1) throw new Error("Threads profile preload omitted the requested profile");
   const first = candidates[0]!;
@@ -1489,16 +1520,30 @@ export function normalizeThreadsProfileStats(
   if (first.id !== expectedViewerId) {
     throw new Error("Threads profile response did not bind the current viewer ID");
   }
+  const availableViews = new Set<number>();
+  let ambiguousViews = false;
+  for (const carried of carriedViews) {
+    if (carried.status === "available") availableViews.add(carried.value);
+    else ambiguousViews = true;
+  }
+  const extractedViews: ProfileMetric = carriedViews.length === 0
+    ? unavailableProfileMetric("not-exposed")
+    : !ambiguousViews && availableViews.size === 1
+      ? exactProfileMetric([...availableViews][0])
+      : unavailableProfileMetric("provider-drift");
+  const fallbackViews = extractedViews.status === "available"
+    ? extractedViews
+    : recentViews;
   // The signed-in Insights UI exposes the exact eligibility rule: metrics remain
   // unavailable until the profile reaches 100 followers. The direct HTML shell
   // can omit that client-rendered sentence, so the bound exact follower count
   // proves the same current-account authorization state below the threshold.
-  const boundRecentViews = recentViews.status === "unavailable"
-    && recentViews.reason === "provider-drift"
+  const boundRecentViews = fallbackViews.status === "unavailable"
+    && fallbackViews.reason === "provider-drift"
     && first.followers.status === "available"
     && first.followers.value < 100
     ? unavailableProfileMetric("not-authorized")
-    : recentViews;
+    : fallbackViews;
   const complete = first.followers.status === "available"
     && boundRecentViews.status === "available";
   return Object.freeze({

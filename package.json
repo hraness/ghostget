@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.18.28",
+  "version": "0.18.29",
   "description": "Ghostget gives your AI agent safe access to the web: it reads pages, saves media, and uses connected accounts through a fixed list of reviewed actions instead of driving a browser. Free and open source.",
   "license": "MIT",
   "type": "module",
@@ -209,6 +209,7 @@
     "src/assets/adapters/threads/wrench-web-adapter.v1.5.0.json",
     "src/assets/adapters/threads/wrench-web-adapter.v1.6.0.json",
     "src/assets/adapters/threads/wrench-web-adapter.v1.7.0.json",
+    "src/assets/adapters/threads/wrench-web-adapter.v1.8.0.json",
     "src/assets/adapters/tiktok/wrench-web-adapter.json",
     "src/assets/adapters/tiktok/wrench-web-adapter.v1.0.0.json",
     "src/assets/adapters/tiktok/wrench-web-adapter.v1.1.0.json",

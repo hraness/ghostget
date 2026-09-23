@@ -215,7 +215,7 @@ describe("packaged Hraness social-profile collection contract", () => {
     expect(reference).toContain(
       `\`${threads?.expectedCategoricalGaps[0]?.reason}\``,
     );
-    expect(reference).toContain("until the account becomes\neligible");
+    expect(reference).toContain("public trailing-window views\ncounter");
     expect(reference).not.toMatch(/hrawdog/iu);
     expect(existsSync(manifestPath)).toBeTrue();
 
