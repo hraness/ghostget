@@ -8301,6 +8301,14 @@ describe("automatic npm publication from the tag Release", () => {
     expect(admitNpmSource).toContain('--expected-ref "refs/tags/$VERIFIED_TAG"');
     expect(admitNpmSource).toContain("--expected-workflow-path .github/workflows/release.yml");
     expect(admitNpmSource).toContain("npm audit signatures --json --include-attestations --omit=dev");
+    expect(admitNpmSource).toContain("propagation_deadline=$((SECONDS + 840))");
+    expect(admitNpmSource).toContain("sleep 20");
+    expect(admitNpmSource).toContain('npm view "@hraness/ghostget@$version" version');
+    expect(admitNpmSource).toContain('grep -Fqx "$version"');
+    expect(admitNpmSource).toContain("npm registry did not publish @hraness/ghostget@$version inside the bounded propagation window");
+    expect(admitNpmSource.indexOf("propagation_deadline=$((SECONDS + 840))")).toBeLessThan(
+      admitNpmSource.indexOf('npm pack "@hraness/ghostget@$version"'),
+    );
     expect(existsSync(fileURLToPath(new URL("../.github/workflows/npm-stage.yml", import.meta.url)))).toBe(false);
   });
 
