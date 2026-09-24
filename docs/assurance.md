@@ -8,14 +8,14 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 244 claims: 180 evidenced, 45 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 244 claims: 187 evidenced, 38 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 143 | 2 | 0 |
-| property test | 15 | 1 | 0 |
+| property test | 16 | 1 | 0 |
 | stateful model | 2 | 13 | 0 |
-| Quint model with production trace replay | 10 | 27 | 0 |
+| Quint model with production trace replay | 16 | 20 | 0 |
 | Lean proof with differential test | 7 | 1 | 0 |
 | differential oracle | 3 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
@@ -1745,22 +1745,30 @@ Every read-only gh child process has all WRENCH_RELEASE_APP_* values removed fro
 
 The production writer fetches only the verified tag, peels it locally to the independently verified SHA without executing tagged code, and pushes exactly one refspec with --force-with-lease=refs/heads/website-production:<expected-old>; a stale lease leaves the ref unchanged and the workflow never creates, deletes, force-moves or recreates the branch.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “Fetch only the exact verified tag through the private askpass token, peel it locally”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-ref-authority.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-ref-authority.test.ts`, `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`
 - Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 12.
+  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
+  - The replay's remote is a local bare repository, not GitHub. GitHub's ref-update ruleset and non-fast-forward rule are assumed under `github-enforcement`. That the workflow never creates, deletes, or recreates the branch, that the tag is fetched through the private askpass token, and that the peel executes no tagged code rest on the writer's fixed argument lists, which only the example tests in `scripts/npm-release-workflow.test.ts` check, and on the production-ref lifecycle ruleset, which only a live readback checks.
+  - Defect found and fixed here: `git push --porcelain` reports a stale `--force-with-lease` as `=` `[up to date]` with exit status 0 when the remote already holds the pushed commit, and the writer accepted that as its own update. It now requires the one porcelain update line from the leased SHA to the release SHA; the test “fails a leased write closed when the remote already holds the release commit” fails on the previous writer, and the replay's seeded `force-push` defect diverges from the model.
 
 #### `promotion-c-le-w-le-m`
 
 Promotion proves release commit C ≤ reviewed workflow source W ≤ protected current main M at every authority check before any provider or ref work, accepts only identical or strictly linear-forward movement of main, rejects rollback or divergence, and binds package, tag, Release, deployment, and production-ref identity to C.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “prove release `C<=W<=M` for protected current main `M`, allowing only linear descendant movement after dispatch”
 - Also covers: `website/AGENTS.md`: “prove `C<=W<=M` for protected current main `M` at every authority sandwich”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-ref-authority.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-ref-authority.test.ts`, `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`
 - Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 12.
+  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
+  - C ≤ W is the verify job's precondition in `scripts/release-ref-authority.ts`, covered by `scripts/release-ref-authority.test.ts`; the model fixes it and checks W ≤ M at every source check that passes, including a main that forks from C before W. Linear movement is judged against W: a main that later moves back to an earlier descendant of W still satisfies W ≤ M and is accepted, and protected main's non-fast-forward rule, assumed under `github-enforcement`, excludes that move.
+  - The model binds the tag, the Release, Latest, and the production ref to C. The package and deployment identity bindings are covered only by the listed example tests.
 
 #### `promotion-already-exact-no-credentials`
 
@@ -1776,43 +1784,56 @@ When the production ref already equals the verified release, promotion takes a s
 
 A required fast-forward enters production-ref-writer-key only after immutable release, workflow-source and provider-baseline checks pass, then revalidates C<=W<=M, peeled tag, immutable Release and Latest before credentials and mutation.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “admit it automatically after the existing immutable release, exact workflow-source, and provider-baseline checks pass, then revalidate source and immutable release authority before credentials and mutation”
-- Evidence: `scripts/npm-release-workflow.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`
 - Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 12.
+  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
+  - The model orders the checks inside one run. The `production-ref-writer-key` environment gate, the job `needs` graph, and which steps receive the release-App key are checked only by the workflow example tests in `scripts/npm-release-workflow.test.ts`, and their enforcement is assumed under `github-enforcement`. In the replay the write step stands in for `GitHubApi.advanceRef`, where production mints the release-App token, so the token's own lifecycle is not replayed.
 
 #### `promotion-observation-window`
 
 Provider outcome uses exactly 20 absolute observation slots at minute offsets 0..19 inside one injected monotonic half-open 20-minute window; latency never slides slots, no provider read starts at or after the deadline, and the job has a separate 30-minute timeout.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by property test.
 - Source: `AGENTS.md`: “Keep 20 observation slots at absolute minute offsets zero through 19 inside one injected monotonic 20-minute `[start, deadline)` interval and a separate 30-minute read-only job”
 - Evidence: `scripts/npm-release-workflow.test.ts`
+- Property tests: `scripts/npm-release-workflow.test.ts`: “keeps 20 absolute observation slots under any read latency and partial sleep wakeups”
 - Assumptions: `monotonic-clock`, `github-api`, `github-enforcement`, `vercel`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The property test runs `waitForProviderOutcome` 100 times against a candidate that never appears, with up to 64 generated read latencies from 1 to 45,000 ms and early sleep wakeups. Generated latencies rarely land exactly on the deadline, so the boundary read, clock regression, overflow, and a sleep that never reaches its slot are covered by the example test “enforces one half-open monotonic 20-minute provider observation deadline”.
+  - `verification/quint/promotion.qnt` abstracts time and does not carry this claim. The 30-minute provider job timeout is a workflow setting that an example test checks; GitHub enforcing it is assumed under `github-enforcement`.
 
 #### `promotion-eventual-promotion-or-stuck-evidence`
 
 An immutable Release is eventually promoted or leaves explicit stuck evidence (progress law).
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `kb/plans/formal-verification-assurance.md`: “The progress goal is "an immutable Release is eventually promoted or leaves explicit stuck evidence".”
-- Evidence: none
+- Evidence: `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`
 - Assumptions: `github-api`, `github-enforcement`, `vercel`, `ci-runner`
 - Not verified:
-  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; no automated check covers it yet.
+  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 12.
+  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
+  - The progress law is checked as a bounded safety property, not as a temporal one: no Quint or Apalache check of a liveness property under fairness runs. The invariant `boundedVerdict` shows that every run reaches a verdict within nine production steps (three authority checks, the baseline, the promotion checks, the write, and the model's three observations), and `stuckHasEvidence` that every stuck verdict names one of ten reasons that the environment state explains. Every production step stays enabled until the verdict, so under weak fairness for the workflow's jobs a run terminates; that step is argued, not checked.
+  - The stuck evidence is the failed run's refusal message; the replay maps each production refusal to the model's reason and fails on a refusal it cannot map. Eventual promotion across runs while the environment keeps faulting is outside the model: it needs Vercel to succeed and expose the exact marker inside the observation window.
   - Progress assumes fair Actions scheduling and an owner who dispatches manual recovery when the automatic path is ineligible.
 
 #### `promotion-success-requires-stable-readbacks`
 
 Promotion succeeds only with one exact successful Vercel Production deployment plus stable terminal tag, Release, Latest, workflow-source, ref, inventory, status and two byte-stable canonical-host readbacks.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “Bind one exact successful Vercel Production deployment plus stable terminal tag, Release, Latest, workflow source, ref, inventory, status, and canonical-host readbacks before promotion succeeds.”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`, `website/production-release-marker.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`, `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`, `website/production-release-marker.test.ts`
 - Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 12.
+  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
+  - The replay arms at most one drift per trace: the production ref, the candidate's status history, the apex marker, Latest, a health route, the `www` redirect, the tag commit, the Release, protected main, or the Production inventory. Combined drifts and GraphQL and REST disagreement are covered only by the listed example tests.
+  - Byte stability is checked as digest equality of the stubbed bodies; the canonical host's real HTTP behaviour is assumed under `vercel`.
 
 #### `promotion-candidate-status-history-clean`
 
@@ -2826,12 +2847,15 @@ Only a verified Production build emits `/.well-known/wrench-release.json`, after
 
 During outcome the apex marker may show only the baseline identity or the exact target; a third identity, changed same-release deployment URL, target-to-baseline regression or disagreement with pinned status URLs fails closed.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “Outcome requires that deployment URL to equal the pinned status URLs, permits only baseline-to-target movement”
 - Also covers: `website/AGENTS.md`: “Public outcome checks require that URL to equal the pinned deployment status”
-- Evidence: `scripts/npm-release-workflow.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`
 - Assumptions: `vercel`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 12.
+  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
+  - The model's apex marker takes four identities: the baseline, the target at the pinned deployment URL, the target at another deployment URL, and a third release. The replay reaches each refusal: a third identity, a target-to-baseline regression, a changed same-release deployment URL, and disagreement with the pinned status URL. Marker parsing and its canonical form are separate claims.
 
 #### `website-production-build-release-verified`
 
