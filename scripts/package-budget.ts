@@ -1645,32 +1645,36 @@
 // 6b1701acb53e452e8ada70e02c2f497535a7fdae32276cbd015723f2f817680d. Carry the
 // same projections and allowances: 11,998,420 + 12,387 + 4,096 = 12,014,903
 // packed; 23,447,236 + 353 + 65 = 23,447,654 unpacked.
-// The intent-fence follow-ups add the read-only doctor readback of intent
-// claims, record the provider subject in encrypted recovery capsules, and let
-// reconciliation and duplicate-risk successor election continue across a
-// same-subject reconnect. This adds 10,207 payload bytes over the unchanged
-// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0
-// on darwin arm64 were byte-identical at 12,001,582 packed bytes, 23,457,443
-// unpacked bytes; archive SHA-256
-// 6b638a69350ebc18a9e420fa04dd8e99655c7944c48bd871b908a008b3353061. Carry the
-// same projections and allowances: 12,001,582 + 12,387 + 4,096 = 12,018,065
-// packed; 23,457,443 + 353 + 65 = 23,457,861 unpacked.
-// The doctor readback also reports an intent claim that sits off its
-// intent's chain of fulfilled generations. This adds 929 payload bytes over
+// The path helper detects a live claim that a helper from before the reaper
+// election moved into a recovery quarantine, fails closed, and keeps that
+// quarantine through the residue sweep; the state helper exports its claim
+// listing and stage decision for the state-claim Quint replay. The model and
+// its replay test stay outside the package. This adds 3,823 payload bytes over
 // the unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with
-// npm 11.19.0 on darwin arm64 were byte-identical at 12,001,938 packed bytes,
-// 23,458,372 unpacked bytes; archive SHA-256
-// 695b7f1234273708d46d3f5a8cb8a8d6cb12d5abc3e7a150db68e6ad818ad2aa. Carry the
-// same projections and allowances: 12,001,938 + 12,387 + 4,096 = 12,018,421
-// packed; 23,458,372 + 353 + 65 = 23,458,790 unpacked.
+// npm 11.19.0 on darwin arm64 were byte-identical at 11,999,852 packed bytes,
+// 23,451,059 unpacked bytes; archive SHA-256
+// c38d1f9522d477a42a82d934359012ba31124f98348302b3b5c3fe97bac6709e. Carry the
+// same projections and allowances: 11,999,852 + 12,387 + 4,096 = 12,016,335
+// packed; 23,451,059 + 353 + 65 = 23,451,477 unpacked.
+// The intent-fence follow-ups add the read-only doctor readback of intent
+// claims, including claims off their intent's chain of fulfilled generations,
+// record the provider subject in encrypted recovery capsules, and let
+// reconciliation and duplicate-risk successor election continue across a
+// same-subject reconnect. This adds 11,136 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0
+// on darwin arm64 were byte-identical at 12,003,367 packed bytes, 23,462,195
+// unpacked bytes; archive SHA-256
+// 511abcac8f9316451689f3881ef403d2fa2284f91dda1e9a31048dfdf5f612b2. Carry the
+// same projections and allowances: 12,003,367 + 12,387 + 4,096 = 12,019,850
+// packed; 23,462,195 + 353 + 65 = 23,462,613 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Intent fence follow-ups: doctor readback and recovery auth continuity",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "695b7f1234273708d46d3f5a8cb8a8d6cb12d5abc3e7a150db68e6ad818ad2aa",
-  packedBytes: 12_001_938,
-  unpackedBytes: 23_458_372,
+  archiveSha256: "511abcac8f9316451689f3881ef403d2fa2284f91dda1e9a31048dfdf5f612b2",
+  packedBytes: 12_003_367,
+  unpackedBytes: 23_462_195,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

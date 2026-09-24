@@ -1228,9 +1228,53 @@ function pathMutationReaperIsResidue(name: string, targetSha256: string): boolea
 }
 
 /**
+ * The claim a recovery-quarantine or release temporary holds for another
+ * process that may still be running, or null. A helper that follows the
+ * reaper election moves only a dead claim or its own, and restores anything
+ * else it moved, so such a claim was displaced from the lock name: by a
+ * helper from before the election, or by a restore that found the name taken
+ * again. Stages, a helper's own release in flight, unreadable or changing
+ * files, and non-claims hold no displaced claim.
+ */
+function displacedLivePathMutationClaim(
+  name: string,
+  targetSha256: string,
+): PathMutationClaim | null {
+  const match = pathMutationTemporaryNamePattern.exec(name);
+  if (
+    match?.[1] !== targetSha256
+    || name.startsWith(".io-path-mutation-stage-")
+  ) return null;
+  const creatorPid = Number(match[2]);
+  try {
+    const file = readPathMutationLockFile(name, "path mutation claim");
+    if (file === null) return null;
+    const claim = parsePathMutationClaim(file.content, targetSha256);
+    return claim.pid === creatorPid || processIsDefinitelyMissing(claim.pid) ? null : claim;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether a live claim sits displaced in a temporary for this target. Its
+ * owner may still believe it holds the claim, so no other helper may enter
+ * beside it until that owner has exited.
+ */
+function pathMutationClaimDisplaced(targetSha256: string): boolean {
+  for (const name of readdirSync(".")) {
+    if (displacedLivePathMutationClaim(name, targetSha256) !== null) return true;
+  }
+  return false;
+}
+
+/**
  * Removes path-mutation residue left by helpers that died mid-protocol:
  * stage, recovery-quarantine, and release temporaries whose creator is
- * definitely gone, and dead reapers whose claim has left the lock name.
+ * definitely gone, and dead reapers whose claim has left the lock name. A
+ * temporary that holds a displaced live claim stays until that claim's owner
+ * is gone too: it is the only remaining name for that claim and the evidence
+ * that keeps later writers out.
  */
 function recoverDefinitelyOrphanedPathMutationResidue(): void {
   let removed = false;
@@ -1239,14 +1283,17 @@ function recoverDefinitelyOrphanedPathMutationResidue(): void {
     if (reaperTarget !== undefined) {
       if (!pathMutationReaperIsResidue(name, reaperTarget)) continue;
     } else {
-      const pidText = pathMutationTemporaryNamePattern.exec(name)?.[2];
-      if (pidText === undefined) continue;
+      const temporary = pathMutationTemporaryNamePattern.exec(name);
+      const temporaryTarget = temporary?.[1];
+      const pidText = temporary?.[2];
+      if (temporaryTarget === undefined || pidText === undefined) continue;
       const pid = Number(pidText);
       if (
         !Number.isSafeInteger(pid)
         || pid < 1
         || pid > 2_147_483_647
         || !processIsDefinitelyMissing(pid)
+        || displacedLivePathMutationClaim(name, temporaryTarget) !== null
       ) continue;
       let stats: BigIntStats;
       try {
@@ -1444,10 +1491,7 @@ function acquirePathMutationClaim(
       }
       return null;
     }
-    pauseAfterPathMutationClaimForTest(targetSha256, requestId);
-    pausePathMutationStepForTest("claim-held", requestId);
-    return () => {
-      pausePathMutationStepForTest("claim-release", requestId);
+    const release = (): void => {
       const held = readPathMutationClaimSnapshot(lockName, targetSha256);
       if (
         held === null
@@ -1463,6 +1507,29 @@ function acquirePathMutationClaim(
       }
       unlinkSync(releaseName);
       syncDirectory(".");
+    };
+    // A helper from before the reaper election renames whatever holds the
+    // lock name once it has seen a dead claim there, so it can move a live
+    // claim away while that claim's owner still writes. Any displacement
+    // happened before this link succeeded, and its temporary outlives it:
+    // helpers from before the election never remove recovery temporaries,
+    // and the residue sweep keeps a temporary that holds a live claim.
+    if (pathMutationClaimDisplaced(targetSha256)) {
+      try {
+        release();
+      } catch {
+        // Failing closed below is the outcome either way.
+      }
+      throw new Error(
+        "path mutation claim was displaced by a helper outside the reaper election; "
+          + "wait for the displaced holder to exit",
+      );
+    }
+    pauseAfterPathMutationClaimForTest(targetSha256, requestId);
+    pausePathMutationStepForTest("claim-held", requestId);
+    return () => {
+      pausePathMutationStepForTest("claim-release", requestId);
+      release();
     };
   }
   return null;

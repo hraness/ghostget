@@ -88,8 +88,8 @@ const REMOVE_QUARANTINE_SCAN_MAXIMUM = 10_000;
 
 type Identity = { readonly device: string; readonly inode: string };
 type DirectoryExpectation = Identity | null;
-type StateMutationClaimPhase = "waiting" | "candidate" | "held";
-type StateMutationClaim = ProcessOwnerIdentity & {
+export type StateMutationClaimPhase = "waiting" | "candidate" | "held";
+export type StateMutationClaim = ProcessOwnerIdentity & {
   readonly kind: "io-state-mutation-claim";
   readonly schemaVersion: 1;
   readonly targetSha256: string;
@@ -1203,7 +1203,7 @@ function stateMutationClaimPrefix(targetSha256: string): string {
   return `.io-mutation-${targetSha256}-`;
 }
 
-function stateMutationClaimName(
+export function stateMutationClaimName(
   targetSha256: string,
   phase: StateMutationClaimPhase,
   claimId: string,
@@ -1575,7 +1575,7 @@ function recoverDefinitelyOrphanedStateMutationStages(): void {
   if (removed) syncDirectory(".");
 }
 
-function listLiveStateMutationClaims(
+export function listLiveStateMutationClaims(
   targetSha256: string,
 ): readonly {
   readonly name: string;
@@ -1663,7 +1663,7 @@ function recoverDefinitelyOrphanedStateMutationClaims(): void {
   }
 }
 
-function writeStateMutationClaim(
+export function writeStateMutationClaim(
   name: string,
   claim: StateMutationClaim,
 ): void {
@@ -1768,6 +1768,39 @@ function currentStateMutationProcessIdentity(): ReturnType<
   });
 }
 
+export type StateMutationClaimStageDecision = "proceed" | "busy" | "two-owners";
+
+/**
+ * The decision after each listing of a three-phase claim: a `waiting` claim
+ * gives up beside a claim past `waiting` or with a smaller claim ID, a
+ * `candidate` claim gives up beside a `held` claim or one with a smaller
+ * claim ID, and a `held` claim beside another `held` claim means arbitration
+ * admitted two owners. `verification/quint/state-claim.qnt` models it and
+ * its replay drives this function with `listLiveStateMutationClaims`.
+ */
+export function decideStateMutationClaimStage(
+  stage: StateMutationClaimPhase,
+  claimId: string,
+  live: readonly {
+    readonly phase: StateMutationClaimPhase;
+    readonly claim: { readonly claimId: string };
+  }[],
+): StateMutationClaimStageDecision {
+  const others = live.filter((entry) => entry.claim.claimId !== claimId);
+  switch (stage) {
+    case "waiting":
+      return others.some((entry) => entry.phase !== "waiting" || entry.claim.claimId < claimId)
+        ? "busy"
+        : "proceed";
+    case "candidate":
+      return others.some((entry) => entry.phase === "held" || entry.claim.claimId < claimId)
+        ? "busy"
+        : "proceed";
+    case "held":
+      return others.some((entry) => entry.phase === "held") ? "two-owners" : "proceed";
+  }
+}
+
 function acquireStateMutationClaim(
   targetName: string,
   requestId: string,
@@ -1798,15 +1831,12 @@ function acquireStateMutationClaim(
     }
   };
   try {
-    const waitingClaims = listLiveStateMutationClaims(targetSha256);
     if (
-      waitingClaims.some((candidate) =>
-        candidate.claim.claimId !== requestId
-        && (
-          candidate.phase !== "waiting"
-          || candidate.claim.claimId < requestId
-        )
-      )
+      decideStateMutationClaimStage(
+        "waiting",
+        requestId,
+        listLiveStateMutationClaims(targetSha256),
+      ) !== "proceed"
     ) {
       release();
       return null;
@@ -1820,15 +1850,12 @@ function acquireStateMutationClaim(
     renameSync(claimName, candidateName);
     claimName = candidateName;
     syncDirectory(".");
-    const candidateClaims = listLiveStateMutationClaims(targetSha256);
     if (
-      candidateClaims.some((candidate) =>
-        candidate.claim.claimId !== requestId
-        && (
-          candidate.phase === "held"
-          || candidate.claim.claimId < requestId
-        )
-      )
+      decideStateMutationClaimStage(
+        "candidate",
+        requestId,
+        listLiveStateMutationClaims(targetSha256),
+      ) !== "proceed"
     ) {
       release();
       return null;
@@ -1842,12 +1869,12 @@ function acquireStateMutationClaim(
     renameSync(claimName, heldName);
     claimName = heldName;
     syncDirectory(".");
-    const heldClaims = listLiveStateMutationClaims(targetSha256);
     if (
-      heldClaims.some((candidate) =>
-        candidate.claim.claimId !== requestId
-        && candidate.phase === "held"
-      )
+      decideStateMutationClaimStage(
+        "held",
+        requestId,
+        listLiveStateMutationClaims(targetSha256),
+      ) !== "proceed"
     ) {
       throw new Error("state mutation arbitration admitted two owners");
     }
