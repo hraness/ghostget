@@ -5257,7 +5257,7 @@
         "npm-registry"
       ],
       "notVerified": [
-        "The test checks the job graph: `publish_npm` transitively needs exactly `authorize`, `verify`, `attest`, and `publish`, no canonical job needs an npm job, and no job carries an `if:` or `continue-on-error` that could run npm after a failed prerequisite. That GitHub skips a job whose needed jobs did not succeed is the `github-enforcement` assumption.",
+        "The test checks the job graph: `publish_npm` transitively needs exactly `authorize`, `verify`, `attest`, and `publish`, no canonical job needs an npm job, and no job or step carries an `if:` or `continue-on-error` that could run npm after a failed prerequisite or let a canonical job succeed without its work. That GitHub skips a job whose needed jobs did not succeed is the `github-enforcement` assumption.",
         "The identical-bytes half rests on the enumerated example tests of the npm job's artifact-by-ID, archive-hash, and canonical-Release re-read steps."
       ]
     },

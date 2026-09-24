@@ -2330,7 +2330,10 @@ describe("npm publication contract", () => {
   test("runs npm publication only after the canonical jobs succeed, and canonical jobs never wait on npm", async () => {
     const workflow = await readFile(releaseWorkflowUrl, "utf8");
     const parsed = Bun.YAML.parse(workflow) as {
-      jobs: Record<string, { if?: unknown; needs?: string | string[]; "continue-on-error"?: unknown }>;
+      jobs: Record<string, {
+        if?: unknown; needs?: string | string[]; "continue-on-error"?: unknown;
+        steps?: { if?: unknown; "continue-on-error"?: unknown }[];
+      }>;
     };
     const needs = (name: string): readonly string[] => {
       const value = parsed.jobs[name]?.needs;
@@ -2359,6 +2362,13 @@ describe("npm publication contract", () => {
     // only when every needed job succeeded. No job may tolerate its own failure.
     for (const job of ["publish", "publish_npm", "admit_npm"]) expect(parsed.jobs[job]!.if).toBeUndefined();
     for (const [name, job] of Object.entries(parsed.jobs)) expect([name, job["continue-on-error"]]).toEqual([name, undefined]);
+    // A tolerated or conditionally skipped step would let a canonical job succeed
+    // without doing its work, and npm would then publish after it.
+    for (const [name, job] of Object.entries(parsed.jobs)) {
+      (job.steps ?? []).forEach((step, index) => {
+        expect([name, index, step["continue-on-error"], step.if]).toEqual([name, index, undefined, undefined]);
+      });
+    }
   });
 
   test("reauthorizes the exact owner on the current Release attempt before checkout", async () => {
