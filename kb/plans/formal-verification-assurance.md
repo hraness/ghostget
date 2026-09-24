@@ -323,6 +323,13 @@ and an ITF replay test through production code.
    under fairness. `promotion-observation-window` moved to the property
    layer: the model abstracts time, and a fast-check property drives the
    production slot schedule with generated latencies and early wakeups.
+   Bounds: Required runs Apalache to length 11, the shortest length at
+   which every mutant step is found (at 10 `stepSingleReadback` passes),
+   and the nightly workflow repeats the model at length 12 with 10,000
+   simulation samples of up to 20 steps. Local cost on a host at load
+   about 32: about 17.5 minutes for the whole promotion entry at length 11
+   (Apalache invariants and mutants about 14.5, the replay 178 s), against
+   about 19 minutes at length 12; the CI cost is read from the PR run.
    Still open: the release attempt machine beyond `release.qnt`, npm
    registry states, App-token use after revocation, and a temporal check of
    the progress law.
