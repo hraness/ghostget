@@ -1536,14 +1536,23 @@
 // 01875f12ab73a49d6c7d6bf520dc3d318db816addee2fa7981889f35c958cf7c. Carry the
 // same projections and allowances: 11,992,132 + 12,387 + 4,096 = 12,008,615
 // packed; 23,422,358 + 353 + 65 = 23,422,776 unpacked.
+// The approval broker binds each allow-once grant to its holder's use secret
+// at request time and admits no other caller, so a crashed holder leaves no
+// reusable lease. This adds 2,005 payload bytes over the unchanged 596-file
+// inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin
+// arm64 were byte-identical at 11,992,764 packed bytes, 23,424,363 unpacked
+// bytes; archive SHA-256
+// b12909f08f7c19460ced56e30619f4860a1183f4b0106170c07837dae577a937. Carry the
+// same projections and allowances: 11,992,764 + 12,387 + 4,096 = 12,009,247
+// packed; 23,424,363 + 353 + 65 = 23,424,781 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "D14 read-path capability",
+  scope: "D13 broker-enforced allow-once approvals",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "01875f12ab73a49d6c7d6bf520dc3d318db816addee2fa7981889f35c958cf7c",
-  packedBytes: 11_992_132,
-  unpackedBytes: 23_422_358,
+  archiveSha256: "b12909f08f7c19460ced56e30619f4860a1183f4b0106170c07837dae577a937",
+  packedBytes: 11_992_764,
+  unpackedBytes: 23_424_363,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

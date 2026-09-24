@@ -18,7 +18,7 @@ export { OperationPermissionError, readOperationPolicy, enableOperationPermissio
 
 type Options = { readonly environment: PermissionEnvironment; readonly registry: ProviderPluginRegistry; readonly signal?: AbortSignal };
 type ProviderTarget = Extract<ApprovalTarget, { readonly kind: "provider" }>;
-type ApprovalLease = Readonly<{ id: string; digest: string }>;
+type ApprovalLease = Readonly<{ id: string; digest: string; use: string }>;
 export type OperationPermissionIdentity = Readonly<{
   schemaVersion: 1; pluginId: string; transport: string; surfaceId: string; operation: string; contractVersion: number;
   adapterId: string; manifestHash: string; authId: string; authIncarnation: string; contractHash: string; closureHash: string; portableHash: string | null;
