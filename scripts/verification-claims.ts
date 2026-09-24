@@ -565,8 +565,13 @@ export async function registerFindings(register: ClaimsRegister, repository: Rep
 // Assurance case
 // ---------------------------------------------------------------------------
 
-function cell(value: string): string {
-  return value.replace(/\|/gu, "\\|");
+/**
+ * Escape single-line text for one Markdown table cell. Backslashes are escaped
+ * along with pipes; otherwise the text `a\|b` would render as `a\\|b`, where
+ * the pipe splits the cell.
+ */
+export function markdownTableCell(value: string): string {
+  return value.replace(/[\\|]/gu, (character) => `\\${character}`);
 }
 
 function code(value: string): string {
@@ -625,7 +630,7 @@ export function renderAssurance(register: ClaimsRegister): string {
   lines.push("", "### Exempt guidelines", "", "These guidelines make no claim about the package, CLI, website, or release.", "");
   lines.push("| Guide | Guideline | Reason |", "| --- | --- | --- |");
   for (const rule of exemptRules) {
-    lines.push(`| ${code(rule.guide)} | ${cell(rule.anchor)}… | ${cell(rule.exempt ?? "")} |`);
+    lines.push(`| ${code(rule.guide)} | ${markdownTableCell(rule.anchor)}… | ${markdownTableCell(rule.exempt ?? "")} |`);
   }
   lines.push("", "### Guides outside the register", "");
   for (const excluded of register.excludedGuides) lines.push(`- ${code(excluded.prefix)}: ${excluded.reason}`);
@@ -633,7 +638,7 @@ export function renderAssurance(register: ClaimsRegister): string {
   lines.push("| Assumption | Statement | Claims |", "| --- | --- | ---: |");
   for (const assumption of register.assumptions) {
     const users = claims.filter((claim) => claim.assumptions.includes(assumption.id)).length;
-    lines.push(`| ${code(assumption.id)} | ${cell(assumption.statement)} | ${String(users)} |`);
+    lines.push(`| ${code(assumption.id)} | ${markdownTableCell(assumption.statement)} | ${String(users)} |`);
   }
   lines.push("", "## Claims by area", "");
   const areas = [...new Set(claims.map((claim) => claim.area))].sort();

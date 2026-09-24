@@ -23,6 +23,7 @@ import {
   diskRepository,
   guidelineUnits,
   isRepositoryPath,
+  markdownTableCell,
   normalizeWhitespace,
   parseClaimsRegister,
   readClaimsRegister,
@@ -99,6 +100,30 @@ function overlay(base: RepositoryView, files: Files): RepositoryView {
       return Object.freeze([...paths].sort());
     },
   });
+}
+
+/** An independent statement of the table-cell escape: backslashes first, then pipes. */
+const tableCell = (value: string): string => value.replaceAll("\\", "\\\\").replaceAll("|", "\\|");
+
+/**
+ * Split a rendered cell into the characters Markdown shows, or return null
+ * when a bare pipe would split the cell or a backslash escapes anything else.
+ */
+function shownCellText(cell: string): string | null {
+  let shown = "";
+  for (let index = 0; index < cell.length; index += 1) {
+    const character = cell[index]!;
+    if (character === "|") return null;
+    if (character !== "\\") {
+      shown += character;
+      continue;
+    }
+    const escaped = cell[index + 1];
+    if (escaped !== "\\" && escaped !== "|") return null;
+    shown += escaped;
+    index += 1;
+  }
+  return shown;
 }
 
 async function repositoryText(path: string): Promise<string> {
@@ -311,6 +336,23 @@ describe("assurance case", () => {
     expect(renderAssurance(await committedRegister())).toBe(rendered);
   });
 
+  test("escapes backslashes and pipes so each table cell stays one cell", () => {
+    expect(markdownTableCell("deny | ask")).toBe("deny \\| ask");
+    expect(markdownTableCell("C:\\temp")).toBe("C:\\\\temp");
+    expect(markdownTableCell("ends in \\")).toBe("ends in \\\\");
+    expect(markdownTableCell("\\|")).toBe("\\\\\\|");
+    expect(shownCellText("\\\\|")).toBeNull();
+    const text = fc.oneof(
+      fc.string({ maxLength: 40 }),
+      fc.string({ unit: fc.constantFrom("\\", "|", "a", " ", "`"), maxLength: 40 }),
+    );
+    assertProperty(fc.property(text, (value) => {
+      const cell = markdownTableCell(value);
+      expect(cell).toBe(tableCell(value));
+      expect(shownCellText(cell)).toBe(value);
+    }));
+  });
+
   test("states what the register does not verify and the environment it assumes", async () => {
     const register = await committedRegister();
     const document = await repositoryText(ASSURANCE_DOCUMENT);
@@ -334,7 +376,7 @@ describe("assurance case", () => {
     for (const claim of withoutCheck) expect(unchecked).toContain(`\n- \`${claim.id}\`: ${claim.statement} `);
     const exempt = section("### Exempt guidelines", "### Guides outside the register");
     for (const rule of register.rules.filter((candidate) => candidate.exempt !== null)) {
-      expect(exempt).toContain(`| ${rule.anchor.replaceAll("|", "\\|")}… | ${rule.exempt!.replaceAll("|", "\\|")} |`);
+      expect(exempt).toContain(`| ${tableCell(rule.anchor)}… | ${tableCell(rule.exempt!)} |`);
     }
     const outside = section("### Guides outside the register", "## Environmental assumptions");
     for (const excluded of register.excludedGuides) expect(outside).toContain(`\n- \`${excluded.prefix}\`: ${excluded.reason}\n`);
@@ -342,7 +384,7 @@ describe("assurance case", () => {
     for (const assumption of register.assumptions) {
       const users = register.claims.filter((claim) => claim.assumptions.includes(assumption.id)).length;
       expect(users).toBeGreaterThan(0);
-      expect(environment).toContain(`\n| \`${assumption.id}\` | ${assumption.statement.replaceAll("|", "\\|")} | ${String(users)} |\n`);
+      expect(environment).toContain(`\n| \`${assumption.id}\` | ${tableCell(assumption.statement)} | ${String(users)} |\n`);
     }
   });
 
