@@ -323,7 +323,8 @@
         "confirmed-write-at-most-once",
         "indeterminate-cleared-only-by-evidence",
         "indeterminate-never-retried",
-        "mutation-exact-preview-confirmation"
+        "mutation-exact-preview-confirmation",
+        "portable-retained-release"
       ]
     },
     {
@@ -2672,6 +2673,37 @@
         "The replay drives every seeded trace through the pure fence cores with an in-memory store, and five of them, a greedy cover of every action result the seeded traces take, through the file-backed state layer on a real state home: `createRunJournal`, `updateRunJournal`, `listRunJournalSnapshots`, `acquireConfirmedWriteLedgers` (the intent ledger, then the hash-keyed ledger), `repairInterruptedRunJournals` with its receipt and ledger projection, and `releaseReconciledRunRecovery`. It does not run the `confirmInvocation` program, so plan validation, recovery capsules, and `claimDuplicateRiskSource`'s receipt, capsule, and ledger rechecks are covered only by the listed example tests.",
         "Owner acceptance of the duplicate risk, the preview's successor check, election of a source across a same-subject reconnect (the model's source must bind the current auth record), and a successor whose election fails at its dispatch boundary are not modelled; the model disables that dispatch, and the listed example tests cover production failing the run before any request.",
         "The dedupe window's expiry, partial multi-dispatch runs, and journals from before the intent fence are not modelled."
+      ]
+    },
+    {
+      "id": "portable-retained-release",
+      "statement": "An indeterminate portable write's intent fence opens only on a not-applied observation that Ghostget itself obtained from the plugin's declared readback, bound to the run, its intent, auth realm, and manifest; a source whose elected duplicate successor settled is superseded, which releases its recovery material and lets its plugin bundle be removed while its indeterminate ledger still fences the intent.",
+      "area": "mutations",
+      "source": {
+        "path": "AGENTS.md",
+        "quote": "Never retry or clear an indeterminate dispatch; reconcile it from separately obtained exact evidence."
+      },
+      "layer": "quint",
+      "status": "evidenced",
+      "evidence": [
+        "scripts/verification-retained-replay.test.ts",
+        "src/provider-plugin-host.test.ts",
+        "src/provider-plugin-package.test.ts",
+        "src/provider-plugin-portable-runtime.test.ts",
+        "src/provider-plugin-protocol.test.ts",
+        "src/run-journal.test.ts",
+        "verification/quint/retained.qnt"
+      ],
+      "assumptions": [
+        "filesystem-durability",
+        "provider-behaviour"
+      ],
+      "notVerified": [
+        "The model is bounded: one source run, at most one elected successor, one retry of the base intent, 2,000 simulated samples of up to 12 steps, and Apalache to length 8. Auth rotation, manifest upgrades, chains of successors, successor readback, and assets are not modelled.",
+        "Whether the plugin declared a readback is chosen by the trace, and the readback's answer is modelled as the provider's truth or unknown: a plugin whose declared read-only operation reports not-applied after an applied effect breaks the bound, which the seeded `stepUntruthfulReadback` mutant shows. The readback is trusted plugin code under the same trust boundary as its write.",
+        "The replay drives every seeded trace through the pure cores (`transitionRunJournal`, `intentFenceBlocker`, `observedNotAppliedRelease`, `duplicateSourceSupersession`, `reconciledRecoveryRelease`) and `inspectPortableProviderPluginQuiescence` with an in-memory journal list. The file-backed store, the child host's protocol 2 frames, and the create-once observation record are covered only by the listed example tests.",
+        "No owner-approval route reaches portable not-applied reconciliation; a plugin without a readback declaration stays on the explicit-input path, which never releases the ledger.",
+        "Supersession runs at plugin install, disable, and removal and in the doctor repair pass, not at the moment the successor settles."
       ]
     },
     {

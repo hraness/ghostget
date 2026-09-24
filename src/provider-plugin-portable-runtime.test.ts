@@ -351,8 +351,11 @@ type PackageIdentity = {
   readonly adapterId: string;
   readonly surfaceId: string;
   readonly origin: `https://${string}`;
-  /** Add a one-dispatch `posts.publish` write and its `posts.read` lookup. */
-  readonly publish?: "plain";
+  /**
+   * Add a one-dispatch `posts.publish` write and its `posts.read` lookup;
+   * "undeclared" omits the write's readback declaration.
+   */
+  readonly publish?: "plain" | "undeclared";
 };
 
 const publishIdentity: PackageIdentity = {
@@ -389,11 +392,13 @@ function publishOperations(identity: PackageIdentity) {
       dedupeWindowMs: 60_000,
       input: publishInput,
       implementation: "Publishes one fixture post.",
-      readback: {
-        version: 1 as const,
-        operation: "posts.read",
-        contractVersion: 1,
-      },
+      ...(identity.publish === "undeclared" ? {} : {
+        readback: {
+          version: 1 as const,
+          operation: "posts.read",
+          contractVersion: 1,
+        },
+      }),
     },
     readOperation("posts.read", publishInput),
   ];
@@ -3836,6 +3841,7 @@ describe("portable readback reconciliation", () => {
         readRunJournal(source.runId, isolatedEnvironment)!.journal,
         isolatedEnvironment,
       );
+      expect(catalog.readback.declares(source.portablePluginContract)).toBe(true);
       const released = await reconcile(source.runId);
       expect(released).toMatchObject({
         ok: true,
@@ -3877,6 +3883,76 @@ describe("portable readback reconciliation", () => {
       expect(fetches).toBe(writesBefore + 1);
     } finally {
       rmSync(isolatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("leaves a plugin without a readback declaration on the explicit-input path", async () => {
+    const isolatedRoot = mkdtempSync(join(fixtureRoot, "publish-undeclared-"));
+    chmodSync(isolatedRoot, 0o700);
+    const isolatedEnvironment = {
+      GHOSTGET_STATE_HOME: isolatedRoot,
+      HOME: fixtureRoot,
+    };
+    const undeclaredRoot = mkdtempSync(join(fixtureRoot, "undeclared-package-"));
+    try {
+      installPackage(
+        createPackage(undeclaredRoot, { ...publishIdentity, publish: "undeclared" }),
+        isolatedEnvironment,
+      );
+      const auth = cookiesAuth(cookiePath);
+      saveAuth(auth, isolatedEnvironment, { force: true });
+      let readbacks = 0;
+      const writeHost = publishFixtureHost(() => true);
+      const catalog = createPortableProviderPluginCatalog(
+        emptyRegistry(),
+        isolatedEnvironment,
+        {
+          runHost: (invocation) => {
+            if (invocation.readback !== undefined) {
+              readbacks += 1;
+              throw new Error("the readback must not run");
+            }
+            return writeHost(invocation);
+          },
+        },
+      );
+      const manifest = catalog.registry.resolveOwnedManifest("portable-publish");
+      if (manifest === undefined) {
+        throw new Error("portable publish fixture is unavailable");
+      }
+      const run = await confirmInvocation(createAndSaveInvocationPlan({
+        manifest,
+        operationId: "posts.publish",
+        input: { body: "undeclared" },
+        auth,
+      }, isolatedEnvironment, new Date(), catalog.registry).digest, {
+        headed: false,
+        environment: isolatedEnvironment,
+        registry: catalog.registry,
+        loadManifest: () => ({ ok: true, value: manifest }),
+      });
+      if (run.receipt.schemaVersion !== 6) {
+        throw new Error("portable run must carry a portable receipt");
+      }
+      expect(run.receipt.status).toBe("indeterminate");
+      // The CLI keys the explicit-input error on this answer.
+      expect(catalog.readback.declares(run.receipt.portablePluginContract))
+        .toBe(false);
+      expect(await rejectionMessage(
+        reconcilePortableProviderPluginRunFromReadback(run.receipt.runId, {
+          registry: catalog.registry,
+          readback: catalog.readback,
+          environment: isolatedEnvironment,
+        }),
+      )).toContain("declares no readback");
+      expect(readbacks).toBe(0);
+      expect(readPortableRunObservedReadback(run.receipt.runId, isolatedEnvironment))
+        .toBeNull();
+      expect(readRunJournal(run.receipt.runId, isolatedEnvironment)?.journal)
+        .toMatchObject({ ledgerState: "indeterminate", recoveryState: "retained" });
+    } finally {
+      rmSync(isolatedRoot, { recursive: true, force: true });
+      rmSync(undeclaredRoot, { recursive: true, force: true });
     }
   });
 

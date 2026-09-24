@@ -8,14 +8,14 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 244 claims: 180 evidenced, 45 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 245 claims: 181 evidenced, 45 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 143 | 2 | 0 |
 | property test | 15 | 1 | 0 |
 | stateful model | 2 | 13 | 0 |
-| Quint model with production trace replay | 10 | 27 | 0 |
+| Quint model with production trace replay | 11 | 27 | 0 |
 | Lean proof with differential test | 7 | 1 | 0 |
 | differential oracle | 3 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
@@ -105,7 +105,7 @@ Each claim holds only while its listed assumptions hold.
 | --- | --- | ---: |
 | `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 8 |
 | `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 33 |
-| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 28 |
+| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 29 |
 | `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 32 |
 | `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 10 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
@@ -114,7 +114,7 @@ Each claim holds only while its listed assumptions hold.
 | `sha256` | SHA-256 is collision resistant. | 3 |
 | `encryption` | The authenticated encryption primitives and the operating-system key storage are sound. | 4 |
 | `media-tools` | yt-dlp, ffmpeg, and whisper.cpp report metadata faithfully and honor the arguments they are given. | 11 |
-| `provider-behaviour` | Third-party providers behave as their observed contracts describe. | 29 |
+| `provider-behaviour` | Third-party providers behave as their observed contracts describe. | 30 |
 | `plugin-trusted` | Source plugins are trusted in-process code; portable execution contains ordinary failures, not hostile code. | 13 |
 | `onepassword` | The 1Password SDK and account return the requested secret faithfully. | 2 |
 | `github-api` | GitHub's REST, GraphQL, and Actions APIs report repository, run, and Release state truthfully. | 73 |
@@ -1060,7 +1060,7 @@ The messaging automation protocol rejects a second ordinary in-flight request an
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified: Only the enumerated example cases are checked.
 
-### `mutations` (10 claims)
+### `mutations` (11 claims)
 
 #### `mutation-exact-preview-confirmation`
 
@@ -1085,6 +1085,21 @@ For every intent (account realm, provider target, operation id, canonical input)
   - The replay drives every seeded trace through the pure fence cores with an in-memory store, and five of them, a greedy cover of every action result the seeded traces take, through the file-backed state layer on a real state home: `createRunJournal`, `updateRunJournal`, `listRunJournalSnapshots`, `acquireConfirmedWriteLedgers` (the intent ledger, then the hash-keyed ledger), `repairInterruptedRunJournals` with its receipt and ledger projection, and `releaseReconciledRunRecovery`. It does not run the `confirmInvocation` program, so plan validation, recovery capsules, and `claimDuplicateRiskSource`'s receipt, capsule, and ledger rechecks are covered only by the listed example tests.
   - Owner acceptance of the duplicate risk, the preview's successor check, election of a source across a same-subject reconnect (the model's source must bind the current auth record), and a successor whose election fails at its dispatch boundary are not modelled; the model disables that dispatch, and the listed example tests cover production failing the run before any request.
   - The dedupe window's expiry, partial multi-dispatch runs, and journals from before the intent fence are not modelled.
+
+#### `portable-retained-release`
+
+An indeterminate portable write's intent fence opens only on a not-applied observation that Ghostget itself obtained from the plugin's declared readback, bound to the run, its intent, auth realm, and manifest; a source whose elected duplicate successor settled is superseded, which releases its recovery material and lets its plugin bundle be removed while its indeterminate ledger still fences the intent.
+
+- Evidenced by Quint model with production trace replay.
+- Source: `AGENTS.md`: “Never retry or clear an indeterminate dispatch; reconcile it from separately obtained exact evidence.”
+- Evidence: `scripts/verification-retained-replay.test.ts`, `src/provider-plugin-host.test.ts`, `src/provider-plugin-package.test.ts`, `src/provider-plugin-portable-runtime.test.ts`, `src/provider-plugin-protocol.test.ts`, `src/run-journal.test.ts`, `verification/quint/retained.qnt`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified:
+  - The model is bounded: one source run, at most one elected successor, one retry of the base intent, 2,000 simulated samples of up to 12 steps, and Apalache to length 8. Auth rotation, manifest upgrades, chains of successors, successor readback, and assets are not modelled.
+  - Whether the plugin declared a readback is chosen by the trace, and the readback's answer is modelled as the provider's truth or unknown: a plugin whose declared read-only operation reports not-applied after an applied effect breaks the bound, which the seeded `stepUntruthfulReadback` mutant shows. The readback is trusted plugin code under the same trust boundary as its write.
+  - The replay drives every seeded trace through the pure cores (`transitionRunJournal`, `intentFenceBlocker`, `observedNotAppliedRelease`, `duplicateSourceSupersession`, `reconciledRecoveryRelease`) and `inspectPortableProviderPluginQuiescence` with an in-memory journal list. The file-backed store, the child host's protocol 2 frames, and the create-once observation record are covered only by the listed example tests.
+  - No owner-approval route reaches portable not-applied reconciliation; a plugin without a readback declaration stays on the explicit-input path, which never releases the ledger.
+  - Supersession runs at plugin install, disable, and removal and in the doctor repair pass, not at the moment the successor settles.
 
 #### `indeterminate-never-retried`
 
