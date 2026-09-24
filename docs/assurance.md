@@ -8,14 +8,14 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 242 claims: 176 evidenced, 47 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 244 claims: 179 evidenced, 46 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 142 | 2 | 0 |
-| property test | 14 | 1 | 0 |
+| example test | 143 | 2 | 0 |
+| property test | 15 | 1 | 0 |
 | stateful model | 2 | 13 | 0 |
-| Quint model with production trace replay | 8 | 29 | 0 |
+| Quint model with production trace replay | 9 | 28 | 0 |
 | Lean proof with differential test | 7 | 1 | 0 |
 | differential oracle | 3 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
@@ -105,16 +105,16 @@ Each claim holds only while its listed assumptions hold.
 | --- | --- | ---: |
 | `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 8 |
 | `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 33 |
-| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 27 |
-| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 30 |
-| `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 9 |
+| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 28 |
+| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 32 |
+| `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 10 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
 | `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 13 |
 | `dns-tls` | The operating-system resolver and the TLS stack behave as specified. | 7 |
 | `sha256` | SHA-256 is collision resistant. | 3 |
-| `encryption` | The authenticated encryption primitives and the operating-system key storage are sound. | 3 |
+| `encryption` | The authenticated encryption primitives and the operating-system key storage are sound. | 4 |
 | `media-tools` | yt-dlp, ffmpeg, and whisper.cpp report metadata faithfully and honor the arguments they are given. | 11 |
-| `provider-behaviour` | Third-party providers behave as their observed contracts describe. | 28 |
+| `provider-behaviour` | Third-party providers behave as their observed contracts describe. | 29 |
 | `plugin-trusted` | Source plugins are trusted in-process code; portable execution contains ordinary failures, not hostile code. | 13 |
 | `onepassword` | The 1Password SDK and account return the requested secret faithfully. | 2 |
 | `github-api` | GitHub's REST, GraphQL, and Actions APIs report repository, run, and Release state truthfully. | 73 |
@@ -1060,7 +1060,7 @@ The messaging automation protocol rejects a second ordinary in-flight request an
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified: Only the enumerated example cases are checked.
 
-### `mutations` (8 claims)
+### `mutations` (10 claims)
 
 #### `mutation-exact-preview-confirmation`
 
@@ -1109,6 +1109,33 @@ An indeterminate dispatch fence is released only from separately obtained exact 
   - The replay does not call `recordNotAppliedClaim`: its not-applied action changes no journal in the replay world, so that `recordNotAppliedClaim` releases nothing is covered only by the listed example tests.
   - The web-session reconciler and the CLI and portable parsers of reconciliation input are covered only by the listed example and property tests.
   - Terminalizing a run from supplied evidence says nothing about provider liveness.
+
+#### `recovery-auth-continuity`
+
+Reconciliation and duplicate-risk successor election accept a current auth record other than the run's exact record only when it keeps the locator ID and kind and names the provider subject that the run's encrypted recovery capsule recorded; a capsule with no recorded subject still needs the exact record.
+
+- Evidenced by property test.
+- Source: `docs/effect-confirmed-write-runtime.md`: “locator ID and kind and names the provider subject that the run's encrypted recovery capsule recorded.”
+- Evidence: `src/confirmed-write-intent-fence.test.ts`, `src/provider-plugin-portable-runtime.test.ts`, `src/recovery.test.ts`, `src/runtime.test.ts`, `src/web-session-recovery.test.ts`
+- Property tests: `src/recovery.test.ts`: “property: only exact bytes or the recorded provider subject continue a run's realm”
+- Assumptions: `encryption`, `provider-behaviour`, `same-user-trusted`
+- Not verified:
+  - The check compares subject strings. That one subject names one provider account rests on how the auth record's subject was bound, by a plugin subject probe or by the operator; a subject typed onto another account's credentials is not detected here.
+  - The property test samples the pure `recoveryAuthContinuity` decision; its use by the web-session reconciler, the portable reconciler, and successor election is covered only by the listed example tests.
+  - The intent fence itself stays keyed by locator ID: a fulfilled run under other auth bytes is still withheld rather than replayed, because run journals do not record the subject.
+
+#### `intent-fence-readback`
+
+`ghostget doctor` reads every confirmed-write intent claim back against its run journal without writing, reports malformed, orphaned, stale, drifted, misplaced, and repeated claims as unhealthy, and names claims and runs only by opaque key and run ID.
+
+- Evidenced by example test.
+- Source: `docs/effect-confirmed-write-runtime.md`: “`ghostget doctor` reads the fence back without writing, after its repair pass.”
+- Evidence: `src/confirmed-write-intent-fence.test.ts`, `src/ghostget.test.ts`
+- Assumptions: `filesystem-durability`, `same-user-trusted`
+- Not verified:
+  - The readback is not modelled; only the listed example tests cover it, and they plant an orphaned, a malformed, and an off-chain claim but not every issue kind.
+  - The readback reads at most 10,000 directory entries and then reports itself truncated; it does not re-derive the hash-keyed ledgers.
+  - Doctor runs its journal repair pass before the readback, so the readback describes the state after that repair.
 
 #### `durable-boundaries-before-dispatch`
 
@@ -1188,16 +1215,17 @@ An npm failure never unpublishes or blocks the GitHub Release.
 
 #### `npm-failure-never-blocks-promotion`
 
-A Release attempt that published the canonical Release and then failed a later npm job can still be promoted to the website through manual recovery: its authority resolution and the canonical download admit that attempt only through its bounded job inventory proving the four canonical jobs succeeded, and after a re-run of all jobs, only through the earlier receipt attempt that the Release body names, whose own inventory must prove all four. Automatic promotion admits only a first attempt that succeeded.
+A Release attempt that published the canonical Release and then failed a later npm job can still be promoted to the website through manual recovery: its authority resolution and the canonical download admit that attempt only through its bounded job inventory proving the four canonical jobs succeeded, and after a re-run of all jobs, only through the earlier receipt attempt that the Release body names, whose own inventory must prove all four, or, when that receipt attempt attested but did not publish, through one of at most three exact intermediate attempts of the same run whose own attempt record and inventory prove all four. Automatic promotion admits only a first attempt that succeeded.
 
 - Evidenced by Quint model with production trace replay.
-- Source: `AGENTS.md`: “Manual recovery requires a positive current attempt and admits an unsuccessful latest attempt only through that attempt's own bounded job inventory proving all four or, when that attempt did not publish, through the earlier receipt attempt that the Release body names, whose own bounded inventory must prove all four; the mutable body only selects which inventory to read.”
+- Source: `AGENTS.md`: “Manual recovery requires a positive current attempt and admits an unsuccessful latest attempt only through that attempt's own bounded job inventory proving all four or, when that attempt did not publish, through the earlier receipt attempt that the Release body names, whose own bounded inventory must prove all four”
+- Also covers: `AGENTS.md`: “when that receipt attempt attested but did not publish, through one of at most three attempts strictly between it and the latest whose own attempt record binds the exact owner actors, repository, workflow ID and path, tag push, tag, SHA, and completion and whose own complete bounded inventory proves all four; a wider gap fails closed, and the mutable body only selects which inventories to read.”
 - Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/verification-release-replay.test.ts`, `verification/quint/release.qnt`
 - Assumptions: `github-api`, `npm-registry`
 - Not verified:
   - The shell gate in `.github/workflows/website-production.yml` that limits automatic promotion to a successful first attempt is outside the model and its replay. The model lets automatic promotion admit any successful latest attempt, a superset of what the gate allows.
   - Promotion after an npm failure waits for an owner to dispatch manual recovery; the automatic path fails its first-attempt gate by design.
-  - The model's `promotionNotBlocked` ghost restates the manual admission rule, so the invariant holds by construction; the D8 mutant and the replay's verdict equality carry the evidence. The claim holds only while the owner reruns failed jobs: a rerun of all jobs after a failed-jobs rerun published the Release leaves neither the latest nor the receipt attempt with four successful jobs, and production refuses manual promotion (plan D15).
+  - The model's `promotionNotBlocked` ghost flags a manual recovery or canonical download refusal whenever any attempt of the run proved all four canonical jobs, independent of the admission rule; the D8 and D15 mutants violate it, and the replay's verdict equality ties it to production. Recovery reads at most three attempts between the receipt attempt and the latest attempt and fails closed beyond that bound, so a Release published by an attempt followed by more than three further reruns cannot be promoted; the model's three attempts never reach that bound, which only the example tests cover.
   - The replay serves synthetic run, job inventory, and Release responses to `resolveReleaseAuthority`; it does not exercise the deadline, pagination, or main-branch ancestry reads.
   - The model covers one run of up to three attempts; Apalache checks it to depth 10 and seeded simulation samples 2,000 runs of up to 12 steps.
 
@@ -1674,7 +1702,7 @@ After the one-time bootstrap, a missing website-production branch is a hard fail
 Promotion stays within the documented request budgets: at most 209 REST calls in the provider outcome job and 358 together with the immutable Release workflow, at most 120 GraphQL requests at no more than two points each, and at most 32 unauthenticated public-host GETs.
 
 - Evidenced by example test.
-- Source: `docs/publishing.md`: “The immutable Release and downstream promotion workflows together use at most 358 REST calls”
+- Source: `docs/publishing.md`: “The immutable Release and downstream promotion workflows together use at most 370 REST calls”
 - Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`
 - Assumptions: `github-api`, `github-enforcement`, `vercel`
 - Not verified: No property test covers this law yet; only the enumerated example cases are checked.
@@ -2102,7 +2130,7 @@ The stable-release concurrency group serializes Release runs without cancelling 
 
 #### `release-failed-jobs-rerun-recovers-publish`
 
-Re-running only the failed jobs of a Release run publishes the exact bytes that an earlier attempt of the same run attested: the publisher downloads the carried artifact only by its numeric ID behind an exact-identity guard, admits a manifest whose attempt is no later than the current attempt of the same run, and requires every signed certificate to name that attempt. The canonical download admits an attesting attempt whose publication failed only when a strictly later completed attempt of the same run proves all four canonical jobs in its own job inventory.
+Re-running only the failed jobs of a Release run publishes the exact bytes that an earlier attempt of the same run attested: the publisher downloads the carried artifact only by its numeric ID behind an exact-identity guard, admits a manifest whose attempt is no later than the current attempt of the same run, and requires every signed certificate to name that attempt. The canonical download admits an attesting attempt whose publication failed only when a strictly later completed attempt of the same run proves all four canonical jobs in its own job inventory: the current attempt, or one of at most three exact intermediate attempts when the current attempt did not publish.
 
 - Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “The GitHub publisher downloads the attested artifact only by numeric artifact ID behind an exact-identity guard, so a failed-jobs rerun publishes the exact bytes and signed attempt its run already attested, never another run's or a later attempt's.”
@@ -2247,15 +2275,17 @@ Consequential lifecycle reducers take injected clocks and randomness; wall-clock
 
 #### `helper-mutual-exclusion`
 
-State-helper and path-helper three-phase claims admit at most one critical-section holder, including with stale-owner reaping and non-atomic readdir.
+The state helper's three-phase claim and the path helper's per-leaf claim each admit at most one critical-section holder, including with stale-owner reaping and non-atomic readdir.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `kb/plans/formal-verification-assurance.md`: “The invariant is `|{p : critical(p)}| ≤ 1`.”
-- Evidence: `scripts/verification-path-claim-replay.test.ts`, `src/browser-snapshots.test.ts`, `src/path-helper.test.ts`, `src/read-projections.test.ts`, `src/storage-cas.test.ts`, `verification/quint/path-claim.qnt`
-- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
+- Evidence: `scripts/verification-path-claim-replay.test.ts`, `scripts/verification-state-claim-replay.test.ts`, `src/browser-snapshots.test.ts`, `src/path-helper.test.ts`, `src/read-projections.test.ts`, `src/storage-cas.test.ts`, `verification/quint/path-claim.qnt`, `verification/quint/state-claim.qnt`
+- Assumptions: `filesystem-atomic-rename`, `process-liveness`, `same-user-trusted`
 - Not verified:
-  - The path-helper claim and its dead-claim reaper election have a Quint model whose replay drives real path-helper processes; the state helper's three-phase claim and a `readdir` that may omit renamed entries are not yet modelled, so this claim stays planned.
+  - verification/quint/state-claim.qnt checks two state helpers with at most one kill. A listing may report the other claim at any phase it had since the listing began, or not at all after it changed. CI runs 20,000 simulated samples of up to 12 steps and Apalache to length 8. The replay runs the production listing and stage decision on real claim files for 2,000 traces; concurrent helper processes run only in the example tests. Three or more helpers, an owner whose liveness cannot be inspected, and the eight-listing retry bound are not modelled.
+  - When listings are not atomic, both state-helper claims can reach `held`. The later one then fails with "state mutation arbitration admitted two owners" instead of entering, so mutual exclusion holds but that request fails.
   - The path-helper model is bounded: three helpers, at most one kill, kills only at pause points, 10,000 simulated samples of up to 12 steps, Apalache to length 6, and 60 replayed traces.
+  - A path helper from before the reaper election can move a live claim away without restoring it. A current helper that claims afterwards finds that claim in the quarantine, releases its own claim, and fails; the residue sweep keeps the quarantine until the claim's PID exits. Liveness is by PID alone, so a reused PID keeps such a quarantine, and blocks the leaf, until that PID exits; this also applies to a current reaper killed between moving a dead claim into its quarantine and removing it, when the dead claim's PID is reused. Only src/path-helper.test.ts covers this, the Quint model has no such helper, and nothing stops an old helper that claims third.
 
 #### `state-cas-no-rollback`
 

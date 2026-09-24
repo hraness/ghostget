@@ -98,7 +98,7 @@ web gateway, the Edge middleware, media, release, and CI on `origin/main`
 | D12 | Edge | The direct `.md` branch calls `retrieve(new URL(url.pathname, url.origin))` (`edge/negotiation.ts:257`), so `//evil.example/x.md` resolves off-origin in-process. The live site is not affected: Vercel returns 308 to a single slash before middleware, and `/\` returns 404 (checked 2026-09-23). The code still violates same-origin retrieval if the platform changes. | reproduced in-process; latent live |
 | D13 | Approvals | Allow-once is enforced by the client. The broker leaves an `allowed` entry checkable for 600 s and relies on the Ghostget process calling `releaseApproval` in `finally`. A crash leaves a reusable lease for same-UID callers. | code-read |
 | D14 | Read paths | The menu-bar snapshot creates incarnation files through `ensureIncarnationUnderAdmission`, and read-projection listings unlink orphaned claims. Both break the literal rule "No writes on read paths". Either the rule gets an explicit, bounded exemption or the writes move. Done: #355 made the snapshot read-only, #371 moved the cache-read and omni auth checks to `AuthIncarnationReader` and recorded the two exemptions, and the residual-incarnation change binds read-path preparation, confirmation preparation, and the permission account identity the same way. Explicit invocation preparation remains the admitted creator. | code-confirmed; fixed |
-| D15 | Release | Manual promotion refuses a Release that an intermediate attempt published. When a failed-jobs rerun publishes bytes an earlier attempt attested, the body names that earlier attempt. A later rerun of all jobs then fails its publish job, and `resolveReleaseAuthority` reads only the latest attempt and the receipt attempt, neither of which proved all four canonical jobs. Found by a strengthened `promotionNotBlocked` over `verification/quint/release.qnt` (attempts: publish fails, rerun failed jobs publishes, rerun all) and reproduced against `resolveReleaseAuthority` with the release replay fixtures. | reproduced |
+| D15 | Release | Manual promotion refuses a Release that an intermediate attempt published. When a failed-jobs rerun publishes bytes an earlier attempt attested, the body names that earlier attempt. A later rerun of all jobs then fails its publish job, and `resolveReleaseAuthority` reads only the latest attempt and the receipt attempt, neither of which proved all four canonical jobs. Found by a strengthened `promotionNotBlocked` over `verification/quint/release.qnt` (attempts: publish fails, rerun failed jobs publishes, rerun all) and reproduced against `resolveReleaseAuthority` with the release replay fixtures. Fixed: when the receipt attempt attested but did not publish, manual recovery and the canonical download read at most three exact intermediate attempts, each through its own attempt record and job inventory, and the model's `promotionNotBlocked` now names any publishing attempt (mutant `stepD15`). | reproduced, fixed |
 
 ### Evidence gaps
 
@@ -207,6 +207,17 @@ Scope: D1, D2, D4, D5, D6, D7, D8, D12. Write the failing test first, then fix.
 Acceptance: each defect has a named regression test that fails on `193dc14`
 and passes after the fix, and `Required` passes.
 
+#### D1 and D2 follow-ups
+
+| Follow-up | State |
+| --- | --- |
+| Doctor readback of the intent fence | Done: `ghostget.intentFences` in `ghostget doctor`, claim `intent-fence-readback`. |
+| Bind the recovery realm to the provider subject | Done: recovery capsules record the auth record's subject, claim `recovery-auth-continuity`. |
+| Reconcile across a reauth | Done: web-session and portable reconcile and web duplicate-successor election accept a reconnect that keeps the locator, kind, and recorded subject. Capsules with no subject still need the exact record. |
+| Portable readback protocol | Open: needs a new versioned portable protocol frame and manifest declaration, which is a public interface decision for the owner. |
+| Duplicate successors for portable runs | Open: a source retained for its successor keeps its bundle unquiescent for good. The owner must decide how a retained source releases its bundle hold. |
+| Fence keyed by subject across locators | Open: run journals do not record the subject, so this needs a journal schema change. |
+
 ### Phase 2: test infrastructure
 
 - Route all 102 direct `fc.assert` calls through `assertProperty`, and add a
@@ -277,6 +288,27 @@ Acceptance per model:
 - The replay test passes over at least 1,000 simulated traces in CI.
 - The pre-fix variant finds the known defect.
 - The claims rows point at the model and the replay test.
+
+Execution of item 2, 2026-09-24:
+
+- Done: the D3 follow-ups. A path helper from before the reaper election
+  moves a live claim away and never restores it. A current helper that claims
+  afterwards now finds that live claim in its recovery quarantine, releases
+  its own claim, and fails closed. The residue sweep keeps a quarantine whose
+  claim's owner is still alive and removes it once that owner exits. A named
+  test in `src/path-helper.test.ts` failed before the change.
+- Done: `verification/quint/state-claim.qnt` models the state helper's
+  three-phase claim with a dead claim and a `readdir` that may miss or report
+  stale renames; an atomic snapshot is one of its outcomes, so one model
+  covers both variants. Its replay drives `listLiveStateMutationClaims` and
+  `decideStateMutationClaimStage` on real claim files for 2,000 traces, and
+  its mutants drop the listing after the rename to `held` or its check. The
+  model found that a non-atomic listing can let both claims reach `held`; the
+  later one then fails closed with "arbitration admitted two owners".
+- Open: the path-claim replay runs 60 traces, below the 1,000 in the
+  acceptance list, because each trace drives three real helper processes.
+  The Quint model has no pre-election helper, and nothing stops such a helper
+  that claims third.
 
 ### Phase 5: Lean proofs of pure cores
 

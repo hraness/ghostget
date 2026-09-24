@@ -2922,6 +2922,109 @@ describe("local at-most-once dispatch ledger", () => {
     }
   });
 
+  test("elects a duplicate-risk successor across a reconnect only for the recorded provider subject", async () => {
+    const testState = state();
+    try {
+      installManifest(xWebManifest(), {
+        force: false,
+        environment: testState.environment,
+      });
+      const selectedAuth = createAuth("x-web-test", {
+        source: "arc",
+        profile: "Profile 1",
+        subject: "123",
+      });
+      saveAuth(selectedAuth, testState.environment);
+      const input = { body: "one duplicate-risk reconnect fixture" };
+      const sourcePlan = createAndSaveInvocationPlan(
+        prepareInvocation("x-web", "posts.publish", input, selectedAuth.id, testState.environment),
+        testState.environment,
+      );
+      const sourceDispatch = sourcePlan.plan.dispatches[0];
+      if (sourceDispatch === undefined) throw new Error("source dispatch missing");
+      const source = await confirmInvocation(sourcePlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: async (_manifest, _recipe, _input, _auth, options) => {
+          await options?.beforeDispatch?.({
+            id: sourceDispatch.id,
+            index: 1,
+            progress: { planned: 1, started: 0, verified: 0 },
+          });
+          return {
+            status: "indeterminate",
+            output: null,
+            finalUrl: "https://x.com/i/status/123",
+            dispatchStarted: true,
+            dispatch: { planned: 1, started: 1, verified: 0 },
+            error: "synthetic response loss",
+          };
+        },
+      });
+      expect(source.receipt.status).toBe("indeterminate");
+
+      const reconnect = (subject: string) => {
+        saveAuth(createAuth("x-web-test", {
+          source: "arc",
+          profile: "Profile 2",
+          subject,
+        }), testState.environment, { force: true });
+        return createAndSaveInvocationPlan(
+          prepareInvocation("x-web", "posts.publish", input, selectedAuth.id, testState.environment),
+          testState.environment,
+          new Date(),
+          providerPluginRegistry,
+          { duplicateRiskOf: [source.receipt.runId] },
+        );
+      };
+
+      // A reconnect that names a different provider subject is another account.
+      expect(() => reconnect("456"))
+        .toThrow("does not match the exact adapter, auth, operation, risk, and input scope");
+
+      // The same subject under new locator bytes may elect the successor.
+      const successorPlan = reconnect("123");
+      expect(successorPlan.plan.auth.hash).not.toBe(source.receipt.auth.hash);
+      const successorDispatch = successorPlan.plan.dispatches[0];
+      if (successorDispatch === undefined) throw new Error("successor dispatch missing");
+      let successorCalls = 0;
+      const successor = await confirmInvocation(successorPlan.digest, {
+        headed: false,
+        environment: testState.environment,
+        executeWebSession: async (_manifest, _recipe, _input, _auth, options) => {
+          successorCalls += 1;
+          await options?.beforeDispatch?.({
+            id: successorDispatch.id,
+            index: 1,
+            progress: { planned: 1, started: 0, verified: 0 },
+          });
+          await options?.afterDispatchVerified?.({
+            id: successorDispatch.id,
+            index: 1,
+            progress: { planned: 1, started: 1, verified: 1 },
+          });
+          return {
+            status: "succeeded",
+            output: { postId: "successor-123" },
+            finalUrl: "https://x.com/i/status/successor-123",
+            dispatchStarted: true,
+            dispatch: { planned: 1, started: 1, verified: 1 },
+          };
+        },
+      });
+      expect(successor.receipt.status).toBe("submitted");
+      expect(successorCalls).toBe(1);
+      expect(readRunJournal(
+        source.receipt.runId,
+        testState.environment,
+      )?.journal.duplicateSuccessor).toMatchObject({
+        runId: successor.receipt.runId,
+      });
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
   test("binds one exact indeterminate web post to one permanent successor intent", async () => {
     const testState = state();
     try {

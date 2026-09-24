@@ -196,6 +196,7 @@ import {
   purgeExpiredPlans,
   readRunReceipt,
   repairInterruptedConfirmationClaims,
+  inspectConfirmedWriteIntentFences,
   repairInterruptedRunJournals,
 } from "./runtime";
 import {
@@ -1581,6 +1582,7 @@ async function doctor(
   const confirmationClaimRecovery =
     repairInterruptedConfirmationClaims(environment);
   const runJournalRecovery = repairInterruptedRunJournals(environment);
+  const intentFences = inspectConfirmedWriteIntentFences(environment);
   const webSessionCleanupAdmissionRecovery =
     await recoverWebSessionCleanupAdmissions(environment);
   const linkedDeviceLifecycleAdmissionRecovery =
@@ -1644,7 +1646,8 @@ async function doctor(
   const reviewedTemplateApiReady = false;
   const actionReady = providerApiReady || webSessionApiReady || localCliReady;
   const runRecoveryHealthy = confirmationClaimRecovery.invalid === 0
-    && runJournalRecovery.issues.length === 0;
+    && runJournalRecovery.issues.length === 0
+    && intentFences.issues.length === 0;
   const webSessionCleanupRecoveryHealthy =
     webSessionCleanupAdmissionRecovery.issues.length === 0;
   const linkedDeviceLifecycleRecoveryHealthy =
@@ -1678,6 +1681,7 @@ async function doctor(
     unsettledRuns,
     confirmationClaimRecovery,
     runJournalRecovery,
+    intentFences,
     webSessionCleanupAdmissionRecovery,
     linkedDeviceLifecycleRecovery,
     linkedDeviceLifecycleAdmissionRecovery,
@@ -1713,6 +1717,10 @@ async function doctor(
     output.stdout(
       `- Durable run recovery: ${runRecoveryHealthy ? "healthy" : "attention required"}`
       + ` (${runJournalRecovery.repaired} repaired, ${runJournalRecovery.issues.length} unresolved)\n`,
+    );
+    output.stdout(
+      `- Intent fence readback: ${intentFences.issues.length === 0 ? "healthy" : "attention required"}`
+      + ` (${intentFences.claims} claims, ${intentFences.issues.length} unresolved)\n`,
     );
     output.stdout(
       `- Provider resource cleanup recovery: ${webSessionCleanupRecoveryHealthy ? "healthy" : "attention required"}`

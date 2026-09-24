@@ -118,7 +118,7 @@ import {
   resolvePlanAssetFiles,
   stagePlanAssets,
 } from "./plan-assets";
-import { readRecoveryCapsule, removeProviderAcceptedMutationTargetEvidence, removeRecoveryCapsule, type RecoveryContractIdentity } from "./recovery";
+import { readRecoveryCapsule, recoveryAuthContinuity, removeProviderAcceptedMutationTargetEvidence, removeRecoveryCapsule, type RecoveryContractIdentity } from "./recovery";
 import { listRunJournalSnapshots, readRunJournal, runJournalNeedsRepair, transitionRunJournal, updateRunJournal, type RunJournal, type RunJournalEvent, type RunJournalSnapshot } from "./run-journal";
 import {
   currentProcessStartIdentity,
@@ -1779,10 +1779,6 @@ function planRunJournalContract(plan: InvocationPlan): RunJournal["contract"] {
 
 /** Recovery v1 records the durable account selection. The full lifetime binding
  * remains in the successor scope hash and is revalidated before confirmation. */
-function planRecoveryAuth(plan: InvocationPlan): RunJournal["auth"] {
-  return { id: plan.auth.id, hash: plan.auth.hash, kind: plan.auth.kind };
-}
-
 function planFileInputs(input: OperationInput): readonly FileInputValue[] {
   const files: FileInputValue[] = [];
   for (const value of Object.values(input)) {
@@ -1858,7 +1854,8 @@ function resolveInvocationDuplicateRisk(
     || journal.operation !== plan.operation
     || journal.risk !== plan.risk
     || journal.inputHash !== plan.inputHash
-    || canonicalJson(journal.auth) !== canonicalJson(planRecoveryAuth(plan))
+    || journal.auth.id !== plan.auth.id
+    || journal.auth.kind !== plan.auth.kind
     || canonicalJson(journal.contract)
       !== canonicalJson(planRunJournalContract(plan))
   ) {
@@ -1891,11 +1888,25 @@ function resolveInvocationDuplicateRisk(
     || capsule.risk !== plan.risk
     || capsule.inputHash !== plan.inputHash
     || canonicalJson(capsule.input) !== canonicalJson(plan.input)
-    || canonicalJson(capsule.auth) !== canonicalJson(planRecoveryAuth(plan))
+    || canonicalJson(capsule.auth) !== canonicalJson(journal.auth)
     || canonicalJson(capsule.contract) !== canonicalJson(planRecoveryContract(plan))
   ) {
     throw new Error(
       `duplicate-risk source run ${sourceRunId} capsule does not match the exact new intent scope`,
+    );
+  }
+  // The successor may run under a reconnected record only when it names the
+  // provider subject the source recorded; see recoveryAuthContinuity.
+  const currentAuth = loadAuth(plan.auth.id, environment);
+  if (
+    currentAuth.kind !== plan.auth.kind
+    || authHash(currentAuth) !== plan.auth.hash
+  ) {
+    throw new Error("authentication selection changed after preview; preview the action again");
+  }
+  if (recoveryAuthContinuity(journal.auth, capsule.authSubject, currentAuth) === null) {
+    throw new Error(
+      `duplicate-risk source run ${sourceRunId} does not match the exact adapter, auth, operation, risk, and input scope`,
     );
   }
   const ledgers = matchingJournalLedgers(journal, environment);
@@ -4207,6 +4218,204 @@ export function repairInterruptedRunJournals(
     repaired,
     projected,
     invalid,
+    issues: Object.freeze(issues),
+  });
+}
+
+export type IntentFenceIssueReason =
+  | "malformed-claim"
+  | "orphaned-claim"
+  | "stale-claim"
+  | "claim-drift"
+  | "misplaced-claim"
+  | "duplicate-claim"
+  | "unexpected-entry"
+  | "readback-truncated";
+
+/**
+ * A read-only account of the confirmed-write intent fence. Issues name a
+ * claim only by its opaque key and a run only by its ID; the report carries
+ * no locator, adapter, input, subject, or path.
+ */
+export type IntentFenceReadback = {
+  /** Intent claims read from disk. */
+  readonly claims: number;
+  /** Claims held by a run that is still executing. */
+  readonly active: number;
+  /** Claims held by a terminal run whose effect is not proven. */
+  readonly unsettled: number;
+  /** Claims held by a terminal run whose effect is proven. */
+  readonly fulfilled: number;
+  /**
+   * Terminal runs that still fence their intent but have no claim, such as
+   * runs recorded before the fence existed. The journal scan fences them.
+   */
+  readonly journalOnly: number;
+  readonly issues: readonly {
+    readonly claim: string | null;
+    readonly runId: string | null;
+    readonly reason: IntentFenceIssueReason;
+  }[];
+};
+
+const MAX_INTENT_FENCE_READBACK_ENTRIES = 10_000;
+
+/**
+ * Read back every intent claim against its run journal without writing.
+ * Claims are listed before journals: a run creates its journal before it
+ * claims its intent, so a claim listed here always has a journal to find.
+ */
+export function inspectConfirmedWriteIntentFences(
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  now = new Date(),
+): IntentFenceReadback {
+  const root = join(ghostgetStateHome(environment), "idempotency", "intents");
+  type Issue = IntentFenceReadback["issues"][number];
+  const issues: Issue[] = [];
+  const claims: { readonly claim: string; readonly stem: string; readonly entry: LedgerEntry }[] = [];
+  let claimCount = 0;
+  let scanned = 0;
+  let truncated = false;
+  const byName = (left: { readonly name: string }, right: { readonly name: string }) =>
+    left.name < right.name ? -1 : left.name > right.name ? 1 : 0;
+  scan: for (const bucket of [...listPrivateStateDirectory(root, environment)].sort(byName)) {
+    if (bucket.name.startsWith(".")) continue;
+    scanned += 1;
+    if (scanned > MAX_INTENT_FENCE_READBACK_ENTRIES) {
+      truncated = true;
+      break;
+    }
+    if (bucket.kind !== "directory" || !/^[a-f0-9]{2}$/u.test(bucket.name)) {
+      issues.push({ claim: null, runId: null, reason: "unexpected-entry" });
+      continue;
+    }
+    const directory = join(root, bucket.name);
+    for (const file of [...listPrivateStateDirectory(directory, environment)].sort(byName)) {
+      if (file.name.startsWith(".")) continue;
+      scanned += 1;
+      if (scanned > MAX_INTENT_FENCE_READBACK_ENTRIES) {
+        truncated = true;
+        break scan;
+      }
+      const name = /^(([a-f0-9]{64})(?:\.[a-f0-9]{64})?)\.json$/u.exec(file.name);
+      if (file.kind !== "file" || name === null || name[2]?.slice(0, 2) !== bucket.name) {
+        issues.push({ claim: null, runId: null, reason: "unexpected-entry" });
+        continue;
+      }
+      const claim = name[1] as string;
+      let snapshot: LedgerSnapshot | null;
+      try {
+        snapshot = readLedgerSnapshot(join(directory, file.name), environment);
+      } catch {
+        claimCount += 1;
+        issues.push({ claim, runId: null, reason: "malformed-claim" });
+        continue;
+      }
+      if (snapshot === null) continue;
+      claimCount += 1;
+      claims.push({ claim, stem: name[2] as string, entry: snapshot.entry });
+    }
+  }
+  if (truncated) issues.push({ claim: null, runId: null, reason: "readback-truncated" });
+
+  // A later generation lives at `<stem>.<sha256(prior run)>` and is reachable
+  // only through a chain of fulfilled generations from `<stem>`; the runtime
+  // walks that chain, so a claim off it fences nothing. A truncated scan may
+  // have missed a link, so it does not judge reachability.
+  const onChain = new Set<string>();
+  if (!truncated) {
+    const byClaim = new Map(claims.map((candidate) => [candidate.claim, candidate.entry]));
+    for (const stem of new Set(claims.map((candidate) => candidate.stem))) {
+      let next = stem;
+      for (let generation = 0; generation < 10_000; generation += 1) {
+        const entry = byClaim.get(next);
+        if (entry === undefined || onChain.has(next)) break;
+        onChain.add(next);
+        if (entry.schemaVersion === 3 || entry.status !== "succeeded") break;
+        next = `${stem}.${sha256(entry.runId)}`;
+      }
+    }
+  }
+
+  const journals = new Map<string, RunJournal>();
+  const invalidRuns = new Set<string>();
+  for (const candidate of listRunJournalSnapshots(environment)) {
+    if ("invalid" in candidate) invalidRuns.add(candidate.runId);
+    else journals.set(candidate.journal.runId, candidate.journal);
+  }
+  const claimedRuns = new Set<string>();
+  let active = 0;
+  let unsettled = 0;
+  let fulfilled = 0;
+  for (const { claim, stem, entry } of claims) {
+    const runId = entry.runId;
+    const issue = (reason: IntentFenceIssueReason) => issues.push({ claim, runId, reason });
+    // An invalid journal is already reported by run-journal repair.
+    if (invalidRuns.has(runId)) continue;
+    const journal = journals.get(runId);
+    if (journal === undefined) {
+      issue("orphaned-claim");
+      continue;
+    }
+    if (claimedRuns.has(runId)) {
+      issue("duplicate-claim");
+      continue;
+    }
+    claimedRuns.add(runId);
+    const expectedStem = basename(intentLedgerPath(
+      journal.adapter.id,
+      journal.auth.id,
+      journal.operation,
+      journal.inputHash,
+      environment,
+      journal.duplicateIntent?.intentHash,
+    ), ".json");
+    if (stem !== expectedStem || (!truncated && !onChain.has(claim))) {
+      issue("misplaced-claim");
+      continue;
+    }
+    if (!ledgerBelongsToJournal(entry, journal)) {
+      issue("claim-drift");
+      continue;
+    }
+    if (journal.phase !== "terminal") {
+      active += 1;
+      continue;
+    }
+    if (journal.ledgerState === "unclaimed" || journal.ledgerState === "released") {
+      issue("stale-claim");
+      continue;
+    }
+    if (canonicalJson(entry) !== canonicalJson(runJournalLedgerEntry(journal))) {
+      issue("claim-drift");
+      continue;
+    }
+    if (journal.ledgerState === "succeeded") fulfilled += 1;
+    else unsettled += 1;
+  }
+  let journalOnly = 0;
+  if (!truncated) {
+    for (const journal of journals.values()) {
+      if (
+        journal.phase !== "terminal"
+        || journal.ledgerState === "unclaimed"
+        || journal.ledgerState === "released"
+        || claimedRuns.has(journal.runId)
+        || (
+          journal.ledgerState === "succeeded"
+          && journal.duplicateIntent === undefined
+          && Date.parse(journal.dedupeExpiresAt) < now.getTime()
+        )
+      ) continue;
+      journalOnly += 1;
+    }
+  }
+  return Object.freeze({
+    claims: claimCount,
+    active,
+    unsettled,
+    fulfilled,
+    journalOnly,
     issues: Object.freeze(issues),
   });
 }

@@ -6,7 +6,7 @@ import {
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-import type { GhostgetAuth } from "./auth";
+import { normalizeAuthSubject, type GhostgetAuth } from "./auth";
 import {
   canonicalJson,
   canonicalJsonSha256Matches,
@@ -106,6 +106,13 @@ export type RecoveryCapsule = {
     readonly hash: string;
     readonly kind: GhostgetAuth["kind"];
   };
+  /**
+   * The provider subject the auth record named when the run started. It lets
+   * recovery accept a reconnected record for the same account; capsules
+   * written before it existed, or for a record without a subject, still need
+   * the exact auth bytes.
+   */
+  readonly authSubject?: string;
   readonly contract: RecoveryContractIdentity;
 };
 
@@ -408,6 +415,7 @@ function parseCapsule(value: unknown): RecoveryCapsule {
       "input",
       "inputHash",
       "auth",
+      ...(Object.hasOwn(value, "authSubject") ? ["authSubject"] : []),
       "contract",
     ],
     "recovery capsule",
@@ -435,6 +443,9 @@ function parseCapsule(value: unknown): RecoveryCapsule {
   assertId(value.auth.id, "recovery capsule auth ID");
   assertHash(value.auth.hash, "recovery capsule auth hash");
   assertAuthKind(value.auth.kind);
+  const authSubject = value.authSubject === undefined
+    ? undefined
+    : parseRecoveryAuthSubject(value.authSubject);
   return {
     schemaVersion: 1,
     runId: value.runId,
@@ -454,8 +465,39 @@ function parseCapsule(value: unknown): RecoveryCapsule {
       hash: value.auth.hash,
       kind: value.auth.kind,
     },
+    ...(authSubject === undefined ? {} : { authSubject }),
     contract: parseContract(value.contract),
   };
+}
+
+function parseRecoveryAuthSubject(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new Error("recovery capsule auth subject is malformed");
+  }
+  try {
+    return normalizeAuthSubject(value);
+  } catch {
+    throw new Error("recovery capsule auth subject is malformed");
+  }
+}
+
+/**
+ * Whether the current auth record may stand in for the one a recoverable run
+ * recorded. The exact bytes always may. A reconnect rewrites those bytes, so
+ * a different record may stand in only when it keeps the locator and kind and
+ * names the same provider subject the run recorded. Without a recorded
+ * subject there is no account identity to compare, so it may not.
+ */
+export function recoveryAuthContinuity(
+  recorded: RecoveryCapsule["auth"],
+  recordedSubject: string | undefined,
+  current: GhostgetAuth,
+): "exact" | "same-subject" | null {
+  if (current.id !== recorded.id || current.kind !== recorded.kind) return null;
+  if (canonicalJsonSha256Matches(recorded.hash, current)) return "exact";
+  return recordedSubject !== undefined && current.subject === recordedSubject
+    ? "same-subject"
+    : null;
 }
 
 function providerAcceptedTargetHasUnpairedSurrogate(value: string): boolean {

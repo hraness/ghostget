@@ -1645,25 +1645,47 @@
 // 6b1701acb53e452e8ada70e02c2f497535a7fdae32276cbd015723f2f817680d. Carry the
 // same projections and allowances: 11,998,420 + 12,387 + 4,096 = 12,014,903
 // packed; 23,447,236 + 353 + 65 = 23,447,654 unpacked.
+// The path helper detects a live claim that a helper from before the reaper
+// election moved into a recovery quarantine, fails closed, and keeps that
+// quarantine through the residue sweep; the state helper exports its claim
+// listing and stage decision for the state-claim Quint replay. The model and
+// its replay test stay outside the package. This adds 3,823 payload bytes over
+// the unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with
+// npm 11.19.0 on darwin arm64 were byte-identical at 11,999,852 packed bytes,
+// 23,451,059 unpacked bytes; archive SHA-256
+// c38d1f9522d477a42a82d934359012ba31124f98348302b3b5c3fe97bac6709e. Carry the
+// same projections and allowances: 11,999,852 + 12,387 + 4,096 = 12,016,335
+// packed; 23,451,059 + 353 + 65 = 23,451,477 unpacked.
+// The intent-fence follow-ups add the read-only doctor readback of intent
+// claims, including claims off their intent's chain of fulfilled generations,
+// record the provider subject in encrypted recovery capsules, and let
+// reconciliation and duplicate-risk successor election continue across a
+// same-subject reconnect. This adds 11,136 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0
+// on darwin arm64 were byte-identical at 12,003,367 packed bytes, 23,462,195
+// unpacked bytes; archive SHA-256
+// 511abcac8f9316451689f3881ef403d2fa2284f91dda1e9a31048dfdf5f612b2. Carry the
+// same projections and allowances: 12,003,367 + 12,387 + 4,096 = 12,019,850
+// packed; 23,462,195 + 353 + 65 = 23,462,613 unpacked.
 // Read-path invocation preparation, confirmation preparation, and the
 // operation-permission account identity bind the auth incarnation through the
 // read capability instead of creating a missing one, and the omni view's
 // closing recheck reports a source whose incarnation disappeared as changed.
 // This adds 4,655 payload bytes over the unchanged 596-file inventory. Two
 // `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin arm64 were
-// byte-identical at 11,999,917 packed bytes, 23,451,891 unpacked bytes;
+// byte-identical at 12,004,806 packed bytes, 23,466,850 unpacked bytes;
 // archive SHA-256
-// 27983f252496da8ca6f79ada84ad10d827351e9177ee548ba935bf8f7c78122a. Carry the
-// same projections and allowances: 11,999,917 + 12,387 + 4,096 = 12,016,400
-// packed; 23,451,891 + 353 + 65 = 23,452,309 unpacked.
+// 0b212ac291218528dcf979370110a36f10850e046ca90a536057d9a44e807d1d. Carry the
+// same projections and allowances: 12,004,806 + 12,387 + 4,096 = 12,021,289
+// packed; 23,466,850 + 353 + 65 = 23,467,268 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "D14 read-path preparation through the incarnation read capability",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "27983f252496da8ca6f79ada84ad10d827351e9177ee548ba935bf8f7c78122a",
-  packedBytes: 11_999_917,
-  unpackedBytes: 23_451_891,
+  archiveSha256: "0b212ac291218528dcf979370110a36f10850e046ca90a536057d9a44e807d1d",
+  packedBytes: 12_004_806,
+  unpackedBytes: 23_466_850,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

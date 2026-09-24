@@ -22,6 +22,11 @@ module release {
   // current attempt whether or not it attested them.
   pure val SOURCES: Set[str] = Set("carried", "foreign", "future", "unsigned")
   pure val MODES: Set[str] = Set("automatic", "manual")
+  // Recovery reads at most this many attempts strictly between a receipt
+  // attempt that attested but did not publish and the latest attempt
+  // (`MAX_INTERMEDIATE_RELEASE_ATTEMPTS`). With MAX attempts the gap is at
+  // most MAX - 2, so the bound never refuses here; unit tests cover it.
+  pure val MAX_INTERMEDIATE: int = 3
 
   var latest: int
   // Each attempt's job conclusions: "none" before it runs, then "success",
@@ -48,8 +53,8 @@ module release {
   var verdictPath: str
   // Ghost: the publisher refused the exact attested artifact its run carried.
   var refusedExact: bool
-  // Ghost: manual recovery refused a Release whose receipt or latest attempt
-  // proved all four canonical jobs.
+  // Ghost: manual recovery or the canonical download refused a Release that
+  // some attempt of its run proved by all four canonical jobs.
   var promotionBlocked: bool
 
   action init = all {
@@ -73,6 +78,12 @@ module release {
   def first3(a: int): bool = a >= 1 and 0.to(2).forall(j => conclusion(a, j) == "success")
   def all4(a: int): bool = a >= 1 and 0.to(3).forall(j => conclusion(a, j) == "success")
   def succeeded(a: int): bool = a >= 1 and JOBS.forall(j => conclusion(a, j) == "success")
+  // Some attempt proved all four canonical jobs, so it published the Release.
+  def anyPublished: bool = ATTEMPTS.exists(a => all4(a))
+  // An attempt strictly between a receipt attempt `m` and the latest attempt
+  // `n` proved all four, within the bounded number of intermediate reads.
+  def publishedBetween(m: int, n: int): bool =
+    n - m - 1 <= MAX_INTERMEDIATE and ATTEMPTS.exists(a => a > m and a < n and all4(a))
 
   // The first job a re-run of the failed jobs of attempt `a` runs again.
   def firstRerun(a: int): int =
@@ -159,35 +170,42 @@ module release {
   // Automatic promotion follows the completion of the latest attempt and
   // requires its success. Manual recovery admits a latest attempt that proved
   // all four canonical jobs, or the earlier receipt attempt the body names
-  // when that attempt proved all four. Pre-fix D8 required success.
+  // when that attempt proved all four, or, when that receipt attempt attested
+  // but did not publish, a bounded intermediate attempt that proved all four.
+  // Pre-fix D8 required success; pre-fix D15 read no intermediate attempt.
   action promote(mode: str, rule: str): bool = {
+    val m = relAttempt
     val admit =
       if (mode == "automatic" or rule == "d8") succeeded(latest)
-      else (all4(latest) or (relAttempt < latest and all4(relAttempt)))
+      else if (rule == "d15") (all4(latest) or (m < latest and all4(m)))
+      else (all4(latest) or (m < latest and (all4(m) or (first3(m) and publishedBetween(m, latest)))))
     all {
       relState == "published",
       keepRelease,
       verdict' = if (admit) "admitted" else "refused",
       verdictPath' = mode,
-      promotionBlocked' = (promotionBlocked
-        or (mode == "manual" and not(admit) and (all4(latest) or all4(relAttempt)))),
+      promotionBlocked' = (promotionBlocked or (mode == "manual" and not(admit) and anyPublished)),
     }
   }
 
   // The canonical download admits the attesting attempt the manifest names
   // when it succeeded or published, or when a strictly later completed
-  // attempt proved all four canonical jobs. The early defect admits it once
-  // it attested.
+  // attempt proved all four canonical jobs: the current attempt, or a bounded
+  // intermediate attempt. The early defect admits it once it attested; the
+  // pre-fix D15 form reads only the current attempt.
   action download(rule: str): bool = {
     val m = relAttempt
+    val later =
+      if (rule == "d15") all4(latest)
+      else (all4(latest) or publishedBetween(m, latest))
     val admit = succeeded(m) or (first3(m) and (
-      rule == "early" or conclusion(m, 3) == "success" or (latest > m and all4(latest))))
+      rule == "early" or conclusion(m, 3) == "success" or (latest > m and later)))
     all {
       relState == "published",
       keepRelease,
       verdict' = if (admit) "admitted" else "refused",
       verdictPath' = "download",
-      promotionBlocked' = promotionBlocked,
+      promotionBlocked' = (promotionBlocked or (not(admit) and anyPublished)),
     }
   }
 
@@ -262,6 +280,22 @@ module release {
     }
   }
 
+  // Seeded defect D15: manual recovery and the canonical download read no
+  // attempt between the receipt attempt and the latest attempt.
+  action stepD15 = {
+    nondet kind = KINDS.oneOf()
+    nondet failAt = FAULTS.oneOf()
+    nondet source = SOURCES.oneOf()
+    nondet sourceRoll = 0.to(3).oneOf()
+    nondet mode = MODES.oneOf()
+    any {
+      startAttempt(kind, failAt, if (sourceRoll == 0) source else "carried", "fixed"),
+      promote(mode, "d15"),
+      download("d15"),
+      done,
+    }
+  }
+
   // Seeded defect: the canonical download admits an attesting attempt whose
   // publication no attempt completed.
   action stepEarlyDownload = {
@@ -286,20 +320,20 @@ module release {
   }
 
   // Promotion and the canonical download admit a published Release only when
-  // its receipt attempt, or the latest later attempt of its run, proved all
-  // four canonical jobs.
+  // its receipt attempt, or a later attempt of its run up to the latest,
+  // proved all four canonical jobs.
   val promotionSound: bool =
-    verdict == "admitted" implies (relState == "published" and (all4(relAttempt) or all4(latest)))
+    verdict == "admitted" implies (relState == "published"
+      and ATTEMPTS.exists(a => a >= relAttempt and a <= latest and all4(a)))
 
   // The publisher never refuses the exact attested artifact its run carries.
   val exactHandoffPublishes: bool = not(refusedExact)
 
-  // A failed npm job never blocks manual promotion of a Release whose latest
-  // attempt or receipt attempt proved all four canonical jobs. The ghost
-  // restates the fixed admission rule, so only the D8 mutant and the replay
-  // give this invariant weight. It does not cover a Release published by an
-  // intermediate attempt: after a failed-jobs rerun publishes, a later rerun
-  // of all jobs fails its publish job, and manual recovery then reads neither
-  // the publishing attempt nor a four-job receipt, so it refuses (plan D15).
+  // A failed npm job never blocks manual promotion or the canonical download
+  // of a Release that any attempt of its run published by proving all four
+  // canonical jobs, including an intermediate failed-jobs rerun followed by a
+  // rerun of all jobs whose publish failed (plan D15). The ghost does not
+  // restate the admission rule: it names any publishing attempt. The D8 and
+  // D15 mutants violate it.
   val promotionNotBlocked: bool = not(promotionBlocked)
 }

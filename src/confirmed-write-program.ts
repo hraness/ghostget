@@ -60,14 +60,15 @@ export function priorRunDisposition(
   const prior = existing.runId;
   // The realm is the locator ID, and journals keep no account subject, so
   // other auth bytes may be another account. Such a run never replays as
-  // this account's result, and reconciling it needs its exact auth record.
+  // this account's result. Reconciling it needs its exact auth record, or a
+  // reconnect naming the provider subject its recovery capsule recorded.
   const otherAuth = viaIntent && existing.authHash !== current.authHash;
   if (existing.status === "succeeded") {
     if (otherAuth) return { kind: "refuse", message: `a prior run (${prior}) already fulfilled this intent under a different auth record for locator '${current.authId}', so its receipt is not replayed as this account's result; inspect 'ghostget runs show ${prior}', and ${existing.duplicateIntentHash === undefined ? `retry after its dedupe window ends (${existing.expiresAt}) or ` : ""}reconnect '${current.authId}' with the settings that run used to replay it` };
     return { kind: "replay", runId: prior };
   }
   return { kind: "refuse", message: `a prior attempt (${prior}) may have reached the provider; inspect 'ghostget runs show ${prior}' and reconcile it before retrying${otherAuth
-    ? `; it ran under a different auth record for locator '${current.authId}', and reconciliation needs that exact record, so reconnect '${current.authId}' with the settings that run used first`
+    ? `; it ran under a different auth record for locator '${current.authId}', and reconciliation accepts the current record only when it names the provider subject that run recorded, so otherwise reconnect '${current.authId}' with the settings that run used first`
     : ""}` };
 }
 
