@@ -8,11 +8,11 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 243 claims: 178 evidenced, 46 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 244 claims: 179 evidenced, 46 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 142 | 2 | 0 |
+| example test | 143 | 2 | 0 |
 | property test | 15 | 1 | 0 |
 | stateful model | 2 | 13 | 0 |
 | Quint model with production trace replay | 9 | 28 | 0 |
@@ -104,9 +104,9 @@ Each claim holds only while its listed assumptions hold.
 | Assumption | Statement | Claims |
 | --- | --- | ---: |
 | `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 8 |
-| `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 32 |
+| `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 33 |
 | `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 28 |
-| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 31 |
+| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 32 |
 | `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 10 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
 | `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 13 |
@@ -2271,7 +2271,7 @@ Consequential lifecycle reducers take injected clocks and randomness; wall-clock
 - Assumptions: `bun-runtime`, `monotonic-clock`
 - Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
 
-### `storage` (12 claims)
+### `storage` (13 claims)
 
 #### `helper-mutual-exclusion`
 
@@ -2332,11 +2332,11 @@ Read paths never mutate state; reads may only cache.
 
 - Planned: example test in plan Phase 6.
 - Source: `AGENTS.md`: “No writes on read paths. Reads may cache; they never mutate.”
-- Evidence: `src/contract-repair-cli.test.ts`, `src/contract-repair-inbox.test.ts`, `src/control/policy-privacy.test.ts`, `src/control/read-capability.test.ts`, `src/cursor-token.test.ts`, `src/linked-device-lifecycle-journal.test.ts`, `src/provider-plugin-store.test.ts`, `src/providers/whatsapp-interaction-projection-helper.test.ts`, `src/read-path-incarnation.test.ts`
+- Evidence: `src/contract-repair-cli.test.ts`, `src/contract-repair-inbox.test.ts`, `src/control/policy-privacy.test.ts`, `src/control/read-capability.test.ts`, `src/cursor-token.test.ts`, `src/linked-device-lifecycle-journal.test.ts`, `src/provider-plugin-store.test.ts`, `src/providers/whatsapp-interaction-projection-helper.test.ts`, `src/read-path-incarnation.test.ts`, `src/read-path-preparation.test.ts`
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
 - Not verified:
   - The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Only the menu-bar snapshot, its account and permission listings, and the auth checks of cache reads, live-read publication, and omni materialization take a typed read capability; invocation preparation and operation-permission checks on a read path still create a missing auth incarnation.
+  - Only the menu-bar snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take a typed read capability; explicit invocation preparation, including the messaging route, context, and action preparations, still creates a missing auth incarnation as an admitted execution path.
 
 #### `read-path-read-capability`
 
@@ -2344,12 +2344,12 @@ A read path receives a branded read capability with only read members, such as `
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “Hand a read path a read capability with no writer members, such as `AuthIncarnationReader`, not an environment that reaches writers.”
-- Evidence: `src/control/read-capability.test.ts`, `src/read-path-incarnation.test.ts`
+- Evidence: `src/control/read-capability.test.ts`, `src/read-path-incarnation.test.ts`, `src/read-path-preparation.test.ts`
 - Assumptions: `bun-runtime`
 - Not verified:
   - Only the enumerated example cases are checked; the type assertions run under `bun run typecheck`.
   - The brand exists only in the type system; code that casts through `unknown` can still forge a capability.
-  - Only the menu-bar snapshot, its account and permission listings, and the auth checks of cache reads, live-read publication, and omni materialization take the typed capability; other read paths are not covered.
+  - Only the menu-bar snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take the typed capability; other read paths are not covered.
 
 #### `menu-bar-snapshot-read-only`
 
@@ -2374,7 +2374,7 @@ The auth checks of a cache read, a live-read publication, and an omni materializ
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
 - Not verified:
   - Only the enumerated example cases are checked.
-  - Invocation preparation and operation-permission checks still create a missing incarnation; the omni example observes the incarnation only between materialization and the next source preparation.
+  - The omni example observes the incarnation only between materialization and the next source preparation; read-path preparation itself is covered by read-path-preparation-read-only.
 
 #### `read-projection-admission-exemption`
 
@@ -2388,6 +2388,19 @@ The only admission write a read-projection cache read makes is its own admission
 - Not verified:
   - Only the enumerated example cases are checked.
   - No check establishes that a cache read writes nothing beyond its own claim and dead-owner removal.
+
+#### `read-path-preparation-read-only`
+
+Read-path invocation preparation (capability and omni reads, cache-only invocations, and control-plane inspection), confirmation preparation, and the operation-permission account identity read the auth incarnation through `AuthIncarnationReader`; a missing incarnation fails closed and none is created, while explicit invocation preparation remains the admitted execution path that may create one.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Read-path preparation (capability and omni reads, cache-only invocations, and control-plane inspection), confirmation preparation, and the operation-permission account identity bind the current incarnation the same way: they read it through `AuthIncarnationReader`, fail closed when it is missing, and create none.”
+- Evidence: `src/read-path-preparation.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
+- Not verified:
+  - Only the enumerated example cases are checked: one missing incarnation per read path, on a fresh state home.
+  - The cache-only `ghostget invoke` branch is driven in process through `main` with a stubbed cache read, not through the installed binary; the retry preparation after a discarded live read is checked by type and review only.
+  - Explicit invocation preparation, including the messaging route, context, and action preparations, still creates a missing incarnation as an admitted execution path.
 
 #### `read-projection-key-exemption`
 

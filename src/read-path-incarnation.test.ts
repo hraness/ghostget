@@ -164,9 +164,10 @@ describe("omni materialization holds only the incarnation read capability", () =
     });
     // The account's incarnation disappears after the source was prepared and
     // before its normalized page is admitted, as an account removal would.
-    // The view then prepares its sources again, and preparation is a write
-    // path, so the probe records the incarnation when that next preparation
-    // starts: after materialization, before anything else can create it.
+    // The view then prepares its sources again. Source preparation binds
+    // through the read capability too (src/read-path-preparation.test.ts), and
+    // the probe records the incarnation when that next preparation starts:
+    // after materialization, before anything else could create it.
     const probe: { removed: boolean; afterMaterialization: boolean | null } = { removed: false, afterMaterialization: null };
     const registry: ProviderPluginRegistry = {
       ...providerPluginRegistry,
@@ -200,5 +201,8 @@ describe("omni materialization holds only the incarnation read capability", () =
     }, { environment, registry, now: new Date("2026-09-23T12:00:02.000Z") })).toThrow("omni source or auth identity changed while the local view was being observed");
     expect(probe.removed).toBeTrue();
     expect(probe.afterMaterialization).toBe(false);
+    // The closing recheck prepares through the read capability as well, so the
+    // failed view leaves the incarnation missing.
+    expect(existsSync(incarnationPath(root, "reddit-main"))).toBeFalse();
   });
 });
