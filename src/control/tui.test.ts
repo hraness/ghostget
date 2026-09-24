@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
-import { propertyParameters } from "../test-support";
+import { assertProperty } from "../test-support";
 import { TuiController, runInteractiveTui, runTuiCommand } from "./tui";
 import { applyTuiSnapshot, createTuiState, renderTui, renderTuiSnapshot, selectTuiSection, tuiRows, tuiText } from "./tui-model";
 import { TuiInput, withTuiTerminal, type TuiTerminal } from "./tui-terminal";
@@ -123,13 +123,13 @@ describe("screen model", () => {
     expect(state.selected).toBe(0); expect(tuiRows(state)[state.selected]?.id).toBe("other");
   });
   test("arbitrary provider text cannot inject terminal controls or exceed geometry", () => {
-    fc.assert(fc.property(fc.string({ maxLength: 300 }), fc.integer({ min: 0, max: 260 }), fc.integer({ min: 0, max: 90 }), (title, width, height) => {
+    assertProperty(fc.property(fc.string({ maxLength: 300 }), fc.integer({ min: 0, max: 260 }), fc.integer({ min: 0, max: 90 }), (title, width, height) => {
       const state = createTuiState(); applyTuiSnapshot(state, snapshot({ version: `${title}\x1b]52;c;secret\x07\u202e` }));
       const result = renderTui(state, width, height).text;
       expect(result).not.toMatch(/[\x00-\x09\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/u);
       expect(result.length).toBeLessThan(40_000);
       expect(result.split("\n").length).toBeLessThanOrEqual(Math.max(1, Math.min(80, height)));
-    }), propertyParameters);
+    }));
     expect(tuiText("safe\x1b[2J\x1b]52;c;secret\x07\nnext\u202e")).toBe("safe next");
   });
 });

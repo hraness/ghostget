@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "./test-support";
 
 import { canonicalJson } from "./canonical-json";
 import {
@@ -179,7 +180,7 @@ describe("ArticleDraftDocument", () => {
   });
 
   test("round trips canonical single-block documents", () => {
-    fc.assert(fc.property(
+    assertProperty(fc.property(
       fc.string({ minLength: 1, maxLength: 100 }).filter((value) => !/[\0\r\n]/u.test(value)),
       (text) => {
         const encoded = document([{ type: "paragraph", text }]);

@@ -5,7 +5,7 @@
 - `lean/` – the core-only Lake project, its pinned `lean-toolchain`, `proofs.json` with each required theorem's statement digest and each seeded defect, and the axiom audit.
 - `oracles/` – the dev-only Rust oracle: an RFC 8785 canonicalizer and a `url`-crate reading of the web gateway URL policy, pinned by `rust-toolchain.toml` and `Cargo.lock`. `scripts/verification-oracles.test.ts` compares it with the TypeScript.
 - `vectors/` – golden vectors from the standard-library Python generator `generate.py`. `scripts/verification-vectors.test.ts` compares the TypeScript with them.
-- `seeds/` – reserved for the property seed corpus.
+- `seeds/` – the property seed corpus: `corpus.json` maps each named property to its test file and its recorded fast-check seeds and shrink paths.
 - `tsconfig.json` – type checking for `../scripts/verification-*.ts`.
 
 # Guidelines
@@ -15,3 +15,5 @@
 - Record every Quint model in `quint/models.json` with its invariants, seed, bounds, Apalache length, at least one mutant, and its replay test. Set the replay target to `production` only when the replay test drives production code; a `reference` target is toolchain evidence only.
 - Keep the Lean project core-only. List every required theorem and allowed axiom in `lean/proofs.json`; the audit rejects `sorry`, `admit`, native evaluation, unlisted axioms, and other trust escapes.
 - Keep generated traces, build output, and downloaded tools out of Git.
+- Run every fast-check property through `assertProperty` or `assertAsyncProperty` from `src/test-support.ts`; `src/test-harness-policy.test.ts` rejects any other fast-check runner. Record a failing seed and shrink path in `seeds/corpus.json` under the property's name, pass that name to the helper, and keep the named regression test the entry cites.
+- For a soak, set `GHOSTGET_PROPERTY_RUNS` to an integer from 1 to 100. It multiplies every property's run count and interruption budget. Use 20 for the nightly soak. Give the soak command its own runner timeout on the command line, for example `GHOSTGET_PROPERTY_RUNS=20 bun test --no-orphans --timeout 3600000 --max-concurrency 1 <files>`, and report a failure with the seed and path fast-check prints.

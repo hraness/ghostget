@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "./test-support";
 
 import {
   createApplePhotosContactEvidenceExportResult,
@@ -114,7 +115,7 @@ describe("Apple Photos contact evidence artifact", () => {
   });
 
   test("strict parser rejects arbitrary one-field mutations", () => {
-    fc.assert(fc.property(
+    assertProperty(fc.property(
       fc.oneof(fc.string(), fc.integer(), fc.boolean(), fc.constant(null)),
       (foreign) => {
         const value = JSON.parse(JSON.stringify(result())) as Record<string, any>;

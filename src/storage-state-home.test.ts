@@ -4,7 +4,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, realpathSyn
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
-import { fc, propertyParameters } from "./test-support";
+import { assertProperty, fc } from "./test-support";
 
 const fixtures: string[] = [];
 const comparisonNames = ["Desktop", "Documents", "Downloads", "Library", ".cache", ".config", ".local"];
@@ -128,7 +128,7 @@ describe("state-home comparison paths", () => {
   });
 
   test("bounded absolute and relative alias chains preserve the forbidden-root identity law", () => {
-    fc.assert(fc.property(fc.integer({ min: 1, max: 8 }), fc.boolean(), (length, absolute) => {
+    assertProperty(fc.property(fc.integer({ min: 1, max: 8 }), fc.boolean(), (length, absolute) => {
       const value = fixture();
       for (let index = length - 1; index >= 0; index--) {
         const path = join(value.home, index === 0 ? "Desktop" : `alias-${index}`);
@@ -138,6 +138,6 @@ describe("state-home comparison paths", () => {
       const result = inspect(value);
       expect(result.error).toContain("dedicated child directory");
       expect(result.opens).toBe(0);
-    }), { ...propertyParameters, numRuns: 8 });
+    }), { numRuns: 8 });
   });
 });

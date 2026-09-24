@@ -37,6 +37,8 @@ import {
   LEAN_CANARY_MODULE,
   PLATFORM_KEYS,
   QUINT,
+  QUINT_REPLAY_SCRIPT,
+  QUINT_REPLAY_TIMEOUT_MS,
   QUINT_TRACE_TIMEOUT_MS,
   REPOSITORY_ROOT,
   RUST_ORACLE,
@@ -60,6 +62,8 @@ import {
   pinnedArchives,
   pinnedArchivesDigest,
   platformKey,
+  quintReplayCommand,
+  quintReplayTests,
   quintRunArguments,
   quintSeedLine,
   quintSimulationVerdict,
@@ -765,9 +769,9 @@ describe("checker verdicts", () => {
   });
 
   test("classifies real Quint simulation output and nothing else", () => {
-    expect(quintSimulationVerdict(quintPass, QUINT_SEED)).toBe("pass");
-    expect(quintSimulationVerdict(quintViolation, QUINT_SEED)).toBe("violation");
-    expect(quintSimulationVerdict({ ...quintPass, stdout: QUINT_PASS.replaceAll("\n", "\r\n") }, QUINT_SEED)).toBe("pass");
+    expect(quintSimulationVerdict(quintPass)).toBe("pass");
+    expect(quintSimulationVerdict(quintViolation)).toBe("violation");
+    expect(quintSimulationVerdict({ ...quintPass, stdout: QUINT_PASS.replaceAll("\n", "\r\n") })).toBe("pass");
     const inconclusive: readonly CheckerResult[] = [
       { ...quintPass, stdout: QUINT_PASS.replace(quintSeedLine(QUINT_SEED), "") },
       { ...quintPass, stdout: QUINT_PASS.replace("[ok] No violation found", "  [ok] No violation found") },
@@ -783,9 +787,16 @@ describe("checker verdicts", () => {
       { ...quintViolation, stdout: QUINT_VIOLATION.replace(quintSeedLine(QUINT_SEED), "") },
       { exitCode: 0, stdout: "", stderr: "" },
     ];
-    for (const result of inconclusive) expect(quintSimulationVerdict(result, QUINT_SEED)).toBe("inconclusive");
-    expect(quintSimulationVerdict(quintPass, "20260924")).toBe("inconclusive");
-    expect(quintSimulationVerdict(quintViolation, "20260924")).toBe("inconclusive");
+    for (const result of inconclusive) expect(quintSimulationVerdict(result)).toBe("inconclusive");
+    // Quint reports the seed of the trace it shows, which need not be the first sample's.
+    const later = quintSeedLine("20265114");
+    expect(quintSimulationVerdict({ ...quintPass, stdout: QUINT_PASS.replace(quintSeedLine(QUINT_SEED), later) })).toBe("pass");
+    expect(quintSimulationVerdict({ ...quintViolation, stdout: QUINT_VIOLATION.replace(quintSeedLine(QUINT_SEED), later) }))
+      .toBe("violation");
+    expect(quintSimulationVerdict({ ...quintPass, stdout: `${QUINT_PASS}${later}\n` })).toBe("inconclusive");
+    expect(quintSimulationVerdict({ ...quintPass, stdout: QUINT_PASS.replace("--seed=0x", "--seed=") })).toBe("inconclusive");
+    expect(quintSimulationVerdict({ ...quintPass, stdout: QUINT_PASS.replace("--backend=typescript", "--backend=rust") }))
+      .toBe("inconclusive");
   });
 
   test("classifies real Apalache output and nothing else", () => {
@@ -814,8 +825,8 @@ describe("checker verdicts", () => {
 
   test("treats checker output cut off before its last required line as inconclusive", () => {
     const cases: readonly (readonly [CheckerResult, string, (result: CheckerResult) => string])[] = [
-      [quintPass, quintSeedLine(QUINT_SEED), (result) => quintSimulationVerdict(result, QUINT_SEED)],
-      [quintViolation, quintSeedLine(QUINT_SEED), (result) => quintSimulationVerdict(result, QUINT_SEED)],
+      [quintPass, quintSeedLine(QUINT_SEED), (result) => quintSimulationVerdict(result)],
+      [quintViolation, quintSeedLine(QUINT_SEED), (result) => quintSimulationVerdict(result)],
       [apalachePass, "EXITCODE: OK", (result) => apalacheVerdict(result, 10)],
       [apalacheViolation, "EXITCODE: ERROR (12)", (result) => apalacheVerdict(result, 10)],
     ];
@@ -836,7 +847,7 @@ describe("checker verdicts", () => {
       fc.integer({ min: -1, max: 255 }),
       fc.constantFrom("", "error: Invariant violated\n", "warning: deprecated option\n"),
       (stdout, exitCode, stderr) => {
-        const verdict = quintSimulationVerdict({ exitCode, stdout, stderr }, QUINT_SEED);
+        const verdict = quintSimulationVerdict({ exitCode, stdout, stderr });
         if (verdict === "pass") {
           return exitCode === 0 && stderr === "" && !/^\[violation\] Found an issue \(/mu.test(stdout);
         }
@@ -897,11 +908,7 @@ describe("Quint model manifest", () => {
     expect(models.length).toBeGreaterThan(0);
     const files = (await readdir(join(REPOSITORY_ROOT, "verification/quint"))).filter((name) => name.endsWith(".qnt"));
     expect(models.map((model) => model.file).sort()).toEqual(files.sort());
-    const scripts = (JSON.parse(await repositoryFile("package.json")) as { scripts: Record<string, string> }).scripts;
-    const replayRun = scripts["verify:quint"]?.split(" && ").find((command) => command.startsWith("bun test "));
-    expect(scripts["verify:quint"]?.startsWith("bun run ./scripts/verification-tools.ts quint && ")).toBe(true);
     for (const model of models) {
-      expect(replayRun?.split(" ")).toContain(`./${model.replay.test}`);
       const source = await repositoryFile(`verification/quint/${model.file}`);
       expect(source).toMatch(new RegExp(`^module ${model.module} \\{$`, "mu"));
       for (const action of [model.init, model.step, ...model.mutants.map((mutant) => mutant.step)]) {
@@ -915,16 +922,38 @@ describe("Quint model manifest", () => {
     }
   });
 
-  test("bounds trace generation inside the replay test's runner timeout", async () => {
+  test("runs every model's replay test from the manifest, so a new model needs no script edit", async () => {
+    const models = await readQuintModels();
     const scripts = (JSON.parse(await repositoryFile("package.json")) as { scripts: Record<string, string> }).scripts;
-    const replayRun = scripts["verify:quint"]?.split(" && ").find((command) => command.startsWith("bun test ")) ?? "";
-    const runner = /(?:^| )--timeout (\d+)(?: |$)/u.exec(replayRun);
+    expect(scripts["verify:quint"]).toBe("bun run ./scripts/verification-tools.ts quint");
+    expect(scripts[QUINT_REPLAY_SCRIPT]).toMatch(/^bun test --no-orphans --timeout \d+ --max-concurrency 1$/u);
+    const tests = quintReplayTests(models);
+    expect(tests).toEqual([...new Set(models.map((model) => `./${model.replay.test}`))]);
+    expect(quintReplayCommand("/bin/bun", models)).toEqual(["/bin/bun", "run", QUINT_REPLAY_SCRIPT, ...tests]);
+    for (const test of tests) expect(await repositoryFile(test.slice(2))).toContain("describe(");
+    const lock = models.find((model) => model.file === "lock.qnt");
+    if (lock === undefined) throw new Error("models.json does not list lock.qnt");
+    // Two models may share one replay file; it runs once.
+    expect(quintReplayTests([lock, lock, { ...lock, replay: { ...lock.replay, test: "scripts/other-replay.test.ts" } }]))
+      .toEqual(["./scripts/verification-lock-replay.test.ts", "./scripts/other-replay.test.ts"]);
+  });
+
+  test("bounds trace generation inside the replay runner's timeout", async () => {
+    const scripts = (JSON.parse(await repositoryFile("package.json")) as { scripts: Record<string, string> }).scripts;
+    const runner = /(?:^| )--timeout (\d+)(?: |$)/u.exec(scripts[QUINT_REPLAY_SCRIPT] ?? "");
     expect(runner).not.toBeNull();
     // Trace generation runs inside the first replay test; the rest of that test needs a margin too.
     expect(QUINT_TRACE_TIMEOUT_MS + 15_000).toBeLessThanOrEqual(Number(runner![1]));
-    const replay = await repositoryFile("scripts/verification-lock-replay.test.ts");
-    expect(replay).toContain("timeoutMs: QUINT_TRACE_TIMEOUT_MS,");
-    expect(replay.match(/timeoutMs:/gu)).toHaveLength(1);
+    // The whole replay run ends inside its own bound.
+    expect(Number(runner![1])).toBeLessThan(QUINT_REPLAY_TIMEOUT_MS);
+    const shared = await repositoryFile("scripts/verification-replay.ts");
+    expect(shared.match(/timeoutMs:/gu)).toEqual(["timeoutMs:"]);
+    expect(shared).toContain("timeoutMs: QUINT_TRACE_TIMEOUT_MS,");
+    for (const test of quintReplayTests(await readQuintModels())) {
+      const replay = await repositoryFile(test.slice(2));
+      expect(replay).toContain("./verification-replay.js");
+      expect(replay).not.toContain("runTool");
+    }
   });
 
   test("builds the exact seeded simulation and trace commands", async () => {

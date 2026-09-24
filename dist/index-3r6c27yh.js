@@ -363,6 +363,9 @@ var stateMarkerText = `{"kind":"io-state","schemaVersion":1}
 var stateHelperPath = join(dirname(fileURLToPath(import.meta.url)), "state-helper.ts");
 var stateHelperConfigPath = join(dirname(fileURLToPath(import.meta.url)), "state-helper.bunfig.toml");
 var pathHelperPath = join(dirname(fileURLToPath(import.meta.url)), "path-helper.ts");
+var stateCrashPlanForTest = undefined;
+var helperEnvironment = stateCrashPlanForTest === undefined ? { NODE_ENV: "production" } : { NODE_ENV: "test", GHOSTGET_TEST_STATE_CRASH_PLAN: stateCrashPlanForTest };
+var helperPreloadForTest = stateCrashPlanForTest === undefined ? [] : ["--preload", join(dirname(fileURLToPath(import.meta.url)), "state-crash-preload.test-support.ts")];
 var ghostgetSourcePackageRoot = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
 function isWithinPath(root, candidate) {
   const pathFromRoot = relative(root, candidate);
@@ -608,11 +611,13 @@ function runStateHelper(directory, expected, operation, expectCreatedIdentity = 
     "--no-macros",
     "--no-addons",
     `--config=${stateHelperConfigPath}`,
+    ...helperPreloadForTest,
     stateHelperPath
   ], {
     cwd: directory,
     encoding: "utf8",
-    env: faultForTest === undefined ? { NODE_ENV: "production" } : {
+    env: faultForTest === undefined ? helperEnvironment : {
+      ...helperEnvironment,
       NODE_ENV: "test",
       ...faultForTest === "insert-after-quarantine" || faultForTest === "replace-target-after-validation" ? { GHOSTGET_TEST_EMPTY_DIRECTORY_REMOVAL_RACE: faultForTest } : faultForTest === "pause-after-cas-claim" || faultForTest === "pause-after-mutation-claim-read" || faultForTest === "fail-after-cas-commit" ? { GHOSTGET_TEST_CAS_FAULT: faultForTest } : { GHOSTGET_TEST_BATCH_READ_FAULT: faultForTest }
     },
