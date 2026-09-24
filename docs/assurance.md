@@ -8,14 +8,14 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 237 claims: 168 evidenced, 50 planned, and 19 not verified. It maps 88 guidelines from 5 guides; 68 list claims and 20 are exempt.
+The register holds 237 claims: 170 evidenced, 48 planned, and 19 not verified. It maps 88 guidelines from 5 guides; 68 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 138 | 3 | 0 |
+| example test | 136 | 3 | 0 |
 | property test | 14 | 1 | 0 |
 | stateful model | 2 | 13 | 0 |
-| Quint model with production trace replay | 4 | 31 | 0 |
+| Quint model with production trace replay | 8 | 29 | 0 |
 | Lean proof with differential test | 7 | 1 | 0 |
 | differential oracle | 3 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
@@ -866,7 +866,7 @@ Media item locks exclude concurrent owners; release never removes a replacement 
 - Evidence: `scripts/verification-media-replay.test.ts`, `src/media/lock.test.ts`, `verification/quint/media.qnt`
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`, `process-liveness`, `media-tools`
 - Not verified:
-  - verification/quint/media.qnt checks two processes on one revision lineage to Quint simulation depth 12 and Apalache length 8. Its noPromotionWithoutLock invariant restates the guard at the rename, so the checkers show only that the unfenced variant breaks it; noForeignRevision is the lock law the model derives, and the replay is what binds the guard to production. Its ITF replay drives production mediaUrl and the item lock with 300 traces in one test process, not the plan's 1,000: on the CI runner 1,000 traces took 159 seconds and pushed the verification step to 13.6 of its 16 minutes. In the replay, runs interleave at the capture and flush gates, a crash rewrites the lock to a dead PID, and heartbeat loss is an aged lock file. Truly concurrent processes, other filesystems, and network volumes are not exercised.
+  - verification/quint/media.qnt checks two processes on one revision lineage to Quint simulation depth 12 and Apalache length 8. Its noPromotionWithoutLock invariant restates the guard at the rename, so the checkers show only that the unfenced variant breaks it; noForeignRevision is the lock law the model derives, and the replay is what binds the guard to production. Its ITF replay drives production mediaUrl and the item lock with 300 traces in one test process, not the plan's 1,000: on the CI runner 1,000 traces took 159 seconds and pushed the verification step to 13.6 minutes. In the replay, runs interleave at the capture and flush gates, a crash rewrites the lock to a dead PID, and heartbeat loss is an aged lock file. Truly concurrent processes, other filesystems, and network volumes are not exercised.
   - The atomicity of a same-volume rename is an assumption (filesystem-atomic-rename), not a checked property.
   - Plan defect D11 is fixed: promotion renames only through the lock's fence, which checks the token and inode immediately before the rename, and a stale heartbeat is reclaimable even when its PID answers. The Quint variant stepUnfenced reproduces the unfenced rename, and the replay shows production refuses each of its violating traces.
 
@@ -951,12 +951,13 @@ The media provider identity and source asset key, the authorization-context dige
 
 A messaging turn is one composite confirmation and one ordered, prefix-durable run: the accepted prefix is monotone, at most one part is dispatching or indeterminate, and no part is redispatched.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `SECURITY.md`: “A messaging turn is one composite confirmation and one ordered, prefix-durable run.”
-- Evidence: `src/messaging-action-store.test.ts`, `src/messaging-confirmation-recovery.test.ts`, `src/messaging-provider-identity-collision.test.ts`, `src/messaging-runtime-composite.test.ts`, `src/messaging-runtime-execution.test.ts`
+- Evidence: `scripts/verification-messaging-replay.test.ts`, `src/messaging-action-store.test.ts`, `src/messaging-confirmation-recovery.test.ts`, `src/messaging-provider-identity-collision.test.ts`, `src/messaging-runtime-composite.test.ts`, `src/messaging-runtime-execution.test.ts`, `verification/quint/messaging.qnt`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified:
-  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - The Quint model covers one run of three parts; Apalache checks it to depth 10 and seeded simulation samples 2,000 runs of up to 12 steps. Neither is a proof for longer runs or more parts.
+  - The replay drives `transitionMessagingRun` and the runtime's `messagingRecoveryEvent` over 1,000 seeded traces. It does not cover the durable journal writes, file locking, or the provider adapters around them.
   - A provider history window may evict the accepted prefix before recovery reads it.
 
 #### `messaging-recovery-model`
@@ -1169,23 +1170,29 @@ publish_npm runs only after verify, attest and publish succeed (the immutable Gi
 
 An npm failure never unpublishes or blocks the GitHub Release.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “an npm failure is rerun from the same run and never blocks canonical publication.”
-- Evidence: `scripts/npm-release-workflow.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/verification-release-replay.test.ts`, `verification/quint/release.qnt`
 - Assumptions: `github-api`, `npm-registry`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The model takes the job order (npm after the immutable Release) from the `needs` of `.github/workflows/release.yml`; it does not check that workflow file.
+  - The replay drives the publisher handoff, promotion authority, and canonical download validators. The draft, resume, and Latest convergence of `publishCanonicalRelease` are modeled but not replayed.
+  - The model covers one run of up to three attempts; Apalache checks it to depth 10 and seeded simulation samples 2,000 runs of up to 12 steps.
 
 #### `npm-failure-never-blocks-promotion`
 
 A Release attempt that published the canonical Release and then failed a later npm job can still be promoted to the website through manual recovery: its authority resolution and the canonical download admit that attempt only through its bounded job inventory proving the four canonical jobs succeeded, and after a re-run of all jobs, only through the earlier receipt attempt that the Release body names, whose own inventory must prove all four. Automatic promotion admits only a first attempt that succeeded.
 
-- Evidenced by example test.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “Manual recovery requires a positive current attempt and admits an unsuccessful latest attempt only through that attempt's own bounded job inventory proving all four or, when that attempt did not publish, through the earlier receipt attempt that the Release body names, whose own bounded inventory must prove all four; the mutable body only selects which inventory to read.”
-- Evidence: `scripts/npm-release-workflow.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/verification-release-replay.test.ts`, `verification/quint/release.qnt`
 - Assumptions: `github-api`, `npm-registry`
 - Not verified:
-  - Only the enumerated example cases are checked.
+  - The shell gate in `.github/workflows/website-production.yml` that limits automatic promotion to a successful first attempt is outside the model and its replay. The model lets automatic promotion admit any successful latest attempt, a superset of what the gate allows.
   - Promotion after an npm failure waits for an owner to dispatch manual recovery; the automatic path fails its first-attempt gate by design.
+  - The model's `promotionNotBlocked` ghost restates the manual admission rule, so the invariant holds by construction; the D8 mutant and the replay's verdict equality carry the evidence. The claim holds only while the owner reruns failed jobs: a rerun of all jobs after a failed-jobs rerun published the Release leaves neither the latest nor the receipt attempt with four successful jobs, and production refuses manual promotion (plan D15).
+  - The replay serves synthetic run, job inventory, and Release responses to `resolveReleaseAuthority`; it does not exercise the deadline, pagination, or main-branch ancestry reads.
+  - The model covers one run of up to three attempts; Apalache checks it to depth 10 and seeded simulation samples 2,000 runs of up to 12 steps.
 
 #### `npm-reauthorize-before-oidc`
 
@@ -2090,14 +2097,15 @@ The stable-release concurrency group serializes Release runs without cancelling 
 
 Re-running only the failed jobs of a Release run publishes the exact bytes that an earlier attempt of the same run attested: the publisher downloads the carried artifact only by its numeric ID behind an exact-identity guard, admits a manifest whose attempt is no later than the current attempt of the same run, and requires every signed certificate to name that attempt. The canonical download admits an attesting attempt whose publication failed only when a strictly later completed attempt of the same run proves all four canonical jobs in its own job inventory.
 
-- Evidenced by example test.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “The GitHub publisher downloads the attested artifact only by numeric artifact ID behind an exact-identity guard, so a failed-jobs rerun publishes the exact bytes and signed attempt its run already attested, never another run's or a later attempt's.”
-- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/npm-release-workflow.test.ts`
+- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/npm-release-workflow.test.ts`, `scripts/verification-release-replay.test.ts`, `verification/quint/release.qnt`
 - Assumptions: `github-api`, `github-enforcement`
 - Not verified:
-  - The publisher is checked on its enumerated examples; a property samples the canonical download's admission over attempts and job conclusions. Neither is a proof over all inputs.
-  - That GitHub carries the verify and attestation outputs and their artifact into a failed-jobs rerun is an assumption about GitHub Actions; CI does not check it.
+  - The model and its replay cover the handoff's attempt and signature binding and the canonical download's admission. Downloading the carried artifact by numeric ID behind the exact-identity guard is checked only by the listed example tests.
+  - That GitHub carries the verify and attestation outputs and their artifact into a failed-jobs rerun, and reports every job of an attempt, carried or not, under that attempt, are assumptions about GitHub Actions; CI does not check them.
   - A failed attestation job cannot be recovered this way, because attestation downloads the build of its own attempt; re-running all jobs rebuilds under a new attempt, which the draft body check rejects.
+  - The model covers one run of up to three attempts; Apalache checks it to depth 10 and seeded simulation samples 2,000 runs of up to 12 steps.
 
 #### `release-workflow-isolation`
 

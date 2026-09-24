@@ -1605,14 +1605,25 @@
 // 67bcf3f2bb56b7d9d7db7a902893528ed18823e888f553e4b78737b104fb6d09. Carry the
 // same projections and allowances: 11,993,659 + 12,387 + 4,096 = 12,010,142
 // packed; 23,428,925 + 353 + 65 = 23,429,343 unpacked.
+// The messaging Quint replay moves crash recovery's terminalizing event out of
+// runtime.ts into an exported messagingRecoveryEvent in
+// messaging-action-store.ts, so the replay drives the same production function
+// that recovery calls. The Quint models and their replay tests stay outside
+// the package. This adds 371 payload bytes over the unchanged 596-file
+// inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin
+// arm64 were byte-identical at 11,993,735 packed bytes, 23,429,296 unpacked
+// bytes; archive SHA-256
+// 367705dc28b1778d1cf5d6359b18fbd14980e67b91335515ae7308e0b8032685. Carry the
+// same projections and allowances: 11,993,735 + 12,387 + 4,096 = 12,010,218
+// packed; 23,429,296 + 353 + 65 = 23,429,714 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Lean encodings: the exported length-framed hash update in the provider plugin registry",
+  scope: "Quint messaging replay: the exported crash-recovery event in the messaging action store",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "67bcf3f2bb56b7d9d7db7a902893528ed18823e888f553e4b78737b104fb6d09",
-  packedBytes: 11_993_659,
-  unpackedBytes: 23_428_925,
+  archiveSha256: "367705dc28b1778d1cf5d6359b18fbd14980e67b91335515ae7308e0b8032685",
+  packedBytes: 11_993_735,
+  unpackedBytes: 23_429_296,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

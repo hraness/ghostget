@@ -97,6 +97,48 @@
         "seed": "7",
         "maxSteps": 12
       }
+    },
+    {
+      "file": "messaging.qnt",
+      "module": "messaging",
+      "init": "init",
+      "step": "step",
+      "invariants": ["orderedPrefix", "singleActive", "noRedispatch"],
+      "simulation": { "seed": "20260925", "maxSamples": 2000, "maxSteps": 12 },
+      "apalache": { "length": 10 },
+      "mutants": [
+        { "step": "stepRedispatch", "invariant": "noRedispatch" },
+        { "step": "stepSkip", "invariant": "orderedPrefix" }
+      ],
+      "replay": {
+        "test": "scripts/verification-messaging-replay.test.ts",
+        "target": "production",
+        "traces": 1000,
+        "seed": "20260926",
+        "maxSteps": 12
+      }
+    },
+    {
+      "file": "release.qnt",
+      "module": "release",
+      "init": "init",
+      "step": "step",
+      "invariants": ["publishedBytesAttested", "promotionSound", "exactHandoffPublishes", "promotionNotBlocked"],
+      "simulation": { "seed": "20260927", "maxSamples": 2000, "maxSteps": 12 },
+      "apalache": { "length": 10 },
+      "mutants": [
+        { "step": "stepD7", "invariant": "exactHandoffPublishes" },
+        { "step": "stepD8", "invariant": "promotionNotBlocked" },
+        { "step": "stepUnbound", "invariant": "publishedBytesAttested" },
+        { "step": "stepEarlyDownload", "invariant": "promotionSound" }
+      ],
+      "replay": {
+        "test": "scripts/verification-release-replay.test.ts",
+        "target": "production",
+        "traces": 1000,
+        "seed": "20260928",
+        "maxSteps": 12
+      }
     }
   ]
 }
