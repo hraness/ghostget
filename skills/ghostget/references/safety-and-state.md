@@ -80,6 +80,11 @@ revalidation. A materializer failure records the failed exact data revision and
 retains the last good entities as `retained-after-drift`; it must not weaken
 parsing or mutate the exact snapshot to make drift disappear.
 
+Read paths, including `invoke --cache-only`, bind the current auth lifetime
+identity and fail closed when it is missing; they never create it.
+`invoke --projection-identity-only` is the SDK's identity preflight for a live
+invoke, so it is execution preparation and may create a missing identity.
+
 Auth replacement and removal rotate a durable local lifetime identity before
 cleanup. Projection and provider-session ciphertext from an earlier lifetime
 must remain unreadable even if identical locator bytes are later recreated.

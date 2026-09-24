@@ -3317,7 +3317,9 @@ async function runCommand(
       throw new Error("--duplicate-risk-of requires an explicit --preview");
     }
     // A cache-only invocation is a read path: it binds the account's current
-    // auth incarnation and never creates one.
+    // auth incarnation and never creates one. `--projection-identity-only` is
+    // the SDK's identity preflight for a live invoke, so it is execution
+    // preparation and may create a missing incarnation (D14).
     const invocation = (arguments_.cacheOnly ? prepareReadInvocation : prepareInvocation)(
       arguments_.adapterId,
       arguments_.operationId,

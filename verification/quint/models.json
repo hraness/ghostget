@@ -34,7 +34,8 @@
         { "step": "stepHashKeyed", "invariant": "fenceSafety" },
         { "step": "stepCallerRelease", "invariant": "fenceSafety" },
         { "step": "stepUnelected", "invariant": "fenceSafety" },
-        { "step": "stepElectInFlight", "invariant": "fenceSafety" }
+        { "step": "stepElectInFlight", "invariant": "fenceSafety" },
+        { "step": "stepSubjectBlind", "invariant": "fenceSafety" }
       ],
       "replay": {
         "test": "scripts/verification-fence-replay.test.ts",
