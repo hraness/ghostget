@@ -258,7 +258,9 @@ shape:
 
 Ghostget binds that observation to the immutable receipt, bundle, manifest,
 descriptor, auth, input, plan, and encrypted recovery capsule before it records
-anything. `applied` publishes a create-once resolution record, releases the
+anything. The current auth record must be the run's exact record, or a
+reconnect that keeps its locator ID and kind and names the provider subject the
+capsule recorded. `applied` publishes a create-once resolution record, releases the
 recovery capsule, and retains the at-most-once ledger, so the same intent stays
 refused. Repeating the exact observation is idempotent. Once a resolution
 record exists, a different outcome or evidence digest is rejected. A recorded

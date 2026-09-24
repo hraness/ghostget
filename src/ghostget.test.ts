@@ -2346,6 +2346,71 @@ describe("doctor authenticated API readiness", () => {
     }
   });
 
+  test("reads back orphaned and malformed intent-fence claims without exposing them", async () => {
+    const testState = state();
+    try {
+      const orphanKey = sha256("doctor orphaned intent claim");
+      const malformedKey = sha256("doctor malformed intent claim");
+      const orphanRunId = "11111111-1111-4111-8111-111111111111";
+      for (const [key, body] of [
+        [orphanKey, {
+          schemaVersion: 2,
+          keyHash: sha256("input"),
+          adapterHash: sha256("adapter"),
+          authHash: sha256("auth"),
+          inputHash: sha256("input"),
+          planDigest: sha256("plan"),
+          status: "indeterminate",
+          dispatch: { planned: 1, started: 1, verified: 0 },
+          runId: orphanRunId,
+          updatedAt: "2026-09-01T00:00:00.000Z",
+          expiresAt: "2026-09-02T00:00:00.000Z",
+        }],
+        [malformedKey, { schemaVersion: 2, private: "doctor-private-sentinel" }],
+      ] as const) {
+        const bucket = join(testState.directory, "idempotency", "intents", key.slice(0, 2));
+        mkdirSync(bucket, { recursive: true, mode: 0o700 });
+        for (const directory of [
+          join(testState.directory, "idempotency"),
+          join(testState.directory, "idempotency", "intents"),
+          bucket,
+        ]) chmodSync(directory, 0o700);
+        writeFileSync(join(bucket, `${key}.json`), `${JSON.stringify(body)}\n`, { mode: 0o600 });
+      }
+
+      const diagnosed = await runDoctor(testState);
+      expect(diagnosed.code).toBe(3);
+      const report = JSON.parse(diagnosed.stdout) as {
+        readonly ghostget: { readonly intentFences: { readonly issues: readonly unknown[] } };
+      };
+      expect(report).toMatchObject({
+        ok: false,
+        ghostget: {
+          intentFences: {
+            claims: 2,
+            active: 0,
+            unsettled: 0,
+            fulfilled: 0,
+            journalOnly: 0,
+          },
+        },
+      });
+      expect([...report.ghostget.intentFences.issues].sort((left, right) =>
+        JSON.stringify(left).localeCompare(JSON.stringify(right)))).toEqual([
+        { claim: malformedKey, runId: null, reason: "malformed-claim" },
+        { claim: orphanKey, runId: orphanRunId, reason: "orphaned-claim" },
+      ]);
+      expect(diagnosed.stdout).not.toContain("doctor-private-sentinel");
+
+      const text = await runDoctor(testState, false);
+      expect(text.stdout).toContain(
+        "- Intent fence readback: attention required (2 claims, 2 unresolved)",
+      );
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
   test("reports schema-v5 generic templates as inert derivation reservations", async () => {
     const testState = state();
     const reservationRegistry = createProviderPluginRegistry([]);

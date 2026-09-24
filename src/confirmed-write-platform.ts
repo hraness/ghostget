@@ -284,6 +284,11 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
         kind: selected.kind,
       };
     };
+    // The provider subject lets recovery accept a reconnect of the same account.
+    const durableWriteAuthSubject = (): { readonly authSubject?: string } => {
+      const subject = persistedAuthAuthority(invocation.auth).subject;
+      return subject === undefined ? {} : { authSubject: subject };
+    };
     const withTransport = (value: Omit<RunReceipt, "schemaVersion" | "transport" | "providerContractHash" | "webSessionContractHash" | "localCliContract" | "reviewedTemplateContractHash" | "portablePluginContract">): RunReceipt => {
       if (currentPortablePluginContract !== null) {
         return {
@@ -645,7 +650,7 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
       storeCapsule: attempt("journal", () => writeRecoveryCapsule({
         schemaVersion: 1, runId, createdAt: startedAt, planDigest, adapter,
         operation: invocation.operationId, risk, input: invocation.input,
-        inputHash, auth: durableWriteAuth(), contract: recoveryContract(),
+        inputHash, auth: durableWriteAuth(), ...durableWriteAuthSubject(), contract: recoveryContract(),
       }, options.environment)),
       outputLimit: attempt("dispatch", () => executionOutputLimit(operation)),
       dispatch: native("dispatch", async () => {

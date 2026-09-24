@@ -464,6 +464,7 @@ function installPresenceRun(
   testState: TestState,
   withTargetEvidence: boolean,
   mode: "presence" | "bound-absence" = "presence",
+  capsuleSubject?: string,
 ) {
   const registry = presenceRegistry(mode);
   const auth = createAuth("presence-main", {
@@ -528,6 +529,7 @@ function installPresenceRun(
     input,
     inputHash: selectedReceipt.inputHash,
     auth: authenticatedReceiptAuth(selectedReceipt.auth),
+    ...(capsuleSubject === undefined ? {} : { authSubject: capsuleSubject }),
     contract: {
       transport: "web-session-api",
       site: "presence-test",
@@ -568,6 +570,87 @@ function installPresenceRun(
 }
 
 describe("web-session run reconciliation", () => {
+  test("reconciles across a reconnect only when the capsule recorded the same provider subject", async () => {
+    const reconnectedAuth = (subject: string) => createAuth("presence-main", {
+      source: "arc",
+      profile: "Profile 2",
+      subject,
+    });
+    const presence = (auth: GhostgetAuth[]) => ({
+      observeActualState: (
+        _recipe: unknown,
+        _input: unknown,
+        auth_: GhostgetAuth,
+      ) => {
+        auth.push(auth_);
+        return Promise.resolve({
+          actualState: true,
+          reason: "exact target readback",
+        });
+      },
+    });
+
+    const sameSubject = state();
+    try {
+      const installed = installPresenceRun(sameSubject, true, "presence", "presence:viewer");
+      const current = reconnectedAuth("presence:viewer");
+      saveAuth(current, sameSubject.environment, { force: true });
+      const observedWith: GhostgetAuth[] = [];
+      const result = await reconcileWebSessionRun(PRESENCE_RUN_ID, undefined, {
+        environment: sameSubject.environment,
+        registry: installed.registry,
+        now: new Date("2026-08-18T12:00:02.000Z"),
+        dependencies: presence(observedWith),
+      });
+      expect(result).toMatchObject({
+        ok: true,
+        status: "reconciliation-observed",
+        recoveryArtifactsReleased: true,
+        observation: {
+          outcome: "desired-state-observed",
+          authHash: installed.receipt.auth.hash,
+        },
+      });
+      expect(observedWith).toHaveLength(1);
+      expect(observedWith[0]).toMatchObject({
+        profile: "Profile 2",
+        subject: "presence:viewer",
+      });
+    } finally {
+      rmSync(sameSubject.directory, { recursive: true, force: true });
+    }
+
+    for (const [label, capsuleSubject, currentSubject] of [
+      ["different subject", "presence:viewer", "presence:other"],
+      ["no recorded subject", undefined, "presence:viewer"],
+    ] as const) {
+      const refused = state();
+      try {
+        const installed = installPresenceRun(refused, true, "presence", capsuleSubject);
+        saveAuth(reconnectedAuth(currentSubject), refused.environment, { force: true });
+        const observedWith: GhostgetAuth[] = [];
+        await expect(reconcileWebSessionRun(PRESENCE_RUN_ID, undefined, {
+          environment: refused.environment,
+          registry: installed.registry,
+          now: new Date("2026-08-18T12:00:02.000Z"),
+          dependencies: presence(observedWith),
+        }), label).rejects.toThrow(
+          "the current auth locator no longer matches the unsettled run's exact realm",
+        );
+        expect(observedWith, label).toHaveLength(0);
+        expect(listReconciliationObservations(PRESENCE_RUN_ID, refused.environment), label).toHaveLength(0);
+        expect(readRecoveryCapsule(
+          PRESENCE_RUN_ID,
+          installed.auth.id,
+          installed.receipt.auth.hash,
+          refused.environment,
+        ), label).not.toBeNull();
+      } finally {
+        rmSync(refused.directory, { recursive: true, force: true });
+      }
+    }
+  });
+
   test("reconciles an exact provider-accepted target only when it is present", async () => {
     const testState = state();
     try {

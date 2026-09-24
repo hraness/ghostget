@@ -207,6 +207,17 @@ Scope: D1, D2, D4, D5, D6, D7, D8, D12. Write the failing test first, then fix.
 Acceptance: each defect has a named regression test that fails on `193dc14`
 and passes after the fix, and `Required` passes.
 
+#### D1 and D2 follow-ups
+
+| Follow-up | State |
+| --- | --- |
+| Doctor readback of the intent fence | Done: `ghostget.intentFences` in `ghostget doctor`, claim `intent-fence-readback`. |
+| Bind the recovery realm to the provider subject | Done: recovery capsules record the auth record's subject, claim `recovery-auth-continuity`. |
+| Reconcile across a reauth | Done: web-session and portable reconcile and web duplicate-successor election accept a reconnect that keeps the locator, kind, and recorded subject. Capsules with no subject still need the exact record. |
+| Portable readback protocol | Open: needs a new versioned portable protocol frame and manifest declaration, which is a public interface decision for the owner. |
+| Duplicate successors for portable runs | Open: a source retained for its successor keeps its bundle unquiescent for good. The owner must decide how a retained source releases its bundle hold. |
+| Fence keyed by subject across locators | Open: run journals do not record the subject, so this needs a journal schema change. |
+
 ### Phase 2: test infrastructure
 
 - Route all 102 direct `fc.assert` calls through `assertProperty`, and add a
