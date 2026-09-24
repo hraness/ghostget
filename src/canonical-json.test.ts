@@ -586,3 +586,57 @@ describe("legacyCanonicalJson verify-only ordering", () => {
     expect(legacyCanonicalJson(value)).toBe(canonicalJson(value));
   });
 });
+
+/**
+ * The pre-strictness encoder: Object.entries, sort, and join, with no domain
+ * checks. It is the in-process yardstick for the strict encoder's cost, so a
+ * loaded host slows both sides of the ratio together.
+ */
+function uncheckedCanonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return `[${value.map(uncheckedCanonicalJson).join(",")}]`;
+  }
+  const entries = Object.entries(value)
+    .filter(([, item]) => item !== undefined)
+    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
+  return `{${entries.map(([key, item]) =>
+    `${JSON.stringify(key)}:${uncheckedCanonicalJson(item)}`).join(",")}}`;
+}
+
+function largeCanonicalInput(rows: number): unknown {
+  const items: unknown[] = [];
+  for (let index = 0; index < rows; index += 1) {
+    items.push({
+      id: `row-${index}`,
+      index,
+      tags: ["alpha", "beta", String(index)],
+      nested: { zeta: index * 1.5, alpha: null, flag: index % 2 === 0, text: "x".repeat(20) },
+    });
+  }
+  return { items, meta: { count: rows, name: "large" } };
+}
+
+describe("canonicalJson cost", () => {
+  test("stays within 1.4x of an unchecked encoder on a large input", () => {
+    // After #341 the strict encoder measured 1.49-1.65x this yardstick here,
+    // and 1.20-1.30x once the per-container closures, copies, and duplicate
+    // own-property probes were removed (8 runs each on a host at load 29).
+    // Interleaved samples see the same host load, and the fastest sample of
+    // each side is the least disturbed one, so the ratio holds on a busy
+    // machine while a return to that regression fails.
+    const value = largeCanonicalInput(1_500);
+    expect(canonicalJson(value)).toBe(uncheckedCanonicalJson(value));
+    let strict = Number.POSITIVE_INFINITY;
+    let unchecked = Number.POSITIVE_INFINITY;
+    for (let sample = 0; sample < 61; sample += 1) {
+      let started = performance.now();
+      canonicalJson(value);
+      strict = Math.min(strict, performance.now() - started);
+      started = performance.now();
+      uncheckedCanonicalJson(value);
+      unchecked = Math.min(unchecked, performance.now() - started);
+    }
+    expect(strict / unchecked).toBeLessThanOrEqual(1.4);
+  });
+});
