@@ -2668,7 +2668,7 @@
       ],
       "notVerified": [
         "The model is bounded: three runs of one intent, one reconnect, one manifest upgrade, one duplicate-risk successor per source run (a successor may itself be a source), 5,000 simulated samples of up to 12 steps, and Apalache to length 8.",
-        "The replay drives the pure fence cores with an in-memory store, and the file-backed state layer on a real state home: `createRunJournal`, `updateRunJournal`, `listRunJournalSnapshots`, `acquireConfirmedWriteLedgers` (the intent ledger, then the hash-keyed ledger), `repairInterruptedRunJournals` with its receipt and ledger projection, and `releaseReconciledRunRecovery`. It does not run the `confirmInvocation` program, so plan validation, recovery capsules, and `claimDuplicateRiskSource`'s receipt, capsule, and ledger rechecks are covered only by the listed example tests.",
+        "The replay drives every seeded trace through the pure fence cores with an in-memory store, and five of them, a greedy cover of every action result the seeded traces take, through the file-backed state layer on a real state home: `createRunJournal`, `updateRunJournal`, `listRunJournalSnapshots`, `acquireConfirmedWriteLedgers` (the intent ledger, then the hash-keyed ledger), `repairInterruptedRunJournals` with its receipt and ledger projection, and `releaseReconciledRunRecovery`. It does not run the `confirmInvocation` program, so plan validation, recovery capsules, and `claimDuplicateRiskSource`'s receipt, capsule, and ledger rechecks are covered only by the listed example tests.",
         "Owner acceptance of the duplicate risk, the preview's successor check, and a successor whose election fails at its dispatch boundary are not modelled; the model disables that dispatch, and the listed example tests cover production failing the run before any request.",
         "The dedupe window's expiry, partial multi-dispatch runs, and journals from before the intent fence are not modelled."
       ]
@@ -2702,7 +2702,7 @@
       ],
       "notVerified": [
         "The fence model checks the confirmed-write path (`posts.publish`-shaped R3 web-session writes with one planned dispatch): no intent is dispatched twice, and a later dispatch of the same effect is only an elected duplicate-risk successor of an indeterminate source. It is bounded to three runs, one reconnect, one manifest upgrade, 5,000 simulated samples of up to 12 steps, and Apalache to length 8.",
-        "The replay drives the fence cores and the file-backed journal, ledger, repair, and reconciliation layer, not the `confirmInvocation` program, the provider transports, or owner acceptance of the duplicate risk.",
+        "The replay drives the fence cores on every seeded trace and the file-backed journal, ledger, repair, and reconciliation layer on a five-trace cover of their action results, not the `confirmInvocation` program, the provider transports, or owner acceptance of the duplicate risk.",
         "Linked-device lifecycle, local CLI, iMessage, derive, and control-gateway paths, and partial multi-dispatch runs, are covered only by the listed example and property tests."
       ]
     },

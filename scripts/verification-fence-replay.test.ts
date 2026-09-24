@@ -2,9 +2,9 @@
  * ITF trace replay for `verification/quint/fence.qnt`, the confirmed-write
  * intent fence with duplicate-risk successors.
  *
- * Every trace drives production one recorded action at a time, twice:
+ * Traces drive production one recorded action at a time, in two worlds:
  *
- * 1. Through the pure fence cores over an in-memory store:
+ * 1. Every seeded trace through the pure fence cores over an in-memory store:
  *    - run journals through `initialRunJournal` and `transitionRunJournal`,
  *      including the `duplicate-successor-claimed` election;
  *    - the journal scan through `intentFenceBlocker` and `journalFencesIntent`;
@@ -17,7 +17,9 @@
  *    seeded pre-fix defects.
  * 2. Through the file-backed state layer on a real state home, where every
  *    effect goes through the state helper and `node:fs`, the production
- *    `StatePort`:
+ *    `StatePort`. Every state operation spawns the bound state helper, so this
+ *    world replays a greedy cover of the seeded traces that takes every action
+ *    result they take, not every trace:
  *    - journals through `createRunJournal`, `updateRunJournal`, and
  *      `listRunJournalSnapshots`;
  *    - the claim through `acquireConfirmedWriteLedgers`, the intent fence and
@@ -819,6 +821,43 @@ const traces = quintTraceCache(MODEL_FILE);
  */
 const SUCCESSOR_STEP = "stepSuccessors";
 
+/** How many seeded traces the file-backed world replays: a cover of every action result. */
+const FILE_BACKED_TRACES = 5;
+
+/** Each action a trace takes with the result the model records for it (a finish records its outcome). */
+function coverageLabels(trace: ItfTrace): ReadonlySet<string> {
+  return new Set(trace.states.slice(1).map((state) => `${operation(state).action} -> ${modelState(state).result}`));
+}
+
+/**
+ * Every state operation of the file-backed world spawns the bound state
+ * helper, so it replays a greedy cover of the seeded traces instead of all of
+ * them: repeatedly the trace that adds the most unseen action results, the
+ * shorter first, until no trace adds one or the cap is reached.
+ */
+function fileBackedCover(all: readonly ItfTrace[], cap: number): readonly ItfTrace[] {
+  const candidates = all.map((trace, index) => ({ trace, index, labels: coverageLabels(trace) }));
+  const seen = new Set<string>();
+  const chosen: ItfTrace[] = [];
+  while (chosen.length < cap) {
+    let best: (typeof candidates)[number] | null = null;
+    let bestGain = 0;
+    for (const candidate of candidates) {
+      const gain = [...candidate.labels].filter((entry) => !seen.has(entry)).length;
+      if (gain > bestGain || (gain === bestGain && gain > 0 && best !== null
+        && (candidate.trace.states.length < best.trace.states.length
+          || (candidate.trace.states.length === best.trace.states.length && candidate.index < best.index)))) {
+        best = candidate;
+        bestGain = gain;
+      }
+    }
+    if (best === null) break;
+    for (const entry of best.labels) seen.add(entry);
+    chosen.push(best.trace);
+  }
+  return chosen;
+}
+
 describe("fence.qnt ITF replay", () => {
   test("replays every seeded model trace through the production fence cores", async () => {
     const model = await lockedModel();
@@ -855,22 +894,33 @@ describe("fence.qnt ITF replay", () => {
     expect(expected.filter((entry) => !covered.has(entry))).toEqual([]);
   });
 
-  test("replays every seeded model trace through the file-backed state layer", async () => {
+  // The file-backed world replays a greedy cover of the seeded traces, one
+  // test each, since every state operation spawns the bound state helper.
+  const fileBackedCoverOf = async (): Promise<readonly ItfTrace[]> => {
+    const model = await lockedModel();
+    return fileBackedCover([...await traces(model.step), ...await traces(SUCCESSOR_STEP)], FILE_BACKED_TRACES);
+  };
+
+  test("the file-backed cover takes every action result the seeded traces take", async () => {
     const model = await lockedModel();
     const all = [...await traces(model.step), ...await traces(SUCCESSOR_STEP)];
-    let successors = 0;
-    let crashes = 0;
-    for (const trace of all) {
-      expect(divergence(trace, new FenceWorld("none", new FileStore()))).toBeNull();
-      for (const state of trace.states.slice(1)) {
-        const { action, outcome } = operation(state);
-        if (action === "dispatch" && modelState(state).result === "elected") successors += 1;
-        if (action === "finish" && outcome === "lost") crashes += 1;
-      }
+    const everything = new Set(all.flatMap((trace) => [...coverageLabels(trace)]));
+    const cover = await fileBackedCoverOf();
+    expect(cover).toHaveLength(FILE_BACKED_TRACES);
+    const covered = new Set(cover.flatMap((trace) => [...coverageLabels(trace)]));
+    expect([...everything].filter((entry) => !covered.has(entry)).sort()).toEqual([]);
+    for (const entry of ["dispatch -> elected", "finish -> lost", "reconcile -> settled", "claim -> refused", "scanSuccessor -> refused"]) {
+      expect(covered).toContain(entry);
     }
-    expect(successors).toBeGreaterThan(0);
-    expect(crashes).toBeGreaterThan(0);
   });
+
+  for (let index = 0; index < FILE_BACKED_TRACES; index += 1) {
+    test(`replays covering trace ${String(index + 1)} of ${String(FILE_BACKED_TRACES)} through the file-backed state layer`, async () => {
+      const trace = (await fileBackedCoverOf())[index];
+      if (trace === undefined) throw new Error(`the file-backed cover has no trace ${String(index + 1)}`);
+      expect(divergence(trace, new FenceWorld("none", new FileStore()))).toBeNull();
+    });
+  }
 
   test("a fence keyed by auth and adapter bytes diverges from the model traces", async () => {
     const model = await lockedModel();

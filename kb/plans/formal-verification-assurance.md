@@ -259,7 +259,9 @@ and an ITF replay test through production code.
    successor. Two new mutants break it: `stepUnelected`, where a successor
    skips the election, and `stepElectInFlight`, where a successor names an
    in-flight source. The replay now also drives the file-backed state layer
-   on a real state home: journals, `acquireConfirmedWriteLedgers` (the intent
+   on a real state home, over a five-trace greedy cover of every action
+   result the seeded traces take (each state operation spawns the bound
+   state helper, so all 2,000 traces would take hours): journals, `acquireConfirmedWriteLedgers` (the intent
    ledger, then the hash-keyed ledger, the composition the confirmed-write
    platform calls), `repairInterruptedRunJournals` after a lost outcome and
    after every step, and `releaseReconciledRunRecovery`. The
