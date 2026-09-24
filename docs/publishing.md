@@ -23,13 +23,14 @@ release workflow admits the exact commit's successful default-branch CI run
 before installing dependencies. This replaces its duplicate serial `bun run
 check`; the complete local aggregate and `prepack` stay unchanged. The CI union
 covers static checks, package and isolated Bun-consumer checks, every whole-file
-source shard, serialized omni tests, standalone checks, and selected macOS checks.
+source shard, serialized omni tests, standalone checks, selected macOS checks,
+and the formal-verification checks.
 Explicit focused local/native and coupled reproductions still apply under
 `CONTRIBUTING.md`; the independently required npm-mirror full check is unchanged.
 
 `scripts/release-source-ci.ts` reads GitHub's current run attempt directly. It
 requires the exact repository, active workflow ID/path, main-push source and tree,
-all ten successful jobs, and nine actual checkout logs. Each source job records
+all eleven successful jobs, and ten actual checkout logs. Each source job records
 its exact workflow/lock hashes, Node/npm/Bun versions and GitHub-hosted platform
 before its frozen install. Admission also requires both successful
 exact-source CodeQL jobs and current main analyses for Actions

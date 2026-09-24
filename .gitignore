@@ -7,3 +7,4 @@ website/dist/
 .vercel
 .env*
 artifacts/
+verification/lean/.lake/

@@ -1517,14 +1517,25 @@
 // Compressed size varies with the local zlib. Carry the same projections and
 // allowances: 11,997,841 + 12,387 + 4,096 = 12,014,324 packed;
 // 23,401,813 + 353 + 65 = 23,402,231 unpacked.
+// The formal-verification foundation adds the verify, verify:claims,
+// verify:quint, and verify:lean scripts, the verification typecheck project,
+// the check chain's verify step, and the exact Quint devDependency to
+// package.json. The verification sources, claims register, and assurance page
+// stay outside the package. This adds 630 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0
+// on darwin arm64 were byte-identical at 11,986,632 packed bytes, 23,402,443
+// unpacked bytes; archive SHA-256
+// f80e7cc545dc5e715372980cb79d4038e74f64f45f467326a7d0191cb9858742. Carry the
+// same projections and allowances: 11,986,632 + 12,387 + 4,096 = 12,003,115
+// packed; 23,402,443 + 353 + 65 = 23,402,861 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Unreleased copy pass over the path-helper reaper election: package description, README, skill, CLI, and CHANGELOG text",
+  scope: "Formal-verification foundation: verify scripts, the second typecheck project, and the exact Quint devDependency in package.json",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.16.0",
+  npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "8614f1f031979371907772a6284888527064014b18f81cc26c4ee2f1f2bdcb56",
-  packedBytes: 11_997_841,
-  unpackedBytes: 23_401_813,
+  archiveSha256: "f80e7cc545dc5e715372980cb79d4038e74f64f45f467326a7d0191cb9858742",
+  packedBytes: 11_986_632,
+  unpackedBytes: 23_402_443,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

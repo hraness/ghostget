@@ -19,7 +19,7 @@ const CODEQL_PATH = "dynamic/github-code-scanning/codeql";
 const MARKER = "WRENCH_SOURCE_CI_IDENTITY=";
 const SHA = /^[a-f0-9]{40}$/u;
 const HASH = /^[a-f0-9]{64}$/u;
-const JOBS = ["static", "package", "test 1/4", "test 2/4", "test 3/4", "test 4/4", "test-omni", "standalone", "macOS", "Required"];
+const JOBS = ["static", "package", "test 1/4", "test 2/4", "test 3/4", "test 4/4", "test-omni", "standalone", "macOS", "verification", "Required"];
 // The shared desktop-foundation runner replaced the repository-owned Swift
 // menu in PR #272. This source tree contains Actions and JavaScript/TypeScript;
 // require both exact jobs and analyses, and reject any missing or extra language.

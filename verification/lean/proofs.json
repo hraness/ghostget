@@ -1,0 +1,17 @@
+{
+  "schema": "ghostget-lean-proofs-v1",
+  "library": "GhostgetVerification",
+  "theorems": [
+    "GhostgetVerification.Smoke.acquire_free",
+    "GhostgetVerification.Smoke.acquire_held",
+    "GhostgetVerification.Smoke.acquireUnguarded_violates_held"
+  ],
+  "mutants": [
+    {
+      "theorem": "GhostgetVerification.Smoke.acquire_held",
+      "defect": "GhostgetVerification.Smoke.acquireUnguarded",
+      "refutation": "GhostgetVerification.Smoke.acquireUnguarded_violates_held"
+    }
+  ],
+  "allowedAxioms": []
+}
