@@ -28,9 +28,10 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { parseItfTrace } from "./verification-itf.js";
+import { LEAN_LAKE_VARIABLE, LEAN_PROJECT_VARIABLE } from "./verification-lean-oracle.js";
 
 export const REPOSITORY_ROOT = resolve(import.meta.dir, "..");
 export const VERIFICATION_ARTIFACTS = "artifacts/verification";
@@ -1599,6 +1600,25 @@ async function listLeanSources(directory: string, base: string = directory): Pro
   return found.sort();
 }
 
+/**
+ * The differential runner: a root file beside the library that imports it and
+ * answers the tests in `LEAN_DIFFERENTIAL_TESTS` over standard input. It is
+ * scanned like the library but is not part of it, so the axiom audit and the
+ * build leave it out; `lake env lean --run` elaborates it when a test starts.
+ */
+export const LEAN_DIFFERENTIAL_RUNNER = "Differential.lean";
+
+/**
+ * Tests that compare production TypeScript with the Lean model on generated
+ * inputs. Each runs in its own test process, because the web-policy test
+ * replaces the private state store module for its whole process.
+ */
+export const LEAN_DIFFERENTIAL_TESTS = Object.freeze([
+  "./scripts/verification-lean-web-policy.test.ts",
+  "./scripts/verification-lean-run-journal.test.ts",
+  "./scripts/verification-lean-messaging-run.test.ts",
+]);
+
 /** Static checks that need no toolchain: project files, the proof list, and the source scan. */
 export async function leanStaticFindings(root: string = REPOSITORY_ROOT): Promise<Readonly<{
   proofs: LeanProofs;
@@ -1612,7 +1632,13 @@ export async function leanStaticFindings(root: string = REPOSITORY_ROOT): Promis
     lakefile: await readFile(join(project, "lakefile.toml"), "utf8"),
   })];
   const sources = await listLeanSources(project);
-  const library = sources.filter((path) => path !== "AxiomAudit.lean");
+  const library = sources.filter((path) => path !== "AxiomAudit.lean" && path !== LEAN_DIFFERENTIAL_RUNNER);
+  if (!sources.includes(LEAN_DIFFERENTIAL_RUNNER)) findings.push(`${LEAN_DIFFERENTIAL_RUNNER} is missing`);
+  else {
+    for (const finding of leanSourceFindings(await readFile(join(project, LEAN_DIFFERENTIAL_RUNNER), "utf8"), proofs)) {
+      findings.push(`${LEAN_DIFFERENTIAL_RUNNER} ${finding}`);
+    }
+  }
   const expectedRoot = `${proofs.library}.lean`;
   if (!library.includes(expectedRoot)) findings.push(`${expectedRoot} is missing`);
   for (const path of library) {
@@ -1707,6 +1733,7 @@ export async function verifyLean(context: RunContext): Promise<void> {
   for (const mutant of proofs.mutants) {
     context.log(`seeded defect ${mutant.defect}: ${mutant.refutation} proves the negation of ${mutant.theorem} with ${mutant.guarded} replaced by ${mutant.defect}`);
   }
+  await verifyLeanDifferentials(context, lake, project, leanEnvironment);
   await verifyAuditCanary(context, proofs, lake, leanEnvironment);
   context.log("axiom audit canary: a seeded sorry fails lake build --wfail and the audit reports sorryAx, as required");
   await writeFile(join(context.artifacts, "toolchain.json"), `${JSON.stringify({
@@ -1729,6 +1756,35 @@ export const LEAN_CANARY_MODULE = "SeededSorryCanary";
 export function leanCanarySource(library: string): string {
   const namespace = `${library}.${LEAN_CANARY_MODULE}`;
   return `namespace ${namespace}\n\ntheorem canary : False := sorry\n\nend ${namespace}\n`;
+}
+
+/**
+ * Run each differential test against the built project. A test that cannot
+ * reach the Lean runner fails, so a pass here means both sides answered.
+ */
+async function verifyLeanDifferentials(
+  context: RunContext,
+  lake: string,
+  project: string,
+  leanEnvironment: Readonly<Record<string, string>>,
+): Promise<void> {
+  const environment = Object.freeze({
+    ...leanEnvironment,
+    [LEAN_LAKE_VARIABLE]: lake,
+    [LEAN_PROJECT_VARIABLE]: project,
+  });
+  for (const file of LEAN_DIFFERENTIAL_TESTS) {
+    const name = basename(file, ".test.ts");
+    const run = await runLogged(context, `bun test ${file}`, name, [
+      process.execPath, "test", "--no-orphans", "--timeout", "600000", "--max-concurrency", "1", file,
+    ], { cwd: context.root, environment, timeoutMs: LEAN_BUILD_TIMEOUT_MS });
+    const summary = /^\s*(\d+) pass\s*\n\s*(\d+) fail/mu.exec(`${run.stdout}\n${run.stderr}`);
+    if (run.exitCode !== 0 || summary === null || summary[2] !== "0" || summary[1] === "0") {
+      context.log(tail(sanitize(context, `${run.stdout}\n${run.stderr}`)));
+      throw new Error(`The Lean differential test ${file} failed`);
+    }
+    context.log(`differential ${name}: ${summary[1]!} tests pass against the Lean model, including the seeded-defect check`);
+  }
 }
 
 /**
