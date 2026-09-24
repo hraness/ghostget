@@ -1616,24 +1616,34 @@
 // 367705dc28b1778d1cf5d6359b18fbd14980e67b91335515ae7308e0b8032685. Carry the
 // same projections and allowances: 11,993,735 + 12,387 + 4,096 = 12,010,218
 // packed; 23,429,296 + 353 + 65 = 23,429,714 unpacked.
+// Removal of ambiguous historical session secrets by their envelope's named
+// owner, and the faster strict canonical JSON encoder, change
+// src/session-secrets.ts, src/canonical-json.ts, and the rebuilt dist chunks
+// that bundle the encoder. This adds 2,096 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on
+// darwin arm64 were byte-identical at 11,994,505 packed bytes, 23,431,392
+// unpacked bytes; archive SHA-256
+// bc193f99425865e22f6527ed41d918c41259491d01b77c1225196f6156dd713a. Carry the
+// same projections and allowances: 11,994,505 + 12,387 + 4,096 = 12,010,988
+// packed; 23,431,392 + 353 + 65 = 23,431,810 unpacked.
 // The media follow-ups kill every active media process group when Ghostget
 // exits or receives an unhandled SIGINT, SIGTERM, or SIGHUP that it did not
 // inherit as ignored, add the read-only `ghostget media quarantine` listing,
 // and add an F_FULLFSYNC probe for the macOS durability check. This adds
 // 15,207 payload bytes over the unchanged 596-file inventory. Two `npm pack
 // --ignore-scripts` runs with npm 11.19.0 on darwin arm64 were byte-identical
-// at 11,997,275 packed bytes, 23,444,503 unpacked bytes; archive SHA-256
-// 986788f6819724bc88f0c6e09d9081ead792bbec2b069ea1a43ac8613a188555. Carry the
-// same projections and allowances: 11,997,275 + 12,387 + 4,096 = 12,013,758
-// packed; 23,444,503 + 353 + 65 = 23,444,921 unpacked.
+// at 11,998,003 packed bytes, 23,446,599 unpacked bytes; archive SHA-256
+// 202f2c9de0a07a44439e36b8448cd6d194ac7fd8f5f4d9c1f7bbfa7918c0bb10. Carry the
+// same projections and allowances: 11,998,003 + 12,387 + 4,096 = 12,014,486
+// packed; 23,446,599 + 353 + 65 = 23,447,017 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Media follow-ups: parent-exit process-group kill, read-only quarantine listing, and the F_FULLFSYNC probe",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "986788f6819724bc88f0c6e09d9081ead792bbec2b069ea1a43ac8613a188555",
-  packedBytes: 11_997_275,
-  unpackedBytes: 23_444_503,
+  archiveSha256: "202f2c9de0a07a44439e36b8448cd6d194ac7fd8f5f4d9c1f7bbfa7918c0bb10",
+  packedBytes: 11_998_003,
+  unpackedBytes: 23_446_599,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
