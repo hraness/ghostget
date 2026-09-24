@@ -1780,6 +1780,8 @@ export async function verifyLean(context: RunContext): Promise<void> {
   }
   await verifyAuditCanary(context, proofs, lake, leanEnvironment);
   context.log("axiom audit canary: a seeded sorry fails lake build --wfail and the audit reports sorryAx, as required");
+  await verifyLeanDifferential(context, lake, project, leanEnvironment);
+  context.log(`differential test: ${LEAN_DIFFERENTIAL_TEST} agrees with the Lean definitions on generated inputs, and production rejects every seeded defect's counterexample`);
   await writeFile(join(context.artifacts, "toolchain.json"), `${JSON.stringify({
     elan: elanVersion.stdout.trim().split(" ").slice(0, 2).join(" "),
     lean: sanitize(context, leanVersion.stdout.trim()),
@@ -1791,6 +1793,43 @@ export async function verifyLean(context: RunContext): Promise<void> {
     mutants: proofs.mutants,
     allowedAxioms: proofs.allowedAxioms,
   }, null, 2)}\n`);
+}
+
+/** The test that runs production TypeScript and the built Lean definitions on the same generated inputs. */
+export const LEAN_DIFFERENTIAL_TEST = "scripts/verification-lean-encodings.test.ts";
+
+/**
+ * The Bun runner bound on one differential test. Each property takes seconds,
+ * so a Lean reference that stops answering fails that test well inside the
+ * process bound instead of consuming the whole Lean budget.
+ */
+const LEAN_DIFFERENTIAL_TEST_TIMEOUT_MS = 180_000;
+
+/** Property replay coordinates the differential test honors, passed through when set. */
+const PROPERTY_REPLAY_VARIABLES = ["GHOSTGET_PROPERTY_SEED", "GHOSTGET_PROPERTY_PATH"] as const;
+
+async function verifyLeanDifferential(
+  context: RunContext,
+  lake: string,
+  project: string,
+  leanEnvironment: Readonly<Record<string, string>>,
+): Promise<void> {
+  const replay = Object.fromEntries(PROPERTY_REPLAY_VARIABLES.flatMap((name) => {
+    const value = process.env[name];
+    return value === undefined || value === "" ? [] : [[name, value]];
+  }));
+  const run = await runLogged(context, "lean differential test", "lean-differential", [
+    process.execPath, "test", "--no-orphans", "--timeout", String(LEAN_DIFFERENTIAL_TEST_TIMEOUT_MS), "--max-concurrency", "1",
+    `./${LEAN_DIFFERENTIAL_TEST}`,
+  ], {
+    cwd: context.root,
+    environment: { ...leanEnvironment, ...replay, GHOSTGET_LEAN_LAKE: lake, GHOSTGET_LEAN_PROJECT: project },
+    timeoutMs: LEAN_BUILD_TIMEOUT_MS,
+  });
+  if (run.exitCode !== 0) {
+    context.log(tail(sanitize(context, `${run.stdout}\n${run.stderr}`)));
+    throw new Error(`${LEAN_DIFFERENTIAL_TEST} failed`);
+  }
 }
 
 /** The module the canary adds to a copy of the library. */

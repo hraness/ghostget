@@ -8,7 +8,7 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 237 claims: 159 evidenced, 59 planned, and 19 not verified. It maps 88 guidelines from 5 guides; 68 list claims and 20 are exempt.
+The register holds 237 claims: 163 evidenced, 55 planned, and 19 not verified. It maps 88 guidelines from 5 guides; 68 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
@@ -16,7 +16,7 @@ The register holds 237 claims: 159 evidenced, 59 planned, and 19 not verified. I
 | property test | 14 | 1 | 0 |
 | stateful model | 2 | 13 | 0 |
 | Quint model with production trace replay | 2 | 33 | 0 |
-| Lean proof with differential test | 0 | 8 | 0 |
+| Lean proof with differential test | 4 | 4 | 0 |
 | differential oracle | 3 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
 | none | 0 | 0 | 4 |
@@ -124,7 +124,7 @@ Each claim holds only while its listed assumptions hold.
 | `vercel` | Vercel builds and serves deployments as its project settings and APIs report. | 37 |
 | `administrator-readback` | A signed-in administrator performs the documented live readbacks and reports them faithfully. | 15 |
 | `ci-runner` | GitHub-hosted runners execute the reviewed workflow faithfully. | 14 |
-| `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 9 |
+| `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 13 |
 | `edge-runtime` | The Vercel Edge runtime implements the Web Platform APIs the edge code uses. | 5 |
 
 ## Claims by area
@@ -625,14 +625,17 @@ Edge negotiation retrieves only same-origin sibling assets: the retrieved origin
 
 #### `edge-accept-406-only-when-empty`
 
-Accept negotiation honors q-values and returns 406 only when no owned representation remains.
+Over parsed Accept media ranges, document negotiation returns 406 exactly when the header has ranges and no offered representation has a best matching range with q above 0; a selected representation is offered, accepted with q above 0, and has the highest q among the acceptable representations.
 
-- Planned: Lean proof with differential test in plan Phase 5.
+- Evidenced by Lean proof with differential test.
 - Source: `edge/AGENTS.md`: “Honor Accept q-values, set `Vary: Accept`, and return `406` only when no owned representation remains.”
 - Also covers: `website/AGENTS.md`: “return `406` only when no owned representation remains”
-- Evidence: `edge/negotiation.test.ts`
-- Assumptions: `whatwg-url`, `edge-runtime`
-- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Evidence: `edge/negotiation.test.ts`, `scripts/verification-lean-encodings.test.ts`, `verification/lean/GhostgetVerification/Edge/Negotiation.lean`
+- Assumptions: `whatwg-url`, `edge-runtime`, `verification-tools`
+- Not verified:
+  - The Lean theorems are about a Lean model of the selection. The differential test checks that negotiateDocumentRepresentation agrees with that model on generated headers, not on every header.
+  - The Accept header parser (parseAcceptMediaRanges) is not modelled; the differential test parses each header with the TypeScript.
+  - Tie-breaking after q (specificity, header order, server preference) is only sampled, and response headers such as Vary: Accept are covered only by the listed tests.
 
 #### `edge-vary-accept`
 
@@ -670,15 +673,17 @@ Edge files import no Node, Bun, website build, or filesystem modules, and middle
 
 #### `canonical-json-injective`
 
-canonicalJson over plain JSON with UTF-16 code-unit key order is injective, parse-then-encode is identity on canonical output, and key order is total and locale-independent.
+canonicalJson over plain JSON (null, booleans, safe integers, strings of UTF-16 code units, arrays, and objects with distinct keys) is injective up to member order, gives the same text for any member insertion order, and never writes a NUL code unit; its UTF-16 code-unit key order is total and locale-independent.
 
-- Planned: Lean proof with differential test in plan Phase 5.
+- Evidenced by Lean proof with differential test.
 - Source: `kb/plans/formal-verification-assurance.md`: “Canonical JSON over an inductive `Json` with UTF-16 key order: the encoder is injective, parse-then-encode is the identity on canonical output, and key order is total.”
-- Evidence: `src/canonical-json.test.ts`, `src/local-cli-surface-contract.test.ts`, `src/model.test.ts`
-- Assumptions: `bun-runtime`
+- Evidence: `scripts/verification-lean-encodings.test.ts`, `src/canonical-json.test.ts`, `src/local-cli-surface-contract.test.ts`, `src/model.test.ts`, `verification/lean/GhostgetVerification/Encodings/CanonicalJson.lean`, `verification/lean/GhostgetVerification/Encodings/CanonicalJsonProofs.lean`
+- Assumptions: `bun-runtime`, `verification-tools`
 - Not verified:
-  - The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Number serialization is delegated to the JavaScript engine.
+  - The Lean theorems are about a Lean model of the encoder. The differential test checks that the TypeScript agrees with that model on generated values, not on every value.
+  - Parse-then-encode being the identity on canonical output is not proved.
+  - Numbers are modelled as safe integers only; fractions, exponents, and the JavaScript engine's number formatting are not modelled.
+  - The model starts from a plain JSON value. The TypeScript checks that reject undefined members, cycles, symbols, getters, and non-plain objects are not modelled.
 
 #### `canonical-json-rejects-non-json`
 
@@ -707,13 +712,19 @@ For every I-JSON value, which excludes lone surrogates, `canonicalJson` writes t
 
 #### `hash-framing-injective`
 
-The length-framed hash input and the json || 0x00 || 32-byte suffix encoding are injective.
+The length-framed hash input (a 4-byte label length, an 8-byte payload length, the label, and the payload, per section) determines its sections; the contract hash preimage (canonical JSON as UTF-8, a 0x00 byte, then the implementation hash) determines the JSON bytes and the implementation hash; and the NUL-joined confirmed-write intent key preimage determines the intent's fields.
 
-- Planned: Lean proof with differential test in plan Phase 5.
+- Evidenced by Lean proof with differential test.
 - Source: `kb/plans/formal-verification-assurance.md`: “The length-framed hash input and the `json ‖ 0x00 ‖ 32-byte` suffix are injective.”
-- Evidence: `src/media/runtime-closure.property.test.ts`
-- Assumptions: `sha256`
-- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Evidence: `scripts/verification-lean-encodings.test.ts`, `src/media/runtime-closure.property.test.ts`, `verification/lean/GhostgetVerification/Encodings/HashFraming.lean`, `verification/lean/GhostgetVerification/Encodings/Units.lean`
+- Assumptions: `sha256`, `verification-tools`
+- Not verified:
+  - SHA-256 is not modelled; that distinct preimages give distinct hashes rests on the sha256 assumption.
+  - The Lean theorems are about Lean models of the preimages. The differential test checks that updateLengthFramedHash, providerContractHash, localCliContractHash, and intentLedgerPath agree with those models on generated inputs, not on every input.
+  - UTF-8 injectivity is not proved, so the contract theorem stops at the UTF-8 bytes of the canonical JSON rather than the JSON value.
+  - The intent key theorem assumes every field is ASCII and NUL-free, as validated identifiers and hex hashes are; the model does not check that callers only pass such fields.
+  - Framing lengths must fit their headers (labels under 2^32 bytes, payloads under 2^64 bytes); the TypeScript does not check this.
+  - Other NUL-separated preimages (the per-hash idempotency key in ledgerPath, web-session contracts, predecessor-compatible contract hashes, provider-plugin package and module-analysis hashes) and the separate framing copy in src/provider-plugin.ts are not covered.
 
 #### `identifier-roundtrip`
 
@@ -2250,13 +2261,16 @@ A crash or power loss at any durable state-helper or path-helper boundary leaves
 
 #### `session-secret-filename-injective`
 
-Session-secret file names are an injective encoding of (namespace, authId); removing one account never deletes or blocks another account's files.
+sessionSecretFileName is injective on valid (namespace, authId) coordinates, and parseSessionSecretFileName reads every name it writes back to that coordinate.
 
-- Planned: Lean proof with differential test in plan Phase 5.
+- Evidenced by Lean proof with differential test.
 - Source: `kb/plans/formal-verification-assurance.md`: “Identifier grammars, and route, operation, and session-secret composite keys: `parse ∘ format = id` and the keys are unambiguous.”
-- Evidence: `src/session-secrets.test.ts`
-- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
-- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Evidence: `scripts/verification-lean-encodings.test.ts`, `src/session-secrets.test.ts`, `verification/lean/GhostgetVerification/Encodings/SessionSecret.lean`
+- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`, `verification-tools`
+- Not verified:
+  - The Lean theorems are about a Lean model of the naming and parsing functions. The differential test checks that the TypeScript agrees with that model on generated names, not on every name.
+  - The name grammar is modelled by hand from its regular expression.
+  - File removal, adoption of ambiguous historical files, and filesystem behaviour are not modelled, so that removing one account never deletes or blocks another account's files is covered only by the listed tests.
 
 #### `no-writes-on-read-paths`
 

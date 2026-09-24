@@ -35,6 +35,7 @@ import {
   KERNEL_AXIOMS,
   LEAN,
   LEAN_CANARY_MODULE,
+  LEAN_DIFFERENTIAL_TEST,
   PLATFORM_KEYS,
   QUINT,
   QUINT_REPLAY_SCRIPT,
@@ -1167,10 +1168,23 @@ describe("Lean trust base", () => {
     expect(proofs.theorems.find((theorem) => theorem.name === `${LIBRARY}.Smoke.acquire_held`)?.type).toBe(leanTypeDigest(HELD_TYPE));
     expect(proofs.theorems.find((theorem) => theorem.name === `${LIBRARY}.Smoke.acquireUnguarded_violates_held`)?.type)
       .toBe(leanTypeDigest(REFUTATION_TYPE));
-    expect(proofs.mutants).toEqual(SCAN_PROOFS.mutants);
+    // Later proofs add their own mutants; the smoke mutant stays among them.
+    for (const mutant of SCAN_PROOFS.mutants) expect(proofs.mutants).toContainEqual(mutant);
     expect(proofs.theorems.length).toBeGreaterThan(0);
     expect(proofs.mutants.length).toBeGreaterThan(0);
     expect(proofs.allowedAxioms).toEqual([]);
+  });
+
+  test("the encoding and negotiation Lean claims cite the differential test verify:lean runs", async () => {
+    const register = JSON.parse(await repositoryFile("verification/claims.json")) as {
+      claims: { id: string; layer: string; status: string; evidence: string[] }[];
+    };
+    const ids = ["canonical-json-injective", "hash-framing-injective", "session-secret-filename-injective", "edge-accept-406-only-when-empty"];
+    const cited = register.claims.filter((claim) => ids.includes(claim.id))
+      .map((claim) => ({ id: claim.id, layer: claim.layer, status: claim.status, cites: claim.evidence.includes(LEAN_DIFFERENTIAL_TEST) }))
+      .sort((left, right) => ids.indexOf(left.id) - ids.indexOf(right.id));
+    expect(cited).toEqual(ids.map((id) => ({ id, layer: "lean", status: "evidenced", cites: true })));
+    expect(await repositoryFile(LEAN_DIFFERENTIAL_TEST)).toContain("assertAsyncProperty(");
   });
 
   test("flags sorry, admit, native evaluation, unlisted axioms, and other trust escapes", () => {
