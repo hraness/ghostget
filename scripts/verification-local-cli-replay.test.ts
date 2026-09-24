@@ -206,7 +206,7 @@ function faultResult(fault: Fault, acceptedStdout: string, notStartedStdout: str
 type Observed = { spawns: number[] };
 
 /** The kernel hooks: the boundary refuses where the script says, and acceptance recording fails on `record`. */
-function hooks(plan: Script, observed: Observed, onVerified: (index: number) => void): LocalCliExecutionOptions {
+function hooks(plan: Script, onVerified: (index: number) => void): LocalCliExecutionOptions {
   return {
     beforeDispatch: async (event) => {
       if (event.index === plan.gateBefore) throw new GateRefusal("fixture dispatch boundary refused");
@@ -288,7 +288,7 @@ async function runImessage(plan: Script, defect: Defect): Promise<Readonly<{ res
     imsgRecipe(),
     { chat_guid: IMSG_CHAT_GUID, service: "iMessage", observed_chat_row_id: 7, text: "replay canary" },
     imsgAuth(storePath),
-    { dependencies: { binaryPath: "/fixture/reviewed-imsg", expectedMessagesStorePath: storePath, run }, ...hooks(plan, observed, () => undefined) },
+    { dependencies: { binaryPath: "/fixture/reviewed-imsg", expectedMessagesStorePath: storePath, run }, ...hooks(plan, () => undefined) },
   );
   if (defect === "trust-not-started" && isNotStartedReport(result)) result = { ...result, status: "failed" };
   return { result, observed };
@@ -427,7 +427,7 @@ async function runBeeper(plan: Script, defect: Defect): Promise<Readonly<{ resul
     { surface: "beeper", action: "presence.set", contractVersion: 1, timeoutMs: 60_000, maxOutputBytes: 1024 * 1024 },
     input,
     beeperAuth(path),
-    { dependencies: { binaryPath: "/fixture/beeper-0.6.2", run }, ...hooks(plan, observed, skipPresenceWait) },
+    { dependencies: { binaryPath: "/fixture/beeper-0.6.2", run }, ...hooks(plan, skipPresenceWait) },
   );
   if (defect === "trust-not-started" && plan.outcomes.get(result.dispatch.started) === "not-started") {
     result = { ...result, status: result.dispatch.verified > 0 ? "partial" : "failed" };
