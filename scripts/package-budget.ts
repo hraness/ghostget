@@ -1517,14 +1517,24 @@
 // Compressed size varies with the local zlib. Carry the same projections and
 // allowances: 11,997,841 + 12,387 + 4,096 = 12,014,324 packed;
 // 23,401,813 + 353 + 65 = 23,402,231 unpacked.
+// The media lifecycle hardening spawns yt-dlp in its own process group,
+// fsyncs every revision file and parent directory around the promotion
+// rename, quarantines only a torn head revision, and fences promotion with
+// the item lock's token. This adds 15,821 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0
+// on darwin arm64 were byte-identical at 11,990,908 packed bytes, 23,417,634
+// unpacked bytes; archive SHA-256
+// 519e4bfdfd61196722eda53965398a7553afb1818a399cc322004665a04574a2. Carry the
+// same projections and allowances: 11,990,908 + 12,387 + 4,096 = 12,007,391
+// packed; 23,417,634 + 353 + 65 = 23,418,052 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Unreleased copy pass over the path-helper reaper election: package description, README, skill, CLI, and CHANGELOG text",
+  scope: "D9-D11 media process groups, durable promotion, and fenced locks",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "8614f1f031979371907772a6284888527064014b18f81cc26c4ee2f1f2bdcb56",
-  packedBytes: 11_997_841,
-  unpackedBytes: 23_401_813,
+  archiveSha256: "519e4bfdfd61196722eda53965398a7553afb1818a399cc322004665a04574a2",
+  packedBytes: 11_990_908,
+  unpackedBytes: 23_417_634,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
