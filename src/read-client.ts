@@ -28,7 +28,7 @@ import {
 import {
   createReadProjectionQueryForInvocation,
   executeReadInvocation,
-  prepareInvocation,
+  prepareReadInvocation,
   type InvocationResult,
   type PreparedInvocation,
 } from "./runtime";
@@ -104,7 +104,7 @@ function prepareCapability(
   environment: Environment,
   registry: ProviderPluginRegistry,
 ): PreparedInvocation {
-  return prepareInvocation(
+  return prepareReadInvocation(
     request.adapterId,
     request.operationId,
     request.input === undefined ? {} : request.input,
@@ -503,7 +503,7 @@ export async function revalidatePreparedCapability(invocation: PreparedInvocatio
         // mid-read — a provably version-only realm drift rebinds the record
         // under the live-verified subject. Re-prepare against the current
         // record and retry the read once; a second discard fails closed.
-        const reprepared = prepareInvocation(
+        const reprepared = prepareReadInvocation(
           invocation.manifest.id,
           invocation.operationId,
           invocation.input,

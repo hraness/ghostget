@@ -24,9 +24,11 @@ import {
   type GhostgetAuth,
 } from "./auth";
 import {
+  authIncarnationReader,
   createReadProjectionQuery,
   projectionAuthIdentityHash,
   withSettledReadProjectionAuthAdmission,
+  type AuthIncarnationReader,
   type ReadProjectionQuery,
 } from "./read-projections";
 import { executeBrowserRecipe, PreservedBrowserArtifactsError } from "./browser";
@@ -1240,6 +1242,47 @@ function loadInstalledManifestWithRegistry(
   return parseRuntimeManifest(owned, registry);
 }
 
+/**
+ * How preparation binds the account's auth incarnation. An explicit
+ * invocation is an admitted execution path, so it may create a missing
+ * incarnation under the account's admission. A read path holds only the
+ * incarnation read capability: it binds the current incarnation and fails
+ * closed when none exists, creating nothing.
+ */
+type IncarnationBinding =
+  | Readonly<{ kind: "execution" }>
+  | Readonly<{ kind: "read"; incarnations: AuthIncarnationReader }>;
+
+/** A read path found no auth incarnation to bind, and created none. */
+export class AuthIncarnationMissingError extends Error {
+  readonly authId: string;
+  constructor(authId: string) {
+    super(
+      `auth locator ${authId} has no lifetime identity yet; run a live ghostget invoke with it or open the Ghostget app, then retry`,
+    );
+    this.name = "AuthIncarnationMissingError";
+    this.authId = authId;
+  }
+}
+
+function boundAuthIdentityHash(
+  auth: GhostgetAuth,
+  binding: IncarnationBinding,
+  environment: Readonly<Record<string, string | undefined>>,
+): string {
+  if (binding.kind === "execution") {
+    return projectionAuthIdentityHash(auth.id, authHash(auth), environment);
+  }
+  const current = binding.incarnations.identityHashIfPresent(auth.id, authHash(auth));
+  if (current === null) throw new AuthIncarnationMissingError(auth.id);
+  return current;
+}
+
+/**
+ * Prepare an explicit invocation. This is an admitted execution path: when
+ * the account predates auth incarnations it creates one under admission.
+ * Read paths use prepareReadInvocation instead.
+ */
 export function prepareInvocation(
   adapterId: string,
   operationId: string,
@@ -1248,6 +1291,40 @@ export function prepareInvocation(
   environment: Readonly<Record<string, string | undefined>> = process.env,
   registry: ProviderPluginRegistry = providerPluginRegistry,
   permissionMode: "enforce" | "inspect" = "enforce",
+): PreparedInvocation {
+  return prepareInvocationWith(adapterId, operationId, rawInput, authId, environment, registry, permissionMode, { kind: "execution" });
+}
+
+/**
+ * Prepare an invocation for a read path: capability and omni reads, cache-only
+ * invocations, and control-plane inspection. It binds the account's current
+ * auth incarnation through AuthIncarnationReader, as the cache-read auth check
+ * does, and an account without one fails closed with nothing created.
+ */
+export function prepareReadInvocation(
+  adapterId: string,
+  operationId: string,
+  rawInput: unknown,
+  authId?: string,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  registry: ProviderPluginRegistry = providerPluginRegistry,
+  permissionMode: "enforce" | "inspect" = "enforce",
+): PreparedInvocation {
+  return prepareInvocationWith(adapterId, operationId, rawInput, authId, environment, registry, permissionMode, {
+    kind: "read",
+    incarnations: authIncarnationReader(environment),
+  });
+}
+
+function prepareInvocationWith(
+  adapterId: string,
+  operationId: string,
+  rawInput: unknown,
+  authId: string | undefined,
+  environment: Readonly<Record<string, string | undefined>>,
+  registry: ProviderPluginRegistry,
+  permissionMode: "enforce" | "inspect",
+  binding: IncarnationBinding,
 ): PreparedInvocation {
   const manifestResult = loadInstalledManifestWithRegistry(adapterId, environment, registry);
   if (!manifestResult.ok) throw new Error(`adapter ${adapterId} is invalid: ${manifestResult.issues.join("; ")}`);
@@ -1293,9 +1370,9 @@ export function prepareInvocation(
       const auth = loadAuth(selectedAuthId, environment);
       return Object.freeze({
         auth,
-        readProjectionAuthIdentityHash: projectionAuthIdentityHash(
-          auth.id,
-          authHash(auth),
+        readProjectionAuthIdentityHash: boundAuthIdentityHash(
+          auth,
+          binding,
           environment,
         ),
       });
@@ -3023,8 +3100,13 @@ function validateFreshPlan(
   const incarnation = withSettledReadProjectionAuthAdmission(auth.id, environment, () => {
     const current = loadAuth(auth.id, environment);
     if (authHash(current) !== authHash(auth)) throw new Error("authentication changed during confirmation preparation");
-    return projectionAuthIdentityHash(auth.id, authHash(auth), environment);
+    // Confirmation binds the incarnation the preview recorded and never
+    // creates one: a missing incarnation cannot equal any recorded hash.
+    return authIncarnationReader(environment).identityHashIfPresent(auth.id, authHash(auth));
   });
+  if (incarnation === null) {
+    throw new Error("authentication lifetime changed or predates managed permissions; preview the action again");
+  }
   if ((plan.auth.incarnationHash !== undefined && plan.auth.incarnationHash !== incarnation)
     || (plan.auth.incarnationHash === undefined && readOperationPolicy(environment).managed)) {
     throw new Error("authentication lifetime changed or predates managed permissions; preview the action again");
@@ -3044,7 +3126,7 @@ export function prepareOperationApprovalInvocation(
   options: { readonly environment: Readonly<Record<string, string | undefined>>; readonly registry: ProviderPluginRegistry },
 ): { readonly invocation: PreparedInvocation; readonly stored: StoredPlan | null } {
   if (target.planDigest === null) return {
-    invocation: prepareInvocation(target.adapterId, target.operationId, target.input, target.authId ?? undefined, options.environment, options.registry, "inspect"), stored: null,
+    invocation: prepareReadInvocation(target.adapterId, target.operationId, target.input, target.authId ?? undefined, options.environment, options.registry, "inspect"), stored: null,
   };
   const stored = loadInvocationPlan(target.planDigest, options.environment);
   if (stored.plan.adapter.id !== target.adapterId || stored.plan.operation !== target.operationId || stored.plan.auth.id !== target.authId) {
@@ -3078,7 +3160,8 @@ function isDispatchProgress(value: unknown): value is RunReceipt["dispatch"] {
     && verified <= started;
 }
 
-function ledgerPath(
+/** @internal Exported for the fence model's trace replay. */
+export function confirmedWriteLedgerPath(
   adapterHash: string,
   authHashValue: string,
   operationId: string,
@@ -3347,6 +3430,29 @@ function acquireIntentLedger(
     throw new Error("idempotency intent ledger belongs to a different intent");
   }
   return { acquired: false, existing, viaIntent: true };
+}
+
+/**
+ * Claim the intent fence, then the hash-keyed ledger, as one confirmed write
+ * does before it may dispatch. A refusal from either names the entry that
+ * holds the scope.
+ *
+ * @internal Exported for the confirmed-write platform and the fence model's
+ * trace replay.
+ */
+export function acquireConfirmedWriteLedgers(
+  request: {
+    readonly path: string;
+    readonly entry: LedgerEntry;
+    readonly alternatePaths?: readonly string[];
+    readonly intent: ConfirmedWriteIntent;
+  },
+  environment: Readonly<Record<string, string | undefined>>,
+  now: Date,
+): ReturnType<typeof acquireLedger> | ReturnType<typeof acquireIntentLedger> {
+  const fenced = acquireIntentLedger(request.intent, request.entry, environment, now);
+  if (!fenced.acquired) return fenced;
+  return acquireLedger(request.path, request.entry, environment, now, request.alternatePaths ?? []);
 }
 
 function updateLedger(
@@ -3657,7 +3763,7 @@ function matchingJournalLedgers(
       ? [snapshot]
       : [];
   }
-  const base = ledgerPath(
+  const base = confirmedWriteLedgerPath(
     journal.adapter.hash,
     journal.auth.hash,
     journal.operation,
@@ -5190,9 +5296,8 @@ async function confirmInvocationCore(
     planDigestHasRetainingJournal,
     validateFreshPlan,
     isDispatchProgress,
-    ledgerPath,
-    acquireLedger,
-    acquireIntentLedger,
+    ledgerPath: confirmedWriteLedgerPath,
+    acquireConfirmedWriteLedgers,
     writeReceipt,
     runJournalReceipt,
     relativeStatePath,

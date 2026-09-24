@@ -8,14 +8,14 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 243 claims: 178 evidenced, 46 planned, and 19 not verified. It maps 91 guidelines from 5 guides; 70 list claims and 21 are exempt.
+The register holds 244 claims: 180 evidenced, 45 planned, and 19 not verified. It maps 91 guidelines from 5 guides; 70 list claims and 21 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 142 | 2 | 0 |
+| example test | 143 | 2 | 0 |
 | property test | 15 | 1 | 0 |
 | stateful model | 2 | 13 | 0 |
-| Quint model with production trace replay | 9 | 28 | 0 |
+| Quint model with production trace replay | 10 | 27 | 0 |
 | Lean proof with differential test | 7 | 1 | 0 |
 | differential oracle | 3 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
@@ -90,7 +90,7 @@ These synced blocks sit inside a scanned Guidelines section but have no rules or
 | Guide | Block | Reason |
 | --- | --- | --- |
 | `AGENTS.md` | `hraness-public-copy` | Synced Hraness public-copy policy for prose; it states no property of the package, CLI, website, or release. |
-| `AGENTS.md` | `oompa-local-efficiency` | Synced Hraness delivery and workstation laws, including production-data preservation, runtime-enforced approvals, and delivery-gate guards; no automated check in this repository covers them. |
+| `AGENTS.md` | `hraness-delivery` | Synced Hraness delivery and workstation laws, including production-data preservation, runtime-enforced approvals, and delivery-gate guards; no automated check in this repository covers them. |
 | `AGENTS.md` | `algal-skills` | Synced contributor tooling instructions for the algal skill pack; it states no property of the package, CLI, website, or release. |
 
 ### Guides outside the register
@@ -105,9 +105,9 @@ Each claim holds only while its listed assumptions hold.
 | Assumption | Statement | Claims |
 | --- | --- | ---: |
 | `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 8 |
-| `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 32 |
+| `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 33 |
 | `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 28 |
-| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 31 |
+| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 32 |
 | `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 10 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
 | `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 13 |
@@ -1082,20 +1082,23 @@ For every intent (account realm, provider target, operation id, canonical input)
 - Evidence: `scripts/verification-fence-replay.test.ts`, `src/confirmed-write-intent-fence.test.ts`, `src/run-journal.property.test.ts`, `src/run-journal.test.ts`, `src/runtime.test.ts`, `verification/quint/fence.qnt`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified:
-  - The fence model has no duplicate-risk successors, so it checks at most one dispatch per intent, not the full 1 + duplicate-successors bound.
-  - The model is bounded: three runs of one intent, one reconnect, one manifest upgrade, 5,000 simulated samples of up to 12 steps, and Apalache to length 8.
-  - The replay drives the pure fence cores (`intentFenceBlocker`, `intentLedgerPath`, `transitionRunJournal`, `priorRunDisposition`, `reconciledRecoveryRelease`) with an in-memory ledger and journal store; the file-backed `acquireIntentLedger`, the state helper, the hash-keyed ledger, receipts, and recovery capsules are covered only by the listed example tests.
+  - The model is bounded: three runs of one intent, one reconnect, one manifest upgrade, one duplicate-risk successor per source run (a successor may itself be a source), 5,000 simulated samples of up to 12 steps, and Apalache to length 8.
+  - The replay drives every seeded trace through the pure fence cores with an in-memory store, and five of them, a greedy cover of every action result the seeded traces take, through the file-backed state layer on a real state home: `createRunJournal`, `updateRunJournal`, `listRunJournalSnapshots`, `acquireConfirmedWriteLedgers` (the intent ledger, then the hash-keyed ledger), `repairInterruptedRunJournals` with its receipt and ledger projection, and `releaseReconciledRunRecovery`. It does not run the `confirmInvocation` program, so plan validation, recovery capsules, and `claimDuplicateRiskSource`'s receipt, capsule, and ledger rechecks are covered only by the listed example tests.
+  - Owner acceptance of the duplicate risk, the preview's successor check, election of a source across a same-subject reconnect (the model's source must bind the current auth record), and a successor whose election fails at its dispatch boundary are not modelled; the model disables that dispatch, and the listed example tests cover production failing the run before any request.
   - The dedupe window's expiry, partial multi-dispatch runs, and journals from before the intent fence are not modelled.
 
 #### `indeterminate-never-retried`
 
 An indeterminate (post-dispatch uncertain) mutation is never retried; a lost acknowledgement never permits another remote submission.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “Never retry or clear an indeterminate dispatch”
-- Evidence: `src/control/gateway.test.ts`, `src/derive.test.ts`, `src/imessage-direct-plugin.test.ts`, `src/linked-device-lifecycle-journal.test.ts`, `src/linked-device-lifecycle-runtime.test.ts`, `src/portable-run-recovery.test.ts`, `src/run-journal.property.test.ts`, `src/runtime.test.ts`
+- Evidence: `scripts/verification-fence-replay.test.ts`, `src/confirmed-write-intent-fence.test.ts`, `src/control/gateway.test.ts`, `src/derive.test.ts`, `src/imessage-direct-plugin.test.ts`, `src/linked-device-lifecycle-journal.test.ts`, `src/linked-device-lifecycle-runtime.test.ts`, `src/portable-run-recovery.test.ts`, `src/run-journal.property.test.ts`, `src/runtime.test.ts`, `verification/quint/fence.qnt`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The fence model checks the confirmed-write path (`posts.publish`-shaped R3 web-session writes with one planned dispatch): no intent is dispatched twice, and a later dispatch of the same effect is only an elected duplicate-risk successor of an indeterminate source. It is bounded to three runs, one reconnect, one manifest upgrade, 5,000 simulated samples of up to 12 steps, and Apalache to length 8.
+  - The replay drives the fence cores on every seeded trace and the file-backed journal, ledger, repair, and reconciliation layer on a five-trace cover of their action results, not the `confirmInvocation` program, the provider transports, or owner acceptance of the duplicate risk.
+  - Linked-device lifecycle, local CLI, iMessage, derive, and control-gateway paths, and partial multi-dispatch runs, are covered only by the listed example and property tests.
 
 #### `indeterminate-cleared-only-by-evidence`
 
@@ -1106,7 +1109,7 @@ An indeterminate dispatch fence is released only from separately obtained exact 
 - Evidence: `scripts/verification-fence-replay.test.ts`, `src/ghostget.test.ts`, `src/portable-run-recovery.test.ts`, `src/provider-plugin-portable-runtime.test.ts`, `src/provider-plugin-reconciliation.property.test.ts`, `src/run-journal.test.ts`, `src/web-session-recovery.test.ts`, `verification/quint/fence.qnt`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified:
-  - The fence model abstracts the evidence: one reconcile action stands for applied plugin readback or owner approval, and the replay checks only that `reconciledRecoveryRelease` and `transitionRunJournal` settle a reconciled run and keep its ledger.
+  - The fence model abstracts the evidence: one reconcile action stands for applied plugin readback or owner approval. The in-memory replay checks that `reconciledRecoveryRelease` and `transitionRunJournal` settle a reconciled run and keep its ledger; the file-backed replay settles it through `releaseReconciledRunRecovery`. That a source with an elected successor keeps its recovery material is covered only by the listed example tests.
   - The replay does not call `recordNotAppliedClaim`: its not-applied action changes no journal in the replay world, so that `recordNotAppliedClaim` releases nothing is covered only by the listed example tests.
   - The web-session reconciler and the CLI and portable parsers of reconciliation input are covered only by the listed example and property tests.
   - Terminalizing a run from supplied evidence says nothing about provider liveness.
@@ -2272,7 +2275,7 @@ Consequential lifecycle reducers take injected clocks and randomness; wall-clock
 - Assumptions: `bun-runtime`, `monotonic-clock`
 - Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
 
-### `storage` (12 claims)
+### `storage` (13 claims)
 
 #### `helper-mutual-exclusion`
 
@@ -2333,11 +2336,11 @@ Read paths never mutate state; reads may only cache.
 
 - Planned: example test in plan Phase 6.
 - Source: `AGENTS.md`: “No writes on read paths. Reads may cache; they never mutate.”
-- Evidence: `src/contract-repair-cli.test.ts`, `src/contract-repair-inbox.test.ts`, `src/control/policy-privacy.test.ts`, `src/control/read-capability.test.ts`, `src/cursor-token.test.ts`, `src/linked-device-lifecycle-journal.test.ts`, `src/provider-plugin-store.test.ts`, `src/providers/whatsapp-interaction-projection-helper.test.ts`, `src/read-path-incarnation.test.ts`
+- Evidence: `src/contract-repair-cli.test.ts`, `src/contract-repair-inbox.test.ts`, `src/control/policy-privacy.test.ts`, `src/control/read-capability.test.ts`, `src/cursor-token.test.ts`, `src/linked-device-lifecycle-journal.test.ts`, `src/provider-plugin-store.test.ts`, `src/providers/whatsapp-interaction-projection-helper.test.ts`, `src/read-path-incarnation.test.ts`, `src/read-path-preparation.test.ts`
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
 - Not verified:
   - The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Only the menu-bar snapshot, its account and permission listings, and the auth checks of cache reads, live-read publication, and omni materialization take a typed read capability; invocation preparation and operation-permission checks on a read path still create a missing auth incarnation.
+  - Only the menu-bar snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take a typed read capability; explicit invocation preparation, including the messaging route, context, and action preparations, still creates a missing auth incarnation as an admitted execution path.
 
 #### `read-path-read-capability`
 
@@ -2345,12 +2348,12 @@ A read path receives a branded read capability with only read members, such as `
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “Hand a read path a read capability with no writer members, such as `AuthIncarnationReader`, not an environment that reaches writers.”
-- Evidence: `src/control/read-capability.test.ts`, `src/read-path-incarnation.test.ts`
+- Evidence: `src/control/read-capability.test.ts`, `src/read-path-incarnation.test.ts`, `src/read-path-preparation.test.ts`
 - Assumptions: `bun-runtime`
 - Not verified:
   - Only the enumerated example cases are checked; the type assertions run under `bun run typecheck`.
   - The brand exists only in the type system; code that casts through `unknown` can still forge a capability.
-  - Only the menu-bar snapshot, its account and permission listings, and the auth checks of cache reads, live-read publication, and omni materialization take the typed capability; other read paths are not covered.
+  - Only the menu-bar snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take the typed capability; other read paths are not covered.
 
 #### `menu-bar-snapshot-read-only`
 
@@ -2375,7 +2378,7 @@ The auth checks of a cache read, a live-read publication, and an omni materializ
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
 - Not verified:
   - Only the enumerated example cases are checked.
-  - Invocation preparation and operation-permission checks still create a missing incarnation; the omni example observes the incarnation only between materialization and the next source preparation.
+  - The omni example observes the incarnation only between materialization and the next source preparation; read-path preparation itself is covered by read-path-preparation-read-only.
 
 #### `read-projection-admission-exemption`
 
@@ -2389,6 +2392,19 @@ The only admission write a read-projection cache read makes is its own admission
 - Not verified:
   - Only the enumerated example cases are checked.
   - No check establishes that a cache read writes nothing beyond its own claim and dead-owner removal.
+
+#### `read-path-preparation-read-only`
+
+Read-path invocation preparation (capability and omni reads, cache-only invocations, and control-plane inspection), confirmation preparation, and the operation-permission account identity read the auth incarnation through `AuthIncarnationReader`; a missing incarnation fails closed and none is created, while explicit invocation preparation remains the admitted execution path that may create one.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Read-path preparation (capability and omni reads, cache-only invocations, and control-plane inspection), confirmation preparation, and the operation-permission account identity bind the current incarnation the same way: they read it through `AuthIncarnationReader`, fail closed when it is missing, and create none.”
+- Evidence: `src/read-path-preparation.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
+- Not verified:
+  - Only the enumerated example cases are checked: one missing incarnation per read path, on a fresh state home.
+  - The cache-only `ghostget invoke` branch is driven in process through `main` with a stubbed cache read, not through the installed binary; the retry preparation after a discarded live read is checked by type and review only.
+  - Explicit invocation preparation, including the messaging route, context, and action preparations, still creates a missing incarnation as an admitted execution path.
 
 #### `read-projection-key-exemption`
 

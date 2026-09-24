@@ -97,7 +97,7 @@ web gateway, the Edge middleware, media, release, and CI on `origin/main`
 | D11 | Media | `assertOwned` observes the lock but does not fence the promotion `rename`. Media-lock liveness trusts `kill(pid, 0)` over heartbeat age, which breaks on shared or namespaced filesystems. | code-read |
 | D12 | Edge | The direct `.md` branch calls `retrieve(new URL(url.pathname, url.origin))` (`edge/negotiation.ts:257`), so `//evil.example/x.md` resolves off-origin in-process. The live site is not affected: Vercel returns 308 to a single slash before middleware, and `/\` returns 404 (checked 2026-09-23). The code still violates same-origin retrieval if the platform changes. | reproduced in-process; latent live |
 | D13 | Approvals | Allow-once is enforced by the client. The broker leaves an `allowed` entry checkable for 600 s and relies on the Ghostget process calling `releaseApproval` in `finally`. A crash leaves a reusable lease for same-UID callers. | code-read |
-| D14 | Read paths | The menu-bar snapshot creates incarnation files through `ensureIncarnationUnderAdmission`, and read-projection listings unlink orphaned claims. Both break the literal rule "No writes on read paths". Either the rule gets an explicit, bounded exemption or the writes move. | code-confirmed |
+| D14 | Read paths | The menu-bar snapshot creates incarnation files through `ensureIncarnationUnderAdmission`, and read-projection listings unlink orphaned claims. Both break the literal rule "No writes on read paths". Either the rule gets an explicit, bounded exemption or the writes move. Done: #355 made the snapshot read-only, #371 moved the cache-read and omni auth checks to `AuthIncarnationReader` and recorded the two exemptions, and the residual-incarnation change binds read-path preparation, confirmation preparation, and the permission account identity the same way. Explicit invocation preparation remains the admitted creator. | code-confirmed; fixed |
 | D15 | Release | Manual promotion refuses a Release that an intermediate attempt published. When a failed-jobs rerun publishes bytes an earlier attempt attested, the body names that earlier attempt. A later rerun of all jobs then fails its publish job, and `resolveReleaseAuthority` reads only the latest attempt and the receipt attempt, neither of which proved all four canonical jobs. Found by a strengthened `promotionNotBlocked` over `verification/quint/release.qnt` (attempts: publish fails, rerun failed jobs publishes, rerun all) and reproduced against `resolveReleaseAuthority` with the release replay fixtures. Fixed: when the receipt attempt attested but did not publish, manual recovery and the canonical download read at most three exact intermediate attempts, each through its own attempt record and job inventory, and the model's `promotionNotBlocked` now names any publishing attempt (mutant `stepD15`). | reproduced, fixed |
 
 ### Evidence gaps
@@ -260,6 +260,26 @@ and an ITF replay test through production code.
    pre-Phase-1 variant must reproduce D1 and D2. Replay traces through
    `transitionRunJournal`, `acquireLedger`, and the repair functions over
    `StatePort`.
+
+   Execution note (2026-09-24): `fence.qnt` now models duplicate-risk
+   successors. A successor is its own intent, narrowed to one terminal,
+   unsettled, indeterminate source that still binds the current auth record
+   and manifest, and it elects that source once, just before its dispatch.
+   `fenceSafety` checks the full bound (dispatches ≤ 1 + elected successors),
+   no intent dispatched twice, and that only an indeterminate run elects a
+   successor. Two new mutants break it: `stepUnelected`, where a successor
+   skips the election, and `stepElectInFlight`, where a successor names an
+   in-flight source. The replay now also drives the file-backed state layer
+   on a real state home, over a five-trace greedy cover of every action
+   result the seeded traces take (each state operation spawns the bound
+   state helper, so all 2,000 traces would take hours): journals, `acquireConfirmedWriteLedgers` (the intent
+   ledger, then the hash-keyed ledger, the composition the confirmed-write
+   platform calls), `repairInterruptedRunJournals` after a lost outcome and
+   after every step, and `releaseReconciledRunRecovery`. The
+   `indeterminate-never-retried` claim is evidenced by this model. Still open:
+   the `confirmInvocation` program itself, including
+   `claimDuplicateRiskSource`'s receipt, capsule, and ledger rechecks, is
+   covered only by example tests.
 2. **State-helper and path-helper exclusion.** The three-phase claim with
    stale-owner reaping. Check two variants: `readdir` as an atomic snapshot,
    and `readdir` that may omit renamed entries. The invariant is
@@ -345,6 +365,9 @@ Acceptance:
   DSL properties once: exact keys, bounds, and parse and render agreement.
 - Enforce "no writes on reads" with a type-level read capability for
   read-path ports. Record the D14 exemption decision in `AGENTS.md`.
+  Done: `AuthIncarnationReader` (#355), the auth checks and exemptions
+  (#371), and read-path, confirmation, and permission-identity preparation
+  (residual-incarnation change).
 - Fix the media findings:
   - D9: spawn in a process group and kill the group. Check cancellation before
     promotion. Discard staging on every error in both pipelines.
