@@ -124,6 +124,7 @@ import {
 } from "./process-identity";
 import {
   messagingReceiptBinding,
+  messagingRecoveryEvent,
   messagingRunReceipt,
   readMessagingRun,
   readMessagingRunIfPresent,
@@ -4986,36 +4987,8 @@ function terminalizeMessagingRecovery(
   observedAt: Date,
 ): MessagingRunV1 {
   const snapshot = readMessagingRun(runId, environment);
-  if (snapshot.run.state !== "pending") return snapshot.run;
-  const active = snapshot.run.parts[snapshot.run.provenPartCount];
-  if (active === undefined) {
-    throw new Error("pending messaging recovery has no active part");
-  }
-  const at = Math.max(
-    observedAt.getTime(),
-    Date.parse(snapshot.run.recordedAt),
-  );
-  const event = active.state === "dispatching"
-    ? {
-        type: "indeterminate" as const,
-        index: snapshot.run.provenPartCount,
-        reason: "journal-recovery-required" as const,
-        at: new Date(at).toISOString(),
-      }
-    : active.state === "unattempted" || active.state === "claimed"
-      ? {
-          type: "categorical-stop" as const,
-          index: snapshot.run.provenPartCount,
-          partState: snapshot.run.provenPartCount === 0
-            ? "failed-before-dispatch" as const
-            : "failed-permanent" as const,
-          reason: "journal-recovery-required" as const,
-          at: new Date(at).toISOString(),
-        }
-      : null;
-  if (event === null) {
-    throw new Error("pending messaging recovery state is contradictory");
-  }
+  const event = messagingRecoveryEvent(snapshot.run, observedAt);
+  if (event === null) return snapshot.run;
   return updateMessagingRun(snapshot, event, environment).run;
 }
 

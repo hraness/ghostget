@@ -497,19 +497,30 @@ export function quintSeedLine(seed: string): string {
 /**
  * Classify one `quint run`. A pass needs exit 0, the no-violation line, the
  * requested seed, and no error output; a violation needs exit 1, the
- * violation line, and Quint's invariant error. Anything else is inconclusive.
+ * violation line, exactly one reproduction line, and Quint's invariant error.
+ * Quint prints the seed of the violating sample, which equals the requested
+ * seed only when the first sample violates, so a violation accepts any one
+ * positive sample seed; the runner cannot check that the requested seed
+ * derived it. Anything else is inconclusive.
  */
 export function quintSimulationVerdict(result: CheckerResult, seed: string): CheckerVerdict {
-  const seeded = lines(result.stdout).some((line) => line.trim() === quintSeedLine(seed));
+  const output = lines(result.stdout).map((line) => line.trim());
+  const seeded = output.some((line) => line === quintSeedLine(seed));
+  const reproductions = output.filter((line) => QUINT_REPRODUCTION_LINE.test(line));
   const ok = /^\[ok\] No violation found \(/mu.test(result.stdout);
   const violated = /^\[violation\] Found an issue \(/mu.test(result.stdout);
-  if (!seeded || ok === violated) return "inconclusive";
-  if (result.exitCode === 0 && ok && result.stderr.trim() === "") return "pass";
-  if (result.exitCode === 1 && violated && lines(result.stderr).some((line) => line.trim() === "error: Invariant violated")) {
+  if (ok === violated) return "inconclusive";
+  if (result.exitCode === 0 && ok && seeded && result.stderr.trim() === "") return "pass";
+  if (
+    result.exitCode === 1 && violated && reproductions.length === 1
+    && lines(result.stderr).some((line) => line.trim() === "error: Invariant violated")
+  ) {
     return "violation";
   }
   return "inconclusive";
 }
+
+const QUINT_REPRODUCTION_LINE = /^Use --seed=0x[1-9a-f][0-9a-f]* --backend=typescript to reproduce\.$/u;
 
 /**
  * Classify one Apalache `check`. Both verdicts need the pinned version line;
@@ -1524,18 +1535,27 @@ export async function verifyQuint(context: RunContext): Promise<void> {
       requireLoggedVerdict(context, step, "violation", quintSimulationVerdict(result, model.simulation.seed), result);
       context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
     }
-    const compiled = await quintRun(`quint compile ${model.file}`, `quint-compile-${name}`, [
-      "compile", "--target", "json", "--main", model.module, model.file,
-    ]);
+    // Node writes to a pipe asynchronously on macOS, and Quint exits before
+    // the pipe drains, which cuts a large IR at a 64 KiB boundary. The shell
+    // sends stdout to a file instead. `--out` is no substitute: it writes the
+    // IR before Apalache's unique parameter renaming.
+    const irPath = join(irDirectory, `${name}.qnt.json`);
+    await rm(irPath, { force: true });
+    const compiled = await runLogged(context, `quint compile ${model.file}`, `quint-compile-${name}`, [
+      "/bin/sh", "-c", 'out="$1"; shift; exec "$@" > "$out"', "sh", irPath,
+      node, quint, "compile", "--target", "json", "--main", model.module, model.file,
+    ], {
+      cwd: quintDirectory,
+      environment: quintEnvironment(context, node),
+      timeoutMs: QUINT_TIMEOUT_MS,
+    });
     let ir: unknown;
     try {
-      ir = JSON.parse(compiled.stdout) as unknown;
+      ir = JSON.parse(await readFile(irPath, "utf8")) as unknown;
     } catch {
       ir = null;
     }
     if (compiled.exitCode !== 0 || !isPlainObject(ir)) throw new Error(`quint compile ${model.file} did not produce its JSON IR`);
-    const irPath = join(irDirectory, `${name}.qnt.json`);
-    await writeFile(irPath, compiled.stdout);
     for (const invariant of model.invariants) {
       const step = `apalache check ${name} ${model.step} ${invariant}`;
       const { result } = await apalacheRun(step, `apalache-${name}-${invariant}`, model, irPath, model.step, invariant);

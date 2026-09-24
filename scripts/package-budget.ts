@@ -1556,14 +1556,24 @@
 // f2c9be480d9ffe8aa7ae642af2523491745987ee9bed58b66d37f7d2f4d6c4ed. Carry the
 // same projections and allowances: 11,992,902 + 12,387 + 4,096 = 12,009,385
 // packed; 23,424,993 + 353 + 65 = 23,425,411 unpacked.
+// The messaging and release Quint models register their production replay
+// tests in verify:quint, which moves the replay runner timeout into
+// package.json, and the runtime reads a crash-recovery event through one
+// named journal helper. This adds 465 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0
+// on darwin arm64 were byte-identical at 11,992,985 packed bytes, 23,425,458
+// unpacked bytes; archive SHA-256
+// 79a066edc1f393974b209e2a34c2c6ca772ab8b69caef224f58987564fa4b278. Carry the
+// same projections and allowances: 11,992,985 + 12,387 + 4,096 = 12,009,468
+// packed; 23,425,458 + 353 + 65 = 23,425,876 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Formal-verification foundation: verify scripts, the second typecheck project, and the exact Quint devDependency in package.json",
+  scope: "Quint messaging and release replay registration in verify:quint and the messaging recovery-event helper",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "f2c9be480d9ffe8aa7ae642af2523491745987ee9bed58b66d37f7d2f4d6c4ed",
-  packedBytes: 11_992_902,
-  unpackedBytes: 23_424_993,
+  archiveSha256: "79a066edc1f393974b209e2a34c2c6ca772ab8b69caef224f58987564fa4b278",
+  packedBytes: 11_992_985,
+  unpackedBytes: 23_425_458,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

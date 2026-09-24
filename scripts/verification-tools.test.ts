@@ -774,7 +774,23 @@ describe("checker verdicts", () => {
     ];
     for (const result of inconclusive) expect(quintSimulationVerdict(result, QUINT_SEED)).toBe("inconclusive");
     expect(quintSimulationVerdict(quintPass, "20260924")).toBe("inconclusive");
-    expect(quintSimulationVerdict(quintViolation, "20260924")).toBe("inconclusive");
+  });
+
+  test("accepts a violation found after the first sample, which Quint reports under that sample's seed", () => {
+    // Recorded from the release model's stepD7 mutant: seed 20260927 violated in a later sample.
+    const later = QUINT_VIOLATION.replace(quintSeedLine(QUINT_SEED), "Use --seed=0x1353cf7 --backend=typescript to reproduce.");
+    expect(quintSimulationVerdict({ ...quintViolation, stdout: later }, QUINT_SEED)).toBe("violation");
+    expect(quintSimulationVerdict(quintViolation, "20260924")).toBe("violation");
+    expect(quintSimulationVerdict({ ...quintPass, stdout: QUINT_PASS.replace(quintSeedLine(QUINT_SEED), "Use --seed=0x1353cf7 --backend=typescript to reproduce.") }, QUINT_SEED))
+      .toBe("inconclusive");
+    const malformed: readonly string[] = [
+      QUINT_VIOLATION.replace(quintSeedLine(QUINT_SEED), "Use --seed=0x0 --backend=typescript to reproduce."),
+      QUINT_VIOLATION.replace(quintSeedLine(QUINT_SEED), "Use --seed=0x --backend=typescript to reproduce."),
+      QUINT_VIOLATION.replace(quintSeedLine(QUINT_SEED), "Use --seed=0x1353CF7 --backend=typescript to reproduce."),
+      QUINT_VIOLATION.replace(quintSeedLine(QUINT_SEED), "Use --seed=0x1353cf7 --backend=rust to reproduce."),
+      `${QUINT_VIOLATION}Use --seed=0x1353cf7 --backend=typescript to reproduce.\n`,
+    ];
+    for (const stdout of malformed) expect(quintSimulationVerdict({ ...quintViolation, stdout }, QUINT_SEED)).toBe("inconclusive");
   });
 
   test("classifies real Apalache output and nothing else", () => {
