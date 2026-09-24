@@ -732,6 +732,39 @@ describe("canonical release publication and safe local input", () => {
       const rejected = verify({ ...receipt, [runPath]: current, [`${runPath}/attempts/${String(attempt)}/jobs?per_page=100`]: jobs });
       expect(rejected.verify).toThrow(message);
     }
+
+    // Regression (plan D15): attempt 2 re-ran the failed jobs and published;
+    // attempt 3 re-ran all jobs and its publish failed. The download read only
+    // attempts 1 and 3 and refused the Release attempt 2 published.
+    const intermediate = verify({
+      ...receipt,
+      [runPath]: attemptRun(3, "failure"),
+      [`${runPath}/attempts/3/jobs?per_page=100`]: attemptJobs(3, "failure"),
+      [`${runPath}/attempts/2`]: attemptRun(2, "success"),
+      [`${runPath}/attempts/2/jobs?per_page=100`]: attemptJobs(2, "success"),
+    });
+    expect(intermediate.verify).not.toThrow();
+    expect(intermediate.reads).toEqual([`${runPath}/attempts/1`, `${runPath}/attempts/1/jobs?per_page=100`, runPath,
+      `${runPath}/attempts/3/jobs?per_page=100`, `${runPath}/attempts/2`, `${runPath}/attempts/2/jobs?per_page=100`]);
+
+    // The intermediate attempt must be exact and prove all four itself, and
+    // more than three attempts between receipt and current fails closed.
+    for (const [responses, message] of [
+      [{ [`${runPath}/attempts/2`]: { ...attemptRun(2, "success"), triggering_actor: { id: 7, login: "0thernet", type: "User" } },
+        [`${runPath}/attempts/2/jobs?per_page=100`]: attemptJobs(2, "success") }, "triggering_actor is not the exact release owner"],
+      [{ [`${runPath}/attempts/2`]: attemptRun(3, "success"), [`${runPath}/attempts/2/jobs?per_page=100`]: attemptJobs(2, "success") },
+        "does not match the triggering Release run attempt"],
+      [{ [`${runPath}/attempts/2`]: attemptRun(2, "failure"), [`${runPath}/attempts/2/jobs?per_page=100`]: attemptJobs(2, "failure") },
+        "no intermediate attempt proved the four canonical jobs"],
+    ] as const) {
+      const rejected = verify({ ...receipt, [runPath]: attemptRun(3, "failure"),
+        [`${runPath}/attempts/3/jobs?per_page=100`]: attemptJobs(3, "failure"), ...responses });
+      expect(rejected.verify).toThrow(message);
+    }
+    const tooWide = verify({ ...receipt, [runPath]: attemptRun(6, "failure"), [`${runPath}/attempts/6/jobs?per_page=100`]: attemptJobs(6, "failure") });
+    expect(tooWide.verify).toThrow("beyond the bounded 3");
+    expect(tooWide.reads).toEqual([`${runPath}/attempts/1`, `${runPath}/attempts/1/jobs?per_page=100`, runPath,
+      `${runPath}/attempts/6/jobs?per_page=100`]);
   });
   test("rejects a symlinked release directory before reading an artifact", async () => {
     const root = await mkdtemp(join(tmpdir(), "ghostget-canonical-directory-"));
