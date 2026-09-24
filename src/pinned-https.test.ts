@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import type { ResolvedNetworkAddress } from "@hraness/kb/clip/network";
+import { resolveSafeNetworkTarget, type ResolvedNetworkAddress } from "@hraness/kb/clip/network";
 import {
   createPinnedHttpsFetchScope,
   pinnedHttpsFetch,
@@ -9,7 +9,7 @@ import {
   type PinnedHttpsResponse,
 } from "./pinned-https";
 
-const address = { address: "203.0.113.50", family: 4 } as const satisfies ResolvedNetworkAddress;
+const address = { address: "93.184.215.14", family: 4 } as const satisfies ResolvedNetworkAddress;
 
 function dependencies(
   handler: (request: PinnedHttpsRequest) => PinnedHttpsResponse | Promise<PinnedHttpsResponse>,
@@ -99,7 +99,7 @@ describe("DNS-pinned authenticated HTTPS", () => {
     const deps: Partial<PinnedHttpsDependencies> = {
       resolveTarget: () => Promise.resolve([
         address,
-        { address: "203.0.113.51", family: 4 },
+        { address: "93.184.215.15", family: 4 },
       ]),
       request: (request) => {
         calls += 1;
@@ -341,5 +341,41 @@ describe("DNS-pinned authenticated HTTPS", () => {
       })).toThrow("exact HTTPS origin");
     }
     expect(createdPools).toBe(0);
+  });
+  // @hraness/kb 0.19.6 admits these during resolution; the pinned transport must refuse them itself.
+  test("refuses a resolved non-public address that the kb resolver admits, before any request", async () => {
+    for (const resolved of ["::ffff:0:7f00:1", "::ffff:0:a00:1", "::1:2:3:4:5", "4000::1", "e000::1", "6000::1", "192.88.99.1"]) {
+      let requested = 0;
+      const failure = await rejectedError(pinnedHttpsFetch(
+        new URL("https://example.com/"),
+        { redirect: "error", signal: new AbortController().signal },
+        30_000,
+        {
+          resolveTarget: (url, options) => resolveSafeNetworkTarget(url, {
+            ...options,
+            resolveHostname: async () => [{ address: resolved, family: resolved.includes(":") ? 6 : 4 }],
+            getLocalNetworkAddresses: () => [],
+          }),
+          request: () => { requested += 1; return Promise.resolve(response()); },
+        },
+      ));
+      expect(failure.message).toContain("non-public");
+      expect(requested).toBe(0);
+    }
+  });
+
+  test("refuses every answer set that contains one non-public address", async () => {
+    let requested = 0;
+    const failure = await rejectedError(pinnedHttpsFetch(
+      new URL("https://example.com/"),
+      { redirect: "error", signal: new AbortController().signal },
+      30_000,
+      {
+        resolveTarget: () => Promise.resolve([address, { address: "::ffff:0:7f00:1", family: 6 }]),
+        request: () => { requested += 1; return Promise.resolve(response()); },
+      },
+    ));
+    expect(failure.message).toContain("non-public");
+    expect(requested).toBe(0);
   });
 });
