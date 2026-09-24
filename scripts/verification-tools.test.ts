@@ -294,7 +294,7 @@ describe("verification CI job", () => {
     const job = workflow.jobs.verification;
     if (job === undefined) throw new Error("ci.yml has no verification job");
     expect(job.name).toBe("verification");
-    expect(job["timeout-minutes"]).toBe(35);
+    expect(job["timeout-minutes"]).toBe(55);
     expect(job.permissions).toBeUndefined();
     expect(workflow.permissions).toEqual({ contents: "read" });
     expect(job.steps.filter((step) => step.uses?.startsWith("actions/checkout@") === true).map((step) => step.with))
@@ -313,7 +313,7 @@ describe("verification CI job", () => {
     // A failed or timed-out verify step still uploads its logs: the step bound ends it inside the job bound.
     expect(upload[0]!.if).toBe("always()");
     const verifyStep = job.steps.find((step) => step.run === "bun run verify")!;
-    expect(verifyStep["timeout-minutes"]).toBe(30);
+    expect(verifyStep["timeout-minutes"]).toBe(50);
     expect(verifyStep["timeout-minutes"]!).toBeLessThan(job["timeout-minutes"]! - 2);
     expect(JSON.stringify(job)).not.toContain("secrets.");
     for (const match of source.matchAll(/^\s*(?:- )?uses: (\S+)/gmu)) {
