@@ -1,0 +1,22 @@
+[package]
+name = "ghostget-oracles"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.97.1"
+publish = false
+description = "Development-only reference implementations that the Ghostget verification job compares with the shipped TypeScript."
+license = "MIT"
+
+[[bin]]
+name = "ghostget-oracle"
+path = "src/main.rs"
+
+# Every dependency is pinned to one exact version; Cargo.lock pins the rest of
+# the graph, and the build always runs with --locked.
+[dependencies]
+url = "=2.5.8"
+
+[profile.release]
+debug = false
+incremental = false
+codegen-units = 16

@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { createWhatsAppAutomationProvider, type WhatsAppAutomationOperation } from "./whatsapp-automation";
 import { parseWhatsAppPrivateResponse, WHATSAPP_AUTOMATION_PROTOCOL, type WhatsAppAutomationRuntime, type WhatsAppPrivateRequest } from "./whatsapp-automation-runtime";
 import type { AutomationAction, AutomationCoordinate } from "../messaging-automation-types";
-import { fc, propertyParameters } from "../test-support";
+import { assertProperty, fc } from "../test-support";
 
 const databases: Database[] = [];
 afterEach(() => { for (const database of databases.splice(0)) database.close(); });
@@ -110,6 +110,6 @@ test("WhatsApp changed account and group targets cannot dispatch", async () => {
 test("WhatsApp receipt parser rejects arbitrary extra fields", () => {
   const valid = { protocol: WHATSAPP_AUTOMATION_PROTOCOL, requestId: "a".repeat(64), generation: "b".repeat(64), account: "15550000001@s.whatsapp.net", to: target.conversationJid, state: "accepted", messageId: "synthetic", connected: true };
   expect(parseWhatsAppPrivateResponse(valid).state).toBe("accepted");
-  fc.assert(fc.property(fc.string().filter(key => !Object.hasOwn(valid, key)), fc.jsonValue(), (key, value) => { expect(() => parseWhatsAppPrivateResponse({ ...valid, [key]: value })).toThrow(); }), propertyParameters);
+  assertProperty(fc.property(fc.string().filter(key => !Object.hasOwn(valid, key)), fc.jsonValue(), (key, value) => { expect(() => parseWhatsAppPrivateResponse({ ...valid, [key]: value })).toThrow(); }));
   for (const patch of [{ generation: "" }, { to: "15550000002@g.us" }, { messageId: "" }, { connected: 1 }, { state: "delivered" }]) expect(() => parseWhatsAppPrivateResponse({ ...valid, ...patch })).toThrow();
 });

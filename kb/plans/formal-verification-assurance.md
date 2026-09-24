@@ -98,6 +98,7 @@ web gateway, the Edge middleware, media, release, and CI on `origin/main`
 | D12 | Edge | The direct `.md` branch calls `retrieve(new URL(url.pathname, url.origin))` (`edge/negotiation.ts:257`), so `//evil.example/x.md` resolves off-origin in-process. The live site is not affected: Vercel returns 308 to a single slash before middleware, and `/\` returns 404 (checked 2026-09-23). The code still violates same-origin retrieval if the platform changes. | reproduced in-process; latent live |
 | D13 | Approvals | Allow-once is enforced by the client. The broker leaves an `allowed` entry checkable for 600 s and relies on the Ghostget process calling `releaseApproval` in `finally`. A crash leaves a reusable lease for same-UID callers. | code-read |
 | D14 | Read paths | The menu-bar snapshot creates incarnation files through `ensureIncarnationUnderAdmission`, and read-projection listings unlink orphaned claims. Both break the literal rule "No writes on read paths". Either the rule gets an explicit, bounded exemption or the writes move. | code-confirmed |
+| D15 | Release | Manual promotion refuses a Release that an intermediate attempt published. When a failed-jobs rerun publishes bytes an earlier attempt attested, the body names that earlier attempt. A later rerun of all jobs then fails its publish job, and `resolveReleaseAuthority` reads only the latest attempt and the receipt attempt, neither of which proved all four canonical jobs. Found by a strengthened `promotionNotBlocked` over `verification/quint/release.qnt` (attempts: publish fails, rerun failed jobs publishes, rerun all) and reproduced against `resolveReleaseAuthority` with the release replay fixtures. | reproduced |
 
 ### Evidence gaps
 
@@ -336,6 +337,38 @@ Acceptance:
 - Commit Python-generated golden vectors for hashes and encodings to
   `verification/vectors/`.
 
+Execution, 2026-09-23:
+
+- `verify:oracles` builds `ghostget-oracle` with Rust 1.97.1 and
+  `cargo build --locked`, checks the vectors with `generate.py --check`, and
+  runs `scripts/verification-oracles.test.ts` and
+  `scripts/verification-vectors.test.ts`. It is the last step of `verify`.
+- Three claims are evidenced at the differential layer:
+  `canonical-json-matches-rfc8785-oracle`,
+  `public-url-matches-url-crate-oracle`, and
+  `media-identity-hashes-match-golden-vectors`. Each comparison also rejects
+  seeded defects.
+- The golden number vectors caught a bug in the first oracle draft: Rust's
+  shortest-digit `{:e}` wrote 1424953923781206.25 as `...206.3`, where
+  ECMAScript breaks the tie to the even digit, `...206.2`. The TypeScript was
+  already right.
+- Review found a second oracle bug that 200 differential runs missed: at 46
+  powers of two, such as 2^-44, the oracle wrote 17 digits where ECMAScript
+  writes 16. Below a power of two the doubles are half as far apart, so the
+  shortest text that parses back can lie on the far side of the closest
+  decimal. The oracle now tries that neighbour, and the vectors and the
+  differential generator now include every power of two.
+- The URL differential found no policy disagreement. It names four parser
+  differences, each of which leaves the gateway refusing the input: Bun
+  percent-encodes `^` in paths, Bun accepts `[::1:]` and drops a leading `/.`
+  from a non-special path, and the `url` crate keeps a drive-letter segment
+  before `..` in an https: path.
+- `canonicalJson` writes a lone surrogate as an escape where RFC 8785 refuses
+  the input. The vector test pins this, and the claim records it.
+- The classifier proposal is `kb/plans/kb-ip-classifier-proposal.md`.
+  `gateway-rejects-private-addresses` stays planned until `@hraness/kb` ships a
+  checked classifier.
+
 ### Phase 8: continuous assurance
 
 - Nightly jobs run deeper Apalache bounds, the property soak, and mutation
@@ -343,6 +376,35 @@ Acceptance:
   result if it is unsupported.
 - Add a quarterly claims review that reruns this audit's areas and appends
   findings here.
+
+Landed on 2026-09-23 on branch `claude/fv-continuous`:
+
+- `.github/workflows/verification-nightly.yml` runs daily and on manual
+  dispatch, read-only and outside `Required`. It runs
+  `bun run ./scripts/verification-tools.ts quint-nightly` at each model's
+  `nightly` bounds in `verification/quint/models.json`, a six-shard property
+  soak at `GHOSTGET_PROPERTY_RUNS=20`, and the reducer mutants.
+- StrykerJS 10.0.0 has no Bun runner. Through its command runner it
+  instrumented 159 mutants in 107 lines of `src/run-journal.ts`, and each
+  mutant reruns the whole test file, about 40 minutes for that one reducer.
+  It is not adopted. `verification/mutants.json` and
+  `scripts/verification-mutants.ts` check named guard mutants against the one
+  test that must fail. `docs/claims-review.md` records the evaluation.
+- The first mutant pass found that no test asserted the messaging reducer's
+  active-prefix and dispatch-boundary guards. Removing the accept or
+  categorical-stop guard left `src/messaging-action-store.test.ts` green.
+  Removing the active-prefix guard failed two tests in a whole-file run, but
+  each passed when selected alone. A named example test now asserts each
+  guard, and all 12 mutants are killed.
+- `docs/claims-review.md` holds the nightly triage steps and the quarterly
+  review procedure. Reviews append to "Quarterly claims reviews" below.
+
+## Quarterly claims reviews
+
+Each review follows `docs/claims-review.md` and appends one dated entry here:
+the commit reviewed, new findings with their evidence level, claims whose
+status changed, and nightly failures since the last review. The first review
+is due in the first week of January 2027.
 
 ## Verification
 

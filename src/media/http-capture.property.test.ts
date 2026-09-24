@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertAsyncProperty } from "../test-support";
 import { captureDirectHttp, type DirectHttpCaptureSink } from "./http-capture";
 import { DirectHttpProbeTransport, type DirectHttpProbe } from "./http-probe";
 
@@ -26,7 +27,7 @@ const probe: DirectHttpProbe = {
 };
 
 test("property: stream chunk partitioning cannot change capture bytes or digest", async () => {
-  await fc.assert(
+  await assertAsyncProperty(
     fc.asyncProperty(
       fc.uint8Array({ maxLength: 2_048 }),
       fc.array(fc.integer({ min: 1, max: 128 }), { minLength: 1, maxLength: 32 }),

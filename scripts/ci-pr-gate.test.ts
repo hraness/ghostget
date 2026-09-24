@@ -11,6 +11,7 @@ import {
   macosCheckInvocations,
 } from "./ci-macos-check.js";
 import {
+  BUN_TEST_TIMEOUT_MS,
   CI_UNIT_TEST_SHARD_COUNT,
   assignUnitTestShards,
   bunUnitTestArguments,
@@ -20,6 +21,12 @@ import {
   listSrcUnitTestFiles,
   parseShardRequest,
 } from "./ci-test-shard.js";
+import {
+  MAX_SOAK_TEST_TIMEOUT_MS,
+  listSoakTestFiles,
+  soakMultiplier,
+  soakTestArguments,
+} from "./verification-soak.js";
 import { assertProperty } from "../src/test-support.js";
 
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -89,7 +96,7 @@ describe("PR CI test shards", () => {
 
   test("property: shard assignment is a deterministic partition", async () => {
     const files = await listSrcUnitTestFiles(repositoryRoot);
-    fc.assert(
+    assertProperty(
       fc.property(fc.integer({ min: 1, max: 8 }), (shardCount) => {
         const first = assignUnitTestShards(files, shardCount);
         const second = assignUnitTestShards(files, shardCount);
@@ -109,6 +116,8 @@ describe("macOS PR check subset", () => {
     expect(MACOS_TEST_FILES).toContain("src/apple-photos-local-source.test.ts");
     expect(MACOS_TEST_FILES).toContain("src/imessage-direct-plugin.test.ts");
     expect(MACOS_TEST_FILES).toContain("src/provider-plugin-host.test.ts");
+    // The darwin-arm64 bundled-runtime install test skips on Linux runners.
+    expect(MACOS_TEST_FILES).toContain("src/providers/messaging-native-install.test.ts");
     expect(MACOS_PATTERNED_TESTS).toEqual([
       {
         file: "src/ghostget.test.ts",
@@ -156,7 +165,7 @@ describe("complete local and release check composition", () => {
       "test-omni": ["test-omni", "ubuntu-latest", 25],
       standalone: ["standalone", "ubuntu-latest", 20],
       macos: ["macOS", "macos-15", 45],
-      verification: ["verification", "ubuntu-latest", 20],
+      verification: ["verification", "ubuntu-latest", 35],
     } as const;
     const expectedNode = {
       uses: "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
@@ -324,7 +333,7 @@ describe("complete local and release check composition", () => {
       "bun run check:cost-surfaces && bun run check:static && bun run check:package && bun run test"
       + " && bun run test:standalone && bun run verify",
     );
-    expect(manifest.scripts?.verify).toBe("bun run verify:claims && bun run verify:quint && bun run verify:lean");
+    expect(manifest.scripts?.verify).toBe("bun run verify:claims && bun run verify:quint && bun run verify:lean && bun run verify:oracles");
     expect(manifest.scripts?.["check:macos"]).toBe("bun run ./scripts/ci-macos-check.ts");
     expect(manifest.scripts?.["test:shard"]).toBe("bun run ./scripts/ci-test-shard.ts");
     expect(manifest.scripts?.["test:npm-release"]).toBe(
@@ -537,5 +546,171 @@ describe("AGENTS.md pre-tag ruleset readback", () => {
     for (const id of ["22311815", "19989752", "22960902", "22960911", "21832074", "21887484"]) {
       expect(readback).toContain(`\`${id}\``);
     }
+  });
+});
+
+const nightlyWorkflowUrl = new URL("../.github/workflows/verification-nightly.yml", import.meta.url);
+const NIGHTLY_SOAK_SHARDS = 6;
+
+describe("nightly verification workflow", () => {
+  type Step = { name?: string; uses?: string; if?: unknown; run?: string; with?: Record<string, unknown>; env?: Record<string, unknown>; "timeout-minutes"?: number };
+  type Job = { name?: string; permissions?: unknown; environment?: unknown; needs?: unknown; if?: unknown; "continue-on-error"?: unknown; "timeout-minutes"?: number; strategy?: unknown; steps: Step[] };
+  type Workflow = { name?: string; on?: Record<string, unknown>; permissions?: unknown; concurrency?: unknown; jobs: Record<string, Job> };
+  const PINNED_ACTION = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40}$/u;
+  const COMMANDS = {
+    quint: "bun run ./scripts/verification-tools.ts quint-nightly",
+    "property-soak": `bun run ./scripts/verification-soak.ts \${{ matrix.shard }} ${String(NIGHTLY_SOAK_SHARDS)}`,
+    mutants: "bun run ./scripts/verification-mutants.ts",
+  } as const;
+
+  /**
+   * Throw unless the nightly workflow stays read-only, scheduled or manual,
+   * SHA-pinned, credential-free, and outside `Required`, and unless it runs
+   * each deeper check once with the CI toolchain and checker cache.
+   */
+  function validateNightly(candidate: Workflow, ci: Workflow): void {
+    if (!isDeepStrictEqual(Object.keys(candidate.on ?? {}).sort(), ["schedule", "workflow_dispatch"])) {
+      throw new Error("the nightly workflow must run only on a schedule or by manual dispatch");
+    }
+    if (!isDeepStrictEqual(candidate.permissions, { contents: "read" })) {
+      throw new Error("the nightly workflow must hold only contents: read");
+    }
+    if (!isDeepStrictEqual(Object.keys(candidate.jobs).sort(), Object.keys(COMMANDS).sort())) {
+      throw new Error("the nightly job inventory changed");
+    }
+    const ciVerification = ci.jobs.verification;
+    const ciRequired = ci.jobs.required;
+    if (ciVerification === undefined || ciRequired === undefined) throw new Error("ci.yml lost its verification or Required job");
+    const ciStep = (prefix: string): Step | undefined => ciVerification.steps.find((step) => step.uses?.startsWith(prefix) === true);
+    const needs = Array.isArray(ciRequired.needs) ? ciRequired.needs as unknown[] : [];
+    for (const [id, job] of Object.entries(candidate.jobs)) {
+      if (job.permissions !== undefined || job.environment !== undefined || job.if !== undefined
+        || job["continue-on-error"] !== undefined || job.needs !== undefined) {
+        throw new Error(`nightly job ${id} widens permissions, selects an environment, or changes its execution boundary`);
+      }
+      if (typeof job.name !== "string" || /required/iu.test(job.name) || needs.includes(id)) {
+        throw new Error(`nightly job ${id} is named or needed like Required`);
+      }
+      if (typeof job["timeout-minutes"] !== "number" || job["timeout-minutes"] > 360) {
+        throw new Error(`nightly job ${id} has no bounded timeout`);
+      }
+      for (const step of job.steps) {
+        if (step.uses !== undefined && !PINNED_ACTION.test(step.uses)) {
+          throw new Error(`nightly job ${id} uses an action that is not pinned to a full commit`);
+        }
+        if (step.uses?.startsWith("actions/checkout@") === true && step.with?.["persist-credentials"] !== false) {
+          throw new Error(`nightly job ${id} persists checkout credentials`);
+        }
+        if (step.run?.includes("${{ inputs") === true || step.run?.includes("${{ github.event") === true) {
+          throw new Error(`nightly job ${id} interpolates dispatch input into a shell command`);
+        }
+        if (step.if !== undefined && !(step.if === "always()" && step.uses?.startsWith("actions/upload-artifact@") === true)) {
+          throw new Error(`nightly job ${id} conditions a check step`);
+        }
+      }
+      for (const prefix of ["actions/checkout@", "actions/setup-node@", "oven-sh/setup-bun@"]) {
+        const own = job.steps.filter((step) => step.uses?.startsWith(prefix) === true);
+        const reference = ciStep(prefix);
+        if (own.length !== 1 || reference === undefined || own[0]!.uses !== reference.uses || !isDeepStrictEqual(own[0]!.with, reference.with)) {
+          throw new Error(`nightly job ${id} does not reuse the CI ${prefix.slice(0, -1)} step`);
+        }
+      }
+      const command = COMMANDS[id as keyof typeof COMMANDS];
+      if (job.steps.filter((step) => step.run === command).length !== 1) {
+        throw new Error(`nightly job ${id} does not run ${command} exactly once`);
+      }
+    }
+    const cache = candidate.jobs.quint?.steps.filter((step) => step.uses?.startsWith("actions/cache@") === true) ?? [];
+    const ciCache = ciStep("actions/cache@");
+    if (cache.length !== 1 || ciCache === undefined || cache[0]!.uses !== ciCache.uses || !isDeepStrictEqual(cache[0]!.with, ciCache.with)) {
+      throw new Error("the nightly Quint job must share the CI checker cache key");
+    }
+    const soak = candidate.jobs["property-soak"];
+    const shards = Array.from({ length: NIGHTLY_SOAK_SHARDS }, (_, index) => index + 1);
+    if (!isDeepStrictEqual(soak?.strategy, { "fail-fast": false, matrix: { shard: shards } })) {
+      throw new Error("the property soak must expand to every soak shard");
+    }
+    const soakStep = soak?.steps.find((step) => step.run === COMMANDS["property-soak"]);
+    if (soakStep?.env?.GHOSTGET_PROPERTY_RUNS !== "${{ inputs.property_runs || '20' }}") {
+      throw new Error("the property soak must pass its multiplier only through GHOSTGET_PROPERTY_RUNS");
+    }
+  }
+
+  const load = async (): Promise<{ nightly: Workflow; ci: Workflow; source: string }> => {
+    const source = await readFile(nightlyWorkflowUrl, "utf8");
+    return {
+      nightly: Bun.YAML.parse(source) as Workflow,
+      ci: Bun.YAML.parse(await readFile(ciWorkflowUrl, "utf8")) as Workflow,
+      source,
+    };
+  };
+
+  test("stays read-only, pinned, outside Required, and on the CI toolchain", async () => {
+    const { nightly, ci, source } = await load();
+    expect(() => validateNightly(nightly, ci)).not.toThrow();
+    expect(source).not.toMatch(/secrets\.|id-token|pull_request|push:/u);
+    expect(ci.jobs.required?.needs).toEqual(["static", "package", "test", "test-omni", "standalone", "macos", "verification"]);
+  });
+
+  test("rejects each widened or weakened nightly variant", async () => {
+    const { nightly, ci } = await load();
+    const mutations: ((candidate: Workflow) => void)[] = [
+      candidate => { candidate.on = { ...candidate.on, pull_request: null }; },
+      candidate => { candidate.on = { ...candidate.on, push: { branches: ["main"] } }; },
+      candidate => { candidate.permissions = { contents: "write" }; },
+      candidate => { candidate.permissions = { contents: "read", "id-token": "write" }; },
+      candidate => { candidate.jobs.quint!.permissions = { actions: "write" }; },
+      candidate => { candidate.jobs.mutants!.environment = "npm-release"; },
+      candidate => { candidate.jobs.mutants!.name = "Required"; },
+      candidate => { candidate.jobs.mutants!["continue-on-error"] = true; },
+      candidate => { delete candidate.jobs.mutants; },
+      candidate => { candidate.jobs.extra = structuredClone(candidate.jobs.mutants!); },
+      candidate => { delete candidate.jobs.quint!["timeout-minutes"]; },
+      candidate => { candidate.jobs.quint!.steps[0]!.uses = "actions/checkout@v7"; },
+      candidate => { candidate.jobs.quint!.steps[0]!.with = {}; },
+      candidate => { candidate.jobs.quint!.steps.find(step => step.uses?.startsWith("oven-sh/setup-bun@"))!.with = { "bun-version": "latest" }; },
+      candidate => { candidate.jobs.quint!.steps.find(step => step.uses?.startsWith("actions/cache@"))!.with!.key = "ghostget-verification-nightly"; },
+      candidate => { candidate.jobs.quint!.steps.find(step => step.run === COMMANDS.quint)!.run = "bun run ./scripts/verification-tools.ts quint"; },
+      candidate => { candidate.jobs.quint!.steps.find(step => step.run === COMMANDS.quint)!.if = "false"; },
+      candidate => { candidate.jobs.mutants!.steps.find(step => step.run === COMMANDS.mutants)!.run = `${COMMANDS.mutants} || true`; },
+      candidate => { candidate.jobs["property-soak"]!.strategy = { "fail-fast": false, matrix: { shard: [1, 2, 3] } }; },
+      candidate => { candidate.jobs["property-soak"]!.steps.find(step => step.run === COMMANDS["property-soak"])!.env = {}; },
+      candidate => { candidate.jobs["property-soak"]!.steps.push({ run: "echo ${{ inputs.property_runs }}" }); },
+    ];
+    for (const mutate of mutations) {
+      const changed = structuredClone(nightly);
+      mutate(changed);
+      expect(() => validateNightly(changed, ci)).toThrow();
+    }
+    const required = structuredClone(ci);
+    (required.jobs.required!.needs as string[]).push("mutants");
+    expect(() => validateNightly(nightly, required)).toThrow("Required");
+  });
+
+  test("soaks every src property file across non-empty shards", async () => {
+    const files = await listSoakTestFiles(repositoryRoot);
+    const units = new Set(await listSrcUnitTestFiles(repositoryRoot));
+    expect(files.length).toBeGreaterThan(NIGHTLY_SOAK_SHARDS);
+    for (const file of files) {
+      expect(units.has(file)).toBe(true);
+      expect(await readFile(new URL(`../${file}`, import.meta.url), "utf8")).toMatch(/\bassert(?:Async)?Property\(/u);
+    }
+    expect(files).toContain("src/test-support.test.ts");
+    const shards = assignUnitTestShards(files, NIGHTLY_SOAK_SHARDS);
+    expect(shards).toHaveLength(NIGHTLY_SOAK_SHARDS);
+    expect(shards.every((shard) => shard.length > 0)).toBe(true);
+    expect(shards.flat().sort()).toEqual([...files].sort());
+  });
+
+  test("requires an explicit soak multiplier and caps the soak timeout", () => {
+    expect(() => soakMultiplier({})).toThrow("requires GHOSTGET_PROPERTY_RUNS");
+    expect(() => soakMultiplier({ GHOSTGET_PROPERTY_RUNS: "1" })).toThrow("at least 2");
+    expect(() => soakMultiplier({ GHOSTGET_PROPERTY_RUNS: "101" })).toThrow("from 1 to 100");
+    expect(soakMultiplier({ GHOSTGET_PROPERTY_RUNS: "20" })).toBe(20);
+    expect(soakTestArguments(["src/a.test.ts"], 2, 20)).toEqual([
+      "test", "--no-orphans", "--timeout", String(BUN_TEST_TIMEOUT_MS * 20), "--max-concurrency", "2", "src/a.test.ts",
+    ]);
+    expect(soakTestArguments(["src/a.test.ts"], 1, 100)[3]).toBe(String(MAX_SOAK_TEST_TIMEOUT_MS));
+    expect(() => soakTestArguments([], 1, 20)).toThrow("without files");
   });
 });

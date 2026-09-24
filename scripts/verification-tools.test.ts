@@ -12,6 +12,7 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import {
+  cp,
   lstat,
   mkdir,
   mkdtemp,
@@ -35,10 +36,16 @@ import {
   KERNEL_AXIOMS,
   LEAN,
   LEAN_CANARY_MODULE,
+  LEAN_DIFFERENTIAL_RUNNER,
+  LEAN_DIFFERENTIAL_TEST,
+  LEAN_DIFFERENTIAL_TESTS,
   PLATFORM_KEYS,
   QUINT,
+  QUINT_REPLAY_SCRIPT,
+  QUINT_REPLAY_TIMEOUT_MS,
   QUINT_TRACE_TIMEOUT_MS,
   REPOSITORY_ROOT,
+  RUST_ORACLE,
   VERIFICATION_ARTIFACTS,
   admitArchive,
   apalacheVerdict,
@@ -55,10 +62,14 @@ import {
   parseAxiomAudit,
   parseLeanProofs,
   parseQuintModels,
+  parseVerificationMode,
   pathReplacements,
   pinnedArchives,
   pinnedArchivesDigest,
   platformKey,
+  quintBounds,
+  quintReplayCommand,
+  quintReplayTests,
   quintRunArguments,
   quintSeedLine,
   quintSimulationVerdict,
@@ -78,6 +89,14 @@ import {
   type PinnedArchive,
   type ToolOutcome,
 } from "./verification-tools.js";
+import {
+  applySourceMutant,
+  mutantRunVerdict,
+  mutantTestArguments,
+  parseSourceMutants,
+  readSourceMutants,
+  type SourceMutant,
+} from "./verification-mutants.js";
 import {
   invalidatingMutation,
   isJsonObject,
@@ -224,6 +243,7 @@ describe("verification CI job", () => {
     run?: string;
     if?: string;
     "timeout-minutes"?: number;
+    "working-directory"?: string;
     with?: Record<string, unknown>;
     env?: Record<string, string>;
   };
@@ -255,7 +275,16 @@ describe("verification CI job", () => {
     const install = job.steps.findIndex((step) => step.run === "bun install --frozen-lockfile --ignore-scripts");
     expect(install).toBeGreaterThanOrEqual(0);
     expect(job.steps.indexOf(cache[0]!)).toBe(install + 1);
-    expect(verify).toBe(install + 2);
+    // The only step between the cache and verify installs the oracle's exact
+    // Rust toolchain with the runner's rustup and checks both versions.
+    const rust = job.steps[install + 2]!;
+    expect(rust.name).toBe("Install the pinned Rust toolchain");
+    expect(rust["working-directory"]).toBe(RUST_ORACLE.directory);
+    expect(rust.uses).toBeUndefined();
+    expect(rust.run).toContain(`rustup toolchain install ${RUST_ORACLE.toolchain} --profile minimal --no-self-update`);
+    expect(rust.run).toContain(`test "$(rustc --version | cut -d ' ' -f 2)" = "${RUST_ORACLE.toolchain}"`);
+    expect(rust.run).toContain(`test "$(cargo --version | cut -d ' ' -f 2)" = "${RUST_ORACLE.toolchain}"`);
+    expect(verify).toBe(install + 3);
     expect(source).not.toContain("setup-java");
   });
 
@@ -265,7 +294,7 @@ describe("verification CI job", () => {
     const job = workflow.jobs.verification;
     if (job === undefined) throw new Error("ci.yml has no verification job");
     expect(job.name).toBe("verification");
-    expect(job["timeout-minutes"]).toBe(20);
+    expect(job["timeout-minutes"]).toBe(35);
     expect(job.permissions).toBeUndefined();
     expect(workflow.permissions).toEqual({ contents: "read" });
     expect(job.steps.filter((step) => step.uses?.startsWith("actions/checkout@") === true).map((step) => step.with))
@@ -284,7 +313,7 @@ describe("verification CI job", () => {
     // A failed or timed-out verify step still uploads its logs: the step bound ends it inside the job bound.
     expect(upload[0]!.if).toBe("always()");
     const verifyStep = job.steps.find((step) => step.run === "bun run verify")!;
-    expect(verifyStep["timeout-minutes"]).toBe(16);
+    expect(verifyStep["timeout-minutes"]).toBe(30);
     expect(verifyStep["timeout-minutes"]!).toBeLessThan(job["timeout-minutes"]! - 2);
     expect(JSON.stringify(job)).not.toContain("secrets.");
     for (const match of source.matchAll(/^\s*(?:- )?uses: (\S+)/gmu)) {
@@ -754,9 +783,9 @@ describe("checker verdicts", () => {
   });
 
   test("classifies real Quint simulation output and nothing else", () => {
-    expect(quintSimulationVerdict(quintPass, QUINT_SEED)).toBe("pass");
-    expect(quintSimulationVerdict(quintViolation, QUINT_SEED)).toBe("violation");
-    expect(quintSimulationVerdict({ ...quintPass, stdout: QUINT_PASS.replaceAll("\n", "\r\n") }, QUINT_SEED)).toBe("pass");
+    expect(quintSimulationVerdict(quintPass)).toBe("pass");
+    expect(quintSimulationVerdict(quintViolation)).toBe("violation");
+    expect(quintSimulationVerdict({ ...quintPass, stdout: QUINT_PASS.replaceAll("\n", "\r\n") })).toBe("pass");
     const inconclusive: readonly CheckerResult[] = [
       { ...quintPass, stdout: QUINT_PASS.replace(quintSeedLine(QUINT_SEED), "") },
       { ...quintPass, stdout: QUINT_PASS.replace("[ok] No violation found", "  [ok] No violation found") },
@@ -772,9 +801,16 @@ describe("checker verdicts", () => {
       { ...quintViolation, stdout: QUINT_VIOLATION.replace(quintSeedLine(QUINT_SEED), "") },
       { exitCode: 0, stdout: "", stderr: "" },
     ];
-    for (const result of inconclusive) expect(quintSimulationVerdict(result, QUINT_SEED)).toBe("inconclusive");
-    expect(quintSimulationVerdict(quintPass, "20260924")).toBe("inconclusive");
-    expect(quintSimulationVerdict(quintViolation, "20260924")).toBe("inconclusive");
+    for (const result of inconclusive) expect(quintSimulationVerdict(result)).toBe("inconclusive");
+    // Quint reports the seed of the trace it shows, which need not be the first sample's.
+    const later = quintSeedLine("20265114");
+    expect(quintSimulationVerdict({ ...quintPass, stdout: QUINT_PASS.replace(quintSeedLine(QUINT_SEED), later) })).toBe("pass");
+    expect(quintSimulationVerdict({ ...quintViolation, stdout: QUINT_VIOLATION.replace(quintSeedLine(QUINT_SEED), later) }))
+      .toBe("violation");
+    expect(quintSimulationVerdict({ ...quintPass, stdout: `${QUINT_PASS}${later}\n` })).toBe("inconclusive");
+    expect(quintSimulationVerdict({ ...quintPass, stdout: QUINT_PASS.replace("--seed=0x", "--seed=") })).toBe("inconclusive");
+    expect(quintSimulationVerdict({ ...quintPass, stdout: QUINT_PASS.replace("--backend=typescript", "--backend=rust") }))
+      .toBe("inconclusive");
   });
 
   test("classifies real Apalache output and nothing else", () => {
@@ -803,8 +839,8 @@ describe("checker verdicts", () => {
 
   test("treats checker output cut off before its last required line as inconclusive", () => {
     const cases: readonly (readonly [CheckerResult, string, (result: CheckerResult) => string])[] = [
-      [quintPass, quintSeedLine(QUINT_SEED), (result) => quintSimulationVerdict(result, QUINT_SEED)],
-      [quintViolation, quintSeedLine(QUINT_SEED), (result) => quintSimulationVerdict(result, QUINT_SEED)],
+      [quintPass, quintSeedLine(QUINT_SEED), (result) => quintSimulationVerdict(result)],
+      [quintViolation, quintSeedLine(QUINT_SEED), (result) => quintSimulationVerdict(result)],
       [apalachePass, "EXITCODE: OK", (result) => apalacheVerdict(result, 10)],
       [apalacheViolation, "EXITCODE: ERROR (12)", (result) => apalacheVerdict(result, 10)],
     ];
@@ -825,7 +861,7 @@ describe("checker verdicts", () => {
       fc.integer({ min: -1, max: 255 }),
       fc.constantFrom("", "error: Invariant violated\n", "warning: deprecated option\n"),
       (stdout, exitCode, stderr) => {
-        const verdict = quintSimulationVerdict({ exitCode, stdout, stderr }, QUINT_SEED);
+        const verdict = quintSimulationVerdict({ exitCode, stdout, stderr });
         if (verdict === "pass") {
           return exitCode === 0 && stderr === "" && !/^\[violation\] Found an issue \(/mu.test(stdout);
         }
@@ -886,11 +922,7 @@ describe("Quint model manifest", () => {
     expect(models.length).toBeGreaterThan(0);
     const files = (await readdir(join(REPOSITORY_ROOT, "verification/quint"))).filter((name) => name.endsWith(".qnt"));
     expect(models.map((model) => model.file).sort()).toEqual(files.sort());
-    const scripts = (JSON.parse(await repositoryFile("package.json")) as { scripts: Record<string, string> }).scripts;
-    const replayRun = scripts["verify:quint"]?.split(" && ").find((command) => command.startsWith("bun test "));
-    expect(scripts["verify:quint"]?.startsWith("bun run ./scripts/verification-tools.ts quint && ")).toBe(true);
     for (const model of models) {
-      expect(replayRun?.split(" ")).toContain(`./${model.replay.test}`);
       const source = await repositoryFile(`verification/quint/${model.file}`);
       expect(source).toMatch(new RegExp(`^module ${model.module} \\{$`, "mu"));
       for (const action of [model.init, model.step, ...model.mutants.map((mutant) => mutant.step)]) {
@@ -904,16 +936,38 @@ describe("Quint model manifest", () => {
     }
   });
 
-  test("bounds trace generation inside the replay test's runner timeout", async () => {
+  test("runs every model's replay test from the manifest, so a new model needs no script edit", async () => {
+    const models = await readQuintModels();
     const scripts = (JSON.parse(await repositoryFile("package.json")) as { scripts: Record<string, string> }).scripts;
-    const replayRun = scripts["verify:quint"]?.split(" && ").find((command) => command.startsWith("bun test ")) ?? "";
-    const runner = /(?:^| )--timeout (\d+)(?: |$)/u.exec(replayRun);
+    expect(scripts["verify:quint"]).toBe("bun run ./scripts/verification-tools.ts quint");
+    expect(scripts[QUINT_REPLAY_SCRIPT]).toMatch(/^bun test --no-orphans --timeout \d+ --max-concurrency 1$/u);
+    const tests = quintReplayTests(models);
+    expect(tests).toEqual([...new Set(models.map((model) => `./${model.replay.test}`))]);
+    expect(quintReplayCommand("/bin/bun", models)).toEqual(["/bin/bun", "run", QUINT_REPLAY_SCRIPT, ...tests]);
+    for (const test of tests) expect(await repositoryFile(test.slice(2))).toContain("describe(");
+    const lock = models.find((model) => model.file === "lock.qnt");
+    if (lock === undefined) throw new Error("models.json does not list lock.qnt");
+    // Two models may share one replay file; it runs once.
+    expect(quintReplayTests([lock, lock, { ...lock, replay: { ...lock.replay, test: "scripts/other-replay.test.ts" } }]))
+      .toEqual(["./scripts/verification-lock-replay.test.ts", "./scripts/other-replay.test.ts"]);
+  });
+
+  test("bounds trace generation inside the replay runner's timeout", async () => {
+    const scripts = (JSON.parse(await repositoryFile("package.json")) as { scripts: Record<string, string> }).scripts;
+    const runner = /(?:^| )--timeout (\d+)(?: |$)/u.exec(scripts[QUINT_REPLAY_SCRIPT] ?? "");
     expect(runner).not.toBeNull();
     // Trace generation runs inside the first replay test; the rest of that test needs a margin too.
     expect(QUINT_TRACE_TIMEOUT_MS + 15_000).toBeLessThanOrEqual(Number(runner![1]));
-    const replay = await repositoryFile("scripts/verification-lock-replay.test.ts");
-    expect(replay).toContain("timeoutMs: QUINT_TRACE_TIMEOUT_MS,");
-    expect(replay.match(/timeoutMs:/gu)).toHaveLength(1);
+    // The whole replay run ends inside its own bound.
+    expect(Number(runner![1])).toBeLessThan(QUINT_REPLAY_TIMEOUT_MS);
+    const shared = await repositoryFile("scripts/verification-replay.ts");
+    expect(shared.match(/timeoutMs:/gu)).toEqual(["timeoutMs:"]);
+    expect(shared).toContain("timeoutMs: QUINT_TRACE_TIMEOUT_MS,");
+    for (const test of quintReplayTests(await readQuintModels())) {
+      const replay = await repositoryFile(test.slice(2));
+      expect(replay).toContain("./verification-replay.js");
+      expect(replay).not.toContain("runTool");
+    }
   });
 
   test("builds the exact seeded simulation and trace commands", async () => {
@@ -950,6 +1004,7 @@ describe("Quint model manifest", () => {
       [at(["mutants"], []), "models[0].mutants must list at least one seeded defect"],
       [at(["mutants", 0, "step"], "step"), "models[0].mutants[0] must use a mutant step"],
       [at(["mutants", 0, "invariant"], "deadlockFree"), "models[0].mutants[0] must violate one of the model's invariants"],
+      [at(["mutants", 1], jsonAt(document, ["models", 0, "mutants", 0])!), "models[0].mutants must not list a step and invariant twice"],
       [at(["replay", "test"], "scripts/../lock.test.ts"), "models[0].replay.test must be a repository test file"],
       [at(["replay", "test"], "scripts/verification-lock-replay.ts"), "models[0].replay.test must be a repository test file"],
       [at(["replay", "test"], "/tmp/replay.test.ts"), "models[0].replay.test must be a repository test file"],
@@ -973,7 +1028,198 @@ describe("Quint model manifest", () => {
 
   test("rejects every type change, missing field, and unknown field", async () => {
     const document = await committedModels();
-    assertProperty(fc.property(invalidatingMutation(document), (mutated) => rejects(() => parseQuintModels(mutated))));
+    assertProperty(fc.property(invalidatingMutation(document, ["nightly"]), (mutated) => rejects(() => parseQuintModels(mutated))));
+  });
+
+  test("checks the nightly profile at deeper bounds with the same seed", async () => {
+    const [model] = await readQuintModels();
+    if (model === undefined) throw new Error("models.json lists no model");
+    expect(model.nightly).toEqual({ simulation: { maxSamples: 20_000, maxSteps: 24 }, apalache: { length: 20 } });
+    expect(quintBounds(model, "ci")).toEqual({ simulation: model.simulation, apalache: model.apalache });
+    expect(quintBounds(model, "nightly")).toEqual({
+      simulation: { seed: "20260923", maxSamples: 20_000, maxSteps: 24 },
+      apalache: { length: 20 },
+    });
+    expect(quintRunArguments(model, model.step, "mutualExclusion", "nightly")).toEqual([
+      "run", "--backend", "typescript", "--main", "lock", "--init", "init", "--step", "step",
+      "--invariant", "mutualExclusion", "--max-samples", "20000", "--max-steps", "24", "--seed", "20260923", "lock.qnt",
+    ]);
+    const { nightly: _nightly, ...withoutNightly } = model;
+    expect(quintBounds(withoutNightly, "nightly")).toEqual(quintBounds(model, "ci"));
+    for (const found of await readQuintModels()) {
+      const ci = quintBounds(found, "ci");
+      const deep = quintBounds(found, "nightly");
+      expect(deep.simulation.seed).toBe(ci.simulation.seed);
+      expect(deep.simulation.maxSamples).toBeGreaterThanOrEqual(ci.simulation.maxSamples);
+      expect(deep.simulation.maxSteps).toBeGreaterThanOrEqual(ci.simulation.maxSteps);
+      expect(deep.apalache.length).toBeGreaterThanOrEqual(ci.apalache.length);
+    }
+  });
+
+  test("rejects nightly bounds below or equal to the CI bounds", async () => {
+    const document = await committedModels();
+    const at = (path: JsonPath, value: JsonValue | undefined): JsonValue => jsonWith(document, ["models", 0, "nightly", ...path], value);
+    const cases: readonly (readonly [JsonValue, string])[] = [
+      [at(["simulation", "maxSamples"], 1_999), "models[0].nightly.simulation.maxSamples must be an integer from 2000 to 100000"],
+      [at(["simulation", "maxSamples"], 100_001), "models[0].nightly.simulation.maxSamples must be an integer from 2000 to 100000"],
+      [at(["simulation", "maxSteps"], 11), "models[0].nightly.simulation.maxSteps must be an integer from 12 to 100"],
+      [at(["apalache", "length"], 9), "models[0].nightly.apalache.length must be an integer from 10 to 50"],
+      [at(["apalache", "length"], 51), "models[0].nightly.apalache.length must be an integer from 10 to 50"],
+      [at(["simulation", "seed"], "1"), "models[0].nightly.simulation must have exactly the fields"],
+      [at(["apalache"], undefined), "models[0].nightly must have exactly the fields"],
+      [jsonWith(document, ["models", 0, "nightly"], {
+        simulation: { maxSamples: 2_000, maxSteps: 12 },
+        apalache: { length: 10 },
+      }), "models[0].nightly must deepen at least one CI bound"],
+      [jsonWith(document, ["models", 0, "nightly"], null), "models[0].nightly must be an object"],
+    ];
+    for (const [candidate, message] of cases) expect(() => parseQuintModels(candidate)).toThrow(message);
+    const withoutNightly = jsonWith(document, ["models", 0, "nightly"], undefined);
+    expect(parseQuintModels(withoutNightly)[0]?.nightly).toBeUndefined();
+    const deeperApalacheOnly = jsonWith(document, ["models", 0, "nightly"], {
+      simulation: { maxSamples: 2_000, maxSteps: 12 },
+      apalache: { length: 11 },
+    });
+    expect(quintBounds(parseQuintModels(deeperApalacheOnly)[0]!, "nightly").apalache.length).toBe(11);
+  });
+
+  test("property: parsed nightly bounds never fall below the CI bounds", async () => {
+    const document = await committedModels();
+    assertProperty(fc.property(
+      fc.integer({ min: 1, max: 100_000 }),
+      fc.integer({ min: 1, max: 100 }),
+      fc.integer({ min: 1, max: 50 }),
+      (maxSamples, maxSteps, length) => {
+        const candidate = jsonWith(document, ["models", 0, "nightly"], {
+          simulation: { maxSamples, maxSteps },
+          apalache: { length },
+        });
+        const deeper = maxSamples >= 2_000 && maxSteps >= 12 && length >= 10
+          && (maxSamples > 2_000 || maxSteps > 12 || length > 10);
+        expect(rejects(() => parseQuintModels(candidate))).toBe(!deeper);
+      },
+    ));
+  });
+
+  test("accepts exactly the quint, quint-nightly, and lean modes", () => {
+    expect(parseVerificationMode(["quint"])).toBe("quint");
+    expect(parseVerificationMode(["quint-nightly"])).toBe("quint-nightly");
+    expect(parseVerificationMode(["lean"])).toBe("lean");
+    for (const argv of [[], ["nightly"], ["quint", "--nightly"], ["Quint"], ["lean-nightly"]]) {
+      expect(() => parseVerificationMode(argv)).toThrow("usage:");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Source mutants
+// ---------------------------------------------------------------------------
+
+async function committedMutants(): Promise<JsonValue> {
+  return JSON.parse(await repositoryFile("verification/mutants.json")) as JsonValue;
+}
+
+const exitedWith = (exitCode: number, stdout: string): ToolOutcome => ({ kind: "exited", exitCode, stdout: "", stderr: stdout });
+
+describe("source mutant manifest", () => {
+  test("names a unique compiling defect and an existing killing test for every mutant", async () => {
+    const mutants = await readSourceMutants();
+    expect(mutants.length).toBeGreaterThanOrEqual(8);
+    for (const mutant of mutants) {
+      const source = await repositoryFile(mutant.file);
+      const mutated = applySourceMutant(source, mutant);
+      expect(mutated).not.toBe(source);
+      const testSource = await repositoryFile(mutant.test);
+      const testName = mutant.killedBy.at(-1)!;
+      expect(testSource).toContain(`test(${JSON.stringify(testName)}`);
+      for (const block of mutant.killedBy.slice(0, -1)) expect(testSource).toContain(`describe(${JSON.stringify(block)}`);
+      expect(mutantTestArguments(mutant)).toContain(`./${mutant.test}`);
+    }
+    const files = new Set(mutants.map((mutant) => mutant.file));
+    for (const reducer of ["src/run-journal.ts", "src/messaging-action-store.ts", "src/linked-device-lifecycle-journal.ts"]) {
+      expect(files.has(reducer)).toBeTrue();
+    }
+  });
+
+  test("selects exactly the killing test with an anchored name pattern", () => {
+    const mutant: SourceMutant = {
+      id: "example",
+      file: "src/run-journal.ts",
+      defect: "x",
+      search: "a",
+      replace: "b",
+      test: "src/run-journal.test.ts",
+      killedBy: ["run journal reducer", "rejects (x) + y"],
+    };
+    expect(mutantTestArguments(mutant)).toEqual([
+      "test", "--no-orphans", "--timeout", "300000", "--max-concurrency", "1",
+      "--test-name-pattern", "^run journal reducer rejects \\(x\\) \\+ y$", "./src/run-journal.test.ts",
+    ]);
+  });
+
+  test("rejects a missing, repeated, or non-compiling search text", () => {
+    const mutant: SourceMutant = {
+      id: "example", file: "src/example.ts", defect: "x", search: "if (guard) {", replace: "if (false) {",
+      test: "src/example.test.ts", killedBy: ["t"],
+    };
+    expect(applySourceMutant("function f(guard: boolean) { if (guard) { return 1; } return 0; }", mutant))
+      .toBe("function f(guard: boolean) { if (false) { return 1; } return 0; }");
+    expect(() => applySourceMutant("const a = 1;", mutant)).toThrow("no longer occurs");
+    expect(() => applySourceMutant("if (guard) {} if (guard) {}", mutant)).toThrow("more than once");
+    expect(() => applySourceMutant("if (guard) {}", { ...mutant, replace: "if (false {" })).toThrow("does not compile");
+  });
+
+  test("counts a mutant killed only when exactly its named test fails", () => {
+    const mutant: SourceMutant = {
+      id: "example", file: "src/example.ts", defect: "x", search: "a", replace: "b",
+      test: "src/example.test.ts", killedBy: ["suite", "the law"],
+    };
+    const summary = (pass: number, fail: number): string => ` ${String(pass)} pass\n ${String(fail)} fail\n`;
+    expect(mutantRunVerdict(exitedWith(0, summary(1, 0)), mutant)).toBe("pass");
+    expect(mutantRunVerdict(exitedWith(1, `(fail) suite > the law [3.00ms]\n${summary(0, 1)}`), mutant)).toBe("killed");
+    const inconclusive: readonly ToolOutcome[] = [
+      exitedWith(0, summary(0, 0)),
+      exitedWith(0, summary(2, 0)),
+      exitedWith(1, summary(0, 1)),
+      exitedWith(1, `(fail) suite > another law [3.00ms]\n${summary(0, 1)}`),
+      exitedWith(1, `(fail) suite > the law [3.00ms]\n(fail) suite > the law [3.00ms]\n${summary(0, 2)}`),
+      exitedWith(1, `(fail) suite > the law [3.00ms]\n${summary(1, 1)}`),
+      exitedWith(0, `(fail) suite > the law [3.00ms]\n${summary(0, 1)}`),
+      exitedWith(1, "error: Cannot find module"),
+      exitedWith(1, `${summary(0, 1)}${summary(0, 1)}`),
+      { kind: "timed-out", detail: "no result", stdout: `(fail) suite > the law [3.00ms]\n${summary(0, 1)}`, stderr: "" },
+      { kind: "signaled", detail: "SIGKILL", stdout: "", stderr: "" },
+    ];
+    for (const outcome of inconclusive) expect(mutantRunVerdict(outcome, mutant)).toBe("inconclusive");
+  });
+
+  test("rejects malformed mutant manifests", async () => {
+    const document = await committedMutants();
+    const at = (path: JsonPath, value: JsonValue | undefined): JsonValue => jsonWith(document, ["mutants", 0, ...path], value);
+    const first = jsonAt(document, ["mutants", 0]);
+    if (!isJsonObject(first)) throw new Error("mutants.json lists no mutant");
+    const cases: readonly (readonly [JsonValue, string])[] = [
+      [jsonWith(document, ["schema"], "ghostget-source-mutants-v2"), "mutants.json has an unknown schema"],
+      [jsonWith(document, ["mutants"], []), "mutants.json must list between 1 and 128 mutants"],
+      [jsonWith(document, ["mutants", 1], first), "mutants.json must not repeat a mutant id"],
+      [at(["id"], "Run_Journal"), "mutants[0].id must be a kebab-case name"],
+      [at(["file"], "src/../run-journal.ts"), "mutants[0].file must be a repository source path"],
+      [at(["file"], "scripts/verification-tools.ts"), "mutants[0].file must be a repository source path"],
+      [at(["file"], "src/run-journal.test.ts"), "mutants[0].file must be production code, not a test"],
+      [at(["test"], "src/run-journal.ts"), "mutants[0].test must be a repository source path"],
+      [at(["search"], ""), "mutants[0].search must be a non-empty string"],
+      [at(["replace"], jsonAt(document, ["mutants", 0, "search"])), "mutants[0].replace must change the source"],
+      [at(["killedBy"], []), "mutants[0].killedBy must list the describe blocks and test name"],
+      [at(["killedBy", 0], " padded"), "mutants[0].killedBy[0] must be one trimmed line"],
+      [at(["killedBy", 0], "two\nlines"), "mutants[0].killedBy[0] must be one trimmed line"],
+    ];
+    expect(() => parseSourceMutants(document)).not.toThrow();
+    for (const [candidate, message] of cases) expect(() => parseSourceMutants(candidate)).toThrow(message);
+  });
+
+  test("rejects every type change, missing field, and unknown field", async () => {
+    const document = await committedMutants();
+    assertProperty(fc.property(invalidatingMutation(document), (mutated) => rejects(() => parseSourceMutants(mutated))));
   });
 });
 
@@ -1127,10 +1373,51 @@ describe("Lean trust base", () => {
     expect(proofs.theorems.find((theorem) => theorem.name === `${LIBRARY}.Smoke.acquire_held`)?.type).toBe(leanTypeDigest(HELD_TYPE));
     expect(proofs.theorems.find((theorem) => theorem.name === `${LIBRARY}.Smoke.acquireUnguarded_violates_held`)?.type)
       .toBe(leanTypeDigest(REFUTATION_TYPE));
-    expect(proofs.mutants).toEqual(SCAN_PROOFS.mutants);
+    // Later proofs add their own mutants; the smoke mutant stays among them.
+    for (const mutant of SCAN_PROOFS.mutants) expect(proofs.mutants).toContainEqual(mutant);
     expect(proofs.theorems.length).toBeGreaterThan(0);
     expect(proofs.mutants.length).toBeGreaterThan(0);
     expect(proofs.allowedAxioms).toEqual([]);
+  });
+
+  test("scans the differential runner like the library and flags other root files", async () => {
+    await withDirectory("gg-lean-scan-", async (root) => {
+      const project = join(root, "verification", "lean");
+      await cp(join(REPOSITORY_ROOT, "verification", "lean"), project, {
+        recursive: true,
+        filter: (source) => !source.split("/").includes(".lake"),
+      });
+      expect((await leanStaticFindings(root)).findings).toEqual([]);
+      const runner = join(project, LEAN_DIFFERENTIAL_RUNNER);
+      const text = await readFile(runner, "utf8");
+      await writeFile(runner, `${text}\ntheorem leak : False := sorry\n#eval main\n`);
+      expect((await leanStaticFindings(root)).findings)
+        .toEqual([`${LEAN_DIFFERENTIAL_RUNNER} uses sorry`, `${LEAN_DIFFERENTIAL_RUNNER} uses #eval`]);
+      await writeFile(runner, `import Lean.Elab\n${text}`);
+      expect((await leanStaticFindings(root)).findings)
+        .toEqual([`${LEAN_DIFFERENTIAL_RUNNER} imports Lean.Elab, outside the core-only allow-list`]);
+      await rm(runner);
+      expect((await leanStaticFindings(root)).findings).toEqual([`${LEAN_DIFFERENTIAL_RUNNER} is missing`]);
+      await writeFile(join(project, "Other.lean"), text);
+      expect((await leanStaticFindings(root)).findings)
+        .toEqual([`${LEAN_DIFFERENTIAL_RUNNER} is missing`, "Other.lean is outside the GhostgetVerification library"]);
+    });
+    expect(LEAN_DIFFERENTIAL_TESTS.length).toBe(3);
+    for (const file of LEAN_DIFFERENTIAL_TESTS) {
+      expect(await readFile(join(REPOSITORY_ROOT, file), "utf8")).toContain("startLeanOracle");
+    }
+  });
+
+  test("the encoding and negotiation Lean claims cite the differential test verify:lean runs", async () => {
+    const register = JSON.parse(await repositoryFile("verification/claims.json")) as {
+      claims: { id: string; layer: string; status: string; evidence: string[] }[];
+    };
+    const ids = ["canonical-json-injective", "hash-framing-injective", "session-secret-filename-injective", "edge-accept-406-only-when-empty"];
+    const cited = register.claims.filter((claim) => ids.includes(claim.id))
+      .map((claim) => ({ id: claim.id, layer: claim.layer, status: claim.status, cites: claim.evidence.includes(LEAN_DIFFERENTIAL_TEST) }))
+      .sort((left, right) => ids.indexOf(left.id) - ids.indexOf(right.id));
+    expect(cited).toEqual(ids.map((id) => ({ id, layer: "lean", status: "evidenced", cites: true })));
+    expect(await repositoryFile(LEAN_DIFFERENTIAL_TEST)).toContain("assertAsyncProperty(");
   });
 
   test("flags sorry, admit, native evaluation, unlisted axioms, and other trust escapes", () => {

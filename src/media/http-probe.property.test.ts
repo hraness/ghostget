@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertAsyncProperty } from "../test-support";
 import { fetchWithDirectRedirects, probeDirectHttp } from "./http-probe";
 
 test("property: every redirect hop receives the same closed owned header set", async () => {
-  await fc.assert(
+  await assertAsyncProperty(
     fc.asyncProperty(
       fc.integer({ min: 0, max: 5 }),
       async (redirects) => {
@@ -40,7 +41,7 @@ test("property: every redirect hop receives the same closed owned header set", a
 });
 
 test("property: chunk partitioning cannot hide bytes beyond the probe declaration", async () => {
-  await fc.assert(
+  await assertAsyncProperty(
     fc.asyncProperty(
       fc.array(fc.integer({ min: 1, max: 17 }), { minLength: 1, maxLength: 12 }),
       async (widths) => {
