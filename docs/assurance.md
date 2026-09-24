@@ -8,13 +8,13 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 232 claims: 151 evidenced, 62 planned, and 19 not verified. It maps 86 guidelines from 5 guides; 66 list claims and 20 are exempt.
+The register holds 234 claims: 156 evidenced, 59 planned, and 19 not verified. It maps 88 guidelines from 5 guides; 68 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 135 | 5 | 0 |
+| example test | 138 | 3 | 0 |
 | property test | 14 | 1 | 0 |
-| stateful model | 0 | 14 | 0 |
+| stateful model | 2 | 13 | 0 |
 | Quint model with production trace replay | 2 | 33 | 0 |
 | Lean proof with differential test | 0 | 8 | 0 |
 | differential oracle | 0 | 1 | 0 |
@@ -103,11 +103,11 @@ Each claim holds only while its listed assumptions hold.
 
 | Assumption | Statement | Claims |
 | --- | --- | ---: |
-| `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 6 |
-| `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 29 |
-| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 26 |
-| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 26 |
-| `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 8 |
+| `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 8 |
+| `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 30 |
+| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 27 |
+| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 27 |
+| `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 9 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
 | `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 12 |
 | `dns-tls` | The operating-system resolver and the TLS stack behave as specified. | 7 |
@@ -123,8 +123,8 @@ Each claim holds only while its listed assumptions hold.
 | `npm-registry` | The npm registry enforces version immutability, trusted publishing, and provenance as documented. | 17 |
 | `vercel` | Vercel builds and serves deployments as its project settings and APIs report. | 37 |
 | `administrator-readback` | A signed-in administrator performs the documented live readbacks and reports them faithfully. | 15 |
-| `ci-runner` | GitHub-hosted runners execute the reviewed workflow faithfully. | 15 |
-| `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 10 |
+| `ci-runner` | GitHub-hosted runners execute the reviewed workflow faithfully. | 14 |
+| `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 9 |
 | `edge-runtime` | The Vercel Edge runtime implements the Web Platform APIs the edge code uses. | 5 |
 
 ## Claims by area
@@ -1064,11 +1064,18 @@ An indeterminate dispatch fence is released only from separately obtained exact 
 
 Confirmation claim, plan consumption, provisional receipt, idempotency ledger, and recovery capsule reach durable storage before remote dispatch; dispatch is refused if the capsule cannot be stored.
 
-- Planned: stateful model in plan Phase 4.
+- Evidenced by stateful model.
 - Source: `docs/effect-confirmed-write-runtime.md`: “Confirmation claims, plan consumption, provisional receipt, idempotency ledger and recovery capsule must reach their existing durable boundaries before remote dispatch.”
-- Evidence: `src/confirmed-write-program.test.ts`, `src/runtime.test.ts`
+- Evidence: `src/confirmed-write-program.test.ts`, `src/runtime.test.ts`, `src/state-crash-harness.fixture.ts`, `src/state-crash-harness.test.ts`, `src/state-crash-port.test-support.ts`, `src/state-crash-preload.test-support.ts`
+- Property tests: `src/state-crash-harness.test.ts`: “a crash just before a durable boundary never repeats or forgets a crossing”; `src/state-crash-harness.test.ts`: “a crash just after a durable boundary never repeats or forgets a crossing”; `src/state-crash-harness.test.ts`: “a torn data write never repeats or forgets a crossing”; `src/state-crash-harness.test.ts`: “power loss at a durable boundary never repeats or forgets a crossing”
 - Assumptions: `filesystem-durability`, `provider-behaviour`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The crash harness samples its schedules: CI runs one fast-check schedule of up to four commands per crash mode, each crashing at one generated boundary, so it does not visit every boundary of every operation.
+  - Crashes land only on the state and path helpers' filesystem effects. Writes the runtime process makes directly, such as the provider-effect ground truth, are outside the crash port.
+  - Power loss is modelled by the port, not observed: it rolls back, newest first, created, linked, renamed, and unlinked entries whose directory was not fsynced after the effect, and truncates data not fsynced after its write. Directory tree removals are treated as durable when they return, and a real filesystem may keep or lose unsynced effects in other combinations.
+  - One runtime process mutates the state at a time; concurrent confirmations under crash are not modelled here.
+  - The harness checks outcomes: no crossing repeats, none is forgotten, and a crossing leaves a durable started journal. It does not check separately that each named record (claim, plan consumption, receipt, ledger, capsule) was durable, and it re-confirms with a freshly saved plan, so replaying a consumed plan digest after a crash is not exercised.
+  - That dispatch is refused when the recovery capsule cannot be stored rests on the listed example tests only.
 
 #### `journal-stale-writer-rejected`
 
@@ -2155,15 +2162,16 @@ Bun runner timeout and concurrency live only in package.json; no test calls setD
 
 #### `property-seed-replay`
 
-Every property runs through assertProperty so GHOSTGET_PROPERTY_SEED and GHOSTGET_PROPERTY_PATH replay applies; no direct fc.assert outside test-support.
+Every fast-check property runs through assertProperty or assertAsyncProperty, so GHOSTGET_PROPERTY_SEED and GHOSTGET_PROPERTY_PATH replay, the seed corpus, and the soak multiplier apply; no other fast-check runner appears outside test-support.
 
-- Planned: example test in plan Phase 2.
+- Evidenced by example test.
 - Source: `AGENTS.md`: “retain fast-check's seed and shrink path. Replay one exact property with `GHOSTGET_PROPERTY_SEED`, `GHOSTGET_PROPERTY_PATH`”
-- Evidence: `src/test-support.test.ts`
+- Also covers: `verification/AGENTS.md`: “Run every fast-check property through `assertProperty` or `assertAsyncProperty` from `src/test-support.ts`”
+- Evidence: `src/test-harness-policy.test.ts`, `src/test-support.test.ts`
 - Assumptions: `bun-runtime`
 - Not verified:
-  - The example test for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Direct `fc.assert` calls bypass the shared seed and path replay until plan Phase 2 routes them through `assertProperty`.
+  - The policy scan is static: it follows fast-check's default, namespace, and named imports, the `fc` re-export of `test-support`, and dynamic loads by literal specifier, but not a runner reached through another module's re-export or a computed member name.
+  - It covers `src/`, `scripts/`, `edge/`, and `website/`; tests elsewhere are not scanned.
 
 #### `lifecycle-injected-clocks`
 
@@ -2175,7 +2183,7 @@ Consequential lifecycle reducers take injected clocks and randomness; wall-clock
 - Assumptions: `bun-runtime`, `monotonic-clock`
 - Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
 
-### `storage` (9 claims)
+### `storage` (10 claims)
 
 #### `helper-mutual-exclusion`
 
@@ -2198,6 +2206,21 @@ Private state writes are compare-and-swap: exactly one overlapping writer for an
 - Evidence: `src/auth-storage.test.ts`, `src/session-secrets.test.ts`, `src/storage-cas.test.ts`
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
 - Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `state-crash-consistency`
+
+A crash or power loss at any durable state-helper or path-helper boundary leaves each private file with its old or its new content, never a torn one; a session-secret read afterwards returns the old value, the new value, or nothing, a completed removal stays removed, and the next write succeeds.
+
+- Evidenced by stateful model.
+- Source: `kb/plans/formal-verification-assurance.md`: “power-loss truncation”
+- Evidence: `src/state-crash-harness.fixture.ts`, `src/state-crash-harness.test.ts`, `src/state-crash-port.test-support.ts`, `src/state-crash-preload.test-support.ts`
+- Property tests: `src/state-crash-harness.test.ts`: “a crash at any durable boundary leaves the old value, the new value, or nothing”; `src/state-crash-harness.test.ts`: “a crash at any durable boundary leaves the old or the new value, never a torn one”
+- Assumptions: `filesystem-atomic-rename`, `filesystem-durability`, `process-liveness`, `same-user-trusted`
+- Not verified:
+  - The harness samples its schedules: CI runs two fast-check schedules each for session secrets and private files, each command crashing at one generated boundary. Only a single private-file replacement is swept at every boundary under power loss.
+  - Power loss is modelled by the port, not observed: it rolls back, newest first, created, linked, renamed, and unlinked entries whose directory was not fsynced after the effect, and truncates data not fsynced after its write. Directory tree removals are treated as durable when they return, and a real filesystem may keep or lose unsynced effects in other combinations.
+  - A crashed session-secret write may lose the previous value; the law allows that outcome and does not check that the old value survives.
+  - One process mutates the state at a time; overlapping writers under crash are not modelled here.
 
 #### `session-secret-filename-injective`
 
@@ -2294,7 +2317,7 @@ Bundled native messaging runtimes are accepted only as exact pinned bytes.
 - Assumptions: `ci-runner`
 - Not verified:
   - Only the enumerated example cases are checked.
-  - The native install test runs only on darwin-arm64 and never runs in CI.
+  - The bundled-runtime install case runs only on darwin-arm64, so only the arm64 `macos-15` job of the macOS CI suite runs it; Linux CI skips it.
 
 #### `committed-binaries-provenance`
 
@@ -2321,7 +2344,19 @@ Hraness dependencies are pinned to reviewed immutable releases or full commits, 
   - Only the enumerated example cases are checked.
   - `website/site.test.ts` asserts only the design-kit, site-footer, and ui pins; the other Hraness dependencies, and rejection of branches, sibling paths, and submodules, are not checked.
 
-### `verification` (10 claims)
+### `verification` (11 claims)
+
+#### `property-soak-multiplier`
+
+GHOSTGET_PROPERTY_RUNS accepts only a canonical integer from 1 to 100 and multiplies every helper-run property's run count and interruption budget, including seed corpus replays.
+
+- Evidenced by example test.
+- Source: `verification/AGENTS.md`: “For a soak, set `GHOSTGET_PROPERTY_RUNS` to an integer from 1 to 100.”
+- Evidence: `src/test-support.test.ts`
+- Assumptions: `bun-runtime`
+- Not verified:
+  - No nightly workflow runs the soak yet; the multiplier is checked only in a child process at multiplier 3.
+  - The soak's runner timeout is set on its command line, so a soak that outgrows it fails as a runner timeout rather than a property failure.
 
 #### `verification-inconclusive-not-evidence`
 
@@ -2415,14 +2450,17 @@ Every claim carries its layer, status, assumptions, and a non-empty not-verified
 
 #### `verification-shrink-promotion`
 
-Every recorded shrink or failing seed is promoted to a named example test beside the property that found it.
+Every failing seed recorded in the seed corpus is replayed by its named property and cites a named example test registered beside that property.
 
-- Planned: example test in plan Phase 2.
+- Evidenced by example test.
 - Source: `AGENTS.md`: “Promote every recorded shrink or failing seed to a named example test.”
 - Also covers: `AGENTS.md`: “then promote a minimized failure to a named regression”
-- Evidence: none
-- Assumptions: `ci-runner`, `verification-tools`
-- Not verified: The example test for this claim is scheduled for plan Phase 2; no automated check covers it yet.
+- Also covers: `verification/AGENTS.md`: “Record a failing seed and shrink path in `seeds/corpus.json` under the property's name”
+- Evidence: `src/test-harness-policy.test.ts`, `src/test-support.test.ts`, `src/contracts-invoke-read.test.ts`
+- Assumptions: `bun-runtime`
+- Not verified:
+  - Only failures someone records in `verification/seeds/corpus.json` are checked; a shrink fixed without a corpus entry is not.
+  - The check confirms that the cited regression test is registered, not that it exercises the recorded input; only the `contracts-invoke-read` entry pins its generated input with `fc.sample`.
 
 #### `verification-unpublished`
 

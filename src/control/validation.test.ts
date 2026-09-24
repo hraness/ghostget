@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "../test-support";
 import { controlResponseLine, parseActivityQuery, parseControlRequest, parseWebRule, publicUrl } from "./validation";
 export const testWebRule={id:"docs",origin:"https://docs.example.com",path:{kind:"prefix" as const,value:"/guide/"},methods:["GET" as const],queryKeys:["q"],decision:"allow" as const,effect:"retrieval" as const,maxResponseBytes:1024,timeoutMs:1000};
 export const testActivityQuery={search:"",method:"all" as const,outcome:"all" as const,origin:null,since:null,order:"newest" as const,cursor:null,limit:100};
@@ -32,10 +33,10 @@ describe("control protocol boundaries",()=>{
     for(const path of ["/%61dmin","/admin;ignored","//admin"])expect(()=>publicUrl(`https://docs.example.com${path}`)).toThrow();
   });
   test("strict parsers reject every generated unknown key",()=>{
-    fc.assert(fc.property(fc.string({minLength:1,maxLength:40}).filter(key=>!Object.hasOwn(testWebRule,key)),key=>{expect(()=>parseWebRule({...testWebRule,[key]:true})).toThrow();}),{numRuns:200});
-    fc.assert(fc.property(fc.integer({min:101,max:1_000_000}),limit=>{expect(()=>parseActivityQuery({...testActivityQuery,limit})).toThrow();}),{numRuns:100});
+    assertProperty(fc.property(fc.string({minLength:1,maxLength:40}).filter(key=>!Object.hasOwn(testWebRule,key)),key=>{expect(()=>parseWebRule({...testWebRule,[key]:true})).toThrow();}),{numRuns:200});
+    assertProperty(fc.property(fc.integer({min:101,max:1_000_000}),limit=>{expect(()=>parseActivityQuery({...testActivityQuery,limit})).toThrow();}),{numRuns:100});
   });
   test("valid bounded rule roundtrips preserve effect and policy",()=>{
-    fc.assert(fc.property(fc.constantFrom("allow","deny","ask"),fc.integer({min:1,max:2_000_000}),fc.integer({min:1000,max:60_000}),(decision,maxResponseBytes,timeoutMs)=>{const rule={...testWebRule,decision,maxResponseBytes,timeoutMs};expect(parseWebRule(JSON.parse(JSON.stringify(rule)))).toEqual(rule);}),{numRuns:200});
+    assertProperty(fc.property(fc.constantFrom("allow","deny","ask"),fc.integer({min:1,max:2_000_000}),fc.integer({min:1000,max:60_000}),(decision,maxResponseBytes,timeoutMs)=>{const rule={...testWebRule,decision,maxResponseBytes,timeoutMs};expect(parseWebRule(JSON.parse(JSON.stringify(rule)))).toEqual(rule);}),{numRuns:200});
   });
 });

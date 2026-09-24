@@ -12,7 +12,11 @@ const DEFAULT_FILE_WEIGHT = 2;
 // Used only to pack shards; every listed file still runs exactly once.
 // `src/confirmed-write-intent-fence.test.ts` was added from run 35931471436,
 // where its log group closed 176 seconds after the previous one in its shard.
+// `src/state-crash-harness.test.ts` has no CI reading yet: its 475 seconds is
+// one full local run of the file on a loaded macOS arm64 host. Replace it
+// with the first CI log-group reading.
 const MEASURED_FILE_WEIGHTS = Object.freeze({
+  "src/state-crash-harness.test.ts": 475,
   "src/messaging-runtime-execution.test.ts": 410,
   "src/runtime.test.ts": 265,
   "src/ghostget.test.ts": 208,

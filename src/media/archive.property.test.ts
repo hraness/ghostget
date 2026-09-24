@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "../test-support";
 import {
   FOCUSED_CAPTURE_NAMESPACE,
   captureIdentity,
@@ -39,7 +40,7 @@ function hasIdentityControl(value: string): boolean {
 }
 
 test("property: raw and focused identities occupy disjoint structural namespaces", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.string({ minLength: 1, maxLength: 128 }).filter((value) => !hasIdentityControl(value)),
       fc.string({ minLength: 1, maxLength: 64 }),
@@ -71,7 +72,7 @@ test("property: raw and focused identities occupy disjoint structural namespaces
 });
 
 test("property: every capture subject has one disjoint revision lineage", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.string({ minLength: 1, maxLength: 128 }).filter((value) => !hasIdentityControl(value)),
       fc.string({ minLength: 1, maxLength: 64 }),
@@ -106,7 +107,7 @@ test("property: every capture subject has one disjoint revision lineage", () => 
 });
 
 test("property: suffix-shaped source IDs cannot alias focused variants", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.string({ minLength: 1, maxLength: 48 }).filter((value) => !hasIdentityControl(value)),
       fc.constantFrom("audio", "video", "transcript-en"),
@@ -128,7 +129,7 @@ test("property: suffix-shaped source IDs cannot alias focused variants", () => {
 });
 
 test("property: opaque raw IDs never enter archive or focused path segments", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.string({ minLength: 8, maxLength: 64 }).filter((value) => /^[A-Za-z0-9]+$/u.test(value)),
       (token) => {
@@ -155,7 +156,7 @@ test("property: every frozen local transcriber component participates in focused
   const digest = fc.uint8Array({ minLength: 32, maxLength: 32 }).map(
     (bytes) => Buffer.from(bytes).toString("hex"),
   );
-  fc.assert(
+  assertProperty(
     fc.property(
       digest,
       digest,

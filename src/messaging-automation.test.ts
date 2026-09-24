@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { fc, propertyParameters } from "./test-support";
+import { assertProperty, fc } from "./test-support";
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -136,9 +136,9 @@ test("foreign coordinates and unsupported fields fail before state or provider m
   expect(() => parseAutomationCoordinate({ provider: "whatsapp", conversationJid: "12345@g.us" })).toThrow();
 });
 test("closed action parsers reject arbitrary additional properties", () => {
-  fc.assert(fc.property(fc.string().filter(key => key !== "kind" && key !== "text" && key !== "__proto__"), fc.jsonValue(), (key, value) => {
+  assertProperty(fc.property(fc.string().filter(key => key !== "kind" && key !== "text" && key !== "__proto__"), fc.jsonValue(), (key, value) => {
     expect(() => parseAutomationAction({ kind: "text", text: "Synthetic", [key]: value })).toThrow();
-  }), propertyParameters);
+  }));
 });
 
 function journal(f: ReturnType<typeof fixture>) { return new Database(join(f.environment.GHOSTGET_STATE_HOME, "messaging", "automation", "host.sqlite")); }

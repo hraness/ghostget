@@ -50,7 +50,7 @@ describe("canonicalJson RFC 8785 member ordering", () => {
   });
 
   test("serializes members in exactly the same order as the default string sort", () => {
-    fc.assert(
+    assertProperty(
       fc.property(dictionaryArbitrary, (value) => {
         expect(Object.keys(JSON.parse(canonicalJson(value)))).toEqual(
           Object.keys(value).sort(),
@@ -60,7 +60,7 @@ describe("canonicalJson RFC 8785 member ordering", () => {
   });
 
   test("is independent of property insertion order", () => {
-    fc.assert(
+    assertProperty(
       fc.property(dictionaryArbitrary, (value) => {
         const reversed = Object.fromEntries(Object.entries(value).reverse());
         expect(canonicalJson(reversed)).toBe(canonicalJson(value));
@@ -69,7 +69,7 @@ describe("canonicalJson RFC 8785 member ordering", () => {
   });
 
   test("round-trips generated JSON values", () => {
-    fc.assert(
+    assertProperty(
       fc.property(fc.jsonValue(), (value) => {
         // JSON cannot represent -0 distinctly: RFC 8785 serializes it as 0,
         // so the round trip is measured against the value the standard
@@ -225,7 +225,7 @@ describe("canonicalJson dual-read helpers", () => {
   });
 
   test("accepts the legacy serialization for arbitrary generated values", () => {
-    fc.assert(
+    assertProperty(
       fc.property(dictionaryArbitrary, (value) => {
         const serializations = canonicalJsonSerializations(value);
         expect(serializations.length).toBeLessThanOrEqual(2);
@@ -262,7 +262,7 @@ describe("canonicalJsonScriptLiteral", () => {
   });
 
   test("never emits raw angle brackets or line separators and preserves the value", () => {
-    fc.assert(
+    assertProperty(
       fc.property(fc.jsonValue(), (value) => {
         const literal = canonicalJsonScriptLiteral(value);
         expect(literal).not.toMatch(/[<>\u2028\u2029]/u);
@@ -282,7 +282,7 @@ describe("jsonScriptLiteral", () => {
   });
 
   test("never emits raw angle brackets or line separators and preserves the value", () => {
-    fc.assert(
+    assertProperty(
       fc.property(fc.jsonValue(), (value) => {
         const literal = jsonScriptLiteral(value);
         expect(literal).not.toMatch(/[<>\u2028\u2029]/u);
