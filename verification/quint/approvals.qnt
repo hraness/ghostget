@@ -78,10 +78,9 @@ module approvals {
     status' = status, bound' = bound, requester' = requester, holder' = holder, claimed' = claimed,
   }
 
-  // The owner decides while the request is still listed or answered. A
-  // decision on a gone request is as stale as one on an answered request.
+  // The owner decides. Only a listed request takes the decision; one that is
+  // answered or gone refuses it as stale.
   action decide(allow: bool): bool = all {
-    status != "gone",
     if (status == "pending" and not(allow)) all {
       status' = "denied", bound' = bound, requester' = requester, holder' = holder, claimed' = claimed,
       response' = "decided",

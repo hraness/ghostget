@@ -244,10 +244,22 @@ module media {
   action stepLateCancel = stepWith("lateCancel")
   action stepQuarantineAny = stepWith("quarantineAny")
 
+  // The three ghost invariants below restate the guards that the fixed step
+  // takes at the rename and at the repair, so on their own they only show
+  // that each pre-fix variant breaks its guard. What binds them to the code
+  // is the replay: production answers and leaves the disk as the model does
+  // after every step, and refuses each variant's violating trace.
+  //
   // A promotion happens only while its run owns the current lock.
   val noPromotionWithoutLock: bool = not(promotedWithoutLock)
   // A run that was cancelled before its promotion never answers created.
   val cancelledNeverCreated: bool = not(cancelledCreated)
   // Only a torn head is ever moved out of the lineage.
   val verifiedNeverRemoved: bool = not(removedVerified)
+
+  // Every revision holds the files its own run captured. This one is not a
+  // guard restated: it holds only because a run that owns the lock always
+  // holds the staging item, since a start takes both and a run that lost the
+  // lock leaves the new owner's staging alone.
+  val noForeignRevision: bool = revisions.foldl(true, (ok, r) => ok and r.state != "foreign")
 }

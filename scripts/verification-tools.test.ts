@@ -970,6 +970,7 @@ describe("Quint model manifest", () => {
       [at(["mutants"], []), "models[0].mutants must list at least one seeded defect"],
       [at(["mutants", 0, "step"], "step"), "models[0].mutants[0] must use a mutant step"],
       [at(["mutants", 0, "invariant"], "deadlockFree"), "models[0].mutants[0] must violate one of the model's invariants"],
+      [at(["mutants", 1], jsonAt(document, ["models", 0, "mutants", 0])!), "models[0].mutants must not list a step and invariant twice"],
       [at(["replay", "test"], "scripts/../lock.test.ts"), "models[0].replay.test must be a repository test file"],
       [at(["replay", "test"], "scripts/verification-lock-replay.ts"), "models[0].replay.test must be a repository test file"],
       [at(["replay", "test"], "/tmp/replay.test.ts"), "models[0].replay.test must be a repository test file"],

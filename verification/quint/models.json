@@ -44,11 +44,12 @@
       "module": "media",
       "init": "init",
       "step": "step",
-      "invariants": ["noPromotionWithoutLock", "cancelledNeverCreated", "verifiedNeverRemoved"],
+      "invariants": ["noPromotionWithoutLock", "cancelledNeverCreated", "verifiedNeverRemoved", "noForeignRevision"],
       "simulation": { "seed": "20260927", "maxSamples": 3000, "maxSteps": 12 },
       "apalache": { "length": 8 },
       "mutants": [
         { "step": "stepUnfenced", "invariant": "noPromotionWithoutLock" },
+        { "step": "stepUnfenced", "invariant": "noForeignRevision" },
         { "step": "stepLateCancel", "invariant": "cancelledNeverCreated" },
         { "step": "stepQuarantineAny", "invariant": "verifiedNeverRemoved" }
       ],

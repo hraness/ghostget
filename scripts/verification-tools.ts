@@ -681,6 +681,8 @@ export function parseQuintModels(value: unknown): readonly QuintModel[] {
       }
       return Object.freeze({ step: mutantStep, invariant });
     });
+    const pairs = mutants.map((mutant) => `${mutant.step} ${mutant.invariant}`);
+    if (new Set(pairs).size !== pairs.length) throw new Error(`${label}.mutants must not list a step and invariant twice`);
     return Object.freeze({
       file: model.file,
       module: identifier(model.module, `${label}.module`),
@@ -1535,7 +1537,7 @@ export async function verifyQuint(context: RunContext): Promise<void> {
     }
     for (const mutant of model.mutants) {
       const step = `quint run ${name} ${mutant.step} ${mutant.invariant}`;
-      const result = await quintRun(step, `quint-mutant-${name}-${mutant.step}`, quintRunArguments(model, mutant.step, mutant.invariant));
+      const result = await quintRun(step, `quint-mutant-${name}-${mutant.step}-${mutant.invariant}`, quintRunArguments(model, mutant.step, mutant.invariant));
       const sample = quintReportedSeed(result.stdout);
       if (sample === null || sample === model.simulation.seed || quintSimulationVerdict(result, sample) !== "violation") {
         requireLoggedVerdict(context, step, "violation", quintSimulationVerdict(result, model.simulation.seed), result);
@@ -1545,7 +1547,7 @@ export async function verifyQuint(context: RunContext): Promise<void> {
       // A later sample failed. Its violation counts only when that sample's
       // own seed reproduces it on its own.
       const replayStep = `${step} sample ${sample}`;
-      const replayed = await quintRun(replayStep, `quint-mutant-${name}-${mutant.step}-sample`, quintRunArguments(
+      const replayed = await quintRun(replayStep, `quint-mutant-${name}-${mutant.step}-${mutant.invariant}-sample`, quintRunArguments(
         { ...model, simulation: { ...model.simulation, seed: sample, maxSamples: 1 } },
         mutant.step,
         mutant.invariant,
@@ -1575,11 +1577,11 @@ export async function verifyQuint(context: RunContext): Promise<void> {
     for (const mutant of model.mutants) {
       const step = `apalache check ${name} ${mutant.step} ${mutant.invariant}`;
       const { result, outDirectory } = await apalacheRun(
-        step, `apalache-mutant-${name}-${mutant.step}`, model, irPath, mutant.step, mutant.invariant,
+        step, `apalache-mutant-${name}-${mutant.step}-${mutant.invariant}`, model, irPath, mutant.step, mutant.invariant,
       );
       requireLoggedVerdict(context, step, "violation", apalacheVerdict(result, model.apalache.length), result);
       const counterexample = await apalacheCounterexample(outDirectory, `${name}.qnt.json`);
-      await writeFile(join(context.artifacts, `apalache-mutant-${name}-${mutant.step}.itf.json`), counterexample);
+      await writeFile(join(context.artifacts, `apalache-mutant-${name}-${mutant.step}-${mutant.invariant}.itf.json`), counterexample);
       context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
     }
     summary.push({

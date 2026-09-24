@@ -438,8 +438,10 @@ function modelState(state: ItfState): ModelState {
   };
 }
 
+/** The model's invariants, evaluated on one recorded state. */
 function safe(state: ModelState): boolean {
-  return !state.promotedWithoutLock && !state.cancelledCreated && !state.removedVerified;
+  const noForeignRevision = state.revisions.every((revision) => revision.state !== "foreign");
+  return !state.promotedWithoutLock && !state.cancelledCreated && !state.removedVerified && noForeignRevision;
 }
 
 function owns(state: ModelState, process: string): boolean {
