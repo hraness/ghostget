@@ -257,6 +257,18 @@ jobs:
         with:
           path: ~/.cache/ghostget-verification/downloads
           key: ghostget-verification-${{ runner.os }}-${{ runner.arch }}-pins-72eb5177a24cbf8d
+      # The Rust oracle under verification/oracles/ builds with the runner's
+      # rustup at the exact toolchain its rust-toolchain.toml names, and
+      # verify:oracles checks both versions again. `cargo build --locked`
+      # admits every crate only at the checksum Cargo.lock records.
+      - name: Install the pinned Rust toolchain
+        working-directory: verification/oracles
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.97.1 --profile minimal --no-self-update
+          test "$(rustc --version | cut -d ' ' -f 2)" = "1.97.1"
+          test "$(cargo --version | cut -d ' ' -f 2)" = "1.97.1"
+          python3 --version
       # The step bound leaves time inside the job bound to retain the logs
       # of a failed or timed-out run.
       - run: bun run verify

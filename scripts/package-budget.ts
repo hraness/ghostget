@@ -1586,14 +1586,23 @@
 // ece2627c6967cb8cf201ebdd598cfc57df555e069feafdd09c38ba6a775c32da. Carry the
 // same projections and allowances: 11,993,622 + 12,387 + 4,096 = 12,010,105
 // packed; 23,428,685 + 353 + 65 = 23,429,103 unpacked.
+// The independent oracles add the verify:oracles script and its step in the
+// verify chain to package.json. The Rust oracle, the golden vectors, and their
+// tests stay outside the package. This adds 233 payload bytes over the
+// unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with npm
+// 11.19.0 on darwin arm64 were byte-identical at 11,993,659 packed bytes,
+// 23,428,918 unpacked bytes; archive SHA-256
+// 5162451c3acb46616a35fe38729d9e26291e283e2baceabfc665c29aa2020f79. Carry the
+// same projections and allowances: 11,993,659 + 12,387 + 4,096 = 12,010,142
+// packed; 23,428,918 + 353 + 65 = 23,429,336 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Crash harness: storage passes a test-only crash preload to the state and path helpers",
+  scope: "Independent oracles: the verify:oracles script and its verify-chain step in package.json",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "ece2627c6967cb8cf201ebdd598cfc57df555e069feafdd09c38ba6a775c32da",
-  packedBytes: 11_993_622,
-  unpackedBytes: 23_428_685,
+  archiveSha256: "5162451c3acb46616a35fe38729d9e26291e283e2baceabfc665c29aa2020f79",
+  packedBytes: 11_993_659,
+  unpackedBytes: 23_428_918,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

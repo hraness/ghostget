@@ -8,7 +8,7 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 234 claims: 156 evidenced, 59 planned, and 19 not verified. It maps 88 guidelines from 5 guides; 68 list claims and 20 are exempt.
+The register holds 237 claims: 159 evidenced, 59 planned, and 19 not verified. It maps 88 guidelines from 5 guides; 68 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
@@ -17,7 +17,7 @@ The register holds 234 claims: 156 evidenced, 59 planned, and 19 not verified. I
 | stateful model | 2 | 13 | 0 |
 | Quint model with production trace replay | 2 | 33 | 0 |
 | Lean proof with differential test | 0 | 8 | 0 |
-| differential oracle | 0 | 1 | 0 |
+| differential oracle | 3 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
 | none | 0 | 0 | 4 |
 
@@ -109,9 +109,9 @@ Each claim holds only while its listed assumptions hold.
 | `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 27 |
 | `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 9 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
-| `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 12 |
+| `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 13 |
 | `dns-tls` | The operating-system resolver and the TLS stack behave as specified. | 7 |
-| `sha256` | SHA-256 is collision resistant. | 1 |
+| `sha256` | SHA-256 is collision resistant. | 3 |
 | `encryption` | The authenticated encryption primitives and the operating-system key storage are sound. | 3 |
 | `media-tools` | yt-dlp, ffmpeg, and whisper.cpp report metadata faithfully and honor the arguments they are given. | 11 |
 | `provider-behaviour` | Third-party providers behave as their observed contracts describe. | 28 |
@@ -666,7 +666,7 @@ Edge files import no Node, Bun, website build, or filesystem modules, and middle
 - Assumptions: `whatwg-url`, `edge-runtime`
 - Not verified: Only static import declarations and `import()` calls with literal specifiers are scanned; test files under `edge/` run on Bun and are not scanned.
 
-### `encoding` (4 claims)
+### `encoding` (5 claims)
 
 #### `canonical-json-injective`
 
@@ -690,6 +690,20 @@ canonicalJson over plain JSON with UTF-16 code-unit key order is injective, pars
 - Property tests: `src/canonical-json.test.ts`: “property: every value fast-check can build encodes exactly when it is in the JSON domain”; `src/canonical-json.test.ts`: “property: a domain violation at any nesting depth is rejected”
 - Assumptions: none beyond the register-wide scope
 - Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+
+#### `canonical-json-matches-rfc8785-oracle`
+
+For every I-JSON value, which excludes lone surrogates, `canonicalJson` writes the same text as an independent RFC 8785 canonicalizer, and it reproduces the committed golden canonical forms, number texts, SHA-256 digests, and script-literal escapes.
+
+- Evidenced by differential oracle.
+- Source: `kb/plans/formal-verification-assurance.md`: “Add a dev-only Rust crate under `verification/oracles/` with an RFC 8785 canonicalizer”
+- Evidence: `verification/oracles/src/jcs.rs`, `verification/vectors/generate.py`, `verification/vectors/jcs.json`, `scripts/verification-oracles.test.ts`, `scripts/verification-vectors.test.ts`
+- Assumptions: `sha256`
+- Not verified:
+  - Generated values are sampled at the configured run count, and the golden vectors are a fixed corpus; neither is a proof over all inputs.
+  - `canonicalJson` writes a lone surrogate as JSON.stringify escapes it, where RFC 8785 refuses the input; the vector test pins this difference.
+  - Duplicate member names never reach `canonicalJson`, because `JSON.parse` keeps the last one; refusing them is a parser's job, not the canonicalizer's.
+  - The Rust oracle and the Python generator were written from RFC 8785 without reference to the TypeScript, but by the same author, so a misreading all three share would pass. The oracle's number digits come from Rust's correctly rounded formatting, and one misreading of the shortest-digit rule at powers of two was found in review and fixed.
 
 #### `hash-framing-injective`
 
@@ -785,7 +799,7 @@ Once a local-CLI mutation child starts, any failure (timeout, signal, malformed 
 - Assumptions: `provider-behaviour`
 - Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
 
-### `media` (11 claims)
+### `media` (12 claims)
 
 #### `media-single-finite-item`
 
@@ -905,6 +919,18 @@ Local transcription setup never downloads whisper.cpp, its model, or libraries, 
 - Evidence: `src/media/local-transcription.test.ts`, `src/media/runtime-closure.test.ts`, `src/media/transcriber-config.test.ts`
 - Assumptions: `filesystem-atomic-rename`, `media-tools`
 - Not verified: Only the enumerated example cases are checked.
+
+#### `media-identity-hashes-match-golden-vectors`
+
+The media provider identity and source asset key, the authorization-context digest, the native runtime closure digest, the retained revision content digest, and UTF-8 byte ordering reproduce golden vectors from an independent Python generator.
+
+- Evidenced by differential oracle.
+- Source: `kb/plans/formal-verification-assurance.md`: “Commit Python-generated golden vectors for hashes and encodings to `verification/vectors/`.”
+- Evidence: `verification/vectors/generate.py`, `verification/vectors/hashes.json`, `scripts/verification-vectors.test.ts`
+- Assumptions: `sha256`
+- Not verified:
+  - The vectors are a fixed corpus; they pin the byte layout, not a property of all inputs.
+  - Injectivity of the length framing is `hash-framing-injective`, which Phase 5 addresses.
 
 ### `messaging` (10 claims)
 
@@ -2473,7 +2499,7 @@ The published package excludes `verification/`, the verification scripts, and ch
 - Assumptions: `ci-runner`, `verification-tools`
 - Not verified: Only the enumerated example cases are checked.
 
-### `web-gateway` (7 claims)
+### `web-gateway` (8 claims)
 
 #### `web-gateway-policy-admitted-https-only`
 
@@ -2516,8 +2542,23 @@ The gateway rejects private, loopback, and other non-public addresses (including
 - Evidence: `src/control/validation.test.ts`, `src/pinned-https.test.ts`
 - Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
 - Not verified:
-  - The differential oracle for this claim is scheduled for plan Phase 7; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - The address classifier comes from `@hraness/kb`; no independent registry oracle checks it yet.
+  - The address classifier comes from `@hraness/kb`, and no independent registry oracle checks it yet. Phase 7 wrote the proposal for one, `kb/plans/kb-ip-classifier-proposal.md`; this claim stays planned until `@hraness/kb` ships a checked classifier and Ghostget pins it.
+  - Probing `@hraness/kb` 0.19.6 found gaps that the proposal records: it treats the IPv4-translated range `::ffff:0:0:0/96`, the rest of `::/8`, and unallocated IPv6 space outside `2000::/3` as public, and it blocks all of `192.0.0.0/16` where the registry reserves only `192.0.0.0/24` and `192.0.2.0/24`.
+  - Until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `public-url-matches-url-crate-oracle`
+
+`publicUrl` makes the same admission decision as an independent reading of the web gateway URL policy over the Rust `url` crate, and every URL that either side admits parses to the same WHATWG components.
+
+- Evidenced by differential oracle.
+- Source: `kb/plans/formal-verification-assurance.md`: “a `url`-crate differential for `publicUrl`”
+- Evidence: `verification/oracles/src/url_policy.rs`, `scripts/verification-oracles.test.ts`
+- Assumptions: `whatwg-url`
+- Not verified:
+  - URL candidates come from a sampled grammar plus named examples; this is not a proof over all strings.
+  - The oracle restates the written policy, so a rule that the policy text and the implementation both omit goes unnoticed.
+  - Known parser differences are named in the test and checked to leave the gateway refusing the input: Bun percent-encodes `^` in paths and the `url` crate 2.5.8 does not; Bun accepts an IPv6 literal such as `[::1:]` and drops the leading `/.` from a non-special path such as `m:/.a`; and the `url` crate keeps a drive-letter segment such as `c:` before `..` in an https: path.
+  - Address classification after DNS resolution is a separate claim, `gateway-rejects-private-addresses`.
 
 #### `web-gateway-durable-audit-precedes-network`
 
