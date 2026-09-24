@@ -2217,7 +2217,7 @@
       "assumptions": [],
       "notVerified": [
         "The property test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Some exact-key checks compare comma-joined key lists, so a smuggled `\"a,b\"` key can pass; plan Phase 6 replaces them with one shared `exactKeys`."
+        "77 exact-key checks in 36 non-test source files compare comma-joined key lists, so a single smuggled `\"a,b\"` key passes the key check itself; the checks sampled so far then reject it because every required field reads as missing, but the 77 sites have not been audited one by one, and some sit inside browser-injected script text whose bytes feed contract hashes. Plan Phase 6 replaces them with one shared `exactKeys` and a lint test."
       ]
     },
     {
