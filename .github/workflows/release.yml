@@ -11,6 +11,8 @@ permissions:
 concurrency:
   group: stable-release
   cancel-in-progress: false
+  # Queue every pending tag run instead of replacing the one pending run.
+  queue: max
 
 jobs:
   authorize:

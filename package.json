@@ -645,7 +645,7 @@
     "accept:media:authenticated": "bun run scripts/media/authenticated-capture-acceptance.ts",
     "test:standalone": "bun run scripts/standalone-smoke.ts",
     "test:package": "bun run ./scripts/package-smoke.ts",
-    "test:npm-release": "bun test --no-orphans --timeout 45000 --max-concurrency 1 ./scripts/release-ref-authority.test.ts ./scripts/npm-release-workflow.test.ts ./scripts/github-release-artifact.test.ts ./scripts/ci-pr-gate.test.ts",
+    "test:npm-release": "bun test --no-orphans --timeout 45000 --max-concurrency 1 ./scripts/release-ref-authority.test.ts ./scripts/npm-release-workflow.test.ts ./scripts/github-release-artifact.test.ts ./scripts/ci-pr-gate.test.ts ./scripts/release-provider-outcome.test.ts ./scripts/github-release-publish-model.test.ts ./scripts/release-app-token-revocation.test.ts ./scripts/npm-publish-model.test.ts",
     "check:static": "bun run typecheck && bun run check:effect && bun run website:check && bun run test:npm-release",
     "check:package": "bun run build && bun run test:package",
     "check:macos": "bun run ./scripts/ci-macos-check.ts",

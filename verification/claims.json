@@ -4837,11 +4837,12 @@
         "path": "docs/publishing.md",
         "quote": "Choose a new stable package version greater than every completed stable Release. A raw tag is a request, not a completed publication."
       },
-      "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "layer": "stateful-model",
+      "status": "evidenced",
       "evidence": [
+        "scripts/github-release-publish-model.test.ts",
         "scripts/npm-release-workflow.test.ts",
+        "scripts/release-provider-outcome.test.ts",
         "scripts/release-ref-authority.test.ts"
       ],
       "assumptions": [
@@ -4849,7 +4850,16 @@
         "github-enforcement"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.",
+        "CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.",
+        "The census law itself (a target is admitted exactly when it exceeds every completed stable Release in the 500-Release window) is the sampled property in `scripts/release-provider-outcome.test.ts`; the model checks that a clean census precedes each draft creation and publication, and that success never leaves a higher completed stable Release.",
+        "GitHub has no conditional create or publish, so a stable Release that completes between the last census and the PATCH is caught only by the census repeated after publication, which fails the run but cannot undo the already immutable publication. A stable Release that completes after that last census, while the terminal Latest read still names the target, is not detected, and the model injects no such completion."
+      ],
+      "properties": [
+        {
+          "path": "scripts/github-release-publish-model.test.ts",
+          "test": "stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws"
+        }
       ]
     },
     {
@@ -4906,18 +4916,26 @@
         "path": "docs/publishing.md",
         "quote": "Only an authenticated exact REST 404 permits draft creation; other lookup failures abort."
       },
-      "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "layer": "stateful-model",
+      "status": "evidenced",
       "evidence": [
-        "scripts/github-release-artifact.test.ts"
+        "scripts/github-release-artifact.test.ts",
+        "scripts/github-release-publish-model.test.ts"
       ],
       "assumptions": [
         "github-api",
         "github-enforcement"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.",
+        "CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.",
+        "The model's lookup faults are HTTP 500 and 403, a status and exit code that disagree, an unparseable response, a 404 with another body, and an unreadable inventory; other malformed responses rest on the parser's example tests."
+      ],
+      "properties": [
+        {
+          "path": "scripts/github-release-publish-model.test.ts",
+          "test": "stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws"
+        }
       ]
     },
     {
@@ -4928,18 +4946,26 @@
         "path": "docs/publishing.md",
         "quote": "downloads each exact asset ID with its admitted byte bound, and compares its actual bytes and SHA-256"
       },
-      "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "layer": "stateful-model",
+      "status": "evidenced",
       "evidence": [
-        "scripts/github-release-artifact.test.ts"
+        "scripts/github-release-artifact.test.ts",
+        "scripts/github-release-publish-model.test.ts"
       ],
       "assumptions": [
         "github-api",
         "github-enforcement"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.",
+        "CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.",
+        "Stored-byte corruption is injected only between publisher invocations, not between an upload and its own readback."
+      ],
+      "properties": [
+        {
+          "path": "scripts/github-release-publish-model.test.ts",
+          "test": "stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws"
+        }
       ]
     },
     {
@@ -4950,18 +4976,27 @@
         "path": "docs/publishing.md",
         "quote": "A matching partial draft or published Release from the same attesting attempt, including one a failed-jobs rerun of that run resumes, may resume only with matching source, bot, body, and every already uploaded asset."
       },
-      "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "layer": "stateful-model",
+      "status": "evidenced",
       "evidence": [
-        "scripts/github-release-artifact.test.ts"
+        "scripts/github-release-artifact.test.ts",
+        "scripts/github-release-publish-model.test.ts",
+        "scripts/verification-release-replay.test.ts"
       ],
       "assumptions": [
         "github-api",
         "github-enforcement"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.",
+        "CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.",
+        "The model represents a failed-jobs rerun as a further invocation of the same attesting attempt, because the rerun publishes that attempt's attested manifest; that the rerun receives that manifest is covered by the `release-failed-jobs-rerun-recovers-publish` claim, not here."
+      ],
+      "properties": [
+        {
+          "path": "scripts/github-release-publish-model.test.ts",
+          "test": "stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws"
+        }
       ]
     },
     {
@@ -4972,11 +5007,11 @@
         "path": "docs/publishing.md",
         "quote": "The only publication PATCH changes the admitted draft to non-draft and requests Latest after the complete five-file readback."
       },
-      "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "layer": "stateful-model",
+      "status": "evidenced",
       "evidence": [
         "scripts/github-release-artifact.test.ts",
+        "scripts/github-release-publish-model.test.ts",
         "scripts/npm-release-workflow.test.ts"
       ],
       "assumptions": [
@@ -4984,7 +5019,15 @@
         "github-enforcement"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.",
+        "CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.",
+        "The model rejects any command outside the publisher's exact reads and three write shapes, so a DELETE, a tag write, or a second PATCH fails it; Git ref writes made outside `publishCanonicalRelease` are covered only by the workflow's example tests."
+      ],
+      "properties": [
+        {
+          "path": "scripts/github-release-publish-model.test.ts",
+          "test": "stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws"
+        }
       ]
     },
     {
@@ -4995,10 +5038,10 @@
         "path": "docs/publishing.md",
         "quote": "Before each draft creation, missing-asset upload, and publication, fetch only the fully qualified governed main and tag refs, prove `C<=M`, and require unchanged release controls"
       },
-      "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "layer": "stateful-model",
+      "status": "evidenced",
       "evidence": [
+        "scripts/github-release-publish-model.test.ts",
         "scripts/release-ref-authority.test.ts"
       ],
       "assumptions": [
@@ -5006,7 +5049,15 @@
         "github-enforcement"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.",
+        "CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.",
+        "The model checks that a successful `publication-prewrite` run of the ref-authority helper on current main immediately precedes each draft creation, upload, and publication, and that a failing helper blocks the write. It treats the helper as a black box: its `C<=M` proof, release-control closure, and two equal combined advertisements are covered only by the example tests in `scripts/release-ref-authority.test.ts`."
+      ],
+      "properties": [
+        {
+          "path": "scripts/github-release-publish-model.test.ts",
+          "test": "stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws"
+        }
       ]
     },
     {
@@ -5017,11 +5068,11 @@
         "path": "docs/publishing.md",
         "quote": "A completed release is accepted only with its original signed identity, never with a newly rebuilt artifact."
       },
-      "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "layer": "stateful-model",
+      "status": "evidenced",
       "evidence": [
         "scripts/github-release-artifact.test.ts",
+        "scripts/github-release-publish-model.test.ts",
         "scripts/npm-release-workflow.test.ts"
       ],
       "assumptions": [
@@ -5029,7 +5080,15 @@
         "github-enforcement"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.",
+        "CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.",
+        "The model covers the bot author (including an owner-authored completed Release that copies the exact receipt body and asset bytes), exact receipt body, and stored bytes; the signed attestation identity is verified before publication and covered by the `release-attestation-before-mutation` claim's example tests, not by the model."
+      ],
+      "properties": [
+        {
+          "path": "scripts/github-release-publish-model.test.ts",
+          "test": "stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws"
+        }
       ]
     },
     {
@@ -5040,10 +5099,10 @@
         "path": "docs/publishing.md",
         "quote": "GitHub's Latest projection may remain only that exact predecessor or advance to the exact created target while the workflow makes at most twelve observations at absolute five-second slots inside one 60-second monotonic deadline."
       },
-      "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "layer": "property",
+      "status": "evidenced",
       "evidence": [
+        "scripts/github-release-publish-model.test.ts",
         "scripts/release-provider-outcome.test.ts"
       ],
       "assumptions": [
@@ -5052,7 +5111,16 @@
         "github-enforcement"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The property drives `waitForLatestRelease` with a fake API, monotonic clock, and sleeper. The production publisher's `gh api` reader ignores the per-request timeout it is passed and bounds each read only by its 120-second command timeout; a read that completes after the 60-second deadline fails closed, so the deadline bounds acceptance, not wall time.",
+        "The publisher model checks that a fresh publication reads Latest as the target after its terminal authority proof, and one example test in it drives a lagging Latest projection through the production wait on a fake clock; the stateful schedules themselves project Latest immediately.",
+        "The publisher model checks that no draft is created while Latest is a completed Release under a non-stable tag, which the completed-Release census skips; the other refusals of `exactLatestPredecessor` (a mutable, malformed, or not strictly older Latest) rest on its example tests in the same file.",
+        "How quickly GitHub's Latest projection converges is not verified; the window is a fail-closed ceiling."
+      ],
+      "properties": [
+        {
+          "path": "scripts/release-provider-outcome.test.ts",
+          "test": "property: Latest converges only through the exact predecessor to the exact target inside twelve absolute slots and 60 seconds"
+        }
       ]
     },
     {
@@ -5063,18 +5131,26 @@
         "path": "docs/publishing.md",
         "quote": "Preserve that immutable release and inspect current authority; never delete or rewrite it."
       },
-      "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "layer": "stateful-model",
+      "status": "evidenced",
       "evidence": [
-        "scripts/github-release-artifact.test.ts"
+        "scripts/github-release-artifact.test.ts",
+        "scripts/github-release-publish-model.test.ts"
       ],
       "assumptions": [
         "github-api",
         "github-enforcement"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.",
+        "CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.",
+        "The model's history is one assetless predecessor Release; larger histories and tag deletion outside the publisher are not modelled, and the tag rulesets that forbid tag deletion are `github-enforcement` configuration."
+      ],
+      "properties": [
+        {
+          "path": "scripts/github-release-publish-model.test.ts",
+          "test": "stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws"
+        }
       ]
     },
     {
@@ -5085,17 +5161,18 @@
         "path": "docs/publishing.md",
         "quote": "The workflow's `stable-release` concurrency group and npm's version immutability serialize publication"
       },
-      "layer": "quint",
-      "status": "planned",
-      "phase": 4,
-      "evidence": [],
+      "layer": "example",
+      "status": "evidenced",
+      "evidence": [
+        "scripts/npm-release-workflow.test.ts"
+      ],
       "assumptions": [
         "github-api",
         "github-enforcement"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; no automated check covers it yet.",
-        "The plan records that the `stable-release` concurrency group can cancel a pending tag run."
+        "The test checks the workflow's single `stable-release` concurrency group with `cancel-in-progress: false` and `queue: max`, and that no job declares its own group. That GitHub then queues pending runs in order is the `github-enforcement` assumption; GitHub still cancels pending runs beyond 100 in the group.",
+        "No live run has exercised three overlapping tag pushes."
       ]
     },
     {
@@ -5176,9 +5253,8 @@
         "path": "AGENTS.md",
         "quote": "The same tag Release run then publishes the identical canonical bytes to npm"
       },
-      "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "layer": "example",
+      "status": "evidenced",
       "evidence": [
         "scripts/npm-release-workflow.test.ts"
       ],
@@ -5187,7 +5263,8 @@
         "npm-registry"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The test checks the job graph: `publish_npm` transitively needs exactly `authorize`, `verify`, `attest`, and `publish`, no canonical job needs an npm job, and no job or step carries an `if:` or `continue-on-error` that could run npm after a failed prerequisite or let a canonical job succeed without its work. That GitHub skips a job whose needed jobs did not succeed is the `github-enforcement` assumption.",
+        "The identical-bytes half rests on the enumerated example tests of the npm job's artifact-by-ID, archive-hash, and canonical-Release re-read steps."
       ]
     },
     {
@@ -5471,6 +5548,7 @@
       "status": "planned",
       "phase": 4,
       "evidence": [
+        "scripts/npm-publish-model.test.ts",
         "scripts/npm-release-workflow.test.ts"
       ],
       "assumptions": [
@@ -5479,7 +5557,9 @@
         "npm-registry"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4.",
+        "The sampled rerun property in `scripts/npm-publish-model.test.ts` runs the real registry-admission and publish step scripts against a fake npm registry: each attempt issues at most one `npm publish`, only after an absent readback, never changes a held version, and never reports success after an ambiguous or failed write.",
+        "The statement does not hold as written when the registry readback lags: after a publish whose response was lost or malformed, a rerun that still reads the version as absent issues a second `npm publish` for it, and only npm's version immutability refuses it (the named test on registry lag). Evidencing the statement needs a durable per-version publish record or an owner-accepted restatement."
       ]
     },
     {
@@ -5878,11 +5958,11 @@
         "path": "AGENTS.md",
         "quote": "send exactly one empty-204 revocation request and require two stable authorization denials"
       },
-      "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "layer": "property",
+      "status": "evidenced",
       "evidence": [
-        "scripts/npm-release-workflow.test.ts"
+        "scripts/npm-release-workflow.test.ts",
+        "scripts/release-app-token-revocation.test.ts"
       ],
       "assumptions": [
         "monotonic-clock",
@@ -5891,13 +5971,23 @@
         "vercel"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
+        "The properties drive `revokeReleaseAppTokenWithConvergence` and `withReleaseAppToken` with a fake fetch, clock, and sleeper; live revocation against GitHub is retained evidence from one workflow run, not a CI check.",
         "GitHub does not guarantee how quickly a revoked token stops working."
       ],
       "alsoQuotes": [
         {
           "path": "website/AGENTS.md",
           "quote": "the shared helper must send exactly one empty-204 token revocation"
+        }
+      ],
+      "properties": [
+        {
+          "path": "scripts/release-app-token-revocation.test.ts",
+          "test": "property: exactly one DELETE, then two stable denials inside ten absolute slots and 30 seconds, or fail closed"
+        },
+        {
+          "path": "scripts/release-app-token-revocation.test.ts",
+          "test": "property: a minted token is revoked exactly once whatever fails, and an unminted token is never revoked"
         }
       ]
     },

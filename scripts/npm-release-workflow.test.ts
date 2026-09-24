@@ -1285,7 +1285,7 @@ describe("npm publication contract", () => {
     expect(timeoutValues(testOmniJob)).toEqual([25]);
     expect(timeoutValues(standaloneJob)).toEqual([20]);
     expect(timeoutValues(macosJob)).toEqual([45]);
-    expect(timeoutValues(verificationJob)).toEqual([35]);
+    expect(timeoutValues(verificationJob)).toEqual([55]);
     expect(timeoutValues(requiredJob)).toEqual([5]);
     expect(staticJob.match(/^      - run: bun run check:static$/gmu) ?? []).toHaveLength(1);
     expect(packageJob.match(/^      - run: bun run check:package$/gmu) ?? []).toHaveLength(1);
@@ -1405,13 +1405,13 @@ describe("npm publication contract", () => {
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
     expect(Object.isFrozen(repairPackageMeasurement)).toBeTrue();
     expect(repairPackageMeasurement).toMatchObject({
-      archiveSha256: "d00e25fa513d0d5bfcbdf8fa407d82b99641164f976ddd913f741a156c25a8c1",
-      packedBytes: 12_004_958, unpackedBytes: 23_467_425, entryCount: 596,
+      archiveSha256: "0db7a4879c287a20cadee309286755cdcfb00a6d67112f75c2cbcc827b809250",
+      packedBytes: 12_005_010, unpackedBytes: 23_467_598, entryCount: 596,
       packedPlatformProjection: 12_387, packedPortabilityAllowance: 4_096,
       payloadPlatformProjection: 353, payloadAllowance: 65,
     });
-    expect(MAX_PACKED_BYTES).toBe(12_021_441);
-    expect(MAX_PACKED_BYTES).toBe(12_004_958 + 12_387 + 4_096);
+    expect(MAX_PACKED_BYTES).toBe(12_021_493);
+    expect(MAX_PACKED_BYTES).toBe(12_005_010 + 12_387 + 4_096);
     expect(budget).toContain("12,004,806 + 12,387 + 4,096 =");
     expect(budget).toContain("12,003,367 + 12,387 + 4,096 =");
     expect(budget).toContain("23,462,195 + 353 + 65 = 23,462,613");
@@ -1526,7 +1526,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("23,029,751 + 353 + 65 = 23,030,169");
     expect(budget).toContain("23,193,728 + 65 = 23,193,793");
     expect(budget).toContain("47684b3e2eb5cf3ed07fbb520aade8c7251d993f75262fbf1af627d9081a1a5f");
-    expect(MAX_UNPACKED_BYTES).toBe(23_467_843);
+    expect(MAX_UNPACKED_BYTES).toBe(23_468_016);
     expect(budget).toContain("23,037,873 + 65 = 23,037,938");
     expect(budget).toContain("f9f3ab38a682690ceaa2699a7309997512030f0fa500a9dc29dcd108123dc41f");
     expect(budget).toContain("23,038,557 + 65 = 23,038,622");
@@ -1559,7 +1559,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("01875f12ab73a49d6c7d6bf520dc3d318db816addee2fa7981889f35c958cf7c");
     expect(budget).toContain("b12909f08f7c19460ced56e30619f4860a1183f4b0106170c07837dae577a937");
     expect(budget).toContain("0b212ac291218528dcf979370110a36f10850e046ca90a536057d9a44e807d1d");
-    expect(MAX_UNPACKED_BYTES).toBe(23_467_425 + 353 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(23_467_598 + 353 + 65);
     expect(budget).toContain("22,794,052 + 65 = 22,794,117");
     expect(budget).toContain("c482efe748f880e3717727d6d39fd92a68953e6eea766642b329ba47ae772d80");
     expect(budget).toContain("22,759,423 + 65 = 22,759,488");
@@ -1595,8 +1595,8 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 596, max: 596 },
       fileCount: { min: 596, max: 596 },
-      packedBytes: { min: 1_600_000, max: 12_021_441 },
-      unpackedBytes: { min: 9_000_000, max: 23_467_843 },
+      packedBytes: { min: 1_600_000, max: 12_021_493 },
+      unpackedBytes: { min: 9_000_000, max: 23_468_016 },
     });
   });
 
@@ -2308,6 +2308,68 @@ describe("npm publication contract", () => {
       }
     } finally {
       await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  test("serializes stable Release runs in one queued concurrency group that never cancels a pending tag run", async () => {
+    // GitHub keeps one running and one pending run per concurrency group and
+    // cancels the pending run when a third arrives, unless the group sets
+    // `queue: max`, which queues up to 100 pending runs in order. A Release
+    // run cancelled while pending never builds, attests, or publishes its tag.
+    const workflow = await readFile(releaseWorkflowUrl, "utf8");
+    const parsed = Bun.YAML.parse(workflow) as {
+      concurrency?: unknown;
+      jobs: Record<string, { concurrency?: unknown }>;
+    };
+    expect(parsed.concurrency).toEqual({ group: "stable-release", "cancel-in-progress": false, queue: "max" });
+    expect(Object.entries(parsed.jobs).filter(([, job]) => job.concurrency !== undefined).map(([name]) => name)).toEqual([]);
+    expect(workflow.match(/^\s*concurrency:/gmu)).toHaveLength(1);
+    expect(workflow.match(/cancel-in-progress/gu)).toHaveLength(1);
+  });
+
+  test("runs npm publication only after the canonical jobs succeed, and canonical jobs never wait on npm", async () => {
+    const workflow = await readFile(releaseWorkflowUrl, "utf8");
+    const parsed = Bun.YAML.parse(workflow) as {
+      jobs: Record<string, {
+        if?: unknown; needs?: string | string[]; "continue-on-error"?: unknown;
+        steps?: { if?: unknown; "continue-on-error"?: unknown }[];
+      }>;
+    };
+    const needs = (name: string): readonly string[] => {
+      const value = parsed.jobs[name]?.needs;
+      return value === undefined ? [] : typeof value === "string" ? [value] : value;
+    };
+    // Every transitive prerequisite, so an indirect dependency on npm is caught too.
+    const closure = (name: string): ReadonlySet<string> => {
+      const seen = new Set<string>();
+      const pending = [...needs(name)];
+      while (pending.length > 0) {
+        const next = pending.pop()!;
+        if (seen.has(next)) continue;
+        seen.add(next);
+        pending.push(...needs(next));
+      }
+      return seen;
+    };
+    expect(Object.keys(parsed.jobs)).toEqual(["authorize", "verify", "attest", "publish", "publish_npm", "admit_npm"]);
+    expect([...closure("publish_npm")].sort()).toEqual(["attest", "authorize", "publish", "verify"]);
+    for (const canonical of ["authorize", "verify", "attest", "publish"]) {
+      const prerequisites = closure(canonical);
+      expect(prerequisites.has("publish_npm") || prerequisites.has("admit_npm")).toBe(false);
+    }
+    // A job-level `if:` could run npm after a failed or skipped prerequisite
+    // (`always()`, `failure()`, `!cancelled()`); without one, GitHub runs a job
+    // only when every needed job succeeded. publish_npm needs authorize only
+    // through verify, so an `if:` on any job, not just the npm jobs, could
+    // carry npm past a failed canonical job. No job may tolerate its own failure.
+    for (const [name, job] of Object.entries(parsed.jobs)) expect([name, job.if]).toEqual([name, undefined]);
+    for (const [name, job] of Object.entries(parsed.jobs)) expect([name, job["continue-on-error"]]).toEqual([name, undefined]);
+    // A tolerated or conditionally skipped step would let a canonical job succeed
+    // without doing its work, and npm would then publish after it.
+    for (const [name, job] of Object.entries(parsed.jobs)) {
+      (job.steps ?? []).forEach((step, index) => {
+        expect([name, index, step["continue-on-error"], step.if]).toEqual([name, index, undefined, undefined]);
+      });
     }
   });
 
