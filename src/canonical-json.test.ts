@@ -623,20 +623,31 @@ describe("canonicalJson cost", () => {
     // and 1.20-1.30x once the per-container closures, copies, and duplicate
     // own-property probes were removed (8 runs each on a host at load 29).
     // Interleaved samples see the same host load, and the fastest sample of
-    // each side is the least disturbed one, so the ratio holds on a busy
-    // machine while a return to that regression fails.
+    // each side is the least disturbed one. A single cold round still read
+    // 1.402x on the Linux CI runner, so both encoders are warmed first and the
+    // best of three rounds counts: warmed, the fixed encoder measured
+    // 1.20-1.33x per round and the #341 encoder 1.54-1.59x (load 7), so a
+    // return to that regression still fails every round.
     const value = largeCanonicalInput(1_500);
     expect(canonicalJson(value)).toBe(uncheckedCanonicalJson(value));
-    let strict = Number.POSITIVE_INFINITY;
-    let unchecked = Number.POSITIVE_INFINITY;
-    for (let sample = 0; sample < 61; sample += 1) {
-      let started = performance.now();
+    for (let warmup = 0; warmup < 20; warmup += 1) {
       canonicalJson(value);
-      strict = Math.min(strict, performance.now() - started);
-      started = performance.now();
       uncheckedCanonicalJson(value);
-      unchecked = Math.min(unchecked, performance.now() - started);
     }
-    expect(strict / unchecked).toBeLessThanOrEqual(1.4);
+    let best = Number.POSITIVE_INFINITY;
+    for (let round = 0; round < 3; round += 1) {
+      let strict = Number.POSITIVE_INFINITY;
+      let unchecked = Number.POSITIVE_INFINITY;
+      for (let sample = 0; sample < 61; sample += 1) {
+        let started = performance.now();
+        canonicalJson(value);
+        strict = Math.min(strict, performance.now() - started);
+        started = performance.now();
+        uncheckedCanonicalJson(value);
+        unchecked = Math.min(unchecked, performance.now() - started);
+      }
+      best = Math.min(best, strict / unchecked);
+    }
+    expect(best).toBeLessThanOrEqual(1.4);
   });
 });
