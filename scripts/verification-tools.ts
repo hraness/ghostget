@@ -169,6 +169,16 @@ export function pinnedArchives(): readonly PinnedArchive[] {
   ];
 }
 
+/**
+ * The first 16 hex digits of SHA-256 over every pinned archive's name, URL,
+ * byte count, and digest. The CI cache key carries it, so changing any pin,
+ * not only a version, starts a fresh download cache.
+ */
+export function pinnedArchivesDigest(): string {
+  const pins = pinnedArchives().map(({ name, url, bytes, sha256 }) => ({ name, url, bytes, sha256 }));
+  return createHash("sha256").update(JSON.stringify(pins)).digest("hex").slice(0, 16);
+}
+
 export function platformKey(platform: string = process.platform, arch: string = process.arch): PlatformKey {
   const key = `${platform}-${arch}`;
   const known = PLATFORM_KEYS.find((candidate) => candidate === key);
@@ -182,6 +192,13 @@ export function platformKey(platform: string = process.platform, arch: string = 
 const DOWNLOAD_TIMEOUT_MS = 15 * 60_000;
 const EXTRACT_TIMEOUT_MS = 5 * 60_000;
 const QUINT_TIMEOUT_MS = 5 * 60_000;
+/**
+ * The bound on one `quint run --mbt` trace generation inside the replay test.
+ * It must end before the Bun runner timeout that `verify:quint` sets for that
+ * test, so a hung Quint fails with this bound's diagnosis rather than the
+ * runner's.
+ */
+export const QUINT_TRACE_TIMEOUT_MS = 90_000;
 const APALACHE_TIMEOUT_MS = 10 * 60_000;
 const LEAN_BUILD_TIMEOUT_MS = 10 * 60_000;
 const SHORT_TIMEOUT_MS = 60_000;
@@ -736,15 +753,26 @@ export const FORBIDDEN_AXIOMS: readonly string[] = Object.freeze([
 export type LeanMutant = Readonly<{
   /** The required theorem whose property the seeded defect breaks. */
   theorem: string;
-  /** The seeded defect: a definition that reproduces the pre-fix behaviour. */
+  /** The definition the theorem states its property about, which the defect stands in for. */
+  guarded: string;
+  /** The seeded defect: a definition with the guarded definition's type that reproduces the pre-fix behaviour. */
   defect: string;
-  /** A required theorem, about the defect, proving that the property rejects it. */
+  /**
+   * A required theorem whose statement is exactly the negation of the
+   * theorem's statement with the guarded definition replaced by the defect.
+   */
   refutation: string;
+}>;
+
+export type LeanTheorem = Readonly<{
+  name: string;
+  /** SHA-256 of the kernel type that `AxiomAudit.lean` prints, so a changed statement needs review. */
+  type: string;
 }>;
 
 export type LeanProofs = Readonly<{
   library: string;
-  theorems: readonly string[];
+  theorems: readonly LeanTheorem[];
   mutants: readonly LeanMutant[];
   allowedAxioms: readonly string[];
 }>;
@@ -754,7 +782,7 @@ const LEAN_NAME = /^[A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)*$/u;
 /** Parse `verification/lean/proofs.json`. */
 export function parseLeanProofs(value: unknown): LeanProofs {
   const manifest = exactObject(value, ["schema", "library", "theorems", "mutants", "allowedAxioms"], "proofs.json");
-  if (manifest.schema !== "ghostget-lean-proofs-v1") throw new Error("proofs.json has an unknown schema");
+  if (manifest.schema !== "ghostget-lean-proofs-v2") throw new Error("proofs.json has an unknown schema");
   if (typeof manifest.library !== "string" || !/^[A-Z][A-Za-z0-9]*$/u.test(manifest.library)) {
     throw new Error("proofs.json library must be one Lean module root");
   }
@@ -770,27 +798,40 @@ export function parseLeanProofs(value: unknown): LeanProofs {
     if (new Set(items).size !== items.length) throw new Error(`proofs.json ${label} must not repeat a name`);
     return Object.freeze(items);
   };
-  const theorems = names(manifest.theorems, "theorems", true);
-  if (theorems.some((name) => !name.startsWith(`${library}.`))) {
-    throw new Error("proofs.json theorems must live in the audited library");
+  if (!Array.isArray(manifest.theorems) || manifest.theorems.length === 0 || manifest.theorems.length > 10_000) {
+    throw new Error("proofs.json theorems must be a non-empty list");
   }
+  const theorems = Object.freeze(manifest.theorems.map((entry, index): LeanTheorem => {
+    const label = `proofs.json theorems[${String(index)}]`;
+    const theorem = exactObject(entry, ["name", "type"], label);
+    if (typeof theorem.name !== "string" || !LEAN_NAME.test(theorem.name)) throw new Error(`${label}.name must be a Lean name`);
+    if (!theorem.name.startsWith(`${library}.`)) throw new Error("proofs.json theorems must live in the audited library");
+    if (typeof theorem.type !== "string" || !/^[0-9a-f]{64}$/u.test(theorem.type)) {
+      throw new Error(`${label}.type must be the SHA-256 hex digest of the theorem's kernel type`);
+    }
+    return Object.freeze({ name: theorem.name, type: theorem.type });
+  }));
+  const theoremNames = theorems.map((theorem) => theorem.name);
+  if (new Set(theoremNames).size !== theoremNames.length) throw new Error("proofs.json theorems must not repeat a name");
   if (!Array.isArray(manifest.mutants) || manifest.mutants.length === 0 || manifest.mutants.length > 1_000) {
     throw new Error("proofs.json mutants must list at least one seeded defect");
   }
   const mutants = manifest.mutants.map((entry, index): LeanMutant => {
     const label = `proofs.json mutants[${String(index)}]`;
-    const mutant = exactObject(entry, ["theorem", "defect", "refutation"], label);
-    const [theorem, defect, refutation] = [mutant.theorem, mutant.defect, mutant.refutation].map((name) => {
+    const mutant = exactObject(entry, ["theorem", "guarded", "defect", "refutation"], label);
+    const [theorem, guarded, defect, refutation] = [mutant.theorem, mutant.guarded, mutant.defect, mutant.refutation].map((name) => {
       if (typeof name !== "string" || !LEAN_NAME.test(name) || !name.startsWith(`${library}.`)) {
         throw new Error(`${label} must name declarations in the audited library`);
       }
       return name;
-    }) as [string, string, string];
-    if (!theorems.includes(theorem) || !theorems.includes(refutation) || theorem === refutation) {
+    }) as [string, string, string, string];
+    if (!theoremNames.includes(theorem) || !theoremNames.includes(refutation) || theorem === refutation) {
       throw new Error(`${label} must name two different required theorems`);
     }
-    if (theorems.includes(defect)) throw new Error(`${label} defect must be a definition, not a required theorem`);
-    return Object.freeze({ theorem, defect, refutation });
+    if (theoremNames.includes(defect)) throw new Error(`${label} defect must be a definition, not a required theorem`);
+    if (theoremNames.includes(guarded)) throw new Error(`${label} guarded must be a definition, not a required theorem`);
+    if (guarded === defect) throw new Error(`${label} defect must differ from the definition it stands in for`);
+    return Object.freeze({ theorem, guarded, defect, refutation });
   });
   const allowedAxioms = names(manifest.allowedAxioms, "allowedAxioms", false);
   if (allowedAxioms.some((name) => FORBIDDEN_AXIOMS.includes(name) || KERNEL_AXIOMS.includes(name))) {
@@ -963,41 +1004,77 @@ export type AuditedDeclaration = Readonly<{
   declaration: string;
   kind: string;
   module: string;
+  /** The kernel type as `Expr.dbgToString` prints it. */
+  type: string;
   axioms: readonly string[];
   /** The constants the declaration's type uses. */
   uses: readonly string[];
 }>;
+
+/** One seeded-defect check that `AxiomAudit.lean` ran at the kernel-term level. */
+export type AuditedMutant = Readonly<{
+  theorem: string;
+  guarded: string;
+  defect: string;
+  refutation: string;
+  /** All four declarations exist. */
+  found: boolean;
+  /** The defect has the guarded definition's type and universe parameters. */
+  sameSignature: boolean;
+  /** The refutation states exactly the negation of the theorem with the guarded definition replaced by the defect. */
+  negates: boolean;
+}>;
+
+export type AxiomAudit = Readonly<{
+  declarations: readonly AuditedDeclaration[];
+  mutants: readonly AuditedMutant[];
+}>;
+
+/** The `AxiomAudit.lean` arguments: the library root, then each mutant's four names. */
+export function axiomAuditArguments(proofs: LeanProofs): readonly string[] {
+  return [proofs.library, ...proofs.mutants.flatMap((mutant) => [mutant.theorem, mutant.guarded, mutant.defect, mutant.refutation])];
+}
+
+/** SHA-256 of a theorem's printed kernel type, as `proofs.json` records it. */
+export function leanTypeDigest(type: string): string {
+  return createHash("sha256").update(type).digest("hex");
+}
 
 const DECLARATION_KINDS = new Set([
   "axiom", "definition", "theorem", "opaque", "quotient", "inductive", "constructor", "recursor",
 ]);
 
 /** Parse the JSON lines that `AxiomAudit.lean` prints. */
-export function parseAxiomAudit(stdout: string): readonly AuditedDeclaration[] {
+export function parseAxiomAudit(stdout: string): AxiomAudit {
   const entries = stdout.split("\n").filter((line) => line.trim() !== "");
-  const summary = entries.pop();
-  if (summary === undefined) throw new Error("The axiom audit printed nothing");
-  let total: unknown;
+  const summaryLine = entries.pop();
+  if (summaryLine === undefined) throw new Error("The axiom audit printed nothing");
+  let summary: Record<string, unknown>;
   try {
-    total = exactObject(JSON.parse(summary) as unknown, ["declarations"], "axiom audit summary").declarations;
+    summary = exactObject(JSON.parse(summaryLine) as unknown, ["declarations", "mutants"], "axiom audit summary");
   } catch {
     throw new Error("The axiom audit did not end with its summary line");
   }
-  if (typeof total !== "number" || total !== entries.length || total === 0) {
+  const total = summary.declarations;
+  const checks = summary.mutants;
+  if (typeof total !== "number" || typeof checks !== "number" || !Number.isSafeInteger(checks) || checks < 0
+    || total + checks !== entries.length || total === 0) {
     throw new Error("The axiom audit summary does not match its declarations");
   }
-  const declarations = entries.map((line, index): AuditedDeclaration => {
-    let parsed: unknown;
+  const parsedLine = (line: string, index: number): unknown => {
     try {
-      parsed = JSON.parse(line) as unknown;
+      return JSON.parse(line) as unknown;
     } catch {
       throw new Error(`Axiom audit line ${String(index + 1)} is not JSON`);
     }
-    const entry = exactObject(parsed, ["declaration", "kind", "module", "axioms", "uses"], `axiom audit line ${String(index + 1)}`);
-    const strings = (list: unknown): list is string[] =>
-      Array.isArray(list) && list.every((item) => typeof item === "string" && item !== "");
+  };
+  const strings = (list: unknown): list is string[] =>
+    Array.isArray(list) && list.every((item) => typeof item === "string" && item !== "");
+  const declarations = entries.slice(0, total).map((line, index): AuditedDeclaration => {
+    const entry = exactObject(parsedLine(line, index), ["declaration", "kind", "module", "type", "axioms", "uses"], `axiom audit line ${String(index + 1)}`);
     if (typeof entry.declaration !== "string" || entry.declaration === "" || typeof entry.module !== "string"
       || typeof entry.kind !== "string" || !DECLARATION_KINDS.has(entry.kind)
+      || typeof entry.type !== "string" || entry.type === ""
       || !strings(entry.axioms) || !strings(entry.uses)) {
       throw new Error(`Axiom audit line ${String(index + 1)} is malformed`);
     }
@@ -1005,38 +1082,85 @@ export function parseAxiomAudit(stdout: string): readonly AuditedDeclaration[] {
       declaration: entry.declaration,
       kind: entry.kind,
       module: entry.module,
+      type: entry.type,
       axioms: Object.freeze([...entry.axioms]),
       uses: Object.freeze([...entry.uses]),
     });
   });
-  const names = declarations.map((entry) => entry.declaration);
-  if (new Set(names).size !== names.length) throw new Error("The axiom audit repeats a declaration");
-  return Object.freeze(declarations);
+  const mutants = entries.slice(total).map((line, offset): AuditedMutant => {
+    const index = total + offset;
+    const label = `axiom audit line ${String(index + 1)}`;
+    const entry = exactObject(parsedLine(line, index), [
+      "mutant", "guarded", "defect", "refutation", "found", "sameSignature", "negates",
+    ], label);
+    const names = [entry.mutant, entry.guarded, entry.defect, entry.refutation];
+    if (!names.every((name) => typeof name === "string" && name !== "")
+      || typeof entry.found !== "boolean" || typeof entry.sameSignature !== "boolean" || typeof entry.negates !== "boolean") {
+      throw new Error(`Axiom audit line ${String(index + 1)} is malformed`);
+    }
+    const [theorem, guarded, defect, refutation] = names as [string, string, string, string];
+    return Object.freeze({
+      theorem, guarded, defect, refutation, found: entry.found, sameSignature: entry.sameSignature, negates: entry.negates,
+    });
+  });
+  const declared = declarations.map((entry) => entry.declaration);
+  if (new Set(declared).size !== declared.length) throw new Error("The axiom audit repeats a declaration");
+  return Object.freeze({ declarations: Object.freeze(declarations), mutants: Object.freeze(mutants) });
 }
 
 /**
- * Findings for an audited library: missing theorems, unlisted or forbidden
- * axioms, and seeded defects that their refutation does not mention.
+ * Findings for an audited library: missing or changed theorems, unlisted or
+ * forbidden axioms, and seeded defects whose refutation is not, at the
+ * kernel-term level, the negation of the guarded theorem with the defect in
+ * place of the definition it guards.
  */
-export function axiomAuditFindings(declarations: readonly AuditedDeclaration[], proofs: LeanProofs): readonly string[] {
+export function axiomAuditFindings(audit: AxiomAudit, proofs: LeanProofs): readonly string[] {
   const findings: string[] = [];
+  const { declarations } = audit;
   const allowed = new Set([...KERNEL_AXIOMS, ...proofs.allowedAxioms]);
   const byName = new Map(declarations.map((entry) => [entry.declaration, entry]));
   for (const theorem of proofs.theorems) {
-    const entry = byName.get(theorem);
-    if (entry === undefined) findings.push(`${theorem} is missing`);
-    else if (entry.kind !== "theorem") findings.push(`${theorem} is a ${entry.kind}, not a theorem`);
+    const entry = byName.get(theorem.name);
+    if (entry === undefined) findings.push(`${theorem.name} is missing`);
+    else if (entry.kind !== "theorem") findings.push(`${theorem.name} is a ${entry.kind}, not a theorem`);
+    else if (leanTypeDigest(entry.type) !== theorem.type) {
+      findings.push(`${theorem.name} states something other than proofs.json records; review it and set its type to ${leanTypeDigest(entry.type)}`);
+    }
   }
   for (const mutant of proofs.mutants) {
-    const defect = byName.get(mutant.defect);
-    if (defect === undefined) findings.push(`the seeded defect ${mutant.defect} is missing`);
-    else if (defect.kind !== "definition") findings.push(`the seeded defect ${mutant.defect} is a ${defect.kind}, not a definition`);
-    if (byName.get(mutant.theorem)?.uses.includes(mutant.defect) === true) {
+    for (const [role, name] of [["seeded defect", mutant.defect], ["guarded definition", mutant.guarded]] as const) {
+      const entry = byName.get(name);
+      if (entry === undefined) findings.push(`the ${role} ${name} is missing`);
+      else if (entry.kind !== "definition") findings.push(`the ${role} ${name} is ${/^[aeiou]/u.test(entry.kind) ? "an" : "a"} ${entry.kind}, not a definition`);
+    }
+    const theorem = byName.get(mutant.theorem);
+    if (theorem?.uses.includes(mutant.defect) === true) {
       findings.push(`${mutant.theorem} states its property about the seeded defect ${mutant.defect}`);
+    }
+    if (theorem?.uses.includes(mutant.guarded) === false) {
+      findings.push(`${mutant.theorem} does not state anything about ${mutant.guarded}`);
     }
     if (byName.get(mutant.refutation)?.uses.includes(mutant.defect) === false) {
       findings.push(`${mutant.refutation} does not state anything about the seeded defect ${mutant.defect}`);
     }
+    const checks = audit.mutants.filter((check) => check.theorem === mutant.theorem && check.guarded === mutant.guarded
+      && check.defect === mutant.defect && check.refutation === mutant.refutation);
+    if (checks.length !== 1) {
+      findings.push(`the audit checked the seeded defect ${mutant.defect} against ${mutant.theorem} ${String(checks.length)} times, not once`);
+      continue;
+    }
+    const check = checks[0]!;
+    if (!check.found) {
+      findings.push(`the audit could not find every declaration of the seeded defect ${mutant.defect}`);
+      continue;
+    }
+    if (!check.sameSignature) findings.push(`the seeded defect ${mutant.defect} does not have the type of ${mutant.guarded}`);
+    if (!check.negates) {
+      findings.push(`${mutant.refutation} does not state the negation of ${mutant.theorem} with ${mutant.guarded} replaced by ${mutant.defect}`);
+    }
+  }
+  if (audit.mutants.length !== proofs.mutants.length) {
+    findings.push(`the audit checked ${String(audit.mutants.length)} seeded defects, but proofs.json lists ${String(proofs.mutants.length)}`);
   }
   for (const entry of declarations) {
     if (entry.module !== proofs.library && !entry.module.startsWith(`${proofs.library}.`)) {
@@ -1566,21 +1690,22 @@ export async function verifyLean(context: RunContext): Promise<void> {
     throw new Error("lake build --wfail failed");
   }
   const audit = await runLogged(context, "axiom audit", "lean-axiom-audit", [
-    lake, "env", "lean", "--run", "AxiomAudit.lean", proofs.library,
+    lake, "env", "lean", "--run", "AxiomAudit.lean", ...axiomAuditArguments(proofs),
   ], { cwd: project, environment: leanEnvironment, timeoutMs: LEAN_BUILD_TIMEOUT_MS });
   if (audit.exitCode !== 0 || audit.stderr.trim() !== "") {
     context.log(tail(sanitize(context, `${audit.stdout}\n${audit.stderr}`)));
     throw new Error("The axiom audit did not finish cleanly");
   }
-  const declarations = parseAxiomAudit(audit.stdout);
-  const auditFindings = axiomAuditFindings(declarations, proofs);
+  const audited = parseAxiomAudit(audit.stdout);
+  const { declarations } = audited;
+  const auditFindings = axiomAuditFindings(audited, proofs);
   if (auditFindings.length > 0) throw new Error(`The axiom audit failed:\n${auditFindings.join("\n")}`);
   await writeFile(join(context.artifacts, "lean-axiom-audit.jsonl"), sanitize(context, audit.stdout));
   const theorems = declarations.filter((entry) => entry.kind === "theorem").length;
   context.log(`lake build --wfail: ${proofs.library} builds on Lean ${LEAN.version} with warnings as errors`);
-  context.log(`axiom audit: ${String(declarations.length)} declarations, ${String(theorems)} theorems, all ${String(proofs.theorems.length)} required theorems present, only allowed axioms`);
+  context.log(`axiom audit: ${String(declarations.length)} declarations, ${String(theorems)} theorems, all ${String(proofs.theorems.length)} required theorems present with their recorded statements, only allowed axioms`);
   for (const mutant of proofs.mutants) {
-    context.log(`seeded defect ${mutant.defect}: ${mutant.refutation} proves that ${mutant.theorem} rejects it`);
+    context.log(`seeded defect ${mutant.defect}: ${mutant.refutation} proves the negation of ${mutant.theorem} with ${mutant.guarded} replaced by ${mutant.defect}`);
   }
   await verifyAuditCanary(context, proofs, lake, leanEnvironment);
   context.log("axiom audit canary: a seeded sorry fails lake build --wfail and the audit reports sorryAx, as required");
@@ -1633,7 +1758,7 @@ async function verifyAuditCanary(
   const lenient = await runLogged(context, "canary lake build", "lean-canary-build", [lake, "build"], options);
   if (lenient.exitCode !== 0) throw new Error("The seeded sorry canary did not build without --wfail");
   const audit = await runLogged(context, "canary axiom audit", "lean-canary-axiom-audit", [
-    lake, "env", "lean", "--run", "AxiomAudit.lean", proofs.library,
+    lake, "env", "lean", "--run", "AxiomAudit.lean", ...axiomAuditArguments(proofs),
   ], options);
   if (audit.exitCode !== 0) throw new Error("The axiom audit did not finish on the seeded sorry canary");
   const findings = axiomAuditFindings(parseAxiomAudit(audit.stdout), proofs);

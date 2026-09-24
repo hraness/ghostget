@@ -21,7 +21,9 @@ Complete the repository's applicable source, focused native, package/install,
 and independent review gates. Keep Node 24.20.0, npm 11.19.0, and Bun 1.3.14. The
 release workflow admits the exact commit's successful default-branch CI run
 before installing dependencies. This replaces its duplicate serial `bun run
-check`; the complete local aggregate and `prepack` stay unchanged. The CI union
+check`. The complete local aggregate and `prepack` still run `bun run check`,
+which now ends with `bun run verify`; see `CONTRIBUTING.md` for its local
+prerequisites. The CI union
 covers static checks, package and isolated Bun-consumer checks, every whole-file
 source shard, serialized omni tests, standalone checks, selected macOS checks,
 and the formal-verification checks.

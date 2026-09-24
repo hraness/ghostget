@@ -18,6 +18,7 @@ import {
   ASSURANCE_DOCUMENT,
   CLAIMS_REGISTER,
   LAYERS,
+  PROPERTY_MARKERS,
   RENDER_COMMAND,
   STATUSES,
   diskRepository,
@@ -30,6 +31,7 @@ import {
   registerFindings,
   renderAssurance,
   ruleDigest,
+  testBlocks,
   type Claim,
   type ClaimsRegister,
   type Layer,
@@ -191,11 +193,28 @@ function claimWith(register: ClaimsRegister, layer: Layer, status: Status): Clai
 // The exact findings a maintainer sees.
 const shown = (unit: string): string => unit.length > 72 ? `${unit.slice(0, 72)}…` : unit;
 const unruled = (guide: string, unit: string): string =>
-  `${guide}: the guideline "${shown(unit)}" has no rule in ${CLAIMS_REGISTER}; add one with digest ${ruleDigest(unit)} and its claims or an exempt reason`;
+  `${guide}: the guideline "${shown(unit)}" has no rule in ${CLAIMS_REGISTER}; add one with digest ${ruleDigest(unit)} and the claims that quote it, or an exempt reason`;
 const changedGuideline = (guide: string, anchor: string, unit: string): string =>
   `${guide}: the guideline anchored at "${anchor}" changed; review its claims and set its digest to ${ruleDigest(unit)}`;
 const orphanedRule = (guide: string, anchor: string): string =>
   `${guide}: no guideline contains the rule anchor "${anchor}"; remove the rule or update its anchor`;
+const unquoted = (guide: string, anchor: string, id: string): string =>
+  `${guide}: the rule anchored at "${anchor}" lists the claim ${id}, which quotes no text of its guideline; add the text it covers to the claim's alsoQuotes or remove it from the rule`;
+const unlisted = (id: string, anchor: string): string =>
+  `claim ${id} quotes the guideline anchored at "${anchor}", whose rule does not list it`;
+
+/** The managed block names of scanned guide `path`. */
+const blockNames = (register: ClaimsRegister, path: string): readonly string[] =>
+  register.guides.find((guide) => guide.path === path)!.managedBlocks.map((block) => block.name);
+
+/** The whitespace-normalized text between the markers of managed block `name`. */
+function managedText(source: string, name: string): string {
+  const lines = source.split("\n");
+  const begin = lines.indexOf(`<!-- ${name}:start -->`);
+  const end = lines.indexOf(`<!-- ${name}:end -->`);
+  if (begin < 0 || end < begin) throw new Error(`the guide has no managed block ${name}`);
+  return normalizeWhitespace(lines.slice(begin + 1, end).join("\n"));
+}
 
 // ---------------------------------------------------------------------------
 // Guide text edits
@@ -268,7 +287,9 @@ describe("committed claims register", () => {
     const register = await committedRegister();
     let guidelines = 0;
     for (const guide of register.guides) {
-      const units = guidelineUnits(await repositoryText(guide.path), guide.managedBlocks, guide.path);
+      const source = await repositoryText(guide.path);
+      const units = guidelineUnits(source, blockNames(register, guide.path), guide.path);
+      for (const block of guide.managedBlocks) expect(block.digest).toBe(ruleDigest(managedText(source, block.name)));
       const rules = register.rules.filter((rule) => rule.guide === guide.path);
       for (const unit of units) {
         const matching = rules.filter((rule) => unit.includes(rule.anchor));
@@ -362,6 +383,7 @@ describe("assurance case", () => {
       "## What is not verified",
       "### Claims without an automated check",
       "### Exempt guidelines",
+      "### Managed blocks outside the register",
       "### Guides outside the register",
       "## Environmental assumptions",
       "## Claims by area",
@@ -374,9 +396,15 @@ describe("assurance case", () => {
     const withoutCheck = register.claims.filter((claim) => claim.status === "not-verified");
     expect(withoutCheck.length).toBeGreaterThan(0);
     for (const claim of withoutCheck) expect(unchecked).toContain(`\n- \`${claim.id}\`: ${claim.statement} `);
-    const exempt = section("### Exempt guidelines", "### Guides outside the register");
+    const exempt = section("### Exempt guidelines", "### Managed blocks outside the register");
     for (const rule of register.rules.filter((candidate) => candidate.exempt !== null)) {
       expect(exempt).toContain(`| ${tableCell(rule.anchor)}… | ${tableCell(rule.exempt!)} |`);
+    }
+    const managed = section("### Managed blocks outside the register", "### Guides outside the register");
+    const blocks = register.guides.flatMap((guide) => guide.managedBlocks.map((block) => ({ guide: guide.path, block })));
+    expect(blocks.map(({ block }) => block.name)).toEqual(["hraness-public-copy", "oompa-local-efficiency", "algal-skills"]);
+    for (const { guide, block } of blocks) {
+      expect(managed).toContain(`\n| \`${guide}\` | \`${block.name}\` | ${tableCell(block.reason)} |\n`);
     }
     const outside = section("### Guides outside the register", "## Environmental assumptions");
     for (const excluded of register.excludedGuides) expect(outside).toContain(`\n- \`${excluded.prefix}\`: ${excluded.reason}\n`);
@@ -406,6 +434,8 @@ describe("assurance case", () => {
       }[claim.status];
       expect(entry).toMatch(status);
       expect(entry).toContain(`\n- Source: \`${claim.source.path}\`: “${claim.source.quote}”\n`);
+      for (const quote of claim.alsoQuotes) expect(entry).toContain(`\n- Also covers: \`${quote.path}\`: “${quote.quote}”\n`);
+      for (const named of claim.properties) expect(entry).toContain(`\`${named.path}\`: “${named.test}”`);
       for (const path of claim.evidence) expect(entry).toContain(`\`${path}\``);
       for (const item of claim.notVerified) expect(entry).toContain(item);
     }
@@ -462,10 +492,18 @@ describe("guideline coverage", () => {
 
     const document = await committedDocument();
     const rule = { guide: "AGENTS.md", anchor: "Never let a new safety rule", digest: ruleDigest(guideline) };
-    const someClaim = (await committedRegister()).claims[0]!.id;
-    for (const listed of [{ exempt: "A test guideline." }, { claims: [someClaim] }]) {
-      expect(await findingsFor(files, parseClaimsRegister(appended(document, ["rules"], { ...rule, ...listed })))).toEqual([]);
-    }
+    const exempted = appended(document, ["rules"], { ...rule, exempt: "A test guideline." });
+    expect(await findingsFor(files, parseClaimsRegister(exempted))).toEqual([]);
+
+    // A rule lists exactly the claims that quote its guideline: an unrelated claim does not cover it.
+    const someClaim = (await committedRegister()).claims.find((claim) => claim.alsoQuotes.length === 0)!;
+    const claimIndex = indexWhere(document, ["claims"], (claim) => claim.id === someClaim.id);
+    const listed = appended(document, ["rules"], { ...rule, claims: [someClaim.id] });
+    expect(await findingsFor(files, parseClaimsRegister(listed))).toEqual([unquoted("AGENTS.md", rule.anchor, someClaim.id)]);
+    const quote = [{ path: "AGENTS.md", quote: "a new safety rule skip the claims" }];
+    expect(await findingsFor(files, parseClaimsRegister(jsonWith(listed, ["claims", claimIndex, "alsoQuotes"], quote)))).toEqual([]);
+    expect(await findingsFor(files, parseClaimsRegister(jsonWith(exempted, ["claims", claimIndex, "alsoQuotes"], quote))))
+      .toEqual([unlisted(someClaim.id, rule.anchor)]);
     const stale = parseClaimsRegister(appended(document, ["rules"], { ...rule, digest: ruleDigest("An older text."), exempt: "Test." }));
     expect(await findingsFor(files, stale)).toEqual([changedGuideline("AGENTS.md", rule.anchor, guideline)]);
   });
@@ -476,7 +514,8 @@ describe("guideline coverage", () => {
       const lines = (await repositoryText(guide.path)).split("\n");
       const taken = [
         ...register.rules.filter((rule) => rule.guide === guide.path).map((rule) => rule.anchor),
-        ...register.claims.filter((claim) => claim.source.path === guide.path).map((claim) => claim.source.quote),
+        ...register.claims.flatMap((claim) => [claim.source, ...claim.alsoQuotes])
+          .filter((quote) => quote.path === guide.path).map((quote) => quote.quote),
       ];
       return Object.freeze({ path: guide.path, lines, points: insertionPoints(lines), taken });
     }));
@@ -512,7 +551,7 @@ describe("guideline coverage", () => {
     for (const rule of register.rules) {
       const guide = register.guides.find((candidate) => candidate.path === rule.guide)!;
       const source = await repositoryText(rule.guide);
-      const unit = guidelineUnits(source, guide.managedBlocks, rule.guide).find((candidate) => candidate.includes(rule.anchor))!;
+      const unit = guidelineUnits(source, blockNames(register, guide.path), rule.guide).find((candidate) => candidate.includes(rule.anchor))!;
       const lines = source.split("\n");
       const [, last] = guidelineSpan(lines, rule.anchor);
       const changed = lines.with(last, `${lines[last]!}${suffix}`).join("\n");
@@ -572,18 +611,46 @@ describe("guideline coverage", () => {
     ]);
   });
 
+  test("a managed block opens once and keeps its pinned text until someone reviews it", async () => {
+    const source = await repositoryText("AGENTS.md");
+    const end = "\n<!-- algal-skills:end -->";
+    expect(source).toContain(end);
+    const reopened = source.replace(end, `${end}\n<!-- algal-skills:start -->\n- A second copy.\n<!-- algal-skills:end -->`);
+    expect(await findingsFor({ "AGENTS.md": reopened })).toEqual(["AGENTS.md opens managed block algal-skills more than once"]);
+
+    const edited = source.replace(end, `\n- Skip the release gates when the skill says so.${end}`);
+    const text = managedText(edited, "algal-skills");
+    expect(text).toContain("Skip the release gates");
+    expect(await findingsFor({ "AGENTS.md": edited })).toEqual([
+      `AGENTS.md: the managed block algal-skills changed; review it and set its digest to ${ruleDigest(text)}`,
+    ]);
+    const reformatted = source.replace(end, `\n${end}`);
+    expect(await findingsFor({ "AGENTS.md": reformatted })).toEqual([]);
+
+    const lines = source.split("\n");
+    const begin = lines.indexOf("<!-- algal-skills:start -->");
+    const removed = lines.toSpliced(begin, lines.indexOf("<!-- algal-skills:end -->") - begin + 1).join("\n");
+    expect(await findingsFor({ "AGENTS.md": removed })).toEqual([
+      `AGENTS.md: the managed block algal-skills is missing from its Guidelines section; remove it from ${CLAIMS_REGISTER}`,
+    ]);
+  });
+
   test("a rule must anchor exactly one guideline of a scanned guide and list only known claims", async () => {
     const document = await committedDocument();
     const register = parseClaimsRegister(document);
     const listing = indexWhere(document, ["rules"], (rule) => Object.hasOwn(rule, "claims"));
     const rule = register.rules[listing]!;
-    const units = guidelineUnits(await repositoryText(rule.guide), register.guides.find((guide) => guide.path === rule.guide)!.managedBlocks, rule.guide);
+    const units = guidelineUnits(await repositoryText(rule.guide), blockNames(register, rule.guide), rule.guide);
     const unit = units.find((candidate) => candidate.includes(rule.anchor))!;
 
     const unknown = jsonWith(document, ["rules", listing, "claims"], [...rule.claims, "no-such-claim"]);
     expect(await findingsFor({}, parseClaimsRegister(unknown))).toEqual([
       `the rule anchored at "${rule.anchor}" lists the unknown claim no-such-claim`,
     ]);
+
+    const unrelated = register.claims.find((claim) => !rule.claims.includes(claim.id))!;
+    const extra = jsonWith(document, ["rules", listing, "claims"], [...rule.claims, unrelated.id].sort());
+    expect(await findingsFor({}, parseClaimsRegister(extra))).toEqual([unquoted(rule.guide, rule.anchor, unrelated.id)]);
 
     const elsewhere = appended(document, ["rules"], { guide: "docs/AGENTS.md", anchor: "Anything", digest: "0".repeat(64), exempt: "Test." });
     expect(await findingsFor({}, parseClaimsRegister(elsewhere))).toEqual([
@@ -635,6 +702,7 @@ describe("claims and evidence", () => {
     const example = claimWith(register, "example", "evidenced");
     expect(await findingsFor({}, await withClaim(example.id, { evidence: ["scripts"] }))).toEqual([
       `claim ${example.id} cites the missing evidence path scripts`,
+      `claim ${example.id} is an evidenced example claim, but it cites no test file`,
     ]);
     const planned = claimWith(register, "quint", "planned");
     expect(await findingsFor({}, await withClaim(planned.id, { evidence: ["scripts/missing-evidence.test.ts"] }))).toEqual([
@@ -646,31 +714,40 @@ describe("claims and evidence", () => {
   test("removing any claim's quoted text from its source fails that claim", async () => {
     const register = await committedRegister();
     for (const claim of register.claims) {
-      const source = await repositoryText(claim.source.path);
-      const removed = source.replace(quotePattern(claim.source.quote), "[quote removed]");
-      expect(removed).not.toBe(source);
-      expect(await findingsFor({ [claim.source.path]: removed }, register))
-        .toContain(`claim ${claim.id} quotes text that ${claim.source.path} no longer contains`);
+      for (const quote of [claim.source, ...claim.alsoQuotes]) {
+        const source = await repositoryText(quote.path);
+        const removed = source.replace(quotePattern(quote.quote), "[quote removed]");
+        expect(removed).not.toBe(source);
+        expect(await findingsFor({ [quote.path]: removed }, register))
+          .toContain(`claim ${claim.id} quotes text that ${quote.path} no longer contains`);
+      }
     }
   });
 
   test("a claim must quote exactly one guideline, and that guideline's rule must list it", async () => {
     const register = await committedRegister();
-    const claim = register.claims.find((candidate) => candidate.source.path === "AGENTS.md")!;
+    const claim = register.claims.find((candidate) => candidate.source.path === "AGENTS.md" && candidate.alsoQuotes.length === 0)!;
+    const own = register.rules.find((rule) => rule.claims.includes(claim.id))!;
+    // The claim's rule still lists it, so moving its only quote also leaves that rule listing a claim that no longer quotes it.
+    const stale = unquoted("AGENTS.md", own.anchor, claim.id);
     const missing = await withClaim(claim.id, { source: { path: "docs/missing.md", quote: claim.source.quote } });
-    expect(await findingsFor({}, missing)).toEqual([`claim ${claim.id} cites the missing source docs/missing.md`]);
+    expect(await findingsFor({}, missing)).toEqual([stale, `claim ${claim.id} cites the missing source docs/missing.md`]);
 
     const contents = "the CLI, page-capture runtime, strict data and protocol models";
-    const guideUnits = guidelineUnits(await repositoryText("AGENTS.md"), register.guides[0]!.managedBlocks, "AGENTS.md");
+    const guideUnits = guidelineUnits(await repositoryText("AGENTS.md"), blockNames(register, "AGENTS.md"), "AGENTS.md");
     expect(guideUnits.some((unit) => unit.includes(contents))).toBe(false);
     const outside = await withClaim(claim.id, { source: { path: "AGENTS.md", quote: contents } });
-    expect(await findingsFor({}, outside)).toEqual([`claim ${claim.id} quotes AGENTS.md outside exactly one guideline`]);
+    expect(await findingsFor({}, outside)).toEqual([`claim ${claim.id} quotes AGENTS.md outside exactly one guideline`, stale]);
 
     const other = register.rules.find((rule) => rule.guide === "AGENTS.md" && !rule.claims.includes(claim.id))!;
     const misfiled = await withClaim(claim.id, { source: { path: "AGENTS.md", quote: other.anchor } });
-    expect(await findingsFor({}, misfiled)).toEqual([
-      `claim ${claim.id} quotes the guideline anchored at "${other.anchor}", whose rule does not list it`,
-    ]);
+    expect(await findingsFor({}, misfiled)).toEqual([unlisted(claim.id, other.anchor), stale]);
+
+    // Every further quote obeys the same rule as the source.
+    const further = await withClaim(claim.id, { alsoQuotes: [{ path: "AGENTS.md", quote: other.anchor }] });
+    expect(await findingsFor({}, further)).toEqual([unlisted(claim.id, other.anchor)]);
+    const outsideFurther = await withClaim(claim.id, { alsoQuotes: [{ path: "AGENTS.md", quote: contents }] });
+    expect(await findingsFor({}, outsideFurther)).toEqual([`claim ${claim.id} quotes AGENTS.md outside exactly one guideline`]);
   });
 
   test("every assumption is declared and used, and the plan exists", async () => {
@@ -684,39 +761,75 @@ describe("claims and evidence", () => {
     expect(await findingsFor({ [register.plan]: null }, register)).toContain(`the plan ${register.plan} does not exist`);
   });
 
-  test("an evidenced property claim needs code evidence that runs a property", async () => {
+  test("an evidenced property claim names tests that each run a property", async () => {
     const register = await committedRegister();
     const properties = register.claims.filter((claim) => claim.status === "evidenced" && claim.layer === "property");
     expect(properties.length).toBeGreaterThan(0);
     const markers = ["assertProperty(", "assertAsyncProperty(", "fc.assert(", "fc.property(", "fc.asyncProperty("];
+    expect([...PROPERTY_MARKERS]).toEqual(markers);
     for (const claim of properties) {
-      const code = claim.evidence.filter((path) => /\.(?:ts|tsx|mjs)$/u.test(path));
-      const files = Object.fromEntries(await Promise.all(code.map(async (path) => {
-        const text = markers.reduce((body, marker) => body.replaceAll(marker, "check("), await repositoryText(path));
-        return [path, text] as const;
-      })));
-      expect(await findingsFor(files, register))
-        .toContain(`claim ${claim.id} is an evidenced property claim, but no evidence file runs a property`);
+      expect(claim.properties.length).toBeGreaterThan(0);
+      for (const named of claim.properties) {
+        // Strip the markers from the named test only; the file's other tests keep running properties.
+        const source = await repositoryText(named.path);
+        const blocks = testBlocks(source).filter((block) => block.title === named.test);
+        expect(blocks).toHaveLength(1);
+        const body = blocks[0]!.body;
+        const stripped = source.replace(body, markers.reduce((text, marker) => text.replaceAll(marker, "check("), body));
+        expect(testBlocks(stripped).some((block) => block.title !== named.test && markers.some((marker) => block.body.includes(marker))))
+          .toBe(testBlocks(source).some((block) => block.title !== named.test && markers.some((marker) => block.body.includes(marker))));
+        expect(await findingsFor({ [named.path]: stripped }, register))
+          .toContain(`claim ${claim.id} names the test "${named.test}" in ${named.path}, which runs no property`);
+      }
     }
+
+    // A property elsewhere in the file does not evidence the named test.
     const claim = properties[0]!;
-    const documentation = await evidencedBy(claim.id, ["docs/property-notes.md"]);
-    expect(await findingsFor({ "docs/property-notes.md": "fc.property(" }, documentation)).toEqual([
-      `claim ${claim.id} is an evidenced property claim, but no evidence file runs a property`,
+    const file = "scripts/synthetic.test.ts";
+    const named = (test: string): Promise<ClaimsRegister> =>
+      withClaim(claim.id, { evidence: [file], properties: [{ path: file, test }] });
+    const unrelated = 'test("another law", () => {\n  assertProperty(fc.property(fc.nat(), () => true));\n});\n';
+    const example = 'test("the named law", () => {\n  expect(1).toBe(1);\n});\n';
+    expect(await findingsFor({ [file]: `${example}\n${unrelated}` }, await named("the named law"))).toEqual([
+      `claim ${claim.id} names the test "the named law" in ${file}, which runs no property`,
+    ]);
+    expect(await findingsFor({ [file]: `${example}\n${unrelated}` }, await named("a missing law"))).toEqual([
+      `claim ${claim.id} names the property test "a missing law", which ${file} does not declare`,
     ]);
     for (const marker of markers) {
-      expect(await findingsFor({ "scripts/synthetic.test.ts": `${marker}` }, await evidencedBy(claim.id, ["scripts/synthetic.test.ts"]))).toEqual([]);
+      const running = `describe("laws", () => {\n  test.each([1])("the named law", () => {\n    ${marker}\n  });\n});\n${unrelated}`;
+      expect(await findingsFor({ [file]: running }, await named("the named law"))).toEqual([]);
+    }
+
+    const notes = "docs/property-notes.md";
+    const documentation = await withClaim(claim.id, { evidence: [notes], properties: [{ path: notes, test: "notes" }] });
+    expect(await findingsFor({ [notes]: 'test("notes", () => { fc.property( });' }, documentation)).toEqual([
+      `claim ${claim.id} names the property test "notes", which ${notes} does not declare`,
+    ]);
+  });
+
+  test("an evidenced stateful-model claim names tests that run fast-check commands", async () => {
+    const claim = claimWith(await committedRegister(), "stateful-model", "planned");
+    const file = "scripts/synthetic-model.test.ts";
+    const register = await withClaim(claim.id, {
+      status: "evidenced", phase: undefined, evidence: [file], properties: [{ path: file, test: "the model" }],
+    });
+    expect(await findingsFor({ [file]: 'test("the model", () => {\n  assertProperty(fc.property(\n});\n' }, register)).toEqual([
+      `claim ${claim.id} names the test "the model" in ${file}, which runs no stateful-model`,
+    ]);
+    for (const marker of ["fc.commands(", "fc.modelRun(", "fc.asyncModelRun("]) {
+      expect(await findingsFor({ [file]: `test("the model", () => {\n  ${marker}\n});\n` }, register)).toEqual([]);
     }
   });
 
-  test("an evidenced stateful-model claim needs fast-check commands", async () => {
-    const claim = claimWith(await committedRegister(), "stateful-model", "planned");
-    const register = await evidencedBy(claim.id, ["scripts/synthetic-model.test.ts"]);
-    expect(await findingsFor({ "scripts/synthetic-model.test.ts": "assertProperty(fc.property(" }, register)).toEqual([
-      `claim ${claim.id} is an evidenced stateful-model claim, but no evidence file runs fast-check commands`,
-    ]);
-    for (const marker of ["fc.commands(", "fc.modelRun(", "fc.asyncModelRun("]) {
-      expect(await findingsFor({ "scripts/synthetic-model.test.ts": marker }, register)).toEqual([]);
-    }
+  test("an evidenced example claim cites at least one test file", async () => {
+    const register = await committedRegister();
+    const example = claimWith(register, "example", "evidenced");
+    const refused = `claim ${example.id} is an evidenced example claim, but it cites no test file`;
+    expect(await findingsFor({}, await withClaim(example.id, { evidence: ["edge/tsconfig.json"] }))).toEqual([refused]);
+    expect(await findingsFor({}, await withClaim(example.id, { evidence: ["edge/tsconfig.json", "edge/imports.test.ts"] }))).toEqual([]);
+    const planned = await withClaim(example.id, { status: "planned", phase: 2, evidence: ["edge/tsconfig.json"] });
+    expect(await findingsFor({}, planned)).toEqual([]);
   });
 
   test("an evidenced Quint claim needs a cited model whose cited replay test drives production code", async () => {
@@ -901,6 +1014,32 @@ describe("guideline units", () => {
   });
 });
 
+describe("test blocks", () => {
+  test("a block runs from its test or it declaration to the next declaration", () => {
+    const source = [
+      'import { test } from "bun:test";',
+      'describe("group", () => {',
+      '  test("first law", () => {',
+      '    assertProperty(fc.property(fc.nat(), () => true));',
+      '  });',
+      "  it('second \\'law\\'', () => {});",
+      '  test.each([1, 2])(`third law %d`, () => {});',
+      '  test.skipIf(process.platform === "win32")("fourth law", () => {',
+      '    fc.assert(',
+      '  });',
+      '});',
+      'const helper = () => test("inline", () => {});',
+    ].join("\n");
+    const blocks = testBlocks(source);
+    expect(blocks.map((block) => block.title)).toEqual(["first law", "second \\'law\\'", "third law %d", "fourth law"]);
+    expect(blocks[0]!.body).toContain("fc.property(");
+    expect(blocks[1]!.body).not.toContain("fc.");
+    expect(blocks[3]!.body).toContain("fc.assert(");
+    expect(blocks[3]!.body).toContain("inline");
+    expect(testBlocks("no tests here")).toEqual([]);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // The strict register parser
 // ---------------------------------------------------------------------------
@@ -928,12 +1067,17 @@ describe("register parser", () => {
     const claim = `claim ${idAt(evidenced)}`;
     const plannedClaim = `claim ${idAt(planned)}`;
     const claimAt = (path: JsonPath, value: JsonValue | undefined): JsonValue => at(["claims", evidenced, ...path], value);
+    expect(jsonAt(document, ["claims", evidenced, "layer"])).toBe("example");
+    const property = indexWhere(document, ["claims"], (entry) => entry.layer === "property" && entry.status === "evidenced");
+    const propertyClaim = `claim ${idAt(property)}`;
+    const propertyAt = (path: JsonPath, value: JsonValue | undefined): JsonValue => at(["claims", property, ...path], value);
+    const block = jsonAt(document, ["guides", 0, "managedBlocks", 0])!;
     const firstRule = jsonAt(document, ["rules", listing]);
     const cases: readonly (readonly [unknown, string])[] = [
       [[], "claims.json must be an object"],
       [new Map(), "claims.json must be an object"],
       [Object.create(document as object) as unknown, "claims.json must be an object"],
-      [at(["schema"], "ghostget-claims-v2"), "claims.json has an unknown schema"],
+      [at(["schema"], "ghostget-claims-v1"), "claims.json has an unknown schema"],
       [at(["extra"], true), "claims.json has an unexpected field \"extra\""],
       [at(["rules"], undefined), "claims.json is missing rules"],
       [at(["plan"], "../plan.md"), "claims.json plan must be a normalized path relative to the repository root"],
@@ -948,7 +1092,11 @@ describe("register parser", () => {
       [at(["guides", 0, "path"], "NOTAGENTS.md"), "claims.json guides[0].path must name an AGENTS.md"],
       [at(["guides", 0, "path"], "../AGENTS.md"), "claims.json guides[0].path must be a normalized path relative to the repository root"],
       [at(["guides", 0, "path"], "/AGENTS.md"), "claims.json guides[0].path must be a normalized path relative to the repository root"],
-      [at(["guides", 0, "managedBlocks"], ["a", "a"]), "claims.json guides[0].managedBlocks must not repeat an entry"],
+      [at(["guides", 0, "managedBlocks"], ["a"]), "claims.json guides[0].managedBlocks[0] must be an object"],
+      [at(["guides", 0, "managedBlocks"], [block, block]), "claims.json guides[0].managedBlocks must not repeat a block"],
+      [at(["guides", 0, "managedBlocks", 0, "digest"], "0".repeat(63)), "claims.json guides[0].managedBlocks[0].digest must be a SHA-256 hex digest"],
+      [at(["guides", 0, "managedBlocks", 0, "name"], "Not Kebab"), "claims.json guides[0].managedBlocks[0].name must be a lowercase kebab-case identifier"],
+      [at(["guides", 0, "managedBlocks", 0, "reason"], ""), "claims.json guides[0].managedBlocks[0].reason must be non-empty single-line text"],
       [at(["excludedGuides", 0, "prefix"], "kb"), "claims.json excludedGuides[0].prefix must be a repository directory ending in /"],
       [at(["excludedGuides", 0, "prefix"], "/"), "claims.json excludedGuides[0].prefix must be a repository directory ending in /"],
       [at(["excludedGuides", 0, "prefix"], "../kb/"), "claims.json excludedGuides[0].prefix must be a repository directory ending in /"],
@@ -988,6 +1136,16 @@ describe("register parser", () => {
       [claimAt(["source", "extra"], 1), `${claim} source has an unexpected field "extra"`],
       [claimAt(["source", "path"], "a\\b"), `${claim} source.path must be a normalized path relative to the repository root`],
       [claimAt(["source", "quote"], "x".repeat(601)), `${claim} source.quote must be non-empty single-line text of at most 600 characters`],
+      [claimAt(["alsoQuotes"], []), `${claim} alsoQuotes must not be empty`],
+      [claimAt(["alsoQuotes"], [jsonAt(document, ["claims", evidenced, "source"])!]), `${claim} repeats a quote`],
+      [claimAt(["alsoQuotes"], [{ path: "AGENTS.md" }]), `${claim} alsoQuotes[0] is missing quote`],
+      [claimAt(["properties"], [{ path: "a.test.ts", test: "x" }]), `${claim} names property tests but is at the example layer`],
+      [propertyAt(["properties"], undefined), `${propertyClaim} is an evidenced property claim and must name the property tests that exercise its law`],
+      [propertyAt(["properties"], []), `${propertyClaim} properties must not be empty`],
+      [propertyAt(["properties", 0, "path"], "scripts/not-evidence.test.ts"), `${propertyClaim} properties[0].path must be one of the claim's evidence paths`],
+      [propertyAt(["properties", 0, "test"], "two\nlines"), `${propertyClaim} properties[0].test must be a non-empty one-line test title of at most 300 characters`],
+      [propertyAt(["properties", 0, "test"], "x".repeat(301)), `${propertyClaim} properties[0].test must be a non-empty one-line test title of at most 300 characters`],
+      [propertyAt(["properties", 1], jsonAt(document, ["claims", property, "properties", 0])!), `${propertyClaim} properties must not repeat a test`],
       [claimAt(["assumptions"], ["Bad"]), `${claim} assumptions[0] must be a lowercase kebab-case identifier`],
       [claimAt(["notVerified"], []), `${claim} notVerified must not be empty`],
       [claimAt(["notVerified"], ["Same.", "Same."]), `${claim} notVerified must not repeat an entry`],
@@ -1004,7 +1162,8 @@ describe("register parser", () => {
 
   test("rejects every type change, missing field, and unknown field", async () => {
     const document = await committedDocument();
-    assertProperty(fc.property(invalidatingMutation(document), (mutated) => rejects(() => parseClaimsRegister(mutated))));
+    // A claim's further quotes are optional; every other field is required or required by its layer and status.
+    assertProperty(fc.property(invalidatingMutation(document, ["alsoQuotes"]), (mutated) => rejects(() => parseClaimsRegister(mutated))));
   });
 
   test("accepts every well-formed claim and rule and keeps their values", async () => {
@@ -1022,17 +1181,30 @@ describe("register parser", () => {
       ["configuration-readback", "not-verified"],
       ["not-verified", "not-verified"],
     ];
+    const quote = fc.record({ path, quote: prose(600) });
+    const title = fc.string({ unit: "binary", minLength: 1, maxLength: 300 }).filter((value) => !/[\n\r]/u.test(value));
     const claim = fc.record({
       id: identifier,
       statement: prose(1_000),
       area: identifier,
-      source: fc.record({ path, quote: prose(600) }),
+      source: quote,
+      alsoQuotes: fc.option(fc.uniqueArray(quote, { minLength: 1, maxLength: 3, selector: (entry) => `${entry.path} ${entry.quote}` }), { nil: null }),
       kind: fc.constantFrom(...pairs),
       phase: fc.integer({ min: 1, max: 8 }),
       evidence: fc.uniqueArray(path, { maxLength: 4 }),
+      titles: fc.option(fc.uniqueArray(title, { minLength: 1, maxLength: 3 }), { nil: null }),
       assumptions: fc.uniqueArray(identifier, { maxLength: 4 }),
       notVerified: fc.uniqueArray(prose(1_000), { minLength: 1, maxLength: 4 }),
-    }).filter((value) => value.kind[1] !== "evidenced" || value.evidence.length > 0);
+    }).filter((value) => (value.kind[1] !== "evidenced" || value.evidence.length > 0)
+      && !(value.alsoQuotes ?? []).some((entry) => entry.path === value.source.path && entry.quote === value.source.quote))
+      .map((value) => {
+        const [layer, status] = value.kind;
+        const propertyLayer = layer === "property" || layer === "stateful-model";
+        const titles = !propertyLayer || value.evidence.length === 0 ? null
+          : status === "evidenced" ? value.titles ?? ["the law"] : value.titles;
+        const properties = titles === null ? null : titles.map((test, index) => ({ path: value.evidence[index % value.evidence.length]!, test }));
+        return { ...value, properties };
+      });
     const rule = fc.record({
       guide: path,
       anchor: prose(300),
@@ -1056,10 +1228,12 @@ describe("register parser", () => {
           statement: generated.statement,
           area: generated.area,
           source: generated.source,
+          ...(generated.alsoQuotes === null ? {} : { alsoQuotes: generated.alsoQuotes }),
           layer,
           status,
           ...(planned ? { phase: generated.phase } : {}),
           evidence: generated.evidence,
+          ...(generated.properties === null ? {} : { properties: generated.properties }),
           assumptions: generated.assumptions,
           notVerified: generated.notVerified,
         }],
@@ -1069,10 +1243,12 @@ describe("register parser", () => {
         statement: generated.statement,
         area: generated.area,
         source: generated.source,
+        alsoQuotes: generated.alsoQuotes ?? [],
         layer,
         status,
         phase: planned ? generated.phase : null,
         evidence: generated.evidence,
+        properties: generated.properties ?? [],
         assumptions: generated.assumptions,
         notVerified: generated.notVerified,
       }]);

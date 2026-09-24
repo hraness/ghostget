@@ -60,11 +60,15 @@ const TYPE_SAMPLES: readonly JsonValue[] = Object.freeze([null, true, 0, 7, "", 
 /**
  * Mutations that every strict manifest parser here must reject: a value of
  * another JSON type anywhere, a missing object field, or an unknown field.
+ * A field named in `optionalFields` may be absent, so it is never removed.
  */
-export function invalidatingMutation(document: JsonValue): fc.Arbitrary<JsonValue> {
+export function invalidatingMutation(document: JsonValue, optionalFields: readonly string[] = []): fc.Arbitrary<JsonValue> {
   const paths = jsonPaths(document);
   const objectPaths = [[], ...paths].filter((path) => isJsonObject(jsonAt(document, path)));
-  const fieldPaths = paths.filter((path) => typeof path.at(-1) === "string");
+  const fieldPaths = paths.filter((path) => {
+    const key = path.at(-1);
+    return typeof key === "string" && !optionalFields.includes(key);
+  });
   return fc.oneof(
     fc.tuple(fc.constantFrom(...paths), fc.constantFrom(...TYPE_SAMPLES))
       .filter(([path, sample]) => jsonType(sample) !== jsonType(jsonAt(document, path)))

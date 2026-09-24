@@ -249,14 +249,20 @@ jobs:
         run: bun run ./scripts/release-source-ci.ts record
       - run: bun install --frozen-lockfile --ignore-scripts
       # Checker archives are re-admitted at their pinned size and SHA-256 on
-      # every run, so the cache only saves downloads. A pin change changes the key.
+      # every run, so the cache only saves downloads. The key ends in
+      # pinnedArchivesDigest() from scripts/verification-tools.ts, so any
+      # change to a pinned name, URL, size, or digest starts a fresh cache.
       - name: Cache pinned checker downloads
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ghostget-verification/downloads
-          key: ghostget-verification-${{ runner.os }}-${{ runner.arch }}-temurin-21.0.12.1+1-apalache-0.62.2-elan-4.2.4-lean-v4.34.0
+          key: ghostget-verification-${{ runner.os }}-${{ runner.arch }}-pins-72eb5177a24cbf8d
+      # The step bound leaves time inside the job bound to retain the logs
+      # of a failed or timed-out run.
       - run: bun run verify
+        timeout-minutes: 16
       - name: Retain checker output
+        if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: verification-attempt-${{ github.run_attempt }}

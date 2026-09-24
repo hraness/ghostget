@@ -4,22 +4,22 @@
 
 This page lists what Ghostget's automated checks establish. Each claim names the layer that carries it, the evidence that checks it, the environment it assumes, and what it leaves unverified. The register `verification/claims.json` is the source, and the plan behind it is `kb/plans/formal-verification-assurance.md`.
 
-A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase schedules its layer, and *not verified* when no automated check covers it. `bun run verify:claims` fails when this page is stale, when a guideline in a scanned `AGENTS.md` has no current rule in the register, or when an evidence path no longer exists.
+A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase schedules its layer, and *not verified* when no automated check covers it. `bun run verify:claims` fails when this page is stale, when a guideline in a scanned `AGENTS.md` has no current rule in the register, when a rule does not list exactly the claims that quote its guideline, when a managed block's text changes, when an evidenced property claim names a test that runs no property, or when an evidence path no longer exists.
 
 ## Summary
 
-The register holds 228 claims: 146 evidenced, 64 planned, and 18 not verified. It maps 86 guidelines from 5 guides; 65 list claims and 21 are exempt.
+The register holds 229 claims: 146 evidenced, 64 planned, and 19 not verified. It maps 86 guidelines from 5 guides; 66 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 111 | 5 | 0 |
-| property test | 35 | 1 | 0 |
+| example test | 133 | 5 | 0 |
+| property test | 13 | 1 | 0 |
 | stateful model | 0 | 14 | 0 |
 | Quint model with production trace replay | 0 | 35 | 0 |
 | Lean proof with differential test | 0 | 8 | 0 |
 | differential oracle | 0 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
-| none | 0 | 0 | 3 |
+| none | 0 | 0 | 4 |
 
 ## What is not verified
 
@@ -29,6 +29,7 @@ The register as a whole does not verify:
 - Correctness of Bun, JavaScriptCore, the operating-system filesystem beyond the modelled `StatePort` semantics, WHATWG URL parsing (covered only differentially), GitHub, npm, Sigstore, and Vercel.
 - Hostile in-process plugin code, which `AGENTS.md` already treats as trusted.
 - Hostile processes running as the same user.
+- Sentence-level coverage inside a guideline. A guideline counts as covered when its rule lists every claim that quotes it; a sentence of a covered guideline may still have no claim, and review of the guideline digest is the only check.
 
 Every claim below also lists its own not-verified scope.
 
@@ -52,10 +53,11 @@ Every claim below also lists its own not-verified scope.
 - `promotion-canary-preserved`: refs/heads/website-production-canary remains at exactly 0bf88a064233635e0c5485c61f9c533974a7dca4 and is never reset, deleted or repurposed. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 - `vercel-project-config`: Vercel project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue` under team `team_UAd1iD2XogJlbFg4h14mRaPM` is linked to GitHub repository 1316443113 with `link.productionBranch=website-production`, `autoExposeSystemEnvs=true`, and persistent `autoAssignCustomDomains=true`; main and pull requests deploy only previews. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 - `control-drift-freezes-production`: Any detected control-plane drift (rulesets, App bypass, App permissions, installation selection, writer environment) leaves production unchanged until the controls are requalified by fresh administrator readback. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. Drift is detected only at setup, after control changes, and during recovery, not on each routine promotion.
+- `website-informational-only`: `website/` explains and documents Ghostget and contains no agent runtime, authenticated product surface, or browser-based substitute for the CLI and SDK. No automated check inspects `website/` for authenticated surfaces, credential handling, or runtime features; review alone enforces this boundary.
 
 ### Exempt guidelines
 
-These guidelines make no claim about the package, CLI, website, or release.
+These guidelines have no claim in the register, and no automated check covers them. Each reason says why.
 
 | Guide | Guideline | Reason |
 | --- | --- | --- |
@@ -66,7 +68,6 @@ These guidelines make no claim about the package, CLI, website, or release.
 | `AGENTS.md` | Keep mandatory rules… | Documentation placement rule; `bun run kb:check` validates guide shape. |
 | `AGENTS.md` | Keep Ghostget a bring-your-own-agent… | Product-scope rule; no automated check covers it, and it states no safety or integrity property. |
 | `AGENTS.md` | Keep exactly one… | Skill-packaging rule; it states no safety or integrity property. |
-| `AGENTS.md` | Keep `website/` informational:… | Product-scope rule for the informational website; it states no safety or integrity property. |
 | `AGENTS.md` | Treat this repository… | Editorial scope rule for repository prose; no automated check covers it. |
 | `AGENTS.md` | An owner release… | Delegation of owner authority to agents; it governs who acts, while the readback and tag claims cover what must hold. |
 | `website/AGENTS.md` | Keep the homepage's… | Presentation rule for the informational website; it states no safety or integrity property. |
@@ -80,6 +81,16 @@ These guidelines make no claim about the package, CLI, website, or release.
 | `website/AGENTS.md` | On a public page,… | Public-copy vocabulary rule; it states no safety or integrity property. |
 | `website/AGENTS.md` | Describe a sibling… | Editorial accuracy rule for sibling-product copy; no automated check covers it. |
 | `website/AGENTS.md` | Use product names… | Public-copy naming rule; it states no safety or integrity property. |
+
+### Managed blocks outside the register
+
+These synced blocks sit inside a scanned Guidelines section but have no rules or claims, and no automated check covers them. The register pins each block's text, so any change fails the register until someone reviews it.
+
+| Guide | Block | Reason |
+| --- | --- | --- |
+| `AGENTS.md` | `hraness-public-copy` | Synced Hraness public-copy policy for prose; it states no property of the package, CLI, website, or release. |
+| `AGENTS.md` | `oompa-local-efficiency` | Synced Hraness delivery and workstation laws, including production-data preservation, runtime-enforced approvals, and delivery-gate guards; no automated check in this repository covers them. |
+| `AGENTS.md` | `algal-skills` | Synced contributor tooling instructions for the algal skill pack; it states no property of the package, CLI, website, or release. |
 
 ### Guides outside the register
 
@@ -110,7 +121,7 @@ Each claim holds only while its listed assumptions hold.
 | `github-enforcement` | GitHub enforces rulesets, environments, concurrency groups, immutable Releases, and token permissions as configured. | 72 |
 | `sigstore` | Sigstore and `gh attestation verify` verify attestation bundles correctly. | 2 |
 | `npm-registry` | The npm registry enforces version immutability, trusted publishing, and provenance as documented. | 17 |
-| `vercel` | Vercel builds and serves deployments as its project settings and APIs report. | 36 |
+| `vercel` | Vercel builds and serves deployments as its project settings and APIs report. | 37 |
 | `administrator-readback` | A signed-in administrator performs the documented live readbacks and reports them faithfully. | 15 |
 | `ci-runner` | GitHub-hosted runners execute the reviewed workflow faithfully. | 15 |
 | `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 10 |
@@ -166,11 +177,11 @@ PID reuse alone cannot reclaim a browser admission claim; automatic reclamation 
 
 A malformed claim, unverifiable owner, or unsafe state path reduces available capture capacity and never creates an extra slot.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `SECURITY.md`: “A malformed claim, an unverifiable owner, or an unsafe state path reduces available capture capacity and never creates an extra slot.”
 - Evidence: `src/browser-admission.property.test.ts`, `src/browser-admission.test.ts`
 - Assumptions: `filesystem-atomic-rename`, `process-liveness`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `browser-admission-no-launch-after-deadline`
 
@@ -190,6 +201,7 @@ The `Required` job succeeds only when every source CI job succeeds, including `v
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “Complete `Required` PR CI is the normal final source integration gate for executable and documentation changes”
+- Also covers: `AGENTS.md`: “CI covers the complete Linux aggregate and a selected macOS suite.”
 - Evidence: `scripts/ci-pr-gate.test.ts`, `scripts/github-release-artifact.test.ts`, `scripts/npm-release-workflow.test.ts`
 - Assumptions: `github-enforcement`, `ci-runner`
 - Not verified: Only the enumerated example cases are checked.
@@ -203,6 +215,7 @@ Contract JSON Schemas are generated from the same shape table as the parsers; pa
 - Evidenced by property test.
 - Source: `docs/contracts.md`: “The schema is generated from the same shape table the parser uses, so the two cannot drift.”
 - Evidence: `src/contracts-schema.test.ts`, `src/contracts-shape.test.ts`
+- Property tests: `src/contracts-shape.test.ts`: “property: valid documents round-trip and validate; parse and schema agree on arbitrary values”; `src/contracts-shape.test.ts`: “property: an unsupported key at any object path is rejected by the parser and the schema”
 - Assumptions: none beyond the register-wide scope
 - Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
 
@@ -220,11 +233,11 @@ Catalog, check, schema, and repair inspection never bind an account or contact a
 
 An operation is public only when it is an observed, dispatch-free, built-in R1 web-session read declaring access public; manifests cannot opt into public execution.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `docs/contracts.md`: “A web-session operation is `public` only when”
 - Evidence: `src/contracts-catalog.test.ts`, `src/web-session-authentication-policy.test.ts`
 - Assumptions: none beyond the register-wide scope
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `collection-plan-read-only-bounded`
 
@@ -233,6 +246,7 @@ collection-plan.v1 requires risk R1 and sideEffect none and enforces bounds (64 
 - Evidenced by property test.
 - Source: `docs/contracts.md`: “`semantics.risk` must be `R1` and `semantics.sideEffect` must be `none`; v1 plans are read-only by construction.”
 - Evidence: `src/contracts-plan.test.ts`
+- Property tests: `src/contracts-plan.test.ts`: “property: generated plans round-trip through JSON, flatten in order, and validate against the schema”; `src/contracts-plan.test.ts`: “property: every parser rejection of a generated mutation is a schema violation or a documented semantic rule”
 - Assumptions: none beyond the register-wide scope
 - Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
 
@@ -243,6 +257,7 @@ Each checked read reports at most one gap chosen by the fixed precedence; reads 
 - Evidenced by property test.
 - Source: `docs/contracts.md`: “Each read reports at most one gap, chosen in this order”
 - Evidence: `src/contracts-check.test.ts`
+- Property tests: `src/contracts-check.test.ts`: “property: checking is deterministic and idempotent and never leaves the closed gap set”; `src/contracts-check.test.ts`: “property: reads derived from the catalog bind ok with the exact installed contract”
 - Assumptions: none beyond the register-wide scope
 - Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
 
@@ -250,11 +265,11 @@ Each checked read reports at most one gap chosen by the fixed precedence; reads 
 
 R1 invoke envelopes are consistent: receipt status/runId equal top-level fields, cache outcome matches status, failed results have null output and a readFailure whose disposition matches its category, output bounded to depth 64 and 4,000,000 nodes.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `docs/contracts.md`: “Invoke result: `receipt.status` and `receipt.runId` equal the top-level fields”
 - Evidence: `src/contracts-invoke-read.test.ts`
 - Assumptions: none beyond the register-wide scope
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `read-failure-disposition-table`
 
@@ -282,11 +297,11 @@ R1 reads store a provisional receipt before execution, accept only zero-dispatch
 
 Requests on the owner-only agent socket cannot grant approvals, alter policy or permissions, connect accounts, import credentials, or resolve secrets.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `src/control/AGENTS.md`: “Agent requests cannot grant approvals, alter policy, connect accounts, or resolve secrets.”
 - Evidence: `src/control/approval-broker.test.ts`, `src/control/helper-lifecycle.test.ts`, `src/control/validation.test.ts`
 - Assumptions: `same-user-trusted`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `control-protocol-bounded-reject-drift`
 
@@ -295,6 +310,7 @@ Administrative and agent control protocols are bounded and reject unknown fields
 - Evidenced by property test.
 - Source: `src/control/AGENTS.md`: “Keep both protocols bounded and reject drift before dispatch.”
 - Evidence: `src/control/helper-client.test.ts`, `src/control/validation.test.ts`
+- Property tests: `src/control/helper-client.test.ts`: “helper rejects malformed envelopes and nested contract drift”; `src/control/validation.test.ts`: “strict parsers reject every generated unknown key”
 - Assumptions: `same-user-trusted`
 - Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
 
@@ -302,11 +318,11 @@ Administrative and agent control protocols are bounded and reject unknown fields
 
 Terminal input, including pasted or unbracketed bursts, cannot issue confirmation or approval without the complete account and exact revision/digest review being displayed.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `src/control/AGENTS.md`: “Terminal input, including pasted text, must never bypass that review.”
 - Evidence: `src/control/tui.test.ts`
 - Assumptions: `same-user-trusted`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `tui-restores-terminal-state`
 
@@ -492,6 +508,7 @@ Protect-main has no bypass actors, requires the pull-request path and exact Requ
 
 - Not verified; intended layer: configuration readback.
 - Source: `AGENTS.md`: “Protect-main has no bypass actors and retains pull-request admission plus the exact Required CI check. Keep its approval minimum at zero and `require_code_owner_review=false` until a second eligible independent code owner exists.”
+- Also covers: `AGENTS.md`: “Never force-push or bypass the gate.”
 - Evidence: `scripts/ci-pr-gate.test.ts`
 - Assumptions: `github-enforcement`, `administrator-readback`
 - Not verified:
@@ -504,6 +521,7 @@ Environment production-ref-writer-key has deployment=false, main-only branch pol
 
 - Not verified; intended layer: configuration readback.
 - Source: `AGENTS.md`: “the main-only, automatically admitted `production-ref-writer-key` environment with no required deployment reviewers or wait timer, no administrator bypass, `prevent_self_review=false`, exactly four App identity variables and the one private-key secret.”
+- Also covers: `website/AGENTS.md`: “Keep no required deployment reviewers or wait timer, `prevent_self_review=false`, no administrator bypass, exact `main` admission, and `deployment: false`.”
 - Evidence: `scripts/npm-release-workflow.test.ts`
 - Assumptions: `github-enforcement`, `administrator-readback`
 - Not verified:
@@ -517,6 +535,7 @@ The release App registration grants exactly metadata:read, contents:write and wo
 
 - Not verified; intended layer: configuration readback.
 - Source: `AGENTS.md`: “The App registration and every minted token must close to exactly `metadata:read`, `contents:write`, and `workflows:write`, with no Administration or other permission.”
+- Also covers: `website/AGENTS.md`: “Keep the App and minted token permission set exact at `metadata:read`, `contents:write`, and `workflows:write`.”
 - Evidence: none
 - Assumptions: `github-enforcement`, `administrator-readback`
 - Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
@@ -537,6 +556,7 @@ Vercel project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue` under team `team_UAd1iD2XogJlb
 
 - Not verified; intended layer: configuration readback.
 - Source: `AGENTS.md`: “keep exact project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue`, team `team_UAd1iD2XogJlbFg4h14mRaPM`, GitHub repository ID `1316443113`, `link.productionBranch=website-production`, `autoExposeSystemEnvs=true`, and persistent `autoAssignCustomDomains=true`.”
+- Also covers: `website/AGENTS.md`: “Keep Vercel project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue` under team `team_UAd1iD2XogJlbFg4h14mRaPM` linked to GitHub repository ID `1316443113`”
 - Evidence: none
 - Assumptions: `github-enforcement`, `vercel`, `administrator-readback`
 - Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
@@ -547,6 +567,7 @@ Any detected control-plane drift (rulesets, App bypass, App permissions, install
 
 - Not verified; intended layer: configuration readback.
 - Source: `AGENTS.md`: “Any detected drift leaves production unchanged until those controls are requalified.”
+- Also covers: `website/AGENTS.md`: “Any detected drift leaves production unchanged until those controls are requalified.”
 - Evidence: none
 - Assumptions: `github-enforcement`, `administrator-readback`
 - Not verified:
@@ -561,6 +582,7 @@ Every product data surface (table, bucket, stream, dynamic route, blob, provider
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “A new table, bucket, stream, dynamic route, blob, or provider meter fails `check:cost-surfaces` until it registers.”
+- Also covers: `AGENTS.md`: “Run `bun run check:cost-surfaces` before handoff whenever a data surface changes.”
 - Evidence: `scripts/check-cost-surfaces.mjs`, `scripts/ci-pr-gate.test.ts`
 - Assumptions: none beyond the register-wide scope
 - Not verified:
@@ -569,13 +591,15 @@ Every product data surface (table, bucket, stream, dynamic route, blob, provider
 
 #### `bounded-inputs`
 
-Every input is bounded before storage or provider I/O: request bytes, row counts, page sizes, batch sizes, retry counts, and event payloads.
+The parsers and stores that the cited tests exercise bound their inputs before storage or provider I/O: request bytes, row counts, page sizes, batch sizes, retry counts, and event payloads.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `AGENTS.md`: “Bound every input before storage or provider I/O”
 - Evidence: `src/article-draft-document.test.ts`, `src/contract-repair-inbox.test.ts`, `src/contracts-plan.test.ts`, `src/control/approval-broker.test.ts`, `src/control/gateway.test.ts`, `src/control/validation.test.ts`, `src/messaging-automation-server.test.ts`, `src/omni-limits.test.ts`, `src/provider-plugin-host.test.ts`, `src/provider-plugin-registry.test.ts`
 - Assumptions: none beyond the register-wide scope
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - Modules without a cited test are not checked, and no static scan finds an unbounded input elsewhere.
 
 #### `mutation-idempotency-key`
 
@@ -596,6 +620,7 @@ Edge negotiation retrieves only same-origin sibling assets: the retrieved origin
 - Evidenced by property test.
 - Source: `kb/plans/formal-verification-assurance.md`: “D12: require `retrieved.origin === request.origin` and add the property.”
 - Evidence: `edge/negotiation.test.ts`
+- Property tests: `edge/negotiation.test.ts`: “property: every retrieved URL keeps the request origin”
 - Assumptions: `whatwg-url`, `edge-runtime`
 - Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
 
@@ -605,6 +630,7 @@ Accept negotiation honors q-values and returns 406 only when no owned representa
 
 - Planned: Lean proof with differential test in plan Phase 5.
 - Source: `edge/AGENTS.md`: “Honor Accept q-values, set `Vary: Accept`, and return `406` only when no owned representation remains.”
+- Also covers: `website/AGENTS.md`: “return `406` only when no owned representation remains”
 - Evidence: `edge/negotiation.test.ts`
 - Assumptions: `whatwg-url`, `edge-runtime`
 - Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
@@ -615,6 +641,7 @@ Negotiated document responses set Vary: Accept.
 
 - Evidenced by example test.
 - Source: `edge/AGENTS.md`: “set `Vary: Accept`”
+- Also covers: `website/AGENTS.md`: “set `Vary: Accept`”
 - Evidence: `edge/negotiation.test.ts`
 - Assumptions: `whatwg-url`, `edge-runtime`
 - Not verified: Only the enumerated example cases are checked.
@@ -625,6 +652,7 @@ Unknown document paths stay HTTP 404 and serve the static markdown 404 body.
 
 - Evidenced by example test.
 - Source: `edge/AGENTS.md`: “Unknown document paths stay HTTP 404 and serve the static markdown 404 body.”
+- Also covers: `website/AGENTS.md`: “Unknown paths stay HTTP 404”
 - Evidence: `edge/negotiation.test.ts`
 - Assumptions: `whatwg-url`, `edge-runtime`
 - Not verified: Only the enumerated example cases are checked.
@@ -635,9 +663,9 @@ Edge files import no Node, Bun, website build, or filesystem modules, and middle
 
 - Evidenced by example test.
 - Source: `edge/AGENTS.md`: “Keep every file here free of Node, Bun, website build, and filesystem imports.”
-- Evidence: `edge/tsconfig.json`
+- Evidence: `edge/imports.test.ts`, `edge/tsconfig.json`
 - Assumptions: `whatwg-url`, `edge-runtime`
-- Not verified: Only the `edge/tsconfig.json` library settings enforce the rule; no import scan runs.
+- Not verified: Only static import declarations and `import()` calls with literal specifiers are scanned; test files under `edge/` run on Bun and are not scanned.
 
 ### `encoding` (4 claims)
 
@@ -660,6 +688,7 @@ canonicalJson over plain JSON with UTF-16 code-unit key order is injective, pars
 - Evidenced by property test.
 - Source: `kb/plans/formal-verification-assurance.md`: “D5: make `canonicalJson` reject non-plain prototypes, sparse arrays, accessors, and symbols”
 - Evidence: `src/canonical-json.test.ts`, `src/client-boundary.test.ts`
+- Property tests: `src/canonical-json.test.ts`: “property: every value fast-check can build encodes exactly when it is in the JSON domain”; `src/canonical-json.test.ts`: “property: a domain violation at any nesting depth is rejected”
 - Assumptions: none beyond the register-wide scope
 - Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
 
@@ -763,12 +792,12 @@ Once a local-CLI mutation child starts, any failure (timeout, signal, malformed 
 
 Media acquisition admits exactly one finite item and rejects playlists/collections and live or non-finite streams.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `AGENTS.md`: “Keep media acquisition to one authorized, accessible, finite, non-DRM item. Reject playlists, live streams”
 - Evidence: `src/media/archive.test.ts`, `src/media/args.test.ts`, `src/media/metadata.property.test.ts`, `src/media/metadata.test.ts`, `src/media/source-router.property.test.ts`, `src/media/yt-dlp.test.ts`
 - Assumptions: `filesystem-atomic-rename`, `media-tools`
 - Not verified:
-  - Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+  - Only the enumerated example cases are checked.
   - Probe and capture are separate yt-dlp calls, and capture does not recheck live or DRM status.
 
 #### `media-reject-drm-auth-bypass`
@@ -864,6 +893,7 @@ The direct-media adapter reads a bounded range, identifies media from bytes, and
 - Evidenced by property test.
 - Source: `SECURITY.md`: “It reads a bounded range, identifies media from bytes, and stores fixed role names instead of URL basenames.”
 - Evidence: `src/media/archive.property.test.ts`, `src/media/http-capture.test.ts`, `src/media/http-probe.property.test.ts`
+- Property tests: `src/media/http-probe.property.test.ts`: “property: chunk partitioning cannot hide bytes beyond the probe declaration”; `src/media/archive.property.test.ts`: “property: opaque raw IDs never enter archive or focused path segments”
 - Assumptions: `filesystem-atomic-rename`, `media-tools`
 - Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
 
@@ -945,11 +975,11 @@ Messaging route, context, reply, and provider references enter only through stdi
 
 Messaging route, context, preview, and execution state is encrypted at rest with authenticated reference binding; authentication failure, expiry, generation drift, or implementation drift makes records unusable and never falls back to plaintext.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `SECURITY.md`: “Ghostget encrypts route, context, preview, and execution state at rest”
 - Evidence: `src/cursor-token.test.ts`, `src/messaging-action-store.test.ts`, `src/messaging-runtime-execution.test.ts`, `src/messaging-store.test.ts`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `messaging-output-outside-state-root`
 
@@ -975,11 +1005,11 @@ The owner messaging host requires explicit allow grants for messaging.automation
 
 The messaging automation protocol rejects a second ordinary in-flight request and enforces frame (24 MiB), response (32 MiB), and asset (16 MiB each, 64 MiB total, 32 entries, canonical Base64 with checked SHA-256) bounds.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `docs/messaging-automation.md`: “Frames are bounded to 24 MiB; responses to 32 MiB. Assets use canonical Base64 and a checked SHA-256, at most 16 MiB each, 64 MiB total and 32 entries.”
 - Evidence: `src/messaging-automation-server.test.ts`, `src/messaging-automation.test.ts`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 ### `mutations` (8 claims)
 
@@ -1042,6 +1072,7 @@ Dispatch callbacks persist transitions against one current journal cell; a stale
 - Evidenced by property test.
 - Source: `docs/effect-confirmed-write-runtime.md`: “A stale or competing callback cannot reuse an older journal snapshot.”
 - Evidence: `src/confirmed-write-program.test.ts`, `src/run-journal.property.test.ts`, `src/run-journal.test.ts`
+- Property tests: `src/run-journal.property.test.ts`: “a lost native acknowledgement never permits a stale journal write in a bounded dispatch schedule”
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
 
@@ -1264,6 +1295,7 @@ An own `__proto__` key in foreign JSON stays visible to exact-key parsing, and `
 - Evidenced by property test.
 - Source: `kb/plans/formal-verification-assurance.md`: “D6: fix the `__proto__` round trip and promote seed 455347073 to a named test.”
 - Evidence: `src/browser-admission.property.test.ts`, `src/contracts-invoke-read.test.ts`, `src/contracts-shape.test.ts`, `src/provider-plugin-registry-semantic.test.ts`
+- Property tests: `src/contracts-invoke-read.test.ts`: “property: bounded arbitrary outputs round-trip; an unsupported key at any envelope path is rejected”
 - Assumptions: none beyond the register-wide scope
 - Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
 
@@ -1293,11 +1325,11 @@ The portable child-process host denies undeclared capabilities, foreign origins,
 
 The validated active catalog rejects duplicate plugin, route, or operation ownership, independent of insertion order, before any command can use it.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `AGENTS.md`: “Reject duplicate plugin, route, or operation ownership before a command can use it.”
 - Evidence: `src/contracts-catalog.test.ts`, `src/operation-permission.property.test.ts`, `src/platform-catalog.property.test.ts`, `src/provider-plugin-portable-registry.test.ts`, `src/provider-plugin-registry.test.ts`
 - Assumptions: `plugin-trusted`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `contract-hash-environment-invariant`
 
@@ -1327,11 +1359,11 @@ The source/dependency closure is derived automatically, snapshotted at registry 
 
 Portable-plugin identity is bound to its exact verified artifact; artifact tampering changes identity separately from the logical descriptor, and identity extensions are rejected.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `AGENTS.md`: “Portable-plugin identity must remain bound to its exact verified artifact.”
 - Evidence: `src/provider-plugin-portable-identity.test.ts`, `src/provider-plugin-portable-registry.test.ts`, `src/recovery.test.ts`, `src/run-journal.property.test.ts`
 - Assumptions: `plugin-trusted`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `plugin-lifecycle-serialized`
 
@@ -1357,11 +1389,11 @@ Plugin update, disable, and removal are refused while the old bundle still owns 
 
 Portable plugins receive no shell, package manager, ambient environment, raw auth locator, unrestricted filesystem, redirect, automatic retry, or caller-chosen network primitive; native code and undeclared module imports are rejected.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `docs/plugins.md`: “It receives no shell, package manager, ambient environment, raw auth locator”
 - Evidence: `src/provider-plugin-host.test.ts`, `src/provider-plugin-import-analysis.test.ts`, `src/provider-plugin-module-analysis.test.ts`, `src/provider-plugin-package.test.ts`
 - Assumptions: `plugin-trusted`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `portable-session-material-sinks`
 
@@ -1380,6 +1412,7 @@ Versioned namespaced plugin state supports exact-byte compare-and-exchange so ov
 - Evidenced by property test.
 - Source: `docs/plugins.md`: “Namespaced state supports exact-byte compare-and-exchange.”
 - Evidence: `src/provider-plugin-portable-runtime.test.ts`
+- Property tests: `src/provider-plugin-portable-runtime.test.ts`: “compare-exchange prevents concurrent lost updates and stale deletes”
 - Assumptions: `plugin-trusted`
 - Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
 
@@ -1407,14 +1440,16 @@ Once a cleanup barrier is marked unsafe, later native proof cannot reverse that 
 
 #### `secrets-out-of-artifacts`
 
-Raw authenticated traffic, cookies, tokens, profiles, private content, and local paths never appear in Git, tests, receipts, logs, diagnostics, or captured evidence.
+The code paths that the cited tests exercise keep raw authenticated traffic, cookies, tokens, profiles, private content, and local paths out of the receipts, logs, diagnostics, and captured evidence they produce.
 
 - Evidenced by property test.
 - Source: `AGENTS.md`: “Keep raw authenticated traffic, cookies, tokens, profiles, private content, and local paths out of Git, tests, receipts, logs, and diagnostics.”
 - Evidence: `scripts/verification-tools.test.ts`, `src/auth-storage.test.ts`, `src/control/gateway.test.ts`, `src/control/interface-cli.test.ts`, `src/control/vault.test.ts`, `src/derive-review.test.ts`, `src/ghostget.test.ts`, `src/har-internal.test.ts`, `src/media/archive.test.ts`, `src/media/process.test.ts`, `src/run-journal.test.ts`
+- Property tests: `src/har-internal.test.ts`: “property: arbitrary identifier-shaped path segments and JSON map keys never survive evidence”; `scripts/verification-tools.test.ts`: “never lets a replaced path, a marker, or a control character through”
 - Assumptions: `same-user-trusted`, `encryption`
 - Not verified:
   - Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+  - Modules outside the cited tests are not checked, and nothing scans output for secrets in general.
   - Git history, test fixtures, and CI logs are not mechanically scanned.
 
 #### `secrets-at-rest-encrypted-private`
@@ -1445,6 +1480,7 @@ Every minted App token is requested and validated to carry exactly metadata:read
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “Runtime must request and validate a token narrowed to Ghostget repository ID `1316443113`”
+- Also covers: `website/AGENTS.md`: “Runtime must narrow and validate the minted token for Ghostget”
 - Evidence: `scripts/npm-release-workflow.test.ts`
 - Assumptions: `github-api`, `github-enforcement`, `vercel`
 - Not verified: No property test covers this law yet; only the enumerated example cases are checked.
@@ -1455,6 +1491,7 @@ After the operation the helper sends exactly one DELETE /installation/token requ
 
 - Planned: Quint model with production trace replay in plan Phase 4.
 - Source: `AGENTS.md`: “send exactly one empty-204 revocation request and require two stable authorization denials”
+- Also covers: `website/AGENTS.md`: “the shared helper must send exactly one empty-204 token revocation”
 - Evidence: `scripts/npm-release-workflow.test.ts`
 - Assumptions: `monotonic-clock`, `github-api`, `github-enforcement`, `vercel`
 - Not verified:
@@ -1597,6 +1634,7 @@ Every read-only gh child process has all WRENCH_RELEASE_APP_* values removed fro
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “Scrub every `WRENCH_RELEASE_APP_*` value from read-only `gh` children.”
+- Also covers: `website/AGENTS.md`: “every read-only GitHub child must be scrubbed of App values”
 - Evidence: `scripts/npm-release-workflow.test.ts`
 - Assumptions: `github-api`, `github-enforcement`, `vercel`
 - Not verified: Only the enumerated example cases are checked.
@@ -1617,6 +1655,7 @@ Promotion proves release commit C ≤ reviewed workflow source W ≤ protected c
 
 - Planned: Quint model with production trace replay in plan Phase 4.
 - Source: `AGENTS.md`: “prove release `C<=W<=M` for protected current main `M`, allowing only linear descendant movement after dispatch”
+- Also covers: `website/AGENTS.md`: “prove `C<=W<=M` for protected current main `M` at every authority sandwich”
 - Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-ref-authority.test.ts`
 - Assumptions: `github-api`, `github-enforcement`, `vercel`
 - Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
@@ -1711,41 +1750,41 @@ The Release workflow runs only on a protected direct tag push (no workflow_dispa
 
 Release admits source only with the exact commit's successful default-branch CI run on its current attempt: exact repository, workflow ID/path, main-push source and tree, every CI job successful with its real checkout log, and recorded workflow/lock hashes and toolchain versions; missing, failed, skipped, ambiguous, stale-attempt, or drifting evidence blocks.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `docs/publishing.md`: “It requires the exact repository, active workflow ID/path, main-push source and tree”
 - Evidence: `scripts/github-release-artifact.test.ts`
 - Assumptions: `github-api`, `github-enforcement`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `release-source-codeql-exact-two-languages`
 
 Source admission requires exactly the Actions and JavaScript/TypeScript CodeQL jobs and analyses on the exact source and current main; missing or extra languages, or two exact-source CodeQL runs, are rejected.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `docs/publishing.md`: “Admission requires exactly those two jobs and analyses, with missing or extra languages rejected.”
 - Evidence: `scripts/github-release-artifact.test.ts`
 - Assumptions: `github-api`, `github-enforcement`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `release-source-codeql-pr-association`
 
 The CodeQL PR comparison is accepted via its returned PR association; the exact 'View all branch alerts' summary is a fallback only when the association array is empty, never when a nonempty association contradicts.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `docs/publishing.md`: “A nonempty contradictory association never falls back to the summary.”
 - Evidence: `scripts/github-release-artifact.test.ts`
 - Assumptions: `github-api`, `github-enforcement`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `release-source-evidence-72h-freshness`
 
 Every required CI and CodeQL job must have completed within 72 hours of admission with valid, non-future timestamps, and each analysis must fall inside its attempt's language-job interval; mutable run update times never establish freshness.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `docs/publishing.md`: “Every required CI and CodeQL job must have completed within 72 hours of admission”
 - Evidence: `scripts/github-release-artifact.test.ts`
 - Assumptions: `monotonic-clock`, `github-api`, `github-enforcement`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `release-source-no-caller-receipt`
 
@@ -1781,11 +1820,11 @@ A release tag is one direct lightweight v<version> tag on the admitted commit; a
 
 release-manifest.json is parsed strictly and must bind repository, name, version, tag, source C, workflow authority W, run ID/attempt and archive size/SHA-256/SHA-512 to the requested values.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `docs/publishing.md`: “`release-manifest.json`, the strict `hraness-github-release-v1` identity, including repository/name/version/tag, source `C`, reviewed workflow authority `W`, run ID/attempt, and archive size/SHA-256/SHA-512.”
 - Evidence: `scripts/github-release-artifact.test.ts`, `website/github-release-artifact.test.ts`
 - Assumptions: `github-api`, `github-enforcement`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `release-file-specific-size-bounds`
 
@@ -1794,6 +1833,7 @@ Archive transfer is capped at 12 MiB from v0.18.1 (8 MiB earlier), receipt and m
 - Evidenced by property test.
 - Source: `docs/publishing.md`: “The transfer envelope admits an archive of at most 12 MiB from `v0.18.1`; earlier archives retain their 8 MiB limit”
 - Evidence: `scripts/github-release-artifact.test.ts`, `website/github-release-artifact.test.ts`
+- Property tests: `scripts/github-release-artifact.test.ts`: “property: foreign archive sizes are accepted exactly within the versioned transfer bound”
 - Assumptions: `github-api`, `github-enforcement`
 - Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
 
@@ -1801,11 +1841,11 @@ Archive transfer is capped at 12 MiB from v0.18.1 (8 MiB earlier), receipt and m
 
 The archive and npm receipt must agree on every safe USTAR entry, mode, count, size and integrity; extra files, traversal, links, malformed receipts, unsafe package configuration and mismatched bytes are rejected, and both tar consumers agree on hostile USTAR headers.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `docs/publishing.md`: “Reject extra files, traversal, links, malformed receipts, unsafe package configuration, and mismatched bytes.”
 - Evidence: `scripts/github-release-artifact.test.ts`, `scripts/npm-release-workflow.test.ts`
 - Assumptions: `github-api`, `github-enforcement`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `release-attest-checkout-free-reauthorized`
 
@@ -2028,11 +2068,11 @@ Release display title, run display name, actor logins and receipt body are prese
 
 Repair signals are bounded and contain no account ID, subject, input or input hash, provider output, URL, credential, raw diagnostic, or HAR.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `AGENTS.md`: “Keep failed-invocation signals free of account identifiers, inputs, private content, and raw errors.”
 - Evidence: `src/contract-repair-cli.test.ts`, `src/contract-repair-inbox.test.ts`, `src/contracts-repair.test.ts`
 - Assumptions: `filesystem-atomic-rename`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `repair-inspection-no-demand`
 
@@ -2058,21 +2098,21 @@ Every repair handoff fixes `authority.recapture`, `retry`, `activate`, and `publ
 
 The contract-repair inbox holds at most 128 entries, 2048 bytes per signal, and 262144 bytes total; full storage refuses new leads without evicting live ones.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `costs.json`: “budget": { "maxEntries": 128, "maxBytes": 262144, "maxBytesPerSignal": 2048 }”
 - Evidence: `src/contract-repair-inbox.test.ts`
 - Assumptions: `filesystem-atomic-rename`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `repair-inbox-ttl`
 
 Repair inbox entries are hidden after 30 days and compacted only on the next admitted write; duplicate delivery never rewrites an entry.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `costs.json`: “Hidden after 30 days; expired entries are compacted on the next admitted write”
 - Evidence: `src/contract-repair-inbox.test.ts`
 - Assumptions: `filesystem-atomic-rename`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `repair-storage-failure-isolated`
 
@@ -2229,6 +2269,7 @@ Hraness dependencies are pinned to reviewed immutable releases or full commits, 
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “Pin Hraness dependencies to reviewed immutable releases or full commits.”
+- Also covers: `AGENTS.md`: “consume shared design-kit or `@hraness/ui` primitives only at immutable versions”
 - Evidence: `website/site.test.ts`
 - Assumptions: `ci-runner`
 - Not verified:
@@ -2276,6 +2317,7 @@ The ITF reader accepts only the value encodings Quint and Apalache write; bounds
 - Evidenced by property test.
 - Source: `AGENTS.md`: “Parse every foreign manifest, package, message, plan, receipt, response, and CLI value from `unknown`; reject extra fields, malformed bounds, ambiguous ownership, and drift.”
 - Evidence: `scripts/verification-itf.test.ts`
+- Property tests: `scripts/verification-itf.test.ts`: “every container level counts once against the depth bound”; `scripts/verification-itf.test.ts`: “bounds every string in UTF-8 bytes wherever the trace holds one”; `scripts/verification-itf.test.ts`: “a set or map is rejected exactly when two members or keys denote the same value”; `scripts/verification-itf.test.ts`: “a JSON number is read exactly when it is a safe integer other than -0”; `scripts/verification-itf.test.ts`: “#bigint text is read exactly when it is a canonical decimal integer of at most 78 digits”; `scripts/verification-itf.test.ts`: “every state must carry its own index and assign exactly the declared variables”
 - Assumptions: `ci-runner`, `verification-tools`
 - Not verified:
   - Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
@@ -2283,7 +2325,7 @@ The ITF reader accepts only the value encodings Quint and Apalache write; bounds
 
 #### `verification-lean-trusted-base`
 
-The core-only Lean project builds with warnings as errors, every theorem listed in `proofs.json` exists as a theorem, each seeded defect has a refutation theorem that states the broken property about it, the axiom audit and source scan reject `sorry`, `admit`, native evaluation, unlisted axioms, and other trust escapes, and a seeded `sorry` canary must fail the build and the audit on every run.
+The core-only Lean project builds with warnings as errors; every theorem listed in `proofs.json` exists as a theorem whose kernel statement matches its recorded SHA-256; for each seeded defect, the audit checks at the kernel-term level that the defect has the guarded definition's type and that the refutation states exactly the negation of the guarded theorem with the defect in place of the guarded definition; the axiom audit and source scan reject `sorry`, `admit`, native evaluation, unlisted axioms, and other trust escapes; and a seeded `sorry` canary must fail the build and the audit on every run.
 
 - Evidenced by example test.
 - Source: `verification/AGENTS.md`: “the audit rejects `sorry`, `admit`, native evaluation, unlisted axioms, and other trust escapes.”
@@ -2292,6 +2334,7 @@ The core-only Lean project builds with warnings as errors, every theorem listed 
 - Not verified:
   - Only the enumerated example cases are checked.
   - The smoke theorems state nothing about Ghostget code, and the Lean kernel and toolchain are trusted.
+  - The negation check compares kernel terms syntactically; a refutation that is only definitionally equal to the negation is rejected, not accepted.
 
 #### `verification-model-replay-required`
 
@@ -2299,6 +2342,7 @@ Every Quint model records its invariants, seeds, bounds, a mutant, and a replay 
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “Count a Quint model as conformance evidence only after an ITF trace replay test drives production code through its traces; until then it is design evidence.”
+- Also covers: `verification/AGENTS.md`: “Set the replay target to `production` only when the replay test drives production code”
 - Evidence: `scripts/verification-claims.test.ts`, `scripts/verification-tools.test.ts`, `verification/quint/models.json`
 - Assumptions: `ci-runner`, `verification-tools`
 - Not verified: Only the enumerated example cases are checked.
@@ -2319,6 +2363,7 @@ Every claim carries its layer, status, assumptions, and a non-empty not-verified
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “Give every claim its not-verified scope, and regenerate `docs/assurance.md`.”
+- Also covers: `verification/AGENTS.md`: “Keep a claim `planned` with its plan phase until its layer runs in CI.”
 - Evidence: `docs/assurance.md`, `scripts/verification-claims.test.ts`
 - Assumptions: `ci-runner`, `verification-tools`
 - Not verified: Only the enumerated example cases are checked.
@@ -2329,6 +2374,7 @@ Every recorded shrink or failing seed is promoted to a named example test beside
 
 - Planned: example test in plan Phase 2.
 - Source: `AGENTS.md`: “Promote every recorded shrink or failing seed to a named example test.”
+- Also covers: `AGENTS.md`: “then promote a minimized failure to a named regression”
 - Evidence: none
 - Assumptions: `ci-runner`, `verification-tools`
 - Not verified: The example test for this claim is scheduled for plan Phase 2; no automated check covers it yet.
@@ -2339,6 +2385,7 @@ The published package excludes `verification/`, the verification scripts, and ch
 
 - Evidenced by example test.
 - Source: `verification/AGENTS.md`: “Keep this directory, the verification scripts, and the checker downloads out of the published package.”
+- Also covers: `verification/AGENTS.md`: “Keep generated traces, build output, and downloaded tools out of Git.”
 - Evidence: `scripts/verification-tools.test.ts`
 - Assumptions: `ci-runner`, `verification-tools`
 - Not verified: Only the enumerated example cases are checked.
@@ -2349,11 +2396,11 @@ The published package excludes `verification/`, the verification scripts, and ch
 
 The public web gateway dispatches only bounded HTTPS GET and HEAD retrieval requests that the web policy admits, with no request body and no ambient authentication.
 
-- Evidenced by property test.
+- Evidenced by example test.
 - Source: `AGENTS.md`: “The separate public web gateway accepts only explicitly policy-admitted HTTPS retrieval URLs”
 - Evidence: `src/control/gateway.test.ts`, `src/control/interface-cli.test.ts`, `src/control/validation.test.ts`, `src/operation-permission.property.test.ts`
 - Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
-- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+- Not verified: Only the enumerated example cases are checked.
 
 #### `web-policy-deny-dominates`
 
@@ -2371,6 +2418,7 @@ Gateway retrieval uses the pinned transport: one validated DNS address, redirect
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “through its pinned transport and durable audit boundary.”
+- Also covers: `src/control/AGENTS.md`: “no redirects or ambient credentials”
 - Evidence: `src/control/gateway.test.ts`, `src/pinned-https.test.ts`
 - Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
 - Not verified: Only the enumerated example cases are checked.
@@ -2381,6 +2429,7 @@ The gateway rejects private, loopback, and other non-public addresses (including
 
 - Planned: differential oracle in plan Phase 7.
 - Source: `SECURITY.md`: “private addresses”
+- Also covers: `src/control/AGENTS.md`: “public pinned DNS”
 - Evidence: `src/control/validation.test.ts`, `src/pinned-https.test.ts`
 - Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
 - Not verified:
@@ -2393,6 +2442,7 @@ A durable audit record exists before any gateway network dispatch, and a failed 
 
 - Planned: stateful model in plan Phase 2.
 - Source: `AGENTS.md`: “through its pinned transport and durable audit boundary.”
+- Also covers: `src/control/AGENTS.md`: “durable metadata before dispatch”
 - Evidence: `src/control/gateway.test.ts`
 - Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
 - Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
@@ -2419,7 +2469,7 @@ A state home in gateway-only mode restricts Ghostget command routing to policy-a
   - Only the enumerated example cases are checked.
   - Gateway-only mode is not an operating-system network sandbox; a same-user process can bypass the application policy.
 
-### `website` (11 claims)
+### `website` (12 claims)
 
 #### `analytics-allowlist-byte-ceiling`
 
@@ -2427,6 +2477,8 @@ Analytics events come from a checked allowlist (page lifecycle, web vitals, the 
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “Analytics and metering events come from a checked allowlist with a byte ceiling per event.”
+- Also covers: `website/AGENTS.md`: “Keep analytics canonical-host-only, cookieless, personless”
+- Also covers: `website/AGENTS.md`: “cookies, replay, identity, feature flags, broad autocapture, console capture”
 - Evidence: `website/analytics.test.ts`
 - Assumptions: `vercel`
 - Not verified:
@@ -2439,6 +2491,7 @@ Website release identity and install commands derive from the validated root pac
 
 - Evidenced by example test.
 - Source: `website/AGENTS.md`: “Derive release identity and install commands from the validated root `package.json`; never copy a version into page source.”
+- Also covers: `website/AGENTS.md`: “pin its skills source to `hraness/ghostget#v<package version>`”
 - Evidence: `website/site.test.ts`, `website/skill-install-command.test.ts`
 - Assumptions: `vercel`
 - Not verified: Only the enumerated example cases are checked.
@@ -2469,6 +2522,7 @@ Preview, development and local builds never emit the marker and remove any stale
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “Preview and local builds emit no marker.”
+- Also covers: `website/AGENTS.md`: “preview builds must not depend on npm or GitHub release availability and must not emit the production marker”
 - Evidence: `website/vercel-build.test.ts`
 - Assumptions: `vercel`
 - Not verified: Only the enumerated example cases are checked.
@@ -2479,6 +2533,7 @@ The baseline reads the marker twice; a 404 is admitted only when promoting exact
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “The provider baseline reads it twice; only exact v0.16.5 may begin from 404.”
+- Also covers: `website/AGENTS.md`: “The marker may be absent only at the v0.16.5 baseline that introduces it; every later baseline requires it.”
 - Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`
 - Assumptions: `vercel`
 - Not verified: No property test covers this law yet; only the enumerated example cases are checked.
@@ -2489,6 +2544,7 @@ Each public snapshot requires exactly one no-follow www 308 whose Location prese
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “finishes with two stable apex marker/health snapshots plus one exact no-follow `www` 308 in each snapshot.”
+- Also covers: `website/AGENTS.md`: “require `www` to return one exact no-follow 308 to the same apex marker path and query”
 - Evidence: `scripts/release-provider-outcome.test.ts`
 - Assumptions: `vercel`
 - Not verified: No property test covers this law yet; only the enumerated example cases are checked.
@@ -2499,6 +2555,7 @@ Only a verified Production build emits `/.well-known/wrench-release.json`, after
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “A verified Production build emits one exact seven-key `/.well-known/wrench-release.json` after its site build, binding the verifier-proven local HEAD and release tag to the strict unique Vercel deployment URL.”
+- Also covers: `website/AGENTS.md`: “Each verified Production build emits exact bounded `/.well-known/wrench-release.json` bytes only after the release verifier and site build pass”
 - Evidence: `scripts/release-provider-outcome.test.ts`, `website/production-release-marker.test.ts`, `website/production-release-verifier.test.ts`, `website/vercel-build.test.ts`
 - Assumptions: `vercel`
 - Not verified: No property test covers this law yet; only the enumerated example cases are checked.
@@ -2509,6 +2566,7 @@ During outcome the apex marker may show only the baseline identity or the exact 
 
 - Planned: Quint model with production trace replay in plan Phase 4.
 - Source: `AGENTS.md`: “Outcome requires that deployment URL to equal the pinned status URLs, permits only baseline-to-target movement”
+- Also covers: `website/AGENTS.md`: “Public outcome checks require that URL to equal the pinned deployment status”
 - Evidence: `scripts/npm-release-workflow.test.ts`
 - Assumptions: `vercel`
 - Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
@@ -2519,6 +2577,8 @@ A production Vercel build requires VERCEL_GIT_COMMIT_REF=website-production, exa
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “`main` and pull requests are preview sources, never production website sources.”
+- Also covers: `website/AGENTS.md`: “Require `VERCEL_GIT_COMMIT_REF=website-production` only for production”
+- Also covers: `website/AGENTS.md`: “production verifies immutable GitHub metadata, exact five descriptors, bot/source receipt, manifest/archive digests, HEAD/tag, and Latest”
 - Evidence: `website/production-release-verifier.test.ts`, `website/vercel-build.test.ts`
 - Assumptions: `vercel`
 - Not verified: Only the enumerated example cases are checked.
@@ -2529,6 +2589,17 @@ Checked-in workflows stay token-free for Vercel and never mutate project setting
 
 - Evidenced by example test.
 - Source: `docs/publishing.md`: “Checked-in workflows never mutate this project setting, call the Vercel API, or perform an alias or promote operation”
+- Also covers: `website/AGENTS.md`: “Checked-in workflows remain token-free and never mutate the setting, call Vercel APIs, alias, or promote.”
 - Evidence: `scripts/npm-release-workflow.test.ts`
 - Assumptions: `vercel`
 - Not verified: Only the enumerated example cases are checked.
+
+#### `website-informational-only`
+
+`website/` explains and documents Ghostget and contains no agent runtime, authenticated product surface, or browser-based substitute for the CLI and SDK.
+
+- Not verified.
+- Source: `AGENTS.md`: “Keep `website/` informational: it may explain and document Ghostget, but must not grow an agent runtime, authenticated product surface, or browser-based substitute for the CLI and SDK.”
+- Evidence: none
+- Assumptions: `vercel`
+- Not verified: No automated check inspects `website/` for authenticated surfaces, credential handling, or runtime features; review alone enforces this boundary.

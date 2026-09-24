@@ -25,6 +25,7 @@ import {
 } from "./verification-itf.js";
 import {
   QUINT,
+  QUINT_TRACE_TIMEOUT_MS,
   REPOSITORY_ROOT,
   quintTraceArguments,
   readQuintModels,
@@ -161,7 +162,7 @@ async function generateTraces(model: QuintModel, step: string): Promise<readonly
     ], {
       cwd: join(REPOSITORY_ROOT, "verification", "quint"),
       environment: { HOME: directory, PATH: "/usr/bin:/bin", NO_COLOR: "1", FORCE_COLOR: "0", TZ: "UTC" },
-      timeoutMs: 5 * 60_000,
+      timeoutMs: QUINT_TRACE_TIMEOUT_MS,
     });
     const result = requireFinished("quint run --mbt", outcome);
     if (result.exitCode !== 0) throw new Error(`quint run --mbt exited with ${String(result.exitCode)}: ${result.stderr.slice(0, 2_000)}`);

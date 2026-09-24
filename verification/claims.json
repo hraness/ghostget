@@ -1,11 +1,12 @@
 {
-  "schema": "ghostget-claims-v1",
+  "schema": "ghostget-claims-v2",
   "plan": "kb/plans/formal-verification-assurance.md",
   "notVerified": [
     "Provider behaviour on third-party sites.",
     "Correctness of Bun, JavaScriptCore, the operating-system filesystem beyond the modelled `StatePort` semantics, WHATWG URL parsing (covered only differentially), GitHub, npm, Sigstore, and Vercel.",
     "Hostile in-process plugin code, which `AGENTS.md` already treats as trusted.",
-    "Hostile processes running as the same user."
+    "Hostile processes running as the same user.",
+    "Sentence-level coverage inside a guideline. A guideline counts as covered when its rule lists every claim that quotes it; a sentence of a covered guideline may still have no claim, and review of the guideline digest is the only check."
   ],
   "assumptions": [
     {
@@ -105,9 +106,21 @@
     {
       "path": "AGENTS.md",
       "managedBlocks": [
-        "hraness-public-copy",
-        "oompa-local-efficiency",
-        "algal-skills"
+        {
+          "name": "hraness-public-copy",
+          "digest": "3bfebb2763dc564771dba1e3ceb04170fce994399b7e6e67437334cf99300cbf",
+          "reason": "Synced Hraness public-copy policy for prose; it states no property of the package, CLI, website, or release."
+        },
+        {
+          "name": "oompa-local-efficiency",
+          "digest": "253dbd72a8a0d318f7641e2f828cabd21587dfcbb77489b6867da26ec3b52279",
+          "reason": "Synced Hraness delivery and workstation laws, including production-data preservation, runtime-enforced approvals, and delivery-gate guards; no automated check in this repository covers them."
+        },
+        {
+          "name": "algal-skills",
+          "digest": "34d9d322ecc66cbc7608480876028b5dccde1f44631fc6f2198ba9c23d417cab",
+          "reason": "Synced contributor tooling instructions for the algal skill pack; it states no property of the package, CLI, website, or release."
+        }
       ]
     },
     {
@@ -143,8 +156,7 @@
       "anchor": "Use Bun 1.3.14. Complete",
       "digest": "04a03c959fcac1804562b47803d63c414cf2507f1161d47b16b55486882d43c3",
       "claims": [
-        "ci-source-coverage-contract",
-        "protect-main-ruleset"
+        "ci-source-coverage-contract"
       ]
     },
     {
@@ -225,7 +237,9 @@
       "guide": "AGENTS.md",
       "anchor": "Keep `website/` informational:",
       "digest": "4441f3ef230757117da50c0f5c425fadb1d4347a37e48c868dc28129fff18d64",
-      "exempt": "Product-scope rule for the informational website; it states no safety or integrity property."
+      "claims": [
+        "website-informational-only"
+      ]
     },
     {
       "guide": "AGENTS.md",
@@ -325,11 +339,7 @@
       "anchor": "Pair concrete behavior",
       "digest": "6010a3de6abb915c885ce7916f61cc7029f220347f2700b23022e7193f33ed24",
       "claims": [
-        "canonical-json-rejects-non-json",
-        "identifier-roundtrip",
-        "property-seed-replay",
-        "read-result-proto-roundtrip",
-        "strict-foreign-parsing"
+        "identifier-roundtrip"
       ]
     },
     {
@@ -337,9 +347,7 @@
       "anchor": "Model consequential lifecycle",
       "digest": "cbccd27b03f72885e2785c620ad75e079af93d02ffecda9092a506e2ade140fd",
       "claims": [
-        "journal-invariant-inductive",
         "lifecycle-injected-clocks",
-        "messaging-recovery-model",
         "property-seed-replay",
         "verification-shrink-promotion"
       ]
@@ -695,8 +703,7 @@
       "anchor": "Change a claim together",
       "digest": "d91d8ac6b98ea18adcb8ea17dcdf69c0827c040a524ddfe12517436dab7a1d19",
       "claims": [
-        "verification-claim-scope",
-        "verification-register-complete"
+        "verification-claim-scope"
       ]
     },
     {
@@ -704,8 +711,7 @@
       "anchor": "Record every Quint",
       "digest": "f30a2b9a673543fabbefc671aee75168540ee5d7e01cc8e96ee3e9c4df778305",
       "claims": [
-        "verification-model-replay-required",
-        "verification-quint-smoke"
+        "verification-model-replay-required"
       ]
     },
     {
@@ -764,6 +770,8 @@
       "digest": "6f5a905e59ab787cda64eba32f7dc5ebfb777ce494770df0ba87e829989d6fa5",
       "claims": [
         "preview-builds-independent",
+        "release-app-env-scrubbed-from-gh",
+        "release-app-token-revoked-exactly-once",
         "vercel-build-admission-fail-closed",
         "website-baseline-marker-404-only-v0165",
         "website-marker-production-only",
@@ -796,11 +804,8 @@
       "digest": "b57b01df4810593ea139fbfc710122f5bf645c965290f688e0bfed19f4b7bb1b",
       "claims": [
         "production-writer-env-config",
-        "release-app-env-scrubbed-from-gh",
         "release-app-permissions-exact",
-        "release-app-rest-cap-fourteen",
-        "release-app-token-narrowed",
-        "release-app-token-revoked-exactly-once"
+        "release-app-token-narrowed"
       ]
     },
     {
@@ -837,7 +842,6 @@
       "digest": "8a064dd611e5b50e576beda80d2208546bcc3dcc0a7f559e7536620032f5a0bd",
       "claims": [
         "edge-accept-406-only-when-empty",
-        "edge-same-origin-retrieval",
         "edge-unknown-404",
         "edge-vary-accept"
       ]
@@ -1017,7 +1021,7 @@
         "path": "AGENTS.md",
         "quote": "The separate public web gateway accepts only explicitly policy-admitted HTTPS retrieval URLs"
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/control/gateway.test.ts",
@@ -1031,7 +1035,7 @@
         "dns-tls"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -1079,6 +1083,12 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "src/control/AGENTS.md",
+          "quote": "no redirects or ambient credentials"
+        }
       ]
     },
     {
@@ -1104,6 +1114,12 @@
       "notVerified": [
         "The differential oracle for this claim is scheduled for plan Phase 7; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
         "The address classifier comes from `@hraness/kb`; no independent registry oracle checks it yet."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "src/control/AGENTS.md",
+          "quote": "public pinned DNS"
+        }
       ]
     },
     {
@@ -1127,6 +1143,12 @@
       ],
       "notVerified": [
         "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "src/control/AGENTS.md",
+          "quote": "durable metadata before dispatch"
+        }
       ]
     },
     {
@@ -1185,7 +1207,7 @@
         "path": "src/control/AGENTS.md",
         "quote": "Agent requests cannot grant approvals, alter policy, connect accounts, or resolve secrets."
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/control/approval-broker.test.ts",
@@ -1196,7 +1218,7 @@
         "same-user-trusted"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -1218,6 +1240,16 @@
       ],
       "notVerified": [
         "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+      ],
+      "properties": [
+        {
+          "path": "src/control/helper-client.test.ts",
+          "test": "helper rejects malformed envelopes and nested contract drift"
+        },
+        {
+          "path": "src/control/validation.test.ts",
+          "test": "strict parsers reject every generated unknown key"
+        }
       ]
     },
     {
@@ -1228,7 +1260,7 @@
         "path": "src/control/AGENTS.md",
         "quote": "Terminal input, including pasted text, must never bypass that review."
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/control/tui.test.ts"
@@ -1237,7 +1269,7 @@
         "same-user-trusted"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -1466,7 +1498,7 @@
         "path": "AGENTS.md",
         "quote": "Keep media acquisition to one authorized, accessible, finite, non-DRM item. Reject playlists, live streams"
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/media/archive.test.ts",
@@ -1481,7 +1513,7 @@
         "media-tools"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs.",
+        "Only the enumerated example cases are checked.",
         "Probe and capture are separate yt-dlp calls, and capture does not recheck live or DRM status."
       ]
     },
@@ -1700,6 +1732,16 @@
       ],
       "notVerified": [
         "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+      ],
+      "properties": [
+        {
+          "path": "src/media/http-probe.property.test.ts",
+          "test": "property: chunk partitioning cannot hide bytes beyond the probe declaration"
+        },
+        {
+          "path": "src/media/archive.property.test.ts",
+          "test": "property: opaque raw IDs never enter archive or focused path segments"
+        }
       ]
     },
     {
@@ -1777,7 +1819,7 @@
         "path": "AGENTS.md",
         "quote": "Reject duplicate plugin, route, or operation ownership before a command can use it."
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/contracts-catalog.test.ts",
@@ -1790,7 +1832,7 @@
         "plugin-trusted"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -1847,7 +1889,7 @@
         "path": "AGENTS.md",
         "quote": "Portable-plugin identity must remain bound to its exact verified artifact."
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/provider-plugin-portable-identity.test.ts",
@@ -1859,7 +1901,7 @@
         "plugin-trusted"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -1914,7 +1956,7 @@
         "path": "docs/plugins.md",
         "quote": "It receives no shell, package manager, ambient environment, raw auth locator"
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/provider-plugin-host.test.ts",
@@ -1926,7 +1968,7 @@
         "plugin-trusted"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -1968,6 +2010,12 @@
       ],
       "notVerified": [
         "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+      ],
+      "properties": [
+        {
+          "path": "src/provider-plugin-portable-runtime.test.ts",
+          "test": "compare-exchange prevents concurrent lost updates and stale deletes"
+        }
       ]
     },
     {
@@ -2057,6 +2105,12 @@
       "assumptions": [],
       "notVerified": [
         "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+      ],
+      "properties": [
+        {
+          "path": "src/contracts-invoke-read.test.ts",
+          "test": "property: bounded arbitrary outputs round-trip; an unsupported key at any envelope path is rejected"
+        }
       ]
     },
     {
@@ -2076,6 +2130,16 @@
       "assumptions": [],
       "notVerified": [
         "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+      ],
+      "properties": [
+        {
+          "path": "src/contracts-shape.test.ts",
+          "test": "property: valid documents round-trip and validate; parse and schema agree on arbitrary values"
+        },
+        {
+          "path": "src/contracts-shape.test.ts",
+          "test": "property: an unsupported key at any object path is rejected by the parser and the schema"
+        }
       ]
     },
     {
@@ -2105,7 +2169,7 @@
         "path": "docs/contracts.md",
         "quote": "A web-session operation is `public` only when"
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/contracts-catalog.test.ts",
@@ -2113,7 +2177,7 @@
       ],
       "assumptions": [],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -2132,6 +2196,16 @@
       "assumptions": [],
       "notVerified": [
         "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+      ],
+      "properties": [
+        {
+          "path": "src/contracts-plan.test.ts",
+          "test": "property: generated plans round-trip through JSON, flatten in order, and validate against the schema"
+        },
+        {
+          "path": "src/contracts-plan.test.ts",
+          "test": "property: every parser rejection of a generated mutation is a schema violation or a documented semantic rule"
+        }
       ]
     },
     {
@@ -2150,6 +2224,16 @@
       "assumptions": [],
       "notVerified": [
         "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+      ],
+      "properties": [
+        {
+          "path": "src/contracts-check.test.ts",
+          "test": "property: checking is deterministic and idempotent and never leaves the closed gap set"
+        },
+        {
+          "path": "src/contracts-check.test.ts",
+          "test": "property: reads derived from the catalog bind ok with the exact installed contract"
+        }
       ]
     },
     {
@@ -2160,14 +2244,14 @@
         "path": "docs/contracts.md",
         "quote": "Invoke result: `receipt.status` and `receipt.runId` equal the top-level fields"
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/contracts-invoke-read.test.ts"
       ],
       "assumptions": [],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -2249,6 +2333,16 @@
       "assumptions": [],
       "notVerified": [
         "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+      ],
+      "properties": [
+        {
+          "path": "src/canonical-json.test.ts",
+          "test": "property: every value fast-check can build encodes exactly when it is in the JSON domain"
+        },
+        {
+          "path": "src/canonical-json.test.ts",
+          "test": "property: a domain violation at any nesting depth is rejected"
+        }
       ]
     },
     {
@@ -2496,6 +2590,12 @@
       ],
       "notVerified": [
         "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+      ],
+      "properties": [
+        {
+          "path": "src/run-journal.property.test.ts",
+          "test": "a lost native acknowledgement never permits a stale journal write in a bounded dispatch schedule"
+        }
       ]
     },
     {
@@ -2691,7 +2791,7 @@
         "path": "SECURITY.md",
         "quote": "Ghostget encrypts route, context, preview, and execution state at rest"
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/cursor-token.test.ts",
@@ -2704,7 +2804,7 @@
         "provider-behaviour"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -2759,7 +2859,7 @@
         "path": "docs/messaging-automation.md",
         "quote": "Frames are bounded to 24 MiB; responses to 32 MiB. Assets use canonical Base64 and a checked SHA-256, at most 16 MiB each, 64 MiB total and 32 entries."
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/messaging-automation-server.test.ts",
@@ -2770,7 +2870,7 @@
         "provider-behaviour"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -2917,7 +3017,7 @@
     },
     {
       "id": "secrets-out-of-artifacts",
-      "statement": "Raw authenticated traffic, cookies, tokens, profiles, private content, and local paths never appear in Git, tests, receipts, logs, diagnostics, or captured evidence.",
+      "statement": "The code paths that the cited tests exercise keep raw authenticated traffic, cookies, tokens, profiles, private content, and local paths out of the receipts, logs, diagnostics, and captured evidence they produce.",
       "area": "privacy",
       "source": {
         "path": "AGENTS.md",
@@ -2944,7 +3044,18 @@
       ],
       "notVerified": [
         "Generated inputs are sampled at the configured run count; this is not a proof over all inputs.",
+        "Modules outside the cited tests are not checked, and nothing scans output for secrets in general.",
         "Git history, test fixtures, and CI logs are not mechanically scanned."
+      ],
+      "properties": [
+        {
+          "path": "src/har-internal.test.ts",
+          "test": "property: arbitrary identifier-shaped path segments and JSON map keys never survive evidence"
+        },
+        {
+          "path": "scripts/verification-tools.test.ts",
+          "test": "never lets a replaced path, a marker, or a control character through"
+        }
       ]
     },
     {
@@ -3047,7 +3158,7 @@
         "path": "SECURITY.md",
         "quote": "A malformed claim, an unverifiable owner, or an unsafe state path reduces available capture capacity and never creates an extra slot."
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/browser-admission.property.test.ts",
@@ -3058,7 +3169,7 @@
         "process-liveness"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -3092,7 +3203,7 @@
         "path": "AGENTS.md",
         "quote": "Keep failed-invocation signals free of account identifiers, inputs, private content, and raw errors."
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/contract-repair-cli.test.ts",
@@ -3103,7 +3214,7 @@
         "filesystem-atomic-rename"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -3158,7 +3269,7 @@
         "path": "costs.json",
         "quote": "budget\": { \"maxEntries\": 128, \"maxBytes\": 262144, \"maxBytesPerSignal\": 2048 }"
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/contract-repair-inbox.test.ts"
@@ -3167,7 +3278,7 @@
         "filesystem-atomic-rename"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -3178,7 +3289,7 @@
         "path": "costs.json",
         "quote": "Hidden after 30 days; expired entries are compacted on the next admitted write"
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/contract-repair-inbox.test.ts"
@@ -3187,7 +3298,7 @@
         "filesystem-atomic-rename"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -3372,17 +3483,23 @@
       "notVerified": [
         "Only the enumerated example cases are checked.",
         "No unit test covers the surface detector in `scripts/check-cost-surfaces.mjs`."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "AGENTS.md",
+          "quote": "Run `bun run check:cost-surfaces` before handoff whenever a data surface changes."
+        }
       ]
     },
     {
       "id": "bounded-inputs",
-      "statement": "Every input is bounded before storage or provider I/O: request bytes, row counts, page sizes, batch sizes, retry counts, and event payloads.",
+      "statement": "The parsers and stores that the cited tests exercise bound their inputs before storage or provider I/O: request bytes, row counts, page sizes, batch sizes, retry counts, and event payloads.",
       "area": "costs",
       "source": {
         "path": "AGENTS.md",
         "quote": "Bound every input before storage or provider I/O"
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "src/article-draft-document.test.ts",
@@ -3398,7 +3515,8 @@
       ],
       "assumptions": [],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked.",
+        "Modules without a cited test are not checked, and no static scan finds an unbounded input elsewhere."
       ]
     },
     {
@@ -3441,6 +3559,16 @@
       "notVerified": [
         "Only the enumerated example cases are checked.",
         "No test asserts a per-event byte ceiling."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "Keep analytics canonical-host-only, cookieless, personless"
+        },
+        {
+          "path": "website/AGENTS.md",
+          "quote": "cookies, replay, identity, feature flags, broad autocapture, console capture"
+        }
       ]
     },
     {
@@ -3462,6 +3590,12 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "pin its skills source to `hraness/ghostget#v<package version>`"
+        }
       ]
     },
     {
@@ -3522,6 +3656,12 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "preview builds must not depend on npm or GitHub release availability and must not emit the production marker"
+        }
       ]
     },
     {
@@ -3543,6 +3683,12 @@
       ],
       "notVerified": [
         "No property test covers this law yet; only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "The marker may be absent only at the v0.16.5 baseline that introduces it; every later baseline requires it."
+        }
       ]
     },
     {
@@ -3563,6 +3709,12 @@
       ],
       "notVerified": [
         "No property test covers this law yet; only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "require `www` to return one exact no-follow 308 to the same apex marker path and query"
+        }
       ]
     },
     {
@@ -3586,6 +3738,12 @@
       ],
       "notVerified": [
         "No property test covers this law yet; only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "Each verified Production build emits exact bounded `/.well-known/wrench-release.json` bytes only after the release verifier and site build pass"
+        }
       ]
     },
     {
@@ -3607,6 +3765,12 @@
       ],
       "notVerified": [
         "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "Public outcome checks require that URL to equal the pinned deployment status"
+        }
       ]
     },
     {
@@ -3628,6 +3792,16 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "Require `VERCEL_GIT_COMMIT_REF=website-production` only for production"
+        },
+        {
+          "path": "website/AGENTS.md",
+          "quote": "production verifies immutable GitHub metadata, exact five descriptors, bot/source receipt, manifest/archive digests, HEAD/tag, and Latest"
+        }
       ]
     },
     {
@@ -3648,6 +3822,12 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "Checked-in workflows remain token-free and never mutate the setting, call Vercel APIs, alias, or promote."
+        }
       ]
     },
     {
@@ -3669,6 +3849,12 @@
       ],
       "notVerified": [
         "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+      ],
+      "properties": [
+        {
+          "path": "edge/negotiation.test.ts",
+          "test": "property: every retrieved URL keeps the request origin"
+        }
       ]
     },
     {
@@ -3691,6 +3877,12 @@
       ],
       "notVerified": [
         "The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "return `406` only when no owned representation remains"
+        }
       ]
     },
     {
@@ -3712,6 +3904,12 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "set `Vary: Accept`"
+        }
       ]
     },
     {
@@ -3733,6 +3931,12 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "Unknown paths stay HTTP 404"
+        }
       ]
     },
     {
@@ -3746,6 +3950,7 @@
       "layer": "example",
       "status": "evidenced",
       "evidence": [
+        "edge/imports.test.ts",
         "edge/tsconfig.json"
       ],
       "assumptions": [
@@ -3753,7 +3958,7 @@
         "edge-runtime"
       ],
       "notVerified": [
-        "Only the `edge/tsconfig.json` library settings enforce the rule; no import scan runs."
+        "Only static import declarations and `import()` calls with literal specifiers are scanned; test files under `edge/` run on Bun and are not scanned."
       ]
     },
     {
@@ -3785,7 +3990,7 @@
         "path": "docs/publishing.md",
         "quote": "It requires the exact repository, active workflow ID/path, main-push source and tree"
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "scripts/github-release-artifact.test.ts"
@@ -3795,7 +4000,7 @@
         "github-enforcement"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -3806,7 +4011,7 @@
         "path": "docs/publishing.md",
         "quote": "Admission requires exactly those two jobs and analyses, with missing or extra languages rejected."
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "scripts/github-release-artifact.test.ts"
@@ -3816,7 +4021,7 @@
         "github-enforcement"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -3827,7 +4032,7 @@
         "path": "docs/publishing.md",
         "quote": "A nonempty contradictory association never falls back to the summary."
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "scripts/github-release-artifact.test.ts"
@@ -3837,7 +4042,7 @@
         "github-enforcement"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -3848,7 +4053,7 @@
         "path": "docs/publishing.md",
         "quote": "Every required CI and CodeQL job must have completed within 72 hours of admission"
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "scripts/github-release-artifact.test.ts"
@@ -3859,7 +4064,7 @@
         "github-enforcement"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -3934,7 +4139,7 @@
         "path": "docs/publishing.md",
         "quote": "`release-manifest.json`, the strict `hraness-github-release-v1` identity, including repository/name/version/tag, source `C`, reviewed workflow authority `W`, run ID/attempt, and archive size/SHA-256/SHA-512."
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "scripts/github-release-artifact.test.ts",
@@ -3945,7 +4150,7 @@
         "github-enforcement"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -3968,6 +4173,12 @@
       ],
       "notVerified": [
         "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+      ],
+      "properties": [
+        {
+          "path": "scripts/github-release-artifact.test.ts",
+          "test": "property: foreign archive sizes are accepted exactly within the versioned transfer bound"
+        }
       ]
     },
     {
@@ -3978,7 +4189,7 @@
         "path": "docs/publishing.md",
         "quote": "Reject extra files, traversal, links, malformed receipts, unsafe package configuration, and mismatched bytes."
       },
-      "layer": "property",
+      "layer": "example",
       "status": "evidenced",
       "evidence": [
         "scripts/github-release-artifact.test.ts",
@@ -3989,7 +4200,7 @@
         "github-enforcement"
       ],
       "notVerified": [
-        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs."
+        "Only the enumerated example cases are checked."
       ]
     },
     {
@@ -4977,6 +5188,12 @@
       "notVerified": [
         "Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.",
         "The listed tests check only the checked-in side of the contract."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "AGENTS.md",
+          "quote": "Never force-push or bypass the gate."
+        }
       ]
     },
     {
@@ -5000,6 +5217,12 @@
         "Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.",
         "The listed tests check only the checked-in side of the contract.",
         "The workflow-side `deployment: false` is source-checked; the environment's protection settings are confirmed only by readback."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "Keep no required deployment reviewers or wait timer, `prevent_self_review=false`, no administrator bypass, exact `main` admission, and `deployment: false`."
+        }
       ]
     },
     {
@@ -5019,6 +5242,12 @@
       ],
       "notVerified": [
         "Live settings are confirmed only by administrator readback; CI cannot read them or detect drift."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "Keep the App and minted token permission set exact at `metadata:read`, `contents:write`, and `workflows:write`."
+        }
       ]
     },
     {
@@ -5058,6 +5287,12 @@
       ],
       "notVerified": [
         "Live settings are confirmed only by administrator readback; CI cannot read them or detect drift."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "Keep Vercel project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue` under team `team_UAd1iD2XogJlbFg4h14mRaPM` linked to GitHub repository ID `1316443113`"
+        }
       ]
     },
     {
@@ -5078,6 +5313,12 @@
       "notVerified": [
         "Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.",
         "Drift is detected only at setup, after control changes, and during recovery, not on each routine promotion."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "Any detected drift leaves production unchanged until those controls are requalified."
+        }
       ]
     },
     {
@@ -5100,6 +5341,12 @@
       ],
       "notVerified": [
         "No property test covers this law yet; only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "Runtime must narrow and validate the minted token for Ghostget"
+        }
       ]
     },
     {
@@ -5125,6 +5372,12 @@
       "notVerified": [
         "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
         "GitHub does not guarantee how quickly a revoked token stops working."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "the shared helper must send exactly one empty-204 token revocation"
+        }
       ]
     },
     {
@@ -5434,6 +5687,12 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "every read-only GitHub child must be scrubbed of App values"
+        }
       ]
     },
     {
@@ -5482,6 +5741,12 @@
       ],
       "notVerified": [
         "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "website/AGENTS.md",
+          "quote": "prove `C<=W<=M` for protected current main `M` at every authority sandwich"
+        }
       ]
     },
     {
@@ -5685,6 +5950,12 @@
       "notVerified": [
         "Only the enumerated example cases are checked.",
         "`website/site.test.ts` asserts only the design-kit, site-footer, and ui pins; the other Hraness dependencies, and rejection of branches, sibling paths, and submodules, are not checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "AGENTS.md",
+          "quote": "consume shared design-kit or `@hraness/ui` primitives only at immutable versions"
+        }
       ]
     },
     {
@@ -5708,6 +5979,12 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "AGENTS.md",
+          "quote": "CI covers the complete Linux aggregate and a selected macOS suite."
+        }
       ]
     },
     {
@@ -5799,11 +6076,37 @@
       "notVerified": [
         "Generated inputs are sampled at the configured run count; this is not a proof over all inputs.",
         "CI reads only the traces that the pinned Quint and Apalache releases write; another release may write an encoding the reader rejects."
+      ],
+      "properties": [
+        {
+          "path": "scripts/verification-itf.test.ts",
+          "test": "every container level counts once against the depth bound"
+        },
+        {
+          "path": "scripts/verification-itf.test.ts",
+          "test": "bounds every string in UTF-8 bytes wherever the trace holds one"
+        },
+        {
+          "path": "scripts/verification-itf.test.ts",
+          "test": "a set or map is rejected exactly when two members or keys denote the same value"
+        },
+        {
+          "path": "scripts/verification-itf.test.ts",
+          "test": "a JSON number is read exactly when it is a safe integer other than -0"
+        },
+        {
+          "path": "scripts/verification-itf.test.ts",
+          "test": "#bigint text is read exactly when it is a canonical decimal integer of at most 78 digits"
+        },
+        {
+          "path": "scripts/verification-itf.test.ts",
+          "test": "every state must carry its own index and assign exactly the declared variables"
+        }
       ]
     },
     {
       "id": "verification-lean-trusted-base",
-      "statement": "The core-only Lean project builds with warnings as errors, every theorem listed in `proofs.json` exists as a theorem, each seeded defect has a refutation theorem that states the broken property about it, the axiom audit and source scan reject `sorry`, `admit`, native evaluation, unlisted axioms, and other trust escapes, and a seeded `sorry` canary must fail the build and the audit on every run.",
+      "statement": "The core-only Lean project builds with warnings as errors; every theorem listed in `proofs.json` exists as a theorem whose kernel statement matches its recorded SHA-256; for each seeded defect, the audit checks at the kernel-term level that the defect has the guarded definition's type and that the refutation states exactly the negation of the guarded theorem with the defect in place of the guarded definition; the axiom audit and source scan reject `sorry`, `admit`, native evaluation, unlisted axioms, and other trust escapes; and a seeded `sorry` canary must fail the build and the audit on every run.",
       "area": "verification",
       "source": {
         "path": "verification/AGENTS.md",
@@ -5823,7 +6126,8 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked.",
-        "The smoke theorems state nothing about Ghostget code, and the Lean kernel and toolchain are trusted."
+        "The smoke theorems state nothing about Ghostget code, and the Lean kernel and toolchain are trusted.",
+        "The negation check compares kernel terms syntactically; a refutation that is only definitionally equal to the negation is rejected, not accepted."
       ]
     },
     {
@@ -5847,6 +6151,12 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "verification/AGENTS.md",
+          "quote": "Set the replay target to `production` only when the replay test drives production code"
+        }
       ]
     },
     {
@@ -5890,6 +6200,12 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "verification/AGENTS.md",
+          "quote": "Keep a claim `planned` with its plan phase until its layer runs in CI."
+        }
       ]
     },
     {
@@ -5910,6 +6226,12 @@
       ],
       "notVerified": [
         "The example test for this claim is scheduled for plan Phase 2; no automated check covers it yet."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "AGENTS.md",
+          "quote": "then promote a minimized failure to a named regression"
+        }
       ]
     },
     {
@@ -5931,6 +6253,30 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "verification/AGENTS.md",
+          "quote": "Keep generated traces, build output, and downloaded tools out of Git."
+        }
+      ]
+    },
+    {
+      "id": "website-informational-only",
+      "statement": "`website/` explains and documents Ghostget and contains no agent runtime, authenticated product surface, or browser-based substitute for the CLI and SDK.",
+      "area": "website",
+      "source": {
+        "path": "AGENTS.md",
+        "quote": "Keep `website/` informational: it may explain and document Ghostget, but must not grow an agent runtime, authenticated product surface, or browser-based substitute for the CLI and SDK."
+      },
+      "layer": "not-verified",
+      "status": "not-verified",
+      "evidence": [],
+      "assumptions": [
+        "vercel"
+      ],
+      "notVerified": [
+        "No automated check inspects `website/` for authenticated surfaces, credential handling, or runtime features; review alone enforces this boundary."
       ]
     }
   ]

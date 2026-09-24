@@ -37,10 +37,12 @@ import {
   LEAN_CANARY_MODULE,
   PLATFORM_KEYS,
   QUINT,
+  QUINT_TRACE_TIMEOUT_MS,
   REPOSITORY_ROOT,
   VERIFICATION_ARTIFACTS,
   admitArchive,
   apalacheVerdict,
+  axiomAuditArguments,
   axiomAuditFindings,
   jdkIdentityLines,
   jdkIdentityMatches,
@@ -49,11 +51,13 @@ import {
   leanProjectFindings,
   leanSourceFindings,
   leanStaticFindings,
+  leanTypeDigest,
   parseAxiomAudit,
   parseLeanProofs,
   parseQuintModels,
   pathReplacements,
   pinnedArchives,
+  pinnedArchivesDigest,
   platformKey,
   quintRunArguments,
   quintSeedLine,
@@ -67,6 +71,8 @@ import {
   sanitizeCheckerOutput,
   verificationCacheDirectory,
   type AuditedDeclaration,
+  type AuditedMutant,
+  type AxiomAudit,
   type CheckerResult,
   type FetchLike,
   type PinnedArchive,
@@ -212,7 +218,15 @@ describe("checker pins", () => {
 });
 
 describe("verification CI job", () => {
-  type Step = { name?: string; uses?: string; run?: string; with?: Record<string, unknown>; env?: Record<string, string> };
+  type Step = {
+    name?: string;
+    uses?: string;
+    run?: string;
+    if?: string;
+    "timeout-minutes"?: number;
+    with?: Record<string, unknown>;
+    env?: Record<string, string>;
+  };
   type Job = { name?: string; "timeout-minutes"?: number; permissions?: unknown; needs?: string[]; steps: Step[] };
   type Workflow = { permissions?: unknown; jobs: Record<string, Job> };
   const workflowSource = (): Promise<string> => repositoryFile(".github/workflows/ci.yml");
@@ -224,11 +238,19 @@ describe("verification CI job", () => {
     if (job === undefined) throw new Error("ci.yml has no verification job");
     const cache = job.steps.filter((step) => step.uses?.startsWith("actions/cache@") === true);
     expect(cache).toHaveLength(1);
-    const jdkVersion = JDK.vendorVersion.replace(/^Temurin-/u, "");
+    const pins = pinnedArchives().map(({ name, url, bytes, sha256 }) => ({ name, url, bytes, sha256 }));
+    const digest = createHash("sha256").update(JSON.stringify(pins)).digest("hex").slice(0, 16);
+    expect(pinnedArchivesDigest()).toBe(digest);
     expect(cache[0]!.with).toEqual({
       path: `${verificationCacheDirectory({}, "~")}/downloads`,
-      key: `ghostget-verification-\${{ runner.os }}-\${{ runner.arch }}-temurin-${jdkVersion}-apalache-${APALACHE.version}-elan-${ELAN.version}-lean-v${LEAN.version}`,
+      key: `ghostget-verification-\${{ runner.os }}-\${{ runner.arch }}-pins-${digest}`,
     });
+    // Any single pin change, including a digest or size change at the same version, changes the key.
+    const archive = pinnedArchives()[0]!;
+    for (const changed of [{ ...archive, sha256: "0".repeat(64) }, { ...archive, bytes: archive.bytes + 1 }]) {
+      const repinned = [changed, ...pinnedArchives().slice(1)].map(({ name, url, bytes, sha256 }) => ({ name, url, bytes, sha256 }));
+      expect(createHash("sha256").update(JSON.stringify(repinned)).digest("hex").slice(0, 16)).not.toBe(digest);
+    }
     const verify = job.steps.findIndex((step) => step.run === "bun run verify");
     const install = job.steps.findIndex((step) => step.run === "bun install --frozen-lockfile --ignore-scripts");
     expect(install).toBeGreaterThanOrEqual(0);
@@ -259,6 +281,11 @@ describe("verification CI job", () => {
       "retention-days": 30,
     });
     expect(job.steps.indexOf(upload[0]!)).toBe(job.steps.length - 1);
+    // A failed or timed-out verify step still uploads its logs: the step bound ends it inside the job bound.
+    expect(upload[0]!.if).toBe("always()");
+    const verifyStep = job.steps.find((step) => step.run === "bun run verify")!;
+    expect(verifyStep["timeout-minutes"]).toBe(16);
+    expect(verifyStep["timeout-minutes"]!).toBeLessThan(job["timeout-minutes"]! - 2);
     expect(JSON.stringify(job)).not.toContain("secrets.");
     for (const match of source.matchAll(/^\s*(?:- )?uses: (\S+)/gmu)) {
       expect(match[1]).toMatch(/^[A-Za-z0-9-]+\/[A-Za-z0-9-]+@[0-9a-f]{40}$/u);
@@ -877,6 +904,18 @@ describe("Quint model manifest", () => {
     }
   });
 
+  test("bounds trace generation inside the replay test's runner timeout", async () => {
+    const scripts = (JSON.parse(await repositoryFile("package.json")) as { scripts: Record<string, string> }).scripts;
+    const replayRun = scripts["verify:quint"]?.split(" && ").find((command) => command.startsWith("bun test ")) ?? "";
+    const runner = /(?:^| )--timeout (\d+)(?: |$)/u.exec(replayRun);
+    expect(runner).not.toBeNull();
+    // Trace generation runs inside the first replay test; the rest of that test needs a margin too.
+    expect(QUINT_TRACE_TIMEOUT_MS + 15_000).toBeLessThanOrEqual(Number(runner![1]));
+    const replay = await repositoryFile("scripts/verification-lock-replay.test.ts");
+    expect(replay).toContain("timeoutMs: QUINT_TRACE_TIMEOUT_MS,");
+    expect(replay.match(/timeoutMs:/gu)).toHaveLength(1);
+  });
+
   test("builds the exact seeded simulation and trace commands", async () => {
     const [model] = await readQuintModels();
     if (model === undefined) throw new Error("models.json lists no model");
@@ -943,12 +982,18 @@ describe("Quint model manifest", () => {
 // ---------------------------------------------------------------------------
 
 const LIBRARY = "GhostgetVerification";
+const HELD_TYPE = `forall (q : ${LIBRARY}.Smoke.Proc) (p : ${LIBRARY}.Smoke.Proc), Eq.{1} (Option.{0} ${LIBRARY}.Smoke.Proc) (${LIBRARY}.Smoke.Lock.holder (${LIBRARY}.Smoke.acquire (${LIBRARY}.Smoke.Lock.mk (Option.some.{0} ${LIBRARY}.Smoke.Proc q)) p)) (Option.some.{0} ${LIBRARY}.Smoke.Proc q)`;
+const REFUTATION_TYPE = `Not (${HELD_TYPE.replace(`${LIBRARY}.Smoke.acquire `, `${LIBRARY}.Smoke.acquireUnguarded `)})`;
 const SCAN_PROOFS = parseLeanProofs({
-  schema: "ghostget-lean-proofs-v1",
+  schema: "ghostget-lean-proofs-v2",
   library: LIBRARY,
-  theorems: [`${LIBRARY}.Smoke.acquire_held`, `${LIBRARY}.Smoke.acquireUnguarded_violates_held`],
+  theorems: [
+    { name: `${LIBRARY}.Smoke.acquire_held`, type: leanTypeDigest(HELD_TYPE) },
+    { name: `${LIBRARY}.Smoke.acquireUnguarded_violates_held`, type: leanTypeDigest(REFUTATION_TYPE) },
+  ],
   mutants: [{
     theorem: `${LIBRARY}.Smoke.acquire_held`,
+    guarded: `${LIBRARY}.Smoke.acquire`,
     defect: `${LIBRARY}.Smoke.acquireUnguarded`,
     refutation: `${LIBRARY}.Smoke.acquireUnguarded_violates_held`,
   }],
@@ -985,11 +1030,13 @@ const FORBIDDEN_CODE = [
 const scan = (text: string): readonly string[] => leanSourceFindings(text, SCAN_PROOFS);
 
 /** Audit lines in the exact shape `AxiomAudit.lean` prints for the smoke library. */
-const AUDIT: readonly AuditedDeclaration[] = Object.freeze([
+const LOCK_STEP_TYPE = `${LIBRARY}.Smoke.Lock -> ${LIBRARY}.Smoke.Proc -> ${LIBRARY}.Smoke.Lock`;
+const AUDITED: readonly AuditedDeclaration[] = Object.freeze([
   {
     declaration: `${LIBRARY}.Smoke.acquire`,
     kind: "definition",
     module: `${LIBRARY}.Smoke`,
+    type: LOCK_STEP_TYPE,
     axioms: [],
     uses: [`${LIBRARY}.Smoke.Lock`, `${LIBRARY}.Smoke.Proc`],
   },
@@ -997,6 +1044,7 @@ const AUDIT: readonly AuditedDeclaration[] = Object.freeze([
     declaration: `${LIBRARY}.Smoke.acquireUnguarded`,
     kind: "definition",
     module: `${LIBRARY}.Smoke`,
+    type: LOCK_STEP_TYPE,
     axioms: [],
     uses: [`${LIBRARY}.Smoke.Lock`, `${LIBRARY}.Smoke.Proc`],
   },
@@ -1004,6 +1052,7 @@ const AUDIT: readonly AuditedDeclaration[] = Object.freeze([
     declaration: `${LIBRARY}.Smoke.acquireUnguarded_violates_held`,
     kind: "theorem",
     module: `${LIBRARY}.Smoke`,
+    type: REFUTATION_TYPE,
     axioms: [],
     uses: ["Eq", `${LIBRARY}.Smoke.Lock.holder`, `${LIBRARY}.Smoke.Lock.mk`, `${LIBRARY}.Smoke.Proc`, `${LIBRARY}.Smoke.acquireUnguarded`, "Not", "Option", "Option.some"],
   },
@@ -1011,38 +1060,74 @@ const AUDIT: readonly AuditedDeclaration[] = Object.freeze([
     declaration: `${LIBRARY}.Smoke.acquire_held`,
     kind: "theorem",
     module: `${LIBRARY}.Smoke`,
+    type: HELD_TYPE,
     axioms: ["propext"],
     uses: ["Eq", `${LIBRARY}.Smoke.Lock.holder`, `${LIBRARY}.Smoke.Lock.mk`, `${LIBRARY}.Smoke.Proc`, `${LIBRARY}.Smoke.acquire`, "Option", "Option.some"],
   },
 ]);
 
-const auditText = (declarations: readonly AuditedDeclaration[]): string => [
-  ...declarations.map((entry) => JSON.stringify({
+const MUTANT_CHECK: AuditedMutant = Object.freeze({
+  theorem: `${LIBRARY}.Smoke.acquire_held`,
+  guarded: `${LIBRARY}.Smoke.acquire`,
+  defect: `${LIBRARY}.Smoke.acquireUnguarded`,
+  refutation: `${LIBRARY}.Smoke.acquireUnguarded_violates_held`,
+  found: true,
+  sameSignature: true,
+  negates: true,
+});
+const AUDIT: AxiomAudit = Object.freeze({ declarations: AUDITED, mutants: Object.freeze([MUTANT_CHECK]) });
+
+const mutantLine = (check: AuditedMutant): string => JSON.stringify({
+  defect: check.defect,
+  found: check.found,
+  guarded: check.guarded,
+  mutant: check.theorem,
+  negates: check.negates,
+  refutation: check.refutation,
+  sameSignature: check.sameSignature,
+});
+
+const auditText = (audit: AxiomAudit): string => [
+  ...audit.declarations.map((entry) => JSON.stringify({
     axioms: entry.axioms,
     declaration: entry.declaration,
     kind: entry.kind,
     module: entry.module,
+    type: entry.type,
     uses: entry.uses,
   })),
-  JSON.stringify({ declarations: declarations.length }),
+  ...audit.mutants.map(mutantLine),
+  JSON.stringify({ declarations: audit.declarations.length, mutants: audit.mutants.length }),
   "",
 ].join("\n");
 
 const withEntry = (
   name: string,
   change: (entry: AuditedDeclaration) => AuditedDeclaration | null,
-): readonly AuditedDeclaration[] =>
-  AUDIT.flatMap((entry) => {
+): AxiomAudit => ({
+  ...AUDIT,
+  declarations: AUDITED.flatMap((entry) => {
     if (entry.declaration !== name) return [entry];
     const changed = change(entry);
     return changed === null ? [] : [changed];
-  });
+  }),
+});
+
+const withCheck = (change: Partial<AuditedMutant> | null): AxiomAudit => ({
+  ...AUDIT,
+  mutants: change === null ? [] : [{ ...MUTANT_CHECK, ...change }],
+});
 
 describe("Lean trust base", () => {
   test("passes the static checks on the committed project", async () => {
     const { proofs, findings } = await leanStaticFindings();
     expect(findings).toEqual([]);
     expect(proofs.library).toBe(LIBRARY);
+    // proofs.json pins the kernel statements shown in the fixtures: the refutation is the textual negation.
+    expect(proofs.theorems.find((theorem) => theorem.name === `${LIBRARY}.Smoke.acquire_held`)?.type).toBe(leanTypeDigest(HELD_TYPE));
+    expect(proofs.theorems.find((theorem) => theorem.name === `${LIBRARY}.Smoke.acquireUnguarded_violates_held`)?.type)
+      .toBe(leanTypeDigest(REFUTATION_TYPE));
+    expect(proofs.mutants).toEqual(SCAN_PROOFS.mutants);
     expect(proofs.theorems.length).toBeGreaterThan(0);
     expect(proofs.mutants.length).toBeGreaterThan(0);
     expect(proofs.allowedAxioms).toEqual([]);
@@ -1143,21 +1228,32 @@ describe("Lean trust base", () => {
   test("parses the axiom audit output strictly", () => {
     expect(parseAxiomAudit(auditText(AUDIT))).toEqual(AUDIT);
     const line = (entry: Record<string, unknown>): string => JSON.stringify(entry);
-    const first = AUDIT[0]!;
+    const first = AUDITED[0]!;
+    const one = '{"declarations":1,"mutants":0}';
+    const check = mutantLine(MUTANT_CHECK);
     const cases: readonly (readonly [string, string])[] = [
       ["", "The axiom audit printed nothing"],
       ["\n\n", "The axiom audit printed nothing"],
       [`${line({ ...first })}\n`, "The axiom audit did not end with its summary line"],
-      [`${line({ ...first })}\n{"declarations":1,"extra":true}\n`, "The axiom audit did not end with its summary line"],
-      [`${line({ ...first })}\n{"declarations":2}\n`, "The axiom audit summary does not match its declarations"],
-      ["{\"declarations\":0}\n", "The axiom audit summary does not match its declarations"],
-      [`not json\n{"declarations":1}\n`, "Axiom audit line 1 is not JSON"],
-      [`${line({ ...first, kind: "lemma" })}\n{"declarations":1}\n`, "Axiom audit line 1 is malformed"],
-      [`${line({ ...first, axioms: [""] })}\n{"declarations":1}\n`, "Axiom audit line 1 is malformed"],
-      [`${line({ ...first, uses: "Nat" })}\n{"declarations":1}\n`, "Axiom audit line 1 is malformed"],
-      [`${line({ ...first, declaration: "" })}\n{"declarations":1}\n`, "Axiom audit line 1 is malformed"],
-      [`${line({ ...first, source: "x" })}\n{"declarations":1}\n`, "axiom audit line 1 must have exactly the fields"],
-      [`${line({ ...first })}\n${line({ ...first })}\n{"declarations":2}\n`, "The axiom audit repeats a declaration"],
+      [`${line({ ...first })}\n{"declarations":1}\n`, "The axiom audit did not end with its summary line"],
+      [`${line({ ...first })}\n{"declarations":1,"mutants":0,"extra":true}\n`, "The axiom audit did not end with its summary line"],
+      [`${line({ ...first })}\n{"declarations":2,"mutants":0}\n`, "The axiom audit summary does not match its declarations"],
+      [`${line({ ...first })}\n{"declarations":1,"mutants":1}\n`, "The axiom audit summary does not match its declarations"],
+      [`${line({ ...first })}\n{"declarations":1,"mutants":-1}\n`, "The axiom audit summary does not match its declarations"],
+      ['{"declarations":0,"mutants":0}\n', "The axiom audit summary does not match its declarations"],
+      [`not json\n${one}\n`, "Axiom audit line 1 is not JSON"],
+      [`${line({ ...first, kind: "lemma" })}\n${one}\n`, "Axiom audit line 1 is malformed"],
+      [`${line({ ...first, axioms: [""] })}\n${one}\n`, "Axiom audit line 1 is malformed"],
+      [`${line({ ...first, uses: "Nat" })}\n${one}\n`, "Axiom audit line 1 is malformed"],
+      [`${line({ ...first, type: "" })}\n${one}\n`, "Axiom audit line 1 is malformed"],
+      [`${line({ ...first, declaration: "" })}\n${one}\n`, "Axiom audit line 1 is malformed"],
+      [`${line({ ...first, source: "x" })}\n${one}\n`, "axiom audit line 1 must have exactly the fields"],
+      [`${line({ ...first })}\n${line({ ...first })}\n{"declarations":2,"mutants":0}\n`, "The axiom audit repeats a declaration"],
+      // The mutant checks follow the declarations; a declaration where a check belongs is malformed.
+      [`${line({ ...first })}\n${line({ ...first })}\n{"declarations":1,"mutants":1}\n`, "axiom audit line 2 must have exactly the fields"],
+      [`${check}\n${line({ ...first })}\n{"declarations":1,"mutants":1}\n`, "axiom audit line 1 must have exactly the fields"],
+      [`${line({ ...first })}\n${check.replace('"negates":true', '"negates":"yes"')}\n{"declarations":1,"mutants":1}\n`, "Axiom audit line 2 is malformed"],
+      [`${line({ ...first })}\n${check.replace(`"defect":"${MUTANT_CHECK.defect}"`, '"defect":""')}\n{"declarations":1,"mutants":1}\n`, "Axiom audit line 2 is malformed"],
     ];
     for (const [text, message] of cases) expect(() => parseAxiomAudit(text)).toThrow(message);
   });
@@ -1167,28 +1263,55 @@ describe("Lean trust base", () => {
     const refutation = `${LIBRARY}.Smoke.acquireUnguarded_violates_held`;
     const defect = `${LIBRARY}.Smoke.acquireUnguarded`;
     const acquire = `${LIBRARY}.Smoke.acquire`;
+    expect(parseAxiomAudit(auditText(AUDIT))).toEqual(AUDIT);
     expect(axiomAuditFindings(AUDIT, SCAN_PROOFS)).toEqual([]);
-    const cases: readonly (readonly [readonly AuditedDeclaration[], readonly string[]])[] = [
+    expect(axiomAuditArguments(SCAN_PROOFS)).toEqual([LIBRARY, held, acquire, defect, refutation]);
+    const restated = `${HELD_TYPE.slice(0, -1)} p)`;
+    expect(restated).not.toBe(HELD_TYPE);
+    const cases: readonly (readonly [AxiomAudit, readonly string[]])[] = [
       [withEntry(held, () => null), [`${held} is missing`]],
       [withEntry(held, (entry) => ({ ...entry, kind: "definition" })), [`${held} is a definition, not a theorem`]],
+      [withEntry(held, (entry) => ({ ...entry, type: restated })), [
+        `${held} states something other than proofs.json records; review it and set its type to ${leanTypeDigest(restated)}`,
+      ]],
       [withEntry(defect, () => null), [`the seeded defect ${defect} is missing`]],
       [withEntry(defect, (entry) => ({ ...entry, kind: "theorem" })), [`the seeded defect ${defect} is a theorem, not a definition`]],
+      [withEntry(acquire, () => null), [`the guarded definition ${acquire} is missing`]],
+      [withEntry(held, (entry) => ({ ...entry, uses: entry.uses.filter((name) => name !== acquire) })), [`${held} does not state anything about ${acquire}`]],
+      // The kernel-term checks: a refutation that only mentions the defect, or a defect of another type, is not evidence.
+      [withCheck({ negates: false }), [`${refutation} does not state the negation of ${held} with ${acquire} replaced by ${defect}`]],
+      [withCheck({ sameSignature: false }), [`the seeded defect ${defect} does not have the type of ${acquire}`]],
+      [withCheck({ found: false, negates: false }), [`the audit could not find every declaration of the seeded defect ${defect}`]],
+      [withCheck({ refutation: held }), [
+        `the audit checked the seeded defect ${defect} against ${held} 0 times, not once`,
+      ]],
+      [withCheck(null), [
+        `the audit checked the seeded defect ${defect} against ${held} 0 times, not once`,
+        "the audit checked 0 seeded defects, but proofs.json lists 1",
+      ]],
+      [{ ...AUDIT, mutants: [MUTANT_CHECK, MUTANT_CHECK] }, [
+        `the audit checked the seeded defect ${defect} against ${held} 2 times, not once`,
+        "the audit checked 2 seeded defects, but proofs.json lists 1",
+      ]],
       [withEntry(held, (entry) => ({ ...entry, uses: [...entry.uses, defect] })), [`${held} states its property about the seeded defect ${defect}`]],
       [withEntry(refutation, (entry) => ({ ...entry, uses: entry.uses.filter((name) => name !== defect) })), [`${refutation} does not state anything about the seeded defect ${defect}`]],
       [withEntry(acquire, (entry) => ({ ...entry, module: "Mathlib.Order.Basic" })), [`${acquire} comes from Mathlib.Order.Basic, outside ${LIBRARY}`]],
       [withEntry(acquire, (entry) => ({ ...entry, module: `${LIBRARY}Extra.Smoke` })), [`${acquire} comes from ${LIBRARY}Extra.Smoke, outside ${LIBRARY}`]],
-      [withEntry(acquire, (entry) => ({ ...entry, kind: "axiom" })), [`${acquire} is an axiom that proofs.json does not allow`]],
+      [withEntry(acquire, (entry) => ({ ...entry, kind: "axiom" })), [
+        `the guarded definition ${acquire} is an axiom, not a definition`,
+        `${acquire} is an axiom that proofs.json does not allow`,
+      ]],
       [withEntry(held, (entry) => ({ ...entry, axioms: ["sorryAx"] })), [`${held} depends on sorryAx`]],
       [withEntry(held, (entry) => ({ ...entry, axioms: ["Lean.ofReduceBool"] })), [`${held} depends on Lean.ofReduceBool`]],
       [withEntry(held, (entry) => ({ ...entry, axioms: ["Classical.em"] })), [`${held} depends on the unlisted axiom Classical.em`]],
       [withEntry(held, (entry) => ({ ...entry, axioms: [...KERNEL_AXIOMS, `${LIBRARY}.Extra.choiceOracle`] })), []],
-      [[...AUDIT, {
-        declaration: `${LIBRARY}.Extra.choiceOracle`, kind: "axiom", module: `${LIBRARY}.Extra`, axioms: [`${LIBRARY}.Extra.choiceOracle`], uses: ["Nat"],
-      }], []],
+      [{ ...AUDIT, declarations: [...AUDITED, {
+        declaration: `${LIBRARY}.Extra.choiceOracle`, kind: "axiom", module: `${LIBRARY}.Extra`, type: "Nat", axioms: [`${LIBRARY}.Extra.choiceOracle`], uses: ["Nat"],
+      }] }, []],
     ];
     for (const [declarations, findings] of cases) expect(axiomAuditFindings(declarations, SCAN_PROOFS)).toEqual(findings);
     assertProperty(fc.property(
-      fc.constantFrom(...AUDIT.map((entry) => entry.declaration)),
+      fc.constantFrom(...AUDITED.map((entry) => entry.declaration)),
       fc.constantFrom(...FORBIDDEN_AXIOMS),
       (name, axiom) => axiomAuditFindings(withEntry(name, (entry) => ({ ...entry, axioms: [...entry.axioms, axiom] })), SCAN_PROOFS)
         .includes(`${name} depends on ${axiom}`),
@@ -1199,18 +1322,23 @@ describe("Lean trust base", () => {
     const document = JSON.parse(await repositoryFile("verification/lean/proofs.json")) as JsonValue;
     expect(() => parseLeanProofs(document)).not.toThrow();
     const cases: readonly (readonly [JsonValue, string])[] = [
-      [jsonWith(document, ["schema"], "ghostget-lean-proofs-v2"), "proofs.json has an unknown schema"],
+      [jsonWith(document, ["schema"], "ghostget-lean-proofs-v1"), "proofs.json has an unknown schema"],
       [jsonWith(document, ["library"], "ghostgetVerification"), "proofs.json library must be one Lean module root"],
       [jsonWith(document, ["library"], "Ghostget.Verification"), "proofs.json library must be one Lean module root"],
       [jsonWith(document, ["theorems"], []), "proofs.json theorems must be a non-empty list"],
-      [jsonWith(document, ["theorems", 0], "Other.acquire_free"), "proofs.json theorems must live in the audited library"],
-      [jsonWith(document, ["theorems", 0], "GhostgetVerification..acquire_free"), "proofs.json theorems must hold Lean names"],
-      [jsonWith(document, ["theorems", 1], jsonAt(document, ["theorems", 0]) ?? null), "proofs.json theorems must not repeat a name"],
+      [jsonWith(document, ["theorems", 0], "GhostgetVerification.Smoke.acquire_free"), "proofs.json theorems[0] must be an object"],
+      [jsonWith(document, ["theorems", 0, "name"], "Other.acquire_free"), "proofs.json theorems must live in the audited library"],
+      [jsonWith(document, ["theorems", 0, "name"], "GhostgetVerification..acquire_free"), "proofs.json theorems[0].name must be a Lean name"],
+      [jsonWith(document, ["theorems", 0, "type"], "A".repeat(64)), "proofs.json theorems[0].type must be the SHA-256 hex digest of the theorem's kernel type"],
+      [jsonWith(document, ["theorems", 1, "name"], jsonAt(document, ["theorems", 0, "name"]) ?? null), "proofs.json theorems must not repeat a name"],
       [jsonWith(document, ["mutants"], []), "proofs.json mutants must list at least one seeded defect"],
       [jsonWith(document, ["mutants", 0, "defect"], "Other.acquireUnguarded"), "proofs.json mutants[0] must name declarations in the audited library"],
       [jsonWith(document, ["mutants", 0, "refutation"], jsonAt(document, ["mutants", 0, "theorem"]) ?? null), "proofs.json mutants[0] must name two different required theorems"],
       [jsonWith(document, ["mutants", 0, "refutation"], "GhostgetVerification.Smoke.unlisted"), "proofs.json mutants[0] must name two different required theorems"],
-      [jsonWith(document, ["mutants", 0, "defect"], jsonAt(document, ["theorems", 0]) ?? null), "proofs.json mutants[0] defect must be a definition, not a required theorem"],
+      [jsonWith(document, ["mutants", 0, "defect"], jsonAt(document, ["theorems", 0, "name"]) ?? null), "proofs.json mutants[0] defect must be a definition, not a required theorem"],
+      [jsonWith(document, ["mutants", 0, "guarded"], jsonAt(document, ["theorems", 0, "name"]) ?? null), "proofs.json mutants[0] guarded must be a definition, not a required theorem"],
+      [jsonWith(document, ["mutants", 0, "guarded"], jsonAt(document, ["mutants", 0, "defect"]) ?? null), "proofs.json mutants[0] defect must differ from the definition it stands in for"],
+      [jsonWith(document, ["mutants", 0, "guarded"], "Other.acquire"), "proofs.json mutants[0] must name declarations in the audited library"],
       ...["sorryAx", "Lean.ofReduceBool", "Lean.trustCompiler", "propext", "Classical.choice"].map((axiom): readonly [JsonValue, string] => [
         jsonWith(document, ["allowedAxioms"], [axiom]),
         "proofs.json allowedAxioms may not list sorryAx, native-evaluation axioms, or the kernel axioms",
