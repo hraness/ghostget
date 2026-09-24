@@ -1557,23 +1557,23 @@
 // same projections and allowances: 11,992,902 + 12,387 + 4,096 = 12,009,385
 // packed; 23,424,993 + 353 + 65 = 23,425,411 unpacked.
 // The media follow-ups kill every active media process group when Ghostget
-// exits or receives an unhandled SIGINT, SIGTERM, or SIGHUP, add the
-// read-only `ghostget media quarantine` listing, and add an F_FULLFSYNC probe
-// for the macOS durability check. This adds 12,461 payload bytes over the
+// exits or receives an unhandled SIGINT, SIGTERM, or SIGHUP that it did not
+// inherit as ignored, add the read-only `ghostget media quarantine` listing, and add an F_FULLFSYNC probe
+// for the macOS durability check. This adds 15,207 payload bytes over the
 // unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with npm
-// 11.19.0 on darwin arm64 were byte-identical at 11,995,872 packed bytes,
-// 23,437,454 unpacked bytes; archive SHA-256
-// 4b9272d30af207583eb335e997727b2f0f48c8c129c2f62c153841b0db1262ff. Carry the
-// same projections and allowances: 11,995,872 + 12,387 + 4,096 = 12,012,355
-// packed; 23,437,454 + 353 + 65 = 23,437,872 unpacked.
+// 11.19.0 on darwin arm64 were byte-identical at 11,996,547 packed bytes,
+// 23,440,200 unpacked bytes; archive SHA-256
+// 1fb2c448ef49121a543b1b025002c5cb004e414f4eb83c7bb431bffa09ec6a03. Carry the
+// same projections and allowances: 11,996,547 + 12,387 + 4,096 = 12,013,030
+// packed; 23,440,200 + 353 + 65 = 23,440,618 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Media follow-ups: parent-exit process-group kill, read-only quarantine listing, and the F_FULLFSYNC probe",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "4b9272d30af207583eb335e997727b2f0f48c8c129c2f62c153841b0db1262ff",
-  packedBytes: 11_995_872,
-  unpackedBytes: 23_437_454,
+  archiveSha256: "1fb2c448ef49121a543b1b025002c5cb004e414f4eb83c7bb431bffa09ec6a03",
+  packedBytes: 11_996_547,
+  unpackedBytes: 23_440_200,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

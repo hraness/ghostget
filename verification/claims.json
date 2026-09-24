@@ -1651,6 +1651,7 @@
       "notVerified": [
         "Only the enumerated example cases are checked; the grouped-termination property samples scripted exit points, not every signal interleaving.",
         "A SIGKILL of Ghostget itself, or a kernel or power failure, runs no exit handler, so a detached media tool group can outlive it.",
+        "A signal Ghostget inherited as ignored, such as SIGHUP under nohup, stays ignored, so the group keeps running until Ghostget exits for another reason.",
         "The group kill reaches only processes that stay in the tool's process group; a helper that calls setsid() or setpgid() leaves the group and is not stopped.",
         "On Windows media tools run without a process group, so only the direct child is signalled."
       ]

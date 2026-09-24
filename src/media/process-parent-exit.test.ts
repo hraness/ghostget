@@ -42,12 +42,17 @@ type Parent = Readonly<{
   readyFile: string;
 }>;
 
-async function startParent(mode: string): Promise<Parent> {
+async function startParent(mode: string, ignoredSignal?: "SIGHUP"): Promise<Parent> {
   const root = await mkdtemp(join(tmpdir(), "media-parent-exit-"));
   roots.push(root);
   const pidFile = join(root, "group.pid");
   const readyFile = join(root, "ready");
-  const subprocess = Bun.spawn([process.execPath, fixture, mode, pidFile, readyFile], {
+  const command = [process.execPath, fixture, mode, pidFile, readyFile];
+  // `trap '' HUP` then `exec` hands the parent an ignored SIGHUP, as `nohup` does.
+  const argv = ignoredSignal === undefined
+    ? command
+    : ["/bin/sh", "-c", `trap '' ${ignoredSignal.slice(3)}; exec "$@"`, "sh", ...command];
+  const subprocess = Bun.spawn(argv, {
     stdin: "ignore",
     stdout: "ignore",
     stderr: "ignore",
@@ -89,6 +94,20 @@ describe.skipIf(process.platform === "win32")("media process groups when the par
   test("an uncaught error stops the group before the parent exits", async () => {
     const { subprocess, group } = await startParent("throw");
     expect(await subprocess.exited).not.toBe(0);
+    await expectGroupStopped(group);
+  });
+
+  test("a SIGHUP ignored at start, as under nohup, stays ignored while a group runs", async () => {
+    const { subprocess, group } = await startParent("signal", "SIGHUP");
+    subprocess.kill("SIGHUP");
+    await Bun.sleep(300);
+    expect(subprocess.exitCode).toBeNull();
+    expect(subprocess.signalCode).toBeNull();
+    expect(isRunning(group.child)).toBeTrue();
+
+    subprocess.kill("SIGTERM");
+    await subprocess.exited;
+    expect(subprocess.signalCode).toBe("SIGTERM");
     await expectGroupStopped(group);
   });
 

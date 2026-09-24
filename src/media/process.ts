@@ -1,6 +1,7 @@
-import { constants as fsConstants } from "node:fs";
+import { dlopen, ptr } from "bun:ffi";
+import { constants as fsConstants, readFileSync } from "node:fs";
 import { access, stat } from "node:fs/promises";
-import { homedir } from "node:os";
+import { constants as osConstants, homedir } from "node:os";
 import { delimiter, join } from "node:path";
 
 const DEFAULT_STDOUT_LIMIT_BYTES = 16 * 1024 * 1024;
@@ -714,8 +715,67 @@ function onParentExit(): void {
   killActiveProcessGroups();
 }
 
-function installParentHandlers(): void {
+/**
+ * Signals this process inherited as ignored, read once before any handler here
+ * is installed. `nohup` ignores SIGHUP, and a JavaScript listener would replace
+ * that ignore, and removing the listener restores the default action rather
+ * than the ignore. So Ghostget never listens for an inherited-ignored signal.
+ */
+let inheritedIgnoredSignals: ReadonlySet<ParentTerminationSignal> | undefined;
+
+function signalsIgnoredAtStart(): ReadonlySet<ParentTerminationSignal> {
+  if (inheritedIgnoredSignals !== undefined) return inheritedIgnoredSignals;
+  const ignored = new Set<ParentTerminationSignal>();
   for (const signal of PARENT_TERMINATION_SIGNALS) {
+    // A signal someone already listens for no longer shows its inherited
+    // disposition. Ghostget listens for SIGINT and SIGTERM itself.
+    if (process.listenerCount(signal) === 0 && signalIsIgnored(osConstants.signals[signal])) ignored.add(signal);
+  }
+  inheritedIgnoredSignals = ignored;
+  return ignored;
+}
+
+type SignalActionReader = (signal: number, buffer: Uint8Array) => boolean;
+let cachedSignalActionReader: SignalActionReader | null | undefined;
+
+function darwinSignalActionReader(): SignalActionReader | null {
+  if (cachedSignalActionReader !== undefined) return cachedSignalActionReader;
+  try {
+    const library = dlopen("/usr/lib/libSystem.B.dylib", {
+      sigaction: { args: ["int", "ptr", "ptr"], returns: "int" },
+    } as const);
+    cachedSignalActionReader = (signal, buffer) => library.symbols.sigaction(signal, null, ptr(buffer)) === 0;
+  } catch {
+    cachedSignalActionReader = null;
+  }
+  return cachedSignalActionReader;
+}
+
+/** Reads whether one signal's current disposition is SIG_IGN. Unknown reads as not ignored. */
+function signalIsIgnored(signalNumber: number): boolean {
+  try {
+    if (process.platform === "linux") {
+      const line = readFileSync("/proc/self/status", "utf8").split("\n").find((entry) => entry.startsWith("SigIgn:"));
+      if (line === undefined) return false;
+      return ((BigInt(`0x${line.slice("SigIgn:".length).trim()}`) >> BigInt(signalNumber - 1)) & 1n) === 1n;
+    }
+    if (process.platform === "darwin") {
+      const reader = darwinSignalActionReader();
+      // The handler is the first, pointer-sized field of struct sigaction.
+      const buffer = new Uint8Array(64);
+      if (reader === null || !reader(signalNumber, buffer)) return false;
+      return new DataView(buffer.buffer).getBigUint64(0, true) === 1n; // SIG_IGN
+    }
+  } catch {
+    // An unreadable disposition keeps the handler, which is the safer default.
+  }
+  return false;
+}
+
+function installParentHandlers(): void {
+  const ignored = signalsIgnoredAtStart();
+  for (const signal of PARENT_TERMINATION_SIGNALS) {
+    if (ignored.has(signal)) continue;
     const handler = (): void => {
       // Another listener, such as the Ghostget process boundary, owns this
       // signal and cancels runs gracefully. Leave the groups to that path.
