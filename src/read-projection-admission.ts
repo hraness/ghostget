@@ -961,7 +961,7 @@ export function readProjectionAuthIdentityHashesIfPresent(
           );
         })();
   } catch (error) {
-    // No incarnation collection yet: every account takes the admitted fallback.
+    // No incarnation collection yet, so no account has an incarnation to read.
     if (error instanceof Error && error.message.includes("directory is absent")) {
       return resolved;
     }
@@ -982,7 +982,8 @@ export function readProjectionAuthIdentityHashesIfPresent(
         incarnationRecord,
       );
     } catch {
-      // Unreadable state stays absent here; the admitted fallback reports it.
+      // Unreadable state stays absent here. The admitted write path reads the
+      // same record and fails closed on it.
       continue;
     }
     if (snapshot.value.authId !== entry.id) continue;
