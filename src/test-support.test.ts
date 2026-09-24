@@ -260,17 +260,24 @@ describe("property soak mode", () => {
   });
 
   test("the environment multiplier reaches every helper run, and an environment replay skips the corpus", () => {
+    // The script text is constant; the module path and corpus property name
+    // arrive through the child's environment rather than code construction.
     const script = [
-      `import { assertProperty, fc } from ${JSON.stringify(join(import.meta.dir, "test-support.ts"))};`,
+      "const { assertProperty, fc } = await import(process.env.GHOSTGET_TEST_SUPPORT_MODULE);",
       "let runs = 0;",
       "assertProperty(fc.property(fc.integer(), () => { runs += 1; }), { numRuns: 7 });",
       "let replayed = 0;",
-      `assertProperty(fc.property(fc.jsonValue({ maxDepth: 6 }), () => { replayed += 1; }), { numRuns: 1 }, ${JSON.stringify(corpusProperty)});`,
+      "assertProperty(fc.property(fc.jsonValue({ maxDepth: 6 }), () => { replayed += 1; }), { numRuns: 1 }, process.env.GHOSTGET_TEST_CORPUS_PROPERTY);",
       "console.log(JSON.stringify({ runs, replayed }));",
     ].join("\n");
     const run = (environment: Record<string, string>) => {
       const child = Bun.spawnSync([process.execPath, "-e", script], {
-        env: { PATH: process.env.PATH ?? "", ...environment },
+        env: {
+          PATH: process.env.PATH ?? "",
+          GHOSTGET_TEST_SUPPORT_MODULE: join(import.meta.dir, "test-support.ts"),
+          GHOSTGET_TEST_CORPUS_PROPERTY: corpusProperty,
+          ...environment,
+        },
         stdin: "ignore",
         stdout: "pipe",
         stderr: "pipe",
