@@ -179,13 +179,13 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.15.0",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.16.1",
         "@hraness/site-footer": "github:hraness/site-footer#v0.15.0",
-        "@hraness/ui": "github:hraness/ui#v0.5.16",
+        "@hraness/ui": "github:hraness/ui#v0.5.17",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.15.0"');
-    expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.16"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.16.1"');
+    expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.17"');
     expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.15.0"');
     expect(lockfile).toContain(
       '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#8b6336d"', 
@@ -406,7 +406,16 @@ describe("ghostget.com static site", () => {
     expect(sourceCss).toMatch(/\.wordmark\s*\{[^}]*font-family:\s*var\(--font-sans\)/su);
     expect(sourceCss).toMatch(/\.hero h1,[\s\S]*?\.preview-copy h1\s*\{[^}]*font-family:\s*var\(--font-sans\)/u);
     expect(sourceCss).toMatch(/\.hero h1,[\s\S]*?\.preview-copy h1\s*\{[^}]*font-weight:\s*500/u);
-    expect(sourceCss).toContain("--hraness-site-accent: var(--accent);");
+    expect(sourceCss).toContain("--hraness-site-accent: var(--ghostget-action);");
+    expect(sourceCss).toContain("--hraness-site-accent-ink: var(--ghostget-action-ink);");
+    expect(sourceCss).toContain("--ghostget-action: var(--primary);");
+    expect(sourceCss).toContain("--ghostget-action-ink: var(--primary-foreground);");
+    expect(sourceCss).toContain("--ghostget-action-soft: var(--accent);");
+    expect(sourceCss).not.toMatch(/--accent\s*:/u);
+    expect(cssPropertyValues(sourceCss, ".registry-domain-strip a:hover", "color").at(-1))
+      .toBe("var(--ghostget-action)");
+    expect(cssPropertyValues(sourceCss, ".registry-domain-strip a:focus-visible", "outline").at(-1))
+      .toBe("2px solid var(--ghostget-action)");
     expect(sourceCss).toMatch(/\.preview-copy > p:last-child\s*\{(?![^}]*font-family)[^}]*\}/su);
     expect(sourceCss).toMatch(/\.preview-eyebrow\s*\{[^}]*font-family:\s*var\(--font-mono\)/su);
     expect(sourceCss).toMatch(/\.preview-flow li\s*\{[^}]*font-family:\s*var\(--font-mono\)/su);
@@ -766,7 +775,7 @@ describe("ghostget.com static site", () => {
       expect(cssPropertyValues(css, ".ghostget-product-hero .hero-explainer", "color").at(-1))
         .toBe("var(--hraness-material-muted, var(--muted))");
       expect(cssPropertyValues(css, '.hraness-marketing-action[data-emphasis="primary"]', "color").at(-1))
-        .toBe("var(--accent-ink)");
+        .toBe("var(--ghostget-action-ink)");
       const providerMarkDisplay = cssPropertyValues(css, ".provider-mark", "display");
       expect(providerMarkDisplay.length).toBeGreaterThan(0);
       expect(providerMarkDisplay).not.toContain("none");
