@@ -117,13 +117,14 @@ import {
   stagePlanAssets,
 } from "./plan-assets";
 import { readRecoveryCapsule, removeProviderAcceptedMutationTargetEvidence, removeRecoveryCapsule, type RecoveryContractIdentity } from "./recovery";
-import { listRunJournalSnapshots, readRunJournal, runJournalNeedsRepair, transitionRunJournal, updateRunJournal, type RunJournal, type RunJournalSnapshot } from "./run-journal";
+import { listRunJournalSnapshots, readRunJournal, runJournalNeedsRepair, transitionRunJournal, updateRunJournal, type RunJournal, type RunJournalEvent, type RunJournalSnapshot } from "./run-journal";
 import {
   currentProcessStartIdentity,
   processOwnerStatus,
 } from "./process-identity";
 import {
   messagingReceiptBinding,
+  messagingRecoveryEvent,
   messagingRunReceipt,
   readMessagingRun,
   readMessagingRunIfPresent,
@@ -3089,8 +3090,10 @@ const CONFIRMED_WRITE_INTENT_DOMAIN = "ghostget-confirmed-write-intent-v1";
  * ID), operation, and canonical input, narrowed to one duplicate-risk
  * successor when present. The key excludes adapter and auth hashes: a
  * manifest revision or a reconnect rewrites those bytes, not the effect.
+ *
+ * @internal Exported only for the fence model's trace replay.
  */
-function intentLedgerPath(
+export function intentLedgerPath(
   adapterId: string,
   authId: string,
   operationId: string,
@@ -3263,6 +3266,32 @@ function journalFencesIntent(
 }
 
 /**
+ * The journal that fences `intent` against run `runId`, or null. An unsettled
+ * journal wins over a fulfilled one; among fulfilled journals, the one whose
+ * dedupe window ends last.
+ *
+ * @internal Exported only for the fence model's trace replay.
+ */
+export function intentFenceBlocker(
+  journals: readonly RunJournal[],
+  intent: ConfirmedWriteIntent,
+  runId: string,
+  now: Date,
+): RunJournal | null {
+  let fulfilled: RunJournal | null = null;
+  for (const journal of journals) {
+    if (journal.runId === runId) continue;
+    const fence = journalFencesIntent(journal, intent, now);
+    if (fence === "unsettled") return journal;
+    if (
+      fence === "fulfilled"
+      && (fulfilled === null || Date.parse(journal.dedupeExpiresAt) > Date.parse(fulfilled.dedupeExpiresAt))
+    ) fulfilled = journal;
+  }
+  return fulfilled;
+}
+
+/**
  * Check and claim the intent fence before the hash-keyed ledger. Journals
  * recorded before this fence existed have no intent ledger, so every
  * unsettled or still-fulfilled journal for the same intent blocks first,
@@ -3280,23 +3309,15 @@ function acquireIntentLedger(
   if (!intent.inputHashes.includes(entry.inputHash)) {
     throw new Error("confirmed-write intent does not bind its ledger input");
   }
-  let fulfilled: RunJournal | null = null;
-  for (const candidate of listRunJournalSnapshots(environment)) {
+  const journals = listRunJournalSnapshots(environment).map((candidate) => {
     if ("invalid" in candidate) {
       throw new Error("invalid run journals make the confirmed-write intent unresolved");
     }
-    if (candidate.journal.runId === entry.runId) continue;
-    const fence = journalFencesIntent(candidate.journal, intent, now);
-    if (fence === "unsettled") {
-      return { acquired: false, existing: runJournalLedgerEntry(candidate.journal), viaIntent: true };
-    }
-    if (
-      fence === "fulfilled"
-      && (fulfilled === null || Date.parse(candidate.journal.dedupeExpiresAt) > Date.parse(fulfilled.dedupeExpiresAt))
-    ) fulfilled = candidate.journal;
-  }
-  if (fulfilled !== null) {
-    return { acquired: false, existing: runJournalLedgerEntry(fulfilled), viaIntent: true };
+    return candidate.journal;
+  });
+  const blocker = intentFenceBlocker(journals, intent, entry.runId, now);
+  if (blocker !== null) {
+    return { acquired: false, existing: runJournalLedgerEntry(blocker), viaIntent: true };
   }
   const claimed = acquireLedger(
     intentLedgerPath(intent.adapterId, intent.authId, intent.operationId, entry.inputHash, environment, intent.duplicateIntentHash),
@@ -3526,7 +3547,8 @@ function runJournalReceipt(journal: RunJournal): RunReceipt {
   };
 }
 
-function runJournalLedgerEntry(journal: RunJournal): LedgerEntry {
+/** @internal Exported only for the fence model's trace replay. */
+export function runJournalLedgerEntry(journal: RunJournal): LedgerEntry {
   if (
     journal.ledgerState === "unclaimed"
     || journal.ledgerState === "released"
@@ -4108,6 +4130,23 @@ export function repairInterruptedRunJournals(
 }
 
 /**
+ * The journal event that settles a reconciled run. It always keeps the
+ * at-most-once ledger: see releaseReconciledRunRecovery.
+ *
+ * @internal Exported only for the fence model's trace replay.
+ */
+export function reconciledRecoveryRelease(
+  journal: RunJournal,
+  now: Date,
+): Extract<RunJournalEvent, { readonly type: "recovery-released" }> {
+  return {
+    type: "recovery-released",
+    outcome: "applied",
+    at: new Date(Math.max(now.getTime(), Date.parse(journal.updatedAt))).toISOString(),
+  };
+}
+
+/**
  * Release a reconciled run's recovery material and keep its idempotency
  * ledger. No reconciler observes that a write did not apply, and a caller's
  * claim is not that evidence, so reconciliation never reopens the fence.
@@ -4152,14 +4191,11 @@ export function releaseReconciledRunRecovery(
   }
   if (snapshot.journal.recoveryState !== "released") {
     try {
-      snapshot = updateRunJournal(snapshot, {
-        type: "recovery-released",
-        outcome: "applied",
-        at: new Date(Math.max(
-          now.getTime(),
-          Date.parse(snapshot.journal.updatedAt),
-        )).toISOString(),
-      }, environment);
+      snapshot = updateRunJournal(
+        snapshot,
+        reconciledRecoveryRelease(snapshot.journal, now),
+        environment,
+      );
     } catch (error) {
       const raced = readRunJournal(runId, environment);
       if (raced?.journal.duplicateSuccessor !== undefined) {
@@ -4986,36 +5022,8 @@ function terminalizeMessagingRecovery(
   observedAt: Date,
 ): MessagingRunV1 {
   const snapshot = readMessagingRun(runId, environment);
-  if (snapshot.run.state !== "pending") return snapshot.run;
-  const active = snapshot.run.parts[snapshot.run.provenPartCount];
-  if (active === undefined) {
-    throw new Error("pending messaging recovery has no active part");
-  }
-  const at = Math.max(
-    observedAt.getTime(),
-    Date.parse(snapshot.run.recordedAt),
-  );
-  const event = active.state === "dispatching"
-    ? {
-        type: "indeterminate" as const,
-        index: snapshot.run.provenPartCount,
-        reason: "journal-recovery-required" as const,
-        at: new Date(at).toISOString(),
-      }
-    : active.state === "unattempted" || active.state === "claimed"
-      ? {
-          type: "categorical-stop" as const,
-          index: snapshot.run.provenPartCount,
-          partState: snapshot.run.provenPartCount === 0
-            ? "failed-before-dispatch" as const
-            : "failed-permanent" as const,
-          reason: "journal-recovery-required" as const,
-          at: new Date(at).toISOString(),
-        }
-      : null;
-  if (event === null) {
-    throw new Error("pending messaging recovery state is contradictory");
-  }
+  const event = messagingRecoveryEvent(snapshot.run, observedAt);
+  if (event === null) return snapshot.run;
   return updateMessagingRun(snapshot, event, environment).run;
 }
 

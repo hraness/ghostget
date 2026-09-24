@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import fc from "fast-check";
+import { assertProperty } from "./test-support";
 import { inspectEffectArchitecture } from "../scripts/effect-architecture";
 
 const directory = dirname(fileURLToPath(import.meta.url));
@@ -162,9 +163,9 @@ const rules=(file:string)=>findings.filter(f=>f.file===file).map(f=>f.rule);
   test("immutable alias depth preserves native and local-service outcomes",()=>{
     const selected=new Set(Object.keys(fixtures).filter(file=>file.startsWith("alias-property-")).map(file=>join(fixtureRoot,file)));
     expect(ts.getPreEmitDiagnostics(program).filter(d=>d.file&&selected.has(d.file.fileName))).toEqual([]);
-    fc.assert(fc.property(fc.integer({min:0,max:8}),fc.boolean(),(depth,native)=>{
+    assertProperty(fc.property(fc.integer({min:0,max:8}),fc.boolean(),(depth,native)=>{
       expect(rules(`alias-property-${native?"native":"service"}-${depth}.ts`).includes("ambient-io")).toBe(native);
-    }),{seed:1415,numRuns:40});
+    }),{numRuns:40},{seed:1415});
   });
   test("requires local Effect value ownership without contaminating pure or type-only importers",()=>{
     const rejected=["unclassified-local-value.ts","unclassified-local-factory.ts","unclassified-local-namespace.ts","unclassified-local-reexport.ts","unclassified-local-star.ts","unclassified-local-import.ts","unclassified-local-parameter.ts","unclassified-local-union.ts","unclassified-cycle.ts","unclassified-direct-type.ts"];

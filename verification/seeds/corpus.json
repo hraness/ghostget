@@ -1,0 +1,17 @@
+{
+  "schema": "ghostget-property-seeds-v1",
+  "properties": {
+    "contracts-invoke-read/output-round-trip": {
+      "file": "src/contracts-invoke-read.test.ts",
+      "entries": [
+        {
+          "kind": "counterexample",
+          "seed": 455347073,
+          "path": "3:1:86:86",
+          "origin": "Required run 35687468171 shrank a succeeded envelope whose output is {\"__proto__\":0}.",
+          "regression": "round-trips an output with an own __proto__ member (CI seed 455347073, path 3:1:86:86)"
+        }
+      ]
+    }
+  }
+}

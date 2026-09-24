@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "../test-support";
 
 import { compareUtf8 } from "./utf8-order";
 
@@ -8,7 +9,7 @@ function sign(value: number): -1 | 0 | 1 {
 }
 
 test("property: UTF-8 ordering is total, antisymmetric, and transitive", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.string(), fc.string(), fc.string(), (left, middle, right) => {
       expect(sign(compareUtf8(left, middle))).toBe(sign(-compareUtf8(middle, left)));
       expect(compareUtf8(left, middle) === 0).toBe(left === middle);

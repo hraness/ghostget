@@ -18,6 +18,13 @@ and Linux with Bun 1.3.14.
 
 [Get started](#install) · [Choose a task](#choose-your-next-task) · [Supported services](https://ghostget.com/docs/reference/provider-capabilities/) · [Docs](https://ghostget.com/docs/tutorials/getting-started/) · [Security](SECURITY.md)
 
+Ghostget keeps the pages and media it saves on your computer, gives your agent
+named actions instead of credentials, and leaves a record of each write that
+matters: the design every Hraness project shares. [The thread through
+hraness](https://hraness.com/writing/the-thread-through-hraness) follows that
+design across the projects, and the [ALGAL
+vision](https://algal.computer/docs/vision/) states the bet behind it.
+
 ## Install
 
 Install [Bun 1.3.14](https://bun.sh/docs/installation) if needed, then install

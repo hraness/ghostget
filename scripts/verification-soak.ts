@@ -3,8 +3,8 @@
  * `assertProperty` or `assertAsyncProperty`, run with `GHOSTGET_PROPERTY_RUNS`
  * multiplying each property's run count and interrupt limit. A failure prints
  * fast-check's seed and shrink path; replay it with `GHOSTGET_PROPERTY_SEED`
- * and `GHOSTGET_PROPERTY_PATH`. Properties that call `fc.assert` directly do
- * not scale until they move to the shared helpers.
+ * and `GHOSTGET_PROPERTY_PATH`. `src/test-harness-policy.test.ts` rejects any
+ * other fast-check runner, so every property scales.
  */
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -15,7 +15,7 @@ import {
   listSrcUnitTestFiles,
   parseShardRequest,
 } from "./ci-test-shard.js";
-import { propertyRunsMultiplier } from "../src/test-support.js";
+import { propertyRunMultiplier } from "../src/test-support.js";
 
 const SHARED_PROPERTY_CALL = /\bassert(?:Async)?Property\(/u;
 /** A soak test may take its multiplied share of the runner timeout, up to this ceiling. */
@@ -37,7 +37,7 @@ export function soakMultiplier(environment: Readonly<Record<string, unknown>>): 
   if (environment.GHOSTGET_PROPERTY_RUNS === undefined) {
     throw new Error("the property soak requires GHOSTGET_PROPERTY_RUNS");
   }
-  const multiplier = propertyRunsMultiplier(environment);
+  const multiplier = propertyRunMultiplier(environment);
   if (multiplier < 2) throw new Error("the property soak requires GHOSTGET_PROPERTY_RUNS of at least 2");
   return multiplier;
 }
