@@ -190,6 +190,50 @@
       "killedBy": [
         "property: at most one live contender holds helper custody across inspect and commit races, crashes, restarts, and unknown owners"
       ]
+    },
+    {
+      "id": "web-gateway-dispatch-without-audit",
+      "file": "src/control/web-gateway.ts",
+      "defect": "The gateway reaches DNS and the network without first committing a durable started row.",
+      "search": "this.activity.start({id,method,origin:checked.url.origin,ruleId:checked.ruleIds.join(\",\")||null,endpoint:checked.endpoint,decision:checked.approval.decision});started=true;",
+      "replace": "started=true;",
+      "test": "src/control/web-gateway.property.test.ts",
+      "killedBy": [
+        "property: gateway output and network dispatch follow a committed durable audit row, and recovery never retries"
+      ]
+    },
+    {
+      "id": "web-gateway-output-despite-failed-audit",
+      "file": "src/control/web-gateway.ts",
+      "defect": "A failed final audit write is ignored and the response body is still returned.",
+      "search": "this.activity.finish(id,{outcome:response.ok?\"succeeded\":\"failed\",httpStatus:response.status,responseBytes:bytes,errorCode:response.ok?null:\"HTTP_ERROR\"});finished=true;",
+      "replace": "try{this.activity.finish(id,{outcome:response.ok?\"succeeded\":\"failed\",httpStatus:response.status,responseBytes:bytes,errorCode:response.ok?null:\"HTTP_ERROR\"});}catch{}finished=true;",
+      "test": "src/control/web-gateway.property.test.ts",
+      "killedBy": [
+        "property: gateway output and network dispatch follow a committed durable audit row, and recovery never retries"
+      ]
+    },
+    {
+      "id": "web-gateway-returns-redirect",
+      "file": "src/control/web-gateway.ts",
+      "defect": "A redirect response is returned to the caller instead of withheld.",
+      "search": "if(response.status>=300&&response.status<400) throw",
+      "replace": "if(false) throw",
+      "test": "src/control/web-gateway.property.test.ts",
+      "killedBy": [
+        "property: gateway output and network dispatch follow a committed durable audit row, and recovery never retries"
+      ]
+    },
+    {
+      "id": "activity-recovery-keeps-started",
+      "file": "src/control/activity.ts",
+      "defect": "Opening the store after a crash leaves unknown requests started instead of marking them interrupted.",
+      "search": "WHERE outcome='started'\").run(new Date(now()).toISOString());",
+      "replace": "WHERE 0\").run(new Date(now()).toISOString());",
+      "test": "src/control/web-gateway.property.test.ts",
+      "killedBy": [
+        "property: gateway output and network dispatch follow a committed durable audit row, and recovery never retries"
+      ]
     }
   ]
 }
