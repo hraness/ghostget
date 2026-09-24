@@ -1517,27 +1517,33 @@
 // Compressed size varies with the local zlib. Carry the same projections and
 // allowances: 11,997,841 + 12,387 + 4,096 = 12,014,324 packed;
 // 23,401,813 + 353 + 65 = 23,402,231 unpacked.
-// The D14 read-path change over the copy pass moves auth incarnation creation
-// off the menu-bar snapshot into a control-service startup backfill, drops
-// admissions from the snapshot's account and permission listings, and adds the
-// AuthIncarnationReader read capability, over the unchanged 596-file
-// inventory: 4,724 payload bytes over the copy-pass measurement. Two
-// `npm pack --ignore-scripts` runs with npm 11.19.0, the CI version, on darwin
-// arm64 were byte-identical at 11,987,773 packed bytes, 23,406,537 unpacked
-// bytes; archive SHA-256
-// ee218a5b56985017693671b544020ea2878a1aa9794ab00fc8ccba25d42e7b88. The packed
-// size is below the npm 11.16.0 copy-pass measurement because that zlib
-// compresses less. Carry the same projections and allowances:
-// 11,987,773 + 12,387 + 4,096 = 12,004,256 packed;
-// 23,406,537 + 353 + 65 = 23,406,955 unpacked.
+// The media lifecycle hardening spawns yt-dlp in its own process group,
+// fsyncs every revision file and parent directory around the promotion
+// rename, quarantines only a torn head revision, and fences promotion with
+// the item lock's token. This adds 15,821 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0
+// on darwin arm64 were byte-identical at 11,990,908 packed bytes, 23,417,634
+// unpacked bytes; archive SHA-256
+// 519e4bfdfd61196722eda53965398a7553afb1818a399cc322004665a04574a2. Carry the
+// same projections and allowances: 11,990,908 + 12,387 + 4,096 = 12,007,391
+// packed; 23,417,634 + 353 + 65 = 23,418,052 unpacked.
+// The read-path capability gives the menu-bar snapshot a branded read-only
+// auth incarnation reader and moves missing incarnation creation to
+// control-service startup under admission. This adds 4,724 payload bytes over
+// the unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with
+// npm 11.19.0 on darwin arm64 were byte-identical at 11,992,132 packed bytes,
+// 23,422,358 unpacked bytes; archive SHA-256
+// 01875f12ab73a49d6c7d6bf520dc3d318db816addee2fa7981889f35c958cf7c. Carry the
+// same projections and allowances: 11,992,132 + 12,387 + 4,096 = 12,008,615
+// packed; 23,422,358 + 353 + 65 = 23,422,776 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "read-path capability for auth incarnations (D14) over the unreleased copy pass",
+  scope: "D14 read-path capability",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.19.0",
+  npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "ee218a5b56985017693671b544020ea2878a1aa9794ab00fc8ccba25d42e7b88",
-  packedBytes: 11_987_773,
-  unpackedBytes: 23_406_537,
+  archiveSha256: "01875f12ab73a49d6c7d6bf520dc3d318db816addee2fa7981889f35c958cf7c",
+  packedBytes: 11_992_132,
+  unpackedBytes: 23_422_358,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

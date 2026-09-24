@@ -372,6 +372,7 @@ export async function probeWithYtDlp(
   const result = await dependencies.runProcess(buildYtDlpProbeArgv(options), {
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     timeoutMs: PROBE_TIMEOUT_MS,
+    processGroup: true,
     maxStdoutBytes: PROBE_STDOUT_LIMIT_BYTES,
     maxStderrBytes: TOOL_STDERR_LIMIT_BYTES,
     redactions: [
@@ -402,6 +403,8 @@ export async function captureWithYtDlp(
   const result = await dependencies.runProcess(buildYtDlpCaptureArgv(options), {
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     timeoutMs: CAPTURE_TIMEOUT_MS,
+    // yt-dlp starts FFmpeg for HLS and merges. Cancel must stop those too.
+    processGroup: true,
     maxStdoutBytes: CAPTURE_STDOUT_LIMIT_BYTES,
     maxStderrBytes: TOOL_STDERR_LIMIT_BYTES,
     redactions: [
