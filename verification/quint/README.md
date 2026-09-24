@@ -16,6 +16,12 @@ releases:
 A timeout, an interruption, or output the checker wrapper cannot parse fails
 the run. A clean typecheck alone is never evidence.
 
+`bun run ./scripts/verification-tools.ts quint-nightly` runs the same checks at
+each model's `nightly` bounds and writes its logs to
+`artifacts/verification/quint-nightly/`. The nightly workflow runs it; CI runs
+only the CI bounds, so keep those inside the verification step's 16-minute
+budget and put deeper bounds under `nightly`.
+
 ## `models.json`
 
 `scripts/verification-tools.ts` parses the manifest strictly: an unknown field,
@@ -28,6 +34,7 @@ a missing field, or a value outside its bound fails `bun run verify`.
 | `invariants` | One to 32 invariant names. Simulation and Apalache check each one. |
 | `simulation` | The decimal `seed`, `maxSamples` (1 to 100,000), and `maxSteps` (1 to 100) for `quint run`. |
 | `apalache.length` | The bounded model-checking length, from 1 to 50. |
+| `nightly` | Optional deeper bounds for the nightly workflow: `simulation.maxSamples`, `simulation.maxSteps`, and `apalache.length`. Each is at least its CI bound, and at least one is larger. The seed is the CI seed. Without this field the nightly run repeats the CI bounds. |
 | `mutants` | One to 32 seeded defects or pre-fix variants. Each names a step other than `step` and an invariant from `invariants` that it must violate. |
 | `replay.test` | The test file under `scripts/` or `src/` that replays this model's traces. |
 | `replay.target` | `production` when the replay test drives production code, otherwise `reference`. |
