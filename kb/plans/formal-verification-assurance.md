@@ -99,6 +99,8 @@ web gateway, the Edge middleware, media, release, and CI on `origin/main`
 | D13 | Approvals | Allow-once is enforced by the client. The broker leaves an `allowed` entry checkable for 600 s and relies on the Ghostget process calling `releaseApproval` in `finally`. A crash leaves a reusable lease for same-UID callers. | code-read |
 | D14 | Read paths | The menu-bar snapshot creates incarnation files through `ensureIncarnationUnderAdmission`, and read-projection listings unlink orphaned claims. Both break the literal rule "No writes on read paths". Either the rule gets an explicit, bounded exemption or the writes move. Done: #355 made the snapshot read-only, #371 moved the cache-read and omni auth checks to `AuthIncarnationReader` and recorded the two exemptions, and the residual-incarnation change binds read-path preparation, confirmation preparation, and the permission account identity the same way. Explicit invocation preparation remains the admitted creator. | code-confirmed; fixed |
 | D15 | Release | Manual promotion refuses a Release that an intermediate attempt published. When a failed-jobs rerun publishes bytes an earlier attempt attested, the body names that earlier attempt. A later rerun of all jobs then fails its publish job, and `resolveReleaseAuthority` reads only the latest attempt and the receipt attempt, neither of which proved all four canonical jobs. Found by a strengthened `promotionNotBlocked` over `verification/quint/release.qnt` (attempts: publish fails, rerun failed jobs publishes, rerun all) and reproduced against `resolveReleaseAuthority` with the release replay fixtures. Fixed: when the receipt attempt attested but did not publish, manual recovery and the canonical download read at most three exact intermediate attempts, each through its own attempt record and job inventory, and the model's `promotionNotBlocked` now names any publishing attempt (mutant `stepD15`). | reproduced, fixed |
+| D16 | Release | A stable Release that completes out of band during publication is hidden. `publishCanonicalRelease` ran the completed-Release census before the PATCH but not after it, so a higher Release completed between that census and the PATCH (GitHub has no conditional publish) let the PATCH make the older target Latest and the run report success. Found by the stateful publisher model in `scripts/github-release-publish-model.test.ts` (shrunk to `Publish(R1, concurrent-higher at main read 7)`). Fixed: the census repeats after the terminal authority proof, and on an already-published target, so such a run fails closed; the immutable publication itself cannot be undone. | reproduced, fixed |
+| D17 | Release | Pending stable Release runs could be cancelled. GitHub keeps one running and one pending run per concurrency group and cancels the pending run when a third arrives, so a tag pushed while two runs were queued never published. Fixed: the `stable-release` group sets `queue: max`, which queues up to 100 pending runs in order. | code-read, fixed |
 
 ### Evidence gaps
 
@@ -134,7 +136,7 @@ web gateway, the Edge middleware, media, release, and CI on `origin/main`
   A→B→A edit passes. That is acceptable under the single-writer assumption,
   but the assumption is not written down. Durable contract hashes change only
   on a version bump, and nothing checks that a closure change forces one.
-  `stable-release` concurrency can cancel a pending tag run. Media probe and
+  `stable-release` concurrency could cancel a pending tag run (D17, fixed). Media probe and
   capture are two yt-dlp calls, and capture does not recheck live or DRM
   status.
 
@@ -301,6 +303,28 @@ and an ITF replay test through production code.
    after revocation. The progress goal is "an immutable Release is eventually
    promoted or leaves explicit stuck evidence". Replay traces through the
    pure validators in `scripts/`.
+
+   Execution note (2026-09-24): the publication half of item 6 is evidenced
+   without a new Quint model. A `fc.commands` model in
+   `scripts/github-release-publish-model.test.ts` drives the production
+   `publishCanonicalRelease` against a fake GitHub across publication
+   attempts, reruns, lookup, inventory, authority and write faults, later and
+   front-run Releases, edited bodies, and stored-byte corruption, and checks
+   the write laws after every command. It found D16. Properties cover the
+   completed-Release census and Latest convergence
+   (`scripts/release-provider-outcome.test.ts`), App-token revocation and its
+   mint-operate-revoke lifecycle (`scripts/release-app-token-revocation.test.ts`),
+   and npm reruns through the real registry step scripts
+   (`scripts/npm-publish-model.test.ts`). Structural tests pin D17's fix and
+   the npm job graph. These files now run in `test:npm-release`; before this,
+   no CI job ran `scripts/release-provider-outcome.test.ts`, although evidenced
+   claims cited it. Each release claim's evidence was checked against 26 deliberate
+   mutants of the publisher, census, Latest wait, revocation helper, and
+   workflow; every one fails a cited test. Still open:
+   `npm-publish-at-most-once-per-version` stays planned, because under
+   registry read lag a rerun issues a second `npm publish` that only npm's
+   version immutability refuses; the statement needs a durable per-version
+   record or an owner-accepted restatement.
 
 Acceptance per model:
 
