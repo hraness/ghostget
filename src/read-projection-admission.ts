@@ -905,10 +905,9 @@ export function readProjectionAuthIdentityHashIfPresent(
  * accounts in one bounded batch read, without admissions and without creating
  * missing state. Listing paths use it so enumerating accounts does not pay a
  * settled admission per account. Accounts without a readable incarnation are
- * absent from the result; their callers fall back to the admitted path, which
- * still creates the incarnation. A rotated or mid-write incarnation yields a
- * digest that no longer matches admitted state, which fails closed at the
- * authoritative revision comparison.
+ * absent from the result, and this read never creates one. A rotated or
+ * mid-write incarnation yields a digest that no longer matches admitted
+ * state, which fails closed at the authoritative revision comparison.
  */
 export function readProjectionAuthIdentityHashesIfPresent(
   requests: readonly Readonly<{
@@ -995,4 +994,50 @@ export function readProjectionAuthIdentityHashesIfPresent(
     );
   }
   return resolved;
+}
+
+declare const authIncarnationReadCapability: unique symbol;
+
+/**
+ * The read capability for auth incarnations. Read paths such as the menu-bar
+ * snapshot hold only this port. It has no member that creates, rotates, or
+ * removes incarnation or admission state, and only authIncarnationReader can
+ * mint one, so a read path cannot reach a writer without a type error. A
+ * missing incarnation stays missing here; account creation, account
+ * replacement, the control-service startup backfill, and admitted execution
+ * paths create it.
+ */
+export type AuthIncarnationReader = Readonly<{
+  readonly [authIncarnationReadCapability]: "read";
+  identityHashIfPresent(
+    authId: string,
+    exactAuthContentHash: string,
+  ): string | null;
+  identityHashesIfPresent(
+    requests: readonly Readonly<{
+      authId: string;
+      exactAuthContentHash: string;
+    }>[],
+  ): ReadonlyMap<string, string>;
+}>;
+
+export function authIncarnationReader(
+  environment: Environment = process.env,
+): AuthIncarnationReader {
+  // The brand exists only in the type system; the frozen object carries the
+  // two read methods and nothing a cast could reach.
+  return Object.freeze({
+    identityHashIfPresent: (authIdValue: string, exactAuthContentHash: string) =>
+      readProjectionAuthIdentityHashIfPresent(
+        authIdValue,
+        exactAuthContentHash,
+        environment,
+      ),
+    identityHashesIfPresent: (
+      requests: readonly Readonly<{
+        authId: string;
+        exactAuthContentHash: string;
+      }>[],
+    ) => readProjectionAuthIdentityHashesIfPresent(requests, environment),
+  }) as unknown as AuthIncarnationReader;
 }

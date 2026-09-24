@@ -8,7 +8,7 @@ import { getLocalCliContract, localCliContractHash } from "./local-cli-contracts
 import { requireProviderPluginAuth } from "./provider-plugin-auth";
 import type { ProviderPluginRegistry, ProviderPluginOperationResolutionV1 } from "./provider-plugin-registry";
 import { ghostgetStateHome, loadInstalledManifest } from "./storage";
-import { projectionAuthIdentityHash, withSettledReadProjectionAuthAdmission } from "./read-projections";
+import { projectionAuthIdentityHash, withSettledReadProjectionAuthAdmission, type AuthIncarnationReader } from "./read-projections";
 import { publicWebSessionAuthorityIdentityHash, webSessionAuthenticationPolicy, type InvocationAuthority } from "./web-session-authentication-policy";
 import type { PreparedInvocation, StoredPlan } from "./runtime";
 import { summarizePlanFile } from "./plan-assets";
@@ -65,6 +65,7 @@ function publicAuthority(manifest: GhostgetManifest, operationId: string, resolu
 
 type AccountIdentity = Readonly<{ auth: ReturnType<typeof loadAuth>; incarnation: string }>;
 type Inspection = {
+  identify: (id: string) => AccountIdentity;
   policy: OperationPolicySnapshot;
   manifests: Map<string, GhostgetManifest>;
   accounts: Map<string, AccountIdentity | null>;
@@ -77,9 +78,21 @@ function accountIdentity(id: string, options: Options): AccountIdentity {
     return { auth, incarnation: projectionAuthIdentityHash(auth.id, sha256(canonicalJson(auth)), options.environment) };
   });
 }
-function inspectedAccount(id: string, options: Options, inspection: Inspection): AccountIdentity {
+/**
+ * The read-path account identity: no admission and no incarnation creation. A
+ * torn pair read during an account transition yields a digest that the
+ * admitted describeOperationPermission never reproduces, so a later write
+ * against it fails closed as changed.
+ */
+function readAccountIdentity(id: string, options: Options, incarnations: AuthIncarnationReader): AccountIdentity {
+  const auth = loadAuth(id, options.environment);
+  const incarnation = incarnations.identityHashIfPresent(auth.id, sha256(canonicalJson(auth)));
+  if (incarnation === null) throw new Error("The selected account has no read projection incarnation yet.");
+  return { auth, incarnation };
+}
+function inspectedAccount(id: string, inspection: Inspection): AccountIdentity {
   if (!inspection.accounts.has(id)) {
-    try { inspection.accounts.set(id, accountIdentity(id, options)); } catch { inspection.accounts.set(id, null); }
+    try { inspection.accounts.set(id, inspection.identify(id)); } catch { inspection.accounts.set(id, null); }
   }
   const account = inspection.accounts.get(id);
   if (account === null || account === undefined) throw new Error("The selected account is unavailable.");
@@ -97,7 +110,7 @@ function describe(adapterId: string, operationId: string, authId: string | null,
   const selectedId = authId ?? adapterId;
   const authority = publicAuth !== null
     ? { auth: publicAuth, incarnation: publicWebSessionAuthorityIdentityHash(publicAuth as Parameters<typeof publicWebSessionAuthorityIdentityHash>[0]) }
-    : inspectedAccount(selectedId, options, inspection);
+    : inspectedAccount(selectedId, inspection);
   if (publicAuth === null) {
     requireProviderPluginAuth(resolution.binding, authority.auth as ReturnType<typeof loadAuth>);
   }
@@ -118,25 +131,28 @@ function describe(adapterId: string, operationId: string, authId: string | null,
   return Object.freeze({ digest, coordinate, revision: policy.revision, decision: policy.managed ? policy.entries.find(entry => entry.digest === digest)?.decision ?? "deny" : "unmanaged", manifest, resolution, auth: authority.auth });
 }
 
-function inspection(options: Options): Inspection {
-  return { policy: readOperationPolicy(options.environment), manifests: new Map(), accounts: new Map(), closures: new Map(), contracts: new Map() };
+function inspection(options: Options, identify: (id: string) => AccountIdentity): Inspection {
+  return { identify, policy: readOperationPolicy(options.environment), manifests: new Map(), accounts: new Map(), closures: new Map(), contracts: new Map() };
 }
 
 export function describeOperationPermission(adapterId: string, operationId: string, authId: string | null, options: Options): OperationPermissionDescription {
-  return describe(adapterId, operationId, authId, options, inspection(options));
+  return describe(adapterId, operationId, authId, options, inspection(options, id => accountIdentity(id, options)));
 }
 
-/** Snapshot-local reuse keeps control-panel inspection proportional to unique accounts and adapters. Never reuse this snapshot to authorize a later request. */
-export function describeOperationPermissions(requests: readonly Readonly<{ adapterId: string; operationId: string; authId: string | null }>[], options: Options): readonly (OperationPermissionDescription | null)[] {
+/**
+ * Snapshot-local reuse keeps control-panel inspection proportional to unique accounts and adapters. Never reuse this snapshot to authorize a later request.
+ * This is the menu-bar read path, so it holds only the incarnation read capability; an account without an incarnation describes as unavailable.
+ */
+export function describeOperationPermissions(requests: readonly Readonly<{ adapterId: string; operationId: string; authId: string | null }>[], options: Options, incarnations: AuthIncarnationReader): readonly (OperationPermissionDescription | null)[] {
   const unavailable = () => Object.freeze(requests.map(() => null));
   let snapshot: Inspection;
-  try { snapshot = inspection(options); } catch { return unavailable(); }
+  try { snapshot = inspection(options, id => readAccountIdentity(id, options, incarnations)); } catch { return unavailable(); }
   const results = requests.map(request => {
     try { return describe(request.adapterId, request.operationId, request.authId, options, snapshot); } catch { return null; }
   });
   try {
     for (const [id, manifest] of snapshot.manifests) if (manifestHash(currentManifest(id, options)) !== manifestHash(manifest)) return unavailable();
-    for (const [id, identity] of snapshot.accounts) if (identity !== null && canonicalJson(accountIdentity(id, options)) !== canonicalJson(identity)) return unavailable();
+    for (const [id, identity] of snapshot.accounts) if (identity !== null && canonicalJson(snapshot.identify(id)) !== canonicalJson(identity)) return unavailable();
     for (const [binding, closure] of snapshot.closures) if (options.registry.implementationClosureHash(binding) !== closure) return unavailable();
     if (canonicalJson(readOperationPolicy(options.environment)) !== canonicalJson(snapshot.policy)) return unavailable();
   } catch { return unavailable(); }

@@ -1506,14 +1506,24 @@
 // a93c3400369b926d7dc23451d8ddb5b2b2cb47ccd733b09fda9000345415b16c. Carry the
 // same projections and allowances: 11,986,281 + 12,387 + 4,096 = 12,002,764
 // packed; 23,401,176 + 353 + 65 = 23,401,594 unpacked.
+// The D14 read-path change moves auth incarnation creation off the menu-bar
+// snapshot into a control-service startup backfill, drops admissions from the
+// snapshot's account and permission listings, and adds the
+// AuthIncarnationReader read capability. This adds 4,680 payload bytes over
+// the unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with
+// npm 11.19.0 on darwin arm64 were byte-identical at 11,987,539 packed bytes,
+// 23,405,856 unpacked bytes; archive SHA-256
+// 78f589f785e9901e14124f8c5187e8c498dd4afba8f71c520657bbcd301a22e2. Carry the
+// same projections and allowances: 11,987,539 + 12,387 + 4,096 = 12,004,022
+// packed; 23,405,856 + 353 + 65 = 23,406,274 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Path-helper reaper election over the injective session-secret inventory",
+  scope: "read-path capability for auth incarnations (D14)",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "a93c3400369b926d7dc23451d8ddb5b2b2cb47ccd733b09fda9000345415b16c",
-  packedBytes: 11_986_281,
-  unpackedBytes: 23_401_176,
+  archiveSha256: "78f589f785e9901e14124f8c5187e8c498dd4afba8f71c520657bbcd301a22e2",
+  packedBytes: 11_987_539,
+  unpackedBytes: 23_405_856,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
