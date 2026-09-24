@@ -148,6 +148,7 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
     await authority("prewrite");
     await requireLatestRelease({ api, repository, targetRelease: release, verifiedTag: manifest.tag });
     await authority("postwrite");
+    await assertReleaseTagNewerThanPublished({ allowExistingTarget: true, api, repository, verifiedTag: manifest.tag });
     return;
   }
   await assertReleaseTagNewerThanPublished({ api, repository, verifiedTag: manifest.tag });
@@ -197,6 +198,9 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
   verifyRemoteBytes(readback);
   await waitForLatestRelease({ api, predecessorRelease: predecessor, repository, targetRelease: readback, verifiedTag: manifest.tag });
   await authority("postwrite");
+  // GitHub has no conditional publish: a stable Release completed out of band
+  // after the pre-publication census would otherwise leave this older target Latest.
+  await assertReleaseTagNewerThanPublished({ allowExistingTarget: true, api, repository, verifiedTag: manifest.tag });
   await revalidateLatestReleaseProjection({ api, repository, targetRelease: readback, verifiedTag: manifest.tag });
 }
 

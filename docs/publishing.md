@@ -483,6 +483,9 @@ two equal bounded combined main-plus-tag advertisements around that proof.
 Current main may move linearly while preserving those controls. The publication
 path also exhausts the bounded completed stable-Release ordering census before
 creating or publishing a draft; a higher raw tag alone is an incomplete request.
+It repeats that census after the terminal authority proof, and on a completed
+target, so a higher stable Release that completed out of band during publication
+fails the run instead of leaving the older target as Latest.
 The canonical artifact has no dependency on npm latest.
 
 After publication, require exact immutable release and asset readback, bounded
