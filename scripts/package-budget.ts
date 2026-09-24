@@ -1647,21 +1647,22 @@
 // packed; 23,447,236 + 353 + 65 = 23,447,654 unpacked.
 // Read-path invocation preparation, confirmation preparation, and the
 // operation-permission account identity bind the auth incarnation through the
-// read capability instead of creating a missing one. This adds 3,804 payload
-// bytes over the unchanged 596-file inventory. Two `npm pack --ignore-scripts`
-// runs with npm 11.19.0 on darwin arm64 were byte-identical at 11,999,635
-// packed bytes, 23,451,040 unpacked bytes; archive SHA-256
-// 1621a9749d7f84f540bc6192fa124c5955abafdfd0b2651276962b1a1b4aad0b. Carry the
-// same projections and allowances: 11,999,635 + 12,387 + 4,096 = 12,016,118
-// packed; 23,451,040 + 353 + 65 = 23,451,458 unpacked.
+// read capability instead of creating a missing one, and the omni view's
+// closing recheck reports a source set it can no longer prepare as changed.
+// This adds 4,218 payload bytes over the unchanged 596-file inventory. Two
+// `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin arm64 were
+// byte-identical at 11,999,726 packed bytes, 23,451,454 unpacked bytes; archive SHA-256
+// 685fed8a425d2907a50fb542b75a8f6e309193c0630071973e7088c45ad9f2e8. Carry the
+// same projections and allowances: 11,999,726 + 12,387 + 4,096 = 12,016,209
+// packed; 23,451,454 + 353 + 65 = 23,451,872 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "D14 read-path preparation through the incarnation read capability",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "1621a9749d7f84f540bc6192fa124c5955abafdfd0b2651276962b1a1b4aad0b",
-  packedBytes: 11_999_635,
-  unpackedBytes: 23_451_040,
+  archiveSha256: "685fed8a425d2907a50fb542b75a8f6e309193c0630071973e7088c45ad9f2e8",
+  packedBytes: 11_999_726,
+  unpackedBytes: 23_451_454,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
