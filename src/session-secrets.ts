@@ -1503,7 +1503,7 @@ function coordinateStatesForAuth(
  * whose historical name is `name` says whose file it is even when the rest no
  * longer parses. Returns null when the body names no such coordinate.
  */
-function historicalSecretOwner(
+export function historicalSessionSecretOwner(
   text: string,
   name: string,
 ): SessionSecretCoordinate | null {
@@ -1548,7 +1548,7 @@ function removeAmbiguousHistoricalSecret(
     [directoryIdentity],
   );
   if (text === null) return false;
-  const owner = historicalSecretOwner(text, name);
+  const owner = historicalSessionSecretOwner(text, name);
   if (owner === null) {
     throw new Error(
       "ambiguous historical session secret has no verifiable owner; it was left in place",
