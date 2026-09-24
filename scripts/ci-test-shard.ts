@@ -10,10 +10,13 @@ const DEFAULT_FILE_WEIGHT = 2;
 // Wall seconds observed for the heaviest `./src` files during Linux
 // `bun run check` on GitHub-hosted ubuntu-latest (run 33969193934).
 // Used only to pack shards; every listed file still runs exactly once.
+// `src/confirmed-write-intent-fence.test.ts` was added from run 35931471436,
+// where its log group closed 176 seconds after the previous one in its shard.
 const MEASURED_FILE_WEIGHTS = Object.freeze({
   "src/messaging-runtime-execution.test.ts": 410,
   "src/runtime.test.ts": 265,
   "src/ghostget.test.ts": 208,
+  "src/confirmed-write-intent-fence.test.ts": 176,
   "src/read-projections.test.ts": 159,
   "src/read-client.test.ts": 115,
   "src/provider-plugin-portable-runtime.test.ts": 95,

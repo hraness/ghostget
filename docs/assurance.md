@@ -40,9 +40,9 @@ Every claim below also lists its own not-verified scope.
 - `local-cli-birth-time-readiness`: Local-CLI readiness requires a nonzero immutable directory birth time for operation-private roots and reports the transport unavailable before staging credentials otherwise. No automated check covers this claim, and no plan phase schedules one. No test exercises the birth-time readiness requirement.
 - `npm-release-env-config`: GitHub environment npm-release has administrator bypass disabled, no reviewers, no secrets, sole protection rule branch_policy, and the single custom deployment policy tag v* with no branch admitted. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. The listed tests check only the checked-in side of the contract.
 - `npm-trusted-publisher-binding`: The npm trusted publisher for @hraness/ghostget names exactly hraness/ghostget, release.yml and environment npm-release; no other relationship exists, package access requires 2FA and disallows tokens, and no npm token is stored in GitHub. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-- `tag-ruleset-creation-only`: An active repository tag ruleset targets only refs/tags/v* with the exact rule set [creation] and sole always-bypass User 894119; it never authorizes update or deletion. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-- `tag-ruleset-immutable`: An active repository tag ruleset targets only refs/tags/v* with exact rules [deletion, update] and no bypass actors; it never authorizes creation. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-- `tag-ruleset-exactly-two-refs-tags-v`: Exactly two active repository tag rulesets target `refs/tags/v*`, and their split creation-only and immutable semantics, not their IDs or names, carry the authority. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. The plan records drift: four tag rulesets are active, and the extra two target `desktop-v*-macos-arm64`; plan Phase 6 updates the documented readback.
+- `tag-ruleset-creation-only`: In each tag ruleset pair, the creation-only ruleset has the exact rule set [creation] and sole always-bypass User 894119; it never authorizes update or deletion. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+- `tag-ruleset-immutable`: In each tag ruleset pair, the immutable ruleset has exact rules [deletion, update] and no bypass actors; it never authorizes creation. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+- `tag-rulesets-two-split-pairs`: Exactly four active repository tag rulesets form two split creation-only and immutable pairs, one targeting only `refs/tags/v*` and one targeting only `refs/tags/desktop-v*-macos-arm64`; any other active tag ruleset is drift, and the split semantics, not the ruleset IDs or names, carry the authority. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 - `immutable-releases-enabled-before-tag`: Immediately before every stable tag push, signed-in administrator readback shows repository immutable Releases enabled=true. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. An administrator could change the setting between the readback and publication.
 - `no-integration-tag-bypass`: Neither GitHub Actions nor any other Integration has a release-tag ruleset bypass. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 - `production-ref-lifecycle-ruleset`: Ruleset 21832074 targets exactly website-production and website-production-canary with no bypass actors and exact creation, deletion and non-fast-forward rules. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
@@ -430,17 +430,17 @@ Connection and helper shutdown settle owned work before custody is released.
 
 #### `tag-ruleset-creation-only`
 
-An active repository tag ruleset targets only refs/tags/v* with the exact rule set [creation] and sole always-bypass User 894119; it never authorizes update or deletion.
+In each tag ruleset pair, the creation-only ruleset has the exact rule set [creation] and sole always-bypass User 894119; it never authorizes update or deletion.
 
 - Not verified; intended layer: configuration readback.
-- Source: `AGENTS.md`: “The creation-only ruleset must have exact rule `creation` and sole always-bypass User `894119`; it must never authorize update or deletion.”
+- Source: `AGENTS.md`: “In each pair, the creation-only ruleset must have exact rule `creation` and sole always-bypass User `894119`; it must never authorize update or deletion.”
 - Evidence: none
 - Assumptions: `github-enforcement`, `administrator-readback`
 - Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 
 #### `tag-ruleset-immutable`
 
-An active repository tag ruleset targets only refs/tags/v* with exact rules [deletion, update] and no bypass actors; it never authorizes creation.
+In each tag ruleset pair, the immutable ruleset has exact rules [deletion, update] and no bypass actors; it never authorizes creation.
 
 - Not verified; intended layer: configuration readback.
 - Source: `AGENTS.md`: “The immutable ruleset must have no bypass actors and exact deletion plus update rules; it must never authorize creation.”
@@ -448,17 +448,16 @@ An active repository tag ruleset targets only refs/tags/v* with exact rules [del
 - Assumptions: `github-enforcement`, `administrator-readback`
 - Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 
-#### `tag-ruleset-exactly-two-refs-tags-v`
+#### `tag-rulesets-two-split-pairs`
 
-Exactly two active repository tag rulesets target `refs/tags/v*`, and their split creation-only and immutable semantics, not their IDs or names, carry the authority.
+Exactly four active repository tag rulesets form two split creation-only and immutable pairs, one targeting only `refs/tags/v*` and one targeting only `refs/tags/desktop-v*-macos-arm64`; any other active tag ruleset is drift, and the split semantics, not the ruleset IDs or names, carry the authority.
 
 - Not verified; intended layer: configuration readback.
-- Source: `AGENTS.md`: “two exact active repository tag rulesets targeting only `refs/tags/v*`”
+- Source: `AGENTS.md`: “read back all four active repository tag rulesets. They form two split pairs: one pair targets only `refs/tags/v*`, and the other targets only `refs/tags/desktop-v*-macos-arm64`.”
+- Also covers: `AGENTS.md`: “Any other active tag ruleset is drift.”
 - Evidence: none
 - Assumptions: `github-enforcement`, `administrator-readback`
-- Not verified:
-  - Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
-  - The plan records drift: four tag rulesets are active, and the extra two target `desktop-v*-macos-arm64`; plan Phase 6 updates the documented readback.
+- Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
 
 #### `immutable-releases-enabled-before-tag`
 
