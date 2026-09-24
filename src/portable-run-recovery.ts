@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { loadAuth } from "./auth";
 import {
   canonicalJson,
-  canonicalJsonSha256Matches,
   isCanonicalJsonFileText,
   sha256,
 } from "./canonical-json";
@@ -14,7 +13,9 @@ import {
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
 import {
   readRecoveryCapsule,
+  recoveryAuthContinuity,
   recoveryContractHash,
+  type RecoveryCapsule,
 } from "./recovery";
 import {
   readRunReceipt,
@@ -467,7 +468,7 @@ function assertCurrentContract(
 function assertCapsuleMatchesReceipt(
   receipt: RecoverablePortableReceipt,
   environment: Environment,
-): void {
+): RecoveryCapsule {
   const capsule = readRecoveryCapsule(
     receipt.runId,
     receipt.auth.id,
@@ -491,6 +492,7 @@ function assertCapsuleMatchesReceipt(
       "encrypted recovery capsule does not match the portable run receipt",
     );
   }
+  return capsule;
 }
 
 /**
@@ -503,16 +505,17 @@ function assertRunStillBound(
   environment: Environment,
 ): void {
   assertCurrentContract(receipt, registry);
+  const capsule = assertCapsuleMatchesReceipt(receipt, environment);
+  // A reconnect of the same provider subject may stand in for the run's
+  // exact auth record; see recoveryAuthContinuity.
   const auth = loadAuth(receipt.auth.id, environment);
   if (
-    auth.kind !== receipt.auth.kind
-    || !canonicalJsonSha256Matches(receipt.auth.hash, auth)
+    recoveryAuthContinuity(capsule.auth, capsule.authSubject, auth) === null
   ) {
     throw new Error(
       "current auth locator no longer matches the unsettled portable run",
     );
   }
-  assertCapsuleMatchesReceipt(receipt, environment);
 }
 
 function recordTimestamp(now: Date): string {

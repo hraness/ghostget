@@ -25,6 +25,7 @@ import {
   appendReconciliationObservation,
   readProviderAcceptedMutationTargetEvidence,
   readRecoveryCapsule,
+  recoveryAuthContinuity,
   removeProviderAcceptedMutationTargetEvidence,
   removeRecoveryCapsule,
   type ReconciliationObservation,
@@ -125,6 +126,8 @@ type SelectedReconciliation = {
     | "pre-provider-plugin-x"
     | "ancient-x";
   readonly reconciliationContext?: ProviderPluginReconciliationContextV1;
+  /** The provider subject the encrypted capsule recorded, when it has one. */
+  readonly recordedAuthSubject?: string;
 };
 
 type ReconciliationReceipt = Extract<
@@ -449,6 +452,9 @@ function selectReconciliation(
       ...(reconciliationContext === undefined
         ? {}
         : { reconciliationContext }),
+      ...(capsule.authSubject === undefined
+        ? {}
+        : { recordedAuthSubject: capsule.authSubject }),
     };
   }
 
@@ -689,9 +695,14 @@ export async function reconcileWebSessionRun(
   assertSupportedContract(selected, registry);
 
   const auth = loadAuth(receipt.auth.id, environment);
+  const recordedAuth = receipt.auth;
   if (
-    !canonicalJsonSha256Matches(receipt.auth.hash, auth)
-    || auth.kind !== receipt.auth.kind
+    recordedAuth.kind === "public-web-session"
+    || recoveryAuthContinuity(
+      { id: recordedAuth.id, hash: recordedAuth.hash, kind: recordedAuth.kind },
+      selected.recordedAuthSubject,
+      auth,
+    ) === null
   ) {
     throw new Error(
       "the current auth locator no longer matches the unsettled run's exact realm",
