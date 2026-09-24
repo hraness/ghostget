@@ -165,4 +165,50 @@ describe("read-path preparation binds the current incarnation without creating o
     expect(description.coordinate.authIncarnation).toBe(invocation.readProjectionAuthIdentityHash!);
     expect(readFileSync(incarnationPath(root, "x-main"))).toEqual(created);
   });
+
+  // D14 decision: `invoke --projection-identity-only` is the SDK's identity
+  // preflight for a live invoke, so it is execution preparation and stays an
+  // admitted incarnation creator. The cache-only read beside it creates none.
+  test("invoke --projection-identity-only is execution preparation that creates a missing incarnation; --cache-only still creates none", async () => {
+    const { root, environment } = accounts();
+    rmSync(incarnationPath(root, "x-main"));
+    const run = async (flag: "--cache-only" | "--projection-identity-only") => {
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      let cacheReads = 0;
+      const code = await main(
+        ["invoke", "x", "messaging.list", "--input", JSON.stringify(xRead.input), "--auth", "x-main", flag, "--json"],
+        environment,
+        { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) },
+        {
+          providerPluginRegistry,
+          readCachedPreparedCapability: () => { cacheReads += 1; throw new Error("stubbed cache read"); },
+        },
+      );
+      return { code, stdout: stdout.join(""), stderr: stderr.join(""), cacheReads };
+    };
+
+    const before = fingerprint(root);
+    const cacheOnly = await run("--cache-only");
+    expect(cacheOnly.code).not.toBe(0);
+    expect(cacheOnly.stderr).toContain("auth locator x-main has no lifetime identity yet");
+    expect(existsSync(incarnationPath(root, "x-main"))).toBeFalse();
+    expect(fingerprint(root)).toEqual(before);
+
+    const identity = await run("--projection-identity-only");
+    expect(identity.stderr).toBe("");
+    expect(identity.code).toBe(0);
+    expect(identity.cacheReads).toBe(0);
+    const view = JSON.parse(identity.stdout) as { readonly source: string; readonly authIdentity: string };
+    expect(view.source).toBe("projection-identity");
+    expect(existsSync(incarnationPath(root, "x-main"))).toBeTrue();
+    const created = readFileSync(incarnationPath(root, "x-main"));
+    // The read path then binds the identity the preflight created, without changing it.
+    const description = describeOperationPermission("x", "messaging.list", "x-main", { environment, registry: providerPluginRegistry });
+    expect(description.coordinate.authIncarnation).toBe(view.authIdentity);
+    const retried = await run("--cache-only");
+    expect(retried.cacheReads).toBe(1);
+    expect(retried.stderr).not.toContain("no lifetime identity");
+    expect(readFileSync(incarnationPath(root, "x-main"))).toEqual(created);
+  });
 });
