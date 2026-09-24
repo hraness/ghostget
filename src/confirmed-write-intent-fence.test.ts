@@ -802,8 +802,8 @@ describe("intent-level confirmed-write fence", () => {
     }
   });
 
-  test("another subject, no subject, a journal without a subject, or a fulfilled run keeps the per-locator fence", async () => {
-    for (const setup of ["other-subject", "no-subject", "legacy-journal", "fulfilled"] as const) {
+  for (const setup of ["other-subject", "no-subject", "legacy-journal", "fulfilled"] as const) {
+    test(`a second locator keeps the per-locator fence: ${setup}`, async () => {
       const testState = fenceState();
       try {
         install(testState);
@@ -828,8 +828,8 @@ describe("intent-level confirmed-write fence", () => {
       } finally {
         rmSync(testState.directory, { recursive: true, force: true });
       }
-    }
-  });
+    });
+  }
 
   test("a legacy ledger without a run journal still blocks its exact scope and leaves no intent claim", async () => {
     const testState = fenceState();
