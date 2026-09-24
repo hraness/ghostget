@@ -2142,9 +2142,16 @@ export type PortableProviderPluginReadbackOutcome = {
   readonly observation: PortablePluginReadbackObservation;
 };
 
-export type PortableProviderPluginReadbackPort = (
+export type PortableProviderPluginReadbackPort = ((
   call: PortableProviderPluginReadbackCall,
-) => Promise<PortableProviderPluginReadbackOutcome>;
+) => Promise<PortableProviderPluginReadbackOutcome>) & {
+  /**
+   * Whether the installed package of this exact write identity declares a
+   * readback for it. False for every undeclared plugin, whose runs keep the
+   * explicit-input reconciliation path unchanged.
+   */
+  readonly declares: (contract: PortableOperationIdentityV1) => boolean;
+};
 
 /**
  * Build the readback port over installed, verified packages. It resolves the
@@ -2164,7 +2171,22 @@ export function createPortableProviderPluginReadbackPort(
     );
   }
   const snapshot = Object.freeze([...packages]);
-  return async (call) => {
+  const declares = (contract: PortableOperationIdentityV1): boolean =>
+    snapshot.some((candidate) =>
+      candidate.bundleSha256 === contract.bundleSha256
+      && candidate.manifestSha256 === contract.manifestSha256
+      && candidate.manifest.bindings.some((binding) =>
+        binding.transport === "web-session-api"
+        && binding.transport === contract.transport
+        && binding.surfaceId === contract.surfaceId
+        && binding.adapterId === contract.adapterId
+        && binding.operations.some((operation) =>
+          operation.name === contract.operation
+          && operation.contractVersion === contract.contractVersion
+          && operation.readback !== undefined)));
+  const port = async (
+    call: PortableProviderPluginReadbackCall,
+  ): Promise<PortableProviderPluginReadbackOutcome> => {
     const contract = call.contract;
     const packageValue = snapshot.find((candidate) =>
       candidate.bundleSha256 === contract.bundleSha256
@@ -2285,4 +2307,5 @@ export function createPortableProviderPluginReadbackPort(
     if (outcome.status === "rejected") throw outcome.reason;
     return outcome.value;
   };
+  return Object.freeze(Object.assign(port, { declares }));
 }

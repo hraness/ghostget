@@ -4262,6 +4262,42 @@ function runJournalIsSettled(journal: RunJournal): boolean {
     && (journal.assetState === "none" || journal.assetState === "released");
 }
 
+/**
+ * The event that supersedes duplicate-risk source `source` once its elected
+ * successor `successor` settled after a dispatch, or null. A successor that
+ * finished `failed` never dispatched and supersedes nothing.
+ *
+ * @internal Exported for supersedeSettledDuplicateSources and the
+ * retained-source model's trace replay.
+ */
+export function duplicateSourceSupersession(
+  source: RunJournal,
+  successor: RunJournal | undefined,
+  now: Date,
+): Extract<RunJournalEvent, { readonly type: "duplicate-source-superseded" }> | null {
+  const elected = source.duplicateSuccessor;
+  if (
+    elected === undefined
+    || source.supersededBy !== undefined
+    || successor === undefined
+    || successor.runId !== elected.runId
+    || successor.duplicateIntent?.sourceRunId !== source.runId
+    || successor.duplicateIntent.intentHash !== elected.intentHash
+    || successor.status === "failed"
+    || successor.dispatch.started < 1
+    || !runJournalIsSettled(successor)
+  ) return null;
+  return {
+    type: "duplicate-source-superseded",
+    intentHash: elected.intentHash,
+    runId: elected.runId,
+    at: new Date(Math.max(
+      now.getTime(),
+      Date.parse(elected.claimedAt),
+    )).toISOString(),
+  };
+}
+
 export type DuplicateSupersessionReport = {
   readonly superseded: readonly string[];
   readonly failed: readonly string[];
@@ -4287,26 +4323,15 @@ export function supersedeSettledDuplicateSources(
   const failed: string[] = [];
   for (const source of byRun.values()) {
     const elected = source.journal.duplicateSuccessor;
-    if (elected === undefined || source.journal.supersededBy !== undefined) continue;
-    const successor = byRun.get(elected.runId)?.journal;
-    if (
-      successor === undefined
-      || successor.duplicateIntent?.sourceRunId !== source.journal.runId
-      || successor.duplicateIntent.intentHash !== elected.intentHash
-      || successor.status === "failed"
-      || successor.dispatch.started < 1
-      || !runJournalIsSettled(successor)
-    ) continue;
+    if (elected === undefined) continue;
+    const event = duplicateSourceSupersession(
+      source.journal,
+      byRun.get(elected.runId)?.journal,
+      now,
+    );
+    if (event === null) continue;
     try {
-      const next = updateRunJournal(source, {
-        type: "duplicate-source-superseded",
-        intentHash: elected.intentHash,
-        runId: elected.runId,
-        at: new Date(Math.max(
-          now.getTime(),
-          Date.parse(elected.claimedAt),
-        )).toISOString(),
-      }, environment);
+      const next = updateRunJournal(source, event, environment);
       projectRunJournal(next.journal, environment);
       superseded.push(source.journal.runId);
     } catch {
@@ -4536,8 +4561,9 @@ export function reconciledRecoveryRelease(
 
 /**
  * Release a reconciled run's recovery material and keep its idempotency
- * ledger. No reconciler observes that a write did not apply, and a caller's
- * claim is not that evidence, so reconciliation never reopens the fence.
+ * ledger. A caller's claim is not evidence that a write did not apply, so
+ * this path never reopens the fence; only releaseObservedNotAppliedRunRecovery
+ * does, after a recorded readback that Ghostget itself invoked.
  */
 export function releaseReconciledRunRecovery(
   runId: string,
@@ -4623,6 +4649,36 @@ export function runJournalIntentHash(
 }
 
 /**
+ * The journal event that reopens a run's fence after Ghostget observed,
+ * through the plugin's declared readback, that its one write did not apply.
+ * A source that elected a duplicate successor, or a run with a verified
+ * dispatch, never reopens.
+ *
+ * @internal Exported for releaseObservedNotAppliedRunRecovery and the
+ * retained-source model's trace replay.
+ */
+export function observedNotAppliedRelease(
+  journal: RunJournal,
+  now: Date,
+): Extract<RunJournalEvent, { readonly type: "recovery-released" }> {
+  if (journal.duplicateSuccessor !== undefined) {
+    throw new Error(
+      "a run that elected a duplicate successor cannot be reopened by readback",
+    );
+  }
+  if (journal.dispatch.verified !== 0) {
+    throw new Error(
+      "a not-applied readback contradicts a verified dispatch of this run",
+    );
+  }
+  return {
+    type: "recovery-released",
+    outcome: "not-applied",
+    at: new Date(Math.max(now.getTime(), Date.parse(journal.updatedAt))).toISOString(),
+  };
+}
+
+/**
  * Release a run's recovery material and its at-most-once ledger after
  * Ghostget itself observed, through a plugin's declared readback bound to
  * this run and intent, that the one write did not apply. The caller must
@@ -4661,14 +4717,7 @@ export function releaseObservedNotAppliedRunRecovery(
   ) {
     throw new Error("run journal no longer matches the reconciled receipt");
   }
-  const event = {
-    type: "recovery-released",
-    outcome: "not-applied",
-    at: new Date(Math.max(
-      now.getTime(),
-      Date.parse(snapshot.journal.updatedAt),
-    )).toISOString(),
-  } as const;
+  const event = observedNotAppliedRelease(snapshot.journal, now);
   if (
     snapshot.journal.recoveryState !== "released"
     || snapshot.journal.ledgerState !== "released"

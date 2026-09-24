@@ -3579,13 +3579,17 @@ async function runCommand(
     ) {
       if (arguments_.inputSource === undefined) {
         const readback = dependencies.portableProviderPluginReadback;
-        if (readback === undefined) {
+        // An undeclared plugin keeps today's explicit-input path exactly.
+        if (
+          readback === undefined
+          || !readback.declares(receipt.portablePluginContract)
+        ) {
           throw new Error(
             "portable plugin reconciliation requires --input with an explicit observed outcome and evidence hash",
           );
         }
         // Without --input, Ghostget itself runs the write's declared
-        // readback; a plugin that declares none is refused by the port.
+        // readback, bound to this run, its intent, and its auth realm.
         const observed = await reconcilePortableProviderPluginRunFromReadback(
           arguments_.runId,
           {
