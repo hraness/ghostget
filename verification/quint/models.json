@@ -9,6 +9,10 @@
       "invariants": ["mutualExclusion"],
       "simulation": { "seed": "20260923", "maxSamples": 2000, "maxSteps": 12 },
       "apalache": { "length": 10 },
+      "nightly": {
+        "simulation": { "maxSamples": 20000, "maxSteps": 24 },
+        "apalache": { "length": 20 }
+      },
       "mutants": [{ "step": "stepMutant", "invariant": "mutualExclusion" }],
       "replay": {
         "test": "scripts/verification-lock-replay.test.ts",

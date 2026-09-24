@@ -719,6 +719,22 @@
     },
     {
       "guide": "verification/AGENTS.md",
+      "anchor": "Give a Quint model `nightly`",
+      "digest": "dba8a285d34fd63e049ad92b6075c24df1f8fd46afb57658a0772ccaa653ac9a",
+      "claims": [
+        "verification-nightly-depth"
+      ]
+    },
+    {
+      "guide": "verification/AGENTS.md",
+      "anchor": "List every reducer source",
+      "digest": "52bcb0843fe0e9d8ae90b373dda3b5130c5a3e3f443b686fbdce2d4861a4192f",
+      "claims": [
+        "verification-source-mutants"
+      ]
+    },
+    {
+      "guide": "verification/AGENTS.md",
       "anchor": "Keep the Lean project",
       "digest": "e6cafc5d709902a85345bd4212e0f83b9ddb360f831c6bb272c0ee9037e95c2b",
       "claims": [
@@ -6141,6 +6157,59 @@
       "notVerified": [
         "Only the enumerated example cases are checked.",
         "The smoke model is toolchain evidence: its traces replay through a TypeScript reference lock, not production code."
+      ]
+    },
+    {
+      "id": "verification-nightly-depth",
+      "statement": "`bun run ./scripts/verification-tools.ts quint-nightly` checks every Quint model at its recorded `nightly` bounds, which the parser rejects when any bound falls below its CI bound or none deepens it; the soak multiplies the run count and time limit of every `assertProperty` and `assertAsyncProperty` by an explicit `GHOSTGET_PROPERTY_RUNS` from 2 to 100; and `.github/workflows/verification-nightly.yml` runs both with the reducer mutants on a schedule, read-only, SHA-pinned, and outside `Required`.",
+      "area": "verification",
+      "source": {
+        "path": "verification/AGENTS.md",
+        "quote": "Give a Quint model `nightly` bounds only when they deepen its CI bounds and none falls below them. Keep `.github/workflows/verification-nightly.yml` read-only and outside `Required`"
+      },
+      "layer": "example",
+      "status": "evidenced",
+      "evidence": [
+        ".github/workflows/verification-nightly.yml",
+        "scripts/ci-pr-gate.test.ts",
+        "scripts/verification-soak.ts",
+        "scripts/verification-tools.test.ts",
+        "src/test-support.test.ts",
+        "verification/quint/models.json"
+      ],
+      "assumptions": [
+        "ci-runner",
+        "verification-tools"
+      ],
+      "notVerified": [
+        "Only the enumerated example cases are checked; `Required` checks the nightly configuration, not a nightly run.",
+        "The nightly workflow has not run on `main` yet. Its first scheduled run after merge is the first CI evidence at the deeper bounds and soak multiplier.",
+        "A nightly failure blocks no merge or release. Only the quarterly review in `docs/claims-review.md` checks that failures were triaged, and no automated check enforces that review.",
+        "Properties that call `fc.assert` directly, and the serialized omni runtime test file, are outside the soak."
+      ]
+    },
+    {
+      "id": "verification-source-mutants",
+      "statement": "Every mutant in `verification/mutants.json` changes exactly one occurrence of a guard in `src/run-journal.ts`, `src/messaging-action-store.ts`, or `src/linked-device-lifecycle-journal.ts` and still compiles, and `bun run ./scripts/verification-mutants.ts` reports it killed only when its fully named test passes alone on unmodified source and is the only failing test on the mutant; a timeout, another failure, or unparsed output is inconclusive and fails the run.",
+      "area": "verification",
+      "source": {
+        "path": "verification/AGENTS.md",
+        "quote": "List every reducer source mutant in `mutants.json` with its defect and the full name of the one test that must fail."
+      },
+      "layer": "example",
+      "status": "evidenced",
+      "evidence": [
+        "scripts/verification-mutants.ts",
+        "scripts/verification-tools.test.ts",
+        "verification/mutants.json"
+      ],
+      "assumptions": [
+        "ci-runner",
+        "verification-tools"
+      ],
+      "notVerified": [
+        "`Required` checks only that each mutant applies, compiles, and names a declared test; the kill runs happen in the nightly workflow.",
+        "The manifest lists hand-picked guards. It is not a mutation score over the reducers, and StrykerJS was evaluated and not adopted (see `docs/claims-review.md`)."
       ]
     },
     {

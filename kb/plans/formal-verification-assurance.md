@@ -344,6 +344,35 @@ Acceptance:
 - Add a quarterly claims review that reruns this audit's areas and appends
   findings here.
 
+Landed on 2026-09-23 on branch `claude/fv-continuous`:
+
+- `.github/workflows/verification-nightly.yml` runs daily and on manual
+  dispatch, read-only and outside `Required`. It runs
+  `bun run ./scripts/verification-tools.ts quint-nightly` at each model's
+  `nightly` bounds in `verification/quint/models.json`, a six-shard property
+  soak at `GHOSTGET_PROPERTY_RUNS=20`, and the reducer mutants.
+- StrykerJS 10.0.0 has no Bun runner. Through its command runner it
+  instrumented 159 mutants in 107 lines of `src/run-journal.ts`, and each
+  mutant reruns the whole test file, about 40 minutes for that one reducer.
+  It is not adopted. `verification/mutants.json` and
+  `scripts/verification-mutants.ts` check named guard mutants against the one
+  test that must fail. `docs/claims-review.md` records the evaluation.
+- The first mutant pass found that no test asserted the messaging reducer's
+  active-prefix and dispatch-boundary guards. Removing the accept or
+  categorical-stop guard left `src/messaging-action-store.test.ts` green.
+  Removing the active-prefix guard failed two tests in a whole-file run, but
+  each passed when selected alone. A named example test now asserts each
+  guard, and all 12 mutants are killed.
+- `docs/claims-review.md` holds the nightly triage steps and the quarterly
+  review procedure. Reviews append to "Quarterly claims reviews" below.
+
+## Quarterly claims reviews
+
+Each review follows `docs/claims-review.md` and appends one dated entry here:
+the commit reviewed, new findings with their evidence level, claims whose
+status changed, and nightly failures since the last review. The first review
+is due in the first week of January 2027.
+
 ## Verification
 
 - Every phase: `bun run check` locally for the touched area, then `Required`

@@ -200,6 +200,10 @@ const QUINT_TIMEOUT_MS = 5 * 60_000;
  */
 export const QUINT_TRACE_TIMEOUT_MS = 90_000;
 const APALACHE_TIMEOUT_MS = 10 * 60_000;
+// Nightly runs sit outside the 16-minute CI verification step, so each deeper
+// checker run gets its own larger bound. A timeout still fails the run.
+const NIGHTLY_QUINT_TIMEOUT_MS = 30 * 60_000;
+const NIGHTLY_APALACHE_TIMEOUT_MS = 60 * 60_000;
 const LEAN_BUILD_TIMEOUT_MS = 10 * 60_000;
 const SHORT_TIMEOUT_MS = 60_000;
 const KILL_GRACE_MS = 5_000;
@@ -569,6 +573,12 @@ export type QuintModel = Readonly<{
   invariants: readonly string[];
   simulation: Readonly<{ seed: string; maxSamples: number; maxSteps: number }>;
   apalache: Readonly<{ length: number }>;
+  /**
+   * Deeper bounds for the nightly workflow. Absent means the nightly run
+   * repeats the CI bounds. Present bounds are at least the CI bounds and
+   * deepen at least one of them.
+   */
+  nightly?: QuintNightlyBounds;
   mutants: readonly Readonly<{ step: string; invariant: string }>[];
   replay: Readonly<{
     test: string;
@@ -578,6 +588,30 @@ export type QuintModel = Readonly<{
     maxSteps: number;
   }>;
 }>;
+
+export type QuintNightlyBounds = Readonly<{
+  simulation: Readonly<{ maxSamples: number; maxSteps: number }>;
+  apalache: Readonly<{ length: number }>;
+}>;
+
+/** `ci` runs in `Required` inside the verification step budget; `nightly` runs only in the nightly workflow. */
+export type QuintProfile = "ci" | "nightly";
+
+export type QuintBounds = Readonly<{
+  simulation: Readonly<{ seed: string; maxSamples: number; maxSteps: number }>;
+  apalache: Readonly<{ length: number }>;
+}>;
+
+/** The bounds a profile checks a model at. The simulation seed never changes between profiles. */
+export function quintBounds(model: QuintModel, profile: QuintProfile): QuintBounds {
+  if (profile === "ci" || model.nightly === undefined) {
+    return Object.freeze({ simulation: model.simulation, apalache: model.apalache });
+  }
+  return Object.freeze({
+    simulation: Object.freeze({ seed: model.simulation.seed, ...model.nightly.simulation }),
+    apalache: model.nightly.apalache,
+  });
+}
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 const DECIMAL_SEED = /^[1-9][0-9]{0,15}$/u;
@@ -626,6 +660,34 @@ function uniqueIdentifiers(value: unknown, label: string): readonly string[] {
   return Object.freeze(items);
 }
 
+function parseNightlyBounds(
+  value: unknown,
+  simulation: Readonly<{ maxSamples: number; maxSteps: number }>,
+  apalache: Readonly<{ length: number }>,
+  label: string,
+): QuintNightlyBounds {
+  const bounds = exactObject(value, ["simulation", "apalache"], label);
+  const nightlySimulation = exactObject(bounds.simulation, ["maxSamples", "maxSteps"], `${label}.simulation`);
+  const nightlyApalache = exactObject(bounds.apalache, ["length"], `${label}.apalache`);
+  const parsed = Object.freeze({
+    simulation: Object.freeze({
+      maxSamples: boundedInteger(nightlySimulation.maxSamples, simulation.maxSamples, 100_000, `${label}.simulation.maxSamples`),
+      maxSteps: boundedInteger(nightlySimulation.maxSteps, simulation.maxSteps, 100, `${label}.simulation.maxSteps`),
+    }),
+    apalache: Object.freeze({
+      length: boundedInteger(nightlyApalache.length, apalache.length, 50, `${label}.apalache.length`),
+    }),
+  });
+  if (
+    parsed.simulation.maxSamples === simulation.maxSamples
+    && parsed.simulation.maxSteps === simulation.maxSteps
+    && parsed.apalache.length === apalache.length
+  ) {
+    throw new Error(`${label} must deepen at least one CI bound`);
+  }
+  return parsed;
+}
+
 /** Parse `verification/quint/models.json`. Every model needs a mutant and a replay test. */
 export function parseQuintModels(value: unknown): readonly QuintModel[] {
   const manifest = exactObject(value, ["schema", "models"], "models.json");
@@ -635,9 +697,10 @@ export function parseQuintModels(value: unknown): readonly QuintModel[] {
   }
   const models = manifest.models.map((entry, index): QuintModel => {
     const label = `models[${String(index)}]`;
-    const model = exactObject(entry, [
+    const fields = [
       "file", "module", "init", "step", "invariants", "simulation", "apalache", "mutants", "replay",
-    ], label);
+    ];
+    const model = exactObject(entry, isPlainObject(entry) && Object.hasOwn(entry, "nightly") ? [...fields, "nightly"] : fields, label);
     if (typeof model.file !== "string" || !/^[a-z0-9][a-z0-9-]*\.qnt$/u.test(model.file)) {
       throw new Error(`${label}.file must name a .qnt file in verification/quint`);
     }
@@ -666,18 +729,24 @@ export function parseQuintModels(value: unknown): readonly QuintModel[] {
       }
       return Object.freeze({ step: mutantStep, invariant });
     });
+    const ciSimulation = Object.freeze({
+      seed: decimalSeed(simulation.seed, `${label}.simulation.seed`),
+      maxSamples: boundedInteger(simulation.maxSamples, 1, 100_000, `${label}.simulation.maxSamples`),
+      maxSteps: boundedInteger(simulation.maxSteps, 1, 100, `${label}.simulation.maxSteps`),
+    });
+    const ciApalache = Object.freeze({ length: boundedInteger(apalache.length, 1, 50, `${label}.apalache.length`) });
+    const nightly = model.nightly === undefined
+      ? undefined
+      : parseNightlyBounds(model.nightly, ciSimulation, ciApalache, `${label}.nightly`);
     return Object.freeze({
       file: model.file,
       module: identifier(model.module, `${label}.module`),
       init: identifier(model.init, `${label}.init`),
       step,
       invariants,
-      simulation: Object.freeze({
-        seed: decimalSeed(simulation.seed, `${label}.simulation.seed`),
-        maxSamples: boundedInteger(simulation.maxSamples, 1, 100_000, `${label}.simulation.maxSamples`),
-        maxSteps: boundedInteger(simulation.maxSteps, 1, 100, `${label}.simulation.maxSteps`),
-      }),
-      apalache: Object.freeze({ length: boundedInteger(apalache.length, 1, 50, `${label}.apalache.length`) }),
+      simulation: ciSimulation,
+      apalache: ciApalache,
+      ...nightly === undefined ? {} : { nightly },
       mutants: Object.freeze(mutants),
       replay: Object.freeze({
         test: replay.test,
@@ -697,8 +766,14 @@ export async function readQuintModels(root: string = REPOSITORY_ROOT): Promise<r
   return parseQuintModels(JSON.parse(await readFile(join(root, "verification/quint/models.json"), "utf8")) as unknown);
 }
 
-/** The `quint run` arguments for one seeded simulation. */
-export function quintRunArguments(model: QuintModel, step: string, invariant: string): readonly string[] {
+/** The `quint run` arguments for one seeded simulation at a profile's bounds. */
+export function quintRunArguments(
+  model: QuintModel,
+  step: string,
+  invariant: string,
+  profile: QuintProfile = "ci",
+): readonly string[] {
+  const { simulation } = quintBounds(model, profile);
   return [
     "run",
     "--backend", "typescript",
@@ -706,9 +781,9 @@ export function quintRunArguments(model: QuintModel, step: string, invariant: st
     "--init", model.init,
     "--step", step,
     "--invariant", invariant,
-    "--max-samples", String(model.simulation.maxSamples),
-    "--max-steps", String(model.simulation.maxSteps),
-    "--seed", model.simulation.seed,
+    "--max-samples", String(simulation.maxSamples),
+    "--max-steps", String(simulation.maxSteps),
+    "--seed", simulation.seed,
     model.file,
   ];
 }
@@ -1265,6 +1340,7 @@ function tail(text: string): string {
 
 type RunContext = Readonly<{
   root: string;
+  profile: QuintProfile;
   work: string;
   artifacts: string;
   cacheDirectory: string;
@@ -1462,6 +1538,7 @@ function quintEnvironment(context: RunContext, node: string): Readonly<Record<st
  */
 export async function verifyQuint(context: RunContext): Promise<void> {
   const models = await readQuintModels(context.root);
+  const nightly = context.profile === "nightly";
   const node = requireExecutable("node");
   const quint = join(context.root, QUINT.cli);
   const quintDirectory = join(context.root, "verification", "quint");
@@ -1476,12 +1553,13 @@ export async function verifyQuint(context: RunContext): Promise<void> {
     runLogged(context, step, logName, [node, quint, ...argumentsList], {
       cwd: quintDirectory,
       environment: quintEnvironment(context, node),
-      timeoutMs: QUINT_TIMEOUT_MS,
+      timeoutMs: nightly ? NIGHTLY_QUINT_TIMEOUT_MS : QUINT_TIMEOUT_MS,
     });
   const apalacheRun = async (
     step: string,
     logName: string,
-    model: QuintModel,
+    length: number,
+    init: string,
     ir: string,
     next: string,
     invariant: string,
@@ -1494,8 +1572,8 @@ export async function verifyQuint(context: RunContext): Promise<void> {
       `-Djava.io.tmpdir=${join(context.work, "tmp")}`,
       "-jar", apalacheJar,
       "check",
-      `--length=${String(model.apalache.length)}`,
-      `--init=${model.init}`,
+      `--length=${String(length)}`,
+      `--init=${init}`,
       `--next=${next}`,
       `--inv=${invariant}`,
       `--out-dir=${outDirectory}`,
@@ -1503,25 +1581,27 @@ export async function verifyQuint(context: RunContext): Promise<void> {
     ], {
       cwd: context.work,
       environment: toolEnvironment(context, { JAVA_HOME: jdk.home }),
-      timeoutMs: APALACHE_TIMEOUT_MS,
+      timeoutMs: nightly ? NIGHTLY_APALACHE_TIMEOUT_MS : APALACHE_TIMEOUT_MS,
     });
     return { result, outDirectory };
   };
   const summary: Record<string, unknown>[] = [];
   for (const model of models) {
     const name = model.module;
+    const bounds = quintBounds(model, context.profile);
+    if (nightly && model.nightly === undefined) context.log(`${model.file}: no nightly bounds recorded; repeating the CI bounds`);
     const typecheck = await quintRun(`quint typecheck ${model.file}`, `quint-typecheck-${name}`, ["typecheck", model.file]);
     requireLoggedVerdict(context, `quint typecheck ${model.file}`, "pass", quintTypecheckVerdict(typecheck), typecheck);
     for (const invariant of model.invariants) {
       const step = `quint run ${name} ${model.step} ${invariant}`;
-      const result = await quintRun(step, `quint-run-${name}-${invariant}`, quintRunArguments(model, model.step, invariant));
-      requireLoggedVerdict(context, step, "pass", quintSimulationVerdict(result, model.simulation.seed), result);
-      context.log(`${step}: no violation in ${String(model.simulation.maxSamples)} samples of up to ${String(model.simulation.maxSteps)} steps (seed ${model.simulation.seed})`);
+      const result = await quintRun(step, `quint-run-${name}-${invariant}`, quintRunArguments(model, model.step, invariant, context.profile));
+      requireLoggedVerdict(context, step, "pass", quintSimulationVerdict(result, bounds.simulation.seed), result);
+      context.log(`${step}: no violation in ${String(bounds.simulation.maxSamples)} samples of up to ${String(bounds.simulation.maxSteps)} steps (seed ${bounds.simulation.seed})`);
     }
     for (const mutant of model.mutants) {
       const step = `quint run ${name} ${mutant.step} ${mutant.invariant}`;
-      const result = await quintRun(step, `quint-mutant-${name}-${mutant.step}`, quintRunArguments(model, mutant.step, mutant.invariant));
-      requireLoggedVerdict(context, step, "violation", quintSimulationVerdict(result, model.simulation.seed), result);
+      const result = await quintRun(step, `quint-mutant-${name}-${mutant.step}`, quintRunArguments(model, mutant.step, mutant.invariant, context.profile));
+      requireLoggedVerdict(context, step, "violation", quintSimulationVerdict(result, bounds.simulation.seed), result);
       context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
     }
     const compiled = await quintRun(`quint compile ${model.file}`, `quint-compile-${name}`, [
@@ -1538,16 +1618,18 @@ export async function verifyQuint(context: RunContext): Promise<void> {
     await writeFile(irPath, compiled.stdout);
     for (const invariant of model.invariants) {
       const step = `apalache check ${name} ${model.step} ${invariant}`;
-      const { result } = await apalacheRun(step, `apalache-${name}-${invariant}`, model, irPath, model.step, invariant);
-      requireLoggedVerdict(context, step, "pass", apalacheVerdict(result, model.apalache.length), result);
-      context.log(`${step}: no violation up to length ${String(model.apalache.length)}`);
+      const { result } = await apalacheRun(
+        step, `apalache-${name}-${invariant}`, bounds.apalache.length, model.init, irPath, model.step, invariant,
+      );
+      requireLoggedVerdict(context, step, "pass", apalacheVerdict(result, bounds.apalache.length), result);
+      context.log(`${step}: no violation up to length ${String(bounds.apalache.length)}`);
     }
     for (const mutant of model.mutants) {
       const step = `apalache check ${name} ${mutant.step} ${mutant.invariant}`;
       const { result, outDirectory } = await apalacheRun(
-        step, `apalache-mutant-${name}-${mutant.step}`, model, irPath, mutant.step, mutant.invariant,
+        step, `apalache-mutant-${name}-${mutant.step}`, bounds.apalache.length, model.init, irPath, mutant.step, mutant.invariant,
       );
-      requireLoggedVerdict(context, step, "violation", apalacheVerdict(result, model.apalache.length), result);
+      requireLoggedVerdict(context, step, "violation", apalacheVerdict(result, bounds.apalache.length), result);
       const counterexample = await apalacheCounterexample(outDirectory, `${name}.qnt.json`);
       await writeFile(join(context.artifacts, `apalache-mutant-${name}-${mutant.step}.itf.json`), counterexample);
       context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
@@ -1556,8 +1638,9 @@ export async function verifyQuint(context: RunContext): Promise<void> {
       model: model.file,
       invariants: model.invariants,
       mutants: model.mutants.map((mutant) => mutant.step),
-      simulation: model.simulation,
-      apalache: model.apalache,
+      profile: context.profile,
+      simulation: bounds.simulation,
+      apalache: bounds.apalache,
       replay: { test: model.replay.test, target: model.replay.target },
     });
   }
@@ -1779,7 +1862,17 @@ function errorCode(error: unknown): unknown {
   return typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
 }
 
-export async function runVerification(mode: "quint" | "lean", root: string = REPOSITORY_ROOT): Promise<void> {
+export type VerificationMode = "quint" | "quint-nightly" | "lean";
+
+export function parseVerificationMode(argv: readonly string[]): VerificationMode {
+  const mode = argv[0];
+  if (argv.length !== 1 || (mode !== "quint" && mode !== "quint-nightly" && mode !== "lean")) {
+    throw new Error("usage: bun run ./scripts/verification-tools.ts quint|quint-nightly|lean");
+  }
+  return mode;
+}
+
+export async function runVerification(mode: VerificationMode, root: string = REPOSITORY_ROOT): Promise<void> {
   const platform = platformKey();
   const cacheDirectory = verificationCacheDirectory();
   const artifacts = join(root, VERIFICATION_ARTIFACTS, mode);
@@ -1804,6 +1897,7 @@ export async function runVerification(mode: "quint" | "lean", root: string = REP
     ]);
     const context: RunContext = {
       root,
+      profile: mode === "quint-nightly" ? "nightly" : "ci",
       work,
       artifacts,
       cacheDirectory,
@@ -1812,7 +1906,7 @@ export async function runVerification(mode: "quint" | "lean", root: string = REP
       log: (line) => console.log(sanitizeCheckerOutput(line, replacements)),
     };
     try {
-      if (mode === "quint") await verifyQuint(context);
+      if (mode === "quint" || mode === "quint-nightly") await verifyQuint(context);
       else await verifyLean(context);
     } catch (error) {
       throw new Error(sanitizeCheckerOutput(errorMessage(error), replacements));
@@ -1823,9 +1917,11 @@ export async function runVerification(mode: "quint" | "lean", root: string = REP
 }
 
 if (import.meta.main) {
-  const mode = process.argv[2];
-  if ((mode !== "quint" && mode !== "lean") || process.argv.length !== 3) {
-    console.error("usage: bun run ./scripts/verification-tools.ts quint|lean");
+  let mode: VerificationMode;
+  try {
+    mode = parseVerificationMode(process.argv.slice(2));
+  } catch (error) {
+    console.error(errorMessage(error));
     process.exit(2);
   }
   try {

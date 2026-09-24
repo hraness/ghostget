@@ -78,7 +78,61 @@ export function propertyReplayParameters(
   return Object.freeze({ seed, path: rawPath });
 }
 
+export const MAX_PROPERTY_RUNS_MULTIPLIER = 100;
+const FAST_CHECK_DEFAULT_NUM_RUNS = 100;
+
+/**
+ * Parse `GHOSTGET_PROPERTY_RUNS`, the soak multiplier for every property's run
+ * count and interrupt time limit. Unset means 1. The nightly soak sets it; a
+ * replayed seed and path still select exactly one counterexample.
+ */
+export function propertyRunsMultiplier(
+  environment: PropertyReplayEnvironment = process.env,
+): number {
+  const raw = environment.GHOSTGET_PROPERTY_RUNS;
+  if (raw === undefined) return 1;
+  if (typeof raw !== "string" || !/^[1-9]\d{0,2}$/u.test(raw)) {
+    throw new Error(
+      `GHOSTGET_PROPERTY_RUNS must be an integer from 1 to ${String(MAX_PROPERTY_RUNS_MULTIPLIER)}`,
+    );
+  }
+  const multiplier = Number(raw);
+  if (multiplier > MAX_PROPERTY_RUNS_MULTIPLIER) {
+    throw new Error(
+      `GHOSTGET_PROPERTY_RUNS must be an integer from 1 to ${String(MAX_PROPERTY_RUNS_MULTIPLIER)}`,
+    );
+  }
+  return multiplier;
+}
+
+/**
+ * Scale a property's run count and interrupt limit by the soak multiplier. The
+ * limit scales too, so a soak run is interrupted, and fails, only when it runs
+ * slower per case than the unscaled property.
+ */
+export function scalePropertyRuns<Values>(
+  parameters: Parameters<Values>,
+  multiplier: number,
+): Parameters<Values> {
+  if (
+    !Number.isSafeInteger(multiplier)
+    || multiplier < 1
+    || multiplier > MAX_PROPERTY_RUNS_MULTIPLIER
+  ) {
+    throw new Error("property runs multiplier is out of range");
+  }
+  if (multiplier === 1) return parameters;
+  return {
+    ...parameters,
+    numRuns: (parameters.numRuns ?? FAST_CHECK_DEFAULT_NUM_RUNS) * multiplier,
+    ...parameters.interruptAfterTimeLimit === undefined
+      ? {}
+      : { interruptAfterTimeLimit: parameters.interruptAfterTimeLimit * multiplier },
+  };
+}
+
 const environmentReplayParameters = propertyReplayParameters();
+const environmentRunsMultiplier = propertyRunsMultiplier();
 
 export const propertyParameters = Object.freeze({
   numRuns: 200,
@@ -148,11 +202,11 @@ function assertionParameters<Values>(
       "explicit property replay coordinate conflicts with the environment replay coordinate",
     );
   }
-  return {
+  return scalePropertyRuns({
     ...propertyParameters,
     ...overrides,
     ...explicitReplay,
-  };
+  }, environmentRunsMultiplier);
 }
 
 /**

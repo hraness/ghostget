@@ -4,8 +4,11 @@ import {
   assertAsyncProperty,
   assertProperty,
   fc,
+  MAX_PROPERTY_RUNS_MULTIPLIER,
   propertyParameters,
   propertyReplayParameters,
+  propertyRunsMultiplier,
+  scalePropertyRuns,
 } from "./test-support";
 
 describe("property replay coordinates", () => {
@@ -126,5 +129,50 @@ describe("property replay coordinates", () => {
         "dedicated property replay coordinate",
       );
     }
+  });
+});
+
+describe("property soak multiplier", () => {
+  test("reads GHOSTGET_PROPERTY_RUNS as a bounded canonical integer", () => {
+    expect(propertyRunsMultiplier({})).toBe(1);
+    expect(propertyRunsMultiplier({ GHOSTGET_PROPERTY_RUNS: "1" })).toBe(1);
+    expect(propertyRunsMultiplier({ GHOSTGET_PROPERTY_RUNS: "20" })).toBe(20);
+    expect(propertyRunsMultiplier({ GHOSTGET_PROPERTY_RUNS: "100" })).toBe(MAX_PROPERTY_RUNS_MULTIPLIER);
+    for (const raw of ["", "0", "01", "101", "1000", "-1", "2.5", "1e1", " 2", "2 ", "+2", 20]) {
+      expect(() => propertyRunsMultiplier({ GHOSTGET_PROPERTY_RUNS: raw })).toThrow(
+        "GHOSTGET_PROPERTY_RUNS must be an integer from 1 to 100",
+      );
+    }
+  });
+
+  test("scales the run count and interrupt limit and leaves everything else", () => {
+    expect(scalePropertyRuns(propertyParameters, 1)).toBe(propertyParameters);
+    expect(scalePropertyRuns({ ...propertyParameters, seed: 7, path: "1:2" }, 20)).toEqual({
+      ...propertyParameters,
+      numRuns: 4_000,
+      interruptAfterTimeLimit: 200_000,
+      seed: 7,
+      path: "1:2",
+    });
+    expect(scalePropertyRuns({ markInterruptAsFailure: true }, 3)).toEqual({
+      markInterruptAsFailure: true,
+      numRuns: 300,
+    });
+    for (const multiplier of [0, 101, 1.5, Number.NaN]) {
+      expect(() => scalePropertyRuns(propertyParameters, multiplier)).toThrow("out of range");
+    }
+  });
+
+  test("property: a soak multiplies each run count exactly", () => {
+    assertProperty(fc.property(
+      fc.integer({ min: 1, max: 10_000 }),
+      fc.integer({ min: 1, max: MAX_PROPERTY_RUNS_MULTIPLIER }),
+      (numRuns, multiplier) => {
+        const scaled = scalePropertyRuns({ numRuns, interruptAfterTimeLimit: 1_000 }, multiplier);
+        expect(scaled.numRuns).toBe(numRuns * multiplier);
+        expect(scaled.interruptAfterTimeLimit).toBe(1_000 * multiplier);
+        expect(propertyRunsMultiplier({ GHOSTGET_PROPERTY_RUNS: String(multiplier) })).toBe(multiplier);
+      },
+    ));
   });
 });
