@@ -1645,14 +1645,25 @@
 // 6b1701acb53e452e8ada70e02c2f497535a7fdae32276cbd015723f2f817680d. Carry the
 // same projections and allowances: 11,998,420 + 12,387 + 4,096 = 12,014,903
 // packed; 23,447,236 + 353 + 65 = 23,447,654 unpacked.
+// The path helper detects a live claim that a helper from before the reaper
+// election moved into a recovery quarantine, fails closed, and keeps that
+// quarantine through the residue sweep; the state helper exports its claim
+// listing and stage decision for the state-claim Quint replay. The model and
+// its replay test stay outside the package. This adds 3,823 payload bytes over
+// the unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with
+// npm 11.19.0 on darwin arm64 were byte-identical at 11,999,852 packed bytes,
+// 23,451,059 unpacked bytes; archive SHA-256
+// c38d1f9522d477a42a82d934359012ba31124f98348302b3b5c3fe97bac6709e. Carry the
+// same projections and allowances: 11,999,852 + 12,387 + 4,096 = 12,016,335
+// packed; 23,451,059 + 353 + 65 = 23,451,477 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "D14 read-path auth checks through the incarnation read capability",
+  scope: "D3 follow-ups: pre-election path claims and the state-claim replay",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "6b1701acb53e452e8ada70e02c2f497535a7fdae32276cbd015723f2f817680d",
-  packedBytes: 11_998_420,
-  unpackedBytes: 23_447_236,
+  archiveSha256: "c38d1f9522d477a42a82d934359012ba31124f98348302b3b5c3fe97bac6709e",
+  packedBytes: 11_999_852,
+  unpackedBytes: 23_451_059,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
