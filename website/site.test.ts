@@ -766,6 +766,11 @@ describe("ghostget.com static site", () => {
     expect(sourceCss).toContain("grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr)");
     expect(sourceCss).toContain("min-block-size: 2.75rem");
     expect(builtCss).toContain("@media (pointer: coarse)");
+    const fieldController = await readFile(join(websiteRoot, "source/ghostget-field.ts"), "utf8");
+    expect(fieldController).toContain('import { attachHeroLight } from "@hraness/design-kit/browser";');
+    expect(fieldController).toContain('document.querySelector<HTMLElement>(".ghostget-product-hero")');
+    expect(fieldController).toContain("if (hero !== null) attachHeroLight(hero);");
+    expect(fieldController).not.toContain("requestAnimationFrame");
     for (const css of [sourceCss, builtCss]) {
       expect(css).toMatch(
         /\.ghostget-product-hero\s*\{[^{}]*\bgrid-column:\s*1\s*\/\s*-1\s*;/u,
@@ -776,10 +781,15 @@ describe("ghostget.com static site", () => {
         "ghostget-spirit-bob",
         "ghostget-edge-flow",
       ]) {
-        expect(css).toContain(`@keyframes ${keyframes}`);
+        expect(css).not.toContain(`@keyframes ${keyframes}`);
       }
       expect(css).toContain(".ghostget-field");
-      expect(css).toContain("--prox");
+      expect(css).toContain("--hraness-hero-proximity");
+      expect(css).toContain("var(--hraness-hero-drift-x, 0px)");
+      expect(css).toContain("var(--hraness-hero-drift-y, 0px)");
+      for (const selector of [".ghostget-blob", ".ghostget-card", ".ghostget-edge", ".ghostget-spirit", ".ghostget-spirit__body"]) {
+        expect(cssPropertyValues(css, selector, "animation").every((value) => value === "none")).toBe(true);
+      }
       expect(css).toMatch(/prefers-reduced-motion: reduce[^}]*\}[^}]*\.ghostget-card/u);
       expect(cssPropertyValues(css, ".ghostget-product-hero .hero-explainer", "color").at(-1))
         .toBe("var(--hraness-material-muted, var(--muted))");
