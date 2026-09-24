@@ -5,6 +5,8 @@ a version is publicly released after its exact canonical GitHub archive and
 provenance are published in an immutable Release. npm mirrors are optional.
 Historical entries retain their original delivery coordinates.
 
+## Unreleased
+
 ## 0.18.36
 
 - Give the website a softer Gruvbox palette, woven hero lighting, readable
