@@ -8,7 +8,7 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 237 claims: 163 evidenced, 55 planned, and 19 not verified. It maps 88 guidelines from 5 guides; 68 list claims and 20 are exempt.
+The register holds 237 claims: 166 evidenced, 52 planned, and 19 not verified. It maps 88 guidelines from 5 guides; 68 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
@@ -16,7 +16,7 @@ The register holds 237 claims: 163 evidenced, 55 planned, and 19 not verified. I
 | property test | 14 | 1 | 0 |
 | stateful model | 2 | 13 | 0 |
 | Quint model with production trace replay | 2 | 33 | 0 |
-| Lean proof with differential test | 4 | 4 | 0 |
+| Lean proof with differential test | 7 | 1 | 0 |
 | differential oracle | 3 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
 | none | 0 | 0 | 4 |
@@ -981,11 +981,14 @@ Before every remaining part, current provider state is rechecked and the run sto
 
 The messaging run reducer invariant is inductive under transitionMessagingRun.
 
-- Planned: Lean proof with differential test in plan Phase 5.
+- Evidenced by Lean proof with differential test.
 - Source: `kb/plans/formal-verification-assurance.md`: “The same inductive-invariant proof for `transitionMessagingRun`.”
-- Evidence: `src/messaging-action-store.test.ts`
+- Evidence: `verification/lean/GhostgetVerification/MessagingRun.lean`, `verification/lean/Differential.lean`, `scripts/verification-lean-oracle.ts`, `scripts/verification-lean-messaging-run.test.ts`, `src/messaging-action-store.test.ts`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
-- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The proof is about a Lean model of assertRun, the structural checks of parseRun, and transitionMessagingRun. The differential test ties the model to the TypeScript on generated runs of up to eight parts only; it is not a proof that the TypeScript equals the model.
+  - The transition's own guards do not preserve the invariant alone: an accepted part whose provider message ID repeats one in the accepted prefix is rejected only by the final parseRun. The production-shape theorem holds by construction, because the model rechecks the invariant; the substantive results are that the guarded step keeps the invariant outside that event and that the final parse rejects exactly that event.
+  - Part text, digests, reply references, delivery and read fields, context evidence, encryption, durable storage, and the compare-and-swap write in updateMessagingRun are outside the model.
 
 #### `messaging-uncertain-not-resubmitted`
 
@@ -1129,11 +1132,14 @@ Dispatch callbacks persist transitions against one current journal cell; a stale
 
 assertJournalInvariants is inductive under transitionRunJournal and dispatch counters are monotone; skipped, duplicate, or contradictory progress is rejected.
 
-- Planned: Lean proof with differential test in plan Phase 5.
+- Evidenced by Lean proof with differential test.
 - Source: `kb/plans/formal-verification-assurance.md`: “`assertJournalInvariants` is inductive under `transitionRunJournal`, and the dispatch counters are monotone.”
-- Evidence: `src/run-journal.property.test.ts`, `src/run-journal.test.ts`
+- Evidence: `verification/lean/GhostgetVerification/RunJournal.lean`, `verification/lean/Differential.lean`, `scripts/verification-lean-oracle.ts`, `scripts/verification-lean-run-journal.test.ts`, `src/run-journal.property.test.ts`, `src/run-journal.test.ts`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
-- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The proof is about a Lean model of assertJournalInvariants, the parseDispatch bounds, and transitionRunJournal. The differential test ties the model to the TypeScript on generated journals and events only; it is not a proof that the TypeScript equals the model.
+  - The transition's own guards do not preserve the invariant alone: an explicit no-op success before the confirmation is consumed and a duplicate successor naming its own run are rejected only by the final parseRunJournal. The production-shape theorem holds by construction, because the model rechecks the invariant; the substantive results are that the guarded step keeps the invariant outside those two events and that the final parse rejects exactly those two.
+  - Adapter, auth, owner identity, digests, the final origin, error text, the 64 KiB bound, durable storage, and the compare-and-swap write in updateRunJournal are outside the model.
 
 #### `public-rejection-preserved`
 
@@ -2529,11 +2535,14 @@ The public web gateway dispatches only bounded HTTPS GET and HEAD retrieval requ
 
 Web policy decision is default-deny; deny beats ask beats allow, adding a deny rule never widens the result, and domain/path/query-key prefix matching is exact.
 
-- Planned: Lean proof with differential test in plan Phase 5.
+- Evidenced by Lean proof with differential test.
 - Source: `SECURITY.md`: “under explicit domain, path, and query-key rules”
-- Evidence: `src/control/gateway.test.ts`, `src/control/validation.test.ts`
+- Evidence: `verification/lean/GhostgetVerification/WebPolicy.lean`, `verification/lean/Differential.lean`, `scripts/verification-lean-oracle.ts`, `scripts/verification-lean-web-policy.test.ts`, `src/control/gateway.test.ts`, `src/control/validation.test.ts`
 - Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
-- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The Lean model covers the decision, the limits, and rule matching in checkWebRequest over parsed rules and an already parsed URL. WHATWG URL parsing, publicUrl, parseWebRule, and DNS and TLS are assumptions, not proofs.
+  - Strings are modelled as lists of characters. That equals the production UTF-16 startsWith only because parseWebRule and publicUrl admit ASCII origins, paths, and query keys; the proof does not check that admission.
+  - The differential test runs the unchanged web-policy.ts over an in-memory private state store, not the real store and its helper. It samples three origins, one a string prefix of another, three path segments, and four query keys, so it checks only its generated cases.
 
 #### `web-gateway-pinned-transport`
 

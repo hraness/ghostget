@@ -12,6 +12,7 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import {
+  cp,
   lstat,
   mkdir,
   mkdtemp,
@@ -35,7 +36,9 @@ import {
   KERNEL_AXIOMS,
   LEAN,
   LEAN_CANARY_MODULE,
+  LEAN_DIFFERENTIAL_RUNNER,
   LEAN_DIFFERENTIAL_TEST,
+  LEAN_DIFFERENTIAL_TESTS,
   PLATFORM_KEYS,
   QUINT,
   QUINT_REPLAY_SCRIPT,
@@ -1173,6 +1176,34 @@ describe("Lean trust base", () => {
     expect(proofs.theorems.length).toBeGreaterThan(0);
     expect(proofs.mutants.length).toBeGreaterThan(0);
     expect(proofs.allowedAxioms).toEqual([]);
+  });
+
+  test("scans the differential runner like the library and flags other root files", async () => {
+    await withDirectory("gg-lean-scan-", async (root) => {
+      const project = join(root, "verification", "lean");
+      await cp(join(REPOSITORY_ROOT, "verification", "lean"), project, {
+        recursive: true,
+        filter: (source) => !source.split("/").includes(".lake"),
+      });
+      expect((await leanStaticFindings(root)).findings).toEqual([]);
+      const runner = join(project, LEAN_DIFFERENTIAL_RUNNER);
+      const text = await readFile(runner, "utf8");
+      await writeFile(runner, `${text}\ntheorem leak : False := sorry\n#eval main\n`);
+      expect((await leanStaticFindings(root)).findings)
+        .toEqual([`${LEAN_DIFFERENTIAL_RUNNER} uses sorry`, `${LEAN_DIFFERENTIAL_RUNNER} uses #eval`]);
+      await writeFile(runner, `import Lean.Elab\n${text}`);
+      expect((await leanStaticFindings(root)).findings)
+        .toEqual([`${LEAN_DIFFERENTIAL_RUNNER} imports Lean.Elab, outside the core-only allow-list`]);
+      await rm(runner);
+      expect((await leanStaticFindings(root)).findings).toEqual([`${LEAN_DIFFERENTIAL_RUNNER} is missing`]);
+      await writeFile(join(project, "Other.lean"), text);
+      expect((await leanStaticFindings(root)).findings)
+        .toEqual([`${LEAN_DIFFERENTIAL_RUNNER} is missing`, "Other.lean is outside the GhostgetVerification library"]);
+    });
+    expect(LEAN_DIFFERENTIAL_TESTS.length).toBe(3);
+    for (const file of LEAN_DIFFERENTIAL_TESTS) {
+      expect(await readFile(join(REPOSITORY_ROOT, file), "utf8")).toContain("startLeanOracle");
+    }
   });
 
   test("the encoding and negotiation Lean claims cite the differential test verify:lean runs", async () => {
