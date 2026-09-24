@@ -53,6 +53,7 @@ Command reference:
   ghostget media [archive|audio|video|transcript] <url> [media-options]
   ghostget audio|video|transcript <url> [media-options]
   ghostget verify <archive-item-directory> [--json] Verify every archived media artifact
+  ghostget media quarantine [--output <dir>] [--json] List revisions moved aside after an interrupted save
   ghostget transcriber setup --engine whisper-cpp --model <file> [media-options]
   ghostget doctor [--json]                         Check capture, media, auth, and action dependencies
   ghostget capabilities [adapter] [--json]         List installed semantic capabilities
