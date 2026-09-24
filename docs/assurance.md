@@ -710,7 +710,7 @@ The length-framed hash input (a 4-byte label length, an 8-byte payload length, t
   - UTF-8 injectivity is not proved, so the contract theorem stops at the UTF-8 bytes of the canonical JSON rather than the JSON value.
   - The intent key theorem assumes every field is ASCII and NUL-free, as validated identifiers and hex hashes are; the model does not check that callers only pass such fields.
   - Framing lengths must fit their headers (labels under 2^32 bytes, payloads under 2^64 bytes); the TypeScript does not check this.
-  - Other NUL-separated preimages (web-session contracts, predecessor-compatible contract hashes, provider-plugin package and module-analysis hashes) and the separate framing copy in src/provider-plugin.ts are not covered.
+  - Other NUL-separated preimages (the per-hash idempotency key in ledgerPath, web-session contracts, predecessor-compatible contract hashes, provider-plugin package and module-analysis hashes) and the separate framing copy in src/provider-plugin.ts are not covered.
 
 #### `identifier-roundtrip`
 

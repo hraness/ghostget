@@ -201,9 +201,10 @@ const acceptHeader = fc.oneof(
 
 /** Session-secret name parts, heavy in the `-` and `.` that make names collide. */
 const namePart = fc.oneof(
-  fc.array(fc.constantFrom("a", "b", "z", "0", "-", "-", "-", ".", "A"), { maxLength: 7 }).map((parts) => parts.join("")),
+  fc.array(fc.constantFrom("a", "b", "z", "0", "9", "-", "-", "-", ".", "A", "_", "\n", "\u00e9"), { maxLength: 7 }).map((parts) => parts.join("")),
   fc.array(fc.constantFrom("a", "-"), { maxLength: 6 }).map((parts) => `a${parts.join("")}`),
   fc.constantFrom("a".repeat(48), "a".repeat(49), "a-".repeat(24), ""),
+  fc.string({ maxLength: 6 }),
 );
 
 const secretFileName = fc.tuple(namePart, fc.constantFrom("--", ".", "-", "---", "----", ""), namePart, fc.constantFrom(".json", "", ".JSON", "json"))

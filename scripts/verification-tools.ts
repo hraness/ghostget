@@ -1727,6 +1727,13 @@ export async function verifyLean(context: RunContext): Promise<void> {
 /** The test that runs production TypeScript and the built Lean definitions on the same generated inputs. */
 export const LEAN_DIFFERENTIAL_TEST = "scripts/verification-lean-encodings.test.ts";
 
+/**
+ * The Bun runner bound on one differential test. Each property takes seconds,
+ * so a Lean reference that stops answering fails that test well inside the
+ * process bound instead of consuming the whole Lean budget.
+ */
+const LEAN_DIFFERENTIAL_TEST_TIMEOUT_MS = 180_000;
+
 /** Property replay coordinates the differential test honors, passed through when set. */
 const PROPERTY_REPLAY_VARIABLES = ["GHOSTGET_PROPERTY_SEED", "GHOSTGET_PROPERTY_PATH"] as const;
 
@@ -1741,7 +1748,7 @@ async function verifyLeanDifferential(
     return value === undefined || value === "" ? [] : [[name, value]];
   }));
   const run = await runLogged(context, "lean differential test", "lean-differential", [
-    process.execPath, "test", "--no-orphans", "--timeout", String(LEAN_BUILD_TIMEOUT_MS), "--max-concurrency", "1",
+    process.execPath, "test", "--no-orphans", "--timeout", String(LEAN_DIFFERENTIAL_TEST_TIMEOUT_MS), "--max-concurrency", "1",
     `./${LEAN_DIFFERENTIAL_TEST}`,
   ], {
     cwd: context.root,
