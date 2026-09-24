@@ -3316,8 +3316,7 @@
         "quote": "No writes on read paths. Reads may cache; they never mutate."
       },
       "layer": "example",
-      "status": "planned",
-      "phase": 6,
+      "status": "evidenced",
       "evidence": [
         "src/contract-repair-cli.test.ts",
         "src/contract-repair-inbox.test.ts",
@@ -3335,7 +3334,8 @@
         "same-user-trusted"
       ],
       "notVerified": [
-        "The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
+        "Evidence is by named example: whole-state-tree fingerprints taken before and after cover a cache read (hit, miss, first read, and a leftover admission claim whose owner is dead), revalidation, omni materialization, and the read-path preparations in `src/read-path-preparation.test.ts`. No static or exhaustive check shows that every command that reads is write-free; a new read path is covered only once it takes the typed `AuthIncarnationReader` capability and has its own fingerprint test.",
+        "The D14 exemptions are writes by design and are tested as the only permitted changes: a cache read may create and release its own admission claim, remove a claim whose recorded owner is proven dead, and create the projection encryption key and its store-key marker when they are absent.",
         "Only the menu-bar snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take a typed read capability; explicit invocation preparation, including the messaging route, context, and action preparations, still creates a missing auth incarnation as an admitted execution path."
       ]
     },

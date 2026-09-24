@@ -150,7 +150,7 @@ describe("the D14 projection-key exemption", () => {
 });
 
 describe("the D14 admission-claim exemption", () => {
-  test("a cache read removes an admission claim only when its recorded owner is dead and otherwise writes nothing", () => {
+  test("a cache read removes an admission claim whose recorded owner is dead and writes nothing else", () => {
     const { root, environment, invocation, query } = preparedXRead();
     const admissions = join(root, "read-projection-control", "admissions");
     // Leave a claim behind whose owner ran under another boot, so it is dead.
