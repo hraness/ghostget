@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 
-import type { GhostgetAuth } from "./auth";
+import { normalizeAuthSubject, type GhostgetAuth } from "./auth";
 import { canonicalJson } from "./canonical-json";
 import type { OperationRisk } from "./model";
 import {
@@ -95,6 +95,12 @@ export type RunJournal = {
     readonly hash: string;
     readonly kind: GhostgetAuth["kind"];
   };
+  /**
+   * The provider subject the auth record named when the run started. Journals
+   * written before this field existed carry none. The confirmed-write fence
+   * uses it to fence the same subject across auth locators.
+   */
+  readonly authSubject?: string;
   readonly contract: RunJournalContract;
   readonly duplicateIntent?: DuplicateIntentV1;
   readonly duplicateSuccessor?: DuplicateSuccessorV1;
@@ -135,6 +141,7 @@ export type StartRunJournal = {
   readonly risk: Extract<OperationRisk, "R2" | "R3">;
   readonly inputHash: string;
   readonly auth: RunJournal["auth"];
+  readonly authSubject?: string;
   readonly contract: RunJournalContract;
   readonly duplicateIntent?: DuplicateIntentV1;
   readonly plannedDispatches: number;
@@ -372,6 +379,15 @@ function parseAuth(value: unknown): RunJournal["auth"] {
     hash: digest(record.hash, "run journal auth hash"),
     kind: record.kind as GhostgetAuth["kind"],
   };
+}
+
+function parseAuthSubject(value: unknown): string {
+  if (typeof value !== "string") throw new Error("run journal auth subject is malformed");
+  try {
+    return normalizeAuthSubject(value);
+  } catch {
+    throw new Error("run journal auth subject is malformed");
+  }
 }
 
 function parseContract(value: unknown): RunJournalContract {
@@ -714,6 +730,7 @@ export function parseRunJournal(value: unknown): RunJournal {
     "finalOrigin",
     "error",
   ];
+  if (Object.hasOwn(record, "authSubject")) keys.push("authSubject");
   if (Object.hasOwn(record, "duplicateIntent")) keys.push("duplicateIntent");
   if (Object.hasOwn(record, "duplicateSuccessor")) keys.push("duplicateSuccessor");
   exactKeys(record, keys, "run journal");
@@ -776,6 +793,9 @@ export function parseRunJournal(value: unknown): RunJournal {
     risk: record.risk,
     inputHash: digest(record.inputHash, "run journal input hash"),
     auth: parseAuth(record.auth),
+    ...(Object.hasOwn(record, "authSubject")
+      ? { authSubject: parseAuthSubject(record.authSubject) }
+      : {}),
     contract: parseContract(record.contract),
     ...(Object.hasOwn(record, "duplicateIntent")
       ? {
@@ -861,6 +881,7 @@ export function initialRunJournal(value: StartRunJournal): RunJournal {
     risk: value.risk,
     inputHash: value.inputHash,
     auth: value.auth,
+    ...(value.authSubject === undefined ? {} : { authSubject: value.authSubject }),
     contract: value.contract,
     ...(value.duplicateIntent === undefined
       ? {}

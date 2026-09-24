@@ -53,6 +53,7 @@ type Settled =
   | { readonly ok: false; readonly message: string };
 
 const ACCOUNT = "x-official";
+const SECOND_ACCOUNT = "x-second";
 const MESSAGE = "intent fence fixture";
 const DEDUPE_WINDOW_MS = 86_400_000;
 const DEAD_OWNER = {
@@ -100,17 +101,30 @@ function connectAccount(testState: FenceState, generation: number, force = gener
   }), testState.environment, force ? { force: true } : {});
 }
 
+/**
+ * Connect the same X account under a second locator ID. With `subject`
+ * undefined the record names no provider subject.
+ */
+function connectSecondLocator(testState: FenceState, subject: string | undefined): void {
+  saveAuth(createAuth(SECOND_ACCOUNT, {
+    oauthProvider: "x",
+    tokenFile: join(testState.directory, "x-token-second.json"),
+    scopes: ["tweet.read", "tweet.write", "users.read"],
+    ...(subject === undefined ? {} : { subject }),
+  }), testState.environment);
+}
+
 function install(testState: FenceState): void {
   installAdapter(testState, 0);
   connectAccount(testState, 0);
 }
 
-function savedPlan(testState: FenceState, at?: Date): string {
+function savedPlan(testState: FenceState, at?: Date, account = ACCOUNT): string {
   const invocation = prepareInvocation(
     "x",
     "posts.publish",
     { body: MESSAGE },
-    ACCOUNT,
+    account,
     testState.environment,
   );
   const stored = at === undefined
@@ -191,8 +205,9 @@ function confirm(
   outcome: Outcome,
   probe: Probe,
   at?: Date,
+  account = ACCOUNT,
 ): Promise<Settled> {
-  const digest = savedPlan(testState, at);
+  const digest = savedPlan(testState, at, account);
   return settle(confirmInvocation(digest, {
     headed: false,
     environment: testState.environment,
@@ -758,6 +773,61 @@ describe("intent-level confirmed-write fence", () => {
     } finally {
       control.release?.();
       rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("the same provider subject under a second locator cannot redispatch an unsettled intent", async () => {
+    const testState = fenceState();
+    try {
+      install(testState);
+      const probe: Probe = { crossings: 0 };
+      const first = requireResult(await confirm(testState, "indeterminate", probe));
+      expect(first.receipt.status).toBe("indeterminate");
+      const journal = listRunJournalSnapshots(testState.environment).flatMap((entry) =>
+        "invalid" in entry || entry.journal.runId !== first.receipt.runId ? [] : [entry.journal])[0];
+      // The journal records the provider subject of the auth record it ran under.
+      expect(journal?.authSubject).toBe("12345");
+
+      connectSecondLocator(testState, "12345");
+      const retry = refusal(await confirm(testState, "succeeded", probe, undefined, SECOND_ACCOUNT));
+
+      expect(probe.crossings).toBe(1);
+      expect(retry).toContain(`a prior attempt (${first.receipt.runId}) may have reached the provider under auth locator '${ACCOUNT}', which records the same provider subject`);
+      // The refused run leaves no idempotency claim of its own behind.
+      const holders = stateFiles(join(testState.directory, "idempotency")).map((path) =>
+        (JSON.parse(readFileSync(path, "utf8")) as { readonly runId: string }).runId);
+      expect(new Set(holders)).toEqual(new Set([first.receipt.runId]));
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("another subject, no subject, a journal without a subject, or a fulfilled run keeps the per-locator fence", async () => {
+    for (const setup of ["other-subject", "no-subject", "legacy-journal", "fulfilled"] as const) {
+      const testState = fenceState();
+      try {
+        install(testState);
+        const probe: Probe = { crossings: 0 };
+        const first = requireResult(await confirm(testState, setup === "fulfilled" ? "succeeded" : "indeterminate", probe));
+        if (setup === "legacy-journal") {
+          // Journals written before the subject field existed carry none.
+          const entry = listRunJournalSnapshots(testState.environment).find((candidate) =>
+            !("invalid" in candidate) && candidate.journal.runId === first.receipt.runId);
+          if (entry === undefined || "invalid" in entry) throw new Error("run journal is missing");
+          const { authSubject: _dropped, ...legacy } = entry.journal as typeof entry.journal & { authSubject?: string };
+          expect(writePrivateJsonIfUnchanged(
+            join(testState.directory, "run-journals", `${first.receipt.runId}.json`),
+            legacy,
+            { expectedCurrentContentSha256: entry.contentSha256 },
+          )).toBeTrue();
+        }
+        connectSecondLocator(testState, setup === "other-subject" ? "67890" : setup === "no-subject" ? undefined : "12345");
+        const second = requireResult(await confirm(testState, "succeeded", probe, undefined, SECOND_ACCOUNT));
+        expect(second.replayed).toBeFalse();
+        expect(probe.crossings).toBe(2);
+      } finally {
+        rmSync(testState.directory, { recursive: true, force: true });
+      }
     }
   });
 
