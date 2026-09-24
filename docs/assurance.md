@@ -1055,7 +1055,8 @@ An indeterminate dispatch fence is released only from separately obtained exact 
 - Evidence: `scripts/verification-fence-replay.test.ts`, `src/ghostget.test.ts`, `src/portable-run-recovery.test.ts`, `src/provider-plugin-portable-runtime.test.ts`, `src/provider-plugin-reconciliation.property.test.ts`, `src/run-journal.test.ts`, `src/web-session-recovery.test.ts`, `verification/quint/fence.qnt`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified:
-  - The fence model abstracts the evidence: one reconcile action stands for applied plugin readback or owner approval, and the replay checks only that an applied reconciliation keeps the ledger and that a caller's not-applied claim changes no journal.
+  - The fence model abstracts the evidence: one reconcile action stands for applied plugin readback or owner approval, and the replay checks only that `reconciledRecoveryRelease` and `transitionRunJournal` settle a reconciled run and keep its ledger.
+  - The replay does not call `recordNotAppliedClaim`: its not-applied action changes no journal in the replay world, so that `recordNotAppliedClaim` releases nothing is covered only by the listed example tests.
   - The web-session reconciler and the CLI and portable parsers of reconciliation input are covered only by the listed example and property tests.
   - Terminalizing a run from supplied evidence says nothing about provider liveness.
 

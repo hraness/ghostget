@@ -236,7 +236,8 @@ class HelperWorld {
     throw new Error(`helper ${actor.label} exited with ${String(actor.exitCode)}: ${actor.stderr.slice(0, 500)}`);
   }
 
-  observe(): Observation {
+  /** The helper whose claim holds the lock name, "ghost" for the dead claim, or "none". */
+  lockOwner(): string {
     let lockOwner = "none";
     try {
       const claim = JSON.parse(readFileSync(join(this.root, lockName), "utf8")) as { pid?: unknown; requestId?: unknown };
@@ -250,6 +251,11 @@ class HelperWorld {
     } catch (error) {
       if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
     }
+    return lockOwner;
+  }
+
+  observe(): Observation {
+    const lockOwner = this.lockOwner();
     const reapers = new Set<string>();
     for (const name of readdirSync(this.root)) {
       if (!name.startsWith(".io-path-mutation-reaper-")) continue;
@@ -392,8 +398,11 @@ async function pooled<T, R>(items: readonly T[], run: (item: T) => Promise<R>): 
 const pathClaimModel = () => quintModel(MODEL_FILE);
 const traces = quintTraceCache(MODEL_FILE);
 
-function holdersIn(state: ItfState): number {
-  return [...itfStringMap(itfVariable(state, "pc"), "pc", itfString).values()].filter((pc) => HOLDING.has(pc)).length;
+/** Whether `state` breaks `claimSafety`: two holders, or a holder that does not own the lock name. */
+function breaksClaimSafety(state: ItfState): boolean {
+  const holders = [...itfStringMap(itfVariable(state, "pc"), "pc", itfString)].filter(([, pc]) => HOLDING.has(pc));
+  const owner = itfString(itfVariable(state, "lockOwner"), "lockOwner");
+  return holders.length > 1 || holders.some(([actor]) => actor !== owner);
 }
 
 describe("path-claim.qnt ITF replay", () => {
@@ -448,30 +457,37 @@ describe("path-claim.qnt ITF replay", () => {
     expect(first).toMatch(/^state \d+: (after reap\([abc]\) pc is |.* but the helper is at )/u);
   });
 
-  test("real helpers keep one holder under the pre-fix schedules that admit two", async () => {
+  test("real helpers keep one holder that owns the lock under the pre-fix schedules that break claimSafety", async () => {
     const model = await pathClaimModel();
     expect(model.mutants.map((mutant) => mutant.step)).toContain("stepPreFix");
     const all = await traces("stepPreFix");
-    const violating = all.filter((trace) => trace.states.some((state) => holdersIn(state) > 1));
+    const violating = all.filter((trace) => trace.states.some(breaksClaimSafety));
     expect(violating.length).toBeGreaterThan(0);
     const results = await pooled(violating, async (trace) => {
       const world = await HelperWorld.start(deadClaimOf(trace));
       try {
         let most = 0;
+        const strays: string[] = [];
         for (const state of trace.states.slice(1)) {
           const { action, actor } = operation(state);
           if (world.stepOf(actor) === null) continue;
           if (action === "kill") await world.kill(actor);
           else await world.advance(actor);
-          most = Math.max(most, world.holders().length);
+          const holders = world.holders();
+          most = Math.max(most, holders.length);
+          const owner = holders.length === 0 ? null : world.lockOwner();
+          for (const holder of holders) {
+            if (holder !== owner) strays.push(`state ${String(state.index)}: ${holder} holds while the lock names ${String(owner)}`);
+          }
         }
-        return most;
+        return { most, strays };
       } finally {
         await world.stop();
       }
     });
-    expect(results.every((most) => most === 1 || most === 0)).toBe(true);
-    expect(results.some((most) => most === 1)).toBe(true);
+    expect(results.flatMap((result) => result.strays)).toEqual([]);
+    expect(results.every((result) => result.most <= 1)).toBe(true);
+    expect(results.some((result) => result.most === 1)).toBe(true);
   });
 
   test("an unknown action or a missing pick fails closed instead of skipping a step", () => {
