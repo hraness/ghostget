@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "../test-support";
 import {
   detectDirectHttpMedia,
   normalizeDeclaredMediaType,
@@ -10,7 +11,7 @@ import {
 } from "./http";
 
 test("property: arbitrary HTTP boundary values never throw pure parsers", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.string(), fc.uint8Array({ maxLength: 1_024 }), (value, body) => {
       expect(() => parseContentLength(value)).not.toThrow();
       expect(() => parseContentRange(value)).not.toThrow();
@@ -23,7 +24,7 @@ test("property: arbitrary HTTP boundary values never throw pure parsers", () => 
 });
 
 test("property: accepted content ranges always describe a nonempty exact interval", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.string(), (value) => {
       const parsed = parseContentRange(value);
       if (parsed === null) return;
@@ -36,7 +37,7 @@ test("property: accepted content ranges always describe a nonempty exact interva
 });
 
 test("property: fragment changes cannot change the normalized direct request", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.stringMatching(/^[A-Za-z0-9]{1,32}$/u), fc.string(), fc.string(), (path, left, right) => {
       const base = `https://example.com/${path}`;
       const leftUrl = parsePublicHttpUrl(`${base}#${encodeURIComponent(left)}`);

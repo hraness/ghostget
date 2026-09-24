@@ -8,14 +8,14 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 233 claims: 151 evidenced, 63 planned, and 19 not verified. It maps 86 guidelines from 5 guides; 66 list claims and 20 are exempt.
+The register holds 234 claims: 156 evidenced, 59 planned, and 19 not verified. It maps 88 guidelines from 5 guides; 68 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 135 | 5 | 0 |
+| example test | 138 | 3 | 0 |
 | property test | 14 | 1 | 0 |
 | stateful model | 2 | 13 | 0 |
-| Quint model with production trace replay | 0 | 35 | 0 |
+| Quint model with production trace replay | 2 | 33 | 0 |
 | Lean proof with differential test | 0 | 8 | 0 |
 | differential oracle | 0 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
@@ -103,7 +103,7 @@ Each claim holds only while its listed assumptions hold.
 
 | Assumption | Statement | Claims |
 | --- | --- | ---: |
-| `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 6 |
+| `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 8 |
 | `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 30 |
 | `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 27 |
 | `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 27 |
@@ -123,8 +123,8 @@ Each claim holds only while its listed assumptions hold.
 | `npm-registry` | The npm registry enforces version immutability, trusted publishing, and provenance as documented. | 17 |
 | `vercel` | Vercel builds and serves deployments as its project settings and APIs report. | 37 |
 | `administrator-readback` | A signed-in administrator performs the documented live readbacks and reports them faithfully. | 15 |
-| `ci-runner` | GitHub-hosted runners execute the reviewed workflow faithfully. | 15 |
-| `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 10 |
+| `ci-runner` | GitHub-hosted runners execute the reviewed workflow faithfully. | 14 |
+| `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 9 |
 | `edge-runtime` | The Vercel Edge runtime implements the Web Platform APIs the edge code uses. | 5 |
 
 ## Claims by area
@@ -1026,11 +1026,15 @@ A mutation dispatches only after an exact preview and a confirmation whose diges
 
 For every intent (account realm, provider target, operation id, canonical input), provider effects are at most 1 + duplicate successors, including across reconnect and manifest-hash changes.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “durable dispatch, and at-most-once evidence.”
-- Evidence: `src/confirmed-write-intent-fence.test.ts`, `src/run-journal.property.test.ts`, `src/run-journal.test.ts`, `src/runtime.test.ts`
+- Evidence: `scripts/verification-fence-replay.test.ts`, `src/confirmed-write-intent-fence.test.ts`, `src/run-journal.property.test.ts`, `src/run-journal.test.ts`, `src/runtime.test.ts`, `verification/quint/fence.qnt`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The fence model has no duplicate-risk successors, so it checks at most one dispatch per intent, not the full 1 + duplicate-successors bound.
+  - The model is bounded: three runs of one intent, one reconnect, one manifest upgrade, 5,000 simulated samples of up to 12 steps, and Apalache to length 8.
+  - The replay drives the pure fence cores (`intentFenceBlocker`, `intentLedgerPath`, `transitionRunJournal`, `priorRunDisposition`, `reconciledRecoveryRelease`) with an in-memory ledger and journal store; the file-backed `acquireIntentLedger`, the state helper, the hash-keyed ledger, receipts, and recovery capsules are covered only by the listed example tests.
+  - The dedupe window's expiry, partial multi-dispatch runs, and journals from before the intent fence are not modelled.
 
 #### `indeterminate-never-retried`
 
@@ -1046,12 +1050,14 @@ An indeterminate (post-dispatch uncertain) mutation is never retried; a lost ack
 
 An indeterminate dispatch fence is released only from separately obtained exact evidence (plugin readback or owner approval), never from caller-typed hashes.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “reconcile it from separately obtained exact evidence.”
-- Evidence: `src/ghostget.test.ts`, `src/portable-run-recovery.test.ts`, `src/provider-plugin-portable-runtime.test.ts`, `src/provider-plugin-reconciliation.property.test.ts`, `src/run-journal.test.ts`, `src/web-session-recovery.test.ts`
+- Evidence: `scripts/verification-fence-replay.test.ts`, `src/ghostget.test.ts`, `src/portable-run-recovery.test.ts`, `src/provider-plugin-portable-runtime.test.ts`, `src/provider-plugin-reconciliation.property.test.ts`, `src/run-journal.test.ts`, `src/web-session-recovery.test.ts`, `verification/quint/fence.qnt`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified:
-  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - The fence model abstracts the evidence: one reconcile action stands for applied plugin readback or owner approval, and the replay checks only that `reconciledRecoveryRelease` and `transitionRunJournal` settle a reconciled run and keep its ledger.
+  - The replay does not call `recordNotAppliedClaim`: its not-applied action changes no journal in the replay world, so that `recordNotAppliedClaim` releases nothing is covered only by the listed example tests.
+  - The web-session reconciler and the CLI and portable parsers of reconciliation input are covered only by the listed example and property tests.
   - Terminalizing a run from supplied evidence says nothing about provider liveness.
 
 #### `durable-boundaries-before-dispatch`
@@ -2156,15 +2162,16 @@ Bun runner timeout and concurrency live only in package.json; no test calls setD
 
 #### `property-seed-replay`
 
-Every property runs through assertProperty so GHOSTGET_PROPERTY_SEED and GHOSTGET_PROPERTY_PATH replay applies; no direct fc.assert outside test-support.
+Every fast-check property runs through assertProperty or assertAsyncProperty, so GHOSTGET_PROPERTY_SEED and GHOSTGET_PROPERTY_PATH replay, the seed corpus, and the soak multiplier apply; no other fast-check runner appears outside test-support.
 
-- Planned: example test in plan Phase 2.
+- Evidenced by example test.
 - Source: `AGENTS.md`: “retain fast-check's seed and shrink path. Replay one exact property with `GHOSTGET_PROPERTY_SEED`, `GHOSTGET_PROPERTY_PATH`”
-- Evidence: `src/test-support.test.ts`
+- Also covers: `verification/AGENTS.md`: “Run every fast-check property through `assertProperty` or `assertAsyncProperty` from `src/test-support.ts`”
+- Evidence: `src/test-harness-policy.test.ts`, `src/test-support.test.ts`
 - Assumptions: `bun-runtime`
 - Not verified:
-  - The example test for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Direct `fc.assert` calls bypass the shared seed and path replay until plan Phase 2 routes them through `assertProperty`.
+  - The policy scan is static: it follows fast-check's default, namespace, and named imports, the `fc` re-export of `test-support`, and dynamic loads by literal specifier, but not a runner reached through another module's re-export or a computed member name.
+  - It covers `src/`, `scripts/`, `edge/`, and `website/`; tests elsewhere are not scanned.
 
 #### `lifecycle-injected-clocks`
 
@@ -2184,9 +2191,11 @@ State-helper and path-helper three-phase claims admit at most one critical-secti
 
 - Planned: Quint model with production trace replay in plan Phase 4.
 - Source: `kb/plans/formal-verification-assurance.md`: “The invariant is `|{p : critical(p)}| ≤ 1`.”
-- Evidence: `src/browser-snapshots.test.ts`, `src/path-helper.test.ts`, `src/read-projections.test.ts`, `src/storage-cas.test.ts`
+- Evidence: `scripts/verification-path-claim-replay.test.ts`, `src/browser-snapshots.test.ts`, `src/path-helper.test.ts`, `src/read-projections.test.ts`, `src/storage-cas.test.ts`, `verification/quint/path-claim.qnt`
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The path-helper claim and its dead-claim reaper election have a Quint model whose replay drives real path-helper processes; the state helper's three-phase claim and a `readdir` that may omit renamed entries are not yet modelled, so this claim stays planned.
+  - The path-helper model is bounded: three helpers, at most one kill, kills only at pause points, 10,000 simulated samples of up to 12 steps, Apalache to length 6, and 60 replayed traces.
 
 #### `state-cas-no-rollback`
 
@@ -2335,7 +2344,19 @@ Hraness dependencies are pinned to reviewed immutable releases or full commits, 
   - Only the enumerated example cases are checked.
   - `website/site.test.ts` asserts only the design-kit, site-footer, and ui pins; the other Hraness dependencies, and rejection of branches, sibling paths, and submodules, are not checked.
 
-### `verification` (10 claims)
+### `verification` (11 claims)
+
+#### `property-soak-multiplier`
+
+GHOSTGET_PROPERTY_RUNS accepts only a canonical integer from 1 to 100 and multiplies every helper-run property's run count and interruption budget, including seed corpus replays.
+
+- Evidenced by example test.
+- Source: `verification/AGENTS.md`: “For a soak, set `GHOSTGET_PROPERTY_RUNS` to an integer from 1 to 100.”
+- Evidence: `src/test-support.test.ts`
+- Assumptions: `bun-runtime`
+- Not verified:
+  - No nightly workflow runs the soak yet; the multiplier is checked only in a child process at multiplier 3.
+  - The soak's runner timeout is set on its command line, so a soak that outgrows it fails as a runner timeout rather than a property failure.
 
 #### `verification-inconclusive-not-evidence`
 
@@ -2429,14 +2450,17 @@ Every claim carries its layer, status, assumptions, and a non-empty not-verified
 
 #### `verification-shrink-promotion`
 
-Every recorded shrink or failing seed is promoted to a named example test beside the property that found it.
+Every failing seed recorded in the seed corpus is replayed by its named property and cites a named example test registered beside that property.
 
-- Planned: example test in plan Phase 2.
+- Evidenced by example test.
 - Source: `AGENTS.md`: “Promote every recorded shrink or failing seed to a named example test.”
 - Also covers: `AGENTS.md`: “then promote a minimized failure to a named regression”
-- Evidence: none
-- Assumptions: `ci-runner`, `verification-tools`
-- Not verified: The example test for this claim is scheduled for plan Phase 2; no automated check covers it yet.
+- Also covers: `verification/AGENTS.md`: “Record a failing seed and shrink path in `seeds/corpus.json` under the property's name”
+- Evidence: `src/test-harness-policy.test.ts`, `src/test-support.test.ts`, `src/contracts-invoke-read.test.ts`
+- Assumptions: `bun-runtime`
+- Not verified:
+  - Only failures someone records in `verification/seeds/corpus.json` are checked; a shrink fixed without a corpus entry is not.
+  - The check confirms that the cited regression test is registered, not that it exercises the recorded input; only the `contracts-invoke-read` entry pins its generated input with `fc.sample`.
 
 #### `verification-unpublished`
 

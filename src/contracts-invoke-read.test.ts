@@ -224,6 +224,15 @@ describe("parseInvokeReadResult", () => {
     }
   });
 
+  test("the recorded CI coordinate still generates the own __proto__ counterexample", () => {
+    // If a fast-check upgrade moves this coordinate, the seed corpus entry no
+    // longer replays the failure it records and must be re-derived.
+    const generated = fc.sample(fc.jsonValue({ maxDepth: 6 }), { seed: 455347073, path: "3:1:86:86", numRuns: 1 });
+    expect(generated).toHaveLength(1);
+    expect(JSON.stringify(generated[0])).toBe('{"__proto__":0}');
+    expect(Object.hasOwn(generated[0] as object, "__proto__")).toBeTrue();
+  });
+
   test("property: bounded arbitrary outputs round-trip; an unsupported key at any envelope path is rejected", () => {
     assertProperty(fc.property(fc.jsonValue({ maxDepth: 6 }), (generated) => {
       // JSON has no negative zero; compare what a consumer can actually receive.
@@ -233,7 +242,7 @@ describe("parseInvokeReadResult", () => {
       expect(parsed.output).toEqual(output);
       expect(parseInvokeReadResult(JSON.parse(JSON.stringify(parsed)))).toEqual(parsed);
       expect(schemaViolations(schema, envelope)).toEqual([]);
-    }));
+    }), {}, "contracts-invoke-read/output-round-trip");
     assertProperty(fc.property(fc.boolean(), fc.nat(), (succeeded, seed) => {
       const envelope = succeeded ? succeededEnvelope() : failedEnvelope();
       const paths = objectPaths(envelope).filter((path) => path[0] !== "output");

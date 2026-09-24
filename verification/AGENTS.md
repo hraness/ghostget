@@ -3,7 +3,8 @@
 - `claims.json` – the claims register: one rule entry per `AGENTS.md` guideline, with its digest and the claims that quote it; the digest and reason of each synced managed block; and one row per claim with its layer, status, quotes, evidence, named property tests, assumptions, and not-verified scope. `bun run ./scripts/verification-claims.ts render` writes `docs/assurance.md` from it.
 - `quint/` – Quint models, `models.json` with each model's invariants, seeds, bounds, mutants, and replay test, and the ITF trace replay pattern.
 - `lean/` – the core-only Lake project, its pinned `lean-toolchain`, `proofs.json` with each required theorem's statement digest and each seeded defect, and the axiom audit.
-- `vectors/`, `seeds/`, `oracles/` – reserved for golden vectors, the property seed corpus, and independent oracles.
+- `seeds/` – the property seed corpus: `corpus.json` maps each named property to its test file and its recorded fast-check seeds and shrink paths.
+- `vectors/`, `oracles/` – reserved for golden vectors and independent oracles.
 - `tsconfig.json` – type checking for `../scripts/verification-*.ts`.
 
 # Guidelines
@@ -13,3 +14,5 @@
 - Record every Quint model in `quint/models.json` with its invariants, seed, bounds, Apalache length, at least one mutant, and its replay test. Set the replay target to `production` only when the replay test drives production code; a `reference` target is toolchain evidence only.
 - Keep the Lean project core-only. List every required theorem and allowed axiom in `lean/proofs.json`; the audit rejects `sorry`, `admit`, native evaluation, unlisted axioms, and other trust escapes.
 - Keep generated traces, build output, and downloaded tools out of Git.
+- Run every fast-check property through `assertProperty` or `assertAsyncProperty` from `src/test-support.ts`; `src/test-harness-policy.test.ts` rejects any other fast-check runner. Record a failing seed and shrink path in `seeds/corpus.json` under the property's name, pass that name to the helper, and keep the named regression test the entry cites.
+- For a soak, set `GHOSTGET_PROPERTY_RUNS` to an integer from 1 to 100. It multiplies every property's run count and interruption budget. Use 20 for the nightly soak. Give the soak command its own runner timeout on the command line, for example `GHOSTGET_PROPERTY_RUNS=20 bun test --no-orphans --timeout 3600000 --max-concurrency 1 <files>`, and report a failure with the seed and path fast-check prints.

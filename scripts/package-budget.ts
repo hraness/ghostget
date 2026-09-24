@@ -1556,25 +1556,44 @@
 // f2c9be480d9ffe8aa7ae642af2523491745987ee9bed58b66d37f7d2f4d6c4ed. Carry the
 // same projections and allowances: 11,992,902 + 12,387 + 4,096 = 12,009,385
 // packed; 23,424,993 + 353 + 65 = 23,425,411 unpacked.
-// The crash harness adds one test-only branch to storage: under
-// NODE_ENV=test with a crash plan, it passes the plan and a Bun preload that
-// swaps the helpers' durable node:fs effects for a crash port. The shipped
-// state and path helpers are unchanged, and the port, preload, fixture, and
-// harness stay outside the package. This adds 1,215 payload bytes over the
-// unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with npm
-// 11.19.0 on darwin arm64 were byte-identical at 11,992,926 packed bytes,
-// 23,426,208 unpacked bytes; archive SHA-256
-// bb028d8f297f2ae98c7e31eb98aa00b691b949585a721c40f01a4307c328d563. Carry the
-// same projections and allowances: 11,992,926 + 12,387 + 4,096 = 12,009,409
-// packed; 23,426,208 + 353 + 65 = 23,426,626 unpacked.
+// The README paragraph that links the thread through hraness and the ALGAL
+// vision adds 419 payload bytes to README.md over the unchanged 596-file
+// inventory. Two `npm pack --ignore-scripts` runs with npm 11.16.0 on darwin
+// arm64 were byte-identical at 12,005,185 packed bytes, 23,425,412 unpacked
+// bytes; archive SHA-256
+// 874784766ccc8e505bc73de42d1aad7b95ce6acd59ea121914ea6f9a6dbffe85.
+// Compressed size varies with the local zlib. Carry the same projections and
+// allowances: 12,005,185 + 12,387 + 4,096 = 12,021,668 packed;
+// 23,425,412 + 353 + 65 = 23,425,830 unpacked.
+// The Quint fence and path-claim models export the pure fence cores
+// (`intentFenceBlocker`, `reconciledRecoveryRelease`, `priorRunDisposition`)
+// for trace replay and run every model's replay test from the manifest through
+// the new verify:quint:replay script in package.json. This adds 2,058 payload
+// bytes over the unchanged 596-file inventory. Two `npm pack --ignore-scripts`
+// runs with npm 11.19.0 on darwin arm64 were byte-identical at 11,993,645
+// packed bytes, 23,427,470 unpacked bytes; archive SHA-256
+// 87e0c7bc0e6037f05c2d1ae83672de5b9abc016e2516f96a31f9a3b1bac640a4. Carry the
+// same projections and allowances: 11,993,645 + 12,387 + 4,096 = 12,010,128
+// packed; 23,427,470 + 353 + 65 = 23,427,888 unpacked.
+// The crash harness adds one test-only branch to storage: under NODE_ENV=test
+// with a crash plan, it passes the plan and a Bun preload that swaps the
+// helpers' durable node:fs effects for a crash port. The shipped state and
+// path helpers are unchanged, and the port, preload, fixture, and harness stay
+// outside the package. This adds 1,215 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on
+// darwin arm64 were byte-identical at 11,993,622 packed bytes, 23,428,685
+// unpacked bytes; archive SHA-256
+// ece2627c6967cb8cf201ebdd598cfc57df555e069feafdd09c38ba6a775c32da. Carry the
+// same projections and allowances: 11,993,622 + 12,387 + 4,096 = 12,010,105
+// packed; 23,428,685 + 353 + 65 = 23,429,103 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Crash harness: storage passes a test-only crash preload to the state and path helpers",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "bb028d8f297f2ae98c7e31eb98aa00b691b949585a721c40f01a4307c328d563",
-  packedBytes: 11_992_926,
-  unpackedBytes: 23_426_208,
+  archiveSha256: "ece2627c6967cb8cf201ebdd598cfc57df555e069feafdd09c38ba6a775c32da",
+  packedBytes: 11_993_622,
+  unpackedBytes: 23_428_685,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
