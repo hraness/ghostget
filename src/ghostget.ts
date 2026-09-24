@@ -191,6 +191,7 @@ import {
   listInvocationPlans,
   listRunReceipts,
   prepareInvocation,
+  prepareReadInvocation,
   loadInvocationPlan,
   purgeExpiredPlans,
   readRunReceipt,
@@ -3307,7 +3308,9 @@ async function runCommand(
     if (arguments_.duplicateRiskOf.length > 0 && !arguments_.preview) {
       throw new Error("--duplicate-risk-of requires an explicit --preview");
     }
-    const invocation = prepareInvocation(
+    // A cache-only invocation is a read path: it binds the account's current
+    // auth incarnation and never creates one.
+    const invocation = (arguments_.cacheOnly ? prepareReadInvocation : prepareInvocation)(
       arguments_.adapterId,
       arguments_.operationId,
       await readInput(arguments_.inputSource),

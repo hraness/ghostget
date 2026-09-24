@@ -58,7 +58,7 @@ import {
 } from "./read-projections";
 import {
   createReadProjectionQueryForInvocation,
-  prepareInvocation,
+  prepareReadInvocation,
   type PreparedInvocation,
 } from "./runtime";
 import type { executeReadInvocation } from "./runtime";
@@ -416,7 +416,7 @@ function prepareSource(
   environment: Environment,
   registry: ProviderPluginRegistry,
 ): PreparedOmniSource {
-  const invocation = prepareInvocation(
+  const invocation = prepareReadInvocation(
     request.adapterId,
     request.operationId,
     request.input,

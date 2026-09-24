@@ -8,7 +8,7 @@ import { getLocalCliContract, localCliContractHash } from "./local-cli-contracts
 import { requireProviderPluginAuth } from "./provider-plugin-auth";
 import type { ProviderPluginRegistry, ProviderPluginOperationResolutionV1 } from "./provider-plugin-registry";
 import { ghostgetStateHome, loadInstalledManifest } from "./storage";
-import { projectionAuthIdentityHash, withSettledReadProjectionAuthAdmission, type AuthIncarnationReader } from "./read-projections";
+import { authIncarnationReader, withSettledReadProjectionAuthAdmission, type AuthIncarnationReader } from "./read-projections";
 import { publicWebSessionAuthorityIdentityHash, webSessionAuthenticationPolicy, type InvocationAuthority } from "./web-session-authentication-policy";
 import type { PreparedInvocation, StoredPlan } from "./runtime";
 import { summarizePlanFile } from "./plan-assets";
@@ -72,10 +72,20 @@ type Inspection = {
   closures: Map<ProviderPluginOperationResolutionV1["binding"], string>;
   contracts: Map<string, string>;
 };
+/**
+ * The admitted account identity. It reads the auth record and its incarnation
+ * as one pair under the account's settled admission, through the incarnation
+ * read capability: an account without an incarnation reads as changed and
+ * nothing is created. Only account saves, the control-service startup
+ * backfill, and explicit invocation preparation create incarnations.
+ */
 function accountIdentity(id: string, options: Options): AccountIdentity {
+  const incarnations = authIncarnationReader(options.environment);
   return withSettledReadProjectionAuthAdmission(id, options.environment, () => {
     const auth = loadAuth(id, options.environment);
-    return { auth, incarnation: projectionAuthIdentityHash(auth.id, sha256(canonicalJson(auth)), options.environment) };
+    const incarnation = incarnations.identityHashIfPresent(auth.id, sha256(canonicalJson(auth)));
+    if (incarnation === null) return changed();
+    return { auth, incarnation };
   });
 }
 /**
@@ -92,7 +102,11 @@ function readAccountIdentity(id: string, options: Options, incarnations: AuthInc
 }
 function inspectedAccount(id: string, inspection: Inspection): AccountIdentity {
   if (!inspection.accounts.has(id)) {
-    try { inspection.accounts.set(id, inspection.identify(id)); } catch { inspection.accounts.set(id, null); }
+    try { inspection.accounts.set(id, inspection.identify(id)); } catch (error) {
+      // A missing incarnation is a changed account, not an unavailable one.
+      if (error instanceof OperationPermissionError) throw error;
+      inspection.accounts.set(id, null);
+    }
   }
   const account = inspection.accounts.get(id);
   if (account === null || account === undefined) throw new Error("The selected account is unavailable.");

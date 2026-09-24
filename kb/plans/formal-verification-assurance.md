@@ -97,7 +97,7 @@ web gateway, the Edge middleware, media, release, and CI on `origin/main`
 | D11 | Media | `assertOwned` observes the lock but does not fence the promotion `rename`. Media-lock liveness trusts `kill(pid, 0)` over heartbeat age, which breaks on shared or namespaced filesystems. | code-read |
 | D12 | Edge | The direct `.md` branch calls `retrieve(new URL(url.pathname, url.origin))` (`edge/negotiation.ts:257`), so `//evil.example/x.md` resolves off-origin in-process. The live site is not affected: Vercel returns 308 to a single slash before middleware, and `/\` returns 404 (checked 2026-09-23). The code still violates same-origin retrieval if the platform changes. | reproduced in-process; latent live |
 | D13 | Approvals | Allow-once is enforced by the client. The broker leaves an `allowed` entry checkable for 600 s and relies on the Ghostget process calling `releaseApproval` in `finally`. A crash leaves a reusable lease for same-UID callers. | code-read |
-| D14 | Read paths | The menu-bar snapshot creates incarnation files through `ensureIncarnationUnderAdmission`, and read-projection listings unlink orphaned claims. Both break the literal rule "No writes on read paths". Either the rule gets an explicit, bounded exemption or the writes move. | code-confirmed |
+| D14 | Read paths | The menu-bar snapshot creates incarnation files through `ensureIncarnationUnderAdmission`, and read-projection listings unlink orphaned claims. Both break the literal rule "No writes on read paths". Either the rule gets an explicit, bounded exemption or the writes move. Done: #355 made the snapshot read-only, #371 moved the cache-read and omni auth checks to `AuthIncarnationReader` and recorded the two exemptions, and the residual-incarnation change binds read-path preparation, confirmation preparation, and the permission account identity the same way. Explicit invocation preparation remains the admitted creator. | code-confirmed; fixed |
 | D15 | Release | Manual promotion refuses a Release that an intermediate attempt published. When a failed-jobs rerun publishes bytes an earlier attempt attested, the body names that earlier attempt. A later rerun of all jobs then fails its publish job, and `resolveReleaseAuthority` reads only the latest attempt and the receipt attempt, neither of which proved all four canonical jobs. Found by a strengthened `promotionNotBlocked` over `verification/quint/release.qnt` (attempts: publish fails, rerun failed jobs publishes, rerun all) and reproduced against `resolveReleaseAuthority` with the release replay fixtures. | reproduced |
 
 ### Evidence gaps
@@ -313,6 +313,9 @@ Acceptance:
   DSL properties once: exact keys, bounds, and parse and render agreement.
 - Enforce "no writes on reads" with a type-level read capability for
   read-path ports. Record the D14 exemption decision in `AGENTS.md`.
+  Done: `AuthIncarnationReader` (#355), the auth checks and exemptions
+  (#371), and read-path, confirmation, and permission-identity preparation
+  (residual-incarnation change).
 - Fix the media findings:
   - D9: spawn in a process group and kill the group. Check cancellation before
     promotion. Discard staging on every error in both pipelines.

@@ -164,9 +164,10 @@ describe("omni materialization holds only the incarnation read capability", () =
     });
     // The account's incarnation disappears after the source was prepared and
     // before its normalized page is admitted, as an account removal would.
-    // The view then prepares its sources again, and preparation is a write
-    // path, so the probe records the incarnation when that next preparation
-    // starts: after materialization, before anything else can create it.
+    // The view then prepares its sources again. Source preparation binds
+    // through the read capability too (src/read-path-preparation.test.ts), and
+    // the probe records the incarnation when that next preparation starts:
+    // after materialization, before anything else could create it.
     const probe: { removed: boolean; afterMaterialization: boolean | null } = { removed: false, afterMaterialization: null };
     const registry: ProviderPluginRegistry = {
       ...providerPluginRegistry,
