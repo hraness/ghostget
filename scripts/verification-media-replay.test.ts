@@ -11,11 +11,17 @@
  * that holds the lock. After every step the replay compares each run's
  * result and gate, the revisions on disk, the quarantine, the lock file and
  * the staging item with the model state.
+ *
+ * A capture of content "X" leaves an unrecorded file beside its derivative,
+ * so the staged item fails production's closed verification. Every revision
+ * the model calls ok must pass the real `verifyMediaItem` on disk, and a
+ * revision is durable only when production flushed the staged tree before
+ * the rename and the revision parent after it.
  */
 import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
 import { chmod, mkdtemp, readdir, readFile, realpath, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, sep } from "node:path";
 
 import {
   MediaArchiveError,
@@ -25,6 +31,7 @@ import {
 } from "../src/media/archive.js";
 import type { MediaDerivativeReport } from "../src/media/ffmpeg.js";
 import * as itemLock from "../src/media/lock.js";
+import * as mediaManifest from "../src/media/manifest.js";
 import { parseProbeMetadata, type ProbeMetadata } from "../src/media/metadata.js";
 import { compareUtf8 } from "../src/media/utf8-order.js";
 import {
@@ -45,7 +52,7 @@ const TRACE_VARIABLES = [
   "myLock", "nextLockId", "phase", "promotedWithoutLock", "quarantined", "removedVerified", "response", "revisions",
   "staging",
 ];
-const PICKS = ["c", "refresh", "x"];
+const PICKS = ["c", "i", "refresh", "x"];
 const ACTIONS = ["cancel", "captureDone", "crash", "promote", "stale", "start", "stray", "tear"];
 const PROCESSES = ["p", "q"] as const;
 /** The lock module's default heartbeat period, which the replay stops so that only `stale` ages a lock. */
@@ -77,18 +84,31 @@ function deferred<T>(): Deferred<T> {
 }
 
 // ---------------------------------------------------------------------------
-// Seeded defects in the item lock
+// Seeded defects in the item lock and the staged verification
 // ---------------------------------------------------------------------------
 
 /**
  * `unfenced` renames without checking the lock, as promotion did before D11.
  * `lateCancel` checks the lock but skips the cancellation guard, as promotion
- * did before D9. `none` hands the production lock back unchanged.
+ * did before D9. `unverified` answers the closed verification of a staged
+ * item with success, so a staged item that fails it is promoted. `none` hands
+ * the production lock and verification back unchanged.
  */
-type Defect = "none" | "unfenced" | "lateCancel";
+type Defect = "none" | "unfenced" | "lateCancel" | "unverified";
 let lockDefect: Defect = "none";
 const productionLock = { ...itemLock };
+const productionManifest = { ...mediaManifest };
 const LOCK_MODULE = "../src/media/lock.ts";
+const MANIFEST_MODULE = "../src/media/manifest.ts";
+const STAGING_SEGMENT = `${sep}.wrench-media-staging${sep}`;
+
+async function verifyWithDefect(
+  ...args: Parameters<typeof mediaManifest.verifyMediaItem>
+): ReturnType<typeof mediaManifest.verifyMediaItem> {
+  const result = await productionManifest.verifyMediaItem(...args);
+  if (lockDefect !== "unverified" || !args[0].includes(STAGING_SEGMENT)) return result;
+  return { ...result, ok: true, failures: [] };
+}
 
 async function acquireWithDefect(...args: Parameters<typeof itemLock.acquireItemLock>): Promise<itemLock.ItemLock> {
   const lock = await productionLock.acquireItemLock(...args);
@@ -97,6 +117,7 @@ async function acquireWithDefect(...args: Parameters<typeof itemLock.acquireItem
   return {
     ...lock,
     fencedRename: async (source, destination, guard) => {
+      if (defect === "unverified") return lock.fencedRename(source, destination, guard);
       if (defect === "lateCancel") return lock.fencedRename(source, destination);
       guard?.();
       await rename(source, destination);
@@ -118,6 +139,9 @@ type Run = {
   stop: Deferred<Stop>;
   at: Stop | null;
   outcome: string | null;
+  /** Directories production flushed after this run passed its flush gate. */
+  readonly flushed: string[];
+  gateOpened: boolean;
 };
 
 const OUTCOMES: Readonly<Record<string, string>> = Object.freeze({
@@ -142,6 +166,8 @@ function deadPid(): number {
 class Harness {
   private readonly live = new Map<string, Run>();
   private readonly abandoned: Run[] = [];
+  /** Revision leaves whose promotion flushed the staged tree and both parents. */
+  private readonly durable = new Set<string>();
 
   private constructor(readonly root: string, private readonly dead: number) {}
 
@@ -187,6 +213,11 @@ class Harness {
         const video = join(options.derivativesDirectory, "video.mkv");
         const audio = join(options.derivativesDirectory, "audio.mka");
         await writeFile(video, "video-stream");
+        // An X capture leaves an unrecorded partial file beside its
+        // derivative, which the closed verification of the staged item rejects.
+        if (await readFile(options.capturePath, "utf8") === "media-X") {
+          await writeFile(join(options.derivativesDirectory, "video.mkv.part"), "partial");
+        }
         return {
           probe: { ok: true, inspection: { streams: [], hasVideo: true, hasAudio: true, firstVideoStreamIndex: 0, firstAudioStreamIndex: 1 } },
           video: { role: "video", path: video, status: "created", sourceStreamIndex: 0 },
@@ -204,8 +235,13 @@ class Harness {
         syncTree: async () => {
           run().stop.resolve("sync");
           await run().sync.promise;
+          run().gateOpened = true;
         },
-        syncDirectory: () => Promise.resolve(),
+        syncDirectory: (directory) => {
+          const current = run();
+          if (current.gateOpened) current.flushed.push(directory);
+          return Promise.resolve();
+        },
       },
     };
   }
@@ -249,7 +285,10 @@ class Harness {
       refresh,
       signal: controller.signal,
     }, this.dependencies(self)).then((archived) => archived.status, outcomeOf);
-    current = { controller, result, capture: deferred(), sync: deferred(), stop: deferred(), at: null, outcome: null };
+    current = {
+      controller, result, capture: deferred(), sync: deferred(), stop: deferred(), at: null, outcome: null,
+      flushed: [], gateOpened: false,
+    };
     return this.settle(process, current, await this.advance(current));
   }
 
@@ -268,8 +307,18 @@ class Harness {
   async promote(process: string): Promise<string | null> {
     const run = this.waiting(process, "sync");
     if (run === null) return null;
+    const before = new Set(await listOrEmpty(this.revisionParent));
     run.sync.resolve(undefined);
-    return this.settle(process, run, await this.advance(run));
+    const response = this.settle(process, run, await this.advance(run));
+    // The new revision is durable when production flushed the revision
+    // parent before the rename (the chain up to the library) and after it,
+    // and the staging parent after it. The staged tree itself is the gate.
+    const parentFlushes = run.flushed.filter((directory) => directory === this.revisionParent).length;
+    const flushed = parentFlushes >= 2 && run.flushed.includes(dirname(this.stagingItem));
+    for (const leaf of await listOrEmpty(this.revisionParent)) {
+      if (!before.has(leaf) && flushed) this.durable.add(leaf);
+    }
+    return response;
   }
 
   cancel(process: string): boolean {
@@ -304,9 +353,15 @@ class Harness {
     return join(this.revisionParent, leaf);
   }
 
-  /** A power loss after the rename but before the capture's bytes reached disk. */
-  async tear(): Promise<void> {
-    const capture = join(await this.head(), "data", "capture", "media.webm");
+  /**
+   * A power loss that loses a revision's capture bytes: the `index`th revision,
+   * or the head when `index` is past it.
+   */
+  async tear(index: number): Promise<void> {
+    const leaves = (await readdir(this.revisionParent)).toSorted(compareUtf8);
+    const leaf = leaves[Math.min(index, leaves.length - 1)];
+    if (leaf === undefined) throw new Error("the lineage has no revision to tear");
+    const capture = join(this.revisionParent, leaf, "data", "capture", "media.webm");
     await chmod(capture, 0o600);
     await writeFile(capture, "");
   }
@@ -328,9 +383,14 @@ class Harness {
       }
       const own = typeof assetKey === "string" && leaf.endsWith(`-${assetKey}`);
       const stray = await exists(join(directory, ".DS_Store"));
+      // Every revision still called ok here passed production's closed
+      // verification on disk, now.
+      const state = bytes === null || !own ? "foreign" : stray ? "stray" : bytes === "" ? "torn"
+        : (await productionManifest.verifyMediaItem(directory)).ok ? "ok" : "unverified";
       revisions.push({
-        state: bytes === null || !own ? "foreign" : stray ? "stray" : bytes === "" ? "torn" : "ok",
-        content: bytes === "media-A" ? "A" : bytes === "media-B" ? "B" : "",
+        state,
+        content: bytes === "media-A" ? "A" : bytes === "media-B" ? "B" : bytes === "media-X" ? "X" : "",
+        durable: this.durable.has(leaf),
       });
     }
     return {
@@ -372,7 +432,7 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-type ObservedRevision = Readonly<{ state: string; content: string }>;
+type ObservedRevision = Readonly<{ state: string; content: string; durable: boolean }>;
 type Observed = Readonly<{ revisions: readonly ObservedRevision[]; quarantined: number; lock: boolean; staging: boolean }>;
 
 // ---------------------------------------------------------------------------
@@ -418,8 +478,12 @@ function modelState(state: ItfState): ModelState {
     phase: itfMap(itfVariable(state, "phase"), "phase", itfString),
     staging: itfString(itfVariable(state, "staging"), "staging"),
     revisions: revisions.items.map((item) => {
-      const fields = itfRecord(item, ["content", "state"], "revision");
-      return { content: itfString(fields.get("content")!, "revision.content"), state: itfString(fields.get("state")!, "revision.state") };
+      const fields = itfRecord(item, ["content", "durable", "state"], "revision");
+      return {
+        content: itfString(fields.get("content")!, "revision.content"),
+        state: itfString(fields.get("state")!, "revision.state"),
+        durable: itfBool(fields.get("durable")!, "revision.durable"),
+      };
     }),
     quarantined: itfInt(itfVariable(state, "quarantined"), "quarantined"),
     response: itfString(itfVariable(state, "response"), "response"),
@@ -432,14 +496,25 @@ function modelState(state: ItfState): ModelState {
 /** The model's invariants, evaluated on one recorded state. */
 function safe(state: ModelState): boolean {
   const noForeignRevision = state.revisions.every((revision) => revision.state !== "foreign");
-  return !state.promotedWithoutLock && !state.cancelledCreated && !state.removedVerified && noForeignRevision;
+  const promotedVerified = state.revisions.every((revision) => revision.state !== "unverified");
+  const promotedDurable = state.revisions.every((revision) => revision.durable);
+  const lineageRecoverable = state.revisions.every((revision, index) =>
+    index === state.revisions.length - 1 || revision.state !== "torn");
+  return !state.promotedWithoutLock && !state.cancelledCreated && !state.removedVerified && noForeignRevision
+    && promotedVerified && promotedDurable && lineageRecoverable;
 }
 
 function owns(state: ModelState, process: string): boolean {
   return state.lock !== "none" && state.lockId === state.myLock.get(process);
 }
 
-type RecordedStep = Readonly<{ action: string; process: string | null; content: string | null; refresh: boolean | null }>;
+type RecordedStep = Readonly<{
+  action: string;
+  process: string | null;
+  content: string | null;
+  refresh: boolean | null;
+  index: bigint | null;
+}>;
 
 function recordedStep(state: ItfState): RecordedStep {
   const action = itfString(itfVariable(state, "mbt::actionTaken"), "mbt::actionTaken");
@@ -448,11 +523,13 @@ function recordedStep(state: ItfState): RecordedStep {
   const process = pick("x");
   const content = pick("c");
   const refresh = pick("refresh");
+  const index = pick("i");
   return {
     action,
     process: process === null ? null : itfString(process, "mbt::nondetPicks.x"),
     content: content === null ? null : itfString(content, "mbt::nondetPicks.c"),
     refresh: refresh === null ? null : itfBool(refresh, "mbt::nondetPicks.refresh"),
+    index: index === null ? null : itfInt(index, "mbt::nondetPicks.i"),
   };
 }
 
@@ -496,7 +573,7 @@ async function apply(harness: Harness, step: RecordedStep, before: ModelState, i
       await harness.stale();
       return "";
     case "tear":
-      await harness.tear();
+      await harness.tear(Number(need(step.index, index, "tear index")));
       return "";
     case "stray":
       await harness.stray();
@@ -507,14 +584,14 @@ async function apply(harness: Harness, step: RecordedStep, before: ModelState, i
 }
 
 function describeRevisions(revisions: readonly ObservedRevision[]): string {
-  return `[${revisions.map((revision) => `${revision.state}${revision.state === "ok" || revision.state === "stray" ? ` ${revision.content}` : ""}`).join(", ")}]`;
+  return `[${revisions.map((revision) => `${revision.state}${revision.state === "ok" || revision.state === "stray" ? ` ${revision.content}` : ""}${revision.durable ? "" : " unflushed"}`).join(", ")}]`;
 }
 
 /** A torn or foreign revision's bytes are not its content, so only state is compared for those. */
 function sameRevisions(actual: readonly ObservedRevision[], expected: readonly ObservedRevision[]): boolean {
   return actual.length === expected.length && actual.every((revision, index) => {
     const model = expected[index]!;
-    if (revision.state !== model.state) return false;
+    if (revision.state !== model.state || revision.durable !== model.durable) return false;
     return (revision.state !== "ok" && revision.state !== "stray") || revision.content === model.content;
   });
 }
@@ -595,11 +672,13 @@ describe("media.qnt ITF replay", () => {
     globalThis.setInterval = ((handler: () => void, timeout?: number) =>
       realSetInterval(handler, timeout === HEARTBEAT_MS ? 2 ** 31 - 1 : timeout)) as unknown as typeof setInterval;
     await mock.module(LOCK_MODULE, () => ({ ...productionLock, acquireItemLock: acquireWithDefect }));
+    await mock.module(MANIFEST_MODULE, () => ({ ...productionManifest, verifyMediaItem: verifyWithDefect }));
   });
 
   afterAll(async () => {
     globalThis.setInterval = realSetInterval;
     await mock.module(LOCK_MODULE, () => productionLock);
+    await mock.module(MANIFEST_MODULE, () => productionManifest);
   });
 
   test("replays every seeded model trace through production mediaUrl and its item lock", async () => {
@@ -627,7 +706,7 @@ describe("media.qnt ITF replay", () => {
     expect([...actions].sort()).toEqual(ACTIONS);
     for (const outcome of [
       "start:busy", "start:existing", "start:invalid",
-      "captureDone:cancelled", "captureDone:existing", "captureDone:failed",
+      "captureDone:cancelled", "captureDone:existing", "captureDone:failed", "captureDone:invalid",
       "promote:busy", "promote:cancelled", "promote:created",
     ]) expect(covered).toContain(outcome);
   });
@@ -647,10 +726,26 @@ describe("media.qnt ITF replay", () => {
     });
   }
 
+  test("a staged verification with the seeded unverified defect diverges from the model traces", async () => {
+    const model = await mediaModel();
+    let diverged = 0;
+    for (const trace of await traces(model.step)) {
+      const failure = await divergence(trace, dead, "unverified");
+      if (failure === null) continue;
+      diverged += 1;
+      // The staged item that fails verification goes on to the flush gate
+      // where production, verifying it, answers invalid.
+      expect(failure.message).toMatch(/^state \d+: captureDone\([pq]\) answered "", the model "invalid"$/u);
+    }
+    expect(diverged).toBeGreaterThan(0);
+  });
+
   const MUTANTS: Readonly<Record<string, Defect | null>> = {
     stepUnfenced: "unfenced",
     stepLateCancel: "lateCancel",
     stepQuarantineAny: null,
+    stepUnverified: "unverified",
+    stepNoSync: null,
   };
   for (const [mutant, defect] of Object.entries(MUTANTS)) {
     test(`production refuses every ${mutant} trace that breaks an invariant${defect === null ? "" : `, and the ${defect} defect reproduces it`}`, async () => {
@@ -695,7 +790,7 @@ describe("media.qnt ITF replay", () => {
       revisions: [],
       staging: "",
       "mbt::actionTaken": "init",
-      "mbt::nondetPicks": { c: none, refresh: none, x: none },
+      "mbt::nondetPicks": { c: none, i: none, refresh: none, x: none },
     };
     const trace = (action: string, x: unknown): ItfTrace => parseItfTrace(JSON.stringify({
       vars: TRACE_VARIABLES,
@@ -705,7 +800,7 @@ describe("media.qnt ITF replay", () => {
           ...initial,
           "#meta": { index: 1 },
           "mbt::actionTaken": action,
-          "mbt::nondetPicks": { c: none, refresh: { tag: "Some", value: false }, x },
+          "mbt::nondetPicks": { c: none, i: none, refresh: { tag: "Some", value: false }, x },
         },
       ],
     }));

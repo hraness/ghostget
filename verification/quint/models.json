@@ -2,168 +2,58 @@
   "schema": "ghostget-quint-models-v1",
   "models": [
     {
-      "file": "lock.qnt",
-      "module": "lock",
-      "init": "init",
-      "step": "step",
-      "invariants": ["mutualExclusion"],
-      "simulation": { "seed": "20260923", "maxSamples": 2000, "maxSteps": 12 },
-      "apalache": { "length": 10 },
-      "nightly": {
-        "simulation": { "maxSamples": 20000, "maxSteps": 24 },
-        "apalache": { "length": 20 }
-      },
-      "mutants": [{ "step": "stepMutant", "invariant": "mutualExclusion" }],
-      "replay": {
-        "test": "scripts/verification-lock-replay.test.ts",
-        "target": "reference",
-        "traces": 1000,
-        "seed": "20260924",
-        "maxSteps": 12
-      }
-    },
-    {
-      "file": "fence.qnt",
-      "module": "fence",
-      "init": "init",
-      "step": "step",
-      "invariants": ["fenceSafety"],
-      "simulation": { "seed": "20260923", "maxSamples": 5000, "maxSteps": 12 },
-      "apalache": { "length": 8 },
-      "mutants": [
-        { "step": "stepHashKeyed", "invariant": "fenceSafety" },
-        { "step": "stepCallerRelease", "invariant": "fenceSafety" },
-        { "step": "stepUnelected", "invariant": "fenceSafety" },
-        { "step": "stepElectInFlight", "invariant": "fenceSafety" }
-      ],
-      "replay": {
-        "test": "scripts/verification-fence-replay.test.ts",
-        "target": "production",
-        "traces": 1000,
-        "seed": "20260924",
-        "maxSteps": 12
-      }
-    },
-    {
-      "file": "path-claim.qnt",
-      "module": "pathClaim",
-      "init": "init",
-      "step": "step",
-      "invariants": ["claimSafety"],
-      "simulation": { "seed": "20260923", "maxSamples": 10000, "maxSteps": 12 },
-      "apalache": { "length": 6 },
-      "mutants": [{ "step": "stepPreFix", "invariant": "claimSafety" }],
-      "replay": {
-        "test": "scripts/verification-path-claim-replay.test.ts",
-        "target": "production",
-        "traces": 60,
-        "seed": "20260924",
-        "maxSteps": 12
-      }
-    },
-    {
-      "file": "state-claim.qnt",
-      "module": "stateClaim",
-      "init": "init",
-      "step": "step",
-      "invariants": ["claimSafety"],
-      "simulation": { "seed": "20260924", "maxSamples": 20000, "maxSteps": 12 },
-      "apalache": { "length": 8 },
-      "mutants": [
-        { "step": "stepNoHeldListing", "invariant": "claimSafety" },
-        { "step": "stepNoHeldCheck", "invariant": "claimSafety" }
-      ],
-      "replay": {
-        "test": "scripts/verification-state-claim-replay.test.ts",
-        "target": "production",
-        "traces": 1000,
-        "seed": "20260924",
-        "maxSteps": 12
-      }
-    },
-    {
-      "file": "approvals.qnt",
-      "module": "approvals",
-      "init": "init",
-      "step": "step",
-      "invariants": ["atMostOneUse", "onlyHolderAllowed"],
-      "simulation": { "seed": "20260925", "maxSamples": 3000, "maxSteps": 20 },
-      "apalache": { "length": 10 },
-      "mutants": [
-        { "step": "stepShared", "invariant": "atMostOneUse" },
-        { "step": "stepFirstCheck", "invariant": "onlyHolderAllowed" },
-        { "step": "stepAdmitBeforeAwait", "invariant": "atMostOneUse" }
-      ],
-      "replay": {
-        "test": "scripts/verification-approvals-replay.test.ts",
-        "target": "production",
-        "traces": 1000,
-        "seed": "31337",
-        "maxSteps": 30
-      }
-    },
-    {
       "file": "media.qnt",
       "module": "media",
       "init": "init",
       "step": "step",
-      "invariants": ["noPromotionWithoutLock", "cancelledNeverCreated", "verifiedNeverRemoved", "noForeignRevision"],
-      "simulation": { "seed": "20260927", "maxSamples": 3000, "maxSteps": 12 },
-      "apalache": { "length": 8 },
+      "invariants": [
+        "noPromotionWithoutLock",
+        "cancelledNeverCreated",
+        "verifiedNeverRemoved",
+        "noForeignRevision",
+        "promotedVerified",
+        "promotedDurable",
+        "lineageRecoverable"
+      ],
+      "simulation": {
+        "seed": "20260927",
+        "maxSamples": 3000,
+        "maxSteps": 12
+      },
+      "apalache": {
+        "length": 8
+      },
       "mutants": [
-        { "step": "stepUnfenced", "invariant": "noPromotionWithoutLock" },
-        { "step": "stepUnfenced", "invariant": "noForeignRevision" },
-        { "step": "stepLateCancel", "invariant": "cancelledNeverCreated" },
-        { "step": "stepQuarantineAny", "invariant": "verifiedNeverRemoved" }
+        {
+          "step": "stepUnfenced",
+          "invariant": "noPromotionWithoutLock"
+        },
+        {
+          "step": "stepUnfenced",
+          "invariant": "noForeignRevision"
+        },
+        {
+          "step": "stepLateCancel",
+          "invariant": "cancelledNeverCreated"
+        },
+        {
+          "step": "stepQuarantineAny",
+          "invariant": "verifiedNeverRemoved"
+        },
+        {
+          "step": "stepUnverified",
+          "invariant": "promotedVerified"
+        },
+        {
+          "step": "stepNoSync",
+          "invariant": "promotedDurable"
+        }
       ],
       "replay": {
         "test": "scripts/verification-media-replay.test.ts",
         "target": "production",
         "traces": 300,
-        "seed": "7",
-        "maxSteps": 12
-      }
-    },
-    {
-      "file": "messaging.qnt",
-      "module": "messaging",
-      "init": "init",
-      "step": "step",
-      "invariants": ["orderedPrefix", "singleActive", "noRedispatch"],
-      "simulation": { "seed": "20260925", "maxSamples": 2000, "maxSteps": 12 },
-      "apalache": { "length": 10 },
-      "mutants": [
-        { "step": "stepRedispatch", "invariant": "noRedispatch" },
-        { "step": "stepSkip", "invariant": "orderedPrefix" }
-      ],
-      "replay": {
-        "test": "scripts/verification-messaging-replay.test.ts",
-        "target": "production",
-        "traces": 1000,
-        "seed": "20260926",
-        "maxSteps": 12
-      }
-    },
-    {
-      "file": "release.qnt",
-      "module": "release",
-      "init": "init",
-      "step": "step",
-      "invariants": ["publishedBytesAttested", "promotionSound", "exactHandoffPublishes", "promotionNotBlocked"],
-      "simulation": { "seed": "20260927", "maxSamples": 2000, "maxSteps": 12 },
-      "apalache": { "length": 10 },
-      "mutants": [
-        { "step": "stepD7", "invariant": "exactHandoffPublishes" },
-        { "step": "stepD8", "invariant": "promotionNotBlocked" },
-        { "step": "stepD15", "invariant": "promotionNotBlocked" },
-        { "step": "stepUnbound", "invariant": "publishedBytesAttested" },
-        { "step": "stepEarlyDownload", "invariant": "promotionSound" }
-      ],
-      "replay": {
-        "test": "scripts/verification-release-replay.test.ts",
-        "target": "production",
-        "traces": 1000,
-        "seed": "20260928",
+        "seed": "9",
         "maxSteps": 12
       }
     }

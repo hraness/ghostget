@@ -10,20 +10,37 @@
 // captureDone and promote, and other actions may run between them.
 //
 // The environment may stop a heartbeat (the lock turns stale), kill a process
-// (its lock names a dead PID), cancel a run, tear the head revision as a power
-// loss would, or drop a stray file such as Finder's .DS_Store into the head.
+// (its lock names a dead PID), cancel a run, tear a revision as a power loss
+// would, or drop a stray file such as Finder's .DS_Store into the head.
+//
+// A capture may also produce content "X": files that fail the closed
+// integrity verification of the staged item, such as an unrecorded file that
+// FFmpeg left beside its derivative. Production verifies the staged item
+// after the manifest is written and before the flush and the promotion fence.
+//
+// A power loss can tear only what was never flushed. Promotion flushes the
+// staged tree before the rename and both parents after it, so a promoted
+// revision is durable, and the head can still be torn only by a drive that
+// acknowledged a flush it did not keep or by a revision an older release
+// wrote before D10. The model therefore lets `tear` hit the head at any time
+// and an older revision only when it was promoted without the flush.
 module media {
-  type Revision = { content: str, state: str }
+  type Revision = { content: str, state: str, durable: bool }
 
   pure val PROCS: Set[str] = Set("p", "q")
-  pure val CONTENTS: Set[str] = Set("A", "B")
+  // "X" is a capture whose staged item fails closed verification.
+  pure val CONTENTS: Set[str] = Set("A", "B", "X")
+  // Which revision a power loss tears; an index past the head means the head.
+  pure val TEAR_INDICES: Set[int] = 0.to(3)
 
   // "fixed" is the code as merged in #354. The other variants reproduce
   // defects: "unfenced" promotes without checking the lock at the rename
   // (before D11), "lateCancel" promotes after a cancellation that arrived
   // during the flush (before D9), and "quarantineAny" treats a head that
   // fails verification for any reason as torn, so it moves a verified head
-  // that only gained a stray file (the first repair in #354).
+  // that only gained a stray file (the first repair in #354). "unverified"
+  // promotes a staged item without its closed verification, and "noSync"
+  // promotes without flushing the staged tree and the parents (before D10).
   type Variant = str
 
   // none, held (a fresh heartbeat from a live PID), or stale (an old
@@ -44,7 +61,9 @@ module media {
   // The run whose files the shared staging item holds, or "" when it is
   // absent. A later run's reset replaces an earlier run's staging.
   var staging: str
-  // The lineage in sequence order. state is ok, torn, stray or foreign.
+  // The lineage in sequence order. state is ok, torn, stray, foreign or
+  // unverified (promoted without passing closed verification). durable says
+  // whether the promotion flushed the revision before and after the rename.
   var revisions: List[Revision]
   var quarantined: int
   // The result the last action returned to its caller, or "" for none.
@@ -141,11 +160,16 @@ module media {
   // yt-dlp returns with content c. A reset staging item fails the capture,
   // a cancellation wins, an unchanged capture answers the existing head, and
   // a run whose lock was taken stops before the flush.
-  action captureDone(x: str, c: str): bool = all {
+  //
+  // The staged item is verified after the unchanged-capture check and
+  // before the ownership check, as in production, and a capture that fails
+  // closed verification answers invalid. The "unverified" variant skips it.
+  action captureDone(v: Variant, x: str, c: str): bool = all {
     phase.get(x) == "capturing",
     if (staging != x) all { finish(x, if (cancelled.get(x)) "cancelled" else "failed"), keepLineage, keepGhosts }
     else if (cancelled.get(x)) all { finish(x, "cancelled"), keepLineage, keepGhosts }
     else if (c == base.get(x)) all { finish(x, "existing"), keepLineage, keepGhosts }
+    else if (c == "X" and v != "unverified") all { finish(x, "invalid"), keepLineage, keepGhosts }
     else if (not(owns(x))) all { finish(x, "busy"), keepLineage, keepGhosts }
     else all {
       phase' = phase.set(x, "flushing"),
@@ -177,7 +201,12 @@ module media {
       myLock' = myLock, base' = base, content' = content, cancelled' = cancelled,
       response' = "created",
       revisions' = revisions.append(
-        if (staging == x) { content: content.get(x), state: "ok" } else { content: "", state: "foreign" }
+        if (staging != x) { content: "", state: "foreign", durable: v != "noSync" }
+        else {
+          content: content.get(x),
+          state: if (content.get(x) == "X") "unverified" else "ok",
+          durable: v != "noSync",
+        }
       ),
       quarantined' = quarantined,
       promotedWithoutLock' = (promotedWithoutLock or not(owns(x))),
@@ -215,27 +244,47 @@ module media {
     response' = "",
   }
 
-  // Power loss leaves the head's capture short, or a stray file lands in it.
-  action damage(state: str): bool = all {
+  // Power loss leaves a revision's capture short. A power loss ends every
+  // run, so it happens only once every process has crashed (each crash
+  // leaves the lock it owned stale). It can reach the head, and an older
+  // revision only when that revision was never flushed. An index past the
+  // head picks the head.
+  action tear(i: int): bool = {
+    val t = if (i < revisions.length()) i else revisions.length() - 1
+    all {
+      PROCS.forall(p => phase.get(p) == "idle"),
+      revisions.length() > 0,
+      revisions[t].state == "ok",
+      t == revisions.length() - 1 or not(revisions[t].durable),
+      revisions' = revisions.replaceAt(t, { content: revisions[t].content, state: "torn", durable: revisions[t].durable }),
+      quarantined' = quarantined,
+      keepRuns, keepLock, keepGhosts,
+      response' = "",
+    }
+  }
+
+  // A stray file lands in the head.
+  action stray: bool = all {
     headState == "ok",
-    revisions' = revisions.replaceAt(revisions.length() - 1, { content: headContent, state: state }),
+    revisions' = revisions.replaceAt(revisions.length() - 1, {
+      content: headContent, state: "stray", durable: revisions[revisions.length() - 1].durable,
+    }),
     quarantined' = quarantined,
     keepRuns, keepLock, keepGhosts,
     response' = "",
   }
-  action tear: bool = damage("torn")
-  action stray: bool = damage("stray")
 
   action stepWith(v: Variant): bool = {
     nondet x = PROCS.oneOf()
     nondet c = CONTENTS.oneOf()
     nondet refresh = Set(true, false).oneOf()
+    nondet i = TEAR_INDICES.oneOf()
     any {
       start(v, x, refresh),
-      captureDone(x, c),
+      captureDone(v, x, c),
       promote(v, x),
       any { cancel(x), crash(x) },
-      any { stale, tear, stray },
+      any { stale, tear(i), stray },
     }
   }
 
@@ -243,6 +292,8 @@ module media {
   action stepUnfenced = stepWith("unfenced")
   action stepLateCancel = stepWith("lateCancel")
   action stepQuarantineAny = stepWith("quarantineAny")
+  action stepUnverified = stepWith("unverified")
+  action stepNoSync = stepWith("noSync")
 
   // The three ghost invariants below restate the guards that the fixed step
   // takes at the rename and at the repair, so on their own they only show
@@ -262,4 +313,30 @@ module media {
   // holds the staging item, since a start takes both and a run that lost the
   // lock leaves the new owner's staging alone.
   val noForeignRevision: bool = revisions.foldl(true, (ok, r) => ok and r.state != "foreign")
+
+  // Every promoted revision passed closed verification of its staged item.
+  // Damage after promotion (torn, stray) is the environment's, not a
+  // promotion's; an "unverified" revision is one that was promoted without
+  // passing verification. The replay also runs production verification on
+  // every revision the model calls ok after every step.
+  val promotedVerified: bool = revisions.foldl(true, (ok, r) => ok and r.state != "unverified")
+
+  // Every promoted revision is durable: production flushed the staged tree
+  // and the revision parent chain before the rename, and the revision parent
+  // and the staging parent after it. The replay derives each revision's
+  // durable flag from the flushes production actually made, so a production
+  // change that drops one diverges here.
+  val promotedDurable: bool = revisions.foldl(true, (ok, r) => ok and r.durable)
+
+  // A crash or power loss never leaves the lineage permanently invalid.
+  // Discovery stops for good at an unverifiable revision below the head, and
+  // repairs only a torn head: the next locked start moves it to the
+  // quarantine and recaptures, which the replay drives through production.
+  // Crashes and power loss damage the lineage only by tearing, so the lineage
+  // stays recoverable from them while no torn revision sits below the head.
+  // A stray file is owner damage, not a crash, and is left in place on
+  // purpose; foreign and unverified revisions are excluded by the invariants
+  // above.
+  val lineageRecoverable: bool =
+    revisions.indices().forall(i => i == revisions.length() - 1 or revisions[i].state != "torn")
 }
