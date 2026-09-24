@@ -75,7 +75,7 @@ const REASONS = new Set(["authority", "moved", "fastForward", "peel", "lease", "
 const DEPLOY_STATES = new Set(["none", "pending", "success", "failure"]);
 const MARKERS = new Set(["base", "target", "targetAlt", "third"]);
 const FAULT_KINDS = new Set(["main", "ref", "tag", "latest", "marker", "drift", "failure"]);
-const DRIFTS = new Set(["none", "ref", "status", "marker", "latest", "route", "tag", "release", "source", "inventory"]);
+const DRIFTS = new Set(["none", "ref", "status", "marker", "latest", "route", "www", "tag", "release", "source", "inventory"]);
 const PRODUCTION_ACTIONS = new Set(["authority", "baseline", "promote", "write", "poll"]);
 
 const REPOSITORY = "hraness/ghostget";
@@ -734,8 +734,9 @@ class World {
     },
     readWwwRedirect: async (requestPath: string): Promise<unknown> => {
       this.calls.push("www");
+      // An armed `www` drift changes the redirect body the second terminal snapshot reads.
       const redirect = {
-        bodySha256: sha256("Redirecting...\n"),
+        bodySha256: sha256(this.#drifted("www") ? "Redirecting elsewhere...\n" : "Redirecting...\n"),
         contentType: "text/plain",
         location: `https://ghostget.com${requestPath}`,
         status: 308,
@@ -923,6 +924,7 @@ describe("promotion.qnt ITF replay", () => {
       "drift source",
       "drift status",
       "drift tag",
+      "drift www",
       "marker changed within the target release identity",
       "marker does not bind the pinned candidate deployment URL",
       "marker exposed a third release identity",

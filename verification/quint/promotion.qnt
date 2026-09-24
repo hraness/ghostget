@@ -49,7 +49,7 @@ module promotion {
   )
   pure val FAULTS: Set[str] = Set("main", "ref", "tag", "latest", "marker", "drift", "failure")
   pure val PROGRESS: Set[str] = Set("build", "expose")
-  pure val DRIFTS: Set[str] = Set("ref", "status", "marker", "latest", "route", "tag", "release", "source", "inventory")
+  pure val DRIFTS: Set[str] = Set("ref", "status", "marker", "latest", "route", "www", "tag", "release", "source", "inventory")
 
   type Env = {
     main: int,
@@ -66,8 +66,9 @@ module promotion {
     // "none", or the readback that changes between the confirmation's two
     // terminal readbacks: the production ref ("ref"), the candidate's status
     // history ("status"), the apex marker ("marker"), Latest ("latest"), a
-    // health route ("route"), the tag commit ("tag"), the Release ("release"),
-    // protected main ("source"), or the Production inventory ("inventory").
+    // health route ("route"), the `www` redirect ("www"), the tag commit
+    // ("tag"), the Release ("release"), protected main ("source"), or the
+    // Production inventory ("inventory").
     drift: str,
   }
 

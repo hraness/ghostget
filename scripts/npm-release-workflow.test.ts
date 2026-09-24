@@ -76,7 +76,7 @@ import {
 } from "./release-ref-writer.mjs";
 
 import { releaseIdentity } from "../website/github-release-artifact.mjs";
-import { assertProperty, fc } from "../src/test-support.js";
+import { assertAsyncProperty, assertProperty, fc } from "../src/test-support.js";
 
 const ciWorkflowUrl = new URL("../.github/workflows/ci.yml", import.meta.url);
 const releaseWorkflowUrl = new URL("../.github/workflows/release.yml", import.meta.url);
@@ -8813,6 +8813,89 @@ fi
     expect(immediateApi.graphqlCalls).toHaveLength(20);
     expect(immediateApi.timeoutMilliseconds).toHaveLength(40);
     expect(now).toBe(60);
+  });
+
+  test("keeps 20 absolute observation slots under any read latency and partial sleep wakeups", async () => {
+    const { baseline, baselineDeployment, promotion } = await providerReceipts("advanced");
+    const window = 1_200_000;
+    const interval = 60_000;
+    await assertAsyncProperty(fc.asyncProperty(
+      fc.record({
+        latencies: fc.array(fc.integer({ min: 1, max: 45_000 }), { minLength: 1, maxLength: 64 }),
+        divisors: fc.array(fc.constantFrom(1, 2, 3), { minLength: 1, maxLength: 8 }),
+      }),
+      async ({ latencies, divisors }) => {
+        let now = 0;
+        let reads = 0;
+        let sleepsThisGap = 0;
+        let sleptSinceObservation = false;
+        let lastReadEnd = 0;
+        const readBegins: number[] = [];
+        const starts: Array<Readonly<{ at: number; slept: boolean; previousEnd: number }>> = [];
+        const timedRead = (timeoutMilliseconds: number | undefined): void => {
+          if (timeoutMilliseconds === undefined) return;
+          readBegins.push(now);
+          now += latencies[reads % latencies.length]!;
+          reads += 1;
+          lastReadEnd = now;
+        };
+        const api = new ProviderApiFixture({
+          deployments: [[baselineDeployment]],
+          readHook: timedRead,
+          refSha: providerVerifiedSha,
+          statuses: terminalBaselineStatus(),
+        });
+        const get = api.get.bind(api);
+        api.get = async (endpoint, options) => {
+          // Every observation begins with the bounded production-ref read.
+          if (options?.timeoutMilliseconds !== undefined
+            && endpoint === `/repos/${providerRepository}/git/ref/heads/website-production`) {
+            starts.push(Object.freeze({ at: now, slept: sleptSinceObservation, previousEnd: lastReadEnd }));
+            sleptSinceObservation = false;
+            sleepsThisGap = 0;
+          }
+          return await get(endpoint, options);
+        };
+        const outcome = waitForProviderOutcome({
+          api,
+          baselineReceipt: baseline,
+          maxPolls: 20,
+          monotonicNow: () => now,
+          pollIntervalMilliseconds: interval,
+          promotionReceipt: promotion,
+          publicSite: new ProviderPublicSiteFixture({
+            markerSnapshots: [providerMarker(providerVerifiedSha, providerTag, 20)],
+            readHook: timedRead,
+          }),
+          sleep: async (milliseconds) => {
+            // Wake early on the first attempts of a gap, never late.
+            const divisor = sleepsThisGap >= 3 ? 1 : divisors[sleepsThisGap % divisors.length]!;
+            sleepsThisGap += 1;
+            sleptSinceObservation = true;
+            now += Math.max(1, Math.ceil(milliseconds / divisor));
+          },
+        });
+        await expect(outcome).rejects.toThrow("timed out waiting for the exact Vercel Production deployment");
+        // The whole half-open window is used, and no provider read starts at or after its deadline.
+        expect(now).toBeGreaterThanOrEqual(window);
+        expect(readBegins.every((begin) => begin >= 0 && begin < window)).toBe(true);
+        expect(starts.length).toBeGreaterThan(0);
+        expect(starts.length).toBeLessThanOrEqual(20);
+        // Only the last observation can stop inside its reads, at the deadline.
+        expect(api.graphqlCalls.length).toBeGreaterThanOrEqual(starts.length - 1);
+        expect(api.graphqlCalls.length).toBeLessThanOrEqual(starts.length);
+        starts.forEach(({ at, slept, previousEnd }, index) => {
+          // Slot k is the absolute offset k minutes: a slept gap lands on it
+          // exactly, and a late read delays only the next observation.
+          const slot = index * interval;
+          expect(at).toBeGreaterThanOrEqual(slot);
+          if (index === 0 || slept) expect(at).toBe(slot);
+          else expect(at).toBe(previousEnd);
+        });
+        // Fewer than 20 observations only when a read itself ran past the deadline.
+        if (starts.length < 20) expect(lastReadEnd).toBeGreaterThanOrEqual(window);
+      },
+    ), { numRuns: 100 });
   });
 
   test("fails recovery closed on stale success, latest ties, or newer deployments", async () => {
