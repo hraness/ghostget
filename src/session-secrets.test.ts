@@ -1144,10 +1144,10 @@ describe("session-secret file ownership", () => {
                 expect(remove).toThrow("ambiguous historical session secret has no verifiable owner");
                 expect(readFileSync(path, "utf8")).toBe(text);
               } else if (owner === target) {
-                remove();
+                expect(remove()).toBe(kind === "coordinate" ? true : 1);
                 expect(existsSync(path)).toBeFalse();
               } else {
-                remove();
+                expect(remove()).toBe(kind === "coordinate" ? false : 0);
                 expect(readFileSync(path, "utf8")).toBe(text);
               }
             } finally {
