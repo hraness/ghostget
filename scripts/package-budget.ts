@@ -1527,14 +1527,23 @@
 // 519e4bfdfd61196722eda53965398a7553afb1818a399cc322004665a04574a2. Carry the
 // same projections and allowances: 11,990,908 + 12,387 + 4,096 = 12,007,391
 // packed; 23,417,634 + 353 + 65 = 23,418,052 unpacked.
+// The read-path capability gives the menu-bar snapshot a branded read-only
+// auth incarnation reader and moves missing incarnation creation to
+// control-service startup under admission. This adds 4,724 payload bytes over
+// the unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with
+// npm 11.19.0 on darwin arm64 were byte-identical at 11,992,132 packed bytes,
+// 23,422,358 unpacked bytes; archive SHA-256
+// 01875f12ab73a49d6c7d6bf520dc3d318db816addee2fa7981889f35c958cf7c. Carry the
+// same projections and allowances: 11,992,132 + 12,387 + 4,096 = 12,008,615
+// packed; 23,422,358 + 353 + 65 = 23,422,776 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "D9-D11 media process groups, durable promotion, and fenced locks",
+  scope: "D14 read-path capability",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "519e4bfdfd61196722eda53965398a7553afb1818a399cc322004665a04574a2",
-  packedBytes: 11_990_908,
-  unpackedBytes: 23_417_634,
+  archiveSha256: "01875f12ab73a49d6c7d6bf520dc3d318db816addee2fa7981889f35c958cf7c",
+  packedBytes: 11_992_132,
+  unpackedBytes: 23_422_358,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

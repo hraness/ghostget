@@ -3,6 +3,7 @@ import { chmodSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAuth, listAuthSnapshots, loadAuthSnapshot, removeAuth, saveAuth } from "../auth";
+import { authIncarnationReader } from "../read-projections";
 import { connectionAccountRevision, connectionAccountSnapshotRevisions } from "./account-revision";
 
 const roots: string[] = [];
@@ -20,16 +21,13 @@ describe("account snapshot revisions", () => {
     const second = createAuth("y-account", { source: "chrome", profile: "Default", subject: "11111" });
     saveAuth(auth, environment); saveAuth(second, environment);
     const listed = listAuthSnapshots(environment);
-    // The first listing read creates no incarnation state itself; each account
-    // without one falls back to the admitted path and returns the same value.
-    const revisions = connectionAccountSnapshotRevisions(listed, environment);
+    // Saving an account creates its incarnation, so the read-only listing
+    // reproduces the admitted revision without taking an admission.
+    const revisions = connectionAccountSnapshotRevisions(listed, authIncarnationReader(environment));
     for (const snapshot of listed) expect(revisions.get(snapshot.auth.id)).toBe(connectionAccountRevision(snapshot, environment));
-    // Once incarnations exist the listing path reads them without admission.
-    const again = connectionAccountSnapshotRevisions(listed, environment);
-    for (const snapshot of listed) expect(again.get(snapshot.auth.id)).toBe(connectionAccountRevision(snapshot, environment));
     removeAuth(auth.id, environment); saveAuth(auth, environment);
     const rewritten = loadAuthSnapshot(auth.id, environment);
-    const after = connectionAccountSnapshotRevisions([rewritten], environment);
+    const after = connectionAccountSnapshotRevisions([rewritten], authIncarnationReader(environment));
     expect(after.get(auth.id)).toBe(connectionAccountRevision(rewritten, environment));
     expect(after.get(auth.id)).not.toBe(revisions.get(auth.id));
   });
@@ -38,7 +36,7 @@ describe("account snapshot revisions", () => {
     const auth = createAuth("x-account", { source: "chrome", profile: "Default", subject: "67890" });
     saveAuth(auth, environment);
     const snapshot = loadAuthSnapshot(auth.id, environment);
-    const before = connectionAccountSnapshotRevisions([snapshot], environment);
+    const before = connectionAccountSnapshotRevisions([snapshot], authIncarnationReader(environment));
     expect(before.get(auth.id)).toBe(connectionAccountRevision(snapshot, environment));
     removeAuth(auth.id, environment);
     // The listing value still binds the removed bytes; the admitted comparison

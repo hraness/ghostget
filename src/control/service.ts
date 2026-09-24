@@ -3,13 +3,14 @@ import { canonicalJson, sha256 } from "../canonical-json";
 import { isLocalCliOperation, isProviderOperation, isWebSessionOperation, manifestHash, type GhostgetManifest } from "../model";
 import { checkProviderApproval, describeOperationPermissions, enableOperationPermissions, readOperationPolicy, recheckProviderApproval, setOperationPermission } from "../operation-permission";
 import { providerPluginRegistry } from "../provider-plugins";
+import { authIncarnationReader, type AuthIncarnationReader } from "../read-projections";
 import { loadOAuthCredential } from "../provider-http";
 import { createPortableProviderPluginCatalog } from "../provider-plugin-portable-catalog";
 import { listInstalledManifests } from "../storage";
 import { GHOSTGET_VERSION } from "../version";
 import { ActivityStore } from "./activity";
 import { bundledInterfaceDigests } from "./bundled-interfaces";
-import { connectionAccountSnapshotRevisions } from "./account-revision";
+import { connectionAccountSnapshotRevisions, ensureConnectionAccountIncarnations } from "./account-revision";
 import { ApprovalBroker } from "./approval-broker";
 import { Connections, connectionProviders } from "./connections";
 import { activateInterface, exportInterfaces, interfaceSources, listInterfaces, saveInterface } from "./interfaces";
@@ -23,8 +24,13 @@ export class ControlService {
   readonly activity:ActivityStore;
   readonly gateway:WebGateway;
   private readonly connections:Connections;
+  /** The snapshot is a read path: it holds only this capability and never creates incarnation or admission state. */
+  private readonly incarnations:AuthIncarnationReader;
   private readonly shutdownController=new AbortController();
   constructor(readonly environment:ControlEnvironment=process.env) {
+    // Startup is the explicit write path that backfills incarnations for accounts saved before they existed.
+    try{ensureConnectionAccountIncarnations(environment);}catch{/* unreadable account state fails the snapshot, which reports it */}
+    this.incarnations=authIncarnationReader(environment);
     this.approvals=new ApprovalBroker(target=>this.check(target),undefined,async(target,checked)=>target.kind==="web"?checkWebRequest(target.method,target.url,environment).approval:await recheckProviderApproval(target,checked,{environment,registry:this.registry()}));
     this.activity=new ActivityStore(environment);
     this.gateway=new WebGateway(this.activity,this.approvals,environment);
@@ -34,7 +40,7 @@ export class ControlService {
   private async check(target:ApprovalTarget){return target.kind==="web"?checkWebRequest(target.method,target.url,this.environment).approval:await checkProviderApproval(target,{environment:this.environment,registry:this.registry()});}
   snapshot(accountId:string|null):ControlSnapshot {
     const registry=this.registry();const context={environment:this.environment,registry};
-    const listed=listAuthSnapshots(this.environment);const revisions=connectionAccountSnapshotRevisions(listed,this.environment);
+    const listed=listAuthSnapshots(this.environment);const revisions=connectionAccountSnapshotRevisions(listed,this.incarnations);
     const accounts=listed.map(({auth})=>{
       let tokenExpiresAt:string|null=null;let tokenRefreshable=false;
       if(auth.kind==="oauth-token-file"){try{const credential=loadOAuthCredential(auth);tokenExpiresAt=credential.expiresAt;tokenRefreshable=credential.refresh!==null;}catch{/* an unreadable credential reports no expiry rather than failing the listing */}}
@@ -48,7 +54,7 @@ export class ControlService {
     const sources=interfaceSources(context);
     const bundled=bundledInterfaceDigests(registry);
     const coordinates=[...manifests.values()].flatMap(manifest=>Object.keys(manifest.operations).map(operationId=>({adapterId:manifest.id,operationId,authId:accountId})));
-    const descriptions=describeOperationPermissions(coordinates,context);
+    const descriptions=describeOperationPermissions(coordinates,context,this.incarnations);
     let descriptionIndex=0;
     for(const manifest of manifests.values()) {
       const installedSource=sources.get(manifest.id);
