@@ -144,6 +144,30 @@
         "linked-device lifecycle journal state machine",
         "keeps every post-begin failure indeterminate until read-only reconciliation"
       ]
+    },
+    {
+      "id": "pinned-https-trusts-resolver-classifier",
+      "file": "src/pinned-https.ts",
+      "defect": "The pinned transport connects to whatever address the kb resolver admits, including the IPv4-translated form of loopback.",
+      "search": "  if (addresses.some((candidate) => !isPublicUnicastAddress(candidate.address))) {",
+      "replace": "  if (false) {",
+      "test": "src/pinned-https.test.ts",
+      "killedBy": [
+        "DNS-pinned authenticated HTTPS",
+        "refuses a resolved non-public address that the kb resolver admits, before any request"
+      ]
+    },
+    {
+      "id": "public-address-admits-all-ipv6",
+      "file": "src/public-address.ts",
+      "defect": "The classifier admits IPv6 outside 2000::/3, so embedded IPv4 forms of private addresses pass.",
+      "search": "      if (value === null || !contains(128, ipv6Admitted, value)) return false;",
+      "replace": "      if (value === null) return false;",
+      "test": "src/public-address.test.ts",
+      "killedBy": [
+        "public unicast address classifier",
+        "an IPv6 form that embeds an IPv4 address is never public, whatever the IPv4 address"
+      ]
     }
   ]
 }

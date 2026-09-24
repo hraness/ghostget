@@ -8,7 +8,7 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 244 claims: 180 evidenced, 45 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 244 claims: 181 evidenced, 44 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
@@ -17,7 +17,7 @@ The register holds 244 claims: 180 evidenced, 45 planned, and 19 not verified. I
 | stateful model | 2 | 13 | 0 |
 | Quint model with production trace replay | 10 | 27 | 0 |
 | Lean proof with differential test | 7 | 1 | 0 |
-| differential oracle | 3 | 1 | 0 |
+| differential oracle | 4 | 0 | 0 |
 | configuration readback | 0 | 0 | 15 |
 | none | 0 | 0 | 4 |
 
@@ -2674,15 +2674,16 @@ Gateway retrieval uses the pinned transport: one validated DNS address, redirect
 
 The gateway rejects private, loopback, and other non-public addresses (including IPv4-mapped IPv6) after resolution.
 
-- Planned: differential oracle in plan Phase 7.
+- Evidenced by differential oracle.
 - Source: `SECURITY.md`: “private addresses”
 - Also covers: `src/control/AGENTS.md`: “public pinned DNS”
-- Evidence: `src/control/validation.test.ts`, `src/pinned-https.test.ts`
+- Evidence: `src/public-address.ts`, `src/public-address.test.ts`, `src/pinned-https.test.ts`, `src/control/validation.test.ts`, `verification/vectors/generate.py`, `verification/vectors/addresses.json`, `scripts/verification-vectors.test.ts`
 - Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
 - Not verified:
-  - The address classifier comes from `@hraness/kb`, and no independent registry oracle checks it yet. Phase 7 wrote the proposal for one, `kb/plans/kb-ip-classifier-proposal.md`; this claim stays planned until `@hraness/kb` ships a checked classifier and Ghostget pins it.
-  - Probing `@hraness/kb` 0.19.6 found gaps that the proposal records: it treats the IPv4-translated range `::ffff:0:0:0/96`, the rest of `::/8`, and unallocated IPv6 space outside `2000::/3` as public, and it blocks all of `192.0.0.0/16` where the registry reserves only `192.0.0.0/24` and `192.0.2.0/24`.
-  - Until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - The pinned transport checks every resolved answer with Ghostget's own allowlist, `src/public-address.ts`, because the `@hraness/kb` 0.19.6 resolver admits the IPv4-translated range `::ffff:0:0:0/96`, the rest of `::/8`, IPv6 outside `2000::/3`, and `192.88.99.0/24` (`kb/plans/kb-ip-classifier-proposal.md`). The kb check still runs first, so its over-blocking of `192.0.0.0/16` still refuses those addresses.
+  - The Python generator restates the same IANA special-purpose table from the registries, independently of the TypeScript, and compares verdicts on block edges, seeded random addresses, embedded IPv4 forms, and text forms. A row missing from both tables would not be caught; the vectors check the implementation of the table, not the table against the live registries.
+  - Page capture, derivation, and the derivation network proxy (`src/browser.ts`, `src/derive.ts`, `src/model.ts`, `src/derivation-network-proxy.ts`) still rely on the kb classifier alone; this claim covers the gateway's pinned transport only.
+  - DNS answers, the operating system's socket layer, and TLS are assumed; the check covers the address the transport connects to, not routing beyond it.
 
 #### `public-url-matches-url-crate-oracle`
 

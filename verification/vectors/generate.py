@@ -20,6 +20,7 @@ depends on the platform, locale, hash seed, or clock.
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import math
 import random
@@ -543,6 +544,157 @@ def hash_vectors(generator: random.Random) -> dict[str, list[dict[str, object]]]
 
 
 # ---------------------------------------------------------------------------
+# Public unicast address classification
+# ---------------------------------------------------------------------------
+
+# The IANA IPv4 and IPv6 special-purpose address registries, restated from
+# the registries (kb/plans/kb-ip-classifier-proposal.md lists the same rows).
+# IPv4 multicast and the reserved and broadcast space are refused too. IPv6 is
+# admitted only inside the global unicast block 2000::/3, so every form that
+# embeds an IPv4 address is refused whatever the embedded address is.
+REFUSED_IPV4 = [
+    "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
+    "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24", "192.31.196.0/24",
+    "192.52.193.0/24", "192.88.99.0/24", "192.168.0.0/16", "192.175.48.0/24",
+    "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4",
+]
+GLOBAL_IPV6 = "2000::/3"
+REFUSED_IPV6 = ["2001::/23", "2001:db8::/32", "2002::/16", "2620:4f:8000::/48", "3fff::/20"]
+
+
+def reference_public(value: int, bits: int) -> bool:
+    """Containment through ipaddress networks; text formatting stays local."""
+    if bits == 32:
+        address = ipaddress.IPv4Address(value)
+        return not any(address in ipaddress.IPv4Network(block) for block in REFUSED_IPV4)
+    address6 = ipaddress.IPv6Address(value)
+    if address6 not in ipaddress.IPv6Network(GLOBAL_IPV6):
+        return False
+    return not any(address6 in ipaddress.IPv6Network(block) for block in REFUSED_IPV6)
+
+
+def ipv4_text(value: int) -> str:
+    return ".".join(str((value >> shift) & 0xFF) for shift in (24, 16, 8, 0))
+
+
+def ipv6_words(value: int) -> list[int]:
+    return [(value >> (112 - 16 * index)) & 0xFFFF for index in range(8)]
+
+
+def ipv6_exploded(value: int) -> str:
+    return ":".join(f"{word:04x}" for word in ipv6_words(value))
+
+
+def ipv6_compressed(value: int) -> str:
+    """RFC 5952: the longest run of two or more zero words becomes '::'."""
+    words = ipv6_words(value)
+    best_start, best_length, index = -1, 0, 0
+    while index < 8:
+        if words[index] == 0:
+            end = index
+            while end < 8 and words[end] == 0:
+                end += 1
+            if end - index > best_length and end - index >= 2:
+                best_start, best_length = index, end - index
+            index = end
+        else:
+            index += 1
+    text = [f"{word:x}" for word in words]
+    if best_start < 0:
+        return ":".join(text)
+    return ":".join(text[:best_start]) + "::" + ":".join(text[best_start + best_length:])
+
+
+def ipv6_dotted(value: int) -> str:
+    """The first six words in hex, the last 32 bits as a dotted quad."""
+    return ":".join(f"{word:x}" for word in ipv6_words(value)[:6]) + ":" + ipv4_text(value & 0xFFFFFFFF)
+
+
+def ipv6_texts(value: int) -> list[str]:
+    compressed = ipv6_compressed(value)
+    texts = [compressed, ipv6_exploded(value), compressed.upper(), ipv6_dotted(value)]
+    unique: list[str] = []
+    for text in texts:
+        # Every text form must be one ipaddress reads as the same value.
+        if int(ipaddress.IPv6Address(text)) != value:
+            raise AssertionError(f"text form {text} does not round-trip")
+        if text not in unique:
+            unique.append(text)
+    return unique
+
+
+def block_edges(block: str, bits: int) -> list[int]:
+    network = ipaddress.ip_network(block)
+    first, last = int(network.network_address), int(network.broadcast_address)
+    top = (1 << bits) - 1
+    return [value for value in (first - 1, first, first + 1, last - 1, last, last + 1) if 0 <= value <= top]
+
+
+def embedded_forms(value: int) -> dict[str, int]:
+    """The IPv6 forms that carry one IPv4 address."""
+    return {
+        "mapped": (0xFFFF << 32) | value,
+        "translated": (0xFFFF << 48) | value,
+        "compatible": value,
+        "nat64": (0x64FF9B << 96) | value,
+        "nat64-local": (0x64FF9B0001 << 80) | value,
+        "6to4": (0x2002 << 112) | (value << 80) | 1,
+        "teredo": (0x20010000 << 96) | (value << 64) | (0xFFFFFFFF ^ value),
+    }
+
+
+def address_vectors(generator: random.Random) -> dict[str, object]:
+    ipv4: dict[int, str] = {}
+    for block in REFUSED_IPV4:
+        for value in block_edges(block, 32):
+            ipv4.setdefault(value, f"edge {block}")
+    for text in ("1.1.1.1", "8.8.8.8", "93.184.216.34", "255.255.255.255", "0.0.0.0"):
+        ipv4.setdefault(int(ipaddress.IPv4Address(text)), "named")
+    for _ in range(200):
+        ipv4.setdefault(generator.getrandbits(32), "random")
+
+    ipv6: dict[int, str] = {}
+    for block in [GLOBAL_IPV6, *REFUSED_IPV6, "::/8", "fc00::/7", "fe80::/10", "ff00::/8"]:
+        for value in block_edges(block, 128):
+            ipv6.setdefault(value, f"edge {block}")
+    for text in ("::", "::1", "2606:4700:4700::1111", "2001:4860:4860::8888", "2001:200::1"):
+        ipv6.setdefault(int(ipaddress.IPv6Address(text)), "named")
+    for _ in range(150):
+        inside = (0b001 << 125) | generator.getrandbits(125)
+        ipv6.setdefault(inside, "random 2000::/3")
+    for _ in range(50):
+        ipv6.setdefault(generator.getrandbits(128), "random")
+
+    embedded: list[dict[str, object]] = []
+    embedded_sources = [int(ipaddress.IPv4Address(text)) for text in ("127.0.0.1", "10.0.0.1", "169.254.169.254", "8.8.8.8", "1.1.1.1")]
+    embedded_sources += [generator.getrandbits(32) for _ in range(10)]
+    for source in embedded_sources:
+        for form, value in embedded_forms(source).items():
+            if reference_public(value, 128):
+                raise AssertionError(f"embedded {form} form of {ipv4_text(source)} must be refused")
+            embedded.append({"ipv4": ipv4_text(source), "form": form, "texts": ipv6_texts(value), "public": False})
+
+    return {
+        "ipv4": [
+            {"source": source, "value": value, "texts": [ipv4_text(value)], "public": reference_public(value, 32)}
+            for value, source in sorted(ipv4.items())
+        ],
+        "ipv6": [
+            {"source": source, "value": f"{value:032x}", "texts": ipv6_texts(value), "public": reference_public(value, 128)}
+            for value, source in sorted(ipv6.items())
+        ],
+        "embedded": embedded,
+        "rejectedText": [
+            "", " 8.8.8.8", "8.8.8.8 ", "08.8.8.8", "8.8.8.08", "0x8.8.8.8", "8.8.8", "8.8.8.8.8", "256.1.1.1",
+            "134744072", "8.8.8.8/32", "example.com", "2606:4700::1111%1", "fe80::1%en0", "[2606:4700::1111]",
+            "2606:4700::1111/128", "1:2:3:4:5:6:7:8:9", "1::2::3", "12345::", ":2606:4700::1111",
+            "2606:4700::1111:", ":::", "2606:4700:4700:0:0:0:0:1111::", "2606:4700::1.2.3.4:1111",
+            "2606:4700::1.2.3", "2606:4700::01.2.3.4", "2606:4700::g", "８.8.8.8", "8.8.8.8\u0000",
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
 
@@ -571,7 +723,12 @@ def outputs() -> dict[str, str]:
         "Length-framed SHA-256 identities for media provider and authorization-context keys, native runtime closures, and retained revision content, and UTF-8 byte ordering.",
         hash_vectors(generator),
     )
-    return {"jcs.json": jcs, "hashes.json": hashes}
+    # A separate stream keeps the earlier files unchanged when this corpus grows.
+    addresses = document(
+        "Public unicast verdicts for IPv4 and IPv6 addresses: the edges of every IANA special-purpose block, seeded random addresses, IPv6 forms that embed an IPv4 address, several text forms of each value, and text that is not one canonical address.",
+        address_vectors(random.Random(SEED + 1)),
+    )
+    return {"jcs.json": jcs, "hashes.json": hashes, "addresses.json": addresses}
 
 
 def main(arguments: list[str]) -> int:

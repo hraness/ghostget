@@ -82,10 +82,6 @@ function parseBlock(text: string, bits: 32 | 128): Row {
   return row(bits, bits === 32 ? v4(address) : v6(address), prefix);
 }
 
-const IPV4_ROWS = Object.freeze(REFUSED_IPV4_BLOCKS.map((block) => parseBlock(block, 32)));
-const IPV6_ADMITTED = parseBlock(ADMITTED_IPV6_BLOCK, 128);
-const IPV6_ROWS = Object.freeze(REFUSED_IPV6_BLOCKS.map((block) => parseBlock(block, 128)));
-
 function contains(bits: 32 | 128, block: Row, value: bigint): boolean {
   const shift = BigInt(bits - block.length);
   return value >> shift === block.base >> shift;
@@ -147,19 +143,43 @@ export function parseIpv6(text: string): bigint | null {
   return value;
 }
 
+export type AddressTable = Readonly<{
+  refusedIpv4: readonly string[];
+  admittedIpv6: string;
+  refusedIpv6: readonly string[];
+}>;
+
+/** The production table. */
+export const PUBLIC_ADDRESS_TABLE: AddressTable = Object.freeze({
+  refusedIpv4: REFUSED_IPV4_BLOCKS,
+  admittedIpv6: ADMITTED_IPV6_BLOCK,
+  refusedIpv6: REFUSED_IPV6_BLOCKS,
+});
+
+/**
+ * Build a classifier over one table. Tests build classifiers over altered
+ * tables to show that the golden vectors notice each missing row.
+ */
+export function publicUnicastClassifier(table: AddressTable): (address: string) => boolean {
+  const ipv4Rows = Object.freeze(table.refusedIpv4.map((block) => parseBlock(block, 32)));
+  const ipv6Admitted = parseBlock(table.admittedIpv6, 128);
+  const ipv6Rows = Object.freeze(table.refusedIpv6.map((block) => parseBlock(block, 128)));
+  return (address: string): boolean => {
+    if (typeof address !== "string") return false;
+    if (address.includes(":")) {
+      const value = parseIpv6(address);
+      if (value === null || !contains(128, ipv6Admitted, value)) return false;
+      return !ipv6Rows.some((block) => contains(128, block, value));
+    }
+    const value = parseIpv4(address);
+    if (value === null) return false;
+    return !ipv4Rows.some((block) => contains(32, block, value));
+  };
+}
+
 /**
  * Whether one resolved address is public unicast space that the pinned
  * transport may connect to. Every other text, including a scoped IPv6
  * address, a non-canonical dotted quad, and a host name, is refused.
  */
-export function isPublicUnicastAddress(address: string): boolean {
-  if (typeof address !== "string") return false;
-  if (address.includes(":")) {
-    const value = parseIpv6(address);
-    if (value === null || !contains(128, IPV6_ADMITTED, value)) return false;
-    return !IPV6_ROWS.some((block) => contains(128, block, value));
-  }
-  const value = parseIpv4(address);
-  if (value === null) return false;
-  return !IPV4_ROWS.some((block) => contains(32, block, value));
-}
+export const isPublicUnicastAddress: (address: string) => boolean = publicUnicastClassifier(PUBLIC_ADDRESS_TABLE);
