@@ -495,6 +495,21 @@ export function quintSeedLine(seed: string): string {
 }
 
 /**
+ * The decimal seed of the one sample Quint reports it stopped on, or null
+ * when the output does not name exactly one. Quint names the requested seed
+ * after a pass, but after a violation it names the seed of the sample that
+ * failed, which differs from the requested seed unless the first sample
+ * failed.
+ */
+export function quintReportedSeed(stdout: string): string | null {
+  const seeds = lines(stdout)
+    .map((line) => /^Use --seed=0x([0-9a-f]{1,16}) --backend=typescript to reproduce\.$/u.exec(line.trim()))
+    .filter((match) => match !== null);
+  if (seeds.length !== 1) return null;
+  return BigInt(`0x${seeds[0]![1]!}`).toString();
+}
+
+/**
  * Classify one `quint run`. A pass needs exit 0, the no-violation line, the
  * requested seed, and no error output; a violation needs exit 1, the
  * violation line, and Quint's invariant error. Anything else is inconclusive.
@@ -1521,21 +1536,36 @@ export async function verifyQuint(context: RunContext): Promise<void> {
     for (const mutant of model.mutants) {
       const step = `quint run ${name} ${mutant.step} ${mutant.invariant}`;
       const result = await quintRun(step, `quint-mutant-${name}-${mutant.step}`, quintRunArguments(model, mutant.step, mutant.invariant));
-      requireLoggedVerdict(context, step, "violation", quintSimulationVerdict(result, model.simulation.seed), result);
-      context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
+      const sample = quintReportedSeed(result.stdout);
+      if (sample === null || sample === model.simulation.seed || quintSimulationVerdict(result, sample) !== "violation") {
+        requireLoggedVerdict(context, step, "violation", quintSimulationVerdict(result, model.simulation.seed), result);
+        context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
+        continue;
+      }
+      // A later sample failed. Its violation counts only when that sample's
+      // own seed reproduces it on its own.
+      const replayStep = `${step} sample ${sample}`;
+      const replayed = await quintRun(replayStep, `quint-mutant-${name}-${mutant.step}-sample`, quintRunArguments(
+        { ...model, simulation: { ...model.simulation, seed: sample, maxSamples: 1 } },
+        mutant.step,
+        mutant.invariant,
+      ));
+      requireLoggedVerdict(context, replayStep, "violation", quintSimulationVerdict(replayed, sample), replayed);
+      context.log(`${step}: the seeded defect violates ${mutant.invariant} in the sample with seed ${sample}, as required`);
     }
+    // Quint can exit before a pipe drains, which cut the media model's IR at
+    // 512 KiB, so the IR goes to a file instead.
+    const irPath = join(irDirectory, `${name}.qnt.json`);
     const compiled = await quintRun(`quint compile ${model.file}`, `quint-compile-${name}`, [
-      "compile", "--target", "json", "--main", model.module, model.file,
+      "compile", "--target", "json", "--main", model.module, "--out", irPath, model.file,
     ]);
     let ir: unknown;
     try {
-      ir = JSON.parse(compiled.stdout) as unknown;
+      ir = JSON.parse(await readFile(irPath, "utf8")) as unknown;
     } catch {
       ir = null;
     }
     if (compiled.exitCode !== 0 || !isPlainObject(ir)) throw new Error(`quint compile ${model.file} did not produce its JSON IR`);
-    const irPath = join(irDirectory, `${name}.qnt.json`);
-    await writeFile(irPath, compiled.stdout);
     for (const invariant of model.invariants) {
       const step = `apalache check ${name} ${model.step} ${invariant}`;
       const { result } = await apalacheRun(step, `apalache-${name}-${invariant}`, model, irPath, model.step, invariant);

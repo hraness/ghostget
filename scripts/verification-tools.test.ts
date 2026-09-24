@@ -60,6 +60,7 @@ import {
   pinnedArchivesDigest,
   platformKey,
   quintRunArguments,
+  quintReportedSeed,
   quintSeedLine,
   quintSimulationVerdict,
   quintTraceArguments,
@@ -775,6 +776,25 @@ describe("checker verdicts", () => {
     for (const result of inconclusive) expect(quintSimulationVerdict(result, QUINT_SEED)).toBe("inconclusive");
     expect(quintSimulationVerdict(quintPass, "20260924")).toBe("inconclusive");
     expect(quintSimulationVerdict(quintViolation, "20260924")).toBe("inconclusive");
+  });
+
+  test("reads the one sample seed Quint reports and nothing else", () => {
+    expect(quintReportedSeed(QUINT_PASS)).toBe(QUINT_SEED);
+    expect(quintReportedSeed(QUINT_VIOLATION)).toBe(QUINT_SEED);
+    const later = QUINT_VIOLATION.replace(quintSeedLine(QUINT_SEED), quintSeedLine("20327742"));
+    expect(quintReportedSeed(later)).toBe("20327742");
+    // A violation on a later sample names that sample's seed, so it is not
+    // evidence for the requested seed until that seed reproduces it alone.
+    expect(quintSimulationVerdict({ ...quintViolation, stdout: later }, QUINT_SEED)).toBe("inconclusive");
+    expect(quintSimulationVerdict({ ...quintViolation, stdout: later }, "20327742")).toBe("violation");
+    for (const stdout of [
+      QUINT_VIOLATION.replace(quintSeedLine(QUINT_SEED), ""),
+      `${QUINT_VIOLATION}${quintSeedLine("20327742")}\n`,
+      QUINT_VIOLATION.replace(quintSeedLine(QUINT_SEED), "Use --seed=0xZZ --backend=typescript to reproduce."),
+      QUINT_VIOLATION.replace(quintSeedLine(QUINT_SEED), `Use --seed=0x${"f".repeat(17)} --backend=typescript to reproduce.`),
+    ]) expect(quintReportedSeed(stdout)).toBeNull();
+    assertProperty(fc.property(fc.integer({ min: 1, max: Number.MAX_SAFE_INTEGER }), (seed) =>
+      quintReportedSeed(`[violation] Found an issue (1ms).\n${quintSeedLine(String(seed))}\n`) === String(seed)));
   });
 
   test("classifies real Apalache output and nothing else", () => {
