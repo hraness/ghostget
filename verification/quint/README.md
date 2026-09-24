@@ -19,8 +19,8 @@ the run. A clean typecheck alone is never evidence.
 `bun run ./scripts/verification-tools.ts quint-nightly` runs the same checks at
 each model's `nightly` bounds and writes its logs to
 `artifacts/verification/quint-nightly/`. The nightly workflow runs it; CI runs
-only the CI bounds, so keep those inside the verification step's 16-minute
-budget and put deeper bounds under `nightly`.
+only the CI bounds, so keep a typical CI run near 20 minutes, well inside the
+verification step's 50-minute bound, and put deeper bounds under `nightly`.
 
 ## `models.json`
 
