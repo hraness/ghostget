@@ -41,6 +41,8 @@ module media {
   // that only gained a stray file (the first repair in #354). "unverified"
   // promotes a staged item without its closed verification, and "noSync"
   // promotes without flushing the staged tree and the parents (before D10).
+  // "noRepair" answers invalid for a torn head instead of moving it to the
+  // quarantine, as discovery did before D10.
   type Variant = str
 
   // none, held (a fresh heartbeat from a live PID), or stale (an old
@@ -72,12 +74,20 @@ module media {
   var promotedWithoutLock: bool
   var cancelledCreated: bool
   var removedVerified: bool
+  // Set when discovery answers invalid for a lineage whose only damage is a
+  // torn revision, so that crash or power-loss damage stopped the lineage.
+  var crashInvalid: bool
 
   def owns(x: str): bool = lock != "none" and lockId == myLock.get(x)
   def headState: str = if (revisions.length() == 0) "" else revisions[revisions.length() - 1].state
   def headContent: str = if (revisions.length() == 0) "" else revisions[revisions.length() - 1].content
   // Discovery stops at an unverifiable revision below the head.
   def olderBad: bool = revisions.indices().exists(i => i < revisions.length() - 1 and revisions[i].state != "ok")
+  // The lineage holds a torn revision and no other damage.
+  def onlyTorn: bool = and {
+    revisions.indices().exists(i => revisions[i].state == "torn"),
+    revisions.indices().forall(i => revisions[i].state == "ok" or revisions[i].state == "torn"),
+  }
 
   action init = all {
     lock' = "none",
@@ -95,6 +105,7 @@ module media {
     promotedWithoutLock' = false,
     cancelledCreated' = false,
     removedVerified' = false,
+    crashInvalid' = false,
   }
 
   action keepRuns = all {
@@ -104,6 +115,7 @@ module media {
   action keepLock = all { lock' = lock, lockId' = lockId, nextLockId' = nextLockId }
   action keepGhosts = all {
     promotedWithoutLock' = promotedWithoutLock, cancelledCreated' = cancelledCreated, removedVerified' = removedVerified,
+    crashInvalid' = crashInvalid,
   }
 
   // A run that returns without capturing leaves everything else as it was.
@@ -117,8 +129,12 @@ module media {
   action start(v: Variant, x: str, refresh: bool): bool = all {
     phase.get(x) == "idle",
     val state = headState
-    val tornLike = state == "torn" or (v == "quarantineAny" and state == "stray")
-    if (olderBad or (state != "" and state != "ok" and not(tornLike))) answer("invalid")
+    val tornLike = (state == "torn" and v != "noRepair") or (v == "quarantineAny" and state == "stray")
+    if (olderBad or (state != "" and state != "ok" and not(tornLike))) all {
+      response' = "invalid", keepRuns, keepLineage, keepLock,
+      promotedWithoutLock' = promotedWithoutLock, cancelledCreated' = cancelledCreated, removedVerified' = removedVerified,
+      crashInvalid' = (crashInvalid or onlyTorn),
+    }
     else if (state == "ok" and not(refresh)) answer("existing")
     else if (lock == "held") answer("busy")
     else {
@@ -139,6 +155,7 @@ module media {
         removedVerified' = (removedVerified or (tornLike and state != "torn")),
         promotedWithoutLock' = promotedWithoutLock,
         cancelledCreated' = cancelledCreated,
+        crashInvalid' = crashInvalid,
         response' = "",
       }
     },
@@ -212,6 +229,7 @@ module media {
       promotedWithoutLock' = (promotedWithoutLock or not(owns(x))),
       cancelledCreated' = (cancelledCreated or cancelled.get(x)),
       removedVerified' = removedVerified,
+      crashInvalid' = crashInvalid,
     },
   }
 
@@ -294,6 +312,7 @@ module media {
   action stepQuarantineAny = stepWith("quarantineAny")
   action stepUnverified = stepWith("unverified")
   action stepNoSync = stepWith("noSync")
+  action stepNoRepair = stepWith("noRepair")
 
   // The three ghost invariants below restate the guards that the fixed step
   // takes at the rename and at the repair, so on their own they only show
@@ -337,6 +356,11 @@ module media {
   // A stray file is owner damage, not a crash, and is left in place on
   // purpose; foreign and unverified revisions are excluded by the invariants
   // above.
-  val lineageRecoverable: bool =
-    revisions.indices().forall(i => i == revisions.length() - 1 or revisions[i].state != "torn")
+  // The ghost crashInvalid also records any discovery that answered invalid
+  // while the lineage's only damage was a torn revision, so a start that
+  // refuses to repair a torn head breaks this invariant as well.
+  val lineageRecoverable: bool = and {
+    revisions.indices().forall(i => i == revisions.length() - 1 or revisions[i].state != "torn"),
+    not(crashInvalid),
+  }
 }

@@ -48,9 +48,9 @@ import { quintModel, quintTraceCache } from "./verification-replay.js";
 
 const MODEL_FILE = "media.qnt";
 const TRACE_VARIABLES = [
-  "base", "cancelled", "cancelledCreated", "content", "lock", "lockId", "mbt::actionTaken", "mbt::nondetPicks",
-  "myLock", "nextLockId", "phase", "promotedWithoutLock", "quarantined", "removedVerified", "response", "revisions",
-  "staging",
+  "base", "cancelled", "cancelledCreated", "content", "crashInvalid", "lock", "lockId", "mbt::actionTaken",
+  "mbt::nondetPicks", "myLock", "nextLockId", "phase", "promotedWithoutLock", "quarantined", "removedVerified",
+  "response", "revisions", "staging",
 ];
 const PICKS = ["c", "i", "refresh", "x"];
 const ACTIONS = ["cancel", "captureDone", "crash", "promote", "stale", "start", "stray", "tear"];
@@ -451,6 +451,7 @@ type ModelState = Readonly<{
   promotedWithoutLock: boolean;
   cancelledCreated: boolean;
   removedVerified: boolean;
+  crashInvalid: boolean;
 }>;
 
 function itfBool(value: ItfValue, label: string): boolean {
@@ -490,6 +491,7 @@ function modelState(state: ItfState): ModelState {
     promotedWithoutLock: itfBool(itfVariable(state, "promotedWithoutLock"), "promotedWithoutLock"),
     cancelledCreated: itfBool(itfVariable(state, "cancelledCreated"), "cancelledCreated"),
     removedVerified: itfBool(itfVariable(state, "removedVerified"), "removedVerified"),
+    crashInvalid: itfBool(itfVariable(state, "crashInvalid"), "crashInvalid"),
   };
 }
 
@@ -498,7 +500,7 @@ function safe(state: ModelState): boolean {
   const noForeignRevision = state.revisions.every((revision) => revision.state !== "foreign");
   const promotedVerified = state.revisions.every((revision) => revision.state !== "unverified");
   const promotedDurable = state.revisions.every((revision) => revision.durable);
-  const lineageRecoverable = state.revisions.every((revision, index) =>
+  const lineageRecoverable = !state.crashInvalid && state.revisions.every((revision, index) =>
     index === state.revisions.length - 1 || revision.state !== "torn");
   return !state.promotedWithoutLock && !state.cancelledCreated && !state.removedVerified && noForeignRevision
     && promotedVerified && promotedDurable && lineageRecoverable;
@@ -746,6 +748,7 @@ describe("media.qnt ITF replay", () => {
     stepQuarantineAny: null,
     stepUnverified: "unverified",
     stepNoSync: null,
+    stepNoRepair: null,
   };
   for (const [mutant, defect] of Object.entries(MUTANTS)) {
     test(`production refuses every ${mutant} trace that breaks an invariant${defect === null ? "" : `, and the ${defect} defect reproduces it`}`, async () => {
@@ -778,6 +781,7 @@ describe("media.qnt ITF replay", () => {
       cancelled: { "#map": [["p", false], ["q", false]] },
       cancelledCreated: false,
       content: { "#map": [["p", ""], ["q", ""]] },
+      crashInvalid: false,
       lock: "none",
       lockId: { "#bigint": "0" },
       myLock: { "#map": [["p", { "#bigint": "0" }], ["q", { "#bigint": "0" }]] },
