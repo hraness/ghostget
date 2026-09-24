@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -14,10 +15,12 @@ import { createAuth, saveAuth } from "./auth";
 import { canonicalJson, sha256, type GhostgetManifest } from "./model";
 import type { ProviderExecution } from "./provider";
 import { providerPluginRegistry } from "./provider-plugins";
+import { readRecoveryCapsule } from "./recovery";
 import { listRunJournalSnapshots } from "./run-journal";
 import {
   confirmInvocation,
   createInvocationPlan,
+  inspectConfirmedWriteIntentFences,
   prepareInvocation,
   readRunReceipt,
   releaseReconciledRunRecovery,
@@ -477,6 +480,58 @@ describe("intent-level confirmed-write fence", () => {
       expect(probe.crossings).toBe(1);
       expect(restored).toContain("reconcile it before retrying");
       expect(restored).not.toContain("with the settings that run used");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("doctor readback reports each claim's fence state without account or input detail", async () => {
+    const testState = fenceState();
+    try {
+      install(testState);
+      const probe: Probe = { crossings: 0 };
+      expect(inspectConfirmedWriteIntentFences(testState.environment)).toEqual({
+        claims: 0, active: 0, unsettled: 0, fulfilled: 0, journalOnly: 0, issues: [],
+      });
+      const first = requireResult(await confirm(testState, "indeterminate", probe));
+      // The encrypted capsule records the provider subject the run used.
+      expect(readRecoveryCapsule(
+        first.receipt.runId,
+        first.receipt.auth.id,
+        first.receipt.auth.hash,
+        testState.environment,
+      )?.authSubject).toBe("12345");
+      const readback = inspectConfirmedWriteIntentFences(testState.environment);
+      expect(readback).toEqual({
+        claims: 1, active: 0, unsettled: 1, fulfilled: 0, journalOnly: 0, issues: [],
+      });
+      const serialized = JSON.stringify(readback);
+      for (const secret of [ACCOUNT, MESSAGE, testState.directory, "12345"]) {
+        expect(serialized).not.toContain(secret);
+      }
+
+      // A later generation is reachable only through fulfilled generations
+      // from the intent's base claim. The same claim moved off that chain
+      // fences nothing, so readback reports it as misplaced.
+      const intents = join(testState.directory, "idempotency", "intents");
+      const [bucket] = readdirSync(intents);
+      if (bucket === undefined) throw new Error("intent claim bucket missing");
+      const [base] = readdirSync(join(intents, bucket));
+      if (base === undefined) throw new Error("intent claim missing");
+      const offChain = `${base.slice(0, -".json".length)}.${sha256("no prior generation")}`;
+      renameSync(join(intents, bucket, base), join(intents, bucket, `${offChain}.json`));
+      expect(inspectConfirmedWriteIntentFences(testState.environment)).toEqual({
+        claims: 1, active: 0, unsettled: 0, fulfilled: 0, journalOnly: 0,
+        issues: [{ claim: offChain, runId: first.receipt.runId, reason: "misplaced-claim" }],
+      });
+
+      // Runs recorded before the fence have a journal and no claim; the
+      // journal scan still fences them, so readback counts them apart.
+      rmSync(join(testState.directory, "idempotency", "intents"), { recursive: true, force: true });
+      expect(inspectConfirmedWriteIntentFences(testState.environment)).toEqual({
+        claims: 0, active: 0, unsettled: 0, fulfilled: 0, journalOnly: 1, issues: [],
+      });
+      expect(probe.crossings).toBe(1);
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }
