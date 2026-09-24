@@ -329,6 +329,8 @@ var MAX_PRIVATE_STATE_EXPECTED_CONTENT_BYTES = 4 * 1024 * 1024;
 var MAX_PRIVATE_STATE_BATCH_NAME_BYTES = 256 * 1024;
 var MAX_PRIVATE_STATE_BATCH_STDOUT_BYTES = 96 * 1024 * 1024;
 var TEST_STATE_HELPER_TIMEOUT_MS = 120000;
+var stateCrashPlanForTest = undefined;
+var helperEnvironment = stateCrashPlanForTest === undefined ? { NODE_ENV: "production" } : { NODE_ENV: "test", GHOSTGET_TEST_STATE_CRASH_PLAN: stateCrashPlanForTest };
 var knownStateRoots = new Map;
 var stateDirectoryNames = [
   "adapter-generations",
@@ -612,7 +614,8 @@ function runStateHelper(directory, expected, operation, expectCreatedIdentity = 
   ], {
     cwd: directory,
     encoding: "utf8",
-    env: faultForTest === undefined ? { NODE_ENV: "production" } : {
+    env: faultForTest === undefined ? helperEnvironment : {
+      ...helperEnvironment,
       NODE_ENV: "test",
       ...faultForTest === "insert-after-quarantine" || faultForTest === "replace-target-after-validation" ? { GHOSTGET_TEST_EMPTY_DIRECTORY_REMOVAL_RACE: faultForTest } : faultForTest === "pause-after-cas-claim" || faultForTest === "pause-after-mutation-claim-read" || faultForTest === "fail-after-cas-commit" ? { GHOSTGET_TEST_CAS_FAULT: faultForTest } : { GHOSTGET_TEST_BATCH_READ_FAULT: faultForTest }
     },

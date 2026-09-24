@@ -10,7 +10,7 @@ import {
   ensurePrivateStateDirectory,
   ghostgetStateHome,
   processOwnerStatus
-} from "./index-gnv0v9as.js";
+} from "./index-4wr3r7pz.js";
 import"./index-dw20pbkj.js";
 import {
   startProviderPluginCleanupTrackedOperation

@@ -23,7 +23,7 @@ movement requires matching current-candidate CI; an older candidate's receipt
 does not qualify a new integration.
 
 The macOS suite in `scripts/ci-macos-check.ts` is a selected inventory, currently
-ten files and one patterned iMessage canary. It does not establish complete
+eleven files and one patterned iMessage canary. It does not establish complete
 macOS source, package, or installation equivalence. For impacted native behavior
 outside that suite, run relevant focused macOS checks or add and pass an
 independently reviewed CI extension. Hosted runners do not qualify the user's

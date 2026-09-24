@@ -8,13 +8,13 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 232 claims: 149 evidenced, 64 planned, and 19 not verified. It maps 86 guidelines from 5 guides; 66 list claims and 20 are exempt.
+The register holds 233 claims: 151 evidenced, 63 planned, and 19 not verified. It maps 86 guidelines from 5 guides; 66 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 135 | 5 | 0 |
 | property test | 14 | 1 | 0 |
-| stateful model | 0 | 14 | 0 |
+| stateful model | 2 | 13 | 0 |
 | Quint model with production trace replay | 0 | 35 | 0 |
 | Lean proof with differential test | 0 | 8 | 0 |
 | differential oracle | 0 | 1 | 0 |
@@ -104,10 +104,10 @@ Each claim holds only while its listed assumptions hold.
 | Assumption | Statement | Claims |
 | --- | --- | ---: |
 | `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 6 |
-| `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 29 |
-| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 26 |
-| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 26 |
-| `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 8 |
+| `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 30 |
+| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 27 |
+| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 27 |
+| `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 9 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
 | `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 12 |
 | `dns-tls` | The operating-system resolver and the TLS stack behave as specified. | 7 |
@@ -1058,11 +1058,17 @@ An indeterminate dispatch fence is released only from separately obtained exact 
 
 Confirmation claim, plan consumption, provisional receipt, idempotency ledger, and recovery capsule reach durable storage before remote dispatch; dispatch is refused if the capsule cannot be stored.
 
-- Planned: stateful model in plan Phase 4.
+- Evidenced by stateful model.
 - Source: `docs/effect-confirmed-write-runtime.md`: “Confirmation claims, plan consumption, provisional receipt, idempotency ledger and recovery capsule must reach their existing durable boundaries before remote dispatch.”
-- Evidence: `src/confirmed-write-program.test.ts`, `src/runtime.test.ts`
+- Evidence: `src/confirmed-write-program.test.ts`, `src/runtime.test.ts`, `src/state-crash-harness.fixture.ts`, `src/state-crash-harness.test.ts`, `src/state-crash-port.test-support.ts`
+- Property tests: `src/state-crash-harness.test.ts`: “a crash just before a durable boundary never repeats or forgets a crossing”; `src/state-crash-harness.test.ts`: “a crash just after a durable boundary never repeats or forgets a crossing”; `src/state-crash-harness.test.ts`: “a torn data write never repeats or forgets a crossing”; `src/state-crash-harness.test.ts`: “power loss at a durable boundary never repeats or forgets a crossing”
 - Assumptions: `filesystem-durability`, `provider-behaviour`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The crash harness samples its schedules: CI runs one fast-check schedule of up to four commands per crash mode, each crashing at one generated boundary, so it does not visit every boundary of every operation.
+  - Crashes land only on the state and path helpers' filesystem effects. Writes the runtime process makes directly, such as the provider-effect ground truth, are outside the crash port.
+  - Power loss is modelled by the port, not observed: it rolls back, newest first, created, linked, renamed, and unlinked entries whose directory was not fsynced after the effect, and truncates data not fsynced after its write. Directory tree removals are treated as durable when they return, and a real filesystem may keep or lose unsynced effects in other combinations.
+  - One runtime process mutates the state at a time; concurrent confirmations under crash are not modelled here.
+  - That dispatch is refused when the recovery capsule cannot be stored rests on the listed example tests only.
 
 #### `journal-stale-writer-rejected`
 
@@ -2169,7 +2175,7 @@ Consequential lifecycle reducers take injected clocks and randomness; wall-clock
 - Assumptions: `bun-runtime`, `monotonic-clock`
 - Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
 
-### `storage` (9 claims)
+### `storage` (10 claims)
 
 #### `helper-mutual-exclusion`
 
@@ -2190,6 +2196,21 @@ Private state writes are compare-and-swap: exactly one overlapping writer for an
 - Evidence: `src/auth-storage.test.ts`, `src/session-secrets.test.ts`, `src/storage-cas.test.ts`
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
 - Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `state-crash-consistency`
+
+A crash or power loss at any durable state-helper or path-helper boundary leaves each private file with its old or its new content, never a torn one; a session-secret read afterwards returns the old value, the new value, or nothing, a completed removal stays removed, and the next write succeeds.
+
+- Evidenced by stateful model.
+- Source: `kb/plans/formal-verification-assurance.md`: “power-loss truncation”
+- Evidence: `src/state-crash-harness.fixture.ts`, `src/state-crash-harness.test.ts`, `src/state-crash-port.test-support.ts`
+- Property tests: `src/state-crash-harness.test.ts`: “a crash at any durable boundary leaves the old value, the new value, or nothing”; `src/state-crash-harness.test.ts`: “a crash at any durable boundary leaves the old or the new value, never a torn one”
+- Assumptions: `filesystem-atomic-rename`, `filesystem-durability`, `process-liveness`, `same-user-trusted`
+- Not verified:
+  - The harness samples its schedules: CI runs two fast-check schedules each for session secrets and private files, each command crashing at one generated boundary. Only a single private-file replacement is swept at every boundary under power loss.
+  - Power loss is modelled by the port, not observed: it rolls back, newest first, created, linked, renamed, and unlinked entries whose directory was not fsynced after the effect, and truncates data not fsynced after its write. Directory tree removals are treated as durable when they return, and a real filesystem may keep or lose unsynced effects in other combinations.
+  - A crashed session-secret write may lose the previous value; the law allows that outcome and does not check that the old value survives.
+  - One process mutates the state at a time; overlapping writers under crash are not modelled here.
 
 #### `session-secret-filename-injective`
 
@@ -2286,7 +2307,7 @@ Bundled native messaging runtimes are accepted only as exact pinned bytes.
 - Assumptions: `ci-runner`
 - Not verified:
   - Only the enumerated example cases are checked.
-  - The native install test runs only on darwin-arm64 and never runs in CI.
+  - The bundled-runtime install case runs only on darwin-arm64, so only the arm64 `macos-15` job of the macOS CI suite runs it; Linux CI skips it.
 
 #### `committed-binaries-provenance`
 

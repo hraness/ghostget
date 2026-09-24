@@ -60,6 +60,13 @@ const MAX_PRIVATE_STATE_EXPECTED_CONTENT_BYTES = 4 * 1024 * 1024;
 const MAX_PRIVATE_STATE_BATCH_NAME_BYTES = 256 * 1024;
 const MAX_PRIVATE_STATE_BATCH_STDOUT_BYTES = 96 * 1024 * 1024;
 const TEST_STATE_HELPER_TIMEOUT_MS = 120_000;
+// Test-only: helpers route durable effects through the crash port named here.
+const stateCrashPlanForTest = process.env.NODE_ENV === "test"
+  ? process.env.GHOSTGET_TEST_STATE_CRASH_PLAN
+  : undefined;
+const helperEnvironment = stateCrashPlanForTest === undefined
+  ? { NODE_ENV: "production" }
+  : { NODE_ENV: "test", GHOSTGET_TEST_STATE_CRASH_PLAN: stateCrashPlanForTest };
 
 export interface PrivateDirectoryIdentity {
   readonly device: string;
@@ -739,8 +746,9 @@ function runStateHelper(
     cwd: directory,
     encoding: "utf8",
     env: faultForTest === undefined
-      ? { NODE_ENV: "production" }
+      ? helperEnvironment
       : {
+          ...helperEnvironment,
           NODE_ENV: "test",
           ...(faultForTest === "insert-after-quarantine"
             || faultForTest === "replace-target-after-validation"
@@ -799,7 +807,7 @@ function runPathHelper(
   ], {
     cwd: directory,
     encoding: "utf8",
-    env: { NODE_ENV: "production" },
+    env: helperEnvironment,
     input: JSON.stringify({ schemaVersion: 1, requestId, expected, operation }),
     maxBuffer: 180 * 1024 * 1024,
     shell: false,

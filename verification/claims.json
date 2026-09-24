@@ -2558,18 +2558,42 @@
         "quote": "Confirmation claims, plan consumption, provisional receipt, idempotency ledger and recovery capsule must reach their existing durable boundaries before remote dispatch."
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
         "src/confirmed-write-program.test.ts",
-        "src/runtime.test.ts"
+        "src/runtime.test.ts",
+        "src/state-crash-harness.fixture.ts",
+        "src/state-crash-harness.test.ts",
+        "src/state-crash-port.test-support.ts"
       ],
       "assumptions": [
         "filesystem-durability",
         "provider-behaviour"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The crash harness samples its schedules: CI runs one fast-check schedule of up to four commands per crash mode, each crashing at one generated boundary, so it does not visit every boundary of every operation.",
+        "Crashes land only on the state and path helpers' filesystem effects. Writes the runtime process makes directly, such as the provider-effect ground truth, are outside the crash port.",
+        "Power loss is modelled by the port, not observed: it rolls back, newest first, created, linked, renamed, and unlinked entries whose directory was not fsynced after the effect, and truncates data not fsynced after its write. Directory tree removals are treated as durable when they return, and a real filesystem may keep or lose unsynced effects in other combinations.",
+        "One runtime process mutates the state at a time; concurrent confirmations under crash are not modelled here.",
+        "That dispatch is refused when the recovery capsule cannot be stored rests on the listed example tests only."
+      ],
+      "properties": [
+        {
+          "path": "src/state-crash-harness.test.ts",
+          "test": "a crash just before a durable boundary never repeats or forgets a crossing"
+        },
+        {
+          "path": "src/state-crash-harness.test.ts",
+          "test": "a crash just after a durable boundary never repeats or forgets a crossing"
+        },
+        {
+          "path": "src/state-crash-harness.test.ts",
+          "test": "a torn data write never repeats or forgets a crossing"
+        },
+        {
+          "path": "src/state-crash-harness.test.ts",
+          "test": "power loss at a durable boundary never repeats or forgets a crossing"
+        }
       ]
     },
     {
@@ -2923,6 +2947,44 @@
       ],
       "notVerified": [
         "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+      ]
+    },
+    {
+      "id": "state-crash-consistency",
+      "statement": "A crash or power loss at any durable state-helper or path-helper boundary leaves each private file with its old or its new content, never a torn one; a session-secret read afterwards returns the old value, the new value, or nothing, a completed removal stays removed, and the next write succeeds.",
+      "area": "storage",
+      "source": {
+        "path": "kb/plans/formal-verification-assurance.md",
+        "quote": "power-loss truncation"
+      },
+      "layer": "stateful-model",
+      "status": "evidenced",
+      "evidence": [
+        "src/state-crash-harness.fixture.ts",
+        "src/state-crash-harness.test.ts",
+        "src/state-crash-port.test-support.ts"
+      ],
+      "assumptions": [
+        "filesystem-atomic-rename",
+        "filesystem-durability",
+        "process-liveness",
+        "same-user-trusted"
+      ],
+      "notVerified": [
+        "The harness samples its schedules: CI runs two fast-check schedules each for session secrets and private files, each command crashing at one generated boundary. Only a single private-file replacement is swept at every boundary under power loss.",
+        "Power loss is modelled by the port, not observed: it rolls back, newest first, created, linked, renamed, and unlinked entries whose directory was not fsynced after the effect, and truncates data not fsynced after its write. Directory tree removals are treated as durable when they return, and a real filesystem may keep or lose unsynced effects in other combinations.",
+        "A crashed session-secret write may lose the previous value; the law allows that outcome and does not check that the old value survives.",
+        "One process mutates the state at a time; overlapping writers under crash are not modelled here."
+      ],
+      "properties": [
+        {
+          "path": "src/state-crash-harness.test.ts",
+          "test": "a crash at any durable boundary leaves the old value, the new value, or nothing"
+        },
+        {
+          "path": "src/state-crash-harness.test.ts",
+          "test": "a crash at any durable boundary leaves the old or the new value, never a torn one"
+        }
       ]
     },
     {
@@ -5995,7 +6057,7 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked.",
-        "The native install test runs only on darwin-arm64 and never runs in CI."
+        "The bundled-runtime install case runs only on darwin-arm64, so only the arm64 `macos-15` job of the macOS CI suite runs it; Linux CI skips it."
       ]
     },
     {
