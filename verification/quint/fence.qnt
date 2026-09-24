@@ -277,6 +277,28 @@ module fence {
     }
   }
 
+  // The run crosses its dispatch boundary; a successor elects its source.
+  action crossBoundary(r: str, src: str, elects: bool): bool = all {
+    phase' = phase.set(r, "dispatching"),
+    status' = status,
+    ledgerState' = ledgerState,
+    runAuth' = runAuth,
+    runRev' = runRev,
+    runLoc' = runLoc,
+    runSubj' = runSubj,
+    source' = source,
+    elected' = if (src != "" and elects) elected.set(src, r) else elected,
+    authGen' = authGen,
+    rev' = rev,
+    scanned' = scanned,
+    ledger' = ledger,
+    dispatched' = dispatched.union(Set(r)),
+    applied' = applied,
+    reconciled' = reconciled,
+    claimed' = claimed,
+    result' = if (src == "") "dispatched" else "elected",
+  }
+
   // A claimed run rechecks the subject fence, then crosses its dispatch
   // boundary. A successor first elects its source, which must still be
   // unsettled and unelected; the stepUnelected variant skips the election.
@@ -287,29 +309,8 @@ module fence {
       src == "" or (not(reconciled.contains(src)) and elected.get(src) == ""),
       if (RUNS.exists(s => subjectFences(s, r, src, runLoc.get(r), runSubj.get(r), subjectBlind)))
         refuse(r, src, runLoc.get(r), runSubj.get(r), "subject-refused")
-      else cross(r, src, elects),
+      else crossBoundary(r, src, elects),
     }
-  }
-
-  action cross(r: str, src: str, elects: bool): bool = all {
-      phase' = phase.set(r, "dispatching"),
-      status' = status,
-      ledgerState' = ledgerState,
-      runAuth' = runAuth,
-      runRev' = runRev,
-      runLoc' = runLoc,
-      runSubj' = runSubj,
-      source' = source,
-      elected' = if (src != "" and elects) elected.set(src, r) else elected,
-      authGen' = authGen,
-      rev' = rev,
-      scanned' = scanned,
-      ledger' = ledger,
-      dispatched' = dispatched.union(Set(r)),
-      applied' = applied,
-      reconciled' = reconciled,
-      claimed' = claimed,
-      result' = if (src == "") "dispatched" else "elected",
   }
 
   action finish(r: str, outcome: str): bool = {
@@ -416,7 +417,7 @@ module fence {
     authGen' = authGen,
     rev' = rev,
     scanned' = scanned,
-    ledger' = if (callerRelease) ledger.filter(e => e._4 != r) else ledger,
+    ledger' = if (callerRelease) ledger.filter(e => e._5 != r) else ledger,
     dispatched' = dispatched,
     applied' = applied,
     reconciled' = if (callerRelease) reconciled.union(Set(r)) else reconciled,
@@ -474,6 +475,25 @@ module fence {
     any {
       all { r == "r1", scan(r, l, j, false, false) },
       scanSuccessor(r, s, false, false, false),
+      claim(r, false),
+      dispatch(r, true, false),
+      finish(r, o),
+      reconcile(r),
+    }
+  }
+
+  // A restriction of step for replay coverage: every transition it takes is
+  // a step transition, but every base intent records the one subject and
+  // nobody elects a successor, reconnects, or upgrades, so runs under the two
+  // locators race through the subject fence and its recheck.
+  action stepSubjects = {
+    nondet r = RUNS.oneOf()
+    nondet o = OUTCOMES.oneOf()
+    nondet s = RUNS.oneOf()
+    nondet l = LOCATORS.oneOf()
+    nondet j = Set("s").oneOf()
+    any {
+      scan(r, l, j, false, false),
       claim(r, false),
       dispatch(r, true, false),
       finish(r, o),
