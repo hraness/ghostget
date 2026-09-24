@@ -10,8 +10,9 @@ import { admitSourceCi, verifySourceCiLog, type SourceCiInput } from "./release-
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseReleaseManifest, releaseAssetNames, releaseAssetByteLimit, type ReleaseAssetDescriptor } from "../website/github-release-artifact.mjs";
-import { attestationVerifyArguments, prepareReleaseDirectory, verifyBuildHandoff, verifyReleaseDirectory } from "./github-release-artifact.js";
+import { attestationVerifyArguments, prepareReleaseDirectory, verifyBuildHandoff, verifyCanonicalReleaseRun, verifyReleaseDirectory } from "./github-release-artifact.js";
 import { downloadReleaseAsset, publishCanonicalRelease, validateReleaseAssets } from "./github-release-publish.js";
 import { MAX_PACKED_BYTES } from "./package-budget.js";
 import { propertyParameters } from "../src/test-support.js";
@@ -581,6 +582,156 @@ describe("canonical release publication and safe local input", () => {
     expect(args[args.indexOf("--repo") + 1]).toBe("hraness/wrench");
     expect(args[args.indexOf("--signer-workflow") + 1]).toBe("hraness/wrench/.github/workflows/release.yml");
     expect(() => parseReleaseManifest({ ...historical, repository: "hraness/ghostget" })).toThrow();
+  });
+  test("publishes a failed-jobs rerun only from the exact bytes an earlier attempt of its run attested", async () => {
+    // Regression: the publisher required the canonical manifest to name the
+    // current attempt, so rerunning a failed publish job could never publish the
+    // exact bytes that an earlier attempt of the same run had already attested.
+    const root = await mkdtemp(join(tmpdir(), "ghostget-rerun-publication-"));
+    try {
+      const canonical = join(root, "canonical"); const future = join(root, "future"); const bin = join(root, "bin");
+      await mkdir(canonical); await mkdir(future); await mkdir(bin);
+      const f = await largeTransferFixture(canonical);
+      const log = join(root, "gh.log"); const attestation = join(root, "attestation.json");
+      await writeFile(join(bin, "gh"), [
+        "#!/bin/bash",
+        'printf "%s\\n" "$*" >> "$FAKE_GH_LOG"',
+        'if [[ "$1" == attestation && "$2" == verify ]]; then cat "$FAKE_GH_ATTESTATION"; exit 0; fi',
+        "exit 1",
+        "",
+      ].join("\n"), { mode: 0o755 });
+      const attest = (runAttempt: number, hashes: Readonly<Record<string, string>>) => writeFile(attestation, JSON.stringify([{
+        verificationResult: {
+          signature: { certificate: {
+            issuer: "https://token.actions.githubusercontent.com", buildSignerURI: `https://github.com/hraness/ghostget/.github/workflows/release.yml@refs/tags/${f.tag}`,
+            buildSignerDigest: sourceSha, runnerEnvironment: "github-hosted", sourceRepositoryURI: "https://github.com/hraness/ghostget",
+            sourceRepositoryIdentifier: "1316443113", sourceRepositoryOwnerIdentifier: "307125679", sourceRepositoryOwnerURI: "https://github.com/hraness",
+            sourceRepositoryVisibilityAtSigning: "public", buildConfigURI: `https://github.com/hraness/ghostget/.github/workflows/release.yml@refs/tags/${f.tag}`,
+            buildConfigDigest: sourceSha, sourceRepositoryDigest: sourceSha, sourceRepositoryRef: `refs/tags/${f.tag}`, buildTrigger: "push",
+            runInvocationURI: `https://github.com/hraness/ghostget/actions/runs/9001/attempts/${runAttempt}`,
+          } },
+          verifiedTimestamps: [{ type: "fixture" }],
+          statement: { _type: "https://in-toto.io/Statement/v1", predicateType: "https://slsa.dev/provenance/v1",
+            subject: f.names.slice(0, 4).map(name => ({ name, digest: { sha256: hashes[name] } })) },
+        },
+      }]));
+      const publish = async (directory: string, hashes: Readonly<Record<string, string>>, overrides: Readonly<Record<string, string>> = {}) => {
+        await writeFile(log, "");
+        const child = Bun.spawn([process.execPath, "run", fileURLToPath(new URL("./github-release-publish.ts", import.meta.url)), directory], {
+          cwd: fileURLToPath(new URL("..", import.meta.url)),
+          env: { PATH: `${bin}:${process.env.PATH ?? ""}`, HOME: root, FAKE_GH_LOG: log, FAKE_GH_ATTESTATION: attestation,
+            GITHUB_RUN_ID: "9001", GITHUB_RUN_ATTEMPT: "2", VERIFIED_SHA: sourceSha, VERIFIED_TAG: f.tag, WORKFLOW_SHA: workflowSha,
+            EXPECTED_ARTIFACT_HASHES: JSON.stringify(hashes), EXPECTED_BUNDLE_SHA256: f.bundleHash, ...overrides },
+          stderr: "pipe", stdout: "pipe" });
+        const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text(), new Response(child.stdout).text()]);
+        const calls = (await readFile(log, "utf8")).split("\n").filter(line => line !== "");
+        return { exitCode, stderr, verifications: calls.filter(call => call.startsWith("attestation verify ")).length,
+          otherCalls: calls.filter(call => !call.startsWith("attestation verify ")) };
+      };
+
+      // Attempt 1 built, attested, and handed off these bytes; attempt 2 reran
+      // only the failed publish job. The publisher verifies all four signed
+      // subjects for attempt 1 and reaches strict package admission, which this
+      // synthetic transfer archive then fails, before any GitHub Release call.
+      await attest(1, f.hashes);
+      const rerun = await publish(canonical, f.hashes);
+      expect(rerun.exitCode).not.toBe(0);
+      expect(rerun.stderr).toContain("safely decompressed");
+      expect(rerun.verifications).toBe(4);
+      expect(rerun.otherCalls).toEqual([]);
+
+      // Provenance signed by the rerun attempt does not match bytes that name attempt 1.
+      await attest(2, f.hashes);
+      const resigned = await publish(canonical, f.hashes);
+      expect(resigned.exitCode).not.toBe(0);
+      expect(resigned.stderr).toContain("Verified certificate has a different runInvocationURI");
+      expect(resigned.verifications).toBe(1);
+      expect(resigned.otherCalls).toEqual([]);
+
+      // Bytes that claim a later attempt than the one running cannot have been attested yet.
+      const files = new Map(f.files);
+      files.set("release-manifest.json", Buffer.from(`${JSON.stringify({ ...f.manifest, runAttempt: 3 })}\n`));
+      const digest = (name: string) => createHash("sha256").update(files.get(name)!).digest("hex");
+      files.set("SHA256SUMS", Buffer.from(f.names.slice(0, 3).map(name => `${digest(name)}  ${name}\n`).join("")));
+      for (const [name, bytes] of files) await writeFile(join(future, name), bytes);
+      const futureHashes = Object.fromEntries(f.names.slice(0, 4).map(name => [name, digest(name)]));
+      await attest(3, futureHashes);
+      const later = await publish(future, futureHashes);
+      expect(later.exitCode).not.toBe(0);
+      expect(later.stderr).toContain("later attempt");
+      expect(later.verifications).toBe(0);
+      expect(later.otherCalls).toEqual([]);
+
+      // The run coordinates stay exact before any provenance is read.
+      await attest(1, f.hashes);
+      for (const [overrides, message] of [
+        [{ GITHUB_RUN_ATTEMPT: "" }, "GITHUB_RUN_ATTEMPT is not one positive Actions run coordinate"],
+        [{ GITHUB_RUN_ATTEMPT: "0" }, "GITHUB_RUN_ATTEMPT is not one positive Actions run coordinate"],
+        [{ GITHUB_RUN_ATTEMPT: "02" }, "GITHUB_RUN_ATTEMPT is not one positive Actions run coordinate"],
+        [{ GITHUB_RUN_ID: "9001x" }, "GITHUB_RUN_ID is not one positive Actions run coordinate"],
+        [{ GITHUB_RUN_ID: "9002" }, "GitHub release manifest does not bind expected runId"],
+      ] as const) {
+        const rejected = await publish(canonical, f.hashes, overrides);
+        expect(rejected.exitCode).not.toBe(0);
+        expect(rejected.stderr).toContain(message);
+        expect(rejected.verifications).toBe(0);
+        expect(rejected.otherCalls).toEqual([]);
+      }
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+  test("canonical download admits an attesting attempt whose failed publish a later rerun of its run completed", () => {
+    // Regression: the canonical download admitted the published Release only
+    // when its attesting attempt had also published it, so a Release published
+    // by rerunning that run's failed publish job could never be promoted.
+    const runPath = "repos/hraness/ghostget/actions/runs/9001";
+    const attemptRun = (runAttempt: number, conclusion: string): Json => ({
+      id: 9001, run_attempt: runAttempt, workflow_id: 323493609, path: ".github/workflows/release.yml", event: "push",
+      head_branch: tag, head_sha: sourceSha, status: "completed", conclusion,
+      actor: { id: 894119, login: "0thernet", type: "User" }, triggering_actor: { id: 894119, login: "0thernet", type: "User" },
+      repository: { id: 1316443113, full_name: "hraness/ghostget", private: false },
+      head_repository: { id: 1316443113, full_name: "hraness/ghostget", private: false },
+    });
+    const attemptJobs = (runAttempt: number, publish: string): Json => {
+      const jobs = ["Authorize owner release tag", "Verify", "Attest exact canonical build files", "Publish immutable GitHub Release",
+        "Publish exact npm package through OIDC", "Admit exact public npm package"].map((name, index) => ({
+        id: 6000 + runAttempt * 10 + index, name, run_id: 9001, run_attempt: runAttempt, head_sha: sourceSha, status: "completed",
+        conclusion: index < 3 || publish === "success" ? "success" : index === 3 ? publish : "skipped",
+      }));
+      return { total_count: jobs.length, jobs };
+    };
+    const verify = (responses: Readonly<Record<string, Json>>) => {
+      const reads: string[] = [];
+      const gh = (args: readonly string[]): string => {
+        const path = args[1] ?? "";
+        if (args.length !== 2 || args[0] !== "api" || !Object.hasOwn(responses, path)) throw new Error(`Unexpected gh ${args.join(" ")}`);
+        reads.push(path);
+        return JSON.stringify(responses[path]);
+      };
+      return { reads, verify: () => verifyCanonicalReleaseRun("9001", manifest, { tag, sourceSha }, gh) };
+    };
+    const receipt = {
+      [`${runPath}/attempts/1`]: attemptRun(1, "failure"),
+      [`${runPath}/attempts/1/jobs?per_page=100`]: attemptJobs(1, "failure"),
+    };
+    const rerun = verify({ ...receipt, [runPath]: attemptRun(2, "success"), [`${runPath}/attempts/2/jobs?per_page=100`]: attemptJobs(2, "success") });
+    expect(rerun.verify).not.toThrow();
+    expect(rerun.reads).toEqual([`${runPath}/attempts/1`, `${runPath}/attempts/1/jobs?per_page=100`, runPath,
+      `${runPath}/attempts/2/jobs?per_page=100`]);
+
+    // An attesting attempt that published reads no later attempt.
+    const published = verify({ [`${runPath}/attempts/1`]: attemptRun(1, "success"), [`${runPath}/attempts/1/jobs?per_page=100`]: attemptJobs(1, "success") });
+    expect(published.verify).not.toThrow();
+    expect(published.reads).toEqual([`${runPath}/attempts/1`, `${runPath}/attempts/1/jobs?per_page=100`]);
+
+    // The current attempt must be later and must itself prove all four canonical jobs.
+    for (const [attempt, current, jobs, message] of [
+      [1, attemptRun(1, "failure"), attemptJobs(1, "failure"), "later attempt"],
+      [2, attemptRun(2, "failure"), attemptJobs(2, "failure"), "Publish immutable GitHub Release job did not succeed in the current attempt"],
+      [2, { ...attemptRun(2, "success"), head_sha: "3".repeat(40) }, attemptJobs(2, "success"), "exact successful Release workflow identity"],
+    ] as const) {
+      const rejected = verify({ ...receipt, [runPath]: current, [`${runPath}/attempts/${String(attempt)}/jobs?per_page=100`]: jobs });
+      expect(rejected.verify).toThrow(message);
+    }
   });
   test("rejects a symlinked release directory before reading an artifact", async () => {
     const root = await mkdtemp(join(tmpdir(), "ghostget-canonical-directory-"));

@@ -62,9 +62,11 @@ import {
 } from "./webmcp-registry";
 
 export const SITE_ORIGIN = "https://ghostget.com" as const;
-export const SITE_TITLE = "Ghostget: precise web capabilities for AI agents" as const;
+export const SITE_TITLE = "Ghostget: named web actions for AI agents" as const;
 export const SITE_DESCRIPTION =
-  "Ghostget gives your AI agent safe access to the web: it reads pages, saves media, and uses connected accounts through a fixed list of reviewed actions instead of driving a browser. Free and open source." as const;
+  "Ghostget lets your AI agent read pages, save media, and use your connected accounts through a fixed list of reviewed actions. Free and MIT licensed." as const;
+/** Alt text for the static `/og.png` card that `scripts/generate-og.tsx` renders from SITE_TITLE. */
+export const SOCIAL_IMAGE_ALT = `The title “${SITE_TITLE}” and the Ghostget ghost mark on a light card` as const;
 export const REPOSITORY_URL = "https://github.com/hraness/ghostget" as const;
 export const GITHUB_RELEASES_URL = "https://github.com/hraness/ghostget/releases" as const;
 export const SKILLS_URL = "https://www.skills.sh/hraness/ghostget/ghostget" as const;
@@ -104,7 +106,7 @@ export const PUBLIC_PAGES = [
       "Install Ghostget and read a public page with no account or API key. Then choose page saving, an agent skill, or connected services.",
     outputFile: "docs/tutorials/getting-started/index.html",
     sourceFile: "docs-tutorials-getting-started.html",
-    title: "Install Ghostget: CLI and TypeScript SDK getting started guide",
+    title: "Get started with Ghostget: install the CLI and read your first page",
   },
   {
     canonicalPath: "/docs/how-to/capture-and-archive/",
@@ -139,7 +141,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/docs/how-to/use-webmcp-sites/",
     description:
-      "Search the WebMCP Registry, read one site's live tool schema, and call declared read-only tools through Ghostget's bundled webmcp adapter — no account or API key.",
+      "Search the WebMCP Registry, read one site's tool schema, and call its read-only tools through Ghostget's bundled webmcp adapter, with no account or API key.",
     outputFile: "docs/how-to/use-webmcp-sites/index.html",
     sourceFile: "docs-how-to-use-webmcp-sites.html",
     title: "Use WebMCP sites with your agent through Ghostget",
@@ -147,7 +149,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/providers/",
     description:
-      "Every service Ghostget supports: bundled typed providers plus the public WebMCP Registry, where listed sites publish live tool schemas agents can read and call read-only tools through.",
+      "Every service Ghostget supports: its built-in providers, plus sites in the public WebMCP Registry whose read-only tools your agent can call.",
     outputFile: "providers/index.html",
     sourceFile: "providers.html",
     title: "Providers Ghostget works with: supported services and the WebMCP Registry",
@@ -155,7 +157,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/webmcp/",
     description:
-      "WebMCP lets websites publish typed tools through navigator.modelContext. Ghostget's webmcp adapter reads the public WebMCP Registry's live schemas and calls only declared read-only tools.",
+      "WebMCP lets a website publish tools through navigator.modelContext. Ghostget reads them from the public WebMCP Registry and calls only tools declared read-only.",
     outputFile: "webmcp/index.html",
     sourceFile: "webmcp.html",
     title: "WebMCP for agents: call website-published tools through Ghostget",
@@ -163,15 +165,15 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/docs/explanation/security-model/",
     description:
-      "Understand Ghostget local custody, encrypted snapshots, exact account binding, fail-closed provider contracts, risk levels, and mutation recovery.",
+      "How Ghostget keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.",
     outputFile: "docs/explanation/security-model/index.html",
     sourceFile: "docs-explanation-security-model.html",
-    title: "Ghostget security: local custody and bounded provider contracts",
+    title: "Ghostget security model: accounts, credentials, and writes",
   },
   {
     canonicalPath: "/docs/how-to/author-provider-plugin/",
     description:
-      "Create, statically check, test, reproducibly pack, trust, and install a content-addressed Ghostget provider plugin without weakening the kernel boundary.",
+      "Write a Ghostget provider plugin, prove one operation, and install the exact content-addressed bundle after it passes checks, tests, and your trust decision.",
     outputFile: "docs/how-to/author-provider-plugin/index.html",
     sourceFile: "docs-how-to-author-provider-plugin.html",
     title: "Author and verify Ghostget provider plugins",
@@ -179,10 +181,10 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/about/",
     description:
-      "Ghostget is an open-source CLI and TypeScript SDK that gives command-capable agents precise web capabilities with local custody.",
+      "Ghostget is an open-source CLI and TypeScript SDK that lets any agent that can run commands read pages, archive media, and use connected accounts.",
     outputFile: "about/index.html",
     sourceFile: "about.html",
-    title: "About Ghostget: open-source web capabilities for AI agents",
+    title: "About Ghostget: open-source web actions for AI agents",
   },
   {
     canonicalPath: "/contact/",
@@ -203,7 +205,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/compare/",
     description:
-      "How agents reach the web: agent libraries, browser tool servers, hosted browser infrastructure, and Ghostget's named-operation boundary, mapped lane by lane.",
+      "Four ways agents reach the web, from browser-driving libraries to hosted browsers, compared side by side with Ghostget's named actions.",
     outputFile: "compare/index.html",
     sourceFile: "compare-index.html",
     title: "How agents reach the web: browser-use, Playwright MCP, hosted browsers, and Ghostget",
@@ -211,7 +213,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/compare/browser-use/",
     description:
-      "browser-use lets a model drive a browser through a observe-plan-click loop. Ghostget removes the driving surface: agents call named, reviewed operations that return one bounded result.",
+      "browser-use lets a model drive a browser through an observe, plan, and click loop. Ghostget gives agents named, reviewed actions that each return one result.",
     outputFile: "compare/browser-use/index.html",
     sourceFile: "compare-browser-use.html",
     title: "Ghostget vs browser-use: named operations instead of a model-driven browser",
@@ -219,7 +221,7 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/compare/browserbase/",
     description:
-      "Browserbase hosts cloud browser sessions for Playwright, Puppeteer, and Stagehand code. Ghostget keeps work local and replaces steerable browsers with named, reviewed operations.",
+      "Browserbase hosts cloud browser sessions for Playwright, Puppeteer, and Stagehand. Ghostget runs named, reviewed actions on your own machine instead.",
     outputFile: "compare/browserbase/index.html",
     sourceFile: "compare-browserbase.html",
     title: "Ghostget vs Browserbase: local named operations instead of hosted browser sessions",
@@ -227,15 +229,15 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/compare/playwright-mcp/",
     description:
-      "Playwright MCP streams a page's accessibility tree into agent context on every step. Ghostget returns one bounded result per named operation and keeps the browser away from the caller.",
+      "Playwright MCP sends a page's accessibility tree into your agent's context on every step. Ghostget returns one result per named action.",
     outputFile: "compare/playwright-mcp/index.html",
     sourceFile: "compare-playwright-mcp.html",
-    title: "Ghostget vs Playwright MCP: bounded operation results instead of streamed page state",
+    title: "Ghostget vs Playwright MCP: one result per action instead of streamed page state",
   },
   {
     canonicalPath: "/compare/agent-browser/",
     description:
-      "agent-browser is a CLI that lets an agent open, click, type, and snapshot a real browser. Ghostget pins it internally for page capture but never exposes steering to the caller.",
+      "agent-browser lets an agent open, click, type in, and snapshot a real browser. Ghostget runs it internally for page capture, where the agent can't steer it.",
     outputFile: "compare/agent-browser/index.html",
     sourceFile: "compare-agent-browser.html",
     title: "Ghostget vs agent-browser: a browser the agent can never steer",
@@ -243,10 +245,10 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/compare/personal-agents-browser-use/",
     description:
-      "Compare persistent personal agents that use a general browser with Ghostget's named, supported web operations and fail-closed boundaries.",
+      "Persistent personal agents work through a general browser. Ghostget gives an agent a fixed list of named web actions, and anything unlisted stays unavailable.",
     outputFile: "compare/personal-agents-browser-use/index.html",
     sourceFile: "compare-personal-agents-browser-use.html",
-    title: "Browser-using personal agents, and which web operations Ghostget attests",
+    title: "Browser-using personal agents and Ghostget's named web actions",
   },
   {
     canonicalPath: "/agentic-web-spoofing/",
@@ -572,12 +574,12 @@ function sharedJsonLd(identity: PackageIdentity): ReadonlyArray<Readonly<Record<
       author: { "@id": HRANESS_ORGANIZATION_ID },
       description: SITE_DESCRIPTION,
       featureList: [
-        "Durable Markdown page capture",
-        "Verified finite-item media archives",
-        "Encrypted exact-query read snapshots",
-        "Typed and bounded provider operations",
-        "Pinned Beeper CLI operations",
-        "Fail-closed provider contract drift",
+        "Save web pages as Markdown",
+        "Archive one media item with SHA-256 verification",
+        "Encrypted local copies of account reads",
+        "Named actions in connected services",
+        "Beeper actions through a pinned official CLI",
+        "Actions stop when a service changes",
       ],
       installUrl: `${SITE_ORIGIN}/docs/tutorials/getting-started/`,
       isAccessibleForFree: true,
@@ -833,6 +835,7 @@ function renderTemplate(
   }
   const optionalValues = new Map([
     ["{{GHOSTGET_DESCRIPTION}}", identity.description],
+    ["{{GHOSTGET_SOCIAL_IMAGE_ALT}}", SOCIAL_IMAGE_ALT],
     ["{{GHOSTGET_INSTALL_COMMAND}}", installCommand],
     ["{{GHOSTGET_PACKAGE_ARTIFACT}}", versionedPackageArtifactUrl(identity)],
     ["{{GHOSTGET_RELEASE}}", identity.release],

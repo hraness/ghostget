@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
     <title>Ghostget vs Browserbase: local named operations instead of hosted browser sessions</title>
-    <meta name="description" content="Browserbase hosts cloud browser sessions for Playwright, Puppeteer, and Stagehand code. Ghostget keeps work local and replaces steerable browsers with named, reviewed operations.">
+    <meta name="description" content="Browserbase hosts cloud browser sessions for Playwright, Puppeteer, and Stagehand. Ghostget runs named, reviewed actions on your own machine instead.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/compare/browserbase/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
@@ -18,17 +18,17 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Ghostget">
     <meta property="og:title" content="Ghostget vs Browserbase: local named operations instead of hosted browser sessions">
-    <meta property="og:description" content="Browserbase hosts cloud browser sessions for Playwright, Puppeteer, and Stagehand code. Ghostget keeps work local and replaces steerable browsers with named, reviewed operations.">
+    <meta property="og:description" content="Browserbase hosts cloud browser sessions for Playwright, Puppeteer, and Stagehand. Ghostget runs named, reviewed actions on your own machine instead.">
     <meta property="og:url" content="https://ghostget.com/compare/browserbase/">
     <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Ghostget vs Browserbase: local named operations instead of hosted browser sessions">
-    <meta name="twitter:description" content="Browserbase hosts cloud browser sessions for Playwright, Puppeteer, and Stagehand code. Ghostget keeps work local and replaces steerable browsers with named, reviewed operations.">
+    <meta name="twitter:description" content="Browserbase hosts cloud browser sessions for Playwright, Puppeteer, and Stagehand. Ghostget runs named, reviewed actions on your own machine instead.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -51,21 +51,21 @@
       <article class="guide-article">
         <header class="guide-hero">
           <p class="eyebrow">Comparison · Ghostget {{GHOSTGET_VERSION}}</p>
-          <h1>Browserbase rents you the browser. Ghostget removes it from reach.</h1>
-          <p class="answer-lede"><a href="https://www.browserbase.com/">Browserbase</a> runs cloud Chromium sessions you drive over CDP with Playwright, Puppeteer, or its own <a href="https://github.com/browserbase/stagehand">Stagehand</a> SDK, at whatever concurrency you pay for. It answers where the browser runs. Ghostget answers a different question: what the agent is allowed to do once one exists, by removing the steerable browser entirely.</p>
-          <p class="review-note">This page describes Browserbase and Stagehand's published model and Ghostget's {{GHOSTGET_RELEASE}} contract, checked against each project's public documentation in September 2026.</p>
+          <h1>Ghostget runs named actions on your machine instead of in a hosted browser</h1>
+          <p class="answer-lede"><a href="https://www.browserbase.com/">Browserbase</a> runs cloud Chromium sessions you drive over CDP with Playwright, Puppeteer, or its own <a href="https://github.com/browserbase/stagehand">Stagehand</a> SDK, at whatever concurrency you pay for. It answers where the browser runs. Ghostget answers what the agent is allowed to do, and it gives the agent no browser to steer.</p>
+          <p class="review-note">This page describes Browserbase and Stagehand as documented in September 2026 and Ghostget {{GHOSTGET_RELEASE}}.</p>
         </header>
 
         <section aria-labelledby="bb-model">
           <h2 id="bb-model">Infrastructure versus capability</h2>
           <p>Browserbase is infrastructure. A session gives your code a remote, proxied, stealth-configured Chromium it steers directly: every selector, click, and navigation is yours to choose, and session replay and inspection help you debug what happened. Stagehand, its companion SDK, raises the abstraction with <code>act</code>, <code>extract</code>, and <code>observe</code> so an agent can describe intent while the model resolves the concrete steps. Both share the property that someone, human or model, is driving a live page.</p>
-          <p>Ghostget is a capability layer, not infrastructure. There is no session to rent because there is no browser surface to steer: the caller names a reviewed operation, the kernel binds the exact account, transport, and contract, and one bounded result returns. Public-page reads run as a single HTTP request on your own machine; account actions run against fixed provider boundaries under your local credentials.</p>
+          <p>Ghostget doesn’t host browsers. There is no session to rent because there is no browser to steer: the caller names a reviewed operation, the kernel binds the exact account, transport, and contract, and one bounded result returns. Public-page reads run as a single HTTP request on your own machine; account actions run against fixed provider boundaries under your local credentials.</p>
         </section>
 
         <section aria-labelledby="bb-data">
           <h2 id="bb-data">Where the session lives is a data boundary</h2>
-          <p>A hosted session means your authenticated traffic, cookies, and page content traverse a third party's browser. Browserbase publishes SOC 2 and HIPAA attestations and session isolation controls, which is the right answer when a managed browser is genuinely required. It is still a trust decision you make for every credential that enters the session.</p>
-          <p>Ghostget keeps custody local by construction. Auth locators resolve to one account realm and transport on your machine; secrets load only inside an isolated credential helper; and results land in your filesystem under your permissions. Nothing is proxied through a hosted browser because none exists.</p>
+          <p>A hosted session means your authenticated traffic, cookies, and page content traverse a third party's browser. Browserbase publishes SOC 2 and HIPAA attestations and session isolation controls, which is the right answer when you need a managed browser. It is still a trust decision you make for every credential that enters the session.</p>
+          <p>Ghostget keeps sign-ins on your machine. Auth locators resolve to one account realm and transport on your machine; secrets load only inside an isolated credential helper; and results land in your filesystem under your permissions. Nothing is proxied through a hosted browser because none exists.</p>
         </section>
 
         <section aria-labelledby="bb-table">
@@ -123,7 +123,7 @@
 
         <aside class="guide-callout" aria-labelledby="bb-next">
           <h2 id="bb-next">Check the operation set first</h2>
-          <p>If the <a href="/docs/reference/provider-capabilities/">supported action set</a> covers your task, Ghostget removes both the browser and the hosting bill. If not, a hosted session is the honest tool. The lane map is at <a href="/compare/">How agents reach the web</a>.</p>
+          <p>If the <a href="/docs/reference/provider-capabilities/">supported action set</a> covers your task, Ghostget removes both the browser and the hosting bill. If not, a hosted session is the right tool. All four approaches are compared at <a href="/compare/">How agents reach the web</a>.</p>
         </aside>
       </article>
     </main>

@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
     <title>Use WebMCP sites with your agent through Ghostget</title>
-    <meta name="description" content="Search the WebMCP Registry, read one site's live tool schema, and call declared read-only tools through Ghostget's bundled webmcp adapter — no account or API key.">
+    <meta name="description" content="Search the WebMCP Registry, read one site's tool schema, and call its read-only tools through Ghostget's bundled webmcp adapter, with no account or API key.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/docs/how-to/use-webmcp-sites/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
@@ -18,17 +18,17 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Ghostget">
     <meta property="og:title" content="Use WebMCP sites with your agent through Ghostget">
-    <meta property="og:description" content="Search the WebMCP Registry, read one site's live tool schema, and call declared read-only tools through Ghostget's bundled webmcp adapter — no account or API key.">
+    <meta property="og:description" content="Search the WebMCP Registry, read one site's tool schema, and call its read-only tools through Ghostget's bundled webmcp adapter, with no account or API key.">
     <meta property="og:url" content="https://ghostget.com/docs/how-to/use-webmcp-sites/">
     <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Use WebMCP sites with your agent through Ghostget">
-    <meta name="twitter:description" content="Search the WebMCP Registry, read one site's live tool schema, and call declared read-only tools through Ghostget's bundled webmcp adapter — no account or API key.">
+    <meta name="twitter:description" content="Search the WebMCP Registry, read one site's tool schema, and call its read-only tools through Ghostget's bundled webmcp adapter, with no account or API key.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -51,9 +51,9 @@
       <article class="guide-article">
         <header class="guide-hero provider-guide-hero">
           <p class="eyebrow">How-to guide · WebMCP adapter · {{GHOSTGET_RELEASE}}</p>
-          <h1>Call a WebMCP site's tools without a per-site adapter.</h1>
-          <p class="answer-lede">Ghostget's bundled <code>webmcp</code> adapter reads the public <a href="https://wmcp.ai">WebMCP Registry</a>: sites that publish <code>navigator.modelContext</code> tools appear there with live-checked schemas. Search the registry, inspect one domain, and call tools declared read-only — all without an account, API key, or provider setup.</p>
-          <p class="review-note">This guide describes {{GHOSTGET_RELEASE}}. Registry content drifts between checks; the examples below return current results when you run them. The snapshot behind this site lists {{WEBMCP_REGISTRY_SITE_COUNT}} domains as of {{WEBMCP_SYNCED_AT}}.</p>
+          <h1>Call a WebMCP site's tools without a per-site adapter</h1>
+          <p class="answer-lede">Ghostget's bundled <code>webmcp</code> adapter reads the public <a href="https://wmcp.ai">WebMCP Registry</a>: sites that publish <code>navigator.modelContext</code> tools appear there with the schemas from the registry's daily checks. Search the registry, inspect one domain, and call tools declared read-only, all without an account, API key, or provider setup.</p>
+          <p class="review-note">This guide describes {{GHOSTGET_RELEASE}}. Registry content can change between checks, so the examples below return the registry's latest results when you run them. The snapshot behind this site lists {{WEBMCP_REGISTRY_SITE_COUNT}} domains as of {{WEBMCP_SYNCED_AT}}.</p>
         </header>
 
         <section aria-labelledby="find-a-site">
@@ -68,7 +68,7 @@ ghostget webmcp sites.search --input '{"tag":"devtools","limit":10}' --json</cod
           <h2 id="inspect-tools">Inspect one site's tools</h2>
           <p><code>sites.get</code> returns the domain's current tools exactly as the registry last checked them: name, description, input schema, annotations, and the page URL the tool binds to.</p>
           <div class="command-panel"><pre><code>ghostget webmcp sites.get --input '{"domain":"developers.cloudflare.com"}' --json</code></pre></div>
-          <p>Read the <code>readOnlyHint</code> annotation per tool before planning a call. An unlisted domain fails closed with a structured provider error — the registry has no record to answer with.</p>
+          <p>Read the <code>readOnlyHint</code> annotation per tool before planning a call. An unlisted domain returns a structured provider error, because the registry has no record for it.</p>
         </section>
 
         <section aria-labelledby="call-a-tool">
@@ -84,15 +84,15 @@ ghostget webmcp sites.search --input '{"tag":"devtools","limit":10}' --json</cod
 
         <section aria-labelledby="limits">
           <h2 id="limits">Limits</h2>
-          <p><strong>Only <code>readOnlyHint</code> tools can be invoked.</strong> A site may list mutating tools — purchases, writes, follows — that stay inspectable but cannot be called through the registry. Ghostget does not try to call around the gate.</p>
+          <p><strong>Only <code>readOnlyHint</code> tools can be invoked.</strong> A site may list tools that change something, such as purchases, writes, or follows. You can inspect them, but the registry won't call them. Ghostget does not try to call around the gate.</p>
           <p><strong>Results are the site's own words.</strong> WebMCP tool output is untrusted third-party content returned verbatim in the receipt. Treat it like a page capture, not a verified fact.</p>
-          <p><strong>Schemas move with the site.</strong> The registry re-checks domains continuously; a tool that appeared yesterday can rename its inputs today. Re-run <code>sites.get</code> rather than caching a schema, and let the structured provider error surface drift instead of retrying blindly.</p>
-          <p><strong>This is the public discovery lane.</strong> Bundled adapters still own named services with accounts, previews, and mutation receipts. Use <code>webmcp</code> for the long tail; use a bundled adapter when the service has one.</p>
+          <p><strong>Schemas move with the site.</strong> The registry rechecks domains daily, and a tool can rename its inputs between checks. Re-run <code>sites.get</code> rather than caching a schema, and let the structured provider error surface drift instead of retrying blindly.</p>
+          <p><strong>Use a bundled adapter when one exists.</strong> Bundled adapters cover named services with accounts, previews, and mutation receipts. Use <code>webmcp</code> for the long tail; use a bundled adapter when the service has one.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="webmcp-next">
           <h2 id="webmcp-next">Keep exploring</h2>
-          <p>Browse every registered domain on the <a href="/providers/">provider directory</a>, read the <a href="/webmcp/">WebMCP explainer</a> for the boundary story, check <code>webmcp</code>'s attestation on the <a href="/docs/reference/provider-capabilities/">provider capabilities</a> page, and read the <a href="/docs/explanation/security-model/">security guide</a> for how provider calls stay bounded.</p>
+          <p>Browse every registered domain on the <a href="/providers/">provider directory</a>, read the <a href="/webmcp/">WebMCP explainer</a> for how the adapter works, check <code>webmcp</code>'s actions on the <a href="/docs/reference/provider-capabilities/">provider support reference</a>, and read the <a href="/docs/explanation/security-model/">security guide</a> for how provider calls stay bounded.</p>
         </aside>
       </article>
     </main>

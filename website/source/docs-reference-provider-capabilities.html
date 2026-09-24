@@ -21,14 +21,14 @@
     <meta property="og:description" content="See which provider actions Ghostget supports in the current release and how each service connects.">
     <meta property="og:url" content="https://ghostget.com/docs/reference/provider-capabilities/">
     <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Provider support in Ghostget">
     <meta name="twitter:description" content="See which provider actions Ghostget supports in the current release and how each service connects.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -51,13 +51,13 @@
       <article class="guide-article">
         <header class="guide-hero">
           <p class="eyebrow">Reference · provider support · Ghostget {{GHOSTGET_VERSION}}</p>
-          <h1>Choose a service. See what your agent can do.</h1>
+          <h1>What Ghostget can do in each service</h1>
           <p class="answer-lede">This directory lists the current release's generic actions and, separately, owner-only messaging permissions. Each service names its access method. A listed contract still needs the required account, permissions, and runtime capabilities; an absent action is unavailable.</p>
-          <p class="review-note">Run <code>ghostget capabilities --json</code> to inspect installed contracts, then check readiness for the account and runtime you intend to use.</p>
+          <p class="review-note">Run <code>ghostget capabilities --json</code> to see what is installed on your machine, then check that the account and local setup you plan to use are ready.</p>
         </header>
 
         <section aria-labelledby="directory">
-          <h2 id="directory">{{PROVIDER_SURFACE_COUNT}} connected services</h2>
+          <h2 id="directory">{{PROVIDER_SURFACE_COUNT}} services</h2>
           <div class="provider-directory provider-directory-guide">
             {{PROVIDER_OVERVIEW_CARDS}}
           </div>
@@ -80,7 +80,7 @@
 
         <aside class="guide-callout" aria-labelledby="provider-next">
           <h2 id="provider-next">Set up only the service you need</h2>
-          <p>Follow the <a href="/docs/tutorials/getting-started/">installation guide</a>, inspect <code>ghostget capabilities PROVIDER --json</code>, then read the <a href="/docs/explanation/security-model/">security and local-custody guide</a> before connecting an account. The <a href="/docs/how-to/connect-beeper/">Beeper guide</a> documents its local app integration in detail.</p>
+          <p>Follow the <a href="/docs/tutorials/getting-started/">installation guide</a>, inspect <code>ghostget capabilities PROVIDER --json</code>, then read the <a href="/docs/explanation/security-model/">security model</a> before connecting an account. The <a href="/docs/how-to/connect-beeper/">Beeper guide</a> documents its local app integration in detail.</p>
         </aside>
       </article>
     </main>

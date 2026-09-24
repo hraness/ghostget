@@ -74,6 +74,7 @@ import {
 } from "./release-ref-writer.mjs";
 
 import { releaseIdentity } from "../website/github-release-artifact.mjs";
+import { assertProperty, fc } from "../src/test-support.js";
 
 const ciWorkflowUrl = new URL("../.github/workflows/ci.yml", import.meta.url);
 const releaseWorkflowUrl = new URL("../.github/workflows/release.yml", import.meta.url);
@@ -748,6 +749,28 @@ function providerReleaseWorkflowRun(
   };
 }
 
+/** One complete bounded Release job inventory whose jobs all belong to `attempt` unless overridden. */
+function providerReleaseJobs(
+  attempt: number,
+  overrides: Readonly<Record<string, Readonly<Record<string, ProviderJson>>>> = {},
+): ProviderJson {
+  const jobs = [
+    ...CANONICAL_RELEASE_JOBS,
+    "Publish exact npm package through OIDC",
+    "Admit exact public npm package",
+  ].map((name, index) => ({
+    conclusion: "success",
+    head_sha: providerVerifiedSha,
+    id: 5000 + attempt * 10 + index,
+    name,
+    run_attempt: attempt,
+    run_id: Number(providerReleaseWorkflowRunId),
+    status: "completed",
+    ...overrides[name],
+  }));
+  return { jobs, total_count: jobs.length };
+}
+
 function providerCompare(overrides: Readonly<Record<string, ProviderJson>> = {}): ProviderJson {
   return {
     ahead_by: 1,
@@ -798,6 +821,7 @@ class ProviderApiFixture {
   readonly releaseSnapshots: readonly ProviderJson[];
   readonly tagSnapshots: readonly string[];
   readonly workflowRunSnapshots: readonly ProviderJson[];
+  readonly workflowRunJobs: ReadonlyMap<number, ProviderJson>;
   latest: ProviderJson = providerLatest();
   release: ProviderJson = providerRelease();
   readonly readHook: ((timeoutMilliseconds: number | undefined) => void) | undefined;
@@ -838,6 +862,7 @@ class ProviderApiFixture {
     sourceCompareSnapshots = [],
     statuses = new Map<number, ProviderJson[][]>(),
     tagSnapshots = [],
+    workflowRunJobs = new Map<number, ProviderJson>(),
     workflowRunSnapshots = [],
   }: Readonly<{
     deploymentDetails?: readonly ProviderJson[];
@@ -857,6 +882,7 @@ class ProviderApiFixture {
     sourceCompareSnapshots?: readonly ProviderJson[];
     statuses?: Map<number, ProviderJson[][]>;
     tagSnapshots?: readonly string[];
+    workflowRunJobs?: ReadonlyMap<number, ProviderJson>;
     workflowRunSnapshots?: readonly ProviderJson[];
   }> = {}) {
     this.deploymentDetailSnapshots = deploymentDetails;
@@ -876,6 +902,7 @@ class ProviderApiFixture {
     this.sourceCompareSnapshots = sourceCompareSnapshots;
     this.statusSnapshots = statuses;
     this.tagSnapshots = tagSnapshots;
+    this.workflowRunJobs = workflowRunJobs;
     this.workflowRunSnapshots = workflowRunSnapshots;
   }
 
@@ -992,6 +1019,14 @@ class ProviderApiFixture {
       this.#workflowRunRead += 1;
       return snapshot ?? providerReleaseWorkflowRun();
     }
+    const workflowRunJobs = new RegExp(
+      `^/repos/${providerRepository}/actions/runs/${providerReleaseWorkflowRunId}/attempts/([1-9][0-9]*)/jobs\\?per_page=100$`,
+      "u",
+    ).exec(endpoint);
+    const attemptJobs = workflowRunJobs === null
+      ? undefined
+      : this.workflowRunJobs.get(Number(workflowRunJobs[1]));
+    if (attemptJobs !== undefined) return attemptJobs;
     if (endpoint === providerTagCommitEndpoint) {
       const snapshot = this.tagSnapshots[Math.min(this.#tagRead, this.tagSnapshots.length - 1)];
       this.#tagRead += 1;
@@ -1170,7 +1205,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(24_012_800);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(24_013_312);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1350,13 +1385,18 @@ describe("npm publication contract", () => {
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
     expect(Object.isFrozen(repairPackageMeasurement)).toBeTrue();
     expect(repairPackageMeasurement).toMatchObject({
-      archiveSha256: "a93c3400369b926d7dc23451d8ddb5b2b2cb47ccd733b09fda9000345415b16c",
-      packedBytes: 11_986_281, unpackedBytes: 23_401_176, entryCount: 596,
+      archiveSha256: "8614f1f031979371907772a6284888527064014b18f81cc26c4ee2f1f2bdcb56",
+      packedBytes: 11_997_841, unpackedBytes: 23_401_813, entryCount: 596,
       packedPlatformProjection: 12_387, packedPortabilityAllowance: 4_096,
       payloadPlatformProjection: 353, payloadAllowance: 65,
     });
-    expect(MAX_PACKED_BYTES).toBe(12_002_764);
-    expect(MAX_PACKED_BYTES).toBe(11_986_281 + 12_387 + 4_096);
+    expect(MAX_PACKED_BYTES).toBe(12_014_324);
+    expect(MAX_PACKED_BYTES).toBe(11_997_841 + 12_387 + 4_096);
+    expect(budget).toContain("11,986,281 + 12,387 + 4,096 = 12,002,764");
+    expect(budget).toContain("11,972,733 + 12,387 + 4,096 =");
+    expect(budget).toContain("a93c3400369b926d7dc23451d8ddb5b2b2cb47ccd733b09fda9000345415b16c");
+    expect(budget).toContain("23,401,176 + 353 + 65 = 23,401,594 unpacked");
+    expect(budget).toContain("23,401,813 + 353 + 65 = 23,402,231 unpacked");
     expect(budget).toContain("11,983,769 + 12,387 + 4,096 =");
     expect(budget).toContain("11,980,765 + 12,387 + 4,096 =");
     expect(budget).toContain("11,977,961 + 12,387 + 4,096 =");
@@ -1425,7 +1465,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("23,029,751 + 353 + 65 = 23,030,169");
     expect(budget).toContain("23,193,728 + 65 = 23,193,793");
     expect(budget).toContain("47684b3e2eb5cf3ed07fbb520aade8c7251d993f75262fbf1af627d9081a1a5f");
-    expect(MAX_UNPACKED_BYTES).toBe(23_401_594);
+    expect(MAX_UNPACKED_BYTES).toBe(23_402_231);
     expect(budget).toContain("23,037,873 + 65 = 23,037,938");
     expect(budget).toContain("f9f3ab38a682690ceaa2699a7309997512030f0fa500a9dc29dcd108123dc41f");
     expect(budget).toContain("23,038,557 + 65 = 23,038,622");
@@ -1453,7 +1493,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("5300d2503ae48a50ace5e1edc76a45d8b2e32724d8fd34fad09cf7405e083e85");
     expect(budget).toContain("cfcd1f3db620ed7529a54f65fd374959154f9417399443f994f035f060feefab");
     expect(budget).toContain("9b9f358333b911d0ffbfa0602b77281c8b3fa7476c6baba9a376ca14f0f76dc3");
-    expect(MAX_UNPACKED_BYTES).toBe(23_401_176 + 353 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(23_401_813 + 353 + 65);
     expect(budget).toContain("22,794,052 + 65 = 22,794,117");
     expect(budget).toContain("c482efe748f880e3717727d6d39fd92a68953e6eea766642b329ba47ae772d80");
     expect(budget).toContain("22,759,423 + 65 = 22,759,488");
@@ -1489,8 +1529,8 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 596, max: 596 },
       fileCount: { min: 596, max: 596 },
-      packedBytes: { min: 1_600_000, max: 12_002_764 },
-      unpackedBytes: { min: 9_000_000, max: 23_401_594 },
+      packedBytes: { min: 1_600_000, max: 12_014_324 },
+      unpackedBytes: { min: 9_000_000, max: 23_402_231 },
     });
   });
 
@@ -2744,10 +2784,143 @@ fi
     expect(attest).toContain("push-to-registry: false"); expect(attest).toContain("create-storage-record: false");
     expect(attest.indexOf("Reauthorize current release attempt")).toBeLessThan(attest.indexOf("actions/attest@"));
     expect(attest).toContain("EXPECTED_WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}");
-    expect(publish).toContain("canonical-attested-${{ github.run_id }}-${{ github.run_attempt }}");
+    expect(attest).toContain("name: canonical-attested-${{ github.run_id }}-${{ github.run_attempt }}");
+    expect(publish).toContain("artifact-ids: ${{ needs.attest.outputs.artifact_id }}");
+    expect(publish).not.toContain("name: canonical-attested-");
     expect(publish).toContain("github-release-publish.ts");
     expect(workflow.slice(0, workflow.indexOf("  publish_npm:"))).not.toMatch(/npm view|npm audit signatures|npm publish/u);
     expect(workflow).not.toMatch(/WRENCH_RELEASE_APP_|website-production/u);
+  });
+
+  test("publishes a failed-jobs rerun from the carried attesting attempt's exact artifact", async () => {
+    // Regression: `publish` downloaded `canonical-attested-<run>-<current attempt>`.
+    // Rerunning the failed jobs of a run carries `verify` and `attest`, their
+    // outputs, and their artifacts from the attesting attempt, so that name
+    // selected an artifact that never existed and no rerun could publish.
+    const workflow = await readFile(releaseWorkflowUrl, "utf8");
+    const parsed = Bun.YAML.parse(workflow) as {
+      jobs: Record<string, {
+        steps: { env?: Record<string, string>; name?: string; uses?: string; with?: Record<string, unknown> }[];
+      }>;
+    };
+    const steps = parsed.jobs.publish!.steps;
+    const downloads = steps.filter((step) => step.uses?.startsWith("actions/download-artifact@") === true);
+    expect(downloads).toHaveLength(1);
+    const download = downloads[0]!;
+    type ModeledRun = Readonly<{
+      artifacts: readonly Readonly<{ id: number; name: string }>[];
+      attempt: number;
+      carriedAttestArtifactId: string;
+      runId: number;
+    }>;
+    // Evaluate only the expressions this step may use; anything else is unmodeled.
+    const evaluate = (template: unknown, run: ModeledRun): string => {
+      if (typeof template !== "string") throw new Error("Unmodeled download input value");
+      const context: Readonly<Record<string, string>> = {
+        "github.run_attempt": String(run.attempt),
+        "github.run_id": String(run.runId),
+        "needs.attest.outputs.artifact_id": run.carriedAttestArtifactId,
+        "runner.temp": "/runner/temp",
+      };
+      return template.replace(/\$\{\{ ([^{}]+) \}\}/gu, (_expression, name: string) => {
+        const value = context[name];
+        if (value === undefined) throw new Error(`Unmodeled workflow expression ${name}`);
+        return value;
+      });
+    };
+    // download-artifact selects one exact name or exact numeric IDs; with neither
+    // it downloads every artifact of the run.
+    const selected = (run: ModeledRun): readonly number[] => {
+      const inputs = download.with ?? {};
+      const unmodeled = Object.keys(inputs)
+        .filter((key) => !["artifact-ids", "merge-multiple", "name", "path"].includes(key));
+      if (unmodeled.length !== 0) throw new Error(`Unmodeled download inputs ${unmodeled.join(",")}`);
+      if (inputs.name !== undefined && inputs["artifact-ids"] !== undefined) {
+        throw new Error("Modeled download both names and identifies artifacts");
+      }
+      if (inputs.name !== undefined) {
+        const name = evaluate(inputs.name, run);
+        const matches = run.artifacts.filter((artifact) => artifact.name === name);
+        if (matches.length !== 1) {
+          throw new Error(`Run ${String(run.runId)} attempt ${String(run.attempt)} has no artifact named ${name}`);
+        }
+        return matches.map((artifact) => artifact.id);
+      }
+      const ids = inputs["artifact-ids"] === undefined ? "" : evaluate(inputs["artifact-ids"], run);
+      if (ids === "") return run.artifacts.map((artifact) => artifact.id);
+      return ids.split(",").map((id) => {
+        const match = run.artifacts.find((artifact) => String(artifact.id) === id.trim());
+        if (match === undefined) throw new Error(`Run ${String(run.runId)} has no artifact ${id}`);
+        return match.id;
+      });
+    };
+    const firstAttempt = [
+      { id: 7001, name: "canonical-build-88001-1" },
+      { id: 7002, name: "canonical-attested-88001-1" },
+    ] as const;
+    const first = { artifacts: firstAttempt, attempt: 1, carriedAttestArtifactId: "7002", runId: 88001 };
+    expect(selected(first)).toEqual([7002]);
+    // "Re-run all jobs" rebuilds and reattests inside the new attempt.
+    expect(selected({
+      artifacts: [
+        ...firstAttempt,
+        { id: 7003, name: "canonical-build-88001-2" },
+        { id: 7004, name: "canonical-attested-88001-2" },
+      ],
+      attempt: 2,
+      carriedAttestArtifactId: "7004",
+      runId: 88001,
+    })).toEqual([7004]);
+    // "Re-run failed jobs" after a publish failure uploads nothing new and
+    // carries attest's numeric artifact ID from the attesting attempt.
+    for (const attempt of [2, 3] as const) {
+      expect(selected({ ...first, attempt })).toEqual([7002]);
+    }
+    expect(download.with?.["merge-multiple"]).toBe(true);
+    expect(evaluate(download.with?.path, { ...first, attempt: 2 })).toBe("/runner/temp/ghostget-canonical");
+
+    // An empty carried ID would select every run artifact, so an exact numeric
+    // identity guard must run immediately before the download.
+    expect(selected({ ...first, attempt: 2, carriedAttestArtifactId: "" })).toEqual([7001, 7002]);
+    const names = steps.map((step) => step.name ?? step.uses?.split("@")[0]);
+    const downloadIndex = steps.indexOf(download);
+    expect(names.indexOf("Bind carried attested artifact identity")).toBe(downloadIndex - 1);
+    expect(names.indexOf("Reauthorize current release attempt")).toBe(0);
+    expect(names.slice(downloadIndex + 1)).toEqual([
+      "Verify signed canonical assets and publish exact immutable Release",
+    ]);
+    expect(steps[downloadIndex - 1]?.env).toEqual({
+      EXPECTED_ARTIFACT_ID: "${{ needs.attest.outputs.artifact_id }}",
+    });
+    const guard = workflowStepScript(workflow, "Bind carried attested artifact identity");
+    const environment = {
+      EXPECTED_ARTIFACT_ID: "7002",
+      EXPECTED_BUNDLE_SHA256: "c".repeat(64),
+      GITHUB_RUN_ATTEMPT: "2",
+      GITHUB_RUN_ID: "88001",
+      VERIFIED_SHA: "a".repeat(40),
+      VERIFIED_TAG: "v0.18.33",
+      WORKFLOW_SHA: "b".repeat(40),
+    };
+    const accepted = await runWorkflowScript(guard, environment);
+    expect(accepted.exitCode, accepted.stderr).toBe(0);
+    for (const override of [
+      { EXPECTED_ARTIFACT_ID: "" },
+      { EXPECTED_ARTIFACT_ID: "0" },
+      { EXPECTED_ARTIFACT_ID: "07002" },
+      { EXPECTED_ARTIFACT_ID: "7002,7001" },
+      { EXPECTED_ARTIFACT_ID: "7002 " },
+      { EXPECTED_BUNDLE_SHA256: "" },
+      { GITHUB_RUN_ATTEMPT: "0" },
+      { GITHUB_RUN_ID: "" },
+      { VERIFIED_SHA: "A".repeat(40) },
+      { VERIFIED_TAG: "v0.18" },
+      { WORKFLOW_SHA: "" },
+    ] as const) {
+      const rejected = await runWorkflowScript(guard, { ...environment, ...override });
+      expect(rejected.exitCode).not.toBe(0);
+      expect(`${rejected.stdout}${rejected.stderr}`).toContain("no exact immutable identity");
+    }
   });
 
   test("keeps provider verification read-only, terminal, and release-authoritative", async () => {
@@ -2928,6 +3101,9 @@ fi
     expect(helper).toContain("wrench-release-source-v1");
     expect(helper.match(/\/actions\/runs\//gu) ?? []).toHaveLength(1);
     expect(helper).toContain("/actions/runs/${releaseWorkflowRunId}");
+    expect(helper.match(/\/attempts\//gu) ?? []).toHaveLength(1);
+    expect(helper).toContain("`${endpoint}/attempts/${String(attempt)}/jobs?per_page=100`");
+    expect(helper).toContain("admitRecoveredReleaseRun(api, releaseRunEndpoint, releaseRun, firstReleaseValue)");
     expect(helper).toContain("RELEASE_WORKFLOW_REQUEST_TIMEOUT_MILLISECONDS = 10_000");
     expect(helper).toContain("advanceWebsiteProductionRefFromEnvironment");
     expect(helper).toContain('key.startsWith("WRENCH_RELEASE_APP_")');
@@ -2974,8 +3150,9 @@ fi
       "/docs/publishing.md @0thernet",
     ]);
     expect(releaseRestRequestBudget).toEqual({
+      canonicalDownload: 5,
       githubTokenLimit: 1_000,
-      headroom: 649,
+      headroom: 642,
       immutableRelease: 36,
       maxPolls: 20,
       observationDeadlineMilliseconds: 1_200_000,
@@ -2984,9 +3161,9 @@ fi
       providerBaseline: 2,
       providerOutcome: 209,
       providerPromotion: 21,
-      surroundingRelease: 119,
-      total: 351,
-      websiteAuthority: 83,
+      surroundingRelease: 126,
+      total: 358,
+      websiteAuthority: 85,
     });
     expect(releaseGraphqlRequestBudget).toEqual({
       githubPointLimit: 1_000,
@@ -5582,6 +5759,421 @@ fi
       })).rejects.toThrow();
     }
   });
+
+  test("manual recovery admits a latest Release attempt whose only failure was a later npm job", async () => {
+    // Regression: v0.18.2, v0.18.13, and v0.18.26 each published their immutable
+    // Release and then failed only `admit_npm`. Manual recovery read that latest
+    // attempt without its job inventory and rejected the published Release.
+    const npmFailed = { "Admit exact public npm package": { conclusion: "failure" } } as const;
+    const jobsEndpoint = (attempt: number): string =>
+      `/repos/${providerRepository}/actions/runs/${providerReleaseWorkflowRunId}/attempts/${String(attempt)}/jobs?per_page=100`;
+    const runEndpoint = `/repos/${providerRepository}/actions/runs/${providerReleaseWorkflowRunId}`;
+    const actionsCalls = (api: ProviderApiFixture): string[] =>
+      api.calls.filter((call) => call.includes("/actions/runs/"));
+    const recover = (api: ProviderApiFixture): Promise<unknown> => resolveReleaseAuthority({
+      api,
+      defaultBranch: "main",
+      eventName: "workflow_dispatch",
+      recoveryWorkflowSha: providerVerifiedSha,
+      repository: providerRepository,
+      verifiedSha: providerVerifiedSha,
+      verifiedTag: providerTag,
+    });
+
+    for (const attempt of [1, 3] as const) {
+      const api = new ProviderApiFixture({
+        workflowRunJobs: new Map([[attempt, providerReleaseJobs(attempt, npmFailed)]]),
+        workflowRunSnapshots: [
+          providerReleaseWorkflowRun({ conclusion: "failure", run_attempt: attempt }),
+        ],
+      });
+      expect(await recover(api)).toEqual({ releaseWorkflowRunId: providerReleaseWorkflowRunId });
+      expect(actionsCalls(api)).toEqual([`GET ${runEndpoint}`, `GET ${jobsEndpoint(attempt)}`]);
+      expect(api.timedCalls.filter((call) => call.endpoint.includes("/actions/runs/"))).toEqual([
+        { endpoint: runEndpoint, timeoutMilliseconds: 10_000 },
+        { endpoint: jobsEndpoint(attempt), timeoutMilliseconds: 10_000 },
+      ]);
+    }
+
+    // The latest attempt's own inventory must prove all four canonical jobs.
+    const failedLatest = providerReleaseWorkflowRun({ conclusion: "failure", run_attempt: 3 });
+    for (const [jobs, message] of [
+      [providerReleaseJobs(3, {
+        ...npmFailed,
+        "Publish immutable GitHub Release": { conclusion: "failure" },
+      }), "Publish immutable GitHub Release job did not succeed"],
+      [providerReleaseJobs(3, { ...npmFailed, Verify: { run_attempt: 2 } }), "Verify job did not succeed"],
+      [providerReleaseJobs(3, {
+        ...npmFailed,
+        "Attest exact canonical build files": { head_sha: "3".repeat(40) },
+      }), "Attest exact canonical build files job did not succeed"],
+      [providerReleaseJobs(3, {
+        ...npmFailed,
+        "Authorize owner release tag": { run_id: 88002 },
+      }), "Authorize owner release tag job did not succeed"],
+      [providerReleaseJobs(3, {
+        ...npmFailed,
+        "Publish immutable GitHub Release": { name: "Publish renamed Release" },
+      }), "does not contain exactly one Publish immutable GitHub Release job"],
+      [{ ...providerReleaseJobs(3, npmFailed) as Record<string, ProviderJson>, total_count: 9 },
+        "complete bounded job inventory"],
+    ] as const) {
+      const api = new ProviderApiFixture({
+        workflowRunJobs: new Map([[3, jobs]]),
+        workflowRunSnapshots: [failedLatest],
+      });
+      await expect(recover(api)).rejects.toThrow(message);
+      expect(actionsCalls(api)).toEqual([`GET ${runEndpoint}`, `GET ${jobsEndpoint(3)}`]);
+    }
+
+    // Regression: attempt 1 published the immutable Release and failed npm; the
+    // operator then re-ran all jobs, and attempt 2's rebuilt publish was
+    // rejected as another attempt. The Release's receipt attempt still proves
+    // canonical publication through its own inventory, so it stays promotable.
+    const receipt = releaseSourceReceipt({
+      repository: providerRepository,
+      verifiedSha: providerVerifiedSha,
+      verifiedTag: providerTag,
+      workflowRunId: providerReleaseWorkflowRunId,
+    });
+    const attemptBody = (line: string): string => `${receipt}\n\n${line}`;
+    const rebuiltLatest = providerReleaseWorkflowRun({ conclusion: "failure", run_attempt: 2 });
+    const rebuiltJobs = providerReleaseJobs(2, {
+      "Publish immutable GitHub Release": { conclusion: "failure" },
+      "Publish exact npm package through OIDC": { conclusion: "skipped" },
+      "Admit exact public npm package": { conclusion: "skipped" },
+    });
+    const rerunAll = (body: string, receiptJobs: ProviderJson): ProviderApiFixture => new ProviderApiFixture({
+      latestSnapshots: [providerLatest({ body })],
+      releaseSnapshots: [providerRelease({ body })],
+      workflowRunJobs: new Map([[1, receiptJobs], [2, rebuiltJobs]]),
+      workflowRunSnapshots: [rebuiltLatest],
+    });
+    const admitted = rerunAll(attemptBody("ghostget-release-attempt-v1 run_attempt=1"), providerReleaseJobs(1, npmFailed));
+    expect(await recover(admitted)).toEqual({ releaseWorkflowRunId: providerReleaseWorkflowRunId });
+    expect(actionsCalls(admitted)).toEqual([`GET ${runEndpoint}`, `GET ${jobsEndpoint(2)}`, `GET ${jobsEndpoint(1)}`]);
+    expect(admitted.timedCalls.filter((call) => call.endpoint.includes("/actions/runs/")).map((call) => call.timeoutMilliseconds))
+      .toEqual([10_000, 10_000, 10_000]);
+    for (const [receiptJobs, message] of [
+      [providerReleaseJobs(1, { ...npmFailed, "Publish immutable GitHub Release": { conclusion: "failure" } }),
+        "receipt attempt jobs Publish immutable GitHub Release job did not succeed in the receipt attempt"],
+      [providerReleaseJobs(1, { ...npmFailed, Verify: { run_attempt: 2 } }), "receipt attempt jobs Verify job did not succeed"],
+      [providerReleaseJobs(1, { ...npmFailed, "Attest exact canonical build files": { head_sha: "3".repeat(40) } }),
+        "receipt attempt jobs Attest exact canonical build files job did not succeed"],
+      [{ ...providerReleaseJobs(1, npmFailed) as Record<string, ProviderJson>, total_count: 9 }, "complete bounded job inventory"],
+    ] as const) {
+      const api = rerunAll(attemptBody("ghostget-release-attempt-v1 run_attempt=1"), receiptJobs);
+      await expect(recover(api)).rejects.toThrow(message);
+      expect(actionsCalls(api)).toEqual([`GET ${runEndpoint}`, `GET ${jobsEndpoint(2)}`, `GET ${jobsEndpoint(1)}`]);
+    }
+    // Without an earlier receipt attempt the latest attempt's failure stands,
+    // and no second inventory is read.
+    for (const line of [
+      "ghostget-release-attempt-v1 run_attempt=2",
+      "ghostget-release-attempt-v1 run_attempt=3",
+      "ghostget-release-attempt-v1 run_attempt=01",
+      "ghostget-release-attempt-v1 run_attempt=1 ",
+      "## What's Changed",
+    ] as const) {
+      const api = rerunAll(attemptBody(line), providerReleaseJobs(1, npmFailed));
+      await expect(recover(api)).rejects.toThrow(
+        "Release workflow run jobs Publish immutable GitHub Release job did not succeed in the latest attempt",
+      );
+      expect(actionsCalls(api)).toEqual([`GET ${runEndpoint}`, `GET ${jobsEndpoint(2)}`]);
+    }
+
+    // Identity, completion, and trigger drift fail before any job inventory read.
+    for (const snapshot of [
+      providerReleaseWorkflowRun({ conclusion: null, run_attempt: 3, status: "in_progress" }),
+      providerReleaseWorkflowRun({ conclusion: "failure", head_sha: "3".repeat(40), run_attempt: 3 }),
+      providerReleaseWorkflowRun({ conclusion: "failure", event: "workflow_dispatch", run_attempt: 3 }),
+      providerReleaseWorkflowRun({
+        conclusion: "failure",
+        run_attempt: 3,
+        triggering_actor: { id: 7, login: "0thernet", type: "User" },
+      }),
+    ] as const) {
+      const api = new ProviderApiFixture({
+        workflowRunJobs: new Map([[3, providerReleaseJobs(3, npmFailed)]]),
+        workflowRunSnapshots: [snapshot],
+      });
+      await expect(recover(api)).rejects.toThrow();
+      expect(actionsCalls(api)).toEqual([`GET ${runEndpoint}`]);
+    }
+
+    // A successful latest attempt needs no job inventory, and the automatic
+    // first-attempt path never reads one.
+    const successful = new ProviderApiFixture({
+      workflowRunJobs: new Map([[3, providerReleaseJobs(3)]]),
+      workflowRunSnapshots: [providerReleaseWorkflowRun({ run_attempt: 3 })],
+    });
+    expect(await recover(successful)).toEqual({ releaseWorkflowRunId: providerReleaseWorkflowRunId });
+    expect(actionsCalls(successful)).toEqual([`GET ${runEndpoint}`]);
+    const automatic = new ProviderApiFixture({
+      workflowRunJobs: new Map([[1, providerReleaseJobs(1, npmFailed)]]),
+      workflowRunSnapshots: [providerReleaseWorkflowRun({ conclusion: "failure" })],
+    });
+    await expect(resolveReleaseAuthority({
+      api: automatic,
+      defaultBranch: "main",
+      eventName: "workflow_run",
+      recoveryWorkflowSha: providerVerifiedSha,
+      repository: providerRepository,
+      requestedReleaseWorkflowRunAttempt: "1",
+      requestedReleaseWorkflowRunId: providerReleaseWorkflowRunId,
+      verifiedSha: providerVerifiedSha,
+      verifiedTag: providerTag,
+    })).rejects.toThrow("exact successful Release workflow identity");
+    expect(actionsCalls(automatic)).toEqual([`GET ${runEndpoint}`]);
+  });
+
+  test("admits a receipt attempt whose publication a later failed-jobs rerun of the same run completed", () => {
+    // Regression: when the receipt attempt attested the canonical bytes and its
+    // publish job failed, rerunning the failed jobs of that same run is the only
+    // way to publish those exact signed bytes. The canonical download admitted
+    // publication only inside the receipt attempt, so the published Release
+    // could never be promoted.
+    const coordinates = {
+      repository: providerRepository,
+      verifiedSha: providerVerifiedSha,
+      verifiedTag: providerTag,
+      workflowRunId: providerReleaseWorkflowRunId,
+    };
+    const unpublished = {
+      "Admit exact public npm package": { conclusion: "skipped" },
+      "Publish exact npm package through OIDC": { conclusion: "skipped" },
+      "Publish immutable GitHub Release": { conclusion: "failure" },
+    } as const;
+    const receipt = providerReleaseWorkflowRun({ conclusion: "failure" });
+    const receiptJobs = providerReleaseJobs(1, unpublished);
+    const recovery = (current: ProviderJson, inventories: ReadonlyMap<number, ProviderJson>) => {
+      const reads: string[] = [];
+      return {
+        readers: {
+          readAttemptJobs: (attempt: number): ProviderJson => {
+            reads.push(`jobs ${String(attempt)}`);
+            const inventory = inventories.get(attempt);
+            if (inventory === undefined) {
+              throw new Error(`Unexpected attempt ${String(attempt)} job inventory read`);
+            }
+            return inventory;
+          },
+          readCurrentRun: (): ProviderJson => {
+            reads.push("run");
+            return current;
+          },
+        },
+        reads,
+      };
+    };
+
+    for (const [current, inventories] of [
+      [providerReleaseWorkflowRun({ run_attempt: 2 }), new Map([[2, providerReleaseJobs(2)]])],
+      [
+        providerReleaseWorkflowRun({ conclusion: "failure", run_attempt: 2 }),
+        new Map([[2, providerReleaseJobs(2, { "Admit exact public npm package": { conclusion: "failure" } })]]),
+      ],
+      [providerReleaseWorkflowRun({ run_attempt: 3 }), new Map([[3, providerReleaseJobs(3)]])],
+    ] as const) {
+      const attempt = recovery(current, inventories);
+      expect(exactReleaseWorkflowRun({
+        ...coordinates,
+        canonicalJobs: receiptJobs,
+        expectedRunAttempt: "1",
+        value: receipt,
+        ...attempt.readers,
+      })).toEqual(receipt);
+      expect(attempt.reads).toEqual([
+        "run",
+        `jobs ${String((current as Readonly<Record<string, ProviderJson>>).run_attempt)}`,
+      ]);
+    }
+
+    const rejectRecovery = (
+      message: string,
+      current: ProviderJson,
+      inventories: ReadonlyMap<number, ProviderJson>,
+      reads: string[],
+      receiptInventory: ProviderJson = receiptJobs,
+    ): void => {
+      const attempt = recovery(current, inventories);
+      expect(() => exactReleaseWorkflowRun({
+        ...coordinates,
+        canonicalJobs: receiptInventory,
+        expectedRunAttempt: "1",
+        value: receipt,
+        ...attempt.readers,
+      })).toThrow(message);
+      expect(attempt.reads).toEqual(reads);
+    };
+    const laterJobs = new Map([[2, providerReleaseJobs(2)]]);
+    // The current attempt must be a strictly later, completed, exact attempt of this run.
+    rejectRecovery(
+      "later attempt",
+      providerReleaseWorkflowRun({ conclusion: "failure" }),
+      new Map([[1, receiptJobs]]),
+      ["run"],
+    );
+    for (const current of [
+      providerReleaseWorkflowRun({ conclusion: null, run_attempt: 2, status: "in_progress" }),
+      providerReleaseWorkflowRun({ head_sha: "3".repeat(40), run_attempt: 2 }),
+      providerReleaseWorkflowRun({ id: 88002, run_attempt: 2 }),
+      providerReleaseWorkflowRun({ head_branch: "v0.16.3", run_attempt: 2 }),
+      providerReleaseWorkflowRun({ run_attempt: 2, workflow_id: 1 }),
+    ] as const) {
+      rejectRecovery("exact successful Release workflow identity", current, laterJobs, ["run"]);
+    }
+    rejectRecovery(
+      "triggering_actor is not the exact release owner",
+      providerReleaseWorkflowRun({
+        run_attempt: 2,
+        triggering_actor: { id: 7, login: "0thernet", type: "User" },
+      }),
+      laterJobs,
+      ["run"],
+    );
+    // All four canonical jobs must have succeeded in that later attempt's own inventory.
+    for (const [inventory, message] of [
+      [providerReleaseJobs(2, { "Publish immutable GitHub Release": { conclusion: "failure" } }),
+        "Publish immutable GitHub Release job did not succeed"],
+      [providerReleaseJobs(2, { Verify: { conclusion: "failure" } }), "Verify job did not succeed"],
+      [providerReleaseJobs(2, { "Attest exact canonical build files": { run_attempt: 1 } }),
+        "Attest exact canonical build files job did not succeed"],
+      [providerReleaseJobs(2, { "Authorize owner release tag": { head_sha: "3".repeat(40) } }),
+        "Authorize owner release tag job did not succeed"],
+      [{ ...providerReleaseJobs(2) as Record<string, ProviderJson>, total_count: 7 },
+        "complete bounded job inventory"],
+    ] as const) {
+      rejectRecovery(message, providerReleaseWorkflowRun({ run_attempt: 2 }), new Map([[2, inventory]]), [
+        "run",
+        "jobs 2",
+      ]);
+    }
+    // The receipt attempt must itself have attested the bytes and carry an exact
+    // unsuccessful publish job; otherwise no later attempt is consulted.
+    for (const [inventory, message] of [
+      [providerReleaseJobs(1, {
+        ...unpublished,
+        "Attest exact canonical build files": { conclusion: "failure" },
+      }), "Attest exact canonical build files job did not succeed in the receipt attempt"],
+      [providerReleaseJobs(1, {
+        ...unpublished,
+        "Publish immutable GitHub Release": { conclusion: "failure", run_attempt: 2 },
+      }), "Publish immutable GitHub Release job did not succeed in the receipt attempt"],
+      [providerReleaseJobs(1, {
+        ...unpublished,
+        "Publish immutable GitHub Release": { conclusion: null, status: "in_progress" },
+      }), "Publish immutable GitHub Release job did not succeed in the receipt attempt"],
+      [providerReleaseJobs(1, {
+        ...unpublished,
+        "Publish immutable GitHub Release": { conclusion: "failure", head_sha: "3".repeat(40) },
+      }), "Publish immutable GitHub Release job did not succeed in the receipt attempt"],
+    ] as const) {
+      rejectRecovery(message, providerReleaseWorkflowRun({ run_attempt: 2 }), laterJobs, [], inventory);
+    }
+    // Without both readers the receipt attempt alone must prove publication.
+    for (const readers of [
+      {},
+      { readCurrentRun: (): ProviderJson => providerReleaseWorkflowRun({ run_attempt: 2 }) },
+      { readAttemptJobs: (): ProviderJson => providerReleaseJobs(2) },
+    ] as const) {
+      expect(() => exactReleaseWorkflowRun({
+        ...coordinates,
+        canonicalJobs: receiptJobs,
+        expectedRunAttempt: "1",
+        value: receipt,
+        ...readers,
+      })).toThrow("Publish immutable GitHub Release job did not succeed in the receipt attempt");
+    }
+  });
+
+  test("property: rerun publication admission follows the attesting attempt and a later exact canonical attempt", () => {
+    const conclusion = fc.constantFrom("success", "failure", "cancelled", "skipped");
+    const canonicalConclusions = fc.tuple(conclusion, conclusion, conclusion, conclusion);
+    assertProperty(fc.property(
+      fc.record({
+        currentAttemptOffset: fc.integer({ min: -2, max: 2 }),
+        currentConclusions: canonicalConclusions,
+        currentDrift: fc.constantFrom("none", "status", "source", "job-attempt"),
+        npmConclusion: conclusion,
+        readers: fc.boolean(),
+        receiptAttempt: fc.integer({ min: 1, max: 3 }),
+        receiptConclusions: canonicalConclusions,
+      }),
+      ({
+        currentAttemptOffset,
+        currentConclusions,
+        currentDrift,
+        npmConclusion,
+        readers,
+        receiptAttempt,
+        receiptConclusions,
+      }) => {
+        const currentAttempt = Math.max(1, receiptAttempt + currentAttemptOffset);
+        const conclusions = (values: readonly string[]) => Object.fromEntries(
+          CANONICAL_RELEASE_JOBS.map((name: string, index: number) => [name, { conclusion: values[index] ?? "" }]),
+        );
+        const receiptSucceeded = [...receiptConclusions, npmConclusion].every((value) => value === "success");
+        const attested = receiptConclusions.slice(0, 3).every((value) => value === "success");
+        const published = receiptConclusions[3] === "success";
+        const currentExact = currentDrift !== "status" && currentDrift !== "source";
+        const reads: string[] = [];
+        const receipt = providerReleaseWorkflowRun({
+          conclusion: receiptSucceeded ? "success" : "failure",
+          run_attempt: receiptAttempt,
+        });
+        const current = providerReleaseWorkflowRun({
+          conclusion: "failure",
+          run_attempt: currentAttempt,
+          ...(currentDrift === "status" ? { conclusion: null, status: "in_progress" } : {}),
+          ...(currentDrift === "source" ? { head_sha: "3".repeat(40) } : {}),
+        });
+        const currentJobs = providerReleaseJobs(currentAttempt, Object.fromEntries(
+          Object.entries(conclusions(currentConclusions)).map(([name, value]) => [name, {
+            ...value,
+            ...(currentDrift === "job-attempt" ? { run_attempt: currentAttempt + 1 } : {}),
+          }]),
+        ));
+        const input = {
+          canonicalJobs: providerReleaseJobs(receiptAttempt, {
+            ...conclusions(receiptConclusions),
+            "Admit exact public npm package": { conclusion: npmConclusion },
+          }),
+          expectedRunAttempt: String(receiptAttempt),
+          repository: providerRepository,
+          value: receipt,
+          verifiedSha: providerVerifiedSha,
+          verifiedTag: providerTag,
+          workflowRunId: providerReleaseWorkflowRunId,
+          ...(readers
+            ? {
+              readAttemptJobs: (attempt: number): ProviderJson => {
+                reads.push(`jobs ${String(attempt)}`);
+                return currentJobs;
+              },
+              readCurrentRun: (): ProviderJson => {
+                reads.push("run");
+                return current;
+              },
+            }
+            : {}),
+        };
+        const recoveryConsulted = !receiptSucceeded && attested && !published && readers;
+        const laterAttemptRead = recoveryConsulted && currentExact && currentAttempt > receiptAttempt;
+        const laterPublication = laterAttemptRead
+          && currentDrift === "none"
+          && currentConclusions.every((value) => value === "success");
+        const admitted = receiptSucceeded || (attested && (published || laterPublication));
+        if (admitted) expect(exactReleaseWorkflowRun(input)).toEqual(receipt);
+        else expect(() => exactReleaseWorkflowRun(input)).toThrow();
+        expect(reads).toEqual([
+          ...(recoveryConsulted ? ["run"] : []),
+          ...(laterAttemptRead ? [`jobs ${String(currentAttempt)}`] : []),
+        ]);
+      },
+    ));
+  });
+
 
   test("exhausts bounded deployment and status pages without trusting API order", async () => {
     const at = (index: number): string =>

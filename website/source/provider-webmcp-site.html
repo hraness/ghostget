@@ -21,14 +21,14 @@
     <meta property="og:description" content="{{WEBMCP_PAGE_DESCRIPTION}}">
     <meta property="og:url" content="https://ghostget.com/providers/{{WEBMCP_DOMAIN}}/">
     <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{WEBMCP_PAGE_TITLE}}">
     <meta name="twitter:description" content="{{WEBMCP_PAGE_DESCRIPTION}}">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -51,35 +51,35 @@
       <article class="guide-article">
         <header class="guide-hero provider-guide-hero">
           <p class="eyebrow">WebMCP Registry site · {{GHOSTGET_RELEASE}}</p>
-          <h1>Use {{WEBMCP_NAME}} with your agent.</h1>
-          <p class="answer-lede"><a href="{{WEBMCP_HOMEPAGE_URL}}">{{WEBMCP_NAME}}</a> (<code>{{WEBMCP_DOMAIN}}</code>) registers {{WEBMCP_TOOL_COUNT}} WebMCP tools. {{WEBMCP_STATUS_LINE}}</p>
-          <p class="review-note">This page mirrors the <a href="{{WEBMCP_REGISTRY_URL}}">WebMCP Registry</a> listing for <code>{{WEBMCP_DOMAIN}}</code>, last live-checked by the registry at {{WEBMCP_CHECKED_AT}}. Run <code>ghostget webmcp sites.get --input '{"domain":"{{WEBMCP_DOMAIN}}"}' --json</code> for the current schema; the listing can drift between checks.</p>
+          <h1>{{WEBMCP_HEADING}}</h1>
+          <p class="answer-lede"><a href="{{WEBMCP_HOMEPAGE_URL}}">{{WEBMCP_NAME}}</a> (<code>{{WEBMCP_DOMAIN}}</code>) registers {{WEBMCP_TOOL_COUNT_PHRASE}}. {{WEBMCP_STATUS_LINE}}</p>
+          <p class="review-note">This page mirrors the <a href="{{WEBMCP_REGISTRY_URL}}">WebMCP Registry</a> listing for <code>{{WEBMCP_DOMAIN}}</code>, last checked by the registry on {{WEBMCP_CHECKED_AT}}. Run <code>ghostget webmcp sites.get --input '{"domain":"{{WEBMCP_DOMAIN}}"}' --json</code> for the current schema; the listing can drift between checks.</p>
         </header>
 
         <section aria-labelledby="use-with-agent">
-          <h2 id="use-with-agent">Use {{WEBMCP_NAME}} with my agent</h2>
-          <p>Ghostget's bundled <code>webmcp</code> adapter speaks to the public WebMCP Registry, so an agent always reads this site's current tool schema instead of a stale hard-coded copy. Install {{GHOSTGET_RELEASE}}, sync bundled adapters once, then call the registry operations:</p>
+          <h2 id="use-with-agent">Commands for your agent</h2>
+          <p>Ghostget's bundled <code>webmcp</code> adapter reads the public WebMCP Registry, so your agent gets this site's tool schema from the registry's latest check instead of a copy built into Ghostget. Install {{GHOSTGET_RELEASE}}, sync bundled adapters once, then call the registry operations:</p>
           <pre><code>{{GHOSTGET_INSTALL_COMMAND}}
 ghostget adapter sync-bundled --json</code></pre>
-          <p><strong>Read the live tool schema</strong> — every registered tool, its input schema, annotations, and the page that publishes it:</p>
+          <p>Read the tool schema, including every registered tool, its input schema and annotations, and the page that publishes it:</p>
           <pre><code>{{WEBMCP_GET_EXAMPLE}}</code></pre>
-          <p><strong>Call a read-only tool</strong> — the registry refuses anything not declared <code>readOnlyHint</code> and returns the site's answer as untrusted content:</p>
+          <p>Call a read-only tool. The registry refuses any tool not declared <code>readOnlyHint</code> and returns the site's answer as untrusted content:</p>
           <pre><code>{{WEBMCP_CALL_EXAMPLE}}</code></pre>
         </section>
 
         <section aria-labelledby="site-tools">
           <h2 id="site-tools">Registered WebMCP tools</h2>
-          <p>{{WEBMCP_NAME}} publishes {{WEBMCP_TOOL_COUNT}} tools on {{WEBMCP_DOMAIN}}; {{WEBMCP_READONLY_COUNT}} declare <code>readOnlyHint</code>.</p>
+          <p>{{WEBMCP_TOOLS_SUMMARY}}</p>
           {{WEBMCP_TOOLS_TABLE}}
         </section>
 
         <section aria-labelledby="site-notes">
           <h2 id="site-notes">What to expect</h2>
           <ul>
-            <li><strong>Read-only only.</strong> The registry refuses WebMCP tools that do not declare <code>readOnlyHint</code>; Ghostget never weakens that check.</li>
-            <li><strong>Untrusted results.</strong> Tool output is site content, not instructions — treat it as data.</li>
-            <li><strong>Live schemas.</strong> <code>sites.get</code> always returns the schema the registry saw most recently, so agents adapt when {{WEBMCP_NAME}} changes its tools.</li>
-            <li><strong>No account needed.</strong> These calls are credential-free registry reads. For tools that need a session on {{WEBMCP_DOMAIN}}, browse the site itself or check back when the registry lists more tools.</li>
+            <li>The registry runs only tools declared <code>readOnlyHint</code>, and Ghostget never weakens that check.</li>
+            <li>Tool output is content from the site. Treat it as data, never as instructions.</li>
+            <li><code>sites.get</code> returns the schema from the registry's most recent check of {{WEBMCP_DOMAIN}}, so your agent sees changes after the registry checks again.</li>
+            <li>These calls use no account or credentials, so they can't act on a signed-in session at {{WEBMCP_DOMAIN}}.</li>
           </ul>
         </section>
       </article>

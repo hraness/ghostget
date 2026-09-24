@@ -21,14 +21,14 @@
     <meta property="og:description" content="{{BEEPER_PAGE_DESCRIPTION}}">
     <meta property="og:url" content="https://ghostget.com/docs/how-to/connect-beeper/">
     <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{BEEPER_PAGE_TITLE}}">
     <meta name="twitter:description" content="{{BEEPER_PAGE_DESCRIPTION}}">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -51,7 +51,7 @@
       <article class="guide-article">
         <header class="guide-hero provider-guide-hero">
           <p class="eyebrow">How-to guide · Beeper adapter · {{GHOSTGET_RELEASE}}</p>
-          <h1>Use Beeper through {{BEEPER_OBSERVED_OPERATION_COUNT}} supported actions.</h1>
+          <h1>Use Beeper through {{BEEPER_OBSERVED_OPERATION_COUNT}} supported actions</h1>
           <p class="answer-lede">Ghostget exposes {{BEEPER_OBSERVED_OPERATION_COUNT}} semantic operations for one already-authorized <a href="https://www.beeper.com/">Beeper Desktop</a> account: {{BEEPER_CLI_BACKED_OPERATION_COUNT}} operations use the pinned official Beeper CLI {{BEEPER_CLI_VERSION}}, while {{BEEPER_DESKTOP_LOOPBACK_OPERATION_COUNT}} are fixed Desktop loopback reads. Each request binds its executable or fixed endpoint, account realm, Desktop target, operation contract, input, output, and risk level.</p>
           <p class="review-note">This page describes adapter <code>beeper-local</code> {{BEEPER_ADAPTER_VERSION}} in {{GHOSTGET_RELEASE}}. Run <code>ghostget capabilities beeper-local --json</code> for the exact state installed on your machine.</p>
         </header>
@@ -158,7 +158,7 @@ ghostget beeper export-contact-interactions --auth beeper-main --json \
         </section>
 
         <section aria-labelledby="limits">
-          <h2 id="limits">Limits remain visible</h2>
+          <h2 id="limits">Limits</h2>
           <p>Beeper CLI {{BEEPER_CLI_VERSION}} exposes no continuation for several list and search commands and may cap those CLI-backed results below the requested limit. Contact list contract 3 walks Desktop contact pages with opaque before/after cursors and can return up to 200 contacts in one call; contracts 1 and 2 stay on the official CLI first-page window. Desktop message reads use the same cursor style plus an optional sender filter; callers must pass those returned values rather than deriving cursors from message IDs. Ghostget returns bounded candidate windows instead of claiming complete history.</p>
           <p>The checked coverage ledger fully accounts for all {{BEEPER_CLI_COMMAND_COUNT}} public manual command paths; that is provenance coverage, not supported-command parity. Forty-one paths collapse to the {{BEEPER_OBSERVED_OPERATION_COUNT}} semantic operations. <code>accounts use</code> is absorbed into explicit account IDs; <code>targets status</code>, <code>version</code>, and top-level <code>export</code> are internal; <code>accounts add</code>, <code>accounts remove</code>, and <code>messages delete</code> are R4 and unavailable to provider dispatch; and plain <code>status</code> is among the 53 unsupported paths. None of those three R4 paths appears in the selected {{BEEPER_OBSERVED_OPERATION_COUNT}}-operation provider adapter.</p>
           <p><code>messages.delete</code> is deliberately inert. Upstream <code>--for-everyone</code> requests can fall back to deletion for only the authenticated user when a network cannot delete for everyone, while the reviewed Desktop endpoint returns a void success response. Ghostget therefore cannot prove the requested network-visible effect, never dispatches this action, and does not turn a local disappearance into a deletion receipt.</p>

@@ -21,14 +21,14 @@
     <meta property="og:description" content="{{WHATSAPP_PAGE_DESCRIPTION}}">
     <meta property="og:url" content="https://ghostget.com/docs/how-to/export-whatsapp/">
     <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{WHATSAPP_PAGE_TITLE}}">
     <meta name="twitter:description" content="{{WHATSAPP_PAGE_DESCRIPTION}}">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -51,8 +51,8 @@
       <article class="guide-article">
         <header class="guide-hero provider-guide-hero">
           <p class="eyebrow">How-to guide · WhatsApp local export · {{GHOSTGET_RELEASE}}</p>
-          <h1>Export bounded WhatsApp history for Message Like Me.</h1>
-          <p class="answer-lede">Ghostget reads an existing account-bound Wacli store and publishes one private Message Like Me schema-2 bundle. This export does not pair a device, synchronize WhatsApp, open a network connection, or send a message.</p>
+          <h1>Export WhatsApp history for Textbutler</h1>
+          <p class="answer-lede">Ghostget reads an existing account-bound Wacli store and publishes one private bundle for Textbutler (formerly Message Like Me) in the Message Like Me schema-2 format. This export does not pair a device, synchronize WhatsApp, open a network connection, or send a message.</p>
           <p class="review-note">The current native export is available on macOS arm64 with official Wacli {{WHATSAPP_WACLI_VERSION}}. The <code>whatsapp-web</code> adapter {{WHATSAPP_ADAPTER_VERSION}} exposes {{WHATSAPP_OBSERVED_OPERATION_COUNT}} generic bounded R1 reads over that local projection. Its separate owner-only automation permissions do not turn those reads into send commands.</p>
         </header>
 

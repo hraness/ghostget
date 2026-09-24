@@ -6,8 +6,8 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>Ghostget security: local custody and bounded provider contracts</title>
-    <meta name="description" content="Understand Ghostget local custody, encrypted snapshots, exact account binding, fail-closed provider contracts, risk levels, and mutation recovery.">
+    <title>Ghostget security model: accounts, credentials, and writes</title>
+    <meta name="description" content="How Ghostget keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/docs/explanation/security-model/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
@@ -17,18 +17,18 @@
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Ghostget">
-    <meta property="og:title" content="Ghostget security: local custody and bounded provider contracts">
-    <meta property="og:description" content="Understand Ghostget local custody, encrypted snapshots, exact account binding, fail-closed provider contracts, risk levels, and mutation recovery.">
+    <meta property="og:title" content="Ghostget security model: accounts, credentials, and writes">
+    <meta property="og:description" content="How Ghostget keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.">
     <meta property="og:url" content="https://ghostget.com/docs/explanation/security-model/">
     <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Ghostget security: local custody and bounded provider contracts">
-    <meta name="twitter:description" content="Understand Ghostget local custody, encrypted snapshots, exact account binding, fail-closed provider contracts, risk levels, and mutation recovery.">
+    <meta name="twitter:title" content="Ghostget security model: accounts, credentials, and writes">
+    <meta name="twitter:description" content="How Ghostget keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -51,9 +51,9 @@
       <article class="guide-article">
         <header class="guide-hero">
           <p class="eyebrow">Explanation · security model · Ghostget {{GHOSTGET_VERSION}}</p>
-          <h1>Ghostget limits authority before an agent reaches the web.</h1>
+          <h1>How Ghostget limits what an agent can do on the web</h1>
           <p class="answer-lede">An authenticated Ghostget operation binds one named outcome to an exact provider, transport, account realm, contract version, implementation, input, and risk. Credentials stay opaque to the caller. When those facts drift, the operation stops instead of changing transports or falling back to general browser control.</p>
-          <p class="review-note">This guide summarizes the public security contract for {{GHOSTGET_RELEASE}} and was checked against that immutable release. Report vulnerabilities through <a href="https://github.com/hraness/ghostget/security/advisories/new">GitHub private vulnerability reporting</a>, never a public issue containing private material.</p>
+          <p class="review-note">This guide describes Ghostget {{GHOSTGET_RELEASE}}. Report vulnerabilities through <a href="https://github.com/hraness/ghostget/security/advisories/new">GitHub private vulnerability reporting</a>, never a public issue containing private material.</p>
         </header>
 
         <section aria-labelledby="threat-boundary">
@@ -65,7 +65,7 @@
         <section aria-labelledby="custody">
           <h2 id="custody">Account-bound reads stay under local custody</h2>
           <p>A successful R1 provider read with a verified account subject can publish an encrypted snapshot of the exact validated query and bounded provider output. The same query can later load from local ciphertext without contacting the provider. Within those snapshots, inputs, account subjects, cursors, private identifiers, and provider output remain inside authenticated local encryption. The separate owner messaging host retains private plaintext history and journals; see the <a href="/privacy/">privacy guide</a> for storage and retention boundaries.</p>
-          <p>A failed refresh or publication does not erase the last verified snapshot. Replacing or removing an auth locator rotates its local lifetime identity, so ciphertext from an earlier account incarnation cannot become current after recreation. Exact provider paging and completeness semantics are retained rather than being translated into invented certainty.</p>
+          <p>A failed refresh or publication does not erase the last verified snapshot. Replacing or removing an auth locator rotates its local lifetime identity, so ciphertext from an earlier account incarnation cannot become current after recreation. Ghostget reports the provider’s own paging and completeness as they are and never claims a result is more complete than the provider reported.</p>
         </section>
 
         <section aria-labelledby="risk">
@@ -82,8 +82,8 @@
 
         <section aria-labelledby="drift">
           <h2 id="drift">Provider drift fails closed</h2>
-          <p>A changed origin, account proof, request, status, field, or response shape returns the affected operation to <code>capture-required</code>. That state is an inert reservation. It cannot plan or execute until authorized evidence establishes a newly reviewed contract.</p>
-          <p>This rule keeps capability gaps visible. For example, LinkedIn's official contact adapter does not grant authority to its separate consumer-web inbox adapter, and an Instagram inbox summary does not authorize an individual thread read. Review current state in the <a href="/docs/reference/provider-capabilities/">provider capability attestation</a>.</p>
+          <p>A changed origin, account proof, request, status, field, or response shape returns the affected operation to <code>capture-required</code>. An operation in that state can’t plan or run until authorized evidence supports a newly reviewed contract.</p>
+          <p>This rule keeps capability gaps visible. For example, LinkedIn's official contact adapter does not grant authority to its separate consumer-web inbox adapter, and an Instagram inbox summary does not authorize an individual thread read. Review current state in the <a href="/docs/reference/provider-capabilities/">provider support reference</a>.</p>
         </section>
 
         <section aria-labelledby="native-cli">
