@@ -8,14 +8,14 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 232 claims: 149 evidenced, 64 planned, and 19 not verified. It maps 86 guidelines from 5 guides; 66 list claims and 20 are exempt.
+The register holds 232 claims: 151 evidenced, 62 planned, and 19 not verified. It maps 86 guidelines from 5 guides; 66 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 135 | 5 | 0 |
 | property test | 14 | 1 | 0 |
 | stateful model | 0 | 14 | 0 |
-| Quint model with production trace replay | 0 | 35 | 0 |
+| Quint model with production trace replay | 2 | 33 | 0 |
 | Lean proof with differential test | 0 | 8 | 0 |
 | differential oracle | 0 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
@@ -408,13 +408,14 @@ Operation grants bind the exact account incarnation, manifest, contract, and exe
 
 An allow-once approval admits one exact pending request at most once (allowed implies uses ≤ 1), including across client crash, expiry, and reconnect; drift, expiry, and shutdown revoke proofs.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `kb/plans/formal-verification-assurance.md`: “Model digest binding at dispatch, lease expiry, crash, and reconnect. The invariant `allowed ⇒ uses ≤ 1` drives the fix for D13.”
-- Evidence: `src/control/approval-broker.test.ts`, `src/control/connections.test.ts`
+- Evidence: `scripts/verification-approvals-replay.test.ts`, `src/control/approval-broker.test.ts`, `src/control/connections.test.ts`, `verification/quint/approvals.qnt`
 - Assumptions: `same-user-trusted`
 - Not verified:
-  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Plan defect D13 is fixed: the broker binds each allow-once grant to its holder's use secret at request or first allowed check. The stateful fast-check model in src/control/approval-broker.test.ts samples checks, races, crashes, release, and expiry; it is not the Quint model or a proof.
+  - verification/quint/approvals.qnt checks one request, two holders and an anonymous caller, with at most two crashes and two policy changes per trace, to Quint simulation depth 20 and Apalache length 10. Its ITF replay drives the production ApprovalBroker with 1,000 traces of up to 30 steps. Longer schedules, more requests, and more callers are sampled only by the fast-check model in src/control/approval-broker.test.ts.
+  - The model covers the broker alone. Connection reconnect, dispatch digest binding outside the broker, and control-service shutdown are covered only by the listed example tests.
+  - Plan defect D13 is fixed: the broker binds each allow-once grant to its holder's use secret at request or first allowed check. The Quint variants stepShared, stepFirstCheck and stepAdmitBeforeAwait reproduce the pre-fix defects, and the replay shows the production broker refuses each of their violating traces.
 
 #### `shutdown-settles-before-custody-release`
 
@@ -815,9 +816,9 @@ A media item is promoted only after its inspectable archive, versioned manifest,
 
 - Planned: Quint model with production trace replay in plan Phase 4.
 - Source: `AGENTS.md`: “Promote an item only after its inspectable archive, versioned manifest, and SHA-256 records pass complete verification.”
-- Evidence: `src/media/archive.property.test.ts`, `src/media/archive.test.ts`, `src/media/lock.test.ts`, `src/media/manifest.property.test.ts`, `src/media/manifest.test.ts`, `src/media/revision.property.test.ts`
+- Evidence: `scripts/verification-media-replay.test.ts`, `src/media/archive.property.test.ts`, `src/media/archive.test.ts`, `src/media/lock.test.ts`, `src/media/manifest.property.test.ts`, `src/media/manifest.test.ts`, `src/media/revision.property.test.ts`, `verification/quint/media.qnt`
 - Assumptions: `filesystem-atomic-rename`, `media-tools`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified: verification/quint/media.qnt and its production replay check that promotion needs the current lock and that only a torn head leaves the lineage, but they take discovery's verification verdict as given. The law "a promoted item passed closed verification" is not yet a model invariant, so this claim stays planned; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
 
 #### `media-crash-lineage-progress`
 
@@ -825,23 +826,24 @@ Each capture subject has one revision lineage with a single head, and a crash or
 
 - Planned: Quint model with production trace replay in plan Phase 4.
 - Source: `kb/plans/formal-verification-assurance.md`: “The progress property "a crash never makes a lineage permanently invalid" drives D10.”
-- Evidence: `src/media/archive.property.test.ts`, `src/media/lock.test.ts`, `src/media/revision.property.test.ts`, `src/media/revision.test.ts`
+- Evidence: `scripts/verification-media-replay.test.ts`, `src/media/archive.property.test.ts`, `src/media/lock.test.ts`, `src/media/revision.property.test.ts`, `src/media/revision.test.ts`, `verification/quint/media.qnt`
 - Assumptions: `filesystem-atomic-rename`, `filesystem-durability`, `process-liveness`, `media-tools`
 - Not verified:
-  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Plan defect D10 is open: only the direct capture file and the lock are fsynced before promotion, so a torn file after power loss can stop a lineage with no repair path.
+  - The progress property is not checked. verification/quint/media.qnt checks only safety: its production replay repairs a torn head by quarantine and recaptures, and the stepQuarantineAny variant shows why only a torn head may be moved. A liveness check under fairness is still scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Plan defect D10 is fixed: the staging tree and its parent directories are fsynced before and after the promotion rename, and a start that finds a torn head moves it to the quarantine instead of stopping the lineage.
 
 #### `media-lock-exclusion`
 
 Media item locks exclude concurrent owners; release never removes a replacement lock and final publication is an atomic same-volume rename.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `SECURITY.md`: “Media locks coordinate Ghostget processes, and final publication uses an atomic same-volume rename.”
-- Evidence: `src/media/lock.test.ts`
+- Evidence: `scripts/verification-media-replay.test.ts`, `src/media/lock.test.ts`, `verification/quint/media.qnt`
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`, `process-liveness`, `media-tools`
 - Not verified:
-  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Plan defect D11 is open: the promotion `rename` is not fenced by a lock generation, and lock liveness trusts `kill(pid, 0)` over heartbeat age.
+  - verification/quint/media.qnt checks two processes on one revision lineage to Quint simulation depth 12 and Apalache length 8. Its ITF replay drives production mediaUrl and the item lock with 200 traces in one test process: runs interleave at the capture and flush gates, a crash rewrites the lock to a dead PID, and heartbeat loss is an aged lock file. Truly concurrent processes, other filesystems, and network volumes are not exercised.
+  - The atomicity of a same-volume rename is an assumption (filesystem-atomic-rename), not a checked property.
+  - Plan defect D11 is fixed: promotion renames only through the lock's fence, which checks the token and inode immediately before the rename, and a stale heartbeat is reclaimable even when its PID answers. The Quint variant stepUnfenced reproduces the unfenced rename, and the replay shows production refuses each of its violating traces.
 
 #### `media-cancellation-stops-work`
 
@@ -849,11 +851,11 @@ Cancelling a media acquisition stops every process it started, including ffmpeg 
 
 - Planned: example test in plan Phase 6.
 - Source: `kb/plans/formal-verification-assurance.md`: “D9: spawn in a process group and kill the group. Check cancellation before promotion.”
-- Evidence: `src/media/process.test.ts`
+- Evidence: `scripts/verification-media-replay.test.ts`, `src/media/process.test.ts`, `verification/quint/media.qnt`
 - Assumptions: `filesystem-atomic-rename`, `media-tools`
 - Not verified:
-  - The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Plan defect D9 is open: cancellation signals only yt-dlp, not its process group, so ffmpeg and HLS grandchildren keep running, and a cancel after transcription can still return `created`.
+  - The example test for the whole claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Plan defect D9 is fixed: yt-dlp runs in its own process group and cancellation signals the group, and the promotion fence checks cancellation immediately before the rename. verification/quint/media.qnt checks that a cancelled yt-dlp capture never answers created, its stepLateCancel variant reproduces the pre-fix promotion, and its replay drives production mediaUrl. The direct HTTP pipeline and grandchild process termination are not modelled.
 
 #### `media-verify-recomputes-hashes`
 

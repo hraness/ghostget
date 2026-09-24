@@ -1457,18 +1457,20 @@
         "quote": "Model digest binding at dispatch, lease expiry, crash, and reconnect. The invariant `allowed ⇒ uses ≤ 1` drives the fix for D13."
       },
       "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
+        "scripts/verification-approvals-replay.test.ts",
         "src/control/approval-broker.test.ts",
-        "src/control/connections.test.ts"
+        "src/control/connections.test.ts",
+        "verification/quint/approvals.qnt"
       ],
       "assumptions": [
         "same-user-trusted"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Plan defect D13 is fixed: the broker binds each allow-once grant to its holder's use secret at request or first allowed check. The stateful fast-check model in src/control/approval-broker.test.ts samples checks, races, crashes, release, and expiry; it is not the Quint model or a proof."
+        "verification/quint/approvals.qnt checks one request, two holders and an anonymous caller, with at most two crashes and two policy changes per trace, to Quint simulation depth 20 and Apalache length 10. Its ITF replay drives the production ApprovalBroker with 1,000 traces of up to 30 steps. Longer schedules, more requests, and more callers are sampled only by the fast-check model in src/control/approval-broker.test.ts.",
+        "The model covers the broker alone. Connection reconnect, dispatch digest binding outside the broker, and control-service shutdown are covered only by the listed example tests.",
+        "Plan defect D13 is fixed: the broker binds each allow-once grant to its holder's use secret at request or first allowed check. The Quint variants stepShared, stepFirstCheck and stepAdmitBeforeAwait reproduce the pre-fix defects, and the replay shows the production broker refuses each of their violating traces."
       ]
     },
     {
@@ -1555,19 +1557,21 @@
       "status": "planned",
       "phase": 4,
       "evidence": [
+        "scripts/verification-media-replay.test.ts",
         "src/media/archive.property.test.ts",
         "src/media/archive.test.ts",
         "src/media/lock.test.ts",
         "src/media/manifest.property.test.ts",
         "src/media/manifest.test.ts",
-        "src/media/revision.property.test.ts"
+        "src/media/revision.property.test.ts",
+        "verification/quint/media.qnt"
       ],
       "assumptions": [
         "filesystem-atomic-rename",
         "media-tools"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "verification/quint/media.qnt and its production replay check that promotion needs the current lock and that only a torn head leaves the lineage, but they take discovery's verification verdict as given. The law \"a promoted item passed closed verification\" is not yet a model invariant, so this claim stays planned; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
       ]
     },
     {
@@ -1582,10 +1586,12 @@
       "status": "planned",
       "phase": 4,
       "evidence": [
+        "scripts/verification-media-replay.test.ts",
         "src/media/archive.property.test.ts",
         "src/media/lock.test.ts",
         "src/media/revision.property.test.ts",
-        "src/media/revision.test.ts"
+        "src/media/revision.test.ts",
+        "verification/quint/media.qnt"
       ],
       "assumptions": [
         "filesystem-atomic-rename",
@@ -1594,8 +1600,8 @@
         "media-tools"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Plan defect D10 is open: only the direct capture file and the lock are fsynced before promotion, so a torn file after power loss can stop a lineage with no repair path."
+        "The progress property is not checked. verification/quint/media.qnt checks only safety: its production replay repairs a torn head by quarantine and recaptures, and the stepQuarantineAny variant shows why only a torn head may be moved. A liveness check under fairness is still scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
+        "Plan defect D10 is fixed: the staging tree and its parent directories are fsynced before and after the promotion rename, and a start that finds a torn head moves it to the quarantine instead of stopping the lineage."
       ]
     },
     {
@@ -1607,10 +1613,11 @@
         "quote": "Media locks coordinate Ghostget processes, and final publication uses an atomic same-volume rename."
       },
       "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
-        "src/media/lock.test.ts"
+        "scripts/verification-media-replay.test.ts",
+        "src/media/lock.test.ts",
+        "verification/quint/media.qnt"
       ],
       "assumptions": [
         "filesystem-atomic-rename",
@@ -1619,8 +1626,9 @@
         "media-tools"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Plan defect D11 is open: the promotion `rename` is not fenced by a lock generation, and lock liveness trusts `kill(pid, 0)` over heartbeat age."
+        "verification/quint/media.qnt checks two processes on one revision lineage to Quint simulation depth 12 and Apalache length 8. Its ITF replay drives production mediaUrl and the item lock with 200 traces in one test process: runs interleave at the capture and flush gates, a crash rewrites the lock to a dead PID, and heartbeat loss is an aged lock file. Truly concurrent processes, other filesystems, and network volumes are not exercised.",
+        "The atomicity of a same-volume rename is an assumption (filesystem-atomic-rename), not a checked property.",
+        "Plan defect D11 is fixed: promotion renames only through the lock's fence, which checks the token and inode immediately before the rename, and a stale heartbeat is reclaimable even when its PID answers. The Quint variant stepUnfenced reproduces the unfenced rename, and the replay shows production refuses each of its violating traces."
       ]
     },
     {
@@ -1635,15 +1643,17 @@
       "status": "planned",
       "phase": 6,
       "evidence": [
-        "src/media/process.test.ts"
+        "scripts/verification-media-replay.test.ts",
+        "src/media/process.test.ts",
+        "verification/quint/media.qnt"
       ],
       "assumptions": [
         "filesystem-atomic-rename",
         "media-tools"
       ],
       "notVerified": [
-        "The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Plan defect D9 is open: cancellation signals only yt-dlp, not its process group, so ffmpeg and HLS grandchildren keep running, and a cancel after transcription can still return `created`."
+        "The example test for the whole claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
+        "Plan defect D9 is fixed: yt-dlp runs in its own process group and cancellation signals the group, and the promotion fence checks cancellation immediately before the rename. verification/quint/media.qnt checks that a cancelled yt-dlp capture never answers created, its stepLateCancel variant reproduces the pre-fix promotion, and its replay drives production mediaUrl. The direct HTTP pipeline and grandchild process termination are not modelled."
       ]
     },
     {

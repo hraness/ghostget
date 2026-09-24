@@ -851,7 +851,10 @@ describe("claims and evidence", () => {
       await evidencedBy(claim.id, [model, "scripts/other-replay.test.ts"]),
     )).toEqual([refused]);
 
-    const broken = await findingsFor({ "verification/quint/models.json": "[]" }, await evidencedBy(claim.id, [model, replay]));
+    // A broken manifest also refuses every committed evidenced Quint claim, so
+    // keep only the findings about the manifest and the claim under test.
+    const broken = (await findingsFor({ "verification/quint/models.json": "[]" }, await evidencedBy(claim.id, [model, replay])))
+      .filter((finding) => !finding.startsWith("claim ") || finding.startsWith(`claim ${claim.id} `));
     expect(broken).toEqual(["verification/quint/models.json does not parse: models.json must be an object", refused]);
   });
 
