@@ -8,12 +8,12 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 241 claims: 177 evidenced, 45 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 243 claims: 179 evidenced, 45 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 141 | 2 | 0 |
-| property test | 14 | 1 | 0 |
+| example test | 142 | 2 | 0 |
+| property test | 15 | 1 | 0 |
 | stateful model | 2 | 13 | 0 |
 | Quint model with production trace replay | 10 | 27 | 0 |
 | Lean proof with differential test | 7 | 1 | 0 |
@@ -105,16 +105,16 @@ Each claim holds only while its listed assumptions hold.
 | --- | --- | ---: |
 | `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 8 |
 | `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 32 |
-| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 27 |
-| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 29 |
+| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 28 |
+| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 31 |
 | `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 10 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
 | `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 13 |
 | `dns-tls` | The operating-system resolver and the TLS stack behave as specified. | 7 |
 | `sha256` | SHA-256 is collision resistant. | 3 |
-| `encryption` | The authenticated encryption primitives and the operating-system key storage are sound. | 3 |
+| `encryption` | The authenticated encryption primitives and the operating-system key storage are sound. | 4 |
 | `media-tools` | yt-dlp, ffmpeg, and whisper.cpp report metadata faithfully and honor the arguments they are given. | 11 |
-| `provider-behaviour` | Third-party providers behave as their observed contracts describe. | 28 |
+| `provider-behaviour` | Third-party providers behave as their observed contracts describe. | 29 |
 | `plugin-trusted` | Source plugins are trusted in-process code; portable execution contains ordinary failures, not hostile code. | 13 |
 | `onepassword` | The 1Password SDK and account return the requested secret faithfully. | 2 |
 | `github-api` | GitHub's REST, GraphQL, and Actions APIs report repository, run, and Release state truthfully. | 73 |
@@ -1060,7 +1060,7 @@ The messaging automation protocol rejects a second ordinary in-flight request an
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified: Only the enumerated example cases are checked.
 
-### `mutations` (8 claims)
+### `mutations` (10 claims)
 
 #### `mutation-exact-preview-confirmation`
 
@@ -1083,7 +1083,7 @@ For every intent (account realm, provider target, operation id, canonical input)
 - Not verified:
   - The model is bounded: three runs of one intent, one reconnect, one manifest upgrade, one duplicate-risk successor per source run (a successor may itself be a source), 5,000 simulated samples of up to 12 steps, and Apalache to length 8.
   - The replay drives every seeded trace through the pure fence cores with an in-memory store, and five of them, a greedy cover of every action result the seeded traces take, through the file-backed state layer on a real state home: `createRunJournal`, `updateRunJournal`, `listRunJournalSnapshots`, `acquireConfirmedWriteLedgers` (the intent ledger, then the hash-keyed ledger), `repairInterruptedRunJournals` with its receipt and ledger projection, and `releaseReconciledRunRecovery`. It does not run the `confirmInvocation` program, so plan validation, recovery capsules, and `claimDuplicateRiskSource`'s receipt, capsule, and ledger rechecks are covered only by the listed example tests.
-  - Owner acceptance of the duplicate risk, the preview's successor check, and a successor whose election fails at its dispatch boundary are not modelled; the model disables that dispatch, and the listed example tests cover production failing the run before any request.
+  - Owner acceptance of the duplicate risk, the preview's successor check, election of a source across a same-subject reconnect (the model's source must bind the current auth record), and a successor whose election fails at its dispatch boundary are not modelled; the model disables that dispatch, and the listed example tests cover production failing the run before any request.
   - The dedupe window's expiry, partial multi-dispatch runs, and journals from before the intent fence are not modelled.
 
 #### `indeterminate-never-retried`
@@ -1112,6 +1112,33 @@ An indeterminate dispatch fence is released only from separately obtained exact 
   - The replay does not call `recordNotAppliedClaim`: its not-applied action changes no journal in the replay world, so that `recordNotAppliedClaim` releases nothing is covered only by the listed example tests.
   - The web-session reconciler and the CLI and portable parsers of reconciliation input are covered only by the listed example and property tests.
   - Terminalizing a run from supplied evidence says nothing about provider liveness.
+
+#### `recovery-auth-continuity`
+
+Reconciliation and duplicate-risk successor election accept a current auth record other than the run's exact record only when it keeps the locator ID and kind and names the provider subject that the run's encrypted recovery capsule recorded; a capsule with no recorded subject still needs the exact record.
+
+- Evidenced by property test.
+- Source: `docs/effect-confirmed-write-runtime.md`: “locator ID and kind and names the provider subject that the run's encrypted recovery capsule recorded.”
+- Evidence: `src/confirmed-write-intent-fence.test.ts`, `src/provider-plugin-portable-runtime.test.ts`, `src/recovery.test.ts`, `src/runtime.test.ts`, `src/web-session-recovery.test.ts`
+- Property tests: `src/recovery.test.ts`: “property: only exact bytes or the recorded provider subject continue a run's realm”
+- Assumptions: `encryption`, `provider-behaviour`, `same-user-trusted`
+- Not verified:
+  - The check compares subject strings. That one subject names one provider account rests on how the auth record's subject was bound, by a plugin subject probe or by the operator; a subject typed onto another account's credentials is not detected here.
+  - The property test samples the pure `recoveryAuthContinuity` decision; its use by the web-session reconciler, the portable reconciler, and successor election is covered only by the listed example tests.
+  - The intent fence itself stays keyed by locator ID: a fulfilled run under other auth bytes is still withheld rather than replayed, because run journals do not record the subject.
+
+#### `intent-fence-readback`
+
+`ghostget doctor` reads every confirmed-write intent claim back against its run journal without writing, reports malformed, orphaned, stale, drifted, misplaced, and repeated claims as unhealthy, and names claims and runs only by opaque key and run ID.
+
+- Evidenced by example test.
+- Source: `docs/effect-confirmed-write-runtime.md`: “`ghostget doctor` reads the fence back without writing, after its repair pass.”
+- Evidence: `src/confirmed-write-intent-fence.test.ts`, `src/ghostget.test.ts`
+- Assumptions: `filesystem-durability`, `same-user-trusted`
+- Not verified:
+  - The readback is not modelled; only the listed example tests cover it, and they plant an orphaned, a malformed, and an off-chain claim but not every issue kind.
+  - The readback reads at most 10,000 directory entries and then reports itself truncated; it does not re-derive the hash-keyed ledgers.
+  - Doctor runs its journal repair pass before the readback, so the readback describes the state after that repair.
 
 #### `durable-boundaries-before-dispatch`
 

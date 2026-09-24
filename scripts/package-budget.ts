@@ -1656,6 +1656,17 @@
 // c38d1f9522d477a42a82d934359012ba31124f98348302b3b5c3fe97bac6709e. Carry the
 // same projections and allowances: 11,999,852 + 12,387 + 4,096 = 12,016,335
 // packed; 23,451,059 + 353 + 65 = 23,451,477 unpacked.
+// The intent-fence follow-ups add the read-only doctor readback of intent
+// claims, including claims off their intent's chain of fulfilled generations,
+// record the provider subject in encrypted recovery capsules, and let
+// reconciliation and duplicate-risk successor election continue across a
+// same-subject reconnect. This adds 11,136 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0
+// on darwin arm64 were byte-identical at 12,003,367 packed bytes, 23,462,195
+// unpacked bytes; archive SHA-256
+// 511abcac8f9316451689f3881ef403d2fa2284f91dda1e9a31048dfdf5f612b2. Carry the
+// same projections and allowances: 12,003,367 + 12,387 + 4,096 = 12,019,850
+// packed; 23,462,195 + 353 + 65 = 23,462,613 unpacked.
 // The fence model's file-backed replay moves the confirmed-write platform's
 // intent-then-hash-keyed ledger claim into an exported
 // acquireConfirmedWriteLedgers in runtime.ts, and exports the hash-keyed
@@ -1663,19 +1674,19 @@
 // composition that confirmation calls. The Quint model and its replay test
 // stay outside the package. This adds 575 payload bytes over the unchanged
 // 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on
-// darwin arm64 were byte-identical at 12,000,013 packed bytes, 23,451,634
+// darwin arm64 were byte-identical at 12,003,525 packed bytes, 23,462,770
 // unpacked bytes; archive SHA-256
-// 4fad3db72b1c09d4b04a99323d6a6e15407649efad9252376cba6d9dd2db091b. Carry the
-// same projections and allowances: 12,000,013 + 12,387 + 4,096 = 12,016,496
-// packed; 23,451,634 + 353 + 65 = 23,452,052 unpacked.
+// d7594356b4b79d4f4103cc1cd0ec4616506f359025533c0b510ceaece7d1d57d. Carry the
+// same projections and allowances: 12,003,525 + 12,387 + 4,096 = 12,020,008
+// packed; 23,462,770 + 353 + 65 = 23,463,188 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Fence replay through the confirmed-write ledger composition",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "4fad3db72b1c09d4b04a99323d6a6e15407649efad9252376cba6d9dd2db091b",
-  packedBytes: 12_000_013,
-  unpackedBytes: 23_451_634,
+  archiveSha256: "d7594356b4b79d4f4103cc1cd0ec4616506f359025533c0b510ceaece7d1d57d",
+  packedBytes: 12_003_525,
+  unpackedBytes: 23_462_770,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

@@ -2669,7 +2669,7 @@
       "notVerified": [
         "The model is bounded: three runs of one intent, one reconnect, one manifest upgrade, one duplicate-risk successor per source run (a successor may itself be a source), 5,000 simulated samples of up to 12 steps, and Apalache to length 8.",
         "The replay drives every seeded trace through the pure fence cores with an in-memory store, and five of them, a greedy cover of every action result the seeded traces take, through the file-backed state layer on a real state home: `createRunJournal`, `updateRunJournal`, `listRunJournalSnapshots`, `acquireConfirmedWriteLedgers` (the intent ledger, then the hash-keyed ledger), `repairInterruptedRunJournals` with its receipt and ledger projection, and `releaseReconciledRunRecovery`. It does not run the `confirmInvocation` program, so plan validation, recovery capsules, and `claimDuplicateRiskSource`'s receipt, capsule, and ledger rechecks are covered only by the listed example tests.",
-        "Owner acceptance of the duplicate risk, the preview's successor check, and a successor whose election fails at its dispatch boundary are not modelled; the model disables that dispatch, and the listed example tests cover production failing the run before any request.",
+        "Owner acceptance of the duplicate risk, the preview's successor check, election of a source across a same-subject reconnect (the model's source must bind the current auth record), and a successor whose election fails at its dispatch boundary are not modelled; the model disables that dispatch, and the listed example tests cover production failing the run before any request.",
         "The dedupe window's expiry, partial multi-dispatch runs, and journals from before the intent fence are not modelled."
       ]
     },
@@ -2735,6 +2735,64 @@
         "The replay does not call `recordNotAppliedClaim`: its not-applied action changes no journal in the replay world, so that `recordNotAppliedClaim` releases nothing is covered only by the listed example tests.",
         "The web-session reconciler and the CLI and portable parsers of reconciliation input are covered only by the listed example and property tests.",
         "Terminalizing a run from supplied evidence says nothing about provider liveness."
+      ]
+    },
+    {
+      "id": "recovery-auth-continuity",
+      "statement": "Reconciliation and duplicate-risk successor election accept a current auth record other than the run's exact record only when it keeps the locator ID and kind and names the provider subject that the run's encrypted recovery capsule recorded; a capsule with no recorded subject still needs the exact record.",
+      "area": "mutations",
+      "source": {
+        "path": "docs/effect-confirmed-write-runtime.md",
+        "quote": "locator ID and kind and names the provider subject that the run's encrypted recovery capsule recorded."
+      },
+      "layer": "property",
+      "status": "evidenced",
+      "evidence": [
+        "src/confirmed-write-intent-fence.test.ts",
+        "src/provider-plugin-portable-runtime.test.ts",
+        "src/recovery.test.ts",
+        "src/runtime.test.ts",
+        "src/web-session-recovery.test.ts"
+      ],
+      "assumptions": [
+        "encryption",
+        "provider-behaviour",
+        "same-user-trusted"
+      ],
+      "notVerified": [
+        "The check compares subject strings. That one subject names one provider account rests on how the auth record's subject was bound, by a plugin subject probe or by the operator; a subject typed onto another account's credentials is not detected here.",
+        "The property test samples the pure `recoveryAuthContinuity` decision; its use by the web-session reconciler, the portable reconciler, and successor election is covered only by the listed example tests.",
+        "The intent fence itself stays keyed by locator ID: a fulfilled run under other auth bytes is still withheld rather than replayed, because run journals do not record the subject."
+      ],
+      "properties": [
+        {
+          "path": "src/recovery.test.ts",
+          "test": "property: only exact bytes or the recorded provider subject continue a run's realm"
+        }
+      ]
+    },
+    {
+      "id": "intent-fence-readback",
+      "statement": "`ghostget doctor` reads every confirmed-write intent claim back against its run journal without writing, reports malformed, orphaned, stale, drifted, misplaced, and repeated claims as unhealthy, and names claims and runs only by opaque key and run ID.",
+      "area": "mutations",
+      "source": {
+        "path": "docs/effect-confirmed-write-runtime.md",
+        "quote": "`ghostget doctor` reads the fence back without writing, after its repair pass."
+      },
+      "layer": "example",
+      "status": "evidenced",
+      "evidence": [
+        "src/confirmed-write-intent-fence.test.ts",
+        "src/ghostget.test.ts"
+      ],
+      "assumptions": [
+        "filesystem-durability",
+        "same-user-trusted"
+      ],
+      "notVerified": [
+        "The readback is not modelled; only the listed example tests cover it, and they plant an orphaned, a malformed, and an off-chain claim but not every issue kind.",
+        "The readback reads at most 10,000 directory entries and then reports itself truncated; it does not re-derive the hash-keyed ledgers.",
+        "Doctor runs its journal repair pass before the readback, so the readback describes the state after that repair."
       ]
     },
     {

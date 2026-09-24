@@ -17,6 +17,7 @@ import {
   listRecoveryCapsuleSnapshots,
   listReconciliationObservations,
   readRecoveryCapsule,
+  recoveryAuthContinuity,
   recoveryContractHash,
   removeRecoveryCapsule,
   writeRecoveryCapsule,
@@ -24,7 +25,9 @@ import {
   type RecoveryCapsule,
   type RecoveryContractIdentity,
 } from "./recovery";
+import type { GhostgetAuth } from "./auth";
 import type { PortableOperationIdentityV1 } from "./provider-plugin-portable-identity";
+import { assertProperty, fc } from "./test-support";
 
 type TestState = {
   readonly directory: string;
@@ -542,5 +545,79 @@ describe("append-only reconciliation observations", () => {
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }
+  });
+});
+
+describe("recovery auth continuity across a reconnect", () => {
+  test("a capsule round-trips a bounded provider subject and rejects a malformed one", () => {
+    const testState = state();
+    try {
+      const recorded: RecoveryCapsule = { ...capsule(), authSubject: "account:123" };
+      writeRecoveryCapsule(recorded, testState.environment);
+      expect(readRecoveryCapsule(RUN_ID, "x-main", AUTH_HASH, testState.environment))
+        .toEqual(recorded);
+      for (const authSubject of [" padded", "", "x".repeat(513), "tab\tsubject"]) {
+        expect(() => writeRecoveryCapsule(
+          { ...capsule(), runId: SECOND_ID, authSubject },
+          testState.environment,
+        )).toThrow("recovery capsule auth subject is malformed");
+      }
+      expect(() => writeRecoveryCapsule(
+        { ...capsule(), runId: SECOND_ID, authSubject: 7 } as unknown as RecoveryCapsule,
+        testState.environment,
+      )).toThrow("recovery capsule auth subject is malformed");
+    } finally {
+      rmSync(testState.directory, { recursive: true, force: true });
+    }
+  });
+
+  test("property: only exact bytes or the recorded provider subject continue a run's realm", () => {
+    const auth = fc.record({
+      id: fc.constantFrom("acct-a", "acct-b"),
+      path: fc.constantFrom("/private/cookies-1.json", "/private/cookies-2.json"),
+      subject: fc.option(fc.constantFrom("subject-1", "subject-2"), { nil: undefined }),
+      oauth: fc.boolean(),
+    }).map(({ id, path, subject, oauth }): GhostgetAuth => oauth
+      ? {
+          schemaVersion: 1,
+          id,
+          kind: "oauth-token-file",
+          provider: "x",
+          path,
+          scopes: ["tweet.read"],
+          ...(subject === undefined ? {} : { subject }),
+        }
+      : {
+          schemaVersion: 1,
+          id,
+          kind: "cookies-file",
+          path,
+          ...(subject === undefined ? {} : { subject }),
+        });
+    assertProperty(fc.property(
+      auth,
+      auth,
+      fc.constantFrom("recorded", "absent", "other"),
+      (recordedAuth, current, subjectChoice) => {
+        const recorded = {
+          id: recordedAuth.id,
+          hash: sha256(canonicalJson(recordedAuth)),
+          kind: recordedAuth.kind,
+        };
+        const recordedSubject = subjectChoice === "recorded"
+          ? recordedAuth.subject
+          : subjectChoice === "other" ? "subject-other" : undefined;
+        const result = recoveryAuthContinuity(recorded, recordedSubject, current);
+        const sameRealm = current.id === recorded.id && current.kind === recorded.kind;
+        const exact = sameRealm && canonicalJson(current) === canonicalJson(recordedAuth);
+        const sameSubject = sameRealm
+          && !exact
+          && recordedSubject !== undefined
+          && current.subject === recordedSubject;
+        expect(result).toBe(exact ? "exact" : sameSubject ? "same-subject" : null);
+        // A run that recorded no subject never continues under other bytes.
+        if (recordedSubject === undefined) expect(result === "same-subject").toBeFalse();
+      },
+    ));
   });
 });
