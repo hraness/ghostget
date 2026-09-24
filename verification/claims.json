@@ -112,8 +112,8 @@
           "reason": "Synced Hraness public-copy policy for prose; it states no property of the package, CLI, website, or release."
         },
         {
-          "name": "oompa-local-efficiency",
-          "digest": "253dbd72a8a0d318f7641e2f828cabd21587dfcbb77489b6867da26ec3b52279",
+          "name": "hraness-delivery",
+          "digest": "e91f59f38e14a5a71aac6b7028e5ffc87c4b3a4e27829df60d5ceade0e58e0a9",
           "reason": "Synced Hraness delivery and workstation laws, including production-data preservation, runtime-enforced approvals, and delivery-gate guards; no automated check in this repository covers them."
         },
         {
