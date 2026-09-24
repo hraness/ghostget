@@ -1556,14 +1556,23 @@
 // f2c9be480d9ffe8aa7ae642af2523491745987ee9bed58b66d37f7d2f4d6c4ed. Carry the
 // same projections and allowances: 11,992,902 + 12,387 + 4,096 = 12,009,385
 // packed; 23,424,993 + 353 + 65 = 23,425,411 unpacked.
+// The README paragraph that links the thread through hraness and the ALGAL
+// vision adds 419 payload bytes to README.md over the unchanged 596-file
+// inventory. Two `npm pack --ignore-scripts` runs with npm 11.16.0 on darwin
+// arm64 were byte-identical at 12,005,185 packed bytes, 23,425,412 unpacked
+// bytes; archive SHA-256
+// 874784766ccc8e505bc73de42d1aad7b95ce6acd59ea121914ea6f9a6dbffe85.
+// Compressed size varies with the local zlib. Carry the same projections and
+// allowances: 12,005,185 + 12,387 + 4,096 = 12,021,668 packed;
+// 23,425,412 + 353 + 65 = 23,425,830 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Formal-verification foundation: verify scripts, the second typecheck project, and the exact Quint devDependency in package.json",
+  scope: "README paragraph linking the thread through hraness and the ALGAL vision",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.19.0",
+  npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "f2c9be480d9ffe8aa7ae642af2523491745987ee9bed58b66d37f7d2f4d6c4ed",
-  packedBytes: 11_992_902,
-  unpackedBytes: 23_424_993,
+  archiveSha256: "874784766ccc8e505bc73de42d1aad7b95ce6acd59ea121914ea6f9a6dbffe85",
+  packedBytes: 12_005_185,
+  unpackedBytes: 23_425_412,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
