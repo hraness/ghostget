@@ -1667,26 +1667,35 @@
 // 511abcac8f9316451689f3881ef403d2fa2284f91dda1e9a31048dfdf5f612b2. Carry the
 // same projections and allowances: 12,003,367 + 12,387 + 4,096 = 12,019,850
 // packed; 23,462,195 + 353 + 65 = 23,462,613 unpacked.
-// The fence model's file-backed replay moves the confirmed-write platform's
-// intent-then-hash-keyed ledger claim into an exported
-// acquireConfirmedWriteLedgers in runtime.ts, and exports the hash-keyed
-// ledger path as confirmedWriteLedgerPath, so the replay drives the same
-// composition that confirmation calls. The Quint model and its replay test
-// stay outside the package. This adds 575 payload bytes over the unchanged
-// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on
-// darwin arm64 were byte-identical at 12,003,525 packed bytes, 23,462,770
-// unpacked bytes; archive SHA-256
-// d7594356b4b79d4f4103cc1cd0ec4616506f359025533c0b510ceaece7d1d57d. Carry the
-// same projections and allowances: 12,003,525 + 12,387 + 4,096 = 12,020,008
-// packed; 23,462,770 + 353 + 65 = 23,463,188 unpacked.
+// Read-path invocation preparation, confirmation preparation, and the
+// operation-permission account identity bind the auth incarnation through the
+// read capability instead of creating a missing one, and the omni view's
+// closing recheck reports a source whose incarnation disappeared as changed.
+// This adds 4,655 payload bytes over the unchanged 596-file inventory. Two
+// `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin arm64 were
+// byte-identical at 12,004,806 packed bytes, 23,466,850 unpacked bytes;
+// archive SHA-256
+// 0b212ac291218528dcf979370110a36f10850e046ca90a536057d9a44e807d1d. Carry the
+// same projections and allowances: 12,004,806 + 12,387 + 4,096 = 12,021,289
+// packed; 23,466,850 + 353 + 65 = 23,467,268 unpacked.
+// Remeasured after merging #375 into the fence-model branch: the branch
+// exports acquireConfirmedWriteLedgers and confirmedWriteLedgerPath from
+// src/runtime.ts and src/confirmed-write-platform.ts without changing
+// behaviour. This adds 575 payload bytes over the unchanged 596-file
+// inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin
+// arm64 were byte-identical at 12,004,958 packed bytes, 23,467,425 unpacked
+// bytes; archive SHA-256
+// d00e25fa513d0d5bfcbdf8fa407d82b99641164f976ddd913f741a156c25a8c1. Carry the
+// same projections and allowances: 12,004,958 + 12,387 + 4,096 = 12,021,441
+// packed; 23,467,425 + 353 + 65 = 23,467,843 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Fence replay through the confirmed-write ledger composition",
+  scope: "Fence successor model and file-backed StatePort replay (#377)",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "d7594356b4b79d4f4103cc1cd0ec4616506f359025533c0b510ceaece7d1d57d",
-  packedBytes: 12_003_525,
-  unpackedBytes: 23_462_770,
+  archiveSha256: "d00e25fa513d0d5bfcbdf8fa407d82b99641164f976ddd913f741a156c25a8c1",
+  packedBytes: 12_004_958,
+  unpackedBytes: 23_467_425,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

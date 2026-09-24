@@ -58,7 +58,8 @@ import {
 } from "./read-projections";
 import {
   createReadProjectionQueryForInvocation,
-  prepareInvocation,
+  AuthIncarnationMissingError,
+  prepareReadInvocation,
   type PreparedInvocation,
 } from "./runtime";
 import type { executeReadInvocation } from "./runtime";
@@ -416,7 +417,7 @@ function prepareSource(
   environment: Environment,
   registry: ProviderPluginRegistry,
 ): PreparedOmniSource {
-  const invocation = prepareInvocation(
+  const invocation = prepareReadInvocation(
     request.adapterId,
     request.operationId,
     request.input,
@@ -1521,10 +1522,22 @@ function view(
         prepared.environment,
       )
     : null;
-  const currentSet = prepareSources(prepared.request, {
-    environment: prepared.environment,
-    registry: prepared.registry,
-  });
+  // Preparation binds each account's current incarnation and fails closed
+  // when one disappeared, so a source whose incarnation is gone has changed
+  // since it was observed. Other preparation errors propagate unchanged.
+  let currentSet: ReturnType<typeof prepareSources>;
+  try {
+    currentSet = prepareSources(prepared.request, {
+      environment: prepared.environment,
+      registry: prepared.registry,
+    });
+  } catch (error) {
+    if (!(error instanceof AuthIncarnationMissingError)) throw error;
+    throw new Error(
+      "omni source or auth identity changed while the local view was being observed",
+      { cause: error },
+    );
+  }
   if (
     currentSet.identity.invocationDigest !== prepared.identity.invocationDigest
     || currentSet.identity.requestDigest !== prepared.identity.requestDigest
