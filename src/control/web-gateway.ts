@@ -14,7 +14,7 @@ export class WebGateway {
   async run(method:"GET"|"HEAD",url:string,signal:AbortSignal):Promise<WebResult> {
     if(this.active>=8) throw new ControlError("GATEWAY_BUSY","Eight requests are already active. Retry later.");
     const checked=checkWebRequest(method,url,this.environment);const id=randomUUID();this.active++;
-    // The broker admits only the first checker's use secret, so this run is the grant's one use.
+    // The approval is bound to this secret from its request, so this run is the grant's one use.
     const use=randomBytes(32).toString("hex");
     let started=false;let finished=false;let response:Response|undefined;let bytes=0;let timer:ReturnType<typeof setTimeout>|undefined;
     const controller=new AbortController();const combined=AbortSignal.any([signal,controller.signal]);
@@ -23,7 +23,7 @@ export class WebGateway {
       this.activity.start({id,method,origin:checked.url.origin,ruleId:checked.ruleIds.join(",")||null,endpoint:checked.endpoint,decision:checked.approval.decision});started=true;
       if(checked.approval.decision==="deny") throw new ControlError("WEB_DENIED","No web rule permits this exact request.");
       if(checked.approval.decision==="ask") {
-        const approval=await this.approvals.request(id,{kind:"web",method,url},checked.approval.digest);
+        const approval=await this.approvals.request(id,{kind:"web",method,url},checked.approval.digest,use);
         let status=approval.status;
         while(status==="pending") {
           combined.throwIfAborted();

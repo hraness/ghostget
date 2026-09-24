@@ -74,11 +74,12 @@ test("actual helper separates admin and agent channels, rejects a second owner, 
     { protocol: "ghostget.approval/1", action: "approval.list" },
     { protocol: "ghostget.approval/1", action: "vault.import", reference: "op://synthetic/private/token" },
     { protocol: "ghostget.approval/1", action: "check", id: "fake", digest: "0".repeat(64), use: "not-a-use-secret" },
+    { protocol: "ghostget.approval/1", action: "request", id: "fake", target: { kind: "web", method: "GET", url: "https://docs.example.com/" }, expectedDigest: "0".repeat(64), use: "not-a-use-secret" },
     { protocol: "ghostget.approval/1", action: "cancel", id: "fake", digest: "0".repeat(64), use: "1".repeat(64) },
   ]) {
     expect(await agentRequest(payload, { environment: fixtureState.environment })).toMatchObject({ ok: false });
   }
-  // Only a check carries the caller's use secret.
+  // A request and its checks carry the caller's use secret; a cancel does not.
   expect(await agentRequest({ protocol: "ghostget.approval/1", action: "check", id: "fake", digest: "0".repeat(64), use: "1".repeat(64) }, { environment: fixtureState.environment }))
     .toEqual({ protocol: "ghostget.approval/1", id: "fake", digest: "0".repeat(64), status: "expired" });
   const denied = await agentRequest({ protocol: "ghostget.web/1", action: "request", method: "GET", url: "https://blocked.example.com/private?token=synthetic-query-marker" }, { environment: fixtureState.environment });

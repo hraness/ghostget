@@ -122,8 +122,24 @@ test("an allow-once grant admits one holder, so a crashed holder leaves no reusa
   expect((await broker.check("one",checked.digest,holder)).status).toBe("expired");
 });
 
+test("a request that carries a use secret admits no other caller, even before the holder's first check",async()=>{
+  const broker=new ApprovalBroker(async()=>checked);
+  const holder="1".repeat(64);const stranger="2".repeat(64);
+  await broker.request("bound",target,checked.digest,holder);
+  expect((await broker.check("bound",checked.digest,stranger)).status).toBe("expired");
+  expect((await broker.check("bound",checked.digest,holder)).status).toBe("pending");
+  await broker.decide("bound",checked.digest,"allow-once");
+  // A caller that learned the id races the holder's first check after the decision.
+  expect((await broker.check("bound",checked.digest,stranger)).status).toBe("expired");
+  expect((await broker.check("bound",checked.digest)).status).toBe("expired");
+  expect((await broker.check("bound",checked.digest,holder)).status).toBe("allowed");
+  expect((await broker.check("bound",checked.digest,holder)).status).toBe("allowed");
+  broker.close();
+});
+
 // One allow-once grant against processes that check, crash and restart, release, and wait.
 // A check without a use secret is a distinct identity each time, like a caller that only knows the lease.
+// A bound grant was requested with process 0's secret; an unbound one is claimed by its first allowed checker.
 type GrantModel={holder:string|null|undefined;released:boolean;now:number;readonly identities:Set<string>};
 type GrantReal={readonly broker:ApprovalBroker;readonly tokens:string[];clock:{now:number};anonymous:number};
 const grantDeadline=600_000;
@@ -174,7 +190,7 @@ class ExpireCommand implements AsyncCommand<GrantModel,GrantReal> {
   async run(m:GrantModel,r:GrantReal):Promise<void> {m.now+=this.elapsed;r.clock.now=m.now;}
   toString():string {return `expire(${this.elapsed})`;}
 }
-test("property: an allow-once grant admits at most one use across checks, races, crashes, release and expiry",async()=>{
+test("property: an allow-once grant, bound at request or at first check, admits at most one use across checks, races, crashes, release and expiry",async()=>{
   const processes=3;const process=fc.nat({max:processes-1});
   await assertAsyncProperty(fc.asyncProperty(fc.commands([
     fc.tuple(process,fc.boolean()).map(([index,withUse])=>new CheckCommand(index,withUse)),
@@ -182,12 +198,12 @@ test("property: an allow-once grant admits at most one use across checks, races,
     process.map(index=>new CrashCommand(index)),
     fc.constant(new ReleaseCommand()),
     fc.integer({min:1,max:300_000}).map(elapsed=>new ExpireCommand(elapsed)),
-  ],{maxCommands:24}),async commands=>{
+  ],{maxCommands:24}),fc.boolean(),async(commands,bound)=>{
     const clock={now:0};
     const broker=new ApprovalBroker(async()=>checked,()=>clock.now,async(_target,retained)=>{await Promise.resolve();return retained;});
-    await broker.request("grant",target,checked.digest);await broker.decide("grant",checked.digest,"allow-once");
     const tokens=Array.from({length:processes},(_,index)=>String(index+1).repeat(64));
-    await fc.asyncModelRun(()=>({model:{holder:undefined,released:false,now:0,identities:new Set<string>()},real:{broker,tokens,clock,anonymous:0}}),commands);
+    await broker.request("grant",target,checked.digest,bound?tokens[0]:undefined);await broker.decide("grant",checked.digest,"allow-once");
+    await fc.asyncModelRun(()=>({model:{holder:bound?tokens[0]:undefined,released:false,now:0,identities:new Set<string>()},real:{broker,tokens,clock,anonymous:0}}),commands);
     broker.close();
   }));
 });

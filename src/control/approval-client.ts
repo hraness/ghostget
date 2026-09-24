@@ -7,7 +7,7 @@ import type { AgentApprovalResponse, ApprovalTarget } from "./protocol";
 import { ControlError, digest, identifier, keys, oneOf, record } from "./validation";
 import type { ControlEnvironment } from "./web-policy";
 
-/** `use` never leaves this process except in checks; the broker admits only the first checker's secret. */
+/** `use` leaves this process only in the request and its checks; the broker admits no other caller. */
 export interface ApprovalLease {readonly id:string;readonly digest:string;readonly use:string}
 export function controlSocketPath(environment:ControlEnvironment=process.env):string {return join(ghostgetStateHome(environment),"control","agent.sock");}
 export async function agentRequest(payload:unknown,options:{environment:ControlEnvironment;signal?:AbortSignal;timeoutMs?:number}):Promise<unknown> {
@@ -37,7 +37,7 @@ function response(value:unknown,lease:ApprovalLease):AgentApprovalResponse {
 export async function requestApproval(target:ApprovalTarget,expectedDigest:string,options:{environment:ControlEnvironment;signal?:AbortSignal}):Promise<ApprovalLease> {
   const lease={id:randomUUID(),digest:expectedDigest,use:randomBytes(32).toString("hex")};
   try {
-    let current=response(await agentRequest({protocol:"ghostget.approval/1",action:"request",id:lease.id,target,expectedDigest},options),lease);
+    let current=response(await agentRequest({protocol:"ghostget.approval/1",action:"request",id:lease.id,target,expectedDigest,use:lease.use},options),lease);
     const deadline=Date.now()+120_000;
     while(current.status==="pending"&&Date.now()<deadline){await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>{options.signal?.removeEventListener("abort",abort);resolve();},400);const abort=()=>{clearTimeout(timer);reject(new ControlError("REQUEST_CANCELLED","The request was cancelled."));};if(options.signal?.aborted){abort();return;}options.signal?.addEventListener("abort",abort,{once:true});});current=response(await agentRequest({protocol:"ghostget.approval/1",action:"check",...lease},options),lease);}
     if(current.status!=="allowed") throw new ControlError("APPROVAL_REQUIRED","This operation was not approved. Review it in Ghostget and retry explicitly.");

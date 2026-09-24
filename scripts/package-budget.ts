@@ -1517,23 +1517,24 @@
 // Compressed size varies with the local zlib. Carry the same projections and
 // allowances: 11,997,841 + 12,387 + 4,096 = 12,014,324 packed;
 // 23,401,813 + 353 + 65 = 23,402,231 unpacked.
-// The approval broker binds each allow-once grant to the use secret of its
-// first allowed check, and the approval client and web gateway send a
-// per-request use secret on every check. This adds 1,667 payload bytes over
-// the unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with
-// npm 11.19.0 on darwin arm64 were byte-identical at 11,987,079 packed bytes,
-// 23,403,480 unpacked bytes; archive SHA-256
-// 97c57f1a79f5f23f2347d4017b1eb3c6da13af3baae9607861b2a1690d35a28a. Carry the
-// same projections and allowances: 11,987,079 + 12,387 + 4,096 = 12,003,562
-// packed; 23,403,480 + 353 + 65 = 23,403,898 unpacked.
+// Each allow-once approval is bound to a per-request use secret that the
+// approval client and web gateway send with the request and every check. The
+// broker admits no other caller, and a check without a secret consumes an
+// unbound grant for one response. This adds 2,005 payload bytes over the
+// unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with npm
+// 11.19.0 on darwin arm64 were byte-identical at 11,987,150 packed bytes,
+// 23,403,818 unpacked bytes; archive SHA-256
+// cab82c4acca563ebb8e81d59462cf7f613aca3db7f339ec13d866347c86bd308. Carry the
+// same projections and allowances: 11,987,150 + 12,387 + 4,096 = 12,003,633
+// packed; 23,403,818 + 353 + 65 = 23,404,236 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Allow-once approvals bound to their first checker's use secret in the broker, client, and web gateway (D13)",
+  scope: "D13 broker-enforced allow-once approvals",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "97c57f1a79f5f23f2347d4017b1eb3c6da13af3baae9607861b2a1690d35a28a",
-  packedBytes: 11_987_079,
-  unpackedBytes: 23_403_480,
+  archiveSha256: "cab82c4acca563ebb8e81d59462cf7f613aca3db7f339ec13d866347c86bd308",
+  packedBytes: 11_987_150,
+  unpackedBytes: 23_403_818,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

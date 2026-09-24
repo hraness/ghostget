@@ -5,7 +5,7 @@ import { ControlError } from "./validation";
 type Entry={readonly id:string;readonly target:ApprovalTarget;readonly checked:CheckedApproval;readonly viewBytes:number;expiresAt:number;expiresAtWall:number;status:AgentApprovalResponse["status"];holder?:Buffer};
 const MAX_APPROVAL_VIEW_BYTES=512*1024;
 const holderKey=(use:string):Buffer=>createHash("sha256").update(use).digest();
-/** An unclaimed grant admits any caller once; a claimed grant admits only its holder. */
+/** An unbound entry admits any caller until an allowed check claims it; a bound entry admits only its holder. */
 const admits=(e:Entry,use:string|undefined):boolean=>e.holder===undefined||use!==undefined&&timingSafeEqual(e.holder,holderKey(use));
 function view(id:string,checked:CheckedApproval,expiresAtWall:number):ApprovalView{return {id,digest:checked.digest,kind:checked.kind,title:checked.title,account:checked.account,effect:checked.effect,preview:checked.preview,expiresAt:new Date(expiresAtWall).toISOString()};}
 /** Only the private native control channel receives a reference to decide(). */
@@ -14,7 +14,8 @@ export class ApprovalBroker {
   private closed=false;
   constructor(private readonly recompute:(target:ApprovalTarget)=>Promise<CheckedApproval>,private readonly now:()=>number=()=>performance.now(),private readonly recheck:(target:ApprovalTarget,checked:CheckedApproval)=>Promise<CheckedApproval>=target=>recompute(target),private readonly wallNow:()=>number=Date.now) {}
   private sweep():void {for(const [id,e] of this.entries) if(this.now()>=e.expiresAt) this.entries.delete(id);}
-  async request(id:string,target:ApprovalTarget,expectedDigest:string):Promise<AgentApprovalResponse> {
+  /** A request that carries a use secret binds the entry to that holder before anyone else can learn its id. */
+  async request(id:string,target:ApprovalTarget,expectedDigest:string,use?:string):Promise<AgentApprovalResponse> {
     if(this.closed)throw new ControlError("CONTROL_CLOSED","The control service is closing.");
     this.sweep();
     if(this.entries.has(id)) throw new ControlError("APPROVAL_REPLAY","An approval request identifier cannot be reused.");
@@ -28,20 +29,20 @@ export class ApprovalBroker {
     const viewBytes=Buffer.byteLength(JSON.stringify(view(id,checked,expiresAtWall)))+1;
     const retainedBytes=[...this.entries.values()].reduce((total,entry)=>total+entry.viewBytes,2);
     if(retainedBytes+viewBytes>MAX_APPROVAL_VIEW_BYTES)throw new ControlError("APPROVAL_QUEUE_FULL","The approval queue has reached its preview-size limit. Finish an existing request before retrying.");
-    this.entries.set(id,{id,target,checked,viewBytes,expiresAt:now+120_000,expiresAtWall,status:"pending"});
+    this.entries.set(id,{id,target,checked,viewBytes,expiresAt:now+120_000,expiresAtWall,status:"pending",...(use===undefined?{}:{holder:holderKey(use)})});
     return {protocol:"ghostget.approval/1",id,digest:expectedDigest,status:"pending"};
   }
   /**
-   * The first allowed check consumes an allow-once grant by binding it to the caller's use secret.
-   * Later checks admit only that holder, so a holder that exits before release leaves nothing reusable.
-   * A check without a use secret consumes the grant for that one response.
+   * Only the holder's use secret checks a bound entry. An entry requested without one is bound to the
+   * first allowed checker, and a check without a secret consumes the grant for that one response.
+   * A holder that exits before release therefore leaves nothing reusable.
    */
   async check(id:string,digest:string,use?:string):Promise<AgentApprovalResponse> {
     this.sweep();const e=this.entries.get(id);
     const expired={protocol:"ghostget.approval/1",id,digest,status:"expired"} as const;
     let status:AgentApprovalResponse["status"]="expired";
     if(e!==undefined&&e.checked.digest===digest) {
-      if(e.status==="allowed"&&!admits(e,use))return expired;
+      if(!admits(e,use))return expired;
       if(e.status==="allowed"||e.status==="pending") {
         const checked=e.status==="allowed" ? await this.recheck(e.target,e.checked) : await this.recompute(e.target);
         if(this.closed||this.entries.get(id)!==e||this.now()>=e.expiresAt)return expired;

@@ -23,11 +23,11 @@ async function handleAgent(value:unknown,service:ControlService,signal:AbortSign
   const v=record(value);
   if(v.protocol==="ghostget.web/1") {keys(v,["protocol","action","method","url"]);if(v.action!=="request")throw new Error("invalid action");return await service.gateway.run(oneOf(v.method,["GET","HEAD"]),string(v.url,8192),signal);}
   if(v.protocol!=="ghostget.approval/1")throw new Error("invalid protocol");
-  if(v.action==="request"){keys(v,["protocol","action","id","target","expectedDigest"]);return await service.approvals.request(identifier(v.id),parseTarget(v.target),digest(v.expectedDigest));}
-  // A check may carry the caller's use secret; the broker binds an allow-once grant to its first holder.
-  const use=v.action==="check"&&Object.hasOwn(v,"use");
+  // A request or check may carry the caller's use secret; the broker admits only that holder. A cancel never carries it.
+  const use=(v.action==="request"||v.action==="check")&&Object.hasOwn(v,"use");const secret=use?digest(v.use):undefined;
+  if(v.action==="request"){keys(v,use?["protocol","action","id","target","expectedDigest","use"]:["protocol","action","id","target","expectedDigest"]);return await service.approvals.request(identifier(v.id),parseTarget(v.target),digest(v.expectedDigest),secret);}
   keys(v,use?["protocol","action","id","digest","use"]:["protocol","action","id","digest"]);const id=identifier(v.id);const hash=digest(v.digest);
-  if(v.action==="check")return await service.approvals.check(id,hash,use?digest(v.use):undefined);
+  if(v.action==="check")return await service.approvals.check(id,hash,secret);
   if(v.action==="cancel")return service.approvals.cancel(id,hash);
   throw new Error("invalid action");
 }
