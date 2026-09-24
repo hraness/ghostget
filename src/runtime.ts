@@ -3090,7 +3090,7 @@ const CONFIRMED_WRITE_INTENT_DOMAIN = "ghostget-confirmed-write-intent-v1";
  * successor when present. The key excludes adapter and auth hashes: a
  * manifest revision or a reconnect rewrites those bytes, not the effect.
  */
-function intentLedgerPath(
+export function intentLedgerPath(
   adapterId: string,
   authId: string,
   operationId: string,
