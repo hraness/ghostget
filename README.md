@@ -400,6 +400,20 @@ privacy-projected provider metadata, requested derivatives and transcripts, a
 versioned manifest, and SHA-256 integrity records. Inspect the directory
 directly and run `ghostget verify` to recompute every recorded artifact hash.
 
+If a save is interrupted, for example by a crash or power loss, the newest
+revision of an item can fail verification. The next capture of that item moves
+the damaged revision into `.wrench-media-quarantine` under the media library and
+continues from the last revision that verifies. Ghostget never deletes a
+quarantined revision. To review them:
+
+1. Run `ghostget media quarantine` (add `--output <dir>` for a library outside
+   the default location, or `--json` for a record). It lists each entry with its
+   original item name, file count, size, and the time it was moved, and changes
+   nothing.
+2. Open an entry and copy out anything you want to keep.
+3. Delete the entries you no longer want yourself, for example with `rm -r`
+   on the listed path. Ghostget has no command that removes them.
+
 ## Inspect provider support
 
 ```sh

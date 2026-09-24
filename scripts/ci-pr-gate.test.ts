@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 
 import {
+  MACOS_MEDIA_TEST_FILES,
   MACOS_PATTERNED_TESTS,
   MACOS_TEST_FILES,
   assertMacosCheckFilesExist,
@@ -125,9 +126,24 @@ describe("macOS PR check subset", () => {
       "--max-concurrency",
       "4",
       ...MACOS_TEST_FILES,
+      ...MACOS_MEDIA_TEST_FILES,
     ]);
     expect(invocations[1]).toContain("--test-name-pattern");
     expect(invocations[1]).toContain("src/ghostget.test.ts");
+  });
+
+  test("runs the media process-group, lock, and durability files so F_FULLFSYNC runs on macOS", async () => {
+    await assertMacosCheckFilesExist(repositoryRoot);
+    expect(MACOS_MEDIA_TEST_FILES).toEqual([
+      "src/media/lock.property.test.ts",
+      "src/media/lock.test.ts",
+      "src/media/manifest-durability.test.ts",
+      "src/media/process-group.test.ts",
+      "src/media/process-parent-exit.test.ts",
+    ]);
+    expect(MACOS_MEDIA_TEST_FILES.some((file) => MACOS_TEST_FILES.includes(file))).toBeFalse();
+    const durability = await readFile(new URL("../src/media/manifest-durability.test.ts", import.meta.url), "utf8");
+    expect(durability).toContain("test.skipIf(process.platform !== \"darwin\")(\"issues F_FULLFSYNC");
   });
 
   test("checks the CLI and shared-foundation menu while excluding desktop packaging", async () => {

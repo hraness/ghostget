@@ -4,6 +4,7 @@ export const USAGE = `usage: ghostget media [archive|audio|video|transcript] URL
        ghostget doctor [--json]
        ghostget transcriber setup --engine whisper-cpp --model FILE [options]
        ghostget verify ITEM_DIRECTORY [--json]
+       ghostget media quarantine [--output DIRECTORY] [--json]
 
 commands:
   ghostget media URL                 save media, separate audio/video, and get a transcript
@@ -14,6 +15,7 @@ commands:
   ghostget transcriber setup         register an existing local whisper.cpp executable and model
   ghostget doctor                    inspect built-in HTTP and external media capabilities
   ghostget verify PATH               recompute and verify every artifact recorded in wrench-media.json
+  ghostget media quarantine          list revisions moved aside after an interrupted save; removes nothing
 
 capture options:
   --output DIRECTORY       library root (default: GHOSTGET_MEDIA_HOME or ~/.local/share/ghostget/media)
@@ -44,6 +46,7 @@ export type CliCommand =
   | ({ readonly kind: "version" } & CommandBase)
   | ({ readonly kind: "doctor" } & CommandBase)
   | ({ readonly kind: "verify"; readonly itemDirectory: string } & CommandBase)
+  | ({ readonly kind: "quarantine"; readonly outputDirectory?: string } & CommandBase)
   | ({
       readonly kind: "transcriber-setup";
       readonly engine: "whisper-cpp";
@@ -287,6 +290,20 @@ export function parseArgs(argv: readonly string[]): ParseArgsResult {
     }
     if (second.includes("\0") || second.length > 4_096) return failure(json, "invalid item directory");
     return { ok: true, command: { kind: "verify", itemDirectory: resolve(second), json } };
+  }
+  if (first === "quarantine") {
+    const known = [...tokens.options.keys()].every((name) => name === "--output" || name === "--json");
+    if (second !== undefined || rest.length !== 0 || !known) {
+      return failure(json, "quarantine accepts only --output and --json");
+    }
+    const output = option(tokens, "--output");
+    if (output !== undefined && !validFilesystemOption(output)) {
+      return failure(json, "--output must be a nonempty filesystem path");
+    }
+    return {
+      ok: true,
+      command: { kind: "quarantine", ...(output === undefined ? {} : { outputDirectory: resolve(output) }), json },
+    };
   }
   if (first === "transcriber") {
     if (second !== "setup" || rest.length !== 0) {

@@ -166,6 +166,7 @@ const defaultProcessDependencies: ProcessDependencies = {
       stdout: "pipe",
       stderr: "pipe",
     });
+    if (grouped) trackProcessGroup(child.pid, child.exited);
     return {
       stdout: child.stdout,
       stderr: child.stderr,
@@ -671,6 +672,71 @@ function signalProcessGroup(pid: number, signal: ProcessSignal): void {
     // ESRCH means every member of the group has already exited.
     if (!(typeof error === "object" && error !== null && "code" in error && error.code === "ESRCH")) throw error;
   }
+}
+
+/**
+ * A detached group does not receive the terminal's signals and is not killed
+ * when Ghostget dies, so Ghostget must stop every active group when it ends.
+ * The handlers exist only while a group is active.
+ */
+const PARENT_TERMINATION_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
+type ParentTerminationSignal = (typeof PARENT_TERMINATION_SIGNALS)[number];
+
+const activeProcessGroups = new Set<number>();
+const parentSignalHandlers = new Map<ParentTerminationSignal, () => void>();
+
+function trackProcessGroup(pid: number, exited: Promise<number>): void {
+  if (!Number.isSafeInteger(pid) || pid <= 1) return;
+  activeProcessGroups.add(pid);
+  if (activeProcessGroups.size === 1) installParentHandlers();
+  // Forget the group as soon as its leader is reaped, so a later sweep cannot
+  // reach a reused process ID. Members that outlive the leader keep the group
+  // ID reserved, and cancellation still sweeps them.
+  const forget = (): void => {
+    activeProcessGroups.delete(pid);
+    if (activeProcessGroups.size === 0) removeParentHandlers();
+  };
+  exited.then(forget, forget);
+}
+
+/** Sends one SIGKILL to each active group. It never waits, so exit stays bounded. */
+function killActiveProcessGroups(): void {
+  for (const pid of activeProcessGroups) {
+    try {
+      signalProcessGroup(pid, "SIGKILL");
+    } catch {
+      // A group that cannot be signalled is not one this process can stop.
+    }
+  }
+}
+
+function onParentExit(): void {
+  killActiveProcessGroups();
+}
+
+function installParentHandlers(): void {
+  for (const signal of PARENT_TERMINATION_SIGNALS) {
+    const handler = (): void => {
+      // Another listener, such as the Ghostget process boundary, owns this
+      // signal and cancels runs gracefully. Leave the groups to that path.
+      if (process.listenerCount(signal) > 1) return;
+      // With no other listener the default action would end this process.
+      // Stop the groups, restore the default action, and signal again.
+      killActiveProcessGroups();
+      removeParentHandlers();
+      process.kill(process.pid, signal);
+    };
+    parentSignalHandlers.set(signal, handler);
+    // Run first, so a once-listener is still counted when this handler looks.
+    process.prependListener(signal, handler);
+  }
+  process.on("exit", onParentExit);
+}
+
+function removeParentHandlers(): void {
+  for (const [signal, handler] of parentSignalHandlers) process.removeListener(signal, handler);
+  parentSignalHandlers.clear();
+  process.removeListener("exit", onParentExit);
 }
 
 function safelyKill(child: SpawnedProcess, signal: ProcessSignal): void {

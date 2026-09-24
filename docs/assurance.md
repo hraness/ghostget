@@ -8,11 +8,11 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 232 claims: 149 evidenced, 64 planned, and 19 not verified. It maps 86 guidelines from 5 guides; 66 list claims and 20 are exempt.
+The register holds 232 claims: 150 evidenced, 63 planned, and 19 not verified. It maps 86 guidelines from 5 guides; 66 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 135 | 5 | 0 |
+| example test | 136 | 4 | 0 |
 | property test | 14 | 1 | 0 |
 | stateful model | 0 | 14 | 0 |
 | Quint model with production trace replay | 0 | 35 | 0 |
@@ -825,11 +825,13 @@ Each capture subject has one revision lineage with a single head, and a crash or
 
 - Planned: Quint model with production trace replay in plan Phase 4.
 - Source: `kb/plans/formal-verification-assurance.md`: “The progress property "a crash never makes a lineage permanently invalid" drives D10.”
-- Evidence: `src/media/archive.property.test.ts`, `src/media/lock.test.ts`, `src/media/revision.property.test.ts`, `src/media/revision.test.ts`
+- Evidence: `src/media/archive.property.test.ts`, `src/media/archive.test.ts`, `src/media/lock.test.ts`, `src/media/manifest-durability.test.ts`, `src/media/quarantine.test.ts`, `src/media/revision.property.test.ts`, `src/media/revision.test.ts`
 - Assumptions: `filesystem-atomic-rename`, `filesystem-durability`, `process-liveness`, `media-tools`
 - Not verified:
   - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Plan defect D10 is open: only the direct capture file and the lock are fsynced before promotion, so a torn file after power loss can stop a lineage with no repair path.
+  - F_FULLFSYNC runs in the macOS CI job; on Linux and on filesystems that refuse it, the flush falls back to fsync, which gives no drive-cache guarantee.
+  - Repair quarantines at most one torn head per capture; the direct pipeline promotes durably but does not repair a torn head.
+  - Quarantined revisions stay until their owner removes them; `ghostget media quarantine` lists them and removes nothing.
 
 #### `media-lock-exclusion`
 
@@ -845,15 +847,17 @@ Media item locks exclude concurrent owners; release never removes a replacement 
 
 #### `media-cancellation-stops-work`
 
-Cancelling a media acquisition stops every process it started, including ffmpeg and HLS grandchildren; a cancellation that arrives before promotion prevents a `created` result, and both pipelines discard staging on every error.
+Cancelling a media acquisition stops every process it started, including ffmpeg and HLS grandchildren; a cancellation that arrives before promotion prevents a `created` result, both pipelines discard staging on every error, and when Ghostget exits or receives an unhandled SIGINT, SIGTERM, or SIGHUP it kills every active media process group.
 
-- Planned: example test in plan Phase 6.
+- Evidenced by example test.
 - Source: `kb/plans/formal-verification-assurance.md`: “D9: spawn in a process group and kill the group. Check cancellation before promotion.”
-- Evidence: `src/media/process.test.ts`
+- Evidence: `src/media/archive.test.ts`, `src/media/process-group.test.ts`, `src/media/process-parent-exit.test.ts`, `src/media/process.test.ts`
 - Assumptions: `filesystem-atomic-rename`, `media-tools`
 - Not verified:
-  - The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Plan defect D9 is open: cancellation signals only yt-dlp, not its process group, so ffmpeg and HLS grandchildren keep running, and a cancel after transcription can still return `created`.
+  - Only the enumerated example cases are checked; the grouped-termination property samples scripted exit points, not every signal interleaving.
+  - A SIGKILL of Ghostget itself, or a kernel or power failure, runs no exit handler, so a detached media tool group can outlive it.
+  - The group kill reaches only processes that stay in the tool's process group; a helper that calls setsid() or setpgid() leaves the group and is not stopped.
+  - On Windows media tools run without a process group, so only the direct child is signalled.
 
 #### `media-verify-recomputes-hashes`
 

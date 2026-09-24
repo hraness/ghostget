@@ -17,6 +17,16 @@ export const MACOS_TEST_FILES = Object.freeze([
   "src/provider-plugin-host.test.ts",
 ]);
 
+// Media process groups, item locks, and F_FULLFSYNC flushes are native to
+// darwin, so the macOS job runs them in addition to the Linux shards.
+export const MACOS_MEDIA_TEST_FILES = Object.freeze([
+  "src/media/lock.property.test.ts",
+  "src/media/lock.test.ts",
+  "src/media/manifest-durability.test.ts",
+  "src/media/process-group.test.ts",
+  "src/media/process-parent-exit.test.ts",
+]);
+
 export const MACOS_PATTERNED_TESTS = Object.freeze([
   Object.freeze({
     file: "src/ghostget.test.ts",
@@ -40,6 +50,7 @@ function parseConcurrency(value: string | undefined): number {
 export async function assertMacosCheckFilesExist(root: string): Promise<void> {
   const required = [
     ...MACOS_TEST_FILES,
+    ...MACOS_MEDIA_TEST_FILES,
     ...MACOS_PATTERNED_TESTS.map((entry) => entry.file),
   ];
   for (const relativePath of required) {
@@ -59,6 +70,7 @@ export function macosCheckInvocations(
       "--max-concurrency",
       String(concurrency),
       ...MACOS_TEST_FILES,
+      ...MACOS_MEDIA_TEST_FILES,
     ],
     ...MACOS_PATTERNED_TESTS.map((entry) => [
       "test",
@@ -79,7 +91,7 @@ async function runMacosCheck(): Promise<void> {
   await assertMacosCheckFilesExist(root);
   const concurrency = parseConcurrency(process.env.GOMAXPROCS);
   process.stderr.write(
-    `ghostget check:macos: ${String(MACOS_TEST_FILES.length)} files plus `
+    `ghostget check:macos: ${String(MACOS_TEST_FILES.length + MACOS_MEDIA_TEST_FILES.length)} files plus `
     + `${String(MACOS_PATTERNED_TESTS.length)} patterned canary\n`,
   );
   for (const arguments_ of macosCheckInvocations(concurrency)) {
