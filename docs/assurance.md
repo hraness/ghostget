@@ -2399,7 +2399,7 @@ Read-path invocation preparation (capability and omni reads, cache-only invocati
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
 - Not verified:
   - Only the enumerated example cases are checked: one missing incarnation per read path, on a fresh state home.
-  - The cache-only `ghostget invoke` branch is checked by type and review only; no test drives the CLI with a missing incarnation.
+  - The cache-only `ghostget invoke` branch is driven in process through `main` with a stubbed cache read, not through the installed binary; the retry preparation after a discarded live read is checked by type and review only.
   - Explicit invocation preparation, including the messaging route, context, and action preparations, still creates a missing incarnation as an admitted execution path.
 
 #### `read-projection-key-exemption`

@@ -201,5 +201,8 @@ describe("omni materialization holds only the incarnation read capability", () =
     }, { environment, registry, now: new Date("2026-09-23T12:00:02.000Z") })).toThrow("omni source or auth identity changed while the local view was being observed");
     expect(probe.removed).toBeTrue();
     expect(probe.afterMaterialization).toBe(false);
+    // The closing recheck prepares through the read capability as well, so the
+    // failed view leaves the incarnation missing.
+    expect(existsSync(incarnationPath(root, "reddit-main"))).toBeFalse();
   });
 });

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { createAuth, saveAuth } from "./auth";
 import { rebuildOmniViewFromExactCache } from "./omni-runtime";
+import { main } from "./ghostget";
 import { describeOperationPermission, OperationPermissionError } from "./operation-permission";
 import { providerPluginRegistry } from "./provider-plugins";
 import { readCachedCapability } from "./read-client";
@@ -95,6 +96,29 @@ describe("read-path preparation binds the current incarnation without creating o
     rmSync(incarnationPath(root, "reddit-main"));
     expect(() => omniRebuild(environment)).toThrow("auth locator reddit-main has no lifetime identity yet");
     expect(existsSync(incarnationPath(root, "reddit-main"))).toBeFalse();
+  });
+
+  test("invoke --cache-only on an account without an incarnation fails closed and writes nothing", async () => {
+    const { root, environment } = accounts();
+    rmSync(incarnationPath(root, "x-main"));
+    const before = fingerprint(root);
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    let cacheReads = 0;
+    const code = await main(
+      ["invoke", "x", "messaging.list", "--input", JSON.stringify(xRead.input), "--auth", "x-main", "--cache-only", "--json"],
+      environment,
+      { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) },
+      {
+        providerPluginRegistry,
+        readCachedPreparedCapability: () => { cacheReads += 1; throw new Error("cache read must not run"); },
+      },
+    );
+    expect(code).not.toBe(0);
+    expect(stderr.join("")).toContain("auth locator x-main has no lifetime identity yet");
+    expect(cacheReads).toBe(0);
+    expect(existsSync(incarnationPath(root, "x-main"))).toBeFalse();
+    expect(fingerprint(root)).toEqual(before);
   });
 
   test("control inspection of an unplanned approval target creates no incarnation", () => {
