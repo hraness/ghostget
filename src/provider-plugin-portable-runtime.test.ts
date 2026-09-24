@@ -64,8 +64,10 @@ import {
 } from "./provider-plugin-lifecycle";
 import {
   readPortableRunNotAppliedClaim,
+  readPortableRunObservedReadback,
   readPortableRunResolution,
   reconcilePortableProviderPluginRun,
+  reconcilePortableProviderPluginRunFromReadback,
 } from "./portable-run-recovery";
 import {
   assertPortableProviderPluginActivatable,
@@ -91,6 +93,8 @@ import {
   loadInvocationPlan,
   readRunReceipt,
   saveInvocationPlan,
+  runJournalIntentHash,
+  supersedeSettledDuplicateSources,
 } from "./runtime";
 import { runWebSessionOperationWithDeadline } from "./web-session";
 
@@ -203,6 +207,40 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
     });
     continue;
   }
+  if (message.kind === "host.readback") {
+    const body = String(message.input.body ?? "");
+    if (body.includes("[invoke-result]")) {
+      send({
+        protocolVersion: 1,
+        kind: "plugin.result",
+        invocationId: message.invocationId,
+        output: null,
+        finalUrl: null,
+      });
+      continue;
+    }
+    const observation = body.includes("[applied]")
+      ? "applied"
+      : body.includes("[unknown]") ? "unknown" : "not-applied";
+    send({
+      protocolVersion: 2,
+      kind: "plugin.readback.result",
+      invocationId: message.invocationId,
+      readback: {
+        version: 1,
+        runId: body.includes("[unbound]")
+          ? "00000000-0000-4000-8000-000000000000"
+          : message.readback.runId,
+        intentHash: message.readback.intentHash,
+        observation,
+        evidence: {
+          lookup: message.route.operation,
+          matches: observation === "applied" ? 1 : 0,
+        },
+      },
+    });
+    continue;
+  }
   if (message.kind === "host.invoke") {
     invocation = message;
     if (message.route.operation === "profiles.read") {
@@ -219,10 +257,13 @@ for await (const line of createInterface({ input: process.stdin, crlfDelay: Infi
         offset: 0,
         length: 4096,
       });
-    } else if (message.route.operation === "messages.send") {
+    } else if (
+      message.route.operation === "messages.send"
+      || message.route.operation === "posts.publish"
+    ) {
       capability("dispatch-begin", {
         kind: "dispatch.begin",
-        dispatchId: "messages.send",
+        dispatchId: message.route.operation,
       });
     } else {
       result({ route: message.route.operation });
@@ -310,7 +351,53 @@ type PackageIdentity = {
   readonly adapterId: string;
   readonly surfaceId: string;
   readonly origin: `https://${string}`;
+  /** Add a one-dispatch `posts.publish` write and its `posts.read` lookup. */
+  readonly publish?: "plain";
 };
+
+const publishIdentity: PackageIdentity = {
+  id: "portable-publish",
+  adapterId: "portable-publish",
+  surfaceId: "portable-publish",
+  origin: "https://web.portable.example",
+  publish: "plain",
+};
+
+const publishInput = {
+  properties: {
+    body: {
+      type: "string" as const,
+      description: "Fixture post body.",
+    },
+  },
+  required: ["body"],
+};
+
+function publishOperations(identity: PackageIdentity) {
+  if (identity.publish === undefined) return [];
+  return [
+    {
+      name: "posts.publish",
+      contractVersion: 1,
+      timeoutMs: REAL_HOST_FIXTURE_TIMEOUT_MS,
+      maxOutputBytes: 4_096,
+      state: "observed" as const,
+      risk: "R3" as const,
+      dispatch: "single" as const,
+      sideEffect: "publishes one post",
+      idempotency: "local-at-most-once" as const,
+      dedupeWindowMs: 60_000,
+      input: publishInput,
+      implementation: "Publishes one fixture post.",
+      readback: {
+        version: 1 as const,
+        operation: "posts.read",
+        contractVersion: 1,
+      },
+    },
+    readOperation("posts.read", publishInput),
+  ];
+}
 
 const mainIdentity: PackageIdentity = {
   id: "portable-suite",
@@ -406,7 +493,7 @@ function webBinding(
         },
         readOperation("profiles.read"),
       ]
-    : [readOperation("profiles.read")];
+    : [...publishOperations(identity), readOperation("profiles.read")];
   return {
     transport: "web-session-api",
     adapterId: identity.adapterId,
@@ -3459,6 +3546,406 @@ describe("portable provider runtime capability containment", () => {
     });
     expect(events).toEqual(["before", "fetch"]);
     expect(fetches).toBe(1);
+  });
+});
+
+/**
+ * A process-free host for the `posts.publish` fixture: it crosses the real
+ * capability host's dispatch boundary and then either loses the response
+ * (started, unverified) or verifies it. `dispatch` counts provider writes.
+ */
+function publishFixtureHost(
+  dispatch: () => boolean,
+): (
+  invocation: Parameters<typeof runPortableProviderPluginHost>[0],
+) => ReturnType<typeof runPortableProviderPluginHost> {
+  return async (invocation) => {
+    const host = invocation.capabilityHost;
+    if (host === undefined) {
+      throw new Error("portable capability host is unavailable");
+    }
+    const context = (requestId: string) => ({
+      invocationId: "portable-publish-fixture",
+      requestId,
+      route: invocation.route,
+      signal: invocation.signal ?? new AbortController().signal,
+    });
+    const planned = invocation.plannedDispatchIds ?? [];
+    if (planned.length === 0) {
+      throw new Error("the publish fixture host serves only planned writes");
+    }
+    const begun = await host.handle(
+      { kind: "dispatch.begin", dispatchId: planned[0] as string },
+      context("dispatch-begin"),
+    );
+    if (begun.kind !== "dispatch.begin") {
+      throw new Error("portable dispatch did not begin");
+    }
+    if (dispatch()) {
+      return {
+        output: null,
+        finalUrl: null,
+        dispatch: { planned: 1, started: 1, verified: 0 },
+      };
+    }
+    await host.handle(
+      {
+        kind: "dispatch.verify",
+        dispatchHandle: begun.dispatchHandle,
+        proof: { status: 201 },
+      },
+      context("dispatch-verify"),
+    );
+    return {
+      output: { id: "1" },
+      finalUrl: null,
+      dispatch: { planned: 1, started: 1, verified: 1 },
+    };
+  };
+}
+
+describe("portable duplicate-risk successors", () => {
+  test("elects one successor for a lost portable publish and supersedes the source once it settles", async () => {
+    const isolatedRoot = mkdtempSync(join(fixtureRoot, "publish-successor-"));
+    chmodSync(isolatedRoot, 0o700);
+    const isolatedEnvironment = {
+      GHOSTGET_STATE_HOME: isolatedRoot,
+      HOME: fixtureRoot,
+    };
+    try {
+      installPackage(
+        createPackage(fixtureRoot, publishIdentity),
+        isolatedEnvironment,
+      );
+      const auth = cookiesAuth(cookiePath);
+      saveAuth(auth, isolatedEnvironment, { force: true });
+      let loseResponse = true;
+      let fetches = 0;
+      const catalog = createPortableProviderPluginCatalog(
+        emptyRegistry(),
+        isolatedEnvironment,
+        {
+          runHost: publishFixtureHost(() => {
+            fetches += 1;
+            return loseResponse;
+          }),
+        },
+      );
+      const manifest = catalog.registry.resolveOwnedManifest("portable-publish");
+      const installed = catalog.installed[0];
+      if (manifest === undefined || installed === undefined) {
+        throw new Error("portable publish fixture is unavailable");
+      }
+      const input = { body: "one portable duplicate-risk fixture" };
+      const preview = (duplicateRiskOf: readonly string[] = []) =>
+        createAndSaveInvocationPlan({
+          manifest,
+          operationId: "posts.publish",
+          input,
+          auth,
+        }, isolatedEnvironment, new Date(), catalog.registry, {
+          duplicateRiskOf,
+        });
+      const confirm = (duplicateRiskOf: readonly string[] = []) =>
+        confirmInvocation(preview(duplicateRiskOf).digest, {
+          headed: false,
+          environment: isolatedEnvironment,
+          registry: catalog.registry,
+          loadManifest: () => ({ ok: true, value: manifest }),
+        });
+      const quiescent = () => inspectPortableProviderPluginQuiescence(
+        installed.package.bundleSha256,
+        isolatedEnvironment,
+      ).quiescent;
+
+      const source = await confirm();
+      expect(source.receipt.status).toBe("indeterminate");
+      expect(fetches).toBe(1);
+      const sourceRunId = source.receipt.runId;
+      expect(await rejectionMessage(confirm())).toContain("prior attempt");
+      expect(fetches).toBe(1);
+
+      loseResponse = false;
+      const successor = await confirm([sourceRunId]);
+      expect(successor.receipt.status).toBe("submitted");
+      expect(fetches).toBe(2);
+      const elected = readRunJournal(sourceRunId, isolatedEnvironment)?.journal;
+      expect(elected).toMatchObject({
+        status: "indeterminate",
+        ledgerState: "indeterminate",
+        recoveryState: "retained",
+        duplicateSuccessor: { runId: successor.receipt.runId },
+      });
+      expect(elected?.supersededBy).toBeUndefined();
+      // The election is permanent: no second successor, and the source
+      // still holds its bundle until a repair pass supersedes it.
+      expect(() => preview([sourceRunId]))
+        .toThrow("is not an unclaimed retained terminal indeterminate");
+      expect(quiescent()).toBeFalse();
+
+      expect(supersedeSettledDuplicateSources(isolatedEnvironment)).toEqual({
+        superseded: [sourceRunId],
+        failed: [],
+      });
+      expect(readRunJournal(sourceRunId, isolatedEnvironment)?.journal)
+        .toMatchObject({
+          status: "indeterminate",
+          ledgerState: "indeterminate",
+          recoveryState: "released",
+          supersededBy: {
+            schemaVersion: 1,
+            successorRunId: successor.receipt.runId,
+          },
+        });
+      expect(readRecoveryCapsule(
+        sourceRunId,
+        source.receipt.auth.id,
+        source.receipt.auth.hash,
+        isolatedEnvironment,
+      )).toBeNull();
+      expect(quiescent()).toBeTrue();
+      expect(supersedeSettledDuplicateSources(isolatedEnvironment)).toEqual({
+        superseded: [],
+        failed: [],
+      });
+
+      // The fence is unchanged: the source's possible effect still refuses
+      // the plain intent, and no further successor can be elected.
+      expect(await rejectionMessage(confirm())).toContain("prior attempt");
+      expect(() => preview([sourceRunId]))
+        .toThrow("is not an unclaimed retained terminal indeterminate");
+      expect(fetches).toBe(2);
+    } finally {
+      rmSync(isolatedRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("portable readback reconciliation", () => {
+  test("releases the fence only on a bound not-applied observation from the declared readback", async () => {
+    const isolatedRoot = mkdtempSync(join(fixtureRoot, "publish-readback-"));
+    chmodSync(isolatedRoot, 0o700);
+    const isolatedEnvironment = {
+      GHOSTGET_STATE_HOME: isolatedRoot,
+      HOME: fixtureRoot,
+    };
+    try {
+      installPackage(
+        createPackage(fixtureRoot, publishIdentity),
+        isolatedEnvironment,
+      );
+      const auth = cookiesAuth(cookiePath);
+      saveAuth(auth, isolatedEnvironment, { force: true });
+      let loseResponse = true;
+      let fetches = 0;
+      let readbacks = 0;
+      const writeHost = publishFixtureHost(() => {
+        fetches += 1;
+        return loseResponse;
+      });
+      const catalog = createPortableProviderPluginCatalog(
+        emptyRegistry(),
+        isolatedEnvironment,
+        {
+          // Writes use the process-free fixture; every readback runs the
+          // real child host and protocol 2 frames.
+          runHost: (invocation) => {
+            if (invocation.readback === undefined) return writeHost(invocation);
+            readbacks += 1;
+            return runPortableProviderPluginHost(invocation);
+          },
+        },
+      );
+      const manifest = catalog.registry.resolveOwnedManifest("portable-publish");
+      if (manifest === undefined) {
+        throw new Error("portable publish fixture is unavailable");
+      }
+      const confirm = (body: string) =>
+        confirmInvocation(createAndSaveInvocationPlan({
+          manifest,
+          operationId: "posts.publish",
+          input: { body },
+          auth,
+        }, isolatedEnvironment, new Date(), catalog.registry).digest, {
+          headed: false,
+          environment: isolatedEnvironment,
+          registry: catalog.registry,
+          loadManifest: () => ({ ok: true, value: manifest }),
+        });
+      const reconcile = (runId: string) =>
+        reconcilePortableProviderPluginRunFromReadback(runId, {
+          registry: catalog.registry,
+          readback: catalog.readback,
+          environment: isolatedEnvironment,
+        });
+      const lost = async (body: string) => {
+        loseResponse = true;
+        const run = await confirm(body);
+        expect(run.receipt.status).toBe("indeterminate");
+        return run.receipt;
+      };
+
+      // unknown: nothing is recorded and the fence stays.
+      const unknown = await lost("post [unknown]");
+      expect(await reconcile(unknown.runId)).toMatchObject({
+        ok: false,
+        status: "fence-retained",
+        observation: "unknown",
+        ledgerReleased: false,
+      });
+      expect(readPortableRunObservedReadback(unknown.runId, isolatedEnvironment))
+        .toBeNull();
+      expect(await rejectionMessage(confirm("post [unknown]")))
+        .toContain("prior attempt");
+
+      // An observation bound to another run is a protocol violation.
+      const unbound = await lost("post [unbound]");
+      expect(await rejectionMessage(reconcile(unbound.runId)))
+        .toContain("unbound readback observation");
+      expect(readPortableRunObservedReadback(unbound.runId, isolatedEnvironment))
+        .toBeNull();
+      expect(readRunJournal(unbound.runId, isolatedEnvironment)?.journal)
+        .toMatchObject({ ledgerState: "indeterminate", recoveryState: "retained" });
+
+      // A plugin that answers a readback with an invocation result is refused.
+      const invokeResult = await lost("post [invoke-result]");
+      expect(await rejectionMessage(reconcile(invokeResult.runId)))
+        .toContain("answered a readback with an invocation result");
+
+      // applied settles the run and keeps the at-most-once ledger.
+      const applied = await lost("post [applied]");
+      expect(await reconcile(applied.runId)).toMatchObject({
+        ok: true,
+        status: "succeeded",
+        observation: "applied",
+        ledgerReleased: false,
+      });
+      expect(readPortableRunResolution(applied.runId, isolatedEnvironment))
+        .toMatchObject({ outcome: "applied" });
+      expect(readRunJournal(applied.runId, isolatedEnvironment)?.journal)
+        .toMatchObject({ ledgerState: "indeterminate", recoveryState: "released" });
+      expect(await rejectionMessage(confirm("post [applied]")))
+        .toContain("prior attempt");
+
+      // not-applied, observed by Ghostget and bound to this run, reopens it.
+      const source = await lost("post");
+      if (source.schemaVersion !== 6) {
+        throw new Error("portable run must carry a portable receipt");
+      }
+      const intentHash = runJournalIntentHash(
+        readRunJournal(source.runId, isolatedEnvironment)!.journal,
+        isolatedEnvironment,
+      );
+      const released = await reconcile(source.runId);
+      expect(released).toMatchObject({
+        ok: true,
+        status: "not-applied-released",
+        observation: "not-applied",
+        recoveryArtifactsReleased: true,
+        ledgerReleased: true,
+      });
+      expect(readPortableRunObservedReadback(source.runId, isolatedEnvironment))
+        .toMatchObject({
+          kind: "ghostget-observed-readback",
+          runId: source.runId,
+          intentHash,
+          observation: "not-applied",
+          manifestSha256: source.portablePluginContract.manifestSha256,
+          bundleSha256: source.portablePluginContract.bundleSha256,
+          readback: { version: 1, operation: "posts.read", contractVersion: 1 },
+          authRealm: { authId: auth.id, authKind: auth.kind, continuity: "exact" },
+          evidenceHash: released.evidenceHash,
+        });
+      expect(readRunJournal(source.runId, isolatedEnvironment)?.journal)
+        .toMatchObject({ ledgerState: "released", recoveryState: "released" });
+      expect(readRecoveryCapsule(
+        source.runId,
+        source.auth.id,
+        source.auth.hash,
+        isolatedEnvironment,
+      )).toBeNull();
+      // A rerun acts on the recorded observation without a new readback.
+      const before = readbacks;
+      expect(await reconcile(source.runId)).toMatchObject({
+        status: "not-applied-released",
+      });
+      expect(readbacks).toBe(before);
+      const writesBefore = fetches;
+      loseResponse = false;
+      const retried = await confirm("post");
+      expect(retried.receipt.status).toBe("submitted");
+      expect(fetches).toBe(writesBefore + 1);
+    } finally {
+      rmSync(isolatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("never reopens a run whose duplicate successor was elected", async () => {
+    const isolatedRoot = mkdtempSync(join(fixtureRoot, "publish-readback-successor-"));
+    chmodSync(isolatedRoot, 0o700);
+    const isolatedEnvironment = {
+      GHOSTGET_STATE_HOME: isolatedRoot,
+      HOME: fixtureRoot,
+    };
+    try {
+      installPackage(
+        createPackage(fixtureRoot, publishIdentity),
+        isolatedEnvironment,
+      );
+      const auth = cookiesAuth(cookiePath);
+      saveAuth(auth, isolatedEnvironment, { force: true });
+      let loseResponse = true;
+      let readbacks = 0;
+      const writeHost = publishFixtureHost(() => loseResponse);
+      const catalog = createPortableProviderPluginCatalog(
+        emptyRegistry(),
+        isolatedEnvironment,
+        {
+          runHost: (invocation) => {
+            if (invocation.readback !== undefined) {
+              readbacks += 1;
+              throw new Error("the readback must not run");
+            }
+            return writeHost(invocation);
+          },
+        },
+      );
+      const manifest = catalog.registry.resolveOwnedManifest("portable-publish");
+      if (manifest === undefined) {
+        throw new Error("portable publish fixture is unavailable");
+      }
+      const confirm = (duplicateRiskOf: readonly string[] = []) =>
+        confirmInvocation(createAndSaveInvocationPlan({
+          manifest,
+          operationId: "posts.publish",
+          input: { body: "elected" },
+          auth,
+        }, isolatedEnvironment, new Date(), catalog.registry, {
+          duplicateRiskOf,
+        }).digest, {
+          headed: false,
+          environment: isolatedEnvironment,
+          registry: catalog.registry,
+          loadManifest: () => ({ ok: true, value: manifest }),
+        });
+      const source = await confirm();
+      expect(source.receipt.status).toBe("indeterminate");
+      loseResponse = false;
+      expect((await confirm([source.receipt.runId])).receipt.status)
+        .toBe("submitted");
+      expect(await rejectionMessage(
+        reconcilePortableProviderPluginRunFromReadback(source.receipt.runId, {
+          registry: catalog.registry,
+          readback: catalog.readback,
+          environment: isolatedEnvironment,
+        }),
+      )).toContain("elected a duplicate successor");
+      expect(readbacks).toBe(0);
+      expect(readRunJournal(source.receipt.runId, isolatedEnvironment)?.journal)
+        .toMatchObject({ ledgerState: "indeterminate" });
+    } finally {
+      rmSync(isolatedRoot, { recursive: true, force: true });
+    }
   });
 });
 

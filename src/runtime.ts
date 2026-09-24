@@ -1823,10 +1823,13 @@ function resolveInvocationDuplicateRisk(
     plan.operation !== "posts.publish"
     || plan.risk !== "R3"
     || plan.dispatches.length !== 1
-    || plan.transport !== "web-session-api"
+    || (
+      plan.transport !== "web-session-api"
+      && plan.transport !== "portable-provider-plugin"
+    )
   ) {
     throw new Error(
-      "duplicate-tolerant intent v1 supports only one-dispatch authenticated-session posts.publish writes",
+      "duplicate-tolerant intent v1 supports only one-dispatch authenticated-session or portable-plugin posts.publish writes",
     );
   }
   const sourceRunId = requestedRunIds[0] as string;
@@ -2681,7 +2684,10 @@ function parseStoredPlan(value: unknown): StoredPlan {
       operation !== "posts.publish"
       || risk !== "R3"
       || dispatches.length !== 1
-      || transport !== "web-session-api"
+      || (
+        transport !== "web-session-api"
+        && transport !== "portable-provider-plugin"
+      )
     )
   ) {
     throw new Error("stored duplicate-risk plan is outside the supported v1 scope");
@@ -4237,12 +4243,79 @@ export function repairInterruptedRunJournals(
       });
     }
   }
+  for (const failed of supersedeSettledDuplicateSources(environment, now).failed) {
+    issues.push({ runId: failed, reason: "transition-failed" });
+  }
   return Object.freeze({
     inspected: entries.length,
     repaired,
     projected,
     invalid,
     issues: Object.freeze(issues),
+  });
+}
+
+/** A terminal journal that holds no recovery material or retained assets. */
+function runJournalIsSettled(journal: RunJournal): boolean {
+  return journal.phase === "terminal"
+    && (journal.recoveryState === "absent" || journal.recoveryState === "released")
+    && (journal.assetState === "none" || journal.assetState === "released");
+}
+
+export type DuplicateSupersessionReport = {
+  readonly superseded: readonly string[];
+  readonly failed: readonly string[];
+};
+
+/**
+ * Mark each duplicate-risk source whose elected successor has settled as
+ * superseded. That releases only the source's recovery capsule and retained
+ * assets, so the source no longer holds its plugin bundle; its indeterminate
+ * ledger and intent claim stay, and the intent fence still counts its effect.
+ * A successor that finished `failed` never dispatched and supersedes nothing.
+ */
+export function supersedeSettledDuplicateSources(
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  now = new Date(),
+): DuplicateSupersessionReport {
+  const entries = listRunJournalSnapshots(environment);
+  const byRun = new Map<string, RunJournalSnapshot>();
+  for (const entry of entries) {
+    if (!("invalid" in entry)) byRun.set(entry.journal.runId, entry);
+  }
+  const superseded: string[] = [];
+  const failed: string[] = [];
+  for (const source of byRun.values()) {
+    const elected = source.journal.duplicateSuccessor;
+    if (elected === undefined || source.journal.supersededBy !== undefined) continue;
+    const successor = byRun.get(elected.runId)?.journal;
+    if (
+      successor === undefined
+      || successor.duplicateIntent?.sourceRunId !== source.journal.runId
+      || successor.duplicateIntent.intentHash !== elected.intentHash
+      || successor.status === "failed"
+      || successor.dispatch.started < 1
+      || !runJournalIsSettled(successor)
+    ) continue;
+    try {
+      const next = updateRunJournal(source, {
+        type: "duplicate-source-superseded",
+        intentHash: elected.intentHash,
+        runId: elected.runId,
+        at: new Date(Math.max(
+          now.getTime(),
+          Date.parse(elected.claimedAt),
+        )).toISOString(),
+      }, environment);
+      projectRunJournal(next.journal, environment);
+      superseded.push(source.journal.runId);
+    } catch {
+      failed.push(source.journal.runId);
+    }
+  }
+  return Object.freeze({
+    superseded: Object.freeze(superseded),
+    failed: Object.freeze(failed),
   });
 }
 
@@ -4526,6 +4599,83 @@ export function releaseReconciledRunRecovery(
       outcome: "applied",
       at: snapshot.journal.updatedAt,
     });
+  }
+  projectRunJournal(snapshot.journal, environment);
+  return "journal-released";
+}
+
+/**
+ * The confirmed-write intent key of a run: the basename of its intent ledger
+ * path. A readback request carries it so an observation binds one intent.
+ */
+export function runJournalIntentHash(
+  journal: RunJournal,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): string {
+  return basename(intentLedgerPath(
+    journal.adapter.id,
+    journal.auth.id,
+    journal.operation,
+    journal.inputHash,
+    environment,
+    journal.duplicateIntent?.intentHash,
+  ), ".json");
+}
+
+/**
+ * Release a run's recovery material and its at-most-once ledger after
+ * Ghostget itself observed, through a plugin's declared readback bound to
+ * this run and intent, that the one write did not apply. The caller must
+ * have durably recorded that observation first. A run with a verified
+ * dispatch, or one whose duplicate successor was elected, never reopens.
+ */
+export function releaseObservedNotAppliedRunRecovery(
+  runId: string,
+  expectedReceiptHash: string,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  now = new Date(),
+): "journal-released" {
+  if (!/^[a-f0-9]{64}$/u.test(expectedReceiptHash)) {
+    throw new Error("reconciliation receipt hash is malformed");
+  }
+  let snapshot = readRunJournal(runId, environment);
+  if (snapshot === null) {
+    throw new Error("observed not-applied release requires a run journal");
+  }
+  if (
+    snapshot.journal.phase !== "terminal"
+    || (
+      snapshot.journal.status !== "partial"
+      && snapshot.journal.status !== "indeterminate"
+    )
+  ) {
+    throw new Error(
+      "run journal is not an unsettled terminal write eligible for reconciliation",
+    );
+  }
+  if (
+    !canonicalJsonSha256Matches(
+      expectedReceiptHash,
+      runJournalReceipt(snapshot.journal),
+    )
+  ) {
+    throw new Error("run journal no longer matches the reconciled receipt");
+  }
+  const event = {
+    type: "recovery-released",
+    outcome: "not-applied",
+    at: new Date(Math.max(
+      now.getTime(),
+      Date.parse(snapshot.journal.updatedAt),
+    )).toISOString(),
+  } as const;
+  if (
+    snapshot.journal.recoveryState !== "released"
+    || snapshot.journal.ledgerState !== "released"
+  ) {
+    snapshot = updateRunJournal(snapshot, event, environment);
+  } else {
+    transitionRunJournal(snapshot.journal, event);
   }
   projectRunJournal(snapshot.journal, environment);
   return "journal-released";
