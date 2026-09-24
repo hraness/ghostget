@@ -789,8 +789,9 @@ test("reads the historical immutable source receipt through the renamed reposito
 // equal tag.
 type CensusEntry = Readonly<{ tag: string; draft: boolean; prerelease: boolean; immutable: boolean; publishedAt: string | null }>;
 const censusTag = fc.oneof(
-  { weight: 8, arbitrary: fc.tuple(fc.constantFrom(0, 1), fc.integer({ min: 15, max: 18 }), fc.integer({ min: 0, max: 3 }))
-    .map(([major, minor, patch]) => `v${major === 1 ? "0" : "0"}.${minor}.${patch}`) },
+  // Minors and patches of different digit counts separate numeric from lexicographic order.
+  { weight: 8, arbitrary: fc.tuple(fc.constantFrom(9, 15, 16, 17, 18, 100), fc.constantFrom(0, 1, 2, 3, 10))
+    .map(([minor, patch]) => `v0.${minor}.${patch}`) },
   { weight: 1, arbitrary: fc.constantFrom("v0.17.1-beta.1", "v0.17.01", "nightly", "v1.0.0", "v0.17.0", "v0.16.99") },
 );
 const censusEntry: fc.Arbitrary<CensusEntry> = fc.record({
@@ -868,7 +869,7 @@ describe("Latest convergence schedule", () => {
   test("property: Latest converges only through the exact predecessor to the exact target inside twelve absolute slots and 60 seconds", async () => {
     await assertAsyncProperty(fc.asyncProperty(
       fc.array(fc.tuple(latestObservation, fc.oneof({ weight: 6, arbitrary: fc.integer({ min: 0, max: 400 }) },
-        { weight: 1, arbitrary: fc.integer({ min: 0, max: 30_000 }) })), { minLength: 1, maxLength: 14 }),
+        { weight: 2, arbitrary: fc.integer({ min: 0, max: 70_000 }) })), { minLength: 1, maxLength: 14 }),
       fc.oneof({ weight: 6, arbitrary: fc.constant(1) }, { weight: 1, arbitrary: fc.constantFrom(0, 0.5, 3) }),
       fc.option(fc.integer({ min: 1, max: 40 }), { nil: undefined, freq: 5 }),
       fc.integer({ min: 0, max: 1_000_000 }),

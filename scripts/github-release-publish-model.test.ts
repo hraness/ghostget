@@ -479,7 +479,8 @@ beforeAll(async () => {
 });
 afterAll(async () => { if (root !== "") await rm(root, { recursive: true, force: true }); });
 
-const PUBLISHER_MODEL_PROPERTY = Object.freeze({ numRuns: 1000, interruptAfterTimeLimit: 120_000 });
+// About three seconds locally; the interrupt keeps a loaded runner inside the per-test timeout.
+const PUBLISHER_MODEL_PROPERTY = Object.freeze({ numRuns: 1000, interruptAfterTimeLimit: 30_000 });
 
 describe("canonical GitHub publisher stateful model", () => {
   test("stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws", async () => {

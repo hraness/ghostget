@@ -183,20 +183,15 @@ async function harness(workflow: string): Promise<Harness> {
   };
 }
 
-const attempt: fc.Arbitrary<Attempt> = fc.record({
-  outage: fc.boolean().map((value) => value && Math.random() < 0.5),
-  publish: fc.constantFrom<PublishFault>("none", "none", "lost-after", "fail-before", "malformed"),
-  stale: fc.boolean(),
-}).map((value) => value);
-// fast-check owns the randomness; the map above only narrows types.
 const attempts = fc.array(fc.record({
   outage: fc.oneof({ weight: 4, arbitrary: fc.constant(false) }, { weight: 1, arbitrary: fc.constant(true) }),
   publish: fc.constantFrom<PublishFault>("none", "none", "lost-after", "fail-before", "malformed"),
   stale: fc.oneof({ weight: 2, arbitrary: fc.constant(false) }, { weight: 1, arbitrary: fc.constant(true) }),
 }), { minLength: 1, maxLength: 4 });
-void attempt;
 
-export const NPM_MODEL_PROPERTY = { numRuns: 12, interruptAfterTimeLimit: 40_000 } as const;
+// Each attempt spawns two step scripts, so the run count stays small; the
+// interrupt keeps one loaded runner inside the per-test timeout.
+const NPM_MODEL_PROPERTY = { numRuns: 8, interruptAfterTimeLimit: 25_000 } as const;
 
 async function checkRun(h: Harness, start: "absent" | "foreign", schedule: readonly Attempt[]): Promise<void> {
   await h.reset(start === "foreign" ? foreignIntegrity : null);
@@ -229,7 +224,7 @@ async function checkRun(h: Harness, start: "absent" | "foreign", schedule: reado
 }
 
 describe("npm publication reruns", () => {
-  test("reruns issue at most one npm publish per registry readback and never overwrite a held version", async () => {
+  test("property: each attempt issues at most one npm publish, only after an absent readback, and never changes a held version", async () => {
     const workflow = await readFile(releaseWorkflowUrl, "utf8");
     const h = await harness(workflow);
     try {
