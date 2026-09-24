@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#f8f7f4" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#12100f" media="(prefers-color-scheme: dark)">
     <title>Author and verify Ghostget provider plugins</title>
-    <meta name="description" content="Create, statically check, test, reproducibly pack, trust, and install a content-addressed Ghostget provider plugin without weakening the kernel boundary.">
+    <meta name="description" content="Write a Ghostget provider plugin, prove one operation, and install the exact content-addressed bundle after it passes checks, tests, and your trust decision.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/docs/how-to/author-provider-plugin/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
@@ -18,17 +18,17 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Ghostget">
     <meta property="og:title" content="Author and verify Ghostget provider plugins">
-    <meta property="og:description" content="Create, statically check, test, reproducibly pack, trust, and install a content-addressed Ghostget provider plugin without weakening the kernel boundary.">
+    <meta property="og:description" content="Write a Ghostget provider plugin, prove one operation, and install the exact content-addressed bundle after it passes checks, tests, and your trust decision.">
     <meta property="og:url" content="https://ghostget.com/docs/how-to/author-provider-plugin/">
     <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Author and verify Ghostget provider plugins">
-    <meta name="twitter:description" content="Create, statically check, test, reproducibly pack, trust, and install a content-addressed Ghostget provider plugin without weakening the kernel boundary.">
+    <meta name="twitter:description" content="Write a Ghostget provider plugin, prove one operation, and install the exact content-addressed bundle after it passes checks, tests, and your trust decision.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -51,9 +51,9 @@
       <article class="guide-article">
         <header class="guide-hero">
           <p class="eyebrow">How-to guide · plugin authoring · Ghostget {{GHOSTGET_VERSION}}</p>
-          <h1>Start a provider plugin inert, then prove one operation.</h1>
-          <p class="answer-lede">A Ghostget portable plugin begins as a private, network-inert <code>capture-required</code> reservation. It becomes executable only after its exact provider contract and secret-free fixtures are reviewed, the package passes static and runtime verification, and the operator explicitly trusts that content-addressed bundle.</p>
-          <p class="review-note">This guide describes {{GHOSTGET_RELEASE}} and was checked against the public plugin protocol and authoring guide for that immutable release.</p>
+          <h1>Write a provider plugin and prove one operation</h1>
+          <p class="answer-lede">A new portable plugin starts private and in the <code>capture-required</code> state, with no network access and nothing it can run. It becomes runnable only after its exact provider contract and secret-free fixtures are reviewed, the package passes static and runtime verification, and you explicitly trust that content-addressed bundle.</p>
+          <p class="review-note">This guide describes Ghostget {{GHOSTGET_RELEASE}}.</p>
         </header>
 
         <section aria-labelledby="plugin-forms">
@@ -64,7 +64,7 @@
         </section>
 
         <section aria-labelledby="initialize">
-          <h2 id="initialize">1. Create a network-inert reservation</h2>
+          <h2 id="initialize">1. Create the plugin skeleton</h2>
           <div class="command-panel"><pre><code>ghostget plugin init example-web \
   --display-name "Example" \
   --surface example \
@@ -76,7 +76,17 @@
 
         <section aria-labelledby="prove">
           <h2 id="prove">2. Prove the whole operation contract</h2>
-          <p>Before marking an operation observed, establish one semantic operation and bounded input schema; the exact transport and any declared HTTPS origin, route, method, or fixed native invocation; a current-account probe; stable subject identity; response, target, side-effect, and completion projections; credential names and allowed sinks; risk and uncertainty behavior; fail-closed drift; and secret-free fixtures for success and every relevant rejection or unsettled outcome. Owner-host permission descriptors must also reject generic dispatch; their catalog presence alone does not prove a runtime can perform the action.</p>
+          <p>Before you mark an operation <code>observed</code>, establish all of the following:</p>
+          <ul class="guide-list">
+            <li>One semantic operation and a bounded input schema.</li>
+            <li>The exact transport and any declared HTTPS origin, route, method, or fixed native invocation.</li>
+            <li>A current-account probe and a stable subject identity.</li>
+            <li>Response, target, side-effect, and completion projections.</li>
+            <li>Credential names and the places each credential may be sent.</li>
+            <li>Risk and uncertainty behavior, and what happens when the provider changes.</li>
+            <li>Secret-free fixtures for success and for every relevant rejection or unsettled outcome.</li>
+          </ul>
+          <p>Owner-host permission descriptors must also reject generic dispatch; their catalog presence alone does not prove a runtime can perform the action.</p>
           <p>A UI label, route name, or one captured traffic shape is not enough. Ghostget does not treat DOM automation as an execution or recovery fallback.</p>
         </section>
 
@@ -85,8 +95,8 @@
           <div class="command-panel"><pre><code>ghostget plugin check /absolute/private/example-web --json
 ghostget plugin test /absolute/private/example-web --trust-code --json
 ghostget plugin pack /absolute/private/example-web \
-  --output /absolute/private/example-web.wrenchplugin --json
-ghostget plugin install /absolute/private/example-web.wrenchplugin \
+  --output /absolute/private/example-web.ghostgetplugin --json
+ghostget plugin install /absolute/private/example-web.ghostgetplugin \
   --trust-code --json</code></pre></div>
           <ol class="guide-steps">
             <li><strong><code>check</code></strong> parses and validates the package without executing plugin code.</li>
@@ -118,7 +128,7 @@ ghostget plugin install /absolute/private/example-web.wrenchplugin \
 
         <aside class="guide-callout" aria-labelledby="plugins-next">
           <h2 id="plugins-next">Inspect before you extend</h2>
-          <p>Install and inspect the existing catalog with the <a href="/docs/tutorials/getting-started/">getting started guide</a>. If your operation overlaps an existing surface, compare its limitations with the <a href="/docs/reference/provider-capabilities/">current provider attestation</a>.</p>
+          <p>Install and inspect the existing catalog with the <a href="/docs/tutorials/getting-started/">getting started guide</a>. If your operation overlaps an existing surface, compare its limitations with the <a href="/docs/reference/provider-capabilities/">provider support reference</a>.</p>
         </aside>
       </article>
     </main>

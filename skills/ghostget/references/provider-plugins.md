@@ -144,8 +144,8 @@ for a source plugin. Then verify the fixed package boundary:
 ghostget plugin check /absolute/private/example-web --json
 ghostget plugin test /absolute/private/example-web --trust-code --json
 ghostget plugin pack /absolute/private/example-web \
-  --output /absolute/private/example-web.wrenchplugin --json
-ghostget plugin install /absolute/private/example-web.wrenchplugin \
+  --output /absolute/private/example-web.ghostgetplugin --json
+ghostget plugin install /absolute/private/example-web.ghostgetplugin \
   --trust-code --json
 ```
 
@@ -296,7 +296,7 @@ Live R1 work also owns an exact process-bound invocation lease.
 Updates are compare-and-swap operations:
 
 ```sh
-ghostget plugin install /absolute/private/example-web-v2.wrenchplugin \
+ghostget plugin install /absolute/private/example-web-v2.ghostgetplugin \
   --trust-code --expected-current <old-bundle-sha256>
 ghostget plugin disable example-web --expected-current <bundle-sha256>
 ghostget plugin remove example-web --expected-current <bundle-sha256> --yes

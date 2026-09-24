@@ -1506,24 +1506,25 @@
 // a93c3400369b926d7dc23451d8ddb5b2b2cb47ccd733b09fda9000345415b16c. Carry the
 // same projections and allowances: 11,986,281 + 12,387 + 4,096 = 12,002,764
 // packed; 23,401,176 + 353 + 65 = 23,401,594 unpacked.
-// The D14 read-path change moves auth incarnation creation off the menu-bar
-// snapshot into a control-service startup backfill, drops admissions from the
-// snapshot's account and permission listings, and adds the
-// AuthIncarnationReader read capability. This adds 4,680 payload bytes over
-// the unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with
-// npm 11.19.0 on darwin arm64 were byte-identical at 11,987,539 packed bytes,
-// 23,405,856 unpacked bytes; archive SHA-256
-// 78f589f785e9901e14124f8c5187e8c498dd4afba8f71c520657bbcd301a22e2. Carry the
-// same projections and allowances: 11,987,539 + 12,387 + 4,096 = 12,004,022
-// packed; 23,405,856 + 353 + 65 = 23,406,274 unpacked.
+// The unreleased copy pass over the path-helper reaper election rewrites the
+// package description, README, Agent Skill summary and plugin examples, CLI
+// banner, TUI strings, and support value proposition, and adds an Unreleased
+// CHANGELOG section, over the unchanged 596-file inventory: 637 payload bytes
+// over the reaper-election measurement. `npm pack --ignore-scripts` with npm
+// 11.16.0 on darwin arm64 measured 11,997,841 packed bytes, 23,401,813
+// unpacked bytes; archive SHA-256
+// 8614f1f031979371907772a6284888527064014b18f81cc26c4ee2f1f2bdcb56.
+// Compressed size varies with the local zlib. Carry the same projections and
+// allowances: 11,997,841 + 12,387 + 4,096 = 12,014,324 packed;
+// 23,401,813 + 353 + 65 = 23,402,231 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "read-path capability for auth incarnations (D14)",
+  scope: "Unreleased copy pass over the path-helper reaper election: package description, README, skill, CLI, and CHANGELOG text",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.19.0",
+  npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "78f589f785e9901e14124f8c5187e8c498dd4afba8f71c520657bbcd301a22e2",
-  packedBytes: 11_987_539,
-  unpackedBytes: 23_405_856,
+  archiveSha256: "8614f1f031979371907772a6284888527064014b18f81cc26c4ee2f1f2bdcb56",
+  packedBytes: 11_997_841,
+  unpackedBytes: 23_401_813,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

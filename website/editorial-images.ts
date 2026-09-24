@@ -142,9 +142,9 @@ export const editorialImages = [
   {
     alt: "A dark field of faint site tiles each bearing a socket mark, crossed by one ivory channel whose gold thread lights a subset of sockets",
     canonicalPath: "/webmcp/",
-    caption: "Many sites publish their own tools; one bounded path reaches the ones declared read-only.",
-    cardDescription: "How WebMCP sites publish tools, what the public registry adds, and the three bounded operations Ghostget exposes.",
-    cardTitle: "WebMCP sites and one bounded path",
+    caption: "Many sites publish their own tools; Ghostget calls only the ones declared read-only.",
+    cardDescription: "How WebMCP sites publish tools, what the public registry adds, and the three commands Ghostget runs against it.",
+    cardTitle: "WebMCP sites and the tools your agent can call",
     credit: "Editorial illustration generated with Slopcamera.",
     derivatives: [
       {
