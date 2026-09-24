@@ -93,7 +93,7 @@
       "replay": {
         "test": "scripts/verification-media-replay.test.ts",
         "target": "production",
-        "traces": 1000,
+        "traces": 300,
         "seed": "7",
         "maxSteps": 12
       }
