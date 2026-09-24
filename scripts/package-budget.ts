@@ -1565,24 +1565,34 @@
 // Compressed size varies with the local zlib. Carry the same projections and
 // allowances: 12,005,185 + 12,387 + 4,096 = 12,021,668 packed;
 // 23,425,412 + 353 + 65 = 23,425,830 unpacked.
+// The Quint fence and path-claim models export the pure fence cores
+// (`intentFenceBlocker`, `reconciledRecoveryRelease`, `priorRunDisposition`)
+// for trace replay and run every model's replay test from the manifest through
+// the new verify:quint:replay script in package.json. This adds 2,058 payload
+// bytes over the unchanged 596-file inventory. Two `npm pack --ignore-scripts`
+// runs with npm 11.19.0 on darwin arm64 were byte-identical at 11,993,645
+// packed bytes, 23,427,470 unpacked bytes; archive SHA-256
+// 87e0c7bc0e6037f05c2d1ae83672de5b9abc016e2516f96a31f9a3b1bac640a4. Carry the
+// same projections and allowances: 11,993,645 + 12,387 + 4,096 = 12,010,128
+// packed; 23,427,470 + 353 + 65 = 23,427,888 unpacked.
 // Removal of ambiguous historical session secrets by their envelope's named
 // owner, and the faster strict canonical JSON encoder, change
 // src/session-secrets.ts, src/canonical-json.ts, and the rebuilt dist chunks
 // that bundle the encoder. This adds 2,096 payload bytes over the unchanged
 // 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0
-// on darwin arm64 were byte-identical at 11,993,314 packed bytes, 23,427,508
+// on darwin arm64 were byte-identical at 11,993,873 packed bytes, 23,429,566
 // unpacked bytes; archive SHA-256
-// e83ade2284a503a5ab68ea421e744307ec4c506dac1f494323489424383dfb86. Carry the
-// same projections and allowances: 11,993,314 + 12,387 + 4,096 = 12,009,797
-// packed; 23,427,508 + 353 + 65 = 23,427,926 unpacked.
+// af78304e484430aa5b38f59f250e044a2eecbb5a8729a188070cc27c8bd4ee26. Carry the
+// same projections and allowances: 11,993,873 + 12,387 + 4,096 = 12,010,356
+// packed; 23,429,566 + 353 + 65 = 23,429,984 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Owner-named removal of ambiguous historical session secrets and the faster strict canonical JSON encoder",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "e83ade2284a503a5ab68ea421e744307ec4c506dac1f494323489424383dfb86",
-  packedBytes: 11_993_314,
-  unpackedBytes: 23_427_508,
+  archiveSha256: "af78304e484430aa5b38f59f250e044a2eecbb5a8729a188070cc27c8bd4ee26",
+  packedBytes: 11_993_873,
+  unpackedBytes: 23_429_566,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
