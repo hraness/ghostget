@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -5225,7 +5226,11 @@ fi
         return {
           status: 0,
           stderr: "",
-          stdout: args.includes("rev-parse") ? `${providerVerifiedSha}\n` : "ok",
+          stdout: args.includes("rev-parse")
+            ? `${providerVerifiedSha}\n`
+            : args.includes("push")
+              ? `To https://github.com/hraness/ghostget.git\n \t${providerVerifiedSha}:refs/heads/website-production\t${providerPreviousSha.slice(0, 7)}..${providerVerifiedSha.slice(0, 7)}\nDone\n`
+              : "ok",
         };
       },
       verifiedSha: providerVerifiedSha,
@@ -5344,6 +5349,108 @@ fi
       ], directory)).toBe(second);
     } finally {
       await chmod(directory, 0o700).catch(() => undefined);
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  test("fails a leased write closed when the remote already holds the release commit", async () => {
+    // Regression for the promotion.qnt replay: Git reports a stale lease as
+    // `[up to date]` with exit 0 when the remote already holds the pushed
+    // commit, so the writer must require its own fast-forward in the porcelain.
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-ref-uptodate-"));
+    const remote = join(directory, "remote.git");
+    const work = join(directory, "work");
+    const environment = {
+      GIT_AUTHOR_DATE: "1788000000 +0000",
+      GIT_AUTHOR_EMAIL: "test@example.invalid",
+      GIT_AUTHOR_NAME: "Ghostget lease test",
+      GIT_COMMITTER_DATE: "1788000000 +0000",
+      GIT_COMMITTER_EMAIL: "test@example.invalid",
+      GIT_COMMITTER_NAME: "Ghostget lease test",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+      PATH: "/usr/bin:/bin",
+    };
+    const checkedGit = (arguments_: readonly string[], cwd = directory, stdin = ""): string => {
+      const result = Bun.spawnSync(["/usr/bin/git", ...arguments_], {
+        cwd,
+        env: environment,
+        stderr: "pipe",
+        stdin: Buffer.from(stdin),
+        stdout: "pipe",
+      });
+      if (result.exitCode !== 0) throw new Error(result.stderr.toString());
+      return result.stdout.toString().trim();
+    };
+    const advance = (expectedOldSha: string, verifiedSha: string): void => advanceWebsiteProductionRef({
+      environment: { WRENCH_RELEASE_APP_TOKEN: "ghs_lease-test-token" },
+      expectedOldSha,
+      repository: providerRepository,
+      spawnImplementation: (
+        executable: string,
+        args: readonly string[],
+        options: Parameters<typeof spawnSync>[2],
+      ) => spawnSync(
+        executable,
+        args.map((value) => value === "https://github.com/hraness/ghostget.git" ? `file://${remote}` : value),
+        { ...options, cwd: work },
+      ),
+      verifiedSha,
+      verifiedTag: providerTag,
+    });
+    const productionRef = (): string =>
+      checkedGit(["--git-dir", remote, "rev-parse", "refs/heads/website-production"]);
+
+    try {
+      checkedGit(["init", "--quiet", "--bare", remote]);
+      checkedGit(["init", "--quiet", work]);
+      const tree = checkedGit(["mktree"], remote);
+      const previous = checkedGit(["commit-tree", tree, "-m", "previous"], remote);
+      const release = checkedGit(["commit-tree", tree, "-p", previous, "-m", "release"], remote);
+      checkedGit(["update-ref", `refs/tags/${providerTag}`, release], remote);
+      checkedGit(["update-ref", "refs/heads/website-production", previous], remote);
+
+      advance(previous, release);
+      expect(productionRef()).toBe(release);
+
+      // Another writer already moved the ref to the release commit: the lease
+      // on `previous` is stale and this writer performed no update.
+      expect(() => advance(previous, release))
+        .toThrow("website-production Git push did not update the ref from the leased SHA");
+      expect(productionRef()).toBe(release);
+
+      const line = (flag: string, source: string, ref: string, summary: string): string =>
+        `To https://github.com/hraness/ghostget.git\n${flag}\t${source}:${ref}\t${summary}\nDone\n`;
+      const productionBranch = "refs/heads/website-production";
+      const short = (sha: string): string => sha.slice(0, 7);
+      for (const [stdout, accepted] of [
+        [line(" ", release, productionBranch, `${short(previous)}..${short(release)}`), true],
+        [line("+", release, productionBranch, `${short(previous)}...${short(release)} (forced update)`), true],
+        [line("=", release, productionBranch, "[up to date]"), false],
+        [line("!", release, productionBranch, "[rejected] (stale info)"), false],
+        [line(" ", release, productionBranch, `${short(release)}..${short(release)}`), false],
+        [line(" ", previous, productionBranch, `${short(previous)}..${short(previous)}`), false],
+        [line(" ", release, "refs/heads/website-production-canary", `${short(previous)}..${short(release)}`), false],
+        [line("+", release, productionBranch, `${short(previous)}...${short(release)}`), false],
+        [`${line(" ", release, productionBranch, `${short(previous)}..${short(release)}`)}${line(" ", release, productionBranch, `${short(previous)}..${short(release)}`)}`, false],
+        ["ok", false],
+      ] as const) {
+        const write = (): void => advanceWebsiteProductionRef({
+          environment: { WRENCH_RELEASE_APP_TOKEN: "ghs_lease-test-token" },
+          expectedOldSha: previous,
+          repository: providerRepository,
+          spawnImplementation: (_executable: string, args: readonly string[]) => ({
+            status: 0,
+            stderr: "",
+            stdout: args.includes("rev-parse") ? `${release}\n` : args.includes("push") ? stdout : "",
+          }),
+          verifiedSha: release,
+          verifiedTag: providerTag,
+        });
+        if (accepted) expect(write).not.toThrow();
+        else expect(write).toThrow("website-production Git push did not update the ref from the leased SHA");
+      }
+    } finally {
       await rm(directory, { force: true, recursive: true });
     }
   });
