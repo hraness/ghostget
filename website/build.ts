@@ -1,3 +1,4 @@
+import { addDocumentAppearance } from "./appearance";
 import { releaseArchiveUrl } from "./github-release-artifact.mjs";
 import { snapshotMarketingPreset } from "./marketing-preset";
 import { snapshotLanternMaterial } from "./lantern-material";
@@ -426,6 +427,7 @@ export function agentSkillInstallCommands(
 
 type RenderOptions = Readonly<{
   analyticsAsset: string;
+  appearanceAsset: string;
   attestation: ProviderCapabilityAttestation;
   beeperFacts: BeeperPresentationFacts;
   cssAsset: string;
@@ -734,6 +736,7 @@ function renderTemplate(
   template: string,
   options: RenderOptions,
   page?: PublicPage,
+  format: "html" | "text" = "html",
 ): string {
   const { packageIdentity: identity } = options;
   const installCommand = `bun add --global ${versionedPackageArtifactUrl(identity)}`;
@@ -893,7 +896,7 @@ function renderTemplate(
   if (/\{\{[A-Z0-9_]+\}\}/u.test(rendered)) {
     throw new Error("The rendered page contains an unresolved template value.");
   }
-  return rendered;
+  return addDocumentAppearance(rendered, options.appearanceAsset, format);
 }
 
 export function renderPreview(template: string, cssAsset: string): string {
@@ -973,6 +976,7 @@ export async function buildWebsite(
     paperThemeCss,
     paletteSystemCss,
     paletteBridgeCss,
+    appearanceCss,
     uiCss,
     designKitFontsCss,
     designKitProductMarketingCss,
@@ -981,6 +985,7 @@ export async function buildWebsite(
     skillInstallBuild,
     foilBuild,
     fieldBuild,
+    appearanceBuild,
     attestation,
   ] = await Promise.all([
     Bun.file(join(repositoryRoot, "package.json")).json(),
@@ -993,6 +998,7 @@ export async function buildWebsite(
     readFile(join(repositoryRoot, "website/vendor/paper-theme/paper-theme.css"), "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/palette-system.css")), "utf8"),
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/palette-bridge.css")), "utf8"),
+    readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/appearance-menu.css")), "utf8"),
     readUiStylesheet(),
     readFile(designKitFontsStylesPath, "utf8"),
     Promise.all([
@@ -1033,6 +1039,13 @@ export async function buildWebsite(
       sourcemap: "none",
       target: "browser",
     }),
+    Bun.build({
+      entrypoints: [join(sourceRoot, "appearance.ts")],
+      format: "iife",
+      minify: true,
+      sourcemap: "none",
+      target: "browser",
+    }),
     loadProviderCapabilityAttestation(repositoryRoot),
   ]);
   const webmcpSnapshot: WebmcpRegistrySnapshot = parseWebmcpRegistrySnapshot(
@@ -1064,6 +1077,8 @@ export async function buildWebsite(
     throw new Error(`Ghostget field controller build failed: ${messages || "no browser output"}`);
   }
   const field = new Uint8Array(await fieldBuild.outputs[0]!.arrayBuffer());
+  if (!appearanceBuild.success || appearanceBuild.outputs.length !== 1) throw new Error("Shared appearance build failed.");
+  const appearance = new Uint8Array(await appearanceBuild.outputs[0]!.arrayBuffer());
   const identity = parsePackageIdentity(manifest);
   if (identity.release !== CONTENT_REVIEWED_RELEASE) {
     throw new Error(
@@ -1076,9 +1091,10 @@ export async function buildWebsite(
   const lanternCss = lanternMaterial.files.get("lantern-material.css");
   const lanternLicense = lanternMaterial.files.get("LICENSE");
   if (lanternCss === undefined || lanternLicense === undefined) throw new Error("The complete Lantern build snapshot is required.");
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${lanternCss.toString("utf8")}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${appearanceCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${lanternCss.toString("utf8")}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
+  const appearanceAsset = `/assets/appearance-${contentHash(appearance)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
   const foilAsset = `/assets/foil-${contentHash(foil)}.js`;
   const fieldAsset = `/assets/field-${contentHash(field)}.js`;
@@ -1087,6 +1103,7 @@ export async function buildWebsite(
   const whatsappFacts = createWhatsAppPresentationFacts(providerDirectory, attestation);
   const renderOptions = {
     analyticsAsset,
+    appearanceAsset,
     attestation,
     beeperFacts,
     cssAsset,
@@ -1157,10 +1174,11 @@ export async function buildWebsite(
     )),
     writeFile(join(outputRoot, "preview/index.html"), renderPreview(previewTemplate, cssAsset)),
     writeFile(join(outputRoot, "404.html"), renderTemplate(notFoundTemplate, renderOptions)),
-    writeFile(join(outputRoot, "404.md"), renderTemplate(notFoundMarkdown, renderOptions)),
-    writeFile(join(outputRoot, "llms.txt"), renderTemplate(llmsTemplate, renderOptions)),
+    writeFile(join(outputRoot, "404.md"), renderTemplate(notFoundMarkdown, renderOptions, undefined, "text")),
+    writeFile(join(outputRoot, "llms.txt"), renderTemplate(llmsTemplate, renderOptions, undefined, "text")),
     writeFile(join(outputRoot, cssAsset.slice(1)), compiledCss),
     writeFile(join(outputRoot, analyticsAsset.slice(1)), analytics),
+    writeFile(join(outputRoot, appearanceAsset.slice(1)), appearance),
     writeFile(join(outputRoot, skillInstallAsset.slice(1)), skillInstall),
     writeFile(join(outputRoot, foilAsset.slice(1)), foil),
     writeFile(join(outputRoot, fieldAsset.slice(1)), field),

@@ -8,7 +8,7 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 241 claims: 175 evidenced, 47 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 241 claims: 175 evidenced, 47 planned, and 19 not verified. It maps 91 guidelines from 5 guides; 70 list claims and 21 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
@@ -71,6 +71,7 @@ These guidelines have no claim in the register, and no automated check covers th
 | `AGENTS.md` | Treat this repository… | Editorial scope rule for repository prose; no automated check covers it. |
 | `AGENTS.md` | An owner release… | Delegation of owner authority to agents; it governs who acts, while the readback and tag claims cover what must hold. |
 | `website/AGENTS.md` | Keep the homepage's… | Presentation rule for the informational website; it states no safety or integrity property. |
+| `website/AGENTS.md` | Give ordinary HTML… | Presentation rule for the informational website; it states no safety or integrity property. |
 | `website/AGENTS.md` | Keep the page useful… | Presentation rule for the informational website; it states no safety or integrity property. |
 | `website/AGENTS.md` | Keep every product… | Editorial accuracy rule for website copy; no automated check covers it. |
 | `website/AGENTS.md` | Keep canonical metadata,… | Search-metadata presentation rule; it states no safety or integrity property. |

@@ -363,7 +363,16 @@ describe("ghostget.com static site", () => {
     expect(builtCss.split(lanternCss)).toHaveLength(2);
     expect(html).toContain('data-hraness-marketing-preset="editorial"');
     expect(html).toContain('data-hraness-material="lantern"');
-    expect(html).toContain('<main id="main">');
+    expect(html).toContain('<main id="main" tabindex="-1">');
+    for (const page of pages) {
+      const appearanceAsset = /<script src="(\/assets\/appearance-[a-f0-9]+\.js)"><\/script>/u.exec(page.html)?.[1];
+      expect(appearanceAsset).toBeDefined();
+      expect(page.html.indexOf(`<script src="${appearanceAsset}"></script>`)).toBeLessThan(page.html.indexOf('<link rel="stylesheet"'));
+      expect(page.html.match(/data-hraness-appearance-menu/gu)).toHaveLength(1);
+      expect(page.html.match(/role="menuitemradio"/gu)).toHaveLength(3);
+      expect(page.html).toMatch(/<main\b[^>]*\bid="main"[^>]*\btabindex="-1"/u);
+      expect((await readFile(join(websiteRoot, "dist", appearanceAsset!.slice(1)))).byteLength).toBeGreaterThan(0);
+    }
     expect(html).not.toContain('class="hraness-marketing-field"');
     for (const page of pages.slice(1)) expect(page.html).not.toContain('data-hraness-material="lantern"');
     for (const path of ["LICENSE", "provenance.json"]) {
@@ -379,6 +388,7 @@ describe("ghostget.com static site", () => {
       "@hraness/ui/components.css",
       "@hraness/ui/stylex.css",
       "@hraness/design-kit/syntax-highlighting.css",
+      "@hraness/design-kit/appearance-menu.css",
       "@hraness/site-footer/stylex.css",
     ]) {
       const stylesheet = (await readFile(

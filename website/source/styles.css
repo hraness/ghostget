@@ -3349,3 +3349,23 @@ body {
     border: 1px solid CanvasText;
   }
 }
+
+/* One shared appearance controller serves every ordinary public header. */
+.ghostget-appearance[data-ready="false"] { display: none; }
+.ghostget-appearance { flex: 0 0 auto; margin-inline-start: auto; }
+.topbar > nav { margin-inline-start: auto; }
+.ghostget-appearance .hraness-design-theme-toggle__trigger {
+  border-color: transparent;
+  box-shadow: var(--elevation-low);
+}
+@media (max-width: 48rem) {
+  .hraness-marketing-header__actions { margin-inline-start: auto; }
+  .topbar.guide-topbar { flex-direction: row; align-items: center; }
+  .topbar > nav { order: 3; flex-basis: 100%; }
+}
+@media (forced-colors: active) {
+  .ghostget-appearance .hraness-design-theme-toggle__trigger {
+    border-color: ButtonText;
+    box-shadow: none;
+  }
+}
