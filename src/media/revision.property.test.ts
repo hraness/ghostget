@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "../test-support";
 import {
   MAX_REVISION_SEQUENCE,
   GHOSTGET_MEDIA_REVISION_CONTENT_PROFILE,
@@ -31,7 +32,7 @@ const retainedArtifactArbitrary = fc.record({
 });
 
 test("property: retained-input fingerprints are permutation-invariant", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.uniqueArray(retainedArtifactArbitrary, {
         minLength: 1,
@@ -49,7 +50,7 @@ test("property: retained-input fingerprints are permutation-invariant", () => {
 });
 
 test("property: every canonical revision leaf round-trips", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.integer({ min: 1, max: MAX_REVISION_SEQUENCE }),
       sha256Arbitrary,
@@ -82,7 +83,7 @@ test("property: every canonical revision leaf round-trips", () => {
 });
 
 test("property: changing one retained record changes the fingerprint", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       retainedArtifactArbitrary,
       sha256Arbitrary,
@@ -97,7 +98,7 @@ test("property: changing one retained record changes the fingerprint", () => {
 });
 
 test("property: every tracked chronology component participates in its key", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.integer({ min: 1, max: MAX_REVISION_SEQUENCE - 1 }),
       sha256Arbitrary,
@@ -138,7 +139,7 @@ test("property: every tracked chronology component participates in its key", () 
 });
 
 test("property: arbitrary leaf strings never throw", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.string(), (value) => {
       expect(() => parseRevisionItemLeaf(value)).not.toThrow();
     }),

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "../test-support";
 import type { CaptureMode } from "./args";
 import { resolveDirectMediaProbe, routeSource } from "./source-router";
 
@@ -10,7 +11,7 @@ const token = fc.array(
 ).map((characters) => characters.join(""));
 
 test("property: arbitrary URL strings never make routing throw", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.string(), captureMode, fc.boolean(), (url, mode, inheritYtDlpConfig) => {
       expect(() => routeSource({ url, mode, inheritYtDlpConfig })).not.toThrow();
     }),
@@ -19,7 +20,7 @@ test("property: arbitrary URL strings never make routing throw", () => {
 });
 
 test("property: URL fragments cannot change transport data or its request digest", () => {
-  fc.assert(
+  assertProperty(
     fc.property(token, token, token, token, captureMode, (path, query, leftFragment, rightFragment, mode) => {
       const base = `https://example.com/${path}?value=${query}`;
       const left = routeSource({
@@ -45,7 +46,7 @@ test("property: URL fragments cannot change transport data or its request digest
 });
 
 test("property: private access routes only with one canonical authorization context", () => {
-  fc.assert(
+  assertProperty(
     fc.property(token, captureMode, fc.boolean(), fc.boolean(), (path, mode, hasBrowser, inheritYtDlpConfig) => {
       const route = routeSource({
         url: `https://example.com/${path}`,
@@ -67,7 +68,7 @@ test("property: private access routes only with one canonical authorization cont
 });
 
 test("property: credentials and every non-HTTP scheme are rejected", () => {
-  fc.assert(
+  assertProperty(
     fc.property(token, token, token, (username, password, path) => {
       expect(routeSource({
         url: `https://${username}:${password}@example.com/${path}`,
@@ -92,7 +93,7 @@ test("property: credentials and every non-HTTP scheme are rejected", () => {
 });
 
 test("property: transcript routes remain probe-only while media probes resolve exhaustively", () => {
-  fc.assert(
+  assertProperty(
     fc.property(token, captureMode, (path, mode) => {
       const route = routeSource({
         url: `http://example.com/${path}`,
@@ -116,7 +117,7 @@ test("property: transcript routes remain probe-only while media probes resolve e
 });
 
 test("property: distinct fragment-free request URLs have distinct request digests", () => {
-  fc.assert(
+  assertProperty(
     fc.property(token, token, (leftPath, rightPath) => {
       fc.pre(leftPath !== rightPath);
       const left = routeSource({

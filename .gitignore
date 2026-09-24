@@ -8,3 +8,4 @@ website/dist/
 .env*
 artifacts/
 verification/lean/.lake/
+verification/oracles/target/
