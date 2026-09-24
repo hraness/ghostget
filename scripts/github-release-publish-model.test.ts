@@ -32,6 +32,7 @@ const names = releaseAssetNames(tag);
 const BOT = Object.freeze({ id: 41898282, type: "Bot" });
 const OWNER = Object.freeze({ id: 894119, type: "User" });
 const PREDECESSOR_ID = 99;
+const NON_STABLE_TAG = "nightly";
 
 const attemptKeys = ["R1", "R2", "R3", "F1"] as const;
 type AttemptKey = typeof attemptKeys[number];
@@ -345,6 +346,7 @@ function resumable(world: World, attempt: Attempt): boolean {
     && release.assets.every(asset => asset.state === "uploaded" && !asset.corrupt && asset.bytes.equals(attempt.files.get(asset.name)!));
   if (world.releases.some(release => !release.draft && newer(release.tag, tag))) return false;
   if (published !== undefined) return intact(published) && world.latestId === published.id;
+  if (world.releases.find(release => release.id === world.latestId)?.tag === NON_STABLE_TAG) return false;
   return claimed.length === 0 || (claimed.length === 1 && intact(claimed[0]!));
 }
 
@@ -362,6 +364,7 @@ class Publish implements fc.AsyncCommand<Model, Real> {
       names: release.assets.map(asset => asset.name) }));
     const live = this.fault.kind === "none" && resumable(world, attempt);
     const publishedBefore = world.releases.some(release => release.tag === tag && !release.draft);
+    const latestBefore = world.releases.find(release => release.id === world.latestId)!;
     const outcome = await invoke(world, attempt, this.fault);
     expect(outcome.violations).toEqual([]);
     // Nothing is ever deleted, and a published release, a foreign release, or a
@@ -383,6 +386,11 @@ class Publish implements fc.AsyncCommand<Model, Real> {
     // Any lookup other than an exact 200 or exact 404 aborts; so does an
     // unreadable inventory whenever the by-tag lookup found nothing.
     if (this.fault.kind.startsWith("lookup-") || (this.fault.kind === "inventory-error" && !publishedBefore)) {
+      expect(outcome.error).toBeDefined();
+      expect(outcome.writes).toEqual([]);
+    }
+    // A missing Release is created only after pinning one older stable Latest predecessor.
+    if (!publishedBefore && latestBefore.tag === NON_STABLE_TAG) {
       expect(outcome.error).toBeDefined();
       expect(outcome.writes).toEqual([]);
     }
@@ -431,25 +439,46 @@ class HigherRelease implements fc.AsyncCommand<Model, Real> {
   toString(): string { return `HigherRelease(${this.kind})`; }
 }
 
-type FrontRunKind = "draft" | "copied-receipt-draft" | "published";
+type FrontRunKind = "draft" | "copied-receipt-draft" | "published" | "copied-receipt-published";
 // The owner creates a Release for the tag by hand: an ordinary draft, a draft
-// that copies this run's exact receipt body, or a completed Release.
+// that copies this run's exact receipt body, a completed Release, or a completed
+// Release that copies this run's exact receipt body and asset bytes, which only
+// the bot-author check tells apart from the run's own publication.
 class FrontRun implements fc.AsyncCommand<Model, Real> {
   constructor(readonly kind: FrontRunKind) {}
   check(): boolean { return true; }
   async run(_model: Model, real: Real): Promise<void> {
-    const world = real.world; const published = this.kind === "published";
+    const world = real.world; const published = this.kind === "published" || this.kind === "copied-receipt-published";
+    const copied = this.kind === "copied-receipt-draft" || this.kind === "copied-receipt-published";
     if (published && world.releases.some(release => release.tag === tag && !release.draft)) return;
     world.clock += 1;
     const release: StoredRelease = { id: world.nextId++, tag, draft: !published, immutable: published,
-      body: this.kind === "copied-receipt-draft" ? real.attempts.get("R1")!.body : "owner release", target: sourceSha,
+      body: copied ? real.attempts.get("R1")!.body : "owner release", target: sourceSha,
       name: `Ghostget ${tag}`, author: { ...OWNER },
-      assets: published ? names.map(name => ({ id: world.nextAssetId++, name, bytes: Buffer.from(`owner:${name}`), state: "uploaded", corrupt: false })) : [],
+      assets: published ? names.map(name => ({ id: world.nextAssetId++, name, state: "uploaded" as const, corrupt: false,
+        bytes: this.kind === "copied-receipt-published" ? Buffer.from(real.attempts.get("R1")!.files.get(name)!) : Buffer.from(`owner:${name}`) })) : [],
       publishedAt: published ? timestamp(world.clock) : null, untagged: "2".repeat(20) };
     world.releases.push(release);
     if (published && !world.releases.some(item => !item.draft && newer(item.tag, tag))) world.latestId = release.id;
   }
   toString(): string { return `FrontRun(${this.kind})`; }
+}
+
+// A completed Release under a non-stable tag becomes Latest. The completed-Release
+// census skips it, so only the pinned older stable predecessor refuses to
+// publish past it.
+class NonStableLatest implements fc.AsyncCommand<Model, Real> {
+  check(): boolean { return true; }
+  async run(_model: Model, real: Real): Promise<void> {
+    const world = real.world;
+    if (world.releases.some(release => release.tag === NON_STABLE_TAG)) return;
+    world.clock += 1;
+    world.releases.push({ id: world.nextId, tag: NON_STABLE_TAG, draft: false, immutable: true, body: "nightly",
+      target: "e".repeat(40), name: "Ghostget nightly", author: { ...BOT }, assets: [], publishedAt: timestamp(world.clock),
+      untagged: "3".repeat(20) });
+    world.latestId = world.nextId; world.nextId += 1;
+  }
+  toString(): string { return "NonStableLatest"; }
 }
 
 // Immutable Releases lock tag and assets, but the body stays editable.
@@ -488,8 +517,9 @@ const commandArbitrary = fc.commands<Model, Real>([
   faultArbitrary.map(fault => new Publish("R1", fault)),
   fc.tuple(fc.constantFrom<AttemptKey>("R1", "R2", "R3", "F1"), faultArbitrary).map(([key, fault]) => new Publish(key, fault)),
   fc.constantFrom<HigherKind>("draft", "published-latest", "published-not-latest").map(kind => new HigherRelease(kind)),
-  fc.constantFrom<FrontRunKind>("draft", "copied-receipt-draft", "published").map(kind => new FrontRun(kind)),
+  fc.constantFrom<FrontRunKind>("draft", "copied-receipt-draft", "published", "copied-receipt-published").map(kind => new FrontRun(kind)),
   fc.constant(new EditPublishedBody()),
+  fc.constant(new NonStableLatest()),
   fc.nat({ max: 20 }).map(pick => new CorruptStoredAsset(pick)),
 ], { maxCommands: 12 });
 

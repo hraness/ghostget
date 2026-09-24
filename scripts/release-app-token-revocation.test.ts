@@ -26,11 +26,13 @@ const repositoryBody = JSON.stringify({
 });
 const offsets = RELEASE_APP_REVOCATION_OBSERVATION_OFFSETS_MILLISECONDS;
 
-type DeletionAnswer = "204" | "204-body" | "204-late-date" | "204-no-date" | "200" | "404" | "transport";
+// "200-empty" is a success status other than 204 with the empty body 204 requires,
+// so only the exact-status check refuses it.
+type DeletionAnswer = "204" | "204-body" | "204-late-date" | "204-no-date" | "200" | "200-empty" | "404" | "transport";
 type ObservationAnswer = "200" | "401" | "403" | "500" | "200-wrong-repository" | "401-late-date" | "transport";
 const deletionAnswer = fc.oneof(
   { weight: 12, arbitrary: fc.constant<DeletionAnswer>("204") },
-  { weight: 1, arbitrary: fc.constantFrom<DeletionAnswer>("204-body", "204-late-date", "204-no-date", "200", "404", "transport") },
+  { weight: 1, arbitrary: fc.constantFrom<DeletionAnswer>("204-body", "204-late-date", "204-no-date", "200", "200-empty", "404", "transport") },
 );
 const observationAnswer = fc.oneof(
   { weight: 6, arbitrary: fc.constantFrom<ObservationAnswer>("200", "401", "401") },
@@ -68,6 +70,7 @@ describe("release App token revocation", () => {
               case "204-late-date": return answer(204, "", atExpiry);
               case "204-no-date": return answer(204, "", undefined);
               case "200": return answer(200, "{}", beforeExpiry);
+              case "200-empty": return answer(200, "", beforeExpiry);
               case "404": return answer(404, "{\"message\":\"Not Found\"}", beforeExpiry);
               case "transport": throw new TypeError("network");
             }

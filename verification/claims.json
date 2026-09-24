@@ -5076,7 +5076,7 @@
       "notVerified": [
         "The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.",
         "CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.",
-        "The model covers the bot author, exact receipt body, and stored bytes; the signed attestation identity is verified before publication and covered by the `release-attestation-before-mutation` claim's example tests, not by the model."
+        "The model covers the bot author (including an owner-authored completed Release that copies the exact receipt body and asset bytes), exact receipt body, and stored bytes; the signed attestation identity is verified before publication and covered by the `release-attestation-before-mutation` claim's example tests, not by the model."
       ],
       "properties": [
         {
@@ -5107,7 +5107,7 @@
       "notVerified": [
         "The property drives `waitForLatestRelease` with a fake API, monotonic clock, and sleeper. The production publisher's `gh api` reader ignores the per-request timeout it is passed and bounds each read only by its 120-second command timeout; a read that completes after the 60-second deadline fails closed, so the deadline bounds acceptance, not wall time.",
         "The publisher model checks that a fresh publication reads Latest as the target after its terminal authority proof, and one example test in it drives a lagging Latest projection through the production wait on a fake clock; the stateful schedules themselves project Latest immediately.",
-        "Pinning one older immutable predecessor rests on the example tests of `exactLatestPredecessor` in the same file.",
+        "The publisher model checks that no draft is created while Latest is a completed Release under a non-stable tag, which the completed-Release census skips; the other refusals of `exactLatestPredecessor` (a mutable, malformed, or not strictly older Latest) rest on its example tests in the same file.",
         "How quickly GitHub's Latest projection converges is not verified; the window is a fail-closed ceiling."
       ],
       "properties": [
