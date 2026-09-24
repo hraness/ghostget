@@ -175,7 +175,7 @@ export interface CheckedApproval {
 
 export type AgentApprovalRequest =
   | { readonly protocol: "ghostget.approval/1"; readonly action: "request"; readonly id: string; readonly target: ApprovalTarget; readonly expectedDigest: string }
-  | { readonly protocol: "ghostget.approval/1"; readonly action: "check"; readonly id: string; readonly digest: string }
+  | { readonly protocol: "ghostget.approval/1"; readonly action: "check"; readonly id: string; readonly digest: string; readonly use?: string }
   | { readonly protocol: "ghostget.approval/1"; readonly action: "cancel"; readonly id: string; readonly digest: string };
 
 export type AgentApprovalResponse = {

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { pinnedHttpsFetch } from "../pinned-https";
 import { ActivityStore } from "./activity";
 import type { ApprovalBroker } from "./approval-broker";
@@ -14,6 +14,8 @@ export class WebGateway {
   async run(method:"GET"|"HEAD",url:string,signal:AbortSignal):Promise<WebResult> {
     if(this.active>=8) throw new ControlError("GATEWAY_BUSY","Eight requests are already active. Retry later.");
     const checked=checkWebRequest(method,url,this.environment);const id=randomUUID();this.active++;
+    // The broker admits only the first checker's use secret, so this run is the grant's one use.
+    const use=randomBytes(32).toString("hex");
     let started=false;let finished=false;let response:Response|undefined;let bytes=0;let timer:ReturnType<typeof setTimeout>|undefined;
     const controller=new AbortController();const combined=AbortSignal.any([signal,controller.signal]);
     try {
@@ -26,7 +28,7 @@ export class WebGateway {
         while(status==="pending") {
           combined.throwIfAborted();
           await new Promise<void>(resolve=>setTimeout(resolve,200));
-          status=(await this.approvals.check(id,checked.approval.digest)).status;
+          status=(await this.approvals.check(id,checked.approval.digest,use)).status;
         }
         if(status!=="allowed") throw new ControlError("WEB_DENIED","This web request was not approved.");
       }
@@ -49,7 +51,7 @@ export class WebGateway {
       }
       const body=Buffer.concat(chunks);try{new TextDecoder("utf-8",{fatal:true}).decode(body);}catch{throw new ControlError("WEB_ENCODING_UNSUPPORTED","The response is not valid UTF-8 text.");}
       this.revalidate(method,url,checked.approval.digest);combined.throwIfAborted();
-      if(checked.approval.decision==="ask"&&(await this.approvals.check(id,checked.approval.digest)).status!=="allowed") throw new ControlError("APPROVAL_EXPIRED","Approval changed before the result was returned.");
+      if(checked.approval.decision==="ask"&&(await this.approvals.check(id,checked.approval.digest,use)).status!=="allowed") throw new ControlError("APPROVAL_EXPIRED","Approval changed before the result was returned.");
       this.activity.finish(id,{outcome:response.ok?"succeeded":"failed",httpStatus:response.status,responseBytes:bytes,errorCode:response.ok?null:"HTTP_ERROR"});finished=true;
       return {protocol:"ghostget.web/1",ok:true,id,status:response.status,contentType,bodyBase64:body.toString("base64"),bytes,trusted:false};
     } catch(error) {

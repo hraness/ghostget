@@ -1,13 +1,14 @@
 import { connect } from "node:net";
 import { lstatSync } from "node:fs";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { ghostgetStateHome, snapshotPrivateStateDirectory } from "../storage";
 import type { AgentApprovalResponse, ApprovalTarget } from "./protocol";
 import { ControlError, digest, identifier, keys, oneOf, record } from "./validation";
 import type { ControlEnvironment } from "./web-policy";
 
-export interface ApprovalLease {readonly id:string;readonly digest:string}
+/** `use` never leaves this process except in checks; the broker admits only the first checker's secret. */
+export interface ApprovalLease {readonly id:string;readonly digest:string;readonly use:string}
 export function controlSocketPath(environment:ControlEnvironment=process.env):string {return join(ghostgetStateHome(environment),"control","agent.sock");}
 export async function agentRequest(payload:unknown,options:{environment:ControlEnvironment;signal?:AbortSignal;timeoutMs?:number}):Promise<unknown> {
   const path=controlSocketPath(options.environment);
@@ -34,7 +35,7 @@ function response(value:unknown,lease:ApprovalLease):AgentApprovalResponse {
   return {protocol:"ghostget.approval/1",id:identifier(v.id),digest:digest(v.digest),status:oneOf(v.status,["pending","allowed","denied","expired","cancelled","invalid"])};
 }
 export async function requestApproval(target:ApprovalTarget,expectedDigest:string,options:{environment:ControlEnvironment;signal?:AbortSignal}):Promise<ApprovalLease> {
-  const lease={id:randomUUID(),digest:expectedDigest};
+  const lease={id:randomUUID(),digest:expectedDigest,use:randomBytes(32).toString("hex")};
   try {
     let current=response(await agentRequest({protocol:"ghostget.approval/1",action:"request",id:lease.id,target,expectedDigest},options),lease);
     const deadline=Date.now()+120_000;
@@ -46,4 +47,4 @@ export async function requestApproval(target:ApprovalTarget,expectedDigest:strin
 export async function checkApproval(lease:ApprovalLease,options:{environment:ControlEnvironment;signal?:AbortSignal}):Promise<void> {
   if(response(await agentRequest({protocol:"ghostget.approval/1",action:"check",...lease},options),lease).status!=="allowed") throw new ControlError("APPROVAL_EXPIRED","The exact approval is no longer valid.");
 }
-export async function releaseApproval(lease:ApprovalLease,options:{environment:ControlEnvironment}):Promise<void> {await agentRequest({protocol:"ghostget.approval/1",action:"cancel",...lease},options);}
+export async function releaseApproval(lease:ApprovalLease,options:{environment:ControlEnvironment}):Promise<void> {await agentRequest({protocol:"ghostget.approval/1",action:"cancel",id:lease.id,digest:lease.digest},options);}

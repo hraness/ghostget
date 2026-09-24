@@ -96,3 +96,18 @@ test("retention preserves active work and prunes completed metadata at completio
   expect(count("started")).toBe(0);expect(count("succeeded")).toBe(10_000);
   expect(db.query("SELECT id FROM requests WHERE id='old-active'").get()).toBeNull();
 });
+test("an approved ask request is the grant's one use, and a caller that knows the id cannot reuse it",async()=>{
+  const {environment,activity,approvals}=fixture();saveWebPolicy([{...rule,decision:"ask"}],false,0,environment);
+  const url="https://docs.example.com/guide/one";const digest=checkWebRequest("GET",url,environment).approval.digest;
+  let grant="";
+  const gateway=new WebGateway(activity,approvals,environment,async()=>{
+    expect((await approvals.check(grant,digest,"f".repeat(64))).status).toBe("expired");
+    expect((await approvals.check(grant,digest)).status).toBe("expired");
+    return new Response("ok",{headers:{"content-type":"text/plain"}});
+  });
+  const pending=gateway.run("GET",url,new AbortController().signal);
+  let view=approvals.list()[0];
+  for(let attempt=0;attempt<50&&view===undefined;attempt++){await new Promise(resolve=>setTimeout(resolve,10));view=approvals.list()[0];}
+  grant=view!.id;await approvals.decide(grant,digest,"allow-once");
+  expect((await pending).bytes).toBe(2);
+});
