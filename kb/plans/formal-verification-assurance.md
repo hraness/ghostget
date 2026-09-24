@@ -336,6 +336,32 @@ Acceptance:
 - Commit Python-generated golden vectors for hashes and encodings to
   `verification/vectors/`.
 
+Execution, 2026-09-23:
+
+- `verify:oracles` builds `ghostget-oracle` with Rust 1.97.1 and
+  `cargo build --locked`, checks the vectors with `generate.py --check`, and
+  runs `scripts/verification-oracles.test.ts` and
+  `scripts/verification-vectors.test.ts`. It is the last step of `verify`.
+- Three claims are evidenced at the differential layer:
+  `canonical-json-matches-rfc8785-oracle`,
+  `public-url-matches-url-crate-oracle`, and
+  `media-identity-hashes-match-golden-vectors`. Each comparison also rejects
+  seeded defects.
+- The golden number vectors caught a bug in the first oracle draft: Rust's
+  shortest-digit `{:e}` wrote 1424953923781206.25 as `...206.3`, where
+  ECMAScript breaks the tie to the even digit, `...206.2`. The TypeScript was
+  already right.
+- The URL differential found no policy disagreement. It names four parser
+  differences, each of which leaves the gateway refusing the input: Bun
+  percent-encodes `^` in paths, Bun accepts `[::1:]` and drops a leading `/.`
+  from a non-special path, and the `url` crate keeps a drive-letter segment
+  before `..` in an https: path.
+- `canonicalJson` writes a lone surrogate as an escape where RFC 8785 refuses
+  the input. The vector test pins this, and the claim records it.
+- The classifier proposal is `kb/plans/kb-ip-classifier-proposal.md`.
+  `gateway-rejects-private-addresses` stays planned until `@hraness/kb` ships a
+  checked classifier.
+
 ### Phase 8: continuous assurance
 
 - Nightly jobs run deeper Apalache bounds, the property soak, and mutation

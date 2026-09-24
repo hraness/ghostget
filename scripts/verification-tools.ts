@@ -161,6 +161,26 @@ export const LEAN = Object.freeze({
   }),
 });
 
+/**
+ * The Rust differential oracle under `verification/oracles/`. Cargo fetches
+ * its crates from crates.io, and `cargo build --locked` admits each one only
+ * at the checksum `Cargo.lock` records, so these pins cover the toolchain and
+ * the direct dependency. `scripts/verification-oracles.ts` checks that
+ * `rust-toolchain.toml` and `Cargo.toml` still name them.
+ */
+export const RUST_ORACLE = Object.freeze({
+  toolchain: "1.97.1",
+  crates: Object.freeze({ url: "2.5.8" }),
+  directory: "verification/oracles",
+  binary: "verification/oracles/target/release/ghostget-oracle",
+});
+
+/** The standard-library-only generator of the golden vectors. */
+export const VECTOR_GENERATOR = Object.freeze({
+  minimumPython: "3.11",
+  path: "verification/vectors/generate.py",
+});
+
 /** Every archive this script may download, for pin review and tests. */
 export function pinnedArchives(): readonly PinnedArchive[] {
   return [

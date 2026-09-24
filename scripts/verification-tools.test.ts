@@ -39,6 +39,7 @@ import {
   QUINT,
   QUINT_TRACE_TIMEOUT_MS,
   REPOSITORY_ROOT,
+  RUST_ORACLE,
   VERIFICATION_ARTIFACTS,
   admitArchive,
   apalacheVerdict,
@@ -224,6 +225,7 @@ describe("verification CI job", () => {
     run?: string;
     if?: string;
     "timeout-minutes"?: number;
+    "working-directory"?: string;
     with?: Record<string, unknown>;
     env?: Record<string, string>;
   };
@@ -255,7 +257,16 @@ describe("verification CI job", () => {
     const install = job.steps.findIndex((step) => step.run === "bun install --frozen-lockfile --ignore-scripts");
     expect(install).toBeGreaterThanOrEqual(0);
     expect(job.steps.indexOf(cache[0]!)).toBe(install + 1);
-    expect(verify).toBe(install + 2);
+    // The only step between the cache and verify installs the oracle's exact
+    // Rust toolchain with the runner's rustup and checks both versions.
+    const rust = job.steps[install + 2]!;
+    expect(rust.name).toBe("Install the pinned Rust toolchain");
+    expect(rust["working-directory"]).toBe(RUST_ORACLE.directory);
+    expect(rust.uses).toBeUndefined();
+    expect(rust.run).toContain(`rustup toolchain install ${RUST_ORACLE.toolchain} --profile minimal --no-self-update`);
+    expect(rust.run).toContain(`test "$(rustc --version | cut -d ' ' -f 2)" = "${RUST_ORACLE.toolchain}"`);
+    expect(rust.run).toContain(`test "$(cargo --version | cut -d ' ' -f 2)" = "${RUST_ORACLE.toolchain}"`);
+    expect(verify).toBe(install + 3);
     expect(source).not.toContain("setup-java");
   });
 

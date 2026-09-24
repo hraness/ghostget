@@ -1115,14 +1115,39 @@
         "dns-tls"
       ],
       "notVerified": [
-        "The differential oracle for this claim is scheduled for plan Phase 7; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "The address classifier comes from `@hraness/kb`; no independent registry oracle checks it yet."
+        "The address classifier comes from `@hraness/kb`, and no independent registry oracle checks it yet. Phase 7 wrote the proposal for one, `kb/plans/kb-ip-classifier-proposal.md`; this claim stays planned until `@hraness/kb` ships a checked classifier and Ghostget pins it.",
+        "Probing `@hraness/kb` 0.19.6 found gaps that the proposal records: it treats the IPv4-translated range `::ffff:0:0:0/96`, the rest of `::/8`, and unallocated IPv6 space outside `2000::/3` as public, and it blocks all of `192.0.0.0/16` where the registry reserves only `192.0.0.0/24` and `192.0.2.0/24`.",
+        "Until then only the listed tests apply, and they cover only their enumerated or sampled cases."
       ],
       "alsoQuotes": [
         {
           "path": "src/control/AGENTS.md",
           "quote": "public pinned DNS"
         }
+      ]
+    },
+    {
+      "id": "public-url-matches-url-crate-oracle",
+      "statement": "`publicUrl` makes the same admission decision as an independent reading of the web gateway URL policy over the Rust `url` crate, and every URL that either side admits parses to the same WHATWG components.",
+      "area": "web-gateway",
+      "source": {
+        "path": "kb/plans/formal-verification-assurance.md",
+        "quote": "a `url`-crate differential for `publicUrl`"
+      },
+      "layer": "differential",
+      "status": "evidenced",
+      "evidence": [
+        "verification/oracles/src/url_policy.rs",
+        "scripts/verification-oracles.test.ts"
+      ],
+      "assumptions": [
+        "whatwg-url"
+      ],
+      "notVerified": [
+        "URL candidates come from a sampled grammar plus named examples; this is not a proof over all strings.",
+        "The oracle restates the written policy, so a rule that the policy text and the implementation both omit goes unnoticed.",
+        "Known parser differences are named in the test and checked to leave the gateway refusing the input: Bun percent-encodes `^` in paths and the `url` crate 2.5.8 does not; Bun accepts an IPv6 literal such as `[::1:]` and drops the leading `/.` from a non-special path such as `m:/.a`; and the `url` crate keeps a drive-letter segment such as `c:` before `..` in an https: path.",
+        "Address classification after DNS resolution is a separate claim, `gateway-rejects-private-addresses`."
       ]
     },
     {
@@ -2346,6 +2371,56 @@
           "path": "src/canonical-json.test.ts",
           "test": "property: a domain violation at any nesting depth is rejected"
         }
+      ]
+    },
+    {
+      "id": "canonical-json-matches-rfc8785-oracle",
+      "statement": "For every JSON value it accepts, `canonicalJson` writes the same text as an independent RFC 8785 canonicalizer, and it reproduces the committed golden canonical forms, number texts, SHA-256 digests, and script-literal escapes.",
+      "area": "encoding",
+      "source": {
+        "path": "kb/plans/formal-verification-assurance.md",
+        "quote": "Add a dev-only Rust crate under `verification/oracles/` with an RFC 8785 canonicalizer"
+      },
+      "layer": "differential",
+      "status": "evidenced",
+      "evidence": [
+        "verification/oracles/src/jcs.rs",
+        "verification/vectors/generate.py",
+        "verification/vectors/jcs.json",
+        "scripts/verification-oracles.test.ts",
+        "scripts/verification-vectors.test.ts"
+      ],
+      "assumptions": [
+        "sha256"
+      ],
+      "notVerified": [
+        "Generated values are sampled at the configured run count, and the golden vectors are a fixed corpus; neither is a proof over all inputs.",
+        "`canonicalJson` writes a lone surrogate as JSON.stringify escapes it, where RFC 8785 refuses the input; the vector test pins this difference.",
+        "Duplicate member names never reach `canonicalJson`, because `JSON.parse` keeps the last one; refusing them is a parser's job, not the canonicalizer's.",
+        "The Rust oracle and the Python generator were written from RFC 8785 without reference to the TypeScript, but by the same author, so a misreading all three share would pass. The oracle's number digits come from Rust's correctly rounded formatting."
+      ]
+    },
+    {
+      "id": "media-identity-hashes-match-golden-vectors",
+      "statement": "The media provider identity and source asset key, the authorization-context digest, the native runtime closure digest, the retained revision content digest, and UTF-8 byte ordering reproduce golden vectors from an independent Python generator.",
+      "area": "media",
+      "source": {
+        "path": "kb/plans/formal-verification-assurance.md",
+        "quote": "Commit Python-generated golden vectors for hashes and encodings to `verification/vectors/`."
+      },
+      "layer": "differential",
+      "status": "evidenced",
+      "evidence": [
+        "verification/vectors/generate.py",
+        "verification/vectors/hashes.json",
+        "scripts/verification-vectors.test.ts"
+      ],
+      "assumptions": [
+        "sha256"
+      ],
+      "notVerified": [
+        "The vectors are a fixed corpus; they pin the byte layout, not a property of all inputs.",
+        "Injectivity of the length framing is `hash-framing-injective`, which Phase 5 addresses."
       ]
     },
     {
