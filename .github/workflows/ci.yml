@@ -224,7 +224,7 @@ jobs:
   verification:
     name: verification
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -270,9 +270,10 @@ jobs:
           test "$(cargo --version | cut -d ' ' -f 2)" = "1.97.1"
           python3 --version
       # The step bound leaves time inside the job bound to retain the logs
-      # of a failed or timed-out run.
+      # of a failed or timed-out run. A typical run takes about 19 minutes;
+      # the bound keeps a slow runner (seen at 1.6 times that) inside it.
       - run: bun run verify
-        timeout-minutes: 30
+        timeout-minutes: 50
       - name: Retain checker output
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

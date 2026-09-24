@@ -607,6 +607,49 @@ const EVENT: ModelEvent = {
   time: 20,
 };
 
+/**
+ * Schedules that walk the lifecycle to each terminal status the advancing
+ * path reaches, and on to a duplicate successor. Random schedules reach a
+ * submitted run only after every planned dispatch is verified, and a seed
+ * that never did failed the coverage check below without a defect, so these
+ * run first on every seed.
+ */
+type Advance = readonly [typeof OUTCOMES[number], "start" | "verify"];
+
+function advancing([outcome, index]: Advance): Extract<Step, { kind: "event" }> {
+  return {
+    kind: "event",
+    advance: true,
+    type: "finished",
+    index,
+    outcome,
+    noOp: false,
+    reconciled: "unstated",
+    leaseDelta: 5000,
+    intentHash: 1,
+    successor: "other",
+    delta: 1,
+  };
+}
+
+function walk(planned: number, publishR3Web: boolean, advances: readonly Advance[]): [Start, Step[]] {
+  return [
+    { planned, planHasAssets: false, publishR3Web, variant: "operation", duplicate: false, startedAt: 0, dedupe: 100_000, lease: 100_000 },
+    advances.map(advancing),
+  ];
+}
+
+// Consume the confirmation, claim the ledger, store recovery, then start and verify one dispatch.
+const READY_STEPS: readonly Advance[] = [["succeeded", "start"], ["succeeded", "start"], ["succeeded", "start"]];
+const VERIFIED_ONE: readonly Advance[] = [...READY_STEPS, ["succeeded", "start"], ["succeeded", "verify"]];
+const LIFECYCLE_EXAMPLES: [Start, Step[]][] = [
+  walk(1, false, [...VERIFIED_ONE, ["submitted", "start"]]),
+  walk(1, false, [...VERIFIED_ONE, ["succeeded", "start"]]),
+  walk(2, false, [...VERIFIED_ONE, ["partial", "start"]]),
+  // Indeterminate, then a duplicate successor on the web publishing path.
+  walk(1, true, [...READY_STEPS, ["succeeded", "start"], ["indeterminate", "start"], ["succeeded", "start"]]),
+];
+
 describe("run journal: transitionRunJournal agrees with the Lean model", () => {
   test("a started dispatch cannot finish as failed", async () => {
     const started = await compare(READY, "operation", { ...EVENT, type: "dispatch-started", index: 1 });
@@ -639,7 +682,7 @@ describe("run journal: transitionRunJournal agrees with the Lean model", () => {
         const verdict = await compare(model, begin.variant, resolve(model, entry));
         if (verdict.next !== null) model = verdict.next;
       }
-    }), { numRuns: 500, interruptAfterTimeLimit: 300_000 });
+    }), { numRuns: 500 + LIFECYCLE_EXAMPLES.length, interruptAfterTimeLimit: 300_000, examples: LIFECYCLE_EXAMPLES });
 
     // Every event type was accepted and rejected, and invalid journals were compared.
     for (const type of EVENT_TYPES) {
