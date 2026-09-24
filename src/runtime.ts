@@ -1253,6 +1253,18 @@ type IncarnationBinding =
   | Readonly<{ kind: "execution" }>
   | Readonly<{ kind: "read"; incarnations: AuthIncarnationReader }>;
 
+/** A read path found no auth incarnation to bind, and created none. */
+export class AuthIncarnationMissingError extends Error {
+  readonly authId: string;
+  constructor(authId: string) {
+    super(
+      `auth locator ${authId} has no lifetime identity yet; run a live ghostget invoke with it or open the Ghostget app, then retry`,
+    );
+    this.name = "AuthIncarnationMissingError";
+    this.authId = authId;
+  }
+}
+
 function boundAuthIdentityHash(
   auth: GhostgetAuth,
   binding: IncarnationBinding,
@@ -1262,11 +1274,7 @@ function boundAuthIdentityHash(
     return projectionAuthIdentityHash(auth.id, authHash(auth), environment);
   }
   const current = binding.incarnations.identityHashIfPresent(auth.id, authHash(auth));
-  if (current === null) {
-    throw new Error(
-      `auth locator ${auth.id} has no lifetime identity yet; run a live ghostget invoke with it or open the Ghostget app, then retry`,
-    );
-  }
+  if (current === null) throw new AuthIncarnationMissingError(auth.id);
   return current;
 }
 

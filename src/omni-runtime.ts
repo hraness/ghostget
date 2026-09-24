@@ -58,6 +58,7 @@ import {
 } from "./read-projections";
 import {
   createReadProjectionQueryForInvocation,
+  AuthIncarnationMissingError,
   prepareReadInvocation,
   type PreparedInvocation,
 } from "./runtime";
@@ -1522,8 +1523,8 @@ function view(
       )
     : null;
   // Preparation binds each account's current incarnation and fails closed
-  // when one disappeared, so a source set that can no longer be prepared has
-  // changed since it was observed.
+  // when one disappeared, so a source whose incarnation is gone has changed
+  // since it was observed. Other preparation errors propagate unchanged.
   let currentSet: ReturnType<typeof prepareSources>;
   try {
     currentSet = prepareSources(prepared.request, {
@@ -1531,6 +1532,7 @@ function view(
       registry: prepared.registry,
     });
   } catch (error) {
+    if (!(error instanceof AuthIncarnationMissingError)) throw error;
     throw new Error(
       "omni source or auth identity changed while the local view was being observed",
       { cause: error },
