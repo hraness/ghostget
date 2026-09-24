@@ -36,7 +36,10 @@ fn main() {
     let mode = match arguments.as_slice() {
         [mode] if mode == "jcs" || mode == "url" => mode.clone(),
         [mode] if mode == "version" => {
-            println!("ghostget-oracle {} url {URL_CRATE_VERSION}", env!("CARGO_PKG_VERSION"));
+            println!(
+                "ghostget-oracle {} url {URL_CRATE_VERSION}",
+                env!("CARGO_PKG_VERSION")
+            );
             return;
         }
         _ => {
@@ -56,7 +59,10 @@ fn main() {
             }
         };
         let reply = answer(&mode, &line);
-        if writeln!(output, "{reply}").and_then(|()| output.flush()).is_err() {
+        if writeln!(output, "{reply}")
+            .and_then(|()| output.flush())
+            .is_err()
+        {
             std::process::exit(1);
         }
     }

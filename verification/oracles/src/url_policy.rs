@@ -50,9 +50,14 @@ pub fn components(url: &Url) -> Components {
 fn is_ecmascript_whitespace(character: char) -> bool {
     matches!(
         character,
-        '\u{9}' | '\u{a}' | '\u{b}' | '\u{c}' | '\u{d}' | ' ' | '\u{a0}' | '\u{1680}'
-            | '\u{2000}'..='\u{200a}'
-            | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'
+        '\u{9}' | '\u{a}' | '\u{b}' | '\u{c}' | '\u{d}' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200a}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202f}'
+                | '\u{205f}'
+                | '\u{3000}'
+                | '\u{feff}'
     )
 }
 
@@ -68,8 +73,17 @@ fn has_ambiguous_escape(raw: &str) -> bool {
     bytes.windows(3).any(|window| {
         window[0] == b'%'
             && matches!(
-                (window[1].to_ascii_lowercase(), window[2].to_ascii_lowercase()),
-                (b'0', b'0') | (b'0', b'a') | (b'0', b'd') | (b'2', b'f') | (b'5', b'c') | (b'2', b'e') | (b'2', b'5')
+                (
+                    window[1].to_ascii_lowercase(),
+                    window[2].to_ascii_lowercase()
+                ),
+                (b'0', b'0')
+                    | (b'0', b'a')
+                    | (b'0', b'd')
+                    | (b'2', b'f')
+                    | (b'5', b'c')
+                    | (b'2', b'e')
+                    | (b'2', b'5')
             )
     })
 }
@@ -78,7 +92,9 @@ fn is_ldh_label(label: &str) -> bool {
     let bytes = label.as_bytes();
     !bytes.is_empty()
         && bytes.len() <= 63
-        && bytes.iter().all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'-')
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'-')
         && bytes[0] != b'-'
         && bytes[bytes.len() - 1] != b'-'
 }
@@ -96,7 +112,15 @@ fn is_public_dns_name(hostname: &str) -> bool {
         && rest.iter().all(|label| is_ldh_label(label))
 }
 
-const RESERVED_SUFFIXES: [&str; 7] = ["localhost", "local", "internal", "test", "invalid", "example", "onion"];
+const RESERVED_SUFFIXES: [&str; 7] = [
+    "localhost",
+    "local",
+    "internal",
+    "test",
+    "invalid",
+    "example",
+    "onion",
+];
 
 /// Why the policy refuses a URL, or `None` when it admits it.
 pub fn refusal(raw: &str) -> Option<&'static str> {
@@ -107,7 +131,10 @@ pub fn refusal(raw: &str) -> Option<&'static str> {
     if raw.chars().any(is_refused_control) {
         return Some("control character");
     }
-    if raw.chars().any(|character| is_ecmascript_whitespace(character) || character == '\\') {
+    if raw
+        .chars()
+        .any(|character| is_ecmascript_whitespace(character) || character == '\\')
+    {
         return Some("whitespace or backslash");
     }
     if has_ambiguous_escape(raw) {
@@ -136,7 +163,10 @@ pub fn refusal(raw: &str) -> Option<&'static str> {
     if hostname.ends_with('.') || hostname.contains(':') {
         return Some("host form");
     }
-    if hostname.split('.').all(|label| !label.is_empty() && label.bytes().all(|byte| byte.is_ascii_digit())) {
+    if hostname
+        .split('.')
+        .all(|label| !label.is_empty() && label.bytes().all(|byte| byte.is_ascii_digit()))
+    {
         return Some("numeric host");
     }
     let path = parts.pathname.as_str();
@@ -146,7 +176,10 @@ pub fn refusal(raw: &str) -> Option<&'static str> {
     if !is_public_dns_name(hostname) {
         return Some("host name");
     }
-    if RESERVED_SUFFIXES.iter().any(|suffix| hostname.ends_with(&format!(".{suffix}"))) {
+    if RESERVED_SUFFIXES
+        .iter()
+        .any(|suffix| hostname.ends_with(&format!(".{suffix}")))
+    {
         return Some("reserved suffix");
     }
     let mut seen = std::collections::HashSet::new();

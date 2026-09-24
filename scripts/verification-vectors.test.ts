@@ -15,6 +15,7 @@
  * equal to what it generates.
  */
 import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 
 import { canonicalJson, canonicalJsonScriptLiteral, legacyCanonicalJson, sha256 } from "../src/canonical-json.js";
@@ -200,12 +201,38 @@ describe("length-framed identity vectors", () => {
     }
   });
 
-  test("seeded defect: dropping the framing prefix misses every provider identity", () => {
+  test("seeded defect: a changed length frame misses every provider identity", () => {
     // The generator frames every component as a big-endian u64 UTF-8 length
-    // and its bytes behind a domain prefix; joining the raw components does not.
-    const unframed = (extractor: string, providerId: string): string => sha256(`${extractor}\u{0}${providerId}`);
+    // and its bytes behind a domain prefix. Each defect keeps the prefix, the
+    // domain, and the bytes, and changes only the length frame.
+    const framed = (frame: (length: number) => Uint8Array) => (extractor: string, providerId: string): string => {
+      const hash = createHash("sha256");
+      hash.update("wrench-media-identity-key\0", "utf8");
+      for (const component of ["source", extractor, providerId]) {
+        const bytes = new TextEncoder().encode(component);
+        hash.update(frame(bytes.byteLength));
+        hash.update(bytes);
+      }
+      return hash.digest("hex");
+    };
+    const u64 = (littleEndian: boolean) => (length: number): Uint8Array => {
+      const frame = new Uint8Array(8);
+      new DataView(frame.buffer).setBigUint64(0, BigInt(length), littleEndian);
+      return frame;
+    };
+    const u32 = (length: number): Uint8Array => {
+      const frame = new Uint8Array(4);
+      new DataView(frame.buffer).setUint32(0, length, false);
+      return frame;
+    };
+    // The unchanged frame reproduces the vectors, so each defect below is the
+    // only difference.
     expect(hashes.providerIdentity.every(({ extractor, providerId, sha256: expected }) =>
-      unframed(extractor, providerId) !== expected)).toBeTrue();
+      framed(u64(false))(extractor, providerId) === expected)).toBeTrue();
+    for (const defect of [framed(u64(true)), framed(u32), framed((length) => new TextEncoder().encode(String(length)))]) {
+      expect(hashes.providerIdentity.every(({ extractor, providerId, sha256: expected }) =>
+        defect(extractor, providerId) !== expected)).toBeTrue();
+    }
   });
 });
 

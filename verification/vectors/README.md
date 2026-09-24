@@ -7,7 +7,7 @@ layout, never from the TypeScript. It writes:
 
 - `jcs.json`: RFC 8785 canonical forms with their SHA-256 and script-literal
   escaping, ECMAScript number text for IEEE 754 bit patterns including the RFC
-  8785 appendix B samples, and inputs outside I-JSON.
+  8785 appendix B samples and every power of two, and inputs outside I-JSON.
 - `hashes.json`: the length-framed SHA-256 identities for media provider and
   authorization-context keys, native runtime closures, and retained revision
   content, plus UTF-8 byte ordering.

@@ -693,7 +693,7 @@ canonicalJson over plain JSON with UTF-16 code-unit key order is injective, pars
 
 #### `canonical-json-matches-rfc8785-oracle`
 
-For every JSON value it accepts, `canonicalJson` writes the same text as an independent RFC 8785 canonicalizer, and it reproduces the committed golden canonical forms, number texts, SHA-256 digests, and script-literal escapes.
+For every I-JSON value, which excludes lone surrogates, `canonicalJson` writes the same text as an independent RFC 8785 canonicalizer, and it reproduces the committed golden canonical forms, number texts, SHA-256 digests, and script-literal escapes.
 
 - Evidenced by differential oracle.
 - Source: `kb/plans/formal-verification-assurance.md`: “Add a dev-only Rust crate under `verification/oracles/` with an RFC 8785 canonicalizer”
@@ -703,7 +703,7 @@ For every JSON value it accepts, `canonicalJson` writes the same text as an inde
   - Generated values are sampled at the configured run count, and the golden vectors are a fixed corpus; neither is a proof over all inputs.
   - `canonicalJson` writes a lone surrogate as JSON.stringify escapes it, where RFC 8785 refuses the input; the vector test pins this difference.
   - Duplicate member names never reach `canonicalJson`, because `JSON.parse` keeps the last one; refusing them is a parser's job, not the canonicalizer's.
-  - The Rust oracle and the Python generator were written from RFC 8785 without reference to the TypeScript, but by the same author, so a misreading all three share would pass. The oracle's number digits come from Rust's correctly rounded formatting.
+  - The Rust oracle and the Python generator were written from RFC 8785 without reference to the TypeScript, but by the same author, so a misreading all three share would pass. The oracle's number digits come from Rust's correctly rounded formatting, and one misreading of the shortest-digit rule at powers of two was found in review and fixed.
 
 #### `hash-framing-injective`
 

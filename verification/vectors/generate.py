@@ -272,6 +272,12 @@ def number_vectors(generator: random.Random) -> list[dict[str, object]]:
         if not math.isfinite(value):
             continue
         vectors.append({"source": "random-bits", "bits": bits, "text": number_text(value)})
+    # Every power of two: the doubles below one are half as far apart as those
+    # above, so the shortest digits that parse back can lie on the far side of
+    # the closest decimal of the same length.
+    for exponent in range(-1074, 1024):
+        value = math.ldexp(1.0, exponent)
+        vectors.append({"source": "power-of-two", "bits": float_to_bits(value), "text": number_text(value)})
     for vector in vectors:
         if vector["text"] is not None and float(str(vector["text"])) != bits_to_float(str(vector["bits"])):
             raise AssertionError(f"number text {vector['text']} does not round-trip")

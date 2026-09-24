@@ -351,6 +351,12 @@ Execution, 2026-09-23:
   shortest-digit `{:e}` wrote 1424953923781206.25 as `...206.3`, where
   ECMAScript breaks the tie to the even digit, `...206.2`. The TypeScript was
   already right.
+- Review found a second oracle bug that 200 differential runs missed: at 46
+  powers of two, such as 2^-44, the oracle wrote 17 digits where ECMAScript
+  writes 16. Below a power of two the doubles are half as far apart, so the
+  shortest text that parses back can lie on the far side of the closest
+  decimal. The oracle now tries that neighbour, and the vectors and the
+  differential generator now include every power of two.
 - The URL differential found no policy disagreement. It names four parser
   differences, each of which leaves the gateway refusing the input: Bun
   percent-encodes `^` in paths, Bun accepts `[::1:]` and drops a leading `/.`

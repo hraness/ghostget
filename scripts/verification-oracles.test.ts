@@ -127,6 +127,9 @@ const wellFormedText = fc.string({ unit: "binary", maxLength: 12 }).filter((text
 const numbers = fc.oneof(
   fc.double({ noNaN: true, noDefaultInfinity: true }),
   fc.integer({ min: -(2 ** 53), max: 2 ** 53 }),
+  // At a power of two the shortest digits that parse back can lie on the far
+  // side of the closest decimal of the same length.
+  fc.integer({ min: -1074, max: 1023 }).map((exponent) => 2 ** exponent),
   fc.constantFrom(0, -0, 1e21, 1e-7, 1e-6, 123e-20, 2 ** 53 + 2, Number.MAX_VALUE, Number.MIN_VALUE, 5e-324, 1e23),
 );
 

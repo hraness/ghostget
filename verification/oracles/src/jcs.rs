@@ -187,7 +187,9 @@ impl Parser<'_> {
                                 if !(0xdc00..0xe000).contains(&low) {
                                     return self.fail("lone high surrogate");
                                 }
-                                0x10000 + ((u32::from(unit) - 0xd800) << 10) + (u32::from(low) - 0xdc00)
+                                0x10000
+                                    + ((u32::from(unit) - 0xd800) << 10)
+                                    + (u32::from(low) - 0xdc00)
                             } else if (0xdc00..0xe000).contains(&unit) {
                                 return self.fail("lone low surrogate");
                             } else {
@@ -256,11 +258,16 @@ impl Parser<'_> {
                 return self.fail("invalid exponent");
             }
         }
-        let text = std::str::from_utf8(&self.bytes[start..self.position]).map_err(|_| "invalid number".to_string())?;
+        let text = std::str::from_utf8(&self.bytes[start..self.position])
+            .map_err(|_| "invalid number".to_string())?;
         // Rust's float parsing is correctly rounded.
-        let value: f64 = text.parse().map_err(|_| format!("invalid number at byte {start}"))?;
+        let value: f64 = text
+            .parse()
+            .map_err(|_| format!("invalid number at byte {start}"))?;
         if !value.is_finite() {
-            return Err(format!("number outside the IEEE 754 double range at byte {start}"));
+            return Err(format!(
+                "number outside the IEEE 754 double range at byte {start}"
+            ));
         }
         Ok(Json::Number(value))
     }
@@ -268,7 +275,10 @@ impl Parser<'_> {
 
 /// Parse one I-JSON text.
 pub fn parse(text: &str) -> Result<Json, String> {
-    let mut parser = Parser { bytes: text.as_bytes(), position: 0 };
+    let mut parser = Parser {
+        bytes: text.as_bytes(),
+        position: 0,
+    };
     let value = parser.value(0)?;
     parser.skip_whitespace();
     if parser.position != parser.bytes.len() {
@@ -312,17 +322,17 @@ pub fn number_text(value: f64) -> String {
     // ECMAScript requires the fewest significant digits that identify the
     // value and, when several such digit strings exist, the one closest to
     // the value, with ties going to the even digit. `{:.p$e}` rounds the exact
-    // binary value to p + 1 significant digits, ties to even, so the first
-    // precision whose text parses back to the value gives those digits. The
+    // binary value to p + 1 significant digits, ties to even, which gives the
+    // closest candidate of that length. When it does not parse back to the
+    // value, a neighbour one unit away in the last digit still may: at a power
+    // of two the doubles below are half as far apart as those above, so the
+    // interval that parses back is lopsided. Only the neighbour on the far
+    // side of the value can parse back, because the interval is convex. The
     // shortest-digits `{:e}` form is not used: it may break an exact tie
     // upward, as for 1424953923781206.25.
-    let scientific = (0..17)
-        .map(|precision| format!("{value:.precision$e}"))
-        .find(|text| text.parse::<f64>() == Ok(value))
+    let (digits, exponent) = (0..17)
+        .find_map(|precision| shortest_candidate(value, precision))
         .expect("17 significant digits identify every double");
-    let (mantissa, exponent) = scientific.split_once('e').expect("scientific notation");
-    let exponent: i32 = exponent.parse().expect("integer exponent");
-    let digits: String = mantissa.chars().filter(char::is_ascii_digit).collect();
     let digits = digits.trim_end_matches('0');
     let digits = if digits.is_empty() { "0" } else { digits };
     let k = i32::try_from(digits.len()).expect("digit count");
@@ -350,6 +360,29 @@ pub fn number_text(value: f64) -> String {
     }
 }
 
+/// The significant digits and decimal exponent of a `precision + 1` digit
+/// string that parses back to `value`: the correctly rounded one, or else the
+/// neighbour one unit away in the last digit that does. `None` when no string
+/// of that length identifies the value.
+fn shortest_candidate(value: f64, precision: usize) -> Option<(String, i32)> {
+    let rounded = format!("{value:.precision$e}");
+    let (mantissa, exponent) = rounded.split_once('e').expect("scientific notation");
+    let exponent: i32 = exponent.parse().expect("integer exponent");
+    let digits: String = mantissa.chars().filter(char::is_ascii_digit).collect();
+    if rounded.parse::<f64>() == Ok(value) {
+        return Some((digits, exponent));
+    }
+    let units: u64 = digits.parse().expect("at most 17 digits");
+    let scale = exponent - i32::try_from(precision).expect("precision");
+    [units + 1, units - 1].into_iter().find_map(|neighbour| {
+        let text = neighbour.to_string();
+        (format!("{text}e{scale}").parse::<f64>() == Ok(value)).then(|| {
+            let exponent = scale + i32::try_from(text.len()).expect("digit count") - 1;
+            (text, exponent)
+        })
+    })
+}
+
 fn utf16_key(value: &str) -> Vec<u16> {
     value.encode_utf16().collect()
 }
@@ -372,8 +405,10 @@ fn write_canonical(out: &mut String, value: &Json) {
             out.push(']');
         }
         Json::Object(members) => {
-            let mut sorted: Vec<(Vec<u16>, &String, &Json)> =
-                members.iter().map(|(name, item)| (utf16_key(name), name, item)).collect();
+            let mut sorted: Vec<(Vec<u16>, &String, &Json)> = members
+                .iter()
+                .map(|(name, item)| (utf16_key(name), name, item))
+                .collect();
             sorted.sort_by(|left, right| left.0.cmp(&right.0));
             out.push('{');
             for (index, (_, name, item)) in sorted.iter().enumerate() {
