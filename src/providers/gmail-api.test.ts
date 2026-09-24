@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertAsyncProperty } from "../test-support";
 
 import {
   ProviderHttpClient,
@@ -1346,7 +1347,7 @@ describe("official Gmail API helpers", () => {
         return fc.integer({ min: 1, max: days }).map((day) => ({ year, month, day }));
       })
     );
-    await fc.assert(fc.asyncProperty(canonicalDate, async (date) => {
+    await assertAsyncProperty(fc.asyncProperty(canonicalDate, async (date) => {
       const page = await fetchSingleGmailContact({ birthdays: [{ date }] });
       expect(page.contacts[0]?.birthdays?.[0]?.date).toEqual(date);
     }));

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "../test-support";
 import { directHttpMediaForContainer } from "./http";
 import {
   GHOSTGET_MEDIA_SCHEMA_VERSION,
@@ -268,7 +269,7 @@ function authenticatedLocalManifest(
 }
 
 test("property: arbitrary manifest JSON never throws", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.anything(), (value) => {
       expect(() => parseMediaManifest(value)).not.toThrow();
     }),
@@ -277,7 +278,7 @@ test("property: arbitrary manifest JSON never throws", () => {
 });
 
 test("property: opaque identities round-trip exactly", () => {
-  fc.assert(
+  assertProperty(
     fc.property(hashArbitrary, hashArbitrary, (providerDigest, requestedUrlDigest) => {
       const current = opaqueLocalManifest(providerDigest, requestedUrlDigest);
       const parsed = parseMediaManifest(current);
@@ -291,7 +292,7 @@ test("property: opaque identities round-trip exactly", () => {
 });
 
 test("property: authentication context and mode are identity-bound", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       hashArbitrary,
       hashArbitrary,
@@ -344,7 +345,7 @@ test("property: authentication context and mode are identity-bound", () => {
 });
 
 test("property: opaque yt-dlp URL digests are distinct and identity-bound", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       hashArbitrary,
       hashArbitrary,
@@ -396,7 +397,7 @@ test("property: bounded direct HTTP provenance parses and round-trips exactly", 
     redirectCount: fc.integer({ min: 0, max: 5 }),
   });
 
-  fc.assert(
+  assertProperty(
     fc.property(provenanceArbitrary, (provenance) => {
       const parsed = parseMediaManifest(directManifest(
         provenance,
@@ -417,7 +418,7 @@ test("property: bounded direct HTTP provenance parses and round-trips exactly", 
 });
 
 test("property: mutating either direct body field breaks capture coherence", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.integer({ min: 0, max: 1_000_000 }),
       hashArbitrary,
@@ -449,7 +450,7 @@ test("property: mutating either direct body field breaks capture coherence", () 
 
 test("property: every mutable local-transcriber identity component changes its variant", () => {
   const languageArbitrary = fc.constantFrom("auto", "en", "pt-br", "zh-hans");
-  fc.assert(
+  assertProperty(
     fc.property(
       hashArbitrary,
       hashArbitrary,
@@ -517,7 +518,7 @@ test("property: every mutable local-transcriber identity component changes its v
 });
 
 test("property: local provenance round-trips only when its audio input stays coherent", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.integer({ min: 1, max: 1_000_000 }),
       hashArbitrary,
@@ -548,7 +549,7 @@ test("property: local provenance round-trips only when its audio input stays coh
 });
 
 test("property: raw URL strings and out-of-bound counts cannot become direct provenance", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.string({ maxLength: 200 }),
       fc.oneof(
@@ -579,7 +580,7 @@ test("property: raw URL strings and out-of-bound counts cannot become direct pro
 });
 
 test("property: paths outside an item cannot become artifact paths", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.string({ maxLength: 100 }), (suffix) => {
       expect(() => relativeArtifactPath("/tmp/item", `/tmp/outside/${suffix}`)).toThrow();
     }),

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createImsgAutomationProvider, type ImsgAutomationOperation } from "./imessage-automation";
 import type { AutomationAction, AutomationCoordinate } from "../messaging-automation-types";
-import { fc, propertyParameters } from "../test-support";
+import { assertProperty, fc } from "../test-support";
 import { parseAutomationCoordinate } from "../messaging-automation-validation";
 import { discoveryDiagnosticMessage, nativeDiagnostic, type DiscoveryDiagnosticCode } from "../messaging-automation-diagnostics";
 
@@ -168,11 +168,11 @@ test("wrong network, invalid cursors and revoked owner permission do no send wor
 });
 test("arbitrary malformed iMessage coordinates never reach provider authorization", () => {
   const f = fixture();
-  fc.assert(fc.property(fc.jsonValue(), value => {
+  assertProperty(fc.property(fc.jsonValue(), value => {
     if (value && typeof value === "object" && !Array.isArray(value) && value.provider === "imessage") return;
     expect(() => f.provider.resolve(value as AutomationCoordinate)).toThrow();
     expect(f.admissions).toHaveLength(0);
-  }), propertyParameters);
+  }));
 });
 
 test("permission revoked during attachment admission prevents the provider send", async () => {

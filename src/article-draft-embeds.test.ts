@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "./test-support";
 
 import { canonicalJson } from "./canonical-json";
 import { parseArticleDraftDocument } from "./article-draft-document";
@@ -81,7 +82,7 @@ describe("X status Article embed projection", () => {
   });
 
   test("always emits a canonical schema-v1 text-block sequence", () => {
-    fc.assert(fc.property(
+    assertProperty(fc.property(
       fc.stringMatching(/^[A-Za-z0-9_]{1,15}$/u),
       fc.integer({ min: 1, max: Number.MAX_SAFE_INTEGER }),
       fc.string({ minLength: 1, maxLength: 200 })

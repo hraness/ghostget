@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "../test-support";
 
 import {
   deduplicateRollingCaptionCues,
@@ -28,12 +29,12 @@ function expectedLongestOverlap(left: readonly string[], right: readonly string[
 }
 
 test("property: arbitrary foreign input and WebVTT strings never throw", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.anything(), (input) => {
       expect(() => parseWebVtt(input)).not.toThrow();
     }),
   );
-  fc.assert(
+  assertProperty(
     fc.property(fc.string({ maxLength: 10_000 }), (input) => {
       expect(() => parseWebVtt(input)).not.toThrow();
     }),
@@ -41,7 +42,7 @@ test("property: arbitrary foreign input and WebVTT strings never throw", () => {
 });
 
 test("property: every success is nonempty, canonical, and internally consistent", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.string({ maxLength: 10_000 }), (input) => {
       const result = parseWebVtt(input);
       if (!result.ok) return;
@@ -61,7 +62,7 @@ test("property: overlap equals the longest normalized suffix-prefix match", () =
     minLength: 1,
     maxLength: 12,
   });
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.array(token, { maxLength: 30 }),
       fc.array(token, { maxLength: 30 }),
@@ -78,7 +79,7 @@ test("property: a constructed rolling suffix is removed exactly once", () => {
     minLength: 1,
     maxLength: 10,
   });
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.uniqueArray(word, { minLength: 1, maxLength: 20 }),
       fc.nat({ max: 30 }),
@@ -109,7 +110,7 @@ test("property: non-overlapping repeated speech is never deduplicated", () => {
     minLength: 1,
     maxLength: 80,
   }).filter((value) => value.trim().length > 0);
-  fc.assert(
+  assertProperty(
     fc.property(speech, fc.nat({ max: 60_000 }), (text, gapMs) => {
       const canonical = text.replace(/\s+/gu, " ").trim().normalize("NFC");
       const cues: readonly TranscriptCue[] = [
@@ -130,7 +131,7 @@ test("property: strict local cues round-trip through canonical WebVTT", () => {
     minLength: 1,
     maxLength: 80,
   }).filter((value) => value.trim().length > 0);
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.array(fc.tuple(fc.integer({ min: 1, max: 10_000 }), safeText), {
         minLength: 1,
@@ -154,7 +155,7 @@ test("property: strict local cues round-trip through canonical WebVTT", () => {
 });
 
 test("property: arbitrary local cue input never throws", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.anything(), (input) => {
       expect(() => validateTranscriptCues(input)).not.toThrow();
     }),

@@ -3,6 +3,7 @@ import { chmod, mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import fc from "fast-check";
+import { assertAsyncProperty } from "../test-support";
 
 import { PCM_NORMALIZATION_PROFILE } from "./ffmpeg";
 import {
@@ -66,7 +67,7 @@ function invokeUnknown(value: unknown): Promise<LocalTranscriptionResult> {
 }
 
 test("property: arbitrary request and descriptor mutations remain total", async () => {
-  await fc.assert(
+  await assertAsyncProperty(
     fc.asyncProperty(
       fc.anything({ maxDepth: 5, maxKeys: 24 }),
       async (value) => {
@@ -191,7 +192,7 @@ test("property: descriptor, runtime, input, and language identities are provenan
   temporaryRoots.push(requestedRoot);
   const root = await realpath(requestedRoot);
   let sequence = 0;
-  await fc.assert(
+  await assertAsyncProperty(
     fc.asyncProperty(
       sha256Arbitrary,
       sha256Arbitrary,
