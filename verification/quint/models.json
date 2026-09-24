@@ -166,6 +166,26 @@
         "seed": "20260928",
         "maxSteps": 12
       }
+    },
+    {
+      "file": "local-cli.qnt",
+      "module": "localCli",
+      "init": "init",
+      "step": "step",
+      "invariants": ["postSpawnIndeterminate", "noRespawn"],
+      "simulation": { "seed": "20260928", "maxSamples": 2000, "maxSteps": 8 },
+      "apalache": { "length": 8 },
+      "mutants": [
+        { "step": "stepRetryTimeout", "invariant": "noRespawn" },
+        { "step": "stepTrustNotStarted", "invariant": "postSpawnIndeterminate" }
+      ],
+      "replay": {
+        "test": "scripts/verification-local-cli-replay.test.ts",
+        "target": "production",
+        "traces": 300,
+        "seed": "20260928",
+        "maxSteps": 8
+      }
     }
   ]
 }
