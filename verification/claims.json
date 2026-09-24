@@ -4847,7 +4847,7 @@
         "The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.",
         "CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.",
         "The census law itself (a target is admitted exactly when it exceeds every completed stable Release in the 500-Release window) is the sampled property in `scripts/release-provider-outcome.test.ts`; the model checks that a clean census precedes each draft creation and publication, and that success never leaves a higher completed stable Release.",
-        "GitHub has no conditional create or publish, so a stable Release that completes between the last census and the PATCH is caught only by the census repeated after publication, which fails the run but cannot undo the already immutable publication."
+        "GitHub has no conditional create or publish, so a stable Release that completes between the last census and the PATCH is caught only by the census repeated after publication, which fails the run but cannot undo the already immutable publication. A stable Release that completes after that last census, while the terminal Latest read still names the target, is not detected, and the model injects no such completion."
       ],
       "properties": [
         {
