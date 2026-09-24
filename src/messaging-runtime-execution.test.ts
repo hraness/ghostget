@@ -1562,5 +1562,5 @@ describe("generic messaging composite execution property", () => {
         environment: setup.environment,
       }).run).toEqual(result.run);
     }), { numRuns: 6, interruptAfterTimeLimit: 150_000 });
-  }, 180_000);
+  });
 });

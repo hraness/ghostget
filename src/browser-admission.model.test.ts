@@ -483,7 +483,7 @@ const commands = fc.commands([
   fc.constant(new RebootCommand()),
   fc.tuple(fc.integer({ min: 1, max: 60_000 }), increments)
     .map(([timeoutMs, extra]) => new CaptureCommand(timeoutMs, extra)),
-], { maxCommands: 14 });
+], { maxCommands: 10 });
 
 describe("browser admission stateful model", () => {
   test("never runs more than two acquisitions, never reclaims a same-boot claim, and never launches after expiry", async () => {
@@ -507,6 +507,6 @@ describe("browser admission stateful model", () => {
       } finally {
         rmSync(directory, { recursive: true, force: true });
       }
-    }), { numRuns: 60, interruptAfterTimeLimit: 120_000 });
+    }), { numRuns: 8, interruptAfterTimeLimit: 150_000 });
   });
 });

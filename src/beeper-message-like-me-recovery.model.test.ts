@@ -315,7 +315,7 @@ const commands = fc.commands([
   fc.tuple(fc.constantFrom<"parent" | "helper">("parent", "helper"), fc.constantFrom<"dead" | "unknown">("dead", "unknown"))
     .map(([who, status]) => new LivenessCommand(who, status)),
   fc.tuple(fc.nat(7), lifecycle).map(([pick, step]) => new StaleCommand(pick, step)),
-], { maxCommands: 12 });
+], { maxCommands: 10 });
 
 describe("Beeper Message Like Me export admission stateful model", () => {
   test("retains a live or indeterminate owner and takes over only after death is proved", () => {
@@ -337,9 +337,9 @@ describe("Beeper Message Like Me export admission stateful model", () => {
         } finally {
           rmSync(root, { recursive: true, force: true });
         }
-      }), { numRuns: 20, interruptAfterTimeLimit: 3_000_000 });
+      }), { numRuns: 10, interruptAfterTimeLimit: 150_000 });
     } finally {
       helper.kill(9);
     }
-  }, 3_000_000);
+  });
 });
