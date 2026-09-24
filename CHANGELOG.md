@@ -5,7 +5,10 @@ a version is publicly released after its exact canonical GitHub archive and
 provenance are published in an immutable Release. npm mirrors are optional.
 Historical entries retain their original delivery coordinates.
 
-## Unreleased
+## 0.18.36
+
+- Give the website a softer Gruvbox palette, woven hero lighting, readable
+  typography, and shared controls that respect motion and contrast preferences.
 
 - Rewrite the ghostget.com title, description, social card, homepage, docs,
   comparison, about, contact, and 404 copy in plain words, and match the
