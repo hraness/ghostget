@@ -3,9 +3,8 @@
 import { createHash } from "crypto";
 var compareUtf16CodeUnits = (left, right) => left < right ? -1 : left > right ? 1 : 0;
 var compareLegacyLocale = (left, right) => left.localeCompare(right);
-function ownEnumerableDataValue(container, key, member, fail) {
-  const descriptor = Object.getOwnPropertyDescriptor(container, key);
-  if (descriptor === undefined || descriptor.enumerable !== true || !("value" in descriptor)) {
+function dataDescriptorValue(descriptor, member, fail) {
+  if (descriptor.enumerable !== true || !("value" in descriptor)) {
     return fail("accessor or non-enumerable member", member);
   }
   return descriptor.value;
@@ -20,10 +19,10 @@ function plainJsonArrayItems(value, fail) {
   }
   const items = [];
   for (let index = 0;index < length; index += 1) {
-    const key = String(index);
-    if (!Object.hasOwn(value, key))
+    const descriptor = Object.getOwnPropertyDescriptor(value, index);
+    if (descriptor === undefined)
       return fail("sparse or decorated array");
-    items.push(ownEnumerableDataValue(value, key, index, fail));
+    items.push(dataDescriptorValue(descriptor, index, fail));
   }
   return items;
 }
@@ -32,20 +31,35 @@ function plainJsonObjectMembers(value, fail, options = {}) {
   if (prototype !== Object.prototype && prototype !== null) {
     return fail("non-plain object");
   }
+  const skipNonEnumerable = options.skipNonEnumerable === true;
   const members = [];
   for (const key of Reflect.ownKeys(value)) {
     if (typeof key !== "string")
       return fail("symbol field");
-    if (options.skipNonEnumerable === true && !Object.prototype.propertyIsEnumerable.call(value, key))
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor === undefined) {
+      return fail("accessor or non-enumerable member", key);
+    }
+    if (skipNonEnumerable && descriptor.enumerable !== true)
       continue;
-    members.push([key, ownEnumerableDataValue(value, key, key, fail)]);
+    members.push([key, dataDescriptorValue(descriptor, key, fail)]);
   }
   return members;
 }
-function encodeCanonical(value, encoding, path, ancestors) {
+function encodeCanonicalRoot(value, encoding) {
+  const path = [];
+  return encodeCanonical(value, {
+    encoding,
+    path,
+    ancestors: new Set,
+    fail: (violation, member) => encoding.fail(violation, member === undefined ? path : [...path, member])
+  });
+}
+function encodeCanonical(value, walk) {
   if (value === null || typeof value === "boolean" || typeof value === "string") {
     return JSON.stringify(value);
   }
+  const { encoding, path, ancestors, fail } = walk;
   if (typeof value === "number") {
     if (!Number.isFinite(value))
       return encoding.fail("non-finite number", path);
@@ -53,25 +67,28 @@ function encodeCanonical(value, encoding, path, ancestors) {
   }
   if (typeof value !== "object")
     return encoding.fail("non-JSON value", path);
-  if (ancestors.has(value))
-    return encoding.fail("cycle", path);
-  const fail = (violation, member) => encoding.fail(violation, member === undefined ? path : [...path, member]);
+  const depth = ancestors.size;
   ancestors.add(value);
-  try {
-    if (Array.isArray(value)) {
-      const items = plainJsonArrayItems(value, fail);
-      const encoded2 = [];
-      for (let index = 0;index < items.length; index += 1) {
-        path.push(index);
-        encoded2.push(encodeCanonical(items[index], encoding, path, ancestors));
-        path.pop();
-      }
-      return `[${encoded2.join(",")}]`;
+  if (ancestors.size === depth)
+    return encoding.fail("cycle", path);
+  let text;
+  if (Array.isArray(value)) {
+    const items = plainJsonArrayItems(value, fail);
+    text = "[";
+    for (let index = 0;index < items.length; index += 1) {
+      if (index > 0)
+        text += ",";
+      path.push(index);
+      text += encodeCanonical(items[index], walk);
+      path.pop();
     }
-    const members = [...plainJsonObjectMembers(value, fail, {
+    text += "]";
+  } else {
+    const members = plainJsonObjectMembers(value, fail, {
       skipNonEnumerable: encoding.skipNonEnumerable
-    })].sort(([left], [right]) => encoding.compare(left, right));
-    const encoded = [];
+    }).sort(([left], [right]) => encoding.compare(left, right));
+    text = "{";
+    let first = true;
     for (const [key, item] of members) {
       path.push(key);
       if (item === undefined) {
@@ -81,13 +98,16 @@ function encodeCanonical(value, encoding, path, ancestors) {
         path.pop();
         continue;
       }
-      encoded.push(`${JSON.stringify(key)}:${encodeCanonical(item, encoding, path, ancestors)}`);
+      if (!first)
+        text += ",";
+      first = false;
+      text += `${JSON.stringify(key)}:${encodeCanonical(item, walk)}`;
       path.pop();
     }
-    return `{${encoded.join(",")}}`;
-  } finally {
-    ancestors.delete(value);
+    text += "}";
   }
+  ancestors.delete(value);
+  return text;
 }
 function failCanonicalJson(violation) {
   if (violation === "non-finite number") {
@@ -96,7 +116,7 @@ function failCanonicalJson(violation) {
   throw new Error(`canonical JSON supports only JSON-compatible values: ${violation}`);
 }
 function canonicalJsonWithOrder(value, compare) {
-  return encodeCanonical(value, { compare, skipNonEnumerable: true, fail: failCanonicalJson }, [], new Set);
+  return encodeCanonicalRoot(value, { compare, skipNonEnumerable: true, fail: failCanonicalJson });
 }
 function canonicalJson(value) {
   return canonicalJsonWithOrder(value, compareUtf16CodeUnits);

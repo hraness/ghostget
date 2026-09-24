@@ -1,0 +1,149 @@
+{
+  "schema": "ghostget-source-mutants-v1",
+  "mutants": [
+    {
+      "id": "run-journal-release-verified-ledger",
+      "file": "src/run-journal.ts",
+      "defect": "Not-applied reconciliation releases the idempotency fence even after a dispatch was verified.",
+      "search": "    if (releaseLedger && current.dispatch.verified !== 0) {",
+      "replace": "    if (false && current.dispatch.verified !== 0) {",
+      "test": "src/run-journal.test.ts",
+      "killedBy": [
+        "run journal reducer",
+        "releases the idempotency fence only for explicit not-applied evidence"
+      ]
+    },
+    {
+      "id": "run-journal-terminal-transition",
+      "file": "src/run-journal.ts",
+      "defect": "A terminal run journal accepts further transitions.",
+      "search": "  if (current.phase === \"terminal\") {\n    throw new Error(\"terminal run journals cannot transition\");",
+      "replace": "  if (false) {\n    throw new Error(\"terminal run journals cannot transition\");",
+      "test": "src/run-journal.test.ts",
+      "killedBy": [
+        "run journal reducer",
+        "models a complete two-dispatch write and derives cleanup intent"
+      ]
+    },
+    {
+      "id": "run-journal-dispatch-before-verify",
+      "file": "src/run-journal.ts",
+      "defect": "A second dispatch may start before the previous dispatch was verified.",
+      "search": "      || current.dispatch.started !== current.dispatch.verified\n",
+      "replace": "",
+      "test": "src/run-journal.test.ts",
+      "killedBy": [
+        "run journal reducer",
+        "rejects skipped, duplicate, and contradictory progress"
+      ]
+    },
+    {
+      "id": "run-journal-duplicate-successor-overwrite",
+      "file": "src/run-journal.ts",
+      "defect": "A second, different duplicate successor is silently ignored instead of rejected.",
+      "search": "      ) return current;\n      throw new Error(\"run journal already elected a different duplicate successor\");",
+      "replace": "      ) return current;\n      return current;",
+      "test": "src/run-journal.test.ts",
+      "killedBy": [
+        "run journal reducer",
+        "elects one immutable duplicate successor without releasing source evidence"
+      ]
+    },
+    {
+      "id": "messaging-accept-without-dispatch",
+      "file": "src/messaging-action-store.ts",
+      "defect": "A messaging part is recorded as accepted without crossing dispatch.",
+      "search": "if (current.state !== \"dispatching\") throw new Error(\"messaging part did not cross dispatch\");",
+      "replace": "if (false) throw new Error(\"messaging part did not cross dispatch\");",
+      "test": "src/messaging-action-store.test.ts",
+      "killedBy": [
+        "messaging composite run journal",
+        "rejects part transitions outside the active prefix or across the dispatch boundary"
+      ]
+    },
+    {
+      "id": "messaging-stop-after-dispatch",
+      "file": "src/messaging-action-store.ts",
+      "defect": "A categorical stop, which proves nothing was sent, is accepted after the part crossed dispatch.",
+      "search": "    if (current.state !== \"unattempted\" && current.state !== \"claimed\") {\n      throw new Error(\"categorical stop crossed the dispatch boundary\");",
+      "replace": "    if (false) {\n      throw new Error(\"categorical stop crossed the dispatch boundary\");",
+      "test": "src/messaging-action-store.test.ts",
+      "killedBy": [
+        "messaging composite run journal",
+        "rejects part transitions outside the active prefix or across the dispatch boundary"
+      ]
+    },
+    {
+      "id": "messaging-out-of-prefix",
+      "file": "src/messaging-action-store.ts",
+      "defect": "A transition may target a part other than the next unproven part.",
+      "search": "if (run.state !== \"pending\" || event.index !== run.provenPartCount) {",
+      "replace": "if (run.state !== \"pending\") {",
+      "test": "src/messaging-action-store.test.ts",
+      "killedBy": [
+        "messaging composite run journal",
+        "rejects part transitions outside the active prefix or across the dispatch boundary"
+      ]
+    },
+    {
+      "id": "messaging-prefix-observation-regress",
+      "file": "src/messaging-action-store.ts",
+      "defect": "A claim may record an accepted-prefix observation lower than one already persisted.",
+      "search": "      || event.observedAcceptedPrefixCount < observedAcceptedPrefixCount\n",
+      "replace": "",
+      "test": "src/messaging-action-store.test.ts",
+      "killedBy": [
+        "messaging composite run journal",
+        "persists only monotonic accepted-prefix observations before dispatch"
+      ]
+    },
+    {
+      "id": "linked-device-commit-result-mismatch",
+      "file": "src/linked-device-lifecycle-journal.ts",
+      "defect": "A local commit may record a result other than the externally completed one.",
+      "search": "    if (!sameResult(current.result, event.result)) {",
+      "replace": "    if (false) {",
+      "test": "src/linked-device-lifecycle-journal.test.ts",
+      "killedBy": [
+        "linked-device lifecycle journal state machine",
+        "records one pair boundary, result, and local commit monotonically"
+      ]
+    },
+    {
+      "id": "linked-device-reconcile-contradicts-completed",
+      "file": "src/linked-device-lifecycle-journal.ts",
+      "defect": "Applied reconciliation may replace a durably completed result with a different one.",
+      "search": "        current.result !== null\n        && !sameResult(current.result, event.result)\n",
+      "replace": "        false\n",
+      "test": "src/linked-device-lifecycle-journal.test.ts",
+      "killedBy": [
+        "linked-device lifecycle journal state machine",
+        "requires applied reconciliation to agree with a completed result"
+      ]
+    },
+    {
+      "id": "linked-device-not-applied-erases-completion",
+      "file": "src/linked-device-lifecycle-journal.ts",
+      "defect": "Not-applied reconciliation may erase a durably completed external result.",
+      "search": "      current.externalCompletedAt !== null\n      || current.result !== null\n      || current.reasonCode",
+      "replace": "      current.reasonCode",
+      "test": "src/linked-device-lifecycle-journal.test.ts",
+      "killedBy": [
+        "linked-device lifecycle journal state machine",
+        "never erases a completed pair result with not-applied evidence"
+      ]
+    },
+    {
+      "id": "linked-device-abort-after-begin",
+      "file": "src/linked-device-lifecycle-journal.ts",
+      "defect": "A safe-retry abort is accepted after the external call began.",
+      "search": "    if (current.phase !== \"prepared\" || current.status !== \"pending\") {\n      throw new Error(\"safe abort is legal only before external begin\");",
+      "replace": "    if (false) {\n      throw new Error(\"safe abort is legal only before external begin\");",
+      "test": "src/linked-device-lifecycle-journal.test.ts",
+      "killedBy": [
+        "linked-device lifecycle journal state machine",
+        "keeps every post-begin failure indeterminate until read-only reconciliation"
+      ]
+    }
+  ]
+}

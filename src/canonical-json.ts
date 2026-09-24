@@ -45,18 +45,12 @@ export type JsonDomainFailure = (
   member?: string | number,
 ) => never;
 
-function ownEnumerableDataValue(
-  container: object,
-  key: string,
+function dataDescriptorValue(
+  descriptor: PropertyDescriptor,
   member: string | number,
   fail: JsonDomainFailure,
 ): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(container, key);
-  if (
-    descriptor === undefined
-    || descriptor.enumerable !== true
-    || !("value" in descriptor)
-  ) {
+  if (descriptor.enumerable !== true || !("value" in descriptor)) {
     return fail("accessor or non-enumerable member", member);
   }
   return descriptor.value as unknown;
@@ -80,9 +74,11 @@ export function plainJsonArrayItems(
   }
   const items: unknown[] = [];
   for (let index = 0; index < length; index += 1) {
-    const key = String(index);
-    if (!Object.hasOwn(value, key)) return fail("sparse or decorated array");
-    items.push(ownEnumerableDataValue(value, key, index, fail));
+    // One descriptor read per element answers both "is it own" and "is it
+    // data"; a separate hasOwn probe cost as much again on large arrays.
+    const descriptor = Object.getOwnPropertyDescriptor(value, index);
+    if (descriptor === undefined) return fail("sparse or decorated array");
+    items.push(dataDescriptorValue(descriptor, index, fail));
   }
   return items;
 }
@@ -94,25 +90,28 @@ export function plainJsonArrayItems(
  * which case it is left out exactly as JSON.stringify leaves it out; some
  * parsed projections hide a member that way on purpose. A literal
  * "__proto__" own key is an ordinary member. Member values, including
- * `undefined`, are returned without validating their own domain.
+ * `undefined`, are returned without validating their own domain. The
+ * returned array is fresh, so a caller may sort it in place.
  */
 export function plainJsonObjectMembers(
   value: object,
   fail: JsonDomainFailure,
   options: { readonly skipNonEnumerable?: boolean } = {},
-): readonly (readonly [string, unknown])[] {
+): (readonly [string, unknown])[] {
   const prototype: unknown = Object.getPrototypeOf(value) as unknown;
   if (prototype !== Object.prototype && prototype !== null) {
     return fail("non-plain object");
   }
+  const skipNonEnumerable = options.skipNonEnumerable === true;
   const members: (readonly [string, unknown])[] = [];
   for (const key of Reflect.ownKeys(value)) {
     if (typeof key !== "string") return fail("symbol field");
-    if (
-      options.skipNonEnumerable === true
-      && !Object.prototype.propertyIsEnumerable.call(value, key)
-    ) continue;
-    members.push([key, ownEnumerableDataValue(value, key, key, fail)]);
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor === undefined) {
+      return fail("accessor or non-enumerable member", key);
+    }
+    if (skipNonEnumerable && descriptor.enumerable !== true) continue;
+    members.push([key, dataDescriptorValue(descriptor, key, fail)]);
   }
   return members;
 }
@@ -134,40 +133,65 @@ type CanonicalEncoding = {
   readonly fail: (violation: JsonDomainViolation, path: JsonPath) => never;
 };
 
-function encodeCanonical(
+/**
+ * The state of one encoding. `path` is mutated in place as the walk descends,
+ * so `fail` always names the member being read, and `ancestors` holds the
+ * objects on that path for cycle detection. A violation throws out of the
+ * whole encoding, so neither is restored on failure. One `fail` serves the
+ * whole walk because allocating one per container cost measurable time on
+ * large inputs.
+ */
+type CanonicalWalk = {
+  readonly encoding: CanonicalEncoding;
+  readonly path: (string | number)[];
+  readonly ancestors: Set<object>;
+  readonly fail: JsonDomainFailure;
+};
+
+function encodeCanonicalRoot(
   value: unknown,
   encoding: CanonicalEncoding,
-  path: (string | number)[],
-  ancestors: Set<object>,
 ): string {
+  const path: (string | number)[] = [];
+  return encodeCanonical(value, {
+    encoding,
+    path,
+    ancestors: new Set(),
+    fail: (violation, member) =>
+      encoding.fail(violation, member === undefined ? path : [...path, member]),
+  });
+}
+
+function encodeCanonical(value: unknown, walk: CanonicalWalk): string {
   if (value === null || typeof value === "boolean" || typeof value === "string") {
     return JSON.stringify(value);
   }
+  const { encoding, path, ancestors, fail } = walk;
   if (typeof value === "number") {
     if (!Number.isFinite(value)) return encoding.fail("non-finite number", path);
     return JSON.stringify(value);
   }
   if (typeof value !== "object") return encoding.fail("non-JSON value", path);
-  if (ancestors.has(value)) return encoding.fail("cycle", path);
-  const fail: JsonDomainFailure = (violation, member) =>
-    encoding.fail(violation, member === undefined ? path : [...path, member]);
+  const depth = ancestors.size;
   ancestors.add(value);
-  try {
-    if (Array.isArray(value)) {
-      const items = plainJsonArrayItems(value, fail);
-      const encoded: string[] = [];
-      for (let index = 0; index < items.length; index += 1) {
-        path.push(index);
-        encoded.push(encodeCanonical(items[index], encoding, path, ancestors));
-        path.pop();
-      }
-      return `[${encoded.join(",")}]`;
+  if (ancestors.size === depth) return encoding.fail("cycle", path);
+  let text: string;
+  if (Array.isArray(value)) {
+    const items = plainJsonArrayItems(value, fail);
+    text = "[";
+    for (let index = 0; index < items.length; index += 1) {
+      if (index > 0) text += ",";
+      path.push(index);
+      text += encodeCanonical(items[index], walk);
+      path.pop();
     }
-    const members = [...plainJsonObjectMembers(value, fail, {
+    text += "]";
+  } else {
+    const members = plainJsonObjectMembers(value, fail, {
       skipNonEnumerable: encoding.skipNonEnumerable,
-    })]
-      .sort(([left], [right]) => encoding.compare(left, right));
-    const encoded: string[] = [];
+    }).sort(([left], [right]) => encoding.compare(left, right));
+    text = "{";
+    let first = true;
     for (const [key, item] of members) {
       path.push(key);
       if (item === undefined) {
@@ -177,13 +201,15 @@ function encodeCanonical(
         path.pop();
         continue;
       }
-      encoded.push(`${JSON.stringify(key)}:${encodeCanonical(item, encoding, path, ancestors)}`);
+      if (!first) text += ",";
+      first = false;
+      text += `${JSON.stringify(key)}:${encodeCanonical(item, walk)}`;
       path.pop();
     }
-    return `{${encoded.join(",")}}`;
-  } finally {
-    ancestors.delete(value);
+    text += "}";
   }
+  ancestors.delete(value);
+  return text;
 }
 
 function failCanonicalJson(violation: JsonDomainViolation): never {
@@ -198,11 +224,9 @@ function failCanonicalJson(violation: JsonDomainViolation): never {
 }
 
 function canonicalJsonWithOrder(value: unknown, compare: KeyCompare): string {
-  return encodeCanonical(
+  return encodeCanonicalRoot(
     value,
     { compare, skipNonEnumerable: true, fail: failCanonicalJson },
-    [],
-    new Set(),
   );
 }
 
@@ -231,7 +255,7 @@ export function strictCanonicalJson(value: unknown, label: string): string {
       typeof segment === "number" ? `[${segment}]` : `.${segment}`).join("");
     throw new Error(`${label}${location} contains ${strictViolationText[violation]}`);
   };
-  return encodeCanonical(
+  return encodeCanonicalRoot(
     value,
     {
       compare: compareUtf16CodeUnits,
@@ -239,8 +263,6 @@ export function strictCanonicalJson(value: unknown, label: string): string {
       rejectUndefinedMember: (path) => fail("non-JSON value", path),
       fail,
     },
-    [],
-    new Set(),
   );
 }
 
@@ -273,7 +295,7 @@ export function canonicalJsonWithDefinedMembers(
   value: unknown,
   context: string,
 ): string {
-  return encodeCanonical(
+  return encodeCanonicalRoot(
     value,
     {
       compare: compareUtf16CodeUnits,
@@ -283,8 +305,6 @@ export function canonicalJsonWithDefinedMembers(
       },
       fail: failCanonicalJson,
     },
-    [],
-    new Set(),
   );
 }
 
