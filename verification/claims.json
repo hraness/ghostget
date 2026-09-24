@@ -1487,18 +1487,29 @@
         "quote": "The menu and TUI share one helper owner per state home."
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
+        "src/control/helper.ts",
+        "src/control/helper-owner.property.test.ts",
         "src/control/helper-client.test.ts",
         "src/control/helper-lifecycle.test.ts",
         "src/control/tui.test.ts"
       ],
       "assumptions": [
-        "same-user-trusted"
+        "same-user-trusted",
+        "filesystem-durability"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The model drives the production owner record (`inspectControlOwner` and `commitControlOwner`) in one process. Process liveness is a fake that the model controls, so `processOwnerStatus`'s own inspection of real processes is outside it; its tests are in `src/process-identity.test.ts`.",
+        "Contenders interleave only between inspection and commit. That two separate processes cannot both win the create-if-absent or compare-and-swap write rests on the storage layer's exclusive create and locked replace, under the filesystem-durability assumption.",
+        "That the menu and the TUI reach the one helper through its socket, rather than starting their own, rests on the listed example tests only.",
+        "The model samples its schedules: CI runs 30 schedules of up to 20 commands over three contenders."
+      ],
+      "properties": [
+        {
+          "path": "src/control/helper-owner.property.test.ts",
+          "test": "property: at most one live contender holds helper custody across inspect and commit races, crashes, restarts, and unknown owners"
+        }
       ]
     },
     {

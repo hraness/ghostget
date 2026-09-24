@@ -168,6 +168,28 @@
         "public unicast address classifier",
         "an IPv6 form that embeds an IPv4 address is never public, whatever the IPv4 address"
       ]
+    },
+    {
+      "id": "helper-owner-ignores-live-owner",
+      "file": "src/control/helper.ts",
+      "defect": "A second controller replaces the owner record while its owner is still live.",
+      "search": "if(processes.status(owner)!==\"different-or-dead\")throw",
+      "replace": "if(false)throw",
+      "test": "src/control/helper-owner.property.test.ts",
+      "killedBy": [
+        "property: at most one live contender holds helper custody across inspect and commit races, crashes, restarts, and unknown owners"
+      ]
+    },
+    {
+      "id": "helper-owner-ignores-lost-race",
+      "file": "src/control/helper.ts",
+      "defect": "A contender that lost the owner-record compare-and-swap still believes it holds custody.",
+      "search": "if(!acquired)throw new ControlError",
+      "replace": "if(false)throw new ControlError",
+      "test": "src/control/helper-owner.property.test.ts",
+      "killedBy": [
+        "property: at most one live contender holds helper custody across inspect and commit races, crashes, restarts, and unknown owners"
+      ]
     }
   ]
 }

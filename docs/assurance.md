@@ -8,13 +8,13 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 244 claims: 181 evidenced, 44 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 244 claims: 182 evidenced, 43 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 143 | 2 | 0 |
 | property test | 15 | 1 | 0 |
-| stateful model | 2 | 13 | 0 |
+| stateful model | 3 | 12 | 0 |
 | Quint model with production trace replay | 10 | 27 | 0 |
 | Lean proof with differential test | 7 | 1 | 0 |
 | differential oracle | 4 | 0 | 0 |
@@ -105,7 +105,7 @@ Each claim holds only while its listed assumptions hold.
 | --- | --- | ---: |
 | `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 8 |
 | `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 33 |
-| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 28 |
+| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 29 |
 | `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 32 |
 | `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 10 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
@@ -378,11 +378,16 @@ Credential publication re-verifies the exact staged bytes and account revision; 
 
 The menu and TUI share exactly one helper owner per state home; a second controller does not acquire custody.
 
-- Planned: stateful model in plan Phase 2.
+- Evidenced by stateful model.
 - Source: `src/control/AGENTS.md`: “The menu and TUI share one helper owner per state home.”
-- Evidence: `src/control/helper-client.test.ts`, `src/control/helper-lifecycle.test.ts`, `src/control/tui.test.ts`
-- Assumptions: `same-user-trusted`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Evidence: `src/control/helper.ts`, `src/control/helper-owner.property.test.ts`, `src/control/helper-client.test.ts`, `src/control/helper-lifecycle.test.ts`, `src/control/tui.test.ts`
+- Property tests: `src/control/helper-owner.property.test.ts`: “property: at most one live contender holds helper custody across inspect and commit races, crashes, restarts, and unknown owners”
+- Assumptions: `same-user-trusted`, `filesystem-durability`
+- Not verified:
+  - The model drives the production owner record (`inspectControlOwner` and `commitControlOwner`) in one process. Process liveness is a fake that the model controls, so `processOwnerStatus`'s own inspection of real processes is outside it; its tests are in `src/process-identity.test.ts`.
+  - Contenders interleave only between inspection and commit. That two separate processes cannot both win the create-if-absent or compare-and-swap write rests on the storage layer's exclusive create and locked replace, under the filesystem-durability assumption.
+  - That the menu and the TUI reach the one helper through its socket, rather than starting their own, rests on the listed example tests only.
+  - The model samples its schedules: CI runs 30 schedules of up to 20 commands over three contenders.
 
 #### `no-cached-authorization-across-change`
 
