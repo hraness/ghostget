@@ -2311,6 +2311,56 @@ describe("npm publication contract", () => {
     }
   });
 
+  test("serializes stable Release runs in one queued concurrency group that never cancels a pending tag run", async () => {
+    // GitHub keeps one running and one pending run per concurrency group and
+    // cancels the pending run when a third arrives, unless the group sets
+    // `queue: max`, which queues up to 100 pending runs in order. A Release
+    // run cancelled while pending never builds, attests, or publishes its tag.
+    const workflow = await readFile(releaseWorkflowUrl, "utf8");
+    const parsed = Bun.YAML.parse(workflow) as {
+      concurrency?: unknown;
+      jobs: Record<string, { concurrency?: unknown }>;
+    };
+    expect(parsed.concurrency).toEqual({ group: "stable-release", "cancel-in-progress": false, queue: "max" });
+    expect(Object.entries(parsed.jobs).filter(([, job]) => job.concurrency !== undefined).map(([name]) => name)).toEqual([]);
+    expect(workflow.match(/^\s*concurrency:/gmu)).toHaveLength(1);
+    expect(workflow.match(/cancel-in-progress/gu)).toHaveLength(1);
+  });
+
+  test("runs npm publication only after the canonical jobs succeed, and canonical jobs never wait on npm", async () => {
+    const workflow = await readFile(releaseWorkflowUrl, "utf8");
+    const parsed = Bun.YAML.parse(workflow) as {
+      jobs: Record<string, { if?: unknown; needs?: string | string[]; "continue-on-error"?: unknown }>;
+    };
+    const needs = (name: string): readonly string[] => {
+      const value = parsed.jobs[name]?.needs;
+      return value === undefined ? [] : typeof value === "string" ? [value] : value;
+    };
+    // Every transitive prerequisite, so an indirect dependency on npm is caught too.
+    const closure = (name: string): ReadonlySet<string> => {
+      const seen = new Set<string>();
+      const pending = [...needs(name)];
+      while (pending.length > 0) {
+        const next = pending.pop()!;
+        if (seen.has(next)) continue;
+        seen.add(next);
+        pending.push(...needs(next));
+      }
+      return seen;
+    };
+    expect(Object.keys(parsed.jobs)).toEqual(["authorize", "verify", "attest", "publish", "publish_npm", "admit_npm"]);
+    expect([...closure("publish_npm")].sort()).toEqual(["attest", "authorize", "publish", "verify"]);
+    for (const canonical of ["authorize", "verify", "attest", "publish"]) {
+      const prerequisites = closure(canonical);
+      expect(prerequisites.has("publish_npm") || prerequisites.has("admit_npm")).toBe(false);
+    }
+    // A job-level `if:` could run npm after a failed or skipped prerequisite
+    // (`always()`, `failure()`, `!cancelled()`); without one, GitHub runs a job
+    // only when every needed job succeeded. No job may tolerate its own failure.
+    for (const job of ["publish", "publish_npm", "admit_npm"]) expect(parsed.jobs[job]!.if).toBeUndefined();
+    for (const [name, job] of Object.entries(parsed.jobs)) expect([name, job["continue-on-error"]]).toEqual([name, undefined]);
+  });
+
   test("reauthorizes the exact owner on the current Release attempt before checkout", async () => {
     const workflow = await readFile(releaseWorkflowUrl, "utf8");
     const script = workflowStepScript(workflow, "Reauthorize current release attempt");
