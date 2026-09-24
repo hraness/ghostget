@@ -109,6 +109,8 @@ describe("macOS PR check subset", () => {
     expect(MACOS_TEST_FILES).toContain("src/apple-photos-local-source.test.ts");
     expect(MACOS_TEST_FILES).toContain("src/imessage-direct-plugin.test.ts");
     expect(MACOS_TEST_FILES).toContain("src/provider-plugin-host.test.ts");
+    // The darwin-arm64 bundled-runtime install test skips on Linux runners.
+    expect(MACOS_TEST_FILES).toContain("src/providers/messaging-native-install.test.ts");
     expect(MACOS_PATTERNED_TESTS).toEqual([
       {
         file: "src/ghostget.test.ts",
