@@ -1556,14 +1556,63 @@
 // f2c9be480d9ffe8aa7ae642af2523491745987ee9bed58b66d37f7d2f4d6c4ed. Carry the
 // same projections and allowances: 11,992,902 + 12,387 + 4,096 = 12,009,385
 // packed; 23,424,993 + 353 + 65 = 23,425,411 unpacked.
+// The README paragraph that links the thread through hraness and the ALGAL
+// vision adds 419 payload bytes to README.md over the unchanged 596-file
+// inventory. Two `npm pack --ignore-scripts` runs with npm 11.16.0 on darwin
+// arm64 were byte-identical at 12,005,185 packed bytes, 23,425,412 unpacked
+// bytes; archive SHA-256
+// 874784766ccc8e505bc73de42d1aad7b95ce6acd59ea121914ea6f9a6dbffe85.
+// Compressed size varies with the local zlib. Carry the same projections and
+// allowances: 12,005,185 + 12,387 + 4,096 = 12,021,668 packed;
+// 23,425,412 + 353 + 65 = 23,425,830 unpacked.
+// The Quint fence and path-claim models export the pure fence cores
+// (`intentFenceBlocker`, `reconciledRecoveryRelease`, `priorRunDisposition`)
+// for trace replay and run every model's replay test from the manifest through
+// the new verify:quint:replay script in package.json. This adds 2,058 payload
+// bytes over the unchanged 596-file inventory. Two `npm pack --ignore-scripts`
+// runs with npm 11.19.0 on darwin arm64 were byte-identical at 11,993,645
+// packed bytes, 23,427,470 unpacked bytes; archive SHA-256
+// 87e0c7bc0e6037f05c2d1ae83672de5b9abc016e2516f96a31f9a3b1bac640a4. Carry the
+// same projections and allowances: 11,993,645 + 12,387 + 4,096 = 12,010,128
+// packed; 23,427,470 + 353 + 65 = 23,427,888 unpacked.
+// The crash harness adds one test-only branch to storage: under NODE_ENV=test
+// with a crash plan, it passes the plan and a Bun preload that swaps the
+// helpers' durable node:fs effects for a crash port. The shipped state and
+// path helpers are unchanged, and the port, preload, fixture, and harness stay
+// outside the package. This adds 1,215 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on
+// darwin arm64 were byte-identical at 11,993,622 packed bytes, 23,428,685
+// unpacked bytes; archive SHA-256
+// ece2627c6967cb8cf201ebdd598cfc57df555e069feafdd09c38ba6a775c32da. Carry the
+// same projections and allowances: 11,993,622 + 12,387 + 4,096 = 12,010,105
+// packed; 23,428,685 + 353 + 65 = 23,429,103 unpacked.
+// The independent oracles add the verify:oracles script and its step in the
+// verify chain to package.json. The Rust oracle, the golden vectors, and their
+// tests stay outside the package. This adds 233 payload bytes over the
+// unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with npm
+// 11.19.0 on darwin arm64 were byte-identical at 11,993,659 packed bytes,
+// 23,428,918 unpacked bytes; archive SHA-256
+// 5162451c3acb46616a35fe38729d9e26291e283e2baceabfc665c29aa2020f79. Carry the
+// same projections and allowances: 11,993,659 + 12,387 + 4,096 = 12,010,142
+// packed; 23,428,918 + 353 + 65 = 23,429,336 unpacked.
+// The Lean encodings export `updateLengthFramedHash` from the provider plugin
+// registry so the differential test can compare the production length-framed
+// hash with its Lean definition. The Lean project and the test stay outside
+// the package. This adds 7 payload bytes over the unchanged 596-file
+// inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin
+// arm64 were byte-identical at 11,993,659 packed bytes, 23,428,925 unpacked
+// bytes; archive SHA-256
+// 67bcf3f2bb56b7d9d7db7a902893528ed18823e888f553e4b78737b104fb6d09. Carry the
+// same projections and allowances: 11,993,659 + 12,387 + 4,096 = 12,010,142
+// packed; 23,428,925 + 353 + 65 = 23,429,343 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Formal-verification foundation: verify scripts, the second typecheck project, and the exact Quint devDependency in package.json",
+  scope: "Lean encodings: the exported length-framed hash update in the provider plugin registry",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "f2c9be480d9ffe8aa7ae642af2523491745987ee9bed58b66d37f7d2f4d6c4ed",
-  packedBytes: 11_992_902,
-  unpackedBytes: 23_424_993,
+  archiveSha256: "67bcf3f2bb56b7d9d7db7a902893528ed18823e888f553e4b78737b104fb6d09",
+  packedBytes: 11_993_659,
+  unpackedBytes: 23_428_925,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

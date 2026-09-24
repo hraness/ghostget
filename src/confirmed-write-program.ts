@@ -6,7 +6,7 @@ import * as Option from "effect/Option";
 import { canonicalJson } from "./canonical-json";
 import { ConfirmedWriteFailure, confirmedWriteFinally, type ConfirmedWritePhase } from "./confirmed-write-failure";
 import { ConfirmedWritePlatform } from "./confirmed-write-platform";
-import type { RunPreparedOptions } from "./confirmed-write-model";
+import type { LedgerEntry, RunPreparedOptions } from "./confirmed-write-model";
 import type { PreparedInvocation, StoredPlan, InvocationResult } from "./runtime";
 
 type Platform = Effect.Effect.Success<typeof ConfirmedWritePlatform>;
@@ -29,6 +29,46 @@ function finalizePreDispatchFailure(state: Execution, message: string) {
     yield* state.projectJournal;
     yield* state.refreshReceipt;
   }).pipe(Effect.either, Effect.asVoid);
+}
+
+/**
+ * What a confirm does when another run already holds its idempotency scope:
+ * replay that run's receipt, or refuse. A fulfilled run under the same auth
+ * record replays; under different auth bytes it is withheld, since those may
+ * be another account. An unsettled run always refuses.
+ *
+ * @internal Exported only for the fence model's trace replay.
+ */
+export function priorRunDisposition(
+  acquired: {
+    readonly existing: LedgerEntry;
+    readonly viaIntent?: true;
+    readonly viaAlternatePath?: boolean;
+  },
+  current: {
+    readonly inputHash: string;
+    readonly adapterHash: string;
+    readonly authHash: string;
+    readonly authId: string;
+  },
+): { readonly kind: "replay"; readonly runId: string } | { readonly kind: "refuse"; readonly message: string } {
+  const { existing } = acquired;
+  const viaIntent = acquired.viaIntent === true;
+  if (!viaIntent && acquired.viaAlternatePath !== true && (existing.inputHash !== current.inputHash || existing.adapterHash !== current.adapterHash || existing.authHash !== current.authHash)) {
+    return { kind: "refuse", message: "idempotency key was already used in a different action scope" };
+  }
+  const prior = existing.runId;
+  // The realm is the locator ID, and journals keep no account subject, so
+  // other auth bytes may be another account. Such a run never replays as
+  // this account's result, and reconciling it needs its exact auth record.
+  const otherAuth = viaIntent && existing.authHash !== current.authHash;
+  if (existing.status === "succeeded") {
+    if (otherAuth) return { kind: "refuse", message: `a prior run (${prior}) already fulfilled this intent under a different auth record for locator '${current.authId}', so its receipt is not replayed as this account's result; inspect 'ghostget runs show ${prior}', and ${existing.duplicateIntentHash === undefined ? `retry after its dedupe window ends (${existing.expiresAt}) or ` : ""}reconnect '${current.authId}' with the settings that run used to replay it` };
+    return { kind: "replay", runId: prior };
+  }
+  return { kind: "refuse", message: `a prior attempt (${prior}) may have reached the provider; inspect 'ghostget runs show ${prior}' and reconcile it before retrying${otherAuth
+    ? `; it ran under a different auth record for locator '${current.authId}', and reconciliation needs that exact record, so reconnect '${current.authId}' with the settings that run used first`
+    : ""}` };
 }
 
 function prepareAndExecute(
@@ -91,24 +131,13 @@ function prepareAndExecute(
       // canonical ordering. An intent-fence hit binds the same account realm,
       // provider target, operation, and input under possibly older adapter or
       // auth bytes.
-      const viaIntent = "viaIntent" in acquired;
-      if (!viaIntent && !acquired.viaAlternatePath && (acquired.existing.inputHash !== state.inputHash || acquired.existing.adapterHash !== state.adapter.hash || acquired.existing.authHash !== state.auth.hash)) {
-        return yield* refuse("journal", "idempotency key was already used in a different action scope");
-      }
-      const prior = acquired.existing.runId;
-      // The realm is the locator ID, and journals keep no account subject, so
-      // other auth bytes may be another account. Such a run never replays as
-      // this account's result, and reconciling it needs its exact auth record.
-      const otherAuth = viaIntent && acquired.existing.authHash !== state.auth.hash;
-      if (acquired.existing.status === "succeeded") {
-        if (otherAuth) return yield* refuse("journal", `a prior run (${prior}) already fulfilled this intent under a different auth record for locator '${state.auth.id}', so its receipt is not replayed as this account's result; inspect 'ghostget runs show ${prior}', and ${acquired.existing.duplicateIntentHash === undefined ? `retry after its dedupe window ends (${acquired.existing.expiresAt}) or ` : ""}reconnect '${state.auth.id}' with the settings that run used to replay it`);
-        return {
-          receipt: yield* state.readReceipt(prior), output: null, replayed: true, privateArtifactsPreserved: false,
-        };
-      }
-      return yield* refuse("journal", `a prior attempt (${prior}) may have reached the provider; inspect 'ghostget runs show ${prior}' and reconcile it before retrying${otherAuth
-        ? `; it ran under a different auth record for locator '${state.auth.id}', and reconciliation needs that exact record, so reconnect '${state.auth.id}' with the settings that run used first`
-        : ""}`);
+      const disposition = priorRunDisposition(acquired, {
+        inputHash: state.inputHash, adapterHash: state.adapter.hash, authHash: state.auth.hash, authId: state.auth.id,
+      });
+      if (disposition.kind === "refuse") return yield* refuse("journal", disposition.message);
+      return {
+        receipt: yield* state.readReceipt(disposition.runId), output: null, replayed: true, privateArtifactsPreserved: false,
+      };
     }
     const claimed = yield* Effect.either(Effect.gen(function*() {
       yield* state.record({ type: "ledger-claimed", ledgerRelativePath: yield* state.ledgerRelativePath(acquired.snapshot.path), at: yield* state.clock() });

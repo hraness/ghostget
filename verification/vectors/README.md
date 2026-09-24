@@ -1,10 +1,27 @@
 # Golden vectors
 
-Reserved for plan Phase 7. Independent generators, such as a Python reference
-for hashes and encodings, commit their golden vectors here. A differential test
-in `Required` reads each vector file and compares the shipped TypeScript output
-byte for byte.
+`generate.py` is an independent reference for Ghostget's canonical JSON,
+hashes, and encodings. It uses only the CPython 3.11 or later standard library
+and restates each encoding from its specification or its documented byte
+layout, never from the TypeScript. It writes:
 
-Each vector file will record its generator, the generator's pinned version, and
-the command that regenerates it. Keep vectors free of private content, tokens,
-and local paths.
+- `jcs.json`: RFC 8785 canonical forms with their SHA-256 and script-literal
+  escaping, ECMAScript number text for IEEE 754 bit patterns including the RFC
+  8785 appendix B samples and every power of two, and inputs outside I-JSON.
+- `hashes.json`: the length-framed SHA-256 identities for media provider and
+  authorization-context keys, native runtime closures, and retained revision
+  content, plus UTF-8 byte ordering.
+
+Each file records its generator path, version, runtime, and command. The
+output is deterministic: the random corpus has a fixed seed, and nothing
+depends on the platform, locale, hash seed, or clock.
+
+```sh
+python3 verification/vectors/generate.py          # rewrite the vector files
+python3 verification/vectors/generate.py --check  # fail if a file is stale
+```
+
+`scripts/verification-vectors.test.ts` compares the shipped TypeScript with
+every vector byte for byte, and `scripts/verification-oracles.test.ts` runs the
+canonical JSON vectors through the Rust oracle too. Keep vectors free of
+private content, tokens, and local paths.

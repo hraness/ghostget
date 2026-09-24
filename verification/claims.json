@@ -734,6 +734,23 @@
       ]
     },
     {
+      "guide": "verification/AGENTS.md",
+      "anchor": "Run every fast-check",
+      "digest": "7df39d14c30575c4c00960e03d5f2074b31616bb0d6ae954c317e7f3a2a3cac1",
+      "claims": [
+        "property-seed-replay",
+        "verification-shrink-promotion"
+      ]
+    },
+    {
+      "guide": "verification/AGENTS.md",
+      "anchor": "For a soak,",
+      "digest": "dae3bb8431187d1cb2e3842e7c2cdab6fe9324e55d8f876b611e29abecfb15cf",
+      "claims": [
+        "property-soak-multiplier"
+      ]
+    },
+    {
       "guide": "website/AGENTS.md",
       "anchor": "Keep the homepage's",
       "digest": "8a8f7aaac953809f5388fcbadd7be6f065a8143fab37ab3eaa17f3b17836c3b0",
@@ -948,15 +965,42 @@
     },
     {
       "id": "property-seed-replay",
-      "statement": "Every property runs through assertProperty so GHOSTGET_PROPERTY_SEED and GHOSTGET_PROPERTY_PATH replay applies; no direct fc.assert outside test-support.",
+      "statement": "Every fast-check property runs through assertProperty or assertAsyncProperty, so GHOSTGET_PROPERTY_SEED and GHOSTGET_PROPERTY_PATH replay, the seed corpus, and the soak multiplier apply; no other fast-check runner appears outside test-support.",
       "area": "runtime",
       "source": {
         "path": "AGENTS.md",
         "quote": "retain fast-check's seed and shrink path. Replay one exact property with `GHOSTGET_PROPERTY_SEED`, `GHOSTGET_PROPERTY_PATH`"
       },
       "layer": "example",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
+      "evidence": [
+        "src/test-harness-policy.test.ts",
+        "src/test-support.test.ts"
+      ],
+      "assumptions": [
+        "bun-runtime"
+      ],
+      "notVerified": [
+        "The policy scan is static: it follows fast-check's default, namespace, and named imports, the `fc` re-export of `test-support`, and dynamic loads by literal specifier, but not a runner reached through another module's re-export or a computed member name.",
+        "It covers `src/`, `scripts/`, `edge/`, and `website/`; tests elsewhere are not scanned."
+      ],
+      "alsoQuotes": [
+        {
+          "path": "verification/AGENTS.md",
+          "quote": "Run every fast-check property through `assertProperty` or `assertAsyncProperty` from `src/test-support.ts`"
+        }
+      ]
+    },
+    {
+      "id": "property-soak-multiplier",
+      "statement": "GHOSTGET_PROPERTY_RUNS accepts only a canonical integer from 1 to 100 and multiplies every helper-run property's run count and interruption budget, including seed corpus replays.",
+      "area": "verification",
+      "source": {
+        "path": "verification/AGENTS.md",
+        "quote": "For a soak, set `GHOSTGET_PROPERTY_RUNS` to an integer from 1 to 100."
+      },
+      "layer": "example",
+      "status": "evidenced",
       "evidence": [
         "src/test-support.test.ts"
       ],
@@ -964,8 +1008,8 @@
         "bun-runtime"
       ],
       "notVerified": [
-        "The example test for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Direct `fc.assert` calls bypass the shared seed and path replay until plan Phase 2 routes them through `assertProperty`."
+        "No nightly workflow runs the soak yet; the multiplier is checked only in a child process at multiplier 3.",
+        "The soak's runner timeout is set on its command line, so a soak that outgrows it fails as a runner timeout rather than a property failure."
       ]
     },
     {
@@ -1115,14 +1159,39 @@
         "dns-tls"
       ],
       "notVerified": [
-        "The differential oracle for this claim is scheduled for plan Phase 7; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "The address classifier comes from `@hraness/kb`; no independent registry oracle checks it yet."
+        "The address classifier comes from `@hraness/kb`, and no independent registry oracle checks it yet. Phase 7 wrote the proposal for one, `kb/plans/kb-ip-classifier-proposal.md`; this claim stays planned until `@hraness/kb` ships a checked classifier and Ghostget pins it.",
+        "Probing `@hraness/kb` 0.19.6 found gaps that the proposal records: it treats the IPv4-translated range `::ffff:0:0:0/96`, the rest of `::/8`, and unallocated IPv6 space outside `2000::/3` as public, and it blocks all of `192.0.0.0/16` where the registry reserves only `192.0.0.0/24` and `192.0.2.0/24`.",
+        "Until then only the listed tests apply, and they cover only their enumerated or sampled cases."
       ],
       "alsoQuotes": [
         {
           "path": "src/control/AGENTS.md",
           "quote": "public pinned DNS"
         }
+      ]
+    },
+    {
+      "id": "public-url-matches-url-crate-oracle",
+      "statement": "`publicUrl` makes the same admission decision as an independent reading of the web gateway URL policy over the Rust `url` crate, and every URL that either side admits parses to the same WHATWG components.",
+      "area": "web-gateway",
+      "source": {
+        "path": "kb/plans/formal-verification-assurance.md",
+        "quote": "a `url`-crate differential for `publicUrl`"
+      },
+      "layer": "differential",
+      "status": "evidenced",
+      "evidence": [
+        "verification/oracles/src/url_policy.rs",
+        "scripts/verification-oracles.test.ts"
+      ],
+      "assumptions": [
+        "whatwg-url"
+      ],
+      "notVerified": [
+        "URL candidates come from a sampled grammar plus named examples; this is not a proof over all strings.",
+        "The oracle restates the written policy, so a rule that the policy text and the implementation both omit goes unnoticed.",
+        "Known parser differences are named in the test and checked to leave the gateway refusing the input: Bun percent-encodes `^` in paths and the `url` crate 2.5.8 does not; Bun accepts an IPv6 literal such as `[::1:]` and drops the leading `/.` from a non-special path such as `m:/.a`; and the `url` crate keeps a drive-letter segment such as `c:` before `..` in an https: path.",
+        "Address classification after DNS resolution is a separate claim, `gateway-rejects-private-addresses`."
       ]
     },
     {
@@ -2354,6 +2423,56 @@
       ]
     },
     {
+      "id": "canonical-json-matches-rfc8785-oracle",
+      "statement": "For every I-JSON value, which excludes lone surrogates, `canonicalJson` writes the same text as an independent RFC 8785 canonicalizer, and it reproduces the committed golden canonical forms, number texts, SHA-256 digests, and script-literal escapes.",
+      "area": "encoding",
+      "source": {
+        "path": "kb/plans/formal-verification-assurance.md",
+        "quote": "Add a dev-only Rust crate under `verification/oracles/` with an RFC 8785 canonicalizer"
+      },
+      "layer": "differential",
+      "status": "evidenced",
+      "evidence": [
+        "verification/oracles/src/jcs.rs",
+        "verification/vectors/generate.py",
+        "verification/vectors/jcs.json",
+        "scripts/verification-oracles.test.ts",
+        "scripts/verification-vectors.test.ts"
+      ],
+      "assumptions": [
+        "sha256"
+      ],
+      "notVerified": [
+        "Generated values are sampled at the configured run count, and the golden vectors are a fixed corpus; neither is a proof over all inputs.",
+        "`canonicalJson` writes a lone surrogate as JSON.stringify escapes it, where RFC 8785 refuses the input; the vector test pins this difference.",
+        "Duplicate member names never reach `canonicalJson`, because `JSON.parse` keeps the last one; refusing them is a parser's job, not the canonicalizer's.",
+        "The Rust oracle and the Python generator were written from RFC 8785 without reference to the TypeScript, but by the same author, so a misreading all three share would pass. The oracle's number digits come from Rust's correctly rounded formatting, and one misreading of the shortest-digit rule at powers of two was found in review and fixed."
+      ]
+    },
+    {
+      "id": "media-identity-hashes-match-golden-vectors",
+      "statement": "The media provider identity and source asset key, the authorization-context digest, the native runtime closure digest, the retained revision content digest, and UTF-8 byte ordering reproduce golden vectors from an independent Python generator.",
+      "area": "media",
+      "source": {
+        "path": "kb/plans/formal-verification-assurance.md",
+        "quote": "Commit Python-generated golden vectors for hashes and encodings to `verification/vectors/`."
+      },
+      "layer": "differential",
+      "status": "evidenced",
+      "evidence": [
+        "verification/vectors/generate.py",
+        "verification/vectors/hashes.json",
+        "scripts/verification-vectors.test.ts"
+      ],
+      "assumptions": [
+        "sha256"
+      ],
+      "notVerified": [
+        "The vectors are a fixed corpus; they pin the byte layout, not a property of all inputs.",
+        "Injectivity of the length framing is `hash-framing-injective`, which Phase 5 addresses."
+      ]
+    },
+    {
       "id": "hash-framing-injective",
       "statement": "The length-framed hash input (a 4-byte label length, an 8-byte payload length, the label, and the payload, per section) determines its sections; the contract hash preimage (canonical JSON as UTF-8, a 0x00 byte, then the implementation hash) determines the JSON bytes and the implementation hash; and the NUL-joined confirmed-write intent key preimage determines the intent's fields.",
       "area": "encoding",
@@ -2489,20 +2608,24 @@
         "quote": "durable dispatch, and at-most-once evidence."
       },
       "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
+        "scripts/verification-fence-replay.test.ts",
         "src/confirmed-write-intent-fence.test.ts",
         "src/run-journal.property.test.ts",
         "src/run-journal.test.ts",
-        "src/runtime.test.ts"
+        "src/runtime.test.ts",
+        "verification/quint/fence.qnt"
       ],
       "assumptions": [
         "filesystem-durability",
         "provider-behaviour"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The fence model has no duplicate-risk successors, so it checks at most one dispatch per intent, not the full 1 + duplicate-successors bound.",
+        "The model is bounded: three runs of one intent, one reconnect, one manifest upgrade, 5,000 simulated samples of up to 12 steps, and Apalache to length 8.",
+        "The replay drives the pure fence cores (`intentFenceBlocker`, `intentLedgerPath`, `transitionRunJournal`, `priorRunDisposition`, `reconciledRecoveryRelease`) with an in-memory ledger and journal store; the file-backed `acquireIntentLedger`, the state helper, the hash-keyed ledger, receipts, and recovery capsules are covered only by the listed example tests.",
+        "The dedupe window's expiry, partial multi-dispatch runs, and journals from before the intent fence are not modelled."
       ]
     },
     {
@@ -2543,22 +2666,25 @@
         "quote": "reconcile it from separately obtained exact evidence."
       },
       "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
+        "scripts/verification-fence-replay.test.ts",
         "src/ghostget.test.ts",
         "src/portable-run-recovery.test.ts",
         "src/provider-plugin-portable-runtime.test.ts",
         "src/provider-plugin-reconciliation.property.test.ts",
         "src/run-journal.test.ts",
-        "src/web-session-recovery.test.ts"
+        "src/web-session-recovery.test.ts",
+        "verification/quint/fence.qnt"
       ],
       "assumptions": [
         "filesystem-durability",
         "provider-behaviour"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
+        "The fence model abstracts the evidence: one reconcile action stands for applied plugin readback or owner approval, and the replay checks only that `reconciledRecoveryRelease` and `transitionRunJournal` settle a reconciled run and keep its ledger.",
+        "The replay does not call `recordNotAppliedClaim`: its not-applied action changes no journal in the replay world, so that `recordNotAppliedClaim` releases nothing is covered only by the listed example tests.",
+        "The web-session reconciler and the CLI and portable parsers of reconciliation input are covered only by the listed example and property tests.",
         "Terminalizing a run from supplied evidence says nothing about provider liveness."
       ]
     },
@@ -2571,18 +2697,44 @@
         "quote": "Confirmation claims, plan consumption, provisional receipt, idempotency ledger and recovery capsule must reach their existing durable boundaries before remote dispatch."
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
         "src/confirmed-write-program.test.ts",
-        "src/runtime.test.ts"
+        "src/runtime.test.ts",
+        "src/state-crash-harness.fixture.ts",
+        "src/state-crash-harness.test.ts",
+        "src/state-crash-port.test-support.ts",
+        "src/state-crash-preload.test-support.ts"
       ],
       "assumptions": [
         "filesystem-durability",
         "provider-behaviour"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The crash harness samples its schedules: CI runs one fast-check schedule of up to four commands per crash mode, each crashing at one generated boundary, so it does not visit every boundary of every operation.",
+        "Crashes land only on the state and path helpers' filesystem effects. Writes the runtime process makes directly, such as the provider-effect ground truth, are outside the crash port.",
+        "Power loss is modelled by the port, not observed: it rolls back, newest first, created, linked, renamed, and unlinked entries whose directory was not fsynced after the effect, and truncates data not fsynced after its write. Directory tree removals are treated as durable when they return, and a real filesystem may keep or lose unsynced effects in other combinations.",
+        "One runtime process mutates the state at a time; concurrent confirmations under crash are not modelled here.",
+        "The harness checks outcomes: no crossing repeats, none is forgotten, and a crossing leaves a durable started journal. It does not check separately that each named record (claim, plan consumption, receipt, ledger, capsule) was durable, and it re-confirms with a freshly saved plan, so replaying a consumed plan digest after a crash is not exercised.",
+        "That dispatch is refused when the recovery capsule cannot be stored rests on the listed example tests only."
+      ],
+      "properties": [
+        {
+          "path": "src/state-crash-harness.test.ts",
+          "test": "a crash just before a durable boundary never repeats or forgets a crossing"
+        },
+        {
+          "path": "src/state-crash-harness.test.ts",
+          "test": "a crash just after a durable boundary never repeats or forgets a crossing"
+        },
+        {
+          "path": "src/state-crash-harness.test.ts",
+          "test": "a torn data write never repeats or forgets a crossing"
+        },
+        {
+          "path": "src/state-crash-harness.test.ts",
+          "test": "power loss at a durable boundary never repeats or forgets a crossing"
+        }
       ]
     },
     {
@@ -2901,17 +3053,20 @@
       "status": "planned",
       "phase": 4,
       "evidence": [
+        "scripts/verification-path-claim-replay.test.ts",
         "src/browser-snapshots.test.ts",
         "src/path-helper.test.ts",
         "src/read-projections.test.ts",
-        "src/storage-cas.test.ts"
+        "src/storage-cas.test.ts",
+        "verification/quint/path-claim.qnt"
       ],
       "assumptions": [
         "filesystem-atomic-rename",
         "same-user-trusted"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The path-helper claim and its dead-claim reaper election have a Quint model whose replay drives real path-helper processes; the state helper's three-phase claim and a `readdir` that may omit renamed entries are not yet modelled, so this claim stays planned.",
+        "The path-helper model is bounded: three helpers, at most one kill, kills only at pause points, 10,000 simulated samples of up to 12 steps, Apalache to length 6, and 60 replayed traces."
       ]
     },
     {
@@ -2936,6 +3091,45 @@
       ],
       "notVerified": [
         "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+      ]
+    },
+    {
+      "id": "state-crash-consistency",
+      "statement": "A crash or power loss at any durable state-helper or path-helper boundary leaves each private file with its old or its new content, never a torn one; a session-secret read afterwards returns the old value, the new value, or nothing, a completed removal stays removed, and the next write succeeds.",
+      "area": "storage",
+      "source": {
+        "path": "kb/plans/formal-verification-assurance.md",
+        "quote": "power-loss truncation"
+      },
+      "layer": "stateful-model",
+      "status": "evidenced",
+      "evidence": [
+        "src/state-crash-harness.fixture.ts",
+        "src/state-crash-harness.test.ts",
+        "src/state-crash-port.test-support.ts",
+        "src/state-crash-preload.test-support.ts"
+      ],
+      "assumptions": [
+        "filesystem-atomic-rename",
+        "filesystem-durability",
+        "process-liveness",
+        "same-user-trusted"
+      ],
+      "notVerified": [
+        "The harness samples its schedules: CI runs two fast-check schedules each for session secrets and private files, each command crashing at one generated boundary. Only a single private-file replacement is swept at every boundary under power loss.",
+        "Power loss is modelled by the port, not observed: it rolls back, newest first, created, linked, renamed, and unlinked entries whose directory was not fsynced after the effect, and truncates data not fsynced after its write. Directory tree removals are treated as durable when they return, and a real filesystem may keep or lose unsynced effects in other combinations.",
+        "A crashed session-secret write may lose the previous value; the law allows that outcome and does not check that the old value survives.",
+        "One process mutates the state at a time; overlapping writers under crash are not modelled here."
+      ],
+      "properties": [
+        {
+          "path": "src/state-crash-harness.test.ts",
+          "test": "a crash at any durable boundary leaves the old value, the new value, or nothing"
+        },
+        {
+          "path": "src/state-crash-harness.test.ts",
+          "test": "a crash at any durable boundary leaves the old or the new value, never a torn one"
+        }
       ]
     },
     {
@@ -6016,7 +6210,7 @@
       ],
       "notVerified": [
         "Only the enumerated example cases are checked.",
-        "The native install test runs only on darwin-arm64 and never runs in CI."
+        "The bundled-runtime install case runs only on darwin-arm64, so only the arm64 `macos-15` job of the macOS CI suite runs it; Linux CI skips it."
       ]
     },
     {
@@ -6318,27 +6512,34 @@
     },
     {
       "id": "verification-shrink-promotion",
-      "statement": "Every recorded shrink or failing seed is promoted to a named example test beside the property that found it.",
+      "statement": "Every failing seed recorded in the seed corpus is replayed by its named property and cites a named example test registered beside that property.",
       "area": "verification",
       "source": {
         "path": "AGENTS.md",
         "quote": "Promote every recorded shrink or failing seed to a named example test."
       },
       "layer": "example",
-      "status": "planned",
-      "phase": 2,
-      "evidence": [],
+      "status": "evidenced",
+      "evidence": [
+        "src/test-harness-policy.test.ts",
+        "src/test-support.test.ts",
+        "src/contracts-invoke-read.test.ts"
+      ],
       "assumptions": [
-        "ci-runner",
-        "verification-tools"
+        "bun-runtime"
       ],
       "notVerified": [
-        "The example test for this claim is scheduled for plan Phase 2; no automated check covers it yet."
+        "Only failures someone records in `verification/seeds/corpus.json` are checked; a shrink fixed without a corpus entry is not.",
+        "The check confirms that the cited regression test is registered, not that it exercises the recorded input; only the `contracts-invoke-read` entry pins its generated input with `fc.sample`."
       ],
       "alsoQuotes": [
         {
           "path": "AGENTS.md",
           "quote": "then promote a minimized failure to a named regression"
+        },
+        {
+          "path": "verification/AGENTS.md",
+          "quote": "Record a failing seed and shrink path in `seeds/corpus.json` under the property's name"
         }
       ]
     },
