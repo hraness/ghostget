@@ -437,6 +437,24 @@ async function runBeeper(plan: Script, defect: Defect): Promise<Readonly<{ resul
 
 const statusOf = (result: LocalCliExecution): string => result.status;
 
+/**
+ * A production run depends only on its script, and many traces share one
+ * script, so each distinct script runs once per runtime and defect and every
+ * trace is compared with that run. Each run uses a fresh store.
+ */
+const productionRuns = new Map<string, Promise<Readonly<{ result: LocalCliExecution; observed: Observed }>>>();
+
+function scriptKey(plan: Script): string {
+  return JSON.stringify([plan.planned, plan.gateBefore, [...plan.outcomes.entries()].sort(([a], [b]) => a - b)]);
+}
+
+function productionRun(plan: Script, target: Target, defect: Defect): Promise<Readonly<{ result: LocalCliExecution; observed: Observed }>> {
+  const key = `${target} ${defect} ${scriptKey(plan)}`;
+  const cached = productionRuns.get(key) ?? (target === "imessage" ? runImessage(plan, defect) : runBeeper(plan, defect));
+  productionRuns.set(key, cached);
+  return cached;
+}
+
 class ReplayDivergence extends Error {}
 
 /**
@@ -450,7 +468,7 @@ async function replay(trace: ItfTrace, target: Target, defect: Defect = "none"):
   const actuallyRunning = final.runState === "running"
     && !trace.states.some((state) => ["retryTimeout", "trustNotStarted"].includes(recordedStep(state).action));
   if (actuallyRunning) return "running";
-  const { result, observed } = target === "imessage" ? await runImessage(plan, defect) : await runBeeper(plan, defect);
+  const { result, observed } = await productionRun(plan, target, defect);
   const production: Snapshot = {
     planned: result.dispatch.planned,
     runState: statusOf(result),
@@ -514,9 +532,7 @@ describe("local-cli.qnt ITF replay", () => {
       expect([...trace.vars].sort()).toEqual(TRACE_VARIABLES);
       expect(trace.states.length).toBeLessThanOrEqual(model.replay.maxSteps + 1);
       for (const target of ["imessage", "beeper"] as const) {
-        const message = await divergence(trace, target);
-        expect(message).toBeNull();
-        const outcome = await replay(trace, target).catch(() => "diverged");
+        const outcome = await replay(trace, target);
         if (outcome === "compared") {
           counts[target] += 1;
           covered.add(`${target} ${coverageKey(trace)}`);

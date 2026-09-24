@@ -182,7 +182,7 @@
       "replay": {
         "test": "scripts/verification-local-cli-replay.test.ts",
         "target": "production",
-        "traces": 300,
+        "traces": 1000,
         "seed": "20260928",
         "maxSteps": 8
       }
