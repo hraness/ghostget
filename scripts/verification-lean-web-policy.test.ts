@@ -36,9 +36,10 @@ type Request = Readonly<{
   queryKeys: readonly string[];
 }>;
 type Case = Readonly<{ rules: readonly WebRule[]; request: Request }>;
-type Compared = Readonly<{ rules: readonly WebRule[]; production: Outcome; model: Outcome }>;
+type Compared = Readonly<{ rules: readonly WebRule[]; request: Request; production: Outcome; model: Outcome }>;
 
-const ORIGINS = ["https://alpha.example.com", "https://beta.example.com"] as const;
+/** The third origin is a string prefix of the first, so an origin matched by prefix would show. */
+const ORIGINS = ["https://alpha.example.com", "https://beta.example.com", "https://alpha.example.co"] as const;
 const SEGMENTS = ["a", "b", "ab"] as const;
 const QUERY_KEYS = ["a", "b", "q", "x.y"] as const;
 
@@ -219,7 +220,7 @@ const compared: Compared[] = [];
 async function compare(rules: readonly WebRule[], value: Request): Promise<Outcome> {
   const outcome = production(value);
   const expected = await model({ rules, request: value });
-  compared.push({ rules, production: outcome, model: expected });
+  compared.push({ rules, request: value, production: outcome, model: expected });
   expect(outcome).toEqual(expected);
   return outcome;
 }
@@ -270,5 +271,10 @@ describe("web policy: checkWebRequest agrees with the Lean model", () => {
     }
     expect(compared.some(({ rules, production: outcome, model: expected }) =>
       !Bun.deepEquals(askFirst(rules, outcome), expected))).toBeTrue();
+    // Some rule named an origin that is a strict string prefix of the request
+    // origin, the case that origin matching by prefix would get wrong.
+    expect(compared.some(({ rules, request: value }) => rules.some((entry) =>
+      entry.origin !== value.origin && value.origin.startsWith(entry.origin)
+      && entry.methods.includes(value.method)))).toBeTrue();
   });
 });

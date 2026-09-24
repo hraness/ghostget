@@ -1067,7 +1067,7 @@
       "notVerified": [
         "The Lean model covers the decision, the limits, and rule matching in checkWebRequest over parsed rules and an already parsed URL. WHATWG URL parsing, publicUrl, parseWebRule, and DNS and TLS are assumptions, not proofs.",
         "Strings are modelled as lists of characters. That equals the production UTF-16 startsWith only because parseWebRule and publicUrl admit ASCII origins, paths, and query keys; the proof does not check that admission.",
-        "The differential test runs the unchanged web-policy.ts over an in-memory private state store, not the real store and its helper. It samples two origins, three path segments, and four query keys, so it checks only its generated cases."
+        "The differential test runs the unchanged web-policy.ts over an in-memory private state store, not the real store and its helper. It samples three origins, one a string prefix of another, three path segments, and four query keys, so it checks only its generated cases."
       ]
     },
     {
@@ -2630,7 +2630,7 @@
       ],
       "notVerified": [
         "The proof is about a Lean model of assertJournalInvariants, the parseDispatch bounds, and transitionRunJournal. The differential test ties the model to the TypeScript on generated journals and events only; it is not a proof that the TypeScript equals the model.",
-        "The transition's own guards do not preserve the invariant alone: an explicit no-op success before the confirmation is consumed and a duplicate successor naming its own run are rejected only by the final parseRunJournal. The proof covers the production shape, which includes that final parse.",
+        "The transition's own guards do not preserve the invariant alone: an explicit no-op success before the confirmation is consumed and a duplicate successor naming its own run are rejected only by the final parseRunJournal. The production-shape theorem holds by construction, because the model rechecks the invariant; the substantive results are that the guarded step keeps the invariant outside those two events and that the final parse rejects exactly those two.",
         "Adapter, auth, owner identity, digests, the final origin, error text, the 64 KiB bound, durable storage, and the compare-and-swap write in updateRunJournal are outside the model."
       ]
     },
@@ -2751,7 +2751,7 @@
       ],
       "notVerified": [
         "The proof is about a Lean model of assertRun, the structural checks of parseRun, and transitionMessagingRun. The differential test ties the model to the TypeScript on generated runs of up to eight parts only; it is not a proof that the TypeScript equals the model.",
-        "The transition's own guards do not preserve the invariant alone: an accepted part whose provider message ID repeats one in the accepted prefix is rejected only by the final parseRun. The proof covers the production shape, which includes that final parse.",
+        "The transition's own guards do not preserve the invariant alone: an accepted part whose provider message ID repeats one in the accepted prefix is rejected only by the final parseRun. The production-shape theorem holds by construction, because the model rechecks the invariant; the substantive results are that the guarded step keeps the invariant outside that event and that the final parse rejects exactly that event.",
         "Part text, digests, reply references, delivery and read fields, context evidence, encryption, durable storage, and the compare-and-swap write in updateMessagingRun are outside the model."
       ]
     },
