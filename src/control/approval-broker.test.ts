@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { assertAsyncProperty, fc } from "../test-support";
+import type { AsyncCommand } from "../test-support";
 import { ApprovalBroker } from "./approval-broker";
 import type { ApprovalTarget, CheckedApproval } from "./protocol";
 const target:ApprovalTarget={kind:"web",method:"GET",url:"https://docs.example.com/"};
@@ -57,12 +59,12 @@ test("wall-clock jumps cannot extend or prematurely expire pending or admitted p
     await broker.request("pending",target,checked.digest);
     expect(broker.list()[0]?.expiresAt).toBe(new Date(wall+120_000).toISOString());
     await broker.request("admitted",target,checked.digest);await broker.decide("admitted",checked.digest,"allow-once");
-    wall+=jump;monotonic=119_999;
+    wall+=jump;monotonic=119_999;const holder="1".repeat(64);
     expect((await broker.check("pending",checked.digest)).status).toBe("pending");
-    expect((await broker.check("admitted",checked.digest)).status).toBe("allowed");
+    expect((await broker.check("admitted",checked.digest,holder)).status).toBe("allowed");
     monotonic=120_000;expect((await broker.check("pending",checked.digest)).status).toBe("expired");
-    monotonic=599_999;expect((await broker.check("admitted",checked.digest)).status).toBe("allowed");
-    monotonic=600_000;expect((await broker.check("admitted",checked.digest)).status).toBe("expired");
+    monotonic=599_999;expect((await broker.check("admitted",checked.digest,holder)).status).toBe("allowed");
+    monotonic=600_000;expect((await broker.check("admitted",checked.digest,holder)).status).toBe("expired");
     broker.close();
   }
 });
@@ -104,4 +106,104 @@ test("concurrent previews stay below the aggregate escaped response byte budget"
   broker.cancel(accepted[0]!,large.digest);
   expect((await broker.request("released",target,large.digest)).status).toBe("pending");
   broker.close();expect(broker.list()).toHaveLength(0);
+});
+
+test("an allow-once grant admits one holder, so a crashed holder leaves no reusable lease",async()=>{
+  const broker=new ApprovalBroker(async()=>checked);
+  const holder="1".repeat(64);const successor="2".repeat(64);
+  await broker.request("one",target,checked.digest);await broker.decide("one",checked.digest,"allow-once");
+  expect((await broker.check("one",checked.digest,holder)).status).toBe("allowed");
+  expect((await broker.check("one",checked.digest,holder)).status).toBe("allowed");
+  // The holder crashes before releaseApproval. A same-UID caller that knows the lease still cannot use it.
+  expect((await broker.check("one",checked.digest,successor)).status).toBe("expired");
+  expect((await broker.check("one",checked.digest)).status).toBe("expired");
+  expect(broker.cancel("one",checked.digest).status).toBe("cancelled");
+  expect(broker.cancel("one",checked.digest).status).toBe("cancelled");
+  expect((await broker.check("one",checked.digest,holder)).status).toBe("expired");
+});
+
+test("a request that carries a use secret admits no other caller, even before the holder's first check",async()=>{
+  const broker=new ApprovalBroker(async()=>checked);
+  const holder="1".repeat(64);const stranger="2".repeat(64);
+  await broker.request("bound",target,checked.digest,holder);
+  expect((await broker.check("bound",checked.digest,stranger)).status).toBe("expired");
+  expect((await broker.check("bound",checked.digest,holder)).status).toBe("pending");
+  await broker.decide("bound",checked.digest,"allow-once");
+  // A caller that learned the id races the holder's first check after the decision.
+  expect((await broker.check("bound",checked.digest,stranger)).status).toBe("expired");
+  expect((await broker.check("bound",checked.digest)).status).toBe("expired");
+  expect((await broker.check("bound",checked.digest,holder)).status).toBe("allowed");
+  expect((await broker.check("bound",checked.digest,holder)).status).toBe("allowed");
+  broker.close();
+});
+
+// One allow-once grant against processes that check, crash and restart, release, and wait.
+// A check without a use secret is a distinct identity each time, like a caller that only knows the lease.
+// A bound grant was requested with process 0's secret; an unbound one is claimed by its first allowed checker.
+type GrantModel={holder:string|null|undefined;released:boolean;now:number;readonly identities:Set<string>};
+type GrantReal={readonly broker:ApprovalBroker;readonly tokens:string[];clock:{now:number};anonymous:number};
+const grantDeadline=600_000;
+const expectedCheck=(m:GrantModel,token:string|undefined):"allowed"|"expired"=>{
+  if(m.released||m.now>=grantDeadline)return "expired";
+  if(m.holder===undefined){m.holder=token??null;return "allowed";}
+  return token!==undefined&&m.holder===token?"allowed":"expired";
+};
+const record=(m:GrantModel,r:GrantReal,status:string,token:string|undefined):void=>{
+  if(status==="allowed")m.identities.add(token??`anonymous-${r.anonymous++}`);
+  expect(m.identities.size).toBeLessThanOrEqual(1);
+};
+class CheckCommand implements AsyncCommand<GrantModel,GrantReal> {
+  constructor(readonly process:number,readonly withUse:boolean) {}
+  check():boolean {return true;}
+  async run(m:GrantModel,r:GrantReal):Promise<void> {
+    const token=this.withUse?r.tokens[this.process]:undefined;
+    const status=(await r.broker.check("grant",checked.digest,token)).status;
+    expect(status).toBe(expectedCheck(m,token));record(m,r,status,token);
+  }
+  toString():string {return `check(${this.process},${this.withUse})`;}
+}
+class RaceCommand implements AsyncCommand<GrantModel,GrantReal> {
+  constructor(readonly first:number,readonly second:number) {}
+  check():boolean {return true;}
+  async run(m:GrantModel,r:GrantReal):Promise<void> {
+    const tokens=[r.tokens[this.first]!,r.tokens[this.second]!];
+    const results=await Promise.all(tokens.map(token=>r.broker.check("grant",checked.digest,token)));
+    // Both checks await the recheck, so the first to resume claims an unclaimed grant.
+    results.forEach((result,index)=>{expect(result.status).toBe(expectedCheck(m,tokens[index]));record(m,r,result.status,tokens[index]);});
+  }
+  toString():string {return `race(${this.first},${this.second})`;}
+}
+class CrashCommand implements AsyncCommand<GrantModel,GrantReal> {
+  constructor(readonly process:number) {}
+  check():boolean {return true;}
+  async run(_m:GrantModel,r:GrantReal):Promise<void> {r.tokens[this.process]=crypto.getRandomValues(new Uint8Array(32)).reduce((hex,byte)=>hex+byte.toString(16).padStart(2,"0"),"");}
+  toString():string {return `crash(${this.process})`;}
+}
+class ReleaseCommand implements AsyncCommand<GrantModel,GrantReal> {
+  check():boolean {return true;}
+  async run(m:GrantModel,r:GrantReal):Promise<void> {expect(r.broker.cancel("grant",checked.digest).status).toBe("cancelled");m.released=true;}
+  toString():string {return "release";}
+}
+class ExpireCommand implements AsyncCommand<GrantModel,GrantReal> {
+  constructor(readonly elapsed:number) {}
+  check():boolean {return true;}
+  async run(m:GrantModel,r:GrantReal):Promise<void> {m.now+=this.elapsed;r.clock.now=m.now;}
+  toString():string {return `expire(${this.elapsed})`;}
+}
+test("property: an allow-once grant, bound at request or at first check, admits at most one use across checks, races, crashes, release and expiry",async()=>{
+  const processes=3;const process=fc.nat({max:processes-1});
+  await assertAsyncProperty(fc.asyncProperty(fc.commands([
+    fc.tuple(process,fc.boolean()).map(([index,withUse])=>new CheckCommand(index,withUse)),
+    fc.tuple(process,process).map(([first,second])=>new RaceCommand(first,second)),
+    process.map(index=>new CrashCommand(index)),
+    fc.constant(new ReleaseCommand()),
+    fc.integer({min:1,max:300_000}).map(elapsed=>new ExpireCommand(elapsed)),
+  ],{maxCommands:24}),fc.boolean(),async(commands,bound)=>{
+    const clock={now:0};
+    const broker=new ApprovalBroker(async()=>checked,()=>clock.now,async(_target,retained)=>{await Promise.resolve();return retained;});
+    const tokens=Array.from({length:processes},(_,index)=>String(index+1).repeat(64));
+    await broker.request("grant",target,checked.digest,bound?tokens[0]:undefined);await broker.decide("grant",checked.digest,"allow-once");
+    await fc.asyncModelRun(()=>({model:{holder:bound?tokens[0]:undefined,released:false,now:0,identities:new Set<string>()},real:{broker,tokens,clock,anonymous:0}}),commands);
+    broker.close();
+  }));
 });

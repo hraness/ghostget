@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import fc from "fast-check";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
@@ -20,6 +20,7 @@ import {
   listSrcUnitTestFiles,
   parseShardRequest,
 } from "./ci-test-shard.js";
+import { assertProperty } from "../src/test-support.js";
 
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 const packageManifestUrl = new URL("../package.json", import.meta.url);
@@ -155,6 +156,7 @@ describe("complete local and release check composition", () => {
       "test-omni": ["test-omni", "ubuntu-latest", 25],
       standalone: ["standalone", "ubuntu-latest", 20],
       macos: ["macOS", "macos-15", 45],
+      verification: ["verification", "ubuntu-latest", 20],
     } as const;
     const expectedNode = {
       uses: "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
@@ -178,6 +180,12 @@ describe("complete local and release check composition", () => {
     };
     const record = { name: "Record exact source CI identity", run: "bun run ./scripts/release-source-ci.ts record" };
     const install = { run: "bun install --frozen-lockfile --ignore-scripts" };
+    // The one admitted step condition: the verification job's last step only
+    // uploads checker output, and `always()` keeps that output from a failed or
+    // timed-out check. It can run more often, never gate or skip a check.
+    const retainsOutput = (id: string, step: Step, index: number, length: number): boolean =>
+      id === "verification" && index === length - 1 && step.if === "always()"
+      && step.run === undefined && step.uses?.startsWith("actions/upload-artifact@") === true;
     const validate = (candidate: Workflow): void => {
       if (!isDeepStrictEqual(Object.keys(candidate.jobs).sort(), [...Object.keys(sourceJobs), "required"].sort())) {
         throw new Error("Source CI job inventory changed");
@@ -186,7 +194,8 @@ describe("complete local and release check composition", () => {
         const job = candidate.jobs[id];
         if (job === undefined || !isDeepStrictEqual([job.name, job["runs-on"], job["timeout-minutes"]], metadata)
           || job.if !== undefined || job["continue-on-error"] !== undefined
-          || job.steps.some(step => step.if !== undefined || step["continue-on-error"] !== undefined)) {
+          || job.steps.some((step, index) => (step.if !== undefined && !retainsOutput(id, step, index, job.steps.length))
+            || step["continue-on-error"] !== undefined)) {
           throw new Error(`Source CI job ${id} is conditional or changed its execution boundary`);
         }
         const findOne = (predicate: (step: Step) => boolean, expected: Step): number => {
@@ -206,12 +215,14 @@ describe("complete local and release check composition", () => {
         }
       }
       if (!isDeepStrictEqual(candidate.jobs.test?.strategy, { "fail-fast": false, matrix: { shard: [1, 2, 3, 4] } })) {
-        throw new Error("Source CI no longer expands to all nine work jobs");
+        throw new Error("Source CI no longer expands to all ten work jobs");
       }
     };
     expect(() => validate(workflow)).not.toThrow();
     const mutations: ((candidate: Workflow) => void)[] = [
       candidate => { delete candidate.jobs.macos; },
+      candidate => { delete candidate.jobs.verification; },
+      candidate => { candidate.jobs.verification!["timeout-minutes"] = 360; },
       candidate => { candidate.jobs.test!.strategy = { "fail-fast": false, matrix: { shard: [1, 2, 3] } }; },
       candidate => { candidate.jobs.static!["timeout-minutes"] = 5; },
       candidate => { candidate.jobs.static!.if = "always()"; },
@@ -226,6 +237,11 @@ describe("complete local and release check composition", () => {
       candidate => { candidate.jobs.static!.steps.find(step => step.name === record.name)!.run = `${record.run} || true`; },
       candidate => { const steps = candidate.jobs.static!.steps; const index = steps.findIndex(step => step.name === record.name); steps.splice(1, 0, ...steps.splice(index, 1)); },
       candidate => { const steps = candidate.jobs.static!.steps; const index = steps.findIndex(step => step.name === record.name); steps.push(...steps.splice(index, 1)); },
+      candidate => { candidate.jobs.verification!.steps.find(step => step.run === "bun run verify")!.if = "always()"; },
+      candidate => { candidate.jobs.verification!.steps.at(-1)!.if = "success() || failure()"; },
+      candidate => { candidate.jobs.verification!.steps.at(-1)!.run = "true"; },
+      candidate => { const steps = candidate.jobs.verification!.steps; steps.splice(steps.length - 2, 0, steps.pop()!); },
+      candidate => { candidate.jobs.static!.steps.push({ ...candidate.jobs.verification!.steps.at(-1)! }); },
     ];
     for (const mutate of mutations) {
       const changed = structuredClone(workflow);
@@ -305,8 +321,10 @@ describe("complete local and release check composition", () => {
     expect(manifest.scripts?.["test:omni"]).toContain("./src/omni-runtime.test.ts");
     expect(manifest.scripts?.test).toBe("bun run test:unit && bun run test:omni");
     expect(manifest.scripts?.check).toBe(
-      "bun run check:cost-surfaces && bun run check:static && bun run check:package && bun run test && bun run test:standalone",
+      "bun run check:cost-surfaces && bun run check:static && bun run check:package && bun run test"
+      + " && bun run test:standalone && bun run verify",
     );
+    expect(manifest.scripts?.verify).toBe("bun run verify:claims && bun run verify:quint && bun run verify:lean");
     expect(manifest.scripts?.["check:macos"]).toBe("bun run ./scripts/ci-macos-check.ts");
     expect(manifest.scripts?.["test:shard"]).toBe("bun run ./scripts/ci-test-shard.ts");
     expect(manifest.scripts?.["test:npm-release"]).toBe(
@@ -325,7 +343,8 @@ describe("complete local and release check composition", () => {
     expect(workflow).toContain("bun run check:macos");
     expect(workflow).toContain("bun run ./scripts/ci-test-shard.ts");
     expect(workflow).not.toMatch(/^      - run: bun run check$/gmu);
-    expect(workflow).toContain("needs: [static, package, test, test-omni, standalone, macos]");
+    expect(workflow).toContain("needs: [static, package, test, test-omni, standalone, macos, verification]");
+    expect(workflow.match(/^      - run: bun run verify$/gmu)).toHaveLength(1);
     expect(workflow).toContain(`shard: [${Array.from({ length: CI_UNIT_TEST_SHARD_COUNT }, (_, index) =>
       index + 1
     ).join(", ")}]`);
@@ -345,5 +364,178 @@ describe("complete local and release check composition", () => {
       expect(workflow).toContain(entrypoint);
     }
     expect(workflow).toContain("git status --porcelain --untracked-files=all -- dist bun.lock");
+  });
+});
+
+const NPM_RELEASE_ENVIRONMENT = "npm-release";
+const NPM_RELEASE_OWNER = { file: "release.yml", job: "publish_npm" } as const;
+// GitHub environment names are case-insensitive, so `NPM-Release` selects the
+// same protected environment and must count as a reference.
+const NPM_RELEASE_TOKEN = /(?<![\w./-])npm-release(?![\w./-])/giu;
+
+const workflowsUrl = new URL("../.github/workflows/", import.meta.url);
+const agentsUrl = new URL("../AGENTS.md", import.meta.url);
+
+type WorkflowSource = { readonly file: string; readonly source: string };
+
+function environmentName(environment: unknown): unknown {
+  if (typeof environment === "object" && environment !== null && !Array.isArray(environment)) {
+    return (environment as { name?: unknown }).name;
+  }
+  return environment;
+}
+
+function namesNpmRelease(environment: unknown): boolean {
+  const name = environmentName(environment);
+  return typeof name === "string" && name.toLowerCase() === NPM_RELEASE_ENVIRONMENT;
+}
+
+function isComputedEnvironment(environment: unknown): boolean {
+  const name = environmentName(environment);
+  return typeof name === "string" && name.includes("${{");
+}
+
+function isOwner(file: string, job: string): boolean {
+  return file === NPM_RELEASE_OWNER.file && job === NPM_RELEASE_OWNER.job;
+}
+
+/**
+ * Return every place outside `release.yml` `publish_npm` that names the
+ * `npm-release` environment. A textual mention that no job environment
+ * accounts for is also a violation, so reusable-workflow inputs, expressions,
+ * and step-level references cannot hide a second consumer. Names compare
+ * case-insensitively, as GitHub resolves them, and a job environment built
+ * from an expression is rejected because the scan cannot resolve it.
+ */
+function npmReleaseViolations(workflows: readonly WorkflowSource[]): readonly string[] {
+  const violations: string[] = [];
+  let ownerReferences = 0;
+  for (const { file, source } of workflows) {
+    const parsed = Bun.YAML.parse(source) as { jobs?: Record<string, { environment?: unknown }> } | null;
+    let structured = 0;
+    for (const [job, definition] of Object.entries(parsed?.jobs ?? {})) {
+      if (isComputedEnvironment(definition?.environment)) {
+        violations.push(`${file} job ${job} computes its environment name`);
+        continue;
+      }
+      if (!namesNpmRelease(definition?.environment)) continue;
+      structured += 1;
+      if (isOwner(file, job)) {
+        ownerReferences += 1;
+      } else {
+        violations.push(`${file} job ${job} references ${NPM_RELEASE_ENVIRONMENT}`);
+      }
+    }
+    const textual = source.match(NPM_RELEASE_TOKEN)?.length ?? 0;
+    if (textual > structured) {
+      violations.push(`${file} mentions ${NPM_RELEASE_ENVIRONMENT} ${String(textual - structured)} time(s) outside a job environment`);
+    }
+  }
+  if (ownerReferences !== 1) {
+    violations.push(`${NPM_RELEASE_OWNER.file} job ${NPM_RELEASE_OWNER.job} must reference ${NPM_RELEASE_ENVIRONMENT} exactly once`);
+  }
+  return violations;
+}
+
+async function checkedInWorkflows(): Promise<readonly WorkflowSource[]> {
+  const entries = await readdir(workflowsUrl, { withFileTypes: true });
+  const files = entries
+    .filter((entry) => entry.isFile() && /\.ya?ml$/u.test(entry.name))
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right));
+  return Promise.all(files.map(async (file) => ({
+    file,
+    source: await readFile(new URL(file, workflowsUrl), "utf8"),
+  })));
+}
+
+describe("npm-release environment scan", () => {
+  test("only release.yml publish_npm references npm-release across every workflow", async () => {
+    const workflows = await checkedInWorkflows();
+    expect(workflows.map(({ file }) => file)).toContain(NPM_RELEASE_OWNER.file);
+    expect(npmReleaseViolations(workflows)).toEqual([]);
+  });
+
+  test("rejects a second job, a second workflow, an object form, and a textual mention", () => {
+    const owner = {
+      file: "release.yml",
+      source: "jobs:\n  publish_npm:\n    environment: npm-release\n",
+    };
+    expect(npmReleaseViolations([owner])).toEqual([]);
+    expect(npmReleaseViolations([{
+      file: "release.yml",
+      source: `${owner.source}  publish:\n    environment:\n      name: npm-release\n`,
+    }])).toEqual(["release.yml job publish references npm-release"]);
+    expect(npmReleaseViolations([owner, {
+      file: "ci.yml",
+      source: "jobs:\n  test:\n    environment: npm-release\n",
+    }])).toEqual(["ci.yml job test references npm-release"]);
+    expect(npmReleaseViolations([owner, {
+      file: "website-production.yml",
+      source: "jobs:\n  call:\n    uses: ./.github/workflows/x.yml\n    with:\n      target: npm-release\n",
+    }])).toEqual(["website-production.yml mentions npm-release 1 time(s) outside a job environment"]);
+    expect(npmReleaseViolations([owner, {
+      file: "ci.yml",
+      source: "jobs:\n  test:\n    environment: NPM-Release\n",
+    }])).toEqual(["ci.yml job test references npm-release"]);
+    expect(npmReleaseViolations([owner, {
+      file: "ci.yml",
+      source: "jobs:\n  test:\n    environment: npm-${{ 'release' }}\n",
+    }])).toEqual(["ci.yml job test computes its environment name"]);
+    expect(npmReleaseViolations([{ file: "release.yml", source: "jobs:\n  publish_npm: {}\n" }]))
+      .toEqual(["release.yml job publish_npm must reference npm-release exactly once"]);
+  });
+
+  test("property: the scan passes exactly when publish_npm is the sole npm-release consumer", () => {
+    const environment = fc.constantFrom<unknown>(
+      undefined,
+      NPM_RELEASE_ENVIRONMENT,
+      { name: NPM_RELEASE_ENVIRONMENT },
+      "NPM-Release",
+      { name: "Npm-Release" },
+      "production-ref-writer-key",
+      { name: "website-production" },
+    );
+    const jobs = fc.dictionary(
+      fc.constantFrom("publish_npm", "publish", "verify", "attest", "promote"),
+      fc.record({ environment }, { requiredKeys: [] }),
+    );
+    const workflows = fc.dictionary(
+      fc.constantFrom("release.yml", "ci.yml", "website-production.yml", "nightly.yml"),
+      jobs,
+      { minKeys: 1 },
+    );
+    assertProperty(fc.property(workflows, (generated) => {
+      const sources = Object.entries(generated).map(([file, jobMap]) => ({
+        file,
+        source: JSON.stringify({ jobs: jobMap }, null, 2),
+      }));
+      const references = Object.entries(generated).flatMap(([file, jobMap]) =>
+        Object.entries(jobMap)
+          .filter(([, job]) => {
+            const name = environmentName(job.environment);
+            return typeof name === "string" && name.toLowerCase() === NPM_RELEASE_ENVIRONMENT;
+          })
+          .map(([job]) => ({ file, job }))
+      );
+      const sole = references.length === 1 && references.every(({ file, job }) => isOwner(file, job));
+      expect(npmReleaseViolations(sources).length === 0).toBe(sole);
+    }));
+  });
+});
+
+describe("AGENTS.md pre-tag ruleset readback", () => {
+  test("names all four live tag rulesets and both production branch rulesets", async () => {
+    const agents = await readFile(agentsUrl, "utf8");
+    const readback = agents.split("\n").find((line) => line.startsWith("- Before every stable tag push"));
+    expect(readback).toBeDefined();
+    expect(readback).not.toContain("two exact active repository tag rulesets");
+    expect(readback).toContain("all four active repository tag rulesets");
+    for (const pattern of ["`refs/tags/v*`", "`refs/tags/desktop-v*-macos-arm64`"]) {
+      expect(readback).toContain(pattern);
+    }
+    for (const id of ["22311815", "19989752", "22960902", "22960911", "21832074", "21887484"]) {
+      expect(readback).toContain(`\`${id}\``);
+    }
   });
 });

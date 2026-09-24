@@ -33,6 +33,18 @@ type ObservedLock = RegularObservedLock | UnsafeObservedLock;
 export interface ItemLock {
   readonly path: string;
   readonly assertOwned: () => Promise<void>;
+  /**
+   * Renames `source` to `destination` only while this acquisition still owns
+   * the lock. The check refreshes the heartbeat, then requires the lock path to
+   * name this acquisition's inode and generation token. `guard` runs after
+   * that check and immediately before the rename; a throw leaves `source` in
+   * place.
+   */
+  readonly fencedRename: (
+    source: string,
+    destination: string,
+    guard?: () => void,
+  ) => Promise<void>;
   readonly release: () => Promise<void>;
 }
 
@@ -181,6 +193,21 @@ async function observeLock(path: string): Promise<ObservedLock | null> {
   }
 }
 
+/**
+ * A lock is held only while its heartbeat is fresh. A parseable owner must
+ * also answer `kill(pid, 0)`. A stale heartbeat is reclaimable even when the
+ * PID answers, because a shared or namespaced filesystem can show another
+ * host's PID, and a recycled PID can name an unrelated process.
+ */
+function lockIsHeld(
+  observed: RegularObservedLock,
+  dependencies: ItemLockDependencies,
+): boolean {
+  const ageMs = Math.max(0, dependencies.now().getTime() - observed.modifiedAtMs);
+  if (ageMs > dependencies.staleAfterMs) return false;
+  return observed.owner === null || dependencies.isProcessAlive(observed.owner.pid);
+}
+
 function sameIdentity(left: RegularObservedLock, right: RegularObservedLock): boolean {
   return left.dev === right.dev && left.ino === right.ino;
 }
@@ -271,16 +298,7 @@ export async function acquireItemLock(
       const observed = await observeLock(lockPath);
       if (observed === null) continue;
       if (observed.kind === "unsafe") throw new ItemLockBusyError(lockPath);
-      const ageMs = Math.max(0, dependencies.now().getTime() - observed.modifiedAtMs);
-      const ownerAlive = observed.owner === null
-        ? false
-        : dependencies.isProcessAlive(observed.owner.pid);
-      if (
-        (observed.owner === null && ageMs <= dependencies.staleAfterMs)
-        || ownerAlive
-      ) {
-        throw new ItemLockBusyError(lockPath);
-      }
+      if (lockIsHeld(observed, dependencies)) throw new ItemLockBusyError(lockPath);
       if (await reclaimObservedLock(lockPath, observed, owner.token, dependencies)) continue;
       continue;
     }
@@ -300,13 +318,33 @@ export async function acquireItemLock(
     }, dependencies.heartbeatMs);
     timer.unref();
     let released = false;
+    const assertOwned = async (): Promise<void> => {
+      const observed = await observeLock(lockPath);
+      if (observed?.kind !== "regular" || observed.owner?.token !== owner.token) {
+        throw new ItemLockLostError(lockPath);
+      }
+    };
     return {
       path: lockPath,
-      assertOwned: async () => {
+      assertOwned,
+      fencedRename: async (source, destination, guard) => {
+        if (released) throw new ItemLockLostError(lockPath);
+        // A fresh heartbeat first stops a new contender from judging the lease
+        // stale while this owner is about to promote.
+        const now = dependencies.now();
+        await handle.utimes(now, now);
+        const held = await handle.stat();
         const observed = await observeLock(lockPath);
-        if (observed?.kind !== "regular" || observed.owner?.token !== owner.token) {
+        if (
+          observed?.kind !== "regular"
+          || observed.owner?.token !== owner.token
+          || observed.dev !== held.dev
+          || observed.ino !== held.ino
+        ) {
           throw new ItemLockLostError(lockPath);
         }
+        guard?.();
+        await rename(source, destination);
       },
       release: async () => {
         if (released) return;
