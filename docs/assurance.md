@@ -2193,13 +2193,15 @@ Private state writes are compare-and-swap: exactly one overlapping writer for an
 
 #### `session-secret-filename-injective`
 
-Session-secret file names are an injective encoding of (namespace, authId); removing one account never deletes or blocks another account's files.
+Session-secret file names are an injective encoding of (namespace, authId); removing one account never deletes or blocks another account's files, and single-coordinate and auth-wide removal both take an ambiguous historical file only for the coordinate its envelope names, by compare-and-swap on the bytes that named it.
 
 - Planned: Lean proof with differential test in plan Phase 5.
 - Source: `kb/plans/formal-verification-assurance.md`: “Identifier grammars, and route, operation, and session-secret composite keys: `parse ∘ format = id` and the keys are unambiguous.”
 - Evidence: `src/session-secrets.test.ts`
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
-- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Ownership of an ambiguous historical file is read from its envelope header without decryption, so a same-user writer that forges the header can direct its removal; that writer could already delete the file directly.
 
 #### `no-writes-on-read-paths`
 

@@ -1062,6 +1062,94 @@ describe("session-secret file ownership", () => {
       .toEqual([sessionSecretFileName("bluesky", "old--work")]);
   });
 
+  test("single-coordinate removal clears a legacy ambiguous file whose body names it", () => {
+    const state = environment();
+    const legacy = legacyAmbiguousSecret(state, "2".repeat(64));
+    // A body that names its coordinate but is no longer a readable envelope,
+    // as a writer interrupted mid-format or a later schema would leave it.
+    const named = `${canonicalJson({
+      ...jsonRecord(legacy.text, "legacy envelope"),
+      schemaVersion: 9,
+    })}\n`;
+    writeFileSync(legacy.path, named, { mode: 0o600 });
+
+    expect(removeSessionSecret("bluesky--old", "work", state.value)).toBeFalse();
+    expect(readFileSync(legacy.path, "utf8")).toBe(named);
+    expect(removeSessionSecret("bluesky", "old--work", state.value)).toBeTrue();
+    expect(existsSync(legacy.path)).toBeFalse();
+  });
+
+  test("single-coordinate removal fails closed on an ambiguous file with no verifiable owner", () => {
+    const state = environment();
+    writeSessionSecret("bluesky", "old--work", "3".repeat(64), { owner: "old--work" }, state.value);
+    const path = join(state.root, "session-secrets", "bluesky--old--work.json");
+    writeFileSync(path, "not an envelope\n", { mode: 0o600 });
+
+    expect(() => removeSessionSecret("bluesky", "old--work", state.value))
+      .toThrow("ambiguous historical session secret has no verifiable owner");
+    expect(readFileSync(path, "utf8")).toBe("not an envelope\n");
+    expect(writtenSecretNames(state.root)).toEqual(["bluesky--old--work.json"]);
+  });
+
+  test("auth removal clears a legacy ambiguous file whose body names the realm", () => {
+    const state = environment();
+    const legacy = legacyAmbiguousSecret(state, "4".repeat(64));
+    const named = `${canonicalJson({
+      ...jsonRecord(legacy.text, "legacy envelope"),
+      schemaVersion: 9,
+    })}\n`;
+    writeFileSync(legacy.path, named, { mode: 0o600 });
+
+    expect(removeSessionSecretsForAuth("work", state.value)).toBe(0);
+    expect(readFileSync(legacy.path, "utf8")).toBe(named);
+    expect(removeSessionSecretsForAuth("old--work", state.value)).toBe(1);
+    expect(existsSync(legacy.path)).toBeFalse();
+  });
+
+  test("property: removal takes an ambiguous historical file only for the coordinate its body names", () => {
+    const writer = fc.constantFrom(
+      { namespace: "bluesky", authId: "old--work" },
+      { namespace: "bluesky--old", authId: "work" },
+    );
+    const body = fc.constantFrom("envelope", "named-malformed", "unnamed");
+    const removal = fc.constantFrom("coordinate", "auth");
+    // One state root serves every run: claiming a root is the slow step, and
+    // each run leaves the session directory empty again.
+    const state = environment();
+    const directory = join(state.root, "session-secrets");
+    const path = join(directory, "bluesky--old--work.json");
+    assertProperty(fc.property(writer, body, writer, removal, (owner, shape, target, kind) => {
+      writeSessionSecret(owner.namespace, owner.authId, "8".repeat(64), { owner }, state.value);
+      const injective = join(directory, sessionSecretFileName(owner.namespace, owner.authId));
+      const envelope = readFileSync(injective, "utf8");
+      rmSync(injective);
+      const text = shape === "envelope"
+        ? envelope
+        : shape === "named-malformed"
+          ? `${canonicalJson({ ...jsonRecord(envelope, "envelope"), schemaVersion: 9 })}\n`
+          : "{}\n";
+      writeFileSync(path, text, { mode: 0o600 });
+      const remove = () => kind === "coordinate"
+        ? removeSessionSecret(target.namespace, target.authId, state.value)
+        : removeSessionSecretsForAuth(target.authId, state.value);
+
+      try {
+        if (shape === "unnamed") {
+          expect(remove).toThrow("ambiguous historical session secret has no verifiable owner");
+          expect(readFileSync(path, "utf8")).toBe(text);
+        } else if (owner.authId === target.authId) {
+          remove();
+          expect(existsSync(path)).toBeFalse();
+        } else {
+          remove();
+          expect(readFileSync(path, "utf8")).toBe(text);
+        }
+      } finally {
+        rmSync(path, { force: true });
+      }
+    }), { numRuns: 16 });
+  });
+
   test("fails closed on an ambiguous historical file with no verifiable owner", () => {
     const state = environment();
     writeSessionSecret("linkedin", "unrelated", "9".repeat(64), { owner: "unrelated" }, state.value);

@@ -1185,8 +1185,8 @@ type HistoricalSessionSecret = {
 
 /**
  * Read this coordinate's ambiguous historical secret when its envelope names
- * this coordinate. A file with no readable envelope, or one naming the other
- * candidate, is not this coordinate's and is left for auth removal.
+ * this coordinate and parses as an envelope. Anything else is not adopted;
+ * removal decides it by the owner its header names.
  */
 function ownedHistoricalSessionSecret(
   namespace: string,
@@ -1374,8 +1374,6 @@ export function removeSessionSecret(
 ): boolean {
   validateCoordinate(namespace, authId, "0".repeat(64));
   return withReadProjectionAuthAdmission(authId, environment, () => {
-    // Removal needs no key, so an owned historical secret is removed by its
-    // envelope instead of being authenticated and adopted first.
     adoptHistoricalCoordinateState(namespace, authId, environment);
     const coordinate = readCoordinateState(namespace, authId, environment);
     if (coordinate !== null) {
@@ -1387,27 +1385,25 @@ export function removeSessionSecret(
         environment,
       );
     }
-    const historical = ownedHistoricalSessionSecret(
-      namespace,
-      authId,
-      environment,
-    );
-    if (
-      historical !== null
-      && !removePrivateStateFileIfUnchanged(
-        historical.path,
-        { expectedCurrentContentSha256: textSha256(historical.text) },
-        environment,
-      )
-    ) {
-      throw new Error(
-        "ambiguous historical session secret changed during removal",
-      );
-    }
-    return removePrivateStateFile(
+    const removed = removePrivateStateFile(
       secretPath(namespace, authId, environment),
       environment,
-    ) || historical !== null;
+    );
+    // Removal needs no key, so an ambiguous historical secret is removed by
+    // the coordinate its envelope names instead of being authenticated and
+    // adopted first. Only this coordinate's historical name can hold it.
+    const historicalName = historicalFileName(namespace, authId);
+    if (sessionSecretFileName(namespace, authId) === historicalName) {
+      return removed;
+    }
+    const sessionDirectory = directory(environment);
+    return removeAmbiguousHistoricalSecret(
+      historicalName,
+      (owner) => owner.namespace === namespace && owner.authId === authId,
+      sessionDirectory,
+      ensurePrivateStateDirectory(sessionDirectory, environment),
+      environment,
+    ) || removed;
   });
 }
 
@@ -1501,15 +1497,44 @@ function coordinateStatesForAuth(
 }
 
 /**
- * Remove an ambiguous historical secret only when its envelope names this
- * realm. Every writer recorded its own coordinate in the envelope and bound it
- * into the AEAD data. The header is read without decryption: a local writer
- * able to forge it could already delete the file. Returns whether the file was
- * removed, and throws, leaving the file in place, when no owner can be read.
+ * The coordinate an ambiguous historical secret's envelope names, read from
+ * its header without decryption or full envelope validation. Every historical
+ * writer recorded its own coordinate there, so a body that still names one
+ * whose historical name is `name` says whose file it is even when the rest no
+ * longer parses. Returns null when the body names no such coordinate.
+ */
+function historicalSecretOwner(
+  text: string,
+  name: string,
+): SessionSecretCoordinate | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+  if (!isRecord(parsed)) return null;
+  const { namespace, authId } = parsed;
+  if (
+    typeof namespace !== "string"
+    || typeof authId !== "string"
+    || !isSessionSecretNamePart(namespace)
+    || !isSessionSecretNamePart(authId)
+    || historicalFileName(namespace, authId) !== name
+  ) return null;
+  return Object.freeze({ namespace, authId });
+}
+
+/**
+ * Remove the ambiguous historical secret `name` only when its envelope names
+ * a coordinate the caller owns, with a compare-and-swap on the bytes whose
+ * owner was read. A local writer able to forge the header could already
+ * delete the file. Returns whether the file was removed, and throws, leaving
+ * the file in place, when no owner can be read.
  */
 function removeAmbiguousHistoricalSecret(
   name: string,
-  authId: string,
+  owns: (owner: SessionSecretCoordinate) => boolean,
   sessionDirectory: string,
   directoryIdentity: PrivateDirectoryIdentity,
   environment: Environment,
@@ -1523,32 +1548,19 @@ function removeAmbiguousHistoricalSecret(
     [directoryIdentity],
   );
   if (text === null) return false;
-  let encrypted: EncryptedSessionSecret;
-  try {
-    encrypted = parseEncryptedSessionSecret(text);
-  } catch {
+  const owner = historicalSecretOwner(text, name);
+  if (owner === null) {
     throw new Error(
       "ambiguous historical session secret has no verifiable owner; it was left in place",
     );
   }
-  if (historicalFileName(encrypted.namespace, encrypted.authId) !== name) {
-    throw new Error(
-      "ambiguous historical session secret has no verifiable owner; it was left in place",
-    );
-  }
-  if (encrypted.authId !== authId) return false;
+  if (!owns(owner)) return false;
   if (!removePrivateStateFileIfUnchanged(
     path,
-    {
-      expectedCurrentContentSha256: createHash("sha256")
-        .update(text, "utf8")
-        .digest("hex"),
-    },
+    { expectedCurrentContentSha256: textSha256(text) },
     environment,
   )) {
-    throw new Error(
-      "ambiguous historical session secret changed during auth cleanup",
-    );
+    throw new Error("ambiguous historical session secret changed during removal");
   }
   return true;
 }
@@ -1606,7 +1618,7 @@ export function removeSessionSecretsForAuth(
     for (const name of plan.ambiguous) {
       if (removeAmbiguousHistoricalSecret(
         name,
-        authId,
+        (owner) => owner.authId === authId,
         sessionDirectory,
         directoryIdentity,
         environment,
