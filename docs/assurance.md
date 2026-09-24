@@ -8,14 +8,14 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 233 claims: 152 evidenced, 62 planned, and 19 not verified. It maps 88 guidelines from 5 guides; 68 list claims and 20 are exempt.
+The register holds 233 claims: 154 evidenced, 60 planned, and 19 not verified. It maps 88 guidelines from 5 guides; 68 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 138 | 3 | 0 |
 | property test | 14 | 1 | 0 |
 | stateful model | 0 | 14 | 0 |
-| Quint model with production trace replay | 0 | 35 | 0 |
+| Quint model with production trace replay | 2 | 33 | 0 |
 | Lean proof with differential test | 0 | 8 | 0 |
 | differential oracle | 0 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
@@ -1026,11 +1026,15 @@ A mutation dispatches only after an exact preview and a confirmation whose diges
 
 For every intent (account realm, provider target, operation id, canonical input), provider effects are at most 1 + duplicate successors, including across reconnect and manifest-hash changes.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “durable dispatch, and at-most-once evidence.”
-- Evidence: `src/confirmed-write-intent-fence.test.ts`, `src/run-journal.property.test.ts`, `src/run-journal.test.ts`, `src/runtime.test.ts`
+- Evidence: `scripts/verification-fence-replay.test.ts`, `src/confirmed-write-intent-fence.test.ts`, `src/run-journal.property.test.ts`, `src/run-journal.test.ts`, `src/runtime.test.ts`, `verification/quint/fence.qnt`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The fence model has no duplicate-risk successors, so it checks at most one dispatch per intent, not the full 1 + duplicate-successors bound.
+  - The model is bounded: three runs of one intent, one reconnect, one manifest upgrade, 5,000 simulated samples of up to 12 steps, and Apalache to length 8.
+  - The replay drives the pure fence cores (`intentFenceBlocker`, `intentLedgerPath`, `transitionRunJournal`, `priorRunDisposition`, `reconciledRecoveryRelease`) with an in-memory ledger and journal store; the file-backed `acquireIntentLedger`, the state helper, the hash-keyed ledger, receipts, and recovery capsules are covered only by the listed example tests.
+  - The dedupe window's expiry, partial multi-dispatch runs, and journals from before the intent fence are not modelled.
 
 #### `indeterminate-never-retried`
 
@@ -1046,12 +1050,14 @@ An indeterminate (post-dispatch uncertain) mutation is never retried; a lost ack
 
 An indeterminate dispatch fence is released only from separately obtained exact evidence (plugin readback or owner approval), never from caller-typed hashes.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “reconcile it from separately obtained exact evidence.”
-- Evidence: `src/ghostget.test.ts`, `src/portable-run-recovery.test.ts`, `src/provider-plugin-portable-runtime.test.ts`, `src/provider-plugin-reconciliation.property.test.ts`, `src/run-journal.test.ts`, `src/web-session-recovery.test.ts`
+- Evidence: `scripts/verification-fence-replay.test.ts`, `src/ghostget.test.ts`, `src/portable-run-recovery.test.ts`, `src/provider-plugin-portable-runtime.test.ts`, `src/provider-plugin-reconciliation.property.test.ts`, `src/run-journal.test.ts`, `src/web-session-recovery.test.ts`, `verification/quint/fence.qnt`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified:
-  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - The fence model abstracts the evidence: one reconcile action stands for applied plugin readback or owner approval, and the replay checks only that `reconciledRecoveryRelease` and `transitionRunJournal` settle a reconciled run and keep its ledger.
+  - The replay does not call `recordNotAppliedClaim`: its not-applied action changes no journal in the replay world, so that `recordNotAppliedClaim` releases nothing is covered only by the listed example tests.
+  - The web-session reconciler and the CLI and portable parsers of reconciliation input are covered only by the listed example and property tests.
   - Terminalizing a run from supplied evidence says nothing about provider liveness.
 
 #### `durable-boundaries-before-dispatch`
@@ -2178,9 +2184,11 @@ State-helper and path-helper three-phase claims admit at most one critical-secti
 
 - Planned: Quint model with production trace replay in plan Phase 4.
 - Source: `kb/plans/formal-verification-assurance.md`: “The invariant is `|{p : critical(p)}| ≤ 1`.”
-- Evidence: `src/browser-snapshots.test.ts`, `src/path-helper.test.ts`, `src/read-projections.test.ts`, `src/storage-cas.test.ts`
+- Evidence: `scripts/verification-path-claim-replay.test.ts`, `src/browser-snapshots.test.ts`, `src/path-helper.test.ts`, `src/read-projections.test.ts`, `src/storage-cas.test.ts`, `verification/quint/path-claim.qnt`
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The path-helper claim and its dead-claim reaper election have a Quint model whose replay drives real path-helper processes; the state helper's three-phase claim and a `readdir` that may omit renamed entries are not yet modelled, so this claim stays planned.
+  - The path-helper model is bounded: three helpers, at most one kill, kills only at pause points, 10,000 simulated samples of up to 12 steps, Apalache to length 6, and 60 replayed traces.
 
 #### `state-cas-no-rollback`
 
