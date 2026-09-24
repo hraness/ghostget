@@ -326,7 +326,7 @@ describe("complete local and release check composition", () => {
       "bun run check:cost-surfaces && bun run check:static && bun run check:package && bun run test"
       + " && bun run test:standalone && bun run verify",
     );
-    expect(manifest.scripts?.verify).toBe("bun run verify:claims && bun run verify:quint && bun run verify:lean");
+    expect(manifest.scripts?.verify).toBe("bun run verify:claims && bun run verify:quint && bun run verify:lean && bun run verify:oracles");
     expect(manifest.scripts?.["check:macos"]).toBe("bun run ./scripts/ci-macos-check.ts");
     expect(manifest.scripts?.["test:shard"]).toBe("bun run ./scripts/ci-test-shard.ts");
     expect(manifest.scripts?.["test:npm-release"]).toBe(

@@ -35,12 +35,14 @@ import {
   KERNEL_AXIOMS,
   LEAN,
   LEAN_CANARY_MODULE,
+  LEAN_DIFFERENTIAL_TEST,
   PLATFORM_KEYS,
   QUINT,
   QUINT_REPLAY_SCRIPT,
   QUINT_REPLAY_TIMEOUT_MS,
   QUINT_TRACE_TIMEOUT_MS,
   REPOSITORY_ROOT,
+  RUST_ORACLE,
   VERIFICATION_ARTIFACTS,
   admitArchive,
   apalacheVerdict,
@@ -228,6 +230,7 @@ describe("verification CI job", () => {
     run?: string;
     if?: string;
     "timeout-minutes"?: number;
+    "working-directory"?: string;
     with?: Record<string, unknown>;
     env?: Record<string, string>;
   };
@@ -259,7 +262,16 @@ describe("verification CI job", () => {
     const install = job.steps.findIndex((step) => step.run === "bun install --frozen-lockfile --ignore-scripts");
     expect(install).toBeGreaterThanOrEqual(0);
     expect(job.steps.indexOf(cache[0]!)).toBe(install + 1);
-    expect(verify).toBe(install + 2);
+    // The only step between the cache and verify installs the oracle's exact
+    // Rust toolchain with the runner's rustup and checks both versions.
+    const rust = job.steps[install + 2]!;
+    expect(rust.name).toBe("Install the pinned Rust toolchain");
+    expect(rust["working-directory"]).toBe(RUST_ORACLE.directory);
+    expect(rust.uses).toBeUndefined();
+    expect(rust.run).toContain(`rustup toolchain install ${RUST_ORACLE.toolchain} --profile minimal --no-self-update`);
+    expect(rust.run).toContain(`test "$(rustc --version | cut -d ' ' -f 2)" = "${RUST_ORACLE.toolchain}"`);
+    expect(rust.run).toContain(`test "$(cargo --version | cut -d ' ' -f 2)" = "${RUST_ORACLE.toolchain}"`);
+    expect(verify).toBe(install + 3);
     expect(source).not.toContain("setup-java");
   });
 
@@ -1156,10 +1168,23 @@ describe("Lean trust base", () => {
     expect(proofs.theorems.find((theorem) => theorem.name === `${LIBRARY}.Smoke.acquire_held`)?.type).toBe(leanTypeDigest(HELD_TYPE));
     expect(proofs.theorems.find((theorem) => theorem.name === `${LIBRARY}.Smoke.acquireUnguarded_violates_held`)?.type)
       .toBe(leanTypeDigest(REFUTATION_TYPE));
-    expect(proofs.mutants).toEqual(SCAN_PROOFS.mutants);
+    // Later proofs add their own mutants; the smoke mutant stays among them.
+    for (const mutant of SCAN_PROOFS.mutants) expect(proofs.mutants).toContainEqual(mutant);
     expect(proofs.theorems.length).toBeGreaterThan(0);
     expect(proofs.mutants.length).toBeGreaterThan(0);
     expect(proofs.allowedAxioms).toEqual([]);
+  });
+
+  test("the encoding and negotiation Lean claims cite the differential test verify:lean runs", async () => {
+    const register = JSON.parse(await repositoryFile("verification/claims.json")) as {
+      claims: { id: string; layer: string; status: string; evidence: string[] }[];
+    };
+    const ids = ["canonical-json-injective", "hash-framing-injective", "session-secret-filename-injective", "edge-accept-406-only-when-empty"];
+    const cited = register.claims.filter((claim) => ids.includes(claim.id))
+      .map((claim) => ({ id: claim.id, layer: claim.layer, status: claim.status, cites: claim.evidence.includes(LEAN_DIFFERENTIAL_TEST) }))
+      .sort((left, right) => ids.indexOf(left.id) - ids.indexOf(right.id));
+    expect(cited).toEqual(ids.map((id) => ({ id, layer: "lean", status: "evidenced", cites: true })));
+    expect(await repositoryFile(LEAN_DIFFERENTIAL_TEST)).toContain("assertAsyncProperty(");
   });
 
   test("flags sorry, admit, native evaluation, unlisted axioms, and other trust escapes", () => {

@@ -3,8 +3,9 @@
 - `claims.json` – the claims register: one rule entry per `AGENTS.md` guideline, with its digest and the claims that quote it; the digest and reason of each synced managed block; and one row per claim with its layer, status, quotes, evidence, named property tests, assumptions, and not-verified scope. `bun run ./scripts/verification-claims.ts render` writes `docs/assurance.md` from it.
 - `quint/` – Quint models, `models.json` with each model's invariants, seeds, bounds, mutants, and replay test, and the ITF trace replay pattern.
 - `lean/` – the core-only Lake project, its pinned `lean-toolchain`, `proofs.json` with each required theorem's statement digest and each seeded defect, and the axiom audit.
+- `oracles/` – the dev-only Rust oracle: an RFC 8785 canonicalizer and a `url`-crate reading of the web gateway URL policy, pinned by `rust-toolchain.toml` and `Cargo.lock`. `scripts/verification-oracles.test.ts` compares it with the TypeScript.
+- `vectors/` – golden vectors from the standard-library Python generator `generate.py`. `scripts/verification-vectors.test.ts` compares the TypeScript with them.
 - `seeds/` – the property seed corpus: `corpus.json` maps each named property to its test file and its recorded fast-check seeds and shrink paths.
-- `vectors/`, `oracles/` – reserved for golden vectors and independent oracles.
 - `tsconfig.json` – type checking for `../scripts/verification-*.ts`.
 
 # Guidelines

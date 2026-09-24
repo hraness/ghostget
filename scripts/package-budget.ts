@@ -1586,14 +1586,33 @@
 // ece2627c6967cb8cf201ebdd598cfc57df555e069feafdd09c38ba6a775c32da. Carry the
 // same projections and allowances: 11,993,622 + 12,387 + 4,096 = 12,010,105
 // packed; 23,428,685 + 353 + 65 = 23,429,103 unpacked.
+// The independent oracles add the verify:oracles script and its step in the
+// verify chain to package.json. The Rust oracle, the golden vectors, and their
+// tests stay outside the package. This adds 233 payload bytes over the
+// unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with npm
+// 11.19.0 on darwin arm64 were byte-identical at 11,993,659 packed bytes,
+// 23,428,918 unpacked bytes; archive SHA-256
+// 5162451c3acb46616a35fe38729d9e26291e283e2baceabfc665c29aa2020f79. Carry the
+// same projections and allowances: 11,993,659 + 12,387 + 4,096 = 12,010,142
+// packed; 23,428,918 + 353 + 65 = 23,429,336 unpacked.
+// The Lean encodings export `updateLengthFramedHash` from the provider plugin
+// registry so the differential test can compare the production length-framed
+// hash with its Lean definition. The Lean project and the test stay outside
+// the package. This adds 7 payload bytes over the unchanged 596-file
+// inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin
+// arm64 were byte-identical at 11,993,659 packed bytes, 23,428,925 unpacked
+// bytes; archive SHA-256
+// 67bcf3f2bb56b7d9d7db7a902893528ed18823e888f553e4b78737b104fb6d09. Carry the
+// same projections and allowances: 11,993,659 + 12,387 + 4,096 = 12,010,142
+// packed; 23,428,925 + 353 + 65 = 23,429,343 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Crash harness: storage passes a test-only crash preload to the state and path helpers",
+  scope: "Lean encodings: the exported length-framed hash update in the provider plugin registry",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "ece2627c6967cb8cf201ebdd598cfc57df555e069feafdd09c38ba6a775c32da",
-  packedBytes: 11_993_622,
-  unpackedBytes: 23_428_685,
+  archiveSha256: "67bcf3f2bb56b7d9d7db7a902893528ed18823e888f553e4b78737b104fb6d09",
+  packedBytes: 11_993_659,
+  unpackedBytes: 23_428_925,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
