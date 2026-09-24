@@ -5,24 +5,30 @@
  * execution and write confirmation on a real state home with the bundled X
  * interface and one OAuth account. A counting executor stands in for the
  * provider. Commands change the account incarnation (remove and save the same
- * account: A to B to A), the installed interface (two manifests that differ
- * only in display name, so it returns to the exact earlier bytes), the
- * executable closure (a registry whose implementation closure hash differs),
- * and the policy (allow, ask or deny for the current exact identity). Other
- * commands prepare reads, preview writes, execute prepared reads, and confirm
- * saved plans, on time or after the plan expired.
+ * record: A to B to A), the account realm (replace the record with one for a
+ * different subject, and back), the installed interface (two manifests that
+ * differ only in display name, so it returns to the exact earlier bytes), the
+ * exact executable closure and the reviewed contract implementation identity
+ * (registries whose `implementationClosureHash` or
+ * `contractImplementationHash` differ), and the policy (allow, ask or deny for
+ * the current exact identity). Other commands prepare reads, preview writes,
+ * execute prepared reads, confirm saved plans on time or after they expired,
+ * alter a saved plan's bytes, and confirm unknown digests.
  *
  * The laws:
  * - the capability digest is a function of the exact identity: equal for the
- *   same account incarnation, interface and closure, and distinct otherwise,
- *   so a grant for one identity never applies to another;
- * - a prepared read dispatches only when its account incarnation and
- *   interface are still current and the policy for the current identity is
+ *   same account incarnation, realm, interface, closure and contract, and
+ *   distinct otherwise, so a grant for one identity never applies to another;
+ * - a prepared read dispatches only when its account incarnation, interface
+ *   and contract are still current and the policy for the current identity is
  *   allow; `ask` without a human approval and `deny` never dispatch;
  * - a saved plan dispatches only under the same conditions and only once; an
- *   expired or drifted plan is consumed without dispatch, so restoring the
- *   account, interface or clock cannot revive it; a plan refused only by
- *   policy stays for a later confirmation under current authority.
+ *   expired, drifted or altered plan is consumed without dispatch, so
+ *   restoring the account, interface, contract or clock cannot revive it; a
+ *   plan refused only by policy stays for a later confirmation under current
+ *   authority;
+ * - a new plan for an input that was already dispatched never reaches the
+ *   provider again.
  */
 import { afterEach, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
@@ -44,14 +50,16 @@ import { assertAsyncProperty, fc } from "./test-support";
 const directories: string[] = [];
 afterEach(() => { for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true }); });
 
-type Identity = { inc: number; manifest: 0 | 1; closure: 0 | 1 };
+type Bit = 0 | 1;
+type Identity = { inc: number; realm: Bit; manifest: Bit; closure: Bit; contract: Bit };
 type Prepared = { readonly invocation: PreparedInvocation; readonly identity: Identity };
 type Plan = { readonly digest: string; readonly identity: Identity; readonly body: string; readonly retry: boolean; live: boolean; dispatched: boolean };
 type World = {
   readonly environment: { GHOSTGET_STATE_HOME: string };
   readonly manifests: readonly [GhostgetManifest, GhostgetManifest];
-  readonly registries: readonly [ProviderPluginRegistry, ProviderPluginRegistry];
-  readonly auth: ReturnType<typeof createAuth>;
+  readonly registries: readonly (readonly [ProviderPluginRegistry, ProviderPluginRegistry])[];
+  readonly auths: readonly [ReturnType<typeof createAuth>, ReturnType<typeof createAuth>];
+  auth: ReturnType<typeof createAuth>;
   readonly policy: Map<string, PermissionDecision>;
   readonly digests: Map<string, string>;
   identity: Identity;
@@ -62,10 +70,18 @@ type World = {
 };
 type Model = { prepared: number; plans: number };
 
-const key = (identity: Identity) => `${identity.inc}:${identity.manifest}:${identity.closure}`;
+const key = (identity: Identity) => `${identity.inc}:${identity.realm}:${identity.manifest}:${identity.closure}:${identity.contract}`;
 const decision = (world: World) => world.policy.get(key(world.identity)) ?? "deny";
-const sameAuthority = (bound: Identity, current: Identity) => bound.inc === current.inc && bound.manifest === current.manifest;
-const options = (world: World) => ({ environment: world.environment, registry: world.registries[world.identity.closure] });
+/**
+ * What a prepared request or saved plan binds: the account incarnation (and
+ * so its realm), the interface, and the reviewed contract implementation
+ * identity. The exact executable closure is bound by the grant digest, so a
+ * changed closure needs a grant for the new identity before anything runs.
+ */
+const sameAuthority = (bound: Identity, current: Identity) =>
+  bound.inc === current.inc && bound.manifest === current.manifest && bound.contract === current.contract;
+const registryOf = (world: World): ProviderPluginRegistry => world.registries[world.identity.closure]![world.identity.contract];
+const options = (world: World) => ({ environment: world.environment, registry: registryOf(world) });
 
 function execution(): ProviderExecution {
   return { status: "succeeded", output: { id: "1", text: "done" }, finalUrl: null, dispatchStarted: true, dispatch: { planned: 1, started: 1, verified: 1 } };
@@ -113,6 +129,17 @@ class Reincarnate implements fc.AsyncCommand<Model, World> {
   toString(): string { return "reincarnate"; }
 }
 
+class Rebind implements fc.AsyncCommand<Model, World> {
+  check(): boolean { return true; }
+  async run(_model: Model, world: World): Promise<void> {
+    const realm: Bit = world.identity.realm === 0 ? 1 : 0;
+    world.auth = world.auths[realm];
+    saveAuth(world.auth, world.environment, { force: true });
+    world.identity = { ...world.identity, inc: world.identity.inc + 1, realm };
+  }
+  toString(): string { return "rebind-realm"; }
+}
+
 class ToggleInterface implements fc.AsyncCommand<Model, World> {
   check(): boolean { return true; }
   async run(_model: Model, world: World): Promise<void> {
@@ -131,12 +158,20 @@ class ToggleClosure implements fc.AsyncCommand<Model, World> {
   toString(): string { return "toggle-closure"; }
 }
 
+class ToggleContract implements fc.AsyncCommand<Model, World> {
+  check(): boolean { return true; }
+  async run(_model: Model, world: World): Promise<void> {
+    world.identity = { ...world.identity, contract: world.identity.contract === 0 ? 1 : 0 };
+  }
+  toString(): string { return "toggle-contract"; }
+}
+
 class Prepare implements fc.AsyncCommand<Model, World> {
   check(model: Readonly<Model>): boolean { return model.prepared < 3; }
   async run(model: Model, world: World): Promise<void> {
     const allowed = decision(world) !== "deny";
     let invocation: PreparedInvocation | null = null;
-    try { invocation = prepareInvocation("x", "posts.read", { post_ids: ["2078889282404569267"] }, world.auth.id, world.environment, world.registries[world.identity.closure]); } catch (error) {
+    try { invocation = prepareInvocation("x", "posts.read", { post_ids: ["2078889282404569267"] }, world.auth.id, world.environment, registryOf(world)); } catch (error) {
       if (allowed) throw error;
     }
     expect(invocation !== null).toBe(allowed);
@@ -175,8 +210,8 @@ class Preview implements fc.AsyncCommand<Model, World> {
     const body = retried?.body ?? `authority model ${world.serial++}`;
     let digest: string | null = null;
     try {
-      const invocation = prepareInvocation("x", "posts.publish", { body }, world.auth.id, world.environment, world.registries[world.identity.closure]);
-      digest = createAndSaveInvocationPlan(invocation, world.environment, new Date(), world.registries[world.identity.closure]).digest;
+      const invocation = prepareInvocation("x", "posts.publish", { body }, world.auth.id, world.environment, registryOf(world));
+      digest = createAndSaveInvocationPlan(invocation, world.environment, new Date(), registryOf(world)).digest;
     } catch (error) {
       if (allowed) throw error;
     }
@@ -232,7 +267,8 @@ class Tamper implements fc.AsyncCommand<Model, World> {
     if (!plan.live) return;
     const path = join(world.environment.GHOSTGET_STATE_HOME, "plans", `${plan.digest}.json`);
     const bytes = readFileSync(path);
-    bytes[bytes.length >> 1] ^= 0x01;
+    const middle = bytes.length >> 1;
+    bytes[middle] = bytes[middle]! ^ 0x01;
     writeFileSync(path, bytes);
     plan.live = false;
     const before = world.calls;
@@ -262,41 +298,45 @@ function world(): World {
   const environment = { GHOSTGET_STATE_HOME: directory };
   const manifest = JSON.parse(readFileSync(join(import.meta.dir, "assets/adapters/x/wrench-adapter.json"), "utf8")) as GhostgetManifest;
   installManifest(manifest, { force: false, environment, registry });
-  const auth = createAuth("authority-account", { oauthProvider: "x", tokenFile: join(directory, "token.json"), scopes: ["tweet.read", "tweet.write", "users.read"], subject: "12345" });
-  saveAuth(auth, environment);
+  const account = (subject: string) => createAuth("authority-account", { oauthProvider: "x", tokenFile: join(directory, "token.json"), scopes: ["tweet.read", "tweet.write", "users.read"], subject });
+  const auths = [account("12345"), account("67890")] as const;
+  saveAuth(auths[0], environment);
   enableOperationPermissions(0, environment);
-  const altered: ProviderPluginRegistry = { ...registry, implementationClosureHash: (binding) => createHash("sha256").update(`variant:${registry.implementationClosureHash(binding)}`).digest("hex") };
+  const variant = (closure: Bit, contract: Bit): ProviderPluginRegistry => ({
+    ...registry,
+    ...(closure === 0 ? {} : { implementationClosureHash: (binding) => createHash("sha256").update(`closure variant:${registry.implementationClosureHash(binding)}`).digest("hex") }),
+    ...(contract === 0 ? {} : { contractImplementationHash: (binding) => createHash("sha256").update("contract variant:").update(registry.contractImplementationHash(binding)).digest() }),
+  });
   return {
-    environment, auth,
+    environment, auths, auth: auths[0],
     manifests: [manifest, { ...manifest, displayName: "Authority model interface" }],
-    registries: [registry, altered],
+    registries: [[registry, variant(0, 1)], [variant(1, 0), variant(1, 1)]],
     policy: new Map(), digests: new Map(),
-    identity: { inc: 0, manifest: 0, closure: 0 },
+    identity: { inc: 0, realm: 0, manifest: 0, closure: 0, contract: 0 },
     prepared: [], plans: [], calls: 0, serial: 0,
   };
 }
 
-// Every command reads or writes the private state layer, and a confirmed
-// write adds its claim, journal, ledger and receipt, so one run of up to 10
-// commands takes a few seconds on a quiet host. One state home serves every
-// run; each run starts from the identity and policy the previous run left,
-// which the model carries forward. 8 runs keep this near half a minute.
-test("property: authority never outlives a change of account incarnation, interface, closure or policy", async () => {
-  const shared = world();
+// Every command reads or writes the private state layer, and each state
+// operation spawns the bound state helper, so one run of up to 8 commands
+// costs tens of seconds of CPU: a confirmed write alone writes its claim,
+// journal, ledger and receipt. Each run gets a fresh state home so a seed and
+// shrink path replay alone. CI takes 2 runs; the nightly soak multiplies them.
+test("property: authority never outlives a change of account incarnation, realm, interface, closure, contract or policy", async () => {
   await assertAsyncProperty(fc.asyncProperty(fc.commands([
     fc.constantFrom<PermissionDecision>("allow", "allow", "ask", "deny").map((value) => new Grant(value)),
     fc.constant(new Reincarnate()),
+    fc.constant(new Rebind()),
     fc.constant(new ToggleInterface()),
     fc.constant(new ToggleClosure()),
+    fc.constant(new ToggleContract()),
     fc.constant(new Prepare()),
     fc.nat({ max: 2 }).map((index) => new ExecuteRead(index)),
     fc.boolean().map((retry) => new Preview(retry)),
     fc.tuple(fc.nat({ max: 3 }), fc.boolean()).map(([index, late]) => new Confirm(index, late)),
     fc.nat({ max: 3 }).map((index) => new Tamper(index)),
     fc.stringMatching(/^[0-9a-f]{64}$/).map((digest) => new ConfirmUnknown(digest)),
-  ], { maxCommands: 12, size: "+1" }), async (commands) => {
-    shared.prepared = [];
-    shared.plans = [];
-    await fc.asyncModelRun(() => ({ model: { prepared: 0, plans: 0 }, real: shared }), commands);
-  }), { numRuns: 8, interruptAfterTimeLimit: 600_000 });
+  ], { maxCommands: 8, size: "+1" }), async (commands) => {
+    await fc.asyncModelRun(() => ({ model: { prepared: 0, plans: 0 }, real: world() }), commands);
+  }), { numRuns: 2, interruptAfterTimeLimit: 150_000 });
 });

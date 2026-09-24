@@ -267,6 +267,28 @@
       "killedBy": [
         "property: closing connections aborts sign-in so no verification or commit survives shutdown"
       ]
+    },
+    {
+      "id": "managed-confirm-keeps-drifted-plan",
+      "file": "src/runtime.ts",
+      "defect": "Under managed permissions, a confirmation refused for an expired or drifted plan leaves the plan saved, so restoring the interface revives it.",
+      "search": "    try { cancelInvocationPlan(digest, environment); } catch { /* the refusal below stands */ }\n",
+      "replace": "",
+      "test": "src/operation-permission.test.ts",
+      "killedBy": [
+        "operation policy: a plan refused for interface drift is consumed and restoring the interface cannot revive it"
+      ]
+    },
+    {
+      "id": "grant-digest-ignores-closure",
+      "file": "src/operation-permission.ts",
+      "defect": "The capability digest leaves out the executable closure, so a grant survives a changed implementation.",
+      "search": "    closureHash, portableHash:",
+      "replace": "    closureHash: null, portableHash:",
+      "test": "src/operation-permission.test.ts",
+      "killedBy": [
+        "operation policy: capability digest binds adapter, account and current closure"
+      ]
     }
   ]
 }
