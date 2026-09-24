@@ -800,6 +800,10 @@ describe("ghostget.com static site", () => {
       expect(css).toContain("--hraness-hero-proximity");
       expect(css).toContain("var(--hraness-hero-drift-x, 0px)");
       expect(css).toContain("var(--hraness-hero-drift-y, 0px)");
+      // The Agent Skill command stays on one line and scrolls inside its own box, so the
+      // grid item that holds it must shrink below that line at phone widths instead of
+      // pushing the install commands past the viewport edge.
+      expect(cssPropertyValues(css, ".skill-install", "min-inline-size")).toContain("0");
       for (const selector of [".ghostget-blob", ".ghostget-card", ".ghostget-edge", ".ghostget-spirit", ".ghostget-spirit__body"]) {
         expect(cssPropertyValues(css, selector, "animation").every((value) => value === "none")).toBe(true);
       }
