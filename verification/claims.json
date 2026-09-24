@@ -1232,9 +1232,11 @@
         "quote": "through its pinned transport and durable audit boundary."
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
+        "src/control/web-gateway.ts",
+        "src/control/activity.ts",
+        "src/control/web-gateway.property.test.ts",
         "src/control/gateway.test.ts"
       ],
       "assumptions": [
@@ -1243,12 +1245,20 @@
         "dns-tls"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The model drives the production `WebGateway`, `ActivityStore` and `ApprovalBroker` on a real state home, with a scripted `GatewayTransport` in place of DNS, TLS and sockets. That the pinned transport itself connects only to the address it checked is covered by `gateway-rejects-private-addresses` and its tests, not by this model.",
+        "A crash is modelled as abandoning the in-flight call and reopening the store in the same process; a real process death between the SQLite commit and the socket write rests on SQLite's commit durability, under the filesystem-durability assumption.",
+        "The model samples its schedules: CI runs 15 schedules of up to 8 requests over twelve scenarios."
       ],
       "alsoQuotes": [
         {
           "path": "src/control/AGENTS.md",
           "quote": "durable metadata before dispatch"
+        }
+      ],
+      "properties": [
+        {
+          "path": "src/control/web-gateway.property.test.ts",
+          "test": "property: gateway output and network dispatch follow a committed durable audit row, and recovery never retries"
         }
       ]
     },
@@ -1591,9 +1601,11 @@
         "quote": "Connection and helper shutdown must settle owned work before custody is released."
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
+        "src/control/helper.ts",
+        "src/control/connections.ts",
+        "src/control/helper-shutdown.property.test.ts",
         "src/control/connections.test.ts",
         "src/control/helper-lifecycle.test.ts"
       ],
@@ -1601,7 +1613,21 @@
         "same-user-trusted"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The helper model drives the production shutdown sequencer, `settleHelperShutdown`, with the steps `runControlHelper` passes it replaced by recorders over a set of in-flight requests. That `runControlHelper` passes the real steps and tracks every request in its active set rests on reading it and on `src/control/helper-lifecycle.test.ts`, which starts and stops the real helper.",
+        "The wait covers requests in flight when shutdown begins. Clients are disconnected first, so no socket request can start later; a native stdio frame arriving after shutdown began is not modelled.",
+        "A request that never settles holds shutdown open. Provider calls end when the service's shutdown signal aborts them; a call that ignores its signal is outside the model.",
+        "The connection model drives the production `Connections` class with a fake sign-in probe; real browser sign-in and provider verifiers are outside it.",
+        "The models sample their schedules: CI runs 200 helper schedules of up to 14 commands and 12 connection schedules of up to 8 commands over two attempts."
+      ],
+      "properties": [
+        {
+          "path": "src/control/helper-shutdown.property.test.ts",
+          "test": "property: helper shutdown settles every in-flight request before closing the service and releases the owner once, last"
+        },
+        {
+          "path": "src/control/helper-shutdown.property.test.ts",
+          "test": "property: closing connections aborts sign-in so no verification or commit survives shutdown"
+        }
       ]
     },
     {

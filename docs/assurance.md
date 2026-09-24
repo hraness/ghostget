@@ -8,13 +8,13 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 244 claims: 182 evidenced, 43 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 244 claims: 184 evidenced, 41 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 143 | 2 | 0 |
 | property test | 15 | 1 | 0 |
-| stateful model | 3 | 12 | 0 |
+| stateful model | 5 | 10 | 0 |
 | Quint model with production trace replay | 10 | 27 | 0 |
 | Lean proof with differential test | 7 | 1 | 0 |
 | differential oracle | 4 | 0 | 0 |
@@ -426,11 +426,17 @@ An allow-once approval admits one exact pending request at most once (allowed im
 
 Connection and helper shutdown settle owned work before custody is released.
 
-- Planned: stateful model in plan Phase 2.
+- Evidenced by stateful model.
 - Source: `src/control/AGENTS.md`: “Connection and helper shutdown must settle owned work before custody is released.”
-- Evidence: `src/control/connections.test.ts`, `src/control/helper-lifecycle.test.ts`
+- Evidence: `src/control/helper.ts`, `src/control/connections.ts`, `src/control/helper-shutdown.property.test.ts`, `src/control/connections.test.ts`, `src/control/helper-lifecycle.test.ts`
+- Property tests: `src/control/helper-shutdown.property.test.ts`: “property: helper shutdown settles every in-flight request before closing the service and releases the owner once, last”; `src/control/helper-shutdown.property.test.ts`: “property: closing connections aborts sign-in so no verification or commit survives shutdown”
 - Assumptions: `same-user-trusted`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The helper model drives the production shutdown sequencer, `settleHelperShutdown`, with the steps `runControlHelper` passes it replaced by recorders over a set of in-flight requests. That `runControlHelper` passes the real steps and tracks every request in its active set rests on reading it and on `src/control/helper-lifecycle.test.ts`, which starts and stops the real helper.
+  - The wait covers requests in flight when shutdown begins. Clients are disconnected first, so no socket request can start later; a native stdio frame arriving after shutdown began is not modelled.
+  - A request that never settles holds shutdown open. Provider calls end when the service's shutdown signal aborts them; a call that ignores its signal is outside the model.
+  - The connection model drives the production `Connections` class with a fake sign-in probe; real browser sign-in and provider verifiers are outside it.
+  - The models sample their schedules: CI runs 200 helper schedules of up to 14 commands and 12 connection schedules of up to 8 commands over two attempts.
 
 ### `control-plane` (13 claims)
 
@@ -2708,12 +2714,16 @@ The gateway rejects private, loopback, and other non-public addresses (including
 
 A durable audit record exists before any gateway network dispatch, and a failed final audit, revocation, redirect, or oversized body withholds output; crash recovery preserves unknown requests without retrying them.
 
-- Planned: stateful model in plan Phase 2.
+- Evidenced by stateful model.
 - Source: `AGENTS.md`: “through its pinned transport and durable audit boundary.”
 - Also covers: `src/control/AGENTS.md`: “durable metadata before dispatch”
-- Evidence: `src/control/gateway.test.ts`
+- Evidence: `src/control/web-gateway.ts`, `src/control/activity.ts`, `src/control/web-gateway.property.test.ts`, `src/control/gateway.test.ts`
+- Property tests: `src/control/web-gateway.property.test.ts`: “property: gateway output and network dispatch follow a committed durable audit row, and recovery never retries”
 - Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The model drives the production `WebGateway`, `ActivityStore` and `ApprovalBroker` on a real state home, with a scripted `GatewayTransport` in place of DNS, TLS and sockets. That the pinned transport itself connects only to the address it checked is covered by `gateway-rejects-private-addresses` and its tests, not by this model.
+  - A crash is modelled as abandoning the in-flight call and reopening the store in the same process; a real process death between the SQLite commit and the socket write rests on SQLite's commit durability, under the filesystem-durability assumption.
+  - The model samples its schedules: CI runs 15 schedules of up to 8 requests over twelve scenarios.
 
 #### `gateway-activity-excludes-sensitive`
 

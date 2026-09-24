@@ -73,6 +73,33 @@ function acquireOwner(environment:ControlEnvironment):()=>void {
   return commitControlOwner(environment,inspectControlOwner(environment));
 }
 
+/** The helper's shutdown steps; tests inject them to check their order. */
+export type HelperShutdownSteps = Readonly<{
+  disconnectClients:()=>Promise<void>;
+  beginShutdown:()=>void;
+  active:ReadonlySet<Promise<void>>;
+  closeService:()=>void;
+  closeServer:()=>Promise<void>;
+  removeOwnedSocket:()=>void;
+  releaseOwner:()=>void;
+}>;
+
+/**
+ * Stop taking work, abort what the service owns, and wait until every
+ * request already running has settled before closing the store and giving up
+ * custody. The socket path and the owner record go last, so no second helper
+ * can start while a request of this one is still running.
+ */
+export async function settleHelperShutdown(steps:HelperShutdownSteps):Promise<void> {
+  await steps.disconnectClients();
+  steps.beginShutdown();
+  await Promise.allSettled(steps.active);
+  steps.closeService();
+  await steps.closeServer();
+  steps.removeOwnedSocket();
+  steps.releaseOwner();
+}
+
 /** Private native stdio is the only administrative transport. No TCP listener is created. */
 export async function runControlHelper(environment:ControlEnvironment=process.env):Promise<void> {
   process.umask(0o077);
@@ -89,7 +116,13 @@ export async function runControlHelper(environment:ControlEnvironment=process.en
       started=true;const work=(async()=>{let response:unknown;try{if(newline!==buffer.length-1)throw new Error();response=await handleAgent(JSON.parse(buffer.subarray(0,newline).toString("utf8")),service!,controller.signal);}catch(error){response=controlFailure(error);}if(!socket.destroyed)socket.end(`${JSON.stringify(response)}\n`);})();active.add(work);void work.then(()=>active.delete(work),()=>{active.delete(work);process.exitCode=1;process.stdin.destroy();});
     });
   });
-  const shutdown=async()=>{if(closing)return;closing=true;const closes:Promise<void>[]=[];for(const socket of clients){if(socket.closed)continue;closes.push(new Promise<void>(resolve=>socket.once("close",resolve)));socket.destroy();}await Promise.all(closes);service?.beginShutdown();await Promise.allSettled(active);service?.close();if(server.listening)await new Promise<void>(resolve=>server.close(()=>resolve()));if(ownedSocket!==undefined){snapshotPrivateStateDirectory(directory,environment,directoryIdentity);try{const stat=lstatSync(socketPath);if(stat.isSocket()&&stat.dev===ownedSocket.dev&&stat.ino===ownedSocket.ino)unlinkSync(socketPath);}catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}}releaseOwner();};
+  const shutdown=async()=>{if(closing)return;closing=true;await settleHelperShutdown({
+    disconnectClients:async()=>{const closes:Promise<void>[]=[];for(const socket of clients){if(socket.closed)continue;closes.push(new Promise<void>(resolve=>socket.once("close",resolve)));socket.destroy();}await Promise.all(closes);},
+    beginShutdown:()=>{service?.beginShutdown();},active,closeService:()=>{service?.close();},
+    closeServer:async()=>{if(server.listening)await new Promise<void>(resolve=>server.close(()=>resolve()));},
+    removeOwnedSocket:()=>{if(ownedSocket!==undefined){snapshotPrivateStateDirectory(directory,environment,directoryIdentity);try{const stat=lstatSync(socketPath);if(stat.isSocket()&&stat.dev===ownedSocket.dev&&stat.ino===ownedSocket.ino)unlinkSync(socketPath);}catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}}},
+    releaseOwner,
+  });};
   const termination=()=>{process.stdin.destroy();};process.once("SIGTERM",termination);process.once("SIGINT",termination);
   try {
     if(Buffer.byteLength(socketPath)>100)throw new ControlError("CONTROL_PATH_TOO_LONG","Choose a shorter Ghostget state-home path for the control helper.");

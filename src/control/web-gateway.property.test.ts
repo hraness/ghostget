@@ -29,7 +29,8 @@ import { assertAsyncProperty, fc } from "../test-support";
 import { ActivityStore } from "./activity";
 import { ApprovalBroker } from "./approval-broker";
 import { WebGateway, type GatewayTransport } from "./web-gateway";
-import { checkWebRequest, saveWebPolicy, type WebRule } from "./web-policy";
+import type { WebRule } from "./protocol";
+import { checkWebRequest, saveWebPolicy } from "./web-policy";
 
 const cleanups: (() => void)[] = [];
 afterEach(() => { for (const cleanup of cleanups.splice(0).reverse()) cleanup(); });

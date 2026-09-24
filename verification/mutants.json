@@ -234,6 +234,39 @@
       "killedBy": [
         "property: gateway output and network dispatch follow a committed durable audit row, and recovery never retries"
       ]
+    },
+    {
+      "id": "helper-shutdown-skips-settle",
+      "file": "src/control/helper.ts",
+      "defect": "Helper shutdown closes the service and releases custody without waiting for in-flight requests.",
+      "search": "  await Promise.allSettled(steps.active);\n",
+      "replace": "",
+      "test": "src/control/helper-shutdown.property.test.ts",
+      "killedBy": [
+        "property: helper shutdown settles every in-flight request before closing the service and releases the owner once, last"
+      ]
+    },
+    {
+      "id": "helper-shutdown-aborts-after-settle",
+      "file": "src/control/helper.ts",
+      "defect": "Helper shutdown waits for in-flight requests before aborting them, so abort-aware work holds shutdown open.",
+      "search": "  steps.beginShutdown();\n  await Promise.allSettled(steps.active);\n",
+      "replace": "  await Promise.allSettled(steps.active);\n  steps.beginShutdown();\n",
+      "test": "src/control/helper-shutdown.property.test.ts",
+      "killedBy": [
+        "property: helper shutdown settles every in-flight request before closing the service and releases the owner once, last"
+      ]
+    },
+    {
+      "id": "connections-close-keeps-attempts",
+      "file": "src/control/connections.ts",
+      "defect": "Closing connections leaves sign-in attempts live, so a verification that finishes after shutdown can still be committed.",
+      "search": "close():void {for(const id of this.attempts.keys())this.cancel(id);}",
+      "replace": "close():void {}",
+      "test": "src/control/helper-shutdown.property.test.ts",
+      "killedBy": [
+        "property: closing connections aborts sign-in so no verification or commit survives shutdown"
+      ]
     }
   ]
 }
