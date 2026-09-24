@@ -182,6 +182,64 @@ describe("messaging composite run journal", () => {
     ));
   });
 
+  test("rejects part transitions outside the active prefix or across the dispatch boundary", () => {
+    const base = initializeMessagingRun(
+      runId,
+      "9".repeat(64),
+      threePartPlan(),
+      state().environment,
+      startedAt,
+    ).run;
+    const at = (second: number) => `2026-08-27T12:00:0${second}.000Z`;
+    const claimed = transitionMessagingRun(base, {
+      type: "claimed",
+      index: 0,
+      observedAcceptedPrefixCount: 0,
+      at: at(1),
+    });
+    const dispatching = transitionMessagingRun(claimed, { type: "dispatching", index: 0, at: at(2) });
+    const accept = (run: typeof base) => transitionMessagingRun(run, {
+      type: "accepted",
+      index: 0,
+      providerMessageId: "provider-1",
+      providerRevision: null,
+      at: at(3),
+    });
+    const stop = (run: typeof base) => transitionMessagingRun(run, {
+      type: "categorical-stop",
+      index: 0,
+      partState: "failed-before-dispatch",
+      reason: "provider-failed-before-dispatch",
+      at: at(3),
+    });
+
+    expect(() => transitionMessagingRun(base, {
+      type: "claimed",
+      index: 1,
+      observedAcceptedPrefixCount: 0,
+      at: at(1),
+    })).toThrow("outside the active prefix");
+    expect(() => transitionMessagingRun(stop(claimed), {
+      type: "claimed",
+      index: 0,
+      observedAcceptedPrefixCount: 0,
+      at: at(4),
+    })).toThrow("outside the active prefix");
+    expect(() => transitionMessagingRun(base, { type: "dispatching", index: 0, at: at(1) }))
+      .toThrow("was not claimed");
+    expect(() => transitionMessagingRun(claimed, {
+      type: "claimed",
+      index: 0,
+      observedAcceptedPrefixCount: 0,
+      at: at(2),
+    })).toThrow("already claimed");
+    expect(() => accept(base)).toThrow("did not cross dispatch");
+    expect(() => accept(claimed)).toThrow("did not cross dispatch");
+    expect(() => stop(dispatching)).toThrow("crossed the dispatch boundary");
+    expect(accept(dispatching).parts[0]!.state).toBe("accepted");
+    expect(stop(claimed).state).toBe("failed");
+  });
+
   test("normalizes the exact predecessor terminal run to a conservative prefix high-water", () => {
     const initial = initializeMessagingRun(
       runId,

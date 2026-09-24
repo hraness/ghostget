@@ -8,15 +8,15 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 237 claims: 163 evidenced, 55 planned, and 19 not verified. It maps 88 guidelines from 5 guides; 68 list claims and 20 are exempt.
+The register holds 239 claims: 172 evidenced, 48 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 138 | 3 | 0 |
 | property test | 14 | 1 | 0 |
 | stateful model | 2 | 13 | 0 |
-| Quint model with production trace replay | 2 | 33 | 0 |
-| Lean proof with differential test | 4 | 4 | 0 |
+| Quint model with production trace replay | 8 | 29 | 0 |
+| Lean proof with differential test | 7 | 1 | 0 |
 | differential oracle | 3 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
 | none | 0 | 0 | 4 |
@@ -123,8 +123,8 @@ Each claim holds only while its listed assumptions hold.
 | `npm-registry` | The npm registry enforces version immutability, trusted publishing, and provenance as documented. | 17 |
 | `vercel` | Vercel builds and serves deployments as its project settings and APIs report. | 37 |
 | `administrator-readback` | A signed-in administrator performs the documented live readbacks and reports them faithfully. | 15 |
-| `ci-runner` | GitHub-hosted runners execute the reviewed workflow faithfully. | 14 |
-| `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 13 |
+| `ci-runner` | GitHub-hosted runners execute the reviewed workflow faithfully. | 16 |
+| `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 15 |
 | `edge-runtime` | The Vercel Edge runtime implements the Web Platform APIs the edge code uses. | 5 |
 
 ## Claims by area
@@ -408,13 +408,14 @@ Operation grants bind the exact account incarnation, manifest, contract, and exe
 
 An allow-once approval admits one exact pending request at most once (allowed implies uses ≤ 1), including across client crash, expiry, and reconnect; drift, expiry, and shutdown revoke proofs.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `kb/plans/formal-verification-assurance.md`: “Model digest binding at dispatch, lease expiry, crash, and reconnect. The invariant `allowed ⇒ uses ≤ 1` drives the fix for D13.”
-- Evidence: `src/control/approval-broker.test.ts`, `src/control/connections.test.ts`
+- Evidence: `scripts/verification-approvals-replay.test.ts`, `src/control/approval-broker.test.ts`, `src/control/connections.test.ts`, `verification/quint/approvals.qnt`
 - Assumptions: `same-user-trusted`
 - Not verified:
-  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Plan defect D13 is fixed: the broker binds each allow-once grant to its holder's use secret at request or first allowed check. The stateful fast-check model in src/control/approval-broker.test.ts samples checks, races, crashes, release, and expiry; it is not the Quint model or a proof.
+  - verification/quint/approvals.qnt checks one request, two holders and an anonymous caller, with at most two crashes and two policy changes per trace, to Quint simulation depth 20 and Apalache length 10. Its ITF replay drives the production ApprovalBroker with 1,000 traces of up to 30 steps. Longer schedules, more requests, and more callers are sampled only by the fast-check model in src/control/approval-broker.test.ts.
+  - The model covers the broker alone. Connection reconnect, dispatch digest binding outside the broker, and control-service shutdown are covered only by the listed example tests.
+  - Plan defect D13 is fixed: the broker binds each allow-once grant to its holder's use secret at request or first allowed check. The Quint variants stepShared, stepFirstCheck and stepAdmitBeforeAwait reproduce the pre-fix defects, and the replay shows the production broker refuses each of their violating traces.
 
 #### `shutdown-settles-before-custody-release`
 
@@ -840,9 +841,9 @@ A media item is promoted only after its inspectable archive, versioned manifest,
 
 - Planned: Quint model with production trace replay in plan Phase 4.
 - Source: `AGENTS.md`: “Promote an item only after its inspectable archive, versioned manifest, and SHA-256 records pass complete verification.”
-- Evidence: `src/media/archive.property.test.ts`, `src/media/archive.test.ts`, `src/media/lock.test.ts`, `src/media/manifest.property.test.ts`, `src/media/manifest.test.ts`, `src/media/revision.property.test.ts`
+- Evidence: `scripts/verification-media-replay.test.ts`, `src/media/archive.property.test.ts`, `src/media/archive.test.ts`, `src/media/lock.test.ts`, `src/media/manifest.property.test.ts`, `src/media/manifest.test.ts`, `src/media/revision.property.test.ts`, `verification/quint/media.qnt`
 - Assumptions: `filesystem-atomic-rename`, `media-tools`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified: verification/quint/media.qnt and its production replay check that promotion needs the current lock and that only a torn head leaves the lineage, but they take discovery's verification verdict as given. The law "a promoted item passed closed verification" is not yet a model invariant, so this claim stays planned; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
 
 #### `media-crash-lineage-progress`
 
@@ -850,23 +851,24 @@ Each capture subject has one revision lineage with a single head, and a crash or
 
 - Planned: Quint model with production trace replay in plan Phase 4.
 - Source: `kb/plans/formal-verification-assurance.md`: “The progress property "a crash never makes a lineage permanently invalid" drives D10.”
-- Evidence: `src/media/archive.property.test.ts`, `src/media/lock.test.ts`, `src/media/revision.property.test.ts`, `src/media/revision.test.ts`
+- Evidence: `scripts/verification-media-replay.test.ts`, `src/media/archive.property.test.ts`, `src/media/lock.test.ts`, `src/media/revision.property.test.ts`, `src/media/revision.test.ts`, `verification/quint/media.qnt`
 - Assumptions: `filesystem-atomic-rename`, `filesystem-durability`, `process-liveness`, `media-tools`
 - Not verified:
-  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Plan defect D10 is open: only the direct capture file and the lock are fsynced before promotion, so a torn file after power loss can stop a lineage with no repair path.
+  - The progress property is not checked. verification/quint/media.qnt checks only safety: its production replay repairs a torn head by quarantine and recaptures, and the stepQuarantineAny variant shows why only a torn head may be moved. A liveness check under fairness is still scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Plan defect D10 is fixed: the staging tree and its parent directories are fsynced before and after the promotion rename, and a start that finds a torn head moves it to the quarantine instead of stopping the lineage.
 
 #### `media-lock-exclusion`
 
 Media item locks exclude concurrent owners; release never removes a replacement lock and final publication is an atomic same-volume rename.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `SECURITY.md`: “Media locks coordinate Ghostget processes, and final publication uses an atomic same-volume rename.”
-- Evidence: `src/media/lock.test.ts`
+- Evidence: `scripts/verification-media-replay.test.ts`, `src/media/lock.test.ts`, `verification/quint/media.qnt`
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`, `process-liveness`, `media-tools`
 - Not verified:
-  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Plan defect D11 is open: the promotion `rename` is not fenced by a lock generation, and lock liveness trusts `kill(pid, 0)` over heartbeat age.
+  - verification/quint/media.qnt checks two processes on one revision lineage to Quint simulation depth 12 and Apalache length 8. Its noPromotionWithoutLock invariant restates the guard at the rename, so the checkers show only that the unfenced variant breaks it; noForeignRevision is the lock law the model derives, and the replay is what binds the guard to production. Its ITF replay drives production mediaUrl and the item lock with 300 traces in one test process, not the plan's 1,000: on the CI runner 1,000 traces took 159 seconds and pushed the verification step to 13.6 minutes. In the replay, runs interleave at the capture and flush gates, a crash rewrites the lock to a dead PID, and heartbeat loss is an aged lock file. Truly concurrent processes, other filesystems, and network volumes are not exercised.
+  - The atomicity of a same-volume rename is an assumption (filesystem-atomic-rename), not a checked property.
+  - Plan defect D11 is fixed: promotion renames only through the lock's fence, which checks the token and inode immediately before the rename, and a stale heartbeat is reclaimable even when its PID answers. The Quint variant stepUnfenced reproduces the unfenced rename, and the replay shows production refuses each of its violating traces.
 
 #### `media-cancellation-stops-work`
 
@@ -874,11 +876,11 @@ Cancelling a media acquisition stops every process it started, including ffmpeg 
 
 - Planned: example test in plan Phase 6.
 - Source: `kb/plans/formal-verification-assurance.md`: “D9: spawn in a process group and kill the group. Check cancellation before promotion.”
-- Evidence: `src/media/process.test.ts`
+- Evidence: `scripts/verification-media-replay.test.ts`, `src/media/process.test.ts`, `verification/quint/media.qnt`
 - Assumptions: `filesystem-atomic-rename`, `media-tools`
 - Not verified:
-  - The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Plan defect D9 is open: cancellation signals only yt-dlp, not its process group, so ffmpeg and HLS grandchildren keep running, and a cancel after transcription can still return `created`.
+  - The example test for the whole claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Plan defect D9 is fixed: yt-dlp runs in its own process group and cancellation signals the group, and the promotion fence checks cancellation immediately before the rename. verification/quint/media.qnt checks that a cancelled yt-dlp capture never answers created, its stepLateCancel variant reproduces the pre-fix promotion, and its replay drives production mediaUrl. The direct HTTP pipeline and grandchild process termination are not modelled.
 
 #### `media-verify-recomputes-hashes`
 
@@ -949,12 +951,13 @@ The media provider identity and source asset key, the authorization-context dige
 
 A messaging turn is one composite confirmation and one ordered, prefix-durable run: the accepted prefix is monotone, at most one part is dispatching or indeterminate, and no part is redispatched.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `SECURITY.md`: “A messaging turn is one composite confirmation and one ordered, prefix-durable run.”
-- Evidence: `src/messaging-action-store.test.ts`, `src/messaging-confirmation-recovery.test.ts`, `src/messaging-provider-identity-collision.test.ts`, `src/messaging-runtime-composite.test.ts`, `src/messaging-runtime-execution.test.ts`
+- Evidence: `scripts/verification-messaging-replay.test.ts`, `src/messaging-action-store.test.ts`, `src/messaging-confirmation-recovery.test.ts`, `src/messaging-provider-identity-collision.test.ts`, `src/messaging-runtime-composite.test.ts`, `src/messaging-runtime-execution.test.ts`, `verification/quint/messaging.qnt`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified:
-  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - The Quint model covers one run of three parts; Apalache checks it to depth 10 and seeded simulation samples 2,000 runs of up to 12 steps. Neither is a proof for longer runs or more parts.
+  - The replay drives `transitionMessagingRun` and the runtime's `messagingRecoveryEvent` over 1,000 seeded traces. It does not cover the durable journal writes, file locking, or the provider adapters around them.
   - A provider history window may evict the accepted prefix before recovery reads it.
 
 #### `messaging-recovery-model`
@@ -981,11 +984,14 @@ Before every remaining part, current provider state is rechecked and the run sto
 
 The messaging run reducer invariant is inductive under transitionMessagingRun.
 
-- Planned: Lean proof with differential test in plan Phase 5.
+- Evidenced by Lean proof with differential test.
 - Source: `kb/plans/formal-verification-assurance.md`: “The same inductive-invariant proof for `transitionMessagingRun`.”
-- Evidence: `src/messaging-action-store.test.ts`
+- Evidence: `verification/lean/GhostgetVerification/MessagingRun.lean`, `verification/lean/Differential.lean`, `scripts/verification-lean-oracle.ts`, `scripts/verification-lean-messaging-run.test.ts`, `src/messaging-action-store.test.ts`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
-- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The proof is about a Lean model of assertRun, the structural checks of parseRun, and transitionMessagingRun. The differential test ties the model to the TypeScript on generated runs of up to eight parts only; it is not a proof that the TypeScript equals the model.
+  - The transition's own guards do not preserve the invariant alone: an accepted part whose provider message ID repeats one in the accepted prefix is rejected only by the final parseRun. The production-shape theorem holds by construction, because the model rechecks the invariant; the substantive results are that the guarded step keeps the invariant outside that event and that the final parse rejects exactly that event.
+  - Part text, digests, reply references, delivery and read fields, context evidence, encryption, durable storage, and the compare-and-swap write in updateMessagingRun are outside the model.
 
 #### `messaging-uncertain-not-resubmitted`
 
@@ -1129,11 +1135,14 @@ Dispatch callbacks persist transitions against one current journal cell; a stale
 
 assertJournalInvariants is inductive under transitionRunJournal and dispatch counters are monotone; skipped, duplicate, or contradictory progress is rejected.
 
-- Planned: Lean proof with differential test in plan Phase 5.
+- Evidenced by Lean proof with differential test.
 - Source: `kb/plans/formal-verification-assurance.md`: “`assertJournalInvariants` is inductive under `transitionRunJournal`, and the dispatch counters are monotone.”
-- Evidence: `src/run-journal.property.test.ts`, `src/run-journal.test.ts`
+- Evidence: `verification/lean/GhostgetVerification/RunJournal.lean`, `verification/lean/Differential.lean`, `scripts/verification-lean-oracle.ts`, `scripts/verification-lean-run-journal.test.ts`, `src/run-journal.property.test.ts`, `src/run-journal.test.ts`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
-- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The proof is about a Lean model of assertJournalInvariants, the parseDispatch bounds, and transitionRunJournal. The differential test ties the model to the TypeScript on generated journals and events only; it is not a proof that the TypeScript equals the model.
+  - The transition's own guards do not preserve the invariant alone: an explicit no-op success before the confirmation is consumed and a duplicate successor naming its own run are rejected only by the final parseRunJournal. The production-shape theorem holds by construction, because the model rechecks the invariant; the substantive results are that the guarded step keeps the invariant outside those two events and that the final parse rejects exactly those two.
+  - Adapter, auth, owner identity, digests, the final origin, error text, the 64 KiB bound, durable storage, and the compare-and-swap write in updateRunJournal are outside the model.
 
 #### `public-rejection-preserved`
 
@@ -1161,23 +1170,29 @@ publish_npm runs only after verify, attest and publish succeed (the immutable Gi
 
 An npm failure never unpublishes or blocks the GitHub Release.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “an npm failure is rerun from the same run and never blocks canonical publication.”
-- Evidence: `scripts/npm-release-workflow.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/verification-release-replay.test.ts`, `verification/quint/release.qnt`
 - Assumptions: `github-api`, `npm-registry`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The model takes the job order (npm after the immutable Release) from the `needs` of `.github/workflows/release.yml`; it does not check that workflow file.
+  - The replay drives the publisher handoff, promotion authority, and canonical download validators. The draft, resume, and Latest convergence of `publishCanonicalRelease` are modeled but not replayed.
+  - The model covers one run of up to three attempts; Apalache checks it to depth 10 and seeded simulation samples 2,000 runs of up to 12 steps.
 
 #### `npm-failure-never-blocks-promotion`
 
 A Release attempt that published the canonical Release and then failed a later npm job can still be promoted to the website through manual recovery: its authority resolution and the canonical download admit that attempt only through its bounded job inventory proving the four canonical jobs succeeded, and after a re-run of all jobs, only through the earlier receipt attempt that the Release body names, whose own inventory must prove all four. Automatic promotion admits only a first attempt that succeeded.
 
-- Evidenced by example test.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “Manual recovery requires a positive current attempt and admits an unsuccessful latest attempt only through that attempt's own bounded job inventory proving all four or, when that attempt did not publish, through the earlier receipt attempt that the Release body names, whose own bounded inventory must prove all four; the mutable body only selects which inventory to read.”
-- Evidence: `scripts/npm-release-workflow.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/verification-release-replay.test.ts`, `verification/quint/release.qnt`
 - Assumptions: `github-api`, `npm-registry`
 - Not verified:
-  - Only the enumerated example cases are checked.
+  - The shell gate in `.github/workflows/website-production.yml` that limits automatic promotion to a successful first attempt is outside the model and its replay. The model lets automatic promotion admit any successful latest attempt, a superset of what the gate allows.
   - Promotion after an npm failure waits for an owner to dispatch manual recovery; the automatic path fails its first-attempt gate by design.
+  - The model's `promotionNotBlocked` ghost restates the manual admission rule, so the invariant holds by construction; the D8 mutant and the replay's verdict equality carry the evidence. The claim holds only while the owner reruns failed jobs: a rerun of all jobs after a failed-jobs rerun published the Release leaves neither the latest nor the receipt attempt with four successful jobs, and production refuses manual promotion (plan D15).
+  - The replay serves synthetic run, job inventory, and Release responses to `resolveReleaseAuthority`; it does not exercise the deadline, pagination, or main-branch ancestry reads.
+  - The model covers one run of up to three attempts; Apalache checks it to depth 10 and seeded simulation samples 2,000 runs of up to 12 steps.
 
 #### `npm-reauthorize-before-oidc`
 
@@ -2082,14 +2097,15 @@ The stable-release concurrency group serializes Release runs without cancelling 
 
 Re-running only the failed jobs of a Release run publishes the exact bytes that an earlier attempt of the same run attested: the publisher downloads the carried artifact only by its numeric ID behind an exact-identity guard, admits a manifest whose attempt is no later than the current attempt of the same run, and requires every signed certificate to name that attempt. The canonical download admits an attesting attempt whose publication failed only when a strictly later completed attempt of the same run proves all four canonical jobs in its own job inventory.
 
-- Evidenced by example test.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “The GitHub publisher downloads the attested artifact only by numeric artifact ID behind an exact-identity guard, so a failed-jobs rerun publishes the exact bytes and signed attempt its run already attested, never another run's or a later attempt's.”
-- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/npm-release-workflow.test.ts`
+- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/npm-release-workflow.test.ts`, `scripts/verification-release-replay.test.ts`, `verification/quint/release.qnt`
 - Assumptions: `github-api`, `github-enforcement`
 - Not verified:
-  - The publisher is checked on its enumerated examples; a property samples the canonical download's admission over attempts and job conclusions. Neither is a proof over all inputs.
-  - That GitHub carries the verify and attestation outputs and their artifact into a failed-jobs rerun is an assumption about GitHub Actions; CI does not check it.
+  - The model and its replay cover the handoff's attempt and signature binding and the canonical download's admission. Downloading the carried artifact by numeric ID behind the exact-identity guard is checked only by the listed example tests.
+  - That GitHub carries the verify and attestation outputs and their artifact into a failed-jobs rerun, and reports every job of an attempt, carried or not, under that attempt, are assumptions about GitHub Actions; CI does not check them.
   - A failed attestation job cannot be recovered this way, because attestation downloads the build of its own attempt; re-running all jobs rebuilds under a new attempt, which the draft body check rejects.
+  - The model covers one run of up to three attempts; Apalache checks it to depth 10 and seeded simulation samples 2,000 runs of up to 12 steps.
 
 #### `release-workflow-isolation`
 
@@ -2384,7 +2400,7 @@ Hraness dependencies are pinned to reviewed immutable releases or full commits, 
   - Only the enumerated example cases are checked.
   - `website/site.test.ts` asserts only the design-kit, site-footer, and ui pins; the other Hraness dependencies, and rejection of branches, sibling paths, and submodules, are not checked.
 
-### `verification` (11 claims)
+### `verification` (13 claims)
 
 #### `property-soak-multiplier`
 
@@ -2429,6 +2445,33 @@ The Quint smoke model typechecks, passes seeded simulation and bounded Apalache 
 - Not verified:
   - Only the enumerated example cases are checked.
   - The smoke model is toolchain evidence: its traces replay through a TypeScript reference lock, not production code.
+
+#### `verification-nightly-depth`
+
+`bun run ./scripts/verification-tools.ts quint-nightly` checks every Quint model at its recorded `nightly` bounds, which the parser rejects when any bound falls below its CI bound or none deepens it; the soak multiplies the run count and time limit of every `assertProperty` and `assertAsyncProperty` by an explicit `GHOSTGET_PROPERTY_RUNS` from 2 to 100; and `.github/workflows/verification-nightly.yml` runs both with the reducer mutants on a schedule, read-only, SHA-pinned, and outside `Required`.
+
+- Evidenced by example test.
+- Source: `verification/AGENTS.md`: “Give a Quint model `nightly` bounds only when they deepen its CI bounds and none falls below them. Keep `.github/workflows/verification-nightly.yml` read-only and outside `Required`”
+- Evidence: `.github/workflows/verification-nightly.yml`, `scripts/ci-pr-gate.test.ts`, `scripts/verification-soak.ts`, `scripts/verification-tools.test.ts`, `src/test-support.test.ts`, `verification/quint/models.json`
+- Assumptions: `ci-runner`, `verification-tools`
+- Not verified:
+  - Only the enumerated example cases are checked; `Required` checks the nightly configuration, not a nightly run.
+  - The nightly workflow has not run on `main` yet. Its first scheduled run after merge is the first CI evidence at the deeper bounds and soak multiplier.
+  - Only `verification/quint/lock.qnt`, the toolchain smoke model with a `reference` replay target, lists `nightly` bounds. The six production models run in the nightly at their CI bounds, so the nightly deepens no model of production code until one lists `nightly` bounds.
+  - A nightly failure blocks no merge or release. Only the quarterly review in `docs/claims-review.md` checks that failures were triaged, and no automated check enforces that review.
+  - The serialized omni runtime test file is outside the soak.
+
+#### `verification-source-mutants`
+
+Every mutant in `verification/mutants.json` changes exactly one occurrence of a guard in `src/run-journal.ts`, `src/messaging-action-store.ts`, or `src/linked-device-lifecycle-journal.ts` and still transpiles, and `bun run ./scripts/verification-mutants.ts` reports it killed only when its fully named test passes alone on unmodified source and is the only failing test on the mutant; a timeout, another failure, or unparsed output is inconclusive and fails the run.
+
+- Evidenced by example test.
+- Source: `verification/AGENTS.md`: “List every reducer source mutant in `mutants.json` with its defect and the full name of the one test that must fail.”
+- Evidence: `scripts/verification-mutants.ts`, `scripts/verification-tools.test.ts`, `verification/mutants.json`
+- Assumptions: `ci-runner`, `verification-tools`
+- Not verified:
+  - `Required` checks only that each mutant applies, compiles, and names a declared test; the kill runs happen in the nightly workflow.
+  - The manifest lists hand-picked guards. It is not a mutation score over the reducers, and StrykerJS was evaluated and not adopted (see `docs/claims-review.md`).
 
 #### `verification-itf-strict`
 
@@ -2529,11 +2572,14 @@ The public web gateway dispatches only bounded HTTPS GET and HEAD retrieval requ
 
 Web policy decision is default-deny; deny beats ask beats allow, adding a deny rule never widens the result, and domain/path/query-key prefix matching is exact.
 
-- Planned: Lean proof with differential test in plan Phase 5.
+- Evidenced by Lean proof with differential test.
 - Source: `SECURITY.md`: “under explicit domain, path, and query-key rules”
-- Evidence: `src/control/gateway.test.ts`, `src/control/validation.test.ts`
+- Evidence: `verification/lean/GhostgetVerification/WebPolicy.lean`, `verification/lean/Differential.lean`, `scripts/verification-lean-oracle.ts`, `scripts/verification-lean-web-policy.test.ts`, `src/control/gateway.test.ts`, `src/control/validation.test.ts`
 - Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
-- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The Lean model covers the decision, the limits, and rule matching in checkWebRequest over parsed rules and an already parsed URL. WHATWG URL parsing, publicUrl, parseWebRule, and DNS and TLS are assumptions, not proofs.
+  - Strings are modelled as lists of characters. That equals the production UTF-16 startsWith only because parseWebRule and publicUrl admit ASCII origins, paths, and query keys; the proof does not check that admission.
+  - The differential test runs the unchanged web-policy.ts over an in-memory private state store, not the real store and its helper. It samples three origins, one a string prefix of another, three path segments, and four query keys, so it checks only its generated cases.
 
 #### `web-gateway-pinned-transport`
 

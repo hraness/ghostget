@@ -681,6 +681,48 @@ export function transitionMessagingRun(
   });
 }
 
+/**
+ * The event that terminalizes a pending run after a crash, or null for a
+ * terminal run. A dispatching part may have reached the provider, so it
+ * becomes indeterminate; an unattempted or claimed part never crossed
+ * dispatch, so it stops categorically. Recovery never dispatches again.
+ */
+export function messagingRecoveryEvent(
+  run: MessagingRunV1,
+  observedAt: Date,
+): MessagingRunEventV1 | null {
+  assertRun(run);
+  if (run.state !== "pending") return null;
+  const active = run.parts[run.provenPartCount];
+  if (active === undefined) {
+    throw new Error("pending messaging recovery has no active part");
+  }
+  const at = new Date(Math.max(
+    observedAt.getTime(),
+    Date.parse(run.recordedAt),
+  )).toISOString();
+  if (active.state === "dispatching") {
+    return Object.freeze({
+      type: "indeterminate",
+      index: run.provenPartCount,
+      reason: "journal-recovery-required",
+      at,
+    });
+  }
+  if (active.state === "unattempted" || active.state === "claimed") {
+    return Object.freeze({
+      type: "categorical-stop",
+      index: run.provenPartCount,
+      partState: run.provenPartCount === 0
+        ? "failed-before-dispatch"
+        : "failed-permanent",
+      reason: "journal-recovery-required",
+      at,
+    });
+  }
+  throw new Error("pending messaging recovery state is contradictory");
+}
+
 export function updateMessagingRun(
   snapshot: MessagingRunSnapshotV1,
   event: MessagingRunEventV1,

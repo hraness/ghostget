@@ -719,6 +719,22 @@
     },
     {
       "guide": "verification/AGENTS.md",
+      "anchor": "Give a Quint model `nightly`",
+      "digest": "dba8a285d34fd63e049ad92b6075c24df1f8fd46afb57658a0772ccaa653ac9a",
+      "claims": [
+        "verification-nightly-depth"
+      ]
+    },
+    {
+      "guide": "verification/AGENTS.md",
+      "anchor": "List every reducer source",
+      "digest": "52bcb0843fe0e9d8ae90b373dda3b5130c5a3e3f443b686fbdce2d4861a4192f",
+      "claims": [
+        "verification-source-mutants"
+      ]
+    },
+    {
+      "guide": "verification/AGENTS.md",
       "anchor": "Keep the Lean project",
       "digest": "e6cafc5d709902a85345bd4212e0f83b9ddb360f831c6bb272c0ee9037e95c2b",
       "claims": [
@@ -1094,9 +1110,12 @@
         "quote": "under explicit domain, path, and query-key rules"
       },
       "layer": "lean",
-      "status": "planned",
-      "phase": 5,
+      "status": "evidenced",
       "evidence": [
+        "verification/lean/GhostgetVerification/WebPolicy.lean",
+        "verification/lean/Differential.lean",
+        "scripts/verification-lean-oracle.ts",
+        "scripts/verification-lean-web-policy.test.ts",
         "src/control/gateway.test.ts",
         "src/control/validation.test.ts"
       ],
@@ -1106,7 +1125,9 @@
         "dns-tls"
       ],
       "notVerified": [
-        "The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The Lean model covers the decision, the limits, and rule matching in checkWebRequest over parsed rules and an already parsed URL. WHATWG URL parsing, publicUrl, parseWebRule, and DNS and TLS are assumptions, not proofs.",
+        "Strings are modelled as lists of characters. That equals the production UTF-16 startsWith only because parseWebRule and publicUrl admit ASCII origins, paths, and query keys; the proof does not check that admission.",
+        "The differential test runs the unchanged web-policy.ts over an in-memory private state store, not the real store and its helper. It samples three origins, one a string prefix of another, three path segments, and four query keys, so it checks only its generated cases."
       ]
     },
     {
@@ -1526,18 +1547,20 @@
         "quote": "Model digest binding at dispatch, lease expiry, crash, and reconnect. The invariant `allowed ⇒ uses ≤ 1` drives the fix for D13."
       },
       "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
+        "scripts/verification-approvals-replay.test.ts",
         "src/control/approval-broker.test.ts",
-        "src/control/connections.test.ts"
+        "src/control/connections.test.ts",
+        "verification/quint/approvals.qnt"
       ],
       "assumptions": [
         "same-user-trusted"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Plan defect D13 is fixed: the broker binds each allow-once grant to its holder's use secret at request or first allowed check. The stateful fast-check model in src/control/approval-broker.test.ts samples checks, races, crashes, release, and expiry; it is not the Quint model or a proof."
+        "verification/quint/approvals.qnt checks one request, two holders and an anonymous caller, with at most two crashes and two policy changes per trace, to Quint simulation depth 20 and Apalache length 10. Its ITF replay drives the production ApprovalBroker with 1,000 traces of up to 30 steps. Longer schedules, more requests, and more callers are sampled only by the fast-check model in src/control/approval-broker.test.ts.",
+        "The model covers the broker alone. Connection reconnect, dispatch digest binding outside the broker, and control-service shutdown are covered only by the listed example tests.",
+        "Plan defect D13 is fixed: the broker binds each allow-once grant to its holder's use secret at request or first allowed check. The Quint variants stepShared, stepFirstCheck and stepAdmitBeforeAwait reproduce the pre-fix defects, and the replay shows the production broker refuses each of their violating traces."
       ]
     },
     {
@@ -1624,19 +1647,21 @@
       "status": "planned",
       "phase": 4,
       "evidence": [
+        "scripts/verification-media-replay.test.ts",
         "src/media/archive.property.test.ts",
         "src/media/archive.test.ts",
         "src/media/lock.test.ts",
         "src/media/manifest.property.test.ts",
         "src/media/manifest.test.ts",
-        "src/media/revision.property.test.ts"
+        "src/media/revision.property.test.ts",
+        "verification/quint/media.qnt"
       ],
       "assumptions": [
         "filesystem-atomic-rename",
         "media-tools"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "verification/quint/media.qnt and its production replay check that promotion needs the current lock and that only a torn head leaves the lineage, but they take discovery's verification verdict as given. The law \"a promoted item passed closed verification\" is not yet a model invariant, so this claim stays planned; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
       ]
     },
     {
@@ -1651,10 +1676,12 @@
       "status": "planned",
       "phase": 4,
       "evidence": [
+        "scripts/verification-media-replay.test.ts",
         "src/media/archive.property.test.ts",
         "src/media/lock.test.ts",
         "src/media/revision.property.test.ts",
-        "src/media/revision.test.ts"
+        "src/media/revision.test.ts",
+        "verification/quint/media.qnt"
       ],
       "assumptions": [
         "filesystem-atomic-rename",
@@ -1663,8 +1690,8 @@
         "media-tools"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Plan defect D10 is open: only the direct capture file and the lock are fsynced before promotion, so a torn file after power loss can stop a lineage with no repair path."
+        "The progress property is not checked. verification/quint/media.qnt checks only safety: its production replay repairs a torn head by quarantine and recaptures, and the stepQuarantineAny variant shows why only a torn head may be moved. A liveness check under fairness is still scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
+        "Plan defect D10 is fixed: the staging tree and its parent directories are fsynced before and after the promotion rename, and a start that finds a torn head moves it to the quarantine instead of stopping the lineage."
       ]
     },
     {
@@ -1676,10 +1703,11 @@
         "quote": "Media locks coordinate Ghostget processes, and final publication uses an atomic same-volume rename."
       },
       "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
-        "src/media/lock.test.ts"
+        "scripts/verification-media-replay.test.ts",
+        "src/media/lock.test.ts",
+        "verification/quint/media.qnt"
       ],
       "assumptions": [
         "filesystem-atomic-rename",
@@ -1688,8 +1716,9 @@
         "media-tools"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Plan defect D11 is open: the promotion `rename` is not fenced by a lock generation, and lock liveness trusts `kill(pid, 0)` over heartbeat age."
+        "verification/quint/media.qnt checks two processes on one revision lineage to Quint simulation depth 12 and Apalache length 8. Its noPromotionWithoutLock invariant restates the guard at the rename, so the checkers show only that the unfenced variant breaks it; noForeignRevision is the lock law the model derives, and the replay is what binds the guard to production. Its ITF replay drives production mediaUrl and the item lock with 300 traces in one test process, not the plan's 1,000: on the CI runner 1,000 traces took 159 seconds and pushed the verification step to 13.6 minutes. In the replay, runs interleave at the capture and flush gates, a crash rewrites the lock to a dead PID, and heartbeat loss is an aged lock file. Truly concurrent processes, other filesystems, and network volumes are not exercised.",
+        "The atomicity of a same-volume rename is an assumption (filesystem-atomic-rename), not a checked property.",
+        "Plan defect D11 is fixed: promotion renames only through the lock's fence, which checks the token and inode immediately before the rename, and a stale heartbeat is reclaimable even when its PID answers. The Quint variant stepUnfenced reproduces the unfenced rename, and the replay shows production refuses each of its violating traces."
       ]
     },
     {
@@ -1704,15 +1733,17 @@
       "status": "planned",
       "phase": 6,
       "evidence": [
-        "src/media/process.test.ts"
+        "scripts/verification-media-replay.test.ts",
+        "src/media/process.test.ts",
+        "verification/quint/media.qnt"
       ],
       "assumptions": [
         "filesystem-atomic-rename",
         "media-tools"
       ],
       "notVerified": [
-        "The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Plan defect D9 is open: cancellation signals only yt-dlp, not its process group, so ffmpeg and HLS grandchildren keep running, and a cancel after transcription can still return `created`."
+        "The example test for the whole claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
+        "Plan defect D9 is fixed: yt-dlp runs in its own process group and cancellation signals the group, and the promotion fence checks cancellation immediately before the rename. verification/quint/media.qnt checks that a cancelled yt-dlp capture never answers created, its stepLateCancel variant reproduces the pre-fix promotion, and its replay drives production mediaUrl. The direct HTTP pipeline and grandchild process termination are not modelled."
       ]
     },
     {
@@ -2775,9 +2806,12 @@
         "quote": "`assertJournalInvariants` is inductive under `transitionRunJournal`, and the dispatch counters are monotone."
       },
       "layer": "lean",
-      "status": "planned",
-      "phase": 5,
+      "status": "evidenced",
       "evidence": [
+        "verification/lean/GhostgetVerification/RunJournal.lean",
+        "verification/lean/Differential.lean",
+        "scripts/verification-lean-oracle.ts",
+        "scripts/verification-lean-run-journal.test.ts",
         "src/run-journal.property.test.ts",
         "src/run-journal.test.ts"
       ],
@@ -2786,7 +2820,9 @@
         "provider-behaviour"
       ],
       "notVerified": [
-        "The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The proof is about a Lean model of assertJournalInvariants, the parseDispatch bounds, and transitionRunJournal. The differential test ties the model to the TypeScript on generated journals and events only; it is not a proof that the TypeScript equals the model.",
+        "The transition's own guards do not preserve the invariant alone: an explicit no-op success before the confirmation is consumed and a duplicate successor naming its own run are rejected only by the final parseRunJournal. The production-shape theorem holds by construction, because the model rechecks the invariant; the substantive results are that the guarded step keeps the invariant outside those two events and that the final parse rejects exactly those two.",
+        "Adapter, auth, owner identity, digests, the final origin, error text, the 64 KiB bound, durable storage, and the compare-and-swap write in updateRunJournal are outside the model."
       ]
     },
     {
@@ -2819,21 +2855,23 @@
         "quote": "A messaging turn is one composite confirmation and one ordered, prefix-durable run."
       },
       "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
+        "scripts/verification-messaging-replay.test.ts",
         "src/messaging-action-store.test.ts",
         "src/messaging-confirmation-recovery.test.ts",
         "src/messaging-provider-identity-collision.test.ts",
         "src/messaging-runtime-composite.test.ts",
-        "src/messaging-runtime-execution.test.ts"
+        "src/messaging-runtime-execution.test.ts",
+        "verification/quint/messaging.qnt"
       ],
       "assumptions": [
         "filesystem-durability",
         "provider-behaviour"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
+        "The Quint model covers one run of three parts; Apalache checks it to depth 10 and seeded simulation samples 2,000 runs of up to 12 steps. Neither is a proof for longer runs or more parts.",
+        "The replay drives `transitionMessagingRun` and the runtime's `messagingRecoveryEvent` over 1,000 seeded traces. It does not cover the durable journal writes, file locking, or the provider adapters around them.",
         "A provider history window may evict the accepted prefix before recovery reads it."
       ]
     },
@@ -2892,9 +2930,12 @@
         "quote": "The same inductive-invariant proof for `transitionMessagingRun`."
       },
       "layer": "lean",
-      "status": "planned",
-      "phase": 5,
+      "status": "evidenced",
       "evidence": [
+        "verification/lean/GhostgetVerification/MessagingRun.lean",
+        "verification/lean/Differential.lean",
+        "scripts/verification-lean-oracle.ts",
+        "scripts/verification-lean-messaging-run.test.ts",
         "src/messaging-action-store.test.ts"
       ],
       "assumptions": [
@@ -2902,7 +2943,9 @@
         "provider-behaviour"
       ],
       "notVerified": [
-        "The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The proof is about a Lean model of assertRun, the structural checks of parseRun, and transitionMessagingRun. The differential test ties the model to the TypeScript on generated runs of up to eight parts only; it is not a proof that the TypeScript equals the model.",
+        "The transition's own guards do not preserve the invariant alone: an accepted part whose provider message ID repeats one in the accepted prefix is rejected only by the final parseRun. The production-shape theorem holds by construction, because the model rechecks the invariant; the substantive results are that the guarded step keeps the invariant outside that event and that the final parse rejects exactly that event.",
+        "Part text, digests, reply references, delivery and read fields, context evidence, encryption, durable storage, and the compare-and-swap write in updateMessagingRun are outside the model."
       ]
     },
     {
@@ -4904,20 +4947,23 @@
         "path": "AGENTS.md",
         "quote": "The GitHub publisher downloads the attested artifact only by numeric artifact ID behind an exact-identity guard, so a failed-jobs rerun publishes the exact bytes and signed attempt its run already attested, never another run's or a later attempt's."
       },
-      "layer": "example",
+      "layer": "quint",
       "status": "evidenced",
       "evidence": [
         "scripts/github-release-artifact.test.ts",
-        "scripts/npm-release-workflow.test.ts"
+        "scripts/npm-release-workflow.test.ts",
+        "scripts/verification-release-replay.test.ts",
+        "verification/quint/release.qnt"
       ],
       "assumptions": [
         "github-api",
         "github-enforcement"
       ],
       "notVerified": [
-        "The publisher is checked on its enumerated examples; a property samples the canonical download's admission over attempts and job conclusions. Neither is a proof over all inputs.",
-        "That GitHub carries the verify and attestation outputs and their artifact into a failed-jobs rerun is an assumption about GitHub Actions; CI does not check it.",
-        "A failed attestation job cannot be recovered this way, because attestation downloads the build of its own attempt; re-running all jobs rebuilds under a new attempt, which the draft body check rejects."
+        "The model and its replay cover the handoff's attempt and signature binding and the canonical download's admission. Downloading the carried artifact by numeric ID behind the exact-identity guard is checked only by the listed example tests.",
+        "That GitHub carries the verify and attestation outputs and their artifact into a failed-jobs rerun, and reports every job of an attempt, carried or not, under that attempt, are assumptions about GitHub Actions; CI does not check them.",
+        "A failed attestation job cannot be recovered this way, because attestation downloads the build of its own attempt; re-running all jobs rebuilds under a new attempt, which the draft body check rejects.",
+        "The model covers one run of up to three attempts; Apalache checks it to depth 10 and seeded simulation samples 2,000 runs of up to 12 steps."
       ]
     },
     {
@@ -4994,17 +5040,20 @@
         "quote": "an npm failure is rerun from the same run and never blocks canonical publication."
       },
       "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
-        "scripts/npm-release-workflow.test.ts"
+        "scripts/npm-release-workflow.test.ts",
+        "scripts/verification-release-replay.test.ts",
+        "verification/quint/release.qnt"
       ],
       "assumptions": [
         "github-api",
         "npm-registry"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The model takes the job order (npm after the immutable Release) from the `needs` of `.github/workflows/release.yml`; it does not check that workflow file.",
+        "The replay drives the publisher handoff, promotion authority, and canonical download validators. The draft, resume, and Latest convergence of `publishCanonicalRelease` are modeled but not replayed.",
+        "The model covers one run of up to three attempts; Apalache checks it to depth 10 and seeded simulation samples 2,000 runs of up to 12 steps."
       ]
     },
     {
@@ -5015,18 +5064,23 @@
         "path": "AGENTS.md",
         "quote": "Manual recovery requires a positive current attempt and admits an unsuccessful latest attempt only through that attempt's own bounded job inventory proving all four or, when that attempt did not publish, through the earlier receipt attempt that the Release body names, whose own bounded inventory must prove all four; the mutable body only selects which inventory to read."
       },
-      "layer": "example",
+      "layer": "quint",
       "status": "evidenced",
       "evidence": [
-        "scripts/npm-release-workflow.test.ts"
+        "scripts/npm-release-workflow.test.ts",
+        "scripts/verification-release-replay.test.ts",
+        "verification/quint/release.qnt"
       ],
       "assumptions": [
         "github-api",
         "npm-registry"
       ],
       "notVerified": [
-        "Only the enumerated example cases are checked.",
-        "Promotion after an npm failure waits for an owner to dispatch manual recovery; the automatic path fails its first-attempt gate by design."
+        "The shell gate in `.github/workflows/website-production.yml` that limits automatic promotion to a successful first attempt is outside the model and its replay. The model lets automatic promotion admit any successful latest attempt, a superset of what the gate allows.",
+        "Promotion after an npm failure waits for an owner to dispatch manual recovery; the automatic path fails its first-attempt gate by design.",
+        "The model's `promotionNotBlocked` ghost restates the manual admission rule, so the invariant holds by construction; the D8 mutant and the replay's verdict equality carry the evidence. The claim holds only while the owner reruns failed jobs: a rerun of all jobs after a failed-jobs rerun published the Release leaves neither the latest nor the receipt attempt with four successful jobs, and production refuses manual promotion (plan D15).",
+        "The replay serves synthetic run, job inventory, and Release responses to `resolveReleaseAuthority`; it does not exercise the deadline, pagination, or main-branch ancestry reads.",
+        "The model covers one run of up to three attempts; Apalache checks it to depth 10 and seeded simulation samples 2,000 runs of up to 12 steps."
       ]
     },
     {
@@ -6356,6 +6410,60 @@
       "notVerified": [
         "Only the enumerated example cases are checked.",
         "The smoke model is toolchain evidence: its traces replay through a TypeScript reference lock, not production code."
+      ]
+    },
+    {
+      "id": "verification-nightly-depth",
+      "statement": "`bun run ./scripts/verification-tools.ts quint-nightly` checks every Quint model at its recorded `nightly` bounds, which the parser rejects when any bound falls below its CI bound or none deepens it; the soak multiplies the run count and time limit of every `assertProperty` and `assertAsyncProperty` by an explicit `GHOSTGET_PROPERTY_RUNS` from 2 to 100; and `.github/workflows/verification-nightly.yml` runs both with the reducer mutants on a schedule, read-only, SHA-pinned, and outside `Required`.",
+      "area": "verification",
+      "source": {
+        "path": "verification/AGENTS.md",
+        "quote": "Give a Quint model `nightly` bounds only when they deepen its CI bounds and none falls below them. Keep `.github/workflows/verification-nightly.yml` read-only and outside `Required`"
+      },
+      "layer": "example",
+      "status": "evidenced",
+      "evidence": [
+        ".github/workflows/verification-nightly.yml",
+        "scripts/ci-pr-gate.test.ts",
+        "scripts/verification-soak.ts",
+        "scripts/verification-tools.test.ts",
+        "src/test-support.test.ts",
+        "verification/quint/models.json"
+      ],
+      "assumptions": [
+        "ci-runner",
+        "verification-tools"
+      ],
+      "notVerified": [
+        "Only the enumerated example cases are checked; `Required` checks the nightly configuration, not a nightly run.",
+        "The nightly workflow has not run on `main` yet. Its first scheduled run after merge is the first CI evidence at the deeper bounds and soak multiplier.",
+        "Only `verification/quint/lock.qnt`, the toolchain smoke model with a `reference` replay target, lists `nightly` bounds. The six production models run in the nightly at their CI bounds, so the nightly deepens no model of production code until one lists `nightly` bounds.",
+        "A nightly failure blocks no merge or release. Only the quarterly review in `docs/claims-review.md` checks that failures were triaged, and no automated check enforces that review.",
+        "The serialized omni runtime test file is outside the soak."
+      ]
+    },
+    {
+      "id": "verification-source-mutants",
+      "statement": "Every mutant in `verification/mutants.json` changes exactly one occurrence of a guard in `src/run-journal.ts`, `src/messaging-action-store.ts`, or `src/linked-device-lifecycle-journal.ts` and still transpiles, and `bun run ./scripts/verification-mutants.ts` reports it killed only when its fully named test passes alone on unmodified source and is the only failing test on the mutant; a timeout, another failure, or unparsed output is inconclusive and fails the run.",
+      "area": "verification",
+      "source": {
+        "path": "verification/AGENTS.md",
+        "quote": "List every reducer source mutant in `mutants.json` with its defect and the full name of the one test that must fail."
+      },
+      "layer": "example",
+      "status": "evidenced",
+      "evidence": [
+        "scripts/verification-mutants.ts",
+        "scripts/verification-tools.test.ts",
+        "verification/mutants.json"
+      ],
+      "assumptions": [
+        "ci-runner",
+        "verification-tools"
+      ],
+      "notVerified": [
+        "`Required` checks only that each mutant applies, compiles, and names a declared test; the kill runs happen in the nightly workflow.",
+        "The manifest lists hand-picked guards. It is not a mutation score over the reducers, and StrykerJS was evaluated and not adopted (see `docs/claims-review.md`)."
       ]
     },
     {
