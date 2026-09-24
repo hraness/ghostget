@@ -33,5 +33,6 @@ export function addDocumentAppearance(html: string, asset: string, format: "html
   } else throw new Error("Appearance requires exactly one ordinary header.");
   const targets = result.match(/<main\b[^>]*\bid="main"[^>]*>/gu);
   if (targets?.length !== 1 || /\btabindex=/iu.test(targets[0]!)) throw new Error("Expected one owned skip-link target.");
-  return result.replace(targets[0]!, targets[0]!.replace(">", ' tabindex="-1">'));
+  const target = targets[0]!;
+  return result.replace(target, `${target.slice(0, -1)} tabindex="-1">`);
 }
