@@ -91,7 +91,7 @@ describe("provider presentation", () => {
     expect(html).toContain('class="provider-owner-permissions"');
     expect(html).toContain("unavailable through generic invoke");
     expect(html.match(/<li><code>messaging\.automation\./gu)).toHaveLength(17);
-    expect(html).not.toMatch(/<strong>[^<]+<\/strong> — <code>messaging\.automation\./u);
+    expect(html).not.toMatch(/<strong>[^<]+<\/strong> \(<code>messaging\.automation\./u);
     const sample = attestation.rows.find((row) =>
       row.surfaceId !== "beeper" && isOwnerMessagingPermission(row))!;
     const beeperSample = attestation.rows.find((row) =>
@@ -220,7 +220,7 @@ describe("provider presentation", () => {
     expect(cards).toContain("32 supported actions");
     expect(cards).toContain("Accounts · Bridges · Contacts · Conversations · Messages · Presence · Reactions");
     expect(cards).toContain(
-      `${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount + BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} reviewed actions: ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} through one pinned CLI and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} fixed Desktop reads; writes are previewed and uncertain outcomes stay unretriable.`,
+      `${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.cliBackedOperationCount)} actions run through a pinned version of Beeper's official CLI, and ${String(BEEPER_PRESENTATION_TRANSPORT_COUNTS.desktopLoopbackOperationCount)} are fixed reads from Beeper Desktop. Writes need a preview first, and Ghostget never resends a write whose outcome is unknown.`,
     );
     expect(cards).not.toContain("other supported actions");
     expect(cards).not.toContain("{{");
@@ -232,7 +232,9 @@ describe("provider presentation", () => {
     expect(groups).toContain("Update conversation read state");
     expect(groups).toContain("Search message content");
     expect(groups).toContain("Read message context");
-    expect(groups).toContain("<strong>Read message</strong> — <code>messaging.message.read</code>");
+    expect(groups).toContain("<strong>Read message</strong> (<code>messaging.message.read</code>)");
+    expect(groups).toContain("<strong>Read message delivery status</strong> (<code>messaging.delivery.read</code>)");
+    expect(groups).not.toContain("—");
     expect(groups).toContain("Local app");
     expect(groups).not.toMatch(/observed|capture-required|adapter|completeness|<th/iu);
     for (const row of attestation.rows.filter((candidate) =>

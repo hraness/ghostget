@@ -72,8 +72,8 @@ recovery fallback.
 ghostget plugin check /absolute/private/example-web --json
 ghostget plugin test /absolute/private/example-web --trust-code --json
 ghostget plugin pack /absolute/private/example-web \
-  --output /absolute/private/example-web.wrenchplugin --json
-ghostget plugin install /absolute/private/example-web.wrenchplugin \
+  --output /absolute/private/example-web.ghostgetplugin --json
+ghostget plugin install /absolute/private/example-web.ghostgetplugin \
   --trust-code --json
 ```
 
