@@ -1,0 +1,2642 @@
+# Assurance case
+
+<!-- Generated from verification/claims.json by `bun run ./scripts/verification-claims.ts render`. Edit the register, then render. -->
+
+This page lists what Ghostget's automated checks establish. Each claim names the layer that carries it, the evidence that checks it, the environment it assumes, and what it leaves unverified. The register `verification/claims.json` is the source, and the plan behind it is `kb/plans/formal-verification-assurance.md`.
+
+A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase schedules its layer, and *not verified* when no automated check covers it. `bun run verify:claims` fails when this page is stale, when a guideline in a scanned `AGENTS.md` has no current rule in the register, when a rule does not list exactly the claims that quote its guideline, when a managed block's text changes, when an evidenced property claim names a test that runs no property, or when an evidence path no longer exists.
+
+## Summary
+
+The register holds 232 claims: 149 evidenced, 64 planned, and 19 not verified. It maps 86 guidelines from 5 guides; 66 list claims and 20 are exempt.
+
+| Layer | Evidenced | Planned | Not verified |
+| --- | ---: | ---: | ---: |
+| example test | 135 | 5 | 0 |
+| property test | 14 | 1 | 0 |
+| stateful model | 0 | 14 | 0 |
+| Quint model with production trace replay | 0 | 35 | 0 |
+| Lean proof with differential test | 0 | 8 | 0 |
+| differential oracle | 0 | 1 | 0 |
+| configuration readback | 0 | 0 | 15 |
+| none | 0 | 0 | 4 |
+
+## What is not verified
+
+The register as a whole does not verify:
+
+- Provider behaviour on third-party sites.
+- Correctness of Bun, JavaScriptCore, the operating-system filesystem beyond the modelled `StatePort` semantics, WHATWG URL parsing (covered only differentially), GitHub, npm, Sigstore, and Vercel.
+- Hostile in-process plugin code, which `AGENTS.md` already treats as trusted.
+- Hostile processes running as the same user.
+- Sentence-level coverage inside a guideline. A guideline counts as covered when its rule lists every claim that quotes it; a sentence of a covered guideline may still have no claim, and review of the guideline digest is the only check.
+
+Every claim below also lists its own not-verified scope.
+
+### Claims without an automated check
+
+- `derived-state-rebuildable`: Derived state is rebuildable from authoritative state and lives in the cheapest serving tier; only authoritative state uses transactional storage. No automated check covers this claim. Only the `costs.json` kind classification is checked; rebuildability and tier placement are not.
+- `content-bytes-in-content-store`: Content bytes live only in the content store; the control plane holds references and metadata. No automated check covers this claim as stated; the listed tests check only related cases.
+- `local-cli-birth-time-readiness`: Local-CLI readiness requires a nonzero immutable directory birth time for operation-private roots and reports the transport unavailable before staging credentials otherwise. No automated check covers this claim, and no plan phase schedules one. No test exercises the birth-time readiness requirement.
+- `npm-release-env-config`: GitHub environment npm-release has administrator bypass disabled, no reviewers, no secrets, sole protection rule branch_policy, and the single custom deployment policy tag v* with no branch admitted. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. The listed tests check only the checked-in side of the contract.
+- `npm-trusted-publisher-binding`: The npm trusted publisher for @hraness/ghostget names exactly hraness/ghostget, release.yml and environment npm-release; no other relationship exists, package access requires 2FA and disallows tokens, and no npm token is stored in GitHub. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+- `tag-ruleset-creation-only`: In each tag ruleset pair, the creation-only ruleset has the exact rule set [creation] and sole always-bypass User 894119; it never authorizes update or deletion. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+- `tag-ruleset-immutable`: In each tag ruleset pair, the immutable ruleset has exact rules [deletion, update] and no bypass actors; it never authorizes creation. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+- `tag-rulesets-two-split-pairs`: Exactly four active repository tag rulesets form two split creation-only and immutable pairs, one targeting only `refs/tags/v*` and one targeting only `refs/tags/desktop-v*-macos-arm64`; any other active tag ruleset is drift, and the split semantics, not the ruleset IDs or names, carry the authority. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+- `immutable-releases-enabled-before-tag`: Immediately before every stable tag push, signed-in administrator readback shows repository immutable Releases enabled=true. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. An administrator could change the setting between the readback and publication.
+- `no-integration-tag-bypass`: Neither GitHub Actions nor any other Integration has a release-tag ruleset bypass. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+- `production-ref-lifecycle-ruleset`: Ruleset 21832074 targets exactly website-production and website-production-canary with no bypass actors and exact creation, deletion and non-fast-forward rules. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+- `production-ref-update-ruleset-app-only`: Ruleset 21887484 supplies the sole update restriction on both production refs with exactly one Integration bypass, App 4783991, bypass_mode=always; no other actor (including Actions App 15368) may update either ref. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+- `protect-main-ruleset`: Protect-main has no bypass actors, requires the pull-request path and exact Required CI check, approval minimum zero and require_code_owner_review=false while only one eligible code owner exists. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. The listed tests check only the checked-in side of the contract.
+- `production-writer-env-config`: Environment production-ref-writer-key has deployment=false, main-only branch policy, no required reviewers or wait timer, prevent_self_review=false, no administrator bypass, exactly four App identity variables and the single WRENCH_RELEASE_APP_PRIVATE_KEY secret. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. The listed tests check only the checked-in side of the contract. The workflow-side `deployment: false` is source-checked; the environment's protection settings are confirmed only by readback.
+- `release-app-permissions-exact`: The release App registration grants exactly metadata:read, contents:write and workflows:write with no Administration or other permission, and installation 158077029 selects only repository ID 1316443113. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+- `promotion-canary-preserved`: refs/heads/website-production-canary remains at exactly 0bf88a064233635e0c5485c61f9c533974a7dca4 and is never reset, deleted or repurposed. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+- `vercel-project-config`: Vercel project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue` under team `team_UAd1iD2XogJlbFg4h14mRaPM` is linked to GitHub repository 1316443113 with `link.productionBranch=website-production`, `autoExposeSystemEnvs=true`, and persistent `autoAssignCustomDomains=true`; main and pull requests deploy only previews. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+- `control-drift-freezes-production`: Any detected control-plane drift (rulesets, App bypass, App permissions, installation selection, writer environment) leaves production unchanged until the controls are requalified by fresh administrator readback. Live settings are confirmed only by administrator readback; CI cannot read them or detect drift. Drift is detected only at setup, after control changes, and during recovery, not on each routine promotion.
+- `website-informational-only`: `website/` explains and documents Ghostget and contains no agent runtime, authenticated product surface, or browser-based substitute for the CLI and SDK. No automated check inspects `website/` for authenticated surfaces, credential handling, or runtime features; review alone enforces this boundary.
+
+### Exempt guidelines
+
+These guidelines have no claim in the register, and no automated check covers them. Each reason says why.
+
+| Guide | Guideline | Reason |
+| --- | --- | --- |
+| `AGENTS.md` | Follow `WRITING.md` for… | Prose style rule; it states no property of the package, CLI, website, or release. |
+| `AGENTS.md` | Apply unreasonably robust… | Engineering method; the laws it asks for are claimed under the example-and-property and lifecycle-model rules. |
+| `AGENTS.md` | Extract a shared… | Package-extraction process rule; it states no property of shipped behaviour. |
+| `AGENTS.md` | Freeze shared interfaces… | Parallel-work coordination rule for contributors; it states no property of shipped behaviour. |
+| `AGENTS.md` | Keep mandatory rules… | Documentation placement rule; `bun run kb:check` validates guide shape. |
+| `AGENTS.md` | Keep Ghostget a bring-your-own-agent… | Product-scope rule; no automated check covers it, and it states no safety or integrity property. |
+| `AGENTS.md` | Keep exactly one… | Skill-packaging rule; it states no safety or integrity property. |
+| `AGENTS.md` | Treat this repository… | Editorial scope rule for repository prose; no automated check covers it. |
+| `AGENTS.md` | An owner release… | Delegation of owner authority to agents; it governs who acts, while the readback and tag claims cover what must hold. |
+| `website/AGENTS.md` | Keep the homepage's… | Presentation rule for the informational website; it states no safety or integrity property. |
+| `website/AGENTS.md` | Keep the page useful… | Presentation rule for the informational website; it states no safety or integrity property. |
+| `website/AGENTS.md` | Keep every product… | Editorial accuracy rule for website copy; no automated check covers it. |
+| `website/AGENTS.md` | Keep canonical metadata,… | Search-metadata presentation rule; it states no safety or integrity property. |
+| `website/AGENTS.md` | Keep ordinary reference… | Presentation rule for website guides and editorial images; it states no safety or integrity property. |
+| `website/AGENTS.md` | Preserve semantic headings,… | Accessibility presentation rule; it states no safety or integrity property. |
+| `website/AGENTS.md` | Public copy (page… | Public-copy style rule; it states no safety or integrity property. |
+| `website/AGENTS.md` | The one-line description… | Public-copy consistency rule that the website build enforces; it states no safety or integrity property. |
+| `website/AGENTS.md` | On a public page,… | Public-copy vocabulary rule; it states no safety or integrity property. |
+| `website/AGENTS.md` | Describe a sibling… | Editorial accuracy rule for sibling-product copy; no automated check covers it. |
+| `website/AGENTS.md` | Use product names… | Public-copy naming rule; it states no safety or integrity property. |
+
+### Managed blocks outside the register
+
+These synced blocks sit inside a scanned Guidelines section but have no rules or claims, and no automated check covers them. The register pins each block's text, so any change fails the register until someone reviews it.
+
+| Guide | Block | Reason |
+| --- | --- | --- |
+| `AGENTS.md` | `hraness-public-copy` | Synced Hraness public-copy policy for prose; it states no property of the package, CLI, website, or release. |
+| `AGENTS.md` | `oompa-local-efficiency` | Synced Hraness delivery and workstation laws, including production-data preservation, runtime-enforced approvals, and delivery-gate guards; no automated check in this repository covers them. |
+| `AGENTS.md` | `algal-skills` | Synced contributor tooling instructions for the algal skill pack; it states no property of the package, CLI, website, or release. |
+
+### Guides outside the register
+
+- `.agents/skills/`: Reusable repository-maintenance skill guides; they direct agent workflows and state no property of the package, CLI, website, or release.
+- `kb/`: Knowledge-vault authoring guides; `bun run kb:check` validates the vault, and they state no product property.
+
+## Environmental assumptions
+
+Each claim holds only while its listed assumptions hold.
+
+| Assumption | Statement | Claims |
+| --- | --- | ---: |
+| `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 6 |
+| `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 29 |
+| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 26 |
+| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 26 |
+| `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 8 |
+| `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
+| `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 12 |
+| `dns-tls` | The operating-system resolver and the TLS stack behave as specified. | 7 |
+| `sha256` | SHA-256 is collision resistant. | 1 |
+| `encryption` | The authenticated encryption primitives and the operating-system key storage are sound. | 3 |
+| `media-tools` | yt-dlp, ffmpeg, and whisper.cpp report metadata faithfully and honor the arguments they are given. | 11 |
+| `provider-behaviour` | Third-party providers behave as their observed contracts describe. | 28 |
+| `plugin-trusted` | Source plugins are trusted in-process code; portable execution contains ordinary failures, not hostile code. | 13 |
+| `onepassword` | The 1Password SDK and account return the requested secret faithfully. | 2 |
+| `github-api` | GitHub's REST, GraphQL, and Actions APIs report repository, run, and Release state truthfully. | 73 |
+| `github-enforcement` | GitHub enforces rulesets, environments, concurrency groups, immutable Releases, and token permissions as configured. | 72 |
+| `sigstore` | Sigstore and `gh attestation verify` verify attestation bundles correctly. | 2 |
+| `npm-registry` | The npm registry enforces version immutability, trusted publishing, and provenance as documented. | 17 |
+| `vercel` | Vercel builds and serves deployments as its project settings and APIs report. | 37 |
+| `administrator-readback` | A signed-in administrator performs the documented live readbacks and reports them faithfully. | 15 |
+| `ci-runner` | GitHub-hosted runners execute the reviewed workflow faithfully. | 15 |
+| `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 10 |
+| `edge-runtime` | The Vercel Edge runtime implements the Web Platform APIs the edge code uses. | 5 |
+
+## Claims by area
+
+### `authentication` (2 claims)
+
+#### `auth-request-binding`
+
+Every authenticated request is bound to one exact account realm, provider target, transport, contract version, and implementation identity; drift in any of them rejects the request and consumes prepared plans.
+
+- Planned: stateful model in plan Phase 4.
+- Source: `AGENTS.md`: “Bind every authenticated request to one exact account realm, provider target, transport, contract version, and implementation identity.”
+- Evidence: `src/auth-storage.test.ts`, `src/beeper-message-like-me-source.test.ts`, `src/client-boundary.test.ts`, `src/local-cli-durable-identity.test.ts`, `src/runtime.test.ts`, `src/web-session-authentication-policy.test.ts`
+- Assumptions: `provider-behaviour`
+- Not verified: The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `no-silent-transport-switch`
+
+Ghostget never silently switches between official API, browser session, linked-device, or portable transports; error text cannot grant a transport switch.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Never silently switch transport.”
+- Evidence: `src/beeper-local-plugin.test.ts`, `src/ghostget.test.ts`, `src/pinned-https.test.ts`, `src/providers/linkedin-company-program.test.ts`, `src/providers/linkedin-self-program.test.ts`
+- Assumptions: `provider-behaviour`
+- Not verified: Only the enumerated example cases are checked.
+
+### `browser-admission` (4 claims)
+
+#### `browser-admission-cap-two`
+
+At most two locally owned browser acquisitions run concurrently across processes sharing one state home.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `SECURITY.md`: “Ghostget caps locally owned browser acquisition at two across processes sharing one state home”
+- Evidence: `src/browser-admission.property.test.ts`, `src/browser-admission.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `process-liveness`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `browser-admission-no-pid-reuse-reclaim`
+
+PID reuse alone cannot reclaim a browser admission claim; automatic reclamation requires a verified prior boot and same-boot claims stay occupied after owner death.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `SECURITY.md`: “PID reuse alone cannot reclaim a claim. Automatic reclamation requires a verified prior operating-system boot”
+- Evidence: `src/browser-admission.property.test.ts`, `src/browser-admission.test.ts`, `src/process-identity.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `process-liveness`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `browser-admission-malformed-reduces-capacity`
+
+A malformed claim, unverifiable owner, or unsafe state path reduces available capture capacity and never creates an extra slot.
+
+- Evidenced by example test.
+- Source: `SECURITY.md`: “A malformed claim, an unverifiable owner, or an unsafe state path reduces available capture capacity and never creates an extra slot.”
+- Evidence: `src/browser-admission.property.test.ts`, `src/browser-admission.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `process-liveness`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `browser-admission-no-launch-after-deadline`
+
+Admission polling is budgeted to min(remaining capture time, 30 s), and deadline revalidation plus conditional rollback prevent a browser launch after expiry.
+
+- Planned: stateful model in plan Phase 2.
+- Source: `SECURITY.md`: “deadline revalidation and conditional rollback prevent a browser launch after expiry”
+- Evidence: `src/browser-admission.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `process-liveness`, `monotonic-clock`
+- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+### `ci` (1 claim)
+
+#### `ci-source-coverage-contract`
+
+The `Required` job succeeds only when every source CI job succeeds, including `verification`, and each source job runs the checked checkout, toolchain, source-identity, and frozen-install template with SHA-pinned actions, unpersisted credentials, and least permissions.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Complete `Required` PR CI is the normal final source integration gate for executable and documentation changes”
+- Also covers: `AGENTS.md`: “CI covers the complete Linux aggregate and a selected macOS suite.”
+- Evidence: `scripts/ci-pr-gate.test.ts`, `scripts/github-release-artifact.test.ts`, `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-enforcement`, `ci-runner`
+- Not verified: Only the enumerated example cases are checked.
+
+### `contracts` (8 claims)
+
+#### `contracts-schema-parser-agree`
+
+Contract JSON Schemas are generated from the same shape table as the parsers; parser and schema agree on arbitrary values and reject every unsupported key.
+
+- Evidenced by property test.
+- Source: `docs/contracts.md`: “The schema is generated from the same shape table the parser uses, so the two cannot drift.”
+- Evidence: `src/contracts-schema.test.ts`, `src/contracts-shape.test.ts`
+- Property tests: `src/contracts-shape.test.ts`: “property: valid documents round-trip and validate; parse and schema agree on arbitrary values”; `src/contracts-shape.test.ts`: “property: an unsupported key at any object path is rejected by the parser and the schema”
+- Assumptions: none beyond the register-wide scope
+- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+
+#### `contracts-inspection-read-only`
+
+Catalog, check, schema, and repair inspection never bind an account or contact a provider.
+
+- Evidenced by example test.
+- Source: `docs/contracts.md`: “Catalog, check, schema, and repair inspection are read-only projections. They never bind an account or contact a provider.”
+- Evidence: `src/contracts-check.test.ts`, `src/contracts-cli.test.ts`
+- Assumptions: none beyond the register-wide scope
+- Not verified: Only the enumerated example cases are checked.
+
+#### `public-authority-code-owned`
+
+An operation is public only when it is an observed, dispatch-free, built-in R1 web-session read declaring access public; manifests cannot opt into public execution.
+
+- Evidenced by example test.
+- Source: `docs/contracts.md`: “A web-session operation is `public` only when”
+- Evidence: `src/contracts-catalog.test.ts`, `src/web-session-authentication-policy.test.ts`
+- Assumptions: none beyond the register-wide scope
+- Not verified: Only the enumerated example cases are checked.
+
+#### `collection-plan-read-only-bounded`
+
+collection-plan.v1 requires risk R1 and sideEffect none and enforces bounds (64 accounts, 8 reads per account, 128 total, 16 metric keys, delay ≤ 600000 ms, input ≤ 32 keys depth 8, canonical credential-free target URLs).
+
+- Evidenced by property test.
+- Source: `docs/contracts.md`: “`semantics.risk` must be `R1` and `semantics.sideEffect` must be `none`; v1 plans are read-only by construction.”
+- Evidence: `src/contracts-plan.test.ts`
+- Property tests: `src/contracts-plan.test.ts`: “property: generated plans round-trip through JSON, flatten in order, and validate against the schema”; `src/contracts-plan.test.ts`: “property: every parser rejection of a generated mutation is a schema violation or a documented semantic rule”
+- Assumptions: none beyond the register-wide scope
+- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+
+#### `contract-check-single-gap`
+
+Each checked read reports at most one gap chosen by the fixed precedence; reads has exactly plan.reads indexed entries and ok is true exactly when every verdict is ok.
+
+- Evidenced by property test.
+- Source: `docs/contracts.md`: “Each read reports at most one gap, chosen in this order”
+- Evidence: `src/contracts-check.test.ts`
+- Property tests: `src/contracts-check.test.ts`: “property: checking is deterministic and idempotent and never leaves the closed gap set”; `src/contracts-check.test.ts`: “property: reads derived from the catalog bind ok with the exact installed contract”
+- Assumptions: none beyond the register-wide scope
+- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+
+#### `invoke-read-envelope-consistency`
+
+R1 invoke envelopes are consistent: receipt status/runId equal top-level fields, cache outcome matches status, failed results have null output and a readFailure whose disposition matches its category, output bounded to depth 64 and 4,000,000 nodes.
+
+- Evidenced by example test.
+- Source: `docs/contracts.md`: “Invoke result: `receipt.status` and `receipt.runId` equal the top-level fields”
+- Evidence: `src/contracts-invoke-read.test.ts`
+- Assumptions: none beyond the register-wide scope
+- Not verified: Only the enumerated example cases are checked.
+
+#### `read-failure-disposition-table`
+
+Read failure retry dispositions come from one closed table (retry-once-after-60s, repair-auth, do-not-retry).
+
+- Evidenced by example test.
+- Source: `docs/contracts.md`: “`readFailureDispositions` exports the same closed table.”
+- Evidence: `src/ghostget.test.ts`, `src/providers/read-failure.test.ts`
+- Assumptions: none beyond the register-wide scope
+- Not verified: Only the enumerated example cases are checked.
+
+#### `read-runtime-zero-dispatch`
+
+R1 reads store a provisional receipt before execution, accept only zero-dispatch outcomes, and store the final receipt before returning output.
+
+- Evidenced by example test.
+- Source: `docs/effect-read-runtime.md`: “`readInvocationProgram` stores the provisional receipt before starting execution. It accepts only zero-dispatch success or failure”
+- Evidence: `src/read-client.test.ts`, `src/read-effect.test.ts`
+- Assumptions: none beyond the register-wide scope
+- Not verified: Only the enumerated example cases are checked.
+
+### `control` (13 claims)
+
+#### `agent-channel-cannot-escalate`
+
+Requests on the owner-only agent socket cannot grant approvals, alter policy or permissions, connect accounts, import credentials, or resolve secrets.
+
+- Evidenced by example test.
+- Source: `src/control/AGENTS.md`: “Agent requests cannot grant approvals, alter policy, connect accounts, or resolve secrets.”
+- Evidence: `src/control/approval-broker.test.ts`, `src/control/helper-lifecycle.test.ts`, `src/control/validation.test.ts`
+- Assumptions: `same-user-trusted`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `control-protocol-bounded-reject-drift`
+
+Administrative and agent control protocols are bounded and reject unknown fields, unsupported methods, oversized or malformed frames, and nested contract drift before dispatch.
+
+- Evidenced by property test.
+- Source: `src/control/AGENTS.md`: “Keep both protocols bounded and reject drift before dispatch.”
+- Evidence: `src/control/helper-client.test.ts`, `src/control/validation.test.ts`
+- Property tests: `src/control/helper-client.test.ts`: “helper rejects malformed envelopes and nested contract drift”; `src/control/validation.test.ts`: “strict parsers reject every generated unknown key”
+- Assumptions: `same-user-trusted`
+- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+
+#### `tui-input-cannot-bypass-review`
+
+Terminal input, including pasted or unbracketed bursts, cannot issue confirmation or approval without the complete account and exact revision/digest review being displayed.
+
+- Evidenced by example test.
+- Source: `src/control/AGENTS.md`: “Terminal input, including pasted text, must never bypass that review.”
+- Evidence: `src/control/tui.test.ts`
+- Assumptions: `same-user-trusted`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `tui-restores-terminal-state`
+
+The TUI restores terminal state (raw mode, cursor, alternate screen) before waiting for helper cancellation and custody settlement, including on failure and signals.
+
+- Evidenced by example test.
+- Source: `src/control/AGENTS.md`: “Restore terminal state before waiting for helper cancellation and custody settlement.”
+- Evidence: `src/control/tui.test.ts`
+- Assumptions: `same-user-trusted`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `managed-policy-corrupt-denies`
+
+Once operation permissions are enabled, a missing or corrupt policy denies access and never falls back to unmanaged behaviour.
+
+- Evidenced by example test.
+- Source: `SECURITY.md`: “Enabling operation permissions establishes a persistent managed marker: missing or corrupt policy then denies access.”
+- Evidence: `src/control/policy-privacy.test.ts`, `src/operation-permission.test.ts`
+- Assumptions: `same-user-trusted`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `openapi-inert-until-activation`
+
+User OpenAPI documents remain inert drafts until exact conditional activation and never create arbitrary (authenticated) HTTP executors.
+
+- Evidenced by example test.
+- Source: `src/control/AGENTS.md`: “User OpenAPI documents remain inert until exact conditional activation and never create arbitrary HTTP executors.”
+- Evidence: `src/control/interface-cli.test.ts`, `src/control/interfaces.test.ts`
+- Assumptions: `same-user-trusted`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `credential-helper-fixed-sink`
+
+The credential helper has one fixed 1Password X-token sink; SDK loading and raw credential material stay in that process and never reach the renderer, agent protocol, or diagnostics.
+
+- Evidenced by example test.
+- Source: `src/control/AGENTS.md`: “The credential helper has one fixed 1Password X-token sink. Keep SDK loading and raw credential material in that process”
+- Evidence: `src/control/vault-cli.test.ts`, `src/control/vault.test.ts`
+- Assumptions: `same-user-trusted`, `onepassword`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `credential-publish-exact-staged-bytes`
+
+Credential publication re-verifies the exact staged bytes and account revision; changed or BOM-prefixed bytes are not published.
+
+- Evidenced by example test.
+- Source: `src/control/AGENTS.md`: “Verify exact staged bytes and account revision again at publication.”
+- Evidence: `src/control/vault.test.ts`
+- Assumptions: `same-user-trusted`, `onepassword`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `control-single-helper-owner`
+
+The menu and TUI share exactly one helper owner per state home; a second controller does not acquire custody.
+
+- Planned: stateful model in plan Phase 2.
+- Source: `src/control/AGENTS.md`: “The menu and TUI share one helper owner per state home.”
+- Evidence: `src/control/helper-client.test.ts`, `src/control/helper-lifecycle.test.ts`, `src/control/tui.test.ts`
+- Assumptions: `same-user-trusted`
+- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `no-cached-authorization-across-change`
+
+Authorization is never cached across a changed account, policy, interface, or executable closure; an A-to-B-to-A account change invalidates grants and previewed plans.
+
+- Planned: stateful model in plan Phase 4.
+- Source: `src/control/AGENTS.md`: “Display optimizations must not cache authorization across a changed account, policy, interface or executable closure.”
+- Evidence: `src/control/account-revision.test.ts`, `src/control/connections.test.ts`, `src/operation-permission.test.ts`
+- Assumptions: `same-user-trusted`
+- Not verified: The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `grant-binds-exact-identity`
+
+Operation grants bind the exact account incarnation, manifest, contract, and executable closure; a change to any of them, or a changed approval, invalidates the prior grant.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `SECURITY.md`: “Grants bind the exact account incarnation, manifest, contract, and executable closure. A changed account, interface, implementation, or approval invalidates the prior grant.”
+- Evidence: `src/control/approval-broker.test.ts`, `src/operation-permission.test.ts`
+- Assumptions: `same-user-trusted`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `approval-allow-once`
+
+An allow-once approval admits one exact pending request at most once (allowed implies uses ≤ 1), including across client crash, expiry, and reconnect; drift, expiry, and shutdown revoke proofs.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `kb/plans/formal-verification-assurance.md`: “Model digest binding at dispatch, lease expiry, crash, and reconnect. The invariant `allowed ⇒ uses ≤ 1` drives the fix for D13.”
+- Evidence: `src/control/approval-broker.test.ts`, `src/control/connections.test.ts`
+- Assumptions: `same-user-trusted`
+- Not verified:
+  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Plan defect D13 is fixed: the broker binds each allow-once grant to its holder's use secret at request or first allowed check. The stateful fast-check model in src/control/approval-broker.test.ts samples checks, races, crashes, release, and expiry; it is not the Quint model or a proof.
+
+#### `shutdown-settles-before-custody-release`
+
+Connection and helper shutdown settle owned work before custody is released.
+
+- Planned: stateful model in plan Phase 2.
+- Source: `src/control/AGENTS.md`: “Connection and helper shutdown must settle owned work before custody is released.”
+- Evidence: `src/control/connections.test.ts`, `src/control/helper-lifecycle.test.ts`
+- Assumptions: `same-user-trusted`
+- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+### `control-plane` (13 claims)
+
+#### `tag-ruleset-creation-only`
+
+In each tag ruleset pair, the creation-only ruleset has the exact rule set [creation] and sole always-bypass User 894119; it never authorizes update or deletion.
+
+- Not verified; intended layer: configuration readback.
+- Source: `AGENTS.md`: “In each pair, the creation-only ruleset must have exact rule `creation` and sole always-bypass User `894119`; it must never authorize update or deletion.”
+- Evidence: none
+- Assumptions: `github-enforcement`, `administrator-readback`
+- Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+
+#### `tag-ruleset-immutable`
+
+In each tag ruleset pair, the immutable ruleset has exact rules [deletion, update] and no bypass actors; it never authorizes creation.
+
+- Not verified; intended layer: configuration readback.
+- Source: `AGENTS.md`: “The immutable ruleset must have no bypass actors and exact deletion plus update rules; it must never authorize creation.”
+- Evidence: none
+- Assumptions: `github-enforcement`, `administrator-readback`
+- Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+
+#### `tag-rulesets-two-split-pairs`
+
+Exactly four active repository tag rulesets form two split creation-only and immutable pairs, one targeting only `refs/tags/v*` and one targeting only `refs/tags/desktop-v*-macos-arm64`; any other active tag ruleset is drift, and the split semantics, not the ruleset IDs or names, carry the authority.
+
+- Not verified; intended layer: configuration readback.
+- Source: `AGENTS.md`: “read back all four active repository tag rulesets. They form two split pairs: one pair targets only `refs/tags/v*`, and the other targets only `refs/tags/desktop-v*-macos-arm64`.”
+- Also covers: `AGENTS.md`: “Any other active tag ruleset is drift.”
+- Evidence: none
+- Assumptions: `github-enforcement`, `administrator-readback`
+- Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+
+#### `immutable-releases-enabled-before-tag`
+
+Immediately before every stable tag push, signed-in administrator readback shows repository immutable Releases enabled=true.
+
+- Not verified; intended layer: configuration readback.
+- Source: `AGENTS.md`: “Immediately before tag dispatch, require administrator readback that immutable Releases are enabled; grant no Administration to workflows.”
+- Evidence: none
+- Assumptions: `github-enforcement`, `administrator-readback`
+- Not verified:
+  - Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+  - An administrator could change the setting between the readback and publication.
+
+#### `no-integration-tag-bypass`
+
+Neither GitHub Actions nor any other Integration has a release-tag ruleset bypass.
+
+- Not verified; intended layer: configuration readback.
+- Source: `AGENTS.md`: “Never give GitHub Actions or another Integration a release-tag bypass.”
+- Evidence: none
+- Assumptions: `github-enforcement`, `administrator-readback`
+- Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+
+#### `production-ref-lifecycle-ruleset`
+
+Ruleset 21832074 targets exactly website-production and website-production-canary with no bypass actors and exact creation, deletion and non-fast-forward rules.
+
+- Not verified; intended layer: configuration readback.
+- Source: `AGENTS.md`: “Live ruleset `21832074` supplies no-bypass creation, deletion, and non-fast-forward protection to the production and persistent canary refs.”
+- Evidence: none
+- Assumptions: `github-enforcement`, `administrator-readback`
+- Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+
+#### `production-ref-update-ruleset-app-only`
+
+Ruleset 21887484 supplies the sole update restriction on both production refs with exactly one Integration bypass, App 4783991, bypass_mode=always; no other actor (including Actions App 15368) may update either ref.
+
+- Not verified; intended layer: configuration readback.
+- Source: `AGENTS.md`: “Live ruleset `21887484` supplies the sole update restriction and exact App `4783991` `Integration` bypass with `bypass_mode=always`; no other actor may update either ref.”
+- Evidence: none
+- Assumptions: `github-enforcement`, `administrator-readback`
+- Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+
+#### `protect-main-ruleset`
+
+Protect-main has no bypass actors, requires the pull-request path and exact Required CI check, approval minimum zero and require_code_owner_review=false while only one eligible code owner exists.
+
+- Not verified; intended layer: configuration readback.
+- Source: `AGENTS.md`: “Protect-main has no bypass actors and retains pull-request admission plus the exact Required CI check. Keep its approval minimum at zero and `require_code_owner_review=false` until a second eligible independent code owner exists.”
+- Also covers: `AGENTS.md`: “Never force-push or bypass the gate.”
+- Evidence: `scripts/ci-pr-gate.test.ts`
+- Assumptions: `github-enforcement`, `administrator-readback`
+- Not verified:
+  - Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+  - The listed tests check only the checked-in side of the contract.
+
+#### `production-writer-env-config`
+
+Environment production-ref-writer-key has deployment=false, main-only branch policy, no required reviewers or wait timer, prevent_self_review=false, no administrator bypass, exactly four App identity variables and the single WRENCH_RELEASE_APP_PRIVATE_KEY secret.
+
+- Not verified; intended layer: configuration readback.
+- Source: `AGENTS.md`: “the main-only, automatically admitted `production-ref-writer-key` environment with no required deployment reviewers or wait timer, no administrator bypass, `prevent_self_review=false`, exactly four App identity variables and the one private-key secret.”
+- Also covers: `website/AGENTS.md`: “Keep no required deployment reviewers or wait timer, `prevent_self_review=false`, no administrator bypass, exact `main` admission, and `deployment: false`.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-enforcement`, `administrator-readback`
+- Not verified:
+  - Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+  - The listed tests check only the checked-in side of the contract.
+  - The workflow-side `deployment: false` is source-checked; the environment's protection settings are confirmed only by readback.
+
+#### `release-app-permissions-exact`
+
+The release App registration grants exactly metadata:read, contents:write and workflows:write with no Administration or other permission, and installation 158077029 selects only repository ID 1316443113.
+
+- Not verified; intended layer: configuration readback.
+- Source: `AGENTS.md`: “The App registration and every minted token must close to exactly `metadata:read`, `contents:write`, and `workflows:write`, with no Administration or other permission.”
+- Also covers: `website/AGENTS.md`: “Keep the App and minted token permission set exact at `metadata:read`, `contents:write`, and `workflows:write`.”
+- Evidence: none
+- Assumptions: `github-enforcement`, `administrator-readback`
+- Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+
+#### `promotion-canary-preserved`
+
+refs/heads/website-production-canary remains at exactly 0bf88a064233635e0c5485c61f9c533974a7dca4 and is never reset, deleted or repurposed.
+
+- Not verified; intended layer: configuration readback.
+- Source: `AGENTS.md`: “Retain persistent canary `refs/heads/website-production-canary` at exact `C=0bf88a064233635e0c5485c61f9c533974a7dca4`; never reset, delete, or repurpose it.”
+- Evidence: none
+- Assumptions: `github-enforcement`, `administrator-readback`
+- Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+
+#### `vercel-project-config`
+
+Vercel project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue` under team `team_UAd1iD2XogJlbFg4h14mRaPM` is linked to GitHub repository 1316443113 with `link.productionBranch=website-production`, `autoExposeSystemEnvs=true`, and persistent `autoAssignCustomDomains=true`; main and pull requests deploy only previews.
+
+- Not verified; intended layer: configuration readback.
+- Source: `AGENTS.md`: “keep exact project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue`, team `team_UAd1iD2XogJlbFg4h14mRaPM`, GitHub repository ID `1316443113`, `link.productionBranch=website-production`, `autoExposeSystemEnvs=true`, and persistent `autoAssignCustomDomains=true`.”
+- Also covers: `website/AGENTS.md`: “Keep Vercel project `prj_TZbDZ38ABPan158IqnczgsuTu6Ue` under team `team_UAd1iD2XogJlbFg4h14mRaPM` linked to GitHub repository ID `1316443113`”
+- Evidence: none
+- Assumptions: `github-enforcement`, `vercel`, `administrator-readback`
+- Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+
+#### `control-drift-freezes-production`
+
+Any detected control-plane drift (rulesets, App bypass, App permissions, installation selection, writer environment) leaves production unchanged until the controls are requalified by fresh administrator readback.
+
+- Not verified; intended layer: configuration readback.
+- Source: `AGENTS.md`: “Any detected drift leaves production unchanged until those controls are requalified.”
+- Also covers: `website/AGENTS.md`: “Any detected drift leaves production unchanged until those controls are requalified.”
+- Evidence: none
+- Assumptions: `github-enforcement`, `administrator-readback`
+- Not verified:
+  - Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+  - Drift is detected only at setup, after control changes, and during recovery, not on each routine promotion.
+
+### `costs` (3 claims)
+
+#### `cost-surface-registry`
+
+Every product data surface (table, bucket, stream, dynamic route, blob, provider meter) is registered in costs.json with kind, retention class, owner, and budget; an unregistered surface fails check:cost-surfaces.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “A new table, bucket, stream, dynamic route, blob, or provider meter fails `check:cost-surfaces` until it registers.”
+- Also covers: `AGENTS.md`: “Run `bun run check:cost-surfaces` before handoff whenever a data surface changes.”
+- Evidence: `scripts/check-cost-surfaces.mjs`, `scripts/ci-pr-gate.test.ts`
+- Assumptions: none beyond the register-wide scope
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - No unit test covers the surface detector in `scripts/check-cost-surfaces.mjs`.
+
+#### `bounded-inputs`
+
+The parsers and stores that the cited tests exercise bound their inputs before storage or provider I/O: request bytes, row counts, page sizes, batch sizes, retry counts, and event payloads.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Bound every input before storage or provider I/O”
+- Evidence: `src/article-draft-document.test.ts`, `src/contract-repair-inbox.test.ts`, `src/contracts-plan.test.ts`, `src/control/approval-broker.test.ts`, `src/control/gateway.test.ts`, `src/control/validation.test.ts`, `src/messaging-automation-server.test.ts`, `src/omni-limits.test.ts`, `src/provider-plugin-host.test.ts`, `src/provider-plugin-registry.test.ts`
+- Assumptions: none beyond the register-wide scope
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - Modules without a cited test are not checked, and no static scan finds an unbounded input elsewhere.
+
+#### `mutation-idempotency-key`
+
+Every mutation carries an idempotency key, so a retried write never double-charges storage, quota, or provider spend.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `AGENTS.md`: “Every mutation carries an idempotency key; a retried write never double-charges storage, quota, or provider spend.”
+- Evidence: `src/contract-repair-inbox.test.ts`, `src/run-journal.test.ts`, `src/runtime.test.ts`
+- Assumptions: none beyond the register-wide scope
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+### `edge` (5 claims)
+
+#### `edge-same-origin-retrieval`
+
+Edge negotiation retrieves only same-origin sibling assets: the retrieved origin equals the request origin for every request path, including `//host/x.md`.
+
+- Evidenced by property test.
+- Source: `kb/plans/formal-verification-assurance.md`: “D12: require `retrieved.origin === request.origin` and add the property.”
+- Evidence: `edge/negotiation.test.ts`
+- Property tests: `edge/negotiation.test.ts`: “property: every retrieved URL keeps the request origin”
+- Assumptions: `whatwg-url`, `edge-runtime`
+- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+
+#### `edge-accept-406-only-when-empty`
+
+Accept negotiation honors q-values and returns 406 only when no owned representation remains.
+
+- Planned: Lean proof with differential test in plan Phase 5.
+- Source: `edge/AGENTS.md`: “Honor Accept q-values, set `Vary: Accept`, and return `406` only when no owned representation remains.”
+- Also covers: `website/AGENTS.md`: “return `406` only when no owned representation remains”
+- Evidence: `edge/negotiation.test.ts`
+- Assumptions: `whatwg-url`, `edge-runtime`
+- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `edge-vary-accept`
+
+Negotiated document responses set Vary: Accept.
+
+- Evidenced by example test.
+- Source: `edge/AGENTS.md`: “set `Vary: Accept`”
+- Also covers: `website/AGENTS.md`: “set `Vary: Accept`”
+- Evidence: `edge/negotiation.test.ts`
+- Assumptions: `whatwg-url`, `edge-runtime`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `edge-unknown-404`
+
+Unknown document paths stay HTTP 404 and serve the static markdown 404 body.
+
+- Evidenced by example test.
+- Source: `edge/AGENTS.md`: “Unknown document paths stay HTTP 404 and serve the static markdown 404 body.”
+- Also covers: `website/AGENTS.md`: “Unknown paths stay HTTP 404”
+- Evidence: `edge/negotiation.test.ts`
+- Assumptions: `whatwg-url`, `edge-runtime`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `edge-no-node-imports`
+
+Edge files import no Node, Bun, website build, or filesystem modules, and middleware.ts imports only edge/.
+
+- Evidenced by example test.
+- Source: `edge/AGENTS.md`: “Keep every file here free of Node, Bun, website build, and filesystem imports.”
+- Evidence: `edge/imports.test.ts`, `edge/tsconfig.json`
+- Assumptions: `whatwg-url`, `edge-runtime`
+- Not verified: Only static import declarations and `import()` calls with literal specifiers are scanned; test files under `edge/` run on Bun and are not scanned.
+
+### `encoding` (4 claims)
+
+#### `canonical-json-injective`
+
+canonicalJson over plain JSON with UTF-16 code-unit key order is injective, parse-then-encode is identity on canonical output, and key order is total and locale-independent.
+
+- Planned: Lean proof with differential test in plan Phase 5.
+- Source: `kb/plans/formal-verification-assurance.md`: “Canonical JSON over an inductive `Json` with UTF-16 key order: the encoder is injective, parse-then-encode is the identity on canonical output, and key order is total.”
+- Evidence: `src/canonical-json.test.ts`, `src/local-cli-surface-contract.test.ts`, `src/model.test.ts`
+- Assumptions: `bun-runtime`
+- Not verified:
+  - The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Number serialization is delegated to the JavaScript engine.
+
+#### `canonical-json-rejects-non-json`
+
+`canonicalJson` rejects sparse arrays, non-plain prototypes (Map, Date, typed arrays), accessors, and symbols rather than emitting invalid or colliding output.
+
+- Evidenced by property test.
+- Source: `kb/plans/formal-verification-assurance.md`: “D5: make `canonicalJson` reject non-plain prototypes, sparse arrays, accessors, and symbols”
+- Evidence: `src/canonical-json.test.ts`, `src/client-boundary.test.ts`
+- Property tests: `src/canonical-json.test.ts`: “property: every value fast-check can build encodes exactly when it is in the JSON domain”; `src/canonical-json.test.ts`: “property: a domain violation at any nesting depth is rejected”
+- Assumptions: none beyond the register-wide scope
+- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+
+#### `hash-framing-injective`
+
+The length-framed hash input and the json || 0x00 || 32-byte suffix encoding are injective.
+
+- Planned: Lean proof with differential test in plan Phase 5.
+- Source: `kb/plans/formal-verification-assurance.md`: “The length-framed hash input and the `json ‖ 0x00 ‖ 32-byte` suffix are injective.”
+- Evidence: `src/media/runtime-closure.property.test.ts`
+- Assumptions: `sha256`
+- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `identifier-roundtrip`
+
+Identifier grammars and route/operation composite keys satisfy parse(format(x)) = x and are unambiguous.
+
+- Planned: Lean proof with differential test in plan Phase 5.
+- Source: `AGENTS.md`: “Add property tests for strict parsers, canonical encodings, identifiers, ordering, round trips”
+- Evidence: `src/contracts-repair.test.ts`, `src/local-cli-tool-identity.test.ts`, `src/platform-catalog.property.test.ts`, `src/provider-plugin-registry.test.ts`
+- Assumptions: none beyond the register-wide scope
+- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+### `local-cli` (7 claims)
+
+#### `local-cli-digest-authority`
+
+A local-CLI binding executes only an executable whose exact SHA-256 matches the reviewed tool identity; reported versions are drift checks, not authority.
+
+- Evidenced by example test.
+- Source: `docs/local-cli-providers.md`: “the exact executable SHA-256, which is the execution authority”
+- Evidence: `src/beeper-local-plugin.test.ts`, `src/local-cli-tool-identity.test.ts`
+- Assumptions: `provider-behaviour`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `local-cli-identity-change-invalidates`
+
+Changing the tool identity changes the operation implementation and contract hash, so old previews, receipts, caches, and recovery evidence cannot authorize new bytes.
+
+- Evidenced by example test.
+- Source: `docs/local-cli-providers.md`: “Changing the tool identity changes the operation's implementation and contract hash, so old previews, receipts, caches, and recovery evidence cannot silently authorize the new bytes.”
+- Evidence: `src/local-cli-durable-identity.test.ts`
+- Assumptions: `provider-behaviour`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `local-cli-fixed-argument-positions`
+
+Caller values fill only reviewed argument positions and cannot select a command, flag, endpoint, target, env var, header, shell fragment, or output path.
+
+- Evidenced by example test.
+- Source: `docs/local-cli-providers.md`: “Caller values may fill only reviewed argument positions.”
+- Evidence: `src/beeper-local-plugin.test.ts`, `src/providers/beeper-local-runtime.internal.test.ts`
+- Assumptions: `provider-behaviour`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `local-cli-command-coverage-ledger`
+
+Every upstream canonical command maps to exactly one semantic operation or one explicit unavailable reason, and R4 destructive commands are unavailable to provider dispatch.
+
+- Evidenced by example test.
+- Source: `docs/local-cli-providers.md`: “Map every canonical command to one semantic Ghostget operation or one explicit unavailable reason.”
+- Evidence: `src/beeper-local-plugin.test.ts`
+- Assumptions: `provider-behaviour`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `local-cli-isolated-env`
+
+Local-CLI children start without a shell, with a minimal environment and operation-private directories, and inherit no credentials, targets, proxies, debug overrides, or user plugins.
+
+- Evidenced by example test.
+- Source: `docs/local-cli-providers.md`: “Start the process directly without a shell. Give it a minimal environment and operation-private config, data, cache, and temporary directories.”
+- Evidence: `src/imessage-direct-plugin.test.ts`, `src/providers/beeper-local-runtime.internal.test.ts`
+- Assumptions: `provider-behaviour`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `local-cli-birth-time-readiness`
+
+Local-CLI readiness requires a nonzero immutable directory birth time for operation-private roots and reports the transport unavailable before staging credentials otherwise.
+
+- Not verified.
+- Source: `docs/local-cli-providers.md`: “The temporary filesystem must expose a nonzero immutable directory birth time for operation-private roots.”
+- Evidence: none
+- Assumptions: `provider-behaviour`
+- Not verified:
+  - No automated check covers this claim, and no plan phase schedules one.
+  - No test exercises the birth-time readiness requirement.
+
+#### `local-cli-post-spawn-indeterminate`
+
+Once a local-CLI mutation child starts, any failure (timeout, signal, malformed or lost response) is post-dispatch indeterminate and is never retried.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `docs/local-cli-providers.md`: “Never retry a mutation after the child may have reached the provider.”
+- Evidence: `src/imessage-direct-plugin.test.ts`, `src/providers/beeper-direct-messaging.test.ts`
+- Assumptions: `provider-behaviour`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+### `media` (11 claims)
+
+#### `media-single-finite-item`
+
+Media acquisition admits exactly one finite item and rejects playlists/collections and live or non-finite streams.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Keep media acquisition to one authorized, accessible, finite, non-DRM item. Reject playlists, live streams”
+- Evidence: `src/media/archive.test.ts`, `src/media/args.test.ts`, `src/media/metadata.property.test.ts`, `src/media/metadata.test.ts`, `src/media/source-router.property.test.ts`, `src/media/yt-dlp.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `media-tools`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - Probe and capture are separate yt-dlp calls, and capture does not recheck live or DRM status.
+
+#### `media-reject-drm-auth-bypass`
+
+Media acquisition rejects affirmative DRM, unsupported authentication, and access-control bypasses, and Ghostget never supplies decryption keys or bypass flags to media tools.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “affirmative DRM, unsupported authentication, and access-control bypasses.”
+- Evidence: `src/media/archive.test.ts`, `src/media/metadata.test.ts`, `src/media/yt-dlp.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `media-tools`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `media-promote-only-after-verification`
+
+A media item is promoted only after its inspectable archive, versioned manifest, and SHA-256 records pass complete verification; a revision chain has exactly one head.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `AGENTS.md`: “Promote an item only after its inspectable archive, versioned manifest, and SHA-256 records pass complete verification.”
+- Evidence: `src/media/archive.property.test.ts`, `src/media/archive.test.ts`, `src/media/lock.test.ts`, `src/media/manifest.property.test.ts`, `src/media/manifest.test.ts`, `src/media/revision.property.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `media-tools`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `media-crash-lineage-progress`
+
+Each capture subject has one revision lineage with a single head, and a crash or power loss during staging or promotion never leaves that lineage permanently invalid.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `kb/plans/formal-verification-assurance.md`: “The progress property "a crash never makes a lineage permanently invalid" drives D10.”
+- Evidence: `src/media/archive.property.test.ts`, `src/media/lock.test.ts`, `src/media/revision.property.test.ts`, `src/media/revision.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `filesystem-durability`, `process-liveness`, `media-tools`
+- Not verified:
+  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Plan defect D10 is open: only the direct capture file and the lock are fsynced before promotion, so a torn file after power loss can stop a lineage with no repair path.
+
+#### `media-lock-exclusion`
+
+Media item locks exclude concurrent owners; release never removes a replacement lock and final publication is an atomic same-volume rename.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `SECURITY.md`: “Media locks coordinate Ghostget processes, and final publication uses an atomic same-volume rename.”
+- Evidence: `src/media/lock.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`, `process-liveness`, `media-tools`
+- Not verified:
+  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Plan defect D11 is open: the promotion `rename` is not fenced by a lock generation, and lock liveness trusts `kill(pid, 0)` over heartbeat age.
+
+#### `media-cancellation-stops-work`
+
+Cancelling a media acquisition stops every process it started, including ffmpeg and HLS grandchildren; a cancellation that arrives before promotion prevents a `created` result, and both pipelines discard staging on every error.
+
+- Planned: example test in plan Phase 6.
+- Source: `kb/plans/formal-verification-assurance.md`: “D9: spawn in a process group and kill the group. Check cancellation before promotion.”
+- Evidence: `src/media/process.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `media-tools`
+- Not verified:
+  - The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Plan defect D9 is open: cancellation signals only yt-dlp, not its process group, so ffmpeg and HLS grandchildren keep running, and a cancel after transcription can still return `created`.
+
+#### `media-verify-recomputes-hashes`
+
+`ghostget verify` recomputes SHA-256 records and detects later archive changes.
+
+- Evidenced by example test.
+- Source: `SECURITY.md`: “SHA-256 records that `ghostget verify` recomputes”
+- Evidence: `src/media/archive.test.ts`, `src/media/cli.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `media-tools`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `media-no-shell-no-ambient-config`
+
+Media tools are invoked with an argv array without a shell, and ambient yt-dlp configuration is ignored unless explicitly selected.
+
+- Evidenced by example test.
+- Source: `SECURITY.md`: “Ghostget invokes media tools without a shell, ignores ambient yt-dlp configuration unless the user explicitly selects that mode”
+- Evidence: `src/media/args.test.ts`, `src/media/process.test.ts`, `src/media/yt-dlp.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `media-tools`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `media-no-persist-transport-secrets`
+
+Media archives never persist cookies, request headers, signed media URLs, raw yt-dlp metadata, or transport fragments; diagnostics redact URL paths and credentials.
+
+- Evidenced by example test.
+- Source: `SECURITY.md`: “does not persist cookies, request headers, signed media URLs, raw yt-dlp metadata, or transport fragments”
+- Evidence: `src/media/archive.test.ts`, `src/media/metadata.test.ts`, `src/media/process.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `media-tools`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `direct-media-fixed-role-names`
+
+The direct-media adapter reads a bounded range, identifies media from bytes, and stores fixed role names rather than URL basenames.
+
+- Evidenced by property test.
+- Source: `SECURITY.md`: “It reads a bounded range, identifies media from bytes, and stores fixed role names instead of URL basenames.”
+- Evidence: `src/media/archive.property.test.ts`, `src/media/http-capture.test.ts`, `src/media/http-probe.property.test.ts`
+- Property tests: `src/media/http-probe.property.test.ts`: “property: chunk partitioning cannot hide bytes beyond the probe declaration”; `src/media/archive.property.test.ts`: “property: opaque raw IDs never enter archive or focused path segments”
+- Assumptions: `filesystem-atomic-rename`, `media-tools`
+- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+
+#### `transcription-setup-no-download`
+
+Local transcription setup never downloads whisper.cpp, its model, or libraries, and rechecks the selected executable, model, and observable runtime closure.
+
+- Evidenced by example test.
+- Source: `SECURITY.md`: “Ghostget records and rechecks the selected executable, model, and observable non-platform runtime closure”
+- Evidence: `src/media/local-transcription.test.ts`, `src/media/runtime-closure.test.ts`, `src/media/transcriber-config.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `media-tools`
+- Not verified: Only the enumerated example cases are checked.
+
+### `messaging` (10 claims)
+
+#### `messaging-composite-ordered-prefix`
+
+A messaging turn is one composite confirmation and one ordered, prefix-durable run: the accepted prefix is monotone, at most one part is dispatching or indeterminate, and no part is redispatched.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `SECURITY.md`: “A messaging turn is one composite confirmation and one ordered, prefix-durable run.”
+- Evidence: `src/messaging-action-store.test.ts`, `src/messaging-confirmation-recovery.test.ts`, `src/messaging-provider-identity-collision.test.ts`, `src/messaging-runtime-composite.test.ts`, `src/messaging-runtime-execution.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified:
+  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - A provider history window may evict the accepted prefix before recovery reads it.
+
+#### `messaging-recovery-model`
+
+Beeper and Message Like Me recovery retain a live or indeterminate owner and never reclaim it until death is proved.
+
+- Planned: stateful model in plan Phase 4.
+- Source: `kb/plans/formal-verification-assurance.md`: “Add a `fc.commands` model for Beeper and Message Like Me recovery.”
+- Evidence: `src/beeper-message-like-me-recovery.test.ts`
+- Assumptions: `filesystem-durability`, `process-liveness`, `provider-behaviour`
+- Not verified: The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `messaging-stop-on-drift`
+
+Before every remaining part, current provider state is rechecked and the run stops on foreign activity, edit, retraction, participant or provider drift, permanent failure, partial work, or possible completion.
+
+- Planned: stateful model in plan Phase 4.
+- Source: `SECURITY.md`: “Ghostget checks current provider state before every remaining part and stops on foreign activity, edit, retraction, participant drift, provider drift”
+- Evidence: `src/messaging-automation.test.ts`, `src/messaging-runtime-execution.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified: The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `messaging-transition-inductive`
+
+The messaging run reducer invariant is inductive under transitionMessagingRun.
+
+- Planned: Lean proof with differential test in plan Phase 5.
+- Source: `kb/plans/formal-verification-assurance.md`: “The same inductive-invariant proof for `transitionMessagingRun`.”
+- Evidence: `src/messaging-action-store.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `messaging-uncertain-not-resubmitted`
+
+Cancellation never proves an already-started action was unsent; uncertain submits are reconciled by exact run identity and never resubmitted.
+
+- Planned: stateful model in plan Phase 4.
+- Source: `docs/messaging-automation.md`: “reconcile its exact run identity without resubmitting uncertain work.”
+- Evidence: `src/beeper-message-like-me-recovery.test.ts`, `src/messaging-automation.test.ts`, `src/messaging-confirmation-recovery.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified: The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `messaging-capability-io-private`
+
+Messaging route, context, reply, and provider references enter only through stdin or owner-only files and leave only through explicit atomic mode-0600 artifacts, never argv or ordinary output.
+
+- Evidenced by example test.
+- Source: `SECURITY.md`: “These values enter through stdin or checked owner-only files and leave only through explicit atomic mode-`0600` artifacts.”
+- Evidence: `src/args.test.ts`, `src/messaging-private-output-boundary.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `messaging-encrypted-no-plaintext-fallback`
+
+Messaging route, context, preview, and execution state is encrypted at rest with authenticated reference binding; authentication failure, expiry, generation drift, or implementation drift makes records unusable and never falls back to plaintext.
+
+- Evidenced by example test.
+- Source: `SECURITY.md`: “Ghostget encrypts route, context, preview, and execution state at rest”
+- Evidence: `src/cursor-token.test.ts`, `src/messaging-action-store.test.ts`, `src/messaging-runtime-execution.test.ts`, `src/messaging-store.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `messaging-output-outside-state-root`
+
+Explicit messaging output paths are distinct from each other and outside the Ghostget state root, so plaintext exports cannot replace keys, plans, runs, or receipts.
+
+- Evidenced by example test.
+- Source: `SECURITY.md`: “Explicit messaging output paths must be distinct and outside the Ghostget state root”
+- Evidence: `src/messaging-private-output-boundary.test.ts`, `src/messaging-runtime-composite.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `messaging-automation-grant-scoped`
+
+The owner messaging host requires explicit allow grants for messaging.automation.* operations; old messaging.send allow, ask, deny, or unmanaged policy provide no unattended authority, and changed manifests or closures invalidate grants.
+
+- Evidenced by example test.
+- Source: `docs/messaging-automation.md`: “An old `messaging.send` allow does not authorize this host. `ask`, `deny`, and an unmanaged policy do not provide unattended authority.”
+- Evidence: `src/messaging-automation-server.test.ts`, `src/messaging-automation.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `messaging-automation-bounds`
+
+The messaging automation protocol rejects a second ordinary in-flight request and enforces frame (24 MiB), response (32 MiB), and asset (16 MiB each, 64 MiB total, 32 entries, canonical Base64 with checked SHA-256) bounds.
+
+- Evidenced by example test.
+- Source: `docs/messaging-automation.md`: “Frames are bounded to 24 MiB; responses to 32 MiB. Assets use canonical Base64 and a checked SHA-256, at most 16 MiB each, 64 MiB total and 32 entries.”
+- Evidence: `src/messaging-automation-server.test.ts`, `src/messaging-automation.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified: Only the enumerated example cases are checked.
+
+### `mutations` (8 claims)
+
+#### `mutation-exact-preview-confirmation`
+
+A mutation dispatches only after an exact preview and a confirmation whose digest binds that preview; each plan is consumed exactly once, and expired, drifted, or altered plans are consumed without dispatch.
+
+- Planned: stateful model in plan Phase 4.
+- Source: `AGENTS.md`: “Keep mutations behind exact preview, confirmation, durable dispatch, and at-most-once evidence.”
+- Evidence: `src/confirmed-write-program.test.ts`, `src/control/menubar-cli.test.ts`, `src/messaging-runtime-composite.test.ts`, `src/providers/x.test.ts`, `src/runtime.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified: The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `confirmed-write-at-most-once`
+
+For every intent (account realm, provider target, operation id, canonical input), provider effects are at most 1 + duplicate successors, including across reconnect and manifest-hash changes.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `AGENTS.md`: “durable dispatch, and at-most-once evidence.”
+- Evidence: `src/confirmed-write-intent-fence.test.ts`, `src/run-journal.property.test.ts`, `src/run-journal.test.ts`, `src/runtime.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `indeterminate-never-retried`
+
+An indeterminate (post-dispatch uncertain) mutation is never retried; a lost acknowledgement never permits another remote submission.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `AGENTS.md`: “Never retry or clear an indeterminate dispatch”
+- Evidence: `src/control/gateway.test.ts`, `src/derive.test.ts`, `src/imessage-direct-plugin.test.ts`, `src/linked-device-lifecycle-journal.test.ts`, `src/linked-device-lifecycle-runtime.test.ts`, `src/portable-run-recovery.test.ts`, `src/run-journal.property.test.ts`, `src/runtime.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `indeterminate-cleared-only-by-evidence`
+
+An indeterminate dispatch fence is released only from separately obtained exact evidence (plugin readback or owner approval), never from caller-typed hashes.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `AGENTS.md`: “reconcile it from separately obtained exact evidence.”
+- Evidence: `src/ghostget.test.ts`, `src/portable-run-recovery.test.ts`, `src/provider-plugin-portable-runtime.test.ts`, `src/provider-plugin-reconciliation.property.test.ts`, `src/run-journal.test.ts`, `src/web-session-recovery.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified:
+  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Terminalizing a run from supplied evidence says nothing about provider liveness.
+
+#### `durable-boundaries-before-dispatch`
+
+Confirmation claim, plan consumption, provisional receipt, idempotency ledger, and recovery capsule reach durable storage before remote dispatch; dispatch is refused if the capsule cannot be stored.
+
+- Planned: stateful model in plan Phase 4.
+- Source: `docs/effect-confirmed-write-runtime.md`: “Confirmation claims, plan consumption, provisional receipt, idempotency ledger and recovery capsule must reach their existing durable boundaries before remote dispatch.”
+- Evidence: `src/confirmed-write-program.test.ts`, `src/runtime.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified: The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `journal-stale-writer-rejected`
+
+Dispatch callbacks persist transitions against one current journal cell; a stale or competing callback cannot reuse an older journal snapshot (content-hash CAS).
+
+- Evidenced by property test.
+- Source: `docs/effect-confirmed-write-runtime.md`: “A stale or competing callback cannot reuse an older journal snapshot.”
+- Evidence: `src/confirmed-write-program.test.ts`, `src/run-journal.property.test.ts`, `src/run-journal.test.ts`
+- Property tests: `src/run-journal.property.test.ts`: “a lost native acknowledgement never permits a stale journal write in a bounded dispatch schedule”
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+
+#### `journal-invariant-inductive`
+
+assertJournalInvariants is inductive under transitionRunJournal and dispatch counters are monotone; skipped, duplicate, or contradictory progress is rejected.
+
+- Planned: Lean proof with differential test in plan Phase 5.
+- Source: `kb/plans/formal-verification-assurance.md`: “`assertJournalInvariants` is inductive under `transitionRunJournal`, and the dispatch counters are monotone.”
+- Evidence: `src/run-journal.property.test.ts`, `src/run-journal.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `public-rejection-preserved`
+
+The confirmed-write public boundary preserves the exact selected rejection value, including undefined, null, and other falsey values.
+
+- Evidenced by example test.
+- Source: `docs/effect-confirmed-write-runtime.md`: “The public boundary keeps the exact selected rejection, including `undefined`, `null` and other falsey values.”
+- Evidence: `src/confirmed-write-program.test.ts`
+- Assumptions: `filesystem-durability`, `provider-behaviour`
+- Not verified: Only the enumerated example cases are checked.
+
+### `npm` (17 claims)
+
+#### `npm-publish-after-canonical-only`
+
+publish_npm runs only after verify, attest and publish succeed (the immutable GitHub Release exists) and publishes the identical canonical bytes; canonical publication has no dependency on npm.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `AGENTS.md`: “The same tag Release run then publishes the identical canonical bytes to npm”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `npm-registry`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `npm-failure-never-blocks-canonical`
+
+An npm failure never unpublishes or blocks the GitHub Release.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `AGENTS.md`: “an npm failure is rerun from the same run and never blocks canonical publication.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `npm-registry`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `npm-failure-never-blocks-promotion`
+
+A Release attempt that published the canonical Release and then failed a later npm job can still be promoted to the website through manual recovery: its authority resolution and the canonical download admit that attempt only through its bounded job inventory proving the four canonical jobs succeeded, and after a re-run of all jobs, only through the earlier receipt attempt that the Release body names, whose own inventory must prove all four. Automatic promotion admits only a first attempt that succeeded.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Manual recovery requires a positive current attempt and admits an unsuccessful latest attempt only through that attempt's own bounded job inventory proving all four or, when that attempt did not publish, through the earlier receipt attempt that the Release body names, whose own bounded inventory must prove all four; the mutable body only selects which inventory to read.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `npm-registry`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - Promotion after an npm failure waits for an owner to dispatch manual recovery; the automatic path fails its first-attempt gate by design.
+
+#### `npm-reauthorize-before-oidc`
+
+Before npm setup or OIDC minting, publish_npm reauthorizes the current attempt identically to the GitHub publisher (actor and triggering_actor 894119, repository 1316443113, workflow 323493609 at its path, protected tag, verified SHA, main ancestry); delegated reruns fail closed.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Before `publish_npm` sets up npm or mints OIDC, bind its current attempt—including both `actor` and `triggering_actor`—to owner User `894119`”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `npm-registry`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `npm-job-checkout-free-minimal-permissions`
+
+publish_npm is checkout-free, runs no product source, bun, scripts, NPM_TOKEN or NODE_AUTH_TOKEN, and declares exactly actions: read, contents: read, id-token: write.
+
+- Evidenced by example test.
+- Source: `docs/publishing.md`: “It is checkout-free, runs no product source or `bun install`, declares only `actions: read`, `contents: read`, and `id-token: write`”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `npm-registry`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `npm-artifact-by-numeric-id-bound`
+
+publish_npm downloads the attested artifact only by numeric artifact ID and binds all five files to the verify job's SHA-256 hashes and bundle digest, and the manifest to the verified source, tag, workflow, run and package, before handing off only archive and receipt.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Download the attested canonical artifact only by numeric artifact ID and bind all five files to the verify hashes and bundle digest.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `npm-registry`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `npm-clean-defaults-latest-tag`
+
+Before publishing, ambient npm_config_tag is absent, user/global/project npm config is empty, pinned npm 11.19.0's default tag is proven to be latest, and npm publish runs without --tag.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Scrub ambient tag variables and project, user, and global npm configuration; prove pinned npm's clean default tag is `latest`;”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `npm-registry`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `npm-admit-registry-identity-provenance`
+
+@hraness/ghostget@<version> is advertised as available only after admit_npm proves the registry tarball matches the canonical archive and npm audit signatures binds publish and SLSA attestations to the tag push, verified commit and release.yml, within a bounded propagation window.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Require the exact public registry package and its npm provenance to match the canonical archive in `admit_npm` before advertising registry availability”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `sigstore`, `npm-registry`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `npm-no-token-no-staged-no-dispatch`
+
+No npm token, staged publish, separate dispatch workflow, or human step follows the tag push; npm-stage.yml does not exist.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “No dispatch, staged publish, token, or human step follows the tag push”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `npm-registry`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `npm-no-content-policy`
+
+The @hraness/ghostget package carries no contentPolicy declaration and no DISCLOSURE file.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “the package carries no `contentPolicy` declaration and no `DISCLOSURE` file”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `npm-registry`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `npm-reread-canonical-before-publish`
+
+Immediately before npm publish, the immutable canonical Release is re-read by tag: immutable, non-draft, non-prerelease, Actions-bot author, exact source and attempt receipt, exactly five uploaded assets, and archive digest and size equal to the handed-off tarball; returned identity and integrity must match.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “re-read the immutable canonical Release immediately before `npm publish` without `--tag`”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `npm-registry`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `npm-packed-manifest-publication-settings`
+
+The independently parsed packed manifest must have private omitted or false, no contentPolicy, no top-level tag, and publishConfig exactly {access: public, canonical registry}; scoped registries, proxies, credentials and any other publication setting are rejected.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “permit no top-level `tag` plus only `publishConfig.access=public` and the canonical npm registry—reject scoped registries, proxies, credentials, and all other publication settings.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `npm-registry`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `npm-registry-state-admission`
+
+npm mutation is admitted only when the version is absent and public latest is strictly older (publish), or the same version is public with the exact canonical dist.integrity (skip, no second write); every other state, including same version with different bytes or an unprovable registry state, fails closed.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Admit only an absent registry version newer than public `latest`, or the same version already public with the exact canonical integrity (skip without a second write); never overwrite a published version.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `npm-registry`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `npm-publish-at-most-once-per-version`
+
+Across any sequence of attempts and reruns of a Release run, npm publish is issued at most once per version and a published version is never overwritten; an ambiguous write is resolved by readback, never blind retry.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `docs/publishing.md`: “The workflow's `stable-release` concurrency group and npm's version immutability serialize publication”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `npm-registry`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `npm-release-env-sole-reference`
+
+Only the `publish_npm` job references the `npm-release` environment or mints an npm OIDC token; it is the sole environment in `release.yml`, and no other workflow names it.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Only `publish_npm` may reference it or mint an npm OIDC token”
+- Evidence: `scripts/ci-pr-gate.test.ts`, `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `npm-registry`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - The test covers `release.yml` only; plan Phase 6 adds the scan that no other workflow names the environment.
+
+#### `npm-release-env-config`
+
+GitHub environment npm-release has administrator bypass disabled, no reviewers, no secrets, sole protection rule branch_policy, and the single custom deployment policy tag v* with no branch admitted.
+
+- Not verified; intended layer: configuration readback.
+- Source: `AGENTS.md`: “Keep the `npm-release` environment fail closed: administrator bypass disabled, no reviewers, no secrets, sole protection rule `branch_policy`, and the single custom deployment policy `tag` `v*` with no branch admitted.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `npm-registry`, `administrator-readback`
+- Not verified:
+  - Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+  - The listed tests check only the checked-in side of the contract.
+
+#### `npm-trusted-publisher-binding`
+
+The npm trusted publisher for @hraness/ghostget names exactly hraness/ghostget, release.yml and environment npm-release; no other relationship exists, package access requires 2FA and disallows tokens, and no npm token is stored in GitHub.
+
+- Not verified; intended layer: configuration readback.
+- Source: `AGENTS.md`: “the npm trusted publisher names `release.yml` and this environment.”
+- Evidence: none
+- Assumptions: `github-api`, `npm-registry`, `administrator-readback`
+- Not verified: Live settings are confirmed only by administrator readback; CI cannot read them or detect drift.
+
+### `parsing` (2 claims)
+
+#### `strict-foreign-parsing`
+
+Every foreign manifest, package, message, plan, receipt, response, and CLI value is parsed from `unknown` and rejects extra fields, malformed bounds, accessors, non-plain prototypes, ambiguous ownership, smuggled keys, and drift.
+
+- Planned: property test in plan Phase 6.
+- Source: `AGENTS.md`: “Parse every foreign manifest, package, message, plan, receipt, response, and CLI value from `unknown`; reject extra fields, malformed bounds, ambiguous ownership, and drift.”
+- Evidence: `src/browser-admission.property.test.ts`, `src/contracts-check.test.ts`, `src/contracts-shape.test.ts`, `src/control/validation.test.ts`, `src/linked-device-lifecycle-journal.property.test.ts`, `src/local-cli-tool-identity.test.ts`, `src/provider-plugin-portable.property.test.ts`, `src/run-journal.property.test.ts`
+- Assumptions: none beyond the register-wide scope
+- Not verified:
+  - The property test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Some exact-key checks compare comma-joined key lists, so a smuggled `"a,b"` key can pass; plan Phase 6 replaces them with one shared `exactKeys`.
+
+#### `read-result-proto-roundtrip`
+
+An own `__proto__` key in foreign JSON stays visible to exact-key parsing, and `parseInvokeReadResult` round-trips any JSON output, including objects with an own `__proto__` key.
+
+- Evidenced by property test.
+- Source: `kb/plans/formal-verification-assurance.md`: “D6: fix the `__proto__` round trip and promote seed 455347073 to a named test.”
+- Evidence: `src/browser-admission.property.test.ts`, `src/contracts-invoke-read.test.ts`, `src/contracts-shape.test.ts`, `src/provider-plugin-registry-semantic.test.ts`
+- Property tests: `src/contracts-invoke-read.test.ts`: “property: bounded arbitrary outputs round-trip; an unsupported key at any envelope path is rejected”
+- Assumptions: none beyond the register-wide scope
+- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+
+### `plugins` (13 claims)
+
+#### `portable-plugin-explicit-trust`
+
+Portable plugin code executes only after an explicit trust decision bound to the exact verified content-addressed bundle; `plugin check` never executes plugin code.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “require an explicit trust decision for the exact verified bundle.”
+- Evidence: `src/args.test.ts`, `src/provider-plugin-lifecycle.test.ts`, `src/provider-plugin-package.test.ts`, `src/provider-plugin-store.test.ts`
+- Assumptions: `plugin-trusted`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `portable-host-capability-denial`
+
+The portable child-process host denies undeclared capabilities, foreign origins, and out-of-bound results, and executes only the verified runtime bytes even if the installed path is rewritten.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Treat portable child-process execution as ordinary-failure containment”
+- Evidence: `src/provider-plugin-host.test.ts`, `src/provider-plugin-portable-runtime.test.ts`
+- Assumptions: `plugin-trusted`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `catalog-unique-ownership`
+
+The validated active catalog rejects duplicate plugin, route, or operation ownership, independent of insertion order, before any command can use it.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Reject duplicate plugin, route, or operation ownership before a command can use it.”
+- Evidence: `src/contracts-catalog.test.ts`, `src/operation-permission.property.test.ts`, `src/platform-catalog.property.test.ts`, `src/provider-plugin-portable-registry.test.ts`, `src/provider-plugin-registry.test.ts`
+- Assumptions: `plugin-trusted`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `contract-hash-environment-invariant`
+
+Built-in durable contract hashes are versioned and identical across package layout and execution environment.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Keep built-in durable contract hashes versioned and invariant across package layout and execution environment.”
+- Evidence: `src/model.test.ts`, `src/provider-plugin-package.test.ts`, `src/provider-plugin-registry.test.ts`, `src/web-session-contracts.test.ts`
+- Assumptions: `plugin-trusted`
+- Not verified:
+  - No property test covers this law yet; only the enumerated example cases are checked.
+  - Nothing forces a contract version bump when the source closure changes.
+
+#### `contract-closure-lazy-revalidation`
+
+The source/dependency closure is derived automatically, snapshotted at registry startup, and revalidated before and after lazy runtime load; a changed closure is rejected rather than executed.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Derive the exact current source/dependency closure automatically, snapshot it at registry startup, and revalidate it before and after lazy runtime load”
+- Evidence: `src/beeper-local-plugin.test.ts`, `src/provider-plugin-registry.test.ts`
+- Assumptions: `plugin-trusted`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - Revalidation compares disk bytes under a single-writer assumption, so an A→B→A edit between the checks passes.
+
+#### `portable-identity-artifact-bound`
+
+Portable-plugin identity is bound to its exact verified artifact; artifact tampering changes identity separately from the logical descriptor, and identity extensions are rejected.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Portable-plugin identity must remain bound to its exact verified artifact.”
+- Evidence: `src/provider-plugin-portable-identity.test.ts`, `src/provider-plugin-portable-registry.test.ts`, `src/recovery.test.ts`, `src/run-journal.property.test.ts`
+- Assumptions: `plugin-trusted`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `plugin-lifecycle-serialized`
+
+Plugin update, disable, and removal are refused while the old bundle still owns live or unknown work (invocation leases, confirmations, run journals, recovery capsules, linked-device lifecycles).
+
+- Planned: stateful model in plan Phase 2.
+- Source: `docs/plugins.md`: “Ghostget refuses a transition while the old bundle still owns live or unknown work.”
+- Evidence: `src/provider-plugin-invocation-lease.property.test.ts`, `src/provider-plugin-invocation-lease.test.ts`, `src/provider-plugin-lifecycle-kernel.test.ts`
+- Assumptions: `plugin-trusted`
+- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `portable-pack-reproducible`
+
+`plugin pack` verifies the fixed file set and produces reproducible, relocation-stable bytes; undeclared files are refused.
+
+- Evidenced by example test.
+- Source: `docs/plugins.md`: “`pack` verifies the fixed file set and produces reproducible bytes.”
+- Evidence: `src/provider-plugin-lifecycle.test.ts`, `src/provider-plugin-package.test.ts`
+- Assumptions: `plugin-trusted`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `portable-no-ambient-authority`
+
+Portable plugins receive no shell, package manager, ambient environment, raw auth locator, unrestricted filesystem, redirect, automatic retry, or caller-chosen network primitive; native code and undeclared module imports are rejected.
+
+- Evidenced by example test.
+- Source: `docs/plugins.md`: “It receives no shell, package manager, ambient environment, raw auth locator”
+- Evidence: `src/provider-plugin-host.test.ts`, `src/provider-plugin-import-analysis.test.ts`, `src/provider-plugin-module-analysis.test.ts`, `src/provider-plugin-package.test.ts`
+- Assumptions: `plugin-trusted`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `portable-session-material-sinks`
+
+Cookie material is bound only to a cookie jar and OAuth material only to the Authorization header, for exact-origin HTTPS with bounded bodies.
+
+- Evidenced by example test.
+- Source: `docs/plugins.md`: “opaque cookie material bound only to a cookie jar and OAuth material bound only to the Authorization header”
+- Evidence: `src/provider-plugin-auth.test.ts`, `src/provider-plugin-host.test.ts`
+- Assumptions: `plugin-trusted`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `portable-state-cas`
+
+Versioned namespaced plugin state supports exact-byte compare-and-exchange so overlapping invocations cannot silently overwrite each other.
+
+- Evidenced by property test.
+- Source: `docs/plugins.md`: “Namespaced state supports exact-byte compare-and-exchange.”
+- Evidence: `src/provider-plugin-portable-runtime.test.ts`
+- Property tests: `src/provider-plugin-portable-runtime.test.ts`: “compare-exchange prevents concurrent lost updates and stale deletes”
+- Assumptions: `plugin-trusted`
+- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+
+#### `portable-cannot-declare-local-cli`
+
+Portable protocol v1 packages cannot declare the local-cli transport or request native process authority.
+
+- Evidenced by example test.
+- Source: `docs/local-cli-providers.md`: “Portable plugin protocol v1 cannot declare `local-cli`.”
+- Evidence: `src/provider-plugin-package.test.ts`
+- Assumptions: `plugin-trusted`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `cleanup-unsafe-irreversible`
+
+Once a cleanup barrier is marked unsafe, later native proof cannot reverse that settlement or release durable admission.
+
+- Evidenced by example test.
+- Source: `docs/effect-read-runtime.md`: “once it marks a barrier unsafe, later native proof cannot reverse that settlement or release the durable admission”
+- Evidence: `src/provider-plugin-cleanup-barrier.test.ts`, `src/web-session-cleanup-admission.test.ts`
+- Assumptions: `plugin-trusted`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+### `privacy` (3 claims)
+
+#### `secrets-out-of-artifacts`
+
+The code paths that the cited tests exercise keep raw authenticated traffic, cookies, tokens, profiles, private content, and local paths out of the receipts, logs, diagnostics, and captured evidence they produce.
+
+- Evidenced by property test.
+- Source: `AGENTS.md`: “Keep raw authenticated traffic, cookies, tokens, profiles, private content, and local paths out of Git, tests, receipts, logs, and diagnostics.”
+- Evidence: `scripts/verification-tools.test.ts`, `src/auth-storage.test.ts`, `src/control/gateway.test.ts`, `src/control/interface-cli.test.ts`, `src/control/vault.test.ts`, `src/derive-review.test.ts`, `src/ghostget.test.ts`, `src/har-internal.test.ts`, `src/media/archive.test.ts`, `src/media/process.test.ts`, `src/run-journal.test.ts`
+- Property tests: `src/har-internal.test.ts`: “property: arbitrary identifier-shaped path segments and JSON map keys never survive evidence”; `scripts/verification-tools.test.ts`: “never lets a replaced path, a marker, or a control character through”
+- Assumptions: `same-user-trusted`, `encryption`
+- Not verified:
+  - Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+  - Modules outside the cited tests are not checked, and nothing scans output for secrets in general.
+  - Git history, test fixtures, and CI logs are not mechanically scanned.
+
+#### `secrets-at-rest-encrypted-private`
+
+Provider session material is stored encrypted with authenticated ciphertext and private modes, invalidated on auth incarnation rotation, and never re-keyed beside existing ciphertext.
+
+- Evidenced by example test.
+- Source: `README.md`: “Replacing or removing an auth locator rotates its local lifetime identity, so old projection and provider-session ciphertext cannot revive after recreation.”
+- Evidence: `src/auth-storage.test.ts`, `src/nonstate-storage.test.ts`, `src/session-secrets.test.ts`
+- Assumptions: `same-user-trusted`, `encryption`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `confirmation-plans-encrypted`
+
+Confirmation plan inputs are encrypted at rest with authenticated metadata; a missing or replaced key never causes key replacement or ciphertext overwrite.
+
+- Evidenced by example test.
+- Source: `skills/ghostget/references/social-platform-routing.md`: “Ghostget's plan owns encrypted confirmed input and attachment bundles for its lifecycle.”
+- Evidence: `src/ghostget.test.ts`, `src/runtime.test.ts`
+- Assumptions: `same-user-trusted`, `encryption`
+- Not verified: Only the enumerated example cases are checked.
+
+### `promotion` (24 claims)
+
+#### `release-app-token-narrowed`
+
+Every minted App token is requested and validated to carry exactly metadata:read, contents:write, workflows:write, name only repository 1316443113, and a bounded one-hour expiry.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Runtime must request and validate a token narrowed to Ghostget repository ID `1316443113`”
+- Also covers: `website/AGENTS.md`: “Runtime must narrow and validate the minted token for Ghostget”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `release-app-token-revoked-exactly-once`
+
+After the operation the helper sends exactly one DELETE /installation/token requiring 204 with zero body, then requires two stable 401 denials from the exact installation-repositories endpoint within a 30-second, at-most-ten-slot absolute schedule; a 200 after 401, nonconvergence, malformed or timing-ambiguous responses fail closed and nothing is retried.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `AGENTS.md`: “send exactly one empty-204 revocation request and require two stable authorization denials”
+- Also covers: `website/AGENTS.md`: “the shared helper must send exactly one empty-204 token revocation”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `monotonic-clock`, `github-api`, `github-enforcement`, `vercel`
+- Not verified:
+  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - GitHub does not guarantee how quickly a revoked token stops working.
+
+#### `release-app-date-before-expiry`
+
+The GitHub Date header on the DELETE 204 and on every accepted 200 or 401 observation is canonical and strictly precedes the token's expires_at.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Require canonical GitHub `Date` headers strictly before the minted `expires_at` on that DELETE 204 and every accepted 200 or 401.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `release-app-revocation-receipt-semantics`
+
+propagationObserved=false iff the first two probes are the stable 401 pair with no 200; true iff at least one exact 200 preceded the final two 401s; advanced receipts bind this object as releaseAppRevocation and already-exact binds null.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “`propagationObserved=false` means the first two probes were the stable 401 pair with no observed 200; `propagationObserved=true` means at least one exact 200 preceded the final two stable 401s. Bind that exact bounded object as `releaseAppRevocation`”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `promotion-helper-bound-to-production-ref`
+
+The production helper is hard-bound to website-production and never targets the canary or any other ref.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Keep the production helper hard-bound to `website-production`.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `promotion-workflow-run-binding`
+
+The automatic workflow_run path requires repository 1316443113, Release workflow 323493609 at its exact path, tag push, first attempt, success, same head repository, and head SHA equal to the peeled immutable tag commit, with the payload run ID equal to the Release receipt's run ID.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “bind its automatic `workflow_run` to Ghostget repository ID `1316443113` and Release workflow ID `323493609` plus the exact path, tag-push event, first attempt, success, head repository, tag, peeled immutable release SHA, and payload run ID.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `promotion-manual-recovery-untrusted-tag`
+
+Manual recovery runs only from the main-origin promotion workflow with an untrusted stable-tag input and carries no upstream SHA, run ID or attempt; it requires a positive current attempt and never reruns or changes the tag Release.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Manual recovery on that same main-origin workflow accepts only an untrusted stable-tag input and carries no upstream SHA, run ID, or attempt.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `promotion-run-id-from-receipt`
+
+The authoritative Release run ID is derived only from the Release's sampled exact Actions receipt and is carried through baseline-v4, promotion-v3 and every later authority, promotion and outcome check.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Carry that run ID through exact `wrench-provider-baseline-v4` and `wrench-provider-promotion-v3` receipts”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `promotion-baseline-before-key-wait`
+
+A complete bounded Vercel Production deployment baseline (at most 500 deployments, two stable order-independent reads bracketed by authenticated GitHub Date headers) is recorded before any key-environment wait.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Record the complete bounded Vercel Production baseline before any key-environment wait.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `promotion-deployment-ref-sha-binding`
+
+The REST deployment's lowercase 40-hex .ref equals .sha equals the verified release commit, while the matching GraphQL deployment reports ref null and the same commitOid.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Bind the REST deployment's lowercase commit `.ref` and `.sha` to the verified release while GraphQL reports a null `ref` and the same `commitOid`.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `promotion-recovery-no-newer-success`
+
+Already-exact recovery selects the unique newest deployment for the verified SHA postdating the Release; a newer or same-second successful deployment for another SHA blocks recovery, while newer terminal failures do not displace the exact candidate.
+
+- Evidenced by example test.
+- Source: `docs/publishing.md`: “Recovery from an already-exact branch instead selects the unique newest deployment for the verified SHA and requires it to postdate the immutable Release. A newer or same-second deployment for another SHA blocks recovery when its current Vercel status is successful.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `production-branch-missing-is-hard-failure`
+
+After the one-time bootstrap, a missing website-production branch is a hard failure; no workflow or recovery creates it.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “After it, a missing production branch is a hard failure.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `promotion-rest-graphql-public-budgets`
+
+Promotion stays within the documented request budgets: at most 209 REST calls in the provider outcome job and 358 together with the immutable Release workflow, at most 120 GraphQL requests at no more than two points each, and at most 32 unauthenticated public-host GETs.
+
+- Evidenced by example test.
+- Source: `docs/publishing.md`: “The immutable Release and downstream promotion workflows together use at most 358 REST calls”
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `promotion-actions-read-single-read`
+
+Only the initial verify job has `actions: read`, and its authority resolution reads the Release Actions run exactly once, binding stable numeric actor and triggering-actor IDs and types, repository identities, workflow ID and path, tag-push event, source SHA, completion, success, and attempt.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “In the initial verify job's authority resolution, read that Actions run exactly once”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-app-rest-cap-fourteen`
+
+The App path makes at most fourteen REST requests (three setup/mint, one DELETE, at most ten probes).
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “cap the App path at fourteen REST requests.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `release-app-env-scrubbed-from-gh`
+
+Every read-only gh child process has all WRENCH_RELEASE_APP_* values removed from its environment; the installation token reaches only the private GIT_ASKPASS for the exact fetch and push.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Scrub every `WRENCH_RELEASE_APP_*` value from read-only `gh` children.”
+- Also covers: `website/AGENTS.md`: “every read-only GitHub child must be scrubbed of App values”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `promotion-leased-fast-forward-only`
+
+The production writer fetches only the verified tag, peels it locally to the independently verified SHA without executing tagged code, and pushes exactly one refspec with --force-with-lease=refs/heads/website-production:<expected-old>; a stale lease leaves the ref unchanged and the workflow never creates, deletes, force-moves or recreates the branch.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `AGENTS.md`: “Fetch only the exact verified tag through the private askpass token, peel it locally”
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-ref-authority.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `promotion-c-le-w-le-m`
+
+Promotion proves release commit C ≤ reviewed workflow source W ≤ protected current main M at every authority check before any provider or ref work, accepts only identical or strictly linear-forward movement of main, rejects rollback or divergence, and binds package, tag, Release, deployment, and production-ref identity to C.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `AGENTS.md`: “prove release `C<=W<=M` for protected current main `M`, allowing only linear descendant movement after dispatch”
+- Also covers: `website/AGENTS.md`: “prove `C<=W<=M` for protected current main `M` at every authority sandwich”
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-ref-authority.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `promotion-already-exact-no-credentials`
+
+When the production ref already equals the verified release, promotion takes a separate read-only path with no environment admission, App variable, private key, token mint, or Git push, and binds `releaseAppRevocation` to null.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “An already-exact ref must take a separate read-only path with no environment, App variable, private key, token mint, or Git push.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `promotion-revalidate-after-admission`
+
+A required fast-forward enters production-ref-writer-key only after immutable release, workflow-source and provider-baseline checks pass, then revalidates C<=W<=M, peeled tag, immutable Release and Latest before credentials and mutation.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `AGENTS.md`: “admit it automatically after the existing immutable release, exact workflow-source, and provider-baseline checks pass, then revalidate source and immutable release authority before credentials and mutation”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `promotion-observation-window`
+
+Provider outcome uses exactly 20 absolute observation slots at minute offsets 0..19 inside one injected monotonic half-open 20-minute window; latency never slides slots, no provider read starts at or after the deadline, and the job has a separate 30-minute timeout.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `AGENTS.md`: “Keep 20 observation slots at absolute minute offsets zero through 19 inside one injected monotonic 20-minute `[start, deadline)` interval and a separate 30-minute read-only job”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `monotonic-clock`, `github-api`, `github-enforcement`, `vercel`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `promotion-eventual-promotion-or-stuck-evidence`
+
+An immutable Release is eventually promoted or leaves explicit stuck evidence (progress law).
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `kb/plans/formal-verification-assurance.md`: “The progress goal is "an immutable Release is eventually promoted or leaves explicit stuck evidence".”
+- Evidence: none
+- Assumptions: `github-api`, `github-enforcement`, `vercel`, `ci-runner`
+- Not verified:
+  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; no automated check covers it yet.
+  - Progress assumes fair Actions scheduling and an owner who dispatches manual recovery when the automatic path is ineligible.
+
+#### `promotion-success-requires-stable-readbacks`
+
+Promotion succeeds only with one exact successful Vercel Production deployment plus stable terminal tag, Release, Latest, workflow-source, ref, inventory, status and two byte-stable canonical-host readbacks.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `AGENTS.md`: “Bind one exact successful Vercel Production deployment plus stable terminal tag, Release, Latest, workflow source, ref, inventory, status, and canonical-host readbacks before promotion succeeds.”
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`, `website/production-release-marker.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `promotion-candidate-status-history-clean`
+
+The pinned candidate's exhaustive REST status history (cap 500, empty sentinel page) must contain no failure, error or inactive row even if a newer row reports success; GraphQL latestStatus.id must equal the REST status node_id.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “exhaustively audit only the pinned candidate's REST status history. Reject any retained failure, error, or inactive candidate status even after success.”
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+### `providers` (1 claim)
+
+#### `no-caller-selected-raw-controls`
+
+No semantic provider operation or gateway call accepts caller-selected provider headers, cookies, selectors, scripts, shell commands, or arbitrary file paths; such inputs are rejected before any provider I/O.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Never add caller-selected provider headers, cookies, selectors, scripts, shell commands, or arbitrary file access.”
+- Evidence: `src/client-boundary.test.ts`, `src/model.test.ts`, `src/provider-plugin-host.test.ts`, `src/runtime.test.ts`
+- Assumptions: `provider-behaviour`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+### `release` (32 claims)
+
+#### `release-trigger-exact-tag-push-only`
+
+The Release workflow runs only on a protected direct tag push (no workflow_dispatch); the entry job rejects any event whose sender is not User 894119 or whose repository is not public Ghostget ID 1316443113.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Bind every Release run at entry to a protected tag-push event and embedded sender owned by User `894119` in public Ghostget repository ID `1316443113`.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-source-ci-admission-exact`
+
+Release admits source only with the exact commit's successful default-branch CI run on its current attempt: exact repository, workflow ID/path, main-push source and tree, every CI job successful with its real checkout log, and recorded workflow/lock hashes and toolchain versions; missing, failed, skipped, ambiguous, stale-attempt, or drifting evidence blocks.
+
+- Evidenced by example test.
+- Source: `docs/publishing.md`: “It requires the exact repository, active workflow ID/path, main-push source and tree”
+- Evidence: `scripts/github-release-artifact.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-source-codeql-exact-two-languages`
+
+Source admission requires exactly the Actions and JavaScript/TypeScript CodeQL jobs and analyses on the exact source and current main; missing or extra languages, or two exact-source CodeQL runs, are rejected.
+
+- Evidenced by example test.
+- Source: `docs/publishing.md`: “Admission requires exactly those two jobs and analyses, with missing or extra languages rejected.”
+- Evidence: `scripts/github-release-artifact.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-source-codeql-pr-association`
+
+The CodeQL PR comparison is accepted via its returned PR association; the exact 'View all branch alerts' summary is a fallback only when the association array is empty, never when a nonempty association contradicts.
+
+- Evidenced by example test.
+- Source: `docs/publishing.md`: “A nonempty contradictory association never falls back to the summary.”
+- Evidence: `scripts/github-release-artifact.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-source-evidence-72h-freshness`
+
+Every required CI and CodeQL job must have completed within 72 hours of admission with valid, non-future timestamps, and each analysis must fall inside its attempt's language-job interval; mutable run update times never establish freshness.
+
+- Evidenced by example test.
+- Source: `docs/publishing.md`: “Every required CI and CodeQL job must have completed within 72 hours of admission”
+- Evidence: `scripts/github-release-artifact.test.ts`
+- Assumptions: `monotonic-clock`, `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-source-no-caller-receipt`
+
+The source-CI helper resamples control evidence before returning, never reruns CI, and never accepts a caller-supplied receipt.
+
+- Evidenced by example test.
+- Source: `docs/publishing.md`: “The helper samples the control evidence again before returning”
+- Evidence: `scripts/github-release-artifact.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-fresh-build-before-capability`
+
+After admission Release performs a fresh frozen install and deterministic build, checks dist and bun.lock cleanliness, and the new npm archive passes the strict artifact parser and isolated consumer smoke before any attestation or publication capability exists.
+
+- Evidenced by example test.
+- Source: `docs/publishing.md`: “Its new exact npm archive passes the strict artifact parser and isolated consumer smoke before attestation or publication capability is available.”
+- Evidence: `scripts/ci-pr-gate.test.ts`, `scripts/github-release-artifact.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-tag-direct-lightweight`
+
+A release tag is one direct lightweight v<version> tag on the admitted commit; annotated tags are rejected and a historical tag is never overwritten, annotate-converted, moved or deleted to recover a run.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Keep direct lightweight tags”
+- Evidence: `scripts/release-ref-authority.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `release-manifest-strict-binding`
+
+release-manifest.json is parsed strictly and must bind repository, name, version, tag, source C, workflow authority W, run ID/attempt and archive size/SHA-256/SHA-512 to the requested values.
+
+- Evidenced by example test.
+- Source: `docs/publishing.md`: “`release-manifest.json`, the strict `hraness-github-release-v1` identity, including repository/name/version/tag, source `C`, reviewed workflow authority `W`, run ID/attempt, and archive size/SHA-256/SHA-512.”
+- Evidence: `scripts/github-release-artifact.test.ts`, `website/github-release-artifact.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-file-specific-size-bounds`
+
+Archive transfer is capped at 12 MiB from v0.18.1 (8 MiB earlier), receipt and manifest at 1 MiB, checksums and provenance at 8 MiB, applied uniformly by preparation, downloads, draft readbacks, attestation and npm handoff without relaxing digest or inventory checks.
+
+- Evidenced by property test.
+- Source: `docs/publishing.md`: “The transfer envelope admits an archive of at most 12 MiB from `v0.18.1`; earlier archives retain their 8 MiB limit”
+- Evidence: `scripts/github-release-artifact.test.ts`, `website/github-release-artifact.test.ts`
+- Property tests: `scripts/github-release-artifact.test.ts`: “property: foreign archive sizes are accepted exactly within the versioned transfer bound”
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+
+#### `release-archive-receipt-ustar-agreement`
+
+The archive and npm receipt must agree on every safe USTAR entry, mode, count, size and integrity; extra files, traversal, links, malformed receipts, unsafe package configuration and mismatched bytes are rejected, and both tar consumers agree on hostile USTAR headers.
+
+- Evidenced by example test.
+- Source: `docs/publishing.md`: “Reject extra files, traversal, links, malformed receipts, unsafe package configuration, and mismatched bytes.”
+- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-attest-checkout-free-reauthorized`
+
+A separate checkout-free attest job reauthorizes owner/run/tag before requesting OIDC and invokes pinned actions/attest; attest and publish_npm are the only jobs with id-token: write.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “a separate checkout-free OIDC attestation job”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-single-contents-write-job`
+
+Across all workflows, the Release publish job is the only job with contents: write; workflow defaults are contents: read and no workflow uses write-all.
+
+- Evidenced by example test.
+- Source: `docs/publishing.md`: “the checked workflow census leaves only the Release `publish` job with a `contents: write` `GITHUB_TOKEN`”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-existing-release-single-latest-check`
+
+An exact Release that already existed gets one immediate Latest check and never enters the convergence loop; after either path the terminal tag, main, control, by-tag and Latest reads must bind the same tag, ID and publication time.
+
+- Evidenced by example test.
+- Source: `docs/publishing.md`: “An exact Release that already existed gets one immediate Latest check and never enters this convergence loop”
+- Evidence: `scripts/release-provider-outcome.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-receipt-bot-and-body-prefix`
+
+Every publication readback requires Actions bot ID 41898282 of type Bot and a deterministic body prefix binding repository, tag, source SHA and GITHUB_RUN_ID; target_commitish is informational only and the protected tag must peel to C.
+
+- Evidenced by example test.
+- Source: `docs/publishing.md`: “Every publication readback instead requires Actions bot ID `41898282` with type `Bot` and a deterministic body prefix binding repository, tag, source SHA, and `GITHUB_RUN_ID`”
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `release-reauthorize-attempt-before-checkout`
+
+Before the sole write-capable job checks out source, the current attempt's actor and triggering_actor must both be User 894119 and the attempt must bind Release workflow ID 323493609, its exact path, the verified direct tag object and current-main ancestry; delegated reruns fail closed.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Before the sole write-capable job checks out source, use only `actions:read` to bind the exact current attempt—including both `actor` and `triggering_actor`”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `release-reauthorize-only-actions-read`
+
+The reauthorization before checkout uses only actions:read; no Release job holds Administration or calls ruleset/rule-suite endpoints.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “use only `actions:read`”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-version-monotone-stable`
+
+A new stable package version must exceed every completed stable Release; a higher raw tag alone is an incomplete request, and the publication path exhausts the bounded completed stable-Release ordering census before creating or publishing a draft.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `docs/publishing.md`: “Choose a new stable package version greater than every completed stable Release. A raw tag is a request, not a completed publication.”
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-ref-authority.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `release-five-file-contract`
+
+The canonical GitHub Release publishes, independently of npm, exactly five files: the packed `.tgz`, `npm-pack.json`, `release-manifest.json` (`hraness-github-release-v1`), `SHA256SUMS` covering the preceding three in order, and `provenance.jsonl`; duplicate, unknown, foreign-URL, or uncommitted assets are rejected.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “publish the exact five-file archive/packing-receipt/manifest/checksums/provenance contract independently of npm.”
+- Evidence: `scripts/github-release-artifact.test.ts`, `website/github-release-artifact.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-attestation-before-mutation`
+
+Before GitHub mutation, the attestation bundle must cryptographically verify for all four subjects with signed certificate repository/owner IDs, source/ref, workflow, GitHub-hosted push and run ID/attempt exactly matching; a matching archive hash or predicate metadata alone is not authority.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “A matching archive hash is insufficient release authority. Before GitHub mutation, require successful cryptographic verification”
+- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/npm-release-workflow.test.ts`, `website/github-release-artifact.test.ts`
+- Assumptions: `github-api`, `github-enforcement`, `sigstore`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `release-draft-create-only-on-exact-404`
+
+A draft is created only after an authenticated exact REST 404 by tag plus bounded inventory discovery shows none exists; any other lookup failure aborts.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `docs/publishing.md`: “Only an authenticated exact REST 404 permits draft creation; other lookup failures abort.”
+- Evidence: `scripts/github-release-artifact.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `release-upload-missing-only-no-clobber`
+
+Publication uploads only missing exact asset names without clobber, then downloads each asset by ID within its byte bound and compares bytes and SHA-256 to the verified local artifact before and after publication.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `docs/publishing.md`: “downloads each exact asset ID with its admitted byte bound, and compares its actual bytes and SHA-256”
+- Evidence: `scripts/github-release-artifact.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `release-draft-resume-exact-only`
+
+A pre-existing draft or published Release from the same attesting attempt, including one that a failed-jobs rerun of that run resumes, resumes only with matching Actions bot, source receipt, body, tag, and every already-uploaded asset; a mismatched draft or another attempt fails closed and is never deleted, recreated, clobbered, or relabeled.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `docs/publishing.md`: “A matching partial draft or published Release from the same attesting attempt, including one a failed-jobs rerun of that run resumes, may resume only with matching source, bot, body, and every already uploaded asset.”
+- Evidence: `scripts/github-release-artifact.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `release-single-publish-patch`
+
+The only publication mutation is one PATCH turning the admitted draft non-draft and requesting Latest after the complete five-file readback; no deletion, tag movement or rollback is ever issued.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `docs/publishing.md`: “The only publication PATCH changes the admitted draft to non-draft and requests Latest after the complete five-file readback.”
+- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `release-closure-check-before-each-write`
+
+Before each draft creation, missing-asset upload and publication, the helper proves C<=M on fully qualified main and tag refs, requires unchanged release-control closure, and observes two equal combined main-plus-tag advertisements around the proof.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `docs/publishing.md`: “Before each draft creation, missing-asset upload, and publication, fetch only the fully qualified governed main and tag refs, prove `C<=M`, and require unchanged release controls”
+- Evidence: `scripts/release-ref-authority.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `release-completed-release-original-identity`
+
+A completed Release is accepted only with its original signed identity and exact bot/body receipt; a newly rebuilt artifact never satisfies an existing Release, and a front-run Release or one from another run fails closed.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `docs/publishing.md`: “A completed release is accepted only with its original signed identity, never with a newly rebuilt artifact.”
+- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `release-latest-convergence-bounded`
+
+When creating a missing Release, the workflow pins one older immutable Latest predecessor; Latest may only remain that predecessor or advance to the exact target within at most twelve 5-second absolute slots in a 60-second monotonic deadline; any third identity, regression, drift, clock regression or exhaustion fails closed.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `docs/publishing.md`: “GitHub's Latest projection may remain only that exact predecessor or advance to the exact created target while the workflow makes at most twelve observations at absolute five-second slots inside one 60-second monotonic deadline.”
+- Evidence: `scripts/release-provider-outcome.test.ts`
+- Assumptions: `monotonic-clock`, `github-api`, `github-enforcement`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `release-never-delete-published`
+
+A published immutable Release is never deleted or rewritten, even if terminal readback fails after publication; historical versions, tags and assetless Releases are preserved.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `docs/publishing.md`: “Preserve that immutable release and inspect current authority; never delete or rewrite it.”
+- Evidence: `scripts/github-release-artifact.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `stable-release-concurrency-no-cancel-pending`
+
+The stable-release concurrency group serializes Release runs without cancelling a pending tag run.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `docs/publishing.md`: “The workflow's `stable-release` concurrency group and npm's version immutability serialize publication”
+- Evidence: none
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified:
+  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; no automated check covers it yet.
+  - The plan records that the `stable-release` concurrency group can cancel a pending tag run.
+
+#### `release-failed-jobs-rerun-recovers-publish`
+
+Re-running only the failed jobs of a Release run publishes the exact bytes that an earlier attempt of the same run attested: the publisher downloads the carried artifact only by its numeric ID behind an exact-identity guard, admits a manifest whose attempt is no later than the current attempt of the same run, and requires every signed certificate to name that attempt. The canonical download admits an attesting attempt whose publication failed only when a strictly later completed attempt of the same run proves all four canonical jobs in its own job inventory.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “The GitHub publisher downloads the attested artifact only by numeric artifact ID behind an exact-identity guard, so a failed-jobs rerun publishes the exact bytes and signed attempt its run already attested, never another run's or a later attempt's.”
+- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified:
+  - The publisher is checked on its enumerated examples; a property samples the canonical download's admission over attempts and job conclusions. Neither is a proof over all inputs.
+  - That GitHub carries the verify and attestation outputs and their artifact into a failed-jobs rerun is an assumption about GitHub Actions; CI does not check it.
+  - A failed attestation job cannot be recovered this way, because attestation downloads the build of its own attempt; re-running all jobs rebuilds under a new attempt, which the draft body check rejects.
+
+#### `release-workflow-isolation`
+
+The Release workflow never reads, creates, or updates website-production, never receives the release App key or Administration permission, and never waits for Vercel.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “The Release workflow must never read, create, or update `website-production`, receive the release App key, or wait for Vercel.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `mutable-presentation-not-authority`
+
+Release display title, run display name, actor logins and receipt body are presentation; authority comes only from stable numeric IDs/types, the protected tag and immutable Release coordinates, and the sampled source receipt is revalidated on every accepted Release read.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Treat the Release display title, Actions workflow-run display name, actor logins, and receipt body as mutable presentation or control-plane data.”
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`
+- Assumptions: `github-api`, `github-enforcement`
+- Not verified: Only the enumerated example cases are checked.
+
+### `repair-signals` (6 claims)
+
+#### `repair-signals-private`
+
+Repair signals are bounded and contain no account ID, subject, input or input hash, provider output, URL, credential, raw diagnostic, or HAR.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Keep failed-invocation signals free of account identifiers, inputs, private content, and raw errors.”
+- Evidence: `src/contract-repair-cli.test.ts`, `src/contract-repair-inbox.test.ts`, `src/contracts-repair.test.ts`
+- Assumptions: `filesystem-atomic-rename`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `repair-inspection-no-demand`
+
+Catalog, check, cache-only, and identity-only inspection records no repair demand.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Catalog/check/cache-only/identity-only inspection must not record demand.”
+- Evidence: `src/contract-repair-cli.test.ts`, `src/contract-repair-inbox.test.ts`, `src/contracts-repair-lifecycle.test.ts`
+- Assumptions: `filesystem-atomic-rename`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `repair-handoff-no-authority`
+
+Every repair handoff fixes `authority.recapture`, `retry`, `activate`, and `publish` to false; repair signals never authorize capture, retry, activation, or publication, and changed contracts remain unverified candidates.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Repair handoffs never authorize capture, retry, activation, or publication; changed contracts remain unverified candidates.”
+- Evidence: `src/contract-repair-cli.test.ts`, `src/contracts-repair-lifecycle.test.ts`, `src/contracts-repair.test.ts`
+- Assumptions: `filesystem-atomic-rename`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `repair-inbox-budget`
+
+The contract-repair inbox holds at most 128 entries, 2048 bytes per signal, and 262144 bytes total; full storage refuses new leads without evicting live ones.
+
+- Evidenced by example test.
+- Source: `costs.json`: “budget": { "maxEntries": 128, "maxBytes": 262144, "maxBytesPerSignal": 2048 }”
+- Evidence: `src/contract-repair-inbox.test.ts`
+- Assumptions: `filesystem-atomic-rename`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `repair-inbox-ttl`
+
+Repair inbox entries are hidden after 30 days and compacted only on the next admitted write; duplicate delivery never rewrites an entry.
+
+- Evidenced by example test.
+- Source: `costs.json`: “Hidden after 30 days; expired entries are compacted on the next admitted write”
+- Evidence: `src/contract-repair-inbox.test.ts`
+- Assumptions: `filesystem-atomic-rename`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `repair-storage-failure-isolated`
+
+Malformed, unsafe, or contended repair storage never changes the original operation outcome, and inspection never repairs or replaces the cache.
+
+- Evidenced by example test.
+- Source: `docs/contracts.md`: “Malformed, unsafe, or contended storage never changes the original operation outcome.”
+- Evidence: `src/contract-repair-inbox.test.ts`
+- Assumptions: `filesystem-atomic-rename`
+- Not verified: Only the enumerated example cases are checked.
+
+### `runtime` (4 claims)
+
+#### `package-root-import-inert`
+
+Importing the package root `@hraness/ghostget` does not start the CLI, inspect local state, load built-in providers, or access the network.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Keep the package root import side-effect-free. Importing `@hraness/ghostget` must not start the CLI, inspect local state, load built-in providers, or access the network.”
+- Evidence: `scripts/package-smoke.ts`, `src/cli.test.ts`, `src/contracts.test.ts`
+- Assumptions: `bun-runtime`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - The package smoke guards filesystem, HTTP, DNS, socket, and fetch entry points while it imports the packed root; it does not intercept child processes or environment reads.
+
+#### `runner-timeout-policy`
+
+Bun runner timeout and concurrency live only in package.json; no test calls setDefaultTimeout or passes per-test runner timeouts.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Keep the Bun runner timeout and concurrency policy in `package.json`; test bodies”
+- Evidence: `src/test-harness-policy.test.ts`
+- Assumptions: `bun-runtime`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `property-seed-replay`
+
+Every property runs through assertProperty so GHOSTGET_PROPERTY_SEED and GHOSTGET_PROPERTY_PATH replay applies; no direct fc.assert outside test-support.
+
+- Planned: example test in plan Phase 2.
+- Source: `AGENTS.md`: “retain fast-check's seed and shrink path. Replay one exact property with `GHOSTGET_PROPERTY_SEED`, `GHOSTGET_PROPERTY_PATH`”
+- Evidence: `src/test-support.test.ts`
+- Assumptions: `bun-runtime`
+- Not verified:
+  - The example test for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Direct `fc.assert` calls bypass the shared seed and path replay until plan Phase 2 routes them through `assertProperty`.
+
+#### `lifecycle-injected-clocks`
+
+Consequential lifecycle reducers take injected clocks and randomness; wall-clock jumps cannot extend or prematurely expire leases or proofs.
+
+- Planned: stateful model in plan Phase 2.
+- Source: `AGENTS.md`: “keep clocks and randomness injected”
+- Evidence: `src/control/approval-broker.test.ts`, `src/control/gateway.test.ts`, `src/effect-architecture.test.ts`, `src/linked-device-lifecycle-journal.property.test.ts`
+- Assumptions: `bun-runtime`, `monotonic-clock`
+- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+### `storage` (9 claims)
+
+#### `helper-mutual-exclusion`
+
+State-helper and path-helper three-phase claims admit at most one critical-section holder, including with stale-owner reaping and non-atomic readdir.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `kb/plans/formal-verification-assurance.md`: “The invariant is `|{p : critical(p)}| ≤ 1`.”
+- Evidence: `src/browser-snapshots.test.ts`, `src/path-helper.test.ts`, `src/read-projections.test.ts`, `src/storage-cas.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `state-cas-no-rollback`
+
+Private state writes are compare-and-swap: exactly one overlapping writer for an exact snapshot succeeds, a stale writer never rolls state back or resurrects a removed file, disappearance is a conflict, and symlinks are never followed.
+
+- Planned: stateful model in plan Phase 2.
+- Source: `docs/plugins.md`: “exact-byte compare-and-exchange”
+- Evidence: `src/auth-storage.test.ts`, `src/session-secrets.test.ts`, `src/storage-cas.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
+- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `session-secret-filename-injective`
+
+Session-secret file names are an injective encoding of (namespace, authId); removing one account never deletes or blocks another account's files.
+
+- Planned: Lean proof with differential test in plan Phase 5.
+- Source: `kb/plans/formal-verification-assurance.md`: “Identifier grammars, and route, operation, and session-secret composite keys: `parse ∘ format = id` and the keys are unambiguous.”
+- Evidence: `src/session-secrets.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
+- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `no-writes-on-read-paths`
+
+Read paths never mutate state; reads may only cache.
+
+- Planned: example test in plan Phase 6.
+- Source: `AGENTS.md`: “No writes on read paths. Reads may cache; they never mutate.”
+- Evidence: `src/contract-repair-cli.test.ts`, `src/contract-repair-inbox.test.ts`, `src/control/policy-privacy.test.ts`, `src/control/read-capability.test.ts`, `src/cursor-token.test.ts`, `src/linked-device-lifecycle-journal.test.ts`, `src/provider-plugin-store.test.ts`, `src/providers/whatsapp-interaction-projection-helper.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
+- Not verified:
+  - The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Only the menu-bar snapshot and its account and permission listings take a typed read capability; other read paths are not yet type-separated from writers.
+
+#### `read-path-read-capability`
+
+A read path receives a branded read capability with only read members, such as `AuthIncarnationReader`, not an environment that reaches writers; a structurally similar unbranded object is rejected by the type checker.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Hand a read path a read capability with no writer members, such as `AuthIncarnationReader`, not an environment that reaches writers.”
+- Evidence: `src/control/read-capability.test.ts`
+- Assumptions: `bun-runtime`
+- Not verified:
+  - Only the enumerated example cases are checked; the type assertions run under `bun run typecheck`.
+  - The brand exists only in the type system; code that casts through `unknown` can still forge a capability.
+  - Only the menu-bar snapshot and its account and permission listings take the typed capability; other read paths are not covered.
+
+#### `menu-bar-snapshot-read-only`
+
+The menu-bar snapshot and its account and permission listings take no admission and create no state; auth incarnations are created only by account saves, the control-service startup backfill, and admitted execution paths.
+
+- Evidenced by property test.
+- Source: `AGENTS.md`: “The menu-bar snapshot and its account and permission listings take no admission and create no state; account saves, the control-service startup backfill, and admitted execution paths create auth incarnations.”
+- Evidence: `src/control/read-capability.test.ts`
+- Property tests: `src/control/read-capability.test.ts`: “for any set of legacy accounts and orphaned claims, listing revisions write nothing and match the admitted revision exactly when an incarnation exists”
+- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
+- Not verified:
+  - Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+  - The law fingerprints only the read-projection control tree; writes elsewhere in the state home are covered only by the example snapshot test.
+
+#### `read-projection-admission-exemption`
+
+The only write a read-projection cache read makes is its own admission claim, which it creates and releases, and the removal of a claim whose recorded owner is proven dead; the claim carries no data.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “One bounded exemption (D14): a read-projection cache read may create and release its own admission claim and remove a claim whose recorded owner is proven dead, because it must exclude a concurrent projection transition.”
+- Also covers: `AGENTS.md`: “The claim is coordination state with no data, and the exemption covers nothing else.”
+- Evidence: `src/read-projections.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `process-liveness`, `same-user-trusted`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - No check establishes that a cache read writes nothing beyond its own claim and dead-owner removal.
+
+#### `derived-state-rebuildable`
+
+Derived state is rebuildable from authoritative state and lives in the cheapest serving tier; only authoritative state uses transactional storage.
+
+- Not verified.
+- Source: `AGENTS.md`: “Derived state is rebuildable and lives in the cheapest tier that can serve it.”
+- Evidence: none
+- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
+- Not verified:
+  - No automated check covers this claim.
+  - Only the `costs.json` kind classification is checked; rebuildability and tier placement are not.
+
+#### `content-bytes-in-content-store`
+
+Content bytes live only in the content store; the control plane holds references and metadata.
+
+- Not verified.
+- Source: `AGENTS.md`: “Content bytes live in the content store; the control plane keeps references and metadata only.”
+- Evidence: `src/control/gateway.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
+- Not verified: No automated check covers this claim as stated; the listed tests check only related cases.
+
+### `supply-chain` (3 claims)
+
+#### `committed-binaries-reproducible`
+
+Bundled native messaging runtimes are accepted only as exact pinned bytes.
+
+- Evidenced by example test.
+- Source: `docs/messaging-automation.md`: “Only exact pinned bytes are accepted.”
+- Evidence: `src/providers/messaging-native-install.test.ts`, `src/scripts/install-whatsapp-protocol.test.ts`
+- Assumptions: `ci-runner`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - The native install test runs only on darwin-arm64 and never runs in CI.
+
+#### `committed-binaries-provenance`
+
+Committed native binaries (imsg, wacli) are reproducible from reviewed source.
+
+- Planned: example test in plan Phase 6.
+- Source: `kb/plans/formal-verification-assurance.md`: “Build imsg and wacli in CI from pinned source with provenance, and stop committing binaries.”
+- Evidence: none
+- Assumptions: `ci-runner`
+- Not verified:
+  - The example test for this claim is scheduled for plan Phase 6; no automated check covers it yet.
+  - The release attestation proves that the workflow packed the binaries, not that they came from reviewed source, and imsg provenance records no clean rebuild.
+
+#### `hraness-deps-immutable-pins`
+
+Hraness dependencies are pinned to reviewed immutable releases or full commits, never sibling paths, submodules, or main.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Pin Hraness dependencies to reviewed immutable releases or full commits.”
+- Also covers: `AGENTS.md`: “consume shared design-kit or `@hraness/ui` primitives only at immutable versions”
+- Evidence: `website/site.test.ts`
+- Assumptions: `ci-runner`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - `website/site.test.ts` asserts only the design-kit, site-footer, and ui pins; the other Hraness dependencies, and rejection of branches, sibling paths, and submodules, are not checked.
+
+### `verification` (10 claims)
+
+#### `verification-inconclusive-not-evidence`
+
+A Quint, Apalache, or Lean run passes only on its exact success outcome; a timeout, interruption, violation, unparsed output, or a successful compile or typecheck alone fails `bun run verify` and the `verification` job.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Treat a checker timeout, an inconclusive or unparsed checker result, and a successful compile or typecheck alone as missing evidence”
+- Evidence: `scripts/verification-tools.test.ts`
+- Assumptions: `ci-runner`, `verification-tools`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `verification-tools-pinned`
+
+Quint 0.32.0, Apalache 0.62.2, the Temurin 21.0.12.1+1 JDK, elan 4.2.4, and Lean v4.34.0 are pinned exactly, and every downloaded checker archive, the JDK included, is admitted only at its pinned size and SHA-256.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Pin Quint, Apalache, the JDK, elan, and Lean to exact versions, and admit every downloaded checker archive only at its pinned SHA-256.”
+- Evidence: `.github/workflows/ci.yml`, `scripts/verification-tools.test.ts`, `verification/lean/lean-toolchain`
+- Assumptions: `ci-runner`, `verification-tools`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `verification-quint-smoke`
+
+The Quint smoke model typechecks, passes seeded simulation and bounded Apalache checking of `mutualExclusion`, both checkers find the violation in its unguarded mutant, 1,000 seeded ITF traces replay through a TypeScript reference lock, and the replay rejects a defective lock and every mutant trace that breaks mutual exclusion.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Pair every model with a seeded mutant or pre-fix variant that its checkers must find.”
+- Evidence: `scripts/verification-lock-replay.test.ts`, `scripts/verification-tools.test.ts`, `verification/quint/lock.qnt`, `verification/quint/models.json`
+- Assumptions: `ci-runner`, `verification-tools`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - The smoke model is toolchain evidence: its traces replay through a TypeScript reference lock, not production code.
+
+#### `verification-itf-strict`
+
+The ITF reader accepts only the value encodings Quint and Apalache write; bounds a trace's bytes, states, variables, nesting depth, value count, and string bytes; and rejects extra fields, duplicate set members and map keys, non-canonical integers, and states that are misindexed or do not assign exactly the declared variables.
+
+- Evidenced by property test.
+- Source: `AGENTS.md`: “Parse every foreign manifest, package, message, plan, receipt, response, and CLI value from `unknown`; reject extra fields, malformed bounds, ambiguous ownership, and drift.”
+- Evidence: `scripts/verification-itf.test.ts`
+- Property tests: `scripts/verification-itf.test.ts`: “every container level counts once against the depth bound”; `scripts/verification-itf.test.ts`: “bounds every string in UTF-8 bytes wherever the trace holds one”; `scripts/verification-itf.test.ts`: “a set or map is rejected exactly when two members or keys denote the same value”; `scripts/verification-itf.test.ts`: “a JSON number is read exactly when it is a safe integer other than -0”; `scripts/verification-itf.test.ts`: “#bigint text is read exactly when it is a canonical decimal integer of at most 78 digits”; `scripts/verification-itf.test.ts`: “every state must carry its own index and assign exactly the declared variables”
+- Assumptions: `ci-runner`, `verification-tools`
+- Not verified:
+  - Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+  - CI reads only the traces that the pinned Quint and Apalache releases write; another release may write an encoding the reader rejects.
+
+#### `verification-lean-trusted-base`
+
+The core-only Lean project builds with warnings as errors; every theorem listed in `proofs.json` exists as a theorem whose kernel statement matches its recorded SHA-256; for each seeded defect, the audit checks at the kernel-term level that the defect has the guarded definition's type and that the refutation states exactly the negation of the guarded theorem with the defect in place of the guarded definition; the axiom audit and source scan reject `sorry`, `admit`, native evaluation, unlisted axioms, and other trust escapes; and a seeded `sorry` canary must fail the build and the audit on every run.
+
+- Evidenced by example test.
+- Source: `verification/AGENTS.md`: “the audit rejects `sorry`, `admit`, native evaluation, unlisted axioms, and other trust escapes.”
+- Evidence: `scripts/verification-tools.test.ts`, `verification/lean/AxiomAudit.lean`, `verification/lean/GhostgetVerification/Smoke.lean`, `verification/lean/proofs.json`
+- Assumptions: `ci-runner`, `verification-tools`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - The smoke theorems state nothing about Ghostget code, and the Lean kernel and toolchain are trusted.
+  - The negation check compares kernel terms syntactically; a refutation that is only definitionally equal to the negation is rejected, not accepted.
+
+#### `verification-model-replay-required`
+
+Every Quint model records its invariants, seeds, bounds, a mutant, and a replay test, and the register accepts an evidenced Quint claim only when it cites a model whose replay test drives production code.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Count a Quint model as conformance evidence only after an ITF trace replay test drives production code through its traces; until then it is design evidence.”
+- Also covers: `verification/AGENTS.md`: “Set the replay target to `production` only when the replay test drives production code”
+- Evidence: `scripts/verification-claims.test.ts`, `scripts/verification-tools.test.ts`, `verification/quint/models.json`
+- Assumptions: `ci-runner`, `verification-tools`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `verification-register-complete`
+
+Every guideline in the scanned `AGENTS.md` guides maps to exactly one register rule whose digest matches its current text and which lists at least one claim or an exemption reason, and every evidence path in the register exists.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “When you add or change a rule in an `AGENTS.md`, update its claims and rule digest in `verification/claims.json` in the same change.”
+- Evidence: `scripts/verification-claims.test.ts`
+- Assumptions: `ci-runner`, `verification-tools`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `verification-claim-scope`
+
+Every claim carries its layer, status, assumptions, and a non-empty not-verified scope, and `docs/assurance.md` is generated from the register and fails its freshness test when stale.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Give every claim its not-verified scope, and regenerate `docs/assurance.md`.”
+- Also covers: `verification/AGENTS.md`: “Keep a claim `planned` with its plan phase until its layer runs in CI.”
+- Evidence: `docs/assurance.md`, `scripts/verification-claims.test.ts`
+- Assumptions: `ci-runner`, `verification-tools`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `verification-shrink-promotion`
+
+Every recorded shrink or failing seed is promoted to a named example test beside the property that found it.
+
+- Planned: example test in plan Phase 2.
+- Source: `AGENTS.md`: “Promote every recorded shrink or failing seed to a named example test.”
+- Also covers: `AGENTS.md`: “then promote a minimized failure to a named regression”
+- Evidence: none
+- Assumptions: `ci-runner`, `verification-tools`
+- Not verified: The example test for this claim is scheduled for plan Phase 2; no automated check covers it yet.
+
+#### `verification-unpublished`
+
+The published package excludes `verification/`, the verification scripts, and checker downloads, and generated traces, Lean build output, and downloaded checkers stay out of Git.
+
+- Evidenced by example test.
+- Source: `verification/AGENTS.md`: “Keep this directory, the verification scripts, and the checker downloads out of the published package.”
+- Also covers: `verification/AGENTS.md`: “Keep generated traces, build output, and downloaded tools out of Git.”
+- Evidence: `scripts/verification-tools.test.ts`
+- Assumptions: `ci-runner`, `verification-tools`
+- Not verified: Only the enumerated example cases are checked.
+
+### `web-gateway` (7 claims)
+
+#### `web-gateway-policy-admitted-https-only`
+
+The public web gateway dispatches only bounded HTTPS GET and HEAD retrieval requests that the web policy admits, with no request body and no ambient authentication.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “The separate public web gateway accepts only explicitly policy-admitted HTTPS retrieval URLs”
+- Evidence: `src/control/gateway.test.ts`, `src/control/interface-cli.test.ts`, `src/control/validation.test.ts`, `src/operation-permission.property.test.ts`
+- Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `web-policy-deny-dominates`
+
+Web policy decision is default-deny; deny beats ask beats allow, adding a deny rule never widens the result, and domain/path/query-key prefix matching is exact.
+
+- Planned: Lean proof with differential test in plan Phase 5.
+- Source: `SECURITY.md`: “under explicit domain, path, and query-key rules”
+- Evidence: `src/control/gateway.test.ts`, `src/control/validation.test.ts`
+- Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
+- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `web-gateway-pinned-transport`
+
+Gateway retrieval uses the pinned transport: one validated DNS address, redirects disabled, revocation/cancellation rechecked after DNS before dispatch, and no retry to another address after an ambiguous transport failure.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “through its pinned transport and durable audit boundary.”
+- Also covers: `src/control/AGENTS.md`: “no redirects or ambient credentials”
+- Evidence: `src/control/gateway.test.ts`, `src/pinned-https.test.ts`
+- Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `gateway-rejects-private-addresses`
+
+The gateway rejects private, loopback, and other non-public addresses (including IPv4-mapped IPv6) after resolution.
+
+- Planned: differential oracle in plan Phase 7.
+- Source: `SECURITY.md`: “private addresses”
+- Also covers: `src/control/AGENTS.md`: “public pinned DNS”
+- Evidence: `src/control/validation.test.ts`, `src/pinned-https.test.ts`
+- Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
+- Not verified:
+  - The differential oracle for this claim is scheduled for plan Phase 7; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - The address classifier comes from `@hraness/kb`; no independent registry oracle checks it yet.
+
+#### `web-gateway-durable-audit-precedes-network`
+
+A durable audit record exists before any gateway network dispatch, and a failed final audit, revocation, redirect, or oversized body withholds output; crash recovery preserves unknown requests without retrying them.
+
+- Planned: stateful model in plan Phase 2.
+- Source: `AGENTS.md`: “through its pinned transport and durable audit boundary.”
+- Also covers: `src/control/AGENTS.md`: “durable metadata before dispatch”
+- Evidence: `src/control/gateway.test.ts`
+- Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
+- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `gateway-activity-excludes-sensitive`
+
+Gateway activity storage never contains request bodies, query values or strings, secrets, response bodies, raw transport errors, or a URL digest.
+
+- Evidenced by example test.
+- Source: `src/control/AGENTS.md`: “Request bodies, query values, secrets, response bodies and raw transport errors must not enter activity storage.”
+- Evidence: `src/control/gateway.test.ts`
+- Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `gateway-only-mode-restricts-routing`
+
+A state home in gateway-only mode restricts Ghostget command routing to policy-admitted operations; contracts catalog/check/repair are unavailable and capabilities report the reduced surface.
+
+- Evidenced by example test.
+- Source: `SECURITY.md`: “Gateway-only mode restricts Ghostget command routing”
+- Evidence: `src/control/interface-cli.test.ts`, `src/control/menubar-cli.test.ts`, `src/storage-state-home.test.ts`
+- Assumptions: `filesystem-durability`, `same-user-trusted`, `whatwg-url`, `dns-tls`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - Gateway-only mode is not an operating-system network sandbox; a same-user process can bypass the application policy.
+
+### `website` (12 claims)
+
+#### `analytics-allowlist-byte-ceiling`
+
+Analytics events come from a checked allowlist (page lifecycle, web vitals, the two GitHub links) with a byte ceiling per event, canonical-host-only, cookieless, personless, and query-free.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Analytics and metering events come from a checked allowlist with a byte ceiling per event.”
+- Also covers: `website/AGENTS.md`: “Keep analytics canonical-host-only, cookieless, personless”
+- Also covers: `website/AGENTS.md`: “cookies, replay, identity, feature flags, broad autocapture, console capture”
+- Evidence: `website/analytics.test.ts`
+- Assumptions: `vercel`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - No test asserts a per-event byte ceiling.
+
+#### `website-release-identity-from-package`
+
+Website release identity and install commands derive from the validated root package.json; the skill install command pins hraness/ghostget#v<package version>.
+
+- Evidenced by example test.
+- Source: `website/AGENTS.md`: “Derive release identity and install commands from the validated root `package.json`; never copy a version into page source.”
+- Also covers: `website/AGENTS.md`: “pin its skills source to `hraness/ghostget#v<package version>`”
+- Evidence: `website/site.test.ts`, `website/skill-install-command.test.ts`
+- Assumptions: `vercel`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `vercel-build-admission-fail-closed`
+
+A marked or Vercel-signalled build requires the exact marker, VERCEL=1, valid VERCEL_ENV, and exact VERCEL_GIT_COMMIT_REF; production requires website-production and non-production rejects it; inconsistent state fails before build.
+
+- Evidenced by example test.
+- Source: `website/AGENTS.md`: “A marked or otherwise Vercel-signaled build must have the exact marker, `VERCEL=1`, a valid `VERCEL_ENV`, and an exact nonempty `VERCEL_GIT_COMMIT_REF`”
+- Evidence: `website/vercel-build.test.ts`
+- Assumptions: `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `preview-builds-independent`
+
+Preview builds do not depend on npm or GitHub release availability.
+
+- Evidenced by example test.
+- Source: `website/AGENTS.md`: “preview builds must not depend on npm or GitHub release availability and must not emit the production marker”
+- Evidence: `website/vercel-build.test.ts`
+- Assumptions: `vercel`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `website-marker-production-only`
+
+Preview, development and local builds never emit the marker and remove any stale marker; a failed verifier or build cannot publish it.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Preview and local builds emit no marker.”
+- Also covers: `website/AGENTS.md`: “preview builds must not depend on npm or GitHub release availability and must not emit the production marker”
+- Evidence: `website/vercel-build.test.ts`
+- Assumptions: `vercel`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `website-baseline-marker-404-only-v0165`
+
+The baseline reads the marker twice; a 404 is admitted only when promoting exact v0.16.5, and every later baseline requires one stable valid marker.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “The provider baseline reads it twice; only exact v0.16.5 may begin from 404.”
+- Also covers: `website/AGENTS.md`: “The marker may be absent only at the v0.16.5 baseline that introduces it; every later baseline requires it.”
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`
+- Assumptions: `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `website-www-exact-308`
+
+Each public snapshot requires exactly one no-follow www 308 whose Location preserves the marker path and query, plus bounded canonical apex health responses.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “finishes with two stable apex marker/health snapshots plus one exact no-follow `www` 308 in each snapshot.”
+- Also covers: `website/AGENTS.md`: “require `www` to return one exact no-follow 308 to the same apex marker path and query”
+- Evidence: `scripts/release-provider-outcome.test.ts`
+- Assumptions: `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `website-marker-seven-key-canonical`
+
+Only a verified Production build emits `/.well-known/wrench-release.json`, after the release verifier and site build pass, as one exact canonical seven-key JSON body (schema, package, repository, tag, version, verified HEAD, strict unique Vercel deployment URL) plus one line feed; reordered, expanded, noncanonical, or identity-drifting bodies are rejected.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “A verified Production build emits one exact seven-key `/.well-known/wrench-release.json` after its site build, binding the verifier-proven local HEAD and release tag to the strict unique Vercel deployment URL.”
+- Also covers: `website/AGENTS.md`: “Each verified Production build emits exact bounded `/.well-known/wrench-release.json` bytes only after the release verifier and site build pass”
+- Evidence: `scripts/release-provider-outcome.test.ts`, `website/production-release-marker.test.ts`, `website/production-release-verifier.test.ts`, `website/vercel-build.test.ts`
+- Assumptions: `vercel`
+- Not verified: No property test covers this law yet; only the enumerated example cases are checked.
+
+#### `website-outcome-baseline-to-target-only`
+
+During outcome the apex marker may show only the baseline identity or the exact target; a third identity, changed same-release deployment URL, target-to-baseline regression or disagreement with pinned status URLs fails closed.
+
+- Planned: Quint model with production trace replay in plan Phase 4.
+- Source: `AGENTS.md`: “Outcome requires that deployment URL to equal the pinned status URLs, permits only baseline-to-target movement”
+- Also covers: `website/AGENTS.md`: “Public outcome checks require that URL to equal the pinned deployment status”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `vercel`
+- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+
+#### `website-production-build-release-verified`
+
+A production Vercel build requires VERCEL_GIT_COMMIT_REF=website-production, exact marker env, local HEAD and package version equal to the v<version> tag commit, the canonical artifact, and a non-draft, non-prerelease, Latest immutable Release; main/preview refs never produce production, and missing or inconsistent Vercel state fails before verification.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “`main` and pull requests are preview sources, never production website sources.”
+- Also covers: `website/AGENTS.md`: “Require `VERCEL_GIT_COMMIT_REF=website-production` only for production”
+- Also covers: `website/AGENTS.md`: “production verifies immutable GitHub metadata, exact five descriptors, bot/source receipt, manifest/archive digests, HEAD/tag, and Latest”
+- Evidence: `website/production-release-verifier.test.ts`, `website/vercel-build.test.ts`
+- Assumptions: `vercel`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `website-no-vercel-mutation-in-workflows`
+
+Checked-in workflows stay token-free for Vercel and never mutate project settings, call the Vercel API, redeploy, alias, or promote; promotion outcome uses token-free public HTTPS plus read-only GitHub evidence.
+
+- Evidenced by example test.
+- Source: `docs/publishing.md`: “Checked-in workflows never mutate this project setting, call the Vercel API, or perform an alias or promote operation”
+- Also covers: `website/AGENTS.md`: “Checked-in workflows remain token-free and never mutate the setting, call Vercel APIs, alias, or promote.”
+- Evidence: `scripts/npm-release-workflow.test.ts`
+- Assumptions: `vercel`
+- Not verified: Only the enumerated example cases are checked.
+
+#### `website-informational-only`
+
+`website/` explains and documents Ghostget and contains no agent runtime, authenticated product surface, or browser-based substitute for the CLI and SDK.
+
+- Not verified.
+- Source: `AGENTS.md`: “Keep `website/` informational: it may explain and document Ghostget, but must not grow an agent runtime, authenticated product surface, or browser-based substitute for the CLI and SDK.”
+- Evidence: none
+- Assumptions: `vercel`
+- Not verified: No automated check inspects `website/` for authenticated surfaces, credential handling, or runtime features; review alone enforces this boundary.

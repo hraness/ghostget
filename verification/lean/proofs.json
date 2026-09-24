@@ -1,0 +1,27 @@
+{
+  "schema": "ghostget-lean-proofs-v2",
+  "library": "GhostgetVerification",
+  "theorems": [
+    {
+      "name": "GhostgetVerification.Smoke.acquire_free",
+      "type": "4cbccdccc7c6ba86d2dc50f6a92e985846e81c47fb195255757bf91e2efc9a62"
+    },
+    {
+      "name": "GhostgetVerification.Smoke.acquire_held",
+      "type": "3989ca93032dac4353025e65f999d8be4a3e68d082b39a78efbbca6f68ec3a9e"
+    },
+    {
+      "name": "GhostgetVerification.Smoke.acquireUnguarded_violates_held",
+      "type": "7b6517632734a26c952b0c63e23c42ba79bfa463d70eae51322bc685a92a0f8e"
+    }
+  ],
+  "mutants": [
+    {
+      "theorem": "GhostgetVerification.Smoke.acquire_held",
+      "guarded": "GhostgetVerification.Smoke.acquire",
+      "defect": "GhostgetVerification.Smoke.acquireUnguarded",
+      "refutation": "GhostgetVerification.Smoke.acquireUnguarded_violates_held"
+    }
+  ],
+  "allowedAxioms": []
+}

@@ -1,0 +1,5 @@
+name = "ghostget_verification"
+defaultTargets = ["GhostgetVerification"]
+
+[[lean_lib]]
+name = "GhostgetVerification"

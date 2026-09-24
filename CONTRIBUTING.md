@@ -40,6 +40,20 @@ relevant reproduction and repair checks. Independently review workflow,
 discovery, command, deadline, and platform changes against the prior required
 coverage; edited coverage assertions alone cannot certify a weakened workflow.
 
+`bun run check`, and therefore `prepack`, ends with `bun run verify`, which runs
+the formal-verification checks behind `docs/assurance.md`. Locally it needs:
+
+- `node` and `zstd` on `PATH`;
+- network access the first time, to download the pinned Apalache, JDK, elan,
+  and Lean archives (about 1 GB), each admitted only at its pinned SHA-256;
+  Quint comes from the frozen Bun install;
+- a few GB of free disk for the unpacked checkers and the Lean build;
+- a writable cache at `~/.cache/ghostget-verification`, or at the absolute path
+  in `GHOSTGET_VERIFICATION_CACHE`. Later runs reuse it offline.
+
+Run `bun run verify:claims` alone for the register and renderer checks; it needs
+none of the downloads.
+
 For parallel chats or other concurrent local work, follow the
 [isolated worktree workflow](docs/local-development.md). It keeps changing
 source and development state separate from the stable Ghostget installation.

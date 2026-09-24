@@ -156,6 +156,7 @@ describe("complete local and release check composition", () => {
       "test-omni": ["test-omni", "ubuntu-latest", 25],
       standalone: ["standalone", "ubuntu-latest", 20],
       macos: ["macOS", "macos-15", 45],
+      verification: ["verification", "ubuntu-latest", 20],
     } as const;
     const expectedNode = {
       uses: "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
@@ -179,6 +180,12 @@ describe("complete local and release check composition", () => {
     };
     const record = { name: "Record exact source CI identity", run: "bun run ./scripts/release-source-ci.ts record" };
     const install = { run: "bun install --frozen-lockfile --ignore-scripts" };
+    // The one admitted step condition: the verification job's last step only
+    // uploads checker output, and `always()` keeps that output from a failed or
+    // timed-out check. It can run more often, never gate or skip a check.
+    const retainsOutput = (id: string, step: Step, index: number, length: number): boolean =>
+      id === "verification" && index === length - 1 && step.if === "always()"
+      && step.run === undefined && step.uses?.startsWith("actions/upload-artifact@") === true;
     const validate = (candidate: Workflow): void => {
       if (!isDeepStrictEqual(Object.keys(candidate.jobs).sort(), [...Object.keys(sourceJobs), "required"].sort())) {
         throw new Error("Source CI job inventory changed");
@@ -187,7 +194,8 @@ describe("complete local and release check composition", () => {
         const job = candidate.jobs[id];
         if (job === undefined || !isDeepStrictEqual([job.name, job["runs-on"], job["timeout-minutes"]], metadata)
           || job.if !== undefined || job["continue-on-error"] !== undefined
-          || job.steps.some(step => step.if !== undefined || step["continue-on-error"] !== undefined)) {
+          || job.steps.some((step, index) => (step.if !== undefined && !retainsOutput(id, step, index, job.steps.length))
+            || step["continue-on-error"] !== undefined)) {
           throw new Error(`Source CI job ${id} is conditional or changed its execution boundary`);
         }
         const findOne = (predicate: (step: Step) => boolean, expected: Step): number => {
@@ -207,12 +215,14 @@ describe("complete local and release check composition", () => {
         }
       }
       if (!isDeepStrictEqual(candidate.jobs.test?.strategy, { "fail-fast": false, matrix: { shard: [1, 2, 3, 4] } })) {
-        throw new Error("Source CI no longer expands to all nine work jobs");
+        throw new Error("Source CI no longer expands to all ten work jobs");
       }
     };
     expect(() => validate(workflow)).not.toThrow();
     const mutations: ((candidate: Workflow) => void)[] = [
       candidate => { delete candidate.jobs.macos; },
+      candidate => { delete candidate.jobs.verification; },
+      candidate => { candidate.jobs.verification!["timeout-minutes"] = 360; },
       candidate => { candidate.jobs.test!.strategy = { "fail-fast": false, matrix: { shard: [1, 2, 3] } }; },
       candidate => { candidate.jobs.static!["timeout-minutes"] = 5; },
       candidate => { candidate.jobs.static!.if = "always()"; },
@@ -227,6 +237,11 @@ describe("complete local and release check composition", () => {
       candidate => { candidate.jobs.static!.steps.find(step => step.name === record.name)!.run = `${record.run} || true`; },
       candidate => { const steps = candidate.jobs.static!.steps; const index = steps.findIndex(step => step.name === record.name); steps.splice(1, 0, ...steps.splice(index, 1)); },
       candidate => { const steps = candidate.jobs.static!.steps; const index = steps.findIndex(step => step.name === record.name); steps.push(...steps.splice(index, 1)); },
+      candidate => { candidate.jobs.verification!.steps.find(step => step.run === "bun run verify")!.if = "always()"; },
+      candidate => { candidate.jobs.verification!.steps.at(-1)!.if = "success() || failure()"; },
+      candidate => { candidate.jobs.verification!.steps.at(-1)!.run = "true"; },
+      candidate => { const steps = candidate.jobs.verification!.steps; steps.splice(steps.length - 2, 0, steps.pop()!); },
+      candidate => { candidate.jobs.static!.steps.push({ ...candidate.jobs.verification!.steps.at(-1)! }); },
     ];
     for (const mutate of mutations) {
       const changed = structuredClone(workflow);
@@ -306,8 +321,10 @@ describe("complete local and release check composition", () => {
     expect(manifest.scripts?.["test:omni"]).toContain("./src/omni-runtime.test.ts");
     expect(manifest.scripts?.test).toBe("bun run test:unit && bun run test:omni");
     expect(manifest.scripts?.check).toBe(
-      "bun run check:cost-surfaces && bun run check:static && bun run check:package && bun run test && bun run test:standalone",
+      "bun run check:cost-surfaces && bun run check:static && bun run check:package && bun run test"
+      + " && bun run test:standalone && bun run verify",
     );
+    expect(manifest.scripts?.verify).toBe("bun run verify:claims && bun run verify:quint && bun run verify:lean");
     expect(manifest.scripts?.["check:macos"]).toBe("bun run ./scripts/ci-macos-check.ts");
     expect(manifest.scripts?.["test:shard"]).toBe("bun run ./scripts/ci-test-shard.ts");
     expect(manifest.scripts?.["test:npm-release"]).toBe(
@@ -326,7 +343,8 @@ describe("complete local and release check composition", () => {
     expect(workflow).toContain("bun run check:macos");
     expect(workflow).toContain("bun run ./scripts/ci-test-shard.ts");
     expect(workflow).not.toMatch(/^      - run: bun run check$/gmu);
-    expect(workflow).toContain("needs: [static, package, test, test-omni, standalone, macos]");
+    expect(workflow).toContain("needs: [static, package, test, test-omni, standalone, macos, verification]");
+    expect(workflow.match(/^      - run: bun run verify$/gmu)).toHaveLength(1);
     expect(workflow).toContain(`shard: [${Array.from({ length: CI_UNIT_TEST_SHARD_COUNT }, (_, index) =>
       index + 1
     ).join(", ")}]`);

@@ -1205,7 +1205,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(24_035_840);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(24_036_352);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1223,7 +1223,7 @@ describe("npm publication contract", () => {
     ).toThrow();
   });
 
-  test("keeps the PR Required gate as the union of Linux shards and the macOS subset", async () => {
+  test("keeps the PR Required gate as the union of Linux shards, the macOS subset, and formal verification", async () => {
     const workflow = await readFile(ciWorkflowUrl, "utf8");
     const staticStart = workflow.indexOf("\n  static:\n");
     const packageStart = workflow.indexOf("\n  package:\n");
@@ -1231,6 +1231,7 @@ describe("npm publication contract", () => {
     const testOmniStart = workflow.indexOf("\n  test-omni:\n");
     const standaloneStart = workflow.indexOf("\n  standalone:\n");
     const macosStart = workflow.indexOf("\n  macos:\n");
+    const verificationStart = workflow.indexOf("\n  verification:\n");
     const requiredStart = workflow.indexOf("\n  required:\n");
 
     expect(workflow.match(/^  static:$/gmu)).toHaveLength(1);
@@ -1239,23 +1240,26 @@ describe("npm publication contract", () => {
     expect(workflow.match(/^  test-omni:$/gmu)).toHaveLength(1);
     expect(workflow.match(/^  standalone:$/gmu)).toHaveLength(1);
     expect(workflow.match(/^  macos:$/gmu)).toHaveLength(1);
+    expect(workflow.match(/^  verification:$/gmu)).toHaveLength(1);
     expect(workflow.match(/^  required:$/gmu)).toHaveLength(1);
     expect(workflow.match(/^  check:$/gmu) ?? []).toHaveLength(0);
-    expect(workflow.match(/^    timeout-minutes: [0-9]+$/gmu)).toHaveLength(7);
+    expect(workflow.match(/^    timeout-minutes: [0-9]+$/gmu)).toHaveLength(8);
     expect(staticStart).toBeGreaterThan(-1);
     expect(packageStart).toBeGreaterThan(staticStart);
     expect(testStart).toBeGreaterThan(packageStart);
     expect(testOmniStart).toBeGreaterThan(testStart);
     expect(standaloneStart).toBeGreaterThan(testOmniStart);
     expect(macosStart).toBeGreaterThan(standaloneStart);
-    expect(requiredStart).toBeGreaterThan(macosStart);
+    expect(verificationStart).toBeGreaterThan(macosStart);
+    expect(requiredStart).toBeGreaterThan(verificationStart);
 
     const staticJob = workflow.slice(staticStart, packageStart);
     const packageJob = workflow.slice(packageStart, testStart);
     const testJob = workflow.slice(testStart, testOmniStart);
     const testOmniJob = workflow.slice(testOmniStart, standaloneStart);
     const standaloneJob = workflow.slice(standaloneStart, macosStart);
-    const macosJob = workflow.slice(macosStart, requiredStart);
+    const macosJob = workflow.slice(macosStart, verificationStart);
+    const verificationJob = workflow.slice(verificationStart, requiredStart);
     const requiredJob = workflow.slice(requiredStart);
 
     const timeoutValues = (job: string): readonly number[] =>
@@ -1268,6 +1272,7 @@ describe("npm publication contract", () => {
     expect(timeoutValues(testOmniJob)).toEqual([25]);
     expect(timeoutValues(standaloneJob)).toEqual([20]);
     expect(timeoutValues(macosJob)).toEqual([45]);
+    expect(timeoutValues(verificationJob)).toEqual([20]);
     expect(timeoutValues(requiredJob)).toEqual([5]);
     expect(staticJob.match(/^      - run: bun run check:static$/gmu) ?? []).toHaveLength(1);
     expect(packageJob.match(/^      - run: bun run check:package$/gmu) ?? []).toHaveLength(1);
@@ -1280,9 +1285,11 @@ describe("npm publication contract", () => {
     expect(macosJob.match(/^      - run: bun run check:macos$/gmu) ?? []).toHaveLength(1);
     expect(macosJob).not.toContain("desktop");
     expect(macosJob.match(/^      - run: bun run check$/gmu) ?? []).toHaveLength(0);
+    expect(verificationJob.match(/^      - run: bun run verify$/gmu) ?? []).toHaveLength(1);
+    expect(workflow.match(/^      - run: bun run verify$/gmu) ?? []).toHaveLength(1);
     expect(requiredJob.match(/^      - run: bun run check$/gmu) ?? []).toHaveLength(0);
     expect(requiredJob.match(
-      /^    needs: \[static, package, test, test-omni, standalone, macos\]$/gmu,
+      /^    needs: \[static, package, test, test-omni, standalone, macos, verification\]$/gmu,
     ) ?? []).toHaveLength(1);
     expect(workflow.match(/^      - run: bun run check$/gmu) ?? []).toHaveLength(0);
   });
@@ -1385,13 +1392,14 @@ describe("npm publication contract", () => {
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
     expect(Object.isFrozen(repairPackageMeasurement)).toBeTrue();
     expect(repairPackageMeasurement).toMatchObject({
-      archiveSha256: "b12909f08f7c19460ced56e30619f4860a1183f4b0106170c07837dae577a937",
-      packedBytes: 11_992_764, unpackedBytes: 23_424_363, entryCount: 596,
+      archiveSha256: "f2c9be480d9ffe8aa7ae642af2523491745987ee9bed58b66d37f7d2f4d6c4ed",
+      packedBytes: 11_992_902, unpackedBytes: 23_424_993, entryCount: 596,
       packedPlatformProjection: 12_387, packedPortabilityAllowance: 4_096,
       payloadPlatformProjection: 353, payloadAllowance: 65,
     });
-    expect(MAX_PACKED_BYTES).toBe(12_009_247);
-    expect(MAX_PACKED_BYTES).toBe(11_992_764 + 12_387 + 4_096);
+    expect(MAX_PACKED_BYTES).toBe(12_009_385);
+    expect(MAX_PACKED_BYTES).toBe(11_992_902 + 12_387 + 4_096);
+    expect(budget).toContain("11,992,764 + 12,387 + 4,096 =");
     expect(budget).toContain("11,992,132 + 12,387 + 4,096 =");
     expect(budget).toContain("11,990,908 + 12,387 + 4,096 =");
     expect(budget).toContain("11,997,841 + 12,387 + 4,096 =");
@@ -1468,7 +1476,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("23,029,751 + 353 + 65 = 23,030,169");
     expect(budget).toContain("23,193,728 + 65 = 23,193,793");
     expect(budget).toContain("47684b3e2eb5cf3ed07fbb520aade8c7251d993f75262fbf1af627d9081a1a5f");
-    expect(MAX_UNPACKED_BYTES).toBe(23_424_781);
+    expect(MAX_UNPACKED_BYTES).toBe(23_425_411);
     expect(budget).toContain("23,037,873 + 65 = 23,037,938");
     expect(budget).toContain("f9f3ab38a682690ceaa2699a7309997512030f0fa500a9dc29dcd108123dc41f");
     expect(budget).toContain("23,038,557 + 65 = 23,038,622");
@@ -1499,7 +1507,8 @@ describe("npm publication contract", () => {
     expect(budget).toContain("8614f1f031979371907772a6284888527064014b18f81cc26c4ee2f1f2bdcb56");
     expect(budget).toContain("519e4bfdfd61196722eda53965398a7553afb1818a399cc322004665a04574a2");
     expect(budget).toContain("01875f12ab73a49d6c7d6bf520dc3d318db816addee2fa7981889f35c958cf7c");
-    expect(MAX_UNPACKED_BYTES).toBe(23_424_363 + 353 + 65);
+    expect(budget).toContain("b12909f08f7c19460ced56e30619f4860a1183f4b0106170c07837dae577a937");
+    expect(MAX_UNPACKED_BYTES).toBe(23_424_993 + 353 + 65);
     expect(budget).toContain("22,794,052 + 65 = 22,794,117");
     expect(budget).toContain("c482efe748f880e3717727d6d39fd92a68953e6eea766642b329ba47ae772d80");
     expect(budget).toContain("22,759,423 + 65 = 22,759,488");
@@ -1535,8 +1544,8 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 596, max: 596 },
       fileCount: { min: 596, max: 596 },
-      packedBytes: { min: 1_600_000, max: 12_009_247 },
-      unpackedBytes: { min: 9_000_000, max: 23_424_781 },
+      packedBytes: { min: 1_600_000, max: 12_009_385 },
+      unpackedBytes: { min: 9_000_000, max: 23_425_411 },
     });
   });
 
