@@ -23,7 +23,7 @@ movement requires matching current-candidate CI; an older candidate's receipt
 does not qualify a new integration.
 
 The macOS suite in `scripts/ci-macos-check.ts` is a selected inventory, currently
-ten files and one patterned iMessage canary. It does not establish complete
+eleven files and one patterned iMessage canary. It does not establish complete
 macOS source, package, or installation equivalence. For impacted native behavior
 outside that suite, run relevant focused macOS checks or add and pass an
 independently reviewed CI extension. Hosted runners do not qualify the user's
@@ -83,6 +83,12 @@ This checked smoke coordinate is valid for the named property. Replace both
 values with the seed and path emitted by the failure you are investigating.
 Keep the seed and minimized trace free of credentials and provider data, then
 turn the smallest useful counterexample into a named deterministic regression.
+Record the seed and path in `verification/seeds/corpus.json` and pass the
+property's corpus name to `assertProperty`, so every later run replays it first.
+Run properties only through `assertProperty` or `assertAsyncProperty`; a policy
+test rejects direct `fc.assert` calls. For a longer soak, set
+`GHOSTGET_PROPERTY_RUNS` to multiply every property's run count, for example
+`GHOSTGET_PROPERTY_RUNS=20`.
 These workloads verify local models and injected ports. They do not establish
 live provider, browser, operating-system, or device behavior.
 

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "./test-support";
 
 import { canonicalJson, sha256 } from "./canonical-json";
 import {
@@ -728,7 +729,7 @@ describe("omni normalized model", () => {
   });
 
   test("property: disjoint stable IDs merge associatively and idempotently", () => {
-    fc.assert(fc.property(
+    assertProperty(fc.property(
       fc.uniqueArray(fc.stringMatching(/^[a-z][a-z0-9]{0,12}$/u), {
         minLength: 1,
         maxLength: 20,
@@ -761,7 +762,7 @@ describe("omni normalized model", () => {
   });
 
   test("property: filters observe only the winning revision", () => {
-    fc.assert(fc.property(
+    assertProperty(fc.property(
       fc.boolean(),
       fc.boolean(),
       (oldUnread, newUnread) => {

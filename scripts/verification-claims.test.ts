@@ -851,11 +851,15 @@ describe("claims and evidence", () => {
       await evidencedBy(claim.id, [model, "scripts/other-replay.test.ts"]),
     )).toEqual([refused]);
 
-    // A broken manifest also refuses every committed evidenced Quint claim, so
-    // keep only the findings about the manifest and the claim under test.
-    const broken = (await findingsFor({ "verification/quint/models.json": "[]" }, await evidencedBy(claim.id, [model, replay])))
-      .filter((finding) => !finding.startsWith("claim ") || finding.startsWith(`claim ${claim.id} `));
-    expect(broken).toEqual(["verification/quint/models.json does not parse: models.json must be an object", refused]);
+    // An unparsable manifest refuses every evidenced Quint claim, the committed ones included.
+    const broken = await findingsFor({ "verification/quint/models.json": "[]" }, await evidencedBy(claim.id, [model, replay]));
+    const committed = (await committedRegister()).claims
+      .filter((candidate) => candidate.layer === "quint" && candidate.status === "evidenced")
+      .map((candidate) => `claim ${candidate.id} is an evidenced Quint claim, but it cites no model whose replay test drives production code together with that test`);
+    expect(committed.length).toBeGreaterThan(0);
+    expect([...broken].sort()).toEqual(
+      ["verification/quint/models.json does not parse: models.json must be an object", refused, ...committed].sort(),
+    );
   });
 
   test("an evidenced Lean claim needs both a Lean proof and a differential test", async () => {

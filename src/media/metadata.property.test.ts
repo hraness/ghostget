@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "../test-support";
 import {
   authContextSha256,
   createDirectHttpMetadata,
@@ -20,7 +21,7 @@ const sha256Arbitrary = fc.uint8Array({ minLength: 32, maxLength: 32 }).map(
 );
 
 test("property: identity segments are always one safe path component", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.string(), (value) => {
       const segment = identityDirectorySegment(value, "item");
       expect(segment).toMatch(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u);
@@ -34,7 +35,7 @@ test("property: identity segments are always one safe path component", () => {
 });
 
 test("property: canonical source paths are portable and raw-identity-sensitive", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.string({ maxLength: 256 }), fc.string({ maxLength: 256 }), (extractor, id) => {
       expect(isPortableIdentityDirectorySegment(sourceExtractorDirectory(extractor))).toBeTrue();
       expect(isPortableIdentityDirectorySegment(sourceItemDirectory(id))).toBeTrue();
@@ -49,7 +50,7 @@ test("property: distinct bounded source tuples have distinct owned identities", 
     fc.string({ maxLength: 64 }),
     fc.string({ maxLength: 64 }),
   );
-  fc.assert(
+  assertProperty(
     fc.property(tuple, tuple, (left, right) => {
       fc.pre(left[0] !== right[0] || left[1] !== right[1]);
       expect(sourceAssetKey(left[0], left[1])).not.toBe(sourceAssetKey(right[0], right[1]));
@@ -62,7 +63,7 @@ test("property: distinct bounded source tuples have distinct owned identities", 
 });
 
 test("property: arbitrary probe values never throw", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.anything({ maxDepth: 3, maxKeys: 12 }), (value) => {
       expect(() => parseProbeMetadata(value, "https://example.com/item")).not.toThrow();
     }),
@@ -71,7 +72,7 @@ test("property: arbitrary probe values never throw", () => {
 });
 
 test("property: generic canonical URLs never retain arbitrary query values", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.string({ maxLength: 256 }), fc.string({ maxLength: 256 }), (key, value) => {
       const url = new URL("https://example.com/item");
       url.searchParams.set(key, value);
@@ -97,7 +98,7 @@ const opaqueToken = fc.string({
 });
 
 test("property: distinct opaque acquisition tuples retain collision-resistant projected identities", () => {
-  fc.assert(
+  assertProperty(
     fc.property(opaqueToken, opaqueToken, opaqueToken, opaqueToken, (leftExtractor, leftId, rightExtractor, rightId) => {
       fc.pre(leftExtractor !== rightExtractor || leftId !== rightId);
       const parse = (extractor: string, id: string) => parseProbeMetadata(
@@ -119,7 +120,7 @@ test("property: distinct opaque acquisition tuples retain collision-resistant pr
 });
 
 test("property: opaque yt-dlp URL identity is stable, fragment-invariant, and path/query-sensitive", () => {
-  fc.assert(
+  assertProperty(
     fc.property(opaqueToken, opaqueToken, opaqueToken, (path, query, fragment) => {
       const build = (url: string) => parseProbeMetadata(
         { extractor_key: "Generic", id: "index", webpage_url: url },
@@ -155,7 +156,7 @@ test("property: opaque yt-dlp URL identity is stable, fragment-invariant, and pa
 });
 
 test("property: private source identity separates access mode, context, and request URL", () => {
-  fc.assert(
+  assertProperty(
     fc.property(opaqueToken, opaqueToken, opaqueToken, (leftContext, rightContext, path) => {
       fc.pre(leftContext.toLowerCase() !== rightContext.toLowerCase());
       const url = `https://example.com/${path}?token=private`;
@@ -189,7 +190,7 @@ test("property: private source identity separates access mode, context, and requ
 
 test("property: arbitrary Unicode probe tuples are total and distinct accepted tuples do not alias", () => {
   const boundedIdentity = fc.string({ minLength: 1, maxLength: 64 });
-  fc.assert(
+  assertProperty(
     fc.property(
       boundedIdentity,
       boundedIdentity,
@@ -220,7 +221,7 @@ test("property: arbitrary Unicode probe tuples are total and distinct accepted t
 });
 
 test("property: direct HTTP identity changes with either request or body digest", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       sha256Arbitrary,
       sha256Arbitrary,
@@ -246,7 +247,7 @@ test("property: direct HTTP identity changes with either request or body digest"
 });
 
 test("property: opaque raw identity and descriptive markers never enter persisted metadata or paths", () => {
-  fc.assert(
+  assertProperty(
     fc.property(opaqueToken, (token) => {
       const extractor = `PrivateAdapter-${token}`;
       const id = `RAW-ID-${token}`;
