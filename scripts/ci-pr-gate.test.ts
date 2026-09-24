@@ -181,7 +181,7 @@ describe("complete local and release check composition", () => {
       "test-omni": ["test-omni", "ubuntu-latest", 25],
       standalone: ["standalone", "ubuntu-latest", 20],
       macos: ["macOS", "macos-15", 45],
-      verification: ["verification", "ubuntu-latest", 35],
+      verification: ["verification", "ubuntu-latest", 55],
     } as const;
     const expectedNode = {
       uses: "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
