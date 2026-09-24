@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "../src/test-support";
 import { resolve } from "node:path";
 
 import {
@@ -138,7 +139,7 @@ describe("provider capability attestation", () => {
 
   test("escapes arbitrary attestation text and keeps completeness a closed union", async () => {
     const attestation = await loadProviderCapabilityAttestation(repositoryRoot);
-    fc.assert(
+    assertProperty(
       fc.property(
         fc.constantFrom(...attestation.rows),
         fc.string(),

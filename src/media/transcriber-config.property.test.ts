@@ -3,6 +3,7 @@ import { chmod, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import fc from "fast-check";
+import { assertAsyncProperty } from "../test-support";
 
 import {
   RUNTIME_CLOSURE_PROFILE,
@@ -79,7 +80,7 @@ async function writePrivateConfig(path: string, value: unknown): Promise<void> {
 
 test("property: arbitrary bounded config bytes never throw or become ready", async () => {
   const configPath = await propertyConfigPath();
-  await fc.assert(
+  await assertAsyncProperty(
     fc.asyncProperty(
       fc.uint8Array({ maxLength: 4_096 }),
       async (bytes) => {
@@ -98,7 +99,7 @@ test("property: arbitrary bounded config bytes never throw or become ready", asy
 test("property: an arbitrary extra root field violates the exact schema", async () => {
   const configPath = await propertyConfigPath();
   const reservedKeys = new Set(Object.keys(validConfig()));
-  await fc.assert(
+  await assertAsyncProperty(
     fc.asyncProperty(
       fc.string({ minLength: 1, maxLength: 32 }),
       fc.jsonValue(),
@@ -118,7 +119,7 @@ test("property: an arbitrary extra root field violates the exact schema", async 
 test("property: an arbitrary extra runtime field violates the nested exact schema", async () => {
   const configPath = await propertyConfigPath();
   const reservedKeys = new Set(Object.keys(validRuntimeClosure()));
-  await fc.assert(
+  await assertAsyncProperty(
     fc.asyncProperty(
       fc.string({ minLength: 1, maxLength: 32 }),
       fc.jsonValue(),
@@ -140,7 +141,7 @@ test("property: an arbitrary extra runtime field violates the nested exact schem
 
 test("property: forged closure summaries never reach filesystem or process seams", async () => {
   const configPath = await propertyConfigPath();
-  await fc.assert(
+  await assertAsyncProperty(
     fc.asyncProperty(
       fc.constantFrom("dependencyCount", "dependencyBytes", "closureSha256"),
       fc.integer({ min: 1, max: 1_000 }),

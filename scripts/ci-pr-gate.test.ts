@@ -89,7 +89,7 @@ describe("PR CI test shards", () => {
 
   test("property: shard assignment is a deterministic partition", async () => {
     const files = await listSrcUnitTestFiles(repositoryRoot);
-    fc.assert(
+    assertProperty(
       fc.property(fc.integer({ min: 1, max: 8 }), (shardCount) => {
         const first = assignUnitTestShards(files, shardCount);
         const second = assignUnitTestShards(files, shardCount);

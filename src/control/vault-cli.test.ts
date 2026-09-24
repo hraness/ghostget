@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import fc from "fast-check";
-import { propertyParameters } from "../test-support";
+import { assertProperty } from "../test-support";
 import { createAuth, saveAuth } from "../auth";
 import { chmodSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -88,7 +88,7 @@ test("an uncertain import is not retried and unsupported platforms never touch s
 test("metadata flag ordering does not change the exact import", () => {
   const pairs = Array.from({ length: flags.length / 2 }, (_, index) => flags.slice(index * 2, index * 2 + 2));
   const expected = parseVaultArguments(args);
-  fc.assert(fc.property(fc.shuffledSubarray(pairs, { minLength: pairs.length, maxLength: pairs.length }), order => {
+  assertProperty(fc.property(fc.shuffledSubarray(pairs, { minLength: pairs.length, maxLength: pairs.length }), order => {
     expect(parseVaultArguments(["vault", "import-x", ...order.flat()])).toEqual(expected);
-  }), propertyParameters);
+  }));
 });

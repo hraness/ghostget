@@ -11,6 +11,12 @@ import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import ts from "typescript";
 
+import {
+  PROPERTY_CORPUS_PATH,
+  parsePropertyCorpus,
+  type PropertyCorpus,
+} from "./test-support";
+
 type PolicyViolationCode =
   | "jest-timeout-call"
   | "set-default-timeout-import"
@@ -539,6 +545,392 @@ const rejectedFixtures: readonly {
     code: "registration-positional-timeout",
   },
 ];
+
+type PropertyViolationCode =
+  | "bare-fast-check-runner"
+  | "fast-check-runner-destructure"
+  | "fast-check-dynamic-import";
+
+type PropertyViolation = Readonly<{
+  code: PropertyViolationCode;
+  file: string;
+  line: number;
+  message: string;
+}>;
+
+type PropertyCorpusUse = Readonly<{ name: string; file: string; line: number }>;
+
+type PropertySourceReport = Readonly<{
+  violations: readonly PropertyViolation[];
+  corpusUses: readonly PropertyCorpusUse[];
+}>;
+
+/** fast-check runners that execute a property outside the shared defaults, replay, corpus, and soak scaling. */
+const fastCheckRunners = new Set(["assert", "check"]);
+const propertyHelpers = new Set(["assertProperty", "assertAsyncProperty"]);
+const testSupportModule = /(?:^|\/)test-support(?:\.[cm]?[jt]s)?$/u;
+const propertySourceFile = /\.(?:[cm]?[jt]s|[jt]sx)$/u;
+const propertyPolicyRoots = ["src/", "scripts/", "edge/", "website/"] as const;
+const propertyHelperFile = "src/test-support.ts";
+
+function literalText(expression: ts.Expression | undefined): string | null {
+  if (expression === undefined) return null;
+  const unwrapped = unwrapExpression(expression);
+  return ts.isStringLiteral(unwrapped) || ts.isNoSubstitutionTemplateLiteral(unwrapped)
+    ? unwrapped.text
+    : null;
+}
+
+/**
+ * Find every way a file can run a fast-check property without the shared
+ * helpers, and every seed corpus name it passes to them. A file reaches
+ * fast-check through its default or namespace import, a named runner import,
+ * the `fc` re-export of `test-support`, or a dynamic load.
+ */
+function inspectPropertySource(file: string, source: string): PropertySourceReport {
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
+  const namespaces = new Set<string>();
+  const runners = new Set<string>();
+  const helpers = new Set<string>();
+  const violations: PropertyViolation[] = [];
+  const corpusUses: PropertyCorpusUse[] = [];
+  const lineOf = (node: ts.Node): number =>
+    sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+  const report = (node: ts.Node, code: PropertyViolationCode, message: string): void => {
+    violations.push({ code, file, line: lineOf(node), message });
+  };
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+    const module = statement.moduleSpecifier.text;
+    const fromFastCheck = module === "fast-check";
+    const fromTestSupport = testSupportModule.test(module);
+    if (!fromFastCheck && !fromTestSupport) continue;
+    const clause = statement.importClause;
+    if (clause === undefined) continue;
+    if (fromFastCheck && clause.name !== undefined) namespaces.add(clause.name.text);
+    const named = clause.namedBindings;
+    if (named === undefined) continue;
+    if (ts.isNamespaceImport(named)) {
+      if (fromFastCheck) namespaces.add(named.name.text);
+      continue;
+    }
+    for (const specifier of named.elements) {
+      const imported = specifier.propertyName?.text ?? specifier.name.text;
+      if (fromFastCheck && imported === "default") namespaces.add(specifier.name.text);
+      if (fromFastCheck && (imported === "fc" || fastCheckRunners.has(imported))) {
+        (imported === "fc" ? namespaces : runners).add(specifier.name.text);
+      }
+      if (fromTestSupport && imported === "fc") namespaces.add(specifier.name.text);
+      if (fromTestSupport && propertyHelpers.has(imported)) helpers.add(specifier.name.text);
+    }
+  }
+
+  const visit = (node: ts.Node): void => {
+    if (isMemberExpression(node as ts.Expression) && ts.isExpression(node)) {
+      const member = node as ts.PropertyAccessExpression | ts.ElementAccessExpression;
+      const owner = unwrapExpression(member.expression);
+      if (
+        ts.isIdentifier(owner)
+        && namespaces.has(owner.text)
+        && fastCheckRunners.has(memberName(member) ?? "")
+      ) {
+        report(member, "bare-fast-check-runner", `fast-check ${memberName(member) ?? ""} bypasses assertProperty and assertAsyncProperty.`);
+      }
+    }
+    if (ts.isIdentifier(node) && runners.has(node.text) && !ts.isImportSpecifier(node.parent)) {
+      report(node, "bare-fast-check-runner", `The imported fast-check ${node.text} bypasses assertProperty and assertAsyncProperty.`);
+    }
+    if (
+      ts.isVariableDeclaration(node)
+      && ts.isObjectBindingPattern(node.name)
+      && node.initializer !== undefined
+    ) {
+      const initializer = unwrapExpression(node.initializer);
+      const fromNamespace = ts.isIdentifier(initializer) && namespaces.has(initializer.text);
+      if (fromNamespace && node.name.elements.some((element) => {
+        const key = element.propertyName ?? element.name;
+        return (ts.isIdentifier(key) || ts.isStringLiteral(key)) && fastCheckRunners.has(key.text);
+      })) {
+        report(node, "fast-check-runner-destructure", "Destructuring a fast-check runner bypasses assertProperty and assertAsyncProperty.");
+      }
+    }
+    if (ts.isCallExpression(node)) {
+      const callee = unwrapExpression(node.expression);
+      const loadsModule = node.expression.kind === ts.SyntaxKind.ImportKeyword
+        || (ts.isIdentifier(callee) && callee.text === "require");
+      if (loadsModule && literalText(node.arguments[0]) === "fast-check") {
+        report(node, "fast-check-dynamic-import", "Load fast-check statically so the property policy can see every runner.");
+      }
+      if (ts.isIdentifier(callee) && helpers.has(callee.text)) {
+        const name = literalText(node.arguments[2]);
+        if (name !== null) corpusUses.push({ name, file, line: lineOf(node) });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return { violations, corpusUses };
+}
+
+/** Titles of the literal `test` and `it` registrations in one file. */
+function registeredTestTitles(file: string, source: string): ReadonlySet<string> {
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
+  const registrations = new Set<string>();
+  const namespaces = new Set<string>();
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isImportDeclaration(statement)
+      || !ts.isStringLiteral(statement.moduleSpecifier)
+      || statement.moduleSpecifier.text !== "bun:test"
+    ) {
+      continue;
+    }
+    const named = statement.importClause?.namedBindings;
+    if (named === undefined) continue;
+    if (ts.isNamespaceImport(named)) {
+      namespaces.add(named.name.text);
+      continue;
+    }
+    for (const specifier of named.elements) {
+      if (registrationExports.has(specifier.propertyName?.text ?? specifier.name.text)) {
+        registrations.add(specifier.name.text);
+      }
+    }
+  }
+  const bindings: BunTestBindings = {
+    jestBindings: new Set(),
+    registrations,
+    setDefaultTimeouts: new Set(),
+    namespaces,
+  };
+  const titles = new Set<string>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && isRegistrationCall(node, bindings)) {
+      const title = literalText(node.arguments[0]);
+      if (title !== null) titles.add(title);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return titles;
+}
+
+/** Tracked and untracked unignored files under the property policy roots. */
+function propertyPolicyFiles(root: string): readonly string[] {
+  const listed = Bun.spawnSync(
+    ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...propertyPolicyRoots],
+    { cwd: root, stdin: "ignore", stdout: "pipe", stderr: "pipe" },
+  );
+  if (listed.exitCode !== 0) throw new Error("git ls-files must list the property policy roots");
+  return listed.stdout.toString("utf8").split("\0")
+    .filter((path) => propertySourceFile.test(path) && path !== propertyHelperFile)
+    .sort();
+}
+
+/**
+ * Check the seed corpus against the repository: each named property is run by
+ * exactly one literal helper call in its declared file, each counterexample
+ * names a test registered in that file, and every literal name exists.
+ */
+function corpusFindings(
+  corpus: PropertyCorpus,
+  uses: readonly PropertyCorpusUse[],
+  titlesOf: (file: string) => ReadonlySet<string> | null,
+): readonly string[] {
+  const findings: string[] = [];
+  for (const use of uses) {
+    if (!corpus.has(use.name)) {
+      findings.push(`${use.file}:${String(use.line)} names property ${use.name}, which has no corpus entry`);
+    }
+  }
+  for (const [name, property] of corpus) {
+    const named = uses.filter((use) => use.name === name);
+    if (named.length !== 1 || named[0]!.file !== property.file) {
+      findings.push(`corpus property ${name} must be run by exactly one helper call in ${property.file}; found ${named.map((use) => `${use.file}:${String(use.line)}`).join(", ") || "none"}`);
+    }
+    const titles = titlesOf(property.file);
+    if (titles === null) {
+      findings.push(`corpus property ${name} names missing file ${property.file}`);
+      continue;
+    }
+    for (const entry of property.entries) {
+      if (entry.regression !== undefined && !titles.has(entry.regression)) {
+        findings.push(`corpus property ${name} seed ${String(entry.seed)} names regression "${entry.regression}", which ${property.file} does not register`);
+      }
+    }
+  }
+  return findings;
+}
+
+const acceptedPropertyFixtures = [
+  {
+    name: "shared helpers with arbitraries from fast-check",
+    source: `
+      import fc from "fast-check";
+      import { assertAsyncProperty, assertProperty } from "./test-support";
+      assertProperty(fc.property(fc.integer(), () => true), { numRuns: 10 });
+      await assertAsyncProperty(fc.asyncProperty(fc.integer(), async () => true));
+      const values = fc.sample(fc.integer(), { seed: 1, numRuns: 1 });
+    `,
+  },
+  {
+    name: "the fc re-export used for arbitraries only",
+    source: `
+      import { assertProperty as check, fc } from "../src/test-support.js";
+      check(fc.property(fc.boolean(), () => true), {}, { seed: 7 });
+      const text = "fc.assert(property)";
+    `,
+  },
+  {
+    name: "an unrelated assert member",
+    source: `
+      import assert from "node:assert";
+      const fc = { assert: () => undefined };
+      fc.assert();
+      assert.equal(1, 1);
+    `,
+  },
+] as const;
+
+const rejectedPropertyFixtures: readonly Readonly<{
+  name: string;
+  source: string;
+  code: PropertyViolationCode;
+}>[] = [
+  {
+    name: "default import assert",
+    source: `import fc from "fast-check"; fc.assert(fc.property(fc.nat(), () => true));`,
+    code: "bare-fast-check-runner",
+  },
+  {
+    name: "renamed default import check",
+    source: `import checks from "fast-check"; checks.check(checks.property(checks.nat(), () => true));`,
+    code: "bare-fast-check-runner",
+  },
+  {
+    name: "namespace import assert",
+    source: `import * as fastCheck from "fast-check"; await fastCheck.assert(property);`,
+    code: "bare-fast-check-runner",
+  },
+  {
+    name: "element access assert",
+    source: `import fc from "fast-check"; fc["assert"](property);`,
+    code: "bare-fast-check-runner",
+  },
+  {
+    name: "test-support re-export assert",
+    source: `import { fc } from "./test-support"; fc.assert(property, propertyParameters);`,
+    code: "bare-fast-check-runner",
+  },
+  {
+    name: "aliased named runner",
+    source: `import { assert as run } from "fast-check"; run(property);`,
+    code: "bare-fast-check-runner",
+  },
+  {
+    name: "detached runner reference",
+    source: `import fc from "fast-check"; const run = fc.assert; run(property);`,
+    code: "bare-fast-check-runner",
+  },
+  {
+    name: "destructured runner",
+    source: `import fc from "fast-check"; const { assert: run } = fc; run(property);`,
+    code: "fast-check-runner-destructure",
+  },
+  {
+    name: "required fast-check",
+    source: `const fc = require("fast-check"); fc.assert(property);`,
+    code: "fast-check-dynamic-import",
+  },
+  {
+    name: "dynamically imported fast-check",
+    source: `const fc = await import("fast-check");`,
+    code: "fast-check-dynamic-import",
+  },
+];
+
+describe("property runner policy", () => {
+  for (const fixture of acceptedPropertyFixtures) {
+    test(`accepts ${fixture.name}`, () => {
+      expect(inspectPropertySource("fixture.test.ts", fixture.source).violations).toEqual([]);
+    });
+  }
+
+  for (const fixture of rejectedPropertyFixtures) {
+    test(`rejects ${fixture.name}`, () => {
+      expect(inspectPropertySource("fixture.test.ts", fixture.source).violations.map((entry) => entry.code))
+        .toContain(fixture.code);
+    });
+  }
+
+  test("records literal corpus names passed to either helper", () => {
+    const { corpusUses } = inspectPropertySource("fixture.test.ts", `
+      import { assertAsyncProperty, assertProperty as check } from "./test-support";
+      check(property, {}, "one/name");
+      await assertAsyncProperty(property, { numRuns: 5 }, \`two-name\`);
+      check(property, {}, { seed: 3 });
+      check(property);
+    `);
+    expect(corpusUses).toEqual([
+      { name: "one/name", file: "fixture.test.ts", line: 3 },
+      { name: "two-name", file: "fixture.test.ts", line: 4 },
+    ]);
+  });
+
+  test("reports corpus names, files, and regressions that do not line up", () => {
+    const corpus = parsePropertyCorpus({
+      schema: "ghostget-property-seeds-v1",
+      properties: {
+        "a/present": {
+          file: "src/a.test.ts",
+          entries: [{ kind: "counterexample", seed: 1, path: "0", origin: "run 1", regression: "pins case one" }],
+        },
+        "b/unused": {
+          file: "src/b.test.ts",
+          entries: [{ kind: "workload", seed: 2, origin: "timing seed" }],
+        },
+      },
+    });
+    const titles = new Map([["src/a.test.ts", new Set(["pins another case"])]]);
+    expect(corpusFindings(corpus, [
+      { name: "a/present", file: "src/a.test.ts", line: 4 },
+      { name: "c/unknown", file: "src/a.test.ts", line: 9 },
+    ], (file) => titles.get(file) ?? null)).toEqual([
+      "src/a.test.ts:9 names property c/unknown, which has no corpus entry",
+      'corpus property a/present seed 1 names regression "pins case one", which src/a.test.ts does not register',
+      "corpus property b/unused must be run by exactly one helper call in src/b.test.ts; found none",
+      "corpus property b/unused names missing file src/b.test.ts",
+    ]);
+  });
+
+  test("every repository property runs through the shared helpers and the seed corpus lines up", async () => {
+    const repositoryRoot = join(import.meta.dir, "..");
+    const files = propertyPolicyFiles(repositoryRoot);
+    expect(files).toContain("src/canonical-json.test.ts");
+    expect(files).toContain("edge/negotiation.test.ts");
+    expect(files).toContain("scripts/ci-pr-gate.test.ts");
+    const reports = await Promise.all(files.map(async (file) => {
+      const source = await readFile(join(repositoryRoot, file), "utf8");
+      return /fast-check|test-support/u.test(source)
+        ? inspectPropertySource(file, source)
+        : { violations: [], corpusUses: [] };
+    }));
+    expect(reports.flatMap((entry) => entry.violations).map((entry) => (
+      `${entry.file}:${String(entry.line)} [${entry.code}] ${entry.message}`
+    ))).toEqual([]);
+
+    const corpus = parsePropertyCorpus(JSON.parse(
+      await readFile(join(repositoryRoot, PROPERTY_CORPUS_PATH), "utf8"),
+    ) as unknown);
+    const sources = new Map(await Promise.all([...new Set([...corpus.values()].map((entry) => entry.file))]
+      .map(async (file) => [file, await readFile(join(repositoryRoot, file), "utf8").catch(() => null)] as const)));
+    expect(corpusFindings(corpus, reports.flatMap((entry) => entry.corpusUses), (file) => {
+      const source = sources.get(file);
+      return source === undefined || source === null ? null : registeredTestTitles(file, source);
+    })).toEqual([]);
+  });
+});
 
 describe("test harness policy", () => {
   for (const fixture of acceptedFixtures) {
