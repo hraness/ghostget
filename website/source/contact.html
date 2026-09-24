@@ -21,14 +21,14 @@
     <meta property="og:description" content="Contact Ghostget through public GitHub issues or private vulnerability reporting. No telephone, postal address, or support inbox is published.">
     <meta property="og:url" content="https://ghostget.com/contact/">
     <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Contact Ghostget maintainers and report security issues">
     <meta name="twitter:description" content="Contact Ghostget through public GitHub issues or private vulnerability reporting. No telephone, postal address, or support inbox is published.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -52,8 +52,8 @@
         <header class="guide-hero">
           <p class="eyebrow">Contact · Ghostget {{GHOSTGET_VERSION}}</p>
           <h1>Use GitHub for product questions and private security reports.</h1>
-          <p class="answer-lede">Ghostget is maintained in public by the <a href="https://github.com/hraness">Hraness GitHub organization</a>. The published contact surfaces are the repository issue tracker and GitHub private vulnerability reporting. This project does not publish a telephone number, postal address, or support inbox.</p>
-          <p class="review-note">These contact paths match the public {{GHOSTGET_RELEASE}} repository metadata and security policy.</p>
+          <p class="answer-lede">Ghostget is maintained in public by the <a href="https://github.com/hraness">Hraness GitHub organization</a>. It has two contact channels: public GitHub issues and GitHub private vulnerability reporting. There is no phone number, postal address, or support inbox.</p>
+          <p class="review-note">These channels match the repository’s security policy for Ghostget {{GHOSTGET_RELEASE}}.</p>
         </header>
 
         <section aria-labelledby="public-issues">
@@ -62,14 +62,14 @@
         </section>
 
         <section aria-labelledby="unpublished-channels">
-          <h2 id="unpublished-channels">No other published contact channels</h2>
-          <p>Ghostget does not publish a telephone number, postal address, or support inbox. Do not treat unofficial mirrors, social replies, or guessed email addresses as maintainer contact. If a report includes secrets, use private vulnerability reporting rather than inventing another channel.</p>
+          <h2 id="unpublished-channels">Unofficial channels</h2>
+          <p>Unofficial mirrors, social replies, and guessed email addresses aren’t maintainer contact channels. If a report includes secrets, use private vulnerability reporting.</p>
         </section>
 
         <section aria-labelledby="security-reports">
           <h2 id="security-reports">Security reports</h2>
           <p>Report suspected vulnerabilities through <a href="{{GHOSTGET_REPOSITORY}}/security/advisories/new">GitHub private vulnerability reporting</a> for the Ghostget repository. That is the path named by the public security policy. Do not open a public issue containing credentials, cookies, tokens, private content, or local paths.</p>
-          <p>The <a href="/docs/explanation/security-model/">security guide</a> summarizes the local-custody and fail-closed contract that agents should read before binding an account. Source-side policy lives in the repository <code>SECURITY.md</code> for {{GHOSTGET_RELEASE}}.</p>
+          <p>The <a href="/docs/explanation/security-model/">security guide</a> explains how Ghostget stores sign-ins and what happens when a service changes. Read it before you connect an account. Source-side policy lives in the repository <code>SECURITY.md</code> for {{GHOSTGET_RELEASE}}.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="contact-next">

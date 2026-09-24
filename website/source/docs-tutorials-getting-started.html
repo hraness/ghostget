@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#f8f7f4" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#12100f" media="(prefers-color-scheme: dark)">
-    <title>Install Ghostget: CLI and TypeScript SDK getting started guide</title>
+    <title>Get started with Ghostget: install the CLI and read your first page</title>
     <meta name="description" content="Install Ghostget and read a public page with no account or API key. Then choose page saving, an agent skill, or connected services.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/docs/tutorials/getting-started/">
@@ -17,18 +17,18 @@
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Ghostget">
-    <meta property="og:title" content="Install Ghostget: CLI and TypeScript SDK getting started guide">
+    <meta property="og:title" content="Get started with Ghostget: install the CLI and read your first page">
     <meta property="og:description" content="Install Ghostget and read a public page with no account or API key. Then choose page saving, an agent skill, or connected services.">
     <meta property="og:url" content="https://ghostget.com/docs/tutorials/getting-started/">
     <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Install Ghostget: CLI and TypeScript SDK getting started guide">
+    <meta name="twitter:title" content="Get started with Ghostget: install the CLI and read your first page">
     <meta name="twitter:description" content="Install Ghostget and read a public page with no account or API key. Then choose page saving, an agent skill, or connected services.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -51,9 +51,9 @@
       <article class="guide-article">
         <header class="guide-hero">
           <p class="eyebrow">Tutorial · getting started · Ghostget {{GHOSTGET_VERSION}}</p>
-          <h1>Install Ghostget and capture your first URL.</h1>
+          <h1>Install Ghostget and read your first page</h1>
           <p class="answer-lede">Give your agent local tools to read pages, save media, and use connected accounts. Start with one public-page read. No Ghostget account, API key, provider connection, or Markdown vault is needed.</p>
-          <p class="review-note">This guide describes {{GHOSTGET_RELEASE}} and was checked against the public source for that immutable release.</p>
+          <p class="review-note">This guide describes Ghostget {{GHOSTGET_RELEASE}}.</p>
         </header>
 
         <section aria-labelledby="requirements">
@@ -104,7 +104,7 @@ ghostget menubar</code></pre></div>
           <p>On macOS, the menu companion can connect X, LinkedIn, and Reddit browser sessions. Other providers and Linux account setup use the CLI instructions in the <a href="/docs/reference/provider-capabilities/">provider directory</a>, including the focused guides for <a href="/docs/how-to/connect-beeper/">Beeper</a> and <a href="/docs/how-to/export-whatsapp/">WhatsApp</a>. Some providers need their own local tool or OAuth client. Installing Ghostget does not connect any account automatically.</p>
           <p>Use <code>ghostget menubar doctor</code> for companion platform and unsigned-binary guidance. See the <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/menubar-release.md">control guide</a> for startup, approvals, and credential import.</p>
           <p>For keyboard controls, run <code>ghostget menubar stop</code>, then <code>ghostget tui</code>. Press Tab to change sections, Enter to open actions, and <code>?</code> for help. Quit the TUI before restarting the menu. No Rust compiler or separate TUI install is needed.</p>
-          <details class="demo-transcript"><summary>Understand capability status</summary><p><code>ghostget capabilities --json</code> reports installed operation contracts. An <code>observed</code> contract still needs current account and runtime admission. A <code>capture-required</code> operation is unavailable until its contract is reviewed. The separate <code>messaging.automation.*</code> entries are owner-host permission ceilings and cannot dispatch through generic <code>invoke</code> or <code>confirm</code>.</p></details>
+          <details class="demo-transcript"><summary>Understand capability status</summary><p><code>ghostget capabilities --json</code> lists the actions installed on this machine. An action marked <code>observed</code> has a reviewed definition, but it still needs a connected account and the right local setup before it can run. An action marked <code>capture-required</code> can’t run until its definition is reviewed. The <code>messaging.automation.*</code> entries are permissions for the owner messaging host; you can’t run them with <code>invoke</code> or <code>confirm</code>.</p></details>
         </section>
 
         <section aria-labelledby="troubleshooting">
@@ -163,7 +163,7 @@ if (!isProviderPluginId(candidate.id)) {
 }
 
 const plugin = candidate satisfies ProviderPluginDefinitionV1</code></pre></div>
-          <p>The package has eight public TypeScript entrypoints: <code>@hraness/ghostget</code> for plugin types and bounded validators, <code>@hraness/ghostget/client</code> for persistent reads and strict live invocation, <code>@hraness/ghostget/beeper</code> for body-free contact interactions, <code>@hraness/ghostget/apple-photos</code> for local Photos contact evidence, <code>@hraness/ghostget/whatsapp</code> for the bounded private Message Like Me export, <code>@hraness/ghostget/omni</code> for normalized cross-provider reads, <code>@hraness/ghostget/messaging</code> for agentic route discovery and resolution, and <code>@hraness/ghostget/messaging-automation</code> for the trusted owner host and its closed protocol types. Imports are inert in Node and Bun; constructing an automation host requires Bun and explicit provider setup. Use <code>ghostget messaging automation serve --stdio</code> for built-in account and managed-permission enforcement. See the <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/messaging-automation.md">owner messaging guide</a> before granting authority.</p>
+          <p>The package has nine public TypeScript entrypoints: <code>@hraness/ghostget</code> for plugin types and validators, <code>@hraness/ghostget/client</code> for saved reads and live calls, <code>@hraness/ghostget/beeper</code> for contact interactions without message bodies, <code>@hraness/ghostget/apple-photos</code> for local Photos contact evidence, <code>@hraness/ghostget/whatsapp</code> for the private export to Textbutler (formerly Message Like Me), <code>@hraness/ghostget/omni</code> for normalized cross-provider reads, <code>@hraness/ghostget/messaging</code> for agentic route discovery and resolution, <code>@hraness/ghostget/messaging-automation</code> for the trusted owner host and its protocol types, and <code>@hraness/ghostget/contracts</code> for checking a read-only collection plan against the installed actions before any provider is contacted. Importing any of them starts nothing and makes no network request in Node or Bun; constructing an automation host requires Bun and explicit provider setup. Use <code>ghostget messaging automation serve --stdio</code> for built-in account and managed-permission enforcement. See the <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/messaging-automation.md">owner messaging guide</a> before granting authority.</p>
         </section>
 
         <section aria-labelledby="developer-resources">
@@ -174,8 +174,8 @@ const plugin = candidate satisfies ProviderPluginDefinitionV1</code></pre></div>
             <li><a href="{{GHOSTGET_SKILLS}}">Install the Ghostget Agent Skill from skills.sh</a> with <code>{{GHOSTGET_SKILL_INSTALL_COMMAND}}</code></li>
             <li><a href="/docs/how-to/capture-and-archive/">Capture URLs and create verified media archives</a></li>
             <li><a href="/docs/tutorials/getting-started/#demo">Watch and download the first-capture demo</a></li>
-            <li><a href="/docs/reference/provider-capabilities/">Provider capability attestation</a></li>
-            <li><a href="/docs/explanation/security-model/">Security and local custody</a></li>
+            <li><a href="/docs/reference/provider-capabilities/">Provider support reference</a></li>
+            <li><a href="/docs/explanation/security-model/">Security model</a></li>
             <li><a href="/docs/how-to/author-provider-plugin/">Author and verify provider plugins</a></li>
             <li><a href="{{GHOSTGET_REPOSITORY}}">Source, issues, and release tags</a></li>
             <li><a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/plugins.md">Plugin protocol guide for {{GHOSTGET_RELEASE}}</a></li>

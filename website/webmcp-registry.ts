@@ -13,6 +13,64 @@ export const WEBMCP_SITE_TEMPLATE = "provider-webmcp-site.html" as const;
 export const WEBMCP_INDEX_SOURCE = "providers.html" as const;
 export const WEBMCP_MAX_SNAPSHOT_SITES = 5_000;
 export const WEBMCP_MAX_SNAPSHOT_TOOLS = 40;
+/** Snapshot sync limits for third-party text; see clipAtWordBoundary. */
+export const WEBMCP_TOOL_DESCRIPTION_LIMIT = 240;
+export const WEBMCP_SITE_DESCRIPTION_LIMIT = 300;
+
+/** "1 tool", "0 tools", "12 tools": the count and a noun that agrees with it. */
+export function countNoun(count: number, singular: string, plural: string): string {
+  return `${count.toLocaleString("en-US")} ${count === 1 ? singular : plural}`;
+}
+
+/** "September 23, 2026" for an ISO timestamp, read in UTC. */
+export function formatRegistryDate(timestamp: string): string {
+  return new Date(timestamp).toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+    year: "numeric",
+  });
+}
+
+const TERMINAL_PUNCTUATION = /[.!?…)\]"'”’]$/u;
+
+/**
+ * Shortens third-party text to at most `limit` characters without cutting a
+ * word: it keeps whole words and ends with "…" when anything was removed.
+ */
+export function clipAtWordBoundary(text: string, limit: number): string {
+  const chars = [...text];
+  if (chars.length <= limit) return text;
+  const head = chars.slice(0, limit - 1).join("");
+  const lastSpace = head.search(/\s\S*$/u);
+  const kept = (lastSpace > 0 ? head.slice(0, lastSpace) : head).replace(/[\s,;:]+$/u, "");
+  return `${kept}…`;
+}
+
+/**
+ * Earlier snapshots cut tool descriptions at exactly 240 characters, often
+ * mid-word. Treat such a description as cut and re-clip it at a word
+ * boundary so a page never ends a sentence mid-word.
+ */
+export function presentWebmcpToolDescription(description: string): string {
+  // The earlier sync cut with String.prototype.slice, so compare UTF-16 length.
+  if (description.length !== WEBMCP_TOOL_DESCRIPTION_LIMIT || TERMINAL_PUNCTUATION.test(description)) {
+    return description;
+  }
+  const lastSpace = description.search(/\s\S*$/u);
+  if (lastSpace < 1) return `${[...description].slice(0, -1).join("")}…`;
+  return `${description.slice(0, lastSpace).replace(/[\s,;:]+$/u, "")}…`;
+}
+
+/**
+ * The registry name is often the site's own page title ("Zapier: Automate AI
+ * Workflows, Agents, and Apps"). Headings use the part before the first
+ * title separator so a page names the site, not its tagline.
+ */
+export function webmcpDisplayName(site: Pick<WebmcpSnapshotSite, "name">): string {
+  const match = /^(.{2,}?)(?:: | \| | - | – | — )/u.exec(site.name);
+  return match?.[1]?.trim() ?? site.name;
+}
 
 export type WebmcpSnapshotTool = Readonly<{
   name: string;
@@ -215,16 +273,27 @@ export function webmcpSiteCanonicalPath(domain: string): string {
 }
 
 export function webmcpSiteTitle(site: WebmcpSnapshotSite): string {
-  return `Use ${site.name} with your agent through Ghostget`;
+  const name = webmcpDisplayName(site);
+  return site.readOnlyToolCount > 0
+    ? `Use ${name} with your agent through Ghostget`
+    : `${name} in the WebMCP Registry, read through Ghostget`;
+}
+
+/** The page's H1: a promise of use only when the agent can call a tool. */
+export function webmcpSiteHeading(site: WebmcpSnapshotSite): string {
+  const name = webmcpDisplayName(site);
+  return site.readOnlyToolCount > 0
+    ? `Use ${name} with your agent`
+    : `${name} in the WebMCP Registry`;
 }
 
 export function webmcpSiteDescription(site: WebmcpSnapshotSite): string {
   const callable = site.readOnlyToolCount;
-  const base = `${site.name} (${site.domain}) registers ${String(site.toolCount)} WebMCP ${site.toolCount === 1 ? "tool" : "tools"}.`;
+  const base = `${webmcpDisplayName(site)} (${site.domain}) registers ${countNoun(site.toolCount, "WebMCP tool", "WebMCP tools")}.`;
   if (callable < 1) {
-    return `${base} Ghostget reads its live registry schema; the registry lists no read-only-callable tools today.`;
+    return `${base} None is declared read-only, so Ghostget can read the tool schema from the registry but can't call a tool.`;
   }
-  return `${base} Ghostget calls ${String(callable)} read-only ${callable === 1 ? "tool" : "tools"} through the WebMCP Registry with the live schema.`;
+  return `${base} Ghostget can call ${countNoun(callable, "read-only tool", "read-only tools")} through the WebMCP Registry, using the schema from its latest check.`;
 }
 
 export function webmcpProviderPages(snapshot: WebmcpRegistrySnapshot): readonly PublicPage[] {
@@ -253,7 +322,7 @@ export function renderWebmcpToolsTable(site: WebmcpSnapshotSite): string {
   const rows = site.tools.map((tool) => [
     "<tr>",
     `<th scope="row"><code>${escapeHtml(tool.name)}</code></th>`,
-    `<td>${escapeHtml(tool.description)}</td>`,
+    `<td>${escapeHtml(presentWebmcpToolDescription(tool.description))}</td>`,
     tool.readOnly
       ? "<td>Callable read-only tool</td>"
       : "<td>Listed for discovery; the registry allows read-only calls only</td>",
@@ -264,7 +333,7 @@ export function renderWebmcpToolsTable(site: WebmcpSnapshotSite): string {
     "<table>",
     "<thead><tr>",
     '<th scope="col">Tool</th>',
-    '<th scope="col">What it does</th>',
+    `<th scope="col">Description from ${escapeHtml(webmcpDisplayName(site))}</th>`,
     '<th scope="col">Callable through Ghostget</th>',
     "</tr></thead>",
     `<tbody>${rows}</tbody>`,
@@ -277,24 +346,29 @@ export function webmcpSiteTemplateValues(site: WebmcpSnapshotSite): Readonly<Rec
   const callable = site.readOnlyToolCount;
   const example = firstReadOnlyTool(site);
   const callExample = example === undefined
-    ? `# no read-only-callable tools listed today; sites.get shows the live status`
+    ? `# no read-only tools listed; sites.get shows the registry's latest status`
     : `ghostget webmcp tools.call --input '${JSON.stringify({
       domain: site.domain,
       tool: example.name,
       input: "{}",
     })}' --json`;
-  const statusLine = callable < 1
-    ? `${escapeHtml(site.name)} lists ${String(site.toolCount)} ${site.toolCount === 1 ? "tool" : "tools"} but declares none as read-only today, so <code>tools.call</code> cannot invoke them yet. Ask <code>sites.get</code> for the live status before planning a call.`
-    : `${String(callable)} of ${String(site.toolCount)} ${site.toolCount === 1 ? "tool" : "tools"} declares <code>readOnlyHint</code>, so an agent can invoke ${callable === 1 ? "it" : "them"} through <code>tools.call</code>. The registry runs the tool in a fresh headless page on ${escapeHtml(site.domain)} and returns untrusted site content.`;
+  const name = webmcpDisplayName(site);
+  const statusLine = site.toolCount < 1
+    ? "No tools are listed yet, so there is nothing to call through <code>tools.call</code>. Ask <code>sites.get</code> for the registry's latest status."
+    : callable < 1
+    ? `${site.toolCount === 1 ? "It isn't" : "None is"} declared read-only, so <code>tools.call</code> can't invoke ${site.toolCount === 1 ? "it" : "them"}. Ask <code>sites.get</code> for the registry's latest status before planning a call.`
+    : `${String(callable)} of ${countNoun(site.toolCount, "tool", "tools")} ${callable === 1 ? "declares" : "declare"} <code>readOnlyHint</code>, so an agent can invoke ${callable === 1 ? "it" : "them"} through <code>tools.call</code>. The registry runs the tool in a fresh headless page on ${escapeHtml(site.domain)} and returns untrusted site content.`;
+  const toolsSummary = `${escapeHtml(name)} publishes ${countNoun(site.toolCount, "tool", "tools")} on ${escapeHtml(site.domain)}; ${String(callable)} ${callable === 1 ? "declares" : "declare"} <code>readOnlyHint</code>.`;
   const values: Record<string, string> = {
     "{{WEBMCP_CALL_EXAMPLE}}": escapeHtml(callExample),
-    "{{WEBMCP_CHECKED_AT}}": escapeHtml(site.checkedAt),
+    "{{WEBMCP_CHECKED_AT}}": escapeHtml(formatRegistryDate(site.checkedAt)),
     "{{WEBMCP_DOMAIN}}": escapeHtml(site.domain),
     "{{WEBMCP_GET_EXAMPLE}}": escapeHtml(
       `ghostget webmcp sites.get --input '{"domain":"${site.domain}"}' --json`,
     ),
+    "{{WEBMCP_HEADING}}": escapeHtml(webmcpSiteHeading(site)),
     "{{WEBMCP_HOMEPAGE_URL}}": escapeHtml(site.homepageUrl),
-    "{{WEBMCP_NAME}}": escapeHtml(site.name),
+    "{{WEBMCP_NAME}}": escapeHtml(name),
     "{{WEBMCP_PAGE_DESCRIPTION}}": escapeHtml(webmcpSiteDescription(site)),
     "{{WEBMCP_PAGE_TITLE}}": escapeHtml(webmcpSiteTitle(site)),
     "{{WEBMCP_READONLY_COUNT}}": String(callable),
@@ -303,6 +377,8 @@ export function webmcpSiteTemplateValues(site: WebmcpSnapshotSite): Readonly<Rec
     "{{WEBMCP_STATUS_LINE}}": statusLine,
     "{{WEBMCP_TAGS}}": escapeHtml(site.tags.join(", ")),
     "{{WEBMCP_TOOL_COUNT}}": String(site.toolCount),
+    "{{WEBMCP_TOOL_COUNT_PHRASE}}": countNoun(site.toolCount, "WebMCP tool", "WebMCP tools"),
+    "{{WEBMCP_TOOLS_SUMMARY}}": toolsSummary,
     "{{WEBMCP_TOOLS_TABLE}}": renderWebmcpToolsTable(site),
   };
   if (example !== undefined) {
@@ -376,7 +452,7 @@ export function webmcpSharedTemplateValues(
     "{{WEBMCP_REGISTRY_READONLY_TOOL_COUNT}}": readOnlyTools.toLocaleString("en-US"),
     "{{WEBMCP_REGISTRY_SITE_COUNT}}": snapshot.siteCount.toLocaleString("en-US"),
     "{{WEBMCP_REGISTRY_TOOL_COUNT}}": totalTools.toLocaleString("en-US"),
-    "{{WEBMCP_SYNCED_AT}}": escapeHtml(snapshot.syncedAt),
+    "{{WEBMCP_SYNCED_AT}}": escapeHtml(formatRegistryDate(snapshot.syncedAt)),
   });
 }
 

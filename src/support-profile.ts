@@ -2,6 +2,6 @@
 export const ghostgetSupportProfile = Object.freeze({
   id: "wrench",
   name: "Ghostget",
-  valueProposition: "Support ongoing development of precise web tools for agents.",
+  valueProposition: "Support ongoing development of named web actions for AI agents.",
   updates: true,
 } as const);

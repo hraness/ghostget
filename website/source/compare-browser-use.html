@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#f8f7f4" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#12100f" media="(prefers-color-scheme: dark)">
     <title>Ghostget vs browser-use: named operations instead of a model-driven browser</title>
-    <meta name="description" content="browser-use lets a model drive a browser through a observe-plan-click loop. Ghostget removes the driving surface: agents call named, reviewed operations that return one bounded result.">
+    <meta name="description" content="browser-use lets a model drive a browser through an observe, plan, and click loop. Ghostget gives agents named, reviewed actions that each return one result.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/compare/browser-use/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
@@ -18,17 +18,17 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Ghostget">
     <meta property="og:title" content="Ghostget vs browser-use: named operations instead of a model-driven browser">
-    <meta property="og:description" content="browser-use lets a model drive a browser through a observe-plan-click loop. Ghostget removes the driving surface: agents call named, reviewed operations that return one bounded result.">
+    <meta property="og:description" content="browser-use lets a model drive a browser through an observe, plan, and click loop. Ghostget gives agents named, reviewed actions that each return one result.">
     <meta property="og:url" content="https://ghostget.com/compare/browser-use/">
     <meta property="og:image" content="https://ghostget.com/og.png">
-    <meta property="og:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Ghostget vs browser-use: named operations instead of a model-driven browser">
-    <meta name="twitter:description" content="browser-use lets a model drive a browser through a observe-plan-click loop. Ghostget removes the driving surface: agents call named, reviewed operations that return one bounded result.">
+    <meta name="twitter:description" content="browser-use lets a model drive a browser through an observe, plan, and click loop. Ghostget gives agents named, reviewed actions that each return one result.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
-    <meta name="twitter:image:alt" content="Ghostget: precise web capabilities for AI agents">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="application/ld+json">{{JSON_LD}}</script>
@@ -51,9 +51,9 @@
       <article class="guide-article">
         <header class="guide-hero">
           <p class="eyebrow">Comparison · Ghostget {{GHOSTGET_VERSION}}</p>
-          <h1>browser-use drives a browser. Ghostget removes the wheel.</h1>
-          <p class="answer-lede"><a href="https://github.com/browser-use/browser-use">browser-use</a> is the open-source Python library that turns an LLM into a web agent: the model observes the page, plans, clicks, and repeats until the goal is done. Ghostget answers a different need. It is a local CLI and TypeScript SDK where the agent names a reviewed outcome and gets one bounded result, with no browser it can steer at all.</p>
-          <p class="review-note">This page describes browser-use's published model and Ghostget's {{GHOSTGET_RELEASE}} contract, checked against each project's public source in September 2026.</p>
+          <h1>Ghostget gives your agent reviewed actions instead of a browser to drive</h1>
+          <p class="answer-lede"><a href="https://github.com/browser-use/browser-use">browser-use</a> is the open-source Python library that turns an LLM into a web agent: the model observes the page, plans, clicks, and repeats until the goal is done. Ghostget is a local CLI and TypeScript SDK where the agent asks for a reviewed outcome and gets one result, with no browser to steer.</p>
+          <p class="review-note">This page describes browser-use as published in September 2026 and Ghostget {{GHOSTGET_RELEASE}}.</p>
         </header>
 
         <section aria-labelledby="bu-model">
@@ -64,8 +64,8 @@
 
         <section aria-labelledby="bu-cost">
           <h2 id="bu-cost">The context bill is the loop</h2>
-          <p>A browser-use step re-reads the page, so the token cost of a task grows with its step count and page complexity. Every screenshot and DOM dump joins the context. That is the price of open-ended reach, and for genuinely novel tasks it is often worth paying.</p>
-          <p>Ghostget pays once. A measured September 2026 read of a Wikipedia article returned 15,021 bytes of Markdown where the raw page served 145,617 bytes of HTML, roughly 3,800 tokens against 36,000, from a single HTTP request with no browser process. The number that matters is not one page but the shape of the curve: one bounded result per call, not page state per step.</p>
+          <p>A browser-use step re-reads the page, so the token cost of a task grows with its step count and page complexity. Every screenshot and DOM dump joins the context. That is the price of open-ended reach, and for new, one-off tasks it is often worth paying.</p>
+          <p>Ghostget pays once. A measured September 2026 read of a Wikipedia article returned 15,021 bytes of Markdown where the raw page served 145,617 bytes of HTML, roughly 3,800 tokens against 36,000, from a single HTTP request with no browser process. One page is only an example. What matters is that Ghostget returns one result per call, while a browser loop re-reads the page on every step.</p>
         </section>
 
         <section aria-labelledby="bu-table">
@@ -124,7 +124,7 @@
 
         <aside class="guide-callout" aria-labelledby="bu-next">
           <h2 id="bu-next">See the boundary before you install</h2>
-          <p>Browse the <a href="/docs/reference/provider-capabilities/">supported action set</a> for {{GHOSTGET_RELEASE}}, read the <a href="/docs/explanation/security-model/">security model</a>, then <a href="/docs/tutorials/getting-started/">install the CLI</a>. The lane map is at <a href="/compare/">How agents reach the web</a>.</p>
+          <p>Browse the <a href="/docs/reference/provider-capabilities/">supported action set</a> for {{GHOSTGET_RELEASE}}, read the <a href="/docs/explanation/security-model/">security model</a>, then <a href="/docs/tutorials/getting-started/">install the CLI</a>. All four approaches are compared at <a href="/compare/">How agents reach the web</a>.</p>
         </aside>
       </article>
     </main>

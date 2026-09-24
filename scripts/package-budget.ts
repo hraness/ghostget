@@ -1506,24 +1506,35 @@
 // a93c3400369b926d7dc23451d8ddb5b2b2cb47ccd733b09fda9000345415b16c. Carry the
 // same projections and allowances: 11,986,281 + 12,387 + 4,096 = 12,002,764
 // packed; 23,401,176 + 353 + 65 = 23,401,594 unpacked.
-// Media lifecycle fences run yt-dlp in its own process group and kill the
-// group on cancel, flush each revision with F_FULLFSYNC before and after a
-// promotion rename fenced by the lock token, and quarantine a torn head
-// revision only when its failures fit a short write. This adds 15,821 payload
-// bytes over the unchanged 596-file inventory. Two `npm pack --ignore-scripts`
-// runs with npm 11.19.0 on darwin arm64 were byte-identical at 11,990,680
-// packed bytes, 23,416,997 unpacked bytes; archive SHA-256
-// ad2a7805e4604ea8c31781e62f66b6c82650f2d216f2fc705c2646b5ddcd813d. Carry the
-// same projections and allowances: 11,990,680 + 12,387 + 4,096 = 12,007,163
-// packed; 23,416,997 + 353 + 65 = 23,417,415 unpacked.
+// The unreleased copy pass over the path-helper reaper election rewrites the
+// package description, README, Agent Skill summary and plugin examples, CLI
+// banner, TUI strings, and support value proposition, and adds an Unreleased
+// CHANGELOG section, over the unchanged 596-file inventory: 637 payload bytes
+// over the reaper-election measurement. `npm pack --ignore-scripts` with npm
+// 11.16.0 on darwin arm64 measured 11,997,841 packed bytes, 23,401,813
+// unpacked bytes; archive SHA-256
+// 8614f1f031979371907772a6284888527064014b18f81cc26c4ee2f1f2bdcb56.
+// Compressed size varies with the local zlib. Carry the same projections and
+// allowances: 11,997,841 + 12,387 + 4,096 = 12,014,324 packed;
+// 23,401,813 + 353 + 65 = 23,402,231 unpacked.
+// The media lifecycle hardening spawns yt-dlp in its own process group,
+// fsyncs every revision file and parent directory around the promotion
+// rename, quarantines only a torn head revision, and fences promotion with
+// the item lock's token. This adds 15,821 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0
+// on darwin arm64 were byte-identical at 11,990,908 packed bytes, 23,417,634
+// unpacked bytes; archive SHA-256
+// 519e4bfdfd61196722eda53965398a7553afb1818a399cc322004665a04574a2. Carry the
+// same projections and allowances: 11,990,908 + 12,387 + 4,096 = 12,007,391
+// packed; 23,417,634 + 353 + 65 = 23,418,052 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Media lifecycle fences over the path-helper reaper inventory",
+  scope: "D9-D11 media process groups, durable promotion, and fenced locks",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.19.0",
+  npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "ad2a7805e4604ea8c31781e62f66b6c82650f2d216f2fc705c2646b5ddcd813d",
-  packedBytes: 11_990_680,
-  unpackedBytes: 23_416_997,
+  archiveSha256: "519e4bfdfd61196722eda53965398a7553afb1818a399cc322004665a04574a2",
+  packedBytes: 11_990_908,
+  unpackedBytes: 23_417_634,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

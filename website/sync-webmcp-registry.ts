@@ -17,6 +17,11 @@ import {
   parseWebmcpSitesGetResponse,
   parseWebmcpSitesSearchResponse,
 } from "../src/providers/webmcp";
+import {
+  clipAtWordBoundary,
+  WEBMCP_SITE_DESCRIPTION_LIMIT,
+  WEBMCP_TOOL_DESCRIPTION_LIMIT,
+} from "./webmcp-registry";
 
 const REGISTRY_API = "https://www.wmcp.ai";
 const LIST_PAGE_LIMIT = 100;
@@ -116,13 +121,13 @@ async function siteDetail(domain: string): Promise<SnapshotSite> {
   }
   const tools = site.tools.slice(0, MAX_SITE_TOOLS).map((tool) => Object.freeze({
     name: tool.name,
-    description: (tool.description ?? "").slice(0, 240),
+    description: clipAtWordBoundary(tool.description ?? "", WEBMCP_TOOL_DESCRIPTION_LIMIT),
     readOnly: tool.annotations?.readOnlyHint === true,
   }));
   return Object.freeze({
     domain,
     name: site.name ?? domain,
-    description: (site.description ?? "").slice(0, 300),
+    description: clipAtWordBoundary(site.description ?? "", WEBMCP_SITE_DESCRIPTION_LIMIT),
     toolCount: site.tools.length,
     readOnlyToolCount: tools.filter((tool) => tool.readOnly).length,
     tags: Object.freeze(site.tags),
