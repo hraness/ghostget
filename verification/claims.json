@@ -2031,18 +2031,26 @@
         "quote": "Ghostget refuses a transition while the old bundle still owns live or unknown work."
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
         "src/provider-plugin-invocation-lease.property.test.ts",
         "src/provider-plugin-invocation-lease.test.ts",
-        "src/provider-plugin-lifecycle-kernel.test.ts"
+        "src/provider-plugin-lifecycle-kernel.test.ts",
+        "src/provider-plugin-portable-runtime.test.ts"
       ],
       "assumptions": [
         "plugin-trusted"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The stateful model drives `inspectPortableProviderPluginQuiescence`, the check that update, disable, and removal call, through injected listings of up to 24 generated steps over two bundles: invocation leases with a live, dead, or unknown owner, confirmation plans and claims, run journals (active, released, retaining recovery, or holding assets), run receipts, recovery capsules, linked-device lifecycles, malformed entries of each kind, and an unexpected state entry. The listings are the model's own, so how the real stores list and parse those files is covered only by their tests.",
+        "That the store calls this check under its catalog lock before each transition, and leaves the activation unchanged when it throws, is covered only by the named example tests in src/provider-plugin-portable-runtime.test.ts, for a live invocation lease, a cleanup-unsafe lease, and a confirmation plan.",
+        "Work that starts between the check and the store's commit is excluded only by the store's lock and each work kind's own admission; no model covers that interleaving."
+      ],
+      "properties": [
+        {
+          "path": "src/provider-plugin-lifecycle-kernel.test.ts",
+          "test": "a bundle may change exactly when it owns no live or unknown work"
+        }
       ]
     },
     {
@@ -3202,11 +3210,11 @@
         "quote": "exact-byte compare-and-exchange"
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
         "src/auth-storage.test.ts",
         "src/session-secrets.test.ts",
+        "src/storage-cas.model.test.ts",
         "src/storage-cas.test.ts"
       ],
       "assumptions": [
@@ -3214,7 +3222,15 @@
         "same-user-trusted"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The stateful model runs 12 schedules of up to 8 commands against the real bound state helper on one file under `session-secrets`: conditional writes and removals that hold a current or stale snapshot, an unconditional recreate, and a swap of the file for a symbolic link to a file outside the state layout. It checks the sequential interleavings it generates. Genuinely overlapping writers are covered only by the cross-process example test in src/storage-cas.test.ts, for two writers.",
+        "A symbolic link in a parent directory, and the path helper that writes outside `GHOSTGET_STATE_HOME`, are not in the model; the example tests cover only their enumerated cases.",
+        "Crashes during a compare-and-swap are covered by the state-crash-consistency claim, not by this model."
+      ],
+      "properties": [
+        {
+          "path": "src/storage-cas.model.test.ts",
+          "test": "stale snapshots never roll state back, resurrect a removed file, or follow a link"
+        }
       ]
     },
     {

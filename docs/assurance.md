@@ -8,13 +8,13 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 244 claims: 181 evidenced, 44 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 244 claims: 183 evidenced, 42 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 143 | 2 | 0 |
 | property test | 15 | 1 | 0 |
-| stateful model | 2 | 13 | 0 |
+| stateful model | 4 | 11 | 0 |
 | Quint model with production trace replay | 11 | 26 | 0 |
 | Lean proof with differential test | 7 | 1 | 0 |
 | differential oracle | 3 | 1 | 0 |
@@ -1474,11 +1474,15 @@ Portable-plugin identity is bound to its exact verified artifact; artifact tampe
 
 Plugin update, disable, and removal are refused while the old bundle still owns live or unknown work (invocation leases, confirmations, run journals, recovery capsules, linked-device lifecycles).
 
-- Planned: stateful model in plan Phase 2.
+- Evidenced by stateful model.
 - Source: `docs/plugins.md`: “Ghostget refuses a transition while the old bundle still owns live or unknown work.”
-- Evidence: `src/provider-plugin-invocation-lease.property.test.ts`, `src/provider-plugin-invocation-lease.test.ts`, `src/provider-plugin-lifecycle-kernel.test.ts`
+- Evidence: `src/provider-plugin-invocation-lease.property.test.ts`, `src/provider-plugin-invocation-lease.test.ts`, `src/provider-plugin-lifecycle-kernel.test.ts`, `src/provider-plugin-portable-runtime.test.ts`
+- Property tests: `src/provider-plugin-lifecycle-kernel.test.ts`: “a bundle may change exactly when it owns no live or unknown work”
 - Assumptions: `plugin-trusted`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The stateful model drives `inspectPortableProviderPluginQuiescence`, the check that update, disable, and removal call, through injected listings of up to 24 generated steps over two bundles: invocation leases with a live, dead, or unknown owner, confirmation plans and claims, run journals (active, released, retaining recovery, or holding assets), run receipts, recovery capsules, linked-device lifecycles, malformed entries of each kind, and an unexpected state entry. The listings are the model's own, so how the real stores list and parse those files is covered only by their tests.
+  - That the store calls this check under its catalog lock before each transition, and leaves the activation unchanged when it throws, is covered only by the named example tests in src/provider-plugin-portable-runtime.test.ts, for a live invocation lease, a cleanup-unsafe lease, and a confirmation plan.
+  - Work that starts between the check and the store's commit is excluded only by the store's lock and each work kind's own admission; no model covers that interleaving.
 
 #### `portable-pack-reproducible`
 
@@ -2297,11 +2301,15 @@ The state helper's three-phase claim and the path helper's per-leaf claim each a
 
 Private state writes are compare-and-swap: exactly one overlapping writer for an exact snapshot succeeds, a stale writer never rolls state back or resurrects a removed file, disappearance is a conflict, and symlinks are never followed.
 
-- Planned: stateful model in plan Phase 2.
+- Evidenced by stateful model.
 - Source: `docs/plugins.md`: “exact-byte compare-and-exchange”
-- Evidence: `src/auth-storage.test.ts`, `src/session-secrets.test.ts`, `src/storage-cas.test.ts`
+- Evidence: `src/auth-storage.test.ts`, `src/session-secrets.test.ts`, `src/storage-cas.model.test.ts`, `src/storage-cas.test.ts`
+- Property tests: `src/storage-cas.model.test.ts`: “stale snapshots never roll state back, resurrect a removed file, or follow a link”
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The stateful model runs 12 schedules of up to 8 commands against the real bound state helper on one file under `session-secrets`: conditional writes and removals that hold a current or stale snapshot, an unconditional recreate, and a swap of the file for a symbolic link to a file outside the state layout. It checks the sequential interleavings it generates. Genuinely overlapping writers are covered only by the cross-process example test in src/storage-cas.test.ts, for two writers.
+  - A symbolic link in a parent directory, and the path helper that writes outside `GHOSTGET_STATE_HOME`, are not in the model; the example tests cover only their enumerated cases.
+  - Crashes during a compare-and-swap are covered by the state-crash-consistency claim, not by this model.
 
 #### `state-crash-consistency`
 
