@@ -322,7 +322,8 @@ type Step =
       type: EventType;
       index: "active" | "zero" | "beyond";
       observed: "same" | "proven" | "behind" | "ahead";
-      msgId: number;
+      /** A provider message ID, or `prefix` to repeat the last one the accepted prefix recorded. */
+      msgId: number | "prefix";
       hasRevision: boolean;
       permanent: boolean;
       reason: typeof STOP_REASONS[number];
@@ -349,8 +350,12 @@ const step: fc.Arbitrary<Step> = fc.oneof(
         { weight: 1, arbitrary: fc.constantFrom("zero" as const, "beyond" as const) },
       ),
       observed: fc.constantFrom("same" as const, "proven" as const, "behind" as const, "ahead" as const),
-      // A small pool, so that a provider message ID often repeats one in the accepted prefix.
-      msgId: fc.nat({ max: 5 }),
+      // A small pool, plus a direct repeat of the accepted prefix, so that every
+      // run reliably compares a provider message ID the prefix already holds.
+      msgId: fc.oneof(
+        { weight: 3, arbitrary: fc.nat({ max: 5 }) },
+        { weight: 1, arbitrary: fc.constant("prefix" as const) },
+      ),
       hasRevision: fc.boolean(),
       permanent: fc.boolean(),
       reason: fc.constantFrom(...STOP_REASONS),
@@ -381,6 +386,12 @@ function lifecycle(model: Model, chosen: Extract<Step, { kind: "event" }>): Even
   return chosen.type;
 }
 
+/** The provider message ID of the last accepted-prefix part that has one, or 0. */
+function prefixMsgId(model: Model): number {
+  const recorded = model.parts.slice(0, model.proven).map((part) => part.msgId).filter((id) => id !== null);
+  return recorded.at(-1) ?? 0;
+}
+
 function resolve(model: Model, chosen: Extract<Step, { kind: "event" }>): ModelEvent {
   const type = chosen.advance ? lifecycle(model, chosen) : chosen.type;
   const index = { active: model.proven, zero: 0, beyond: model.parts.length }[chosen.index];
@@ -395,7 +406,7 @@ function resolve(model: Model, chosen: Extract<Step, { kind: "event" }>): ModelE
     type,
     index,
     observed,
-    msgId: chosen.msgId,
+    msgId: chosen.msgId === "prefix" ? prefixMsgId(model) : chosen.msgId,
     hasRevision: chosen.hasRevision,
     permanent: chosen.permanent,
     reason: chosen.reason,
