@@ -5317,8 +5317,18 @@ export async function confirmInvocation(digest: string, options: Parameters<type
   if (!readOperationPolicy(environment).managed) return withUnmanagedOperationPermission(environment, () => confirmInvocationCore(digest, options));
   const registry = options.registry ?? providerPluginRegistry;
   const stored = loadInvocationPlan(digest, environment);
-  const invocation = validateFreshPlan(stored, environment, options.now ?? new Date(), registry,
-    options.loadManifest ?? ((id, selected = environment) => loadInstalledManifestWithRegistry(id, selected, registry)));
+  let invocation: PreparedInvocation;
+  try {
+    invocation = validateFreshPlan(stored, environment, options.now ?? new Date(), registry,
+      options.loadManifest ?? ((id, selected = environment) => loadInstalledManifestWithRegistry(id, selected, registry)));
+  } catch (error) {
+    // An expired or drifted plan is consumed without dispatch, as the
+    // unmanaged confirmation program consumes it; otherwise restoring the
+    // interface or clock would revive it. A plan another confirmation owns
+    // stays with that owner, and the original refusal is what the caller sees.
+    try { cancelInvocationPlan(digest, environment); } catch { /* the refusal below stands */ }
+    throw error;
+  }
   return withOperationPermission(invocation, { environment, registry, plan: stored, ...(options.signal === undefined ? {} : { signal: options.signal }) },
     () => confirmInvocationCore(digest, options));
 }
