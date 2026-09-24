@@ -17,6 +17,43 @@
         "seed": "20260924",
         "maxSteps": 12
       }
+    },
+    {
+      "file": "fence.qnt",
+      "module": "fence",
+      "init": "init",
+      "step": "step",
+      "invariants": ["fenceSafety"],
+      "simulation": { "seed": "20260923", "maxSamples": 5000, "maxSteps": 12 },
+      "apalache": { "length": 8 },
+      "mutants": [
+        { "step": "stepHashKeyed", "invariant": "fenceSafety" },
+        { "step": "stepCallerRelease", "invariant": "fenceSafety" }
+      ],
+      "replay": {
+        "test": "scripts/verification-fence-replay.test.ts",
+        "target": "production",
+        "traces": 1000,
+        "seed": "20260924",
+        "maxSteps": 12
+      }
+    },
+    {
+      "file": "path-claim.qnt",
+      "module": "pathClaim",
+      "init": "init",
+      "step": "step",
+      "invariants": ["claimSafety"],
+      "simulation": { "seed": "20260923", "maxSamples": 10000, "maxSteps": 12 },
+      "apalache": { "length": 6 },
+      "mutants": [{ "step": "stepPreFix", "invariant": "claimSafety" }],
+      "replay": {
+        "test": "scripts/verification-path-claim-replay.test.ts",
+        "target": "production",
+        "traces": 60,
+        "seed": "20260924",
+        "maxSteps": 12
+      }
     }
   ]
 }

@@ -1565,14 +1565,24 @@
 // Compressed size varies with the local zlib. Carry the same projections and
 // allowances: 12,005,185 + 12,387 + 4,096 = 12,021,668 packed;
 // 23,425,412 + 353 + 65 = 23,425,830 unpacked.
+// The Quint fence and path-claim models export the pure fence cores
+// (`intentFenceBlocker`, `reconciledRecoveryRelease`, `priorRunDisposition`)
+// for trace replay and run every model's replay test from the manifest through
+// the new verify:quint:replay script in package.json. This adds 2,058 payload
+// bytes over the unchanged 596-file inventory. Two `npm pack --ignore-scripts`
+// runs with npm 11.19.0 on darwin arm64 were byte-identical at 11,993,645
+// packed bytes, 23,427,470 unpacked bytes; archive SHA-256
+// 87e0c7bc0e6037f05c2d1ae83672de5b9abc016e2516f96a31f9a3b1bac640a4. Carry the
+// same projections and allowances: 11,993,645 + 12,387 + 4,096 = 12,010,128
+// packed; 23,427,470 + 353 + 65 = 23,427,888 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "README paragraph linking the thread through hraness and the ALGAL vision",
+  scope: "Quint fence and path-claim models: exported fence cores and the manifest-driven verify:quint:replay script in package.json",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.16.0",
+  npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "874784766ccc8e505bc73de42d1aad7b95ce6acd59ea121914ea6f9a6dbffe85",
-  packedBytes: 12_005_185,
-  unpackedBytes: 23_425_412,
+  archiveSha256: "87e0c7bc0e6037f05c2d1ae83672de5b9abc016e2516f96a31f9a3b1bac640a4",
+  packedBytes: 11_993_645,
+  unpackedBytes: 23_427_470,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
