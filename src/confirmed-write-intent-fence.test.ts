@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -508,6 +509,21 @@ describe("intent-level confirmed-write fence", () => {
       for (const secret of [ACCOUNT, MESSAGE, testState.directory, "12345"]) {
         expect(serialized).not.toContain(secret);
       }
+
+      // A later generation is reachable only through fulfilled generations
+      // from the intent's base claim. The same claim moved off that chain
+      // fences nothing, so readback reports it as misplaced.
+      const intents = join(testState.directory, "idempotency", "intents");
+      const [bucket] = readdirSync(intents);
+      if (bucket === undefined) throw new Error("intent claim bucket missing");
+      const [base] = readdirSync(join(intents, bucket));
+      if (base === undefined) throw new Error("intent claim missing");
+      const offChain = `${base.slice(0, -".json".length)}.${sha256("no prior generation")}`;
+      renameSync(join(intents, bucket, base), join(intents, bucket, `${offChain}.json`));
+      expect(inspectConfirmedWriteIntentFences(testState.environment)).toEqual({
+        claims: 1, active: 0, unsettled: 0, fulfilled: 0, journalOnly: 0,
+        issues: [{ claim: offChain, runId: first.receipt.runId, reason: "misplaced-claim" }],
+      });
 
       // Runs recorded before the fence have a journal and no claim; the
       // journal scan still fences them, so readback counts them apart.

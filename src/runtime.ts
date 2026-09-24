@@ -4236,6 +4236,25 @@ export function inspectConfirmedWriteIntentFences(
   }
   if (truncated) issues.push({ claim: null, runId: null, reason: "readback-truncated" });
 
+  // A later generation lives at `<stem>.<sha256(prior run)>` and is reachable
+  // only through a chain of fulfilled generations from `<stem>`; the runtime
+  // walks that chain, so a claim off it fences nothing. A truncated scan may
+  // have missed a link, so it does not judge reachability.
+  const onChain = new Set<string>();
+  if (!truncated) {
+    const byClaim = new Map(claims.map((candidate) => [candidate.claim, candidate.entry]));
+    for (const stem of new Set(claims.map((candidate) => candidate.stem))) {
+      let next = stem;
+      for (let generation = 0; generation < 10_000; generation += 1) {
+        const entry = byClaim.get(next);
+        if (entry === undefined || onChain.has(next)) break;
+        onChain.add(next);
+        if (entry.schemaVersion === 3 || entry.status !== "succeeded") break;
+        next = `${stem}.${sha256(entry.runId)}`;
+      }
+    }
+  }
+
   const journals = new Map<string, RunJournal>();
   const invalidRuns = new Set<string>();
   for (const candidate of listRunJournalSnapshots(environment)) {
@@ -4269,7 +4288,7 @@ export function inspectConfirmedWriteIntentFences(
       environment,
       journal.duplicateIntent?.intentHash,
     ), ".json");
-    if (stem !== expectedStem) {
+    if (stem !== expectedStem || (!truncated && !onChain.has(claim))) {
       issue("misplaced-claim");
       continue;
     }

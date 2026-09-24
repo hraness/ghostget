@@ -2786,7 +2786,7 @@
         "same-user-trusted"
       ],
       "notVerified": [
-        "The readback is not modelled; only the listed example tests cover it, and they plant an orphaned and a malformed claim but not every issue kind.",
+        "The readback is not modelled; only the listed example tests cover it, and they plant an orphaned, a malformed, and an off-chain claim but not every issue kind.",
         "The readback reads at most 10,000 directory entries and then reports itself truncated; it does not re-derive the hash-keyed ledgers.",
         "Doctor runs its journal repair pass before the readback, so the readback describes the state after that repair."
       ]

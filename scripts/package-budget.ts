@@ -1655,14 +1655,22 @@
 // 6b638a69350ebc18a9e420fa04dd8e99655c7944c48bd871b908a008b3353061. Carry the
 // same projections and allowances: 12,001,582 + 12,387 + 4,096 = 12,018,065
 // packed; 23,457,443 + 353 + 65 = 23,457,861 unpacked.
+// The doctor readback also reports an intent claim that sits off its
+// intent's chain of fulfilled generations. This adds 929 payload bytes over
+// the unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with
+// npm 11.19.0 on darwin arm64 were byte-identical at 12,001,938 packed bytes,
+// 23,458,372 unpacked bytes; archive SHA-256
+// 695b7f1234273708d46d3f5a8cb8a8d6cb12d5abc3e7a150db68e6ad818ad2aa. Carry the
+// same projections and allowances: 12,001,938 + 12,387 + 4,096 = 12,018,421
+// packed; 23,458,372 + 353 + 65 = 23,458,790 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Intent fence follow-ups: doctor readback and recovery auth continuity",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "6b638a69350ebc18a9e420fa04dd8e99655c7944c48bd871b908a008b3353061",
-  packedBytes: 12_001_582,
-  unpackedBytes: 23_457_443,
+  archiveSha256: "695b7f1234273708d46d3f5a8cb8a8d6cb12d5abc3e7a150db68e6ad818ad2aa",
+  packedBytes: 12_001_938,
+  unpackedBytes: 23_458_372,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
