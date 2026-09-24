@@ -8,14 +8,14 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 241 claims: 175 evidenced, 47 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 241 claims: 176 evidenced, 46 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 141 | 2 | 0 |
 | property test | 14 | 1 | 0 |
 | stateful model | 2 | 13 | 0 |
-| Quint model with production trace replay | 8 | 29 | 0 |
+| Quint model with production trace replay | 9 | 28 | 0 |
 | Lean proof with differential test | 7 | 1 | 0 |
 | differential oracle | 3 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
@@ -107,7 +107,7 @@ Each claim holds only while its listed assumptions hold.
 | `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 32 |
 | `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 27 |
 | `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 29 |
-| `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 9 |
+| `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 10 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
 | `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 13 |
 | `dns-tls` | The operating-system resolver and the TLS stack behave as specified. | 7 |
@@ -2248,15 +2248,17 @@ Consequential lifecycle reducers take injected clocks and randomness; wall-clock
 
 #### `helper-mutual-exclusion`
 
-State-helper and path-helper three-phase claims admit at most one critical-section holder, including with stale-owner reaping and non-atomic readdir.
+The state helper's three-phase claim and the path helper's per-leaf claim each admit at most one critical-section holder, including with stale-owner reaping and non-atomic readdir.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `kb/plans/formal-verification-assurance.md`: “The invariant is `|{p : critical(p)}| ≤ 1`.”
-- Evidence: `scripts/verification-path-claim-replay.test.ts`, `src/browser-snapshots.test.ts`, `src/path-helper.test.ts`, `src/read-projections.test.ts`, `src/storage-cas.test.ts`, `verification/quint/path-claim.qnt`
-- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
+- Evidence: `scripts/verification-path-claim-replay.test.ts`, `scripts/verification-state-claim-replay.test.ts`, `src/browser-snapshots.test.ts`, `src/path-helper.test.ts`, `src/read-projections.test.ts`, `src/storage-cas.test.ts`, `verification/quint/path-claim.qnt`, `verification/quint/state-claim.qnt`
+- Assumptions: `filesystem-atomic-rename`, `process-liveness`, `same-user-trusted`
 - Not verified:
-  - The path-helper claim and its dead-claim reaper election have a Quint model whose replay drives real path-helper processes; the state helper's three-phase claim and a `readdir` that may omit renamed entries are not yet modelled, so this claim stays planned.
+  - verification/quint/state-claim.qnt checks two state helpers with at most one kill. A listing may report the other claim at any phase it had since the listing began, or not at all after it changed. CI runs 20,000 simulated samples of up to 12 steps and Apalache to length 8. The replay runs the production listing and stage decision on real claim files for 2,000 traces; concurrent helper processes run only in the example tests. Three or more helpers, an owner whose liveness cannot be inspected, and the eight-listing retry bound are not modelled.
+  - When listings are not atomic, both state-helper claims can reach `held`. The later one then fails with "state mutation arbitration admitted two owners" instead of entering, so mutual exclusion holds but that request fails.
   - The path-helper model is bounded: three helpers, at most one kill, kills only at pause points, 10,000 simulated samples of up to 12 steps, Apalache to length 6, and 60 replayed traces.
+  - A path helper from before the reaper election can move a live claim away without restoring it. A current helper that claims afterwards finds that claim in the quarantine, releases its own claim, and fails; the residue sweep keeps the quarantine until the claim's PID exits. Only src/path-helper.test.ts covers this, the Quint model has no such helper, and nothing stops an old helper that claims third.
 
 #### `state-cas-no-rollback`
 

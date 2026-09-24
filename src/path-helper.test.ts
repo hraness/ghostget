@@ -750,6 +750,62 @@ describe("bound path helper traversal", () => {
     }
   });
 
+  test("refuses to claim beside a holder whose claim a helper outside the reaper election displaced", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wrench-path-helper-legacy-displaced-"));
+    const actors: StepActor[] = [];
+    try {
+      writeFileSync(join(root, "target.json"), "initial\n", { mode: 0o600 });
+      writeDeadPathMutationClaim(root, "target.json");
+      const lockName = pathMutationLockName("target.json");
+      const targetSha256 = lockName.slice(".io-path-mutation-".length, -".lock".length);
+      const expectedRoot = identity(lstatSync(root, { bigint: true }));
+      const holder = spawnStepActor(root, expectedRoot, "holder", "holder\n");
+      actors.push(holder);
+      await settleStepActor(root, holder);
+      await advanceStepActorUntil(root, actors, holder, (step) => step === "claim-held");
+      expect(holder.step).toBe("claim-held");
+
+      // A helper from before the reaper election saw the same dead claim and
+      // now renames whatever holds the lock name, the holder's live claim,
+      // into its recovery quarantine, then fails and exits without restoring.
+      const legacyQuarantine = `.io-path-mutation-recovery-${targetSha256}-2147483647-${randomUUID()}.tmp`;
+      renameSync(join(root, lockName), join(root, legacyQuarantine));
+
+      const late = runHelper(root, expectedRoot, {
+        kind: "write-file",
+        segments: ["target.json"],
+        directoryExpectations: [],
+        content: "late\n",
+        createOnly: false,
+      });
+      expect(late.stderr).toContain("path mutation claim was displaced by a helper outside the reaper election");
+      expect(late.status).not.toBe(0);
+      expect(readFileSync(join(root, "target.json"), "utf8")).toBe("initial\n");
+      // The quarantine is the only name left for the live claim; the sweep keeps it.
+      expect(helperLeftovers(root).filter((name) => name.startsWith(".io-path-mutation-"))).toEqual([legacyQuarantine]);
+
+      await drainStepActors(root, actors);
+      expect(holder.exitCode).toBe(0);
+      expect(readFileSync(join(root, "target.json"), "utf8")).toBe("holder\n");
+
+      // Once the displaced owner has exited, its claim is residue.
+      const next = runHelper(root, expectedRoot, {
+        kind: "write-file",
+        segments: ["target.json"],
+        directoryExpectations: [],
+        content: "next\n",
+        createOnly: false,
+      });
+      expect(next.stderr).toBe("");
+      expect(next.status).toBe(0);
+      expect(readFileSync(join(root, "target.json"), "utf8")).toBe("next\n");
+      expect(helperLeftovers(root).filter((name) => name.startsWith(".io-path-mutation-"))).toEqual([]);
+    } finally {
+      await stopStepActors(actors);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test("admits at most one live claim holder across bounded reaper schedules", async () => {
     await assertAsyncProperty(fc.asyncProperty(
       fc.oneof(
