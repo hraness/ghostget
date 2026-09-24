@@ -90,7 +90,7 @@ import { sha256 } from "./model";
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
 import { providerPluginRegistry } from "./provider-plugins";
 import { captureProcessOwnerIdentity, processOwnerStatus } from "./process-identity";
-import { fc, propertyParameters } from "./test-support";
+import { assertProperty, fc } from "./test-support";
 import {
   createPrivateJsonIfAbsent,
   listPrivateStateDirectory,
@@ -1015,12 +1015,12 @@ describe("derivation browser fixture cleanup", () => {
       { ...inactive.data, runtime: {} }, { ...inactive.data, version: "0.32.3" },
       { ...inactive.data, extra: null },
     ]) expect(() => fixtureSessionPid({ ...inactive, data }, "fixture-session", "fixture-socket")).toThrow();
-    fc.assert(fc.property(fc.jsonValue(), (value) => {
+    assertProperty(fc.property(fc.jsonValue(), (value) => {
       if (value !== "fixture-session") {
         expect(() => fixtureSessionPid({ ...inactive, data: { ...inactive.data, session: value } },
           "fixture-session", "fixture-socket")).toThrow();
       }
-    }), propertyParameters);
+    }));
   });
 
   test("bounds cleanup fault schedules and never signals an unproven owner", async () => {

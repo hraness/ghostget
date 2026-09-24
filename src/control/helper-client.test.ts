@@ -5,17 +5,17 @@ import { join } from "node:path";
 import fc from "fast-check";
 import { decodeHelperFrames, parseHelperEnvelope, spawnHelper } from "./helper-client";
 import { CONTROL_PROTOCOL } from "./protocol";
-import { propertyParameters } from "../test-support";
+import { assertProperty } from "../test-support";
 
 test("helper rejects malformed envelopes and nested contract drift", () => {
   const valid = { id: "request-1", protocol: CONTROL_PROTOCOL, ok: true, data: { kind: "success", message: "saved" } } as const;
   expect(parseHelperEnvelope(JSON.stringify(valid))).toEqual(valid);
   for (const value of [null, [], { ...valid, extra: 1 }, { ...valid, ok: "yes" }, { ...valid, data: { kind: "snapshot", snapshot: {} } }, { ...valid, data: { kind: "success", message: 1 } }, { ...valid, data: { kind: "success", message: "saved", extra: true } }]) expect(() => parseHelperEnvelope(JSON.stringify(value))).toThrow();
-  fc.assert(fc.property(fc.jsonValue(), value => {
+  assertProperty(fc.property(fc.jsonValue(), value => {
     let frame: ReturnType<typeof parseHelperEnvelope>;
     try { frame = parseHelperEnvelope(JSON.stringify(value)); } catch { return; }
     expect(typeof frame.ok).toBe("boolean"); expect(frame.protocol).toBe(CONTROL_PROTOCOL);
-  }), propertyParameters);
+  }));
 });
 
 test("helper framing accepts coalesced large messages and rejects oversized or malformed frames", () => {

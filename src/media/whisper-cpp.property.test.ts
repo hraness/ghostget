@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "../test-support";
 
 import {
   buildWhisperCppArgv,
@@ -9,7 +10,7 @@ import {
 } from "./whisper-cpp";
 
 test("property: arbitrary language values are either rejected or emitted as one literal argv value", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.anything(), (language) => {
       const normalized = normalizeWhisperCppLanguage(language);
       if (normalized === null) return;
@@ -30,7 +31,7 @@ test("property: arbitrary language values are either rejected or emitted as one 
 });
 
 test("property: arbitrary tool outputs never throw or leak a successful empty transcript", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.string({ maxLength: 100_000 }),
       fc.string({ maxLength: 100_000 }),

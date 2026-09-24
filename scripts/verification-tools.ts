@@ -162,6 +162,26 @@ export const LEAN = Object.freeze({
   }),
 });
 
+/**
+ * The Rust differential oracle under `verification/oracles/`. Cargo fetches
+ * its crates from crates.io, and `cargo build --locked` admits each one only
+ * at the checksum `Cargo.lock` records, so these pins cover the toolchain and
+ * the direct dependency. `scripts/verification-oracles.ts` checks that
+ * `rust-toolchain.toml` and `Cargo.toml` still name them.
+ */
+export const RUST_ORACLE = Object.freeze({
+  toolchain: "1.97.1",
+  crates: Object.freeze({ url: "2.5.8" }),
+  directory: "verification/oracles",
+  binary: "verification/oracles/target/release/ghostget-oracle",
+});
+
+/** The standard-library-only generator of the golden vectors. */
+export const VECTOR_GENERATOR = Object.freeze({
+  minimumPython: "3.11",
+  path: "verification/vectors/generate.py",
+});
+
 /** Every archive this script may download, for pin review and tests. */
 export function pinnedArchives(): readonly PinnedArchive[] {
   return [
@@ -201,6 +221,14 @@ const QUINT_TIMEOUT_MS = 5 * 60_000;
  */
 export const QUINT_TRACE_TIMEOUT_MS = 90_000;
 const APALACHE_TIMEOUT_MS = 10 * 60_000;
+/**
+ * The `package.json` script that runs the replay tests. It holds the Bun
+ * runner's timeout and concurrency policy; `verify:quint` appends every
+ * model's replay test to it.
+ */
+export const QUINT_REPLAY_SCRIPT = "verify:quint:replay";
+/** The bound on the one `bun test` run of every replay test. */
+export const QUINT_REPLAY_TIMEOUT_MS = 10 * 60_000;
 const LEAN_BUILD_TIMEOUT_MS = 10 * 60_000;
 const SHORT_TIMEOUT_MS = 60_000;
 const KILL_GRACE_MS = 5_000;
@@ -495,13 +523,20 @@ export function quintSeedLine(seed: string): string {
   return `Use --seed=0x${BigInt(seed).toString(16)} --backend=typescript to reproduce.`;
 }
 
+/** Quint's reproduction line for the trace it reports. */
+const QUINT_REPRODUCTION_LINE = /^Use --seed=0x[0-9a-f]+ --backend=typescript to reproduce\.$/u;
+
 /**
- * Classify one `quint run`. A pass needs exit 0, the no-violation line, the
- * requested seed, and no error output; a violation needs exit 1, the
- * violation line, and Quint's invariant error. Anything else is inconclusive.
+ * Classify one `quint run`. A pass needs exit 0, the no-violation line, one
+ * reproduction line, and no error output; a violation needs exit 1, the
+ * violation line, one reproduction line, and Quint's invariant error.
+ * Anything else is inconclusive. Quint prints the seed of the trace it
+ * reports: the violating trace, or the longest sample. That is the requested
+ * seed only when the first sample is reported, so the line is required but
+ * its seed is not compared.
  */
-export function quintSimulationVerdict(result: CheckerResult, seed: string): CheckerVerdict {
-  const seeded = lines(result.stdout).some((line) => line.trim() === quintSeedLine(seed));
+export function quintSimulationVerdict(result: CheckerResult): CheckerVerdict {
+  const seeded = lines(result.stdout).filter((line) => QUINT_REPRODUCTION_LINE.test(line.trim())).length === 1;
   const ok = /^\[ok\] No violation found \(/mu.test(result.stdout);
   const violated = /^\[violation\] Found an issue \(/mu.test(result.stdout);
   if (!seeded || ok === violated) return "inconclusive";
@@ -1457,9 +1492,20 @@ function quintEnvironment(context: RunContext, node: string): Readonly<Record<st
   });
 }
 
+/** Every model's replay test as a `bun test` path, once each, in manifest order. */
+export function quintReplayTests(models: readonly QuintModel[]): readonly string[] {
+  return [...new Set(models.map((model) => `./${model.replay.test}`))];
+}
+
+/** The one command that runs every model's replay test, so a new model needs no script edit. */
+export function quintReplayCommand(bun: string, models: readonly QuintModel[]): readonly string[] {
+  return [bun, "run", QUINT_REPLAY_SCRIPT, ...quintReplayTests(models)];
+}
+
 /**
  * Typecheck every model, require each invariant to pass seeded simulation and
- * bounded Apalache checking, and require both checkers to find every mutant.
+ * bounded Apalache checking, require both checkers to find every mutant, and
+ * then run every model's replay test.
  */
 export async function verifyQuint(context: RunContext): Promise<void> {
   const models = await readQuintModels(context.root);
@@ -1516,27 +1562,31 @@ export async function verifyQuint(context: RunContext): Promise<void> {
     for (const invariant of model.invariants) {
       const step = `quint run ${name} ${model.step} ${invariant}`;
       const result = await quintRun(step, `quint-run-${name}-${invariant}`, quintRunArguments(model, model.step, invariant));
-      requireLoggedVerdict(context, step, "pass", quintSimulationVerdict(result, model.simulation.seed), result);
+      requireLoggedVerdict(context, step, "pass", quintSimulationVerdict(result), result);
       context.log(`${step}: no violation in ${String(model.simulation.maxSamples)} samples of up to ${String(model.simulation.maxSteps)} steps (seed ${model.simulation.seed})`);
     }
     for (const mutant of model.mutants) {
       const step = `quint run ${name} ${mutant.step} ${mutant.invariant}`;
       const result = await quintRun(step, `quint-mutant-${name}-${mutant.step}`, quintRunArguments(model, mutant.step, mutant.invariant));
-      requireLoggedVerdict(context, step, "violation", quintSimulationVerdict(result, model.simulation.seed), result);
+      requireLoggedVerdict(context, step, "violation", quintSimulationVerdict(result), result);
       context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
     }
-    const compiled = await quintRun(`quint compile ${model.file}`, `quint-compile-${name}`, [
-      "compile", "--target", "json", "--main", model.module, model.file,
-    ]);
+    // Quint writes the IR with an asynchronous stdout write and then exits,
+    // which cuts a macOS pipe off at 64 KiB. A file receives every byte.
+    const irPath = join(irDirectory, `${name}.qnt.json`);
+    const compiled = await runLogged(context, `quint compile ${model.file}`, `quint-compile-${name}`, [
+      "/bin/sh", "-c", 'out="$1"; shift; exec "$@" > "$out"', "sh", irPath,
+      node, quint, "compile", "--target", "json", "--main", model.module, model.file,
+    ], { cwd: quintDirectory, environment: quintEnvironment(context, node), timeoutMs: QUINT_TIMEOUT_MS });
     let ir: unknown;
     try {
-      ir = JSON.parse(compiled.stdout) as unknown;
+      ir = JSON.parse(await readFile(irPath, "utf8")) as unknown;
     } catch {
       ir = null;
     }
-    if (compiled.exitCode !== 0 || !isPlainObject(ir)) throw new Error(`quint compile ${model.file} did not produce its JSON IR`);
-    const irPath = join(irDirectory, `${name}.qnt.json`);
-    await writeFile(irPath, compiled.stdout);
+    if (compiled.exitCode !== 0 || compiled.stdout !== "" || !isPlainObject(ir)) {
+      throw new Error(`quint compile ${model.file} did not produce its JSON IR`);
+    }
     for (const invariant of model.invariants) {
       const step = `apalache check ${name} ${model.step} ${invariant}`;
       const { result } = await apalacheRun(step, `apalache-${name}-${invariant}`, model, irPath, model.step, invariant);
@@ -1571,6 +1621,27 @@ export async function verifyQuint(context: RunContext): Promise<void> {
     })),
     models: summary,
   }, null, 2)}\n`);
+  await runQuintReplays(context, models);
+}
+
+/**
+ * Run the replay tests in the caller's environment: they write traces with
+ * Quint and drive production code, which needs the real `node` and `bun`.
+ */
+async function runQuintReplays(context: RunContext, models: readonly QuintModel[]): Promise<void> {
+  const environment: Record<string, string> = {};
+  for (const [name, value] of Object.entries(process.env)) {
+    if (value !== undefined) environment[name] = value;
+  }
+  const step = `bun run ${QUINT_REPLAY_SCRIPT}`;
+  const result = await runLogged(context, step, "quint-replay", quintReplayCommand(process.execPath, models), {
+    cwd: context.root,
+    environment,
+    timeoutMs: QUINT_REPLAY_TIMEOUT_MS,
+  });
+  context.log(tail(result.record));
+  if (result.exitCode !== 0) throw new Error(`${step} exited with ${String(result.exitCode)}`);
+  context.log(`${step}: every replay test passed (${quintReplayTests(models).join(", ")})`);
 }
 
 /** Read and strictly parse the single counterexample Apalache wrote for a violation. */
@@ -1736,6 +1807,8 @@ export async function verifyLean(context: RunContext): Promise<void> {
   await verifyLeanDifferentials(context, lake, project, leanEnvironment);
   await verifyAuditCanary(context, proofs, lake, leanEnvironment);
   context.log("axiom audit canary: a seeded sorry fails lake build --wfail and the audit reports sorryAx, as required");
+  await verifyLeanDifferential(context, lake, project, leanEnvironment);
+  context.log(`differential test: ${LEAN_DIFFERENTIAL_TEST} agrees with the Lean definitions on generated inputs, and production rejects every seeded defect's counterexample`);
   await writeFile(join(context.artifacts, "toolchain.json"), `${JSON.stringify({
     elan: elanVersion.stdout.trim().split(" ").slice(0, 2).join(" "),
     lean: sanitize(context, leanVersion.stdout.trim()),
@@ -1747,6 +1820,43 @@ export async function verifyLean(context: RunContext): Promise<void> {
     mutants: proofs.mutants,
     allowedAxioms: proofs.allowedAxioms,
   }, null, 2)}\n`);
+}
+
+/** The test that runs production TypeScript and the built Lean definitions on the same generated inputs. */
+export const LEAN_DIFFERENTIAL_TEST = "scripts/verification-lean-encodings.test.ts";
+
+/**
+ * The Bun runner bound on one differential test. Each property takes seconds,
+ * so a Lean reference that stops answering fails that test well inside the
+ * process bound instead of consuming the whole Lean budget.
+ */
+const LEAN_DIFFERENTIAL_TEST_TIMEOUT_MS = 180_000;
+
+/** Property replay coordinates the differential test honors, passed through when set. */
+const PROPERTY_REPLAY_VARIABLES = ["GHOSTGET_PROPERTY_SEED", "GHOSTGET_PROPERTY_PATH"] as const;
+
+async function verifyLeanDifferential(
+  context: RunContext,
+  lake: string,
+  project: string,
+  leanEnvironment: Readonly<Record<string, string>>,
+): Promise<void> {
+  const replay = Object.fromEntries(PROPERTY_REPLAY_VARIABLES.flatMap((name) => {
+    const value = process.env[name];
+    return value === undefined || value === "" ? [] : [[name, value]];
+  }));
+  const run = await runLogged(context, "lean differential test", "lean-differential", [
+    process.execPath, "test", "--no-orphans", "--timeout", String(LEAN_DIFFERENTIAL_TEST_TIMEOUT_MS), "--max-concurrency", "1",
+    `./${LEAN_DIFFERENTIAL_TEST}`,
+  ], {
+    cwd: context.root,
+    environment: { ...leanEnvironment, ...replay, GHOSTGET_LEAN_LAKE: lake, GHOSTGET_LEAN_PROJECT: project },
+    timeoutMs: LEAN_BUILD_TIMEOUT_MS,
+  });
+  if (run.exitCode !== 0) {
+    context.log(tail(sanitize(context, `${run.stdout}\n${run.stderr}`)));
+    throw new Error(`${LEAN_DIFFERENTIAL_TEST} failed`);
+  }
 }
 
 /** The module the canary adds to a copy of the library. */

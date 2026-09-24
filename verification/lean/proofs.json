@@ -15,6 +15,94 @@
       "type": "7b6517632734a26c952b0c63e23c42ba79bfa463d70eae51322bc685a92a0f8e"
     },
     {
+      "name": "GhostgetVerification.Encodings.CanonicalJson.canonicalJson_injective",
+      "type": "290bbae99602b303b39501c6bf8438a919429e49c86c93b17be95b94512f13f6"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.CanonicalJson.canonicalJson_member_order",
+      "type": "46d9e2a4fadf33e71e7d364d4d6d914fccc97b31eaa37ab04e8356847c1b4950"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.CanonicalJson.canonicalJson_no_nul",
+      "type": "e6c4f3b04fcb52ad444109dff798eda23339bff22c9f3dc736b9c55a33eb83a4"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.HashFraming.contractHashPreimage_injective",
+      "type": "d3f0f5909101cf2640346b42f59521dbcaf26b2ecf4d49cad07ea9505e3fa44f"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.HashFraming.frames_injective",
+      "type": "a7472ba14cd717e2fe2076b9d391d6352857ef95733174989995714a907b2e75"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.HashFraming.intentKeyPreimage_injective",
+      "type": "97081bee4960f146b24e8c1688145b6e700f0c04b1a401da4646461c6d1107e3"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.SessionSecret.parse_fileName",
+      "type": "b067e8f730247de59da3bd5921aa8c6371a557ad4311e0bf994528300d58645f"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.SessionSecret.fileName_injective",
+      "type": "9545a0effe3e66950dd460db133721fc36dd2b5c6da78ec0d569caa419a5cfe1"
+    },
+    {
+      "name": "GhostgetVerification.Edge.Negotiation.negotiate_notAcceptable_iff",
+      "type": "c36544da74b50e419e68fadc8f67d61e30d573fe3fe1e78c0913325ef97a54c8"
+    },
+    {
+      "name": "GhostgetVerification.Edge.Negotiation.negotiate_selected_acceptable",
+      "type": "1538f3d8134cfa09aec74263dffed1a3483c43d438e209e553cb48b1427e4411"
+    },
+    {
+      "name": "GhostgetVerification.Edge.Negotiation.negotiate_selected_max_q",
+      "type": "d0402c3dee507c894613123352843811a5224cecb82379f5a53e15d8ff5472d9"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.CanonicalJson.canonicalJsonKeepingBackslash_collides",
+      "type": "078723ce3f7b00a85d2999cbd0767462588611c6390d5fb2a12d12f4626ef1d6"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.CanonicalJson.canonicalJsonInsertionOrder_depends_on_order",
+      "type": "939b56a6d39a532e4eeb46f7b386172839d9e9ea232b6f7a13927cfb0911e6ef"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.CanonicalJson.canonicalJsonRawNul_writes_nul",
+      "type": "f611b4d80e73f5ebce132eeb80bdeb0d164f5f5163e17a313481282e973f3dea"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.HashFraming.contractHashPreimageUnseparated_collides",
+      "type": "b7fba95f5f0a740836165fb8b13d7105c5d6c26130df1217ba601946258d38fb"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.HashFraming.framesUnprefixed_collides",
+      "type": "8f77436d60fd4060e0125f6a32cfd982b10cc487e1ea1d41f1cd34216fc4840a"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.HashFraming.intentKeyPreimagePlain_collides",
+      "type": "7eda320bbe76b40d072aef374b89824205fc3ee19409e27ff140def8e1e0a60c"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.SessionSecret.fileNameHistorical_unparsed",
+      "type": "2579929de1eb49cdcde06a4a58314489053d96dcc49c34bc3129ac757ab1cdc2"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.SessionSecret.fileNameHistorical_collides",
+      "type": "fe9b47eb4c5fcd60fe7dca140b2147ce8481c867b7827f2692fbabee43025243"
+    },
+    {
+      "name": "GhostgetVerification.Edge.Negotiation.negotiateIgnoringQZero_serves_refused",
+      "type": "950d480f5290167ccd3859ade06ea8cd34be767d5ac63300066e9ec48b011742"
+    },
+    {
+      "name": "GhostgetVerification.Edge.Negotiation.negotiateIgnoringQZero_selects_refused",
+      "type": "5db8bd11a1bfdc5fe8948058cb78713a7b04631cea934b7d4654cdd0c592c04b"
+    },
+    {
+      "name": "GhostgetVerification.Edge.Negotiation.negotiateFirstMatch_ignores_q",
+      "type": "99d1a792c7c7c74ec35d2fd29714ea0b486f7a684432ea94eadbe1c1a8fb173a"
+    },
+    {
       "name": "GhostgetVerification.WebPolicy.decide_default_deny",
       "type": "749429031004cec480378928310cdf3496e6f2d9ac7d8a1ed975fc7d4e635eeb"
     },
@@ -165,6 +253,72 @@
       "guarded": "GhostgetVerification.Smoke.acquire",
       "defect": "GhostgetVerification.Smoke.acquireUnguarded",
       "refutation": "GhostgetVerification.Smoke.acquireUnguarded_violates_held"
+    },
+    {
+      "theorem": "GhostgetVerification.Encodings.CanonicalJson.canonicalJson_injective",
+      "guarded": "GhostgetVerification.Encodings.CanonicalJson.canonicalJson",
+      "defect": "GhostgetVerification.Encodings.CanonicalJson.canonicalJsonKeepingBackslash",
+      "refutation": "GhostgetVerification.Encodings.CanonicalJson.canonicalJsonKeepingBackslash_collides"
+    },
+    {
+      "theorem": "GhostgetVerification.Encodings.CanonicalJson.canonicalJson_member_order",
+      "guarded": "GhostgetVerification.Encodings.CanonicalJson.canonicalJson",
+      "defect": "GhostgetVerification.Encodings.CanonicalJson.canonicalJsonInsertionOrder",
+      "refutation": "GhostgetVerification.Encodings.CanonicalJson.canonicalJsonInsertionOrder_depends_on_order"
+    },
+    {
+      "theorem": "GhostgetVerification.Encodings.CanonicalJson.canonicalJson_no_nul",
+      "guarded": "GhostgetVerification.Encodings.CanonicalJson.canonicalJson",
+      "defect": "GhostgetVerification.Encodings.CanonicalJson.canonicalJsonRawNul",
+      "refutation": "GhostgetVerification.Encodings.CanonicalJson.canonicalJsonRawNul_writes_nul"
+    },
+    {
+      "theorem": "GhostgetVerification.Encodings.HashFraming.contractHashPreimage_injective",
+      "guarded": "GhostgetVerification.Encodings.HashFraming.contractHashPreimage",
+      "defect": "GhostgetVerification.Encodings.HashFraming.contractHashPreimageUnseparated",
+      "refutation": "GhostgetVerification.Encodings.HashFraming.contractHashPreimageUnseparated_collides"
+    },
+    {
+      "theorem": "GhostgetVerification.Encodings.HashFraming.frames_injective",
+      "guarded": "GhostgetVerification.Encodings.HashFraming.frames",
+      "defect": "GhostgetVerification.Encodings.HashFraming.framesUnprefixed",
+      "refutation": "GhostgetVerification.Encodings.HashFraming.framesUnprefixed_collides"
+    },
+    {
+      "theorem": "GhostgetVerification.Encodings.HashFraming.intentKeyPreimage_injective",
+      "guarded": "GhostgetVerification.Encodings.HashFraming.joinNul",
+      "defect": "GhostgetVerification.Encodings.HashFraming.joinPlain",
+      "refutation": "GhostgetVerification.Encodings.HashFraming.intentKeyPreimagePlain_collides"
+    },
+    {
+      "theorem": "GhostgetVerification.Encodings.SessionSecret.parse_fileName",
+      "guarded": "GhostgetVerification.Encodings.SessionSecret.fileName",
+      "defect": "GhostgetVerification.Encodings.SessionSecret.fileNameHistorical",
+      "refutation": "GhostgetVerification.Encodings.SessionSecret.fileNameHistorical_unparsed"
+    },
+    {
+      "theorem": "GhostgetVerification.Encodings.SessionSecret.fileName_injective",
+      "guarded": "GhostgetVerification.Encodings.SessionSecret.fileName",
+      "defect": "GhostgetVerification.Encodings.SessionSecret.fileNameHistorical",
+      "refutation": "GhostgetVerification.Encodings.SessionSecret.fileNameHistorical_collides"
+    },
+    {
+      "theorem": "GhostgetVerification.Edge.Negotiation.negotiate_notAcceptable_iff",
+      "guarded": "GhostgetVerification.Edge.Negotiation.negotiate",
+      "defect": "GhostgetVerification.Edge.Negotiation.negotiateIgnoringQZero",
+      "refutation": "GhostgetVerification.Edge.Negotiation.negotiateIgnoringQZero_serves_refused"
+    },
+    {
+      "theorem": "GhostgetVerification.Edge.Negotiation.negotiate_selected_acceptable",
+      "guarded": "GhostgetVerification.Edge.Negotiation.negotiate",
+      "defect": "GhostgetVerification.Edge.Negotiation.negotiateIgnoringQZero",
+      "refutation": "GhostgetVerification.Edge.Negotiation.negotiateIgnoringQZero_selects_refused"
+    },
+    {
+      "theorem": "GhostgetVerification.Edge.Negotiation.negotiate_selected_max_q",
+      "guarded": "GhostgetVerification.Edge.Negotiation.negotiate",
+      "defect": "GhostgetVerification.Edge.Negotiation.negotiateFirstMatch",
+      "refutation": "GhostgetVerification.Edge.Negotiation.negotiateFirstMatch_ignores_q"
     },
     {
       "theorem": "GhostgetVerification.WebPolicy.decide_deny_dominates",

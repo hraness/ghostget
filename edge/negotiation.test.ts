@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
 
-import { assertAsyncProperty } from "../src/test-support";
+import { assertAsyncProperty, assertProperty } from "../src/test-support";
 import {
   handleDocumentNegotiation,
   isHtmlOnlyDocumentPath,
@@ -78,7 +78,7 @@ describe("document Accept negotiation", () => {
   });
 
   test("property: arbitrary Accept values stay inside the documented decision set", () => {
-    fc.assert(
+    assertProperty(
       fc.property(fc.option(fc.string(), { nil: null }), (header) => {
         const decision = negotiateDocumentRepresentation(header);
         expect(["html", "markdown", "not-acceptable"]).toContain(decision.kind);
