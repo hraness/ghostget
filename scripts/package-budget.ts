@@ -1636,14 +1636,23 @@
 // 202f2c9de0a07a44439e36b8448cd6d194ac7fd8f5f4d9c1f7bbfa7918c0bb10. Carry the
 // same projections and allowances: 11,998,003 + 12,387 + 4,096 = 12,014,486
 // packed; 23,446,599 + 353 + 65 = 23,447,017 unpacked.
+// The cache-read and omni-materialization auth checks read the auth
+// incarnation through the read capability instead of creating a missing one.
+// This adds 637 payload bytes over the unchanged 596-file inventory. Two `npm
+// pack --ignore-scripts` runs with npm 11.19.0 on darwin arm64 were
+// byte-identical at 11,998,420 packed bytes, 23,447,236 unpacked bytes;
+// archive SHA-256
+// 6b1701acb53e452e8ada70e02c2f497535a7fdae32276cbd015723f2f817680d. Carry the
+// same projections and allowances: 11,998,420 + 12,387 + 4,096 = 12,014,903
+// packed; 23,447,236 + 353 + 65 = 23,447,654 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Media follow-ups: parent-exit process-group kill, read-only quarantine listing, and the F_FULLFSYNC probe",
+  scope: "D14 read-path auth checks through the incarnation read capability",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "202f2c9de0a07a44439e36b8448cd6d194ac7fd8f5f4d9c1f7bbfa7918c0bb10",
-  packedBytes: 11_998_003,
-  unpackedBytes: 23_446_599,
+  archiveSha256: "6b1701acb53e452e8ada70e02c2f497535a7fdae32276cbd015723f2f817680d",
+  packedBytes: 11_998_420,
+  unpackedBytes: 23_447_236,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

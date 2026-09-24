@@ -50,7 +50,7 @@ import {
   readOmniProjection,
   readReadProjectionForMaterialization,
   reduceOmniProjection,
-  projectionAuthIdentityHash,
+  authIncarnationReader,
   type OmniProjectionQuery,
   type ReadProjectionExactHeadFence,
   type ReadProjectionMaterializationSnapshot,
@@ -652,6 +652,12 @@ function exactHeadFence(
   });
 }
 
+/**
+ * Runs inside reduceOmniProjection's settled auth admission for the source's
+ * account. It reads the incarnation through the read capability, so an
+ * incarnation that disappeared after preparation fails as changed and is
+ * not recreated by materialization.
+ */
 function assertCurrentAuthLifetime(
   source: PreparedOmniSource,
   environment: Environment,
@@ -665,10 +671,9 @@ function assertCurrentAuthLifetime(
     throw new Error(`auth locator ${source.invocation.auth.id} was removed`);
   }
   const contentHash = sha256(canonicalJson(snapshot.auth));
-  const current = projectionAuthIdentityHash(
+  const current = authIncarnationReader(environment).identityHashIfPresent(
     snapshot.auth.id,
     contentHash,
-    environment,
   );
   if (
     current !== expected

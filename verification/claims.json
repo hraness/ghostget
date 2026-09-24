@@ -568,12 +568,14 @@
     {
       "guide": "AGENTS.md",
       "anchor": "No writes on read",
-      "digest": "eddd42154803a85a0d2b1d2300ab30c43fc41f892fb5ae2af73380f0fab78f42",
+      "digest": "e7405d7127e7e9d1b8910d0506a0192281410f778ba1a643e0c48002328a962c",
       "claims": [
         "menu-bar-snapshot-read-only",
         "no-writes-on-read-paths",
+        "read-path-auth-check-read-only",
         "read-path-read-capability",
-        "read-projection-admission-exemption"
+        "read-projection-admission-exemption",
+        "read-projection-key-exemption"
       ]
     },
     {
@@ -3233,7 +3235,8 @@
         "src/cursor-token.test.ts",
         "src/linked-device-lifecycle-journal.test.ts",
         "src/provider-plugin-store.test.ts",
-        "src/providers/whatsapp-interaction-projection-helper.test.ts"
+        "src/providers/whatsapp-interaction-projection-helper.test.ts",
+        "src/read-path-incarnation.test.ts"
       ],
       "assumptions": [
         "filesystem-atomic-rename",
@@ -3241,7 +3244,7 @@
       ],
       "notVerified": [
         "The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Only the menu-bar snapshot and its account and permission listings take a typed read capability; other read paths are not yet type-separated from writers."
+        "Only the menu-bar snapshot, its account and permission listings, and the auth checks of cache reads, live-read publication, and omni materialization take a typed read capability; invocation preparation and operation-permission checks on a read path still create a missing auth incarnation."
       ]
     },
     {
@@ -3255,7 +3258,8 @@
       "layer": "example",
       "status": "evidenced",
       "evidence": [
-        "src/control/read-capability.test.ts"
+        "src/control/read-capability.test.ts",
+        "src/read-path-incarnation.test.ts"
       ],
       "assumptions": [
         "bun-runtime"
@@ -3263,7 +3267,7 @@
       "notVerified": [
         "Only the enumerated example cases are checked; the type assertions run under `bun run typecheck`.",
         "The brand exists only in the type system; code that casts through `unknown` can still forge a capability.",
-        "Only the menu-bar snapshot and its account and permission listings take the typed capability; other read paths are not covered."
+        "Only the menu-bar snapshot, its account and permission listings, and the auth checks of cache reads, live-read publication, and omni materialization take the typed capability; other read paths are not covered."
       ]
     },
     {
@@ -3295,17 +3299,39 @@
       ]
     },
     {
-      "id": "read-projection-admission-exemption",
-      "statement": "The only write a read-projection cache read makes is its own admission claim, which it creates and releases, and the removal of a claim whose recorded owner is proven dead; the claim carries no data.",
+      "id": "read-path-auth-check-read-only",
+      "statement": "The auth checks of a cache read, a live-read publication, and an omni materialization read the auth incarnation through `AuthIncarnationReader`; a missing incarnation reads as changed and none is created.",
       "area": "storage",
       "source": {
         "path": "AGENTS.md",
-        "quote": "One bounded exemption (D14): a read-projection cache read may create and release its own admission claim and remove a claim whose recorded owner is proven dead, because it must exclude a concurrent projection transition."
+        "quote": "The auth checks of a cache read, a live-read publication, and an omni materialization read the incarnation through `AuthIncarnationReader`, so a missing incarnation reads as changed and nothing is created."
+      },
+      "layer": "example",
+      "status": "evidenced",
+      "evidence": [
+        "src/read-path-incarnation.test.ts"
+      ],
+      "assumptions": [
+        "filesystem-atomic-rename",
+        "same-user-trusted"
+      ],
+      "notVerified": [
+        "Only the enumerated example cases are checked.",
+        "Invocation preparation and operation-permission checks still create a missing incarnation; the omni example observes the incarnation only between materialization and the next source preparation."
+      ]
+    },
+    {
+      "id": "read-projection-admission-exemption",
+      "statement": "The only admission write a read-projection cache read makes is its own admission claim, which it creates and releases, and the removal of a claim whose recorded owner is proven dead; the claim carries no data.",
+      "area": "storage",
+      "source": {
+        "path": "AGENTS.md",
+        "quote": "First, a read-projection cache read may create and release its own admission claim and remove a claim whose recorded owner is proven dead, because it must exclude a concurrent projection transition; the claim is coordination state with no data."
       },
       "alsoQuotes": [
         {
           "path": "AGENTS.md",
-          "quote": "The claim is coordination state with no data, and the exemption covers nothing else."
+          "quote": "The exemptions cover nothing else."
         }
       ],
       "layer": "example",
@@ -3321,6 +3347,28 @@
       "notVerified": [
         "Only the enumerated example cases are checked.",
         "No check establishes that a cache read writes nothing beyond its own claim and dead-owner removal."
+      ]
+    },
+    {
+      "id": "read-projection-key-exemption",
+      "statement": "A cache read creates at most the projection encryption key and its store-key marker, only when they are absent; a later cache read writes nothing.",
+      "area": "storage",
+      "source": {
+        "path": "AGENTS.md",
+        "quote": "Second, a cache read may create the projection encryption key and its store-key marker when they are absent, because a miss returns the query key that this encryption key derives; each is created at most once per state home and holds no user data."
+      },
+      "layer": "example",
+      "status": "evidenced",
+      "evidence": [
+        "src/read-path-incarnation.test.ts"
+      ],
+      "assumptions": [
+        "filesystem-atomic-rename",
+        "same-user-trusted"
+      ],
+      "notVerified": [
+        "Only the enumerated example cases are checked.",
+        "The example checks a cache read after preparation on a fresh state home; it does not cover concurrent first reads or a legacy store that needs only its marker."
       ]
     },
     {
