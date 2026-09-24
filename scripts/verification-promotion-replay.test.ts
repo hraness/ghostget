@@ -46,6 +46,8 @@ import {
   revalidateReleaseAuthority,
   waitForProviderOutcome,
 } from "./release-provider-outcome.mjs";
+
+type ReplayPublicSite = NonNullable<Parameters<typeof createProviderBaseline>[0]["publicSite"]>;
 import { advanceWebsiteProductionRef } from "./release-ref-writer.mjs";
 import {
   itfOption,
@@ -709,6 +711,7 @@ class World {
     }
   }
 
+  // The stub keeps the production reader interface; the cast only drops the real class's private fields.
   readonly publicSite = {
     readMarker: async (tag: string, sha: string): Promise<unknown> => {
       this.calls.push("marker");
@@ -751,7 +754,7 @@ class World {
       }
       return redirect;
     },
-  };
+  } as unknown as ReplayPublicSite;
 }
 
 // ---------------------------------------------------------------------------
