@@ -8,11 +8,11 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 232 claims: 149 evidenced, 64 planned, and 19 not verified. It maps 86 guidelines from 5 guides; 66 list claims and 20 are exempt.
+The register holds 234 claims: 151 evidenced, 64 planned, and 19 not verified. It maps 86 guidelines from 5 guides; 66 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 135 | 5 | 0 |
+| example test | 137 | 5 | 0 |
 | property test | 14 | 1 | 0 |
 | stateful model | 0 | 14 | 0 |
 | Quint model with production trace replay | 0 | 35 | 0 |
@@ -104,9 +104,9 @@ Each claim holds only while its listed assumptions hold.
 | Assumption | Statement | Claims |
 | --- | --- | ---: |
 | `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 6 |
-| `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 29 |
+| `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 31 |
 | `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 26 |
-| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 26 |
+| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 28 |
 | `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 8 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
 | `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 12 |
@@ -2169,7 +2169,7 @@ Consequential lifecycle reducers take injected clocks and randomness; wall-clock
 - Assumptions: `bun-runtime`, `monotonic-clock`
 - Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
 
-### `storage` (9 claims)
+### `storage` (11 claims)
 
 #### `helper-mutual-exclusion`
 
@@ -2207,11 +2207,11 @@ Read paths never mutate state; reads may only cache.
 
 - Planned: example test in plan Phase 6.
 - Source: `AGENTS.md`: “No writes on read paths. Reads may cache; they never mutate.”
-- Evidence: `src/contract-repair-cli.test.ts`, `src/contract-repair-inbox.test.ts`, `src/control/policy-privacy.test.ts`, `src/control/read-capability.test.ts`, `src/cursor-token.test.ts`, `src/linked-device-lifecycle-journal.test.ts`, `src/provider-plugin-store.test.ts`, `src/providers/whatsapp-interaction-projection-helper.test.ts`
+- Evidence: `src/contract-repair-cli.test.ts`, `src/contract-repair-inbox.test.ts`, `src/control/policy-privacy.test.ts`, `src/control/read-capability.test.ts`, `src/cursor-token.test.ts`, `src/linked-device-lifecycle-journal.test.ts`, `src/provider-plugin-store.test.ts`, `src/providers/whatsapp-interaction-projection-helper.test.ts`, `src/read-path-incarnation.test.ts`
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
 - Not verified:
   - The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Only the menu-bar snapshot and its account and permission listings take a typed read capability; other read paths are not yet type-separated from writers.
+  - Only the menu-bar snapshot, its account and permission listings, and the auth checks of cache reads, live-read publication, and omni materialization take a typed read capability; invocation preparation and operation-permission checks on a read path still create a missing auth incarnation.
 
 #### `read-path-read-capability`
 
@@ -2219,12 +2219,12 @@ A read path receives a branded read capability with only read members, such as `
 
 - Evidenced by example test.
 - Source: `AGENTS.md`: “Hand a read path a read capability with no writer members, such as `AuthIncarnationReader`, not an environment that reaches writers.”
-- Evidence: `src/control/read-capability.test.ts`
+- Evidence: `src/control/read-capability.test.ts`, `src/read-path-incarnation.test.ts`
 - Assumptions: `bun-runtime`
 - Not verified:
   - Only the enumerated example cases are checked; the type assertions run under `bun run typecheck`.
   - The brand exists only in the type system; code that casts through `unknown` can still forge a capability.
-  - Only the menu-bar snapshot and its account and permission listings take the typed capability; other read paths are not covered.
+  - Only the menu-bar snapshot, its account and permission listings, and the auth checks of cache reads, live-read publication, and omni materialization take the typed capability; other read paths are not covered.
 
 #### `menu-bar-snapshot-read-only`
 
@@ -2239,18 +2239,42 @@ The menu-bar snapshot and its account and permission listings take no admission 
   - Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
   - The law fingerprints only the read-projection control tree; writes elsewhere in the state home are covered only by the example snapshot test.
 
-#### `read-projection-admission-exemption`
+#### `read-path-auth-check-read-only`
 
-The only write a read-projection cache read makes is its own admission claim, which it creates and releases, and the removal of a claim whose recorded owner is proven dead; the claim carries no data.
+The auth checks of a cache read, a live-read publication, and an omni materialization read the auth incarnation through `AuthIncarnationReader`; a missing incarnation reads as changed and none is created.
 
 - Evidenced by example test.
-- Source: `AGENTS.md`: “One bounded exemption (D14): a read-projection cache read may create and release its own admission claim and remove a claim whose recorded owner is proven dead, because it must exclude a concurrent projection transition.”
-- Also covers: `AGENTS.md`: “The claim is coordination state with no data, and the exemption covers nothing else.”
+- Source: `AGENTS.md`: “The auth checks of a cache read, a live-read publication, and an omni materialization read the incarnation through `AuthIncarnationReader`, so a missing incarnation reads as changed and nothing is created.”
+- Evidence: `src/read-path-incarnation.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - Invocation preparation and operation-permission checks still create a missing incarnation; the omni example observes the incarnation only between materialization and the next source preparation.
+
+#### `read-projection-admission-exemption`
+
+The only admission write a read-projection cache read makes is its own admission claim, which it creates and releases, and the removal of a claim whose recorded owner is proven dead; the claim carries no data.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “First, a read-projection cache read may create and release its own admission claim and remove a claim whose recorded owner is proven dead, because it must exclude a concurrent projection transition; the claim is coordination state with no data.”
+- Also covers: `AGENTS.md`: “The exemptions cover nothing else.”
 - Evidence: `src/read-projections.test.ts`
 - Assumptions: `filesystem-atomic-rename`, `process-liveness`, `same-user-trusted`
 - Not verified:
   - Only the enumerated example cases are checked.
   - No check establishes that a cache read writes nothing beyond its own claim and dead-owner removal.
+
+#### `read-projection-key-exemption`
+
+A cache read creates at most the projection encryption key and its store-key marker, only when they are absent; a later cache read writes nothing.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Second, a cache read may create the projection encryption key and its store-key marker when they are absent, because a miss returns the query key that this encryption key derives; each is created at most once per state home and holds no user data.”
+- Evidence: `src/read-path-incarnation.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - The example checks a cache read after preparation on a fresh state home; it does not cover concurrent first reads or a legacy store that needs only its marker.
 
 #### `derived-state-rebuildable`
 

@@ -14,7 +14,7 @@ import {
   readReadProjection,
   repairReadProjection,
   removeReadProjection,
-  projectionAuthIdentityHash,
+  authIncarnationReader,
   withSettledReadProjectionAuthAdmission,
   type ReadProjectionCacheResult,
   type ReadProjectionPublication,
@@ -165,6 +165,13 @@ function isOptionalAdmissionRewrite(error: unknown): boolean {
 
 type AuthRealmState = "matches" | "missing" | "changed";
 
+/**
+ * Every caller holds the invocation's settled auth admission, so the
+ * incarnation it reads is stable for the check. The check reads it through
+ * the read capability: a missing incarnation (an account removed after
+ * preparation, or one whose incarnation was never backfilled) reads as
+ * changed, and nothing is created on this read path.
+ */
 function authRealmState(
   invocation: PreparedInvocation,
   query: ReadProjectionQuery | null,
@@ -195,10 +202,9 @@ function authRealmState(
     currentHash !== exactAuthHash(invocation)
     || current.subject !== invocation.auth.subject
   ) return "changed";
-  const currentAuthIdentityHash = projectionAuthIdentityHash(
+  const currentAuthIdentityHash = authIncarnationReader(environment).identityHashIfPresent(
     current.id,
     currentHash,
-    environment,
   );
   if (
     currentAuthIdentityHash !== preparedAuthIdentityHash
