@@ -15,6 +15,7 @@ export const MACOS_TEST_FILES = Object.freeze([
   "src/process-identity.test.ts",
   "src/provider-http.test.ts",
   "src/provider-plugin-host.test.ts",
+  "src/providers/messaging-native-install.test.ts",
 ]);
 
 // Media process groups, item locks, and F_FULLFSYNC flushes are native to

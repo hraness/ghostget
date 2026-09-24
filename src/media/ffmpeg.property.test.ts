@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "../test-support";
 
 import {
   buildPcmNormalizationArgv,
@@ -7,7 +8,7 @@ import {
 } from "./ffmpeg";
 
 test("property: arbitrary PCM headers and lengths never make the parser throw", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.anything(),
       fc.anything(),
@@ -20,7 +21,7 @@ test("property: arbitrary PCM headers and lengths never make the parser throw", 
 });
 
 test("property: arbitrary paths remain inert FFmpeg argument values", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.string({ maxLength: 512 }),
       fc.string({ maxLength: 512 }),

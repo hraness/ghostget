@@ -90,7 +90,7 @@ describe("PR CI test shards", () => {
 
   test("property: shard assignment is a deterministic partition", async () => {
     const files = await listSrcUnitTestFiles(repositoryRoot);
-    fc.assert(
+    assertProperty(
       fc.property(fc.integer({ min: 1, max: 8 }), (shardCount) => {
         const first = assignUnitTestShards(files, shardCount);
         const second = assignUnitTestShards(files, shardCount);
@@ -110,6 +110,8 @@ describe("macOS PR check subset", () => {
     expect(MACOS_TEST_FILES).toContain("src/apple-photos-local-source.test.ts");
     expect(MACOS_TEST_FILES).toContain("src/imessage-direct-plugin.test.ts");
     expect(MACOS_TEST_FILES).toContain("src/provider-plugin-host.test.ts");
+    // The darwin-arm64 bundled-runtime install test skips on Linux runners.
+    expect(MACOS_TEST_FILES).toContain("src/providers/messaging-native-install.test.ts");
     expect(MACOS_PATTERNED_TESTS).toEqual([
       {
         file: "src/ghostget.test.ts",
@@ -172,7 +174,7 @@ describe("complete local and release check composition", () => {
       "test-omni": ["test-omni", "ubuntu-latest", 25],
       standalone: ["standalone", "ubuntu-latest", 20],
       macos: ["macOS", "macos-15", 45],
-      verification: ["verification", "ubuntu-latest", 20],
+      verification: ["verification", "ubuntu-latest", 35],
     } as const;
     const expectedNode = {
       uses: "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
@@ -340,7 +342,7 @@ describe("complete local and release check composition", () => {
       "bun run check:cost-surfaces && bun run check:static && bun run check:package && bun run test"
       + " && bun run test:standalone && bun run verify",
     );
-    expect(manifest.scripts?.verify).toBe("bun run verify:claims && bun run verify:quint && bun run verify:lean");
+    expect(manifest.scripts?.verify).toBe("bun run verify:claims && bun run verify:quint && bun run verify:lean && bun run verify:oracles");
     expect(manifest.scripts?.["check:macos"]).toBe("bun run ./scripts/ci-macos-check.ts");
     expect(manifest.scripts?.["test:shard"]).toBe("bun run ./scripts/ci-test-shard.ts");
     expect(manifest.scripts?.["test:npm-release"]).toBe(

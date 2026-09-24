@@ -9,9 +9,6 @@
  * this pattern with production code in place of the reference lock.
  */
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
 import {
   itfOption,
@@ -23,16 +20,7 @@ import {
   type ItfState,
   type ItfTrace,
 } from "./verification-itf.js";
-import {
-  QUINT,
-  QUINT_TRACE_TIMEOUT_MS,
-  REPOSITORY_ROOT,
-  quintTraceArguments,
-  readQuintModels,
-  requireFinished,
-  runTool,
-  type QuintModel,
-} from "./verification-tools.js";
+import { quintModel, quintTraceCache } from "./verification-replay.js";
 
 const MODEL_FILE = "lock.qnt";
 const TRACE_VARIABLES = ["critical", "holder", "mbt::actionTaken", "mbt::nondetPicks"];
@@ -143,45 +131,8 @@ function divergence(trace: ItfTrace, lock: Lock): string | null {
   }
 }
 
-async function lockModel(): Promise<QuintModel> {
-  const model = (await readQuintModels()).find((candidate) => candidate.file === MODEL_FILE);
-  if (model === undefined) throw new Error(`models.json does not list ${MODEL_FILE}`);
-  return model;
-}
-
-/** Run Quint's model-based testing mode and strictly parse every trace it writes. */
-async function generateTraces(model: QuintModel, step: string): Promise<readonly ItfTrace[]> {
-  const node = Bun.which("node");
-  if (node === null) throw new Error("node must be on PATH to run Quint");
-  const directory = await mkdtemp(join(tmpdir(), "ghostget-quint-traces-"));
-  try {
-    const outcome = await runTool([
-      node,
-      join(REPOSITORY_ROOT, QUINT.cli),
-      ...quintTraceArguments(model, step, model.replay.traces, model.replay.seed, directory),
-    ], {
-      cwd: join(REPOSITORY_ROOT, "verification", "quint"),
-      environment: { HOME: directory, PATH: "/usr/bin:/bin", NO_COLOR: "1", FORCE_COLOR: "0", TZ: "UTC" },
-      timeoutMs: QUINT_TRACE_TIMEOUT_MS,
-    });
-    const result = requireFinished("quint run --mbt", outcome);
-    if (result.exitCode !== 0) throw new Error(`quint run --mbt exited with ${String(result.exitCode)}: ${result.stderr.slice(0, 2_000)}`);
-    const names = (await readdir(directory)).filter((name) => name.endsWith(".itf.json"));
-    const expected = Array.from({ length: model.replay.traces }, (_, index) => `trace_${String(index)}.itf.json`);
-    expect(names.sort()).toEqual(expected.sort());
-    return await Promise.all(expected.map(async (name) => parseItfTrace(await readFile(join(directory, name), "utf8"))));
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-}
-
-const cache = new Map<string, Promise<readonly ItfTrace[]>>();
-async function traces(step: string): Promise<readonly ItfTrace[]> {
-  const model = await lockModel();
-  const cached = cache.get(step) ?? generateTraces(model, step);
-  cache.set(step, cached);
-  return cached;
-}
+const lockModel = () => quintModel(MODEL_FILE);
+const traces = quintTraceCache(MODEL_FILE);
 
 describe("lock.qnt ITF replay", () => {
   test("replays every seeded model trace through the reference lock", async () => {

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, relative } from "node:path";
-import { fc, propertyParameters } from "../test-support";
+import { assertAsyncProperty, fc } from "../test-support";
 import { MESSAGING_NATIVE_ARTIFACTS } from "./messaging-native-artifacts";
 import { materializeImsgNativeResources, verifyImsgNativeResources } from "./messaging-native-install";
 
@@ -92,14 +92,14 @@ test("noncanonical, missing and non-directory roots do not create any ancestors"
 test("every nonprivate root permission mode is rejected before materialization", async () => {
   // Some filesystems clear special mode bits on chmod; vary the portable
   // permission bits so every generated value describes the actual root mode.
-  await fc.assert(fc.asyncProperty(fc.integer({ min: 0, max: 0o777 }).filter(mode => mode !== 0o700), async mode => {
+  await assertAsyncProperty(fc.asyncProperty(fc.integer({ min: 0, max: 0o777 }).filter(mode => mode !== 0o700), async mode => {
     const f = await fixture();
     try {
       await chmod(f.operation, mode);
       await expect(materializeImsgNativeResources(f.operation)).rejects.toThrow();
     } finally { await chmod(f.operation, 0o700); }
     expect(await readdir(f.operation)).toEqual([]);
-  }), { ...propertyParameters, numRuns: 32 });
+  }), { numRuns: 32 });
 });
 
 test("modified resource bytes and modes fail verification and are never repaired in place", async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "../test-support";
 
 import {
   embedPngChunk,
@@ -66,7 +67,7 @@ describe("X upload image provenance scrub", () => {
   });
 
   test("property: pixel-only PNG re-encode preserves RGBA and drops ancillary chunks", () => {
-    fc.assert(
+    assertProperty(
       fc.property(
         fc.integer({ min: 1, max: 4 }),
         fc.integer({ min: 1, max: 4 }),
