@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { assertAsyncProperty, fc } from "../test-support";
 import {
   mediaFullSyncAvailable,
+  mediaFullSyncSucceeds,
   nativeMediaDurability,
   syncDirectoryChain,
   type MediaDurability,
@@ -41,6 +42,19 @@ describe("media durability", () => {
 
   test.skipIf(process.platform !== "darwin")("reaches F_FULLFSYNC on macOS", () => {
     expect(mediaFullSyncAvailable()).toBeTrue();
+  });
+
+  test.skipIf(process.platform !== "darwin")("issues F_FULLFSYNC on a staged file and its directory without the fsync fallback", async () => {
+    const root = await fixture();
+    await writeFile(join(root, "media.webm"), "media");
+    expect(await mediaFullSyncSucceeds(join(root, "media.webm"))).toBeTrue();
+    expect(await mediaFullSyncSucceeds(root)).toBeTrue();
+  });
+
+  test.skipIf(process.platform === "darwin")("reports no F_FULLFSYNC where the platform has none", async () => {
+    const root = await fixture();
+    expect(mediaFullSyncAvailable()).toBeFalse();
+    expect(await mediaFullSyncSucceeds(root)).toBeFalse();
   });
 });
 

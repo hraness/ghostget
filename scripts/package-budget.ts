@@ -1626,14 +1626,33 @@
 // bc193f99425865e22f6527ed41d918c41259491d01b77c1225196f6156dd713a. Carry the
 // same projections and allowances: 11,994,505 + 12,387 + 4,096 = 12,010,988
 // packed; 23,431,392 + 353 + 65 = 23,431,810 unpacked.
+// The media follow-ups kill every active media process group when Ghostget
+// exits or receives an unhandled SIGINT, SIGTERM, or SIGHUP that it did not
+// inherit as ignored, add the read-only `ghostget media quarantine` listing,
+// and add an F_FULLFSYNC probe for the macOS durability check. This adds
+// 15,207 payload bytes over the unchanged 596-file inventory. Two `npm pack
+// --ignore-scripts` runs with npm 11.19.0 on darwin arm64 were byte-identical
+// at 11,998,003 packed bytes, 23,446,599 unpacked bytes; archive SHA-256
+// 202f2c9de0a07a44439e36b8448cd6d194ac7fd8f5f4d9c1f7bbfa7918c0bb10. Carry the
+// same projections and allowances: 11,998,003 + 12,387 + 4,096 = 12,014,486
+// packed; 23,446,599 + 353 + 65 = 23,447,017 unpacked.
+// The cache-read and omni-materialization auth checks read the auth
+// incarnation through the read capability instead of creating a missing one.
+// This adds 637 payload bytes over the unchanged 596-file inventory. Two `npm
+// pack --ignore-scripts` runs with npm 11.19.0 on darwin arm64 were
+// byte-identical at 11,998,420 packed bytes, 23,447,236 unpacked bytes;
+// archive SHA-256
+// 6b1701acb53e452e8ada70e02c2f497535a7fdae32276cbd015723f2f817680d. Carry the
+// same projections and allowances: 11,998,420 + 12,387 + 4,096 = 12,014,903
+// packed; 23,447,236 + 353 + 65 = 23,447,654 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Session-secret ownership removal and the strict canonical JSON encoder",
+  scope: "D14 read-path auth checks through the incarnation read capability",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "bc193f99425865e22f6527ed41d918c41259491d01b77c1225196f6156dd713a",
-  packedBytes: 11_994_505,
-  unpackedBytes: 23_431_392,
+  archiveSha256: "6b1701acb53e452e8ada70e02c2f497535a7fdae32276cbd015723f2f817680d",
+  packedBytes: 11_998_420,
+  unpackedBytes: 23_447_236,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

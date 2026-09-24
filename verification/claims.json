@@ -568,12 +568,14 @@
     {
       "guide": "AGENTS.md",
       "anchor": "No writes on read",
-      "digest": "eddd42154803a85a0d2b1d2300ab30c43fc41f892fb5ae2af73380f0fab78f42",
+      "digest": "e7405d7127e7e9d1b8910d0506a0192281410f778ba1a643e0c48002328a962c",
       "claims": [
         "menu-bar-snapshot-read-only",
         "no-writes-on-read-paths",
+        "read-path-auth-check-read-only",
         "read-path-read-capability",
-        "read-projection-admission-exemption"
+        "read-projection-admission-exemption",
+        "read-projection-key-exemption"
       ]
     },
     {
@@ -1678,7 +1680,10 @@
       "evidence": [
         "scripts/verification-media-replay.test.ts",
         "src/media/archive.property.test.ts",
+        "src/media/archive.test.ts",
         "src/media/lock.test.ts",
+        "src/media/manifest-durability.test.ts",
+        "src/media/quarantine.test.ts",
         "src/media/revision.property.test.ts",
         "src/media/revision.test.ts",
         "verification/quint/media.qnt"
@@ -1691,7 +1696,10 @@
       ],
       "notVerified": [
         "The progress property is not checked. verification/quint/media.qnt checks only safety: its production replay repairs a torn head by quarantine and recaptures, and the stepQuarantineAny variant shows why only a torn head may be moved. A liveness check under fairness is still scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Plan defect D10 is fixed: the staging tree and its parent directories are fsynced before and after the promotion rename, and a start that finds a torn head moves it to the quarantine instead of stopping the lineage."
+        "Plan defect D10 is fixed: the staging tree and its parent directories are fsynced before and after the promotion rename, and a start that finds a torn head moves it to the quarantine instead of stopping the lineage.",
+        "F_FULLFSYNC runs in the macOS CI job; on Linux and on filesystems that refuse it, the flush falls back to fsync, which gives no drive-cache guarantee.",
+        "Repair quarantines at most one torn head per capture; the direct pipeline promotes durably but does not repair a torn head.",
+        "Quarantined revisions stay until their owner removes them; `ghostget media quarantine` lists them and removes nothing."
       ]
     },
     {
@@ -1723,17 +1731,19 @@
     },
     {
       "id": "media-cancellation-stops-work",
-      "statement": "Cancelling a media acquisition stops every process it started, including ffmpeg and HLS grandchildren; a cancellation that arrives before promotion prevents a `created` result, and both pipelines discard staging on every error.",
+      "statement": "Cancelling a media acquisition stops every process it started, including ffmpeg and HLS grandchildren; a cancellation that arrives before promotion prevents a `created` result, both pipelines discard staging on every error, and when Ghostget exits or receives an unhandled SIGINT, SIGTERM, or SIGHUP it kills every active media process group.",
       "area": "media",
       "source": {
         "path": "kb/plans/formal-verification-assurance.md",
         "quote": "D9: spawn in a process group and kill the group. Check cancellation before promotion."
       },
       "layer": "example",
-      "status": "planned",
-      "phase": 6,
+      "status": "evidenced",
       "evidence": [
         "scripts/verification-media-replay.test.ts",
+        "src/media/archive.test.ts",
+        "src/media/process-group.test.ts",
+        "src/media/process-parent-exit.test.ts",
         "src/media/process.test.ts",
         "verification/quint/media.qnt"
       ],
@@ -1742,7 +1752,11 @@
         "media-tools"
       ],
       "notVerified": [
-        "The example test for the whole claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
+        "Only the enumerated example cases are checked; the grouped-termination property samples scripted exit points, not every signal interleaving.",
+        "A SIGKILL of Ghostget itself, or a kernel or power failure, runs no exit handler, so a detached media tool group can outlive it.",
+        "A signal Ghostget inherited as ignored, such as SIGHUP under nohup, stays ignored, so the group keeps running until Ghostget exits for another reason.",
+        "The group kill reaches only processes that stay in the tool's process group; a helper that calls setsid() or setpgid() leaves the group and is not stopped.",
+        "On Windows media tools run without a process group, so only the direct child is signalled.",
         "Plan defect D9 is fixed: yt-dlp runs in its own process group and cancellation signals the group, and the promotion fence checks cancellation immediately before the rename. verification/quint/media.qnt checks that a cancelled yt-dlp capture never answers created, its stepLateCancel variant reproduces the pre-fix promotion, and its replay drives production mediaUrl. The direct HTTP pipeline and grandchild process termination are not modelled."
       ]
     },
@@ -3221,7 +3235,8 @@
         "src/cursor-token.test.ts",
         "src/linked-device-lifecycle-journal.test.ts",
         "src/provider-plugin-store.test.ts",
-        "src/providers/whatsapp-interaction-projection-helper.test.ts"
+        "src/providers/whatsapp-interaction-projection-helper.test.ts",
+        "src/read-path-incarnation.test.ts"
       ],
       "assumptions": [
         "filesystem-atomic-rename",
@@ -3229,7 +3244,7 @@
       ],
       "notVerified": [
         "The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Only the menu-bar snapshot and its account and permission listings take a typed read capability; other read paths are not yet type-separated from writers."
+        "Only the menu-bar snapshot, its account and permission listings, and the auth checks of cache reads, live-read publication, and omni materialization take a typed read capability; invocation preparation and operation-permission checks on a read path still create a missing auth incarnation."
       ]
     },
     {
@@ -3243,7 +3258,8 @@
       "layer": "example",
       "status": "evidenced",
       "evidence": [
-        "src/control/read-capability.test.ts"
+        "src/control/read-capability.test.ts",
+        "src/read-path-incarnation.test.ts"
       ],
       "assumptions": [
         "bun-runtime"
@@ -3251,7 +3267,7 @@
       "notVerified": [
         "Only the enumerated example cases are checked; the type assertions run under `bun run typecheck`.",
         "The brand exists only in the type system; code that casts through `unknown` can still forge a capability.",
-        "Only the menu-bar snapshot and its account and permission listings take the typed capability; other read paths are not covered."
+        "Only the menu-bar snapshot, its account and permission listings, and the auth checks of cache reads, live-read publication, and omni materialization take the typed capability; other read paths are not covered."
       ]
     },
     {
@@ -3283,17 +3299,39 @@
       ]
     },
     {
-      "id": "read-projection-admission-exemption",
-      "statement": "The only write a read-projection cache read makes is its own admission claim, which it creates and releases, and the removal of a claim whose recorded owner is proven dead; the claim carries no data.",
+      "id": "read-path-auth-check-read-only",
+      "statement": "The auth checks of a cache read, a live-read publication, and an omni materialization read the auth incarnation through `AuthIncarnationReader`; a missing incarnation reads as changed and none is created.",
       "area": "storage",
       "source": {
         "path": "AGENTS.md",
-        "quote": "One bounded exemption (D14): a read-projection cache read may create and release its own admission claim and remove a claim whose recorded owner is proven dead, because it must exclude a concurrent projection transition."
+        "quote": "The auth checks of a cache read, a live-read publication, and an omni materialization read the incarnation through `AuthIncarnationReader`, so a missing incarnation reads as changed and nothing is created."
+      },
+      "layer": "example",
+      "status": "evidenced",
+      "evidence": [
+        "src/read-path-incarnation.test.ts"
+      ],
+      "assumptions": [
+        "filesystem-atomic-rename",
+        "same-user-trusted"
+      ],
+      "notVerified": [
+        "Only the enumerated example cases are checked.",
+        "Invocation preparation and operation-permission checks still create a missing incarnation; the omni example observes the incarnation only between materialization and the next source preparation."
+      ]
+    },
+    {
+      "id": "read-projection-admission-exemption",
+      "statement": "The only admission write a read-projection cache read makes is its own admission claim, which it creates and releases, and the removal of a claim whose recorded owner is proven dead; the claim carries no data.",
+      "area": "storage",
+      "source": {
+        "path": "AGENTS.md",
+        "quote": "First, a read-projection cache read may create and release its own admission claim and remove a claim whose recorded owner is proven dead, because it must exclude a concurrent projection transition; the claim is coordination state with no data."
       },
       "alsoQuotes": [
         {
           "path": "AGENTS.md",
-          "quote": "The claim is coordination state with no data, and the exemption covers nothing else."
+          "quote": "The exemptions cover nothing else."
         }
       ],
       "layer": "example",
@@ -3309,6 +3347,28 @@
       "notVerified": [
         "Only the enumerated example cases are checked.",
         "No check establishes that a cache read writes nothing beyond its own claim and dead-owner removal."
+      ]
+    },
+    {
+      "id": "read-projection-key-exemption",
+      "statement": "A cache read creates at most the projection encryption key and its store-key marker, only when they are absent; a later cache read writes nothing.",
+      "area": "storage",
+      "source": {
+        "path": "AGENTS.md",
+        "quote": "Second, a cache read may create the projection encryption key and its store-key marker when they are absent, because a miss returns the query key that this encryption key derives; each is created at most once per state home and holds no user data."
+      },
+      "layer": "example",
+      "status": "evidenced",
+      "evidence": [
+        "src/read-path-incarnation.test.ts"
+      ],
+      "assumptions": [
+        "filesystem-atomic-rename",
+        "same-user-trusted"
+      ],
+      "notVerified": [
+        "Only the enumerated example cases are checked.",
+        "The example checks a cache read after preparation on a fresh state home; it does not cover concurrent first reads or a legacy store that needs only its marker."
       ]
     },
     {
