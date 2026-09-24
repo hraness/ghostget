@@ -2359,8 +2359,10 @@ describe("npm publication contract", () => {
     }
     // A job-level `if:` could run npm after a failed or skipped prerequisite
     // (`always()`, `failure()`, `!cancelled()`); without one, GitHub runs a job
-    // only when every needed job succeeded. No job may tolerate its own failure.
-    for (const job of ["publish", "publish_npm", "admit_npm"]) expect(parsed.jobs[job]!.if).toBeUndefined();
+    // only when every needed job succeeded. publish_npm needs authorize only
+    // through verify, so an `if:` on any job, not just the npm jobs, could
+    // carry npm past a failed canonical job. No job may tolerate its own failure.
+    for (const [name, job] of Object.entries(parsed.jobs)) expect([name, job.if]).toEqual([name, undefined]);
     for (const [name, job] of Object.entries(parsed.jobs)) expect([name, job["continue-on-error"]]).toEqual([name, undefined]);
     // A tolerated or conditionally skipped step would let a canonical job succeed
     // without doing its work, and npm would then publish after it.
