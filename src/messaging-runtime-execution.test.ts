@@ -1561,6 +1561,16 @@ describe("generic messaging composite execution property", () => {
       expect(showMessagingRunInternal(result.run.runId, {
         environment: setup.environment,
       }).run).toEqual(result.run);
-    }), { numRuns: 6, interruptAfterTimeLimit: 150_000 });
+    }), {
+      numRuns: 6,
+      interruptAfterTimeLimit: 150_000,
+      // Every run first checks a content drift, a route drift, and a failure
+      // after the durable fence.
+      examples: [
+        [[2, { kind: "content", what: "incoming", after: 0 }]],
+        [[2, { kind: "route", what: "participants", at: 1 }]],
+        [[1, { kind: "fail", behavior: "fail-after-fence", at: 0 }]],
+      ],
+    });
   });
 });

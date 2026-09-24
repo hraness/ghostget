@@ -317,6 +317,22 @@ const commands = fc.commands([
   fc.tuple(fc.nat(7), lifecycle).map(([pick, step]) => new StaleCommand(pick, step)),
 ], { maxCommands: 10 });
 
+/**
+ * Fixed schedules that every run checks before the generated ones: an owner
+ * whose liveness cannot be read, and a cleanup-unsafe admission whose parent
+ * died in this boot. Each must be retained.
+ */
+const boundarySchedules: readonly (readonly fc.Command<Model, Real>[])[] = [
+  [new AcquireCommand(), new LivenessCommand("parent", "unknown"), new AcquireCommand()],
+  [
+    new AcquireCommand(),
+    new LifecycleCommand("begin"),
+    new LifecycleCommand("unsafe"),
+    new LivenessCommand("parent", "dead"),
+    new AcquireCommand(),
+  ],
+];
+
 describe("Beeper Message Like Me export admission stateful model", () => {
   test("retains a live or indeterminate owner and takes over only after death is proved", () => {
     const helper = Bun.spawn(["sleep", "600"], { stdout: "ignore", stderr: "ignore" });
@@ -337,7 +353,11 @@ describe("Beeper Message Like Me export admission stateful model", () => {
         } finally {
           rmSync(root, { recursive: true, force: true });
         }
-      }), { numRuns: 10, interruptAfterTimeLimit: 150_000 });
+      }), {
+        numRuns: 10,
+        interruptAfterTimeLimit: 150_000,
+        examples: boundarySchedules.map((schedule) => [schedule as unknown as Iterable<fc.Command<Model, Real>>]),
+      });
     } finally {
       helper.kill(9);
     }
