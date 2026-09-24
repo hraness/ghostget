@@ -88,6 +88,7 @@ the replay pattern work, and it states nothing about Ghostget code.
 | `lock.qnt` | Reference lock | The toolchain and the replay pattern. |
 | `fence.qnt` | The pure confirmed-write fence cores in `src/runtime.ts`, `src/run-journal.ts`, and `src/confirmed-write-program.ts` | At most one run of an intent crosses its dispatch boundary across reconnect and manifest upgrade, and an indeterminate run keeps its fence. The pre-fix variants reproduce D1 (a fence keyed by auth and adapter bytes) and D2 (a caller's not-applied claim releases the ledger). |
 | `path-claim.qnt` | Three real `src/path-helper.ts` processes paused at every claim-protocol step | At most one helper holds a leaf's mutation claim, including with a dead claim, a killed reaper, and a successor election. The pre-fix variant reproduces D3 (no reaper election and no restore). |
+| `state-claim.qnt` | The production claim listing and stage decision in `src/state-helper.ts`, on real claim files that hold what each model listing reports | At most one state helper enters a target's critical section, with a dead claim and listings that may miss or report stale renames. The mutants drop the listing after the rename to `held` or its check. |
 
 ## Add a model
 

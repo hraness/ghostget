@@ -47,6 +47,7 @@ import {
   decodeProviderReceipt,
   encodeProviderReceipt,
   exactReleaseWorkflowRun,
+  MAX_INTERMEDIATE_RELEASE_ATTEMPTS,
   parseIncludedGitHubResponse,
   promoteWebsiteProduction as promoteWebsiteProductionRaw,
   revalidateReleaseAuthority,
@@ -822,6 +823,7 @@ class ProviderApiFixture {
   readonly tagSnapshots: readonly string[];
   readonly workflowRunSnapshots: readonly ProviderJson[];
   readonly workflowRunJobs: ReadonlyMap<number, ProviderJson>;
+  readonly workflowRunAttempts: ReadonlyMap<number, ProviderJson>;
   latest: ProviderJson = providerLatest();
   release: ProviderJson = providerRelease();
   readonly readHook: ((timeoutMilliseconds: number | undefined) => void) | undefined;
@@ -862,6 +864,7 @@ class ProviderApiFixture {
     sourceCompareSnapshots = [],
     statuses = new Map<number, ProviderJson[][]>(),
     tagSnapshots = [],
+    workflowRunAttempts = new Map<number, ProviderJson>(),
     workflowRunJobs = new Map<number, ProviderJson>(),
     workflowRunSnapshots = [],
   }: Readonly<{
@@ -882,6 +885,7 @@ class ProviderApiFixture {
     sourceCompareSnapshots?: readonly ProviderJson[];
     statuses?: Map<number, ProviderJson[][]>;
     tagSnapshots?: readonly string[];
+    workflowRunAttempts?: ReadonlyMap<number, ProviderJson>;
     workflowRunJobs?: ReadonlyMap<number, ProviderJson>;
     workflowRunSnapshots?: readonly ProviderJson[];
   }> = {}) {
@@ -902,6 +906,7 @@ class ProviderApiFixture {
     this.sourceCompareSnapshots = sourceCompareSnapshots;
     this.statusSnapshots = statuses;
     this.tagSnapshots = tagSnapshots;
+    this.workflowRunAttempts = workflowRunAttempts;
     this.workflowRunJobs = workflowRunJobs;
     this.workflowRunSnapshots = workflowRunSnapshots;
   }
@@ -1027,6 +1032,14 @@ class ProviderApiFixture {
       ? undefined
       : this.workflowRunJobs.get(Number(workflowRunJobs[1]));
     if (attemptJobs !== undefined) return attemptJobs;
+    const workflowRunAttempt = new RegExp(
+      `^/repos/${providerRepository}/actions/runs/${providerReleaseWorkflowRunId}/attempts/([1-9][0-9]*)$`,
+      "u",
+    ).exec(endpoint);
+    const attemptRun = workflowRunAttempt === null
+      ? undefined
+      : this.workflowRunAttempts.get(Number(workflowRunAttempt[1]));
+    if (attemptRun !== undefined) return attemptRun;
     if (endpoint === providerTagCommitEndpoint) {
       const snapshot = this.tagSnapshots[Math.min(this.#tagRead, this.tagSnapshots.length - 1)];
       this.#tagRead += 1;
@@ -1205,7 +1218,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(24_058_880);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(24_062_464);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1392,13 +1405,16 @@ describe("npm publication contract", () => {
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
     expect(Object.isFrozen(repairPackageMeasurement)).toBeTrue();
     expect(repairPackageMeasurement).toMatchObject({
-      archiveSha256: "6b1701acb53e452e8ada70e02c2f497535a7fdae32276cbd015723f2f817680d",
-      packedBytes: 11_998_420, unpackedBytes: 23_447_236, entryCount: 596,
+      archiveSha256: "c38d1f9522d477a42a82d934359012ba31124f98348302b3b5c3fe97bac6709e",
+      packedBytes: 11_999_852, unpackedBytes: 23_451_059, entryCount: 596,
       packedPlatformProjection: 12_387, packedPortabilityAllowance: 4_096,
       payloadPlatformProjection: 353, payloadAllowance: 65,
     });
-    expect(MAX_PACKED_BYTES).toBe(12_014_903);
-    expect(MAX_PACKED_BYTES).toBe(11_998_420 + 12_387 + 4_096);
+    expect(MAX_PACKED_BYTES).toBe(12_016_335);
+    expect(MAX_PACKED_BYTES).toBe(11_999_852 + 12_387 + 4_096);
+    expect(budget).toContain("11,998,420 + 12,387 + 4,096 =");
+    expect(budget).toContain("23,447,236 + 353 + 65 = 23,447,654");
+    expect(budget).toContain("6b1701acb53e452e8ada70e02c2f497535a7fdae32276cbd015723f2f817680d");
     expect(budget).toContain("11,998,003 + 12,387 + 4,096 =");
     expect(budget).toContain("23,446,599 + 353 + 65 = 23,447,017");
     expect(budget).toContain("202f2c9de0a07a44439e36b8448cd6d194ac7fd8f5f4d9c1f7bbfa7918c0bb10");
@@ -1503,7 +1519,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("23,029,751 + 353 + 65 = 23,030,169");
     expect(budget).toContain("23,193,728 + 65 = 23,193,793");
     expect(budget).toContain("47684b3e2eb5cf3ed07fbb520aade8c7251d993f75262fbf1af627d9081a1a5f");
-    expect(MAX_UNPACKED_BYTES).toBe(23_447_654);
+    expect(MAX_UNPACKED_BYTES).toBe(23_451_477);
     expect(budget).toContain("23,037,873 + 65 = 23,037,938");
     expect(budget).toContain("f9f3ab38a682690ceaa2699a7309997512030f0fa500a9dc29dcd108123dc41f");
     expect(budget).toContain("23,038,557 + 65 = 23,038,622");
@@ -1535,7 +1551,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("519e4bfdfd61196722eda53965398a7553afb1818a399cc322004665a04574a2");
     expect(budget).toContain("01875f12ab73a49d6c7d6bf520dc3d318db816addee2fa7981889f35c958cf7c");
     expect(budget).toContain("b12909f08f7c19460ced56e30619f4860a1183f4b0106170c07837dae577a937");
-    expect(MAX_UNPACKED_BYTES).toBe(23_447_236 + 353 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(23_451_059 + 353 + 65);
     expect(budget).toContain("22,794,052 + 65 = 22,794,117");
     expect(budget).toContain("c482efe748f880e3717727d6d39fd92a68953e6eea766642b329ba47ae772d80");
     expect(budget).toContain("22,759,423 + 65 = 22,759,488");
@@ -1571,8 +1587,8 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 596, max: 596 },
       fileCount: { min: 596, max: 596 },
-      packedBytes: { min: 1_600_000, max: 12_014_903 },
-      unpackedBytes: { min: 9_000_000, max: 23_447_654 },
+      packedBytes: { min: 1_600_000, max: 12_016_335 },
+      unpackedBytes: { min: 9_000_000, max: 23_451_477 },
     });
   });
 
@@ -3143,9 +3159,13 @@ fi
     expect(helper).toContain("wrench-release-source-v1");
     expect(helper.match(/\/actions\/runs\//gu) ?? []).toHaveLength(1);
     expect(helper).toContain("/actions/runs/${releaseWorkflowRunId}");
-    expect(helper.match(/\/attempts\//gu) ?? []).toHaveLength(1);
+    expect(helper.match(/\/attempts\//gu) ?? []).toHaveLength(2);
     expect(helper).toContain("`${endpoint}/attempts/${String(attempt)}/jobs?per_page=100`");
-    expect(helper).toContain("admitRecoveredReleaseRun(api, releaseRunEndpoint, releaseRun, firstReleaseValue)");
+    expect(helper).toContain("`${endpoint}/attempts/${String(attempt)}`, timeout");
+    expect(helper).toContain("MAX_INTERMEDIATE_RELEASE_ATTEMPTS = 3;");
+    expect(helper).toContain(
+      "admitRecoveredReleaseRun(api, releaseRunEndpoint, releaseRunIdentity, releaseRun, firstReleaseValue)",
+    );
     expect(helper).toContain("RELEASE_WORKFLOW_REQUEST_TIMEOUT_MILLISECONDS = 10_000");
     expect(helper).toContain("advanceWebsiteProductionRefFromEnvironment");
     expect(helper).toContain('key.startsWith("WRENCH_RELEASE_APP_")');
@@ -3192,9 +3212,9 @@ fi
       "/docs/publishing.md @0thernet",
     ]);
     expect(releaseRestRequestBudget).toEqual({
-      canonicalDownload: 5,
+      canonicalDownload: 11,
       githubTokenLimit: 1_000,
-      headroom: 642,
+      headroom: 630,
       immutableRelease: 36,
       maxPolls: 20,
       observationDeadlineMilliseconds: 1_200_000,
@@ -3203,9 +3223,9 @@ fi
       providerBaseline: 2,
       providerOutcome: 209,
       providerPromotion: 21,
-      surroundingRelease: 126,
-      total: 358,
-      websiteAuthority: 85,
+      surroundingRelease: 138,
+      total: 370,
+      websiteAuthority: 91,
     });
     expect(releaseGraphqlRequestBudget).toEqual({
       githubPointLimit: 1_000,
@@ -5967,6 +5987,320 @@ fi
       verifiedTag: providerTag,
     })).rejects.toThrow("exact successful Release workflow identity");
     expect(actionsCalls(automatic)).toEqual([`GET ${runEndpoint}`]);
+  });
+
+  test("manual recovery admits a Release an intermediate failed-jobs rerun published before all jobs were re-run (D15)", async () => {
+    // Regression (plan D15): attempt 1 attested the canonical bytes and its
+    // publish job failed; rerunning the failed jobs (attempt 2) published them,
+    // so the Release body names attempt 1. Rerunning all jobs (attempt 3) then
+    // failed its publish job. Manual recovery read only attempts 3 and 1,
+    // neither of which proved all four canonical jobs, and refused a Release
+    // that attempt 2 published.
+    const runEndpoint = `/repos/${providerRepository}/actions/runs/${providerReleaseWorkflowRunId}`;
+    const attemptEndpoint = (attempt: number): string => `${runEndpoint}/attempts/${String(attempt)}`;
+    const jobsEndpoint = (attempt: number): string => `${attemptEndpoint(attempt)}/jobs?per_page=100`;
+    const actionsCalls = (api: ProviderApiFixture): string[] =>
+      api.calls.filter((call) => call.includes("/actions/runs/"));
+    const recover = (api: ProviderApiFixture): Promise<unknown> => resolveReleaseAuthority({
+      api,
+      defaultBranch: "main",
+      eventName: "workflow_dispatch",
+      recoveryWorkflowSha: providerVerifiedSha,
+      repository: providerRepository,
+      verifiedSha: providerVerifiedSha,
+      verifiedTag: providerTag,
+    });
+    const body = (attempt: number): string => `${releaseSourceReceipt({
+      repository: providerRepository,
+      verifiedSha: providerVerifiedSha,
+      verifiedTag: providerTag,
+      workflowRunId: providerReleaseWorkflowRunId,
+    })}\n\nghostget-release-attempt-v1 run_attempt=${String(attempt)}`;
+    const unpublished = {
+      "Admit exact public npm package": { conclusion: "skipped" },
+      "Publish exact npm package through OIDC": { conclusion: "skipped" },
+      "Publish immutable GitHub Release": { conclusion: "failure" },
+    } as const;
+    const scenario = ({
+      attempts = new Map<number, ProviderJson>(),
+      inventories = new Map<number, ProviderJson>(),
+      latest = 3,
+      receipt = 1,
+    }: Readonly<{
+      attempts?: ReadonlyMap<number, ProviderJson>;
+      inventories?: ReadonlyMap<number, ProviderJson>;
+      latest?: number;
+      receipt?: number;
+    }> = {}): ProviderApiFixture => new ProviderApiFixture({
+      latestSnapshots: [providerLatest({ body: body(receipt) })],
+      releaseSnapshots: [providerRelease({ body: body(receipt) })],
+      workflowRunAttempts: new Map([
+        [2, providerReleaseWorkflowRun({ conclusion: "failure", run_attempt: 2 })],
+        ...attempts,
+      ]),
+      workflowRunJobs: new Map([
+        [1, providerReleaseJobs(1, unpublished)],
+        [2, providerReleaseJobs(2, { "Admit exact public npm package": { conclusion: "failure" } })],
+        [latest, providerReleaseJobs(latest, unpublished)],
+        ...inventories,
+      ]),
+      workflowRunSnapshots: [providerReleaseWorkflowRun({ conclusion: "failure", run_attempt: latest })],
+    });
+
+    const admitted = scenario();
+    expect(await recover(admitted)).toEqual({ releaseWorkflowRunId: providerReleaseWorkflowRunId });
+    expect(actionsCalls(admitted)).toEqual([
+      `GET ${runEndpoint}`,
+      `GET ${jobsEndpoint(3)}`,
+      `GET ${jobsEndpoint(1)}`,
+      `GET ${attemptEndpoint(2)}`,
+      `GET ${jobsEndpoint(2)}`,
+    ]);
+    expect(admitted.timedCalls.filter((call) => call.endpoint.includes("/actions/runs/")).map((call) => call.timeoutMilliseconds))
+      .toEqual([10_000, 10_000, 10_000, 10_000, 10_000]);
+
+    // Up to the bound, attempts are read in order until one proves all four.
+    expect(MAX_INTERMEDIATE_RELEASE_ATTEMPTS).toBe(3);
+    const widest = scenario({
+      attempts: new Map([
+        [2, providerReleaseWorkflowRun({ conclusion: "failure", run_attempt: 2 })],
+        [3, providerReleaseWorkflowRun({ conclusion: "failure", run_attempt: 3 })],
+        [4, providerReleaseWorkflowRun({ conclusion: "failure", run_attempt: 4 })],
+      ]),
+      inventories: new Map([
+        [2, providerReleaseJobs(2, unpublished)],
+        [3, providerReleaseJobs(3, { "Publish immutable GitHub Release": { run_attempt: 2 } })],
+        [4, providerReleaseJobs(4, { "Admit exact public npm package": { conclusion: "failure" } })],
+      ]),
+      latest: 5,
+    });
+    expect(await recover(widest)).toEqual({ releaseWorkflowRunId: providerReleaseWorkflowRunId });
+    expect(actionsCalls(widest)).toEqual([
+      `GET ${runEndpoint}`,
+      `GET ${jobsEndpoint(5)}`,
+      `GET ${jobsEndpoint(1)}`,
+      ...[2, 3, 4].flatMap((attempt) => [`GET ${attemptEndpoint(attempt)}`, `GET ${jobsEndpoint(attempt)}`]),
+    ]);
+
+    // A wider gap fails closed before any intermediate attempt is read.
+    const tooWide = scenario({ latest: 3 + MAX_INTERMEDIATE_RELEASE_ATTEMPTS });
+    await expect(recover(tooWide)).rejects.toThrow("has 4 attempts after its receipt attempt, beyond the bounded 3");
+    expect(actionsCalls(tooWide)).toEqual([`GET ${runEndpoint}`, `GET ${jobsEndpoint(6)}`, `GET ${jobsEndpoint(1)}`]);
+
+    // Each intermediate attempt must be an exact, completed attempt of this
+    // run by the owner; any drift fails closed before its inventory is read.
+    for (const [attempt, message] of [
+      [providerReleaseWorkflowRun({ run_attempt: 3 }), "does not match the triggering Release run attempt"],
+      [providerReleaseWorkflowRun({ id: 88002, run_attempt: 2 }), "exact successful Release workflow identity"],
+      [providerReleaseWorkflowRun({ conclusion: null, run_attempt: 2, status: "in_progress" }),
+        "exact successful Release workflow identity"],
+      [providerReleaseWorkflowRun({ head_sha: "3".repeat(40), run_attempt: 2 }), "exact successful Release workflow identity"],
+      [providerReleaseWorkflowRun({ head_branch: "v0.16.3", run_attempt: 2 }), "exact successful Release workflow identity"],
+      [providerReleaseWorkflowRun({ event: "workflow_dispatch", run_attempt: 2 }), "exact successful Release workflow identity"],
+      [providerReleaseWorkflowRun({ run_attempt: 2, workflow_id: 1 }), "exact successful Release workflow identity"],
+      [providerReleaseWorkflowRun({ path: ".github/workflows/ci.yml", run_attempt: 2 }),
+        "exact successful Release workflow identity"],
+      [providerReleaseWorkflowRun({ actor: { id: 7, login: "0thernet", type: "User" }, run_attempt: 2 }),
+        "actor is not the exact release owner"],
+      [providerReleaseWorkflowRun({ run_attempt: 2, triggering_actor: { id: 7, login: "0thernet", type: "User" } }),
+        "triggering_actor is not the exact release owner"],
+      [providerReleaseWorkflowRun({
+        head_repository: { full_name: "fork/ghostget", id: 7, private: false },
+        run_attempt: 2,
+      }), "head_repository is not the exact public Ghostget repository"],
+    ] as const) {
+      const api = scenario({ attempts: new Map([[2, attempt]]) });
+      await expect(recover(api)).rejects.toThrow(message);
+      expect(actionsCalls(api)).toEqual([
+        `GET ${runEndpoint}`,
+        `GET ${jobsEndpoint(3)}`,
+        `GET ${jobsEndpoint(1)}`,
+        `GET ${attemptEndpoint(2)}`,
+      ]);
+    }
+
+    // Its own complete bounded inventory must prove all four canonical jobs
+    // for exactly that run, attempt, and source SHA.
+    for (const [inventory, message] of [
+      [providerReleaseJobs(2, unpublished), "no intermediate attempt proved the four canonical jobs"],
+      [providerReleaseJobs(2, { Verify: { run_attempt: 1 } }), "no intermediate attempt proved the four canonical jobs"],
+      [providerReleaseJobs(2, { "Publish immutable GitHub Release": { run_attempt: 3 } }),
+        "no intermediate attempt proved the four canonical jobs"],
+      [providerReleaseJobs(2, { "Authorize owner release tag": { run_id: 88002 } }),
+        "no intermediate attempt proved the four canonical jobs"],
+      [providerReleaseJobs(2, { "Attest exact canonical build files": { head_sha: "3".repeat(40) } }),
+        "no intermediate attempt proved the four canonical jobs"],
+      [providerReleaseJobs(2, { "Publish immutable GitHub Release": { conclusion: null, status: "in_progress" } }),
+        "no intermediate attempt proved the four canonical jobs"],
+      [providerReleaseJobs(2, { "Publish immutable GitHub Release": { name: "Publish renamed Release" } }),
+        "does not contain exactly one Publish immutable GitHub Release job"],
+      [{ ...providerReleaseJobs(2) as Record<string, ProviderJson>, total_count: 9 }, "complete bounded job inventory"],
+    ] as const) {
+      const api = scenario({ inventories: new Map([[2, inventory]]) });
+      await expect(recover(api)).rejects.toThrow(message);
+      expect(actionsCalls(api)).toEqual([
+        `GET ${runEndpoint}`,
+        `GET ${jobsEndpoint(3)}`,
+        `GET ${jobsEndpoint(1)}`,
+        `GET ${attemptEndpoint(2)}`,
+        `GET ${jobsEndpoint(2)}`,
+      ]);
+    }
+
+    // The receipt attempt must have attested the bytes with an exact
+    // unsuccessful publish job; otherwise no intermediate attempt is read.
+    for (const [inventory, message] of [
+      [providerReleaseJobs(1, { ...unpublished, "Attest exact canonical build files": { conclusion: "failure" } }),
+        "receipt attempt jobs Attest exact canonical build files job did not succeed in the receipt attempt"],
+      [providerReleaseJobs(1, { ...unpublished, Verify: { conclusion: "skipped" } }),
+        "receipt attempt jobs Verify job did not succeed in the receipt attempt"],
+      [providerReleaseJobs(1, { ...unpublished, "Publish immutable GitHub Release": { conclusion: "failure", run_attempt: 2 } }),
+        "receipt attempt jobs Publish immutable GitHub Release job did not succeed in the receipt attempt"],
+      [providerReleaseJobs(1, {
+        ...unpublished,
+        "Publish immutable GitHub Release": { conclusion: null, status: "in_progress" },
+      }), "receipt attempt jobs Publish immutable GitHub Release job did not succeed in the receipt attempt"],
+    ] as const) {
+      const api = scenario({ inventories: new Map([[1, inventory]]) });
+      await expect(recover(api)).rejects.toThrow(message);
+      expect(actionsCalls(api)).toEqual([`GET ${runEndpoint}`, `GET ${jobsEndpoint(3)}`, `GET ${jobsEndpoint(1)}`]);
+    }
+
+    // A body naming the attempt just before the latest leaves no intermediate
+    // attempt; a body naming the latest or a later attempt reads no receipt.
+    const adjacent = scenario({ receipt: 2, inventories: new Map([[2, providerReleaseJobs(2, unpublished)]]) });
+    await expect(recover(adjacent)).rejects.toThrow(
+      "receipt attempt jobs Publish immutable GitHub Release job did not succeed in the receipt attempt",
+    );
+    expect(actionsCalls(adjacent)).toEqual([`GET ${runEndpoint}`, `GET ${jobsEndpoint(3)}`, `GET ${jobsEndpoint(2)}`]);
+    for (const receipt of [3, 4] as const) {
+      const api = scenario({ receipt });
+      await expect(recover(api)).rejects.toThrow("did not succeed in the latest attempt");
+      expect(actionsCalls(api)).toEqual([`GET ${runEndpoint}`, `GET ${jobsEndpoint(3)}`]);
+    }
+
+    // The automatic path never reads an intermediate attempt.
+    const automatic = scenario();
+    await expect(resolveReleaseAuthority({
+      api: automatic,
+      defaultBranch: "main",
+      eventName: "workflow_run",
+      recoveryWorkflowSha: providerVerifiedSha,
+      repository: providerRepository,
+      requestedReleaseWorkflowRunAttempt: "3",
+      requestedReleaseWorkflowRunId: providerReleaseWorkflowRunId,
+      verifiedSha: providerVerifiedSha,
+      verifiedTag: providerTag,
+    })).rejects.toThrow("exact successful Release workflow identity");
+    expect(actionsCalls(automatic)).toEqual([`GET ${runEndpoint}`]);
+  });
+
+  test("property: the canonical download admits an intermediate attempt only when it is exact, bounded, and proves all four jobs", () => {
+    const conclusion = fc.constantFrom("success", "failure", "skipped");
+    const intermediate = fc.record({
+      drift: fc.constantFrom("none", "none", "none", "triggering-actor", "run", "attempt", "source"),
+      publish: conclusion,
+      verify: conclusion,
+      jobAttemptDrift: fc.boolean(),
+    });
+    assertProperty(fc.property(
+      fc.record({
+        currentPublish: conclusion,
+        gap: fc.integer({ min: 0, max: MAX_INTERMEDIATE_RELEASE_ATTEMPTS + 2 }),
+        intermediates: fc.array(intermediate, {
+          maxLength: MAX_INTERMEDIATE_RELEASE_ATTEMPTS + 2,
+          minLength: MAX_INTERMEDIATE_RELEASE_ATTEMPTS + 2,
+        }),
+        readAttemptRun: fc.boolean(),
+        receiptAttempt: fc.integer({ min: 1, max: 3 }),
+      }),
+      ({ currentPublish, gap, intermediates, readAttemptRun, receiptAttempt }) => {
+        const currentAttempt = receiptAttempt + gap + 1;
+        const between = Array.from({ length: gap }, (_, index) => receiptAttempt + 1 + index);
+        const reads: string[] = [];
+        const runs = new Map<number, ProviderJson>();
+        const inventories = new Map<number, ProviderJson>();
+        between.forEach((attempt, index) => {
+          const shape = intermediates[index]!;
+          runs.set(attempt, providerReleaseWorkflowRun({
+            conclusion: "failure",
+            run_attempt: shape.drift === "attempt" ? attempt + 1 : attempt,
+            ...(shape.drift === "triggering-actor" ? { triggering_actor: { id: 7, login: "0thernet", type: "User" } } : {}),
+            ...(shape.drift === "run" ? { id: 88002 } : {}),
+            ...(shape.drift === "source" ? { head_sha: "3".repeat(40) } : {}),
+          }));
+          inventories.set(attempt, providerReleaseJobs(attempt, {
+            Verify: { conclusion: shape.verify },
+            "Publish immutable GitHub Release": {
+              conclusion: shape.publish,
+              ...(shape.jobAttemptDrift ? { run_attempt: currentAttempt } : {}),
+            },
+          }));
+        });
+        inventories.set(currentAttempt, providerReleaseJobs(currentAttempt, {
+          "Publish immutable GitHub Release": { conclusion: currentPublish },
+        }));
+        const input = {
+          canonicalJobs: providerReleaseJobs(receiptAttempt, {
+            "Admit exact public npm package": { conclusion: "skipped" },
+            "Publish exact npm package through OIDC": { conclusion: "skipped" },
+            "Publish immutable GitHub Release": { conclusion: "failure" },
+          }),
+          expectedRunAttempt: String(receiptAttempt),
+          readAttemptJobs: (attempt: number): ProviderJson => {
+            reads.push(`jobs ${String(attempt)}`);
+            const inventory = inventories.get(attempt);
+            if (inventory === undefined) throw new Error(`Unexpected attempt ${String(attempt)} job inventory read`);
+            return inventory;
+          },
+          readCurrentRun: (): ProviderJson => {
+            reads.push("run");
+            return providerReleaseWorkflowRun({ conclusion: "failure", run_attempt: currentAttempt });
+          },
+          ...(readAttemptRun
+            ? {
+              readAttemptRun: (attempt: number): ProviderJson => {
+                reads.push(`attempt ${String(attempt)}`);
+                const value = runs.get(attempt);
+                if (value === undefined) throw new Error(`Unexpected attempt ${String(attempt)} read`);
+                return value;
+              },
+            }
+            : {}),
+          repository: providerRepository,
+          value: providerReleaseWorkflowRun({ conclusion: "failure", run_attempt: receiptAttempt }),
+          verifiedSha: providerVerifiedSha,
+          verifiedTag: providerTag,
+          workflowRunId: providerReleaseWorkflowRunId,
+        };
+
+        // The reference: the current attempt proves all four, or, within the
+        // bound, the first exact intermediate attempt in ascending order does
+        // before any intermediate attempt with drifted identity.
+        const expectedReads = ["run", `jobs ${String(currentAttempt)}`];
+        let admitted = currentPublish === "success";
+        if (!admitted && readAttemptRun && gap >= 1 && gap <= MAX_INTERMEDIATE_RELEASE_ATTEMPTS) {
+          for (const [index, attempt] of between.entries()) {
+            const shape = intermediates[index]!;
+            expectedReads.push(`attempt ${String(attempt)}`);
+            if (shape.drift !== "none") break;
+            expectedReads.push(`jobs ${String(attempt)}`);
+            if (shape.verify === "success" && shape.publish === "success" && !shape.jobAttemptDrift) {
+              admitted = true;
+              break;
+            }
+          }
+        }
+        let refusal: string | null = null;
+        try {
+          expect(exactReleaseWorkflowRun(input)).toEqual(input.value);
+        } catch (error) {
+          refusal = error instanceof Error ? error.message : String(error);
+        }
+        expect({ admitted: refusal === null, reads }).toEqual({ admitted, reads: expectedReads });
+        expect(reads.length).toBeLessThanOrEqual(2 + 2 * MAX_INTERMEDIATE_RELEASE_ATTEMPTS);
+      },
+    ));
   });
 
   test("admits a receipt attempt whose publication a later failed-jobs rerun of the same run completed", () => {

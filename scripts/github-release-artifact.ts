@@ -177,7 +177,9 @@ export async function downloadReleaseDirectory(
 /**
  * Admit the run attempt that attested a published canonical Release. When its
  * publish job failed, only a later attempt of the same run whose own four
- * canonical jobs succeeded can have completed that exact publication.
+ * canonical jobs succeeded can have completed that exact publication: the
+ * current attempt, or, when it did not publish, one of at most
+ * MAX_INTERMEDIATE_RELEASE_ATTEMPTS exact attempts between the two.
  */
 export function verifyCanonicalReleaseRun(
   runId: string,
@@ -191,6 +193,7 @@ export function verifyCanonicalReleaseRun(
     value: JSON.parse(runGh(["api", attemptPath])),
     canonicalJobs: JSON.parse(runGh(["api", `${attemptPath}/jobs?per_page=100`])),
     readCurrentRun: (): unknown => JSON.parse(runGh(["api", runPath])),
+    readAttemptRun: (attempt: number): unknown => JSON.parse(runGh(["api", `${runPath}/attempts/${String(attempt)}`])),
     readAttemptJobs: (attempt: number): unknown => JSON.parse(runGh(["api", `${runPath}/attempts/${String(attempt)}/jobs?per_page=100`])),
     verifiedSha: expected.sourceSha, verifiedTag: expected.tag, workflowRunId: runId,
     expectedRunAttempt: String(manifest.runAttempt) });

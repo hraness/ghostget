@@ -94,12 +94,21 @@ type ModelSnapshot = Readonly<{
 /**
  * The production validators, plus seeded defects that restore a pre-fix
  * form: `handoff-requires-current-attempt` binds the handoff manifest to the
- * current attempt, as the publisher did before D7 was fixed, and
+ * current attempt, as the publisher did before D7 was fixed,
  * `download-ignores-later-attempt` admits the canonical download only through
  * its receipt attempt, as it did before a failed-jobs rerun could complete a
- * publication.
+ * publication, and `recovery-ignores-intermediate-attempt` serves no attempt
+ * record between the receipt attempt and the latest attempt, so recovery
+ * cannot read one, as before D15 was fixed.
  */
-type Defect = "none" | "handoff-requires-current-attempt" | "download-ignores-later-attempt";
+type Defect = "none" | "handoff-requires-current-attempt" | "download-ignores-later-attempt"
+  | "recovery-ignores-intermediate-attempt";
+
+const PRE_D15_REFUSAL = "pre-D15 recovery reads no intermediate attempt";
+
+/** Whether `attempt` lies strictly between the Release's receipt attempt and the latest attempt. */
+const intermediateAttempt = (state: ModelSnapshot, attempt: number): boolean =>
+  attempt > state.relAttempt && attempt < state.latest;
 
 class ReplayDivergence extends Error {}
 class StubMiss extends Error {}
@@ -174,7 +183,8 @@ function invariantHolds(name: string, state: ModelSnapshot): boolean {
           || (state.relAttempt >= 1 && state.relAttempt <= state.latest && state.attested.has(coordinate(RUN, state.relAttempt))));
     case "promotionSound":
       return state.verdict !== "admitted"
-        || (state.relState === "published" && (jobsSucceeded(state, state.relAttempt, 4) || jobsSucceeded(state, state.latest, 4)));
+        || (state.relState === "published" && Array.from({ length: MAX_ATTEMPTS + 1 }, (_, attempt) => attempt)
+          .some((attempt) => attempt >= state.relAttempt && attempt <= state.latest && jobsSucceeded(state, attempt, 4)));
     case "exactHandoffPublishes": return !state.refusedExact;
     case "promotionNotBlocked": return !state.promotionBlocked;
     default: throw new Error(`unknown invariant ${name}`);
@@ -407,7 +417,7 @@ function publishedRelease(f: Fixture, state: ModelSnapshot): Json {
 }
 
 /** `resolveReleaseAuthority` over a read-only API stub serving the model's provider state. */
-async function productionPromotion(state: ModelSnapshot, mode: string): Promise<string | null> {
+async function productionPromotion(state: ModelSnapshot, mode: string, defect: Defect): Promise<string | null> {
   const f = await fixture();
   const repository = `/repos/${GITHUB_RELEASE_REPOSITORY}`;
   const runPath = `${repository}/actions/runs/${String(RUN)}`;
@@ -421,10 +431,15 @@ async function productionPromotion(state: ModelSnapshot, mode: string): Promise<
     [runPath, attemptRun(f, state, state.latest)],
   ]);
   for (let attempt = 1; attempt <= state.latest; attempt += 1) {
+    responses.set(`${runPath}/attempts/${String(attempt)}`, attemptRun(f, state, attempt));
     responses.set(`${runPath}/attempts/${String(attempt)}/jobs?per_page=100`, attemptJobs(state, attempt));
   }
   const api = {
     get: async (endpoint: string): Promise<unknown> => {
+      const attempt = /\/attempts\/([1-9][0-9]*)$/u.exec(endpoint);
+      if (defect === "recovery-ignores-intermediate-attempt" && attempt !== null && intermediateAttempt(state, Number(attempt[1]))) {
+        throw new Error(PRE_D15_REFUSAL);
+      }
       if (!responses.has(endpoint)) throw new StubMiss(`unexpected GET ${endpoint}`);
       return structuredClone(responses.get(endpoint));
     },
@@ -452,6 +467,10 @@ async function productionDownload(state: ModelSnapshot, defect: Defect): Promise
     responses.set(`${runPath}/attempts/${String(attempt)}/jobs?per_page=100`, attemptJobs(state, attempt));
   }
   const gh = (args: readonly string[]): string => {
+    const attempt = /\/attempts\/([1-9][0-9]*)$/u.exec(args[1] ?? "");
+    if (defect === "recovery-ignores-intermediate-attempt" && attempt !== null && intermediateAttempt(state, Number(attempt[1]))) {
+      throw new Error(PRE_D15_REFUSAL);
+    }
     if (args.length !== 2 || args[0] !== "api" || !responses.has(args[1]!)) throw new StubMiss(`unexpected gh ${args.join(" ")}`);
     return JSON.stringify(responses.get(args[1]!));
   };
@@ -461,7 +480,7 @@ async function productionDownload(state: ModelSnapshot, defect: Defect): Promise
       // The receipt attempt alone, without the current attempt's inventory.
       const attemptPath = `${runPath}/attempts/${String(manifest.runAttempt)}`;
       exactReleaseWorkflowRun({ repository: GITHUB_RELEASE_REPOSITORY, value: JSON.parse(gh(["api", attemptPath])),
-        canonicalJobs: JSON.parse(gh(["api", `${attemptPath}/jobs?per_page=100`])), readCurrentRun: undefined, readAttemptJobs: undefined,
+        canonicalJobs: JSON.parse(gh(["api", `${attemptPath}/jobs?per_page=100`])), readCurrentRun: undefined, readAttemptJobs: undefined, readAttemptRun: undefined,
         verifiedSha: SOURCE_SHA, verifiedTag: f.tag, workflowRunId: String(RUN), expectedRunAttempt: String(manifest.runAttempt) });
     } else {
       verifyCanonicalReleaseRun(String(RUN), manifest, { tag: f.tag, sourceSha: SOURCE_SHA }, gh);
@@ -498,7 +517,7 @@ async function replay(trace: ItfTrace, defect: Defect = "none"): Promise<void> {
         expected = after.handoff;
         break;
       case "promote":
-        refusal = await productionPromotion(after, pick(step, "mode", state.index));
+        refusal = await productionPromotion(after, pick(step, "mode", state.index), defect);
         expected = after.verdict;
         break;
       case "download":
@@ -529,6 +548,11 @@ async function divergence(trace: ItfTrace, defect: Defect = "none"): Promise<str
 const releaseModel = () => quintModel(MODEL_FILE);
 const traces = quintTraceCache(MODEL_FILE);
 
+/** Whether an attempt strictly between the receipt attempt and the latest attempt proved all four canonical jobs. */
+const intermediatePublished = (state: ModelSnapshot): boolean =>
+  Array.from({ length: MAX_ATTEMPTS + 1 }, (_, attempt) => attempt)
+    .some((attempt) => intermediateAttempt(state, attempt) && jobsSucceeded(state, attempt, 4));
+
 /** A category of recorded provider read, detailed enough to show the replay reached each production branch. */
 function coverageKey(trace: ItfTrace, position: number): string | null {
   const state = trace.states[position]!;
@@ -548,14 +572,16 @@ function coverageKey(trace: ItfTrace, position: number): string | null {
       const latestSucceeded = after.jobs[after.latest]!.every((conclusion) => conclusion === "success");
       const route = latestSucceeded ? "latest succeeded"
         : jobsSucceeded(after, after.latest, 4) ? "latest proved four"
-          : after.relAttempt < after.latest && jobsSucceeded(after, after.relAttempt, 4) ? "receipt proved four" : "unproven";
+          : after.relAttempt < after.latest && jobsSucceeded(after, after.relAttempt, 4) ? "receipt proved four"
+            : intermediatePublished(after) ? "intermediate proved four" : "unproven";
       return `promote(${mode}, ${route}, ${after.verdict})`;
     }
     case "download": {
       const m = after.relAttempt;
       const route = after.jobs[m]!.every((conclusion) => conclusion === "success") ? "receipt succeeded"
         : jobsSucceeded(after, m, 4) ? "receipt published"
-          : after.latest > m && jobsSucceeded(after, after.latest, 4) ? "later attempt published" : "unproven";
+          : after.latest > m && jobsSucceeded(after, after.latest, 4) ? "later attempt published"
+            : intermediatePublished(after) ? "intermediate attempt published" : "unproven";
       return `download(${route}, ${after.verdict})`;
     }
     default: return null;
@@ -582,6 +608,7 @@ describe("release.qnt ITF replay", () => {
       }
     }
     expect([...covered].sort()).toEqual([
+      "download(intermediate attempt published, admitted)",
       "download(later attempt published, admitted)",
       "download(receipt published, admitted)",
       "download(receipt succeeded, admitted)",
@@ -591,10 +618,12 @@ describe("release.qnt ITF replay", () => {
       "handoff(another run, attested, refused)",
       "handoff(this attempt, attested, admitted)",
       "handoff(this attempt, unattested, refused)",
+      "promote(automatic, intermediate proved four, refused)",
       "promote(automatic, latest proved four, refused)",
       "promote(automatic, latest succeeded, admitted)",
       "promote(automatic, receipt proved four, refused)",
       "promote(automatic, unproven, refused)",
+      "promote(manual, intermediate proved four, admitted)",
       "promote(manual, latest proved four, admitted)",
       "promote(manual, latest succeeded, admitted)",
       "promote(manual, receipt proved four, admitted)",
@@ -607,6 +636,8 @@ describe("release.qnt ITF replay", () => {
       /^state \d+: startAttempt production refused \(Canonical release manifest does not name the current attempt\), the model admitted$/u],
     ["download-ignores-later-attempt",
       /^state \d+: download production refused \(Release workflow run jobs Publish immutable GitHub Release job did not succeed in the receipt attempt\), the model admitted$/u],
+    ["recovery-ignores-intermediate-attempt",
+      /^state \d+: (?:promote|download) production refused \(pre-D15 recovery reads no intermediate attempt\), the model admitted$/u],
   ] as const) {
     test(`production validators with the seeded ${defect} defect diverge from the model traces`, async () => {
       const model = await releaseModel();
@@ -623,10 +654,11 @@ describe("release.qnt ITF replay", () => {
   for (const [step, invariant, pattern] of [
     ["stepD7", "exactHandoffPublishes", /^state \d+: startAttempt production admitted, the model refused$/u],
     ["stepD8", "promotionNotBlocked", /^state \d+: promote production admitted, the model refused$/u],
+    ["stepD15", "promotionNotBlocked", /^state \d+: (?:promote|download) production admitted, the model refused$/u],
     ["stepUnbound", "publishedBytesAttested",
       /^state \d+: startAttempt production refused \(Bounded read-only GitHub artifact verification failed\), the model admitted$/u],
     ["stepEarlyDownload", "promotionSound",
-      /^state \d+: download production refused \((?:Release workflow run current attempt jobs .+ job did not succeed in the current attempt|Release workflow run publication was not completed by a later attempt of the same run)\), the model admitted$/u],
+      /^state \d+: download production refused \((?:Release workflow run current attempt jobs .+ job did not succeed in the current attempt(?:, and no intermediate attempt proved the four canonical jobs)?|Release workflow run publication was not completed by a later attempt of the same run)\), the model admitted$/u],
   ] as const) {
     test(`the production validators refuse exactly the ${step} verdicts that break ${invariant}`, async () => {
       const model = await releaseModel();
