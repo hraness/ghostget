@@ -2144,7 +2144,8 @@ When creating a missing Release, the workflow pins one older immutable Latest pr
 - Property tests: `scripts/release-provider-outcome.test.ts`: “property: Latest converges only through the exact predecessor to the exact target inside twelve absolute slots and 60 seconds”
 - Assumptions: `monotonic-clock`, `github-api`, `github-enforcement`
 - Not verified:
-  - The property drives `waitForLatestRelease` with a fake API, monotonic clock, and sleeper. The per-request timeout is passed to the API; its enforcement by the production `gh` runner is not modelled.
+  - The property drives `waitForLatestRelease` with a fake API, monotonic clock, and sleeper. The production publisher's `gh api` reader ignores the per-request timeout it is passed and bounds each read only by its 120-second command timeout; a read that completes after the 60-second deadline fails closed, so the deadline bounds acceptance, not wall time.
+  - The publisher model checks that a fresh publication reads Latest as the target after its terminal authority proof, and one example test in it drives a lagging Latest projection through the production wait on a fake clock; the stateful schedules themselves project Latest immediately.
   - Pinning one older immutable predecessor rests on the example tests of `exactLatestPredecessor` in the same file.
   - How quickly GitHub's Latest projection converges is not verified; the window is a fail-closed ceiling.
 

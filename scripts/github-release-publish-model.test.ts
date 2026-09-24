@@ -52,6 +52,8 @@ type StoredRelease = {
 };
 type World = {
   releases: StoredRelease[]; latestId: number; mainSha: string; nextId: number; nextAssetId: number; clock: number;
+  // Latest reads that still return the prior projection after a publication, and the Release it then converges to.
+  latestLag: number; pendingLatestId?: number;
 };
 
 type LookupFault = "lookup-500" | "lookup-403" | "lookup-status-mismatch" | "lookup-malformed"
@@ -94,16 +96,20 @@ function initialWorld(): World {
   const predecessor: StoredRelease = { id: PREDECESSOR_ID, tag: "v0.16.11", draft: false, immutable: true, body: "historical",
     target: "c".repeat(40), name: "Ghostget v0.16.11", author: BOT, assets: [], publishedAt: "2026-09-08T01:00:00Z",
     untagged: "0".repeat(20) };
-  return { releases: [predecessor], latestId: PREDECESSOR_ID, mainSha: workflowSha, nextId: 100, nextAssetId: 1000, clock: 0 };
+  return { releases: [predecessor], latestId: PREDECESSOR_ID, mainSha: workflowSha, nextId: 100, nextAssetId: 1000, clock: 0, latestLag: 0 };
 }
 
 type Write = { kind: "create" | "upload" | "publish"; releaseId: number };
-type Outcome = { error: unknown; writes: Write[]; violations: string[]; downloadsSinceLastWrite: Set<number>; lookupExact404: boolean };
+// The ordered writes, ref-authority proofs, and Latest reads of one invocation.
+type Event = { kind: "write" } | { kind: "authority"; phase: string; ok: boolean } | { kind: "latest"; id: number };
+type Outcome = {
+  error: unknown; writes: Write[]; violations: string[]; downloadsSinceLastWrite: Set<number>; lookupExact404: boolean; events: Event[];
+};
 
 // One publisher invocation against the shared world. Laws that must hold at the
 // instant of each write are checked inside the fake and recorded as violations.
 async function invoke(world: World, attempt: Attempt, fault: Fault): Promise<Outcome> {
-  const violations: string[] = []; const writes: Write[] = [];
+  const violations: string[] = []; const writes: Write[] = []; const events: Event[] = [];
   let downloadsSinceLastWrite = new Set<number>();
   let lastCall: { authorityOk: boolean; main: string } | undefined;
   let lookupExact404 = false; let authorityCalls = 0; let mainReads = 0; let writeCount = 0;
@@ -128,7 +134,7 @@ async function invoke(world: World, attempt: Attempt, fault: Fault): Promise<Out
     }
     return "apply";
   };
-  const recordWrite = (write: Write): void => { writes.push(write); downloadsSinceLastWrite = new Set(); scanSinceLastWrite = false; };
+  const recordWrite = (write: Write): void => { writes.push(write); events.push({ kind: "write" }); downloadsSinceLastWrite = new Set(); scanSinceLastWrite = false; };
   // GitHub has no conditional create or publish, so a Release that completes after
   // the census read and before the write is outside this law; the terminal
   // postcondition below covers it.
@@ -140,6 +146,7 @@ async function invoke(world: World, attempt: Attempt, fault: Fault): Promise<Out
 
   const run = (args: readonly string[], input?: string): { status: number; stdout: string } => {
     const result = dispatch(args, input);
+    if (args[0] === "node") events.push({ kind: "authority", phase: String(args[3]), ok: result.status === 0 });
     lastCall = args[0] === "node" ? { authorityOk: result.status === 0 && args[3] === "publication-prewrite", main: String(args[6]) }
       : { authorityOk: false, main: "" };
     return result;
@@ -220,7 +227,14 @@ async function invoke(world: World, attempt: Attempt, fault: Fault): Promise<Out
         if (fault.kind === "concurrent-higher" && fault.at === mainReads) publishHigher(world, "published-not-latest");
         return ok({ ref: "refs/heads/main", object: { type: "commit", sha: current } });
       }
-      if (endpoint === `${prefix}/releases/latest`) return ok(releaseJson(world.releases.find(release => release.id === world.latestId)!));
+      if (endpoint === `${prefix}/releases/latest`) {
+        if (world.pendingLatestId !== undefined) {
+          if (world.latestLag > 0) world.latestLag -= 1;
+          else { world.latestId = world.pendingLatestId; world.pendingLatestId = undefined; }
+        }
+        events.push({ kind: "latest", id: world.latestId });
+        return ok(releaseJson(world.releases.find(release => release.id === world.latestId)!));
+      }
       if (endpoint === `${prefix}/releases/tags/${tag}`) { const found = byTagPublished(); return found === undefined ? notFound : ok(releaseJson(found)); }
       const byId = /^\/repos\/hraness\/ghostget\/releases\/([1-9][0-9]*)$/u.exec(endpoint);
       if (byId !== null) {
@@ -273,7 +287,8 @@ async function invoke(world: World, attempt: Attempt, fault: Fault): Promise<Out
       if (outcome === "crash") return { status: 1, stdout: "" };
       world.clock += 1;
       Object.assign(target, { draft: false, immutable: true, publishedAt: timestamp(world.clock) });
-      world.latestId = target.id;
+      if (world.latestLag > 0) world.pendingLatestId = target.id;
+      else world.latestId = target.id;
       recordWrite({ kind: "publish", releaseId: target.id });
       return outcome === "apply" ? ok(releaseJson(target)) : { status: 1, stdout: "" };
     }
@@ -297,7 +312,28 @@ async function invoke(world: World, attempt: Attempt, fault: Fault): Promise<Out
   try {
     await publishCanonicalRelease(attempt.directory, attempt.manifest, run, (asset, current) => downloadReleaseAsset(asset, current, binary));
   } catch (caught) { error = caught; }
-  return { error, writes, violations, downloadsSinceLastWrite, lookupExact404 };
+  return { error, writes, violations, downloadsSinceLastWrite, lookupExact404, events };
+}
+
+// Success needs a successful terminal `publication-postwrite` proof after every
+// write and an exact Latest read naming the target. A fresh publication reads
+// Latest again after that terminal proof; an already completed Release gets its
+// one immediate Latest check before it.
+function expectTerminalLatestAndAuthority(outcome: Outcome, targetId: number): void {
+  const { events } = outcome;
+  const lastIndex = (match: (event: Event) => boolean): number => events.findLastIndex(match);
+  const lastWrite = lastIndex(event => event.kind === "write");
+  const terminal = lastIndex(event => event.kind === "authority" && event.phase === "publication-postwrite" && event.ok);
+  expect(terminal).toBeGreaterThan(lastWrite);
+  const targetLatest = events.flatMap((event, index) => event.kind === "latest" && event.id === targetId ? [index] : []);
+  if (outcome.writes.some(write => write.kind === "publish")) {
+    expect(targetLatest.some(index => index > terminal)).toBe(true);
+  } else {
+    expect(targetLatest.some(index => index > lastWrite && index < terminal)).toBe(true);
+  }
+  // The last Latest read the publisher made named the target.
+  const lastLatest = lastIndex(event => event.kind === "latest");
+  expect(events[lastLatest]).toEqual({ kind: "latest", id: targetId });
 }
 
 // A state from which a fault-free invocation of this attempt must complete.
@@ -365,6 +401,7 @@ class Publish implements fc.AsyncCommand<Model, Real> {
         expect(asset.bytes.equals(attempt.files.get(asset.name)!)).toBe(true);
         expect(outcome.downloadsSinceLastWrite.has(asset.id)).toBe(true);
       }
+      expectTerminalLatestAndAuthority(outcome, target.id);
     } else if (live) {
       throw new Error(`fault-free ${this.key} invocation from a resumable state failed: ${String(outcome.error)}`);
     }
@@ -511,6 +548,34 @@ describe("canonical GitHub publisher stateful model", () => {
     expect(String(raced.error)).toContain("is not newer than v0.17.1");
     const rerun = await invoke(world, attempts.get("R1")!, { kind: "none" });
     expect(rerun.error).toBeDefined(); expect(rerun.writes).toEqual([]);
+  });
+
+  test("a lagging Latest projection converges through the bounded wait and the terminal read", async () => {
+    // GitHub may keep projecting the predecessor as Latest for a few reads after
+    // the PATCH. The production wait sleeps on the real timer; a fake monotonic
+    // clock advanced by each requested sleep keeps this test instant.
+    const world = initialWorld(); world.latestLag = 3;
+    const realNow = performance.now; const realSetTimeout = globalThis.setTimeout;
+    let now = 1_000;
+    const sleeps: number[] = [];
+    performance.now = () => now;
+    globalThis.setTimeout = ((callback: () => void, milliseconds?: number) => {
+      sleeps.push(milliseconds ?? 0); now += milliseconds ?? 0;
+      return realSetTimeout(callback, 0);
+    }) as typeof setTimeout;
+    let outcome: Outcome;
+    try {
+      outcome = await invoke(world, attempts.get("R1")!, { kind: "none" });
+    } finally {
+      performance.now = realNow; globalThis.setTimeout = realSetTimeout;
+    }
+    expect(outcome.violations).toEqual([]);
+    expect(outcome.error).toBeUndefined();
+    expect(sleeps).toEqual([5_000, 5_000, 5_000]);
+    const latest = outcome.events.flatMap(event => event.kind === "latest" ? [event.id] : []);
+    const target = world.releases.find(release => release.tag === tag && !release.draft)!;
+    expect(latest).toEqual([PREDECESSOR_ID, PREDECESSOR_ID, PREDECESSOR_ID, PREDECESSOR_ID, target.id, target.id]);
+    expectTerminalLatestAndAuthority(outcome, target.id);
   });
 
   test("an interrupted upload left in the starter state is preserved and never replaced", async () => {
