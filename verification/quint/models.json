@@ -32,7 +32,9 @@
       "apalache": { "length": 8 },
       "mutants": [
         { "step": "stepHashKeyed", "invariant": "fenceSafety" },
-        { "step": "stepCallerRelease", "invariant": "fenceSafety" }
+        { "step": "stepCallerRelease", "invariant": "fenceSafety" },
+        { "step": "stepUnelected", "invariant": "fenceSafety" },
+        { "step": "stepElectInFlight", "invariant": "fenceSafety" }
       ],
       "replay": {
         "test": "scripts/verification-fence-replay.test.ts",

@@ -8,14 +8,14 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 241 claims: 175 evidenced, 47 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 241 claims: 176 evidenced, 46 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 141 | 2 | 0 |
 | property test | 14 | 1 | 0 |
 | stateful model | 2 | 13 | 0 |
-| Quint model with production trace replay | 8 | 29 | 0 |
+| Quint model with production trace replay | 9 | 28 | 0 |
 | Lean proof with differential test | 7 | 1 | 0 |
 | differential oracle | 3 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
@@ -1081,20 +1081,23 @@ For every intent (account realm, provider target, operation id, canonical input)
 - Evidence: `scripts/verification-fence-replay.test.ts`, `src/confirmed-write-intent-fence.test.ts`, `src/run-journal.property.test.ts`, `src/run-journal.test.ts`, `src/runtime.test.ts`, `verification/quint/fence.qnt`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified:
-  - The fence model has no duplicate-risk successors, so it checks at most one dispatch per intent, not the full 1 + duplicate-successors bound.
-  - The model is bounded: three runs of one intent, one reconnect, one manifest upgrade, 5,000 simulated samples of up to 12 steps, and Apalache to length 8.
-  - The replay drives the pure fence cores (`intentFenceBlocker`, `intentLedgerPath`, `transitionRunJournal`, `priorRunDisposition`, `reconciledRecoveryRelease`) with an in-memory ledger and journal store; the file-backed `acquireIntentLedger`, the state helper, the hash-keyed ledger, receipts, and recovery capsules are covered only by the listed example tests.
+  - The model is bounded: three runs of one intent, one reconnect, one manifest upgrade, one duplicate-risk successor per source run (a successor may itself be a source), 5,000 simulated samples of up to 12 steps, and Apalache to length 8.
+  - The replay drives the pure fence cores with an in-memory store, and the file-backed state layer on a real state home: `createRunJournal`, `updateRunJournal`, `listRunJournalSnapshots`, `acquireConfirmedWriteLedgers` (the intent ledger, then the hash-keyed ledger), `repairInterruptedRunJournals` with its receipt and ledger projection, and `releaseReconciledRunRecovery`. It does not run the `confirmInvocation` program, so plan validation, recovery capsules, and `claimDuplicateRiskSource`'s receipt, capsule, and ledger rechecks are covered only by the listed example tests.
+  - Owner acceptance of the duplicate risk, the preview's successor check, and a successor whose election fails at its dispatch boundary are not modelled; the model disables that dispatch, and the listed example tests cover production failing the run before any request.
   - The dedupe window's expiry, partial multi-dispatch runs, and journals from before the intent fence are not modelled.
 
 #### `indeterminate-never-retried`
 
 An indeterminate (post-dispatch uncertain) mutation is never retried; a lost acknowledgement never permits another remote submission.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “Never retry or clear an indeterminate dispatch”
-- Evidence: `src/control/gateway.test.ts`, `src/derive.test.ts`, `src/imessage-direct-plugin.test.ts`, `src/linked-device-lifecycle-journal.test.ts`, `src/linked-device-lifecycle-runtime.test.ts`, `src/portable-run-recovery.test.ts`, `src/run-journal.property.test.ts`, `src/runtime.test.ts`
+- Evidence: `scripts/verification-fence-replay.test.ts`, `src/confirmed-write-intent-fence.test.ts`, `src/control/gateway.test.ts`, `src/derive.test.ts`, `src/imessage-direct-plugin.test.ts`, `src/linked-device-lifecycle-journal.test.ts`, `src/linked-device-lifecycle-runtime.test.ts`, `src/portable-run-recovery.test.ts`, `src/run-journal.property.test.ts`, `src/runtime.test.ts`, `verification/quint/fence.qnt`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The fence model checks the confirmed-write path (`posts.publish`-shaped R3 web-session writes with one planned dispatch): no intent is dispatched twice, and a later dispatch of the same effect is only an elected duplicate-risk successor of an indeterminate source. It is bounded to three runs, one reconnect, one manifest upgrade, 5,000 simulated samples of up to 12 steps, and Apalache to length 8.
+  - The replay drives the fence cores and the file-backed journal, ledger, repair, and reconciliation layer, not the `confirmInvocation` program, the provider transports, or owner acceptance of the duplicate risk.
+  - Linked-device lifecycle, local CLI, iMessage, derive, and control-gateway paths, and partial multi-dispatch runs, are covered only by the listed example and property tests.
 
 #### `indeterminate-cleared-only-by-evidence`
 
@@ -1105,7 +1108,7 @@ An indeterminate dispatch fence is released only from separately obtained exact 
 - Evidence: `scripts/verification-fence-replay.test.ts`, `src/ghostget.test.ts`, `src/portable-run-recovery.test.ts`, `src/provider-plugin-portable-runtime.test.ts`, `src/provider-plugin-reconciliation.property.test.ts`, `src/run-journal.test.ts`, `src/web-session-recovery.test.ts`, `verification/quint/fence.qnt`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified:
-  - The fence model abstracts the evidence: one reconcile action stands for applied plugin readback or owner approval, and the replay checks only that `reconciledRecoveryRelease` and `transitionRunJournal` settle a reconciled run and keep its ledger.
+  - The fence model abstracts the evidence: one reconcile action stands for applied plugin readback or owner approval. The in-memory replay checks that `reconciledRecoveryRelease` and `transitionRunJournal` settle a reconciled run and keep its ledger; the file-backed replay settles it through `releaseReconciledRunRecovery`. That a source with an elected successor keeps its recovery material is covered only by the listed example tests.
   - The replay does not call `recordNotAppliedClaim`: its not-applied action changes no journal in the replay world, so that `recordNotAppliedClaim` releases nothing is covered only by the listed example tests.
   - The web-session reconciler and the CLI and portable parsers of reconciliation input are covered only by the listed example and property tests.
   - Terminalizing a run from supplied evidence says nothing about provider liveness.

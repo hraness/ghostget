@@ -1645,14 +1645,26 @@
 // 6b1701acb53e452e8ada70e02c2f497535a7fdae32276cbd015723f2f817680d. Carry the
 // same projections and allowances: 11,998,420 + 12,387 + 4,096 = 12,014,903
 // packed; 23,447,236 + 353 + 65 = 23,447,654 unpacked.
+// The fence model's file-backed replay moves the confirmed-write platform's
+// intent-then-hash-keyed ledger claim into an exported
+// acquireConfirmedWriteLedgers in runtime.ts, and exports the hash-keyed
+// ledger path as confirmedWriteLedgerPath, so the replay drives the same
+// composition that confirmation calls. The Quint model and its replay test
+// stay outside the package. This adds 575 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on
+// darwin arm64 were byte-identical at 11,998,599 packed bytes, 23,447,811
+// unpacked bytes; archive SHA-256
+// 6b7ed170c14496e289a665f43bdd8cc39ccca9d42f61c037076accf6cb2e3fed. Carry the
+// same projections and allowances: 11,998,599 + 12,387 + 4,096 = 12,015,082
+// packed; 23,447,811 + 353 + 65 = 23,448,229 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "D14 read-path auth checks through the incarnation read capability",
+  scope: "Fence replay through the confirmed-write ledger composition",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "6b1701acb53e452e8ada70e02c2f497535a7fdae32276cbd015723f2f817680d",
-  packedBytes: 11_998_420,
-  unpackedBytes: 23_447_236,
+  archiveSha256: "6b7ed170c14496e289a665f43bdd8cc39ccca9d42f61c037076accf6cb2e3fed",
+  packedBytes: 11_998_599,
+  unpackedBytes: 23_447_811,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

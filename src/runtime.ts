@@ -3067,7 +3067,8 @@ function isDispatchProgress(value: unknown): value is RunReceipt["dispatch"] {
     && verified <= started;
 }
 
-function ledgerPath(
+/** @internal Exported for the fence model's trace replay. */
+export function confirmedWriteLedgerPath(
   adapterHash: string,
   authHashValue: string,
   operationId: string,
@@ -3336,6 +3337,29 @@ function acquireIntentLedger(
     throw new Error("idempotency intent ledger belongs to a different intent");
   }
   return { acquired: false, existing, viaIntent: true };
+}
+
+/**
+ * Claim the intent fence, then the hash-keyed ledger, as one confirmed write
+ * does before it may dispatch. A refusal from either names the entry that
+ * holds the scope.
+ *
+ * @internal Exported for the confirmed-write platform and the fence model's
+ * trace replay.
+ */
+export function acquireConfirmedWriteLedgers(
+  request: {
+    readonly path: string;
+    readonly entry: LedgerEntry;
+    readonly alternatePaths?: readonly string[];
+    readonly intent: ConfirmedWriteIntent;
+  },
+  environment: Readonly<Record<string, string | undefined>>,
+  now: Date,
+): ReturnType<typeof acquireLedger> | ReturnType<typeof acquireIntentLedger> {
+  const fenced = acquireIntentLedger(request.intent, request.entry, environment, now);
+  if (!fenced.acquired) return fenced;
+  return acquireLedger(request.path, request.entry, environment, now, request.alternatePaths ?? []);
 }
 
 function updateLedger(
@@ -3646,7 +3670,7 @@ function matchingJournalLedgers(
       ? [snapshot]
       : [];
   }
-  const base = ledgerPath(
+  const base = confirmedWriteLedgerPath(
     journal.adapter.hash,
     journal.auth.hash,
     journal.operation,
@@ -4981,9 +5005,8 @@ async function confirmInvocationCore(
     planDigestHasRetainingJournal,
     validateFreshPlan,
     isDispatchProgress,
-    ledgerPath,
-    acquireLedger,
-    acquireIntentLedger,
+    ledgerPath: confirmedWriteLedgerPath,
+    acquireConfirmedWriteLedgers,
     writeReceipt,
     runJournalReceipt,
     relativeStatePath,
