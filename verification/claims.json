@@ -1040,9 +1040,9 @@
         "quote": "keep clocks and randomness injected"
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
+        "src/control/approval-broker-clock.model.test.ts",
         "src/control/approval-broker.test.ts",
         "src/control/gateway.test.ts",
         "src/effect-architecture.test.ts",
@@ -1053,7 +1053,15 @@
         "monotonic-clock"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The stateful model covers the approval broker's pending requests and allow-once grants: their expiry follows only the injected monotonic clock across wall-clock jumps of up to ten days either way, applied to both the injected wall clock and the ambient `Date.now()`. Other lifecycle reducers, such as the portable plugin invocation leases and the linked-device lifecycle journal, are not modelled under clock jumps; they rely on their example and property tests and on the effect-architecture rule that rejects ambient clocks and randomness in checked modules.",
+        "The default monotonic clock is `performance.now()`; the model injects it and does not check that the platform clock is itself monotonic, which is the `monotonic-clock` assumption.",
+        "Injected randomness is covered only by the effect-architecture ambient-random rule, not by a model."
+      ],
+      "properties": [
+        {
+          "path": "src/control/approval-broker-clock.model.test.ts",
+          "test": "property: pending requests and allow-once grants expire by the injected monotonic clock alone, whatever the wall clock does"
+        }
       ]
     },
     {

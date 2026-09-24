@@ -8,13 +8,13 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 244 claims: 183 evidenced, 42 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 244 claims: 184 evidenced, 41 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 143 | 2 | 0 |
 | property test | 15 | 1 | 0 |
-| stateful model | 4 | 11 | 0 |
+| stateful model | 5 | 10 | 0 |
 | Quint model with production trace replay | 11 | 26 | 0 |
 | Lean proof with differential test | 7 | 1 | 0 |
 | differential oracle | 3 | 1 | 0 |
@@ -2275,11 +2275,15 @@ Every fast-check property runs through assertProperty or assertAsyncProperty, so
 
 Consequential lifecycle reducers take injected clocks and randomness; wall-clock jumps cannot extend or prematurely expire leases or proofs.
 
-- Planned: stateful model in plan Phase 2.
+- Evidenced by stateful model.
 - Source: `AGENTS.md`: “keep clocks and randomness injected”
-- Evidence: `src/control/approval-broker.test.ts`, `src/control/gateway.test.ts`, `src/effect-architecture.test.ts`, `src/linked-device-lifecycle-journal.property.test.ts`
+- Evidence: `src/control/approval-broker-clock.model.test.ts`, `src/control/approval-broker.test.ts`, `src/control/gateway.test.ts`, `src/effect-architecture.test.ts`, `src/linked-device-lifecycle-journal.property.test.ts`
+- Property tests: `src/control/approval-broker-clock.model.test.ts`: “property: pending requests and allow-once grants expire by the injected monotonic clock alone, whatever the wall clock does”
 - Assumptions: `bun-runtime`, `monotonic-clock`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The stateful model covers the approval broker's pending requests and allow-once grants: their expiry follows only the injected monotonic clock across wall-clock jumps of up to ten days either way, applied to both the injected wall clock and the ambient `Date.now()`. Other lifecycle reducers, such as the portable plugin invocation leases and the linked-device lifecycle journal, are not modelled under clock jumps; they rely on their example and property tests and on the effect-architecture rule that rejects ambient clocks and randomness in checked modules.
+  - The default monotonic clock is `performance.now()`; the model injects it and does not check that the platform clock is itself monotonic, which is the `monotonic-clock` assumption.
+  - Injected randomness is covered only by the effect-architecture ambient-random rule, not by a model.
 
 ### `storage` (13 claims)
 
