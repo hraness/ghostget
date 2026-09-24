@@ -1769,6 +1769,25 @@ export function mediaFullSyncAvailable(): boolean {
   return darwinFullSync() !== null;
 }
 
+/**
+ * Reports whether `F_FULLFSYNC` itself flushed one file or directory, with no
+ * `fsync` fallback. It never follows a symbolic link.
+ */
+export async function mediaFullSyncSucceeds(path: string): Promise<boolean> {
+  const fullSync = darwinFullSync();
+  if (fullSync === null) return false;
+  const directory = (await lstat(path)).isDirectory();
+  const handle = await open(
+    path,
+    constants.O_RDONLY | constants.O_NOFOLLOW | (directory ? constants.O_DIRECTORY : 0),
+  );
+  try {
+    return fullSync(handle.fd);
+  } finally {
+    await handle.close();
+  }
+}
+
 async function syncHandle(handle: FileHandle): Promise<void> {
   const fullSync = darwinFullSync();
   if (fullSync !== null && fullSync(handle.fd)) return;

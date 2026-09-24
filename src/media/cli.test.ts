@@ -136,6 +136,7 @@ function dependencies(overrides: Partial<MediaCliDependencies> = {}): MediaCliDe
     mediaUrl: () => Promise.resolve({ status: "created", itemDirectory: "/tmp/wrench-media/youtube/abc", manifest, warnings: [] }),
     runDoctor: () => Promise.resolve({ ok: true, checks: [], warnings: [], errors: [], capabilities: { directHttp: true, acquisition: true, mediaSeparation: true, javascriptRuntime: false, localTranscription: false } }),
     verifyMediaItem: (itemDirectory) => Promise.resolve({ ok: true, itemDirectory, assetKey: "youtube-abc", checkedArtifacts: 0, failures: [] }),
+    inspectMediaQuarantine: () => Promise.reject(new Error("unused")),
     setupWhisperCppTranscriber: () => Promise.resolve(readyTranscriber()),
     ...overrides,
   };

@@ -1,6 +1,7 @@
-import { constants as fsConstants } from "node:fs";
+import { dlopen, ptr } from "bun:ffi";
+import { constants as fsConstants, readFileSync } from "node:fs";
 import { access, stat } from "node:fs/promises";
-import { homedir } from "node:os";
+import { constants as osConstants, homedir } from "node:os";
 import { delimiter, join } from "node:path";
 
 const DEFAULT_STDOUT_LIMIT_BYTES = 16 * 1024 * 1024;
@@ -166,6 +167,7 @@ const defaultProcessDependencies: ProcessDependencies = {
       stdout: "pipe",
       stderr: "pipe",
     });
+    if (grouped) trackProcessGroup(child.pid, child.exited);
     return {
       stdout: child.stdout,
       stderr: child.stderr,
@@ -671,6 +673,130 @@ function signalProcessGroup(pid: number, signal: ProcessSignal): void {
     // ESRCH means every member of the group has already exited.
     if (!(typeof error === "object" && error !== null && "code" in error && error.code === "ESRCH")) throw error;
   }
+}
+
+/**
+ * A detached group does not receive the terminal's signals and is not killed
+ * when Ghostget dies, so Ghostget must stop every active group when it ends.
+ * The handlers exist only while a group is active.
+ */
+const PARENT_TERMINATION_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
+type ParentTerminationSignal = (typeof PARENT_TERMINATION_SIGNALS)[number];
+
+const activeProcessGroups = new Set<number>();
+const parentSignalHandlers = new Map<ParentTerminationSignal, () => void>();
+
+function trackProcessGroup(pid: number, exited: Promise<number>): void {
+  if (!Number.isSafeInteger(pid) || pid <= 1) return;
+  activeProcessGroups.add(pid);
+  if (activeProcessGroups.size === 1) installParentHandlers();
+  // Forget the group as soon as its leader is reaped, so a later sweep cannot
+  // reach a reused process ID. Members that outlive the leader keep the group
+  // ID reserved, and cancellation still sweeps them.
+  const forget = (): void => {
+    activeProcessGroups.delete(pid);
+    if (activeProcessGroups.size === 0) removeParentHandlers();
+  };
+  exited.then(forget, forget);
+}
+
+/** Sends one SIGKILL to each active group. It never waits, so exit stays bounded. */
+function killActiveProcessGroups(): void {
+  for (const pid of activeProcessGroups) {
+    try {
+      signalProcessGroup(pid, "SIGKILL");
+    } catch {
+      // A group that cannot be signalled is not one this process can stop.
+    }
+  }
+}
+
+function onParentExit(): void {
+  killActiveProcessGroups();
+}
+
+/**
+ * Signals this process inherited as ignored, read once before any handler here
+ * is installed. `nohup` ignores SIGHUP, and a JavaScript listener would replace
+ * that ignore, and removing the listener restores the default action rather
+ * than the ignore. So Ghostget never listens for an inherited-ignored signal.
+ */
+let inheritedIgnoredSignals: ReadonlySet<ParentTerminationSignal> | undefined;
+
+function signalsIgnoredAtStart(): ReadonlySet<ParentTerminationSignal> {
+  if (inheritedIgnoredSignals !== undefined) return inheritedIgnoredSignals;
+  const ignored = new Set<ParentTerminationSignal>();
+  for (const signal of PARENT_TERMINATION_SIGNALS) {
+    // A signal someone already listens for no longer shows its inherited
+    // disposition. Ghostget listens for SIGINT and SIGTERM itself.
+    if (process.listenerCount(signal) === 0 && signalIsIgnored(osConstants.signals[signal])) ignored.add(signal);
+  }
+  inheritedIgnoredSignals = ignored;
+  return ignored;
+}
+
+type SignalActionReader = (signal: number, buffer: Uint8Array) => boolean;
+let cachedSignalActionReader: SignalActionReader | null | undefined;
+
+function darwinSignalActionReader(): SignalActionReader | null {
+  if (cachedSignalActionReader !== undefined) return cachedSignalActionReader;
+  try {
+    const library = dlopen("/usr/lib/libSystem.B.dylib", {
+      sigaction: { args: ["int", "ptr", "ptr"], returns: "int" },
+    } as const);
+    cachedSignalActionReader = (signal, buffer) => library.symbols.sigaction(signal, null, ptr(buffer)) === 0;
+  } catch {
+    cachedSignalActionReader = null;
+  }
+  return cachedSignalActionReader;
+}
+
+/** Reads whether one signal's current disposition is SIG_IGN. Unknown reads as not ignored. */
+function signalIsIgnored(signalNumber: number): boolean {
+  try {
+    if (process.platform === "linux") {
+      const line = readFileSync("/proc/self/status", "utf8").split("\n").find((entry) => entry.startsWith("SigIgn:"));
+      if (line === undefined) return false;
+      return ((BigInt(`0x${line.slice("SigIgn:".length).trim()}`) >> BigInt(signalNumber - 1)) & 1n) === 1n;
+    }
+    if (process.platform === "darwin") {
+      const reader = darwinSignalActionReader();
+      // The handler is the first, pointer-sized field of struct sigaction.
+      const buffer = new Uint8Array(64);
+      if (reader === null || !reader(signalNumber, buffer)) return false;
+      return new DataView(buffer.buffer).getBigUint64(0, true) === 1n; // SIG_IGN
+    }
+  } catch {
+    // An unreadable disposition keeps the handler, which is the safer default.
+  }
+  return false;
+}
+
+function installParentHandlers(): void {
+  const ignored = signalsIgnoredAtStart();
+  for (const signal of PARENT_TERMINATION_SIGNALS) {
+    if (ignored.has(signal)) continue;
+    const handler = (): void => {
+      // Another listener, such as the Ghostget process boundary, owns this
+      // signal and cancels runs gracefully. Leave the groups to that path.
+      if (process.listenerCount(signal) > 1) return;
+      // With no other listener the default action would end this process.
+      // Stop the groups, restore the default action, and signal again.
+      killActiveProcessGroups();
+      removeParentHandlers();
+      process.kill(process.pid, signal);
+    };
+    parentSignalHandlers.set(signal, handler);
+    // Run first, so a once-listener is still counted when this handler looks.
+    process.prependListener(signal, handler);
+  }
+  process.on("exit", onParentExit);
+}
+
+function removeParentHandlers(): void {
+  for (const [signal, handler] of parentSignalHandlers) process.removeListener(signal, handler);
+  parentSignalHandlers.clear();
+  process.removeListener("exit", onParentExit);
 }
 
 function safelyKill(child: SpawnedProcess, signal: ProcessSignal): void {
