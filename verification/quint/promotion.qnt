@@ -49,6 +49,7 @@ module promotion {
   )
   pure val FAULTS: Set[str] = Set("main", "ref", "tag", "latest", "marker", "drift", "failure")
   pure val PROGRESS: Set[str] = Set("build", "expose")
+  pure val DRIFTS: Set[str] = Set("ref", "status", "marker", "latest", "route", "tag", "release", "source", "inventory")
 
   type Env = {
     main: int,
@@ -63,7 +64,10 @@ module promotion {
     // "third" (any other identity).
     marker: str,
     // "none", or the readback that changes between the confirmation's two
-    // terminal readbacks: "ref", "status", "marker", "latest", or "route".
+    // terminal readbacks: the production ref ("ref"), the candidate's status
+    // history ("status"), the apex marker ("marker"), Latest ("latest"), a
+    // health route ("route"), the tag commit ("tag"), the Release ("release"),
+    // protected main ("source"), or the Production inventory ("inventory").
     drift: str,
   }
 
@@ -268,14 +272,21 @@ module promotion {
     ghost' = ghost,
   }
 
+  pure def lateFault(roll: int, kind: str): str =
+    if (roll == 1) "drift" else if (roll == 2) "marker" else kind
+
   // Faults are rarer than progress so that seeded traces also reach success.
+  // After the write, roll 1 draws a confirmation drift and roll 2 a marker
+  // fault, so that seeded traces also reach every drift kind and marker case.
+  // The roll only weights the simulator's sampling: every fault stays enabled
+  // on every roll-0 step, so the reachable states are the same.
   action stepWith(v: str): bool = {
     nondet roll = 0.to(3).oneOf()
     nondet kind = FAULTS.oneOf()
     nondet m = Set(3, 4, 5, 6).oneOf()
     nondet r = Set(2, 5).oneOf()
     nondet mk = Set("base", "targetAlt", "third").oneOf()
-    nondet d = Set("ref", "status", "marker", "latest", "route").oneOf()
+    nondet d = DRIFTS.oneOf()
     nondet pick = PROGRESS.oneOf()
     any {
       authority(v),
@@ -284,7 +295,7 @@ module promotion {
       write(v),
       poll(v),
       vercel(pick),
-      all { roll == 0, fault(kind, m, r, mk, d) },
+      all { roll == 0 or (ghost.wrote and roll <= 2), fault(lateFault(roll, kind), m, r, mk, d) },
       done,
     }
   }
