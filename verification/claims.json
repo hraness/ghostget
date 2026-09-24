@@ -2564,7 +2564,8 @@
         "src/runtime.test.ts",
         "src/state-crash-harness.fixture.ts",
         "src/state-crash-harness.test.ts",
-        "src/state-crash-port.test-support.ts"
+        "src/state-crash-port.test-support.ts",
+        "src/state-crash-preload.test-support.ts"
       ],
       "assumptions": [
         "filesystem-durability",
@@ -2575,6 +2576,7 @@
         "Crashes land only on the state and path helpers' filesystem effects. Writes the runtime process makes directly, such as the provider-effect ground truth, are outside the crash port.",
         "Power loss is modelled by the port, not observed: it rolls back, newest first, created, linked, renamed, and unlinked entries whose directory was not fsynced after the effect, and truncates data not fsynced after its write. Directory tree removals are treated as durable when they return, and a real filesystem may keep or lose unsynced effects in other combinations.",
         "One runtime process mutates the state at a time; concurrent confirmations under crash are not modelled here.",
+        "The harness checks outcomes: no crossing repeats, none is forgotten, and a crossing leaves a durable started journal. It does not check separately that each named record (claim, plan consumption, receipt, ledger, capsule) was durable, and it re-confirms with a freshly saved plan, so replaying a consumed plan digest after a crash is not exercised.",
         "That dispatch is refused when the recovery capsule cannot be stored rests on the listed example tests only."
       ],
       "properties": [
@@ -2962,7 +2964,8 @@
       "evidence": [
         "src/state-crash-harness.fixture.ts",
         "src/state-crash-harness.test.ts",
-        "src/state-crash-port.test-support.ts"
+        "src/state-crash-port.test-support.ts",
+        "src/state-crash-preload.test-support.ts"
       ],
       "assumptions": [
         "filesystem-atomic-rename",

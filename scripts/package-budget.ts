@@ -1556,24 +1556,25 @@
 // f2c9be480d9ffe8aa7ae642af2523491745987ee9bed58b66d37f7d2f4d6c4ed. Carry the
 // same projections and allowances: 11,992,902 + 12,387 + 4,096 = 12,009,385
 // packed; 23,424,993 + 353 + 65 = 23,425,411 unpacked.
-// The crash harness routes every durable effect of the state and path helpers
-// through one destructured fs port, which only a test crash plan replaces, and
-// passes that plan to the helpers under NODE_ENV=test. The port, fixture, and
-// harness stay outside the package. This adds 1,315 payload bytes over the
+// The crash harness adds one test-only branch to storage: under
+// NODE_ENV=test with a crash plan, it passes the plan and a Bun preload that
+// swaps the helpers' durable node:fs effects for a crash port. The shipped
+// state and path helpers are unchanged, and the port, preload, fixture, and
+// harness stay outside the package. This adds 1,215 payload bytes over the
 // unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with npm
-// 11.19.0 on darwin arm64 were byte-identical at 11,993,246 packed bytes,
-// 23,426,308 unpacked bytes; archive SHA-256
-// c5a61530adfe69f875d41df4db4885af3268f5214822f12d237482030b043d69. Carry the
-// same projections and allowances: 11,993,246 + 12,387 + 4,096 = 12,009,729
-// packed; 23,426,308 + 353 + 65 = 23,426,726 unpacked.
+// 11.19.0 on darwin arm64 were byte-identical at 11,992,926 packed bytes,
+// 23,426,208 unpacked bytes; archive SHA-256
+// bb028d8f297f2ae98c7e31eb98aa00b691b949585a721c40f01a4307c328d563. Carry the
+// same projections and allowances: 11,992,926 + 12,387 + 4,096 = 12,009,409
+// packed; 23,426,208 + 353 + 65 = 23,426,626 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Crash harness: the state and path helpers take their durable fs effects from a test-replaceable port",
+  scope: "Crash harness: storage passes a test-only crash preload to the state and path helpers",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "c5a61530adfe69f875d41df4db4885af3268f5214822f12d237482030b043d69",
-  packedBytes: 11_993_246,
-  unpackedBytes: 23_426_308,
+  archiveSha256: "bb028d8f297f2ae98c7e31eb98aa00b691b949585a721c40f01a4307c328d563",
+  packedBytes: 11_992_926,
+  unpackedBytes: 23_426_208,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

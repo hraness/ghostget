@@ -434,14 +434,21 @@ class CrashConfirmAgain implements AsyncCommand<ConfirmModel, ConfirmReal> {
     const intent = model.intents[this.pick % model.intents.length]!;
     const digest = savedPlan(real.space, intent.body);
     intent.digests.push(digest);
-    await runFixture(real.space, {
+    const request: CrashHarnessRequest = {
       scenario: "confirm",
       environment: real.space.environment,
       digest,
       now: new Date().toISOString(),
       outcome: this.outcome,
       effectsLog: intent.effectsLog,
-    }, choose(this.choice, real.counts));
+    };
+    // A refused confirmation passes far fewer boundaries than the baseline,
+    // so count its own on a copy, logging any crossing apart from the intent's.
+    const counts = await calibrateWithoutEffect(real.space, {
+      ...request,
+      effectsLog: join(real.space.directory, `provider-effects-calibration-${String(real.space.runs + 1)}.log`),
+    });
+    await runFixture(real.space, request, choose(this.choice, counts));
     recoverAndCheck(real.space);
     expect(crossings(intent.effectsLog)).toBe(intent.crossed);
   }

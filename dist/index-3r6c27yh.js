@@ -329,8 +329,6 @@ var MAX_PRIVATE_STATE_EXPECTED_CONTENT_BYTES = 4 * 1024 * 1024;
 var MAX_PRIVATE_STATE_BATCH_NAME_BYTES = 256 * 1024;
 var MAX_PRIVATE_STATE_BATCH_STDOUT_BYTES = 96 * 1024 * 1024;
 var TEST_STATE_HELPER_TIMEOUT_MS = 120000;
-var stateCrashPlanForTest = undefined;
-var helperEnvironment = stateCrashPlanForTest === undefined ? { NODE_ENV: "production" } : { NODE_ENV: "test", GHOSTGET_TEST_STATE_CRASH_PLAN: stateCrashPlanForTest };
 var knownStateRoots = new Map;
 var stateDirectoryNames = [
   "adapter-generations",
@@ -365,6 +363,9 @@ var stateMarkerText = `{"kind":"io-state","schemaVersion":1}
 var stateHelperPath = join(dirname(fileURLToPath(import.meta.url)), "state-helper.ts");
 var stateHelperConfigPath = join(dirname(fileURLToPath(import.meta.url)), "state-helper.bunfig.toml");
 var pathHelperPath = join(dirname(fileURLToPath(import.meta.url)), "path-helper.ts");
+var stateCrashPlanForTest = undefined;
+var helperEnvironment = stateCrashPlanForTest === undefined ? { NODE_ENV: "production" } : { NODE_ENV: "test", GHOSTGET_TEST_STATE_CRASH_PLAN: stateCrashPlanForTest };
+var helperPreloadForTest = stateCrashPlanForTest === undefined ? [] : ["--preload", join(dirname(fileURLToPath(import.meta.url)), "state-crash-preload.test-support.ts")];
 var ghostgetSourcePackageRoot = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
 function isWithinPath(root, candidate) {
   const pathFromRoot = relative(root, candidate);
@@ -610,6 +611,7 @@ function runStateHelper(directory, expected, operation, expectCreatedIdentity = 
     "--no-macros",
     "--no-addons",
     `--config=${stateHelperConfigPath}`,
+    ...helperPreloadForTest,
     stateHelperPath
   ], {
     cwd: directory,

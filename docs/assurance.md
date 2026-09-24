@@ -1060,7 +1060,7 @@ Confirmation claim, plan consumption, provisional receipt, idempotency ledger, a
 
 - Evidenced by stateful model.
 - Source: `docs/effect-confirmed-write-runtime.md`: “Confirmation claims, plan consumption, provisional receipt, idempotency ledger and recovery capsule must reach their existing durable boundaries before remote dispatch.”
-- Evidence: `src/confirmed-write-program.test.ts`, `src/runtime.test.ts`, `src/state-crash-harness.fixture.ts`, `src/state-crash-harness.test.ts`, `src/state-crash-port.test-support.ts`
+- Evidence: `src/confirmed-write-program.test.ts`, `src/runtime.test.ts`, `src/state-crash-harness.fixture.ts`, `src/state-crash-harness.test.ts`, `src/state-crash-port.test-support.ts`, `src/state-crash-preload.test-support.ts`
 - Property tests: `src/state-crash-harness.test.ts`: “a crash just before a durable boundary never repeats or forgets a crossing”; `src/state-crash-harness.test.ts`: “a crash just after a durable boundary never repeats or forgets a crossing”; `src/state-crash-harness.test.ts`: “a torn data write never repeats or forgets a crossing”; `src/state-crash-harness.test.ts`: “power loss at a durable boundary never repeats or forgets a crossing”
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified:
@@ -1068,6 +1068,7 @@ Confirmation claim, plan consumption, provisional receipt, idempotency ledger, a
   - Crashes land only on the state and path helpers' filesystem effects. Writes the runtime process makes directly, such as the provider-effect ground truth, are outside the crash port.
   - Power loss is modelled by the port, not observed: it rolls back, newest first, created, linked, renamed, and unlinked entries whose directory was not fsynced after the effect, and truncates data not fsynced after its write. Directory tree removals are treated as durable when they return, and a real filesystem may keep or lose unsynced effects in other combinations.
   - One runtime process mutates the state at a time; concurrent confirmations under crash are not modelled here.
+  - The harness checks outcomes: no crossing repeats, none is forgotten, and a crossing leaves a durable started journal. It does not check separately that each named record (claim, plan consumption, receipt, ledger, capsule) was durable, and it re-confirms with a freshly saved plan, so replaying a consumed plan digest after a crash is not exercised.
   - That dispatch is refused when the recovery capsule cannot be stored rests on the listed example tests only.
 
 #### `journal-stale-writer-rejected`
@@ -2203,7 +2204,7 @@ A crash or power loss at any durable state-helper or path-helper boundary leaves
 
 - Evidenced by stateful model.
 - Source: `kb/plans/formal-verification-assurance.md`: “power-loss truncation”
-- Evidence: `src/state-crash-harness.fixture.ts`, `src/state-crash-harness.test.ts`, `src/state-crash-port.test-support.ts`
+- Evidence: `src/state-crash-harness.fixture.ts`, `src/state-crash-harness.test.ts`, `src/state-crash-port.test-support.ts`, `src/state-crash-preload.test-support.ts`
 - Property tests: `src/state-crash-harness.test.ts`: “a crash at any durable boundary leaves the old value, the new value, or nothing”; `src/state-crash-harness.test.ts`: “a crash at any durable boundary leaves the old or the new value, never a torn one”
 - Assumptions: `filesystem-atomic-rename`, `filesystem-durability`, `process-liveness`, `same-user-trusted`
 - Not verified:

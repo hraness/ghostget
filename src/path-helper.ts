@@ -1,23 +1,24 @@
 #!/usr/bin/env bun
 import { createHash } from "node:crypto";
-import * as nodeFs from "node:fs";
 import {
   closeSync,
   constants,
+  fchmodSync,
   fstatSync,
+  fsyncSync,
+  linkSync,
   lstatSync,
+  mkdirSync,
+  openSync,
   opendirSync,
   readdirSync,
   readSync,
+  renameSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
   type BigIntStats,
 } from "node:fs";
-
-// Every durable effect goes through this port so tests can crash at each boundary.
-const {
-  fchmodSync, fsyncSync, linkSync, mkdirSync, openSync, renameSync, rmSync, unlinkSync, writeFileSync,
-} = process.env.NODE_ENV === "test" && process.env.GHOSTGET_TEST_STATE_CRASH_PLAN !== undefined
-  ? (await import("./state-crash-port.test-support")).crashInjectingStatePort(nodeFs, process.env.GHOSTGET_TEST_STATE_CRASH_PLAN)
-  : nodeFs;
 
 const MAX_REQUEST_BYTES = 4 * 1024 * 1024;
 const MAX_READ_BYTES = 128 * 1024 * 1024;
