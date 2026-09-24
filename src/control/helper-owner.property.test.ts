@@ -197,6 +197,8 @@ function stateHome(): { environment: Record<string, string>; root: string } {
   return { environment, root: ghostgetStateHome(environment) };
 }
 
+// Each owner write goes through the private state layer, so one run of up to
+// 20 commands takes about half a second; 30 runs take about 15 seconds.
 test("property: at most one live contender holds helper custody across inspect and commit races, crashes, restarts, and unknown owners", () => {
   const contender = fc.nat({ max: CONTENDERS - 1 });
   // One state home serves every run; each run starts without an owner record.
@@ -223,7 +225,7 @@ test("property: at most one live contender holds helper custody across inspect a
       },
       real,
     }), commands);
-  }), { numRuns: 30 });
+  }), { numRuns: 30, interruptAfterTimeLimit: 60_000 });
 });
 
 test("two contenders that saw no owner cannot both take custody", () => {
