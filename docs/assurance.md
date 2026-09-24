@@ -8,11 +8,11 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 237 claims: 170 evidenced, 48 planned, and 19 not verified. It maps 88 guidelines from 5 guides; 68 list claims and 20 are exempt.
+The register holds 239 claims: 172 evidenced, 48 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 136 | 3 | 0 |
+| example test | 138 | 3 | 0 |
 | property test | 14 | 1 | 0 |
 | stateful model | 2 | 13 | 0 |
 | Quint model with production trace replay | 8 | 29 | 0 |
@@ -123,8 +123,8 @@ Each claim holds only while its listed assumptions hold.
 | `npm-registry` | The npm registry enforces version immutability, trusted publishing, and provenance as documented. | 17 |
 | `vercel` | Vercel builds and serves deployments as its project settings and APIs report. | 37 |
 | `administrator-readback` | A signed-in administrator performs the documented live readbacks and reports them faithfully. | 15 |
-| `ci-runner` | GitHub-hosted runners execute the reviewed workflow faithfully. | 14 |
-| `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 13 |
+| `ci-runner` | GitHub-hosted runners execute the reviewed workflow faithfully. | 16 |
+| `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 15 |
 | `edge-runtime` | The Vercel Edge runtime implements the Web Platform APIs the edge code uses. | 5 |
 
 ## Claims by area
@@ -2400,7 +2400,7 @@ Hraness dependencies are pinned to reviewed immutable releases or full commits, 
   - Only the enumerated example cases are checked.
   - `website/site.test.ts` asserts only the design-kit, site-footer, and ui pins; the other Hraness dependencies, and rejection of branches, sibling paths, and submodules, are not checked.
 
-### `verification` (11 claims)
+### `verification` (13 claims)
 
 #### `property-soak-multiplier`
 
@@ -2445,6 +2445,33 @@ The Quint smoke model typechecks, passes seeded simulation and bounded Apalache 
 - Not verified:
   - Only the enumerated example cases are checked.
   - The smoke model is toolchain evidence: its traces replay through a TypeScript reference lock, not production code.
+
+#### `verification-nightly-depth`
+
+`bun run ./scripts/verification-tools.ts quint-nightly` checks every Quint model at its recorded `nightly` bounds, which the parser rejects when any bound falls below its CI bound or none deepens it; the soak multiplies the run count and time limit of every `assertProperty` and `assertAsyncProperty` by an explicit `GHOSTGET_PROPERTY_RUNS` from 2 to 100; and `.github/workflows/verification-nightly.yml` runs both with the reducer mutants on a schedule, read-only, SHA-pinned, and outside `Required`.
+
+- Evidenced by example test.
+- Source: `verification/AGENTS.md`: “Give a Quint model `nightly` bounds only when they deepen its CI bounds and none falls below them. Keep `.github/workflows/verification-nightly.yml` read-only and outside `Required`”
+- Evidence: `.github/workflows/verification-nightly.yml`, `scripts/ci-pr-gate.test.ts`, `scripts/verification-soak.ts`, `scripts/verification-tools.test.ts`, `src/test-support.test.ts`, `verification/quint/models.json`
+- Assumptions: `ci-runner`, `verification-tools`
+- Not verified:
+  - Only the enumerated example cases are checked; `Required` checks the nightly configuration, not a nightly run.
+  - The nightly workflow has not run on `main` yet. Its first scheduled run after merge is the first CI evidence at the deeper bounds and soak multiplier.
+  - Only `verification/quint/lock.qnt`, the toolchain smoke model with a `reference` replay target, lists `nightly` bounds. The six production models run in the nightly at their CI bounds, so the nightly deepens no model of production code until one lists `nightly` bounds.
+  - A nightly failure blocks no merge or release. Only the quarterly review in `docs/claims-review.md` checks that failures were triaged, and no automated check enforces that review.
+  - The serialized omni runtime test file is outside the soak.
+
+#### `verification-source-mutants`
+
+Every mutant in `verification/mutants.json` changes exactly one occurrence of a guard in `src/run-journal.ts`, `src/messaging-action-store.ts`, or `src/linked-device-lifecycle-journal.ts` and still transpiles, and `bun run ./scripts/verification-mutants.ts` reports it killed only when its fully named test passes alone on unmodified source and is the only failing test on the mutant; a timeout, another failure, or unparsed output is inconclusive and fails the run.
+
+- Evidenced by example test.
+- Source: `verification/AGENTS.md`: “List every reducer source mutant in `mutants.json` with its defect and the full name of the one test that must fail.”
+- Evidence: `scripts/verification-mutants.ts`, `scripts/verification-tools.test.ts`, `verification/mutants.json`
+- Assumptions: `ci-runner`, `verification-tools`
+- Not verified:
+  - `Required` checks only that each mutant applies, compiles, and names a declared test; the kill runs happen in the nightly workflow.
+  - The manifest lists hand-picked guards. It is not a mutation score over the reducers, and StrykerJS was evaluated and not adopted (see `docs/claims-review.md`).
 
 #### `verification-itf-strict`
 

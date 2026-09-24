@@ -8,11 +8,11 @@
 - `.agents/skills/` – reusable cross-repository KB and phased-execution workflows; product-specific Ghostget operations remain under `skills/ghostget/`.
 - `kb/` – authored repository rationale, evidence, synthesis, and plans.
 - `WRITING.md` and `STYLE.md` – internal and public prose contracts.
-- `docs/` – provider-plugin authoring, trust-boundary guidance, the generated `assurance.md` assurance case, and the public Puerto Rico rental-listings search contract.
+- `docs/` – provider-plugin authoring, trust-boundary guidance, the generated `assurance.md` assurance case, the nightly verification and quarterly claims-review procedure, and the public Puerto Rico rental-listings search contract.
 - `scripts/` – standalone CLI, plugin lifecycle, clean-consumer package, and formal-verification checks.
 - `website/` – the dependency-free, statically generated `ghostget.com` documentation and landing surface; it is excluded from the published package.
 - `verification/` – the claims register, Quint models, Lean proofs, and checker pins behind `docs/assurance.md`; it is excluded from the published package.
-- `.github/workflows/` – read-only Linux and macOS checks plus checks-gated immutable releases and release-only website production promotion.
+- `.github/workflows/` – read-only Linux and macOS checks, a read-only nightly verification run outside `Required`, and checks-gated immutable releases and release-only website production promotion.
 - `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, and `LICENSE` – usage, project policy, security reporting, and terms.
 - `package.json`, `bunfig.toml`, `tsconfig.json`, and `bun.lock` – the standalone Bun package, isolated dependency layout, and frozen dependency graph.
 
