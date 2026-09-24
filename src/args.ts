@@ -891,7 +891,7 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
       ok: true,
       value: {
         command: "media",
-        arguments: mediaMode === "archive" || mediaMode === "audio" || mediaMode === "video" || mediaMode === "transcript"
+        arguments: mediaMode === "archive" || mediaMode === "audio" || mediaMode === "video" || mediaMode === "transcript" || mediaMode === "quarantine"
           ? mediaArguments
           : ["archive", ...mediaArguments],
       },

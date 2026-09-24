@@ -237,7 +237,9 @@ function isCancelled(signal: AbortSignal | undefined): boolean {
   return signal?.aborted === true;
 }
 
-function libraryDirectory(options: MediaArchiveOptions): string {
+type MediaLibraryOptions = Pick<MediaArchiveOptions, "libraryDirectory" | "environment" | "homeDirectory">;
+
+function libraryDirectory(options: MediaLibraryOptions): string {
   if (options.libraryDirectory !== undefined) return resolve(options.libraryDirectory);
   const configured = [options.environment?.["GHOSTGET_MEDIA_HOME"], options.environment?.["WRENCH_MEDIA_HOME"]]
     .filter((value): value is string => value !== undefined && value.length > 0 && !value.includes("\0"))
@@ -1357,6 +1359,147 @@ async function quarantineTornRevision(
   await durability.syncDirectory(quarantineRoot);
   await durability.syncDirectory(dirname(itemDirectory));
   return destination;
+}
+
+const MAX_QUARANTINE_ENTRIES = 1_000;
+const MAX_QUARANTINE_WALK_ENTRIES = 100_000;
+const MAX_QUARANTINE_WALK_DEPTH = 32;
+const QUARANTINE_NAME_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-(.+)$/u;
+
+/** One entry under `<library>/.wrench-media-quarantine`. */
+export interface MediaQuarantineEntry {
+  readonly name: string;
+  readonly path: string;
+  /** The item directory name the revision had before it was moved aside. */
+  readonly originalLeaf: string | null;
+  readonly kind: "directory" | "other";
+  /** Regular files and their bytes, or null when the entry is not a directory or exceeds the walk bounds. */
+  readonly files: number | null;
+  readonly bytes: number | null;
+  /** The entry's status-change time, which a rename into quarantine updates. */
+  readonly changedAt: string;
+}
+
+export interface MediaQuarantineReport {
+  readonly libraryDirectory: string;
+  readonly quarantineDirectory: string;
+  readonly exists: boolean;
+  readonly entries: readonly MediaQuarantineEntry[];
+  /** True when more than the first 1,000 entries (by name) exist. */
+  readonly truncated: boolean;
+}
+
+/** Returns the original leaf of a `<uuid>-<leaf>` quarantine name, or null. */
+export function quarantinedRevisionLeaf(name: string): string | null {
+  return QUARANTINE_NAME_PATTERN.exec(name)?.[1] ?? null;
+}
+
+/**
+ * Lists quarantined torn revisions for their owner. It only reads: it never
+ * creates the library or the quarantine directory, never follows a symbolic
+ * link, and never removes an entry. Removal stays a manual owner decision.
+ */
+export async function inspectMediaQuarantine(options: MediaLibraryOptions = {}): Promise<MediaQuarantineReport> {
+  const requestedRoot = libraryDirectory(options);
+  const absent = (root: string): MediaQuarantineReport => ({
+    libraryDirectory: root,
+    quarantineDirectory: join(root, MEDIA_QUARANTINE_DIRECTORY),
+    exists: false,
+    entries: [],
+    truncated: false,
+  });
+  let root: string;
+  try {
+    root = await realpath(requestedRoot);
+  } catch (error) {
+    if (isErrno(error, "ENOENT")) return absent(requestedRoot);
+    throw error;
+  }
+  const quarantineDirectory = join(root, MEDIA_QUARANTINE_DIRECTORY);
+  let metadata: Awaited<ReturnType<typeof lstat>>;
+  try {
+    metadata = await lstat(quarantineDirectory);
+  } catch (error) {
+    if (isErrno(error, "ENOENT")) return absent(root);
+    throw error;
+  }
+  if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
+    throw new MediaArchiveError(
+      "ARCHIVE_INVALID",
+      "the media quarantine is not a physical directory",
+      { quarantineDirectory },
+    );
+  }
+  const names: string[] = [];
+  let truncated = false;
+  const handle = await opendir(quarantineDirectory);
+  for await (const entry of handle) {
+    // Keep the first names in sort order without holding an unbounded list.
+    names.push(entry.name);
+    if (names.length > MAX_QUARANTINE_ENTRIES * 2) {
+      names.sort();
+      names.length = MAX_QUARANTINE_ENTRIES;
+      truncated = true;
+    }
+  }
+  names.sort();
+  if (names.length > MAX_QUARANTINE_ENTRIES) {
+    names.length = MAX_QUARANTINE_ENTRIES;
+    truncated = true;
+  }
+  const entries: MediaQuarantineEntry[] = [];
+  for (const name of names) {
+    const path = join(quarantineDirectory, name);
+    let entryMetadata: Awaited<ReturnType<typeof lstat>>;
+    try {
+      entryMetadata = await lstat(path);
+    } catch (error) {
+      // The owner may remove an entry while it is listed.
+      if (isErrno(error, "ENOENT")) continue;
+      throw error;
+    }
+    const directory = entryMetadata.isDirectory() && !entryMetadata.isSymbolicLink();
+    const size = directory ? await measureQuarantinedTree(path) : null;
+    entries.push({
+      name,
+      path,
+      originalLeaf: directory ? quarantinedRevisionLeaf(name) : null,
+      kind: directory ? "directory" : "other",
+      files: size?.files ?? null,
+      bytes: size?.bytes ?? null,
+      changedAt: entryMetadata.ctime.toISOString(),
+    });
+  }
+  return { libraryDirectory: root, quarantineDirectory, exists: true, entries, truncated };
+}
+
+async function measureQuarantinedTree(root: string): Promise<{ files: number; bytes: number } | null> {
+  let visited = 0;
+  let files = 0;
+  let bytes = 0;
+  const walk = async (directory: string, depth: number): Promise<boolean> => {
+    if (depth > MAX_QUARANTINE_WALK_DEPTH) return false;
+    const handle = await opendir(directory);
+    for await (const entry of handle) {
+      visited += 1;
+      if (visited > MAX_QUARANTINE_WALK_ENTRIES) return false;
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        if (!(await walk(path, depth + 1))) return false;
+      } else if (entry.isFile()) {
+        files += 1;
+        bytes += (await lstat(path)).size;
+      }
+      // Symbolic links and special files are neither followed nor counted.
+    }
+    return true;
+  };
+  try {
+    return (await walk(root, 0)) ? { files, bytes } : null;
+  } catch (error) {
+    if (isErrno(error, "ENOENT")) return null;
+    throw error;
+  }
 }
 
 async function discoverYtDlpHead(

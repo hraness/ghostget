@@ -1,5 +1,12 @@
 import { homedir } from "node:os";
-import { MediaArchiveError, mediaUrl, type MediaArchiveOptions, type MediaArchiveResult } from "./archive";
+import {
+  inspectMediaQuarantine,
+  MediaArchiveError,
+  mediaUrl,
+  type MediaArchiveOptions,
+  type MediaArchiveResult,
+  type MediaQuarantineReport,
+} from "./archive";
 import { parseArgs, USAGE } from "./args";
 import { renderDoctorReport, runDoctor, type DoctorOptions, type DoctorReport } from "./doctor";
 import {
@@ -27,6 +34,9 @@ export interface MediaCliDependencies {
   readonly mediaUrl: (options: MediaArchiveOptions) => Promise<MediaArchiveResult>;
   readonly runDoctor: (options: DoctorOptions) => Promise<DoctorReport>;
   readonly verifyMediaItem: (itemDirectory: string) => Promise<VerifyItemResult>;
+  readonly inspectMediaQuarantine: (
+    options: Parameters<typeof inspectMediaQuarantine>[0],
+  ) => Promise<MediaQuarantineReport>;
   readonly setupWhisperCppTranscriber: (
     options: SetupWhisperCppTranscriberOptions,
   ) => Promise<ReadyTranscriber>;
@@ -50,6 +60,7 @@ const defaultDependencies: MediaCliDependencies = {
   mediaUrl: async (options) => await mediaUrl(options),
   runDoctor: async (options) => await runDoctor(options),
   verifyMediaItem: async (itemDirectory) => await verifyMediaItem(itemDirectory),
+  inspectMediaQuarantine: async (options) => await inspectMediaQuarantine(options),
   setupWhisperCppTranscriber: async (options) => await setupWhisperCppTranscriber(options),
 };
 
@@ -148,6 +159,23 @@ function humanTranscriptSummary(transcript: MediaManifest["transcript"]): string
   }
 }
 
+function humanQuarantineReport(report: MediaQuarantineReport, homeDirectory: string): string {
+  const location = redactDiagnostic(report.quarantineDirectory, { homeDirectory });
+  if (report.entries.length === 0) return `No quarantined revisions in ${location}\n`;
+  const lines = report.entries.map((entry) => {
+    const size = entry.bytes === null || entry.files === null
+      ? "size not measured"
+      : `${String(entry.files)} ${entry.files === 1 ? "file" : "files"}, ${String(entry.bytes)} bytes`;
+    const detail = entry.kind === "directory" ? size : "not a revision directory";
+    return `${sanitizeTerminalText(entry.name)} · ${detail} · moved ${entry.changedAt}`;
+  });
+  const more = report.truncated ? "Only the first 1,000 entries by name are listed.\n" : "";
+  return `${String(report.entries.length)} quarantined ${report.entries.length === 1 ? "entry" : "entries"} in ${location}\n`
+    + `${lines.join("\n")}\n${more}`
+    + "Nothing was removed. Each entry is a revision that failed verification after an interrupted save. "
+    + "Inspect or copy what you need, then delete the entries you no longer want yourself.\n";
+}
+
 function sanitizeHumanReport(value: string): string {
   return value
     .split("\n")
@@ -198,6 +226,24 @@ export async function runCli(argv: readonly string[], options: RunCliOptions = {
     else io.stderr(`ghostget media: verification failed\n${result.failures.map((failure) => `- ${redactDiagnostic(failure, { homeDirectory })}`).join("\n")}\n`);
     if (result.ok) completed();
     return result.ok ? 0 : 8;
+  }
+  if (command.kind === "quarantine") {
+    try {
+      const report = await dependencies.inspectMediaQuarantine({
+        ...(command.outputDirectory === undefined ? {} : { libraryDirectory: command.outputDirectory }),
+        environment,
+        homeDirectory,
+      });
+      if (command.json) writeJson(io, "stdout", { ok: true, quarantine: report });
+      else io.stdout(humanQuarantineReport(report, homeDirectory));
+      return 0;
+    } catch (error) {
+      const code = error instanceof MediaArchiveError ? error.code : "IO_ERROR";
+      const message = redactDiagnostic(error instanceof Error ? error.message : "could not read the media quarantine", { homeDirectory });
+      if (command.json) writeJson(io, "stderr", { ok: false, error: { code, message } });
+      else io.stderr(`ghostget media: ${code}: ${message}\n`);
+      return archiveExitCodes[code];
+    }
   }
   if (command.kind === "transcriber-setup") {
     try {

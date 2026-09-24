@@ -8,11 +8,11 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 239 claims: 172 evidenced, 48 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 239 claims: 173 evidenced, 47 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 138 | 3 | 0 |
+| example test | 139 | 2 | 0 |
 | property test | 14 | 1 | 0 |
 | stateful model | 2 | 13 | 0 |
 | Quint model with production trace replay | 8 | 29 | 0 |
@@ -851,11 +851,14 @@ Each capture subject has one revision lineage with a single head, and a crash or
 
 - Planned: Quint model with production trace replay in plan Phase 4.
 - Source: `kb/plans/formal-verification-assurance.md`: “The progress property "a crash never makes a lineage permanently invalid" drives D10.”
-- Evidence: `scripts/verification-media-replay.test.ts`, `src/media/archive.property.test.ts`, `src/media/lock.test.ts`, `src/media/revision.property.test.ts`, `src/media/revision.test.ts`, `verification/quint/media.qnt`
+- Evidence: `scripts/verification-media-replay.test.ts`, `src/media/archive.property.test.ts`, `src/media/archive.test.ts`, `src/media/lock.test.ts`, `src/media/manifest-durability.test.ts`, `src/media/quarantine.test.ts`, `src/media/revision.property.test.ts`, `src/media/revision.test.ts`, `verification/quint/media.qnt`
 - Assumptions: `filesystem-atomic-rename`, `filesystem-durability`, `process-liveness`, `media-tools`
 - Not verified:
   - The progress property is not checked. verification/quint/media.qnt checks only safety: its production replay repairs a torn head by quarantine and recaptures, and the stepQuarantineAny variant shows why only a torn head may be moved. A liveness check under fairness is still scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
   - Plan defect D10 is fixed: the staging tree and its parent directories are fsynced before and after the promotion rename, and a start that finds a torn head moves it to the quarantine instead of stopping the lineage.
+  - F_FULLFSYNC runs in the macOS CI job; on Linux and on filesystems that refuse it, the flush falls back to fsync, which gives no drive-cache guarantee.
+  - Repair quarantines at most one torn head per capture; the direct pipeline promotes durably but does not repair a torn head.
+  - Quarantined revisions stay until their owner removes them; `ghostget media quarantine` lists them and removes nothing.
 
 #### `media-lock-exclusion`
 
@@ -872,14 +875,18 @@ Media item locks exclude concurrent owners; release never removes a replacement 
 
 #### `media-cancellation-stops-work`
 
-Cancelling a media acquisition stops every process it started, including ffmpeg and HLS grandchildren; a cancellation that arrives before promotion prevents a `created` result, and both pipelines discard staging on every error.
+Cancelling a media acquisition stops every process it started, including ffmpeg and HLS grandchildren; a cancellation that arrives before promotion prevents a `created` result, both pipelines discard staging on every error, and when Ghostget exits or receives an unhandled SIGINT, SIGTERM, or SIGHUP it kills every active media process group.
 
-- Planned: example test in plan Phase 6.
+- Evidenced by example test.
 - Source: `kb/plans/formal-verification-assurance.md`: “D9: spawn in a process group and kill the group. Check cancellation before promotion.”
-- Evidence: `scripts/verification-media-replay.test.ts`, `src/media/process.test.ts`, `verification/quint/media.qnt`
+- Evidence: `scripts/verification-media-replay.test.ts`, `src/media/archive.test.ts`, `src/media/process-group.test.ts`, `src/media/process-parent-exit.test.ts`, `src/media/process.test.ts`, `verification/quint/media.qnt`
 - Assumptions: `filesystem-atomic-rename`, `media-tools`
 - Not verified:
-  - The example test for the whole claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Only the enumerated example cases are checked; the grouped-termination property samples scripted exit points, not every signal interleaving.
+  - A SIGKILL of Ghostget itself, or a kernel or power failure, runs no exit handler, so a detached media tool group can outlive it.
+  - A signal Ghostget inherited as ignored, such as SIGHUP under nohup, stays ignored, so the group keeps running until Ghostget exits for another reason.
+  - The group kill reaches only processes that stay in the tool's process group; a helper that calls setsid() or setpgid() leaves the group and is not stopped.
+  - On Windows media tools run without a process group, so only the direct child is signalled.
   - Plan defect D9 is fixed: yt-dlp runs in its own process group and cancellation signals the group, and the promotion fence checks cancellation immediately before the rename. verification/quint/media.qnt checks that a cancelled yt-dlp capture never answers created, its stepLateCancel variant reproduces the pre-fix promotion, and its replay drives production mediaUrl. The direct HTTP pipeline and grandchild process termination are not modelled.
 
 #### `media-verify-recomputes-hashes`
