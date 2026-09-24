@@ -3340,7 +3340,7 @@ body {
   transform: translate(var(--hraness-hero-drift-x, 0px), var(--hraness-hero-drift-y, 0px));
 }
 
-@media (forced-colors: active), print {
+@media (forced-colors: active), (prefers-reduced-transparency: reduce), print {
   .ghostget-field { display: none; }
 }
 

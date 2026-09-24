@@ -794,6 +794,9 @@ describe("ghostget.com static site", () => {
         expect(css).not.toContain(`@keyframes ${keyframes}`);
       }
       expect(css).toContain(".ghostget-field");
+      expect(css).toMatch(
+        /@media\s*\(forced-colors:\s*active\),\s*\(prefers-reduced-transparency:\s*reduce\),\s*print\s*\{\s*\.ghostget-field\s*\{\s*display:\s*none;\s*\}\s*\}/u,
+      );
       expect(css).toContain("--hraness-hero-proximity");
       expect(css).toContain("var(--hraness-hero-drift-x, 0px)");
       expect(css).toContain("var(--hraness-hero-drift-y, 0px)");
