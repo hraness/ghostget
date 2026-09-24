@@ -1575,24 +1575,65 @@
 // 87e0c7bc0e6037f05c2d1ae83672de5b9abc016e2516f96a31f9a3b1bac640a4. Carry the
 // same projections and allowances: 11,993,645 + 12,387 + 4,096 = 12,010,128
 // packed; 23,427,470 + 353 + 65 = 23,427,888 unpacked.
+// The crash harness adds one test-only branch to storage: under NODE_ENV=test
+// with a crash plan, it passes the plan and a Bun preload that swaps the
+// helpers' durable node:fs effects for a crash port. The shipped state and
+// path helpers are unchanged, and the port, preload, fixture, and harness stay
+// outside the package. This adds 1,215 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on
+// darwin arm64 were byte-identical at 11,993,622 packed bytes, 23,428,685
+// unpacked bytes; archive SHA-256
+// ece2627c6967cb8cf201ebdd598cfc57df555e069feafdd09c38ba6a775c32da. Carry the
+// same projections and allowances: 11,993,622 + 12,387 + 4,096 = 12,010,105
+// packed; 23,428,685 + 353 + 65 = 23,429,103 unpacked.
+// The independent oracles add the verify:oracles script and its step in the
+// verify chain to package.json. The Rust oracle, the golden vectors, and their
+// tests stay outside the package. This adds 233 payload bytes over the
+// unchanged 596-file inventory. Two `npm pack --ignore-scripts` runs with npm
+// 11.19.0 on darwin arm64 were byte-identical at 11,993,659 packed bytes,
+// 23,428,918 unpacked bytes; archive SHA-256
+// 5162451c3acb46616a35fe38729d9e26291e283e2baceabfc665c29aa2020f79. Carry the
+// same projections and allowances: 11,993,659 + 12,387 + 4,096 = 12,010,142
+// packed; 23,428,918 + 353 + 65 = 23,429,336 unpacked.
+// The Lean encodings export `updateLengthFramedHash` from the provider plugin
+// registry so the differential test can compare the production length-framed
+// hash with its Lean definition. The Lean project and the test stay outside
+// the package. This adds 7 payload bytes over the unchanged 596-file
+// inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin
+// arm64 were byte-identical at 11,993,659 packed bytes, 23,428,925 unpacked
+// bytes; archive SHA-256
+// 67bcf3f2bb56b7d9d7db7a902893528ed18823e888f553e4b78737b104fb6d09. Carry the
+// same projections and allowances: 11,993,659 + 12,387 + 4,096 = 12,010,142
+// packed; 23,428,925 + 353 + 65 = 23,429,343 unpacked.
+// The messaging Quint replay moves crash recovery's terminalizing event out of
+// runtime.ts into an exported messagingRecoveryEvent in
+// messaging-action-store.ts, so the replay drives the same production function
+// that recovery calls. The Quint models and their replay tests stay outside
+// the package. This adds 371 payload bytes over the unchanged 596-file
+// inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin
+// arm64 were byte-identical at 11,993,735 packed bytes, 23,429,296 unpacked
+// bytes; archive SHA-256
+// 367705dc28b1778d1cf5d6359b18fbd14980e67b91335515ae7308e0b8032685. Carry the
+// same projections and allowances: 11,993,735 + 12,387 + 4,096 = 12,010,218
+// packed; 23,429,296 + 353 + 65 = 23,429,714 unpacked.
 // Removal of ambiguous historical session secrets by their envelope's named
 // owner, and the faster strict canonical JSON encoder, change
 // src/session-secrets.ts, src/canonical-json.ts, and the rebuilt dist chunks
 // that bundle the encoder. This adds 2,096 payload bytes over the unchanged
-// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0
-// on darwin arm64 were byte-identical at 11,993,873 packed bytes, 23,429,566
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on
+// darwin arm64 were byte-identical at 11,994,505 packed bytes, 23,431,392
 // unpacked bytes; archive SHA-256
-// af78304e484430aa5b38f59f250e044a2eecbb5a8729a188070cc27c8bd4ee26. Carry the
-// same projections and allowances: 11,993,873 + 12,387 + 4,096 = 12,010,356
-// packed; 23,429,566 + 353 + 65 = 23,429,984 unpacked.
+// bc193f99425865e22f6527ed41d918c41259491d01b77c1225196f6156dd713a. Carry the
+// same projections and allowances: 11,994,505 + 12,387 + 4,096 = 12,010,988
+// packed; 23,431,392 + 353 + 65 = 23,431,810 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Owner-named removal of ambiguous historical session secrets and the faster strict canonical JSON encoder",
+  scope: "Session-secret ownership removal and the strict canonical JSON encoder",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "af78304e484430aa5b38f59f250e044a2eecbb5a8729a188070cc27c8bd4ee26",
-  packedBytes: 11_993_873,
-  unpackedBytes: 23_429_566,
+  archiveSha256: "bc193f99425865e22f6527ed41d918c41259491d01b77c1225196f6156dd713a",
+  packedBytes: 11_994_505,
+  unpackedBytes: 23_431_392,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

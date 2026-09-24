@@ -415,7 +415,7 @@ function implementationSourceBytes(
   return bytes;
 }
 
-function updateLengthFramedHash(
+export function updateLengthFramedHash(
   hash: ReturnType<typeof createHash>,
   label: string,
   bytes: Buffer,

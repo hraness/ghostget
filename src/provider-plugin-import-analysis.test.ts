@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "./test-support";
 import { scanProviderPluginValueImports } from "./provider-plugin-import-analysis";
 
 test("reuses immutable syntax results but distinguishes fresh source and parser mode", () => {
@@ -40,7 +41,7 @@ test("bounds retained import text independently from module count", () => {
 });
 
 test("never loses a literal edge when fresh module bytes change", () => {
-  fc.assert(fc.property(
+  assertProperty(fc.property(
     fc.array(fc.integer({ min: 97, max: 122 }), { minLength: 1, maxLength: 60 }),
     (characters) => {
       const path = `./${String.fromCharCode(...characters)}`;

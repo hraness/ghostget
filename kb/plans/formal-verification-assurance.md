@@ -98,6 +98,7 @@ web gateway, the Edge middleware, media, release, and CI on `origin/main`
 | D12 | Edge | The direct `.md` branch calls `retrieve(new URL(url.pathname, url.origin))` (`edge/negotiation.ts:257`), so `//evil.example/x.md` resolves off-origin in-process. The live site is not affected: Vercel returns 308 to a single slash before middleware, and `/\` returns 404 (checked 2026-09-23). The code still violates same-origin retrieval if the platform changes. | reproduced in-process; latent live |
 | D13 | Approvals | Allow-once is enforced by the client. The broker leaves an `allowed` entry checkable for 600 s and relies on the Ghostget process calling `releaseApproval` in `finally`. A crash leaves a reusable lease for same-UID callers. | code-read |
 | D14 | Read paths | The menu-bar snapshot creates incarnation files through `ensureIncarnationUnderAdmission`, and read-projection listings unlink orphaned claims. Both break the literal rule "No writes on read paths". Either the rule gets an explicit, bounded exemption or the writes move. | code-confirmed |
+| D15 | Release | Manual promotion refuses a Release that an intermediate attempt published. When a failed-jobs rerun publishes bytes an earlier attempt attested, the body names that earlier attempt. A later rerun of all jobs then fails its publish job, and `resolveReleaseAuthority` reads only the latest attempt and the receipt attempt, neither of which proved all four canonical jobs. Found by a strengthened `promotionNotBlocked` over `verification/quint/release.qnt` (attempts: publish fails, rerun failed jobs publishes, rerun all) and reproduced against `resolveReleaseAuthority` with the release replay fixtures. | reproduced |
 
 ### Evidence gaps
 
@@ -335,6 +336,38 @@ Acceptance:
   gateway.
 - Commit Python-generated golden vectors for hashes and encodings to
   `verification/vectors/`.
+
+Execution, 2026-09-23:
+
+- `verify:oracles` builds `ghostget-oracle` with Rust 1.97.1 and
+  `cargo build --locked`, checks the vectors with `generate.py --check`, and
+  runs `scripts/verification-oracles.test.ts` and
+  `scripts/verification-vectors.test.ts`. It is the last step of `verify`.
+- Three claims are evidenced at the differential layer:
+  `canonical-json-matches-rfc8785-oracle`,
+  `public-url-matches-url-crate-oracle`, and
+  `media-identity-hashes-match-golden-vectors`. Each comparison also rejects
+  seeded defects.
+- The golden number vectors caught a bug in the first oracle draft: Rust's
+  shortest-digit `{:e}` wrote 1424953923781206.25 as `...206.3`, where
+  ECMAScript breaks the tie to the even digit, `...206.2`. The TypeScript was
+  already right.
+- Review found a second oracle bug that 200 differential runs missed: at 46
+  powers of two, such as 2^-44, the oracle wrote 17 digits where ECMAScript
+  writes 16. Below a power of two the doubles are half as far apart, so the
+  shortest text that parses back can lie on the far side of the closest
+  decimal. The oracle now tries that neighbour, and the vectors and the
+  differential generator now include every power of two.
+- The URL differential found no policy disagreement. It names four parser
+  differences, each of which leaves the gateway refusing the input: Bun
+  percent-encodes `^` in paths, Bun accepts `[::1:]` and drops a leading `/.`
+  from a non-special path, and the `url` crate keeps a drive-letter segment
+  before `..` in an https: path.
+- `canonicalJson` writes a lone surrogate as an escape where RFC 8785 refuses
+  the input. The vector test pins this, and the claim records it.
+- The classifier proposal is `kb/plans/kb-ip-classifier-proposal.md`.
+  `gateway-rejects-private-addresses` stays planned until `@hraness/kb` ships a
+  checked classifier.
 
 ### Phase 8: continuous assurance
 

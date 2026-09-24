@@ -15,7 +15,7 @@ import { parseReleaseManifest, releaseAssetNames, releaseAssetByteLimit, type Re
 import { attestationVerifyArguments, prepareReleaseDirectory, verifyBuildHandoff, verifyCanonicalReleaseRun, verifyReleaseDirectory } from "./github-release-artifact.js";
 import { downloadReleaseAsset, publishCanonicalRelease, validateReleaseAssets } from "./github-release-publish.js";
 import { MAX_PACKED_BYTES } from "./package-budget.js";
-import { propertyParameters } from "../src/test-support.js";
+import { assertProperty } from "../src/test-support.js";
 
 const tag = "v0.17.0";
 const sourceSha = "a".repeat(40);
@@ -49,14 +49,14 @@ async function largeTransferFixture(directory: string) {
 
 describe("canonical archive transfer envelopes", () => {
   test("property: foreign archive sizes are accepted exactly within the versioned transfer bound", () => {
-    fc.assert(fc.property(fc.integer({ min: 1, max: 100 }),
+    assertProperty(fc.property(fc.integer({ min: 1, max: 100 }),
       fc.oneof(fc.integer({ min: -1, max: 16 * 1024 * 1024 }), fc.constantFrom(null, "100", NaN, Infinity, 0.5)), (patch, bytes) => {
         const tag = `v0.18.${patch}`; const name = releaseAssetNames(tag)[0]!;
         const value = { ...manifest, tag, version: tag.slice(1), archive: { ...manifest.archive, name, bytes } };
         const admissible = typeof bytes === "number" && Number.isSafeInteger(bytes) && bytes > 0 && bytes <= releaseAssetByteLimit(tag, name);
         if (admissible) expect(parseReleaseManifest(value).archive.bytes).toBe(bytes);
         else expect(() => parseReleaseManifest(value)).toThrow();
-      }), propertyParameters);
+      }));
   });
   test("keeps the measured package ceiling inside the archive transfer envelope", async () => {
     const { version } = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
@@ -522,7 +522,7 @@ describe("exact source CI admission", () => {
     }
     expect(() => verifySourceCiLog(log + log, f.input, 100, 1, "static")).toThrow();
     expect(() => verifySourceCiLog(log.split("\n").slice(0, 2).join("\n"), f.input, 100, 1, "static")).toThrow();
-    fc.assert(fc.property(fc.string(), extra => {
+    assertProperty(fc.property(fc.string(), extra => {
       const changed = log.replace('"schema":"wrench-source-ci-v1"', `"schema":"wrench-source-ci-v1","extra":${JSON.stringify(extra)}`);
       expect(() => verifySourceCiLog(changed, f.input, 100, 1, "static")).toThrow();
     }), { numRuns: 50 });

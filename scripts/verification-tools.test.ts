@@ -12,6 +12,7 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import {
+  cp,
   lstat,
   mkdir,
   mkdtemp,
@@ -35,12 +36,16 @@ import {
   KERNEL_AXIOMS,
   LEAN,
   LEAN_CANARY_MODULE,
+  LEAN_DIFFERENTIAL_RUNNER,
+  LEAN_DIFFERENTIAL_TEST,
+  LEAN_DIFFERENTIAL_TESTS,
   PLATFORM_KEYS,
   QUINT,
   QUINT_REPLAY_SCRIPT,
   QUINT_REPLAY_TIMEOUT_MS,
   QUINT_TRACE_TIMEOUT_MS,
   REPOSITORY_ROOT,
+  RUST_ORACLE,
   VERIFICATION_ARTIFACTS,
   admitArchive,
   apalacheVerdict,
@@ -228,6 +233,7 @@ describe("verification CI job", () => {
     run?: string;
     if?: string;
     "timeout-minutes"?: number;
+    "working-directory"?: string;
     with?: Record<string, unknown>;
     env?: Record<string, string>;
   };
@@ -259,7 +265,16 @@ describe("verification CI job", () => {
     const install = job.steps.findIndex((step) => step.run === "bun install --frozen-lockfile --ignore-scripts");
     expect(install).toBeGreaterThanOrEqual(0);
     expect(job.steps.indexOf(cache[0]!)).toBe(install + 1);
-    expect(verify).toBe(install + 2);
+    // The only step between the cache and verify installs the oracle's exact
+    // Rust toolchain with the runner's rustup and checks both versions.
+    const rust = job.steps[install + 2]!;
+    expect(rust.name).toBe("Install the pinned Rust toolchain");
+    expect(rust["working-directory"]).toBe(RUST_ORACLE.directory);
+    expect(rust.uses).toBeUndefined();
+    expect(rust.run).toContain(`rustup toolchain install ${RUST_ORACLE.toolchain} --profile minimal --no-self-update`);
+    expect(rust.run).toContain(`test "$(rustc --version | cut -d ' ' -f 2)" = "${RUST_ORACLE.toolchain}"`);
+    expect(rust.run).toContain(`test "$(cargo --version | cut -d ' ' -f 2)" = "${RUST_ORACLE.toolchain}"`);
+    expect(verify).toBe(install + 3);
     expect(source).not.toContain("setup-java");
   });
 
@@ -269,7 +284,7 @@ describe("verification CI job", () => {
     const job = workflow.jobs.verification;
     if (job === undefined) throw new Error("ci.yml has no verification job");
     expect(job.name).toBe("verification");
-    expect(job["timeout-minutes"]).toBe(20);
+    expect(job["timeout-minutes"]).toBe(35);
     expect(job.permissions).toBeUndefined();
     expect(workflow.permissions).toEqual({ contents: "read" });
     expect(job.steps.filter((step) => step.uses?.startsWith("actions/checkout@") === true).map((step) => step.with))
@@ -288,7 +303,7 @@ describe("verification CI job", () => {
     // A failed or timed-out verify step still uploads its logs: the step bound ends it inside the job bound.
     expect(upload[0]!.if).toBe("always()");
     const verifyStep = job.steps.find((step) => step.run === "bun run verify")!;
-    expect(verifyStep["timeout-minutes"]).toBe(16);
+    expect(verifyStep["timeout-minutes"]).toBe(30);
     expect(verifyStep["timeout-minutes"]!).toBeLessThan(job["timeout-minutes"]! - 2);
     expect(JSON.stringify(job)).not.toContain("secrets.");
     for (const match of source.matchAll(/^\s*(?:- )?uses: (\S+)/gmu)) {
@@ -979,6 +994,7 @@ describe("Quint model manifest", () => {
       [at(["mutants"], []), "models[0].mutants must list at least one seeded defect"],
       [at(["mutants", 0, "step"], "step"), "models[0].mutants[0] must use a mutant step"],
       [at(["mutants", 0, "invariant"], "deadlockFree"), "models[0].mutants[0] must violate one of the model's invariants"],
+      [at(["mutants", 1], jsonAt(document, ["models", 0, "mutants", 0])!), "models[0].mutants must not list a step and invariant twice"],
       [at(["replay", "test"], "scripts/../lock.test.ts"), "models[0].replay.test must be a repository test file"],
       [at(["replay", "test"], "scripts/verification-lock-replay.ts"), "models[0].replay.test must be a repository test file"],
       [at(["replay", "test"], "/tmp/replay.test.ts"), "models[0].replay.test must be a repository test file"],
@@ -1156,10 +1172,51 @@ describe("Lean trust base", () => {
     expect(proofs.theorems.find((theorem) => theorem.name === `${LIBRARY}.Smoke.acquire_held`)?.type).toBe(leanTypeDigest(HELD_TYPE));
     expect(proofs.theorems.find((theorem) => theorem.name === `${LIBRARY}.Smoke.acquireUnguarded_violates_held`)?.type)
       .toBe(leanTypeDigest(REFUTATION_TYPE));
-    expect(proofs.mutants).toEqual(SCAN_PROOFS.mutants);
+    // Later proofs add their own mutants; the smoke mutant stays among them.
+    for (const mutant of SCAN_PROOFS.mutants) expect(proofs.mutants).toContainEqual(mutant);
     expect(proofs.theorems.length).toBeGreaterThan(0);
     expect(proofs.mutants.length).toBeGreaterThan(0);
     expect(proofs.allowedAxioms).toEqual([]);
+  });
+
+  test("scans the differential runner like the library and flags other root files", async () => {
+    await withDirectory("gg-lean-scan-", async (root) => {
+      const project = join(root, "verification", "lean");
+      await cp(join(REPOSITORY_ROOT, "verification", "lean"), project, {
+        recursive: true,
+        filter: (source) => !source.split("/").includes(".lake"),
+      });
+      expect((await leanStaticFindings(root)).findings).toEqual([]);
+      const runner = join(project, LEAN_DIFFERENTIAL_RUNNER);
+      const text = await readFile(runner, "utf8");
+      await writeFile(runner, `${text}\ntheorem leak : False := sorry\n#eval main\n`);
+      expect((await leanStaticFindings(root)).findings)
+        .toEqual([`${LEAN_DIFFERENTIAL_RUNNER} uses sorry`, `${LEAN_DIFFERENTIAL_RUNNER} uses #eval`]);
+      await writeFile(runner, `import Lean.Elab\n${text}`);
+      expect((await leanStaticFindings(root)).findings)
+        .toEqual([`${LEAN_DIFFERENTIAL_RUNNER} imports Lean.Elab, outside the core-only allow-list`]);
+      await rm(runner);
+      expect((await leanStaticFindings(root)).findings).toEqual([`${LEAN_DIFFERENTIAL_RUNNER} is missing`]);
+      await writeFile(join(project, "Other.lean"), text);
+      expect((await leanStaticFindings(root)).findings)
+        .toEqual([`${LEAN_DIFFERENTIAL_RUNNER} is missing`, "Other.lean is outside the GhostgetVerification library"]);
+    });
+    expect(LEAN_DIFFERENTIAL_TESTS.length).toBe(3);
+    for (const file of LEAN_DIFFERENTIAL_TESTS) {
+      expect(await readFile(join(REPOSITORY_ROOT, file), "utf8")).toContain("startLeanOracle");
+    }
+  });
+
+  test("the encoding and negotiation Lean claims cite the differential test verify:lean runs", async () => {
+    const register = JSON.parse(await repositoryFile("verification/claims.json")) as {
+      claims: { id: string; layer: string; status: string; evidence: string[] }[];
+    };
+    const ids = ["canonical-json-injective", "hash-framing-injective", "session-secret-filename-injective", "edge-accept-406-only-when-empty"];
+    const cited = register.claims.filter((claim) => ids.includes(claim.id))
+      .map((claim) => ({ id: claim.id, layer: claim.layer, status: claim.status, cites: claim.evidence.includes(LEAN_DIFFERENTIAL_TEST) }))
+      .sort((left, right) => ids.indexOf(left.id) - ids.indexOf(right.id));
+    expect(cited).toEqual(ids.map((id) => ({ id, layer: "lean", status: "evidenced", cites: true })));
+    expect(await repositoryFile(LEAN_DIFFERENTIAL_TEST)).toContain("assertAsyncProperty(");
   });
 
   test("flags sorry, admit, native evaluation, unlisted axioms, and other trust escapes", () => {

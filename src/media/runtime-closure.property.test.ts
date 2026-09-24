@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import fc from "fast-check";
+import { assertProperty } from "../test-support";
 
 import {
   buildWhisperRuntimeEnvironment,
@@ -33,7 +34,7 @@ function dependencyArbitrary(): fc.Arbitrary<RuntimeClosureDigestDependency> {
 }
 
 test("property: arbitrary loader traces are total and return a discriminated result", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.string({ maxLength: 8_192 }),
       fc.constantFrom<RuntimeClosurePlatform>("darwin", "linux"),
@@ -55,7 +56,7 @@ test("property: arbitrary loader traces are total and return a discriminated res
 });
 
 test("property: the framed closure digest is order-independent and path-free", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.constantFrom<RuntimeClosurePlatform>("darwin", "linux"),
       fc.array(dependencyArbitrary(), { maxLength: 40 }),
@@ -100,7 +101,7 @@ test("property: the framed closure digest is order-independent and path-free", (
 });
 
 test("property: arbitrary inherited secrets can never enter the constant runtime environment", () => {
-  fc.assert(
+  assertProperty(
     fc.property(
       fc.dictionary(fc.string({ maxLength: 64 }), fc.string({ maxLength: 256 })),
       (inheritedEnvironment) => {
@@ -117,7 +118,7 @@ test("property: arbitrary inherited secrets can never enter the constant runtime
 });
 
 test("property: arbitrary JSON-like values never escape the exact record parser", () => {
-  fc.assert(
+  assertProperty(
     fc.property(fc.jsonValue(), (value) => {
       const result = parseRuntimeClosureRecord(value);
       expect(typeof result.ok).toBe("boolean");
@@ -127,7 +128,7 @@ test("property: arbitrary JSON-like values never escape the exact record parser"
 });
 
 test("property: resolved glibc search traces select the final candidate, not failed attempts", () => {
-  fc.assert(
+  assertProperty(
     fc.property(tokenArbitrary(), tokenArbitrary(), (libraryToken, directoryToken) => {
       const logicalName = `lib${libraryToken}.so.1`;
       const failedPath = `/missing/${directoryToken}/${logicalName}`;
