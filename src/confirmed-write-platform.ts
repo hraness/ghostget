@@ -83,9 +83,9 @@ export interface ConfirmedWriteKernel {
   readonly validateFreshPlan: (stored: StoredPlan, environment: Readonly<Record<string, string | undefined>>, now: Date, registry: ProviderPluginRegistry, loadManifest: typeof loadInstalledManifest) => PreparedInvocation;
   readonly isDispatchProgress: (value: unknown) => value is RunReceipt["dispatch"];
   readonly ledgerPath: (adapterHash: string, authHashValue: string, operationId: string, inputHash: string, environment: Readonly<Record<string, string | undefined>>, duplicateIntentHash?: string) => string;
-  readonly acquireLedger: (path: string, entry: LedgerEntry, environment: Readonly<Record<string, string | undefined>>, now: Date, alternatePaths?: readonly string[]) => | { readonly acquired: true; readonly snapshot: LedgerSnapshot }
-    | { readonly acquired: false; readonly existing: LedgerEntry; readonly viaAlternatePath?: boolean };
-  readonly acquireIntentLedger: (intent: ConfirmedWriteIntent, entry: LedgerEntry, environment: Readonly<Record<string, string | undefined>>, now: Date) => | { readonly acquired: true; readonly snapshot: LedgerSnapshot }
+  /** Claim the intent fence, then the hash-keyed ledger. */
+  readonly acquireConfirmedWriteLedgers: (request: { readonly path: string; readonly entry: LedgerEntry; readonly alternatePaths?: readonly string[]; readonly intent: ConfirmedWriteIntent }, environment: Readonly<Record<string, string | undefined>>, now: Date) => | { readonly acquired: true; readonly snapshot: LedgerSnapshot }
+    | { readonly acquired: false; readonly existing: LedgerEntry; readonly viaAlternatePath?: boolean }
     | { readonly acquired: false; readonly existing: LedgerEntry; readonly viaIntent: true };
   readonly writeReceipt: (receipt: RunReceipt, environment: Readonly<Record<string, string | undefined>>) => void;
   readonly runJournalReceipt: (journal: RunJournal) => RunReceipt;
@@ -138,8 +138,7 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
     validateFreshPlan,
     isDispatchProgress,
     ledgerPath,
-    acquireLedger,
-    acquireIntentLedger,
+    acquireConfirmedWriteLedgers,
     writeReceipt,
     runJournalReceipt,
     relativeStatePath,
@@ -639,12 +638,7 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
       }),
       // The intent fence is claimed first, so a reconnect or a manifest
       // revision cannot move the same effect to a fresh hash-keyed ledger.
-      acquireLedger: (request: { readonly path: string; readonly entry: LedgerEntry; readonly alternatePaths?: readonly string[]; readonly intent: ConfirmedWriteIntent }) => attempt("journal", (): ReturnType<ConfirmedWriteKernel["acquireLedger"]> | ReturnType<ConfirmedWriteKernel["acquireIntentLedger"]> => {
-        const at = observedTime();
-        const fenced = acquireIntentLedger(request.intent, request.entry, options.environment, at);
-        if (!fenced.acquired) return fenced;
-        return acquireLedger(request.path, request.entry, options.environment, at, request.alternatePaths ?? []);
-      }),
+      acquireLedger: (request: { readonly path: string; readonly entry: LedgerEntry; readonly alternatePaths?: readonly string[]; readonly intent: ConfirmedWriteIntent }) => attempt("journal", () => acquireConfirmedWriteLedgers(request, options.environment, observedTime())),
       ledgerRelativePath: (path: string) => attempt("journal", () => relativeStatePath(path, options.environment)),
       readReceipt: (id: string) => attempt("projection", () => readRunReceipt(id, options.environment)),
       storeCapsule: attempt("journal", () => writeRecoveryCapsule({

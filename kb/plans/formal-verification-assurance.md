@@ -260,6 +260,26 @@ and an ITF replay test through production code.
    pre-Phase-1 variant must reproduce D1 and D2. Replay traces through
    `transitionRunJournal`, `acquireLedger`, and the repair functions over
    `StatePort`.
+
+   Execution note (2026-09-24): `fence.qnt` now models duplicate-risk
+   successors. A successor is its own intent, narrowed to one terminal,
+   unsettled, indeterminate source that still binds the current auth record
+   and manifest, and it elects that source once, just before its dispatch.
+   `fenceSafety` checks the full bound (dispatches ≤ 1 + elected successors),
+   no intent dispatched twice, and that only an indeterminate run elects a
+   successor. Two new mutants break it: `stepUnelected`, where a successor
+   skips the election, and `stepElectInFlight`, where a successor names an
+   in-flight source. The replay now also drives the file-backed state layer
+   on a real state home, over a five-trace greedy cover of every action
+   result the seeded traces take (each state operation spawns the bound
+   state helper, so all 2,000 traces would take hours): journals, `acquireConfirmedWriteLedgers` (the intent
+   ledger, then the hash-keyed ledger, the composition the confirmed-write
+   platform calls), `repairInterruptedRunJournals` after a lost outcome and
+   after every step, and `releaseReconciledRunRecovery`. The
+   `indeterminate-never-retried` claim is evidenced by this model. Still open:
+   the `confirmInvocation` program itself, including
+   `claimDuplicateRiskSource`'s receipt, capsule, and ledger rechecks, is
+   covered only by example tests.
 2. **State-helper and path-helper exclusion.** The three-phase claim with
    stale-owner reaping. Check two variants: `readdir` as an atomic snapshot,
    and `readdir` that may omit renamed entries. The invariant is
