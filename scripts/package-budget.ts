@@ -1556,24 +1556,33 @@
 // f2c9be480d9ffe8aa7ae642af2523491745987ee9bed58b66d37f7d2f4d6c4ed. Carry the
 // same projections and allowances: 11,992,902 + 12,387 + 4,096 = 12,009,385
 // packed; 23,424,993 + 353 + 65 = 23,425,411 unpacked.
+// The README paragraph that links the thread through hraness and the ALGAL
+// vision adds 419 payload bytes to README.md over the unchanged 596-file
+// inventory. Two `npm pack --ignore-scripts` runs with npm 11.16.0 on darwin
+// arm64 were byte-identical at 12,005,185 packed bytes, 23,425,412 unpacked
+// bytes; archive SHA-256
+// 874784766ccc8e505bc73de42d1aad7b95ce6acd59ea121914ea6f9a6dbffe85.
+// Compressed size varies with the local zlib. Carry the same projections and
+// allowances: 12,005,185 + 12,387 + 4,096 = 12,021,668 packed;
+// 23,425,412 + 353 + 65 = 23,425,830 unpacked.
 // Removal of ambiguous historical session secrets by their envelope's named
 // owner, and the faster strict canonical JSON encoder, change
 // src/session-secrets.ts, src/canonical-json.ts, and the rebuilt dist chunks
 // that bundle the encoder. This adds 2,096 payload bytes over the unchanged
 // 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0
-// on darwin arm64 were byte-identical at 11,993,164 packed bytes, 23,427,089
+// on darwin arm64 were byte-identical at 11,993,314 packed bytes, 23,427,508
 // unpacked bytes; archive SHA-256
-// 17f45c96e29b85b95233ff69ccb926956784b8fd6f6e092831a95626090bf49f. Carry the
-// same projections and allowances: 11,993,164 + 12,387 + 4,096 = 12,009,647
-// packed; 23,427,089 + 353 + 65 = 23,427,507 unpacked.
+// e83ade2284a503a5ab68ea421e744307ec4c506dac1f494323489424383dfb86. Carry the
+// same projections and allowances: 11,993,314 + 12,387 + 4,096 = 12,009,797
+// packed; 23,427,508 + 353 + 65 = 23,427,926 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Owner-named removal of ambiguous historical session secrets and the faster strict canonical JSON encoder",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "17f45c96e29b85b95233ff69ccb926956784b8fd6f6e092831a95626090bf49f",
-  packedBytes: 11_993_164,
-  unpackedBytes: 23_427_089,
+  archiveSha256: "e83ade2284a503a5ab68ea421e744307ec4c506dac1f494323489424383dfb86",
+  packedBytes: 11_993_314,
+  unpackedBytes: 23_427_508,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
