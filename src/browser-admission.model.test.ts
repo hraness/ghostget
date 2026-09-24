@@ -186,6 +186,8 @@ type Timing = Readonly<{
   /** The capture deadline's remaining time at the start, or null for none. */
   captureRemainingMs: number | null;
   increments: readonly number[];
+  /** Time that passes between a slot's durable create and its return. */
+  commitDelayMs: number;
 }>;
 
 /**
@@ -201,8 +203,16 @@ function bound(budget: Budget): number {
 }
 
 /** Admission dependencies for one simulated process, recording and checking every sleep. */
-function dependenciesFor(real: Real, owner: SimulatedProcess, budget: Budget): BrowserAdmissionDependencies {
+function dependenciesFor(
+  real: Real,
+  owner: SimulatedProcess,
+  budget: Budget,
+  commitDelayMs = 0,
+): BrowserAdmissionDependencies {
   return {
+    afterCreateCommitForTest: () => {
+      real.clock.now += commitDelayMs;
+    },
     monotonicNow: () => {
       const value = readClock(real.clock);
       budget.firstRead ??= value;
@@ -260,7 +270,7 @@ class AcquireCommand implements fc.AsyncCommand<Model, Real> {
     const options: AcquireBrowserAdmissionOptions = {
       timeoutMs: this.timing.timeoutMs,
       environment: real.environment,
-      dependencies: dependenciesFor(real, owner, budget),
+      dependencies: dependenciesFor(real, owner, budget, this.timing.commitDelayMs),
       ...(this.timing.captureRemainingMs === null
         ? {}
         : { deadline: captureDeadline(real, this.timing.captureRemainingMs) }),
@@ -279,8 +289,10 @@ class AcquireCommand implements fc.AsyncCommand<Model, Real> {
       checkInvariants(model, real);
       return;
     }
-    // No admission is returned at or after the local or capture deadline.
+    // No admission is returned at or after the local or capture deadline,
+    // even when that deadline passed while the slot was being created.
     expect(real.clock.lastRead).toBeLessThan(bound(budget));
+    expect(real.clock.now).toBeLessThan(bound(budget));
     expect(predicted).not.toBeNull();
     expect(admission.slot).toBe(predicted!);
     model.slots[predicted!] = owner.id;
@@ -468,22 +480,55 @@ class CaptureCommand implements fc.AsyncCommand<Model, Real> {
   }
 }
 
-const increments = fc.array(fc.oneof(fc.constant(0), fc.integer({ min: 1, max: 40_000 })), { maxLength: 12 });
+// Most clock readings advance by nothing, so most acquisitions complete and
+// the slots fill; the rest jump by up to 40 s, anywhere in an acquisition.
+const jump = fc.oneof(
+  { weight: 3, arbitrary: fc.constant(0) },
+  { weight: 1, arbitrary: fc.integer({ min: 1, max: 40_000 }) },
+);
+const increments = fc.array(jump, { maxLength: 12 });
 const timing: fc.Arbitrary<Timing> = fc.record({
   timeoutMs: fc.integer({ min: 1, max: 60_000 }),
   captureRemainingMs: fc.option(fc.integer({ min: 0, max: 60_000 }), { nil: null }),
   increments,
+  commitDelayMs: jump,
 });
 
+const acquireCommand = timing.map((entry) => new AcquireCommand(entry));
+const ownerChangeCommand = fc.tuple(fc.nat(3), fc.constantFrom<"dead" | "unknown">("dead", "unknown"))
+  .map(([pick, status]) => new OwnerChangeCommand(pick, status));
+// Acquisitions and owner deaths are listed twice so that full slots with a
+// dead same-boot holder, the case PID reuse must not reclaim, come up often.
 const commands = fc.commands([
-  timing.map((entry) => new AcquireCommand(entry)),
+  acquireCommand,
+  acquireCommand,
   fc.nat(3).map((pick) => new ReleaseCommand(pick)),
-  fc.tuple(fc.nat(3), fc.constantFrom<"dead" | "unknown">("dead", "unknown"))
-    .map(([pick, status]) => new OwnerChangeCommand(pick, status)),
+  ownerChangeCommand,
+  ownerChangeCommand,
   fc.constant(new RebootCommand()),
   fc.tuple(fc.integer({ min: 1, max: 60_000 }), increments)
     .map(([timeoutMs, extra]) => new CaptureCommand(timeoutMs, extra)),
 ], { maxCommands: 10 });
+
+function acquireAt(timeoutMs: number, increments: readonly number[] = [], commitDelayMs = 0): AcquireCommand {
+  return new AcquireCommand({ timeoutMs, captureRemainingMs: null, increments, commitDelayMs });
+}
+
+/**
+ * Fixed schedules that every run checks before the generated ones, one per
+ * boundary the law depends on, so a regression at any of them fails on every
+ * run rather than only on a lucky seed.
+ */
+const boundarySchedules: readonly (readonly fc.AsyncCommand<Model, Real>[])[] = [
+  // Both slots held in this boot, one holder dead: the third waits it out.
+  [acquireAt(1_000), acquireAt(1_000), new OwnerChangeCommand(0, "dead"), acquireAt(100)],
+  // The deadline passes while the slot is being created.
+  [acquireAt(1_000, [], 5_000)],
+  // A capture that reaches admission with no launch time left.
+  [new CaptureCommand(378, [0, 29_490, 377])],
+  // Full slots and a 60 s timeout: polling still stops at 30 s.
+  [acquireAt(1_000), acquireAt(1_000), acquireAt(60_000, [0, 29_990])],
+];
 
 describe("browser admission stateful model", () => {
   test("never runs more than two acquisitions, never reclaims a same-boot claim, and never launches after expiry", async () => {
@@ -507,6 +552,10 @@ describe("browser admission stateful model", () => {
       } finally {
         rmSync(directory, { recursive: true, force: true });
       }
-    }), { numRuns: 8, interruptAfterTimeLimit: 150_000 });
+    }), {
+      numRuns: 8,
+      interruptAfterTimeLimit: 150_000,
+      examples: boundarySchedules.map((schedule) => [schedule as unknown as Iterable<fc.AsyncCommand<Model, Real>>]),
+    });
   });
 });
