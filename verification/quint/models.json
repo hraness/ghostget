@@ -133,6 +133,7 @@
       "mutants": [
         { "step": "stepD7", "invariant": "exactHandoffPublishes" },
         { "step": "stepD8", "invariant": "promotionNotBlocked" },
+        { "step": "stepD15", "invariant": "promotionNotBlocked" },
         { "step": "stepUnbound", "invariant": "publishedBytesAttested" },
         { "step": "stepEarlyDownload", "invariant": "promotionSound" }
       ],

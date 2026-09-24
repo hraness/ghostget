@@ -53,6 +53,12 @@ const RELEASE_WORKFLOW = Object.freeze({
 });
 const RELEASE_OWNER = Object.freeze({ id: 894119, type: "User" });
 const RELEASE_WORKFLOW_REQUEST_TIMEOUT_MILLISECONDS = 10_000;
+/**
+ * Recovery reads at most this many attempts strictly between a receipt attempt
+ * that attested but did not publish and the run's latest attempt; a wider gap
+ * fails closed before any of them is read.
+ */
+export const MAX_INTERMEDIATE_RELEASE_ATTEMPTS = 3;
 const RELEASE_SOURCE_RECEIPT_SCHEMA = "wrench-release-source-v1";
 const VERCEL_CREATOR = Object.freeze({ id: 35613825, login: "vercel[bot]", type: "Bot" });
 const VERCEL_GRAPHQL_CREATOR = Object.freeze({ id: 35613825, login: "vercel", type: "Bot" });
@@ -203,11 +209,13 @@ const IMMUTABLE_RELEASE_REST_REQUESTS =
 const WEBSITE_AUTHORITY_REST_REQUESTS =
   2 + 4 * (2 * (7 + 1 + 1 + 1)) +
   1 + // one initial exact Release workflow-run read
-  2; // manual recovery's latest-attempt and receipt-attempt bounded job inventories
+  2 + // manual recovery's latest-attempt and receipt-attempt bounded job inventories
+  2 * MAX_INTERMEDIATE_RELEASE_ATTEMPTS; // each intermediate attempt and its bounded job inventory
 const CANONICAL_DOWNLOAD_REST_REQUESTS =
   1 + // exact by-tag Release read
   2 + // receipt attempt and its bounded job inventory
-  2; // current run and its attempt's inventory when a later attempt completed publication
+  2 + // current run and its attempt's inventory when a later attempt completed publication
+  2 * MAX_INTERMEDIATE_RELEASE_ATTEMPTS; // each intermediate attempt and its bounded job inventory
 const SURROUNDING_RELEASE_REST_REQUESTS =
   IMMUTABLE_RELEASE_REST_REQUESTS +
   WEBSITE_AUTHORITY_REST_REQUESTS +
@@ -2057,9 +2065,60 @@ function exactCompletedReleaseWorkflowRun({
   return Object.freeze({ run, runAttempt, runId, sha });
 }
 
+/**
+ * The first canonical job that is not a completed success of exactly this
+ * run, attempt, and source SHA, or undefined when all four are. A missing or
+ * duplicated canonical job fails closed.
+ */
+function firstUnprovenCanonicalJob(records, binding, label) {
+  return CANONICAL_RELEASE_JOBS.find((name) => {
+    const job = exactReleaseJob(records, name, label);
+    return !completedReleaseJob(job, binding) || job.conclusion !== "success";
+  });
+}
+
+/**
+ * The attempts strictly between a receipt attempt that attested but did not
+ * publish and the latest attempt, in ascending order. More than
+ * MAX_INTERMEDIATE_RELEASE_ATTEMPTS fails closed before any read.
+ */
+function intermediateReleaseAttempts(receiptAttempt, latestAttempt, label) {
+  const count = latestAttempt - receiptAttempt - 1;
+  if (count <= 0) return [];
+  if (count > MAX_INTERMEDIATE_RELEASE_ATTEMPTS) {
+    fail(`${label} has ${String(count)} attempts after its receipt attempt, beyond the bounded ${String(MAX_INTERMEDIATE_RELEASE_ATTEMPTS)}`);
+  }
+  return Array.from({ length: count }, (_, index) => receiptAttempt + 1 + index);
+}
+
+/**
+ * One intermediate attempt of this exact run: its own attempt record must
+ * carry the exact owner actor and triggering actor, repository, workflow ID
+ * and path, tag-push event, tag, and SHA, be completed, and name that attempt.
+ * Any drift fails closed before its job inventory is read.
+ */
+function exactIntermediateReleaseAttempt(coordinates, attempt, runValue, label) {
+  const { runId, sha } = exactCompletedReleaseWorkflowRun({
+    ...coordinates,
+    expectedRunAttempt: String(attempt),
+    value: runValue,
+  }, `${label} attempt ${String(attempt)}`);
+  return Object.freeze({ runId, runAttempt: attempt, sha });
+}
+
+/**
+ * Whether that attempt's own complete bounded job inventory proves all four
+ * canonical jobs; an attempt that merely did not publish is not admitted.
+ */
+function intermediateAttemptPublished(binding, jobsValue, label) {
+  const jobsLabel = `${label} attempt ${String(binding.runAttempt)} jobs`;
+  return firstUnprovenCanonicalJob(exactReleaseJobInventory(jobsValue, jobsLabel), binding, jobsLabel) === undefined;
+}
+
 export function exactReleaseWorkflowRun({
   canonicalJobs,
   readAttemptJobs,
+  readAttemptRun,
   readCurrentRun,
   ...coordinates
 }, label = "Release workflow run") {
@@ -2097,14 +2156,32 @@ export function exactReleaseWorkflowRun({
     fail(`${label} publication was not completed by a later attempt of the same run`);
   }
   const currentLabel = `${label} current attempt jobs`;
-  exactSuccessfulReleaseJobs(
+  const unproven = firstUnprovenCanonicalJob(
     exactReleaseJobInventory(readAttemptJobs(current.runAttempt), currentLabel),
-    CANONICAL_RELEASE_JOBS,
     Object.freeze({ runId, runAttempt: current.runAttempt, sha }),
     currentLabel,
-    "the current attempt",
   );
-  return run;
+  if (unproven === undefined) return run;
+  // A failed-jobs rerun may have published before a later rerun of all jobs
+  // failed; only an exact intermediate attempt whose own inventory proves all
+  // four canonical jobs can then admit the receipt attempt (plan D15).
+  const intermediates = intermediateReleaseAttempts(runAttempt, current.runAttempt, label);
+  if (intermediates.length === 0) {
+    fail(`${currentLabel} ${unproven} job did not succeed in the current attempt`);
+  }
+  const identity = Object.freeze({
+    repository: coordinates.repository,
+    verifiedSha: coordinates.verifiedSha,
+    verifiedTag: coordinates.verifiedTag,
+    workflowRunId: coordinates.workflowRunId,
+  });
+  if (typeof readAttemptRun === "function") {
+    for (const attempt of intermediates) {
+      const binding = exactIntermediateReleaseAttempt(identity, attempt, readAttemptRun(attempt), label);
+      if (intermediateAttemptPublished(binding, readAttemptJobs(attempt), label)) return run;
+    }
+  }
+  fail(`${currentLabel} ${unproven} job did not succeed in the current attempt, and no intermediate attempt proved the four canonical jobs`);
 }
 
 const RELEASE_ATTEMPT_RECEIPT = /^ghostget-release-attempt-v1 run_attempt=([1-9][0-9]{0,8})$/u;
@@ -2129,12 +2206,15 @@ function releaseReceiptAttemptHint(value) {
  * publish (for example, all jobs were re-run after publication and the new
  * attempt's publish was rejected), the earlier receipt attempt named by the
  * Release can admit it only through its own inventory proving all four jobs.
+ * When that receipt attempt attested but did not publish, a failed-jobs rerun
+ * between it and the latest attempt may have published; at most
+ * MAX_INTERMEDIATE_RELEASE_ATTEMPTS such attempts are read, each through its
+ * own exact attempt record and complete bounded inventory (plan D15).
  */
-async function admitRecoveredReleaseRun(api, endpoint, { runAttempt, runId, sha }, releaseValue) {
-  const readJobs = (attempt) => api.get(
-    `${endpoint}/attempts/${String(attempt)}/jobs?per_page=100`,
-    Object.freeze({ timeoutMilliseconds: RELEASE_WORKFLOW_REQUEST_TIMEOUT_MILLISECONDS }),
-  );
+async function admitRecoveredReleaseRun(api, endpoint, identity, { runAttempt, runId, sha }, releaseValue) {
+  const timeout = Object.freeze({ timeoutMilliseconds: RELEASE_WORKFLOW_REQUEST_TIMEOUT_MILLISECONDS });
+  const readJobs = (attempt) => api.get(`${endpoint}/attempts/${String(attempt)}/jobs?per_page=100`, timeout);
+  const readAttemptRun = (attempt) => api.get(`${endpoint}/attempts/${String(attempt)}`, timeout);
   const label = "Release workflow run jobs";
   const latest = Object.freeze({ runId, runAttempt, sha });
   const jobs = exactReleaseJobInventory(await readJobs(runAttempt), label);
@@ -2151,13 +2231,23 @@ async function admitRecoveredReleaseRun(api, endpoint, { runAttempt, runId, sha 
     fail(`${label} ${unsuccessful[0]} job did not succeed in the latest attempt`);
   }
   const receiptLabel = "Release workflow run receipt attempt jobs";
-  exactSuccessfulReleaseJobs(
-    exactReleaseJobInventory(await readJobs(receiptAttempt), receiptLabel),
-    CANONICAL_RELEASE_JOBS,
-    Object.freeze({ runId, runAttempt: receiptAttempt, sha }),
-    receiptLabel,
-    "the receipt attempt",
-  );
+  const receiptBinding = Object.freeze({ runId, runAttempt: receiptAttempt, sha });
+  const receiptJobs = exactReleaseJobInventory(await readJobs(receiptAttempt), receiptLabel);
+  exactSuccessfulReleaseJobs(receiptJobs, ATTESTING_RELEASE_JOBS, receiptBinding, receiptLabel, "the receipt attempt");
+  const publish = exactReleaseJob(receiptJobs, PUBLISH_RELEASE_JOB, receiptLabel);
+  if (completedReleaseJob(publish, receiptBinding) && publish.conclusion === "success") return;
+  const intermediates = completedReleaseJob(publish, receiptBinding)
+    ? intermediateReleaseAttempts(receiptAttempt, runAttempt, "Release workflow run")
+    : [];
+  if (intermediates.length === 0) {
+    fail(`${receiptLabel} ${PUBLISH_RELEASE_JOB} job did not succeed in the receipt attempt`);
+  }
+  const runLabel = "Release workflow run";
+  for (const attempt of intermediates) {
+    const binding = exactIntermediateReleaseAttempt(identity, attempt, await readAttemptRun(attempt), runLabel);
+    if (intermediateAttemptPublished(binding, await readJobs(attempt), runLabel)) return;
+  }
+  fail(`${receiptLabel} ${PUBLISH_RELEASE_JOB} job did not succeed in the receipt attempt, and no intermediate attempt proved the four canonical jobs`);
 }
 
 export async function resolveReleaseAuthority({
@@ -2229,7 +2319,13 @@ export async function resolveReleaseAuthority({
     if (eventName !== "workflow_dispatch") {
       fail("Release workflow run does not have the exact successful Release workflow identity");
     }
-    await admitRecoveredReleaseRun(api, releaseRunEndpoint, releaseRun, firstReleaseValue);
+    const releaseRunIdentity = Object.freeze({
+      repository: coordinate,
+      verifiedSha: sha,
+      verifiedTag: tag,
+      workflowRunId: releaseWorkflowRunId,
+    });
+    await admitRecoveredReleaseRun(api, releaseRunEndpoint, releaseRunIdentity, releaseRun, firstReleaseValue);
   }
   const firstPublished = parseSecondTimestamp(
     expectRecord(firstReleaseValue, `Release ${tag}`).published_at,
