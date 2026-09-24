@@ -2358,12 +2358,13 @@ The Quint smoke model typechecks, passes seeded simulation and bounded Apalache 
 - Not verified:
   - Only the enumerated example cases are checked; `Required` checks the nightly configuration, not a nightly run.
   - The nightly workflow has not run on `main` yet. Its first scheduled run after merge is the first CI evidence at the deeper bounds and soak multiplier.
+  - `verification/quint/lock.qnt` is the only Quint model, and it is the toolchain smoke model with a `reference` replay target. The nightly bounds deepen no model of production code until a production model lists `nightly` bounds.
   - A nightly failure blocks no merge or release. Only the quarterly review in `docs/claims-review.md` checks that failures were triaged, and no automated check enforces that review.
   - Properties that call `fc.assert` directly, and the serialized omni runtime test file, are outside the soak.
 
 #### `verification-source-mutants`
 
-Every mutant in `verification/mutants.json` changes exactly one occurrence of a guard in `src/run-journal.ts`, `src/messaging-action-store.ts`, or `src/linked-device-lifecycle-journal.ts` and still compiles, and `bun run ./scripts/verification-mutants.ts` reports it killed only when its fully named test passes alone on unmodified source and is the only failing test on the mutant; a timeout, another failure, or unparsed output is inconclusive and fails the run.
+Every mutant in `verification/mutants.json` changes exactly one occurrence of a guard in `src/run-journal.ts`, `src/messaging-action-store.ts`, or `src/linked-device-lifecycle-journal.ts` and still transpiles, and `bun run ./scripts/verification-mutants.ts` reports it killed only when its fully named test passes alone on unmodified source and is the only failing test on the mutant; a timeout, another failure, or unparsed output is inconclusive and fails the run.
 
 - Evidenced by example test.
 - Source: `verification/AGENTS.md`: “List every reducer source mutant in `mutants.json` with its defect and the full name of the one test that must fail.”

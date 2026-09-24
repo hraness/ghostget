@@ -22,7 +22,9 @@ It runs three jobs:
   The parser rejects a nightly bound below its CI bound, and a `nightly` entry
   must deepen at least one bound. A model without `nightly` repeats its CI
   bounds and logs that. Each seeded mutant must still be found at the deeper
-  bounds. Output lands in `artifacts/verification/quint-nightly/` and is
+  bounds. The only model today is the toolchain smoke model `lock.qnt`, whose
+  replay target is `reference`, so the deeper bounds do not yet check any
+  model of production code. Output lands in `artifacts/verification/quint-nightly/` and is
   uploaded for 30 days.
 - **`property soak N/6`** runs `bun run ./scripts/verification-soak.ts N 6`
   with `GHOSTGET_PROPERTY_RUNS` set to 20 by default. The soak selects every
