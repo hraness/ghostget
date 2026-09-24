@@ -169,7 +169,8 @@ only with its original signed identity, never with a newly rebuilt artifact.
 Re-running all jobs after publication rebuilds under a new attempt, which that
 body check rejects, so that run can no longer complete npm. Manual website
 recovery still admits the Release through its earlier receipt attempt's job
-inventory.
+inventory or, when a failed-jobs rerun published it after that receipt attempt,
+through that rerun attempt's own job inventory.
 
 The Release workflow does not hold the production App key, touch production
 refs, or wait for Vercel. The separate production workflow cryptographically
@@ -667,9 +668,21 @@ because all jobs were re-run after publication, the Release body's attempt line
 selects one earlier receipt attempt of the same run, and one more bounded read
 of that attempt's job inventory must show all four canonical jobs succeeded in
 it. The body is mutable, so it only selects which inventory to read; a missing,
-malformed, equal, or later attempt fails closed without that read. Authority
-resolution reads no job inventory on the automatic path; the canonical download
-below reads the receipt attempt's inventory on both paths. Mutable
+malformed, equal, or later attempt fails closed without that read. When the
+receipt attempt's inventory shows it attested (authorize, verify, and attest
+succeeded) but its completed publish job did not succeed, a failed-jobs rerun
+between it and the latest attempt may have published the Release, and a later
+rerun of all jobs then failed its own publish. Recovery then reads the attempts
+strictly between the receipt attempt and the latest attempt in ascending order,
+at most three of them; a wider gap fails closed before any of them is read.
+Each attempt's own record must name that attempt, be completed, and carry the
+exact owner actor and triggering actor, repository and head repository,
+workflow ID and path, tag push, tag, and source SHA, or recovery fails closed
+before reading its inventory. The first such attempt whose own complete bounded
+job inventory shows all four canonical jobs succeeded in that run, attempt, and
+source SHA admits the Release; if none does, recovery fails closed. Authority
+resolution reads no job inventory or attempt record on the automatic path; the
+canonical download below reads the receipt attempt's inventory on both paths. Mutable
 actor logins, the run display name, and the Release display title are
 presentation, not authority.
 The body receipt is mutable GitHub control-plane data, so each accepted Release
@@ -702,10 +715,12 @@ and an attempt that published the Release and then failed a later npm job is
 admitted only when its complete job inventory shows the four canonical jobs
 (authorize, verify, attest, publish) succeeded in that attempt. When the
 receipt attempt attested the bytes but its publish job did not succeed, only a
-strictly later completed current attempt of the same run can admit it, and only
-when that attempt's own complete job inventory shows all four canonical jobs
-succeeded in it. Another run, an earlier or equal attempt, or a later attempt
-that did not publish fails closed. A rerun that
+strictly later completed attempt of the same run can admit it, and only when
+that attempt's own complete job inventory shows all four canonical jobs
+succeeded in it: the current attempt or, when the current attempt did not
+publish, one of at most three exact intermediate attempts read as manual
+recovery reads them. Another run, an earlier or equal attempt, a wider gap, or
+later attempts that did not publish fail closed. A rerun that
 completes npm makes the run's latest attempt successful, but automatic
 promotion still requires the first attempt, so that release is promoted through
 the manual recovery dispatch. An automatic promotion run whose upstream first
@@ -1001,14 +1016,16 @@ post-reauthorization publication helper's worst missing-Release path uses 30
 calls, including all five bounded release pages plus the empty sentinel page;
 the full immutable Release path uses 36 after its six terminal source-
 reauthorization calls. The immutable Release and downstream
-promotion workflows together use at most 358 REST calls, leaving 642 calls
+promotion workflows together use at most 370 REST calls, leaving 630 calls
 under the repository `GITHUB_TOKEN` limit of 1,000 REST requests per hour. The
-website authority sandwiches use at most 85 calls, including manual recovery's
-latest-attempt and receipt-attempt job-inventory reads. The canonical download
-uses at most five: the by-tag Release, the receipt attempt and its job
+website authority sandwiches use at most 91 calls, including manual recovery's
+latest-attempt and receipt-attempt job-inventory reads and, at most three
+times, one intermediate attempt and its job inventory. The canonical download
+uses at most eleven: the by-tag Release, the receipt attempt and its job
 inventory, and, only when a later attempt completed publication, the current
-run and that attempt's inventory. The surrounding immutable Release, website
-authority, and canonical download paths use at most 126, and the promotion helper
+run and that attempt's inventory plus at most three intermediate attempts and
+their inventories. The surrounding immutable Release, website
+authority, and canonical download paths use at most 138, and the promotion helper
 itself uses at most 21 read-only REST calls. Its leased Git
 push and at most fourteen App REST requests do not consume that `GITHUB_TOKEN`
 budget. Those App requests are the three setup and mint calls, one DELETE, and
