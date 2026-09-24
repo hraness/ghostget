@@ -1821,6 +1821,109 @@ describe("portable provider runtime catalog", () => {
     }
   });
 
+  test("settles applied evidence across a reconnect only for the recorded provider subject", async () => {
+    const isolatedRoot = mkdtempSync(join(fixtureRoot, "reauth-applied-"));
+    chmodSync(isolatedRoot, 0o700);
+    const isolatedEnvironment = {
+      GHOSTGET_STATE_HOME: isolatedRoot,
+      HOME: fixtureRoot,
+    };
+    try {
+      installPackage(mainPackageRoot, isolatedEnvironment);
+      const auth = cookiesAuth(cookiePath);
+      saveAuth(auth, isolatedEnvironment, { force: true });
+      const catalog = createPortableProviderPluginCatalog(
+        emptyRegistry(),
+        isolatedEnvironment,
+        {
+          runHost: async (invocation) => {
+            if (invocation.capabilityHost === undefined) {
+              throw new Error("portable capability host is unavailable");
+            }
+            const begun = await invocation.capabilityHost.handle(
+              { kind: "dispatch.begin", dispatchId: "messages.send" },
+              {
+                invocationId: "portable-reauth-fixture",
+                requestId: "dispatch-begin",
+                route: invocation.route,
+                signal: invocation.signal ?? new AbortController().signal,
+              },
+            );
+            if (begun.kind !== "dispatch.begin") {
+              throw new Error("portable dispatch did not begin");
+            }
+            return {
+              output: null,
+              finalUrl: null,
+              dispatch: { planned: 1, started: 1, verified: 0 },
+            };
+          },
+        },
+      );
+      const manifest = catalog.registry.resolveOwnedManifest("portable-web");
+      if (manifest === undefined) {
+        throw new Error("portable reauth fixture is unavailable");
+      }
+      const stored = createAndSaveInvocationPlan({
+        manifest,
+        operationId: "messages.send",
+        input: { mode: "normal" },
+        auth,
+      }, isolatedEnvironment, new Date(), catalog.registry);
+      const first = await confirmInvocation(stored.digest, {
+        headed: false,
+        environment: isolatedEnvironment,
+        registry: catalog.registry,
+        loadManifest: () => ({ ok: true, value: manifest }),
+      });
+      expect(first.receipt.status).toBe("indeterminate");
+      // The encrypted capsule records the provider subject the run used.
+      expect(readRecoveryCapsule(
+        first.receipt.runId,
+        first.receipt.auth.id,
+        first.receipt.auth.hash,
+        isolatedEnvironment,
+      )?.authSubject).toBe("portable-account");
+
+      const reconnectedPath = join(isolatedRoot, "reconnected-cookies.json");
+      writeFileSync(reconnectedPath, "[]", { mode: 0o600 });
+      const applied = () => reconcilePortableProviderPluginRun(
+        first.receipt.runId,
+        { outcome: "applied", evidenceHash: "c".repeat(64) },
+        { environment: isolatedEnvironment, registry: catalog.registry },
+      );
+
+      // A reconnect to a different provider subject is a different account.
+      saveAuth(
+        { ...cookiesAuth(reconnectedPath), subject: "portable-other" },
+        isolatedEnvironment,
+        { force: true },
+      );
+      expect(applied).toThrow(
+        "current auth locator no longer matches the unsettled portable run",
+      );
+      expect(readPortableRunResolution(
+        first.receipt.runId,
+        isolatedEnvironment,
+      )).toBeNull();
+
+      // The same subject under new locator bytes settles the run.
+      saveAuth(cookiesAuth(reconnectedPath), isolatedEnvironment, { force: true });
+      expect(applied()).toMatchObject({
+        ok: true,
+        outcome: "applied",
+        status: "succeeded",
+        recoveryArtifactsReleased: true,
+      });
+      expect(readPortableRunResolution(
+        first.receipt.runId,
+        isolatedEnvironment,
+      )).toMatchObject({ authHash: first.receipt.auth.hash });
+    } finally {
+      rmSync(isolatedRoot, { recursive: true, force: true });
+    }
+  });
+
   test("never reports recovery release when a schema-6 journal is missing", async () => {
     const isolatedRoot = mkdtempSync(join(fixtureRoot, "missing-journal-"));
     chmodSync(isolatedRoot, 0o700);

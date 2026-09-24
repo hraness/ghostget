@@ -2740,6 +2740,64 @@
       ]
     },
     {
+      "id": "recovery-auth-continuity",
+      "statement": "Reconciliation and duplicate-risk successor election accept a current auth record other than the run's exact record only when it keeps the locator ID and kind and names the provider subject that the run's encrypted recovery capsule recorded; a capsule with no recorded subject still needs the exact record.",
+      "area": "mutations",
+      "source": {
+        "path": "docs/effect-confirmed-write-runtime.md",
+        "quote": "locator ID and kind and names the provider subject that the run's encrypted recovery capsule recorded."
+      },
+      "layer": "property",
+      "status": "evidenced",
+      "evidence": [
+        "src/confirmed-write-intent-fence.test.ts",
+        "src/provider-plugin-portable-runtime.test.ts",
+        "src/recovery.test.ts",
+        "src/runtime.test.ts",
+        "src/web-session-recovery.test.ts"
+      ],
+      "assumptions": [
+        "encryption",
+        "provider-behaviour",
+        "same-user-trusted"
+      ],
+      "notVerified": [
+        "The check compares subject strings. That one subject names one provider account rests on how the auth record's subject was bound, by a plugin subject probe or by the operator; a subject typed onto another account's credentials is not detected here.",
+        "The property test samples the pure `recoveryAuthContinuity` decision; its use by the web-session reconciler, the portable reconciler, and successor election is covered only by the listed example tests.",
+        "The intent fence itself stays keyed by locator ID: a fulfilled run under other auth bytes is still withheld rather than replayed, because run journals do not record the subject."
+      ],
+      "properties": [
+        {
+          "path": "src/recovery.test.ts",
+          "test": "property: only exact bytes or the recorded provider subject continue a run's realm"
+        }
+      ]
+    },
+    {
+      "id": "intent-fence-readback",
+      "statement": "`ghostget doctor` reads every confirmed-write intent claim back against its run journal without writing, reports malformed, orphaned, stale, drifted, misplaced, and repeated claims as unhealthy, and names claims and runs only by opaque key and run ID.",
+      "area": "mutations",
+      "source": {
+        "path": "docs/effect-confirmed-write-runtime.md",
+        "quote": "`ghostget doctor` reads the fence back without writing, after its repair pass."
+      },
+      "layer": "example",
+      "status": "evidenced",
+      "evidence": [
+        "src/confirmed-write-intent-fence.test.ts",
+        "src/ghostget.test.ts"
+      ],
+      "assumptions": [
+        "filesystem-durability",
+        "same-user-trusted"
+      ],
+      "notVerified": [
+        "The readback is not modelled; only the listed example tests cover it, and they plant an orphaned, a malformed, and an off-chain claim but not every issue kind.",
+        "The readback reads at most 10,000 directory entries and then reports itself truncated; it does not re-derive the hash-keyed ledgers.",
+        "Doctor runs its journal repair pass before the readback, so the readback describes the state after that repair."
+      ]
+    },
+    {
       "id": "durable-boundaries-before-dispatch",
       "statement": "Confirmation claim, plan consumption, provisional receipt, idempotency ledger, and recovery capsule reach durable storage before remote dispatch; dispatch is refused if the capsule cannot be stored.",
       "area": "mutations",

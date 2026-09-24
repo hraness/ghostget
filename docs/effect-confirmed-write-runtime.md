@@ -43,10 +43,22 @@ subject is optional and journals do not record it. Three limits follow:
   with new settings, or `--force` onto another account) is not replayed as the
   current account's result. Confirmation refuses until the dedupe window ends
   or the locator is reconnected with the settings that run used.
-- Reconciliation and duplicate-successor election still require the unsettled
-  run's exact auth record. After a reconnect with new settings, the refusal
-  says to reconnect with the settings that run used before reconciling; auth
-  records carry no timestamps, so the same settings restore the same bytes.
+- Reconciliation and duplicate-successor election accept the current auth
+  record when it has the unsettled run's exact bytes, or when it keeps the
+  locator ID and kind and names the provider subject that the run's encrypted
+  recovery capsule recorded. Capsules record the subject from this release
+  on. A capsule written earlier, or a run whose auth record had no subject,
+  still needs the exact record. After such a reconnect the refusal says to
+  reconnect with the settings that run used before reconciling; auth records
+  carry no timestamps, so the same settings restore the same bytes.
+
+`ghostget doctor` reads the fence back without writing, after its repair pass.
+`ghostget.intentFences` counts intent claims held by active, unsettled, and
+fulfilled runs, and counts terminal runs that still fence their intent through
+their journal alone. It lists claims that are malformed, have no run journal,
+outlive a released run, disagree with their terminal journal, sit off their
+run's intent chain, or repeat a run. Any such issue makes durable run recovery
+unhealthy. Issues name a claim by its opaque key and a run by its ID only.
 
 A repair pass remembers each intent's generation chain, so projecting every
 terminal journal reads each generation once. The chain never resets on a
