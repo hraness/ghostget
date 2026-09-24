@@ -3200,7 +3200,8 @@
       "notVerified": [
         "The Lean theorems are about a Lean model of the naming and parsing functions. The differential test checks that the TypeScript agrees with that model on generated names, not on every name.",
         "The name grammar is modelled by hand from its regular expression.",
-        "File removal, adoption of ambiguous historical files, and filesystem behaviour are not modelled, so that removing one account never deletes or blocks another account's files is covered only by the listed tests."
+        "File removal, adoption of ambiguous historical files, and filesystem behaviour are not modelled, so two properties are covered only by the listed tests: removing one account never deletes or blocks another account's files, and single-coordinate and auth-wide removal both take an ambiguous historical file only for the coordinate its envelope names, by compare-and-swap on the bytes that named it.",
+        "Ownership of an ambiguous historical file is read from its envelope header without decryption, so a same-user writer that forges the header can direct its removal; that writer could already delete the file directly."
       ]
     },
     {

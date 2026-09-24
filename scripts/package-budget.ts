@@ -1616,14 +1616,24 @@
 // 367705dc28b1778d1cf5d6359b18fbd14980e67b91335515ae7308e0b8032685. Carry the
 // same projections and allowances: 11,993,735 + 12,387 + 4,096 = 12,010,218
 // packed; 23,429,296 + 353 + 65 = 23,429,714 unpacked.
+// Removal of ambiguous historical session secrets by their envelope's named
+// owner, and the faster strict canonical JSON encoder, change
+// src/session-secrets.ts, src/canonical-json.ts, and the rebuilt dist chunks
+// that bundle the encoder. This adds 2,096 payload bytes over the unchanged
+// 596-file inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on
+// darwin arm64 were byte-identical at 11,994,505 packed bytes, 23,431,392
+// unpacked bytes; archive SHA-256
+// bc193f99425865e22f6527ed41d918c41259491d01b77c1225196f6156dd713a. Carry the
+// same projections and allowances: 11,994,505 + 12,387 + 4,096 = 12,010,988
+// packed; 23,431,392 + 353 + 65 = 23,431,810 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Quint messaging replay: the exported crash-recovery event in the messaging action store",
+  scope: "Session-secret ownership removal and the strict canonical JSON encoder",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "367705dc28b1778d1cf5d6359b18fbd14980e67b91335515ae7308e0b8032685",
-  packedBytes: 11_993_735,
-  unpackedBytes: 23_429_296,
+  archiveSha256: "bc193f99425865e22f6527ed41d918c41259491d01b77c1225196f6156dd713a",
+  packedBytes: 11_994_505,
+  unpackedBytes: 23_431_392,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
