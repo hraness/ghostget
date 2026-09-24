@@ -572,6 +572,7 @@ const testSupportModule = /(?:^|\/)test-support(?:\.[cm]?[jt]s)?$/u;
 const propertySourceFile = /\.(?:[cm]?[jt]s|[jt]sx)$/u;
 const propertyPolicyRoots = ["src/", "scripts/", "edge/", "website/"] as const;
 const propertyHelperFile = "src/test-support.ts";
+const reexportedFastCheck = new Set(["fc"]);
 
 function literalText(expression: ts.Expression | undefined): string | null {
   if (expression === undefined) return null;
@@ -592,6 +593,7 @@ function inspectPropertySource(file: string, source: string): PropertySourceRepo
   const namespaces = new Set<string>();
   const runners = new Set<string>();
   const helpers = new Set<string>();
+  const supportNamespaces = new Set<string>();
   const violations: PropertyViolation[] = [];
   const corpusUses: PropertyCorpusUse[] = [];
   const lineOf = (node: ts.Node): number =>
@@ -612,7 +614,7 @@ function inspectPropertySource(file: string, source: string): PropertySourceRepo
     const named = clause.namedBindings;
     if (named === undefined) continue;
     if (ts.isNamespaceImport(named)) {
-      if (fromFastCheck) namespaces.add(named.name.text);
+      (fromFastCheck ? namespaces : supportNamespaces).add(named.name.text);
       continue;
     }
     for (const specifier of named.elements) {
@@ -626,13 +628,23 @@ function inspectPropertySource(file: string, source: string): PropertySourceRepo
     }
   }
 
+  // `support.fc` and `support.assertProperty` through a namespace import of test-support.
+  const supportMember = (expression: ts.Expression, names: ReadonlySet<string>): boolean => {
+    const unwrapped = unwrapExpression(expression);
+    if (!isMemberExpression(unwrapped)) return false;
+    const owner = unwrapExpression(unwrapped.expression);
+    return ts.isIdentifier(owner) && supportNamespaces.has(owner.text) && names.has(memberName(unwrapped) ?? "");
+  };
+  const fastCheckNamespace = (expression: ts.Expression): boolean => {
+    const owner = unwrapExpression(expression);
+    return (ts.isIdentifier(owner) && namespaces.has(owner.text)) || supportMember(owner, reexportedFastCheck);
+  };
+
   const visit = (node: ts.Node): void => {
     if (isMemberExpression(node as ts.Expression) && ts.isExpression(node)) {
       const member = node as ts.PropertyAccessExpression | ts.ElementAccessExpression;
-      const owner = unwrapExpression(member.expression);
       if (
-        ts.isIdentifier(owner)
-        && namespaces.has(owner.text)
+        fastCheckNamespace(member.expression)
         && fastCheckRunners.has(memberName(member) ?? "")
       ) {
         report(member, "bare-fast-check-runner", `fast-check ${memberName(member) ?? ""} bypasses assertProperty and assertAsyncProperty.`);
@@ -646,9 +658,7 @@ function inspectPropertySource(file: string, source: string): PropertySourceRepo
       && ts.isObjectBindingPattern(node.name)
       && node.initializer !== undefined
     ) {
-      const initializer = unwrapExpression(node.initializer);
-      const fromNamespace = ts.isIdentifier(initializer) && namespaces.has(initializer.text);
-      if (fromNamespace && node.name.elements.some((element) => {
+      if (fastCheckNamespace(node.initializer) && node.name.elements.some((element) => {
         const key = element.propertyName ?? element.name;
         return (ts.isIdentifier(key) || ts.isStringLiteral(key)) && fastCheckRunners.has(key.text);
       })) {
@@ -662,7 +672,7 @@ function inspectPropertySource(file: string, source: string): PropertySourceRepo
       if (loadsModule && literalText(node.arguments[0]) === "fast-check") {
         report(node, "fast-check-dynamic-import", "Load fast-check statically so the property policy can see every runner.");
       }
-      if (ts.isIdentifier(callee) && helpers.has(callee.text)) {
+      if ((ts.isIdentifier(callee) && helpers.has(callee.text)) || supportMember(callee, propertyHelpers)) {
         const name = literalText(node.arguments[2]);
         if (name !== null) corpusUses.push({ name, file, line: lineOf(node) });
       }
@@ -839,6 +849,16 @@ const rejectedPropertyFixtures: readonly Readonly<{
     code: "fast-check-runner-destructure",
   },
   {
+    name: "test-support namespace re-export check",
+    source: `import * as support from "./test-support"; support.fc.check(property);`,
+    code: "bare-fast-check-runner",
+  },
+  {
+    name: "destructured runner from the test-support namespace",
+    source: `import * as support from "./test-support"; const { assert } = support.fc; assert(property);`,
+    code: "fast-check-runner-destructure",
+  },
+  {
     name: "required fast-check",
     source: `const fc = require("fast-check"); fc.assert(property);`,
     code: "fast-check-dynamic-import",
@@ -876,6 +896,10 @@ describe("property runner policy", () => {
       { name: "one/name", file: "fixture.test.ts", line: 3 },
       { name: "two-name", file: "fixture.test.ts", line: 4 },
     ]);
+    expect(inspectPropertySource("fixture.test.ts", `
+      import * as support from "./test-support";
+      support.assertProperty(property, {}, "three/name");
+    `).corpusUses).toEqual([{ name: "three/name", file: "fixture.test.ts", line: 3 }]);
   });
 
   test("reports corpus names, files, and regressions that do not line up", () => {

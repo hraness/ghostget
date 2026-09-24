@@ -199,9 +199,9 @@ describe("property seed corpus", () => {
   });
 
   test("rejects malformed, ambiguous, or unbounded corpus documents", () => {
-    const counterexample = { kind: "counterexample", seed: 1, origin: "run 1", regression: "pins it" };
+    const counterexample = { kind: "counterexample", seed: 1, origin: "run 1", regression: "pins it" } as const;
     expect(parsePropertyCorpus(corpusFixture([counterexample])).get("a/b")?.entries).toEqual([counterexample]);
-    const workload = { kind: "workload", seed: -5, path: "0:1", origin: "timing seed" };
+    const workload = { kind: "workload", seed: -5, path: "0:1", origin: "timing seed" } as const;
     expect(parsePropertyCorpus(corpusFixture([workload])).get("a/b")?.entries).toEqual([workload]);
     for (const [document, message] of [
       [{ schema: "other", properties: {} }, "schema"],
