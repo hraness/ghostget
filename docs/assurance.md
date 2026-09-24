@@ -8,12 +8,12 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 229 claims: 146 evidenced, 64 planned, and 19 not verified. It maps 86 guidelines from 5 guides; 66 list claims and 20 are exempt.
+The register holds 232 claims: 149 evidenced, 64 planned, and 19 not verified. It maps 86 guidelines from 5 guides; 66 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 133 | 5 | 0 |
-| property test | 13 | 1 | 0 |
+| example test | 135 | 5 | 0 |
+| property test | 14 | 1 | 0 |
 | stateful model | 0 | 14 | 0 |
 | Quint model with production trace replay | 0 | 35 | 0 |
 | Lean proof with differential test | 0 | 8 | 0 |
@@ -103,11 +103,11 @@ Each claim holds only while its listed assumptions hold.
 
 | Assumption | Statement | Claims |
 | --- | --- | ---: |
-| `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 5 |
-| `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 27 |
+| `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 6 |
+| `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 29 |
 | `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 26 |
-| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 24 |
-| `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 7 |
+| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 26 |
+| `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 8 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
 | `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 12 |
 | `dns-tls` | The operating-system resolver and the TLS stack behave as specified. | 7 |
@@ -414,7 +414,7 @@ An allow-once approval admits one exact pending request at most once (allowed im
 - Assumptions: `same-user-trusted`
 - Not verified:
   - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Plan defect D13 is open: allow-once is enforced by the client releasing the approval in `finally`, and the broker leaves an allowed entry checkable for 600 seconds.
+  - Plan defect D13 is fixed: the broker binds each allow-once grant to its holder's use secret at request or first allowed check. The stateful fast-check model in src/control/approval-broker.test.ts samples checks, races, crashes, release, and expiry; it is not the Quint model or a proof.
 
 #### `shutdown-settles-before-custody-release`
 
@@ -2169,7 +2169,7 @@ Consequential lifecycle reducers take injected clocks and randomness; wall-clock
 - Assumptions: `bun-runtime`, `monotonic-clock`
 - Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
 
-### `storage` (6 claims)
+### `storage` (9 claims)
 
 #### `helper-mutual-exclusion`
 
@@ -2207,12 +2207,50 @@ Read paths never mutate state; reads may only cache.
 
 - Planned: example test in plan Phase 6.
 - Source: `AGENTS.md`: “No writes on read paths. Reads may cache; they never mutate.”
-- Evidence: `src/contract-repair-cli.test.ts`, `src/contract-repair-inbox.test.ts`, `src/control/policy-privacy.test.ts`, `src/cursor-token.test.ts`, `src/linked-device-lifecycle-journal.test.ts`, `src/provider-plugin-store.test.ts`, `src/providers/whatsapp-interaction-projection-helper.test.ts`
+- Evidence: `src/contract-repair-cli.test.ts`, `src/contract-repair-inbox.test.ts`, `src/control/policy-privacy.test.ts`, `src/control/read-capability.test.ts`, `src/cursor-token.test.ts`, `src/linked-device-lifecycle-journal.test.ts`, `src/provider-plugin-store.test.ts`, `src/providers/whatsapp-interaction-projection-helper.test.ts`
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
 - Not verified:
   - The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - No type separates cache writes from state mutation yet.
-  - Plan defect D14 is open: menu-bar snapshot incarnation creation and read-projection orphan unlinks write on read paths; plan Phase 6 decides between a bounded exemption and moving the writes.
+  - Only the menu-bar snapshot and its account and permission listings take a typed read capability; other read paths are not yet type-separated from writers.
+
+#### `read-path-read-capability`
+
+A read path receives a branded read capability with only read members, such as `AuthIncarnationReader`, not an environment that reaches writers; a structurally similar unbranded object is rejected by the type checker.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “Hand a read path a read capability with no writer members, such as `AuthIncarnationReader`, not an environment that reaches writers.”
+- Evidence: `src/control/read-capability.test.ts`
+- Assumptions: `bun-runtime`
+- Not verified:
+  - Only the enumerated example cases are checked; the type assertions run under `bun run typecheck`.
+  - The brand exists only in the type system; code that casts through `unknown` can still forge a capability.
+  - Only the menu-bar snapshot and its account and permission listings take the typed capability; other read paths are not covered.
+
+#### `menu-bar-snapshot-read-only`
+
+The menu-bar snapshot and its account and permission listings take no admission and create no state; auth incarnations are created only by account saves, the control-service startup backfill, and admitted execution paths.
+
+- Evidenced by property test.
+- Source: `AGENTS.md`: “The menu-bar snapshot and its account and permission listings take no admission and create no state; account saves, the control-service startup backfill, and admitted execution paths create auth incarnations.”
+- Evidence: `src/control/read-capability.test.ts`
+- Property tests: `src/control/read-capability.test.ts`: “for any set of legacy accounts and orphaned claims, listing revisions write nothing and match the admitted revision exactly when an incarnation exists”
+- Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
+- Not verified:
+  - Generated inputs are sampled at the configured run count; this is not a proof over all inputs.
+  - The law fingerprints only the read-projection control tree; writes elsewhere in the state home are covered only by the example snapshot test.
+
+#### `read-projection-admission-exemption`
+
+The only write a read-projection cache read makes is its own admission claim, which it creates and releases, and the removal of a claim whose recorded owner is proven dead; the claim carries no data.
+
+- Evidenced by example test.
+- Source: `AGENTS.md`: “One bounded exemption (D14): a read-projection cache read may create and release its own admission claim and remove a claim whose recorded owner is proven dead, because it must exclude a concurrent projection transition.”
+- Also covers: `AGENTS.md`: “The claim is coordination state with no data, and the exemption covers nothing else.”
+- Evidence: `src/read-projections.test.ts`
+- Assumptions: `filesystem-atomic-rename`, `process-liveness`, `same-user-trusted`
+- Not verified:
+  - Only the enumerated example cases are checked.
+  - No check establishes that a cache read writes nothing beyond its own claim and dead-owner removal.
 
 #### `derived-state-rebuildable`
 

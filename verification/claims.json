@@ -568,9 +568,12 @@
     {
       "guide": "AGENTS.md",
       "anchor": "No writes on read",
-      "digest": "89b56288ff64b9d01d367d5ed6eed11b26caa10c39be36e000dae599a05ccf1e",
+      "digest": "eddd42154803a85a0d2b1d2300ab30c43fc41f892fb5ae2af73380f0fab78f42",
       "claims": [
-        "no-writes-on-read-paths"
+        "menu-bar-snapshot-read-only",
+        "no-writes-on-read-paths",
+        "read-path-read-capability",
+        "read-projection-admission-exemption"
       ]
     },
     {
@@ -1465,7 +1468,7 @@
       ],
       "notVerified": [
         "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Plan defect D13 is open: allow-once is enforced by the client releasing the approval in `finally`, and the broker leaves an allowed entry checkable for 600 seconds."
+        "Plan defect D13 is fixed: the broker binds each allow-once grant to its holder's use secret at request or first allowed check. The stateful fast-check model in src/control/approval-broker.test.ts samples checks, races, crashes, release, and expiry; it is not the Quint model or a proof."
       ]
     },
     {
@@ -2959,6 +2962,7 @@
         "src/contract-repair-cli.test.ts",
         "src/contract-repair-inbox.test.ts",
         "src/control/policy-privacy.test.ts",
+        "src/control/read-capability.test.ts",
         "src/cursor-token.test.ts",
         "src/linked-device-lifecycle-journal.test.ts",
         "src/provider-plugin-store.test.ts",
@@ -2970,8 +2974,86 @@
       ],
       "notVerified": [
         "The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "No type separates cache writes from state mutation yet.",
-        "Plan defect D14 is open: menu-bar snapshot incarnation creation and read-projection orphan unlinks write on read paths; plan Phase 6 decides between a bounded exemption and moving the writes."
+        "Only the menu-bar snapshot and its account and permission listings take a typed read capability; other read paths are not yet type-separated from writers."
+      ]
+    },
+    {
+      "id": "read-path-read-capability",
+      "statement": "A read path receives a branded read capability with only read members, such as `AuthIncarnationReader`, not an environment that reaches writers; a structurally similar unbranded object is rejected by the type checker.",
+      "area": "storage",
+      "source": {
+        "path": "AGENTS.md",
+        "quote": "Hand a read path a read capability with no writer members, such as `AuthIncarnationReader`, not an environment that reaches writers."
+      },
+      "layer": "example",
+      "status": "evidenced",
+      "evidence": [
+        "src/control/read-capability.test.ts"
+      ],
+      "assumptions": [
+        "bun-runtime"
+      ],
+      "notVerified": [
+        "Only the enumerated example cases are checked; the type assertions run under `bun run typecheck`.",
+        "The brand exists only in the type system; code that casts through `unknown` can still forge a capability.",
+        "Only the menu-bar snapshot and its account and permission listings take the typed capability; other read paths are not covered."
+      ]
+    },
+    {
+      "id": "menu-bar-snapshot-read-only",
+      "statement": "The menu-bar snapshot and its account and permission listings take no admission and create no state; auth incarnations are created only by account saves, the control-service startup backfill, and admitted execution paths.",
+      "area": "storage",
+      "source": {
+        "path": "AGENTS.md",
+        "quote": "The menu-bar snapshot and its account and permission listings take no admission and create no state; account saves, the control-service startup backfill, and admitted execution paths create auth incarnations."
+      },
+      "layer": "property",
+      "status": "evidenced",
+      "evidence": [
+        "src/control/read-capability.test.ts"
+      ],
+      "assumptions": [
+        "filesystem-atomic-rename",
+        "same-user-trusted"
+      ],
+      "notVerified": [
+        "Generated inputs are sampled at the configured run count; this is not a proof over all inputs.",
+        "The law fingerprints only the read-projection control tree; writes elsewhere in the state home are covered only by the example snapshot test."
+      ],
+      "properties": [
+        {
+          "path": "src/control/read-capability.test.ts",
+          "test": "for any set of legacy accounts and orphaned claims, listing revisions write nothing and match the admitted revision exactly when an incarnation exists"
+        }
+      ]
+    },
+    {
+      "id": "read-projection-admission-exemption",
+      "statement": "The only write a read-projection cache read makes is its own admission claim, which it creates and releases, and the removal of a claim whose recorded owner is proven dead; the claim carries no data.",
+      "area": "storage",
+      "source": {
+        "path": "AGENTS.md",
+        "quote": "One bounded exemption (D14): a read-projection cache read may create and release its own admission claim and remove a claim whose recorded owner is proven dead, because it must exclude a concurrent projection transition."
+      },
+      "alsoQuotes": [
+        {
+          "path": "AGENTS.md",
+          "quote": "The claim is coordination state with no data, and the exemption covers nothing else."
+        }
+      ],
+      "layer": "example",
+      "status": "evidenced",
+      "evidence": [
+        "src/read-projections.test.ts"
+      ],
+      "assumptions": [
+        "filesystem-atomic-rename",
+        "process-liveness",
+        "same-user-trusted"
+      ],
+      "notVerified": [
+        "Only the enumerated example cases are checked.",
+        "No check establishes that a cache read writes nothing beyond its own claim and dead-owner removal."
       ]
     },
     {

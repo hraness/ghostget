@@ -10,6 +10,7 @@ import { messagingTurnDigest, parseMessagingTurnV1 } from "./messaging-types";
 import { providerPluginRegistry as registry } from "./provider-plugins";
 import { confirmInvocation, createAndSaveInvocationPlan, createMessagingCompositeInvocationPlan, executeReadInvocation, loadInvocationPlan, prepareInvocation, listRunReceipts } from "./runtime";
 import { readCachedPreparedCapability, revalidatePreparedCapability } from "./read-client";
+import { authIncarnationReader } from "./read-projections";
 import { describeOperationPermission, describeOperationPermissions, setOperationPermission, checkProviderApproval, recheckProviderApproval, checkOperationPermission, withOperationPermission } from "./operation-permission";
 import { enableOperationPermissions, readOperationPolicy, parseOperationPolicy, setOperationPolicyEntry } from "./operation-permission-store";
 import type { ProviderExecution } from "./provider";
@@ -160,12 +161,12 @@ test("operation policy: batch descriptions match single inspection and reuse bin
   const request = { adapterId: "x", operationId: "posts.read", authId: s.auth.id };
   let closures = 0;
   const counted = { ...registry, implementationClosureHash: (binding: Parameters<typeof registry.implementationClosureHash>[0]) => { closures++; return registry.implementationClosureHash(binding); } };
-  const result = describeOperationPermissions(Array.from({ length: 100 }, () => request), { ...s.options, registry: counted });
+  const result = describeOperationPermissions(Array.from({ length: 100 }, () => request), { ...s.options, registry: counted }, authIncarnationReader(s.environment));
   expect(closures).toBe(2);
   expect(result).toHaveLength(100);
   expect(result.every(item => item?.digest === result[0]?.digest)).toBe(true);
   expect(result[0]?.digest).toBe(describeOperationPermission("x", "posts.read", s.auth.id, s.options).digest);
-  expect(describeOperationPermissions([{ ...request, operationId: "missing" }], s.options)).toEqual([null]);
+  expect(describeOperationPermissions([{ ...request, operationId: "missing" }], s.options, authIncarnationReader(s.environment))).toEqual([null]);
 });
 
 test("operation policy: one live revalidation approval covers nested cache disclosure and is released before later calls", async () => {
