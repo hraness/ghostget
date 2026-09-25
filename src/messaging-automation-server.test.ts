@@ -37,7 +37,7 @@ async function fixture() {
   };
   const provider: MessagingAutomationProvider = {
     provider: "whatsapp", inspect: async () => status, conversations: async () => ({ identity, conversations: [], complete: true }),
-    resolve: async () => ({ identity, conversation: { coordinate, title: "Synthetic", kind: "single", participants: [coordinate.conversationJid] } }),
+    resolve: async input => ({ identity, conversation: { coordinate: input, title: "Synthetic", kind: "single", participants: [(input as typeof coordinate).conversationJid] } }),
     history: async () => ({ identity, messages: [], nextCursor: "0", caughtUp: true, gap: false }),
     events: async () => ({ identity, messages: [], nextCursor: "0", caughtUp: true, gap: false }),
     send: (input, signal) => send(input, signal), close: async () => undefined,
@@ -126,11 +126,54 @@ test("priority cancel and revoke run during pending submit, while ordinary work 
   let entered!: () => void; const started = new Promise<void>(resolve => { entered = resolve; }); let calls = 0;
   f.setSend(async (_input, signal) => { calls++; entered(); await new Promise<void>(resolve => { if (signal?.aborted) resolve(); else signal?.addEventListener("abort", () => resolve(), { once: true }); }); return { state: "not-started", reason: "Synthetic owner cancellation" }; });
   const sending = f.request("submit", { planId: plan.id, grantId: grant.id }); await started;
-  expect(await f.request("status", { provider: "whatsapp" })).toMatchObject({ ok: false, error: { code: "not-ready" } });
+  // Submit holds only its enrollment lane; unrelated ordinary work proceeds.
+  expect(await f.request("status", { provider: "whatsapp" })).toMatchObject({ ok: true, result: status });
+  // The ordinary lane still bounds itself: while one normal request runs, the
+  // next is refused rather than queued.
+  let releaseStatus!: () => void; const statusGate = new Promise<void>(resolve => { releaseStatus = resolve; });
+  const originalStatus = f.host.providerStatus.bind(f.host); let statusCalls = 0;
+  f.host.providerStatus = async (selected, signal) => { if (++statusCalls === 1) await statusGate; return originalStatus(selected, signal); };
+  const held = f.request("status", { provider: "whatsapp" });
+  while (statusCalls === 0) await new Promise<void>(resolve => setImmediate(resolve));
+  expect(await f.request("events", { enrollmentIds: [enrollment.id], cursor: null, limit: 10 })).toMatchObject({ ok: false, error: { code: "not-ready" } });
+  releaseStatus(); expect(await held).toMatchObject({ ok: true });
   expect(await f.request("revoke", { grantId: grant.id })).toMatchObject({ ok: true, result: { revoked: true } });
   expect(await f.request("cancel", { planId: plan.id })).toMatchObject({ ok: true, result: { cancelled: true } });
   expect((await sending).ok).toBe(true); expect(calls).toBe(1);
 });
+test("enrollment lanes overlap across conversations, serialize within one, and cover submit", async () => {
+  const f = await fixture();
+  const first = (await f.request("enroll", { provider: "whatsapp", coordinate })).result;
+  const second = (await f.request("enroll", { provider: "whatsapp", coordinate: { provider: "whatsapp", conversationJid: "15559876543@s.whatsapp.net" } })).result;
+  expect(second.id).not.toBe(first.id);
+  const grant = (await f.request("grant", { intentId: "fixture:lane-grant", enrollmentId: first.id, expectedBindingDigest: first.bindingDigest, actions: ["text"], expiresAt: new Date(Date.now() + 300_000).toISOString(), maximumActions: 2, minimumIntervalMs: 0 })).result;
+  const plan = (await f.request("prepare", { enrollmentId: first.id, expectedRevision: 0, intentId: "fixture:lane-plan", actions: [{ kind: "text", text: "Synthetic" }] })).result;
+  const until = (check: () => boolean) => new Promise<void>((resolve, reject) => { const attempt = () => check() ? resolve() : setImmediate(attempt); attempt(); setTimeout(() => reject(new Error("Timed out waiting for lane state")), 5_000).unref(); });
+  let releasePoll!: () => void; const pollGate = new Promise<void>(resolve => { releasePoll = resolve; });
+  const polls: string[] = []; let submits = 0;
+  const originalPoll = f.host.poll.bind(f.host); f.host.poll = async (id, signal) => { polls.push(id); if (id === first.id) await pollGate; return originalPoll(id, signal); };
+  const originalSubmit = f.host.submit.bind(f.host); f.host.submit = (input, signal) => { submits++; return originalSubmit(input, signal); };
+  try {
+    const pending = f.request("poll", { enrollmentId: first.id });
+    await until(() => polls.length === 1);
+    // A different enrollment runs beside the held one and completes.
+    await expect(f.request("poll", { enrollmentId: second.id })).resolves.toMatchObject({ ok: true });
+    expect(polls).toEqual([first.id, second.id]);
+    // Same-enrollment requests queue on the lane instead of racing the cursor claim.
+    const queued = f.request("poll", { enrollmentId: first.id });
+    const submission = f.request("submit", { planId: plan.id, grantId: grant.id });
+    await new Promise<void>(resolve => setTimeout(resolve, 25));
+    expect(polls).toEqual([first.id, second.id]); expect(submits).toBe(0);
+    releasePoll();
+    await expect(pending).resolves.toMatchObject({ ok: true });
+    await expect(queued).resolves.toMatchObject({ ok: true });
+    // The queued same-enrollment poll runs before submit reaches the lane;
+    // submit's own internal poll may already have appended beside it.
+    expect(polls.slice(0, 3)).toEqual([first.id, second.id, first.id]);
+    await expect(submission).resolves.toMatchObject({ ok: true, result: { state: "accepted" } });
+    expect(submits).toBe(1);
+  } finally { releasePoll(); }
+}, 30_000);
 
 
 test("discovery serializes only authored markers and preserves recovery precedence", async () => {

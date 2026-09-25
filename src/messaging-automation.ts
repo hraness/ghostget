@@ -302,6 +302,14 @@ export class MessagingAutomationHost {
     return Object.freeze({ id: automationId(row.id), planId: automationId(row.plan_id), intentId: automationId(row.intent_id), enrollmentId: automationId(row.enrollment_id), state: row.state, accepted: Object.freeze(accepted), totalActions, reason: row.reason === null ? null : automationText(row.reason, 1024), retryable: false });
   }
   run(id: string): AutomationRun { this.ready(); const row = this.db.query<StoredRun, [string]>(`SELECT ${RUN_COLUMNS} FROM runs WHERE id=?`).get(automationId(id)); if (row === null) throw new Error("Messaging run does not exist."); return this.runProjection(row); }
+  /** Resolves the enrollment a stored plan dispatches against so the owner can
+   * order submit on that enrollment's lane. Missing plans yield no lane; the
+   * dispatch revalidates the record and fails closed. */
+  planEnrollment(id: string): string | null {
+    this.ready();
+    const record = this.db.query<{ data: string }, [string]>("SELECT data FROM plans WHERE id=?").get(automationId(id));
+    return record === null ? null : planData(JSON.parse(record.data) as unknown).enrollmentId;
+  }
   cancel(planId: string): boolean {
     this.ready(); const controllers = this.planControllers.get(automationId(planId));
     if (controllers === undefined) return false;

@@ -27,6 +27,8 @@ export class MessagingAutomationRpcServer {
   private closed = false;
   private normalBusy = false;
   private priorityBusy = 0;
+  private scopedBusy = 0;
+  private readonly enrollmentChains = new Map<string, Promise<unknown>>();
   private readonly requests = new Set<string>();
   private readonly assets = new Map<string, Asset>();
   private executingPlan: string | null = null;
@@ -114,20 +116,42 @@ export class MessagingAutomationRpcServer {
     if (method === "run") { const r = automationRecord(raw, ["runId"]); return host.run(automationId(r.runId)); }
     throw new Error("Unknown method");
   }
+  /** Enrollment-scoped methods keep total order per enrollment but run
+   * concurrently across different enrollments: a poll on one conversation must
+   * not starve independent polls, reads and dispatches on the others. The
+   * journal's cursor claim and active-run checks already reject same-enrollment
+   * overlap; the chain turns that rejection into ordinary queueing. */
+  private async enrollmentKey(method: string, raw: unknown): Promise<string | null> {
+    const params = raw !== null && typeof raw === "object" ? raw as Record<string, unknown> : {};
+    if (method === "submit") return typeof params.planId === "string" ? this.host().planEnrollment(params.planId) : null;
+    return typeof params.enrollmentId === "string" ? params.enrollmentId : null;
+  }
+  private async dispatchScoped(method: string, raw: unknown): Promise<unknown> {
+    const key = await this.enrollmentKey(method, raw);
+    if (key === null) return this.dispatch(method, raw);
+    const previous = this.enrollmentChains.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const tail = previous.then(() => gate);
+    this.enrollmentChains.set(key, tail);
+    try { await previous; return await this.dispatch(method, raw); }
+    finally { release(); void tail.then(() => { if (this.enrollmentChains.get(key) === tail) this.enrollmentChains.delete(key); }); }
+  }
   async handle(value: unknown): Promise<unknown> {
-    let id = "invalid", method = "", priority = false, admitted = false;
+    let id = "invalid", method = "", priority = false, scoped = false, admitted = false;
     try {
       const r = automationRecord(value, ["protocol", "id", "method", "params"]);
       id = automationText(r.id, 64); if (!/^[A-Za-z0-9._:-]+$/u.test(id) || r.protocol !== protocol) throw new Error("Invalid envelope");
       method = automationText(r.method, 32); priority = ["cancel", "revoke", "close"].includes(method);
-      if (this.requests.has(id) || (priority ? this.priorityBusy >= 8 : this.normalBusy)) return { protocol, id, ok: false, error: { code: "not-ready", message: "The owner host is busy or this request is already active." } };
+      scoped = ["poll", "history", "prepare", "grant", "submit"].includes(method);
+      if (this.requests.has(id) || (priority ? this.priorityBusy >= 8 : scoped ? this.scopedBusy >= 16 : this.normalBusy)) return { protocol, id, ok: false, error: { code: "not-ready", message: "The owner host is busy or this request is already active." } };
       this.requests.add(id); admitted = true;
-      if (priority) this.priorityBusy++; else this.normalBusy = true;
-      const result = await this.dispatch(method, r.params);
+      if (priority) this.priorityBusy++; else if (scoped) this.scopedBusy++; else this.normalBusy = true;
+      const result = scoped ? await this.dispatchScoped(method, r.params) : await this.dispatch(method, r.params);
       return { protocol, id, ok: true, result };
     } catch (error) {
       return { protocol, id, ok: false, error: { code: error instanceof AutomationHostRecoveryRequired ? "recovery-required" : this.closed ? "not-ready" : "unavailable", message: error instanceof AutomationHostRecoveryRequired ? "Provider cleanup requires explicit host recovery; this instance cannot continue." : (!this.closed && method === "conversations" ? discoveryDiagnosticMessage(error) : null) ?? "The requested operation is unavailable. Review account permissions, provider setup, scope and current state." } };
-    } finally { if (admitted) { this.requests.delete(id); if (priority) this.priorityBusy--; else this.normalBusy = false; } }
+    } finally { if (admitted) { this.requests.delete(id); if (priority) this.priorityBusy--; else if (scoped) this.scopedBusy--; else this.normalBusy = false; } }
   }
   close(): Promise<void> {
     this.closed = true; this.abort.abort(); this.assets.clear();
