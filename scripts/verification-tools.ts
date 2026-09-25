@@ -233,6 +233,13 @@ const NIGHTLY_APALACHE_TIMEOUT_MS = 60 * 60_000;
 export const QUINT_REPLAY_SCRIPT = "verify:quint:replay";
 /** The bound on the one `bun test` run of every replay test. */
 export const QUINT_REPLAY_TIMEOUT_MS = 15 * 60_000;
+/**
+ * How many jobs `verify:quint` runs at once: each model's checks form one job
+ * and the replay run forms another. A GitHub-hosted Linux runner for this
+ * public repository has 4 vCPUs and 16 GB, and one Apalache run holds a 4 GiB
+ * heap, so two jobs fit beside the runner's own processes.
+ */
+export const QUINT_CONCURRENCY = 2;
 const LEAN_BUILD_TIMEOUT_MS = 10 * 60_000;
 const SHORT_TIMEOUT_MS = 60_000;
 const KILL_GRACE_MS = 5_000;
@@ -1583,7 +1590,8 @@ export function quintReplayCommand(bun: string, models: readonly QuintModel[]): 
 /**
  * Typecheck every model, require each invariant to pass seeded simulation and
  * bounded Apalache checking, require both checkers to find every mutant, and
- * then run every model's replay test.
+ * run every model's replay test. Each model's checks form one job and the
+ * replay run forms another; at most `QUINT_CONCURRENCY` jobs run at once.
  */
 export async function verifyQuint(context: RunContext): Promise<void> {
   const models = await readQuintModels(context.root);
@@ -1634,8 +1642,7 @@ export async function verifyQuint(context: RunContext): Promise<void> {
     });
     return { result, outDirectory };
   };
-  const summary: Record<string, unknown>[] = [];
-  for (const model of models) {
+  const checkModel = async (model: QuintModel): Promise<Record<string, unknown>> => {
     const name = model.module;
     const bounds = quintBounds(model, context.profile);
     if (nightly && model.nightly === undefined) context.log(`${model.file}: no nightly bounds recorded; repeating the CI bounds`);
@@ -1687,7 +1694,7 @@ export async function verifyQuint(context: RunContext): Promise<void> {
       await writeFile(join(context.artifacts, `apalache-mutant-${name}-${mutant.step}-${mutant.invariant}.itf.json`), counterexample);
       context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
     }
-    summary.push({
+    return {
       model: model.file,
       invariants: model.invariants,
       mutants: model.mutants.map((mutant) => mutant.step),
@@ -1695,8 +1702,15 @@ export async function verifyQuint(context: RunContext): Promise<void> {
       simulation: bounds.simulation,
       apalache: bounds.apalache,
       replay: { test: model.replay.test, target: model.replay.target },
-    });
-  }
+    };
+  };
+  const summary: Record<string, unknown>[] = [];
+  await runAtMost([
+    () => runQuintReplays(context, models),
+    ...models.map((model, index) => async () => {
+      summary[index] = await checkModel(model);
+    }),
+  ], QUINT_CONCURRENCY);
   await writeFile(join(context.artifacts, "toolchain.json"), `${JSON.stringify({
     quint: version,
     apalache: `${APALACHE.version} (build ${APALACHE.build})`,
@@ -1706,7 +1720,30 @@ export async function verifyQuint(context: RunContext): Promise<void> {
     })),
     models: summary,
   }, null, 2)}\n`);
-  await runQuintReplays(context, models);
+}
+
+/**
+ * Run the tasks in order with at most `limit` running at once. After a task
+ * fails no further task starts, the running ones finish, and the failure of
+ * the earliest-listed failed task is rethrown.
+ */
+export async function runAtMost(tasks: readonly (() => Promise<void>)[], limit: number): Promise<void> {
+  if (!Number.isSafeInteger(limit) || limit < 1) throw new Error("runAtMost needs a positive integer limit");
+  const failures = new Map<number, unknown>();
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (failures.size === 0 && next < tasks.length) {
+      const index = next;
+      next += 1;
+      try {
+        await tasks[index]!();
+      } catch (error) {
+        failures.set(index, error);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
+  if (failures.size > 0) throw failures.get(Math.min(...failures.keys()));
 }
 
 /**
