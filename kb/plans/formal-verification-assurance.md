@@ -3,7 +3,7 @@ title: Build a formally checked assurance case for Ghostget
 description: Audit Ghostget end to end, fix the defects the audit found, and add Quint models, Lean proofs, model-based tests, and a claims register so every stated safety law has named evidence.
 type: plan
 area: verification
-status: proposed
+status: completed
 repository_scopes:
   - src
   - edge
@@ -588,6 +588,48 @@ Landed on 2026-09-23 on branch `claude/fv-continuous`:
 - `docs/claims-review.md` holds the nightly triage steps and the quarterly
   review procedure. Reviews append to "Quarterly claims reviews" below.
 
+## Closeout
+
+All phases landed on main by 2026-09-25, each through a pull request that
+passed the complete `Required` job union on its current head against the
+current base. The final lane merges: `7ce5e418` (media, messaging, and
+browser admission models), `7c4ef1a7` (verification concurrency), `3d1292be`
+(`retained.qnt`, the portable retained readback and supersession replay),
+`8c3724ca` (the browser-admission model's timeout oracle compares the
+simulated clock value, not its last read), `b718fbc6`
+(`GhostgetVerification.RouteKey`, five core-law claims, axiom audit),
+`c6f6b799` (control/auth claims, the `src/public-address.ts` classifier and
+IANA vectors), and `1fd2d81b` (subject-keyed fence, `stepSubjectBlind`).
+
+Lane integration caught four real defects the register then covered:
+
+- The packed CLI crashed on `./public-address` because the new module was
+  missing from `files`; the packed smoke and `tui --snapshot` found it, and
+  the package now ships 597 entries.
+- The file-backed fence replay diverged on `finish(r3, succeeded)`:
+  production's repair sweep supersedes the elected source, while
+  `fence.qnt` kept `reconciled` empty. `finish` and `reconcile` now
+  reconcile the elected source, matching
+  `supersedeSettledDuplicateSources` (dispatched, settled, never failed).
+- The subject-refusal classifier rejected generated locators containing
+  digits as "unexpected reason"; the pattern now admits `[a-z0-9-]+`.
+- `fence.qnt` outgrew its budgets under shard-local parallel Apalache.
+  Its measured weight is 1150 s so the packer isolates it, and the shard
+  step and job timeouts moved to 30 and 35 minutes.
+
+The register on `main` carries 246 claims: 223 evidenced, 4 planned, 19
+not-verified, across 90 guideline rules. The still-planned claims and their
+blockers: `strict-foreign-parsing` (property coverage does not yet cite
+every strict parser the claim ranges over), `mutation-idempotency-key`
+(storage and quota charge retries, `idempotency: none` routes, and
+dedupe-window expiry are outside the confirmed-dispatch models),
+`npm-publish-at-most-once-per-version` (registry read lag still admits a
+second issued publish; it needs a durable per-version record or an
+owner-approved narrower claim), and `committed-binaries-provenance`
+(imsg/wacli need a CI source build with provenance evidence before the
+committed binaries can be removed). They stay registered planned claims;
+the quarterly review tracks them.
+
 ## Quarterly claims reviews
 
 Each review follows `docs/claims-review.md` and appends one dated entry here:
@@ -621,3 +663,53 @@ is due in the first week of January 2027.
   GitHub, npm, Sigstore, and Vercel.
 - Hostile in-process plugin code, which `AGENTS.md` already treats as trusted.
 - Hostile processes running as the same user.
+
+## Result
+
+Shipped. Every `AGENTS.md` safety law has a checked row in
+`verification/claims.json`; `docs/assurance.md` renders the same register
+and both are re-validated on every change. Eleven Quint models replay
+seeded ITF traces through the production reducers and ports, each with
+named mutants the checkers must kill; `verification/quint/models.json`
+carries the CI and nightly bounds and the weight that packs them into
+shards. The Lean `GhostgetVerification` modules prove the pure cores
+(registry-key unambiguity and injectivity, canonical JSON, ordering, and
+contract-kernel laws) with differential tests against the TypeScript and a
+recorded axiom audit; `verification/oracles` adds Rust oracles and
+`verification/vectors` the generated golden vectors. The nightly workflow
+runs deeper bounds, the property soak, and the named mutants outside
+`Required`, and `docs/claims-review.md` holds the triage and quarterly
+review procedure.
+
+Four claims remain planned with their blockers recorded in the closeout
+above, and the recorded open items stand: the path-claim replay at 60
+traces (each trace drives three real helper processes), the
+`confirmInvocation` program beyond the modeled journal cores,
+`auth-request-binding`'s not-verified scope (plans bind the reviewed
+contract implementation identity, not the exact closure), the release
+attempt machine beyond `release.qnt`, and the owner-approval route for
+portable reconciliation.
+The failures the audit and the lanes found are fixed and their
+reproducers retained as named tests; what the plan deliberately does not
+verify stays enumerated above.
+
+## Durable memory
+
+- The standing contract is the checked register and its rendering:
+  `verification/claims.json`, `docs/assurance.md`, the `verification` job,
+  and the `Required` gate. A checker timeout, an inconclusive or unparsed
+  checker result, or a successful compile alone is missing evidence
+  (`AGENTS.md`); the register fails closed on each.
+- `docs/claims-review.md` owns nightly triage, the seeded-defect replay
+  commands, and the quarterly claims-review procedure; reviews append to
+  "Quarterly claims reviews" above.
+- A model's CI shard weight lives in `MEASURED_QUINT_MODEL_WEIGHTS` in
+  `scripts/verification-tools.ts`; refresh it from the latest CI run log
+  whenever a model grows and the shard packing is asserted disjoint.
+- The package budget is re-measured per shipped-source merge:
+  `scripts/package-budget.ts` holds the measurement record and the derived
+  ceilings that `scripts/npm-release-workflow.test.ts` pins.
+- Reusable conclusions need no maintained-note promotion: the procedure
+  owners are `docs/claims-review.md` and the `AGENTS.md` verification
+  rules, and the facts live in the checked register. This plan stays as
+  the execution history.
