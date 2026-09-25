@@ -282,7 +282,7 @@ class AcquireCommand implements fc.AsyncCommand<Model, Real> {
       if (!isTimeout(error)) throw error;
       // A refusal is a timeout: either no slot was free or reclaimable, or
       // time ran out first. Nothing it created may remain.
-      if (predicted !== null) expect(real.clock.lastRead).toBeGreaterThanOrEqual(bound(budget));
+      if (predicted !== null) expect(real.clock.now).toBeGreaterThanOrEqual(bound(budget));
       owner.status = "dead";
       model.processes.get(owner.id)!.status = "dead";
       adoptReclaim(model, real);
@@ -466,7 +466,7 @@ class CaptureCommand implements fc.AsyncCommand<Model, Real> {
       expect(launch.timeoutMs).toBeLessThanOrEqual(this.timeoutMs - elapsed);
     } else if (predicted !== null) {
       // A slot was available, so only time can have refused the launch.
-      expect(real.clock.lastRead).toBeGreaterThanOrEqual(Math.min(bound(budget), startedAt! + this.timeoutMs));
+      expect(real.clock.now).toBeGreaterThanOrEqual(Math.min(bound(budget), startedAt! + this.timeoutMs));
     }
     // Either way the capture's own slot is released afterwards.
     owner.status = "dead";

@@ -152,7 +152,13 @@ import { createPortableProviderPluginCatalog } from "./provider-plugin-portable-
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
 import { withPortableProviderPluginCatalogLock } from "./provider-plugin-store";
 import { providerPluginRegistry } from "./provider-plugins";
-import { reconcilePortableProviderPluginRun } from "./portable-run-recovery";
+import {
+  reconcilePortableProviderPluginRun,
+  reconcilePortableProviderPluginRunFromReadback,
+} from "./portable-run-recovery";
+import type {
+  PortableProviderPluginReadbackPort,
+} from "./provider-plugin-portable-runtime";
 import { getWebSessionContract, webSessionContractHash } from "./web-session-contracts";
 import { isCookieCapableWebAuth, reviewedTemplateHash } from "./reviewed-template";
 import {
@@ -198,6 +204,7 @@ import {
   repairInterruptedConfirmationClaims,
   inspectConfirmedWriteIntentFences,
   repairInterruptedRunJournals,
+  supersedeSettledDuplicateSources,
 } from "./runtime";
 import {
   readCachedPreparedCapability,
@@ -327,6 +334,11 @@ export type GhostgetDependencies = {
   readonly loadImsgDirectInstallRuntime:
     () => Promise<ImsgDirectInstallRuntime>;
   readonly providerPluginRegistry: ProviderPluginRegistry;
+  /**
+   * Invokes a portable write's declared readback. Set only with the portable
+   * catalog that also extended `providerPluginRegistry`.
+   */
+  readonly portableProviderPluginReadback?: PortableProviderPluginReadbackPort;
   readonly probePluginSubject: (
     binding: ProviderPluginBindingV1,
     auth: GhostgetAuth,
@@ -2849,6 +2861,8 @@ async function runCommand(
     return 0;
   }
   if (arguments_.command === "plugin-install") {
+    // A settled duplicate successor releases its source's hold on the bundle.
+    supersedeSettledDuplicateSources(environment);
     const packagePath = resolve(arguments_.path);
     const checked = checkPortableProviderPlugin(packagePath);
     if (dependencies.providerPluginRegistry.get(checked.id) !== undefined) {
@@ -2918,6 +2932,8 @@ async function runCommand(
         "plugin remove requires --yes; activation is removed while immutable trust and artifact evidence are retained",
       );
     }
+    // A settled duplicate successor releases its source's hold on the bundle.
+    supersedeSettledDuplicateSources(environment);
     const current = showPortableProviderPlugin(arguments_.id, environment);
     if (current === null) {
       throw new Error(`portable plugin ${arguments_.id} is not installed`);
@@ -3342,7 +3358,7 @@ async function runCommand(
     if (operation.risk === "R1") {
       if (arguments_.duplicateRiskOf.length > 0) {
         throw new Error(
-          "--duplicate-risk-of is available only for one-dispatch R3 web-session posts.publish mutations",
+          "--duplicate-risk-of is available only for one-dispatch R3 web-session or portable-plugin posts.publish mutations",
         );
       }
       if (arguments_.projectionIdentityOnly) {
@@ -3564,9 +3580,29 @@ async function runCommand(
       && receipt.transport === "portable-provider-plugin"
     ) {
       if (arguments_.inputSource === undefined) {
-        throw new Error(
-          "portable plugin reconciliation requires --input with an explicit observed outcome and evidence hash",
+        const readback = dependencies.portableProviderPluginReadback;
+        // An undeclared plugin keeps today's explicit-input path exactly.
+        if (
+          readback === undefined
+          || !readback.declares(receipt.portablePluginContract)
+        ) {
+          throw new Error(
+            "portable plugin reconciliation requires --input with an explicit observed outcome and evidence hash",
+          );
+        }
+        // Without --input, Ghostget itself runs the write's declared
+        // readback, bound to this run, its intent, and its auth realm.
+        const observed = await reconcilePortableProviderPluginRunFromReadback(
+          arguments_.runId,
+          {
+            registry: dependencies.providerPluginRegistry,
+            readback,
+            environment,
+            ...(signal === undefined ? {} : { signal }),
+          },
         );
+        print(output, observed, arguments_.json);
+        return observed.ok ? 0 : 5;
       }
       const result = dependencies.reconcilePortableProviderPluginRun(
         arguments_.runId,
@@ -3671,13 +3707,14 @@ export async function main(
       dependencyOverrides.providerPluginRegistry === undefined
       && commandUsesPortableProviderCatalog(parsed.value.command)
     ) {
+      const catalog = dependencies.createPortableProviderPluginCatalog(
+        dependencies.providerPluginRegistry,
+        environment,
+      );
       dependencies = {
         ...dependencies,
-        providerPluginRegistry:
-          dependencies.createPortableProviderPluginCatalog(
-          dependencies.providerPluginRegistry,
-          environment,
-        ).registry,
+        providerPluginRegistry: catalog.registry,
+        portableProviderPluginReadback: catalog.readback,
       };
     }
     let usefulResult = false;

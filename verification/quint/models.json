@@ -176,6 +176,26 @@
       }
     },
     {
+      "file": "retained.qnt",
+      "module": "retained",
+      "init": "init",
+      "step": "step",
+      "invariants": ["retainedSafety"],
+      "simulation": { "seed": "20260924", "maxSamples": 2000, "maxSteps": 12 },
+      "apalache": { "length": 8 },
+      "mutants": [
+        { "step": "stepUntruthfulReadback", "invariant": "retainedSafety" },
+        { "step": "stepSupersedeReleasesLedger", "invariant": "retainedSafety" }
+      ],
+      "replay": {
+        "test": "scripts/verification-retained-replay.test.ts",
+        "target": "production",
+        "traces": 300,
+        "seed": "20260924",
+        "maxSteps": 12
+      }
+    },
+    {
       "file": "promotion.qnt",
       "module": "promotion",
       "init": "init",

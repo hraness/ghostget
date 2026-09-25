@@ -1699,23 +1699,24 @@
 // same projections and allowances: 12,005,010 + 12,387 + 4,096 = 12,021,493
 // packed; 23,467,598 + 353 + 65 = 23,468,016 unpacked.
 //
-// The subject-keyed confirmed-write fence adds the journal authSubject field,
-// the cross-locator subject scan and post-claim recheck, and their tests:
-// a clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
-// measured 12,006,830 packed bytes and 23,475,086 unpacked bytes across the
-// unchanged 596-file inventory (the Linux package job measured the same
-// 23,475,086); archive SHA-256
-// 760b00e2fb948d8f9404963c47421c9b8784c13fdbd9e1dca6d5fcd95e460de6. Carry the
-// same projections and allowances: 12,006,830 + 12,387 + 4,096 = 12,023,313
-// packed; 23,475,086 + 353 + 65 = 23,475,504 unpacked.
+// The portable retained readback and successor handling add the portable
+// provider host/runtime support, the retained readback and supersession
+// cores, and their tests. The subject-keyed confirmed-write fence adds the
+// journal authSubject field, the cross-locator subject scan and post-claim
+// recheck, and their tests. Merging both: a clean `npm pack --ignore-scripts`
+// with npm 11.19.0 on darwin arm64 measured 12,016,174 packed bytes and
+// 23,523,881 unpacked bytes across the 596-file inventory; archive SHA-256
+// c056301af205759d9a694c97be4ef946b415cf6a5a79597e66babdb5dd951d9a. Carry the
+// same projections and allowances: 12,016,174 + 12,387 + 4,096 = 12,032,657
+// packed; 23,523,881 + 353 + 65 = 23,524,299 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Release and publication claims evidenced in CI",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "760b00e2fb948d8f9404963c47421c9b8784c13fdbd9e1dca6d5fcd95e460de6",
-  packedBytes: 12_006_830,
-  unpackedBytes: 23_475_086,
+  archiveSha256: "c056301af205759d9a694c97be4ef946b415cf6a5a79597e66babdb5dd951d9a",
+  packedBytes: 12_016_174,
+  unpackedBytes: 23_523_881,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

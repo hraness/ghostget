@@ -507,6 +507,127 @@ describe("portable provider plugin manifest", () => {
     });
   });
 
+  test("parses an optional versioned readback declaration strictly", () => {
+    const base = manifest();
+    const binding = base.bindings[0]!;
+    const probe = binding.operations[0]!;
+    const body = {
+      type: "string" as const,
+      description: "Post body.",
+    };
+    const publish = {
+      ...probe,
+      name: "posts.publish",
+      risk: "R3" as const,
+      dispatch: "single" as const,
+      sideEffect: "publishes one post",
+      idempotency: "local-at-most-once" as const,
+      dedupeWindowMs: 60_000,
+      input: {
+        properties: {
+          body,
+          media: {
+            type: "file" as const,
+            description: "One attachment.",
+            maxBytes: 4_096,
+          },
+        },
+        required: ["body", "media"],
+      },
+      implementation: "Publishes one post.",
+    };
+    const lookup = {
+      ...probe,
+      name: "posts.read",
+      input: { properties: { body }, required: ["body"] },
+      implementation: "Finds a post by body.",
+    };
+    const declaration = {
+      version: 1 as const,
+      operation: "posts.read",
+      contractVersion: 1,
+    };
+    const withOperations = (
+      operations: readonly Record<string, unknown>[],
+    ): unknown => ({
+      ...base,
+      bindings: [{ ...binding, operations }],
+    });
+    const declared = withOperations([
+      probe,
+      { ...publish, readback: declaration },
+      lookup,
+    ]);
+    const parsed = parsePortableProviderPluginManifest(declared);
+    expect(parsed.ok).toBeTrue();
+    if (!parsed.ok) throw new Error(parsed.issues.join("; "));
+    expect(parsed.value.bindings[0]!.operations[1]!.readback)
+      .toEqual(declaration);
+    expect(renderPortableProviderPluginManifest(parsed.value))
+      .toContain('"readback": {');
+    // Undeclared operations carry no key, so their canonical bytes are
+    // exactly what they were before the field existed.
+    const undeclared = parsePortableProviderPluginManifest(
+      withOperations([probe, publish, lookup]),
+    );
+    if (!undeclared.ok) throw new Error(undeclared.issues.join("; "));
+    expect(Object.hasOwn(undeclared.value.bindings[0]!.operations[1]!, "readback"))
+      .toBeFalse();
+    expect(renderPortableProviderPluginManifest(undeclared.value))
+      .not.toContain("readback");
+
+    const issues = (operations: readonly Record<string, unknown>[]) => {
+      const result = parsePortableProviderPluginManifest(
+        withOperations(operations),
+      );
+      return result.ok ? [] : result.issues;
+    };
+    expect(issues([
+      probe,
+      { ...publish, readback: { ...declaration, version: 2 } },
+      lookup,
+    ])).toEqual(["plugin operation posts.publish readback version is unsupported"]);
+    expect(issues([
+      probe,
+      { ...publish, readback: { ...declaration, evidence: "any" } },
+      lookup,
+    ]).join("\n")).toContain("plugin operation posts.publish readback");
+    expect(issues([
+      probe,
+      { ...publish, readback: null },
+      lookup,
+    ]).join("\n")).toContain("plugin operation posts.publish readback");
+    expect(issues([
+      { ...probe, readback: { ...declaration, operation: "posts.read" } },
+      publish,
+      lookup,
+    ])).toEqual([
+      "plugin operation feeds.read readback is available only for R2/R3 web-session-api writes",
+    ]);
+    const unbound =
+      "plugin binding example operation posts.publish readback must reference one observed dispatch-free R1 operation whose input is the write input without files";
+    expect(issues([
+      probe,
+      { ...publish, readback: { ...declaration, contractVersion: 2 } },
+      lookup,
+    ])).toEqual([unbound]);
+    expect(issues([
+      probe,
+      { ...publish, readback: declaration },
+      { ...lookup, state: "capture-required" },
+    ])).toEqual([unbound]);
+    expect(issues([
+      probe,
+      { ...publish, readback: declaration },
+      { ...lookup, input: { properties: {}, required: [] } },
+    ])).toEqual([unbound]);
+    expect(issues([
+      probe,
+      { ...publish, readback: declaration },
+      { ...lookup, input: { properties: { body }, required: [] } },
+    ])).toEqual([unbound]);
+  });
+
   test("keeps linked-device operations capture-required at manifest check", () => {
     const base = manifest();
     const binding = base.bindings[0]!;

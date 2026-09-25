@@ -429,6 +429,102 @@ describe("run journal reducer", () => {
     })).toThrow("contradictory successor state");
   });
 
+  test("a portable source elects a successor and is superseded with its ledger kept", () => {
+    const successorRunId = "33333333-3333-4333-8333-333333333333";
+    const indeterminateSource = (contract: RunJournalContract): RunJournal => {
+      const started = transitionRunJournal(ready(parseRunJournal({
+        ...initial({ plannedDispatches: 1, contract }),
+        operation: "posts.publish",
+        risk: "R3",
+      })), {
+        type: "dispatch-started",
+        index: 1,
+        at: "2026-07-25T12:00:03.000Z",
+      });
+      return transitionRunJournal(started, {
+        type: "finished",
+        status: "indeterminate",
+        finalOrigin: null,
+        error: "provider outcome is uncertain",
+        at: "2026-07-25T12:00:04.000Z",
+      });
+    };
+    const elect = {
+      type: "duplicate-successor-claimed",
+      intentHash: "9".repeat(64),
+      runId: successorRunId,
+      at: "2026-07-25T12:00:05.000Z",
+    } as const;
+    expect(() => transitionRunJournal(indeterminateSource({
+      transport: "provider-api",
+      hash: "e".repeat(64),
+    }), elect)).toThrow("retained terminal indeterminate");
+    const source = indeterminateSource(portableContract());
+    const claimed = transitionRunJournal(source, elect);
+    expect(claimed.duplicateSuccessor?.runId).toBe(successorRunId);
+
+    const supersede = {
+      type: "duplicate-source-superseded",
+      intentHash: "9".repeat(64),
+      runId: successorRunId,
+      at: "2026-07-25T12:00:09.000Z",
+    } as const;
+    expect(() => transitionRunJournal(source, supersede))
+      .toThrow("only the elected duplicate successor");
+    expect(() => transitionRunJournal(claimed, {
+      ...supersede,
+      runId: "44444444-4444-4444-8444-444444444444",
+    })).toThrow("only the elected duplicate successor");
+    expect(() => transitionRunJournal(claimed, {
+      ...supersede,
+      intentHash: "8".repeat(64),
+    })).toThrow("only the elected duplicate successor");
+
+    const superseded = transitionRunJournal(claimed, supersede);
+    expect(superseded).toMatchObject({
+      revision: claimed.revision + 1,
+      updatedAt: claimed.updatedAt,
+      status: "indeterminate",
+      ledgerState: "indeterminate",
+      recoveryState: "released",
+      assetState: "released",
+      duplicateSuccessor: claimed.duplicateSuccessor,
+      supersededBy: {
+        schemaVersion: 1,
+        intentHash: "9".repeat(64),
+        successorRunId,
+        supersededAt: "2026-07-25T12:00:09.000Z",
+      },
+    });
+    expect(parseRunJournal(JSON.parse(JSON.stringify(superseded)) as unknown))
+      .toEqual(superseded);
+    expect(transitionRunJournal(superseded, supersede)).toEqual(superseded);
+    // Supersession never becomes a not-applied release of the fence.
+    expect(() => transitionRunJournal(superseded, {
+      type: "recovery-released",
+      outcome: "not-applied",
+      at: "2026-07-25T12:00:10.000Z",
+    })).toThrow("duplicate successor intent was claimed");
+    expect(() => parseRunJournal({ ...superseded, ledgerState: "released" }))
+      .toThrow("contradictory source state");
+    expect(() => parseRunJournal({ ...claimed, recoveryState: "released", assetState: "released" }))
+      .toThrow("contradictory source state");
+    expect(() => parseRunJournal({
+      ...superseded,
+      supersededBy: { ...superseded.supersededBy!, successorRunId: "44444444-4444-4444-8444-444444444444" },
+    })).toThrow("names no elected successor");
+    expect(() => parseRunJournal({
+      ...superseded,
+      supersededBy: { ...superseded.supersededBy!, supersededAt: "2026-07-25T12:00:04.500Z" },
+    })).toThrow("names no elected successor");
+    expect(() => parseRunJournal({
+      ...superseded,
+      supersededBy: { ...superseded.supersededBy!, extra: true },
+    })).toThrow("unsupported fields");
+    const { duplicateSuccessor: _elected, ...unelected } = superseded;
+    expect(() => parseRunJournal(unelected)).toThrow("names no elected successor");
+  });
+
   test("rejects skipped, duplicate, and contradictory progress", () => {
     const journal = ready();
     expect(() => transitionRunJournal(journal, {

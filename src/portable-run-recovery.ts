@@ -10,6 +10,10 @@ import {
   parsePortableOperationIdentityV1,
   type PortableOperationIdentityV1,
 } from "./provider-plugin-portable-identity";
+import type { PortablePluginReadbackObservation } from "./provider-plugin-protocol";
+import type {
+  PortableProviderPluginReadbackPort,
+} from "./provider-plugin-portable-runtime";
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
 import {
   readRecoveryCapsule,
@@ -17,11 +21,15 @@ import {
   recoveryContractHash,
   type RecoveryCapsule,
 } from "./recovery";
+import { readRunJournal } from "./run-journal";
 import {
   readRunReceipt,
+  releaseObservedNotAppliedRunRecovery,
   releaseReconciledRunRecovery,
+  runJournalIntentHash,
   type RunReceipt,
 } from "./runtime";
+import type { GhostgetAuth } from "./auth";
 import {
   createPrivateJsonIfAbsent,
   ensurePrivateStateDirectory,
@@ -41,6 +49,7 @@ type RecoverablePortableReceipt = PortableReceipt & {
 
 const RESOLUTION_DIRECTORY = "recovery/portable-resolutions";
 const NOT_APPLIED_CLAIM_DIRECTORY = "recovery/portable-not-applied-claims";
+const OBSERVED_READBACK_DIRECTORY = "recovery/portable-observed-readbacks";
 const MAX_RECORD_BYTES = 32 * 1024;
 const sha256Pattern = /^[a-f0-9]{64}$/u;
 const runIdPattern =
@@ -503,19 +512,27 @@ function assertRunStillBound(
   receipt: RecoverablePortableReceipt,
   registry: ProviderPluginRegistry,
   environment: Environment,
-): void {
+): {
+  readonly capsule: RecoveryCapsule;
+  readonly auth: GhostgetAuth;
+  readonly continuity: "exact" | "same-subject";
+} {
   assertCurrentContract(receipt, registry);
   const capsule = assertCapsuleMatchesReceipt(receipt, environment);
   // A reconnect of the same provider subject may stand in for the run's
   // exact auth record; see recoveryAuthContinuity.
   const auth = loadAuth(receipt.auth.id, environment);
-  if (
-    recoveryAuthContinuity(capsule.auth, capsule.authSubject, auth) === null
-  ) {
+  const continuity = recoveryAuthContinuity(
+    capsule.auth,
+    capsule.authSubject,
+    auth,
+  );
+  if (continuity === null) {
     throw new Error(
       "current auth locator no longer matches the unsettled portable run",
     );
   }
+  return { capsule, auth, continuity };
 }
 
 function recordTimestamp(now: Date): string {
@@ -720,3 +737,375 @@ export function reconcilePortableProviderPluginRun(
     recoveryArtifactsReleased: true,
   });
 }
+
+/**
+ * The create-once record of one readback that Ghostget itself invoked on the
+ * plugin operation the run's write declared. It binds the observation to the
+ * run, its confirmed-write intent, the auth realm, and the exact manifest and
+ * bundle, so a later pass acts on this observation and never asks again.
+ */
+export type PortableRunObservedReadbackV1 = {
+  readonly schemaVersion: 1;
+  readonly kind: "ghostget-observed-readback";
+  readonly runId: string;
+  readonly observedAt: string;
+  readonly receiptHash: string;
+  readonly planDigest: string;
+  readonly adapterHash: string;
+  readonly inputHash: string;
+  readonly authHash: string;
+  readonly contractHash: string;
+  readonly portablePluginContract: PortableOperationIdentityV1;
+  readonly intentHash: string;
+  readonly authRealm: {
+    readonly authId: string;
+    readonly authKind: string;
+    readonly authSubject: string | null;
+    readonly continuity: "exact" | "same-subject";
+  };
+  readonly manifestSha256: string;
+  readonly bundleSha256: string;
+  readonly readback: {
+    readonly version: 1;
+    readonly operation: string;
+    readonly contractVersion: number;
+  };
+  readonly observation: "applied" | "not-applied";
+  readonly evidenceHash: string;
+};
+
+export function parsePortableRunObservedReadback(
+  value: unknown,
+): PortableRunObservedReadbackV1 {
+  const label = "portable run observed readback";
+  const record = strictRecord(
+    value,
+    [
+      "schemaVersion",
+      "kind",
+      "runId",
+      "observedAt",
+      "receiptHash",
+      "planDigest",
+      "adapterHash",
+      "inputHash",
+      "authHash",
+      "contractHash",
+      "portablePluginContract",
+      "intentHash",
+      "authRealm",
+      "manifestSha256",
+      "bundleSha256",
+      "readback",
+      "observation",
+      "evidenceHash",
+    ],
+    label,
+  );
+  if (
+    record.schemaVersion !== 1
+    || record.kind !== "ghostget-observed-readback"
+    || typeof record.runId !== "string"
+    || !runIdPattern.test(record.runId)
+    || (record.observation !== "applied" && record.observation !== "not-applied")
+  ) {
+    throw new Error(`${label} is malformed`);
+  }
+  assertBoundHashes(record, label);
+  for (const key of ["intentHash", "manifestSha256", "bundleSha256"] as const) {
+    const candidate = record[key];
+    if (typeof candidate !== "string" || !sha256Pattern.test(candidate)) {
+      throw new Error(`${label} ${key} is malformed`);
+    }
+  }
+  const realm = strictRecord(
+    record.authRealm,
+    ["authId", "authKind", "authSubject", "continuity"],
+    `${label} auth realm`,
+  );
+  if (
+    typeof realm.authId !== "string"
+    || realm.authId.length < 1
+    || realm.authId.length > 256
+    || typeof realm.authKind !== "string"
+    || realm.authKind.length < 1
+    || realm.authKind.length > 64
+    || (
+      realm.authSubject !== null
+      && (
+        typeof realm.authSubject !== "string"
+        || realm.authSubject.length < 1
+        || realm.authSubject.length > 512
+      )
+    )
+    || (realm.continuity !== "exact" && realm.continuity !== "same-subject")
+  ) {
+    throw new Error(`${label} auth realm is malformed`);
+  }
+  const readback = strictRecord(
+    record.readback,
+    ["version", "operation", "contractVersion"],
+    `${label} readback`,
+  );
+  if (
+    readback.version !== 1
+    || typeof readback.operation !== "string"
+    || !/^[a-z][a-z0-9-]{0,39}(?:\.[a-z][a-z0-9-]{0,39}){1,3}$/u
+      .test(readback.operation)
+    || !Number.isSafeInteger(readback.contractVersion)
+    || (readback.contractVersion as number) < 1
+    || (readback.contractVersion as number) > 1_000_000
+  ) {
+    throw new Error(`${label} readback is malformed`);
+  }
+  const contract = parsePortableOperationIdentityV1(
+    record.portablePluginContract,
+  );
+  if (
+    contract.manifestSha256 !== record.manifestSha256
+    || contract.bundleSha256 !== record.bundleSha256
+  ) {
+    throw new Error(`${label} does not name its contract's package`);
+  }
+  return Object.freeze({
+    schemaVersion: 1,
+    kind: "ghostget-observed-readback",
+    runId: record.runId,
+    observedAt: canonicalTimestamp(record.observedAt, label),
+    receiptHash: record.receiptHash as string,
+    planDigest: record.planDigest as string,
+    adapterHash: record.adapterHash as string,
+    inputHash: record.inputHash as string,
+    authHash: record.authHash as string,
+    contractHash: record.contractHash as string,
+    portablePluginContract: contract,
+    intentHash: record.intentHash as string,
+    authRealm: Object.freeze({
+      authId: realm.authId,
+      authKind: realm.authKind,
+      authSubject: realm.authSubject as string | null,
+      continuity: realm.continuity,
+    }),
+    manifestSha256: record.manifestSha256 as string,
+    bundleSha256: record.bundleSha256 as string,
+    readback: Object.freeze({
+      version: 1,
+      operation: readback.operation,
+      contractVersion: readback.contractVersion as number,
+    }),
+    observation: record.observation,
+    evidenceHash: record.evidenceHash as string,
+  });
+}
+
+export function readPortableRunObservedReadback(
+  runId: string,
+  environment: Environment = process.env,
+): PortableRunObservedReadbackV1 | null {
+  return readRunRecord(
+    OBSERVED_READBACK_DIRECTORY,
+    runId,
+    "portable run observed readback",
+    parsePortableRunObservedReadback,
+    environment,
+  );
+}
+
+export type ReconcilePortableRunReadbackResult = {
+  readonly kind: "portable-provider-plugin-readback-reconciliation";
+  readonly runId: string;
+  readonly originalReceiptStatus: PortableReceipt["status"];
+  readonly receiptUnchanged: true;
+  readonly providerWriteDispatched: false;
+  readonly observation: PortablePluginReadbackObservation["observation"];
+  /** sha256 of the canonical evidence the readback returned. */
+  readonly evidenceHash: string;
+} & (
+  | {
+      readonly ok: true;
+      readonly status: "succeeded";
+      readonly recoveryArtifactsReleased: true;
+      readonly ledgerReleased: false;
+    }
+  | {
+      readonly ok: true;
+      readonly status: "not-applied-released";
+      readonly recoveryArtifactsReleased: true;
+      readonly ledgerReleased: true;
+    }
+  | {
+      readonly ok: false;
+      readonly status: "fence-retained";
+      readonly recoveryArtifactsReleased: false;
+      readonly ledgerReleased: false;
+    }
+);
+
+/**
+ * Reconcile an unsettled portable write from Ghostget's own readback.
+ *
+ * Ghostget invokes the read-only operation that the run's exact write
+ * declared, bound to this run and its intent. `not-applied` from that
+ * observation is the one portable path that reopens the at-most-once fence:
+ * it is recorded create-once and then releases recovery and the ledger, and
+ * only for a run with no verified dispatch and no elected successor.
+ * `applied` settles the run as the caller-evidence path does. `unknown`
+ * changes nothing. The first recorded observation wins; a rerun acts on it
+ * without asking the plugin again.
+ */
+export async function reconcilePortableProviderPluginRunFromReadback(
+  runId: string,
+  options: {
+    readonly registry: ProviderPluginRegistry;
+    readonly readback: PortableProviderPluginReadbackPort;
+    readonly environment?: Environment;
+    readonly now?: Date;
+    readonly signal?: AbortSignal;
+  },
+): Promise<ReconcilePortableRunReadbackResult> {
+  const environment = options.environment ?? process.env;
+  const now = options.now ?? new Date();
+  const receipt = readRunReceipt(runId, environment);
+  assertPortableReceipt(receipt);
+  const journal = readRunJournal(receipt.runId, environment)?.journal;
+  if (journal === undefined) {
+    throw new Error("portable readback requires the run's recovery journal");
+  }
+  const intentHash = runJournalIntentHash(journal, environment);
+  const binding = runBinding(receipt);
+  const common = {
+    kind: "portable-provider-plugin-readback-reconciliation",
+    runId: receipt.runId,
+    originalReceiptStatus: receipt.status,
+    receiptUnchanged: true,
+    providerWriteDispatched: false,
+  } as const;
+  let record = readPortableRunObservedReadback(receipt.runId, environment);
+  if (record === null) {
+    if (journal.duplicateSuccessor !== undefined) {
+      throw new Error(
+        "portable run elected a duplicate successor; its fence cannot be reopened by readback",
+      );
+    }
+    const bound = assertRunStillBound(receipt, options.registry, environment);
+    const { declaration, observation } = await options.readback({
+      contract: receipt.portablePluginContract,
+      runId: receipt.runId,
+      intentHash,
+      input: bound.capsule.input,
+      auth: bound.auth,
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+    });
+    if (
+      observation.runId !== receipt.runId
+      || observation.intentHash !== intentHash
+    ) {
+      throw new Error("portable readback observation is not bound to this run");
+    }
+    const evidenceHash = sha256(canonicalJson(observation.evidence));
+    if (observation.observation === "unknown") {
+      return Object.freeze({
+        ...common,
+        ok: false,
+        status: "fence-retained",
+        observation: "unknown",
+        evidenceHash,
+        recoveryArtifactsReleased: false,
+        ledgerReleased: false,
+      });
+    }
+    // Re-bind after the plugin ran: the contract, capsule, and auth must be
+    // the ones the observation was made against.
+    assertRunStillBound(receipt, options.registry, environment);
+    record = publishRunRecordOnce(
+      OBSERVED_READBACK_DIRECTORY,
+      parsePortableRunObservedReadback({
+        schemaVersion: 1,
+        kind: "ghostget-observed-readback",
+        ...binding,
+        observedAt: recordTimestamp(now),
+        intentHash,
+        authRealm: {
+          authId: bound.auth.id,
+          authKind: bound.auth.kind,
+          authSubject: bound.capsule.authSubject ?? null,
+          continuity: bound.continuity,
+        },
+        manifestSha256: receipt.portablePluginContract.manifestSha256,
+        bundleSha256: receipt.portablePluginContract.bundleSha256,
+        readback: {
+          version: declaration.version,
+          operation: declaration.operation,
+          contractVersion: declaration.contractVersion,
+        },
+        observation: observation.observation,
+        evidenceHash,
+      }),
+      "portable run observed readback",
+      parsePortableRunObservedReadback,
+      environment,
+    );
+  }
+  if (
+    record.receiptHash !== binding.receiptHash
+    || record.intentHash !== intentHash
+    || canonicalJson(record.portablePluginContract)
+      !== canonicalJson(receipt.portablePluginContract)
+  ) {
+    throw new Error(
+      "the recorded portable readback does not match this unsettled run",
+    );
+  }
+  if (record.observation === "applied") {
+    const reconciled = reconcilePortableProviderPluginRun(
+      receipt.runId,
+      { outcome: "applied", evidenceHash: record.evidenceHash },
+      { registry: options.registry, environment, now },
+    );
+    if (!reconciled.ok) {
+      throw new Error("portable applied readback did not settle the run");
+    }
+    return Object.freeze({
+      ...common,
+      ok: true,
+      status: "succeeded",
+      observation: "applied",
+      evidenceHash: record.evidenceHash,
+      recoveryArtifactsReleased: true,
+      ledgerReleased: false,
+    });
+  }
+  if (receipt.dispatch.verified !== 0) {
+    throw new Error(
+      "a not-applied readback contradicts a verified dispatch of this portable run",
+    );
+  }
+  if (readPortableRunResolution(receipt.runId, environment) !== null) {
+    throw new Error(
+      "portable run already has a durable resolution; a not-applied readback cannot change it",
+    );
+  }
+  try {
+    releaseObservedNotAppliedRunRecovery(
+      receipt.runId,
+      binding.receiptHash,
+      environment,
+      now,
+    );
+  } catch (error) {
+    throw new Error(
+      "portable readback was recorded, but the fence could not be released; rerun reconciliation",
+      { cause: error },
+    );
+  }
+  return Object.freeze({
+    ...common,
+    ok: true,
+    status: "not-applied-released",
+    observation: "not-applied",
+    evidenceHash: record.evidenceHash,
+    recoveryArtifactsReleased: true,
+    ledgerReleased: true,
+  });
+}
+

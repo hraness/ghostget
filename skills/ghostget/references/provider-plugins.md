@@ -270,24 +270,62 @@ settles the run.
 Ghostget treats `not-applied` as your unverified claim, so it never reopens
 the fence. It records the claim create-once, reports
 `"status":"fence-retained"`, and exits with status `5`. The ledger, recovery
-capsule, and journal stay unchanged, and the bundle stays blocked from update,
-disable, and removal. Ghostget refuses a claim after a verified dispatch or an
-existing resolution, and rejects a different claim for the same run.
-Releasing the ledger would need readback evidence that Ghostget observes itself
-or an owner approval, and the portable protocol has neither. Settle the run
-with `applied` evidence when you have it. If the effect really did not apply,
-no version 1 command releases the run: the bundle stays blocked until an
-observed readback or owner-approval route exists. Never submit `applied` just
-to unblock the bundle, because that resolution is a permanent record that the
-effect happened. A run that an older Ghostget resolved as `not-applied`
-and then interrupted before its release finished is in the same state: its
-resolution stays readable, both outcomes are refused, and the ledger, capsule,
-and bundle stay retained. A new attempt after an effect that
-did not apply is a duplicate-risk successor
+capsule, and journal stay unchanged. Ghostget refuses a claim after a verified
+dispatch or an existing resolution, and rejects a different claim for the same
+run. Settle the run with `applied` evidence when you have it. Never submit
+`applied` just to unblock the bundle, because that resolution is a permanent
+record that the effect happened. A run that an older Ghostget resolved as
+`not-applied` and then interrupted before its release finished is in the same
+state: its resolution stays readable, both outcomes are refused, and the
+ledger, capsule, and bundle stay retained.
+
+A web-session R2/R3 write may opt in to observed readback. Its operation
+declares an optional `readback` object:
+
+```json
+{"readback":{"version":1,"operation":"posts.read","contractVersion":1}}
+```
+
+The named operation must be an observed, dispatch-free R1 operation of the
+same binding, and its input schema must be the write's input schema with every
+file-bearing field removed. Any other version, an unknown key, or a reference
+that does not meet these rules rejects the whole manifest. An operation with
+no `readback` key has unchanged canonical bytes and hashes.
+
+For a declared write, `ghostget runs reconcile <run-id>` without `--input`
+makes Ghostget itself invoke that read-only operation, with the run's retained
+input and its current auth record under the same continuity rule. The host
+sends one protocol version 2 `host.readback` frame that carries the run ID, the
+intent hash, and the write's name and contract version, and accepts only a
+`plugin.readback.result` frame bound to the same run and intent. Its
+`observation` is `applied`, `not-applied`, or `unknown`, with a JSON evidence
+object of at most 16 KiB. Every other frame stays at protocol version 1, and a
+plugin that declares no readback never receives a version 2 frame, so existing
+plugins run unchanged. For an undeclared write the command still requires
+`--input`, exactly as before.
+
+Ghostget records the first `applied` or `not-applied` observation create-once
+with the run, intent, auth realm, manifest and bundle hashes, and the evidence
+digest, and later passes act on that record without asking the plugin again.
+`applied` settles the run and keeps its ledger. `not-applied` releases the
+recovery capsule and the ledger, so the same intent may be confirmed again.
+`unknown` changes nothing and exits with status `5`. A run with a verified
+dispatch, a durable resolution, or an elected duplicate successor never
+reopens.
+
+A new attempt after an effect that did not apply, when the plugin declares no
+readback, is a duplicate-risk successor
 ([settlement and duplicate cleanup](settlement-and-duplicate-cleanup.md)).
-Version 1 admits successors only for web-session `posts.publish`, so a
-portable run stays fenced. This reconciliation path does not start portable
-code, call a provider, mutate the receipt, or retry a dispatch.
+Successors are admitted for one-dispatch R3 `posts.publish` writes on both the
+web-session and the portable transport, under the same election and
+auth-continuity rules. Once the elected successor settles after its dispatch,
+Ghostget marks the retained source `supersededBy` that successor. That releases
+the source's recovery capsule and retained assets, so the source no longer
+blocks plugin update, disable, or removal; its indeterminate ledger stays, so
+the intent fence still counts its possible effect and no second successor can
+be elected. Plugin install, disable, and removal and the repair pass in
+`ghostget doctor` apply this marking. Reconciliation does not mutate the
+receipt or retry a dispatch.
 
 Every operation resolves to an exact immutable identity: plugin ID and
 version, host API version, bundle and manifest SHA-256, adapter, transport,
