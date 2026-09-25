@@ -138,6 +138,6 @@ test("native fixture provisioning precedes every CI full or selected-shard gate"
   expect(release).not.toContain("provision-derive-browser.ts");
   const ci = readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8");
   expect(ci.indexOf("bun run ./scripts/provision-derive-browser.ts")).toBeGreaterThan(0);
-  expect(ci).toContain("--for-shard '${{ matrix.shard }}' 4");
+  expect(ci).toContain("--for-shard '${{ matrix.shard }}' 8");
   expect(ci.indexOf("bun run ./scripts/provision-derive-browser.ts")).toBeLessThan(ci.indexOf("- run: bun run ./scripts/ci-test-shard.ts"));
 });
