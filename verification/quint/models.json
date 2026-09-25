@@ -186,6 +186,44 @@
         "seed": "20260928",
         "maxSteps": 8
       }
+    },
+    {
+      "file": "promotion.qnt",
+      "module": "promotion",
+      "init": "init",
+      "step": "step",
+      "invariants": [
+        "leasedFastForward",
+        "authorityChain",
+        "revalidatedBeforeWrite",
+        "promotedStable",
+        "markerBaselineToTarget",
+        "boundedVerdict",
+        "stuckHasEvidence"
+      ],
+      "simulation": { "seed": "20260929", "maxSamples": 3000, "maxSteps": 14 },
+      "apalache": { "length": 11 },
+      "nightly": {
+        "simulation": { "maxSamples": 10000, "maxSteps": 20 },
+        "apalache": { "length": 12 }
+      },
+      "mutants": [
+        { "step": "stepNoSource", "invariant": "authorityChain" },
+        { "step": "stepNoFastForward", "invariant": "leasedFastForward" },
+        { "step": "stepNoLease", "invariant": "leasedFastForward" },
+        { "step": "stepNoRecheck", "invariant": "revalidatedBeforeWrite" },
+        { "step": "stepSingleReadback", "invariant": "promotedStable" },
+        { "step": "stepLenientMarker", "invariant": "markerBaselineToTarget" },
+        { "step": "stepPendingIsFailure", "invariant": "stuckHasEvidence" },
+        { "step": "stepUnboundedPoll", "invariant": "boundedVerdict" }
+      ],
+      "replay": {
+        "test": "scripts/verification-promotion-replay.test.ts",
+        "target": "production",
+        "traces": 300,
+        "seed": "20260934",
+        "maxSteps": 14
+      }
     }
   ]
 }

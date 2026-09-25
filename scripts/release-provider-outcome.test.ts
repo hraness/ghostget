@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
+import fc from "fast-check";
+import { assertAsyncProperty } from "../src/test-support.js";
 
 import {
+  assertReleaseTagNewerThanPublished,
   exactLatestPredecessor,
   latestReleaseConvergenceBudget,
   requireLatestRelease,
@@ -776,4 +779,155 @@ test("reads the historical immutable source receipt through the renamed reposito
   }
   expect(releaseSourceReceipt({ repository: "hraness/ghostget", verifiedSha: sourceSha,
     verifiedTag: "v0.17.0", workflowRunId: "9001" })).toContain("repository=hraness/ghostget tag=v0.17.0");
+});
+
+// Completed stable-Release ordering census. Each generated inventory is served
+// through GitHub's 100-item pages; the oracle below restates the ordering law
+// independently: a stable target must exceed every completed (published,
+// non-prerelease) stable Release, each such Release must be immutable with an
+// exact timestamp, and only an explicit existing-target check admits the one
+// equal tag.
+type CensusEntry = Readonly<{ tag: string; draft: boolean; prerelease: boolean; immutable: boolean; publishedAt: string | null }>;
+const censusTag = fc.oneof(
+  // Minors and patches of different digit counts separate numeric from lexicographic order.
+  { weight: 8, arbitrary: fc.tuple(fc.constantFrom(9, 15, 16, 17, 18, 100), fc.constantFrom(0, 1, 2, 3, 10))
+    .map(([minor, patch]) => `v0.${minor}.${patch}`) },
+  { weight: 1, arbitrary: fc.constantFrom("v0.17.1-beta.1", "v0.17.01", "nightly", "v1.0.0", "v0.17.0", "v0.16.99") },
+);
+const censusEntry: fc.Arbitrary<CensusEntry> = fc.record({
+  tag: censusTag,
+  draft: fc.boolean(),
+  prerelease: fc.oneof({ weight: 5, arbitrary: fc.constant(false) }, { weight: 1, arbitrary: fc.constant(true) }),
+  immutable: fc.oneof({ weight: 12, arbitrary: fc.constant(true) }, { weight: 1, arbitrary: fc.constant(false) }),
+  publishedAt: fc.oneof({ weight: 12, arbitrary: fc.constant<string | null>("2026-09-03T12:00:00Z") },
+    { weight: 1, arbitrary: fc.constantFrom<string | null>(null, "2026-09-03T12:00:00.000Z", "2026-02-30T12:00:00Z") }),
+});
+const censusInventory = fc.oneof(
+  { weight: 10, arbitrary: fc.array(censusEntry, { maxLength: 40 }) },
+  { weight: 1, arbitrary: fc.tuple(fc.integer({ min: 95, max: 520 }), censusEntry)
+    .map(([count, entry]) => Array.from({ length: count }, (_, index) => index === count - 1 ? entry
+      : { tag: "v0.15.0", draft: false, prerelease: false, immutable: true, publishedAt: "2026-09-03T12:00:00Z" })) },
+);
+const stableParts = (value: string): readonly number[] | undefined =>
+  /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/u.exec(value)?.slice(1).map(Number);
+function censusOracle(entries: readonly CensusEntry[], target: string, allowExistingTarget: boolean): boolean {
+  if (entries.length > 500) return false;
+  const next = stableParts(target)!; let equal = 0;
+  for (const entry of entries) {
+    const current = stableParts(entry.tag);
+    if (entry.draft || entry.prerelease || current === undefined) continue;
+    if (!entry.immutable || entry.publishedAt !== "2026-09-03T12:00:00Z") return false;
+    const order = next.map((part, index) => part - current[index]!).find(delta => delta !== 0) ?? 0;
+    if (order === 0 && allowExistingTarget && entry.tag === target) { equal += 1; continue; }
+    if (order <= 0) return false;
+  }
+  return !allowExistingTarget || equal === 1;
+}
+
+describe("completed stable-Release ordering census", () => {
+  test("property: the census admits a target exactly when it exceeds every completed stable Release in the bounded inventory", async () => {
+    await assertAsyncProperty(fc.asyncProperty(censusInventory, fc.constantFrom("v0.17.0", "v0.16.2", "v0.18.0"), fc.boolean(),
+      async (entries, target, allowExistingTarget) => {
+        const reads: string[] = [];
+        const api = {
+          async get(endpoint: string) {
+            reads.push(endpoint);
+            const page = Number(/^\/repos\/hraness\/ghostget\/releases\?per_page=100&page=([1-6])$/u.exec(endpoint)?.[1]);
+            expect(Number.isInteger(page)).toBe(true);
+            return entries.slice((page - 1) * 100, page * 100).map((entry, index) => ({
+              id: (page - 1) * 100 + index + 1, tag_name: entry.tag, draft: entry.draft, prerelease: entry.prerelease,
+              immutable: entry.immutable, published_at: entry.publishedAt,
+            }));
+          },
+        };
+        const admitted = await assertReleaseTagNewerThanPublished({ allowExistingTarget, api, repository: "hraness/ghostget", verifiedTag: target })
+          .then(() => true, () => false);
+        expect(admitted).toBe(censusOracle(entries, target, allowExistingTarget));
+        // An admitted census always read the complete six-page window, ending on the empty sentinel.
+        if (admitted) expect(reads).toEqual([1, 2, 3, 4, 5, 6].map(page => `/repos/hraness/ghostget/releases?per_page=100&page=${page}`));
+      }));
+  });
+});
+
+// Latest convergence. Each generated schedule chooses what GitHub's Latest
+// projection returns on each read, how long each read takes, how the sleeper
+// behaves, and whether the monotonic clock regresses once. The laws hold for
+// every schedule; the progress law holds under its stated environment.
+type LatestObservation = "predecessor" | "target" | "third" | "older" | "predecessor-drift" | "target-drift" | "malformed";
+const latestObservation = fc.oneof(
+  { weight: 12, arbitrary: fc.constant<LatestObservation>("predecessor") },
+  { weight: 4, arbitrary: fc.constant<LatestObservation>("target") },
+  { weight: 1, arbitrary: fc.constantFrom<LatestObservation>("third", "older", "predecessor-drift", "target-drift", "malformed") },
+);
+const latestSnapshot = (observation: LatestObservation): unknown => ({
+  predecessor: release("v0.16.4", 9), target: release(tag, 10), third: release("v0.17.1", 11), older: release("v0.16.3", 8),
+  "predecessor-drift": { ...release("v0.16.4", 9), published_at: "2026-09-02T12:00:00Z" },
+  "target-drift": release(tag, 12), malformed: { ...release(tag, 10), immutable: false },
+})[observation];
+
+describe("Latest convergence schedule", () => {
+  test("property: Latest converges only through the exact predecessor to the exact target inside twelve absolute slots and 60 seconds", async () => {
+    await assertAsyncProperty(fc.asyncProperty(
+      fc.array(fc.tuple(latestObservation, fc.oneof({ weight: 6, arbitrary: fc.integer({ min: 0, max: 400 }) },
+        { weight: 2, arbitrary: fc.integer({ min: 0, max: 70_000 }) })), { minLength: 1, maxLength: 14 }),
+      fc.oneof({ weight: 6, arbitrary: fc.constant(1) }, { weight: 1, arbitrary: fc.constantFrom(0, 0.5, 3) }),
+      fc.option(fc.integer({ min: 1, max: 40 }), { nil: undefined, freq: 5 }),
+      fc.integer({ min: 0, max: 1_000_000 }),
+      // Production uses the 5-second default; shorter admitted intervals exercise the attempt cap.
+      fc.oneof({ weight: 4, arbitrary: fc.constant(5_000) }, { weight: 1, arbitrary: fc.constantFrom(0, 1_000) }),
+      async (schedule, sleepFactor, regressAt, start, interval) => {
+        let now = start; let clockReads = 0; let reads = 0;
+        const starts: number[] = []; const timeouts: number[] = []; const readings: number[] = [];
+        const monotonicNow = (): number => {
+          clockReads += 1;
+          readings.push(regressAt === clockReads ? now - 1 : now);
+          return readings.at(-1)!;
+        };
+        const result = await waitForLatestRelease({
+          api: {
+            async get(endpoint: string, options: Readonly<{ timeoutMilliseconds: number }>) {
+              expect(endpoint).toBe("/repos/hraness/ghostget/releases/latest");
+              starts.push(now); timeouts.push(options.timeoutMilliseconds);
+              const [observation, latency] = schedule[Math.min(reads, schedule.length - 1)]!;
+              reads += 1; now += latency;
+              return latestSnapshot(observation);
+            },
+          },
+          monotonicNow,
+          ...(interval === 5_000 ? {} : { pollIntervalMilliseconds: interval }),
+          predecessorRelease: release("v0.16.4", 9),
+          repository: "hraness/ghostget",
+          sleep: async (milliseconds: number) => { now += Math.floor(milliseconds * sleepFactor); },
+          targetRelease: release(tag, 10),
+          verifiedTag: tag,
+        }).then(value => ({ ok: true as const, value }), () => ({ ok: false as const }));
+        const seen = starts.map((_, index) => schedule[Math.min(index, schedule.length - 1)]![0]);
+        // Slots and the deadline are anchored at the first monotonic reading.
+        const anchor = readings[0]!;
+        const regressed = readings.some((value, index) => index > 0 && value < readings[index - 1]!);
+        // Safety: at most twelve reads, each starting on or after its absolute
+        // five-second slot and strictly before the 60-second deadline, each
+        // bounded by the smaller of 10 seconds and the time remaining.
+        expect(reads).toBeLessThanOrEqual(12);
+        starts.forEach((instant, index) => {
+          expect(instant).toBeGreaterThanOrEqual(anchor + index * interval);
+          expect(instant).toBeLessThan(anchor + 60_000);
+          expect(timeouts[index]).toBeLessThanOrEqual(Math.min(10_000, Math.floor(anchor + 60_000 - instant) + 1));
+        });
+        // Only the exact predecessor may precede the result; anything else ends the wait.
+        seen.slice(0, -1).forEach(observation => expect(observation).toBe("predecessor"));
+        if (result.ok) {
+          expect(seen.at(-1)).toBe("target");
+          expect(result.value).toEqual({ attempts: reads, releaseId: 10, tag });
+          expect(now).toBeLessThanOrEqual(anchor + 60_000);
+          expect(regressed).toBe(false);
+        }
+        // Progress: an exact predecessor-then-target projection that fits the
+        // slots, an accurate sleeper, and a monotonic clock always converge.
+        const firstTarget = schedule.findIndex(([observation]) => observation !== "predecessor");
+        const fits = firstTarget >= 0 && firstTarget < 12 && schedule[firstTarget]![0] === "target"
+          && schedule.slice(0, firstTarget + 1).every(([, latency]) => latency <= 400);
+        if (fits && (sleepFactor === 1 || interval === 0) && regressAt === undefined) expect(result).toEqual({ ok: true, value: { attempts: firstTarget + 1, releaseId: 10, tag } });
+      }));
+  });
 });

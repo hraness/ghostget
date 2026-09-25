@@ -1688,14 +1688,24 @@
 // d00e25fa513d0d5bfcbdf8fa407d82b99641164f976ddd913f741a156c25a8c1. Carry the
 // same projections and allowances: 12,004,958 + 12,387 + 4,096 = 12,021,441
 // packed; 23,467,425 + 353 + 65 = 23,467,843 unpacked.
+// Remeasured for the release and publication claims branch: package.json's
+// test:npm-release script now also runs the Release provider outcome, publisher
+// model, App-token revocation, and npm rerun model tests, so the shipped
+// package.json grows. This adds 173 payload bytes over the unchanged 596-file
+// inventory. Two `npm pack --ignore-scripts` runs with npm 11.19.0 on darwin
+// arm64 were byte-identical at 12,005,010 packed bytes, 23,467,598 unpacked
+// bytes; archive SHA-256
+// 0db7a4879c287a20cadee309286755cdcfb00a6d67112f75c2cbcc827b809250. Carry the
+// same projections and allowances: 12,005,010 + 12,387 + 4,096 = 12,021,493
+// packed; 23,467,598 + 353 + 65 = 23,468,016 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Fence successor model and file-backed StatePort replay (#377)",
+  scope: "Release and publication claims evidenced in CI",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "d00e25fa513d0d5bfcbdf8fa407d82b99641164f976ddd913f741a156c25a8c1",
-  packedBytes: 12_004_958,
-  unpackedBytes: 23_467_425,
+  archiveSha256: "0db7a4879c287a20cadee309286755cdcfb00a6d67112f75c2cbcc827b809250",
+  packedBytes: 12_005_010,
+  unpackedBytes: 23_467_598,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
