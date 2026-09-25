@@ -186,7 +186,7 @@ function subjectOf(journal: RunJournal): string {
   return found[0];
 }
 
-const SUBJECT_REFUSAL = /^a prior attempt \([0-9a-f-]{36}\) may have reached the provider under auth locator '[a-z-]+', which records the same provider subject as '[a-z-]+';/u;
+const SUBJECT_REFUSAL = /^a prior attempt \([0-9a-f-]{36}\) may have reached the provider under auth locator '[a-z0-9-]+', which records the same provider subject as '[a-z0-9-]+';/u;
 
 /**
  * Classify the confirmed-write program's decision for a blocked confirm. A
