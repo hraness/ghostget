@@ -103,7 +103,7 @@ jobs:
           fetch-tags: false
           persist-credentials: false
           ref: refs/tags/${{ steps.request.outputs.tag }}
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24.20.0"
           registry-url: "https://registry.npmjs.org"
@@ -547,7 +547,7 @@ jobs:
           fetch-tags: false
           persist-credentials: false
           ref: ${{ needs.verify.outputs.verified_sha }}
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24.20.0"
           package-manager-cache: false
@@ -715,7 +715,7 @@ jobs:
             echo "::error::Tag $VERIFIED_TAG is no longer reachable from $DEFAULT_BRANCH"
             exit 1
           fi
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24.20.0"
           registry-url: "https://registry.npmjs.org"
@@ -1137,7 +1137,7 @@ jobs:
           fetch-tags: false
           persist-credentials: false
           ref: ${{ needs.verify.outputs.verified_sha }}
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24.20.0"
           registry-url: "https://registry.npmjs.org"
