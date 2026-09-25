@@ -8,15 +8,15 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 245 claims: 216 evidenced, 10 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 245 claims: 222 evidenced, 4 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 145 | 2 | 0 |
+| example test | 146 | 1 | 0 |
 | property test | 20 | 1 | 0 |
-| stateful model | 21 | 3 | 0 |
-| Quint model with production trace replay | 19 | 3 | 0 |
-| Lean proof with differential test | 7 | 1 | 0 |
+| stateful model | 24 | 0 | 0 |
+| Quint model with production trace replay | 20 | 2 | 0 |
+| Lean proof with differential test | 8 | 0 | 0 |
 | differential oracle | 4 | 0 | 0 |
 | configuration readback | 0 | 0 | 15 |
 | none | 0 | 0 | 4 |
@@ -126,7 +126,7 @@ Each claim holds only while its listed assumptions hold.
 | `vercel` | Vercel builds and serves deployments as its project settings and APIs report. | 37 |
 | `administrator-readback` | A signed-in administrator performs the documented live readbacks and reports them faithfully. | 15 |
 | `ci-runner` | GitHub-hosted runners execute the reviewed workflow faithfully. | 16 |
-| `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 15 |
+| `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 16 |
 | `edge-runtime` | The Vercel Edge runtime implements the Web Platform APIs the edge code uses. | 5 |
 
 ## Claims by area
@@ -778,11 +778,14 @@ The length-framed hash input (a 4-byte label length, an 8-byte payload length, t
 
 Identifier grammars and route/operation composite keys satisfy parse(format(x)) = x and are unambiguous.
 
-- Planned: Lean proof with differential test in plan Phase 5.
+- Evidenced by Lean proof with differential test.
 - Source: `AGENTS.md`: “Add property tests for strict parsers, canonical encodings, identifiers, ordering, round trips”
-- Evidence: `src/contracts-repair.test.ts`, `src/local-cli-tool-identity.test.ts`, `src/platform-catalog.property.test.ts`, `src/provider-plugin-registry.test.ts`
-- Assumptions: none beyond the register-wide scope
-- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Evidence: `scripts/verification-lean-encodings.test.ts`, `src/contracts-repair.test.ts`, `src/local-cli-tool-identity.test.ts`, `src/platform-catalog.property.test.ts`, `src/provider-plugin-registry.test.ts`, `verification/lean/GhostgetVerification/Encodings/RouteKey.lean`
+- Assumptions: `verification-tools`
+- Not verified:
+  - The Lean proof covers the provider plugin registry keys: the route key `<transport>:<surfaceId>` and the exact-contract key `<transport>:<surfaceId>/<operation>@<contractVersion>`, over the four transports and the surface ID and operation name grammars. Session-secret file names are the separate claim session-secret-filename-injective. Other identifier grammars, such as adapter, auth, and run IDs, portable operation identities, cursor tokens, and platform catalog IDs, are covered only by the listed example and property tests, not by a proof.
+  - The Lean theorems are about a Lean model of the key functions and grammars. The differential test checks that `routeKey`, `operationKey`, `isProviderPluginSurfaceId`, and `isProviderPluginOperationName` agree with that model on generated inputs, not on every input, and the grammars are modelled by hand from their regular expressions.
+  - The registry has no production parser for its keys; the Lean parser is a witness that a key determines its parts. A contract version is modelled as a natural number written in decimal; the registry's own check that it is a positive safe integer is not modelled.
 
 ### `local-cli` (7 claims)
 
@@ -852,11 +855,14 @@ Local-CLI readiness requires a nonzero immutable directory birth time for operat
 
 Once a local-CLI mutation child starts, any failure (timeout, signal, malformed or lost response) is post-dispatch indeterminate and is never retried.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `docs/local-cli-providers.md`: “Never retry a mutation after the child may have reached the provider.”
-- Evidence: `src/imessage-direct-plugin.test.ts`, `src/providers/beeper-direct-messaging.test.ts`
+- Evidence: `scripts/verification-local-cli-replay.test.ts`, `src/imessage-direct-plugin.test.ts`, `src/providers/beeper-direct-messaging.test.ts`, `verification/quint/local-cli.qnt`
 - Assumptions: `provider-behaviour`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - verification/quint/local-cli.qnt checks one confirmed local-CLI mutation of one or two children, with a dispatch-boundary refusal and seven post-start faults (deadline timeout, signal, nonzero exit, malformed response, lost response, the child's own not-started report, and a failure while recording the acceptance), to Quint simulation depth 8 and Apalache length 8. Its ITF replay compares 1,000 traces with executeImsgDirectOperation for the iMessage send and executeBeeperLocalOperation for Beeper presence.set, one child or the bounded typing-then-paused pair. The traces reduce to a few dozen distinct runner scripts; each script runs once per runtime on a fresh store and every trace is compared with that run.
+  - The replay replaces runImsgRpc and runBeeperCli with a scripted runner at their seam, so how a real deadline, signal, or lost pipe becomes a thrown error or exit status is covered only by their example tests. The other Beeper mutations share the same dispatch loop and catch but are not replayed; their acknowledgement parsing and readbacks are covered only by the listed example tests.
+  - Reconciliation from separately obtained evidence, and the kernel's durable journal behind beforeDispatch, are outside this model; fence.qnt covers them.
 
 ### `media` (12 claims)
 
@@ -1477,7 +1483,7 @@ Every foreign manifest, package, message, plan, receipt, response, and CLI value
 - Assumptions: none beyond the register-wide scope
 - Not verified:
   - The property test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - Some exact-key checks compare comma-joined key lists, so a smuggled `"a,b"` key can pass; plan Phase 6 replaces them with one shared `exactKeys`.
+  - 77 exact-key checks in 36 non-test source files compare comma-joined key lists, so a single smuggled `"a,b"` key passes the key check itself; the checks sampled so far then reject it because every required field reads as missing, but the 77 sites have not been audited one by one, and some sit inside browser-injected script text whose bytes feed contract hashes. Plan Phase 6 replaces them with one shared `exactKeys` and a lint test.
 
 #### `read-result-proto-roundtrip`
 
@@ -1560,11 +1566,15 @@ Portable-plugin identity is bound to its exact verified artifact; artifact tampe
 
 Plugin update, disable, and removal are refused while the old bundle still owns live or unknown work (invocation leases, confirmations, run journals, recovery capsules, linked-device lifecycles).
 
-- Planned: stateful model in plan Phase 2.
+- Evidenced by stateful model.
 - Source: `docs/plugins.md`: “Ghostget refuses a transition while the old bundle still owns live or unknown work.”
-- Evidence: `src/provider-plugin-invocation-lease.property.test.ts`, `src/provider-plugin-invocation-lease.test.ts`, `src/provider-plugin-lifecycle-kernel.test.ts`
+- Evidence: `src/provider-plugin-invocation-lease.property.test.ts`, `src/provider-plugin-invocation-lease.test.ts`, `src/provider-plugin-lifecycle-kernel.test.ts`, `src/provider-plugin-portable-runtime.test.ts`
+- Property tests: `src/provider-plugin-lifecycle-kernel.test.ts`: “a bundle may change exactly when it owns no live or unknown work”
 - Assumptions: `plugin-trusted`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The stateful model drives `inspectPortableProviderPluginQuiescence`, the check that update, disable, and removal call, through injected listings of up to 24 generated steps over two bundles: invocation leases with a live, dead, or unknown owner, confirmation plans and claims, run journals (active, released, retaining recovery, or holding assets), run receipts, recovery capsules, linked-device lifecycles, malformed entries of each kind, and an unexpected state entry. The listings are the model's own, so how the real stores list and parse those files is covered only by their tests.
+  - That the store calls this check under its catalog lock before each transition, and leaves the activation unchanged when it throws, is covered only by the named example tests in src/provider-plugin-portable-runtime.test.ts, for a live invocation lease, a cleanup-unsafe lease, and a confirmation plan.
+  - Work that starts between the check and the store's commit is excluded only by the store's lock and each work kind's own admission; no model covers that interleaving.
 
 #### `portable-pack-reproducible`
 
@@ -2417,11 +2427,15 @@ Every fast-check property runs through assertProperty or assertAsyncProperty, so
 
 Consequential lifecycle reducers take injected clocks and randomness; wall-clock jumps cannot extend or prematurely expire leases or proofs.
 
-- Planned: stateful model in plan Phase 2.
+- Evidenced by stateful model.
 - Source: `AGENTS.md`: “keep clocks and randomness injected”
-- Evidence: `src/control/approval-broker.test.ts`, `src/control/gateway.test.ts`, `src/effect-architecture.test.ts`, `src/linked-device-lifecycle-journal.property.test.ts`
+- Evidence: `src/control/approval-broker-clock.model.test.ts`, `src/control/approval-broker.test.ts`, `src/control/gateway.test.ts`, `src/effect-architecture.test.ts`, `src/linked-device-lifecycle-journal.property.test.ts`
+- Property tests: `src/control/approval-broker-clock.model.test.ts`: “property: pending requests and allow-once grants expire by the injected monotonic clock alone, whatever the wall clock does”
 - Assumptions: `bun-runtime`, `monotonic-clock`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The stateful model covers the approval broker's pending requests and allow-once grants: their expiry follows only the injected monotonic clock across wall-clock jumps of up to ten days either way, applied to both the injected wall clock and the ambient `Date.now()`. Other lifecycle reducers, such as the portable plugin invocation leases and the linked-device lifecycle journal, are not modelled under clock jumps; they rely on their example and property tests and on the effect-architecture rule that rejects ambient clocks and randomness in checked modules.
+  - The default monotonic clock is `performance.now()`; the model injects it and does not check that the platform clock is itself monotonic, which is the `monotonic-clock` assumption.
+  - Injected randomness is covered only by the effect-architecture ambient-random rule, not by a model.
 
 ### `storage` (13 claims)
 
@@ -2443,11 +2457,15 @@ The state helper's three-phase claim and the path helper's per-leaf claim each a
 
 Private state writes are compare-and-swap: exactly one overlapping writer for an exact snapshot succeeds, a stale writer never rolls state back or resurrects a removed file, disappearance is a conflict, and symlinks are never followed.
 
-- Planned: stateful model in plan Phase 2.
+- Evidenced by stateful model.
 - Source: `docs/plugins.md`: “exact-byte compare-and-exchange”
-- Evidence: `src/auth-storage.test.ts`, `src/session-secrets.test.ts`, `src/storage-cas.test.ts`
+- Evidence: `src/auth-storage.test.ts`, `src/session-secrets.test.ts`, `src/storage-cas.model.test.ts`, `src/storage-cas.test.ts`
+- Property tests: `src/storage-cas.model.test.ts`: “stale snapshots never roll state back, resurrect a removed file, or follow a link”
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The stateful model runs 12 schedules of up to 8 commands against the real bound state helper on one file under `session-secrets`: conditional writes and removals that hold a current or stale snapshot, an unconditional recreate, and a swap of the file for a symbolic link to a file outside the state layout. It checks the sequential interleavings it generates. Genuinely overlapping writers are covered only by the cross-process example test in src/storage-cas.test.ts, for two writers.
+  - A symbolic link in a parent directory, and the path helper that writes outside `GHOSTGET_STATE_HOME`, are not in the model; the example tests cover only their enumerated cases.
+  - Crashes during a compare-and-swap are covered by the state-crash-consistency claim, not by this model.
 
 #### `state-crash-consistency`
 
@@ -2482,12 +2500,13 @@ sessionSecretFileName is injective on valid (namespace, authId) coordinates, and
 
 Read paths never mutate state; reads may only cache.
 
-- Planned: example test in plan Phase 6.
+- Evidenced by example test.
 - Source: `AGENTS.md`: “No writes on read paths. Reads may cache; they never mutate.”
 - Evidence: `src/contract-repair-cli.test.ts`, `src/contract-repair-inbox.test.ts`, `src/control/policy-privacy.test.ts`, `src/control/read-capability.test.ts`, `src/cursor-token.test.ts`, `src/linked-device-lifecycle-journal.test.ts`, `src/provider-plugin-store.test.ts`, `src/providers/whatsapp-interaction-projection-helper.test.ts`, `src/read-path-incarnation.test.ts`, `src/read-path-preparation.test.ts`
 - Assumptions: `filesystem-atomic-rename`, `same-user-trusted`
 - Not verified:
-  - The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - Evidence is by named example. Whole-state-tree fingerprints taken before and after cover a cache read (hit, miss, first read, and a leftover admission claim whose owner is dead), a revalidation, a capability read, and `invoke --cache-only`; omni materialization, control inspection, confirmation preparation, and the operation-permission description are checked only for not creating an incarnation. No static or exhaustive check shows that every command that reads is write-free; a new read path is covered only once it takes the typed `AuthIncarnationReader` capability and has its own test.
+  - The D14 exemptions are writes by design and are tested as the only permitted changes: a cache read may create and release its own admission claim, remove a claim whose recorded owner is proven dead, and create the projection encryption key and its store-key marker when they are absent.
   - Only the menu-bar snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take a typed read capability; explicit invocation preparation, including the messaging route, context, and action preparations, still creates a missing auth incarnation as an admitted execution path.
 
 #### `read-path-read-capability`

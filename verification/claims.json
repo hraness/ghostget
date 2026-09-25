@@ -1051,9 +1051,9 @@
         "quote": "keep clocks and randomness injected"
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
+        "src/control/approval-broker-clock.model.test.ts",
         "src/control/approval-broker.test.ts",
         "src/control/gateway.test.ts",
         "src/effect-architecture.test.ts",
@@ -1064,7 +1064,15 @@
         "monotonic-clock"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The stateful model covers the approval broker's pending requests and allow-once grants: their expiry follows only the injected monotonic clock across wall-clock jumps of up to ten days either way, applied to both the injected wall clock and the ambient `Date.now()`. Other lifecycle reducers, such as the portable plugin invocation leases and the linked-device lifecycle journal, are not modelled under clock jumps; they rely on their example and property tests and on the effect-architecture rule that rejects ambient clocks and randomness in checked modules.",
+        "The default monotonic clock is `performance.now()`; the model injects it and does not check that the platform clock is itself monotonic, which is the `monotonic-clock` assumption.",
+        "Injected randomness is covered only by the effect-architecture ambient-random rule, not by a model."
+      ],
+      "properties": [
+        {
+          "path": "src/control/approval-broker-clock.model.test.ts",
+          "test": "property: pending requests and allow-once grants expire by the injected monotonic clock alone, whatever the wall clock does"
+        }
       ]
     },
     {
@@ -2109,18 +2117,26 @@
         "quote": "Ghostget refuses a transition while the old bundle still owns live or unknown work."
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
         "src/provider-plugin-invocation-lease.property.test.ts",
         "src/provider-plugin-invocation-lease.test.ts",
-        "src/provider-plugin-lifecycle-kernel.test.ts"
+        "src/provider-plugin-lifecycle-kernel.test.ts",
+        "src/provider-plugin-portable-runtime.test.ts"
       ],
       "assumptions": [
         "plugin-trusted"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The stateful model drives `inspectPortableProviderPluginQuiescence`, the check that update, disable, and removal call, through injected listings of up to 24 generated steps over two bundles: invocation leases with a live, dead, or unknown owner, confirmation plans and claims, run journals (active, released, retaining recovery, or holding assets), run receipts, recovery capsules, linked-device lifecycles, malformed entries of each kind, and an unexpected state entry. The listings are the model's own, so how the real stores list and parse those files is covered only by their tests.",
+        "That the store calls this check under its catalog lock before each transition, and leaves the activation unchanged when it throws, is covered only by the named example tests in src/provider-plugin-portable-runtime.test.ts, for a live invocation lease, a cleanup-unsafe lease, and a confirmation plan.",
+        "Work that starts between the check and the store's commit is excluded only by the store's lock and each work kind's own admission; no model covers that interleaving."
+      ],
+      "properties": [
+        {
+          "path": "src/provider-plugin-lifecycle-kernel.test.ts",
+          "test": "a bundle may change exactly when it owns no live or unknown work"
+        }
       ]
     },
     {
@@ -2279,7 +2295,7 @@
       "assumptions": [],
       "notVerified": [
         "The property test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Some exact-key checks compare comma-joined key lists, so a smuggled `\"a,b\"` key can pass; plan Phase 6 replaces them with one shared `exactKeys`."
+        "77 exact-key checks in 36 non-test source files compare comma-joined key lists, so a single smuggled `\"a,b\"` key passes the key check itself; the checks sampled so far then reject it because every required field reads as missing, but the 77 sites have not been audited one by one, and some sit inside browser-injected script text whose bytes feed contract hashes. Plan Phase 6 replaces them with one shared `exactKeys` and a lint test."
       ]
     },
     {
@@ -2634,17 +2650,22 @@
         "quote": "Add property tests for strict parsers, canonical encodings, identifiers, ordering, round trips"
       },
       "layer": "lean",
-      "status": "planned",
-      "phase": 5,
+      "status": "evidenced",
       "evidence": [
+        "scripts/verification-lean-encodings.test.ts",
         "src/contracts-repair.test.ts",
         "src/local-cli-tool-identity.test.ts",
         "src/platform-catalog.property.test.ts",
-        "src/provider-plugin-registry.test.ts"
+        "src/provider-plugin-registry.test.ts",
+        "verification/lean/GhostgetVerification/Encodings/RouteKey.lean"
       ],
-      "assumptions": [],
+      "assumptions": [
+        "verification-tools"
+      ],
       "notVerified": [
-        "The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The Lean proof covers the provider plugin registry keys: the route key `<transport>:<surfaceId>` and the exact-contract key `<transport>:<surfaceId>/<operation>@<contractVersion>`, over the four transports and the surface ID and operation name grammars. Session-secret file names are the separate claim session-secret-filename-injective. Other identifier grammars, such as adapter, auth, and run IDs, portable operation identities, cursor tokens, and platform catalog IDs, are covered only by the listed example and property tests, not by a proof.",
+        "The Lean theorems are about a Lean model of the key functions and grammars. The differential test checks that `routeKey`, `operationKey`, `isProviderPluginSurfaceId`, and `isProviderPluginOperationName` agree with that model on generated inputs, not on every input, and the grammars are modelled by hand from their regular expressions.",
+        "The registry has no production parser for its keys; the Lean parser is a witness that a key determines its parts. A contract version is modelled as a natural number written in decimal; the registry's own check that it is a positive safe integer is not modelled."
       ]
     },
     {
@@ -3357,11 +3378,11 @@
         "quote": "exact-byte compare-and-exchange"
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
         "src/auth-storage.test.ts",
         "src/session-secrets.test.ts",
+        "src/storage-cas.model.test.ts",
         "src/storage-cas.test.ts"
       ],
       "assumptions": [
@@ -3369,7 +3390,15 @@
         "same-user-trusted"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The stateful model runs 12 schedules of up to 8 commands against the real bound state helper on one file under `session-secrets`: conditional writes and removals that hold a current or stale snapshot, an unconditional recreate, and a swap of the file for a symbolic link to a file outside the state layout. It checks the sequential interleavings it generates. Genuinely overlapping writers are covered only by the cross-process example test in src/storage-cas.test.ts, for two writers.",
+        "A symbolic link in a parent directory, and the path helper that writes outside `GHOSTGET_STATE_HOME`, are not in the model; the example tests cover only their enumerated cases.",
+        "Crashes during a compare-and-swap are covered by the state-crash-consistency claim, not by this model."
+      ],
+      "properties": [
+        {
+          "path": "src/storage-cas.model.test.ts",
+          "test": "stale snapshots never roll state back, resurrect a removed file, or follow a link"
+        }
       ]
     },
     {
@@ -3447,8 +3476,7 @@
         "quote": "No writes on read paths. Reads may cache; they never mutate."
       },
       "layer": "example",
-      "status": "planned",
-      "phase": 6,
+      "status": "evidenced",
       "evidence": [
         "src/contract-repair-cli.test.ts",
         "src/contract-repair-inbox.test.ts",
@@ -3466,7 +3494,8 @@
         "same-user-trusted"
       ],
       "notVerified": [
-        "The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
+        "Evidence is by named example. Whole-state-tree fingerprints taken before and after cover a cache read (hit, miss, first read, and a leftover admission claim whose owner is dead), a revalidation, a capability read, and `invoke --cache-only`; omni materialization, control inspection, confirmation preparation, and the operation-permission description are checked only for not creating an incarnation. No static or exhaustive check shows that every command that reads is write-free; a new read path is covered only once it takes the typed `AuthIncarnationReader` capability and has its own test.",
+        "The D14 exemptions are writes by design and are tested as the only permitted changes: a cache read may create and release its own admission claim, remove a claim whose recorded owner is proven dead, and create the projection encryption key and its store-key marker when they are absent.",
         "Only the menu-bar snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take a typed read capability; explicit invocation preparation, including the messaging route, context, and action preparations, still creates a missing auth incarnation as an admitted execution path."
       ]
     },
@@ -4122,17 +4151,20 @@
         "quote": "Never retry a mutation after the child may have reached the provider."
       },
       "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
+        "scripts/verification-local-cli-replay.test.ts",
         "src/imessage-direct-plugin.test.ts",
-        "src/providers/beeper-direct-messaging.test.ts"
+        "src/providers/beeper-direct-messaging.test.ts",
+        "verification/quint/local-cli.qnt"
       ],
       "assumptions": [
         "provider-behaviour"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "verification/quint/local-cli.qnt checks one confirmed local-CLI mutation of one or two children, with a dispatch-boundary refusal and seven post-start faults (deadline timeout, signal, nonzero exit, malformed response, lost response, the child's own not-started report, and a failure while recording the acceptance), to Quint simulation depth 8 and Apalache length 8. Its ITF replay compares 1,000 traces with executeImsgDirectOperation for the iMessage send and executeBeeperLocalOperation for Beeper presence.set, one child or the bounded typing-then-paused pair. The traces reduce to a few dozen distinct runner scripts; each script runs once per runtime on a fresh store and every trace is compared with that run.",
+        "The replay replaces runImsgRpc and runBeeperCli with a scripted runner at their seam, so how a real deadline, signal, or lost pipe becomes a thrown error or exit status is covered only by their example tests. The other Beeper mutations share the same dispatch loop and catch but are not replayed; their acknowledgement parsing and readbacks are covered only by the listed example tests.",
+        "Reconciliation from separately obtained evidence, and the kernel's durable journal behind beforeDispatch, are outside this model; fence.qnt covers them."
       ]
     },
     {

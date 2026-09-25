@@ -167,11 +167,13 @@ export type ProviderPluginRegistry = {
   readonly resolveOwnedManifest: (adapterId: string) => GhostgetManifest | undefined;
 };
 
-function routeKey(transport: ProviderPluginTransport, surfaceId: string): string {
+/** The registry key of one route; `verification/lean` proves it unambiguous for valid parts. */
+export function routeKey(transport: ProviderPluginTransport, surfaceId: string): string {
   return `${transport}:${surfaceId}`;
 }
 
-function operationKey(
+/** The registry key of one exact contract; `verification/lean` proves it unambiguous for valid parts. */
+export function operationKey(
   transport: ProviderPluginTransport,
   surfaceId: string,
   operation: string,

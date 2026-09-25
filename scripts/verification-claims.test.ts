@@ -868,7 +868,7 @@ describe("claims and evidence", () => {
   });
 
   test("an evidenced Lean claim needs both a Lean proof and a differential test", async () => {
-    const claim = claimWith(await committedRegister(), "lean", "planned", true);
+    const claim = claimWith(await committedRegister(), "lean", "evidenced");
     const proof = "verification/lean/GhostgetVerification/Smoke.lean";
     const differential = "scripts/synthetic-differential.test.ts";
     const files = { [differential]: "", "src/Proof.lean": "" };

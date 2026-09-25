@@ -91,6 +91,26 @@
       "type": "fe9b47eb4c5fcd60fe7dca140b2147ce8481c867b7827f2692fbabee43025243"
     },
     {
+      "name": "GhostgetVerification.Encodings.RouteKey.parse_routeKey",
+      "type": "8181e6b7b453a6021c8519f854a1c8fb1f1ffcb611d7dcf64248e86082b834a1"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.RouteKey.routeKey_injective",
+      "type": "03c806587bec7eb701892969954f3e54456c1f8672319e529671bcbf34d18157"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.RouteKey.parse_operationKey",
+      "type": "dbaac46e04a7af6d264f3ffbf26b11377ec995db79e3042825b1684911777baf"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.RouteKey.operationKey_injective",
+      "type": "b9b696413842ef16dd6f93862c7cf775dfb7874eec6cde6fff3d5d4103eea3f0"
+    },
+    {
+      "name": "GhostgetVerification.Encodings.RouteKey.operationKeyUnseparated_collides",
+      "type": "8129b24fa8c8bb3855fe1c673777c814b91305c26052e85e89bf241e44079300"
+    },
+    {
       "name": "GhostgetVerification.Edge.Negotiation.negotiateIgnoringQZero_serves_refused",
       "type": "950d480f5290167ccd3859ade06ea8cd34be767d5ac63300066e9ec48b011742"
     },
@@ -301,6 +321,12 @@
       "guarded": "GhostgetVerification.Encodings.SessionSecret.fileName",
       "defect": "GhostgetVerification.Encodings.SessionSecret.fileNameHistorical",
       "refutation": "GhostgetVerification.Encodings.SessionSecret.fileNameHistorical_collides"
+    },
+    {
+      "theorem": "GhostgetVerification.Encodings.RouteKey.operationKey_injective",
+      "guarded": "GhostgetVerification.Encodings.RouteKey.operationKey",
+      "defect": "GhostgetVerification.Encodings.RouteKey.operationKeyUnseparated",
+      "refutation": "GhostgetVerification.Encodings.RouteKey.operationKeyUnseparated_collides"
     },
     {
       "theorem": "GhostgetVerification.Edge.Negotiation.negotiate_notAcceptable_iff",

@@ -1,6 +1,7 @@
 import GhostgetVerification.Encodings.CanonicalJsonProofs
 import GhostgetVerification.Encodings.HashFraming
 import GhostgetVerification.Encodings.SessionSecret
+import GhostgetVerification.Encodings.RouteKey
 import GhostgetVerification.Edge.Negotiation
 
 /-!
@@ -21,6 +22,9 @@ length followed by its code units (or bytes).
   `intentKeyPreimage joinNul`, as bytes.
 * `ssname <ns> <aid>`: `fileName`, or `none`.
 * `ssparse <name>`: `parse`, as `null`, `c <ns> <aid>`, or `a <n> (<ns> <aid>)*`.
+* `rsurf <s>` and `rop <o>`: `validSurface` and `validOperation`, as 0 or 1.
+* `rkey <transport> <surface>`: `routeKey`.
+* `okey <transport> <surface> <operation> <version>`: `operationKey`.
 * `neg <n> (<index> <q> <specificity> <type> <subtype>)* <m> <rep>*`:
   `negotiate`, as 0 (HTML), 1 (markdown), or 2 (406). A rep is 0 (HTML) or 1 (markdown).
 
@@ -33,6 +37,7 @@ open GhostgetVerification.Encodings
 open GhostgetVerification.Encodings.CanonicalJson
 open GhostgetVerification.Encodings.HashFraming
 open GhostgetVerification.Encodings.SessionSecret
+open GhostgetVerification.Encodings.RouteKey (validSurface validOperation routeKey operationKey)
 open GhostgetVerification.Edge.Negotiation
 
 abbrev Parser := StateT (List Nat) Option
@@ -139,6 +144,18 @@ def respond (mode : String) (numbers : List Nat) : String :=
         | none => "none"
         | some name => showUnits name
   | "ssparse" => run numbers do return showParsed (parse (← units))
+  | "rsurf" => run numbers do return if validSurface (← units) then "1" else "0"
+  | "rop" => run numbers do return if validOperation (← units) then "1" else "0"
+  | "rkey" => run numbers do
+      let transport ← units
+      let surface ← units
+      return showUnits (routeKey transport surface)
+  | "okey" => run numbers do
+      let transport ← units
+      let surface ← units
+      let operation ← units
+      let version ← nat
+      return showUnits (operationKey transport surface operation version)
   | "neg" => run numbers do
       let ranges ← many range
       let reps ← many rep
