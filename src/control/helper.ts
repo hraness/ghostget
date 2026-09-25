@@ -3,7 +3,7 @@ import { chmodSync, lstatSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { canonicalJson, sha256 } from "../canonical-json";
-import { captureProcessOwnerIdentity, processOwnerStatus } from "../process-identity";
+import { captureProcessOwnerIdentity, processOwnerStatus, type ProcessOwnerIdentity, type ProcessOwnerStatus } from "../process-identity";
 import { createPrivateJsonIfAbsent, ensurePrivateStateDirectory, ghostgetStateHome, readPrivateStateFileIfPresent, removePrivateStateFileIfUnchanged, snapshotPrivateStateDirectory, writePrivateJsonIfUnchanged } from "../storage";
 import { controlSocketPath } from "./approval-client";
 import { CONTROL_PROTOCOL, type ApprovalTarget, type JsonValue } from "./protocol";
@@ -34,15 +34,70 @@ async function handleAgent(value:unknown,service:ControlService,signal:AbortSign
 function socketLive(path:string):Promise<boolean> {
   return new Promise((resolve,reject)=>{const socket=connect({path});const timer=setTimeout(()=>{socket.destroy();reject(new Error("socket state unknown"));},1000);socket.once("connect",()=>{clearTimeout(timer);socket.destroy();resolve(true);});socket.once("error",error=>{clearTimeout(timer);socket.destroy();const code=(error as NodeJS.ErrnoException).code;if(code==="ECONNREFUSED"||code==="ENOENT")resolve(false);else reject(new Error("socket state unknown"));});});
 }
-function acquireOwner(environment:ControlEnvironment):()=>void {
+/** How the owner record identifies and checks processes; tests inject contenders. */
+export type ControlOwnerProcesses = Readonly<{
+  capture:()=>ProcessOwnerIdentity;
+  status:(owner:ProcessOwnerIdentity)=>ProcessOwnerStatus;
+}>;
+const currentProcess:ControlOwnerProcesses={capture:()=>captureProcessOwnerIdentity(process.pid),status:processOwnerStatus};
+/** What an owner inspection saw: the record it may replace, or none. */
+export type ControlOwnerInspection = Readonly<{path:string;previous:string|null}>;
+
+/**
+ * Read the owner record and refuse unless it is absent or its owner is
+ * verifiably gone. A live or unverifiable owner keeps custody.
+ */
+export function inspectControlOwner(environment:ControlEnvironment,processes:ControlOwnerProcesses=currentProcess):ControlOwnerInspection {
   const directory=join(ghostgetStateHome(environment),"control");ensurePrivateStateDirectory(directory,environment);
   const path=join(directory,"owner.json");const previous=readPrivateStateFileIfPresent(path,2048,"control owner",environment);
-  if(previous!==null){const v=record(JSON.parse(previous));keys(v,["schema","pid","bootId","processStartId","generation"]);if(v.schema!==1)throw new Error("invalid owner");const owner={pid:integer(v.pid,1,2**31-1),bootId:digest(v.bootId),processStartId:digest(v.processStartId)};identifier(v.generation);if(processOwnerStatus(owner)!=="different-or-dead")throw new ControlError("CONTROL_ALREADY_RUNNING","Ghostget is already open for this state home, or its previous owner cannot be verified.");}
-  const next={schema:1,...captureProcessOwnerIdentity(process.pid),generation:randomUUID()};
+  if(previous!==null){const v=record(JSON.parse(previous));keys(v,["schema","pid","bootId","processStartId","generation"]);if(v.schema!==1)throw new Error("invalid owner");const owner={pid:integer(v.pid,1,2**31-1),bootId:digest(v.bootId),processStartId:digest(v.processStartId)};identifier(v.generation);if(processes.status(owner)!=="different-or-dead")throw new ControlError("CONTROL_ALREADY_RUNNING","Ghostget is already open for this state home, or its previous owner cannot be verified.");}
+  return {path,previous};
+}
+
+/**
+ * Replace exactly the record the inspection saw, or create one where none
+ * was. Another writer in between makes this fail, so two contenders that saw
+ * the same record cannot both take custody. The returned release removes the
+ * record only while it is still this owner's.
+ */
+export function commitControlOwner(environment:ControlEnvironment,inspection:ControlOwnerInspection,processes:ControlOwnerProcesses=currentProcess):()=>void {
+  const {path,previous}=inspection;
+  const next={schema:1,...processes.capture(),generation:randomUUID()};
   const acquired=previous===null?createPrivateJsonIfAbsent(path,next,{environment}).created:writePrivateJsonIfUnchanged(path,next,{expectedCurrentContentSha256:sha256(previous)});
   if(!acquired)throw new ControlError("CONTROL_ALREADY_RUNNING","Another Ghostget app opened this state home.");
   const expectedCurrentContentSha256=sha256(`${canonicalJson(next)}\n`);
   return ()=>{removePrivateStateFileIfUnchanged(path,{expectedCurrentContentSha256},environment);};
+}
+
+function acquireOwner(environment:ControlEnvironment):()=>void {
+  return commitControlOwner(environment,inspectControlOwner(environment));
+}
+
+/** The helper's shutdown steps; tests inject them to check their order. */
+export type HelperShutdownSteps = Readonly<{
+  disconnectClients:()=>Promise<void>;
+  beginShutdown:()=>void;
+  active:ReadonlySet<Promise<void>>;
+  closeService:()=>void;
+  closeServer:()=>Promise<void>;
+  removeOwnedSocket:()=>void;
+  releaseOwner:()=>void;
+}>;
+
+/**
+ * Stop taking work, abort what the service owns, and wait until every
+ * request already running has settled before closing the store and giving up
+ * custody. The socket path and the owner record go last, so no second helper
+ * can start while a request of this one is still running.
+ */
+export async function settleHelperShutdown(steps:HelperShutdownSteps):Promise<void> {
+  await steps.disconnectClients();
+  steps.beginShutdown();
+  await Promise.allSettled(steps.active);
+  steps.closeService();
+  await steps.closeServer();
+  steps.removeOwnedSocket();
+  steps.releaseOwner();
 }
 
 /** Private native stdio is the only administrative transport. No TCP listener is created. */
@@ -61,7 +116,13 @@ export async function runControlHelper(environment:ControlEnvironment=process.en
       started=true;const work=(async()=>{let response:unknown;try{if(newline!==buffer.length-1)throw new Error();response=await handleAgent(JSON.parse(buffer.subarray(0,newline).toString("utf8")),service!,controller.signal);}catch(error){response=controlFailure(error);}if(!socket.destroyed)socket.end(`${JSON.stringify(response)}\n`);})();active.add(work);void work.then(()=>active.delete(work),()=>{active.delete(work);process.exitCode=1;process.stdin.destroy();});
     });
   });
-  const shutdown=async()=>{if(closing)return;closing=true;const closes:Promise<void>[]=[];for(const socket of clients){if(socket.closed)continue;closes.push(new Promise<void>(resolve=>socket.once("close",resolve)));socket.destroy();}await Promise.all(closes);service?.beginShutdown();await Promise.allSettled(active);service?.close();if(server.listening)await new Promise<void>(resolve=>server.close(()=>resolve()));if(ownedSocket!==undefined){snapshotPrivateStateDirectory(directory,environment,directoryIdentity);try{const stat=lstatSync(socketPath);if(stat.isSocket()&&stat.dev===ownedSocket.dev&&stat.ino===ownedSocket.ino)unlinkSync(socketPath);}catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}}releaseOwner();};
+  const shutdown=async()=>{if(closing)return;closing=true;await settleHelperShutdown({
+    disconnectClients:async()=>{const closes:Promise<void>[]=[];for(const socket of clients){if(socket.closed)continue;closes.push(new Promise<void>(resolve=>socket.once("close",resolve)));socket.destroy();}await Promise.all(closes);},
+    beginShutdown:()=>{service?.beginShutdown();},active,closeService:()=>{service?.close();},
+    closeServer:async()=>{if(server.listening)await new Promise<void>(resolve=>server.close(()=>resolve()));},
+    removeOwnedSocket:()=>{if(ownedSocket!==undefined){snapshotPrivateStateDirectory(directory,environment,directoryIdentity);try{const stat=lstatSync(socketPath);if(stat.isSocket()&&stat.dev===ownedSocket.dev&&stat.ino===ownedSocket.ino)unlinkSync(socketPath);}catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}}},
+    releaseOwner,
+  });};
   const termination=()=>{process.stdin.destroy();};process.once("SIGTERM",termination);process.once("SIGINT",termination);
   try {
     if(Buffer.byteLength(socketPath)>100)throw new ControlError("CONTROL_PATH_TOO_LONG","Choose a shorter Ghostget state-home path for the control helper.");

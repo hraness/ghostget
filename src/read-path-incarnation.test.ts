@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { createAuth, saveAuth } from "./auth";
@@ -9,7 +9,7 @@ import { rebuildOmniViewFromExactCache } from "./omni-runtime";
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
 import { providerPluginRegistry } from "./provider-plugins";
 import { readCachedPreparedCapability, revalidatePreparedCapability } from "./read-client";
-import { publishReadProjection } from "./read-projections";
+import { acquireReadProjectionAuthAdmission, publishReadProjection } from "./read-projections";
 import { createReadProjectionQueryForInvocation, prepareInvocation } from "./runtime";
 import { installManifest } from "./storage";
 
@@ -146,6 +146,29 @@ describe("the D14 projection-key exemption", () => {
     const settled = fingerprint(root);
     expect(readCachedPreparedCapability(invocation, { environment, registry: providerPluginRegistry }).status).toBe("miss");
     expect(fingerprint(root)).toEqual(settled);
+  });
+});
+
+describe("the D14 admission-claim exemption", () => {
+  test("a cache read removes an admission claim whose recorded owner is dead and writes nothing else", () => {
+    const { root, environment, invocation, query } = preparedXRead();
+    const admissions = join(root, "read-projection-control", "admissions");
+    // Leave a claim behind whose owner ran under another boot, so it is dead.
+    const admission = acquireReadProjectionAuthAdmission("x-messages", environment);
+    const [claimName] = readdirSync(admissions);
+    if (claimName === undefined) throw new Error("expected an admission claim");
+    const claim = JSON.parse(readFileSync(join(admissions, claimName), "utf8")) as { owner: { bootId: string } };
+    admission.release();
+    claim.owner.bootId = claim.owner.bootId === "f".repeat(64) ? "e".repeat(64) : "f".repeat(64);
+    writeFileSync(join(admissions, claimName), `${canonicalJson(claim)}\n`, { mode: 0o600 });
+    const before = files(root);
+    expect(before.has(join("read-projection-control", "admissions", claimName))).toBeTrue();
+    expect(readCachedPreparedCapability(invocation, { environment, registry: providerPluginRegistry })).toEqual({ status: "miss", key: query.key });
+    const after = files(root);
+    // The dead claim is gone, and every other file keeps its exact bytes.
+    expect([...before.keys()].filter((path) => !after.has(path))).toEqual([join("read-projection-control", "admissions", claimName)]);
+    expect([...after.keys()].filter((path) => !before.has(path))).toEqual([]);
+    for (const [path, digest] of after) expect(before.get(path)).toBe(digest);
   });
 });
 

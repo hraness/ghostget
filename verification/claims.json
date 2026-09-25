@@ -1051,9 +1051,9 @@
         "quote": "keep clocks and randomness injected"
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
+        "src/control/approval-broker-clock.model.test.ts",
         "src/control/approval-broker.test.ts",
         "src/control/gateway.test.ts",
         "src/effect-architecture.test.ts",
@@ -1064,7 +1064,15 @@
         "monotonic-clock"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The stateful model covers the approval broker's pending requests and allow-once grants: their expiry follows only the injected monotonic clock across wall-clock jumps of up to ten days either way, applied to both the injected wall clock and the ambient `Date.now()`. Other lifecycle reducers, such as the portable plugin invocation leases and the linked-device lifecycle journal, are not modelled under clock jumps; they rely on their example and property tests and on the effect-architecture rule that rejects ambient clocks and randomness in checked modules.",
+        "The default monotonic clock is `performance.now()`; the model injects it and does not check that the platform clock is itself monotonic, which is the `monotonic-clock` assumption.",
+        "Injected randomness is covered only by the effect-architecture ambient-random rule, not by a model."
+      ],
+      "properties": [
+        {
+          "path": "src/control/approval-broker-clock.model.test.ts",
+          "test": "property: pending requests and allow-once grants expire by the injected monotonic clock alone, whatever the wall clock does"
+        }
       ]
     },
     {
@@ -1182,11 +1190,15 @@
         "quote": "private addresses"
       },
       "layer": "differential",
-      "status": "planned",
-      "phase": 7,
+      "status": "evidenced",
       "evidence": [
+        "src/public-address.ts",
+        "src/public-address.test.ts",
+        "src/pinned-https.test.ts",
         "src/control/validation.test.ts",
-        "src/pinned-https.test.ts"
+        "verification/vectors/generate.py",
+        "verification/vectors/addresses.json",
+        "scripts/verification-vectors.test.ts"
       ],
       "assumptions": [
         "filesystem-durability",
@@ -1194,9 +1206,10 @@
         "dns-tls"
       ],
       "notVerified": [
-        "The address classifier comes from `@hraness/kb`, and no independent registry oracle checks it yet. Phase 7 wrote the proposal for one, `kb/plans/kb-ip-classifier-proposal.md`; this claim stays planned until `@hraness/kb` ships a checked classifier and Ghostget pins it.",
-        "Probing `@hraness/kb` 0.19.6 found gaps that the proposal records: it treats the IPv4-translated range `::ffff:0:0:0/96`, the rest of `::/8`, and unallocated IPv6 space outside `2000::/3` as public, and it blocks all of `192.0.0.0/16` where the registry reserves only `192.0.0.0/24` and `192.0.2.0/24`.",
-        "Until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The pinned transport checks every resolved answer with Ghostget's own allowlist, `src/public-address.ts`, because the `@hraness/kb` 0.19.6 resolver admits the IPv4-translated range `::ffff:0:0:0/96`, the rest of `::/8`, IPv6 outside `2000::/3`, and `192.88.99.0/24` (`kb/plans/kb-ip-classifier-proposal.md`). The kb check still runs first, so its over-blocking of `192.0.0.0/16` still refuses those addresses.",
+        "The Python generator restates the same IANA special-purpose table from the registries, independently of the TypeScript, and compares verdicts on block edges, seeded random addresses, embedded IPv4 forms, and text forms. A row missing from both tables would not be caught; the vectors check the implementation of the table, not the table against the live registries.",
+        "Page capture, derivation, and the derivation network proxy (`src/browser.ts`, `src/derive.ts`, `src/model.ts`, `src/derivation-network-proxy.ts`) still rely on the kb classifier alone; this claim covers the gateway's pinned transport only.",
+        "DNS answers, the operating system's socket layer, and TLS are assumed; the check covers the address the transport connects to, not routing beyond it."
       ],
       "alsoQuotes": [
         {
@@ -1238,9 +1251,11 @@
         "quote": "through its pinned transport and durable audit boundary."
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
+        "src/control/web-gateway.ts",
+        "src/control/activity.ts",
+        "src/control/web-gateway.property.test.ts",
         "src/control/gateway.test.ts"
       ],
       "assumptions": [
@@ -1249,12 +1264,20 @@
         "dns-tls"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The model drives the production `WebGateway`, `ActivityStore` and `ApprovalBroker` on a real state home, with a scripted `GatewayTransport` in place of DNS, TLS and sockets. That the pinned transport itself connects only to the address it checked is covered by `gateway-rejects-private-addresses` and its tests, not by this model.",
+        "A crash is modelled as abandoning the in-flight call and reopening the store in the same process; a real process death between the SQLite commit and the socket write rests on SQLite's commit durability, under the filesystem-durability assumption.",
+        "The model samples its schedules: CI runs 15 schedules of up to 8 requests over twelve scenarios."
       ],
       "alsoQuotes": [
         {
           "path": "src/control/AGENTS.md",
           "quote": "durable metadata before dispatch"
+        }
+      ],
+      "properties": [
+        {
+          "path": "src/control/web-gateway.property.test.ts",
+          "test": "property: gateway output and network dispatch follow a committed durable audit row, and recovery never retries"
         }
       ]
     },
@@ -1493,18 +1516,29 @@
         "quote": "The menu and TUI share one helper owner per state home."
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
+        "src/control/helper.ts",
+        "src/control/helper-owner.property.test.ts",
         "src/control/helper-client.test.ts",
         "src/control/helper-lifecycle.test.ts",
         "src/control/tui.test.ts"
       ],
       "assumptions": [
-        "same-user-trusted"
+        "same-user-trusted",
+        "filesystem-durability"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The model drives the production owner record (`inspectControlOwner` and `commitControlOwner`) in one process. Process liveness is a fake that the model controls, so `processOwnerStatus`'s own inspection of real processes is outside it; its tests are in `src/process-identity.test.ts`.",
+        "Contenders interleave only between inspection and commit. That two separate processes cannot both win the create-if-absent or compare-and-swap write rests on the storage layer's exclusive create and locked replace, under the filesystem-durability assumption.",
+        "That the menu and the TUI reach the one helper through its socket, rather than starting their own, rests on the listed example tests only.",
+        "The model samples its schedules: CI runs 30 schedules of up to 20 commands over three contenders."
+      ],
+      "properties": [
+        {
+          "path": "src/control/helper-owner.property.test.ts",
+          "test": "property: at most one live contender holds helper custody across inspect and commit races, crashes, restarts, and unknown owners"
+        }
       ]
     },
     {
@@ -1516,18 +1550,30 @@
         "quote": "Display optimizations must not cache authorization across a changed account, policy, interface or executable closure."
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
         "src/control/account-revision.test.ts",
         "src/control/connections.test.ts",
-        "src/operation-permission.test.ts"
+        "src/operation-authority.property.test.ts",
+        "src/operation-permission.test.ts",
+        "src/operation-permission.ts",
+        "src/runtime.ts"
       ],
       "assumptions": [
         "same-user-trusted"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The model covers one provider-API account: the bundled X interface with `posts.read` and `posts.publish`, on a real state home with a counting executor in place of the provider. Web-session, local CLI, linked-device, portable-plugin and messaging-composite routes share `validateFreshPlan` and the permission layer but rest on the listed example tests.",
+        "A closure or contract change is simulated by registries whose `implementationClosureHash` or `contractImplementationHash` differ within one process; a real upgrade that loads a different registry in a new process is not modelled.",
+        "The display path, `describeOperationPermissions` with its snapshot-local reuse, is checked only by the listed example tests; the model checks that execution never uses authorization from before a change.",
+        "`ask` is modelled without a human answer, so it never dispatches; the approval broker's own binding is `approvals.qnt`'s.",
+        "The model samples its schedules: CI runs 2 schedules of up to 8 commands, and the nightly soak runs 20 times as many. Each command spawns the bound state helper for every state operation, so a schedule costs tens of seconds."
+      ],
+      "properties": [
+        {
+          "path": "src/operation-authority.property.test.ts",
+          "test": "property: authority never outlives a change of account incarnation, realm, interface, closure, contract or policy"
+        }
       ]
     },
     {
@@ -1538,18 +1584,29 @@
         "path": "SECURITY.md",
         "quote": "Grants bind the exact account incarnation, manifest, contract, and executable closure. A changed account, interface, implementation, or approval invalidates the prior grant."
       },
-      "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "layer": "stateful-model",
+      "status": "evidenced",
       "evidence": [
         "src/control/approval-broker.test.ts",
-        "src/operation-permission.test.ts"
+        "src/operation-authority.property.test.ts",
+        "src/operation-permission.test.ts",
+        "src/operation-permission.ts"
       ],
       "assumptions": [
         "same-user-trusted"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "This claim was planned for a Quint model. It is evidenced instead by a stateful model over the production permission layer, which checks after every grant that the capability digest is equal for the same exact identity and distinct from every digest of another identity, and that preparation, reads and confirmations follow only the policy of the current identity.",
+        "The model covers one provider-API account: the bundled X interface with `posts.read` and `posts.publish`, on a real state home with a counting executor in place of the provider. Web-session, local CLI, linked-device, portable-plugin and messaging-composite routes share `validateFreshPlan` and the permission layer but rest on the listed example tests.",
+        "The contract axis changes the contract implementation identity that `providerContractHash` folds in; a changed contract definition or version reaches the digest through the installed manifest, which the model varies only by display name.",
+        "A changed approval is modelled as a changed policy entry (allow, ask or deny) for the current identity; a human approval answered through the broker is not modelled here.",
+        "The model samples its schedules: CI runs 2 schedules of up to 8 commands, and the nightly soak runs 20 times as many. Each command spawns the bound state helper for every state operation, so a schedule costs tens of seconds."
+      ],
+      "properties": [
+        {
+          "path": "src/operation-authority.property.test.ts",
+          "test": "property: authority never outlives a change of account incarnation, realm, interface, closure, contract or policy"
+        }
       ]
     },
     {
@@ -1586,9 +1643,11 @@
         "quote": "Connection and helper shutdown must settle owned work before custody is released."
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
+        "src/control/helper.ts",
+        "src/control/connections.ts",
+        "src/control/helper-shutdown.property.test.ts",
         "src/control/connections.test.ts",
         "src/control/helper-lifecycle.test.ts"
       ],
@@ -1596,7 +1655,21 @@
         "same-user-trusted"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The helper model drives the production shutdown sequencer, `settleHelperShutdown`, with the steps `runControlHelper` passes it replaced by recorders over a set of in-flight requests. That `runControlHelper` passes the real steps and tracks every request in its active set rests on reading it and on `src/control/helper-lifecycle.test.ts`, which starts and stops the real helper.",
+        "The wait covers requests in flight when shutdown begins. Clients are disconnected first, so no socket request can start later; a native stdio frame arriving after shutdown began is not modelled.",
+        "A request that never settles holds shutdown open. Provider calls end when the service's shutdown signal aborts them; a call that ignores its signal is outside the model.",
+        "The connection model drives the production `Connections` class with a fake sign-in probe; real browser sign-in and provider verifiers are outside it.",
+        "The models sample their schedules: CI runs 200 helper schedules of up to 14 commands and 12 connection schedules of up to 8 commands over two attempts."
+      ],
+      "properties": [
+        {
+          "path": "src/control/helper-shutdown.property.test.ts",
+          "test": "property: helper shutdown settles every in-flight request before closing the service and releases the owner once, last"
+        },
+        {
+          "path": "src/control/helper-shutdown.property.test.ts",
+          "test": "property: closing connections aborts sign-in so no verification or commit survives shutdown"
+        }
       ]
     },
     {
@@ -2044,18 +2117,26 @@
         "quote": "Ghostget refuses a transition while the old bundle still owns live or unknown work."
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
         "src/provider-plugin-invocation-lease.property.test.ts",
         "src/provider-plugin-invocation-lease.test.ts",
-        "src/provider-plugin-lifecycle-kernel.test.ts"
+        "src/provider-plugin-lifecycle-kernel.test.ts",
+        "src/provider-plugin-portable-runtime.test.ts"
       ],
       "assumptions": [
         "plugin-trusted"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The stateful model drives `inspectPortableProviderPluginQuiescence`, the check that update, disable, and removal call, through injected listings of up to 24 generated steps over two bundles: invocation leases with a live, dead, or unknown owner, confirmation plans and claims, run journals (active, released, retaining recovery, or holding assets), run receipts, recovery capsules, linked-device lifecycles, malformed entries of each kind, and an unexpected state entry. The listings are the model's own, so how the real stores list and parse those files is covered only by their tests.",
+        "That the store calls this check under its catalog lock before each transition, and leaves the activation unchanged when it throws, is covered only by the named example tests in src/provider-plugin-portable-runtime.test.ts, for a live invocation lease, a cleanup-unsafe lease, and a confirmation plan.",
+        "Work that starts between the check and the store's commit is excluded only by the store's lock and each work kind's own admission; no model covers that interleaving."
+      ],
+      "properties": [
+        {
+          "path": "src/provider-plugin-lifecycle-kernel.test.ts",
+          "test": "a bundle may change exactly when it owns no live or unknown work"
+        }
       ]
     },
     {
@@ -2214,7 +2295,7 @@
       "assumptions": [],
       "notVerified": [
         "The property test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Some exact-key checks compare comma-joined key lists, so a smuggled `\"a,b\"` key can pass; plan Phase 6 replaces them with one shared `exactKeys`."
+        "77 exact-key checks in 36 non-test source files compare comma-joined key lists, so a single smuggled `\"a,b\"` key passes the key check itself; the checks sampled so far then reject it because every required field reads as missing, but the 77 sites have not been audited one by one, and some sit inside browser-injected script text whose bytes feed contract hashes. Plan Phase 6 replaces them with one shared `exactKeys` and a lint test."
       ]
     },
     {
@@ -2569,17 +2650,22 @@
         "quote": "Add property tests for strict parsers, canonical encodings, identifiers, ordering, round trips"
       },
       "layer": "lean",
-      "status": "planned",
-      "phase": 5,
+      "status": "evidenced",
       "evidence": [
+        "scripts/verification-lean-encodings.test.ts",
         "src/contracts-repair.test.ts",
         "src/local-cli-tool-identity.test.ts",
         "src/platform-catalog.property.test.ts",
-        "src/provider-plugin-registry.test.ts"
+        "src/provider-plugin-registry.test.ts",
+        "verification/lean/GhostgetVerification/Encodings/RouteKey.lean"
       ],
-      "assumptions": [],
+      "assumptions": [
+        "verification-tools"
+      ],
       "notVerified": [
-        "The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The Lean proof covers the provider plugin registry keys: the route key `<transport>:<surfaceId>` and the exact-contract key `<transport>:<surfaceId>/<operation>@<contractVersion>`, over the four transports and the surface ID and operation name grammars. Session-secret file names are the separate claim session-secret-filename-injective. Other identifier grammars, such as adapter, auth, and run IDs, portable operation identities, cursor tokens, and platform catalog IDs, are covered only by the listed example and property tests, not by a proof.",
+        "The Lean theorems are about a Lean model of the key functions and grammars. The differential test checks that `routeKey`, `operationKey`, `isProviderPluginSurfaceId`, and `isProviderPluginOperationName` agree with that model on generated inputs, not on every input, and the grammars are modelled by hand from their regular expressions.",
+        "The registry has no production parser for its keys; the Lean parser is a witness that a key determines its parts. A contract version is modelled as a natural number written in decimal; the registry's own check that it is a positive safe integer is not modelled."
       ]
     },
     {
@@ -2591,21 +2677,33 @@
         "quote": "Bind every authenticated request to one exact account realm, provider target, transport, contract version, and implementation identity."
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
         "src/auth-storage.test.ts",
         "src/beeper-message-like-me-source.test.ts",
         "src/client-boundary.test.ts",
         "src/local-cli-durable-identity.test.ts",
+        "src/operation-authority.property.test.ts",
+        "src/operation-permission.ts",
         "src/runtime.test.ts",
+        "src/runtime.ts",
         "src/web-session-authentication-policy.test.ts"
       ],
       "assumptions": [
         "provider-behaviour"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The model covers one provider-API account: the bundled X interface with `posts.read` and `posts.publish`, on a real state home with a counting executor in place of the provider. Web-session, local CLI, linked-device, portable-plugin and messaging-composite routes share `validateFreshPlan` and the permission layer but rest on the listed example tests.",
+        "The model varies the account incarnation, the account realm (a record for a different subject under the same ID), the interface bytes, the executable closure and the contract implementation identity. The provider target and transport are fixed by the X contract, and a transport or contract-version change reaches a plan only through the manifest bytes it binds; neither is varied on its own.",
+        "Saved plans bind the reviewed contract implementation identity (`contractImplementationHash`), which is stable across builds of one built-in plugin version, not the exact closure. Under managed permissions the grant binds the exact closure, so a changed closure dispatches nothing until the new identity is granted; without managed permissions a closure change that keeps the reviewed contract identity does not consume a plan.",
+        "A plan refused only by policy is kept for a later confirmation under current authority, by design; every other refusal consumes it.",
+        "The model samples its schedules: CI runs 2 schedules of up to 8 commands, and the nightly soak runs 20 times as many. Each command spawns the bound state helper for every state operation, so a schedule costs tens of seconds."
+      ],
+      "properties": [
+        {
+          "path": "src/operation-authority.property.test.ts",
+          "test": "property: authority never outlives a change of account incarnation, realm, interface, closure, contract or policy"
+        }
       ]
     },
     {
@@ -2641,21 +2739,32 @@
         "quote": "Keep mutations behind exact preview, confirmation, durable dispatch, and at-most-once evidence."
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
         "src/confirmed-write-program.test.ts",
         "src/control/menubar-cli.test.ts",
         "src/messaging-runtime-composite.test.ts",
+        "src/operation-authority.property.test.ts",
+        "src/operation-permission.test.ts",
         "src/providers/x.test.ts",
-        "src/runtime.test.ts"
+        "src/runtime.test.ts",
+        "src/runtime.ts"
       ],
       "assumptions": [
         "filesystem-durability",
         "provider-behaviour"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The model covers one provider-API account: the bundled X interface with `posts.read` and `posts.publish`, on a real state home with a counting executor in place of the provider. Web-session, local CLI, linked-device, portable-plugin and messaging-composite routes share `validateFreshPlan` and the permission layer but rest on the listed example tests. The model's write is single-dispatch; multi-part and composite plans rest on the listed example tests.",
+        "An altered plan is modelled by flipping one byte of the saved plan file; other alterations rest on the strict plan parser's tests. A crash between consuming a plan and its durable dispatch is the fence model's (`confirmed-write-at-most-once`), not this one's.",
+        "Expiry is modelled by confirming a day later through the injected clock.",
+        "The model samples its schedules: CI runs 2 schedules of up to 8 commands, and the nightly soak runs 20 times as many. Each command spawns the bound state helper for every state operation, so a schedule costs tens of seconds."
+      ],
+      "properties": [
+        {
+          "path": "src/operation-authority.property.test.ts",
+          "test": "property: authority never outlives a change of account incarnation, realm, interface, closure, contract or policy"
+        }
       ]
     },
     {
@@ -2681,8 +2790,7 @@
         "provider-behaviour"
       ],
       "notVerified": [
-        "The model is bounded: three runs of one intent under two auth locators that may each record one provider subject or none, one reconnect and one manifest upgrade (one auth generation counter serves both locators), one duplicate-risk successor per source run (a successor may itself be a source), 5,000 simulated samples of up to 12 steps, and Apalache to length 8.",
-        "Across locators the account realm is the recorded provider subject, which the operator may type: two locators that record one subject are fenced as one account even when they are not, so the cross-locator fence can only refuse more. Runs with no recorded subject, including every journal written before journals kept it, are fenced per locator only, and a succeeded run under another locator neither fences nor replays.",
+        "The model is bounded: three runs of one intent, one reconnect, one manifest upgrade, one duplicate-risk successor per source run (a successor may itself be a source), 5,000 simulated samples of up to 12 steps, and Apalache to length 8.",
         "The replay drives every seeded trace through the pure fence cores with an in-memory store, and five of them, a greedy cover of every action result the seeded traces take, through the file-backed state layer on a real state home: `createRunJournal`, `updateRunJournal`, `listRunJournalSnapshots`, `acquireConfirmedWriteLedgers` (the intent ledger, then the hash-keyed ledger), `repairInterruptedRunJournals` with its receipt and ledger projection, and `releaseReconciledRunRecovery`. It does not run the `confirmInvocation` program, so plan validation, recovery capsules, and `claimDuplicateRiskSource`'s receipt, capsule, and ledger rechecks are covered only by the listed example tests.",
         "Owner acceptance of the duplicate risk, the preview's successor check, election of a source across a same-subject reconnect (the model's source must bind the current auth record), and a successor whose election fails at its dispatch boundary are not modelled; the model disables that dispatch, and the listed example tests cover production failing the run before any request.",
         "The dedupe window's expiry, partial multi-dispatch runs, and journals from before the intent fence are not modelled."
@@ -2808,40 +2916,13 @@
       "notVerified": [
         "The check compares subject strings. That one subject names one provider account rests on how the auth record's subject was bound, by a plugin subject probe or by the operator; a subject typed onto another account's credentials is not detected here.",
         "The property test samples the pure `recoveryAuthContinuity` decision; its use by the web-session reconciler, the portable reconciler, and successor election is covered only by the listed example tests.",
-        "The intent fence stays keyed by locator ID for fulfilled runs: a fulfilled run under other auth bytes is still withheld rather than replayed. Only an unsettled run that recorded the same subject under another locator fences across locators (claim `intent-fence-subject-across-locators`)."
+        "The intent fence itself stays keyed by locator ID: a fulfilled run under other auth bytes is still withheld rather than replayed, because run journals do not record the subject."
       ],
       "properties": [
         {
           "path": "src/recovery.test.ts",
           "test": "property: only exact bytes or the recorded provider subject continue a run's realm"
         }
-      ]
-    },
-    {
-      "id": "intent-fence-subject-across-locators",
-      "statement": "New run journals record the provider subject their auth record named; before dispatch, the confirmed-write fence also refuses while an unsettled run of the same provider target, operation, canonical input, and duplicate-risk source recorded the same subject under a different auth locator, both in its journal scan and in a recheck after its own claim is on record. Journals without a subject keep the per-locator fence and stay valid.",
-      "area": "mutations",
-      "source": {
-        "path": "docs/effect-confirmed-write-runtime.md",
-        "quote": "the fence also refuses while an unsettled run of the same provider target, operation, and canonical input"
-      },
-      "layer": "quint",
-      "status": "evidenced",
-      "evidence": [
-        "scripts/verification-fence-replay.test.ts",
-        "src/confirmed-write-intent-fence.test.ts",
-        "src/run-journal.test.ts",
-        "verification/quint/fence.qnt"
-      ],
-      "assumptions": [
-        "filesystem-durability",
-        "same-user-trusted"
-      ],
-      "notVerified": [
-        "Subjects are compared as strings. The operator may type a subject, so two locators that record one subject are fenced as one account even when they are not; this only refuses more. Two locators of one account with no recorded subject, or a run recorded before journals kept the subject, are not fenced against each other.",
-        "Two runs that race past their scans may both refuse at the recheck; neither dispatches, and each is retried after the other settles. No progress law is checked.",
-        "The fence model has two locators, one subject, three runs, 5,000 simulated samples of up to 12 steps, and Apalache to length 8; the replay drives the subject scan and recheck through the pure fence cores and a five-trace file-backed cover, not the `confirmInvocation` program, which the listed example tests cover.",
-        "A succeeded run under another locator neither fences nor replays across locators, by design."
       ]
     },
     {
@@ -3297,11 +3378,11 @@
         "quote": "exact-byte compare-and-exchange"
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
         "src/auth-storage.test.ts",
         "src/session-secrets.test.ts",
+        "src/storage-cas.model.test.ts",
         "src/storage-cas.test.ts"
       ],
       "assumptions": [
@@ -3309,7 +3390,15 @@
         "same-user-trusted"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The stateful model runs 12 schedules of up to 8 commands against the real bound state helper on one file under `session-secrets`: conditional writes and removals that hold a current or stale snapshot, an unconditional recreate, and a swap of the file for a symbolic link to a file outside the state layout. It checks the sequential interleavings it generates. Genuinely overlapping writers are covered only by the cross-process example test in src/storage-cas.test.ts, for two writers.",
+        "A symbolic link in a parent directory, and the path helper that writes outside `GHOSTGET_STATE_HOME`, are not in the model; the example tests cover only their enumerated cases.",
+        "Crashes during a compare-and-swap are covered by the state-crash-consistency claim, not by this model."
+      ],
+      "properties": [
+        {
+          "path": "src/storage-cas.model.test.ts",
+          "test": "stale snapshots never roll state back, resurrect a removed file, or follow a link"
+        }
       ]
     },
     {
@@ -3387,8 +3476,7 @@
         "quote": "No writes on read paths. Reads may cache; they never mutate."
       },
       "layer": "example",
-      "status": "planned",
-      "phase": 6,
+      "status": "evidenced",
       "evidence": [
         "src/contract-repair-cli.test.ts",
         "src/contract-repair-inbox.test.ts",
@@ -3406,8 +3494,9 @@
         "same-user-trusted"
       ],
       "notVerified": [
-        "The example test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
-        "Only the menu-bar snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take a typed read capability; explicit invocation preparation, including the messaging route, context, and action preparations and `invoke --projection-identity-only` (the SDK's identity preflight for a live invoke), still creates a missing auth incarnation as an admitted execution path."
+        "Evidence is by named example. Whole-state-tree fingerprints taken before and after cover a cache read (hit, miss, first read, and a leftover admission claim whose owner is dead), a revalidation, a capability read, and `invoke --cache-only`; omni materialization, control inspection, confirmation preparation, and the operation-permission description are checked only for not creating an incarnation. No static or exhaustive check shows that every command that reads is write-free; a new read path is covered only once it takes the typed `AuthIncarnationReader` capability and has its own test.",
+        "The D14 exemptions are writes by design and are tested as the only permitted changes: a cache read may create and release its own admission claim, remove a claim whose recorded owner is proven dead, and create the projection encryption key and its store-key marker when they are absent.",
+        "Only the menu-bar snapshot, its account and permission listings, the auth checks of cache reads, live-read publication, and omni materialization, read-path invocation preparation, confirmation preparation, and the operation-permission account identity take a typed read capability; explicit invocation preparation, including the messaging route, context, and action preparations, still creates a missing auth incarnation as an admitted execution path."
       ]
     },
     {
@@ -3533,7 +3622,7 @@
       "notVerified": [
         "Only the enumerated example cases are checked: one missing incarnation per read path, on a fresh state home.",
         "The cache-only `ghostget invoke` branch is driven in process through `main` with a stubbed cache read, not through the installed binary; the retry preparation after a discarded live read is checked by type and review only.",
-        "Explicit invocation preparation, including the messaging route, context, and action preparations, still creates a missing incarnation as an admitted execution path. `invoke --projection-identity-only` is the SDK's identity preflight for a live invoke, so it is execution preparation: one example pins that it creates the missing incarnation while `invoke --cache-only` beside it creates none."
+        "Explicit invocation preparation, including the messaging route, context, and action preparations, still creates a missing incarnation as an admitted execution path."
       ]
     },
     {
@@ -4062,17 +4151,20 @@
         "quote": "Never retry a mutation after the child may have reached the provider."
       },
       "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
+        "scripts/verification-local-cli-replay.test.ts",
         "src/imessage-direct-plugin.test.ts",
-        "src/providers/beeper-direct-messaging.test.ts"
+        "src/providers/beeper-direct-messaging.test.ts",
+        "verification/quint/local-cli.qnt"
       ],
       "assumptions": [
         "provider-behaviour"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "verification/quint/local-cli.qnt checks one confirmed local-CLI mutation of one or two children, with a dispatch-boundary refusal and seven post-start faults (deadline timeout, signal, nonzero exit, malformed response, lost response, the child's own not-started report, and a failure while recording the acceptance), to Quint simulation depth 8 and Apalache length 8. Its ITF replay compares 1,000 traces with executeImsgDirectOperation for the iMessage send and executeBeeperLocalOperation for Beeper presence.set, one child or the bounded typing-then-paused pair. The traces reduce to a few dozen distinct runner scripts; each script runs once per runtime on a fresh store and every trace is compared with that run.",
+        "The replay replaces runImsgRpc and runBeeperCli with a scripted runner at their seam, so how a real deadline, signal, or lost pipe becomes a thrown error or exit status is covered only by their example tests. The other Beeper mutations share the same dispatch loop and catch but are not replayed; their acknowledgement parsing and readbacks are covered only by the listed example tests.",
+        "Reconciliation from separately obtained evidence, and the kernel's durable journal behind beforeDispatch, are outside this model; fence.qnt covers them."
       ]
     },
     {
@@ -4147,7 +4239,8 @@
       ],
       "assumptions": [],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "No Quint model covers this claim as stated yet. Related evidence: the fence model (`verification/quint/fence.qnt`, replayed through the production journal and ledger layer) shows that confirmed writes keyed by one intent reach the provider at most once plus elected duplicate-risk successors, and the stateful model in `src/operation-authority.property.test.ts` shows that a new plan for an input already dispatched through `confirmInvocation` never reaches the provider again.",
+        "Not established: that every mutation route carries a key (contracts declare `idempotency` as `none` or `local-at-most-once`, and messaging, linked-device, local CLI and media routes have their own journals); that a retry never charges storage or quota again (each preview writes a new plan, and a refused retry writes its claim and receipt); and behaviour after the dedupe window expires."
       ]
     },
     {
@@ -7095,6 +7188,33 @@
       ],
       "notVerified": [
         "No automated check inspects `website/` for authenticated surfaces, credential handling, or runtime features; review alone enforces this boundary."
+      ]
+    },
+    {
+      "id": "intent-fence-subject-across-locators",
+      "statement": "New run journals record the provider subject their auth record named; before dispatch, the confirmed-write fence also refuses while an unsettled run of the same provider target, operation, canonical input, and duplicate-risk source recorded the same subject under a different auth locator, both in its journal scan and in a recheck after its own claim is on record. Journals without a subject keep the per-locator fence and stay valid.",
+      "area": "mutations",
+      "source": {
+        "path": "docs/effect-confirmed-write-runtime.md",
+        "quote": "the fence also refuses while an unsettled run of the same provider target, operation, and canonical input"
+      },
+      "layer": "quint",
+      "status": "evidenced",
+      "evidence": [
+        "scripts/verification-fence-replay.test.ts",
+        "src/confirmed-write-intent-fence.test.ts",
+        "src/run-journal.test.ts",
+        "verification/quint/fence.qnt"
+      ],
+      "assumptions": [
+        "filesystem-durability",
+        "same-user-trusted"
+      ],
+      "notVerified": [
+        "Subjects are compared as strings. The operator may type a subject, so two locators that record one subject are fenced as one account even when they are not; this only refuses more. Two locators of one account with no recorded subject, or a run recorded before journals kept the subject, are not fenced against each other.",
+        "Two runs that race past their scans may both refuse at the recheck; neither dispatches, and each is retried after the other settles. No progress law is checked.",
+        "The fence model has two locators, one subject, three runs, 5,000 simulated samples of up to 12 steps, and Apalache to length 8; the replay drives the subject scan and recheck through the pure fence cores and a five-trace file-backed cover, not the `confirmInvocation` program, which the listed example tests cover.",
+        "A succeeded run under another locator neither fences nor replays across locators, by design."
       ]
     }
   ]

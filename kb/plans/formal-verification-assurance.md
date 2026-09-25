@@ -386,6 +386,43 @@ Execution of item 2, 2026-09-24:
   The Quint model has no pre-election helper, and nothing stops such a helper
   that claims third.
 
+Control and authority claims, 2026-09-24 (branch `claude/fv-claims-control-auth`):
+
+- Evidenced by stateful models over production code, each paired with named
+  source mutants in `verification/mutants.json`:
+  `control-single-helper-owner` (`src/control/helper-owner.property.test.ts`
+  over `inspectControlOwner` and `commitControlOwner`),
+  `shutdown-settles-before-custody-release`
+  (`src/control/helper-shutdown.property.test.ts` over `settleHelperShutdown`
+  and `Connections`), `web-gateway-durable-audit-precedes-network`
+  (`src/control/web-gateway.property.test.ts` over `WebGateway`,
+  `ActivityStore` and `ApprovalBroker`), and, through
+  `src/operation-authority.property.test.ts`,
+  `no-cached-authorization-across-change`, `grant-binds-exact-identity`,
+  `auth-request-binding`, and `mutation-exact-preview-confirmation`.
+- `grant-binds-exact-identity` moved from the Quint layer to the stateful-model
+  layer. Its replay would drive the permission layer, where every state
+  operation spawns the bound state helper, so 1,000 traces are out of reach in
+  CI; the stateful model checks the digest law directly on the production
+  layer instead.
+- Defect fixed: under managed permissions, `confirmInvocation` refused an
+  expired or drifted plan but left it saved, so restoring the interface let
+  the same plan dispatch later. It now consumes the plan, as the unmanaged
+  path already did. `src/operation-permission.test.ts` failed before the fix;
+  the existing A-to-B-to-A test had asserted that the refused plan survived
+  and now asserts that it is consumed.
+- Defect fixed earlier on the branch: the pinned transport now refuses every
+  non-public resolved address with `src/public-address.ts` (see Phase 7).
+- `helper-owner`, `helper-shutdown` and the permission layer gained small
+  exported seams (`inspectControlOwner`, `commitControlOwner`,
+  `settleHelperShutdown`) that production calls unchanged.
+- Open: `mutation-idempotency-key` stays planned. The fence model and the
+  authority model's retry command cover provider dispatch for confirmed
+  writes only; storage and quota charges of a retry, routes whose contracts
+  declare `idempotency: none`, and the dedupe window's expiry are not covered.
+- Open: plans bind the reviewed contract implementation identity, not the
+  exact closure; only a managed grant binds the exact closure. Recorded in
+  `auth-request-binding`'s not-verified scope.
 Execution of items 3 and 4, and of the browser-admission models, 2026-09-24:
 
 - Done: `verification/quint/media.qnt` gains the invariants
@@ -512,8 +549,14 @@ Execution, 2026-09-23:
 - `canonicalJson` writes a lone surrogate as an escape where RFC 8785 refuses
   the input. The vector test pins this, and the claim records it.
 - The classifier proposal is `kb/plans/kb-ip-classifier-proposal.md`.
-  `gateway-rejects-private-addresses` stays planned until `@hraness/kb` ships a
-  checked classifier.
+  Update, 2026-09-24: `gateway-rejects-private-addresses` no longer waits for
+  `@hraness/kb`. The pinned transport checks every resolved answer with
+  Ghostget's own allowlist, `src/public-address.ts`, after the kb check, and
+  `verification/vectors/generate.py` restates the IANA special-purpose table
+  in Python for golden vectors in `verification/vectors/addresses.json`. The
+  claim is evidenced at the differential layer for the gateway's pinned
+  transport only; page capture, derivation and the derivation network proxy
+  still rely on the kb classifier.
 
 ### Phase 8: continuous assurance
 

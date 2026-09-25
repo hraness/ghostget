@@ -1699,25 +1699,34 @@
 // same projections and allowances: 12,005,010 + 12,387 + 4,096 = 12,021,493
 // packed; 23,467,598 + 353 + 65 = 23,468,016 unpacked.
 //
+// The control, auth, and provider-control claims add the public-address
+// classification and vectors, pinned HTTPS protections, helper ownership and
+// shutdown models, and operation permission changes. The first measurement
+// missed `src/public-address.ts` in the package file list, which the packed
+// smoke caught when the installed CLI could not resolve the import; with it
+// shipped, the branch measured 12,008,738 packed bytes and 23,477,699
+// unpacked bytes across the new 597-file inventory.
+//
 // The portable retained readback and successor handling add the portable
 // provider host/runtime support, the retained readback and supersession
-// cores, and their tests. The subject-keyed confirmed-write fence adds the
-// journal authSubject field, the cross-locator subject scan and post-claim
-// recheck, and their tests. Merging both: a clean `npm pack --ignore-scripts`
-// with npm 11.19.0 on darwin arm64 measured 12,016,174 packed bytes and
-// 23,523,881 unpacked bytes across the 596-file inventory; archive SHA-256
-// c056301af205759d9a694c97be4ef946b415cf6a5a79597e66babdb5dd951d9a. Carry the
-// same projections and allowances: 12,016,174 + 12,387 + 4,096 = 12,032,657
-// packed; 23,523,881 + 353 + 65 = 23,524,299 unpacked.
+// cores, and their tests, the public-address classification and vectors, and
+// the subject-keyed confirmed-write fence's authSubject, cross-locator scan,
+// and post-claim recheck. Merging all lanes: a clean `npm pack
+// --ignore-scripts` with npm 11.19.0 on darwin arm64 measured 12,019,445
+// packed bytes and 23,534,110 unpacked bytes across the 597-file inventory;
+// archive SHA-256
+// 3666bc04d8100fe00e1f7805404ee0851efcdc4b62806749b5e4b6ab65f68798.
+// Carry the same projections and allowances: 12,019,445 + 12,387 + 4,096 =
+// 12,035,928 packed; 23,534,110 + 353 + 65 = 23,534,528 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Release and publication claims evidenced in CI",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "c056301af205759d9a694c97be4ef946b415cf6a5a79597e66babdb5dd951d9a",
-  packedBytes: 12_016_174,
-  unpackedBytes: 23_523_881,
-  entryCount: 596,
+  archiveSha256: "3666bc04d8100fe00e1f7805404ee0851efcdc4b62806749b5e4b6ab65f68798",
+  packedBytes: 12_019_445,
+  unpackedBytes: 23_534_110,
+  entryCount: 597,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

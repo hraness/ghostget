@@ -9,6 +9,9 @@
  * - `hashes.json`: the length-framed SHA-256 identities for media provider and
  *   authorization-context keys, native runtime closures, and retained revision
  *   content, plus UTF-8 byte ordering.
+ * - `addresses.json`: public unicast verdicts for the edges of every IANA
+ *   special-purpose block, seeded random addresses, IPv6 forms that embed an
+ *   IPv4 address, several text forms of each value, and non-canonical text.
  *
  * Seeded defects must each miss at least one vector. The generator's own
  * `--check` mode, run by `scripts/verification-oracles.ts`, keeps the files
@@ -23,6 +26,14 @@ import { authContextSha256, providerIdentitySha256, sourceAssetKey } from "../sr
 import { revisionContentSha256 } from "../src/media/revision.js";
 import { computeRuntimeClosureSha256 } from "../src/media/runtime-closure.js";
 import { compareUtf8 } from "../src/media/utf8-order.js";
+import { isPrivateAddress } from "@hraness/kb/clip/network";
+import {
+  isPublicUnicastAddress,
+  parseIpv4,
+  parseIpv6,
+  PUBLIC_ADDRESS_TABLE,
+  publicUnicastClassifier,
+} from "../src/public-address.js";
 import { assertProperty, fc } from "../src/test-support.js";
 import { REPOSITORY_ROOT, VECTOR_GENERATOR } from "./verification-tools.js";
 
@@ -54,11 +65,35 @@ type HashVectors = Readonly<{
   utf8Order: readonly Readonly<{ left: string; right: string; sign: -1 | 0 | 1 }>[];
 }>;
 
+type AddressVector = Readonly<{ source: string; value: number | string; texts: readonly string[]; public: boolean }>;
+
+type AddressVectors = Readonly<{
+  schema: 1;
+  generator: Generator;
+  ipv4: readonly AddressVector[];
+  ipv6: readonly AddressVector[];
+  embedded: readonly Readonly<{ ipv4: string; form: string; texts: readonly string[]; public: false }>[];
+  rejectedText: readonly string[];
+}>;
+
 const readVectors = async <T>(name: string): Promise<T> =>
   (await Bun.file(join(REPOSITORY_ROOT, "verification/vectors", name)).json()) as T;
 
 const jcs = await readVectors<JcsVectors>("jcs.json");
 const hashes = await readVectors<HashVectors>("hashes.json");
+const addresses = await readVectors<AddressVectors>("addresses.json");
+
+/** Every address text with its recorded verdict. */
+const addressVerdicts: readonly Readonly<{ text: string; public: boolean }>[] = [
+  ...[...addresses.ipv4, ...addresses.ipv6, ...addresses.embedded]
+    .flatMap((vector) => vector.texts.map((text) => ({ text, public: vector.public }))),
+  ...addresses.rejectedText.map((text) => ({ text, public: false })),
+];
+
+/** The address texts a classifier gets wrong. */
+function addressMisses(classify: (address: string) => boolean): readonly string[] {
+  return addressVerdicts.filter((vector) => classify(vector.text) !== vector.public).map(({ text }) => text);
+}
 
 function doubleFromBits(bits: string): number {
   const view = new DataView(new ArrayBuffer(8));
@@ -73,7 +108,7 @@ function canonicalMisses(canonicalize: (value: unknown) => string): readonly str
 
 describe("golden vector files", () => {
   test("each file names its generator, version, and regeneration command", () => {
-    for (const file of [jcs, hashes]) {
+    for (const file of [jcs, hashes, addresses]) {
       expect(file.schema).toBe(1);
       expect(file.generator).toEqual({
         path: VECTOR_GENERATOR.path,
@@ -87,6 +122,8 @@ describe("golden vector files", () => {
     expect(hashes.providerIdentity.length + hashes.authContext.length + hashes.runtimeClosure.length
       + hashes.revisionContent.length).toBeGreaterThanOrEqual(50);
     expect(hashes.utf8Order.length).toBeGreaterThanOrEqual(100);
+    expect(addresses.ipv4.length + addresses.ipv6.length).toBeGreaterThanOrEqual(500);
+    expect(addresses.embedded.length).toBeGreaterThanOrEqual(100);
   });
 });
 
@@ -247,5 +284,59 @@ describe("UTF-8 byte order vectors", () => {
     const utf16 = (left: string, right: string): number => (left < right ? -1 : left > right ? 1 : 0);
     const misses = hashes.utf8Order.filter(({ left, right, sign }) => utf16(left, right) !== sign);
     expect(misses.length).toBeGreaterThan(0);
+  });
+});
+
+describe("public unicast address vectors", () => {
+  test("isPublicUnicastAddress has the recorded verdict for every text form", () => {
+    expect(addressMisses(isPublicUnicastAddress)).toEqual([]);
+    // Both verdicts occur in each family, so a constant classifier cannot pass.
+    for (const family of [addresses.ipv4, addresses.ipv6]) {
+      expect(family.some((vector) => vector.public)).toBeTrue();
+      expect(family.some((vector) => !vector.public)).toBeTrue();
+    }
+  });
+
+  test("the parsers read every text form as its recorded value and refuse non-canonical text", () => {
+    for (const vector of addresses.ipv4) {
+      expect({ text: vector.texts[0], value: parseIpv4(vector.texts[0] ?? "") }).toEqual({ text: vector.texts[0], value: BigInt(vector.value) });
+    }
+    for (const vector of addresses.ipv6) {
+      for (const text of vector.texts) {
+        expect({ text, value: parseIpv6(text) }).toEqual({ text, value: BigInt(`0x${vector.value}`) });
+      }
+    }
+    for (const text of addresses.rejectedText) {
+      expect({ text, ipv4: parseIpv4(text), ipv6: parseIpv6(text) }).toEqual({ text, ipv4: null, ipv6: null });
+    }
+  });
+
+  test("seeded defect: the kb resolver's private-address check misses vectors", () => {
+    // This is the classifier the pinned transport relied on before it checked
+    // every answer itself.
+    const misses = addressMisses((address) => !isPrivateAddress(address));
+    expect(misses).toContain("::ffff:0:7f00:1");
+    expect(misses).toContain("192.88.99.1");
+    expect(misses.length).toBeGreaterThan(20);
+  });
+
+  test("seeded defect: a table without any one row misses vectors", () => {
+    const { refusedIpv4, refusedIpv6 } = PUBLIC_ADDRESS_TABLE;
+    for (const [index, block] of refusedIpv4.entries()) {
+      const classify = publicUnicastClassifier({ ...PUBLIC_ADDRESS_TABLE, refusedIpv4: refusedIpv4.filter((_, other) => other !== index) });
+      expect({ block, missed: addressMisses(classify).length > 0 }).toEqual({ block, missed: true });
+    }
+    for (const [index, block] of refusedIpv6.entries()) {
+      const classify = publicUnicastClassifier({ ...PUBLIC_ADDRESS_TABLE, refusedIpv6: refusedIpv6.filter((_, other) => other !== index) });
+      expect({ block, missed: addressMisses(classify).length > 0 }).toEqual({ block, missed: true });
+    }
+    const everyIpv6 = publicUnicastClassifier({ ...PUBLIC_ADDRESS_TABLE, admittedIpv6: "::/0" });
+    expect(addressMisses(everyIpv6).length).toBeGreaterThan(0);
+  });
+
+  test("seeded defect: stripping a zone identifier or brackets misses vectors", () => {
+    const lenient = (address: string): boolean =>
+      isPublicUnicastAddress(address.replace(/%.*$/u, "").replace(/^\[(.*)\]$/u, "$1").trim());
+    expect(addressMisses(lenient).length).toBeGreaterThan(0);
   });
 });
