@@ -173,7 +173,7 @@ test("enrollment lanes overlap across conversations, serialize within one, and c
     await expect(submission).resolves.toMatchObject({ ok: true, result: { state: "accepted" } });
     expect(submits).toBe(1);
   } finally { releasePoll(); }
-}, 30_000);
+});
 
 
 test("discovery serializes only authored markers and preserves recovery precedence", async () => {
