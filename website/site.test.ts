@@ -593,7 +593,7 @@ describe("ghostget.com static site", () => {
     expect(guidesSection).not.toContain('class="card editorial-card"');
     expect(html.indexOf(argumentsSection ?? "")).toBeLessThan(html.indexOf(guidesSection ?? ""));
     expect(html).toContain(
-      '<h1 class="hraness-marketing-hero__heading" id="brand-name">Let your agent read pages, save media, and use your accounts through named actions.</h1>',
+      '<h1 class="hraness-marketing-hero__heading" id="brand-name">Your agent calls web actions by name and holds no password.</h1>',
     );
     expect(html).not.toContain("Give your coding agent bounded access to the web.");
     // The limit on uncertain writes: never resent, and unsettled until
@@ -609,11 +609,11 @@ describe("ghostget.com static site", () => {
     expect(html).toContain('data-hraness-marketing="proof-frame"');
     expect(html).toContain('data-hraness-marketing="pillars"');
     expect(html).toContain('data-hraness-marketing="maker"');
-    // The maker section is product-owned biography in page content; network
-    // attribution belongs to the shared footer and is never repeated here.
+    // The maker section is product-owned studio attribution in page content;
+    // network attribution belongs to the shared footer and is never repeated here.
     const makerSection = /<section\b[^>]*data-hraness-marketing="maker"[\s\S]*?<\/section>/u.exec(html)?.[0];
     expect(makerSection).toBeDefined();
-    expect(makerSection).toContain('<h2 class="hraness-marketing-maker__heading" id="maker-title">Ben Guo</h2>');
+    expect(makerSection).toContain('<h2 class="hraness-marketing-maker__heading" id="maker-title">Hraness</h2>');
     expect(makerSection).not.toContain("hraness-attribution");
     expect(makerSection).not.toMatch(/Built by\b/u);
     expect(html).toContain('clipped: "2026-09-05"');
@@ -650,7 +650,7 @@ describe("ghostget.com static site", () => {
     expect(preview).toContain('<link rel="canonical" href="https://ghostget.com/">');
     expect(preview).toContain(`<link rel="stylesheet" href="${cssAsset}">`);
     expect(preview).toContain('<body class="preview-body">');
-    expect(preview).toContain("Let your agent read pages, save media, and use your accounts through named actions.");
+    expect(preview).toContain("Your agent calls web actions by name and holds no password.");
     expect(preview).not.toContain("Give your coding agent bounded access to the web.");
     expect(preview).toContain('class="preview-wordmark">Ghostget</p>');
     expect(preview).not.toMatch(/preview-field|preview-orbit|src="\/favicon\.svg"/u);

@@ -81,9 +81,9 @@ import {
 } from "./webmcp-registry";
 
 export const SITE_ORIGIN = "https://ghostget.com" as const;
-export const SITE_TITLE = "Ghostget: named web actions for AI agents" as const;
+export const SITE_TITLE = "Ghostget: Your agent calls web actions by name and holds no password." as const;
 export const SITE_DESCRIPTION =
-  "Ghostget lets your AI agent read pages, save media, and use your connected accounts through a fixed list of reviewed actions. Free and MIT licensed." as const;
+  "Ghostget gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer." as const;
 /** Alt text for the static `/og.png` card that `scripts/generate-og.tsx` renders from SITE_TITLE. */
 export const SOCIAL_IMAGE_ALT = `The title “${SITE_TITLE}” and the Ghostget ghost mark on a light card` as const;
 export const BLOG_SITE: BlogSite = {

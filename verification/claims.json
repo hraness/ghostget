@@ -927,7 +927,7 @@
     {
       "guide": "website/AGENTS.md",
       "anchor": "The one-line description",
-      "digest": "279bf64db7ed48b3039934dff2b258b0cb06be23425c4c2d512a465c488bc418",
+      "digest": "64ad7bf406ca14b012c23afe88c89b17afe5b1fa096fed0424b08c3d836978fb",
       "exempt": "Public-copy consistency rule that the website build enforces; it states no safety or integrity property."
     },
     {

@@ -1,7 +1,7 @@
 {
   "name": "@hraness/ghostget",
   "version": "0.18.35",
-  "description": "Ghostget lets your AI agent read pages, save media, and use your connected accounts through a fixed list of reviewed actions. Free and MIT licensed.",
+  "description": "Ghostget gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer.",
   "license": "MIT",
   "type": "module",
   "sideEffects": [

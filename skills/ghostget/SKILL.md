@@ -1,7 +1,7 @@
 ---
 name: ghostget
 description: >-
-  Use Ghostget for local web work: capture public or signed-in pages as
+  Use Ghostget for named web actions: capture public or signed-in pages as
   Markdown; archive authorized audio, video, and transcripts with verification;
   query encrypted cached email, contacts, inboxes, and messages; resolve live
   conversations, read fresh context, preview message bubbles, and send
