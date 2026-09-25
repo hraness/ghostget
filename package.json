@@ -451,6 +451,7 @@
     "src/provider-plugins.ts",
     "src/provider-subject.ts",
     "src/provider.ts",
+    "src/public-address.ts",
     "src/read-projection-admission.ts",
     "src/read-client.ts",
     "src/read-projections.ts",
