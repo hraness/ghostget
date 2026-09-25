@@ -350,7 +350,7 @@ jobs:
             echo "::error::Tag $VERIFIED_TAG is no longer reachable from $DEFAULT_BRANCH"
             exit 1
           fi
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: canonical-build-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/ghostget-canonical
@@ -571,7 +571,7 @@ jobs:
             echo "::error::Attested canonical artifact has no exact immutable identity"
             exit 1
           fi
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           artifact-ids: ${{ needs.attest.outputs.artifact_id }}
           merge-multiple: true
@@ -749,7 +749,7 @@ jobs:
           fi
           printf 'directory=%s\nuserconfig=%s\nglobalconfig=%s\n' \
             "$clean_directory" "$user_config" "$global_config" >> "$GITHUB_OUTPUT"
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           artifact-ids: ${{ needs.attest.outputs.artifact_id }}
           merge-multiple: true
@@ -1153,7 +1153,7 @@ jobs:
             --registry=https://registry.npmjs.org
           test "$(npm --version)" = "11.19.0"
       - run: bun install --frozen-lockfile --ignore-scripts
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           artifact-ids: ${{ needs.attest.outputs.artifact_id }}
           merge-multiple: true
