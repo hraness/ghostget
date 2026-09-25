@@ -1,0 +1,120 @@
+<p>Before you let an agent act in your email, messages, or social accounts through Ghostget, you can read what Ghostget promises about itself and how each promise is checked. Ghostget keeps a public register of its claims. Every entry is one sentence, a status, the kind of check that supports it, the conditions it assumes, and a note on what that check leaves out.</p>
+<p>On 24 September 2026 the register held 244 claims: 180 evidenced, 45 planned, and 19 not verified. Three of them matter most when an agent can write on your behalf: an approval you give once is used once, a write happens at most once, and a send whose result is unknown is never sent again. Several claims you would want are still planned, and the register names them.</p>
+<p>Latest release: {{GHOSTGET_RELEASE}}. The counts below come from the main branch on 24 September 2026 and will change as checks are added.</p>
+<h2 id="confidence-you-cannot-check">Confidence you cannot check</h2>
+<p>Plenty of software now arrives looking finished. A model writes the app, the tests, and the landing page in an afternoon, and all three sound equally sure. Some of it is vibe-coded slop: code that looks done and breaks on the second use. More of it sits on fragile foundations, a layer underneath that nobody checked past the happy path.</p>
+<p>For a tool that acts in your accounts, the failures are specific and familiar. The page hangs after you press send, something retries, and your friend gets the message twice. You approve one post, and a later request quietly reuses that approval. The agent crashes halfway through, restarts, and nobody knows whether the first attempt went out. Each of these only happens when two ordinary things line up, and that is the case a hand-written test tends to miss.</p>
+<p>The product page for a tool like this usually says &quot;safe&quot; and &quot;reliable.&quot; Those words carry no information about how anyone knows, or which parts were never tried.</p>
+<h2 id="a-list-you-can-hold-the-product-to">A list you can hold the product to</h2>
+<p>The alternative is a plain list. Each line says one thing the product stands behind, with a status: a check runs today, a check is scheduled, or nothing checks it. Each line also says where the check stops. &quot;A write happens at most once&quot; means something different when it comes with &quot;checked for up to three attempts and one reconnect&quot; than when it comes with nothing.</p>
+<p>With that list you can ask which of the things you care about are checked, how, and what is left to trust. A long not-verified section tells you where to be careful. And when the list is kept by the build rather than by memory, it cannot quietly drift away from the product.</p>
+<p>Ghostget keeps that list.</p>
+<h2 id="how-the-register-decides-a-status">How the register decides a status</h2>
+<p>The register lives in the Ghostget repository as a JSON file, and a readable assurance page is generated from it. The assurance page defines the three statuses: a claim is evidenced &quot;when its layer runs in CI,&quot; planned &quot;when a plan phase schedules its layer,&quot; and not verified &quot;when no automated check covers it.&quot;</p>
+<p>Evidenced does not mean proved. It means a named check runs on every change and passes. The check might be a handful of example tests or a machine-checked proof, and the register says which. On 24 September 2026 the claims broke down like this:</p>
+<table>
+<thead>
+<tr>
+<th>Kind of check</th>
+<th align="right">Evidenced</th>
+<th align="right">Planned</th>
+<th align="right">Not verified</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Example tests</td>
+<td align="right">143</td>
+<td align="right">2</td>
+<td align="right">0</td>
+</tr>
+<tr>
+<td>Property tests</td>
+<td align="right">15</td>
+<td align="right">1</td>
+<td align="right">0</td>
+</tr>
+<tr>
+<td>Stateful model</td>
+<td align="right">2</td>
+<td align="right">13</td>
+<td align="right">0</td>
+</tr>
+<tr>
+<td>Quint model with replay against the real code</td>
+<td align="right">10</td>
+<td align="right">27</td>
+<td align="right">0</td>
+</tr>
+<tr>
+<td>Lean proof with a differential test</td>
+<td align="right">7</td>
+<td align="right">1</td>
+<td align="right">0</td>
+</tr>
+<tr>
+<td>Independent implementation (differential oracle)</td>
+<td align="right">3</td>
+<td align="right">1</td>
+<td align="right">0</td>
+</tr>
+<tr>
+<td>Administrator reads back live settings</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">15</td>
+</tr>
+<tr>
+<td>None</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">4</td>
+</tr>
+</tbody></table>
+<p>In plain words:</p>
+<ul>
+<li><strong>Example tests</strong> check the cases someone wrote down, and only those.</li>
+<li><strong>Property tests</strong> generate many inputs and check a rule against each. They sample; they do not cover every input.</li>
+<li><strong>Stateful models</strong> run random sequences of operations, with crashes injected, against the real code.</li>
+<li><strong>Quint models</strong> describe a small version of the design. A model checker explores every ordering of events up to a stated depth, a simulator samples longer runs, and traces from the model are then replayed against the production code to tie the two together.</li>
+<li><strong>Lean proofs</strong> are machine-checked proofs about a model of one function. A differential test then checks that the real TypeScript agrees with that model on generated inputs.</li>
+<li><strong>Differential oracles</strong> compare Ghostget with an independent implementation, such as a separate URL parser or JSON canonicalizer, on the same inputs.</li>
+</ul>
+<p>The build keeps the list honest. Ghostget&#39;s <code>verify:claims</code> check fails when the assurance page is stale, when a guideline in a maintainer rules file has no current rule in the register, when a rule does not list exactly the claims that quote it, when an evidenced property claim names a test that runs no property, or when an evidence path no longer exists.</p>
+<p>A trimmed entry, to show the shape:</p>
+<pre><code class="language-json">{
+  &quot;statement&quot;: &quot;An allow-once approval admits one exact pending request at most once.&quot;,
+  &quot;layer&quot;: &quot;quint&quot;,
+  &quot;status&quot;: &quot;evidenced&quot;,
+  &quot;assumptions&quot;: [&quot;same-user-trusted&quot;],
+  &quot;notVerified&quot;: [&quot;The model covers the broker alone.&quot;]
+}
+</code></pre>
+<p>The real entry is longer, and most of the extra length is the <code>notVerified</code> list.</p>
+<h2 id="an-approval-you-give-once-is-used-once">An approval you give once is used once</h2>
+<p>When Ghostget asks you to allow an action once, that approval should cover one exact pending request and then be spent. The law, as the register writes it: allowed implies uses at most one, including across a client crash, expiry, and reconnect. Drift, expiry, and shutdown revoke it.</p>
+<p>The Quint model states it as two rules:</p>
+<pre><code class="language-text">atMostOneUse:      the set of callers ever allowed has at most one member
+onlyHolderAllowed: if the grant is bound to a requester, only that requester is allowed
+</code></pre>
+<p>Ghostget&#39;s verification plan recorded a defect in this claim: allow-once used to be enforced by the client. The approval service left an allowed entry checkable for 600 seconds and relied on the Ghostget process releasing it when done, so a crash could leave a reusable approval for another program running as the same user. The fix binds each allow-once grant to a secret held by the one requester. That closes the crash leftover. A hostile program running as you is out of scope for the whole register. The model keeps three copies of the old behavior, and the replay shows the production code refuses each of the traces that break the rule in those copies.</p>
+<p>Where it stops: the model checks one request, two holders and an anonymous caller, with at most two crashes and two policy changes per trace. The replay drives the real approval service with 1,000 traces of up to 30 steps. Reconnects and shutdown outside the approval service are covered only by example tests.</p>
+<h2 id="a-write-happens-at-most-once">A write happens at most once</h2>
+<p>Ghostget identifies a write by what it would do: which of your accounts, which target, which operation, and the exact input. Call that the intent. The rule is that the service sees the effect of an intent at most once, plus any duplicate-risk successor: a new run explicitly elected to try again after an earlier attempt ended with an unknown outcome.</p>
+<pre><code class="language-text">effects(intent) &lt;= 1 + elected duplicate-risk successors
+</code></pre>
+<p>This is evidenced by a Quint model, including across a reconnect and an upgrade of the action&#39;s definition. Two more claims sit underneath it. A Lean proof about a model of the run record shows that the record keeps its rules on every step, with dispatch counters that only go up; a differential test checks the TypeScript against that model on generated journals. A stateful model crashes the storage code at sampled points and checks that the confirmation, the consumed plan, and the recovery record reach disk before anything is sent. If the recovery record cannot be stored, nothing is sent.</p>
+<p>Where it stops: the model is small, with three runs of one intent, one reconnect, one definition upgrade, and one duplicate-risk successor per earlier run. It is checked with 5,000 simulated samples of up to 12 steps and a model checker that covers every execution up to 8 steps. The owner&#39;s acceptance of the duplicate risk is not modelled; example tests cover it. The replay exercises the storage layer and the core rules, not the full confirmation program or the network code that talks to each service. The crash test samples its crash points rather than visiting every one.</p>
+<h2 id="an-uncertain-send-is-never-sent-again">An uncertain send is never sent again</h2>
+<p>A send can fail after it leaves your machine: the connection drops before the reply arrives. Ghostget cannot know whether the service acted. Ghostget records the outcome as unknown and never retries it. A lost acknowledgement does not permit another submission.</p>
+<p>For confirmed writes through a signed-in web session, such as publishing a post, the Quint model checks this directly: no intent is dispatched twice, a later send of the same effect can only be an elected successor of a run whose outcome is unknown, and an unknown run keeps blocking later sends until it is resolved. Only evidence that the write applied resolves it. A caller who says the write never happened is recorded, and that claim releases nothing. The same rule on other paths, including local programs, iMessage, and linked devices, is covered by example and property tests, not by this model.</p>
+<p>Multi-part messages have their own evidenced model. A messaging turn is one confirmation and one ordered run: parts go out in order, at most one part is in flight or unknown at a time, and no part is sent again. That model covers one run of three parts.</p>
+<h2 id="the-gaps-by-name">The gaps, by name</h2>
+<p>On 24 September 2026, the register listed these as planned: the stronger check it names is scheduled but not yet running.</p>
+<ul>
+<li><strong>Preview before every write.</strong> The rule that a write runs only after an exact preview and a confirmation tied to that preview, with each plan used once, has example tests. Its stateful model is planned.</li>
+<li><strong>Uncertain message sends.</strong> The messaging rule that an uncertain submit is reconciled by its exact run and never resubmitted has example tests. Its stateful model is planned. So is the rule that a run stops when the conversation changes underneath it.</li>
+<li><strong>Writes through a local program.</strong> For actions that start a separate program on your computer to do the write, the rule that any failure after it starts counts as unknown and is never retried has example tests. Its Quint model is planned.</li>
+<li><strong>Idempotency keys on every write.</strong> A per-write key a service can use to drop duplicates. Planned.</li>
+</ul>
+<p>Nineteen claims have no automated check. Fifteen are about repository and hosting settings on GitHub, npm, and Vercel; an administrator reads them back, and CI cannot see them drift. Four have no check of any kind, including that the Ghostget website holds no agent runtime or signed-in features, which review alone enforces.</p>
+<p>The register also lists what it does not cover as a whole: how third-party services behave; the correctness of Bun, JavaScriptCore, the operating system&#39;s filesystem beyond the modelled behavior, URL parsing, GitHub, npm, Sigstore, and Vercel; hostile plugin code running inside Ghostget; and hostile programs running as your own user. Every Quint result is about a model at a stated size, and every Lean result is about a Lean model of the code. Each is tied to the code by replay or by generated inputs, not by a proof that the code equals the model. The build checks that each named piece of evidence exists and that property claims run properties; it does not judge whether a check is strong.</p>
