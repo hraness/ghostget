@@ -381,23 +381,38 @@ class MessagingAutomationHost {
     return this.db.query("SELECT COUNT(*) AS n FROM runs WHERE enrollment_id=? AND state IN ('started','partial','indeterminate')").get(enrollmentId).n > 0;
   }
   async poll(enrollmentId, signal) {
-    const initial = this.row(enrollmentId);
-    const enrollment = this.enrollment(initial);
-    if (this.activeRun(enrollmentId))
-      return enrollment;
-    const provider = this.provider(enrollment.identity.provider);
-    const status = await this.status(provider, signal);
-    if (!same(status.identity, enrollment.identity)) {
-      this.db.query("UPDATE enrollments SET ready=0,reason=? WHERE id=?").run("Provider identity changed; enroll the conversation again.", enrollmentId);
-      throw new Error("Messaging provider identity changed.");
+    const [result] = await this.pollEnrollments([enrollmentId], signal);
+    if (result === undefined || result.error !== null)
+      throw new Error(result?.error ?? "Messaging poll failed.");
+    if (result.enrollment === null)
+      throw new Error("Messaging enrollment is unavailable.");
+    return result.enrollment;
+  }
+  async readScopePages(provider, items, signal) {
+    if (provider.eventsScoped === undefined) {
+      const pages = [];
+      for (const item of items) {
+        try {
+          pages.push({ page: await provider.events({ coordinates: [item.coordinate], cursor: item.cursor, limit: 200 }, signal) });
+        } catch (error) {
+          pages.push({ error: error instanceof Error ? error.message : "Messaging provider events are unavailable." });
+        }
+      }
+      return pages;
     }
-    if (!status.connected || !status.events.available) {
-      this.db.query("UPDATE enrollments SET ready=0,reason=? WHERE id=?").run(status.events.reason ?? "Provider events are unavailable.", enrollmentId);
-      return this.enrollment(this.row(enrollmentId));
-    }
-    const page = checkedPage(await provider.events({ coordinates: [enrollment.conversation.coordinate], cursor: initial.cursor, limit: 200 }, signal), enrollment.identity, enrollment.conversation.coordinate);
-    stopped(signal);
-    this.ready();
+    const response = automationRecord(await provider.eventsScoped({ scopes: items.map((item) => ({ coordinates: [item.coordinate], cursor: item.cursor })), limit: 200 }, signal), ["identity", "results"]);
+    const identity = parseAutomationIdentity(response.identity);
+    const results = automationArray(response.results, 50);
+    if (results.length !== items.length)
+      throw new Error("Messaging provider returned the wrong number of scoped pages.");
+    return results.map((result) => {
+      if (Object.getOwnPropertyDescriptor(result, "error") !== undefined)
+        return { error: automationText(automationRecord(result, ["error"]).error, 1024) };
+      const page = automationRecord(result, ["messages", "nextCursor", "caughtUp", "gap"]);
+      return { page: { identity, messages: page.messages, nextCursor: page.nextCursor, caughtUp: page.caughtUp, gap: page.gap } };
+    });
+  }
+  ingest(enrollmentId, initial, page) {
     this.db.transaction(() => {
       const current = this.row(enrollmentId);
       if (current.cursor !== initial.cursor || current.revision !== initial.revision || current.baselining !== initial.baselining || current.gap !== initial.gap || this.activeRun(enrollmentId))
@@ -420,8 +435,81 @@ class MessagingAutomationHost {
       const gap = initial.gap === 1 || page.gap;
       this.db.query("UPDATE enrollments SET cursor=?,revision=?,ready=?,reason=?,baselining=?,gap=? WHERE id=?").run(page.nextCursor, revision, !gap && page.caughtUp ? 1 : 0, gap ? "Provider event stream has an unresolved gap." : page.caughtUp ? null : "Provider catchup is incomplete.", initial.baselining && !page.caughtUp ? 1 : 0, gap ? 1 : 0, enrollmentId);
     }).immediate();
-    this.checkFiles();
     return this.enrollment(this.row(enrollmentId));
+  }
+  tryEnrollment(id) {
+    try {
+      return this.enrollment(this.row(id));
+    } catch {
+      return null;
+    }
+  }
+  async pollEnrollments(enrollmentIds, signal) {
+    this.ready();
+    const ids = [...new Set(enrollmentIds.map((id) => automationId(id)))].sort();
+    const results = new Map;
+    const groups = new Map;
+    for (const id of ids) {
+      let initial;
+      try {
+        initial = this.row(id);
+      } catch {
+        results.set(id, { enrollmentId: id, enrollment: null, error: "Messaging enrollment does not exist." });
+        continue;
+      }
+      const enrollment = this.enrollment(initial);
+      if (this.activeRun(id)) {
+        results.set(id, { enrollmentId: id, enrollment, error: null });
+        continue;
+      }
+      let group = groups.get(enrollment.identity.provider);
+      if (group === undefined)
+        groups.set(enrollment.identity.provider, group = { provider: this.provider(enrollment.identity.provider), items: [] });
+      group.items.push({ initial, enrollment });
+    }
+    for (const group of groups.values()) {
+      let status;
+      try {
+        status = await this.status(group.provider, signal);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Messaging provider status is unavailable.";
+        for (const item of group.items)
+          results.set(item.enrollment.id, { enrollmentId: item.enrollment.id, enrollment: null, error: message });
+        continue;
+      }
+      const live = [];
+      for (const item of group.items) {
+        const id = item.enrollment.id;
+        if (!same(status.identity, item.enrollment.identity)) {
+          this.db.query("UPDATE enrollments SET ready=0,reason=? WHERE id=?").run("Provider identity changed; enroll the conversation again.", id);
+          results.set(id, { enrollmentId: id, enrollment: this.enrollment(this.row(id)), error: "Messaging provider identity changed." });
+        } else if (!status.connected || !status.events.available) {
+          this.db.query("UPDATE enrollments SET ready=0,reason=? WHERE id=?").run(status.events.reason ?? "Provider events are unavailable.", id);
+          results.set(id, { enrollmentId: id, enrollment: this.enrollment(this.row(id)), error: null });
+        } else
+          live.push(item);
+      }
+      if (live.length === 0)
+        continue;
+      const pages = await this.readScopePages(group.provider, live.map((item) => ({ coordinate: item.enrollment.conversation.coordinate, cursor: item.initial.cursor })), signal);
+      stopped(signal);
+      for (const [index, item] of live.entries()) {
+        const id = item.enrollment.id;
+        const entry = pages[index];
+        if ("error" in entry) {
+          results.set(id, { enrollmentId: id, enrollment: this.tryEnrollment(id), error: entry.error });
+          continue;
+        }
+        try {
+          const page = checkedPage(entry.page, item.enrollment.identity, item.enrollment.conversation.coordinate);
+          results.set(id, { enrollmentId: id, enrollment: this.ingest(id, item.initial, page), error: null });
+        } catch (error) {
+          results.set(id, { enrollmentId: id, enrollment: this.tryEnrollment(id), error: error instanceof Error ? error.message : "Messaging poll failed." });
+        }
+      }
+    }
+    this.checkFiles();
+    return ids.map((id) => results.get(id));
   }
   events(raw) {
     this.ready();

@@ -1733,14 +1733,24 @@
 // fa943b53e54759afa7c9af3045e194cbe66ac66a9a1200337216d52f8943d9cb.
 // Carry the same projections and allowances: 12,020,614 + 12,387 + 4,096 =
 // 12,037,097 packed; 23,535,472 + 353 + 65 = 23,535,890 unpacked.
+// The batched-poll follow-up adds the host pollEnrollments/readScopePages
+// path, the server pollSet dispatch and multi-plan asset tracking, the
+// provider FIFO queues, factory custody refcounting, and the iMessage
+// eventsScoped helper plus tests; the rebuilt automation chunk keeps the
+// same 598-file inventory. A clean `npm pack --ignore-scripts` with npm
+// 11.16.0 on darwin arm64 measured 12,037,168 packed bytes and 23,554,390
+// unpacked bytes; archive SHA-256
+// 17b88afc65d7b6bb0e6c178c53f9fefbada01d77d690e5ac9a10dfc4ec245b87.
+// Carry the same projections and allowances: 12,037,168 + 12,387 + 4,096 =
+// 12,053,651 packed; 23,554,390 + 353 + 65 = 23,554,808 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Enrollment-scoped automation lanes",
+  scope: "Enrollment-scoped automation lanes with batched set polls",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "8f5529910f4f4aa07e594681ab8293dd5a20797add6c32e47e6ff5f116e61cd7",
-  packedBytes: 12_033_513,
-  unpackedBytes: 23_537_986,
+  archiveSha256: "17b88afc65d7b6bb0e6c178c53f9fefbada01d77d690e5ac9a10dfc4ec245b87",
+  packedBytes: 12_037_168,
+  unpackedBytes: 23_554_390,
   entryCount: 598,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
