@@ -44,6 +44,8 @@ export function priorRunDisposition(
     readonly existing: LedgerEntry;
     readonly viaIntent?: true;
     readonly viaAlternatePath?: boolean;
+    /** The blocking run ran under another locator that recorded the same provider subject. */
+    readonly viaSubject?: { readonly authId: string };
   },
   current: {
     readonly inputHash: string;
@@ -58,6 +60,12 @@ export function priorRunDisposition(
     return { kind: "refuse", message: "idempotency key was already used in a different action scope" };
   }
   const prior = existing.runId;
+  // A run under another locator that recorded the same provider subject is
+  // unsettled, since only such runs fence across locators. It never replays,
+  // and it is reconciled under its own locator.
+  if (viaIntent && acquired.viaSubject !== undefined) {
+    return { kind: "refuse", message: `a prior attempt (${prior}) may have reached the provider under auth locator '${acquired.viaSubject.authId}', which records the same provider subject as '${current.authId}'; inspect 'ghostget runs show ${prior}' and reconcile it under '${acquired.viaSubject.authId}' before retrying` };
+  }
   // The realm is the locator ID, and journals keep no account subject, so
   // other auth bytes may be another account. Such a run never replays as
   // this account's result. Reconciling it needs its exact auth record, or a
@@ -146,6 +154,21 @@ function prepareAndExecute(
     if (Either.isLeft(claimed)) {
       yield* finalizePreDispatchFailure(state, "idempotency claim could not be bound to the run journal");
       return yield* wrapped(claimed.left, "refusing to start a remote write because its run journal could not claim the idempotency ledger");
+    }
+    // Recheck the provider-subject fence now that this run's claim is on
+    // record, so a run of the same subject under another locator that passed
+    // its scan concurrently cannot also dispatch.
+    const subject = yield* Effect.either(state.recheckSubjectFence(request.intent));
+    if (Either.isLeft(subject)) {
+      yield* finalizePreDispatchFailure(state, "idempotency state could not be inspected before dispatch");
+      return yield* wrapped(subject.left, "refusing to start a remote write because its idempotency state could not be inspected");
+    }
+    if (subject.right !== null) {
+      yield* finalizePreDispatchFailure(state, "another run already owns this idempotency scope");
+      const disposition = priorRunDisposition(subject.right, {
+        inputHash: state.inputHash, adapterHash: state.adapter.hash, authHash: state.auth.hash, authId: state.auth.id,
+      });
+      return yield* refuse("journal", disposition.kind === "refuse" ? disposition.message : "another run already owns this idempotency scope");
     }
     const recovery = yield* Effect.either(Effect.gen(function*() {
       yield* state.storeCapsule;

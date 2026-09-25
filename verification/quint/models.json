@@ -72,6 +72,10 @@
         {
           "step": "stepElectInFlight",
           "invariant": "fenceSafety"
+        },
+        {
+          "step": "stepSubjectBlind",
+          "invariant": "fenceSafety"
         }
       ],
       "replay": {

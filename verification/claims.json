@@ -579,7 +579,7 @@
     {
       "guide": "AGENTS.md",
       "anchor": "No writes on read",
-      "digest": "0141cebc7ddf03716d516fc5d31fe9621892e18e8e62a2393776821fcdda231b",
+      "digest": "9404228819ce247f0922561863a4f36f84cbe071fa0a6aa4d9ce43751cbb8d16",
       "claims": [
         "menu-bar-snapshot-read-only",
         "no-writes-on-read-paths",
@@ -7188,6 +7188,33 @@
       ],
       "notVerified": [
         "No automated check inspects `website/` for authenticated surfaces, credential handling, or runtime features; review alone enforces this boundary."
+      ]
+    },
+    {
+      "id": "intent-fence-subject-across-locators",
+      "statement": "New run journals record the provider subject their auth record named; before dispatch, the confirmed-write fence also refuses while an unsettled run of the same provider target, operation, canonical input, and duplicate-risk source recorded the same subject under a different auth locator, both in its journal scan and in a recheck after its own claim is on record. Journals without a subject keep the per-locator fence and stay valid.",
+      "area": "mutations",
+      "source": {
+        "path": "docs/effect-confirmed-write-runtime.md",
+        "quote": "the fence also refuses while an unsettled run of the same provider target, operation, and canonical input"
+      },
+      "layer": "quint",
+      "status": "evidenced",
+      "evidence": [
+        "scripts/verification-fence-replay.test.ts",
+        "src/confirmed-write-intent-fence.test.ts",
+        "src/run-journal.test.ts",
+        "verification/quint/fence.qnt"
+      ],
+      "assumptions": [
+        "filesystem-durability",
+        "same-user-trusted"
+      ],
+      "notVerified": [
+        "Subjects are compared as strings. The operator may type a subject, so two locators that record one subject are fenced as one account even when they are not; this only refuses more. Two locators of one account with no recorded subject, or a run recorded before journals kept the subject, are not fenced against each other.",
+        "Two runs that race past their scans may both refuse at the recheck; neither dispatches, and each is retried after the other settles. No progress law is checked.",
+        "The fence model has two locators, one subject, three runs, 5,000 simulated samples of up to 12 steps, and Apalache to length 8; the replay drives the subject scan and recheck through the pure fence cores and a five-trace file-backed cover, not the `confirmInvocation` program, which the listed example tests cover.",
+        "A succeeded run under another locator neither fences nor replays across locators, by design."
       ]
     }
   ]

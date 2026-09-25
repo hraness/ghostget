@@ -219,8 +219,15 @@ const QUINT_TIMEOUT_MS = 5 * 60_000;
  * test, so a hung Quint fails with this bound's diagnosis rather than the
  * runner's.
  */
-export const QUINT_TRACE_TIMEOUT_MS = 90_000;
-const APALACHE_TIMEOUT_MS = 10 * 60_000;
+export const QUINT_TRACE_TIMEOUT_MS = 150_000;
+/**
+ * The bound on one Apalache check. With `QUINT_CONCURRENCY` two checker jobs
+ * share the runner's four vCPUs, so a check that finishes in about ten
+ * minutes alone can need roughly twice that when a second Apalache or a
+ * `bun test` replay runs beside it. The bound fails an actually stuck check,
+ * not one that is merely sharing the runner.
+ */
+const APALACHE_TIMEOUT_MS = 20 * 60_000;
 // Nightly runs sit outside the 50-minute CI verification step, so each deeper
 // checker run gets its own larger bound. A timeout still fails the run.
 const NIGHTLY_QUINT_TIMEOUT_MS = 30 * 60_000;
@@ -1606,7 +1613,10 @@ const DEFAULT_QUINT_MODEL_WEIGHT = 60;
 // every model still runs exactly once. A model without a reading takes the
 // default weight until its first CI log.
 const MEASURED_QUINT_MODEL_WEIGHTS = Object.freeze({
-  "fence.qnt": 460,
+  // With the subject dimension, fence.qnt's six Apalache checks and its
+  // replay approach the quint step's former 20-minute budget on a shared
+  // 4-vCPU runner (run 36093627910); it packs alone onto the lightest shard.
+  "fence.qnt": 1150,
   "release.qnt": 330,
   "state-claim.qnt": 170,
   "media.qnt": 155,

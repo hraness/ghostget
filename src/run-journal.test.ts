@@ -68,6 +68,7 @@ function initial(overrides: {
   readonly hasPlanAssets?: boolean;
   readonly leaseUntil?: string;
   readonly contract?: RunJournalContract;
+  readonly authSubject?: string;
 } = {}): RunJournal {
   return initialRunJournal({
     runId: "11111111-1111-4111-8111-111111111111",
@@ -85,6 +86,7 @@ function initial(overrides: {
       hash: "d".repeat(64),
       kind: "cookies-file",
     },
+    ...(overrides.authSubject === undefined ? {} : { authSubject: overrides.authSubject }),
     contract: overrides.contract ?? {
       transport: "web-session-api",
       hash: "e".repeat(64),
@@ -566,6 +568,20 @@ describe("run journal reducer", () => {
     });
     expect(() => parseRunJournal(value)).toThrow("unsupported accessor");
     expect(invoked).toBeFalse();
+  });
+
+  test("records an optional provider subject, parses it strictly, and keeps journals without one valid", () => {
+    const legacy = initial();
+    expect(Object.hasOwn(legacy, "authSubject")).toBeFalse();
+    expect(parseRunJournal(JSON.parse(JSON.stringify(legacy)) as unknown)).toEqual(legacy);
+
+    const withSubject = initial({ authSubject: "1234567890" });
+    expect(withSubject.authSubject).toBe("1234567890");
+    expect(parseRunJournal(JSON.parse(JSON.stringify(withSubject)) as unknown)).toEqual(withSubject);
+
+    for (const malformed of ["", " 1234567890", "has space", "a\u0000b", "x".repeat(513), 42, null, ["1234567890"]]) {
+      expect(() => parseRunJournal({ ...legacy, authSubject: malformed })).toThrow("run journal auth subject is malformed");
+    }
   });
 
   test("enforces the dispatch ceiling before persistence", () => {

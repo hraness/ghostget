@@ -3366,9 +3366,50 @@ function journalFencesIntent(
 }
 
 /**
+ * Whether `journal` is an unsettled run of the same provider target,
+ * operation, canonical input, and duplicate-risk narrowing as `intent`, under
+ * another auth locator that recorded the same provider subject. Journals
+ * without a subject, and intents whose auth record names none, never match,
+ * so they keep the per-locator fence. A claimed run that has not yet crossed
+ * its dispatch boundary counts as unsettled.
+ */
+function journalFencesSubject(journal: RunJournal, intent: ConfirmedWriteIntent): boolean {
+  return intent.authSubject !== undefined
+    && journal.authSubject === intent.authSubject
+    && journal.auth.id !== intent.authId
+    && journal.adapter.id === intent.adapterId
+    && journal.operation === intent.operationId
+    && intent.inputHashes.includes(journal.inputHash)
+    && journal.duplicateIntent?.intentHash === intent.duplicateIntentHash
+    && journal.ledgerState !== "unclaimed"
+    && journal.ledgerState !== "released"
+    && journal.ledgerState !== "succeeded";
+}
+
+/**
+ * The unsettled run under another locator with the same provider subject that
+ * fences `intent` against run `runId`, or null.
+ *
+ * @internal Exported for the confirmed-write platform and the fence model's
+ * trace replay.
+ */
+export function subjectFenceBlocker(
+  journals: readonly RunJournal[],
+  intent: ConfirmedWriteIntent,
+  runId: string,
+): RunJournal | null {
+  if (intent.authSubject === undefined) return null;
+  for (const journal of journals) {
+    if (journal.runId !== runId && journalFencesSubject(journal, intent)) return journal;
+  }
+  return null;
+}
+
+/**
  * The journal that fences `intent` against run `runId`, or null. An unsettled
  * journal wins over a fulfilled one; among fulfilled journals, the one whose
- * dedupe window ends last.
+ * dedupe window ends last. An unsettled run under another locator that
+ * recorded the same provider subject also fences it.
  *
  * @internal Exported only for the fence model's trace replay.
  */
@@ -3382,13 +3423,49 @@ export function intentFenceBlocker(
   for (const journal of journals) {
     if (journal.runId === runId) continue;
     const fence = journalFencesIntent(journal, intent, now);
-    if (fence === "unsettled") return journal;
+    if (fence === "unsettled" || journalFencesSubject(journal, intent)) return journal;
     if (
       fence === "fulfilled"
       && (fulfilled === null || Date.parse(journal.dedupeExpiresAt) > Date.parse(fulfilled.dedupeExpiresAt))
     ) fulfilled = journal;
   }
   return fulfilled;
+}
+
+/** Every run journal; an invalid one leaves the intent unresolved. */
+function confirmedWriteJournals(
+  environment: Readonly<Record<string, string | undefined>>,
+): readonly RunJournal[] {
+  return listRunJournalSnapshots(environment).map((candidate) => {
+    if ("invalid" in candidate) {
+      throw new Error("invalid run journals make the confirmed-write intent unresolved");
+    }
+    return candidate.journal;
+  });
+}
+
+/**
+ * Recheck the provider-subject fence after run `runId` recorded its ledger
+ * claim and before it may dispatch. The pre-claim scan and the claim are
+ * separate steps, and each locator claims its own intent ledger, so two runs
+ * of one subject under two locators could both pass the scan. Each records
+ * its claim before this recheck, so at least one of them sees the other and
+ * refuses; both may refuse. Returns the blocking run's ledger entry and
+ * locator, or null.
+ *
+ * @internal Exported for the confirmed-write platform and the fence model's
+ * trace replay.
+ */
+export function recheckConfirmedWriteSubjectFence(
+  intent: ConfirmedWriteIntent,
+  runId: string,
+  environment: Readonly<Record<string, string | undefined>>,
+): { readonly existing: LedgerEntry; readonly viaIntent: true; readonly viaSubject: { readonly authId: string } } | null {
+  if (intent.authSubject === undefined) return null;
+  const blocker = subjectFenceBlocker(confirmedWriteJournals(environment), intent, runId);
+  return blocker === null
+    ? null
+    : { existing: runJournalLedgerEntry(blocker), viaIntent: true, viaSubject: { authId: blocker.auth.id } };
 }
 
 /**
@@ -3405,19 +3482,23 @@ function acquireIntentLedger(
   now: Date,
 ):
   | { readonly acquired: true; readonly snapshot: LedgerSnapshot }
-  | { readonly acquired: false; readonly existing: LedgerEntry; readonly viaIntent: true } {
+  | {
+      readonly acquired: false;
+      readonly existing: LedgerEntry;
+      readonly viaIntent: true;
+      readonly viaSubject?: { readonly authId: string };
+    } {
   if (!intent.inputHashes.includes(entry.inputHash)) {
     throw new Error("confirmed-write intent does not bind its ledger input");
   }
-  const journals = listRunJournalSnapshots(environment).map((candidate) => {
-    if ("invalid" in candidate) {
-      throw new Error("invalid run journals make the confirmed-write intent unresolved");
-    }
-    return candidate.journal;
-  });
-  const blocker = intentFenceBlocker(journals, intent, entry.runId, now);
+  const blocker = intentFenceBlocker(confirmedWriteJournals(environment), intent, entry.runId, now);
   if (blocker !== null) {
-    return { acquired: false, existing: runJournalLedgerEntry(blocker), viaIntent: true };
+    return {
+      acquired: false,
+      existing: runJournalLedgerEntry(blocker),
+      viaIntent: true,
+      ...(blocker.auth.id === intent.authId ? {} : { viaSubject: { authId: blocker.auth.id } }),
+    };
   }
   const claimed = acquireLedger(
     intentLedgerPath(intent.adapterId, intent.authId, intent.operationId, entry.inputHash, environment, intent.duplicateIntentHash),
@@ -5497,6 +5578,7 @@ async function confirmInvocationCore(
     isDispatchProgress,
     ledgerPath: confirmedWriteLedgerPath,
     acquireConfirmedWriteLedgers,
+    recheckConfirmedWriteSubjectFence,
     writeReceipt,
     runJournalReceipt,
     relativeStatePath,

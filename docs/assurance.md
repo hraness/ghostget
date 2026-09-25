@@ -8,14 +8,14 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 245 claims: 222 evidenced, 4 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 246 claims: 223 evidenced, 4 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 146 | 1 | 0 |
 | property test | 20 | 1 | 0 |
 | stateful model | 24 | 0 | 0 |
-| Quint model with production trace replay | 20 | 2 | 0 |
+| Quint model with production trace replay | 21 | 2 | 0 |
 | Lean proof with differential test | 8 | 0 | 0 |
 | differential oracle | 4 | 0 | 0 |
 | configuration readback | 0 | 0 | 15 |
@@ -107,8 +107,8 @@ Each claim holds only while its listed assumptions hold.
 | --- | --- | ---: |
 | `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 8 |
 | `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 33 |
-| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 30 |
-| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 32 |
+| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 31 |
+| `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 33 |
 | `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 10 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
 | `whatwg-url` | Bun's URL parser implements the WHATWG URL Standard. | 13 |
@@ -1130,7 +1130,7 @@ The messaging automation protocol rejects a second ordinary in-flight request an
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified: Only the enumerated example cases are checked.
 
-### `mutations` (11 claims)
+### `mutations` (12 claims)
 
 #### `mutation-exact-preview-confirmation`
 
@@ -1280,6 +1280,20 @@ The confirmed-write public boundary preserves the exact selected rejection value
 - Evidence: `src/confirmed-write-program.test.ts`
 - Assumptions: `filesystem-durability`, `provider-behaviour`
 - Not verified: Only the enumerated example cases are checked.
+
+#### `intent-fence-subject-across-locators`
+
+New run journals record the provider subject their auth record named; before dispatch, the confirmed-write fence also refuses while an unsettled run of the same provider target, operation, canonical input, and duplicate-risk source recorded the same subject under a different auth locator, both in its journal scan and in a recheck after its own claim is on record. Journals without a subject keep the per-locator fence and stay valid.
+
+- Evidenced by Quint model with production trace replay.
+- Source: `docs/effect-confirmed-write-runtime.md`: “the fence also refuses while an unsettled run of the same provider target, operation, and canonical input”
+- Evidence: `scripts/verification-fence-replay.test.ts`, `src/confirmed-write-intent-fence.test.ts`, `src/run-journal.test.ts`, `verification/quint/fence.qnt`
+- Assumptions: `filesystem-durability`, `same-user-trusted`
+- Not verified:
+  - Subjects are compared as strings. The operator may type a subject, so two locators that record one subject are fenced as one account even when they are not; this only refuses more. Two locators of one account with no recorded subject, or a run recorded before journals kept the subject, are not fenced against each other.
+  - Two runs that race past their scans may both refuse at the recheck; neither dispatches, and each is retried after the other settles. No progress law is checked.
+  - The fence model has two locators, one subject, three runs, 5,000 simulated samples of up to 12 steps, and Apalache to length 8; the replay drives the subject scan and recheck through the pure fence cores and a five-trace file-backed cover, not the `confirmInvocation` program, which the listed example tests cover.
+  - A succeeded run under another locator neither fences nor replays across locators, by design.
 
 ### `npm` (17 claims)
 

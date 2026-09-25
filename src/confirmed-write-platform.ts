@@ -86,7 +86,9 @@ export interface ConfirmedWriteKernel {
   /** Claim the intent fence, then the hash-keyed ledger. */
   readonly acquireConfirmedWriteLedgers: (request: { readonly path: string; readonly entry: LedgerEntry; readonly alternatePaths?: readonly string[]; readonly intent: ConfirmedWriteIntent }, environment: Readonly<Record<string, string | undefined>>, now: Date) => | { readonly acquired: true; readonly snapshot: LedgerSnapshot }
     | { readonly acquired: false; readonly existing: LedgerEntry; readonly viaAlternatePath?: boolean }
-    | { readonly acquired: false; readonly existing: LedgerEntry; readonly viaIntent: true };
+    | { readonly acquired: false; readonly existing: LedgerEntry; readonly viaIntent: true; readonly viaSubject?: { readonly authId: string } };
+  /** Recheck the provider-subject fence once this run's ledger claim is on record. */
+  readonly recheckConfirmedWriteSubjectFence: (intent: ConfirmedWriteIntent, runId: string, environment: Readonly<Record<string, string | undefined>>) => { readonly existing: LedgerEntry; readonly viaIntent: true; readonly viaSubject: { readonly authId: string } } | null;
   readonly writeReceipt: (receipt: RunReceipt, environment: Readonly<Record<string, string | undefined>>) => void;
   readonly runJournalReceipt: (journal: RunJournal) => RunReceipt;
   readonly relativeStatePath: (path: string, environment: Readonly<Record<string, string | undefined>>) => string;
@@ -139,6 +141,7 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
     isDispatchProgress,
     ledgerPath,
     acquireConfirmedWriteLedgers,
+    recheckConfirmedWriteSubjectFence,
     writeReceipt,
     runJournalReceipt,
     relativeStatePath,
@@ -565,6 +568,7 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
             risk,
             inputHash,
             auth: durableWriteAuth(),
+            ...durableWriteAuthSubject(),
             contract: contract.transport === "portable-provider-plugin"
               || contract.transport === "local-cli"
               ? contract
@@ -625,6 +629,7 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
           adapterId: adapter.id, authId: auth.id, operationId: invocation.operationId,
           inputHashes: legacyInputHash === inputHash ? [inputHash] : [inputHash, legacyInputHash],
           ...(options.duplicateRisk === undefined ? {} : { duplicateIntentHash: options.duplicateRisk.intentHash }),
+          ...durableWriteAuthSubject(),
         } satisfies ConfirmedWriteIntent,
         entry: {
           schemaVersion: options.duplicateRisk === undefined ? 2 : 3,
@@ -639,6 +644,7 @@ export function makeConfirmedWritePlatform(kernel: ConfirmedWriteKernel, origina
       // The intent fence is claimed first, so a reconnect or a manifest
       // revision cannot move the same effect to a fresh hash-keyed ledger.
       acquireLedger: (request: { readonly path: string; readonly entry: LedgerEntry; readonly alternatePaths?: readonly string[]; readonly intent: ConfirmedWriteIntent }) => attempt("journal", () => acquireConfirmedWriteLedgers(request, options.environment, observedTime())),
+      recheckSubjectFence: (intent: ConfirmedWriteIntent) => attempt("journal", () => recheckConfirmedWriteSubjectFence(intent, runId, options.environment)),
       ledgerRelativePath: (path: string) => attempt("journal", () => relativeStatePath(path, options.environment)),
       readReceipt: (id: string) => attempt("projection", () => readRunReceipt(id, options.environment)),
       storeCapsule: attempt("journal", () => writeRecoveryCapsule({
