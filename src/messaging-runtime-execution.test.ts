@@ -34,6 +34,7 @@ import { createProviderPluginRegistry } from "./provider-plugin-registry";
 import { confirmMessagingInvocation } from "./runtime";
 import { installManifest } from "./storage";
 import { main } from "./ghostget";
+import { assertAsyncProperty, fc } from "./test-support";
 
 const roots: string[] = [];
 let sharedRoot: string | null = null;
@@ -50,6 +51,7 @@ let activePage: ((limit: number) => ProviderMaterializedPageV1) | null = null;
 let activePartExecutor: ProviderPluginMessagingActionExecutorV1 | null = null;
 let activePrefixProof = proveExactSuffix;
 let activeRouteParticipantFingerprint = participantFingerprint;
+let activeRouteProviderRevision = "route-revision-1";
 let activeExactConversationProviderId = roomId;
 let activeAfterContextRead: (() => void) | null = null;
 let confirmationReadsActive = false;
@@ -401,6 +403,7 @@ async function harnessInternal(partCount: number, options: HarnessOptions = {}) 
   });
   activePrefixProof = options.prefixProof ?? proveExactSuffix;
   activeRouteParticipantFingerprint = participantFingerprint;
+  activeRouteProviderRevision = "route-revision-1";
   activeExactConversationProviderId = options.exactConversationProviderId ?? roomId;
   activeAfterContextRead = options.afterContextRead ?? null;
   confirmationReadsActive = false;
@@ -547,7 +550,7 @@ async function harnessInternal(partCount: number, options: HarnessOptions = {}) 
             sha256: "b".repeat(64),
           }),
           participantFingerprint: activeRouteParticipantFingerprint,
-          providerRevision: "route-revision-1",
+          providerRevision: activeRouteProviderRevision,
         }),
       }),
       compileTurnPart: (_target: Readonly<Record<string, string>>, part: {
@@ -1355,5 +1358,219 @@ describe("generic messaging composite execution", () => {
     expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
     expect(setup.dispatches()).toBe(3);
     expect(setup.attempts()).toBe(3);
+  });
+});
+
+type ContentDrift = "incoming" | "edited" | "deleted" | "extra-outgoing" | "reordered";
+type ScheduledEvent =
+  | { readonly kind: "none" }
+  | { readonly kind: "route"; readonly what: "participants" | "provider-revision"; readonly at: number }
+  | { readonly kind: "content"; readonly what: ContentDrift; readonly after: number }
+  | {
+      readonly kind: "fail";
+      readonly behavior: "fail-before-fence" | "fail-after-fence" | "malformed-after-fence";
+      readonly at: number;
+    }
+  | {
+      readonly kind: "cancel";
+      readonly by: "deadline" | "abort";
+      readonly fence: "before" | "after";
+      readonly at: number;
+    };
+
+const contentDrift: Readonly<Record<ContentDrift, (messages: ProviderMessageV1[]) => void>> = {
+  incoming: (messages) => messages.push(message(
+    "foreign-incoming",
+    "foreign body",
+    "2026-08-27T12:30:00.000Z",
+    { direction: "incoming" },
+  )),
+  edited: (messages) => {
+    const last = messages.at(-1)!;
+    messages[messages.length - 1] = message(last.providerId, "edited body", last.orderedAt!, {
+      providerRevision: "edited-revision",
+    });
+  },
+  deleted: (messages) => {
+    messages.pop();
+  },
+  "extra-outgoing": (messages) => messages.push(message(
+    "foreign-outgoing",
+    "foreign body",
+    "2026-08-27T12:30:00.000Z",
+  )),
+  reordered: (messages) => {
+    messages.reverse();
+  },
+};
+
+/** One generated composite: its part count and at most one adverse event. */
+const scheduleArbitrary = fc.integer({ min: 1, max: 3 }).chain((partCount) => fc.tuple(
+  fc.constant(partCount),
+  fc.oneof(
+    fc.constant<ScheduledEvent>({ kind: "none" }),
+    fc.record({
+      kind: fc.constant("route" as const),
+      what: fc.constantFrom("participants" as const, "provider-revision" as const),
+      at: fc.integer({ min: 0, max: partCount - 1 }),
+    }),
+    ...(partCount < 2 ? [] : [fc.record({
+      kind: fc.constant("content" as const),
+      what: fc.constantFrom<ContentDrift>("incoming", "edited", "deleted", "extra-outgoing", "reordered"),
+      after: fc.integer({ min: 0, max: partCount - 2 }),
+    })]),
+    fc.record({
+      kind: fc.constant("fail" as const),
+      behavior: fc.constantFrom(
+        "fail-before-fence" as const,
+        "fail-after-fence" as const,
+        "malformed-after-fence" as const,
+      ),
+      at: fc.integer({ min: 0, max: partCount - 1 }),
+    }),
+    fc.record({
+      kind: fc.constant("cancel" as const),
+      by: fc.constantFrom("deadline" as const, "abort" as const),
+      fence: fc.constantFrom("before" as const, "after" as const),
+      at: fc.integer({ min: 0, max: partCount - 1 }),
+    }),
+  ),
+));
+
+type ExpectedRun = Readonly<{
+  state: "submitted" | "partial" | "failed" | "indeterminate";
+  provenPartCount: number;
+  terminalReason: string | null;
+  possibleSubmittedPartIndex: number | null;
+  attempts: number;
+  dispatches: number;
+}>;
+
+/**
+ * The reference model of a composite run under one adverse event. A stop
+ * before part k proves exactly the k earlier parts; a failure before the
+ * durable fence is a failure or partial run; anything after the fence,
+ * cancellation included, is indeterminate at that part and never unsent.
+ */
+function expectedRun(partCount: number, event: ScheduledEvent): ExpectedRun {
+  const stopped = (
+    at: number,
+    terminalReason: string,
+    attempts: number,
+  ): ExpectedRun => ({
+    state: at === 0 ? "failed" : "partial",
+    provenPartCount: at,
+    terminalReason,
+    possibleSubmittedPartIndex: null,
+    attempts,
+    dispatches: at,
+  });
+  const uncertain = (at: number): ExpectedRun => ({
+    state: "indeterminate",
+    provenPartCount: at,
+    terminalReason: "provider-result-indeterminate",
+    possibleSubmittedPartIndex: at,
+    attempts: at + 1,
+    dispatches: at + 1,
+  });
+  switch (event.kind) {
+    case "none":
+      return {
+        state: "submitted",
+        provenPartCount: partCount,
+        terminalReason: null,
+        possibleSubmittedPartIndex: null,
+        attempts: partCount,
+        dispatches: partCount,
+      };
+    case "route":
+      return stopped(event.at, "prefix-freshness-unproven", event.at);
+    case "content":
+      return stopped(event.after + 1, "context-drift", event.after + 1);
+    case "fail":
+      return event.behavior === "fail-before-fence"
+        ? stopped(event.at, "provider-failed-before-dispatch", event.at + 1)
+        : uncertain(event.at);
+    case "cancel":
+      return event.fence === "before"
+        ? stopped(event.at, "provider-failed-before-dispatch", event.at + 1)
+        : uncertain(event.at);
+  }
+}
+
+describe("generic messaging composite execution property", () => {
+  test("stops on every drift, failure, or cancellation at the modelled part and never resubmits", async () => {
+    await assertAsyncProperty(fc.asyncProperty(scheduleArbitrary, async ([partCount, event]) => {
+      const clock = new ManualDeadlineClock();
+      const controller = new AbortController();
+      const cancel = (): void => {
+        if (event.kind !== "cancel") return;
+        if (event.by === "deadline") clock.advance(60_000);
+        else controller.abort();
+      };
+      let contextReads = 0;
+      const setup = await harness(partCount, {
+        behavior: (attempt) => {
+          if (event.kind === "fail" && attempt === event.at) return event.behavior;
+          if (event.kind === "cancel" && attempt === event.at) {
+            return event.fence === "before" ? "expire-before-fence" : "expire-after-fence";
+          }
+          return "success";
+        },
+        afterMutation: (messages, attempt) => {
+          if (event.kind === "content" && attempt === event.after) contentDrift[event.what](messages);
+        },
+        afterContextRead: () => {
+          const read = contextReads;
+          contextReads += 1;
+          if (event.kind !== "route" || read !== event.at) return;
+          if (event.what === "participants") activeRouteParticipantFingerprint = "f".repeat(64);
+          else activeRouteProviderRevision = "route-revision-2";
+        },
+        beforeFence: cancel,
+        afterFence: cancel,
+      });
+      const options = {
+        environment: setup.environment,
+        registry: setup.registry,
+        now: setup.observation,
+        deadlineClock: clock,
+        signal: controller.signal,
+      };
+      const result = await confirmMessagingInvocation(setup.preview.planDigest, options);
+      const expected = expectedRun(partCount, event);
+      expect(result.run).toMatchObject({
+        state: expected.state,
+        partCount,
+        provenPartCount: expected.provenPartCount,
+        terminalReason: expected.terminalReason,
+        possibleSubmittedPartIndex: expected.possibleSubmittedPartIndex,
+      });
+      expect(setup.attempts()).toBe(expected.attempts);
+      expect(setup.dispatches()).toBe(expected.dispatches);
+
+      // The run is terminal: confirming the same plan again reconciles to the
+      // same run identity and never submits another part.
+      await expect(confirmMessagingInvocation(setup.preview.planDigest, {
+        environment: setup.environment,
+        registry: setup.registry,
+        now: setup.observation,
+      })).rejects.toThrow();
+      expect(setup.attempts()).toBe(expected.attempts);
+      expect(setup.dispatches()).toBe(expected.dispatches);
+      expect(showMessagingRunInternal(result.run.runId, {
+        environment: setup.environment,
+      }).run).toEqual(result.run);
+    }), {
+      numRuns: 6,
+      interruptAfterTimeLimit: 150_000,
+      // Every run first checks a content drift, a route drift, and a failure
+      // after the durable fence.
+      examples: [
+        [[2, { kind: "content", what: "incoming", after: 0 }]],
+        [[2, { kind: "route", what: "participants", at: 1 }]],
+        [[1, { kind: "fail", behavior: "fail-after-fence", at: 0 }]],
+      ],
+    });
   });
 });

@@ -21,7 +21,7 @@ concurrency:
 # read-only and never part of `Required`: a failure here blocks no merge or
 # release, and is triaged through docs/claims-review.md.
 jobs:
-  quint:
+  quint-nightly:
     name: quint nightly bounds
     runs-on: ubuntu-latest
     timeout-minutes: 240
@@ -49,7 +49,7 @@ jobs:
         timeout-minutes: 230
       - name: Retain checker output
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: nightly-quint-attempt-${{ github.run_attempt }}
           path: artifacts/verification/
@@ -104,7 +104,7 @@ jobs:
         timeout-minutes: 50
       - name: Retain mutant logs
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: nightly-mutants-attempt-${{ github.run_attempt }}
           path: artifacts/verification/mutants/
