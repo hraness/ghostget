@@ -12,7 +12,7 @@
  * evidence. This script and `verification/` are development-only and are
  * never packaged.
  */
-import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile, copyFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, rm, writeFile, copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -185,8 +185,17 @@ async function trackedFiles(root: string): Promise<readonly string[]> {
   return outcome.stdout.split("\0").filter((path) => path.length > 0);
 }
 
-/** Copy the tracked tree into `sandbox` and link the installed dependencies, so mutation never touches the checkout. */
-async function prepareSandbox(root: string, sandbox: string): Promise<void> {
+/**
+ * Copy the tracked tree into `sandbox` and install the locked dependencies
+ * into it, so mutation never touches the checkout. A `node_modules` symlink
+ * would resolve a provider plugin's physical path back into the checkout,
+ * which the plugin boundary check rejects as outside the sandbox repository.
+ */
+async function prepareSandbox(
+  root: string,
+  sandbox: string,
+  environment: Readonly<Record<string, string>>,
+): Promise<void> {
   for (const path of await trackedFiles(root)) {
     const source = join(root, path);
     const stat = await lstat(source).catch(() => null);
@@ -194,7 +203,13 @@ async function prepareSandbox(root: string, sandbox: string): Promise<void> {
     await mkdir(dirname(join(sandbox, path)), { recursive: true });
     await copyFile(source, join(sandbox, path));
   }
-  await symlink(join(root, "node_modules"), join(sandbox, "node_modules"), "dir");
+  const install = await runTool(
+    [process.execPath, "install", "--frozen-lockfile", "--ignore-scripts"],
+    { cwd: sandbox, environment, timeoutMs: MUTANT_TEST_TIMEOUT_MS },
+  );
+  if (install.kind !== "exited" || install.exitCode !== 0) {
+    throw new Error(`sandbox dependency installation failed: ${sanitizeCheckerOutput(install.stderr, [[sandbox, "<sandbox>"], [root, "<repository>"]]).slice(-2_000)}`);
+  }
 }
 
 export async function runSourceMutants(root: string = REPOSITORY_ROOT): Promise<void> {
@@ -207,17 +222,17 @@ export async function runSourceMutants(root: string = REPOSITORY_ROOT): Promise<
   const clean = (text: string): string => sanitizeCheckerOutput(text, replacements);
   const results: Record<string, unknown>[] = [];
   const failures: string[] = [];
+  const environment = Object.freeze({
+    PATH: process.env.PATH ?? "/usr/bin:/bin",
+    HOME: process.env.HOME ?? sandbox,
+    TMPDIR: tmpdir(),
+    LANG: "C",
+    LC_ALL: "C",
+    TZ: "UTC",
+    NO_COLOR: "1",
+  });
   try {
-    await prepareSandbox(root, sandbox);
-    const environment = Object.freeze({
-      PATH: process.env.PATH ?? "/usr/bin:/bin",
-      HOME: process.env.HOME ?? sandbox,
-      TMPDIR: tmpdir(),
-      LANG: "C",
-      LC_ALL: "C",
-      TZ: "UTC",
-      NO_COLOR: "1",
-    });
+    await prepareSandbox(root, sandbox, environment);
     for (const mutant of mutants) {
       const target = join(sandbox, mutant.file);
       const original = await readFile(target, "utf8");

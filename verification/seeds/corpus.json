@@ -12,6 +12,18 @@
           "regression": "round-trips an output with an own __proto__ member (CI seed 455347073, path 3:1:86:86)"
         }
       ]
+    },
+    "verification-oracles/url-candidates": {
+      "file": "scripts/verification-oracles.test.ts",
+      "entries": [
+        {
+          "kind": "counterexample",
+          "seed": 42458414,
+          "path": "148:42:40:40:40:40:40:40:40:40:40:40:40",
+          "origin": "Required verification on PR #381 shrank a drive-letter input reached through a backslash, https:user:pass@a-.co\\m:/../a?q=ä, that comparedParse missed.",
+          "regression": "the known drive-letter difference through a backslash leaves both sides refusing the input"
+        }
+      ]
     }
   }
 }

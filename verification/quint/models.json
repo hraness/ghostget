@@ -108,20 +108,27 @@
       "module": "media",
       "init": "init",
       "step": "step",
-      "invariants": ["noPromotionWithoutLock", "cancelledNeverCreated", "verifiedNeverRemoved", "noForeignRevision"],
+      "invariants": [
+        "noPromotionWithoutLock", "cancelledNeverCreated", "verifiedNeverRemoved", "noForeignRevision",
+        "promotedVerified", "promotedDurable", "lineageRecoverable"
+      ],
       "simulation": { "seed": "20260927", "maxSamples": 3000, "maxSteps": 12 },
       "apalache": { "length": 8 },
       "mutants": [
         { "step": "stepUnfenced", "invariant": "noPromotionWithoutLock" },
         { "step": "stepUnfenced", "invariant": "noForeignRevision" },
         { "step": "stepLateCancel", "invariant": "cancelledNeverCreated" },
-        { "step": "stepQuarantineAny", "invariant": "verifiedNeverRemoved" }
+        { "step": "stepQuarantineAny", "invariant": "verifiedNeverRemoved" },
+        { "step": "stepUnverified", "invariant": "promotedVerified" },
+        { "step": "stepNoSync", "invariant": "promotedDurable" },
+        { "step": "stepNoSync", "invariant": "lineageRecoverable" },
+        { "step": "stepNoRepair", "invariant": "lineageRecoverable" }
       ],
       "replay": {
         "test": "scripts/verification-media-replay.test.ts",
         "target": "production",
         "traces": 300,
-        "seed": "7",
+        "seed": "9",
         "maxSteps": 12
       }
     },

@@ -210,12 +210,17 @@ function firstElement(
 
 function inlineNodes(nodes: readonly HtmlNode[], pageUrl: string): string {
   let text = "";
-  for (const node of nodes) {
+  for (const [index, node] of nodes.entries()) {
     if (node.type === "text") {
       text += node.value.replace(/\s+/gu, " ");
       continue;
     }
-    if (SKIP_ELEMENTS.has(node.name) || node.attrs["aria-hidden"] === "true" || hasSkipClass(node.attrs)) {
+    if (node.attrs["aria-hidden"] === "true") {
+      // A decorative separator such as " · " still separates the words around it.
+      text += " ";
+      continue;
+    }
+    if (SKIP_ELEMENTS.has(node.name) || hasSkipClass(node.attrs)) {
       continue;
     }
     if (node.name === "br") {
@@ -236,6 +241,8 @@ function inlineNodes(nodes: readonly HtmlNode[], pageUrl: string): string {
     if (node.name === "strong" || node.name === "b") {
       const content = inlineNodes(node.children, pageUrl);
       text += content === "" ? "" : `**${content}**`;
+      // A label followed directly by another element, as in a card, stays a separate word.
+      if (content !== "" && nodes[index + 1]?.type === "element") text += " ";
       continue;
     }
     if (node.name === "em" || node.name === "i") {
