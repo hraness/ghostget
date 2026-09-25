@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -75,7 +76,7 @@ import {
 } from "./release-ref-writer.mjs";
 
 import { releaseIdentity } from "../website/github-release-artifact.mjs";
-import { assertProperty, fc } from "../src/test-support.js";
+import { assertAsyncProperty, assertProperty, fc } from "../src/test-support.js";
 
 const ciWorkflowUrl = new URL("../.github/workflows/ci.yml", import.meta.url);
 const releaseWorkflowUrl = new URL("../.github/workflows/release.yml", import.meta.url);
@@ -5287,7 +5288,11 @@ fi
         return {
           status: 0,
           stderr: "",
-          stdout: args.includes("rev-parse") ? `${providerVerifiedSha}\n` : "ok",
+          stdout: args.includes("rev-parse")
+            ? `${providerVerifiedSha}\n`
+            : args.includes("push")
+              ? `To https://github.com/hraness/ghostget.git\n \t${providerVerifiedSha}:refs/heads/website-production\t${providerPreviousSha.slice(0, 7)}..${providerVerifiedSha.slice(0, 7)}\nDone\n`
+              : "ok",
         };
       },
       verifiedSha: providerVerifiedSha,
@@ -5406,6 +5411,108 @@ fi
       ], directory)).toBe(second);
     } finally {
       await chmod(directory, 0o700).catch(() => undefined);
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  test("fails a leased write closed when the remote already holds the release commit", async () => {
+    // Regression for the promotion.qnt replay: Git reports a stale lease as
+    // `[up to date]` with exit 0 when the remote already holds the pushed
+    // commit, so the writer must require its own fast-forward in the porcelain.
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-ref-uptodate-"));
+    const remote = join(directory, "remote.git");
+    const work = join(directory, "work");
+    const environment = {
+      GIT_AUTHOR_DATE: "1788000000 +0000",
+      GIT_AUTHOR_EMAIL: "test@example.invalid",
+      GIT_AUTHOR_NAME: "Ghostget lease test",
+      GIT_COMMITTER_DATE: "1788000000 +0000",
+      GIT_COMMITTER_EMAIL: "test@example.invalid",
+      GIT_COMMITTER_NAME: "Ghostget lease test",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+      PATH: "/usr/bin:/bin",
+    };
+    const checkedGit = (arguments_: readonly string[], cwd = directory, stdin = ""): string => {
+      const result = Bun.spawnSync(["/usr/bin/git", ...arguments_], {
+        cwd,
+        env: environment,
+        stderr: "pipe",
+        stdin: Buffer.from(stdin),
+        stdout: "pipe",
+      });
+      if (result.exitCode !== 0) throw new Error(result.stderr.toString());
+      return result.stdout.toString().trim();
+    };
+    const advance = (expectedOldSha: string, verifiedSha: string): void => advanceWebsiteProductionRef({
+      environment: { WRENCH_RELEASE_APP_TOKEN: "ghs_lease-test-token" },
+      expectedOldSha,
+      repository: providerRepository,
+      spawnImplementation: (
+        executable: string,
+        args: readonly string[],
+        options: Parameters<typeof spawnSync>[2],
+      ) => spawnSync(
+        executable,
+        args.map((value) => value === "https://github.com/hraness/ghostget.git" ? `file://${remote}` : value),
+        { ...options, cwd: work },
+      ),
+      verifiedSha,
+      verifiedTag: providerTag,
+    });
+    const productionRef = (): string =>
+      checkedGit(["--git-dir", remote, "rev-parse", "refs/heads/website-production"]);
+
+    try {
+      checkedGit(["init", "--quiet", "--bare", remote]);
+      checkedGit(["init", "--quiet", work]);
+      const tree = checkedGit(["mktree"], remote);
+      const previous = checkedGit(["commit-tree", tree, "-m", "previous"], remote);
+      const release = checkedGit(["commit-tree", tree, "-p", previous, "-m", "release"], remote);
+      checkedGit(["update-ref", `refs/tags/${providerTag}`, release], remote);
+      checkedGit(["update-ref", "refs/heads/website-production", previous], remote);
+
+      advance(previous, release);
+      expect(productionRef()).toBe(release);
+
+      // Another writer already moved the ref to the release commit: the lease
+      // on `previous` is stale and this writer performed no update.
+      expect(() => advance(previous, release))
+        .toThrow("website-production Git push did not update the ref from the leased SHA");
+      expect(productionRef()).toBe(release);
+
+      const line = (flag: string, source: string, ref: string, summary: string): string =>
+        `To https://github.com/hraness/ghostget.git\n${flag}\t${source}:${ref}\t${summary}\nDone\n`;
+      const productionBranch = "refs/heads/website-production";
+      const short = (sha: string): string => sha.slice(0, 7);
+      for (const [stdout, accepted] of [
+        [line(" ", release, productionBranch, `${short(previous)}..${short(release)}`), true],
+        [line("+", release, productionBranch, `${short(previous)}...${short(release)} (forced update)`), true],
+        [line("=", release, productionBranch, "[up to date]"), false],
+        [line("!", release, productionBranch, "[rejected] (stale info)"), false],
+        [line(" ", release, productionBranch, `${short(release)}..${short(release)}`), false],
+        [line(" ", previous, productionBranch, `${short(previous)}..${short(previous)}`), false],
+        [line(" ", release, "refs/heads/website-production-canary", `${short(previous)}..${short(release)}`), false],
+        [line("+", release, productionBranch, `${short(previous)}...${short(release)}`), false],
+        [`${line(" ", release, productionBranch, `${short(previous)}..${short(release)}`)}${line(" ", release, productionBranch, `${short(previous)}..${short(release)}`)}`, false],
+        ["ok", false],
+      ] as const) {
+        const write = (): void => advanceWebsiteProductionRef({
+          environment: { WRENCH_RELEASE_APP_TOKEN: "ghs_lease-test-token" },
+          expectedOldSha: previous,
+          repository: providerRepository,
+          spawnImplementation: (_executable: string, args: readonly string[]) => ({
+            status: 0,
+            stderr: "",
+            stdout: args.includes("rev-parse") ? `${release}\n` : args.includes("push") ? stdout : "",
+          }),
+          verifiedSha: release,
+          verifiedTag: providerTag,
+        });
+        if (accepted) expect(write).not.toThrow();
+        else expect(write).toThrow("website-production Git push did not update the ref from the leased SHA");
+      }
+    } finally {
       await rm(directory, { force: true, recursive: true });
     }
   });
@@ -8768,6 +8875,89 @@ fi
     expect(immediateApi.graphqlCalls).toHaveLength(20);
     expect(immediateApi.timeoutMilliseconds).toHaveLength(40);
     expect(now).toBe(60);
+  });
+
+  test("keeps 20 absolute observation slots under any read latency and partial sleep wakeups", async () => {
+    const { baseline, baselineDeployment, promotion } = await providerReceipts("advanced");
+    const window = 1_200_000;
+    const interval = 60_000;
+    await assertAsyncProperty(fc.asyncProperty(
+      fc.record({
+        latencies: fc.array(fc.integer({ min: 1, max: 45_000 }), { minLength: 1, maxLength: 64 }),
+        divisors: fc.array(fc.constantFrom(1, 2, 3), { minLength: 1, maxLength: 8 }),
+      }),
+      async ({ latencies, divisors }) => {
+        let now = 0;
+        let reads = 0;
+        let sleepsThisGap = 0;
+        let sleptSinceObservation = false;
+        let lastReadEnd = 0;
+        const readBegins: number[] = [];
+        const starts: Array<Readonly<{ at: number; slept: boolean; previousEnd: number }>> = [];
+        const timedRead = (timeoutMilliseconds: number | undefined): void => {
+          if (timeoutMilliseconds === undefined) return;
+          readBegins.push(now);
+          now += latencies[reads % latencies.length]!;
+          reads += 1;
+          lastReadEnd = now;
+        };
+        const api = new ProviderApiFixture({
+          deployments: [[baselineDeployment]],
+          readHook: timedRead,
+          refSha: providerVerifiedSha,
+          statuses: terminalBaselineStatus(),
+        });
+        const get = api.get.bind(api);
+        api.get = async (endpoint, options) => {
+          // Every observation begins with the bounded production-ref read.
+          if (options?.timeoutMilliseconds !== undefined
+            && endpoint === `/repos/${providerRepository}/git/ref/heads/website-production`) {
+            starts.push(Object.freeze({ at: now, slept: sleptSinceObservation, previousEnd: lastReadEnd }));
+            sleptSinceObservation = false;
+            sleepsThisGap = 0;
+          }
+          return await get(endpoint, options);
+        };
+        const outcome = waitForProviderOutcome({
+          api,
+          baselineReceipt: baseline,
+          maxPolls: 20,
+          monotonicNow: () => now,
+          pollIntervalMilliseconds: interval,
+          promotionReceipt: promotion,
+          publicSite: new ProviderPublicSiteFixture({
+            markerSnapshots: [providerMarker(providerVerifiedSha, providerTag, 20)],
+            readHook: timedRead,
+          }),
+          sleep: async (milliseconds) => {
+            // Wake early on the first attempts of a gap, never late.
+            const divisor = sleepsThisGap >= 3 ? 1 : divisors[sleepsThisGap % divisors.length]!;
+            sleepsThisGap += 1;
+            sleptSinceObservation = true;
+            now += Math.max(1, Math.ceil(milliseconds / divisor));
+          },
+        });
+        await expect(outcome).rejects.toThrow("timed out waiting for the exact Vercel Production deployment");
+        // The whole half-open window is used, and no provider read starts at or after its deadline.
+        expect(now).toBeGreaterThanOrEqual(window);
+        expect(readBegins.every((begin) => begin >= 0 && begin < window)).toBe(true);
+        expect(starts.length).toBeGreaterThan(0);
+        expect(starts.length).toBeLessThanOrEqual(20);
+        // Only the last observation can stop inside its reads, at the deadline.
+        expect(api.graphqlCalls.length).toBeGreaterThanOrEqual(starts.length - 1);
+        expect(api.graphqlCalls.length).toBeLessThanOrEqual(starts.length);
+        starts.forEach(({ at, slept, previousEnd }, index) => {
+          // Slot k is the absolute offset k minutes: a slept gap lands on it
+          // exactly, and a late read delays only the next observation.
+          const slot = index * interval;
+          expect(at).toBeGreaterThanOrEqual(slot);
+          if (index === 0 || slept) expect(at).toBe(slot);
+          else expect(at).toBe(previousEnd);
+        });
+        // Fewer than 20 observations only when a read itself ran past the deadline.
+        if (starts.length < 20) expect(lastReadEnd).toBeGreaterThanOrEqual(window);
+      },
+    ), { numRuns: 100 });
   });
 
   test("fails recovery closed on stale success, latest ties, or newer deployments", async () => {
