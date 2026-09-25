@@ -332,9 +332,10 @@ module fence {
       ledger' = ledger,
       dispatched' = dispatched,
       applied' = if (outcome == "lost") applied else applied.union(Set(r)),
-      // A settled successor supersedes its source: the source's recovery
-      // material releases and its outcome is durably known.
-      reconciled' = if (outcome == "succeeded" and source.get(r) != "") reconciled.union(Set(source.get(r))) else reconciled,
+      // A settled elected successor supersedes its source: the source's
+      // recovery material releases and its outcome is durably known. An
+      // unelected successor's settle supersedes nothing.
+      reconciled' = if (outcome == "succeeded" and source.get(r) != "" and elected.get(source.get(r)) == r) reconciled.union(Set(source.get(r))) else reconciled,
       claimed' = claimed,
       result' = outcome,
     }
@@ -396,12 +397,12 @@ module fence {
     ledger' = ledger,
     dispatched' = dispatched,
     applied' = applied,
-    // Settling a successor supersedes its source the same way a succeeded
-    // finish does.
-    reconciled' = if (source.get(r) == "")
-      reconciled.union(Set(r))
+    // Settling an elected successor supersedes its source the same way a
+    // succeeded finish does; an unelected successor's settle does not.
+    reconciled' = if (source.get(r) != "" and elected.get(source.get(r)) == r)
+      reconciled.union(Set(r)).union(Set(source.get(r)))
     else
-      reconciled.union(Set(r)).union(Set(source.get(r))),
+      reconciled.union(Set(r)),
     claimed' = claimed,
     result' = "settled",
   }
