@@ -7,6 +7,7 @@ import {
   type PinnedNetworkRequest,
   type PinnedNetworkResponse,
 } from "@hraness/kb/clip/network";
+import { isPublicUnicastAddress } from "./public-address";
 
 export type PinnedHttpsRequest = PinnedNetworkRequest;
 
@@ -110,6 +111,11 @@ export async function pinnedHttpsFetch(
     timeoutMs,
   });
   init.signal.throwIfAborted();
+  // The resolver's own classifier admits some non-public IPv6 forms, so every
+  // answer is checked again here, where the socket address is chosen.
+  if (addresses.some((candidate) => !isPublicUnicastAddress(candidate.address))) {
+    throw new Error("authenticated HTTPS origin resolved to a non-public address");
+  }
   const address = addresses[0];
   if (address === undefined) throw new Error("authenticated HTTPS origin did not resolve to a safe address");
   const headers = new Headers(init.headers);

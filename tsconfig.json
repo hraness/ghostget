@@ -35,6 +35,9 @@
       ],
       "@hraness/ghostget/contracts": [
         "./src/contracts.ts"
+      ],
+      "next": [
+        "./website/next-types.d.ts"
       ]
     },
     "verbatimModuleSyntax": true,
@@ -68,6 +71,7 @@
     "website/vercel-build.test.ts",
     "website/provider-capability-attestation.ts",
     "website/provider-capability-attestation.test.ts",
-    "website/site.test.ts"
+    "website/site.test.ts",
+    "website/blog.test.ts"
   ]
 }

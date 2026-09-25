@@ -289,7 +289,7 @@ jobs:
   quint:
     name: quint ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -331,7 +331,7 @@ jobs:
       # over the models scripts/verification-tools.ts assigns to this shard.
       # Every model runs in exactly one shard; the shard packing is tested.
       - run: bun run ./scripts/verification-tools.ts quint ${{ matrix.shard }} 4
-        timeout-minutes: 20
+        timeout-minutes: 30
       - name: Retain checker output
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

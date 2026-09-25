@@ -11,6 +11,16 @@ import {
 } from "./provider-plugin-package";
 
 export const PORTABLE_PROVIDER_PLUGIN_PROTOCOL_VERSION = 1 as const;
+/**
+ * Protocol 2 adds only the readback frames below. Every other frame stays at
+ * protocol 1, and the host sends a readback frame only to a plugin whose
+ * manifest declared one, so a protocol 1 plugin never receives a v2 frame.
+ */
+export const PORTABLE_PROVIDER_PLUGIN_READBACK_PROTOCOL_VERSION = 2 as const;
+/** The version of the readback request and observation records. */
+export const PORTABLE_PROVIDER_PLUGIN_READBACK_VERSION = 1 as const;
+/** The canonical byte bound of one readback observation's evidence. */
+export const MAX_PORTABLE_PROVIDER_PLUGIN_READBACK_EVIDENCE_BYTES = 16 * 1024;
 export const MAX_PORTABLE_PROVIDER_PLUGIN_FRAME_BYTES = 1024 * 1024;
 
 export type PortablePluginJsonValue =
@@ -219,7 +229,41 @@ export type PortablePluginVersionedStateResult =
       readonly version: string;
     };
 
+/**
+ * What Ghostget asks a declared readback to observe: whether the write of one
+ * exact unsettled run applied. The runId and intentHash bind the answer.
+ */
+export type PortablePluginReadbackRequest = {
+  readonly version: typeof PORTABLE_PROVIDER_PLUGIN_READBACK_VERSION;
+  readonly runId: string;
+  readonly intentHash: string;
+  readonly write: {
+    readonly operation: string;
+    readonly contractVersion: number;
+  };
+};
+
+export type PortablePluginReadbackObservation = {
+  readonly version: typeof PORTABLE_PROVIDER_PLUGIN_READBACK_VERSION;
+  readonly runId: string;
+  readonly intentHash: string;
+  readonly observation: "applied" | "not-applied" | "unknown";
+  readonly evidence: PortablePluginJsonObject;
+};
+
 export type PortableProviderPluginHostMessage =
+  | {
+      readonly protocolVersion:
+        typeof PORTABLE_PROVIDER_PLUGIN_READBACK_PROTOCOL_VERSION;
+      readonly kind: "host.readback";
+      readonly invocationId: string;
+      /** The declared read-only readback operation. */
+      readonly route: PortablePluginRoute;
+      readonly readback: PortablePluginReadbackRequest;
+      readonly input: PortablePluginJsonObject;
+      readonly auth: PortablePluginInvocationAuth;
+      readonly timeoutMs: number;
+    }
   | {
       readonly protocolVersion: typeof PORTABLE_PROVIDER_PLUGIN_PROTOCOL_VERSION;
       readonly kind: "host.hello";
@@ -264,6 +308,13 @@ export type PortableProviderPluginHostMessage =
     };
 
 export type PortableProviderPluginProcessMessage =
+  | {
+      readonly protocolVersion:
+        typeof PORTABLE_PROVIDER_PLUGIN_READBACK_PROTOCOL_VERSION;
+      readonly kind: "plugin.readback.result";
+      readonly invocationId: string;
+      readonly readback: PortablePluginReadbackObservation;
+    }
   | {
       readonly protocolVersion: typeof PORTABLE_PROVIDER_PLUGIN_PROTOCOL_VERSION;
       readonly kind: "plugin.ready";
@@ -1260,8 +1311,151 @@ function parseError(value: unknown): { readonly code: string; readonly message: 
   });
 }
 
+function parseReadbackRunId(value: unknown): string {
+  const runId = boundedString(value, "readback runId", 36);
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
+      .test(runId)
+  ) {
+    throw new Error("readback runId must be a lowercase UUID");
+  }
+  return runId;
+}
+
+function parseReadbackRequest(value: unknown): PortablePluginReadbackRequest {
+  const readback = record(value, "host readback request");
+  exactKeys(
+    readback,
+    ["version", "runId", "intentHash", "write"],
+    "host readback request",
+  );
+  if (readback.version !== PORTABLE_PROVIDER_PLUGIN_READBACK_VERSION) {
+    throw new Error(
+      `host readback request version must be ${PORTABLE_PROVIDER_PLUGIN_READBACK_VERSION}`,
+    );
+  }
+  const write = record(readback.write, "host readback write");
+  exactKeys(write, ["operation", "contractVersion"], "host readback write");
+  const operation = boundedString(write.operation, "host readback write operation", 163);
+  if (!operationPattern.test(operation)) {
+    throw new Error("host readback write operation is malformed");
+  }
+  return Object.freeze({
+    version: PORTABLE_PROVIDER_PLUGIN_READBACK_VERSION,
+    runId: parseReadbackRunId(readback.runId),
+    intentHash: sha256(readback.intentHash, "host readback intentHash"),
+    write: Object.freeze({
+      operation,
+      contractVersion: boundedInteger(
+        write.contractVersion,
+        "host readback write contractVersion",
+        1,
+        1_000_000,
+      ),
+    }),
+  });
+}
+
+function parseReadbackObservation(
+  value: unknown,
+): PortablePluginReadbackObservation {
+  const readback = record(value, "plugin readback observation");
+  exactKeys(
+    readback,
+    ["version", "runId", "intentHash", "observation", "evidence"],
+    "plugin readback observation",
+  );
+  if (readback.version !== PORTABLE_PROVIDER_PLUGIN_READBACK_VERSION) {
+    throw new Error(
+      `plugin readback observation version must be ${PORTABLE_PROVIDER_PLUGIN_READBACK_VERSION}`,
+    );
+  }
+  if (
+    readback.observation !== "applied"
+    && readback.observation !== "not-applied"
+    && readback.observation !== "unknown"
+  ) {
+    throw new Error(
+      "plugin readback observation must be applied, not-applied, or unknown",
+    );
+  }
+  const evidence = normalizeJsonObject(
+    readback.evidence,
+    "plugin readback evidence",
+  );
+  if (
+    Buffer.byteLength(JSON.stringify(evidence), "utf8")
+      > MAX_PORTABLE_PROVIDER_PLUGIN_READBACK_EVIDENCE_BYTES
+  ) {
+    throw new Error("plugin readback evidence exceeds its byte bound");
+  }
+  return Object.freeze({
+    version: PORTABLE_PROVIDER_PLUGIN_READBACK_VERSION,
+    runId: parseReadbackRunId(readback.runId),
+    intentHash: sha256(readback.intentHash, "plugin readback intentHash"),
+    observation: readback.observation,
+    evidence,
+  });
+}
+
+/** Protocol 2 carries only the readback frames. */
+function parseReadbackMessageOrThrow(
+  message: Record<string, unknown>,
+): PortableProviderPluginMessage {
+  if (message.kind === "host.readback") {
+    exactKeys(
+      message,
+      [
+        "protocolVersion",
+        "kind",
+        "invocationId",
+        "route",
+        "readback",
+        "input",
+        "auth",
+        "timeoutMs",
+      ],
+      "host readback message",
+    );
+    return Object.freeze({
+      protocolVersion: PORTABLE_PROVIDER_PLUGIN_READBACK_PROTOCOL_VERSION,
+      kind: "host.readback",
+      invocationId: boundedToken(message.invocationId, "invocation ID"),
+      route: parseRoute(message.route),
+      readback: parseReadbackRequest(message.readback),
+      input: normalizeJsonObject(message.input, "plugin readback input"),
+      auth: parseAuth(message.auth),
+      timeoutMs: boundedInteger(
+        message.timeoutMs,
+        "plugin readback timeoutMs",
+        1,
+        10 * 60_000,
+      ),
+    });
+  }
+  if (message.kind === "plugin.readback.result") {
+    exactKeys(
+      message,
+      ["protocolVersion", "kind", "invocationId", "readback"],
+      "plugin readback result message",
+    );
+    return Object.freeze({
+      protocolVersion: PORTABLE_PROVIDER_PLUGIN_READBACK_PROTOCOL_VERSION,
+      kind: "plugin.readback.result",
+      invocationId: boundedToken(message.invocationId, "invocation ID"),
+      readback: parseReadbackObservation(message.readback),
+    });
+  }
+  throw new Error(
+    `portable provider plugin protocolVersion ${PORTABLE_PROVIDER_PLUGIN_READBACK_PROTOCOL_VERSION} carries only readback frames`,
+  );
+}
+
 function parseMessageOrThrow(value: unknown): PortableProviderPluginMessage {
   const message = record(value, "portable provider plugin message");
+  if (message.protocolVersion === PORTABLE_PROVIDER_PLUGIN_READBACK_PROTOCOL_VERSION) {
+    return parseReadbackMessageOrThrow(message);
+  }
   if (message.protocolVersion !== PORTABLE_PROVIDER_PLUGIN_PROTOCOL_VERSION) {
     throw new Error(
       `portable provider plugin protocolVersion must be ${PORTABLE_PROVIDER_PLUGIN_PROTOCOL_VERSION}`,

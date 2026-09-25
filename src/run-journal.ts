@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 
-import type { GhostgetAuth } from "./auth";
+import { normalizeAuthSubject, type GhostgetAuth } from "./auth";
 import { canonicalJson } from "./canonical-json";
 import type { OperationRisk } from "./model";
 import {
@@ -77,6 +77,26 @@ export type DuplicateSuccessorV1 = DuplicateIntentV1 & {
   readonly claimedAt: string;
 };
 
+/**
+ * The elected successor of a duplicate-risk source settled, so the source's
+ * recovery material is released. The source's indeterminate ledger stays: the
+ * intent fence still counts its possible effect.
+ */
+export type DuplicateSupersededV1 = {
+  readonly schemaVersion: 1;
+  readonly intentHash: string;
+  readonly successorRunId: string;
+  readonly supersededAt: string;
+};
+
+/** Transports whose one-dispatch R3 posts.publish writes may elect a successor. */
+export function duplicateSuccessorTransport(
+  transport: RunJournalContract["transport"],
+): boolean {
+  return transport === "web-session-api"
+    || transport === "portable-provider-plugin";
+}
+
 export type RunJournal = {
   readonly schemaVersion: 1;
   readonly revision: number;
@@ -95,9 +115,16 @@ export type RunJournal = {
     readonly hash: string;
     readonly kind: GhostgetAuth["kind"];
   };
+  /**
+   * The provider subject the auth record named when the run started. Journals
+   * written before this field existed carry none. The confirmed-write fence
+   * uses it to fence the same subject across auth locators.
+   */
+  readonly authSubject?: string;
   readonly contract: RunJournalContract;
   readonly duplicateIntent?: DuplicateIntentV1;
   readonly duplicateSuccessor?: DuplicateSuccessorV1;
+  readonly supersededBy?: DuplicateSupersededV1;
   readonly planHasAssets: boolean;
   /** Whether the encrypted confirmation plan is still independently usable. */
   readonly planState: "available" | "consumed";
@@ -135,6 +162,7 @@ export type StartRunJournal = {
   readonly risk: Extract<OperationRisk, "R2" | "R3">;
   readonly inputHash: string;
   readonly auth: RunJournal["auth"];
+  readonly authSubject?: string;
   readonly contract: RunJournalContract;
   readonly duplicateIntent?: DuplicateIntentV1;
   readonly plannedDispatches: number;
@@ -198,6 +226,17 @@ export type RunJournalEvent =
   | {
       /** Permanently elect the sole duplicate-tolerant successor intent. */
       readonly type: "duplicate-successor-claimed";
+      readonly intentHash: string;
+      readonly runId: string;
+      readonly at: string;
+    }
+  | {
+      /**
+       * The elected successor settled: release the source's recovery
+       * material and keep its indeterminate ledger. The caller proves the
+       * successor settled; this reducer checks only the source's own state.
+       */
+      readonly type: "duplicate-source-superseded";
       readonly intentHash: string;
       readonly runId: string;
       readonly at: string;
@@ -305,6 +344,25 @@ function parseDuplicateSuccessor(
   });
 }
 
+function parseDuplicateSuperseded(
+  value: unknown,
+): DuplicateSupersededV1 {
+  const label = "run journal duplicate supersession";
+  const record = dataRecord(value, label);
+  exactKeys(
+    record,
+    ["schemaVersion", "intentHash", "successorRunId", "supersededAt"],
+    label,
+  );
+  if (record.schemaVersion !== 1) throw new Error(`${label} is malformed`);
+  return Object.freeze({
+    schemaVersion: 1,
+    intentHash: digest(record.intentHash, `${label} intent hash`),
+    successorRunId: runId(record.successorRunId, `${label} successor run ID`),
+    supersededAt: timestamp(record.supersededAt, `${label} time`),
+  });
+}
+
 function boundedString(
   value: unknown,
   label: string,
@@ -372,6 +430,15 @@ function parseAuth(value: unknown): RunJournal["auth"] {
     hash: digest(record.hash, "run journal auth hash"),
     kind: record.kind as GhostgetAuth["kind"],
   };
+}
+
+function parseAuthSubject(value: unknown): string {
+  if (typeof value !== "string") throw new Error("run journal auth subject is malformed");
+  try {
+    return normalizeAuthSubject(value);
+  } catch {
+    throw new Error("run journal auth subject is malformed");
+  }
 }
 
 function parseContract(value: unknown): RunJournalContract {
@@ -483,7 +550,7 @@ function assertJournalInvariants(value: RunJournal): void {
       value.duplicateIntent.sourceRunId === value.runId
       || value.operation !== "posts.publish"
       || value.risk !== "R3"
-      || value.contract.transport !== "web-session-api"
+      || !duplicateSuccessorTransport(value.contract.transport)
       || dispatch.planned !== 1
     )
   ) {
@@ -497,16 +564,29 @@ function assertJournalInvariants(value: RunJournal): void {
       || Date.parse(value.duplicateSuccessor.claimedAt) < Date.parse(value.updatedAt)
       || value.operation !== "posts.publish"
       || value.risk !== "R3"
-      || value.contract.transport !== "web-session-api"
+      || !duplicateSuccessorTransport(value.contract.transport)
       || value.phase !== "terminal"
       || value.status !== "indeterminate"
       || dispatch.planned !== 1
       || dispatch.started !== 1
       || value.ledgerState !== "indeterminate"
-      || value.recoveryState !== "retained"
+      || value.recoveryState
+        !== (value.supersededBy === undefined ? "retained" : "released")
     )
   ) {
     throw new Error("duplicate successor claim has contradictory source state");
+  }
+  if (
+    value.supersededBy !== undefined
+    && (
+      value.duplicateSuccessor === undefined
+      || value.supersededBy.intentHash !== value.duplicateSuccessor.intentHash
+      || value.supersededBy.successorRunId !== value.duplicateSuccessor.runId
+      || Date.parse(value.supersededBy.supersededAt)
+        < Date.parse(value.duplicateSuccessor.claimedAt)
+    )
+  ) {
+    throw new Error("duplicate supersession names no elected successor");
   }
   if (Date.parse(value.updatedAt) < Date.parse(value.startedAt)) {
     throw new Error("run journal update precedes its start");
@@ -714,8 +794,10 @@ export function parseRunJournal(value: unknown): RunJournal {
     "finalOrigin",
     "error",
   ];
+  if (Object.hasOwn(record, "authSubject")) keys.push("authSubject");
   if (Object.hasOwn(record, "duplicateIntent")) keys.push("duplicateIntent");
   if (Object.hasOwn(record, "duplicateSuccessor")) keys.push("duplicateSuccessor");
+  if (Object.hasOwn(record, "supersededBy")) keys.push("supersededBy");
   exactKeys(record, keys, "run journal");
   if (
     record.schemaVersion !== 1
@@ -776,6 +858,9 @@ export function parseRunJournal(value: unknown): RunJournal {
     risk: record.risk,
     inputHash: digest(record.inputHash, "run journal input hash"),
     auth: parseAuth(record.auth),
+    ...(Object.hasOwn(record, "authSubject")
+      ? { authSubject: parseAuthSubject(record.authSubject) }
+      : {}),
     contract: parseContract(record.contract),
     ...(Object.hasOwn(record, "duplicateIntent")
       ? {
@@ -787,6 +872,9 @@ export function parseRunJournal(value: unknown): RunJournal {
       : {}),
     ...(Object.hasOwn(record, "duplicateSuccessor")
       ? { duplicateSuccessor: parseDuplicateSuccessor(record.duplicateSuccessor) }
+      : {}),
+    ...(Object.hasOwn(record, "supersededBy")
+      ? { supersededBy: parseDuplicateSuperseded(record.supersededBy) }
       : {}),
     planHasAssets: record.planHasAssets,
     planState: record.planState,
@@ -845,6 +933,9 @@ export function parseRunJournal(value: unknown): RunJournal {
     ...(journal.duplicateSuccessor === undefined
       ? {}
       : { duplicateSuccessor: Object.freeze({ ...journal.duplicateSuccessor }) }),
+    ...(journal.supersededBy === undefined
+      ? {}
+      : { supersededBy: Object.freeze({ ...journal.supersededBy }) }),
     dispatch: Object.freeze({ ...journal.dispatch }),
     owner: Object.freeze({ ...journal.owner }),
   });
@@ -861,6 +952,7 @@ export function initialRunJournal(value: StartRunJournal): RunJournal {
     risk: value.risk,
     inputHash: value.inputHash,
     auth: value.auth,
+    ...(value.authSubject === undefined ? {} : { authSubject: value.authSubject }),
     contract: value.contract,
     ...(value.duplicateIntent === undefined
       ? {}
@@ -981,7 +1073,7 @@ export function transitionRunJournal(
     if (
       current.operation !== "posts.publish"
       || current.risk !== "R3"
-      || current.contract.transport !== "web-session-api"
+      || !duplicateSuccessorTransport(current.contract.transport)
       || current.phase !== "terminal"
       || current.status !== "indeterminate"
       || current.dispatch.planned !== 1
@@ -1004,6 +1096,42 @@ export function transitionRunJournal(
         claimedAt: at,
       },
       // Claiming lineage must not rewrite the immutable receipt's finish time.
+      updatedAt: current.updatedAt,
+    });
+  }
+  if (event.type === "duplicate-source-superseded") {
+    const intentHash = digest(
+      event.intentHash,
+      "run journal duplicate supersession intent hash",
+    );
+    const successorRunId = runId(
+      event.runId,
+      "run journal duplicate supersession successor run ID",
+    );
+    const elected = current.duplicateSuccessor;
+    if (
+      elected === undefined
+      || elected.intentHash !== intentHash
+      || elected.runId !== successorRunId
+    ) {
+      throw new Error(
+        "only the elected duplicate successor can supersede its source run",
+      );
+    }
+    if (current.supersededBy !== undefined) return current;
+    return parseRunJournal({
+      ...current,
+      revision: current.revision + 1,
+      supersededBy: {
+        schemaVersion: 1,
+        intentHash,
+        successorRunId,
+        supersededAt: at,
+      },
+      // The source's indeterminate ledger stays: its possible effect still
+      // fences the intent. Only recovery material and retained assets go.
+      recoveryState: "released",
+      assetState: current.assetState === "retained" ? "released" : "none",
       updatedAt: current.updatedAt,
     });
   }

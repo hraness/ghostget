@@ -41,6 +41,7 @@ import {
   LEAN_DIFFERENTIAL_TESTS,
   PLATFORM_KEYS,
   QUINT,
+  QUINT_CONCURRENCY,
   QUINT_REPLAY_SCRIPT,
   QUINT_REPLAY_TIMEOUT_MS,
   QUINT_TRACE_TIMEOUT_MS,
@@ -78,6 +79,7 @@ import {
   readQuintModels,
   requireFinished,
   requireVerdict,
+  runAtMost,
   runTool,
   sanitizeCheckerOutput,
   verificationCacheDirectory,
@@ -684,6 +686,140 @@ describe("bounded checker processes", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Concurrent checker jobs
+// ---------------------------------------------------------------------------
+
+function deferred(): Readonly<{ promise: Promise<void>; resolve: () => void }> {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
+/** Lets every queued callback run, including the ones those callbacks queue. */
+const drain = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+describe("concurrent checker jobs", () => {
+  test("verify:quint runs two jobs at once on a four-vCPU runner", () => {
+    expect(QUINT_CONCURRENCY).toBe(2);
+  });
+
+  test("runs every task once, in order, with at most the limit at once", async () => {
+    const gates = [deferred(), deferred(), deferred(), deferred()];
+    const started: number[] = [];
+    let running = 0;
+    let peak = 0;
+    const done = runAtMost(gates.map((gate, index) => async () => {
+      started.push(index);
+      running += 1;
+      peak = Math.max(peak, running);
+      await gate.promise;
+      running -= 1;
+    }), 2);
+    await drain();
+    expect(started).toEqual([0, 1]);
+    gates[1]!.resolve();
+    await drain();
+    expect(started).toEqual([0, 1, 2]);
+    gates[0]!.resolve();
+    await drain();
+    expect(started).toEqual([0, 1, 2, 3]);
+    gates[2]!.resolve();
+    gates[3]!.resolve();
+    await done;
+    expect(peak).toBe(2);
+    expect(running).toBe(0);
+  });
+
+  test("starts nothing after a failure, waits for running tasks, and rethrows the earliest-listed failure", async () => {
+    const gate = deferred();
+    const events: string[] = [];
+    let settled = false;
+    const done = runAtMost([
+      async () => {
+        events.push("start 0");
+        await gate.promise;
+        events.push("end 0");
+        throw new Error("task 0 failed");
+      },
+      async () => {
+        events.push("start 1");
+        throw new Error("task 1 failed");
+      },
+      async () => {
+        events.push("start 2");
+      },
+    ], 2).finally(() => {
+      settled = true;
+    });
+    const outcome = done.then(() => null, (error: unknown) => error);
+    await drain();
+    expect(events).toEqual(["start 0", "start 1"]);
+    expect(settled).toBeFalse();
+    gate.resolve();
+    const error = await outcome;
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("task 0 failed");
+    expect(events).toEqual(["start 0", "start 1", "end 0"]);
+  });
+
+  test("rejects a limit that is not a positive integer and runs nothing", async () => {
+    let calls = 0;
+    const task = async (): Promise<void> => {
+      calls += 1;
+    };
+    for (const limit of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 53]) {
+      await expect(runAtMost([task], limit)).rejects.toThrow("positive integer limit");
+    }
+    await drain();
+    expect(calls).toBe(0);
+    await runAtMost([], 1);
+    await runAtMost([task], 3);
+    expect(calls).toBe(1);
+  });
+
+  test("property: tasks start once and in order, fill every slot, and none starts after a failure", async () => {
+    await assertAsyncProperty(fc.asyncProperty(
+      fc.array(fc.record({ fails: fc.boolean(), turns: fc.integer({ min: 1, max: 3 }) }), { maxLength: 8 }),
+      fc.integer({ min: 1, max: 4 }),
+      async (plan, limit) => {
+        const started: number[] = [];
+        const failed: number[] = [];
+        const lateStarts: number[] = [];
+        let running = 0;
+        let peak = 0;
+        const tasks = plan.map((step, index) => async () => {
+          if (failed.length > 0) lateStarts.push(index);
+          started.push(index);
+          running += 1;
+          peak = Math.max(peak, running);
+          // Each turn waits for a timer, so a thrown failure is recorded before any other task resumes.
+          for (let turn = 0; turn < step.turns; turn += 1) await drain();
+          running -= 1;
+          if (step.fails) {
+            failed.push(index);
+            throw new Error(`task ${String(index)} failed`);
+          }
+        });
+        const rejection = await runAtMost(tasks, limit).then(() => null, (error: unknown) => error);
+        expect(lateStarts).toEqual([]);
+        expect(running).toBe(0);
+        expect(peak).toBe(Math.min(limit, plan.length));
+        expect(started).toEqual(started.map((_, position) => position));
+        if (failed.length === 0) {
+          expect(rejection).toBeNull();
+          expect(started).toHaveLength(plan.length);
+        } else {
+          expect(rejection).toBeInstanceOf(Error);
+          expect((rejection as Error).message).toBe(`task ${String(Math.min(...failed))} failed`);
+        }
+      },
+    ));
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Checker verdicts
 // ---------------------------------------------------------------------------
 
@@ -945,7 +1081,9 @@ describe("Quint model manifest", () => {
       expect(model.mutants.length).toBeGreaterThan(0);
       const replay = await repositoryFile(model.replay.test);
       expect(replay).toContain(`"${model.file}"`);
-      expect(replay).toContain("parseItfTrace");
+      // Each replay file drives seeded ITF traces, either through the shared
+      // cache (which calls parseItfTrace) or by parsing traces itself.
+      expect(/parseItfTrace|quintTraceCache/u.test(replay)).toBeTrue();
     }
   });
 
@@ -1425,7 +1563,7 @@ describe("Lean trust base", () => {
     const register = JSON.parse(await repositoryFile("verification/claims.json")) as {
       claims: { id: string; layer: string; status: string; evidence: string[] }[];
     };
-    const ids = ["canonical-json-injective", "hash-framing-injective", "session-secret-filename-injective", "edge-accept-406-only-when-empty"];
+    const ids = ["canonical-json-injective", "hash-framing-injective", "session-secret-filename-injective", "identifier-roundtrip", "edge-accept-406-only-when-empty"];
     const cited = register.claims.filter((claim) => ids.includes(claim.id))
       .map((claim) => ({ id: claim.id, layer: claim.layer, status: claim.status, cites: claim.evidence.includes(LEAN_DIFFERENTIAL_TEST) }))
       .sort((left, right) => ids.indexOf(left.id) - ids.indexOf(right.id));

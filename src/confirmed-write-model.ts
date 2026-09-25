@@ -43,6 +43,13 @@ export type ConfirmedWriteIntent = {
   /** The current canonical input hash first, then any pre-migration encoding of the same input. */
   readonly inputHashes: readonly string[];
   readonly duplicateIntentHash?: string;
+  /**
+   * The provider subject the current auth record names, when it names one.
+   * An unsettled run of the same target, operation, and input that recorded
+   * this subject under another locator also fences the intent. Subjects may be
+   * typed by the operator, so this only ever refuses more, never less.
+   */
+  readonly authSubject?: string;
 };
 
 export type BoundedExecution = {

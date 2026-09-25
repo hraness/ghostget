@@ -35,10 +35,25 @@ The fence scans run journals before its exclusive create under
 `idempotency/intents`, so a run recorded before the fence existed still blocks.
 
 The realm is the locator ID, not the provider account, because the verified
-subject is optional and journals do not record it. Three limits follow:
+subject is optional. New run journals record the provider subject their auth
+record named, as an optional `authSubject`; journals written before this field
+existed carry none and stay valid. Before dispatch, the fence also refuses
+while an unsettled run of the same provider target, operation, and canonical
+input (and the same elected duplicate-risk source) recorded the same subject
+under a different locator ID. It checks this in its journal scan and again
+once the run's own intent claim is on record, just before the dispatch
+boundary, so two locators racing past the scan cannot both dispatch; both may
+refuse, and each is then retried after the other settles. The refusal names
+the other locator, where the blocking run is inspected and reconciled.
+Subjects may be typed by the operator, so two locators that record one subject
+are treated as one account even when they are not: the cross-locator fence can
+only refuse more, never less. Three limits follow:
 
-- The same account connected under a second locator ID is a different intent
-  and is not fenced against the first locator's runs.
+- The same account connected under a second locator ID with no recorded
+  subject on either side, or a run recorded before journals kept the subject,
+  is a different intent and is not fenced against the first locator's runs. A
+  succeeded run under another locator does not fence or replay: its receipt
+  belongs to that locator.
 - A fulfilled run whose auth record differs from the current one (a reconnect
   with new settings, or `--force` onto another account) is not replayed as the
   current account's result. Confirmation refuses until the dedupe window ends

@@ -13,6 +13,12 @@ releases:
 6. The model's replay test must pass. `verify:quint` runs every replay test
    that `models.json` names through the `verify:quint:replay` script.
 
+Steps 1 to 5 of one model form one job, and the one replay run forms another.
+`verify:quint` runs two jobs at once (`QUINT_CONCURRENCY` in
+`scripts/verification-tools.ts`), so its logs interleave models; every line
+names its model. After any job fails, no further job starts, the running jobs
+finish, and the run fails.
+
 A timeout, an interruption, or output the checker wrapper cannot parse fails
 the run. A clean typecheck alone is never evidence.
 

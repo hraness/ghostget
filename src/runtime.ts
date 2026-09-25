@@ -1823,10 +1823,13 @@ function resolveInvocationDuplicateRisk(
     plan.operation !== "posts.publish"
     || plan.risk !== "R3"
     || plan.dispatches.length !== 1
-    || plan.transport !== "web-session-api"
+    || (
+      plan.transport !== "web-session-api"
+      && plan.transport !== "portable-provider-plugin"
+    )
   ) {
     throw new Error(
-      "duplicate-tolerant intent v1 supports only one-dispatch authenticated-session posts.publish writes",
+      "duplicate-tolerant intent v1 supports only one-dispatch authenticated-session or portable-plugin posts.publish writes",
     );
   }
   const sourceRunId = requestedRunIds[0] as string;
@@ -2681,7 +2684,10 @@ function parseStoredPlan(value: unknown): StoredPlan {
       operation !== "posts.publish"
       || risk !== "R3"
       || dispatches.length !== 1
-      || transport !== "web-session-api"
+      || (
+        transport !== "web-session-api"
+        && transport !== "portable-provider-plugin"
+      )
     )
   ) {
     throw new Error("stored duplicate-risk plan is outside the supported v1 scope");
@@ -3360,9 +3366,50 @@ function journalFencesIntent(
 }
 
 /**
+ * Whether `journal` is an unsettled run of the same provider target,
+ * operation, canonical input, and duplicate-risk narrowing as `intent`, under
+ * another auth locator that recorded the same provider subject. Journals
+ * without a subject, and intents whose auth record names none, never match,
+ * so they keep the per-locator fence. A claimed run that has not yet crossed
+ * its dispatch boundary counts as unsettled.
+ */
+function journalFencesSubject(journal: RunJournal, intent: ConfirmedWriteIntent): boolean {
+  return intent.authSubject !== undefined
+    && journal.authSubject === intent.authSubject
+    && journal.auth.id !== intent.authId
+    && journal.adapter.id === intent.adapterId
+    && journal.operation === intent.operationId
+    && intent.inputHashes.includes(journal.inputHash)
+    && journal.duplicateIntent?.intentHash === intent.duplicateIntentHash
+    && journal.ledgerState !== "unclaimed"
+    && journal.ledgerState !== "released"
+    && journal.ledgerState !== "succeeded";
+}
+
+/**
+ * The unsettled run under another locator with the same provider subject that
+ * fences `intent` against run `runId`, or null.
+ *
+ * @internal Exported for the confirmed-write platform and the fence model's
+ * trace replay.
+ */
+export function subjectFenceBlocker(
+  journals: readonly RunJournal[],
+  intent: ConfirmedWriteIntent,
+  runId: string,
+): RunJournal | null {
+  if (intent.authSubject === undefined) return null;
+  for (const journal of journals) {
+    if (journal.runId !== runId && journalFencesSubject(journal, intent)) return journal;
+  }
+  return null;
+}
+
+/**
  * The journal that fences `intent` against run `runId`, or null. An unsettled
  * journal wins over a fulfilled one; among fulfilled journals, the one whose
- * dedupe window ends last.
+ * dedupe window ends last. An unsettled run under another locator that
+ * recorded the same provider subject also fences it.
  *
  * @internal Exported only for the fence model's trace replay.
  */
@@ -3376,13 +3423,49 @@ export function intentFenceBlocker(
   for (const journal of journals) {
     if (journal.runId === runId) continue;
     const fence = journalFencesIntent(journal, intent, now);
-    if (fence === "unsettled") return journal;
+    if (fence === "unsettled" || journalFencesSubject(journal, intent)) return journal;
     if (
       fence === "fulfilled"
       && (fulfilled === null || Date.parse(journal.dedupeExpiresAt) > Date.parse(fulfilled.dedupeExpiresAt))
     ) fulfilled = journal;
   }
   return fulfilled;
+}
+
+/** Every run journal; an invalid one leaves the intent unresolved. */
+function confirmedWriteJournals(
+  environment: Readonly<Record<string, string | undefined>>,
+): readonly RunJournal[] {
+  return listRunJournalSnapshots(environment).map((candidate) => {
+    if ("invalid" in candidate) {
+      throw new Error("invalid run journals make the confirmed-write intent unresolved");
+    }
+    return candidate.journal;
+  });
+}
+
+/**
+ * Recheck the provider-subject fence after run `runId` recorded its ledger
+ * claim and before it may dispatch. The pre-claim scan and the claim are
+ * separate steps, and each locator claims its own intent ledger, so two runs
+ * of one subject under two locators could both pass the scan. Each records
+ * its claim before this recheck, so at least one of them sees the other and
+ * refuses; both may refuse. Returns the blocking run's ledger entry and
+ * locator, or null.
+ *
+ * @internal Exported for the confirmed-write platform and the fence model's
+ * trace replay.
+ */
+export function recheckConfirmedWriteSubjectFence(
+  intent: ConfirmedWriteIntent,
+  runId: string,
+  environment: Readonly<Record<string, string | undefined>>,
+): { readonly existing: LedgerEntry; readonly viaIntent: true; readonly viaSubject: { readonly authId: string } } | null {
+  if (intent.authSubject === undefined) return null;
+  const blocker = subjectFenceBlocker(confirmedWriteJournals(environment), intent, runId);
+  return blocker === null
+    ? null
+    : { existing: runJournalLedgerEntry(blocker), viaIntent: true, viaSubject: { authId: blocker.auth.id } };
 }
 
 /**
@@ -3399,19 +3482,23 @@ function acquireIntentLedger(
   now: Date,
 ):
   | { readonly acquired: true; readonly snapshot: LedgerSnapshot }
-  | { readonly acquired: false; readonly existing: LedgerEntry; readonly viaIntent: true } {
+  | {
+      readonly acquired: false;
+      readonly existing: LedgerEntry;
+      readonly viaIntent: true;
+      readonly viaSubject?: { readonly authId: string };
+    } {
   if (!intent.inputHashes.includes(entry.inputHash)) {
     throw new Error("confirmed-write intent does not bind its ledger input");
   }
-  const journals = listRunJournalSnapshots(environment).map((candidate) => {
-    if ("invalid" in candidate) {
-      throw new Error("invalid run journals make the confirmed-write intent unresolved");
-    }
-    return candidate.journal;
-  });
-  const blocker = intentFenceBlocker(journals, intent, entry.runId, now);
+  const blocker = intentFenceBlocker(confirmedWriteJournals(environment), intent, entry.runId, now);
   if (blocker !== null) {
-    return { acquired: false, existing: runJournalLedgerEntry(blocker), viaIntent: true };
+    return {
+      acquired: false,
+      existing: runJournalLedgerEntry(blocker),
+      viaIntent: true,
+      ...(blocker.auth.id === intent.authId ? {} : { viaSubject: { authId: blocker.auth.id } }),
+    };
   }
   const claimed = acquireLedger(
     intentLedgerPath(intent.adapterId, intent.authId, intent.operationId, entry.inputHash, environment, intent.duplicateIntentHash),
@@ -4237,12 +4324,104 @@ export function repairInterruptedRunJournals(
       });
     }
   }
+  for (const failed of supersedeSettledDuplicateSources(environment, now).failed) {
+    issues.push({ runId: failed, reason: "transition-failed" });
+  }
   return Object.freeze({
     inspected: entries.length,
     repaired,
     projected,
     invalid,
     issues: Object.freeze(issues),
+  });
+}
+
+/** A terminal journal that holds no recovery material or retained assets. */
+function runJournalIsSettled(journal: RunJournal): boolean {
+  return journal.phase === "terminal"
+    && (journal.recoveryState === "absent" || journal.recoveryState === "released")
+    && (journal.assetState === "none" || journal.assetState === "released");
+}
+
+/**
+ * The event that supersedes duplicate-risk source `source` once its elected
+ * successor `successor` settled after a dispatch, or null. A successor that
+ * finished `failed` never dispatched and supersedes nothing.
+ *
+ * @internal Exported for supersedeSettledDuplicateSources and the
+ * retained-source model's trace replay.
+ */
+export function duplicateSourceSupersession(
+  source: RunJournal,
+  successor: RunJournal | undefined,
+  now: Date,
+): Extract<RunJournalEvent, { readonly type: "duplicate-source-superseded" }> | null {
+  const elected = source.duplicateSuccessor;
+  if (
+    elected === undefined
+    || source.supersededBy !== undefined
+    || successor === undefined
+    || successor.runId !== elected.runId
+    || successor.duplicateIntent?.sourceRunId !== source.runId
+    || successor.duplicateIntent.intentHash !== elected.intentHash
+    || successor.status === "failed"
+    || successor.dispatch.started < 1
+    || !runJournalIsSettled(successor)
+  ) return null;
+  return {
+    type: "duplicate-source-superseded",
+    intentHash: elected.intentHash,
+    runId: elected.runId,
+    at: new Date(Math.max(
+      now.getTime(),
+      Date.parse(elected.claimedAt),
+    )).toISOString(),
+  };
+}
+
+export type DuplicateSupersessionReport = {
+  readonly superseded: readonly string[];
+  readonly failed: readonly string[];
+};
+
+/**
+ * Mark each duplicate-risk source whose elected successor has settled as
+ * superseded. That releases only the source's recovery capsule and retained
+ * assets, so the source no longer holds its plugin bundle; its indeterminate
+ * ledger and intent claim stay, and the intent fence still counts its effect.
+ * A successor that finished `failed` never dispatched and supersedes nothing.
+ */
+export function supersedeSettledDuplicateSources(
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  now = new Date(),
+): DuplicateSupersessionReport {
+  const entries = listRunJournalSnapshots(environment);
+  const byRun = new Map<string, RunJournalSnapshot>();
+  for (const entry of entries) {
+    if (!("invalid" in entry)) byRun.set(entry.journal.runId, entry);
+  }
+  const superseded: string[] = [];
+  const failed: string[] = [];
+  for (const source of byRun.values()) {
+    const elected = source.journal.duplicateSuccessor;
+    if (elected === undefined) continue;
+    const event = duplicateSourceSupersession(
+      source.journal,
+      byRun.get(elected.runId)?.journal,
+      now,
+    );
+    if (event === null) continue;
+    try {
+      const next = updateRunJournal(source, event, environment);
+      projectRunJournal(next.journal, environment);
+      superseded.push(source.journal.runId);
+    } catch {
+      failed.push(source.journal.runId);
+    }
+  }
+  return Object.freeze({
+    superseded: Object.freeze(superseded),
+    failed: Object.freeze(failed),
   });
 }
 
@@ -4463,8 +4642,9 @@ export function reconciledRecoveryRelease(
 
 /**
  * Release a reconciled run's recovery material and keep its idempotency
- * ledger. No reconciler observes that a write did not apply, and a caller's
- * claim is not that evidence, so reconciliation never reopens the fence.
+ * ledger. A caller's claim is not evidence that a write did not apply, so
+ * this path never reopens the fence; only releaseObservedNotAppliedRunRecovery
+ * does, after a recorded readback that Ghostget itself invoked.
  */
 export function releaseReconciledRunRecovery(
   runId: string,
@@ -4526,6 +4706,106 @@ export function releaseReconciledRunRecovery(
       outcome: "applied",
       at: snapshot.journal.updatedAt,
     });
+  }
+  projectRunJournal(snapshot.journal, environment);
+  return "journal-released";
+}
+
+/**
+ * The confirmed-write intent key of a run: the basename of its intent ledger
+ * path. A readback request carries it so an observation binds one intent.
+ */
+export function runJournalIntentHash(
+  journal: RunJournal,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): string {
+  return basename(intentLedgerPath(
+    journal.adapter.id,
+    journal.auth.id,
+    journal.operation,
+    journal.inputHash,
+    environment,
+    journal.duplicateIntent?.intentHash,
+  ), ".json");
+}
+
+/**
+ * The journal event that reopens a run's fence after Ghostget observed,
+ * through the plugin's declared readback, that its one write did not apply.
+ * A source that elected a duplicate successor, or a run with a verified
+ * dispatch, never reopens.
+ *
+ * @internal Exported for releaseObservedNotAppliedRunRecovery and the
+ * retained-source model's trace replay.
+ */
+export function observedNotAppliedRelease(
+  journal: RunJournal,
+  now: Date,
+): Extract<RunJournalEvent, { readonly type: "recovery-released" }> {
+  if (journal.duplicateSuccessor !== undefined) {
+    throw new Error(
+      "a run that elected a duplicate successor cannot be reopened by readback",
+    );
+  }
+  if (journal.dispatch.verified !== 0) {
+    throw new Error(
+      "a not-applied readback contradicts a verified dispatch of this run",
+    );
+  }
+  return {
+    type: "recovery-released",
+    outcome: "not-applied",
+    at: new Date(Math.max(now.getTime(), Date.parse(journal.updatedAt))).toISOString(),
+  };
+}
+
+/**
+ * Release a run's recovery material and its at-most-once ledger after
+ * Ghostget itself observed, through a plugin's declared readback bound to
+ * this run and intent, that the one write did not apply. The caller must
+ * have durably recorded that observation first. A run with a verified
+ * dispatch, or one whose duplicate successor was elected, never reopens.
+ */
+export function releaseObservedNotAppliedRunRecovery(
+  runId: string,
+  expectedReceiptHash: string,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  now = new Date(),
+): "journal-released" {
+  if (!/^[a-f0-9]{64}$/u.test(expectedReceiptHash)) {
+    throw new Error("reconciliation receipt hash is malformed");
+  }
+  let snapshot = readRunJournal(runId, environment);
+  if (snapshot === null) {
+    throw new Error("observed not-applied release requires a run journal");
+  }
+  if (
+    snapshot.journal.phase !== "terminal"
+    || (
+      snapshot.journal.status !== "partial"
+      && snapshot.journal.status !== "indeterminate"
+    )
+  ) {
+    throw new Error(
+      "run journal is not an unsettled terminal write eligible for reconciliation",
+    );
+  }
+  if (
+    !canonicalJsonSha256Matches(
+      expectedReceiptHash,
+      runJournalReceipt(snapshot.journal),
+    )
+  ) {
+    throw new Error("run journal no longer matches the reconciled receipt");
+  }
+  const event = observedNotAppliedRelease(snapshot.journal, now);
+  if (
+    snapshot.journal.recoveryState !== "released"
+    || snapshot.journal.ledgerState !== "released"
+  ) {
+    snapshot = updateRunJournal(snapshot, event, environment);
+  } else {
+    transitionRunJournal(snapshot.journal, event);
   }
   projectRunJournal(snapshot.journal, environment);
   return "journal-released";
@@ -5298,6 +5578,7 @@ async function confirmInvocationCore(
     isDispatchProgress,
     ledgerPath: confirmedWriteLedgerPath,
     acquireConfirmedWriteLedgers,
+    recheckConfirmedWriteSubjectFence,
     writeReceipt,
     runJournalReceipt,
     relativeStatePath,
@@ -5317,8 +5598,18 @@ export async function confirmInvocation(digest: string, options: Parameters<type
   if (!readOperationPolicy(environment).managed) return withUnmanagedOperationPermission(environment, () => confirmInvocationCore(digest, options));
   const registry = options.registry ?? providerPluginRegistry;
   const stored = loadInvocationPlan(digest, environment);
-  const invocation = validateFreshPlan(stored, environment, options.now ?? new Date(), registry,
-    options.loadManifest ?? ((id, selected = environment) => loadInstalledManifestWithRegistry(id, selected, registry)));
+  let invocation: PreparedInvocation;
+  try {
+    invocation = validateFreshPlan(stored, environment, options.now ?? new Date(), registry,
+      options.loadManifest ?? ((id, selected = environment) => loadInstalledManifestWithRegistry(id, selected, registry)));
+  } catch (error) {
+    // An expired or drifted plan is consumed without dispatch, as the
+    // unmanaged confirmation program consumes it; otherwise restoring the
+    // interface or clock would revive it. A plan another confirmation owns
+    // stays with that owner, and the original refusal is what the caller sees.
+    try { cancelInvocationPlan(digest, environment); } catch { /* the refusal below stands */ }
+    throw error;
+  }
   return withOperationPermission(invocation, { environment, registry, plan: stored, ...(options.signal === undefined ? {} : { signal: options.signal }) },
     () => confirmInvocationCore(digest, options));
 }

@@ -1,20 +1,17 @@
 # Ghostget
 
-[![The title “Ghostget: named web actions for AI agents” and the Ghostget ghost mark on a light card](https://ghostget.com/og.png)](https://ghostget.com)
+[![The title “Ghostget: Your agent calls web actions by name and holds no password.” and the Ghostget ghost mark on a light card](https://ghostget.com/og.png)](https://ghostget.com)
 
 [![skills.sh](https://skills.sh/b/hraness/ghostget)](https://www.skills.sh/hraness/ghostget/ghostget)
 
-**Read pages, save media, and use connected accounts from the agent you already use.**
+Ghostget gives the agent you already use a fixed list of reviewed web actions:
+read a page, save one media item, or act in a connected account. Your agent
+never sees your credentials and never steers a browser.
 
-Ghostget gives Codex, Claude Code, Cursor, and other agents that can run commands
-local tools for web and account tasks. Read a URL as Markdown, keep a searchable
-copy, archive a video, or use a supported action in services such as Gmail,
-Beeper, and X. Ghostget handles the account connection and returns the result;
-your agent supplies the model and the plan.
-
-Start with a public page. You need no Ghostget account, API key, connected
-service, or Markdown vault. Ghostget is free, MIT licensed, and runs on macOS
-and Linux with Bun 1.3.14.
+Ghostget works with Codex, Claude Code, Cursor, and other agents that can run
+commands; your agent supplies the model and the plan. Start with a public page.
+You need no Ghostget account, API key, connected service, or Markdown vault.
+Ghostget is free, MIT licensed, and runs on macOS and Linux with Bun 1.3.14.
 
 [Get started](#install) · [Choose a task](#choose-your-next-task) · [Supported services](https://ghostget.com/docs/reference/provider-capabilities/) · [Docs](https://ghostget.com/docs/tutorials/getting-started/) · [Security](SECURITY.md)
 

@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>Ghostget: named web actions for AI agents</title>
+    <title>Ghostget: Your agent calls web actions by name and holds no password.</title>
     <meta name="description" content="{{GHOSTGET_DESCRIPTION}}">
     <meta name="application-name" content="Ghostget">
     <meta name="generator" content="Bun 1.3.14">
@@ -20,7 +20,7 @@
 
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Ghostget">
-    <meta property="og:title" content="Ghostget: named web actions for AI agents">
+    <meta property="og:title" content="Ghostget: Your agent calls web actions by name and holds no password.">
     <meta property="og:description" content="{{GHOSTGET_DESCRIPTION}}">
     <meta property="og:url" content="https://ghostget.com/">
     <meta property="og:image" content="https://ghostget.com/og.png">
@@ -29,7 +29,7 @@
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Ghostget: named web actions for AI agents">
+    <meta name="twitter:title" content="Ghostget: Your agent calls web actions by name and holds no password.">
     <meta name="twitter:description" content="{{GHOSTGET_DESCRIPTION}}">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
     <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
@@ -72,11 +72,11 @@
           {{GHOSTGET_FIELD}}
           <div class="hraness-marketing-hero__copy">
             <p aria-hidden="true" class="hraness-marketing-hero__name">Ghostget</p>
-            <h1 class="hraness-marketing-hero__heading" id="brand-name">Let your agent read pages, save media, and use your accounts through named actions.</h1>
-            <p class="hraness-marketing-hero__summary hero-explainer">Ask your agent to install Ghostget. It can then read a page, save one media item, or use an account you connected, and each action returns only its result instead of a browser to click through. A measured article read comes back at about 3,800 tokens where the raw page carries 36,000, and the agent never sees your logins.</p>
+            <h1 class="hraness-marketing-hero__heading" id="brand-name">Your agent calls web actions by name and holds no password.</h1>
+            <p class="hraness-marketing-hero__summary hero-explainer">Install the CLI or tell your agent to. It reads a page, archives one media item, or acts in an account you connected, and returns the result instead of a browser to steer.</p>
             <div class="hraness-marketing-hero__actions">
               <a class="hraness-marketing-action hraness-material-control" data-emphasis="primary" data-foil="" href="#start">Install Ghostget</a>
-              <a class="hraness-marketing-action hraness-material-control" data-emphasis="secondary" href="#how-it-works">See how it works</a>
+              <a class="hraness-marketing-action hraness-material-control" data-emphasis="secondary" href="/docs/tutorials/getting-started/#demo">See it work</a>
             </div>
             <aside class="prompt-card">
               <p class="prompt-label">Tell your agent</p>
@@ -328,16 +328,16 @@ ghostget read https://example.com</code></pre>
             <details class="hraness-marketing-question hraness-material-disclosure"><summary>What happens when a service changes?</summary><div class="hraness-marketing-question__answer"><p>The affected action becomes unavailable until its definition is updated, reviewed, and tested. Ghostget never quietly falls back to a browser, so a changed page never turns into a guessed action.</p></div></details>
             <details class="hraness-marketing-question hraness-material-disclosure"><summary>Why does Ghostget refuse to retry some writes?</summary><div class="hraness-marketing-question__answer"><p>If a request left the machine and its response was lost, the effect may already exist. Ghostget keeps that uncertainty visible and reconciles it from separately obtained evidence instead of sending the request again.</p></div></details>
             <details class="hraness-marketing-question hraness-material-disclosure"><summary>What does release {{GHOSTGET_RELEASE}} include?</summary><div class="hraness-marketing-question__answer"><p>Page capture, media archives, encrypted reads, and {{PROVIDER_CALLABLE_ACTION_COUNT}} supported actions across {{PROVIDER_SURFACE_COUNT}} services. <code>ghostget capabilities</code> is the source of truth for what is installed and available on your machine, and the <a href="/docs/reference/provider-capabilities/">provider list</a> names every action in this release.</p></div></details>
-            <details class="hraness-marketing-question hraness-material-disclosure"><summary>Who made it?</summary><div class="hraness-marketing-question__answer"><p>Ben Guo, a musician and builder who was a founder and engineering leader at companies including Venmo and Stripe, and who now builds from Puerto Rico. Ghostget is published in the open under the Hraness GitHub organization.</p></div></details>
+            <details class="hraness-marketing-question hraness-material-disclosure"><summary>Who made it?</summary><div class="hraness-marketing-question__answer"><p>Hraness is a software studio in Puerto Rico. We build tools that give AI agents memory, context, web access, and a record of their work, and we make apps and sourced archives for people. Ghostget is published in the open under the <a href="https://github.com/hraness">Hraness GitHub organization</a>.</p></div></details>
           </div>
         </section>
 
         <section aria-labelledby="maker-title" class="hraness-marketing-maker" data-hraness-marketing="maker" id="maker">
           <header class="hraness-marketing-maker__header">
-            <h2 class="hraness-marketing-maker__heading" id="maker-title">Ben Guo</h2>
+            <h2 class="hraness-marketing-maker__heading" id="maker-title">Hraness</h2>
           </header>
           <div class="hraness-marketing-maker__body">
-            <p>Ghostget is built by Ben Guo, a musician and builder, formerly a founder and engineering leader at companies including Venmo and Stripe, now building from Puerto Rico. He publishes it in the open with the rest of his projects at hraness.com.</p>
+            <p>Ghostget is built by Hraness, a software studio in Puerto Rico. We build tools that give AI agents memory, context, web access, and a record of their work, and we make apps and sourced archives for people.</p>
             <ul class="hraness-marketing-maker__links">
               <li><a href="https://hraness.com">hraness.com</a></li>
               <li><a href="https://x.com/hraness">@hraness</a></li>
@@ -363,9 +363,9 @@ ghostget read https://example.com</code></pre>
               <p class="hraness-marketing-related__group-summary">The layer your agent runs through: sessions, accounts, web reads, and the models behind them.</p>
             </div>
             <div aria-label="The agent platform" class="hraness-marketing-card-row" data-hraness-marketing="card-row">
-              <a class="hraness-marketing-card" data-hraness-marketing="card" href="https://gobstopper.sh"><h3 class="hraness-marketing-card__title">Gobstopper</h3><p class="hraness-marketing-card__meta">Automatic context compaction for agent sessions</p><div class="hraness-marketing-card__body">Gobstopper compacts agent context earlier and keeps a recoverable session history.</div></a>
-              <a class="hraness-marketing-card" data-hraness-marketing="card" href="https://xcb.sh"><h3 class="hraness-marketing-card__title">xcb</h3><p class="hraness-marketing-card__meta">A metaharness for agent subscriptions</p><div class="hraness-marketing-card__body">xcb runs agents on your own AI subscriptions from one terminal workspace and shows the token spend.</div></a>
-              <a class="hraness-marketing-card" data-hraness-marketing="card" href="https://aicharts.io"><h3 class="hraness-marketing-card__title">AI Charts</h3><p class="hraness-marketing-card__meta">AI model benchmarks and usage inspection</p><div class="hraness-marketing-card__body">AI Charts compares AI models on benchmarks and shows your own token usage.</div></a>
+              <a class="hraness-marketing-card" data-hraness-marketing="card" href="https://gobstopper.sh"><h3 class="hraness-marketing-card__title">Gobstopper</h3><p class="hraness-marketing-card__meta">Compacts long agent sessions into smaller copies, keeping every byte</p><div class="hraness-marketing-card__body">Gobstopper compacts agent context earlier and keeps a recoverable session history.</div></a>
+              <a class="hraness-marketing-card" data-hraness-marketing="card" href="https://xcb.sh"><h3 class="hraness-marketing-card__title">xcb</h3><p class="hraness-marketing-card__meta">Routes coding tasks across the Claude, Codex, and Devin plans you have</p><div class="hraness-marketing-card__body">xcb runs agents on your own AI subscriptions from one terminal workspace and shows the token spend.</div></a>
+              <a class="hraness-marketing-card" data-hraness-marketing="card" href="https://aicharts.io"><h3 class="hraness-marketing-card__title">AI Charts</h3><p class="hraness-marketing-card__meta">Model benchmark scores plotted against cost and tokens per task</p><div class="hraness-marketing-card__body">AI Charts compares AI models on benchmarks and shows your own token usage.</div></a>
             </div>
           </div>
           <div class="hraness-marketing-related__group">
@@ -373,16 +373,16 @@ ghostget read https://example.com</code></pre>
               <h3 class="hraness-marketing-related__group-heading" id="related-apps">The personal apps</h3>
             </div>
             <div aria-label="The personal apps" class="hraness-marketing-card-row" data-hraness-marketing="card-row">
-              <a class="hraness-marketing-card" data-hraness-marketing="card" href="https://peopleblade.com"><h3 class="hraness-marketing-card__title">PeopleBlade</h3><p class="hraness-marketing-card__meta">A private contact book for you and your agent</p><div class="hraness-marketing-card__body">PeopleBlade calls reviewed Ghostget provider actions and checks what they return before adding it to your local contacts.</div></a>
-              <a class="hraness-marketing-card" data-hraness-marketing="card" href="https://soulscrape.com"><h3 class="hraness-marketing-card__title">Soulscrape</h3><p class="hraness-marketing-card__meta">A dated, cited dossier on a person</p><div class="hraness-marketing-card__body">Soulscrape builds a dated model of a person from cited evidence and lists the open questions.</div></a>
-              <a class="hraness-marketing-card" data-hraness-marketing="card" href="https://textbutler.app"><h3 class="hraness-marketing-card__title">Textbutler</h3><p class="hraness-marketing-card__meta">A personal message butler for Mac</p><div class="hraness-marketing-card__body">Textbutler is a message assistant for your Mac. It checks and imports the private Beeper history bundles that Ghostget exports.</div></a>
-              <a class="hraness-marketing-card" data-hraness-marketing="card" href="https://wordcell.io"><h3 class="hraness-marketing-card__title">Wordcell</h3><p class="hraness-marketing-card__meta">A Markdown knowledge base for agents</p><div class="hraness-marketing-card__body">Wordcell is a Markdown knowledge base for agents. A saved Ghostget capture is a Markdown file with its source URL recorded at the top.</div></a>
+              <a class="hraness-marketing-card" data-hraness-marketing="card" href="https://peopleblade.com"><h3 class="hraness-marketing-card__title">PeopleBlade</h3><p class="hraness-marketing-card__meta">Local personal CRM for everyone you know, built for your agent</p><div class="hraness-marketing-card__body">PeopleBlade calls reviewed Ghostget provider actions and checks what they return before adding it to your local contacts.</div></a>
+              <a class="hraness-marketing-card" data-hraness-marketing="card" href="https://soulscrape.com"><h3 class="hraness-marketing-card__title">Soulscrape</h3><p class="hraness-marketing-card__meta">Free agent skill that writes dated dossiers on people, sources cited</p><div class="hraness-marketing-card__body">Soulscrape builds a dated model of a person from cited evidence and lists the open questions.</div></a>
+              <a class="hraness-marketing-card" data-hraness-marketing="card" href="https://textbutler.app"><h3 class="hraness-marketing-card__title">Textbutler</h3><p class="hraness-marketing-card__meta">AI butler for the iMessage, WhatsApp, and Beeper chats you choose</p><div class="hraness-marketing-card__body">Textbutler is a message assistant for your Mac. It checks and imports the private Beeper history bundles that Ghostget exports.</div></a>
+              <a class="hraness-marketing-card" data-hraness-marketing="card" href="https://wordcell.io"><h3 class="hraness-marketing-card__title">Wordcell</h3><p class="hraness-marketing-card__meta">Markdown knowledge base that gives agents the decisions behind code</p><div class="hraness-marketing-card__body">Wordcell is a Markdown knowledge base for agents. A saved Ghostget capture is a Markdown file with its source URL recorded at the top.</div></a>
             </div>
           </div>
         </section>
 
         <section aria-labelledby="final-title" class="hraness-marketing-cta" data-hraness-marketing="cta" data-tone="paper" id="closing">
-          <h2 class="hraness-marketing-cta__heading" id="final-title">Install Ghostget for the agent you already use.</h2>
+          <h2 class="hraness-marketing-cta__heading" id="final-title">Your agent calls web actions by name and holds no password.</h2>
           <p class="hraness-marketing-cta__summary">Read one public page with no account or API key, then connect a service when you need its actions.</p>
           <div class="hraness-marketing-cta__actions">
             <a class="hraness-marketing-action hraness-material-control" data-emphasis="primary" data-foil="" href="#start">Install Ghostget</a>

@@ -3,7 +3,7 @@ title: Build a formally checked assurance case for Ghostget
 description: Audit Ghostget end to end, fix the defects the audit found, and add Quint models, Lean proofs, model-based tests, and a claims register so every stated safety law has named evidence.
 type: plan
 area: verification
-status: proposed
+status: completed
 repository_scopes:
   - src
   - edge
@@ -97,7 +97,7 @@ web gateway, the Edge middleware, media, release, and CI on `origin/main`
 | D11 | Media | `assertOwned` observes the lock but does not fence the promotion `rename`. Media-lock liveness trusts `kill(pid, 0)` over heartbeat age, which breaks on shared or namespaced filesystems. | code-read |
 | D12 | Edge | The direct `.md` branch calls `retrieve(new URL(url.pathname, url.origin))` (`edge/negotiation.ts:257`), so `//evil.example/x.md` resolves off-origin in-process. The live site is not affected: Vercel returns 308 to a single slash before middleware, and `/\` returns 404 (checked 2026-09-23). The code still violates same-origin retrieval if the platform changes. | reproduced in-process; latent live |
 | D13 | Approvals | Allow-once is enforced by the client. The broker leaves an `allowed` entry checkable for 600 s and relies on the Ghostget process calling `releaseApproval` in `finally`. A crash leaves a reusable lease for same-UID callers. | code-read |
-| D14 | Read paths | The menu-bar snapshot creates incarnation files through `ensureIncarnationUnderAdmission`, and read-projection listings unlink orphaned claims. Both break the literal rule "No writes on read paths". Either the rule gets an explicit, bounded exemption or the writes move. Done: #355 made the snapshot read-only, #371 moved the cache-read and omni auth checks to `AuthIncarnationReader` and recorded the two exemptions, and the residual-incarnation change binds read-path preparation, confirmation preparation, and the permission account identity the same way. Explicit invocation preparation remains the admitted creator. | code-confirmed; fixed |
+| D14 | Read paths | The menu-bar snapshot creates incarnation files through `ensureIncarnationUnderAdmission`, and read-projection listings unlink orphaned claims. Both break the literal rule "No writes on read paths". Either the rule gets an explicit, bounded exemption or the writes move. Done: #355 made the snapshot read-only, #371 moved the cache-read and omni auth checks to `AuthIncarnationReader` and recorded the two exemptions, and the residual-incarnation change binds read-path preparation, confirmation preparation, and the permission account identity the same way. Explicit invocation preparation remains the admitted creator. Owner decision (delegated): `invoke --projection-identity-only` is the SDK's identity preflight for a live invoke, so it is execution preparation and stays an admitted creator; `src/read-path-preparation.test.ts` pins that it creates a missing incarnation while `invoke --cache-only` creates none. | code-confirmed; fixed |
 | D15 | Release | Manual promotion refuses a Release that an intermediate attempt published. When a failed-jobs rerun publishes bytes an earlier attempt attested, the body names that earlier attempt. A later rerun of all jobs then fails its publish job, and `resolveReleaseAuthority` reads only the latest attempt and the receipt attempt, neither of which proved all four canonical jobs. Found by a strengthened `promotionNotBlocked` over `verification/quint/release.qnt` (attempts: publish fails, rerun failed jobs publishes, rerun all) and reproduced against `resolveReleaseAuthority` with the release replay fixtures. Fixed: when the receipt attempt attested but did not publish, manual recovery and the canonical download read at most three exact intermediate attempts, each through its own attempt record and job inventory, and the model's `promotionNotBlocked` now names any publishing attempt (mutant `stepD15`). | reproduced, fixed |
 | D16 | Release | A stable Release that completes out of band during publication is hidden. `publishCanonicalRelease` ran the completed-Release census before the PATCH but not after it, so a higher Release completed between that census and the PATCH (GitHub has no conditional publish) let the PATCH make the older target Latest and the run report success. Found by the stateful publisher model in `scripts/github-release-publish-model.test.ts` (shrunk to `Publish(R1, concurrent-higher at main read 7)`). Fixed: the census repeats after the terminal authority proof, and on an already-published target, so such a run fails closed; the immutable publication itself cannot be undone. | reproduced, fixed |
 | D17 | Release | Pending stable Release runs could be cancelled. GitHub keeps one running and one pending run per concurrency group and cancels the pending run when a third arrives, so a tag pushed while two runs were queued never published. Fixed: the `stable-release` group sets `queue: max`, which queues up to 100 pending runs in order. | code-read, fixed |
@@ -217,9 +217,9 @@ and passes after the fix, and `Required` passes.
 | Doctor readback of the intent fence | Done: `ghostget.intentFences` in `ghostget doctor`, claim `intent-fence-readback`. |
 | Bind the recovery realm to the provider subject | Done: recovery capsules record the auth record's subject, claim `recovery-auth-continuity`. |
 | Reconcile across a reauth | Done: web-session and portable reconcile and web duplicate-successor election accept a reconnect that keeps the locator, kind, and recorded subject. Capsules with no subject still need the exact record. |
-| Portable readback protocol | Open: needs a new versioned portable protocol frame and manifest declaration, which is a public interface decision for the owner. |
-| Duplicate successors for portable runs | Open: a source retained for its successor keeps its bundle unquiescent for good. The owner must decide how a retained source releases its bundle hold. |
-| Fence keyed by subject across locators | Open: run journals do not record the subject, so this needs a journal schema change. |
+| Portable readback protocol | Done (claim `portable-retained-release`, `verification/quint/retained.qnt`). The owner chose an optional versioned readback: a write declares `readback: {version: 1, operation, contractVersion}`, protocol 2 carries only the `host.readback` and `plugin.readback.result` frames, and protocol 1 stays accepted. Ghostget invokes the readback itself, bound to the run, intent, auth realm, and manifest, and only its observed `not-applied` releases the fence. Undeclared plugins keep the explicit-input path. Still open: no owner-approval route reaches portable reconciliation. |
+| Duplicate successors for portable runs | Done (claim `portable-retained-release`). Portable writes elect duplicate-risk successors under the web path's rules. Once the successor settles, the source's journal records `supersededBy`, which releases its recovery material and assets so the bundle is quiescent; its ledger stays indeterminate. Supersession runs at plugin install, disable, and removal and in the doctor repair pass. |
+| Fence keyed by subject across locators | Done: new run journals record an optional, strictly parsed `authSubject`; before dispatch the fence also refuses while an unsettled run of the same target, operation, input, and source recorded the same subject under another locator, at its scan and again after its claim. Journals without a subject keep the per-locator fence. Operator-typed subjects can only over-block. `fence.qnt` gained a locator and subject dimension and the `stepSubjectBlind` mutant, claim `intent-fence-subject-across-locators`. |
 
 ### Phase 2: test infrastructure
 
@@ -386,6 +386,78 @@ Execution of item 2, 2026-09-24:
   The Quint model has no pre-election helper, and nothing stops such a helper
   that claims third.
 
+Control and authority claims, 2026-09-24 (branch `claude/fv-claims-control-auth`):
+
+- Evidenced by stateful models over production code, each paired with named
+  source mutants in `verification/mutants.json`:
+  `control-single-helper-owner` (`src/control/helper-owner.property.test.ts`
+  over `inspectControlOwner` and `commitControlOwner`),
+  `shutdown-settles-before-custody-release`
+  (`src/control/helper-shutdown.property.test.ts` over `settleHelperShutdown`
+  and `Connections`), `web-gateway-durable-audit-precedes-network`
+  (`src/control/web-gateway.property.test.ts` over `WebGateway`,
+  `ActivityStore` and `ApprovalBroker`), and, through
+  `src/operation-authority.property.test.ts`,
+  `no-cached-authorization-across-change`, `grant-binds-exact-identity`,
+  `auth-request-binding`, and `mutation-exact-preview-confirmation`.
+- `grant-binds-exact-identity` moved from the Quint layer to the stateful-model
+  layer. Its replay would drive the permission layer, where every state
+  operation spawns the bound state helper, so 1,000 traces are out of reach in
+  CI; the stateful model checks the digest law directly on the production
+  layer instead.
+- Defect fixed: under managed permissions, `confirmInvocation` refused an
+  expired or drifted plan but left it saved, so restoring the interface let
+  the same plan dispatch later. It now consumes the plan, as the unmanaged
+  path already did. `src/operation-permission.test.ts` failed before the fix;
+  the existing A-to-B-to-A test had asserted that the refused plan survived
+  and now asserts that it is consumed.
+- Defect fixed earlier on the branch: the pinned transport now refuses every
+  non-public resolved address with `src/public-address.ts` (see Phase 7).
+- `helper-owner`, `helper-shutdown` and the permission layer gained small
+  exported seams (`inspectControlOwner`, `commitControlOwner`,
+  `settleHelperShutdown`) that production calls unchanged.
+- Open: `mutation-idempotency-key` stays planned. The fence model and the
+  authority model's retry command cover provider dispatch for confirmed
+  writes only; storage and quota charges of a retry, routes whose contracts
+  declare `idempotency: none`, and the dedupe window's expiry are not covered.
+- Open: plans bind the reviewed contract implementation identity, not the
+  exact closure; only a managed grant binds the exact closure. Recorded in
+  `auth-request-binding`'s not-verified scope.
+Execution of items 3 and 4, and of the browser-admission models, 2026-09-24:
+
+- Done: `verification/quint/media.qnt` gains the invariants
+  `promotedVerified` (no revision is promoted without passing closed
+  verification of its staged item), `promotedDurable` (every promotion flushed
+  the staged tree and both parents), and `lineageRecoverable` (crash and
+  power-loss damage reaches only the head, and discovery never answers
+  invalid for a lineage whose only damage is a torn revision). Its new
+  variants `stepUnverified`, `stepNoSync` (before D10), and `stepNoRepair`
+  (before D10) each violate the invariant they target, in Quint simulation
+  and in Apalache. The replay runs the real `verifyMediaItem` on every
+  revision the model calls ok, derives each revision's durability from the
+  flushes production made, and diverges when production's post-rename flush
+  of the revision parent is deleted: "state 5: after promote(p) the lineage
+  is [ok B unflushed], the model [ok B]". The progress property is checked as
+  this safety invariant, not as liveness under fairness.
+- Done: `src/beeper-message-like-me-recovery.model.test.ts` is the
+  `fc.commands` model of the Beeper Message Like Me export admission. The
+  directory-lease recovery keeps only its example tests.
+- Done: the messaging stop and no-resubmission laws are checked by a
+  property over single-event schedules in
+  `src/messaging-runtime-execution.test.ts`, against the production composite
+  runtime and a reference model, instead of a stateful model.
+- Done: `src/browser-admission.model.test.ts` is an `fc.commands` model of
+  browser admission across simulated processes that reuse one PID, with owner
+  death, unreadable liveness, reboots, and a clock that jumps on any reading.
+  It replaces the Quint model this plan scheduled for the cap and PID-reuse
+  claims.
+- Every run of the three `fc.commands`-style checks first runs fixed boundary
+  schedules, so each seeded defect in `verification/mutants.json` fails on
+  every run rather than on a lucky seed.
+- Open: `committed-binaries-provenance` stays planned for Phase 6. The
+  provenance records pin sources, patches, and build commands, but no CI job
+  rebuilds either binary, and imsg's record shows no clean rebuild.
+
 ### Phase 5: Lean proofs of pure cores
 
 Lay out `verification/lean/` as a Lake project with a pinned toolchain and no
@@ -477,8 +549,14 @@ Execution, 2026-09-23:
 - `canonicalJson` writes a lone surrogate as an escape where RFC 8785 refuses
   the input. The vector test pins this, and the claim records it.
 - The classifier proposal is `kb/plans/kb-ip-classifier-proposal.md`.
-  `gateway-rejects-private-addresses` stays planned until `@hraness/kb` ships a
-  checked classifier.
+  Update, 2026-09-24: `gateway-rejects-private-addresses` no longer waits for
+  `@hraness/kb`. The pinned transport checks every resolved answer with
+  Ghostget's own allowlist, `src/public-address.ts`, after the kb check, and
+  `verification/vectors/generate.py` restates the IANA special-purpose table
+  in Python for golden vectors in `verification/vectors/addresses.json`. The
+  claim is evidenced at the differential layer for the gateway's pinned
+  transport only; page capture, derivation and the derivation network proxy
+  still rely on the kb classifier.
 
 ### Phase 8: continuous assurance
 
@@ -509,6 +587,48 @@ Landed on 2026-09-23 on branch `claude/fv-continuous`:
   guard, and all 12 mutants are killed.
 - `docs/claims-review.md` holds the nightly triage steps and the quarterly
   review procedure. Reviews append to "Quarterly claims reviews" below.
+
+## Closeout
+
+All phases landed on main by 2026-09-25, each through a pull request that
+passed the complete `Required` job union on its current head against the
+current base. The final lane merges: `7ce5e418` (media, messaging, and
+browser admission models), `7c4ef1a7` (verification concurrency), `3d1292be`
+(`retained.qnt`, the portable retained readback and supersession replay),
+`8c3724ca` (the browser-admission model's timeout oracle compares the
+simulated clock value, not its last read), `b718fbc6`
+(`GhostgetVerification.RouteKey`, five core-law claims, axiom audit),
+`c6f6b799` (control/auth claims, the `src/public-address.ts` classifier and
+IANA vectors), and `1fd2d81b` (subject-keyed fence, `stepSubjectBlind`).
+
+Lane integration caught four real defects the register then covered:
+
+- The packed CLI crashed on `./public-address` because the new module was
+  missing from `files`; the packed smoke and `tui --snapshot` found it, and
+  the package now ships 597 entries.
+- The file-backed fence replay diverged on `finish(r3, succeeded)`:
+  production's repair sweep supersedes the elected source, while
+  `fence.qnt` kept `reconciled` empty. `finish` and `reconcile` now
+  reconcile the elected source, matching
+  `supersedeSettledDuplicateSources` (dispatched, settled, never failed).
+- The subject-refusal classifier rejected generated locators containing
+  digits as "unexpected reason"; the pattern now admits `[a-z0-9-]+`.
+- `fence.qnt` outgrew its budgets under shard-local parallel Apalache.
+  Its measured weight is 1150 s so the packer isolates it, and the shard
+  step and job timeouts moved to 30 and 35 minutes.
+
+The register on `main` carries 246 claims: 223 evidenced, 4 planned, 19
+not-verified, across 90 guideline rules. The still-planned claims and their
+blockers: `strict-foreign-parsing` (property coverage does not yet cite
+every strict parser the claim ranges over), `mutation-idempotency-key`
+(storage and quota charge retries, `idempotency: none` routes, and
+dedupe-window expiry are outside the confirmed-dispatch models),
+`npm-publish-at-most-once-per-version` (registry read lag still admits a
+second issued publish; it needs a durable per-version record or an
+owner-approved narrower claim), and `committed-binaries-provenance`
+(imsg/wacli need a CI source build with provenance evidence before the
+committed binaries can be removed). They stay registered planned claims;
+the quarterly review tracks them.
 
 ## Quarterly claims reviews
 
@@ -543,3 +663,53 @@ is due in the first week of January 2027.
   GitHub, npm, Sigstore, and Vercel.
 - Hostile in-process plugin code, which `AGENTS.md` already treats as trusted.
 - Hostile processes running as the same user.
+
+## Result
+
+Shipped. Every `AGENTS.md` safety law has a checked row in
+`verification/claims.json`; `docs/assurance.md` renders the same register
+and both are re-validated on every change. Eleven Quint models replay
+seeded ITF traces through the production reducers and ports, each with
+named mutants the checkers must kill; `verification/quint/models.json`
+carries the CI and nightly bounds and the weight that packs them into
+shards. The Lean `GhostgetVerification` modules prove the pure cores
+(registry-key unambiguity and injectivity, canonical JSON, ordering, and
+contract-kernel laws) with differential tests against the TypeScript and a
+recorded axiom audit; `verification/oracles` adds Rust oracles and
+`verification/vectors` the generated golden vectors. The nightly workflow
+runs deeper bounds, the property soak, and the named mutants outside
+`Required`, and `docs/claims-review.md` holds the triage and quarterly
+review procedure.
+
+Four claims remain planned with their blockers recorded in the closeout
+above, and the recorded open items stand: the path-claim replay at 60
+traces (each trace drives three real helper processes), the
+`confirmInvocation` program beyond the modeled journal cores,
+`auth-request-binding`'s not-verified scope (plans bind the reviewed
+contract implementation identity, not the exact closure), the release
+attempt machine beyond `release.qnt`, and the owner-approval route for
+portable reconciliation.
+The failures the audit and the lanes found are fixed and their
+reproducers retained as named tests; what the plan deliberately does not
+verify stays enumerated above.
+
+## Durable memory
+
+- The standing contract is the checked register and its rendering:
+  `verification/claims.json`, `docs/assurance.md`, the `verification` job,
+  and the `Required` gate. A checker timeout, an inconclusive or unparsed
+  checker result, or a successful compile alone is missing evidence
+  (`AGENTS.md`); the register fails closed on each.
+- `docs/claims-review.md` owns nightly triage, the seeded-defect replay
+  commands, and the quarterly claims-review procedure; reviews append to
+  "Quarterly claims reviews" above.
+- A model's CI shard weight lives in `MEASURED_QUINT_MODEL_WEIGHTS` in
+  `scripts/verification-tools.ts`; refresh it from the latest CI run log
+  whenever a model grows and the shard packing is asserted disjoint.
+- The package budget is re-measured per shipped-source merge:
+  `scripts/package-budget.ts` holds the measurement record and the derived
+  ceilings that `scripts/npm-release-workflow.test.ts` pins.
+- Reusable conclusions need no maintained-note promotion: the procedure
+  owners are `docs/claims-review.md` and the `AGENTS.md` verification
+  rules, and the facts live in the checked register. This plan stays as
+  the execution history.

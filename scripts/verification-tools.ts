@@ -219,8 +219,15 @@ const QUINT_TIMEOUT_MS = 5 * 60_000;
  * test, so a hung Quint fails with this bound's diagnosis rather than the
  * runner's.
  */
-export const QUINT_TRACE_TIMEOUT_MS = 90_000;
-const APALACHE_TIMEOUT_MS = 10 * 60_000;
+export const QUINT_TRACE_TIMEOUT_MS = 150_000;
+/**
+ * The bound on one Apalache check. With `QUINT_CONCURRENCY` two checker jobs
+ * share the runner's four vCPUs, so a check that finishes in about ten
+ * minutes alone can need roughly twice that when a second Apalache or a
+ * `bun test` replay runs beside it. The bound fails an actually stuck check,
+ * not one that is merely sharing the runner.
+ */
+const APALACHE_TIMEOUT_MS = 20 * 60_000;
 // Nightly runs sit outside the 50-minute CI verification step, so each deeper
 // checker run gets its own larger bound. A timeout still fails the run.
 const NIGHTLY_QUINT_TIMEOUT_MS = 30 * 60_000;
@@ -233,6 +240,13 @@ const NIGHTLY_APALACHE_TIMEOUT_MS = 60 * 60_000;
 export const QUINT_REPLAY_SCRIPT = "verify:quint:replay";
 /** The bound on the one `bun test` run of every replay test. */
 export const QUINT_REPLAY_TIMEOUT_MS = 15 * 60_000;
+/**
+ * How many jobs `verify:quint` runs at once: each model's checks form one job
+ * and the replay run forms another. A GitHub-hosted Linux runner for this
+ * public repository has 4 vCPUs and 16 GB, and one Apalache run holds a 4 GiB
+ * heap, so two jobs fit beside the runner's own processes.
+ */
+export const QUINT_CONCURRENCY = 2;
 const LEAN_BUILD_TIMEOUT_MS = 10 * 60_000;
 const SHORT_TIMEOUT_MS = 60_000;
 const KILL_GRACE_MS = 5_000;
@@ -1599,7 +1613,10 @@ const DEFAULT_QUINT_MODEL_WEIGHT = 60;
 // every model still runs exactly once. A model without a reading takes the
 // default weight until its first CI log.
 const MEASURED_QUINT_MODEL_WEIGHTS = Object.freeze({
-  "fence.qnt": 460,
+  // With the subject dimension, fence.qnt's six Apalache checks and its
+  // replay approach the quint step's former 20-minute budget on a shared
+  // 4-vCPU runner (run 36093627910); it packs alone onto the lightest shard.
+  "fence.qnt": 1150,
   "release.qnt": 330,
   "state-claim.qnt": 170,
   "media.qnt": 155,
@@ -1686,7 +1703,8 @@ export function quintModelsForShard(models: readonly QuintModel[], shard: QuintS
 /**
  * Typecheck every model, require each invariant to pass seeded simulation and
  * bounded Apalache checking, require both checkers to find every mutant, and
- * then run every model's replay test.
+ * run every model's replay test. Each model's checks form one job and the
+ * replay run forms another; at most `QUINT_CONCURRENCY` jobs run at once.
  */
 export async function verifyQuint(context: RunContext, shard: QuintShard | null = null): Promise<void> {
   const manifest = await readQuintModels(context.root);
@@ -1741,8 +1759,7 @@ export async function verifyQuint(context: RunContext, shard: QuintShard | null 
     });
     return { result, outDirectory };
   };
-  const summary: Record<string, unknown>[] = [];
-  for (const model of models) {
+  const checkModel = async (model: QuintModel): Promise<Record<string, unknown>> => {
     const name = model.module;
     const bounds = quintBounds(model, context.profile);
     if (nightly && model.nightly === undefined) context.log(`${model.file}: no nightly bounds recorded; repeating the CI bounds`);
@@ -1794,7 +1811,7 @@ export async function verifyQuint(context: RunContext, shard: QuintShard | null 
       await writeFile(join(context.artifacts, `apalache-mutant-${name}-${mutant.step}-${mutant.invariant}.itf.json`), counterexample);
       context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
     }
-    summary.push({
+    return {
       model: model.file,
       invariants: model.invariants,
       mutants: model.mutants.map((mutant) => mutant.step),
@@ -1802,8 +1819,15 @@ export async function verifyQuint(context: RunContext, shard: QuintShard | null 
       simulation: bounds.simulation,
       apalache: bounds.apalache,
       replay: { test: model.replay.test, target: model.replay.target },
-    });
-  }
+    };
+  };
+  const summary: Record<string, unknown>[] = [];
+  await runAtMost([
+    () => runQuintReplays(context, models),
+    ...models.map((model, index) => async () => {
+      summary[index] = await checkModel(model);
+    }),
+  ], QUINT_CONCURRENCY);
   await writeFile(join(context.artifacts, "toolchain.json"), `${JSON.stringify({
     quint: version,
     apalache: `${APALACHE.version} (build ${APALACHE.build})`,
@@ -1813,7 +1837,30 @@ export async function verifyQuint(context: RunContext, shard: QuintShard | null 
     })),
     models: summary,
   }, null, 2)}\n`);
-  await runQuintReplays(context, models);
+}
+
+/**
+ * Run the tasks in order with at most `limit` running at once. After a task
+ * fails no further task starts, the running ones finish, and the failure of
+ * the earliest-listed failed task is rethrown.
+ */
+export async function runAtMost(tasks: readonly (() => Promise<void>)[], limit: number): Promise<void> {
+  if (!Number.isSafeInteger(limit) || limit < 1) throw new Error("runAtMost needs a positive integer limit");
+  const failures = new Map<number, unknown>();
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (failures.size === 0 && next < tasks.length) {
+      const index = next;
+      next += 1;
+      try {
+        await tasks[index]!();
+      } catch (error) {
+        failures.set(index, error);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
+  if (failures.size > 0) throw failures.get(Math.min(...failures.keys()));
 }
 
 /**

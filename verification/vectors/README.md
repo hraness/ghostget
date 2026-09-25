@@ -11,6 +11,12 @@ layout, never from the TypeScript. It writes:
 - `hashes.json`: the length-framed SHA-256 identities for media provider and
   authorization-context keys, native runtime closures, and retained revision
   content, plus UTF-8 byte ordering.
+- `addresses.json`: public unicast verdicts from the IANA special-purpose
+  address registries for the edges of every block, seeded random IPv4 and IPv6
+  addresses, IPv6 forms that embed an IPv4 address, several text forms of each
+  value, and text that is not one canonical address. `ipaddress` decides
+  containment only; the generator formats every text itself, so the output
+  does not change with the Python version.
 
 Each file records its generator path, version, runtime, and command. The
 output is deterministic: the random corpus has a fixed seed, and nothing

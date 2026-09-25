@@ -1,0 +1,6375 @@
+{
+ "schema": 1,
+ "description": "Public unicast verdicts for IPv4 and IPv6 addresses: the edges of every IANA special-purpose block, seeded random addresses, IPv6 forms that embed an IPv4 address, several text forms of each value, and text that is not one canonical address.",
+ "generator": {
+  "path": "verification/vectors/generate.py",
+  "version": 1,
+  "runtime": "CPython 3.11 or later, standard library only",
+  "command": "python3 verification/vectors/generate.py"
+ },
+ "ipv4": [
+  {
+   "source": "edge 0.0.0.0/8",
+   "value": 0,
+   "texts": [
+    "0.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 0.0.0.0/8",
+   "value": 1,
+   "texts": [
+    "0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 9696963,
+   "texts": [
+    "0.147.246.195"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 12255825,
+   "texts": [
+    "0.187.2.81"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 0.0.0.0/8",
+   "value": 16777214,
+   "texts": [
+    "0.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 0.0.0.0/8",
+   "value": 16777215,
+   "texts": [
+    "0.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 0.0.0.0/8",
+   "value": 16777216,
+   "texts": [
+    "1.0.0.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "named",
+   "value": 16843009,
+   "texts": [
+    "1.1.1.1"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 53847881,
+   "texts": [
+    "3.53.167.73"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 70035348,
+   "texts": [
+    "4.44.167.148"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 77287049,
+   "texts": [
+    "4.155.78.137"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 131392606,
+   "texts": [
+    "7.212.228.94"
+   ],
+   "public": true
+  },
+  {
+   "source": "named",
+   "value": 134744072,
+   "texts": [
+    "8.8.8.8"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 156740319,
+   "texts": [
+    "9.87.170.223"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 10.0.0.0/8",
+   "value": 167772159,
+   "texts": [
+    "9.255.255.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 10.0.0.0/8",
+   "value": 167772160,
+   "texts": [
+    "10.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 10.0.0.0/8",
+   "value": 167772161,
+   "texts": [
+    "10.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 168759296,
+   "texts": [
+    "10.15.16.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 172363133,
+   "texts": [
+    "10.70.13.125"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 177270018,
+   "texts": [
+    "10.144.237.2"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 10.0.0.0/8",
+   "value": 184549374,
+   "texts": [
+    "10.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 10.0.0.0/8",
+   "value": 184549375,
+   "texts": [
+    "10.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 10.0.0.0/8",
+   "value": 184549376,
+   "texts": [
+    "11.0.0.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 188412146,
+   "texts": [
+    "11.58.240.242"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 189293780,
+   "texts": [
+    "11.72.100.212"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 215884985,
+   "texts": [
+    "12.222.36.185"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 237598992,
+   "texts": [
+    "14.41.121.16"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 279837246,
+   "texts": [
+    "16.173.250.62"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 337813274,
+   "texts": [
+    "20.34.159.26"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 361601375,
+   "texts": [
+    "21.141.153.95"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 382912381,
+   "texts": [
+    "22.210.199.125"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 416079730,
+   "texts": [
+    "24.204.223.114"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 419559894,
+   "texts": [
+    "25.1.249.214"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 460095990,
+   "texts": [
+    "27.108.129.246"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 516782643,
+   "texts": [
+    "30.205.122.51"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 548646642,
+   "texts": [
+    "32.179.174.242"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 604868725,
+   "texts": [
+    "36.13.144.117"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 629804518,
+   "texts": [
+    "37.138.13.230"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 743281932,
+   "texts": [
+    "44.77.149.12"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 779413651,
+   "texts": [
+    "46.116.232.147"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 810449251,
+   "texts": [
+    "48.78.121.99"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 834951173,
+   "texts": [
+    "49.196.88.5"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 902570868,
+   "texts": [
+    "53.204.35.116"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 915221342,
+   "texts": [
+    "54.141.43.94"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 946940154,
+   "texts": [
+    "56.113.40.250"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 949009243,
+   "texts": [
+    "56.144.187.91"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 957108149,
+   "texts": [
+    "57.12.79.181"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 989389301,
+   "texts": [
+    "58.248.225.245"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1002564878,
+   "texts": [
+    "59.193.237.14"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1021995676,
+   "texts": [
+    "60.234.106.156"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1023106402,
+   "texts": [
+    "60.251.93.98"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1057570260,
+   "texts": [
+    "63.9.61.212"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1058802777,
+   "texts": [
+    "63.28.12.89"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1059439419,
+   "texts": [
+    "63.37.195.59"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1068413636,
+   "texts": [
+    "63.174.178.196"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1068667491,
+   "texts": [
+    "63.178.146.99"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1075708084,
+   "texts": [
+    "64.30.0.180"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1076855966,
+   "texts": [
+    "64.47.132.158"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1097794920,
+   "texts": [
+    "65.111.5.104"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1101801369,
+   "texts": [
+    "65.172.39.153"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1109086831,
+   "texts": [
+    "66.27.82.111"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1110640335,
+   "texts": [
+    "66.51.6.207"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1113912840,
+   "texts": [
+    "66.100.246.8"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1122651087,
+   "texts": [
+    "66.234.75.207"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1123187905,
+   "texts": [
+    "66.242.124.193"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1170299512,
+   "texts": [
+    "69.193.90.120"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1201836117,
+   "texts": [
+    "71.162.144.85"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1241033742,
+   "texts": [
+    "73.248.172.14"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1248557666,
+   "texts": [
+    "74.107.122.98"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1297221617,
+   "texts": [
+    "77.82.7.241"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1327050250,
+   "texts": [
+    "79.25.46.10"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1332913414,
+   "texts": [
+    "79.114.165.6"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1355612449,
+   "texts": [
+    "80.205.1.33"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1406033114,
+   "texts": [
+    "83.206.92.218"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1459342241,
+   "texts": [
+    "86.251.203.161"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1505423664,
+   "texts": [
+    "89.186.241.48"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1548469723,
+   "texts": [
+    "92.75.197.219"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1552469443,
+   "texts": [
+    "92.136.205.195"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1553527575,
+   "texts": [
+    "92.152.243.23"
+   ],
+   "public": true
+  },
+  {
+   "source": "named",
+   "value": 1572395042,
+   "texts": [
+    "93.184.216.34"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1595233832,
+   "texts": [
+    "95.21.86.40"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1596420983,
+   "texts": [
+    "95.39.115.119"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1619540531,
+   "texts": [
+    "96.136.58.51"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1665343382,
+   "texts": [
+    "99.67.31.150"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 100.64.0.0/10",
+   "value": 1681915903,
+   "texts": [
+    "100.63.255.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 100.64.0.0/10",
+   "value": 1681915904,
+   "texts": [
+    "100.64.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 100.64.0.0/10",
+   "value": 1681915905,
+   "texts": [
+    "100.64.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 100.64.0.0/10",
+   "value": 1686110206,
+   "texts": [
+    "100.127.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 100.64.0.0/10",
+   "value": 1686110207,
+   "texts": [
+    "100.127.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 100.64.0.0/10",
+   "value": 1686110208,
+   "texts": [
+    "100.128.0.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1692805406,
+   "texts": [
+    "100.230.41.30"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1695385631,
+   "texts": [
+    "101.13.136.31"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1768392836,
+   "texts": [
+    "105.103.136.132"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1775544317,
+   "texts": [
+    "105.212.167.253"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1797643899,
+   "texts": [
+    "107.37.222.123"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1798105613,
+   "texts": [
+    "107.44.234.13"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1798974882,
+   "texts": [
+    "107.58.45.162"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1818290777,
+   "texts": [
+    "108.96.234.89"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1846273049,
+   "texts": [
+    "110.11.228.25"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1879888423,
+   "texts": [
+    "112.12.210.39"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1899109459,
+   "texts": [
+    "113.50.28.83"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1913067915,
+   "texts": [
+    "114.7.25.139"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1918952084,
+   "texts": [
+    "114.96.226.148"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1923207889,
+   "texts": [
+    "114.161.210.209"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1928110808,
+   "texts": [
+    "114.236.162.216"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1939861614,
+   "texts": [
+    "115.159.240.110"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1960699266,
+   "texts": [
+    "116.221.229.130"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 1972270134,
+   "texts": [
+    "117.142.116.54"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2004573213,
+   "texts": [
+    "119.123.92.29"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2095377898,
+   "texts": [
+    "124.228.237.234"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2109459600,
+   "texts": [
+    "125.187.204.144"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2110673497,
+   "texts": [
+    "125.206.82.89"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 127.0.0.0/8",
+   "value": 2130706431,
+   "texts": [
+    "126.255.255.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 127.0.0.0/8",
+   "value": 2130706432,
+   "texts": [
+    "127.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 127.0.0.0/8",
+   "value": 2130706433,
+   "texts": [
+    "127.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 127.0.0.0/8",
+   "value": 2147483646,
+   "texts": [
+    "127.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 127.0.0.0/8",
+   "value": 2147483647,
+   "texts": [
+    "127.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 127.0.0.0/8",
+   "value": 2147483648,
+   "texts": [
+    "128.0.0.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2265026929,
+   "texts": [
+    "135.1.145.113"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2293823447,
+   "texts": [
+    "136.184.247.215"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2295832511,
+   "texts": [
+    "136.215.159.191"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2304634774,
+   "texts": [
+    "137.93.239.150"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2344799937,
+   "texts": [
+    "139.194.206.193"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2369371309,
+   "texts": [
+    "141.57.188.173"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2392724070,
+   "texts": [
+    "142.158.18.102"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2404148215,
+   "texts": [
+    "143.76.99.247"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2449412332,
+   "texts": [
+    "145.255.16.236"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2488413692,
+   "texts": [
+    "148.82.45.252"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2488419654,
+   "texts": [
+    "148.82.69.70"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2518306634,
+   "texts": [
+    "150.26.79.74"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2523231533,
+   "texts": [
+    "150.101.117.45"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2546212525,
+   "texts": [
+    "151.196.30.173"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2582530499,
+   "texts": [
+    "153.238.73.195"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2602446627,
+   "texts": [
+    "155.30.47.35"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2605871953,
+   "texts": [
+    "155.82.115.81"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2609231807,
+   "texts": [
+    "155.133.183.191"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2614064409,
+   "texts": [
+    "155.207.117.25"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2624531194,
+   "texts": [
+    "156.111.42.250"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2645326785,
+   "texts": [
+    "157.172.123.193"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2672343802,
+   "texts": [
+    "159.72.186.250"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2691655724,
+   "texts": [
+    "160.111.104.44"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2709303656,
+   "texts": [
+    "161.124.177.104"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2711877248,
+   "texts": [
+    "161.163.246.128"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2722033264,
+   "texts": [
+    "162.62.238.112"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2766548819,
+   "texts": [
+    "164.230.47.83"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2781497985,
+   "texts": [
+    "165.202.74.129"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2789974419,
+   "texts": [
+    "166.75.161.147"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2813537474,
+   "texts": [
+    "167.179.44.194"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2844149208,
+   "texts": [
+    "169.134.69.216"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 169.254.0.0/16",
+   "value": 2851995647,
+   "texts": [
+    "169.253.255.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 169.254.0.0/16",
+   "value": 2851995648,
+   "texts": [
+    "169.254.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 169.254.0.0/16",
+   "value": 2851995649,
+   "texts": [
+    "169.254.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 169.254.0.0/16",
+   "value": 2852061182,
+   "texts": [
+    "169.254.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 169.254.0.0/16",
+   "value": 2852061183,
+   "texts": [
+    "169.254.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 169.254.0.0/16",
+   "value": 2852061184,
+   "texts": [
+    "169.255.0.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2864246249,
+   "texts": [
+    "170.184.237.233"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2879144482,
+   "texts": [
+    "171.156.66.34"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 172.16.0.0/12",
+   "value": 2886729727,
+   "texts": [
+    "172.15.255.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 172.16.0.0/12",
+   "value": 2886729728,
+   "texts": [
+    "172.16.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 172.16.0.0/12",
+   "value": 2886729729,
+   "texts": [
+    "172.16.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 2887471231,
+   "texts": [
+    "172.27.80.127"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 172.16.0.0/12",
+   "value": 2887778302,
+   "texts": [
+    "172.31.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 172.16.0.0/12",
+   "value": 2887778303,
+   "texts": [
+    "172.31.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 172.16.0.0/12",
+   "value": 2887778304,
+   "texts": [
+    "172.32.0.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2902261535,
+   "texts": [
+    "172.252.255.31"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2937073782,
+   "texts": [
+    "175.16.48.118"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 2970496713,
+   "texts": [
+    "177.14.46.201"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3012757448,
+   "texts": [
+    "179.147.7.200"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3015257618,
+   "texts": [
+    "179.185.46.18"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3020535430,
+   "texts": [
+    "180.9.182.134"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3058562220,
+   "texts": [
+    "182.77.244.172"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3090684637,
+   "texts": [
+    "184.56.26.221"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3091727763,
+   "texts": [
+    "184.72.5.147"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3118948461,
+   "texts": [
+    "185.231.96.109"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3186517534,
+   "texts": [
+    "189.238.102.30"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3187061497,
+   "texts": [
+    "189.246.178.249"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3191380965,
+   "texts": [
+    "190.56.155.229"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3196874485,
+   "texts": [
+    "190.140.110.245"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 192.0.0.0/24",
+   "value": 3221225471,
+   "texts": [
+    "191.255.255.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 192.0.0.0/24",
+   "value": 3221225472,
+   "texts": [
+    "192.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.0.0.0/24",
+   "value": 3221225473,
+   "texts": [
+    "192.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.0.0.0/24",
+   "value": 3221225726,
+   "texts": [
+    "192.0.0.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.0.0.0/24",
+   "value": 3221225727,
+   "texts": [
+    "192.0.0.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.0.0.0/24",
+   "value": 3221225728,
+   "texts": [
+    "192.0.1.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 192.0.2.0/24",
+   "value": 3221225983,
+   "texts": [
+    "192.0.1.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 192.0.2.0/24",
+   "value": 3221225984,
+   "texts": [
+    "192.0.2.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.0.2.0/24",
+   "value": 3221225985,
+   "texts": [
+    "192.0.2.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.0.2.0/24",
+   "value": 3221226238,
+   "texts": [
+    "192.0.2.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.0.2.0/24",
+   "value": 3221226239,
+   "texts": [
+    "192.0.2.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.0.2.0/24",
+   "value": 3221226240,
+   "texts": [
+    "192.0.3.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 192.31.196.0/24",
+   "value": 3223307263,
+   "texts": [
+    "192.31.195.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 192.31.196.0/24",
+   "value": 3223307264,
+   "texts": [
+    "192.31.196.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.31.196.0/24",
+   "value": 3223307265,
+   "texts": [
+    "192.31.196.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.31.196.0/24",
+   "value": 3223307518,
+   "texts": [
+    "192.31.196.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.31.196.0/24",
+   "value": 3223307519,
+   "texts": [
+    "192.31.196.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.31.196.0/24",
+   "value": 3223307520,
+   "texts": [
+    "192.31.197.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 192.52.193.0/24",
+   "value": 3224682751,
+   "texts": [
+    "192.52.192.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 192.52.193.0/24",
+   "value": 3224682752,
+   "texts": [
+    "192.52.193.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.52.193.0/24",
+   "value": 3224682753,
+   "texts": [
+    "192.52.193.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.52.193.0/24",
+   "value": 3224683006,
+   "texts": [
+    "192.52.193.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.52.193.0/24",
+   "value": 3224683007,
+   "texts": [
+    "192.52.193.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.52.193.0/24",
+   "value": 3224683008,
+   "texts": [
+    "192.52.194.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 192.88.99.0/24",
+   "value": 3227017983,
+   "texts": [
+    "192.88.98.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 192.88.99.0/24",
+   "value": 3227017984,
+   "texts": [
+    "192.88.99.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.88.99.0/24",
+   "value": 3227017985,
+   "texts": [
+    "192.88.99.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.88.99.0/24",
+   "value": 3227018238,
+   "texts": [
+    "192.88.99.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.88.99.0/24",
+   "value": 3227018239,
+   "texts": [
+    "192.88.99.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.88.99.0/24",
+   "value": 3227018240,
+   "texts": [
+    "192.88.100.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 192.168.0.0/16",
+   "value": 3232235519,
+   "texts": [
+    "192.167.255.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 192.168.0.0/16",
+   "value": 3232235520,
+   "texts": [
+    "192.168.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.168.0.0/16",
+   "value": 3232235521,
+   "texts": [
+    "192.168.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.168.0.0/16",
+   "value": 3232301054,
+   "texts": [
+    "192.168.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.168.0.0/16",
+   "value": 3232301055,
+   "texts": [
+    "192.168.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.168.0.0/16",
+   "value": 3232301056,
+   "texts": [
+    "192.169.0.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 192.175.48.0/24",
+   "value": 3232706559,
+   "texts": [
+    "192.175.47.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 192.175.48.0/24",
+   "value": 3232706560,
+   "texts": [
+    "192.175.48.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.175.48.0/24",
+   "value": 3232706561,
+   "texts": [
+    "192.175.48.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.175.48.0/24",
+   "value": 3232706814,
+   "texts": [
+    "192.175.48.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.175.48.0/24",
+   "value": 3232706815,
+   "texts": [
+    "192.175.48.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 192.175.48.0/24",
+   "value": 3232706816,
+   "texts": [
+    "192.175.49.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3244036030,
+   "texts": [
+    "193.92.15.190"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3256899512,
+   "texts": [
+    "194.32.87.184"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3277422671,
+   "texts": [
+    "195.89.128.79"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3286448337,
+   "texts": [
+    "195.227.56.209"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3313010888,
+   "texts": [
+    "197.120.136.200"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 198.18.0.0/15",
+   "value": 3323068415,
+   "texts": [
+    "198.17.255.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 198.18.0.0/15",
+   "value": 3323068416,
+   "texts": [
+    "198.18.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 198.18.0.0/15",
+   "value": 3323068417,
+   "texts": [
+    "198.18.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 198.18.0.0/15",
+   "value": 3323199486,
+   "texts": [
+    "198.19.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 198.18.0.0/15",
+   "value": 3323199487,
+   "texts": [
+    "198.19.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 198.18.0.0/15",
+   "value": 3323199488,
+   "texts": [
+    "198.20.0.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 198.51.100.0/24",
+   "value": 3325256703,
+   "texts": [
+    "198.51.99.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 198.51.100.0/24",
+   "value": 3325256704,
+   "texts": [
+    "198.51.100.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 198.51.100.0/24",
+   "value": 3325256705,
+   "texts": [
+    "198.51.100.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 198.51.100.0/24",
+   "value": 3325256958,
+   "texts": [
+    "198.51.100.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 198.51.100.0/24",
+   "value": 3325256959,
+   "texts": [
+    "198.51.100.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 198.51.100.0/24",
+   "value": 3325256960,
+   "texts": [
+    "198.51.101.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3346670049,
+   "texts": [
+    "199.122.33.225"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3353231863,
+   "texts": [
+    "199.222.65.247"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3386399811,
+   "texts": [
+    "201.216.92.67"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 203.0.113.0/24",
+   "value": 3405803775,
+   "texts": [
+    "203.0.112.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 203.0.113.0/24",
+   "value": 3405803776,
+   "texts": [
+    "203.0.113.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 203.0.113.0/24",
+   "value": 3405803777,
+   "texts": [
+    "203.0.113.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 203.0.113.0/24",
+   "value": 3405804030,
+   "texts": [
+    "203.0.113.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 203.0.113.0/24",
+   "value": 3405804031,
+   "texts": [
+    "203.0.113.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 203.0.113.0/24",
+   "value": 3405804032,
+   "texts": [
+    "203.0.114.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3433298054,
+   "texts": [
+    "204.163.248.134"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3433929766,
+   "texts": [
+    "204.173.156.38"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3484003535,
+   "texts": [
+    "207.169.172.207"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3500390124,
+   "texts": [
+    "208.163.182.236"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3540654417,
+   "texts": [
+    "211.10.25.81"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3543928284,
+   "texts": [
+    "211.60.13.220"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3547392904,
+   "texts": [
+    "211.112.235.136"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3552255923,
+   "texts": [
+    "211.187.31.179"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3563103056,
+   "texts": [
+    "212.96.163.80"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3576817034,
+   "texts": [
+    "213.49.229.138"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3579643664,
+   "texts": [
+    "213.93.7.16"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3582728127,
+   "texts": [
+    "213.140.23.191"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3583073734,
+   "texts": [
+    "213.145.93.198"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3632089429,
+   "texts": [
+    "216.125.73.85"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3641767457,
+   "texts": [
+    "217.16.246.33"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3674956143,
+   "texts": [
+    "219.11.97.111"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3680306667,
+   "texts": [
+    "219.93.5.235"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3684444951,
+   "texts": [
+    "219.156.43.23"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3722162076,
+   "texts": [
+    "221.219.175.156"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": 3740329287,
+   "texts": [
+    "222.240.229.71"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 224.0.0.0/4",
+   "value": 3758096383,
+   "texts": [
+    "223.255.255.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 224.0.0.0/4",
+   "value": 3758096384,
+   "texts": [
+    "224.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 224.0.0.0/4",
+   "value": 3758096385,
+   "texts": [
+    "224.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 3765992132,
+   "texts": [
+    "224.120.122.196"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 3825980344,
+   "texts": [
+    "228.11.211.184"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 3868797339,
+   "texts": [
+    "230.153.41.155"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 3882507838,
+   "texts": [
+    "231.106.94.62"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 3889747521,
+   "texts": [
+    "231.216.214.65"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 3896775340,
+   "texts": [
+    "232.68.18.172"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 3906148035,
+   "texts": [
+    "232.211.22.195"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 3957120421,
+   "texts": [
+    "235.220.221.165"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 3974999365,
+   "texts": [
+    "236.237.173.69"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 3987599494,
+   "texts": [
+    "237.173.240.134"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 3998624189,
+   "texts": [
+    "238.86.41.189"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4004818647,
+   "texts": [
+    "238.180.174.215"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4019088519,
+   "texts": [
+    "239.142.108.135"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 224.0.0.0/4",
+   "value": 4026531838,
+   "texts": [
+    "239.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 224.0.0.0/4",
+   "value": 4026531839,
+   "texts": [
+    "239.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 224.0.0.0/4",
+   "value": 4026531840,
+   "texts": [
+    "240.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 240.0.0.0/4",
+   "value": 4026531841,
+   "texts": [
+    "240.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4035899489,
+   "texts": [
+    "240.142.240.97"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4041576532,
+   "texts": [
+    "240.229.144.84"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4046893935,
+   "texts": [
+    "241.54.179.111"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4062420825,
+   "texts": [
+    "242.35.159.89"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4064680758,
+   "texts": [
+    "242.70.27.54"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4075071797,
+   "texts": [
+    "242.228.169.53"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4084546057,
+   "texts": [
+    "243.117.58.9"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4107837977,
+   "texts": [
+    "244.216.162.25"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4115682665,
+   "texts": [
+    "245.80.85.105"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4122623508,
+   "texts": [
+    "245.186.62.20"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4129845804,
+   "texts": [
+    "246.40.114.44"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4139189120,
+   "texts": [
+    "246.183.3.128"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4174798455,
+   "texts": [
+    "248.214.94.119"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4181737120,
+   "texts": [
+    "249.64.62.160"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4227951098,
+   "texts": [
+    "252.1.105.250"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4253950018,
+   "texts": [
+    "253.142.32.66"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4285600724,
+   "texts": [
+    "255.113.19.212"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4288476481,
+   "texts": [
+    "255.156.245.65"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": 4291792914,
+   "texts": [
+    "255.207.144.18"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 240.0.0.0/4",
+   "value": 4294967294,
+   "texts": [
+    "255.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 240.0.0.0/4",
+   "value": 4294967295,
+   "texts": [
+    "255.255.255.255"
+   ],
+   "public": false
+  }
+ ],
+ "ipv6": [
+  {
+   "source": "edge ::/8",
+   "value": "00000000000000000000000000000000",
+   "texts": [
+    "::",
+    "0000:0000:0000:0000:0000:0000:0000:0000",
+    "0:0:0:0:0:0:0.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge ::/8",
+   "value": "00000000000000000000000000000001",
+   "texts": [
+    "::1",
+    "0000:0000:0000:0000:0000:0000:0000:0001",
+    "0:0:0:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge ::/8",
+   "value": "00fffffffffffffffffffffffffffffe",
+   "texts": [
+    "ff:ffff:ffff:ffff:ffff:ffff:ffff:fffe",
+    "00ff:ffff:ffff:ffff:ffff:ffff:ffff:fffe",
+    "FF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFE",
+    "ff:ffff:ffff:ffff:ffff:ffff:255.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge ::/8",
+   "value": "00ffffffffffffffffffffffffffffff",
+   "texts": [
+    "ff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "00ff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "FF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "ff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge ::/8",
+   "value": "01000000000000000000000000000000",
+   "texts": [
+    "100::",
+    "0100:0000:0000:0000:0000:0000:0000:0000",
+    "100:0:0:0:0:0:0.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "01ffe97bfc7c68f94e2ed0546635dcdc",
+   "texts": [
+    "1ff:e97b:fc7c:68f9:4e2e:d054:6635:dcdc",
+    "01ff:e97b:fc7c:68f9:4e2e:d054:6635:dcdc",
+    "1FF:E97B:FC7C:68F9:4E2E:D054:6635:DCDC",
+    "1ff:e97b:fc7c:68f9:4e2e:d054:102.53.220.220"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "092f143305185add879a3175693ad94d",
+   "texts": [
+    "92f:1433:518:5add:879a:3175:693a:d94d",
+    "092f:1433:0518:5add:879a:3175:693a:d94d",
+    "92F:1433:518:5ADD:879A:3175:693A:D94D",
+    "92f:1433:518:5add:879a:3175:105.58.217.77"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "094513cc6679e64776e6979aab5cb7ea",
+   "texts": [
+    "945:13cc:6679:e647:76e6:979a:ab5c:b7ea",
+    "0945:13cc:6679:e647:76e6:979a:ab5c:b7ea",
+    "945:13CC:6679:E647:76E6:979A:AB5C:B7EA",
+    "945:13cc:6679:e647:76e6:979a:171.92.183.234"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "0b7abcff77a05e0546a760faa4e70fd8",
+   "texts": [
+    "b7a:bcff:77a0:5e05:46a7:60fa:a4e7:fd8",
+    "0b7a:bcff:77a0:5e05:46a7:60fa:a4e7:0fd8",
+    "B7A:BCFF:77A0:5E05:46A7:60FA:A4E7:FD8",
+    "b7a:bcff:77a0:5e05:46a7:60fa:164.231.15.216"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "0b8a9cd4c03a244b2b7f7b38681721e4",
+   "texts": [
+    "b8a:9cd4:c03a:244b:2b7f:7b38:6817:21e4",
+    "0b8a:9cd4:c03a:244b:2b7f:7b38:6817:21e4",
+    "B8A:9CD4:C03A:244B:2B7F:7B38:6817:21E4",
+    "b8a:9cd4:c03a:244b:2b7f:7b38:104.23.33.228"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "0b8b4a78a7fad6574220bb8de131d0f8",
+   "texts": [
+    "b8b:4a78:a7fa:d657:4220:bb8d:e131:d0f8",
+    "0b8b:4a78:a7fa:d657:4220:bb8d:e131:d0f8",
+    "B8B:4A78:A7FA:D657:4220:BB8D:E131:D0F8",
+    "b8b:4a78:a7fa:d657:4220:bb8d:225.49.208.248"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "163ac0252b8d0d3edb9445cc7d97c7bf",
+   "texts": [
+    "163a:c025:2b8d:d3e:db94:45cc:7d97:c7bf",
+    "163a:c025:2b8d:0d3e:db94:45cc:7d97:c7bf",
+    "163A:C025:2B8D:D3E:DB94:45CC:7D97:C7BF",
+    "163a:c025:2b8d:d3e:db94:45cc:125.151.199.191"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "1f1e317dc69e056c305bc0679d564d28",
+   "texts": [
+    "1f1e:317d:c69e:56c:305b:c067:9d56:4d28",
+    "1f1e:317d:c69e:056c:305b:c067:9d56:4d28",
+    "1F1E:317D:C69E:56C:305B:C067:9D56:4D28",
+    "1f1e:317d:c69e:56c:305b:c067:157.86.77.40"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2000::/3",
+   "value": "1fffffffffffffffffffffffffffffff",
+   "texts": [
+    "1fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "1FFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "1fff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2000::/3",
+   "value": "20000000000000000000000000000000",
+   "texts": [
+    "2000::",
+    "2000:0000:0000:0000:0000:0000:0000:0000",
+    "2000:0:0:0:0:0:0.0.0.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 2000::/3",
+   "value": "20000000000000000000000000000001",
+   "texts": [
+    "2000::1",
+    "2000:0000:0000:0000:0000:0000:0000:0001",
+    "2000:0:0:0:0:0:0.0.0.1"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 2001::/23",
+   "value": "2000ffffffffffffffffffffffffffff",
+   "texts": [
+    "2000:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "2000:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "2000:ffff:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 2001::/23",
+   "value": "20010000000000000000000000000000",
+   "texts": [
+    "2001::",
+    "2001:0000:0000:0000:0000:0000:0000:0000",
+    "2001:0:0:0:0:0:0.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2001::/23",
+   "value": "20010000000000000000000000000001",
+   "texts": [
+    "2001::1",
+    "2001:0000:0000:0000:0000:0000:0000:0001",
+    "2001:0:0:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2001::/23",
+   "value": "200101fffffffffffffffffffffffffe",
+   "texts": [
+    "2001:1ff:ffff:ffff:ffff:ffff:ffff:fffe",
+    "2001:01ff:ffff:ffff:ffff:ffff:ffff:fffe",
+    "2001:1FF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFE",
+    "2001:1ff:ffff:ffff:ffff:ffff:255.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2001::/23",
+   "value": "200101ffffffffffffffffffffffffff",
+   "texts": [
+    "2001:1ff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "2001:01ff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "2001:1FF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "2001:1ff:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2001::/23",
+   "value": "20010200000000000000000000000000",
+   "texts": [
+    "2001:200::",
+    "2001:0200:0000:0000:0000:0000:0000:0000",
+    "2001:200:0:0:0:0:0.0.0.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "named",
+   "value": "20010200000000000000000000000001",
+   "texts": [
+    "2001:200::1",
+    "2001:0200:0000:0000:0000:0000:0000:0001",
+    "2001:200:0:0:0:0:0.0.0.1"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 2001:db8::/32",
+   "value": "20010db7ffffffffffffffffffffffff",
+   "texts": [
+    "2001:db7:ffff:ffff:ffff:ffff:ffff:ffff",
+    "2001:0db7:ffff:ffff:ffff:ffff:ffff:ffff",
+    "2001:DB7:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "2001:db7:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 2001:db8::/32",
+   "value": "20010db8000000000000000000000000",
+   "texts": [
+    "2001:db8::",
+    "2001:0db8:0000:0000:0000:0000:0000:0000",
+    "2001:DB8::",
+    "2001:db8:0:0:0:0:0.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2001:db8::/32",
+   "value": "20010db8000000000000000000000001",
+   "texts": [
+    "2001:db8::1",
+    "2001:0db8:0000:0000:0000:0000:0000:0001",
+    "2001:DB8::1",
+    "2001:db8:0:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2001:db8::/32",
+   "value": "20010db8fffffffffffffffffffffffe",
+   "texts": [
+    "2001:db8:ffff:ffff:ffff:ffff:ffff:fffe",
+    "2001:0db8:ffff:ffff:ffff:ffff:ffff:fffe",
+    "2001:DB8:FFFF:FFFF:FFFF:FFFF:FFFF:FFFE",
+    "2001:db8:ffff:ffff:ffff:ffff:255.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2001:db8::/32",
+   "value": "20010db8ffffffffffffffffffffffff",
+   "texts": [
+    "2001:db8:ffff:ffff:ffff:ffff:ffff:ffff",
+    "2001:0db8:ffff:ffff:ffff:ffff:ffff:ffff",
+    "2001:DB8:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "2001:db8:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2001:db8::/32",
+   "value": "20010db9000000000000000000000000",
+   "texts": [
+    "2001:db9::",
+    "2001:0db9:0000:0000:0000:0000:0000:0000",
+    "2001:DB9::",
+    "2001:db9:0:0:0:0:0.0.0.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "named",
+   "value": "20014860486000000000000000008888",
+   "texts": [
+    "2001:4860:4860::8888",
+    "2001:4860:4860:0000:0000:0000:0000:8888",
+    "2001:4860:4860:0:0:0:0.0.136.136"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 2002::/16",
+   "value": "2001ffffffffffffffffffffffffffff",
+   "texts": [
+    "2001:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "2001:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "2001:ffff:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 2002::/16",
+   "value": "20020000000000000000000000000000",
+   "texts": [
+    "2002::",
+    "2002:0000:0000:0000:0000:0000:0000:0000",
+    "2002:0:0:0:0:0:0.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2002::/16",
+   "value": "20020000000000000000000000000001",
+   "texts": [
+    "2002::1",
+    "2002:0000:0000:0000:0000:0000:0000:0001",
+    "2002:0:0:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2002::/16",
+   "value": "2002fffffffffffffffffffffffffffe",
+   "texts": [
+    "2002:ffff:ffff:ffff:ffff:ffff:ffff:fffe",
+    "2002:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFE",
+    "2002:ffff:ffff:ffff:ffff:ffff:255.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2002::/16",
+   "value": "2002ffffffffffffffffffffffffffff",
+   "texts": [
+    "2002:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "2002:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "2002:ffff:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2002::/16",
+   "value": "20030000000000000000000000000000",
+   "texts": [
+    "2003::",
+    "2003:0000:0000:0000:0000:0000:0000:0000",
+    "2003:0:0:0:0:0:0.0.0.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "20240019dbc00433e701c9a0ab00a445",
+   "texts": [
+    "2024:19:dbc0:433:e701:c9a0:ab00:a445",
+    "2024:0019:dbc0:0433:e701:c9a0:ab00:a445",
+    "2024:19:DBC0:433:E701:C9A0:AB00:A445",
+    "2024:19:dbc0:433:e701:c9a0:171.0.164.69"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2046590726d7afada2026246d60c1492",
+   "texts": [
+    "2046:5907:26d7:afad:a202:6246:d60c:1492",
+    "2046:5907:26D7:AFAD:A202:6246:D60C:1492",
+    "2046:5907:26d7:afad:a202:6246:214.12.20.146"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "209b9e0869aa2a13bf5205b06a3d500d",
+   "texts": [
+    "209b:9e08:69aa:2a13:bf52:5b0:6a3d:500d",
+    "209b:9e08:69aa:2a13:bf52:05b0:6a3d:500d",
+    "209B:9E08:69AA:2A13:BF52:5B0:6A3D:500D",
+    "209b:9e08:69aa:2a13:bf52:5b0:106.61.80.13"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "20c52c28357561ee8a115628b3329b47",
+   "texts": [
+    "20c5:2c28:3575:61ee:8a11:5628:b332:9b47",
+    "20C5:2C28:3575:61EE:8A11:5628:B332:9B47",
+    "20c5:2c28:3575:61ee:8a11:5628:179.50.155.71"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "20ebbd0d916c3b347d2e7e59966155f1",
+   "texts": [
+    "20eb:bd0d:916c:3b34:7d2e:7e59:9661:55f1",
+    "20EB:BD0D:916C:3B34:7D2E:7E59:9661:55F1",
+    "20eb:bd0d:916c:3b34:7d2e:7e59:150.97.85.241"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "21337964d4ca956e44cf0cedf123a5b3",
+   "texts": [
+    "2133:7964:d4ca:956e:44cf:ced:f123:a5b3",
+    "2133:7964:d4ca:956e:44cf:0ced:f123:a5b3",
+    "2133:7964:D4CA:956E:44CF:CED:F123:A5B3",
+    "2133:7964:d4ca:956e:44cf:ced:241.35.165.179"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2135a5ab645ed6371099bd789842f3be",
+   "texts": [
+    "2135:a5ab:645e:d637:1099:bd78:9842:f3be",
+    "2135:A5AB:645E:D637:1099:BD78:9842:F3BE",
+    "2135:a5ab:645e:d637:1099:bd78:152.66.243.190"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "217918559030fcefd3200355b88ca798",
+   "texts": [
+    "2179:1855:9030:fcef:d320:355:b88c:a798",
+    "2179:1855:9030:fcef:d320:0355:b88c:a798",
+    "2179:1855:9030:FCEF:D320:355:B88C:A798",
+    "2179:1855:9030:fcef:d320:355:184.140.167.152"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "21b07866b5ee9e4560351a6a47fcec0f",
+   "texts": [
+    "21b0:7866:b5ee:9e45:6035:1a6a:47fc:ec0f",
+    "21B0:7866:B5EE:9E45:6035:1A6A:47FC:EC0F",
+    "21b0:7866:b5ee:9e45:6035:1a6a:71.252.236.15"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "21b2d78aaa8cb2ad29e2ac21073b1dfc",
+   "texts": [
+    "21b2:d78a:aa8c:b2ad:29e2:ac21:73b:1dfc",
+    "21b2:d78a:aa8c:b2ad:29e2:ac21:073b:1dfc",
+    "21B2:D78A:AA8C:B2AD:29E2:AC21:73B:1DFC",
+    "21b2:d78a:aa8c:b2ad:29e2:ac21:7.59.29.252"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": "21dd2e33145e68383184813577c64d3b",
+   "texts": [
+    "21dd:2e33:145e:6838:3184:8135:77c6:4d3b",
+    "21DD:2E33:145E:6838:3184:8135:77C6:4D3B",
+    "21dd:2e33:145e:6838:3184:8135:119.198.77.59"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "21e85a1cf2942a26d77db0920285a85e",
+   "texts": [
+    "21e8:5a1c:f294:2a26:d77d:b092:285:a85e",
+    "21e8:5a1c:f294:2a26:d77d:b092:0285:a85e",
+    "21E8:5A1C:F294:2A26:D77D:B092:285:A85E",
+    "21e8:5a1c:f294:2a26:d77d:b092:2.133.168.94"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "222339abda09a755fe9999b830ae7158",
+   "texts": [
+    "2223:39ab:da09:a755:fe99:99b8:30ae:7158",
+    "2223:39AB:DA09:A755:FE99:99B8:30AE:7158",
+    "2223:39ab:da09:a755:fe99:99b8:48.174.113.88"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "223e8f6ac591ba4edee6b93ef3337b91",
+   "texts": [
+    "223e:8f6a:c591:ba4e:dee6:b93e:f333:7b91",
+    "223E:8F6A:C591:BA4E:DEE6:B93E:F333:7B91",
+    "223e:8f6a:c591:ba4e:dee6:b93e:243.51.123.145"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "224b8ceb395617ddbf4f02c61ef7702b",
+   "texts": [
+    "224b:8ceb:3956:17dd:bf4f:2c6:1ef7:702b",
+    "224b:8ceb:3956:17dd:bf4f:02c6:1ef7:702b",
+    "224B:8CEB:3956:17DD:BF4F:2C6:1EF7:702B",
+    "224b:8ceb:3956:17dd:bf4f:2c6:30.247.112.43"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2299824832c49b7f38ef73e3a4330303",
+   "texts": [
+    "2299:8248:32c4:9b7f:38ef:73e3:a433:303",
+    "2299:8248:32c4:9b7f:38ef:73e3:a433:0303",
+    "2299:8248:32C4:9B7F:38EF:73E3:A433:303",
+    "2299:8248:32c4:9b7f:38ef:73e3:164.51.3.3"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "22b1d30e9e4073c75029e1b1e7c1a90c",
+   "texts": [
+    "22b1:d30e:9e40:73c7:5029:e1b1:e7c1:a90c",
+    "22B1:D30E:9E40:73C7:5029:E1B1:E7C1:A90C",
+    "22b1:d30e:9e40:73c7:5029:e1b1:231.193.169.12"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "22c55cb8c2da9b6d4da0cc2e2322f800",
+   "texts": [
+    "22c5:5cb8:c2da:9b6d:4da0:cc2e:2322:f800",
+    "22C5:5CB8:C2DA:9B6D:4DA0:CC2E:2322:F800",
+    "22c5:5cb8:c2da:9b6d:4da0:cc2e:35.34.248.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "22e9033a966ee6d07c7f043f5f0cbdfc",
+   "texts": [
+    "22e9:33a:966e:e6d0:7c7f:43f:5f0c:bdfc",
+    "22e9:033a:966e:e6d0:7c7f:043f:5f0c:bdfc",
+    "22E9:33A:966E:E6D0:7C7F:43F:5F0C:BDFC",
+    "22e9:33a:966e:e6d0:7c7f:43f:95.12.189.252"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2337c670890309b3437d5f65ed4867ba",
+   "texts": [
+    "2337:c670:8903:9b3:437d:5f65:ed48:67ba",
+    "2337:c670:8903:09b3:437d:5f65:ed48:67ba",
+    "2337:C670:8903:9B3:437D:5F65:ED48:67BA",
+    "2337:c670:8903:9b3:437d:5f65:237.72.103.186"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2339b4b53273205366c3d7dd92cbd01c",
+   "texts": [
+    "2339:b4b5:3273:2053:66c3:d7dd:92cb:d01c",
+    "2339:B4B5:3273:2053:66C3:D7DD:92CB:D01C",
+    "2339:b4b5:3273:2053:66c3:d7dd:146.203.208.28"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "234842f4847116be57e4866edc1bdc42",
+   "texts": [
+    "2348:42f4:8471:16be:57e4:866e:dc1b:dc42",
+    "2348:42F4:8471:16BE:57E4:866E:DC1B:DC42",
+    "2348:42f4:8471:16be:57e4:866e:220.27.220.66"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "237f7245fe37dfb76bcb507a1b62fd32",
+   "texts": [
+    "237f:7245:fe37:dfb7:6bcb:507a:1b62:fd32",
+    "237F:7245:FE37:DFB7:6BCB:507A:1B62:FD32",
+    "237f:7245:fe37:dfb7:6bcb:507a:27.98.253.50"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "23a007a3caa8c1ed1e77278afa0d8200",
+   "texts": [
+    "23a0:7a3:caa8:c1ed:1e77:278a:fa0d:8200",
+    "23a0:07a3:caa8:c1ed:1e77:278a:fa0d:8200",
+    "23A0:7A3:CAA8:C1ED:1E77:278A:FA0D:8200",
+    "23a0:7a3:caa8:c1ed:1e77:278a:250.13.130.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "23a2dd513fde8b86833c81091424be7c",
+   "texts": [
+    "23a2:dd51:3fde:8b86:833c:8109:1424:be7c",
+    "23A2:DD51:3FDE:8B86:833C:8109:1424:BE7C",
+    "23a2:dd51:3fde:8b86:833c:8109:20.36.190.124"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2417d6a263068487cba4291f171a42bb",
+   "texts": [
+    "2417:d6a2:6306:8487:cba4:291f:171a:42bb",
+    "2417:D6A2:6306:8487:CBA4:291F:171A:42BB",
+    "2417:d6a2:6306:8487:cba4:291f:23.26.66.187"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "242807de5f8629e1728d603b2d43a108",
+   "texts": [
+    "2428:7de:5f86:29e1:728d:603b:2d43:a108",
+    "2428:07de:5f86:29e1:728d:603b:2d43:a108",
+    "2428:7DE:5F86:29E1:728D:603B:2D43:A108",
+    "2428:7de:5f86:29e1:728d:603b:45.67.161.8"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "243df8e7f9148f84f5eada78970d83ae",
+   "texts": [
+    "243d:f8e7:f914:8f84:f5ea:da78:970d:83ae",
+    "243D:F8E7:F914:8F84:F5EA:DA78:970D:83AE",
+    "243d:f8e7:f914:8f84:f5ea:da78:151.13.131.174"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "245ec1867345527f8beb05680dd78c69",
+   "texts": [
+    "245e:c186:7345:527f:8beb:568:dd7:8c69",
+    "245e:c186:7345:527f:8beb:0568:0dd7:8c69",
+    "245E:C186:7345:527F:8BEB:568:DD7:8C69",
+    "245e:c186:7345:527f:8beb:568:13.215.140.105"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "24acb682c9f1a2e7dc202ec68ddf2fd7",
+   "texts": [
+    "24ac:b682:c9f1:a2e7:dc20:2ec6:8ddf:2fd7",
+    "24AC:B682:C9F1:A2E7:DC20:2EC6:8DDF:2FD7",
+    "24ac:b682:c9f1:a2e7:dc20:2ec6:141.223.47.215"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "24cafff9a3e2f9e701984adb74d9db3f",
+   "texts": [
+    "24ca:fff9:a3e2:f9e7:198:4adb:74d9:db3f",
+    "24ca:fff9:a3e2:f9e7:0198:4adb:74d9:db3f",
+    "24CA:FFF9:A3E2:F9E7:198:4ADB:74D9:DB3F",
+    "24ca:fff9:a3e2:f9e7:198:4adb:116.217.219.63"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "25283daabe4301fb86845e6211e7af2c",
+   "texts": [
+    "2528:3daa:be43:1fb:8684:5e62:11e7:af2c",
+    "2528:3daa:be43:01fb:8684:5e62:11e7:af2c",
+    "2528:3DAA:BE43:1FB:8684:5E62:11E7:AF2C",
+    "2528:3daa:be43:1fb:8684:5e62:17.231.175.44"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "252bbde8004b8c3168c565243df9f15c",
+   "texts": [
+    "252b:bde8:4b:8c31:68c5:6524:3df9:f15c",
+    "252b:bde8:004b:8c31:68c5:6524:3df9:f15c",
+    "252B:BDE8:4B:8C31:68C5:6524:3DF9:F15C",
+    "252b:bde8:4b:8c31:68c5:6524:61.249.241.92"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2581598ab6e93540d78df546b39e3a46",
+   "texts": [
+    "2581:598a:b6e9:3540:d78d:f546:b39e:3a46",
+    "2581:598A:B6E9:3540:D78D:F546:B39E:3A46",
+    "2581:598a:b6e9:3540:d78d:f546:179.158.58.70"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "25b7b5f0ab2ee51d505e4a671486f9b0",
+   "texts": [
+    "25b7:b5f0:ab2e:e51d:505e:4a67:1486:f9b0",
+    "25B7:B5F0:AB2E:E51D:505E:4A67:1486:F9B0",
+    "25b7:b5f0:ab2e:e51d:505e:4a67:20.134.249.176"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "25bdd95d9c5ca560781171d6030ce5e9",
+   "texts": [
+    "25bd:d95d:9c5c:a560:7811:71d6:30c:e5e9",
+    "25bd:d95d:9c5c:a560:7811:71d6:030c:e5e9",
+    "25BD:D95D:9C5C:A560:7811:71D6:30C:E5E9",
+    "25bd:d95d:9c5c:a560:7811:71d6:3.12.229.233"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "25bed5453d8ba61f4f72f95554dfc89a",
+   "texts": [
+    "25be:d545:3d8b:a61f:4f72:f955:54df:c89a",
+    "25BE:D545:3D8B:A61F:4F72:F955:54DF:C89A",
+    "25be:d545:3d8b:a61f:4f72:f955:84.223.200.154"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": "2605bb22b2c0597ee1bcd36fff8e4649",
+   "texts": [
+    "2605:bb22:b2c0:597e:e1bc:d36f:ff8e:4649",
+    "2605:BB22:B2C0:597E:E1BC:D36F:FF8E:4649",
+    "2605:bb22:b2c0:597e:e1bc:d36f:255.142.70.73"
+   ],
+   "public": true
+  },
+  {
+   "source": "named",
+   "value": "26064700470000000000000000001111",
+   "texts": [
+    "2606:4700:4700::1111",
+    "2606:4700:4700:0000:0000:0000:0000:1111",
+    "2606:4700:4700:0:0:0:0.0.17.17"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 2620:4f:8000::/48",
+   "value": "2620004f7fffffffffffffffffffffff",
+   "texts": [
+    "2620:4f:7fff:ffff:ffff:ffff:ffff:ffff",
+    "2620:004f:7fff:ffff:ffff:ffff:ffff:ffff",
+    "2620:4F:7FFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "2620:4f:7fff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 2620:4f:8000::/48",
+   "value": "2620004f800000000000000000000000",
+   "texts": [
+    "2620:4f:8000::",
+    "2620:004f:8000:0000:0000:0000:0000:0000",
+    "2620:4F:8000::",
+    "2620:4f:8000:0:0:0:0.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2620:4f:8000::/48",
+   "value": "2620004f800000000000000000000001",
+   "texts": [
+    "2620:4f:8000::1",
+    "2620:004f:8000:0000:0000:0000:0000:0001",
+    "2620:4F:8000::1",
+    "2620:4f:8000:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2620:4f:8000::/48",
+   "value": "2620004f8000fffffffffffffffffffe",
+   "texts": [
+    "2620:4f:8000:ffff:ffff:ffff:ffff:fffe",
+    "2620:004f:8000:ffff:ffff:ffff:ffff:fffe",
+    "2620:4F:8000:FFFF:FFFF:FFFF:FFFF:FFFE",
+    "2620:4f:8000:ffff:ffff:ffff:255.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2620:4f:8000::/48",
+   "value": "2620004f8000ffffffffffffffffffff",
+   "texts": [
+    "2620:4f:8000:ffff:ffff:ffff:ffff:ffff",
+    "2620:004f:8000:ffff:ffff:ffff:ffff:ffff",
+    "2620:4F:8000:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "2620:4f:8000:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 2620:4f:8000::/48",
+   "value": "2620004f800100000000000000000000",
+   "texts": [
+    "2620:4f:8001::",
+    "2620:004f:8001:0000:0000:0000:0000:0000",
+    "2620:4F:8001::",
+    "2620:4f:8001:0:0:0:0.0.0.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "26594a60b7d9c707bde649f7bbeb61d9",
+   "texts": [
+    "2659:4a60:b7d9:c707:bde6:49f7:bbeb:61d9",
+    "2659:4A60:B7D9:C707:BDE6:49F7:BBEB:61D9",
+    "2659:4a60:b7d9:c707:bde6:49f7:187.235.97.217"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2715b0439855a0414a3c96fa713e1c3b",
+   "texts": [
+    "2715:b043:9855:a041:4a3c:96fa:713e:1c3b",
+    "2715:B043:9855:A041:4A3C:96FA:713E:1C3B",
+    "2715:b043:9855:a041:4a3c:96fa:113.62.28.59"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "27174740dc7d5285e99337d80431910d",
+   "texts": [
+    "2717:4740:dc7d:5285:e993:37d8:431:910d",
+    "2717:4740:dc7d:5285:e993:37d8:0431:910d",
+    "2717:4740:DC7D:5285:E993:37D8:431:910D",
+    "2717:4740:dc7d:5285:e993:37d8:4.49.145.13"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "27372e1ed73859b7e9ae28df34210d35",
+   "texts": [
+    "2737:2e1e:d738:59b7:e9ae:28df:3421:d35",
+    "2737:2e1e:d738:59b7:e9ae:28df:3421:0d35",
+    "2737:2E1E:D738:59B7:E9AE:28DF:3421:D35",
+    "2737:2e1e:d738:59b7:e9ae:28df:52.33.13.53"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "275147c7f3c987bf295e66d106ee5072",
+   "texts": [
+    "2751:47c7:f3c9:87bf:295e:66d1:6ee:5072",
+    "2751:47c7:f3c9:87bf:295e:66d1:06ee:5072",
+    "2751:47C7:F3C9:87BF:295E:66D1:6EE:5072",
+    "2751:47c7:f3c9:87bf:295e:66d1:6.238.80.114"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "27667d695895bc5a7c93c6212f728384",
+   "texts": [
+    "2766:7d69:5895:bc5a:7c93:c621:2f72:8384",
+    "2766:7D69:5895:BC5A:7C93:C621:2F72:8384",
+    "2766:7d69:5895:bc5a:7c93:c621:47.114.131.132"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "27791d676fb41e10fc123efb17445c9c",
+   "texts": [
+    "2779:1d67:6fb4:1e10:fc12:3efb:1744:5c9c",
+    "2779:1D67:6FB4:1E10:FC12:3EFB:1744:5C9C",
+    "2779:1d67:6fb4:1e10:fc12:3efb:23.68.92.156"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "27bbdcc1e4cd3953e4794520827d2b92",
+   "texts": [
+    "27bb:dcc1:e4cd:3953:e479:4520:827d:2b92",
+    "27BB:DCC1:E4CD:3953:E479:4520:827D:2B92",
+    "27bb:dcc1:e4cd:3953:e479:4520:130.125.43.146"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "27c9d0cf44b63190b2382877eb9f003d",
+   "texts": [
+    "27c9:d0cf:44b6:3190:b238:2877:eb9f:3d",
+    "27c9:d0cf:44b6:3190:b238:2877:eb9f:003d",
+    "27C9:D0CF:44B6:3190:B238:2877:EB9F:3D",
+    "27c9:d0cf:44b6:3190:b238:2877:235.159.0.61"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": "27d7f413c63ba3c15891da10e7b28988",
+   "texts": [
+    "27d7:f413:c63b:a3c1:5891:da10:e7b2:8988",
+    "27D7:F413:C63B:A3C1:5891:DA10:E7B2:8988",
+    "27d7:f413:c63b:a3c1:5891:da10:231.178.137.136"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "282d71ad4ff931b452b18a2e6b520a3b",
+   "texts": [
+    "282d:71ad:4ff9:31b4:52b1:8a2e:6b52:a3b",
+    "282d:71ad:4ff9:31b4:52b1:8a2e:6b52:0a3b",
+    "282D:71AD:4FF9:31B4:52B1:8A2E:6B52:A3B",
+    "282d:71ad:4ff9:31b4:52b1:8a2e:107.82.10.59"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2845c29ed3e97a64500859d222a7cedc",
+   "texts": [
+    "2845:c29e:d3e9:7a64:5008:59d2:22a7:cedc",
+    "2845:C29E:D3E9:7A64:5008:59D2:22A7:CEDC",
+    "2845:c29e:d3e9:7a64:5008:59d2:34.167.206.220"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "28967e550ac11389876e507af1d300c3",
+   "texts": [
+    "2896:7e55:ac1:1389:876e:507a:f1d3:c3",
+    "2896:7e55:0ac1:1389:876e:507a:f1d3:00c3",
+    "2896:7E55:AC1:1389:876E:507A:F1D3:C3",
+    "2896:7e55:ac1:1389:876e:507a:241.211.0.195"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "289974de820c63dcf5ea056b3edad028",
+   "texts": [
+    "2899:74de:820c:63dc:f5ea:56b:3eda:d028",
+    "2899:74de:820c:63dc:f5ea:056b:3eda:d028",
+    "2899:74DE:820C:63DC:F5EA:56B:3EDA:D028",
+    "2899:74de:820c:63dc:f5ea:56b:62.218.208.40"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "28e6504dfbd062f6a5b5a33d9369efea",
+   "texts": [
+    "28e6:504d:fbd0:62f6:a5b5:a33d:9369:efea",
+    "28E6:504D:FBD0:62F6:A5B5:A33D:9369:EFEA",
+    "28e6:504d:fbd0:62f6:a5b5:a33d:147.105.239.234"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "291194c732749ba252196d16845010b5",
+   "texts": [
+    "2911:94c7:3274:9ba2:5219:6d16:8450:10b5",
+    "2911:94C7:3274:9BA2:5219:6D16:8450:10B5",
+    "2911:94c7:3274:9ba2:5219:6d16:132.80.16.181"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "291456e242d3c6dd1f98354cdd485f52",
+   "texts": [
+    "2914:56e2:42d3:c6dd:1f98:354c:dd48:5f52",
+    "2914:56E2:42D3:C6DD:1F98:354C:DD48:5F52",
+    "2914:56e2:42d3:c6dd:1f98:354c:221.72.95.82"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "29882a84f1afe994a084ead518297dcc",
+   "texts": [
+    "2988:2a84:f1af:e994:a084:ead5:1829:7dcc",
+    "2988:2A84:F1AF:E994:A084:EAD5:1829:7DCC",
+    "2988:2a84:f1af:e994:a084:ead5:24.41.125.204"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "299ad88178200b774b790361e4da6fc1",
+   "texts": [
+    "299a:d881:7820:b77:4b79:361:e4da:6fc1",
+    "299a:d881:7820:0b77:4b79:0361:e4da:6fc1",
+    "299A:D881:7820:B77:4B79:361:E4DA:6FC1",
+    "299a:d881:7820:b77:4b79:361:228.218.111.193"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "29ba407c4529e40d958e38bc0eeb603d",
+   "texts": [
+    "29ba:407c:4529:e40d:958e:38bc:eeb:603d",
+    "29ba:407c:4529:e40d:958e:38bc:0eeb:603d",
+    "29BA:407C:4529:E40D:958E:38BC:EEB:603D",
+    "29ba:407c:4529:e40d:958e:38bc:14.235.96.61"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "29eb66b7513cf26cbdbf10b1f8e81320",
+   "texts": [
+    "29eb:66b7:513c:f26c:bdbf:10b1:f8e8:1320",
+    "29EB:66B7:513C:F26C:BDBF:10B1:F8E8:1320",
+    "29eb:66b7:513c:f26c:bdbf:10b1:248.232.19.32"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2a1f3f71cd43f6e7ba84265d94b1dd8e",
+   "texts": [
+    "2a1f:3f71:cd43:f6e7:ba84:265d:94b1:dd8e",
+    "2A1F:3F71:CD43:F6E7:BA84:265D:94B1:DD8E",
+    "2a1f:3f71:cd43:f6e7:ba84:265d:148.177.221.142"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": "2a2e95a4175f400e0ad73b55487ad561",
+   "texts": [
+    "2a2e:95a4:175f:400e:ad7:3b55:487a:d561",
+    "2a2e:95a4:175f:400e:0ad7:3b55:487a:d561",
+    "2A2E:95A4:175F:400E:AD7:3B55:487A:D561",
+    "2a2e:95a4:175f:400e:ad7:3b55:72.122.213.97"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2ad9bb137c293a7400b79a53398d7cd6",
+   "texts": [
+    "2ad9:bb13:7c29:3a74:b7:9a53:398d:7cd6",
+    "2ad9:bb13:7c29:3a74:00b7:9a53:398d:7cd6",
+    "2AD9:BB13:7C29:3A74:B7:9A53:398D:7CD6",
+    "2ad9:bb13:7c29:3a74:b7:9a53:57.141.124.214"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2b08b0d4279add47311da530dad7e904",
+   "texts": [
+    "2b08:b0d4:279a:dd47:311d:a530:dad7:e904",
+    "2B08:B0D4:279A:DD47:311D:A530:DAD7:E904",
+    "2b08:b0d4:279a:dd47:311d:a530:218.215.233.4"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2b2bda548c0b995152b397dcabac83d0",
+   "texts": [
+    "2b2b:da54:8c0b:9951:52b3:97dc:abac:83d0",
+    "2B2B:DA54:8C0B:9951:52B3:97DC:ABAC:83D0",
+    "2b2b:da54:8c0b:9951:52b3:97dc:171.172.131.208"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2b2bdb0a472772c48c77f9950d036102",
+   "texts": [
+    "2b2b:db0a:4727:72c4:8c77:f995:d03:6102",
+    "2b2b:db0a:4727:72c4:8c77:f995:0d03:6102",
+    "2B2B:DB0A:4727:72C4:8C77:F995:D03:6102",
+    "2b2b:db0a:4727:72c4:8c77:f995:13.3.97.2"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2b307ad5933a3fa1c56ff8a92ef58d65",
+   "texts": [
+    "2b30:7ad5:933a:3fa1:c56f:f8a9:2ef5:8d65",
+    "2B30:7AD5:933A:3FA1:C56F:F8A9:2EF5:8D65",
+    "2b30:7ad5:933a:3fa1:c56f:f8a9:46.245.141.101"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2b991b5564017486ac98d61267b7d71a",
+   "texts": [
+    "2b99:1b55:6401:7486:ac98:d612:67b7:d71a",
+    "2B99:1B55:6401:7486:AC98:D612:67B7:D71A",
+    "2b99:1b55:6401:7486:ac98:d612:103.183.215.26"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2bb53b02e5867b0abd27878c4f3ab03b",
+   "texts": [
+    "2bb5:3b02:e586:7b0a:bd27:878c:4f3a:b03b",
+    "2BB5:3B02:E586:7B0A:BD27:878C:4F3A:B03B",
+    "2bb5:3b02:e586:7b0a:bd27:878c:79.58.176.59"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2bbbd40257b8b8554757d7049f325fb3",
+   "texts": [
+    "2bbb:d402:57b8:b855:4757:d704:9f32:5fb3",
+    "2BBB:D402:57B8:B855:4757:D704:9F32:5FB3",
+    "2bbb:d402:57b8:b855:4757:d704:159.50.95.179"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2bdd49792a632d5b22561f898d719d00",
+   "texts": [
+    "2bdd:4979:2a63:2d5b:2256:1f89:8d71:9d00",
+    "2BDD:4979:2A63:2D5B:2256:1F89:8D71:9D00",
+    "2bdd:4979:2a63:2d5b:2256:1f89:141.113.157.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2c03c2d1b8c79fcab61b66f732dbc4a5",
+   "texts": [
+    "2c03:c2d1:b8c7:9fca:b61b:66f7:32db:c4a5",
+    "2C03:C2D1:B8C7:9FCA:B61B:66F7:32DB:C4A5",
+    "2c03:c2d1:b8c7:9fca:b61b:66f7:50.219.196.165"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2c1ae03d7d6f2a0591584f346a6bd966",
+   "texts": [
+    "2c1a:e03d:7d6f:2a05:9158:4f34:6a6b:d966",
+    "2C1A:E03D:7D6F:2A05:9158:4F34:6A6B:D966",
+    "2c1a:e03d:7d6f:2a05:9158:4f34:106.107.217.102"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2c24a3be12b39a9bca1415ed63263e98",
+   "texts": [
+    "2c24:a3be:12b3:9a9b:ca14:15ed:6326:3e98",
+    "2C24:A3BE:12B3:9A9B:CA14:15ED:6326:3E98",
+    "2c24:a3be:12b3:9a9b:ca14:15ed:99.38.62.152"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2c3c820e2b7358a040a6a5ce593d47c5",
+   "texts": [
+    "2c3c:820e:2b73:58a0:40a6:a5ce:593d:47c5",
+    "2C3C:820E:2B73:58A0:40A6:A5CE:593D:47C5",
+    "2c3c:820e:2b73:58a0:40a6:a5ce:89.61.71.197"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2c59d394c8bc193feb3309385b516db4",
+   "texts": [
+    "2c59:d394:c8bc:193f:eb33:938:5b51:6db4",
+    "2c59:d394:c8bc:193f:eb33:0938:5b51:6db4",
+    "2C59:D394:C8BC:193F:EB33:938:5B51:6DB4",
+    "2c59:d394:c8bc:193f:eb33:938:91.81.109.180"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2d0640133f17df92e1c9ebd5286c74e6",
+   "texts": [
+    "2d06:4013:3f17:df92:e1c9:ebd5:286c:74e6",
+    "2D06:4013:3F17:DF92:E1C9:EBD5:286C:74E6",
+    "2d06:4013:3f17:df92:e1c9:ebd5:40.108.116.230"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2d2fe14bba04b903e4f2dd32e4274196",
+   "texts": [
+    "2d2f:e14b:ba04:b903:e4f2:dd32:e427:4196",
+    "2D2F:E14B:BA04:B903:E4F2:DD32:E427:4196",
+    "2d2f:e14b:ba04:b903:e4f2:dd32:228.39.65.150"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2d88a27b6403694b5e91c9be8875a593",
+   "texts": [
+    "2d88:a27b:6403:694b:5e91:c9be:8875:a593",
+    "2D88:A27B:6403:694B:5E91:C9BE:8875:A593",
+    "2d88:a27b:6403:694b:5e91:c9be:136.117.165.147"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2df7e338a4985b92f89b1f9b798c75fa",
+   "texts": [
+    "2df7:e338:a498:5b92:f89b:1f9b:798c:75fa",
+    "2DF7:E338:A498:5B92:F89B:1F9B:798C:75FA",
+    "2df7:e338:a498:5b92:f89b:1f9b:121.140.117.250"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2e32612d16318333b99a8f65ac510b79",
+   "texts": [
+    "2e32:612d:1631:8333:b99a:8f65:ac51:b79",
+    "2e32:612d:1631:8333:b99a:8f65:ac51:0b79",
+    "2E32:612D:1631:8333:B99A:8F65:AC51:B79",
+    "2e32:612d:1631:8333:b99a:8f65:172.81.11.121"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2e33551652e0ca6f63c10cd99ee548df",
+   "texts": [
+    "2e33:5516:52e0:ca6f:63c1:cd9:9ee5:48df",
+    "2e33:5516:52e0:ca6f:63c1:0cd9:9ee5:48df",
+    "2E33:5516:52E0:CA6F:63C1:CD9:9EE5:48DF",
+    "2e33:5516:52e0:ca6f:63c1:cd9:158.229.72.223"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": "2ebe374bd0a6bf9cff66758d3815f56a",
+   "texts": [
+    "2ebe:374b:d0a6:bf9c:ff66:758d:3815:f56a",
+    "2EBE:374B:D0A6:BF9C:FF66:758D:3815:F56A",
+    "2ebe:374b:d0a6:bf9c:ff66:758d:56.21.245.106"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2ef634444a43af2cd94666acd83fcb64",
+   "texts": [
+    "2ef6:3444:4a43:af2c:d946:66ac:d83f:cb64",
+    "2EF6:3444:4A43:AF2C:D946:66AC:D83F:CB64",
+    "2ef6:3444:4a43:af2c:d946:66ac:216.63.203.100"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2f0d24fa9d18b7472c6a28eb968bf9b7",
+   "texts": [
+    "2f0d:24fa:9d18:b747:2c6a:28eb:968b:f9b7",
+    "2F0D:24FA:9D18:B747:2C6A:28EB:968B:F9B7",
+    "2f0d:24fa:9d18:b747:2c6a:28eb:150.139.249.183"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2f10c8803a67359c2f400cc9ba0e944b",
+   "texts": [
+    "2f10:c880:3a67:359c:2f40:cc9:ba0e:944b",
+    "2f10:c880:3a67:359c:2f40:0cc9:ba0e:944b",
+    "2F10:C880:3A67:359C:2F40:CC9:BA0E:944B",
+    "2f10:c880:3a67:359c:2f40:cc9:186.14.148.75"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2f248a972393da0fc0615c9ecae29152",
+   "texts": [
+    "2f24:8a97:2393:da0f:c061:5c9e:cae2:9152",
+    "2F24:8A97:2393:DA0F:C061:5C9E:CAE2:9152",
+    "2f24:8a97:2393:da0f:c061:5c9e:202.226.145.82"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2f373e15e1addf57b897bb6504af2c99",
+   "texts": [
+    "2f37:3e15:e1ad:df57:b897:bb65:4af:2c99",
+    "2f37:3e15:e1ad:df57:b897:bb65:04af:2c99",
+    "2F37:3E15:E1AD:DF57:B897:BB65:4AF:2C99",
+    "2f37:3e15:e1ad:df57:b897:bb65:4.175.44.153"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2f9c4706a878d29d725d21c61e9d127c",
+   "texts": [
+    "2f9c:4706:a878:d29d:725d:21c6:1e9d:127c",
+    "2F9C:4706:A878:D29D:725D:21C6:1E9D:127C",
+    "2f9c:4706:a878:d29d:725d:21c6:30.157.18.124"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "2fee69d43e3d6aff28d4a32d5f1e980f",
+   "texts": [
+    "2fee:69d4:3e3d:6aff:28d4:a32d:5f1e:980f",
+    "2FEE:69D4:3E3D:6AFF:28D4:A32D:5F1E:980F",
+    "2fee:69d4:3e3d:6aff:28d4:a32d:95.30.152.15"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "306a0bffff9bb9f6a71c0aaa5c1161f5",
+   "texts": [
+    "306a:bff:ff9b:b9f6:a71c:aaa:5c11:61f5",
+    "306a:0bff:ff9b:b9f6:a71c:0aaa:5c11:61f5",
+    "306A:BFF:FF9B:B9F6:A71C:AAA:5C11:61F5",
+    "306a:bff:ff9b:b9f6:a71c:aaa:92.17.97.245"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3088087925ae6a737b505295b777060b",
+   "texts": [
+    "3088:879:25ae:6a73:7b50:5295:b777:60b",
+    "3088:0879:25ae:6a73:7b50:5295:b777:060b",
+    "3088:879:25AE:6A73:7B50:5295:B777:60B",
+    "3088:879:25ae:6a73:7b50:5295:183.119.6.11"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "308e354c4cb7106af8d363f932d8c3dc",
+   "texts": [
+    "308e:354c:4cb7:106a:f8d3:63f9:32d8:c3dc",
+    "308E:354C:4CB7:106A:F8D3:63F9:32D8:C3DC",
+    "308e:354c:4cb7:106a:f8d3:63f9:50.216.195.220"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "30a9d9bbeb8f36e0d7bba1005a4859ba",
+   "texts": [
+    "30a9:d9bb:eb8f:36e0:d7bb:a100:5a48:59ba",
+    "30A9:D9BB:EB8F:36E0:D7BB:A100:5A48:59BA",
+    "30a9:d9bb:eb8f:36e0:d7bb:a100:90.72.89.186"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "30bf74c57829756c636275b97980cb6a",
+   "texts": [
+    "30bf:74c5:7829:756c:6362:75b9:7980:cb6a",
+    "30BF:74C5:7829:756C:6362:75B9:7980:CB6A",
+    "30bf:74c5:7829:756c:6362:75b9:121.128.203.106"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "30cd5e324e98ba300708a45fe03cef77",
+   "texts": [
+    "30cd:5e32:4e98:ba30:708:a45f:e03c:ef77",
+    "30cd:5e32:4e98:ba30:0708:a45f:e03c:ef77",
+    "30CD:5E32:4E98:BA30:708:A45F:E03C:EF77",
+    "30cd:5e32:4e98:ba30:708:a45f:224.60.239.119"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "31353a7f83c12807cb48eedc1fab1476",
+   "texts": [
+    "3135:3a7f:83c1:2807:cb48:eedc:1fab:1476",
+    "3135:3A7F:83C1:2807:CB48:EEDC:1FAB:1476",
+    "3135:3a7f:83c1:2807:cb48:eedc:31.171.20.118"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "314b6b3fb04a0615708be89582d7520f",
+   "texts": [
+    "314b:6b3f:b04a:615:708b:e895:82d7:520f",
+    "314b:6b3f:b04a:0615:708b:e895:82d7:520f",
+    "314B:6B3F:B04A:615:708B:E895:82D7:520F",
+    "314b:6b3f:b04a:615:708b:e895:130.215.82.15"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "32026a63a840b80c935a07f19f831675",
+   "texts": [
+    "3202:6a63:a840:b80c:935a:7f1:9f83:1675",
+    "3202:6a63:a840:b80c:935a:07f1:9f83:1675",
+    "3202:6A63:A840:B80C:935A:7F1:9F83:1675",
+    "3202:6a63:a840:b80c:935a:7f1:159.131.22.117"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "322d9b149fc459f4c3e6b9714c3fd150",
+   "texts": [
+    "322d:9b14:9fc4:59f4:c3e6:b971:4c3f:d150",
+    "322D:9B14:9FC4:59F4:C3E6:B971:4C3F:D150",
+    "322d:9b14:9fc4:59f4:c3e6:b971:76.63.209.80"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3231009387578b69cb17cb4a2c7b47e0",
+   "texts": [
+    "3231:93:8757:8b69:cb17:cb4a:2c7b:47e0",
+    "3231:0093:8757:8b69:cb17:cb4a:2c7b:47e0",
+    "3231:93:8757:8B69:CB17:CB4A:2C7B:47E0",
+    "3231:93:8757:8b69:cb17:cb4a:44.123.71.224"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "327fbc5dad892fd07012c078057d2df9",
+   "texts": [
+    "327f:bc5d:ad89:2fd0:7012:c078:57d:2df9",
+    "327f:bc5d:ad89:2fd0:7012:c078:057d:2df9",
+    "327F:BC5D:AD89:2FD0:7012:C078:57D:2DF9",
+    "327f:bc5d:ad89:2fd0:7012:c078:5.125.45.249"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "32d2283e463c23c3529a8ae9647d0022",
+   "texts": [
+    "32d2:283e:463c:23c3:529a:8ae9:647d:22",
+    "32d2:283e:463c:23c3:529a:8ae9:647d:0022",
+    "32D2:283E:463C:23C3:529A:8AE9:647D:22",
+    "32d2:283e:463c:23c3:529a:8ae9:100.125.0.34"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "32da8cf90eb3b3438de37d459cbfe421",
+   "texts": [
+    "32da:8cf9:eb3:b343:8de3:7d45:9cbf:e421",
+    "32da:8cf9:0eb3:b343:8de3:7d45:9cbf:e421",
+    "32DA:8CF9:EB3:B343:8DE3:7D45:9CBF:E421",
+    "32da:8cf9:eb3:b343:8de3:7d45:156.191.228.33"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "32ff1f03766b6cb60d3483361af483c3",
+   "texts": [
+    "32ff:1f03:766b:6cb6:d34:8336:1af4:83c3",
+    "32ff:1f03:766b:6cb6:0d34:8336:1af4:83c3",
+    "32FF:1F03:766B:6CB6:D34:8336:1AF4:83C3",
+    "32ff:1f03:766b:6cb6:d34:8336:26.244.131.195"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3313292f030a0da033e5b585cd87a822",
+   "texts": [
+    "3313:292f:30a:da0:33e5:b585:cd87:a822",
+    "3313:292f:030a:0da0:33e5:b585:cd87:a822",
+    "3313:292F:30A:DA0:33E5:B585:CD87:A822",
+    "3313:292f:30a:da0:33e5:b585:205.135.168.34"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3317c16700fd8e8b96b67a7699b9be77",
+   "texts": [
+    "3317:c167:fd:8e8b:96b6:7a76:99b9:be77",
+    "3317:c167:00fd:8e8b:96b6:7a76:99b9:be77",
+    "3317:C167:FD:8E8B:96B6:7A76:99B9:BE77",
+    "3317:c167:fd:8e8b:96b6:7a76:153.185.190.119"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "339a49fb8d05650187600eb6020b8b56",
+   "texts": [
+    "339a:49fb:8d05:6501:8760:eb6:20b:8b56",
+    "339a:49fb:8d05:6501:8760:0eb6:020b:8b56",
+    "339A:49FB:8D05:6501:8760:EB6:20B:8B56",
+    "339a:49fb:8d05:6501:8760:eb6:2.11.139.86"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3478395c268544e971a248db994543d2",
+   "texts": [
+    "3478:395c:2685:44e9:71a2:48db:9945:43d2",
+    "3478:395C:2685:44E9:71A2:48DB:9945:43D2",
+    "3478:395c:2685:44e9:71a2:48db:153.69.67.210"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "347b49e8e53d2594e9049c1367a83116",
+   "texts": [
+    "347b:49e8:e53d:2594:e904:9c13:67a8:3116",
+    "347B:49E8:E53D:2594:E904:9C13:67A8:3116",
+    "347b:49e8:e53d:2594:e904:9c13:103.168.49.22"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "348ec6cb8be880da0b4399a8f81e5dac",
+   "texts": [
+    "348e:c6cb:8be8:80da:b43:99a8:f81e:5dac",
+    "348e:c6cb:8be8:80da:0b43:99a8:f81e:5dac",
+    "348E:C6CB:8BE8:80DA:B43:99A8:F81E:5DAC",
+    "348e:c6cb:8be8:80da:b43:99a8:248.30.93.172"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "34a4e88643e712c4943bfc0ff5f0d6ef",
+   "texts": [
+    "34a4:e886:43e7:12c4:943b:fc0f:f5f0:d6ef",
+    "34A4:E886:43E7:12C4:943B:FC0F:F5F0:D6EF",
+    "34a4:e886:43e7:12c4:943b:fc0f:245.240.214.239"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "34bd61bc58f577353e65be5b4e6404c7",
+   "texts": [
+    "34bd:61bc:58f5:7735:3e65:be5b:4e64:4c7",
+    "34bd:61bc:58f5:7735:3e65:be5b:4e64:04c7",
+    "34BD:61BC:58F5:7735:3E65:BE5B:4E64:4C7",
+    "34bd:61bc:58f5:7735:3e65:be5b:78.100.4.199"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "34c5ce7c648ab3a92af1792073c6a32e",
+   "texts": [
+    "34c5:ce7c:648a:b3a9:2af1:7920:73c6:a32e",
+    "34C5:CE7C:648A:B3A9:2AF1:7920:73C6:A32E",
+    "34c5:ce7c:648a:b3a9:2af1:7920:115.198.163.46"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": "3506f9c0ab52d3ae45c51f462e3b9118",
+   "texts": [
+    "3506:f9c0:ab52:d3ae:45c5:1f46:2e3b:9118",
+    "3506:F9C0:AB52:D3AE:45C5:1F46:2E3B:9118",
+    "3506:f9c0:ab52:d3ae:45c5:1f46:46.59.145.24"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "354a46016bffb1299659cfcded3193f2",
+   "texts": [
+    "354a:4601:6bff:b129:9659:cfcd:ed31:93f2",
+    "354A:4601:6BFF:B129:9659:CFCD:ED31:93F2",
+    "354a:4601:6bff:b129:9659:cfcd:237.49.147.242"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "35768afbe3ab04fe43411dbc04c2d687",
+   "texts": [
+    "3576:8afb:e3ab:4fe:4341:1dbc:4c2:d687",
+    "3576:8afb:e3ab:04fe:4341:1dbc:04c2:d687",
+    "3576:8AFB:E3AB:4FE:4341:1DBC:4C2:D687",
+    "3576:8afb:e3ab:4fe:4341:1dbc:4.194.214.135"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3581c025e149fa9e396269323fd023c7",
+   "texts": [
+    "3581:c025:e149:fa9e:3962:6932:3fd0:23c7",
+    "3581:C025:E149:FA9E:3962:6932:3FD0:23C7",
+    "3581:c025:e149:fa9e:3962:6932:63.208.35.199"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "36061fa0a2cd030dce81f19229d28ff4",
+   "texts": [
+    "3606:1fa0:a2cd:30d:ce81:f192:29d2:8ff4",
+    "3606:1fa0:a2cd:030d:ce81:f192:29d2:8ff4",
+    "3606:1FA0:A2CD:30D:CE81:F192:29D2:8FF4",
+    "3606:1fa0:a2cd:30d:ce81:f192:41.210.143.244"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3671a4b5fec778a1349473343abf188e",
+   "texts": [
+    "3671:a4b5:fec7:78a1:3494:7334:3abf:188e",
+    "3671:A4B5:FEC7:78A1:3494:7334:3ABF:188E",
+    "3671:a4b5:fec7:78a1:3494:7334:58.191.24.142"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "36d9f24f5fbce7d3adf519b696012c35",
+   "texts": [
+    "36d9:f24f:5fbc:e7d3:adf5:19b6:9601:2c35",
+    "36D9:F24F:5FBC:E7D3:ADF5:19B6:9601:2C35",
+    "36d9:f24f:5fbc:e7d3:adf5:19b6:150.1.44.53"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "375fa9081417f5ee9fb077accb55669a",
+   "texts": [
+    "375f:a908:1417:f5ee:9fb0:77ac:cb55:669a",
+    "375F:A908:1417:F5EE:9FB0:77AC:CB55:669A",
+    "375f:a908:1417:f5ee:9fb0:77ac:203.85.102.154"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "376d6d28f74e8e83bf9390d1f2293f07",
+   "texts": [
+    "376d:6d28:f74e:8e83:bf93:90d1:f229:3f07",
+    "376D:6D28:F74E:8E83:BF93:90D1:F229:3F07",
+    "376d:6d28:f74e:8e83:bf93:90d1:242.41.63.7"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "37a0f595d82bd00a0c80afa63bcc7317",
+   "texts": [
+    "37a0:f595:d82b:d00a:c80:afa6:3bcc:7317",
+    "37a0:f595:d82b:d00a:0c80:afa6:3bcc:7317",
+    "37A0:F595:D82B:D00A:C80:AFA6:3BCC:7317",
+    "37a0:f595:d82b:d00a:c80:afa6:59.204.115.23"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "382e2dcb934530b72cdcbdb48e3bf9f6",
+   "texts": [
+    "382e:2dcb:9345:30b7:2cdc:bdb4:8e3b:f9f6",
+    "382E:2DCB:9345:30B7:2CDC:BDB4:8E3B:F9F6",
+    "382e:2dcb:9345:30b7:2cdc:bdb4:142.59.249.246"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "38584d321b276751149f0b75f296745f",
+   "texts": [
+    "3858:4d32:1b27:6751:149f:b75:f296:745f",
+    "3858:4d32:1b27:6751:149f:0b75:f296:745f",
+    "3858:4D32:1B27:6751:149F:B75:F296:745F",
+    "3858:4d32:1b27:6751:149f:b75:242.150.116.95"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "38ebde746ac7e35cd5cce2868e41a877",
+   "texts": [
+    "38eb:de74:6ac7:e35c:d5cc:e286:8e41:a877",
+    "38EB:DE74:6AC7:E35C:D5CC:E286:8E41:A877",
+    "38eb:de74:6ac7:e35c:d5cc:e286:142.65.168.119"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "39d7941652436232d4998b98a603e9c0",
+   "texts": [
+    "39d7:9416:5243:6232:d499:8b98:a603:e9c0",
+    "39D7:9416:5243:6232:D499:8B98:A603:E9C0",
+    "39d7:9416:5243:6232:d499:8b98:166.3.233.192"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3a7fe5102539145b71e33109cf92cd1c",
+   "texts": [
+    "3a7f:e510:2539:145b:71e3:3109:cf92:cd1c",
+    "3A7F:E510:2539:145B:71E3:3109:CF92:CD1C",
+    "3a7f:e510:2539:145b:71e3:3109:207.146.205.28"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3a92933a3e2e57ab4a752500f23362f0",
+   "texts": [
+    "3a92:933a:3e2e:57ab:4a75:2500:f233:62f0",
+    "3A92:933A:3E2E:57AB:4A75:2500:F233:62F0",
+    "3a92:933a:3e2e:57ab:4a75:2500:242.51.98.240"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3aacfd9cdfd5c770e87d69e6f5d091a3",
+   "texts": [
+    "3aac:fd9c:dfd5:c770:e87d:69e6:f5d0:91a3",
+    "3AAC:FD9C:DFD5:C770:E87D:69E6:F5D0:91A3",
+    "3aac:fd9c:dfd5:c770:e87d:69e6:245.208.145.163"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3adbf73b4177a818b356c79bf8db3c91",
+   "texts": [
+    "3adb:f73b:4177:a818:b356:c79b:f8db:3c91",
+    "3ADB:F73B:4177:A818:B356:C79B:F8DB:3C91",
+    "3adb:f73b:4177:a818:b356:c79b:248.219.60.145"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3b0e4071792ddd992ad3df2dd2b134c5",
+   "texts": [
+    "3b0e:4071:792d:dd99:2ad3:df2d:d2b1:34c5",
+    "3B0E:4071:792D:DD99:2AD3:DF2D:D2B1:34C5",
+    "3b0e:4071:792d:dd99:2ad3:df2d:210.177.52.197"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3b21fc11ed30e8a4e2829369bfec0301",
+   "texts": [
+    "3b21:fc11:ed30:e8a4:e282:9369:bfec:301",
+    "3b21:fc11:ed30:e8a4:e282:9369:bfec:0301",
+    "3B21:FC11:ED30:E8A4:E282:9369:BFEC:301",
+    "3b21:fc11:ed30:e8a4:e282:9369:191.236.3.1"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3b4de4a8aba8df8b65f02c592178cac2",
+   "texts": [
+    "3b4d:e4a8:aba8:df8b:65f0:2c59:2178:cac2",
+    "3B4D:E4A8:ABA8:DF8B:65F0:2C59:2178:CAC2",
+    "3b4d:e4a8:aba8:df8b:65f0:2c59:33.120.202.194"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3b664c75adb1c409a3fad14f1dd64b68",
+   "texts": [
+    "3b66:4c75:adb1:c409:a3fa:d14f:1dd6:4b68",
+    "3B66:4C75:ADB1:C409:A3FA:D14F:1DD6:4B68",
+    "3b66:4c75:adb1:c409:a3fa:d14f:29.214.75.104"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3c0d02baadb131ec0369bba449195e47",
+   "texts": [
+    "3c0d:2ba:adb1:31ec:369:bba4:4919:5e47",
+    "3c0d:02ba:adb1:31ec:0369:bba4:4919:5e47",
+    "3C0D:2BA:ADB1:31EC:369:BBA4:4919:5E47",
+    "3c0d:2ba:adb1:31ec:369:bba4:73.25.94.71"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3c9987e77d4dba9ab7b0a6576425e00b",
+   "texts": [
+    "3c99:87e7:7d4d:ba9a:b7b0:a657:6425:e00b",
+    "3C99:87E7:7D4D:BA9A:B7B0:A657:6425:E00B",
+    "3c99:87e7:7d4d:ba9a:b7b0:a657:100.37.224.11"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3ce2f178732a447a718f654af9948f6b",
+   "texts": [
+    "3ce2:f178:732a:447a:718f:654a:f994:8f6b",
+    "3CE2:F178:732A:447A:718F:654A:F994:8F6B",
+    "3ce2:f178:732a:447a:718f:654a:249.148.143.107"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3d25cae8d59ec6d0592c68c042efdf92",
+   "texts": [
+    "3d25:cae8:d59e:c6d0:592c:68c0:42ef:df92",
+    "3D25:CAE8:D59E:C6D0:592C:68C0:42EF:DF92",
+    "3d25:cae8:d59e:c6d0:592c:68c0:66.239.223.146"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3d3ebfc1d95c8da14be9fcd029f24d60",
+   "texts": [
+    "3d3e:bfc1:d95c:8da1:4be9:fcd0:29f2:4d60",
+    "3D3E:BFC1:D95C:8DA1:4BE9:FCD0:29F2:4D60",
+    "3d3e:bfc1:d95c:8da1:4be9:fcd0:41.242.77.96"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3d7256d2d02fbf4a7782060414745911",
+   "texts": [
+    "3d72:56d2:d02f:bf4a:7782:604:1474:5911",
+    "3d72:56d2:d02f:bf4a:7782:0604:1474:5911",
+    "3D72:56D2:D02F:BF4A:7782:604:1474:5911",
+    "3d72:56d2:d02f:bf4a:7782:604:20.116.89.17"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3d8ec8d2bd668af69852e411727064bc",
+   "texts": [
+    "3d8e:c8d2:bd66:8af6:9852:e411:7270:64bc",
+    "3D8E:C8D2:BD66:8AF6:9852:E411:7270:64BC",
+    "3d8e:c8d2:bd66:8af6:9852:e411:114.112.100.188"
+   ],
+   "public": true
+  },
+  {
+   "source": "random",
+   "value": "3dce99563b18d2f7dce51c55a511c558",
+   "texts": [
+    "3dce:9956:3b18:d2f7:dce5:1c55:a511:c558",
+    "3DCE:9956:3B18:D2F7:DCE5:1C55:A511:C558",
+    "3dce:9956:3b18:d2f7:dce5:1c55:165.17.197.88"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3de2ec30965470ca92e52b348316e070",
+   "texts": [
+    "3de2:ec30:9654:70ca:92e5:2b34:8316:e070",
+    "3DE2:EC30:9654:70CA:92E5:2B34:8316:E070",
+    "3de2:ec30:9654:70ca:92e5:2b34:131.22.224.112"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3de55fedba38f1458bded06bc5fbc825",
+   "texts": [
+    "3de5:5fed:ba38:f145:8bde:d06b:c5fb:c825",
+    "3DE5:5FED:BA38:F145:8BDE:D06B:C5FB:C825",
+    "3de5:5fed:ba38:f145:8bde:d06b:197.251.200.37"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3e87453656e124e12013c9e312041608",
+   "texts": [
+    "3e87:4536:56e1:24e1:2013:c9e3:1204:1608",
+    "3E87:4536:56E1:24E1:2013:C9E3:1204:1608",
+    "3e87:4536:56e1:24e1:2013:c9e3:18.4.22.8"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3ea95d375bcaa6c03cf324f95b085cb8",
+   "texts": [
+    "3ea9:5d37:5bca:a6c0:3cf3:24f9:5b08:5cb8",
+    "3EA9:5D37:5BCA:A6C0:3CF3:24F9:5B08:5CB8",
+    "3ea9:5d37:5bca:a6c0:3cf3:24f9:91.8.92.184"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3eb8f4b8f7b7991398ca926900cd725d",
+   "texts": [
+    "3eb8:f4b8:f7b7:9913:98ca:9269:cd:725d",
+    "3eb8:f4b8:f7b7:9913:98ca:9269:00cd:725d",
+    "3EB8:F4B8:F7B7:9913:98CA:9269:CD:725D",
+    "3eb8:f4b8:f7b7:9913:98ca:9269:0.205.114.93"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3ecc2ded1e2a6f5d8e9a03a38667e4d3",
+   "texts": [
+    "3ecc:2ded:1e2a:6f5d:8e9a:3a3:8667:e4d3",
+    "3ecc:2ded:1e2a:6f5d:8e9a:03a3:8667:e4d3",
+    "3ECC:2DED:1E2A:6F5D:8E9A:3A3:8667:E4D3",
+    "3ecc:2ded:1e2a:6f5d:8e9a:3a3:134.103.228.211"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3ef8272b81d5d22c99cb5ed4edf35307",
+   "texts": [
+    "3ef8:272b:81d5:d22c:99cb:5ed4:edf3:5307",
+    "3EF8:272B:81D5:D22C:99CB:5ED4:EDF3:5307",
+    "3ef8:272b:81d5:d22c:99cb:5ed4:237.243.83.7"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3eff62096b707b8992562a28b5bd8cfd",
+   "texts": [
+    "3eff:6209:6b70:7b89:9256:2a28:b5bd:8cfd",
+    "3EFF:6209:6B70:7B89:9256:2A28:B5BD:8CFD",
+    "3eff:6209:6b70:7b89:9256:2a28:181.189.140.253"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3f474c82c58216717877f79510ec99b3",
+   "texts": [
+    "3f47:4c82:c582:1671:7877:f795:10ec:99b3",
+    "3F47:4C82:C582:1671:7877:F795:10EC:99B3",
+    "3f47:4c82:c582:1671:7877:f795:16.236.153.179"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3f7b8583efdb436647208133d9b3a4bf",
+   "texts": [
+    "3f7b:8583:efdb:4366:4720:8133:d9b3:a4bf",
+    "3F7B:8583:EFDB:4366:4720:8133:D9B3:A4BF",
+    "3f7b:8583:efdb:4366:4720:8133:217.179.164.191"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3f9ce98d5eb3fe2cb42682b540d2d8cb",
+   "texts": [
+    "3f9c:e98d:5eb3:fe2c:b426:82b5:40d2:d8cb",
+    "3F9C:E98D:5EB3:FE2C:B426:82B5:40D2:D8CB",
+    "3f9c:e98d:5eb3:fe2c:b426:82b5:64.210.216.203"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3faefdd75281e30fca27fef9e3b9463e",
+   "texts": [
+    "3fae:fdd7:5281:e30f:ca27:fef9:e3b9:463e",
+    "3FAE:FDD7:5281:E30F:CA27:FEF9:E3B9:463E",
+    "3fae:fdd7:5281:e30f:ca27:fef9:227.185.70.62"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3fd8ac01593e06a0948810a5c893446a",
+   "texts": [
+    "3fd8:ac01:593e:6a0:9488:10a5:c893:446a",
+    "3fd8:ac01:593e:06a0:9488:10a5:c893:446a",
+    "3FD8:AC01:593E:6A0:9488:10A5:C893:446A",
+    "3fd8:ac01:593e:6a0:9488:10a5:200.147.68.106"
+   ],
+   "public": true
+  },
+  {
+   "source": "random 2000::/3",
+   "value": "3ff8faede371640b32b4a9cc2c995e7b",
+   "texts": [
+    "3ff8:faed:e371:640b:32b4:a9cc:2c99:5e7b",
+    "3FF8:FAED:E371:640B:32B4:A9CC:2C99:5E7B",
+    "3ff8:faed:e371:640b:32b4:a9cc:44.153.94.123"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 3fff::/20",
+   "value": "3ffeffffffffffffffffffffffffffff",
+   "texts": [
+    "3ffe:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "3FFE:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "3ffe:ffff:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 3fff::/20",
+   "value": "3fff0000000000000000000000000000",
+   "texts": [
+    "3fff::",
+    "3fff:0000:0000:0000:0000:0000:0000:0000",
+    "3FFF::",
+    "3fff:0:0:0:0:0:0.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 3fff::/20",
+   "value": "3fff0000000000000000000000000001",
+   "texts": [
+    "3fff::1",
+    "3fff:0000:0000:0000:0000:0000:0000:0001",
+    "3FFF::1",
+    "3fff:0:0:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 3fff::/20",
+   "value": "3fff0ffffffffffffffffffffffffffe",
+   "texts": [
+    "3fff:fff:ffff:ffff:ffff:ffff:ffff:fffe",
+    "3fff:0fff:ffff:ffff:ffff:ffff:ffff:fffe",
+    "3FFF:FFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFE",
+    "3fff:fff:ffff:ffff:ffff:ffff:255.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 3fff::/20",
+   "value": "3fff0fffffffffffffffffffffffffff",
+   "texts": [
+    "3fff:fff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "3fff:0fff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "3FFF:FFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "3fff:fff:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge 3fff::/20",
+   "value": "3fff1000000000000000000000000000",
+   "texts": [
+    "3fff:1000::",
+    "3fff:1000:0000:0000:0000:0000:0000:0000",
+    "3FFF:1000::",
+    "3fff:1000:0:0:0:0:0.0.0.0"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 2000::/3",
+   "value": "3ffffffffffffffffffffffffffffffe",
+   "texts": [
+    "3fff:ffff:ffff:ffff:ffff:ffff:ffff:fffe",
+    "3FFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFE",
+    "3fff:ffff:ffff:ffff:ffff:ffff:255.255.255.254"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 2000::/3",
+   "value": "3fffffffffffffffffffffffffffffff",
+   "texts": [
+    "3fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "3FFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "3fff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": true
+  },
+  {
+   "source": "edge 2000::/3",
+   "value": "40000000000000000000000000000000",
+   "texts": [
+    "4000::",
+    "4000:0000:0000:0000:0000:0000:0000:0000",
+    "4000:0:0:0:0:0:0.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "4b545bbdf9ab619426a9d204c06bd4e8",
+   "texts": [
+    "4b54:5bbd:f9ab:6194:26a9:d204:c06b:d4e8",
+    "4B54:5BBD:F9AB:6194:26A9:D204:C06B:D4E8",
+    "4b54:5bbd:f9ab:6194:26a9:d204:192.107.212.232"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "4ea9fd3c9ccb3869cbee4009945fe271",
+   "texts": [
+    "4ea9:fd3c:9ccb:3869:cbee:4009:945f:e271",
+    "4EA9:FD3C:9CCB:3869:CBEE:4009:945F:E271",
+    "4ea9:fd3c:9ccb:3869:cbee:4009:148.95.226.113"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "531810eee2eac09318f2e3898545d428",
+   "texts": [
+    "5318:10ee:e2ea:c093:18f2:e389:8545:d428",
+    "5318:10EE:E2EA:C093:18F2:E389:8545:D428",
+    "5318:10ee:e2ea:c093:18f2:e389:133.69.212.40"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "5383064733f140bfb099269417a2cd05",
+   "texts": [
+    "5383:647:33f1:40bf:b099:2694:17a2:cd05",
+    "5383:0647:33f1:40bf:b099:2694:17a2:cd05",
+    "5383:647:33F1:40BF:B099:2694:17A2:CD05",
+    "5383:647:33f1:40bf:b099:2694:23.162.205.5"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "53ce7b2a50f204b7336e0fccd440bf68",
+   "texts": [
+    "53ce:7b2a:50f2:4b7:336e:fcc:d440:bf68",
+    "53ce:7b2a:50f2:04b7:336e:0fcc:d440:bf68",
+    "53CE:7B2A:50F2:4B7:336E:FCC:D440:BF68",
+    "53ce:7b2a:50f2:4b7:336e:fcc:212.64.191.104"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "5aaf880bf8b7d164e7e79f413090d3c3",
+   "texts": [
+    "5aaf:880b:f8b7:d164:e7e7:9f41:3090:d3c3",
+    "5AAF:880B:F8B7:D164:E7E7:9F41:3090:D3C3",
+    "5aaf:880b:f8b7:d164:e7e7:9f41:48.144.211.195"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "5d6f47dd5e894b972a865e0be9dabbef",
+   "texts": [
+    "5d6f:47dd:5e89:4b97:2a86:5e0b:e9da:bbef",
+    "5D6F:47DD:5E89:4B97:2A86:5E0B:E9DA:BBEF",
+    "5d6f:47dd:5e89:4b97:2a86:5e0b:233.218.187.239"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "5da3926ab507c4bfa02bbbd21b3586a7",
+   "texts": [
+    "5da3:926a:b507:c4bf:a02b:bbd2:1b35:86a7",
+    "5DA3:926A:B507:C4BF:A02B:BBD2:1B35:86A7",
+    "5da3:926a:b507:c4bf:a02b:bbd2:27.53.134.167"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "62c5a0f0e9513c171bdb02f6c06d6ff0",
+   "texts": [
+    "62c5:a0f0:e951:3c17:1bdb:2f6:c06d:6ff0",
+    "62c5:a0f0:e951:3c17:1bdb:02f6:c06d:6ff0",
+    "62C5:A0F0:E951:3C17:1BDB:2F6:C06D:6FF0",
+    "62c5:a0f0:e951:3c17:1bdb:2f6:192.109.111.240"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "66fdafd0f4faa23725736cd6b6e41027",
+   "texts": [
+    "66fd:afd0:f4fa:a237:2573:6cd6:b6e4:1027",
+    "66FD:AFD0:F4FA:A237:2573:6CD6:B6E4:1027",
+    "66fd:afd0:f4fa:a237:2573:6cd6:182.228.16.39"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "672eabd6deae6d4de64ad5ff7443c4d6",
+   "texts": [
+    "672e:abd6:deae:6d4d:e64a:d5ff:7443:c4d6",
+    "672E:ABD6:DEAE:6D4D:E64A:D5FF:7443:C4D6",
+    "672e:abd6:deae:6d4d:e64a:d5ff:116.67.196.214"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "73643c89b713b3f9e94142befdd04521",
+   "texts": [
+    "7364:3c89:b713:b3f9:e941:42be:fdd0:4521",
+    "7364:3C89:B713:B3F9:E941:42BE:FDD0:4521",
+    "7364:3c89:b713:b3f9:e941:42be:253.208.69.33"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "7c510c06f8863f513d2f0473b8781d23",
+   "texts": [
+    "7c51:c06:f886:3f51:3d2f:473:b878:1d23",
+    "7c51:0c06:f886:3f51:3d2f:0473:b878:1d23",
+    "7C51:C06:F886:3F51:3D2F:473:B878:1D23",
+    "7c51:c06:f886:3f51:3d2f:473:184.120.29.35"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "7cefc2f3250be77fc2a5976e9a7b7f0d",
+   "texts": [
+    "7cef:c2f3:250b:e77f:c2a5:976e:9a7b:7f0d",
+    "7CEF:C2F3:250B:E77F:C2A5:976E:9A7B:7F0D",
+    "7cef:c2f3:250b:e77f:c2a5:976e:154.123.127.13"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "802f86298da7da3c53d339fc9238f17e",
+   "texts": [
+    "802f:8629:8da7:da3c:53d3:39fc:9238:f17e",
+    "802F:8629:8DA7:DA3C:53D3:39FC:9238:F17E",
+    "802f:8629:8da7:da3c:53d3:39fc:146.56.241.126"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "85001837d583dbe5476dd0a7705973ac",
+   "texts": [
+    "8500:1837:d583:dbe5:476d:d0a7:7059:73ac",
+    "8500:1837:D583:DBE5:476D:D0A7:7059:73AC",
+    "8500:1837:d583:dbe5:476d:d0a7:112.89.115.172"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "8e5c8df60485e780893358cb27f69fbf",
+   "texts": [
+    "8e5c:8df6:485:e780:8933:58cb:27f6:9fbf",
+    "8e5c:8df6:0485:e780:8933:58cb:27f6:9fbf",
+    "8E5C:8DF6:485:E780:8933:58CB:27F6:9FBF",
+    "8e5c:8df6:485:e780:8933:58cb:39.246.159.191"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "95d8bf57d49f5cb054f1c5b5ba2cd7e0",
+   "texts": [
+    "95d8:bf57:d49f:5cb0:54f1:c5b5:ba2c:d7e0",
+    "95D8:BF57:D49F:5CB0:54F1:C5B5:BA2C:D7E0",
+    "95d8:bf57:d49f:5cb0:54f1:c5b5:186.44.215.224"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "a12ec37fcfdf653abd0beb51e995a812",
+   "texts": [
+    "a12e:c37f:cfdf:653a:bd0b:eb51:e995:a812",
+    "A12E:C37F:CFDF:653A:BD0B:EB51:E995:A812",
+    "a12e:c37f:cfdf:653a:bd0b:eb51:233.149.168.18"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "a81f72a282080e9eea268477979ac378",
+   "texts": [
+    "a81f:72a2:8208:e9e:ea26:8477:979a:c378",
+    "a81f:72a2:8208:0e9e:ea26:8477:979a:c378",
+    "A81F:72A2:8208:E9E:EA26:8477:979A:C378",
+    "a81f:72a2:8208:e9e:ea26:8477:151.154.195.120"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "b18d5a967293820e0c7d37ad58926f3a",
+   "texts": [
+    "b18d:5a96:7293:820e:c7d:37ad:5892:6f3a",
+    "b18d:5a96:7293:820e:0c7d:37ad:5892:6f3a",
+    "B18D:5A96:7293:820E:C7D:37AD:5892:6F3A",
+    "b18d:5a96:7293:820e:c7d:37ad:88.146.111.58"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "b76e29f11768fd39a093ffbcaa0ea320",
+   "texts": [
+    "b76e:29f1:1768:fd39:a093:ffbc:aa0e:a320",
+    "B76E:29F1:1768:FD39:A093:FFBC:AA0E:A320",
+    "b76e:29f1:1768:fd39:a093:ffbc:170.14.163.32"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "b93444fd1b019de3d2230825a57c2394",
+   "texts": [
+    "b934:44fd:1b01:9de3:d223:825:a57c:2394",
+    "b934:44fd:1b01:9de3:d223:0825:a57c:2394",
+    "B934:44FD:1B01:9DE3:D223:825:A57C:2394",
+    "b934:44fd:1b01:9de3:d223:825:165.124.35.148"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "badcdfe399c27e27738a886b75be8fcb",
+   "texts": [
+    "badc:dfe3:99c2:7e27:738a:886b:75be:8fcb",
+    "BADC:DFE3:99C2:7E27:738A:886B:75BE:8FCB",
+    "badc:dfe3:99c2:7e27:738a:886b:117.190.143.203"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "bd930b0b023df3a04e23818538d9188f",
+   "texts": [
+    "bd93:b0b:23d:f3a0:4e23:8185:38d9:188f",
+    "bd93:0b0b:023d:f3a0:4e23:8185:38d9:188f",
+    "BD93:B0B:23D:F3A0:4E23:8185:38D9:188F",
+    "bd93:b0b:23d:f3a0:4e23:8185:56.217.24.143"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "c14830abc047feb39c33196ef609118b",
+   "texts": [
+    "c148:30ab:c047:feb3:9c33:196e:f609:118b",
+    "C148:30AB:C047:FEB3:9C33:196E:F609:118B",
+    "c148:30ab:c047:feb3:9c33:196e:246.9.17.139"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "c4b808ef91abc424b07a1779fe37dca6",
+   "texts": [
+    "c4b8:8ef:91ab:c424:b07a:1779:fe37:dca6",
+    "c4b8:08ef:91ab:c424:b07a:1779:fe37:dca6",
+    "C4B8:8EF:91AB:C424:B07A:1779:FE37:DCA6",
+    "c4b8:8ef:91ab:c424:b07a:1779:254.55.220.166"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "c5182e59681ed1c20afc40572bdf76c3",
+   "texts": [
+    "c518:2e59:681e:d1c2:afc:4057:2bdf:76c3",
+    "c518:2e59:681e:d1c2:0afc:4057:2bdf:76c3",
+    "C518:2E59:681E:D1C2:AFC:4057:2BDF:76C3",
+    "c518:2e59:681e:d1c2:afc:4057:43.223.118.195"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "c9529cf97e8822252d41082fef807834",
+   "texts": [
+    "c952:9cf9:7e88:2225:2d41:82f:ef80:7834",
+    "c952:9cf9:7e88:2225:2d41:082f:ef80:7834",
+    "C952:9CF9:7E88:2225:2D41:82F:EF80:7834",
+    "c952:9cf9:7e88:2225:2d41:82f:239.128.120.52"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "eb168971aa0b5380a120874a72d91eb6",
+   "texts": [
+    "eb16:8971:aa0b:5380:a120:874a:72d9:1eb6",
+    "EB16:8971:AA0B:5380:A120:874A:72D9:1EB6",
+    "eb16:8971:aa0b:5380:a120:874a:114.217.30.182"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "f24da04ae3861fd9b6ed9fc658af4274",
+   "texts": [
+    "f24d:a04a:e386:1fd9:b6ed:9fc6:58af:4274",
+    "F24D:A04A:E386:1FD9:B6ED:9FC6:58AF:4274",
+    "f24d:a04a:e386:1fd9:b6ed:9fc6:88.175.66.116"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "f2867f51d8422b069a15ae27cfa10dee",
+   "texts": [
+    "f286:7f51:d842:2b06:9a15:ae27:cfa1:dee",
+    "f286:7f51:d842:2b06:9a15:ae27:cfa1:0dee",
+    "F286:7F51:D842:2B06:9A15:AE27:CFA1:DEE",
+    "f286:7f51:d842:2b06:9a15:ae27:207.161.13.238"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "f31b70a39e4c5632542ca78b3ac74c30",
+   "texts": [
+    "f31b:70a3:9e4c:5632:542c:a78b:3ac7:4c30",
+    "F31B:70A3:9E4C:5632:542C:A78B:3AC7:4C30",
+    "f31b:70a3:9e4c:5632:542c:a78b:58.199.76.48"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "f9684bca74f94a79ba60067318fdaf29",
+   "texts": [
+    "f968:4bca:74f9:4a79:ba60:673:18fd:af29",
+    "f968:4bca:74f9:4a79:ba60:0673:18fd:af29",
+    "F968:4BCA:74F9:4A79:BA60:673:18FD:AF29",
+    "f968:4bca:74f9:4a79:ba60:673:24.253.175.41"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge fc00::/7",
+   "value": "fbffffffffffffffffffffffffffffff",
+   "texts": [
+    "fbff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "FBFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "fbff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge fc00::/7",
+   "value": "fc000000000000000000000000000000",
+   "texts": [
+    "fc00::",
+    "fc00:0000:0000:0000:0000:0000:0000:0000",
+    "FC00::",
+    "fc00:0:0:0:0:0:0.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge fc00::/7",
+   "value": "fc000000000000000000000000000001",
+   "texts": [
+    "fc00::1",
+    "fc00:0000:0000:0000:0000:0000:0000:0001",
+    "FC00::1",
+    "fc00:0:0:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge fc00::/7",
+   "value": "fdfffffffffffffffffffffffffffffe",
+   "texts": [
+    "fdff:ffff:ffff:ffff:ffff:ffff:ffff:fffe",
+    "FDFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFE",
+    "fdff:ffff:ffff:ffff:ffff:ffff:255.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge fc00::/7",
+   "value": "fdffffffffffffffffffffffffffffff",
+   "texts": [
+    "fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "FDFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "fdff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge fc00::/7",
+   "value": "fe000000000000000000000000000000",
+   "texts": [
+    "fe00::",
+    "fe00:0000:0000:0000:0000:0000:0000:0000",
+    "FE00::",
+    "fe00:0:0:0:0:0:0.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge fe80::/10",
+   "value": "fe7fffffffffffffffffffffffffffff",
+   "texts": [
+    "fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "FE7F:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "fe7f:ffff:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge fe80::/10",
+   "value": "fe800000000000000000000000000000",
+   "texts": [
+    "fe80::",
+    "fe80:0000:0000:0000:0000:0000:0000:0000",
+    "FE80::",
+    "fe80:0:0:0:0:0:0.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge fe80::/10",
+   "value": "fe800000000000000000000000000001",
+   "texts": [
+    "fe80::1",
+    "fe80:0000:0000:0000:0000:0000:0000:0001",
+    "FE80::1",
+    "fe80:0:0:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge fe80::/10",
+   "value": "febffffffffffffffffffffffffffffe",
+   "texts": [
+    "febf:ffff:ffff:ffff:ffff:ffff:ffff:fffe",
+    "FEBF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFE",
+    "febf:ffff:ffff:ffff:ffff:ffff:255.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge fe80::/10",
+   "value": "febfffffffffffffffffffffffffffff",
+   "texts": [
+    "febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "FEBF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "febf:ffff:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge fe80::/10",
+   "value": "fec00000000000000000000000000000",
+   "texts": [
+    "fec0::",
+    "fec0:0000:0000:0000:0000:0000:0000:0000",
+    "FEC0::",
+    "fec0:0:0:0:0:0:0.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge ff00::/8",
+   "value": "feffffffffffffffffffffffffffffff",
+   "texts": [
+    "feff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "FEFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "feff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge ff00::/8",
+   "value": "ff000000000000000000000000000000",
+   "texts": [
+    "ff00::",
+    "ff00:0000:0000:0000:0000:0000:0000:0000",
+    "FF00::",
+    "ff00:0:0:0:0:0:0.0.0.0"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge ff00::/8",
+   "value": "ff000000000000000000000000000001",
+   "texts": [
+    "ff00::1",
+    "ff00:0000:0000:0000:0000:0000:0000:0001",
+    "FF00::1",
+    "ff00:0:0:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "source": "random",
+   "value": "ffcec16b1ff1074ec25e38129bc792f6",
+   "texts": [
+    "ffce:c16b:1ff1:74e:c25e:3812:9bc7:92f6",
+    "ffce:c16b:1ff1:074e:c25e:3812:9bc7:92f6",
+    "FFCE:C16B:1FF1:74E:C25E:3812:9BC7:92F6",
+    "ffce:c16b:1ff1:74e:c25e:3812:155.199.146.246"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge ff00::/8",
+   "value": "fffffffffffffffffffffffffffffffe",
+   "texts": [
+    "ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe",
+    "FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFE",
+    "ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "source": "edge ff00::/8",
+   "value": "ffffffffffffffffffffffffffffffff",
+   "texts": [
+    "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+    "FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF",
+    "ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"
+   ],
+   "public": false
+  }
+ ],
+ "embedded": [
+  {
+   "ipv4": "127.0.0.1",
+   "form": "mapped",
+   "texts": [
+    "::ffff:7f00:1",
+    "0000:0000:0000:0000:0000:ffff:7f00:0001",
+    "::FFFF:7F00:1",
+    "0:0:0:0:0:ffff:127.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "127.0.0.1",
+   "form": "translated",
+   "texts": [
+    "::ffff:0:7f00:1",
+    "0000:0000:0000:0000:ffff:0000:7f00:0001",
+    "::FFFF:0:7F00:1",
+    "0:0:0:0:ffff:0:127.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "127.0.0.1",
+   "form": "compatible",
+   "texts": [
+    "::7f00:1",
+    "0000:0000:0000:0000:0000:0000:7f00:0001",
+    "::7F00:1",
+    "0:0:0:0:0:0:127.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "127.0.0.1",
+   "form": "nat64",
+   "texts": [
+    "64:ff9b::7f00:1",
+    "0064:ff9b:0000:0000:0000:0000:7f00:0001",
+    "64:FF9B::7F00:1",
+    "64:ff9b:0:0:0:0:127.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "127.0.0.1",
+   "form": "nat64-local",
+   "texts": [
+    "64:ff9b:1::7f00:1",
+    "0064:ff9b:0001:0000:0000:0000:7f00:0001",
+    "64:FF9B:1::7F00:1",
+    "64:ff9b:1:0:0:0:127.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "127.0.0.1",
+   "form": "6to4",
+   "texts": [
+    "2002:7f00:1::1",
+    "2002:7f00:0001:0000:0000:0000:0000:0001",
+    "2002:7F00:1::1",
+    "2002:7f00:1:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "127.0.0.1",
+   "form": "teredo",
+   "texts": [
+    "2001:0:7f00:1::80ff:fffe",
+    "2001:0000:7f00:0001:0000:0000:80ff:fffe",
+    "2001:0:7F00:1::80FF:FFFE",
+    "2001:0:7f00:1:0:0:128.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "10.0.0.1",
+   "form": "mapped",
+   "texts": [
+    "::ffff:a00:1",
+    "0000:0000:0000:0000:0000:ffff:0a00:0001",
+    "::FFFF:A00:1",
+    "0:0:0:0:0:ffff:10.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "10.0.0.1",
+   "form": "translated",
+   "texts": [
+    "::ffff:0:a00:1",
+    "0000:0000:0000:0000:ffff:0000:0a00:0001",
+    "::FFFF:0:A00:1",
+    "0:0:0:0:ffff:0:10.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "10.0.0.1",
+   "form": "compatible",
+   "texts": [
+    "::a00:1",
+    "0000:0000:0000:0000:0000:0000:0a00:0001",
+    "::A00:1",
+    "0:0:0:0:0:0:10.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "10.0.0.1",
+   "form": "nat64",
+   "texts": [
+    "64:ff9b::a00:1",
+    "0064:ff9b:0000:0000:0000:0000:0a00:0001",
+    "64:FF9B::A00:1",
+    "64:ff9b:0:0:0:0:10.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "10.0.0.1",
+   "form": "nat64-local",
+   "texts": [
+    "64:ff9b:1::a00:1",
+    "0064:ff9b:0001:0000:0000:0000:0a00:0001",
+    "64:FF9B:1::A00:1",
+    "64:ff9b:1:0:0:0:10.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "10.0.0.1",
+   "form": "6to4",
+   "texts": [
+    "2002:a00:1::1",
+    "2002:0a00:0001:0000:0000:0000:0000:0001",
+    "2002:A00:1::1",
+    "2002:a00:1:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "10.0.0.1",
+   "form": "teredo",
+   "texts": [
+    "2001:0:a00:1::f5ff:fffe",
+    "2001:0000:0a00:0001:0000:0000:f5ff:fffe",
+    "2001:0:A00:1::F5FF:FFFE",
+    "2001:0:a00:1:0:0:245.255.255.254"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "169.254.169.254",
+   "form": "mapped",
+   "texts": [
+    "::ffff:a9fe:a9fe",
+    "0000:0000:0000:0000:0000:ffff:a9fe:a9fe",
+    "::FFFF:A9FE:A9FE",
+    "0:0:0:0:0:ffff:169.254.169.254"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "169.254.169.254",
+   "form": "translated",
+   "texts": [
+    "::ffff:0:a9fe:a9fe",
+    "0000:0000:0000:0000:ffff:0000:a9fe:a9fe",
+    "::FFFF:0:A9FE:A9FE",
+    "0:0:0:0:ffff:0:169.254.169.254"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "169.254.169.254",
+   "form": "compatible",
+   "texts": [
+    "::a9fe:a9fe",
+    "0000:0000:0000:0000:0000:0000:a9fe:a9fe",
+    "::A9FE:A9FE",
+    "0:0:0:0:0:0:169.254.169.254"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "169.254.169.254",
+   "form": "nat64",
+   "texts": [
+    "64:ff9b::a9fe:a9fe",
+    "0064:ff9b:0000:0000:0000:0000:a9fe:a9fe",
+    "64:FF9B::A9FE:A9FE",
+    "64:ff9b:0:0:0:0:169.254.169.254"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "169.254.169.254",
+   "form": "nat64-local",
+   "texts": [
+    "64:ff9b:1::a9fe:a9fe",
+    "0064:ff9b:0001:0000:0000:0000:a9fe:a9fe",
+    "64:FF9B:1::A9FE:A9FE",
+    "64:ff9b:1:0:0:0:169.254.169.254"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "169.254.169.254",
+   "form": "6to4",
+   "texts": [
+    "2002:a9fe:a9fe::1",
+    "2002:a9fe:a9fe:0000:0000:0000:0000:0001",
+    "2002:A9FE:A9FE::1",
+    "2002:a9fe:a9fe:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "169.254.169.254",
+   "form": "teredo",
+   "texts": [
+    "2001:0:a9fe:a9fe::5601:5601",
+    "2001:0000:a9fe:a9fe:0000:0000:5601:5601",
+    "2001:0:A9FE:A9FE::5601:5601",
+    "2001:0:a9fe:a9fe:0:0:86.1.86.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "8.8.8.8",
+   "form": "mapped",
+   "texts": [
+    "::ffff:808:808",
+    "0000:0000:0000:0000:0000:ffff:0808:0808",
+    "::FFFF:808:808",
+    "0:0:0:0:0:ffff:8.8.8.8"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "8.8.8.8",
+   "form": "translated",
+   "texts": [
+    "::ffff:0:808:808",
+    "0000:0000:0000:0000:ffff:0000:0808:0808",
+    "::FFFF:0:808:808",
+    "0:0:0:0:ffff:0:8.8.8.8"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "8.8.8.8",
+   "form": "compatible",
+   "texts": [
+    "::808:808",
+    "0000:0000:0000:0000:0000:0000:0808:0808",
+    "0:0:0:0:0:0:8.8.8.8"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "8.8.8.8",
+   "form": "nat64",
+   "texts": [
+    "64:ff9b::808:808",
+    "0064:ff9b:0000:0000:0000:0000:0808:0808",
+    "64:FF9B::808:808",
+    "64:ff9b:0:0:0:0:8.8.8.8"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "8.8.8.8",
+   "form": "nat64-local",
+   "texts": [
+    "64:ff9b:1::808:808",
+    "0064:ff9b:0001:0000:0000:0000:0808:0808",
+    "64:FF9B:1::808:808",
+    "64:ff9b:1:0:0:0:8.8.8.8"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "8.8.8.8",
+   "form": "6to4",
+   "texts": [
+    "2002:808:808::1",
+    "2002:0808:0808:0000:0000:0000:0000:0001",
+    "2002:808:808:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "8.8.8.8",
+   "form": "teredo",
+   "texts": [
+    "2001:0:808:808::f7f7:f7f7",
+    "2001:0000:0808:0808:0000:0000:f7f7:f7f7",
+    "2001:0:808:808::F7F7:F7F7",
+    "2001:0:808:808:0:0:247.247.247.247"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "1.1.1.1",
+   "form": "mapped",
+   "texts": [
+    "::ffff:101:101",
+    "0000:0000:0000:0000:0000:ffff:0101:0101",
+    "::FFFF:101:101",
+    "0:0:0:0:0:ffff:1.1.1.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "1.1.1.1",
+   "form": "translated",
+   "texts": [
+    "::ffff:0:101:101",
+    "0000:0000:0000:0000:ffff:0000:0101:0101",
+    "::FFFF:0:101:101",
+    "0:0:0:0:ffff:0:1.1.1.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "1.1.1.1",
+   "form": "compatible",
+   "texts": [
+    "::101:101",
+    "0000:0000:0000:0000:0000:0000:0101:0101",
+    "0:0:0:0:0:0:1.1.1.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "1.1.1.1",
+   "form": "nat64",
+   "texts": [
+    "64:ff9b::101:101",
+    "0064:ff9b:0000:0000:0000:0000:0101:0101",
+    "64:FF9B::101:101",
+    "64:ff9b:0:0:0:0:1.1.1.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "1.1.1.1",
+   "form": "nat64-local",
+   "texts": [
+    "64:ff9b:1::101:101",
+    "0064:ff9b:0001:0000:0000:0000:0101:0101",
+    "64:FF9B:1::101:101",
+    "64:ff9b:1:0:0:0:1.1.1.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "1.1.1.1",
+   "form": "6to4",
+   "texts": [
+    "2002:101:101::1",
+    "2002:0101:0101:0000:0000:0000:0000:0001",
+    "2002:101:101:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "1.1.1.1",
+   "form": "teredo",
+   "texts": [
+    "2001:0:101:101::fefe:fefe",
+    "2001:0000:0101:0101:0000:0000:fefe:fefe",
+    "2001:0:101:101::FEFE:FEFE",
+    "2001:0:101:101:0:0:254.254.254.254"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "14.121.44.12",
+   "form": "mapped",
+   "texts": [
+    "::ffff:e79:2c0c",
+    "0000:0000:0000:0000:0000:ffff:0e79:2c0c",
+    "::FFFF:E79:2C0C",
+    "0:0:0:0:0:ffff:14.121.44.12"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "14.121.44.12",
+   "form": "translated",
+   "texts": [
+    "::ffff:0:e79:2c0c",
+    "0000:0000:0000:0000:ffff:0000:0e79:2c0c",
+    "::FFFF:0:E79:2C0C",
+    "0:0:0:0:ffff:0:14.121.44.12"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "14.121.44.12",
+   "form": "compatible",
+   "texts": [
+    "::e79:2c0c",
+    "0000:0000:0000:0000:0000:0000:0e79:2c0c",
+    "::E79:2C0C",
+    "0:0:0:0:0:0:14.121.44.12"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "14.121.44.12",
+   "form": "nat64",
+   "texts": [
+    "64:ff9b::e79:2c0c",
+    "0064:ff9b:0000:0000:0000:0000:0e79:2c0c",
+    "64:FF9B::E79:2C0C",
+    "64:ff9b:0:0:0:0:14.121.44.12"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "14.121.44.12",
+   "form": "nat64-local",
+   "texts": [
+    "64:ff9b:1::e79:2c0c",
+    "0064:ff9b:0001:0000:0000:0000:0e79:2c0c",
+    "64:FF9B:1::E79:2C0C",
+    "64:ff9b:1:0:0:0:14.121.44.12"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "14.121.44.12",
+   "form": "6to4",
+   "texts": [
+    "2002:e79:2c0c::1",
+    "2002:0e79:2c0c:0000:0000:0000:0000:0001",
+    "2002:E79:2C0C::1",
+    "2002:e79:2c0c:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "14.121.44.12",
+   "form": "teredo",
+   "texts": [
+    "2001:0:e79:2c0c::f186:d3f3",
+    "2001:0000:0e79:2c0c:0000:0000:f186:d3f3",
+    "2001:0:E79:2C0C::F186:D3F3",
+    "2001:0:e79:2c0c:0:0:241.134.211.243"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "48.243.243.122",
+   "form": "mapped",
+   "texts": [
+    "::ffff:30f3:f37a",
+    "0000:0000:0000:0000:0000:ffff:30f3:f37a",
+    "::FFFF:30F3:F37A",
+    "0:0:0:0:0:ffff:48.243.243.122"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "48.243.243.122",
+   "form": "translated",
+   "texts": [
+    "::ffff:0:30f3:f37a",
+    "0000:0000:0000:0000:ffff:0000:30f3:f37a",
+    "::FFFF:0:30F3:F37A",
+    "0:0:0:0:ffff:0:48.243.243.122"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "48.243.243.122",
+   "form": "compatible",
+   "texts": [
+    "::30f3:f37a",
+    "0000:0000:0000:0000:0000:0000:30f3:f37a",
+    "::30F3:F37A",
+    "0:0:0:0:0:0:48.243.243.122"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "48.243.243.122",
+   "form": "nat64",
+   "texts": [
+    "64:ff9b::30f3:f37a",
+    "0064:ff9b:0000:0000:0000:0000:30f3:f37a",
+    "64:FF9B::30F3:F37A",
+    "64:ff9b:0:0:0:0:48.243.243.122"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "48.243.243.122",
+   "form": "nat64-local",
+   "texts": [
+    "64:ff9b:1::30f3:f37a",
+    "0064:ff9b:0001:0000:0000:0000:30f3:f37a",
+    "64:FF9B:1::30F3:F37A",
+    "64:ff9b:1:0:0:0:48.243.243.122"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "48.243.243.122",
+   "form": "6to4",
+   "texts": [
+    "2002:30f3:f37a::1",
+    "2002:30f3:f37a:0000:0000:0000:0000:0001",
+    "2002:30F3:F37A::1",
+    "2002:30f3:f37a:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "48.243.243.122",
+   "form": "teredo",
+   "texts": [
+    "2001:0:30f3:f37a::cf0c:c85",
+    "2001:0000:30f3:f37a:0000:0000:cf0c:0c85",
+    "2001:0:30F3:F37A::CF0C:C85",
+    "2001:0:30f3:f37a:0:0:207.12.12.133"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "52.14.166.235",
+   "form": "mapped",
+   "texts": [
+    "::ffff:340e:a6eb",
+    "0000:0000:0000:0000:0000:ffff:340e:a6eb",
+    "::FFFF:340E:A6EB",
+    "0:0:0:0:0:ffff:52.14.166.235"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "52.14.166.235",
+   "form": "translated",
+   "texts": [
+    "::ffff:0:340e:a6eb",
+    "0000:0000:0000:0000:ffff:0000:340e:a6eb",
+    "::FFFF:0:340E:A6EB",
+    "0:0:0:0:ffff:0:52.14.166.235"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "52.14.166.235",
+   "form": "compatible",
+   "texts": [
+    "::340e:a6eb",
+    "0000:0000:0000:0000:0000:0000:340e:a6eb",
+    "::340E:A6EB",
+    "0:0:0:0:0:0:52.14.166.235"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "52.14.166.235",
+   "form": "nat64",
+   "texts": [
+    "64:ff9b::340e:a6eb",
+    "0064:ff9b:0000:0000:0000:0000:340e:a6eb",
+    "64:FF9B::340E:A6EB",
+    "64:ff9b:0:0:0:0:52.14.166.235"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "52.14.166.235",
+   "form": "nat64-local",
+   "texts": [
+    "64:ff9b:1::340e:a6eb",
+    "0064:ff9b:0001:0000:0000:0000:340e:a6eb",
+    "64:FF9B:1::340E:A6EB",
+    "64:ff9b:1:0:0:0:52.14.166.235"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "52.14.166.235",
+   "form": "6to4",
+   "texts": [
+    "2002:340e:a6eb::1",
+    "2002:340e:a6eb:0000:0000:0000:0000:0001",
+    "2002:340E:A6EB::1",
+    "2002:340e:a6eb:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "52.14.166.235",
+   "form": "teredo",
+   "texts": [
+    "2001:0:340e:a6eb::cbf1:5914",
+    "2001:0000:340e:a6eb:0000:0000:cbf1:5914",
+    "2001:0:340E:A6EB::CBF1:5914",
+    "2001:0:340e:a6eb:0:0:203.241.89.20"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "204.162.19.79",
+   "form": "mapped",
+   "texts": [
+    "::ffff:cca2:134f",
+    "0000:0000:0000:0000:0000:ffff:cca2:134f",
+    "::FFFF:CCA2:134F",
+    "0:0:0:0:0:ffff:204.162.19.79"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "204.162.19.79",
+   "form": "translated",
+   "texts": [
+    "::ffff:0:cca2:134f",
+    "0000:0000:0000:0000:ffff:0000:cca2:134f",
+    "::FFFF:0:CCA2:134F",
+    "0:0:0:0:ffff:0:204.162.19.79"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "204.162.19.79",
+   "form": "compatible",
+   "texts": [
+    "::cca2:134f",
+    "0000:0000:0000:0000:0000:0000:cca2:134f",
+    "::CCA2:134F",
+    "0:0:0:0:0:0:204.162.19.79"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "204.162.19.79",
+   "form": "nat64",
+   "texts": [
+    "64:ff9b::cca2:134f",
+    "0064:ff9b:0000:0000:0000:0000:cca2:134f",
+    "64:FF9B::CCA2:134F",
+    "64:ff9b:0:0:0:0:204.162.19.79"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "204.162.19.79",
+   "form": "nat64-local",
+   "texts": [
+    "64:ff9b:1::cca2:134f",
+    "0064:ff9b:0001:0000:0000:0000:cca2:134f",
+    "64:FF9B:1::CCA2:134F",
+    "64:ff9b:1:0:0:0:204.162.19.79"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "204.162.19.79",
+   "form": "6to4",
+   "texts": [
+    "2002:cca2:134f::1",
+    "2002:cca2:134f:0000:0000:0000:0000:0001",
+    "2002:CCA2:134F::1",
+    "2002:cca2:134f:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "204.162.19.79",
+   "form": "teredo",
+   "texts": [
+    "2001:0:cca2:134f::335d:ecb0",
+    "2001:0000:cca2:134f:0000:0000:335d:ecb0",
+    "2001:0:CCA2:134F::335D:ECB0",
+    "2001:0:cca2:134f:0:0:51.93.236.176"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "68.106.23.205",
+   "form": "mapped",
+   "texts": [
+    "::ffff:446a:17cd",
+    "0000:0000:0000:0000:0000:ffff:446a:17cd",
+    "::FFFF:446A:17CD",
+    "0:0:0:0:0:ffff:68.106.23.205"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "68.106.23.205",
+   "form": "translated",
+   "texts": [
+    "::ffff:0:446a:17cd",
+    "0000:0000:0000:0000:ffff:0000:446a:17cd",
+    "::FFFF:0:446A:17CD",
+    "0:0:0:0:ffff:0:68.106.23.205"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "68.106.23.205",
+   "form": "compatible",
+   "texts": [
+    "::446a:17cd",
+    "0000:0000:0000:0000:0000:0000:446a:17cd",
+    "::446A:17CD",
+    "0:0:0:0:0:0:68.106.23.205"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "68.106.23.205",
+   "form": "nat64",
+   "texts": [
+    "64:ff9b::446a:17cd",
+    "0064:ff9b:0000:0000:0000:0000:446a:17cd",
+    "64:FF9B::446A:17CD",
+    "64:ff9b:0:0:0:0:68.106.23.205"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "68.106.23.205",
+   "form": "nat64-local",
+   "texts": [
+    "64:ff9b:1::446a:17cd",
+    "0064:ff9b:0001:0000:0000:0000:446a:17cd",
+    "64:FF9B:1::446A:17CD",
+    "64:ff9b:1:0:0:0:68.106.23.205"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "68.106.23.205",
+   "form": "6to4",
+   "texts": [
+    "2002:446a:17cd::1",
+    "2002:446a:17cd:0000:0000:0000:0000:0001",
+    "2002:446A:17CD::1",
+    "2002:446a:17cd:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "68.106.23.205",
+   "form": "teredo",
+   "texts": [
+    "2001:0:446a:17cd::bb95:e832",
+    "2001:0000:446a:17cd:0000:0000:bb95:e832",
+    "2001:0:446A:17CD::BB95:E832",
+    "2001:0:446a:17cd:0:0:187.149.232.50"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "133.241.180.47",
+   "form": "mapped",
+   "texts": [
+    "::ffff:85f1:b42f",
+    "0000:0000:0000:0000:0000:ffff:85f1:b42f",
+    "::FFFF:85F1:B42F",
+    "0:0:0:0:0:ffff:133.241.180.47"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "133.241.180.47",
+   "form": "translated",
+   "texts": [
+    "::ffff:0:85f1:b42f",
+    "0000:0000:0000:0000:ffff:0000:85f1:b42f",
+    "::FFFF:0:85F1:B42F",
+    "0:0:0:0:ffff:0:133.241.180.47"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "133.241.180.47",
+   "form": "compatible",
+   "texts": [
+    "::85f1:b42f",
+    "0000:0000:0000:0000:0000:0000:85f1:b42f",
+    "::85F1:B42F",
+    "0:0:0:0:0:0:133.241.180.47"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "133.241.180.47",
+   "form": "nat64",
+   "texts": [
+    "64:ff9b::85f1:b42f",
+    "0064:ff9b:0000:0000:0000:0000:85f1:b42f",
+    "64:FF9B::85F1:B42F",
+    "64:ff9b:0:0:0:0:133.241.180.47"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "133.241.180.47",
+   "form": "nat64-local",
+   "texts": [
+    "64:ff9b:1::85f1:b42f",
+    "0064:ff9b:0001:0000:0000:0000:85f1:b42f",
+    "64:FF9B:1::85F1:B42F",
+    "64:ff9b:1:0:0:0:133.241.180.47"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "133.241.180.47",
+   "form": "6to4",
+   "texts": [
+    "2002:85f1:b42f::1",
+    "2002:85f1:b42f:0000:0000:0000:0000:0001",
+    "2002:85F1:B42F::1",
+    "2002:85f1:b42f:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "133.241.180.47",
+   "form": "teredo",
+   "texts": [
+    "2001:0:85f1:b42f::7a0e:4bd0",
+    "2001:0000:85f1:b42f:0000:0000:7a0e:4bd0",
+    "2001:0:85F1:B42F::7A0E:4BD0",
+    "2001:0:85f1:b42f:0:0:122.14.75.208"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "125.182.186.3",
+   "form": "mapped",
+   "texts": [
+    "::ffff:7db6:ba03",
+    "0000:0000:0000:0000:0000:ffff:7db6:ba03",
+    "::FFFF:7DB6:BA03",
+    "0:0:0:0:0:ffff:125.182.186.3"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "125.182.186.3",
+   "form": "translated",
+   "texts": [
+    "::ffff:0:7db6:ba03",
+    "0000:0000:0000:0000:ffff:0000:7db6:ba03",
+    "::FFFF:0:7DB6:BA03",
+    "0:0:0:0:ffff:0:125.182.186.3"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "125.182.186.3",
+   "form": "compatible",
+   "texts": [
+    "::7db6:ba03",
+    "0000:0000:0000:0000:0000:0000:7db6:ba03",
+    "::7DB6:BA03",
+    "0:0:0:0:0:0:125.182.186.3"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "125.182.186.3",
+   "form": "nat64",
+   "texts": [
+    "64:ff9b::7db6:ba03",
+    "0064:ff9b:0000:0000:0000:0000:7db6:ba03",
+    "64:FF9B::7DB6:BA03",
+    "64:ff9b:0:0:0:0:125.182.186.3"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "125.182.186.3",
+   "form": "nat64-local",
+   "texts": [
+    "64:ff9b:1::7db6:ba03",
+    "0064:ff9b:0001:0000:0000:0000:7db6:ba03",
+    "64:FF9B:1::7DB6:BA03",
+    "64:ff9b:1:0:0:0:125.182.186.3"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "125.182.186.3",
+   "form": "6to4",
+   "texts": [
+    "2002:7db6:ba03::1",
+    "2002:7db6:ba03:0000:0000:0000:0000:0001",
+    "2002:7DB6:BA03::1",
+    "2002:7db6:ba03:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "125.182.186.3",
+   "form": "teredo",
+   "texts": [
+    "2001:0:7db6:ba03::8249:45fc",
+    "2001:0000:7db6:ba03:0000:0000:8249:45fc",
+    "2001:0:7DB6:BA03::8249:45FC",
+    "2001:0:7db6:ba03:0:0:130.73.69.252"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "134.224.47.189",
+   "form": "mapped",
+   "texts": [
+    "::ffff:86e0:2fbd",
+    "0000:0000:0000:0000:0000:ffff:86e0:2fbd",
+    "::FFFF:86E0:2FBD",
+    "0:0:0:0:0:ffff:134.224.47.189"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "134.224.47.189",
+   "form": "translated",
+   "texts": [
+    "::ffff:0:86e0:2fbd",
+    "0000:0000:0000:0000:ffff:0000:86e0:2fbd",
+    "::FFFF:0:86E0:2FBD",
+    "0:0:0:0:ffff:0:134.224.47.189"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "134.224.47.189",
+   "form": "compatible",
+   "texts": [
+    "::86e0:2fbd",
+    "0000:0000:0000:0000:0000:0000:86e0:2fbd",
+    "::86E0:2FBD",
+    "0:0:0:0:0:0:134.224.47.189"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "134.224.47.189",
+   "form": "nat64",
+   "texts": [
+    "64:ff9b::86e0:2fbd",
+    "0064:ff9b:0000:0000:0000:0000:86e0:2fbd",
+    "64:FF9B::86E0:2FBD",
+    "64:ff9b:0:0:0:0:134.224.47.189"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "134.224.47.189",
+   "form": "nat64-local",
+   "texts": [
+    "64:ff9b:1::86e0:2fbd",
+    "0064:ff9b:0001:0000:0000:0000:86e0:2fbd",
+    "64:FF9B:1::86E0:2FBD",
+    "64:ff9b:1:0:0:0:134.224.47.189"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "134.224.47.189",
+   "form": "6to4",
+   "texts": [
+    "2002:86e0:2fbd::1",
+    "2002:86e0:2fbd:0000:0000:0000:0000:0001",
+    "2002:86E0:2FBD::1",
+    "2002:86e0:2fbd:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "134.224.47.189",
+   "form": "teredo",
+   "texts": [
+    "2001:0:86e0:2fbd::791f:d042",
+    "2001:0000:86e0:2fbd:0000:0000:791f:d042",
+    "2001:0:86E0:2FBD::791F:D042",
+    "2001:0:86e0:2fbd:0:0:121.31.208.66"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "47.76.239.20",
+   "form": "mapped",
+   "texts": [
+    "::ffff:2f4c:ef14",
+    "0000:0000:0000:0000:0000:ffff:2f4c:ef14",
+    "::FFFF:2F4C:EF14",
+    "0:0:0:0:0:ffff:47.76.239.20"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "47.76.239.20",
+   "form": "translated",
+   "texts": [
+    "::ffff:0:2f4c:ef14",
+    "0000:0000:0000:0000:ffff:0000:2f4c:ef14",
+    "::FFFF:0:2F4C:EF14",
+    "0:0:0:0:ffff:0:47.76.239.20"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "47.76.239.20",
+   "form": "compatible",
+   "texts": [
+    "::2f4c:ef14",
+    "0000:0000:0000:0000:0000:0000:2f4c:ef14",
+    "::2F4C:EF14",
+    "0:0:0:0:0:0:47.76.239.20"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "47.76.239.20",
+   "form": "nat64",
+   "texts": [
+    "64:ff9b::2f4c:ef14",
+    "0064:ff9b:0000:0000:0000:0000:2f4c:ef14",
+    "64:FF9B::2F4C:EF14",
+    "64:ff9b:0:0:0:0:47.76.239.20"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "47.76.239.20",
+   "form": "nat64-local",
+   "texts": [
+    "64:ff9b:1::2f4c:ef14",
+    "0064:ff9b:0001:0000:0000:0000:2f4c:ef14",
+    "64:FF9B:1::2F4C:EF14",
+    "64:ff9b:1:0:0:0:47.76.239.20"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "47.76.239.20",
+   "form": "6to4",
+   "texts": [
+    "2002:2f4c:ef14::1",
+    "2002:2f4c:ef14:0000:0000:0000:0000:0001",
+    "2002:2F4C:EF14::1",
+    "2002:2f4c:ef14:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "47.76.239.20",
+   "form": "teredo",
+   "texts": [
+    "2001:0:2f4c:ef14::d0b3:10eb",
+    "2001:0000:2f4c:ef14:0000:0000:d0b3:10eb",
+    "2001:0:2F4C:EF14::D0B3:10EB",
+    "2001:0:2f4c:ef14:0:0:208.179.16.235"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "206.64.10.110",
+   "form": "mapped",
+   "texts": [
+    "::ffff:ce40:a6e",
+    "0000:0000:0000:0000:0000:ffff:ce40:0a6e",
+    "::FFFF:CE40:A6E",
+    "0:0:0:0:0:ffff:206.64.10.110"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "206.64.10.110",
+   "form": "translated",
+   "texts": [
+    "::ffff:0:ce40:a6e",
+    "0000:0000:0000:0000:ffff:0000:ce40:0a6e",
+    "::FFFF:0:CE40:A6E",
+    "0:0:0:0:ffff:0:206.64.10.110"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "206.64.10.110",
+   "form": "compatible",
+   "texts": [
+    "::ce40:a6e",
+    "0000:0000:0000:0000:0000:0000:ce40:0a6e",
+    "::CE40:A6E",
+    "0:0:0:0:0:0:206.64.10.110"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "206.64.10.110",
+   "form": "nat64",
+   "texts": [
+    "64:ff9b::ce40:a6e",
+    "0064:ff9b:0000:0000:0000:0000:ce40:0a6e",
+    "64:FF9B::CE40:A6E",
+    "64:ff9b:0:0:0:0:206.64.10.110"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "206.64.10.110",
+   "form": "nat64-local",
+   "texts": [
+    "64:ff9b:1::ce40:a6e",
+    "0064:ff9b:0001:0000:0000:0000:ce40:0a6e",
+    "64:FF9B:1::CE40:A6E",
+    "64:ff9b:1:0:0:0:206.64.10.110"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "206.64.10.110",
+   "form": "6to4",
+   "texts": [
+    "2002:ce40:a6e::1",
+    "2002:ce40:0a6e:0000:0000:0000:0000:0001",
+    "2002:CE40:A6E::1",
+    "2002:ce40:a6e:0:0:0:0.0.0.1"
+   ],
+   "public": false
+  },
+  {
+   "ipv4": "206.64.10.110",
+   "form": "teredo",
+   "texts": [
+    "2001:0:ce40:a6e::31bf:f591",
+    "2001:0000:ce40:0a6e:0000:0000:31bf:f591",
+    "2001:0:CE40:A6E::31BF:F591",
+    "2001:0:ce40:a6e:0:0:49.191.245.145"
+   ],
+   "public": false
+  }
+ ],
+ "rejectedText": [
+  "",
+  " 8.8.8.8",
+  "8.8.8.8 ",
+  "08.8.8.8",
+  "8.8.8.08",
+  "0x8.8.8.8",
+  "8.8.8",
+  "8.8.8.8.8",
+  "256.1.1.1",
+  "134744072",
+  "8.8.8.8/32",
+  "example.com",
+  "2606:4700::1111%1",
+  "fe80::1%en0",
+  "[2606:4700::1111]",
+  "2606:4700::1111/128",
+  "1:2:3:4:5:6:7:8:9",
+  "1::2::3",
+  "12345::",
+  ":2606:4700::1111",
+  "2606:4700::1111:",
+  ":::",
+  "2606:4700:4700:0:0:0:0:1111::",
+  "2606:4700::1.2.3.4:1111",
+  "2606:4700::1.2.3",
+  "2606:4700::01.2.3.4",
+  "2606:4700::g",
+  "\uff18.8.8.8",
+  "8.8.8.8\u0000"
+ ]
+}

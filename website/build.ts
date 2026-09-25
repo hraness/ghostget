@@ -11,7 +11,7 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -33,6 +33,25 @@ import {
   type EditorialImage,
 } from "./editorial-images";
 import { htmlMainToMarkdown } from "./html-to-markdown";
+import {
+  BLOG_FEED_PATH,
+  BLOG_PATH,
+  BLOG_POSTS,
+  BLOG_DESCRIPTION,
+  BLOG_TITLE,
+  blogIndexJsonLd,
+  blogPostJsonLd,
+  blogPostPath,
+  blogSitemapPaths,
+  fillBlogShell,
+  isIndexablePost,
+  renderBlogAtomFeed,
+  renderBlogIndexMain,
+  renderBlogLlmsEntries,
+  renderBlogPostMain,
+  type BlogSite,
+} from "./blog";
+import type { SitemapPath } from "@hraness/web-discovery";
 import {
   loadProviderCapabilityAttestation,
   type ProviderCapabilityAttestation,
@@ -63,11 +82,18 @@ import {
 } from "./webmcp-registry";
 
 export const SITE_ORIGIN = "https://ghostget.com" as const;
-export const SITE_TITLE = "Ghostget: named web actions for AI agents" as const;
+export const SITE_TITLE = "Ghostget: Your agent calls web actions by name and holds no password." as const;
 export const SITE_DESCRIPTION =
-  "Ghostget lets your AI agent read pages, save media, and use your connected accounts through a fixed list of reviewed actions. Free and MIT licensed." as const;
+  "Ghostget gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer." as const;
 /** Alt text for the static `/og.png` card that `scripts/generate-og.tsx` renders from SITE_TITLE. */
 export const SOCIAL_IMAGE_ALT = `The title “${SITE_TITLE}” and the Ghostget ghost mark on a light card` as const;
+export const BLOG_SITE: BlogSite = {
+  description: SITE_DESCRIPTION,
+  name: "Ghostget",
+  origin: SITE_ORIGIN,
+  socialImageAlt: SOCIAL_IMAGE_ALT,
+  title: SITE_TITLE,
+};
 export const REPOSITORY_URL = "https://github.com/hraness/ghostget" as const;
 export const GITHUB_RELEASES_URL = "https://github.com/hraness/ghostget/releases" as const;
 export const SKILLS_URL = "https://www.skills.sh/hraness/ghostget/ghostget" as const;
@@ -324,6 +350,12 @@ const designKitProductMarketingStylesPath = fileURLToPath(
   import.meta.resolve("@hraness/design-kit/product-marketing.css"),
 );
 const designKitFontsDirectory = join(dirname(designKitFontsStylesPath), "fonts");
+const designKitPlainSiteStylesPath = fileURLToPath(
+  import.meta.resolve("@hraness/design-kit/plain-site.css"),
+);
+const designKitPlainPublicationStylesPath = fileURLToPath(
+  import.meta.resolve("@hraness/design-kit/plain-publication.css"),
+);
 
 const uiStylesheetImports = {
   "./tokens.css": "@hraness/ui/tokens.css",
@@ -700,6 +732,7 @@ const CONTENT_FOOTER_LINKS = [
   { href: "/docs/", label: "Docs" },
   { href: "/docs/reference/provider-capabilities/", label: "Providers" },
   { href: "/compare/", label: "Compare" },
+  { href: BLOG_PATH, label: "Blog" },
   { href: "/about/", label: "About" },
   { href: "/contact/", label: "Contact" },
   { href: "/privacy/", label: "Privacy" },
@@ -707,7 +740,7 @@ const CONTENT_FOOTER_LINKS = [
 ] as const;
 
 // The in-flow product footer is Ghostget's own composition around the shared
-// Hraness network footer: same row contract, Ghostget brand, seven links.
+// Hraness network footer: same row contract, Ghostget brand, eight links.
 function renderGhostgetContentFooter(): string {
   const links = CONTENT_FOOTER_LINKS
     .map(({ href, label }) => `<a class="hraness-marketing-footer__link" href="${href}">${label}</a>`)
@@ -737,6 +770,7 @@ function renderTemplate(
   options: RenderOptions,
   page?: PublicPage,
   format: "html" | "text" = "html",
+  structuredDataOverride?: Readonly<Record<string, unknown>>,
 ): string {
   const { packageIdentity: identity } = options;
   const installCommand = `bun add --global ${versionedPackageArtifactUrl(identity)}`;
@@ -753,7 +787,7 @@ function renderTemplate(
     );
   }
   if (page) {
-    const structuredData = JSON.stringify(jsonLd(identity, page)).replaceAll("<", "\\u003c");
+    const structuredData = JSON.stringify(structuredDataOverride ?? jsonLd(identity, page)).replaceAll("<", "\\u003c");
     rendered = replaceRequired(rendered, "{{JSON_LD}}", structuredData);
     rendered = replaceRequired(
       rendered,
@@ -907,8 +941,20 @@ export function renderPreview(template: string, cssAsset: string): string {
   return rendered;
 }
 
-export function renderSitemapXml(pages: readonly PublicPage[] = PUBLIC_PAGES): string {
-  const urls = pages.map((page) => {
+export function renderSitemapXml(
+  pages: readonly PublicPage[] = PUBLIC_PAGES,
+  datedPaths: readonly SitemapPath[] = [],
+): string {
+  const dated = datedPaths.map((entry) => {
+    const lastModified = entry.lastModified === undefined
+      ? ""
+      : `
+    <lastmod>${escapeXml(typeof entry.lastModified === "string" ? entry.lastModified : entry.lastModified.toISOString())}</lastmod>`;
+    return `  <url>
+    <loc>${SITE_ORIGIN}${entry.path}</loc>${lastModified}
+  </url>`;
+  });
+  const urls = [...pages.map((page) => {
     const image = editorialImage(page.canonicalPath);
     const imageMarkup = image === undefined ? "" : `
     <image:image>
@@ -919,12 +965,80 @@ export function renderSitemapXml(pages: readonly PublicPage[] = PUBLIC_PAGES): s
     return `  <url>
     <loc>${SITE_ORIGIN}${page.canonicalPath}</loc>${imageMarkup}
   </url>`;
-  }).join("\n");
+  }), ...dated].join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 ${urls}
 </urlset>
 `;
+}
+
+export type RenderedBlogPage = Readonly<{
+  html: string;
+  indexable: boolean;
+  page: PublicPage;
+}>;
+
+/** The blog index plus one page per post; non-indexable posts render with noindex and no structured data. */
+function renderBlogPages(
+  shell: string,
+  fragments: ReadonlyMap<string, string>,
+  options: RenderOptions,
+): RenderedBlogPage[] {
+  const shared = sharedJsonLd(options.packageIdentity);
+  const indexPage: PublicPage = {
+    canonicalPath: BLOG_PATH,
+    description: BLOG_DESCRIPTION,
+    outputFile: "blog/index.html",
+    sourceFile: "blog.html",
+    title: BLOG_TITLE,
+  };
+  const pages: RenderedBlogPage[] = [{
+    html: renderTemplate(
+      fillBlogShell(shell, BLOG_SITE, {
+        canonicalPath: BLOG_PATH,
+        description: BLOG_DESCRIPTION,
+        indexable: true,
+        ogType: "website",
+        title: BLOG_TITLE,
+      }, renderBlogIndexMain()),
+      options,
+      indexPage,
+      "html",
+      blogIndexJsonLd(BLOG_SITE, shared, HRANESS_ORGANIZATION_ID),
+    ),
+    indexable: true,
+    page: indexPage,
+  }];
+  for (const post of BLOG_POSTS) {
+    const fragment = fragments.get(post.bodyFile);
+    if (fragment === undefined) throw new Error(`Missing blog body ${post.bodyFile}.`);
+    const canonicalPath = blogPostPath(post.slug);
+    const page: PublicPage = {
+      canonicalPath,
+      description: post.dek,
+      outputFile: `${canonicalPath.slice(1)}index.html`,
+      sourceFile: `blog/${post.bodyFile}`,
+      title: post.title,
+    };
+    const indexable = isIndexablePost(post);
+    const filled = fillBlogShell(shell, BLOG_SITE, {
+      canonicalPath,
+      description: post.dek,
+      indexable,
+      ogType: "article",
+      publishedTime: `${post.published}T00:00:00.000Z`,
+      title: post.title,
+    }, renderBlogPostMain(post, fragment));
+    pages.push({
+      html: indexable
+        ? renderTemplate(filled, options, page, "html", blogPostJsonLd(post, BLOG_SITE, shared, HRANESS_ORGANIZATION_ID))
+        : renderTemplate(filled, options),
+      indexable,
+      page,
+    });
+  }
+  return pages;
 }
 
 export function renderIndex(template: string, options: RenderOptions): string {
@@ -980,12 +1094,12 @@ export async function buildWebsite(
     uiCss,
     designKitFontsCss,
     designKitProductMarketingCss,
+    designKitPlainSiteCss,
+    designKitPlainPublicationCss,
     hranessSiteFooterCss,
-    analyticsBuild,
-    skillInstallBuild,
-    foilBuild,
-    fieldBuild,
-    appearanceBuild,
+    blogShell,
+    blogFragments,
+    browserBuild,
     attestation,
   ] = await Promise.all([
     Bun.file(join(repositoryRoot, "package.json")).json(),
@@ -1007,41 +1121,29 @@ export async function buildWebsite(
     ]).then(([grammar, syntax]) => compileDesignKitMarketingStyles(grammar, {
       "./syntax-highlighting.css": syntax,
     })),
+    readFile(designKitPlainSiteStylesPath, "utf8"),
+    readFile(designKitPlainPublicationStylesPath, "utf8"),
     readFile(
       fileURLToPath(import.meta.resolve("@hraness/site-footer/stylex.css")),
       "utf8",
     ),
+    readFile(join(sourceRoot, "blog.html"), "utf8"),
+    Promise.all(BLOG_POSTS.map(async (post) => [
+      post.bodyFile,
+      await readFile(join(sourceRoot, "blog", post.bodyFile), "utf8"),
+    ] as const)).then((entries) => new Map(entries)),
+    // One shared build keeps every package file on one parse: bun's in-process
+    // bundler reuses a closed resolver-cache fd when sibling builds revisit a
+    // symlinked dependency inside a `bun test` process (oven-sh/bun#33099).
     Bun.build({
-      entrypoints: [join(sourceRoot, "analytics.ts")],
+      entrypoints: [
+        join(sourceRoot, "analytics.ts"),
+        join(sourceRoot, "skill-install-command.ts"),
+        join(sourceRoot, "foil.ts"),
+        join(sourceRoot, "ghostget-field.ts"),
+        join(sourceRoot, "appearance.ts"),
+      ],
       format: "esm",
-      minify: true,
-      sourcemap: "none",
-      target: "browser",
-    }),
-    Bun.build({
-      entrypoints: [join(sourceRoot, "skill-install-command.ts")],
-      format: "esm",
-      minify: true,
-      sourcemap: "none",
-      target: "browser",
-    }),
-    Bun.build({
-      entrypoints: [join(sourceRoot, "foil.ts")],
-      format: "esm",
-      minify: true,
-      sourcemap: "none",
-      target: "browser",
-    }),
-    Bun.build({
-      entrypoints: [join(sourceRoot, "ghostget-field.ts")],
-      format: "esm",
-      minify: true,
-      sourcemap: "none",
-      target: "browser",
-    }),
-    Bun.build({
-      entrypoints: [join(sourceRoot, "appearance.ts")],
-      format: "iife",
       minify: true,
       sourcemap: "none",
       target: "browser",
@@ -1057,28 +1159,23 @@ export async function buildWebsite(
   );
   const webmcpIndexValues = webmcpIndexTemplateValues(webmcpSnapshot);
   const allPages: readonly PublicPage[] = [...PUBLIC_PAGES, ...webmcpPages];
-  if (!analyticsBuild.success || analyticsBuild.outputs.length !== 1) {
-    const messages = analyticsBuild.logs.map((log) => log.message).join("\n");
-    throw new Error(`Analytics build failed: ${messages || "no browser output"}`);
+  if (!browserBuild.success || browserBuild.outputs.length !== 5) {
+    const messages = browserBuild.logs.map((log) => log.message).join("\n");
+    throw new Error(`Browser script build failed: ${messages || "no browser output"}`);
   }
-  const analytics = new Uint8Array(await analyticsBuild.outputs[0]!.arrayBuffer());
-  if (!skillInstallBuild.success || skillInstallBuild.outputs.length !== 1) {
-    const messages = skillInstallBuild.logs.map((log) => log.message).join("\n");
-    throw new Error(`Skill install control build failed: ${messages || "no browser output"}`);
-  }
-  const skillInstall = new Uint8Array(await skillInstallBuild.outputs[0]!.arrayBuffer());
-  if (!foilBuild.success || foilBuild.outputs.length !== 1) {
-    const messages = foilBuild.logs.map((log) => log.message).join("\n");
-    throw new Error(`Foil controller build failed: ${messages || "no browser output"}`);
-  }
-  const foil = new Uint8Array(await foilBuild.outputs[0]!.arrayBuffer());
-  if (!fieldBuild.success || fieldBuild.outputs.length !== 1) {
-    const messages = fieldBuild.logs.map((log) => log.message).join("\n");
-    throw new Error(`Ghostget field controller build failed: ${messages || "no browser output"}`);
-  }
-  const field = new Uint8Array(await fieldBuild.outputs[0]!.arrayBuffer());
-  if (!appearanceBuild.success || appearanceBuild.outputs.length !== 1) throw new Error("Shared appearance build failed.");
-  const appearance = new Uint8Array(await appearanceBuild.outputs[0]!.arrayBuffer());
+  const browserAssets = new Map(browserBuild.outputs.map((output) => [basename(output.path, ".js"), output]));
+  const scriptAsset = async (name: string) => {
+    const output = browserAssets.get(name);
+    if (output === undefined) throw new Error(`Browser script ${name} missing from the shared build.`);
+    return output.text();
+  };
+  const analytics = new Uint8Array(await scriptAsset("analytics"));
+  const skillInstall = new Uint8Array(await scriptAsset("skill-install-command"));
+  const foil = new Uint8Array(await scriptAsset("foil"));
+  const field = new Uint8Array(await scriptAsset("ghostget-field"));
+  // The blocking head script is a classic script: wrap the shared ESM output in
+  // one strict-mode IIFE so it never leaks a top-level binding.
+  const appearance = new TextEncoder().encode(`(() => { "use strict";\n${await scriptAsset("appearance")}\n})();`);
   const identity = parsePackageIdentity(manifest);
   if (identity.release !== CONTENT_REVIEWED_RELEASE) {
     throw new Error(
@@ -1091,7 +1188,7 @@ export async function buildWebsite(
   const lanternCss = lanternMaterial.files.get("lantern-material.css");
   const lanternLicense = lanternMaterial.files.get("LICENSE");
   if (lanternCss === undefined || lanternLicense === undefined) throw new Error("The complete Lantern build snapshot is required.");
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${appearanceCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${lanternCss.toString("utf8")}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${appearanceCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${lanternCss.toString("utf8")}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const appearanceAsset = `/assets/appearance-${contentHash(appearance)}.js`;
@@ -1154,6 +1251,10 @@ export async function buildWebsite(
     page,
     html: renderTemplate(publicTemplates[index]!, renderOptions, page),
   }));
+  const blogPages = renderBlogPages(blogShell, blogFragments, renderOptions);
+  await Promise.all(blogPages.map(({ page }) => mkdir(dirname(join(outputRoot, page.outputFile)), {
+    recursive: true,
+  })));
   for (const page of webmcpPages) {
     renderedPages.push({
       page,
@@ -1172,10 +1273,21 @@ export async function buildWebsite(
       join(outputRoot, markdownSiblingPath(page.canonicalPath).slice(1)),
       htmlMainToMarkdown(html, `${SITE_ORIGIN}${page.canonicalPath}`),
     )),
+    ...blogPages.map(({ page, html }) => writeFile(join(outputRoot, page.outputFile), html)),
+    ...blogPages.filter(({ indexable }) => indexable).map(({ page, html }) => writeFile(
+      join(outputRoot, markdownSiblingPath(page.canonicalPath).slice(1)),
+      htmlMainToMarkdown(html, `${SITE_ORIGIN}${page.canonicalPath}`),
+    )),
+    writeFile(join(outputRoot, BLOG_FEED_PATH.slice(1)), renderBlogAtomFeed(BLOG_SITE)),
     writeFile(join(outputRoot, "preview/index.html"), renderPreview(previewTemplate, cssAsset)),
     writeFile(join(outputRoot, "404.html"), renderTemplate(notFoundTemplate, renderOptions)),
     writeFile(join(outputRoot, "404.md"), renderTemplate(notFoundMarkdown, renderOptions, undefined, "text")),
-    writeFile(join(outputRoot, "llms.txt"), renderTemplate(llmsTemplate, renderOptions, undefined, "text")),
+    writeFile(join(outputRoot, "llms.txt"), renderTemplate(
+      replaceRequired(llmsTemplate, "{{BLOG_LLMS_ENTRIES}}", renderBlogLlmsEntries(BLOG_SITE)),
+      renderOptions,
+      undefined,
+      "text",
+    )),
     writeFile(join(outputRoot, cssAsset.slice(1)), compiledCss),
     writeFile(join(outputRoot, analyticsAsset.slice(1)), analytics),
     writeFile(join(outputRoot, appearanceAsset.slice(1)), appearance),
@@ -1188,7 +1300,7 @@ export async function buildWebsite(
     ),
     writeFile(
       join(outputRoot, "sitemap.xml"),
-      renderSitemapXml(allPages),
+      renderSitemapXml(allPages, blogSitemapPaths(BLOG_SITE)),
     ),
     cp(join(publicRoot, "images"), join(outputRoot, "images"), {
       dereference: true,

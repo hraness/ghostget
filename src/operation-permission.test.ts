@@ -130,7 +130,21 @@ test("operation policy: account A-to-B-to-A invalidates grants and previewed pla
   let calls = 0;
   await expect(confirmInvocation(stored.digest, { ...s.options, headed: false, executeProvider: async () => { calls++; return execution(); } })).rejects.toThrow("lifetime");
   expect(calls).toBe(0);
-  expect(loadInvocationPlan(stored.digest, s.environment).digest).toBe(stored.digest);
+  // A refused confirmation consumes the plan, as it does without managed permissions.
+  expect(() => loadInvocationPlan(stored.digest, s.environment)).toThrow();
+});
+
+test("operation policy: a plan refused for interface drift is consumed and restoring the interface cannot revive it", async () => {
+  const s = state(); enableOperationPermissions(0, s.environment); s.grant("allow", "posts.publish");
+  const stored = createAndSaveInvocationPlan(s.prepare("posts.publish"), s.environment, new Date(), registry);
+  installManifest({ ...s.manifest, displayName: "Drifted interface" }, { force: true, environment: s.environment, registry });
+  let calls = 0;
+  const confirm = () => confirmInvocation(stored.digest, { ...s.options, headed: false, executeProvider: async () => { calls++; return execution(); } });
+  await expect(confirm()).rejects.toThrow("adapter changed after preview");
+  installManifest(s.manifest, { force: true, environment: s.environment, registry });
+  await expect(confirm()).rejects.toThrow();
+  expect(calls).toBe(0);
+  expect(() => loadInvocationPlan(stored.digest, s.environment)).toThrow();
 });
 
 test("operation policy: capability digest binds adapter, account and current closure", () => {

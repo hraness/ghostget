@@ -4632,7 +4632,7 @@ describe("CLI previews and exit semantics", () => {
 
   test("renders the canonical Ghostget command surface", async () => {
     const usage = renderGhostgetUsage();
-    expect(usage).toStartWith("Ghostget reads pages, saves media, and connects account tools to your agent.\n");
+    expect(usage).toStartWith("Ghostget: Named web actions for AI agents: read pages, save media, use connected accounts\n");
     expect(usage).toContain("Start here (no account required):\n  ghostget read https://example.com");
     expect(usage).toContain("Command reference:\n  ghostget login");
     expect(usage).toContain("ghostget invoke <adapter> <operation>");
