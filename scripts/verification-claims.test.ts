@@ -184,8 +184,13 @@ async function withClaim(id: string, fields: Readonly<Record<string, JsonValue |
 const evidencedBy = (id: string, evidence: readonly string[]): Promise<ClaimsRegister> =>
   withClaim(id, { status: "evidenced", phase: undefined, evidence: [...evidence] });
 
-function claimWith(register: ClaimsRegister, layer: Layer, status: Status): Claim {
-  const claim = register.claims.find((candidate) => candidate.layer === layer && candidate.status === status);
+/**
+ * A claim at `layer` with `status`. Tests that only need a claim of the layer
+ * to re-evidence may take any claim there once no planned one is left.
+ */
+function claimWith(register: ClaimsRegister, layer: Layer, status: Status, anyStatus = false): Claim {
+  const claim = register.claims.find((candidate) => candidate.layer === layer && candidate.status === status)
+    ?? (anyStatus ? register.claims.find((candidate) => candidate.layer === layer) : undefined);
   if (claim === undefined) throw new Error(`the register has no ${status} ${layer} claim`);
   return claim;
 }
@@ -809,7 +814,7 @@ describe("claims and evidence", () => {
   });
 
   test("an evidenced stateful-model claim names tests that run fast-check commands", async () => {
-    const claim = claimWith(await committedRegister(), "stateful-model", "planned");
+    const claim = claimWith(await committedRegister(), "stateful-model", "planned", true);
     const file = "scripts/synthetic-model.test.ts";
     const register = await withClaim(claim.id, {
       status: "evidenced", phase: undefined, evidence: [file], properties: [{ path: file, test: "the model" }],
@@ -833,7 +838,7 @@ describe("claims and evidence", () => {
   });
 
   test("an evidenced Quint claim needs a cited model whose cited replay test drives production code", async () => {
-    const claim = claimWith(await committedRegister(), "quint", "planned");
+    const claim = claimWith(await committedRegister(), "quint", "planned", true);
     const model = "verification/quint/lock.qnt";
     const replay = "scripts/verification-lock-replay.test.ts";
     const refused = `claim ${claim.id} is an evidenced Quint claim, but it cites no model whose replay test drives production code together with that test`;
@@ -875,7 +880,7 @@ describe("claims and evidence", () => {
   });
 
   test("an evidenced differential claim needs both an oracle or vector and a test", async () => {
-    const claim = claimWith(await committedRegister(), "differential", "planned");
+    const claim = claimWith(await committedRegister(), "differential", "planned", true);
     const differential = "scripts/synthetic-differential.test.ts";
     const files = { [differential]: "" };
     const refused = `claim ${claim.id} is an evidenced differential claim, but it does not cite both an oracle or vector and a test`;

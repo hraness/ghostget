@@ -146,6 +146,151 @@
       ]
     },
     {
+      "id": "pinned-https-trusts-resolver-classifier",
+      "file": "src/pinned-https.ts",
+      "defect": "The pinned transport connects to whatever address the kb resolver admits, including the IPv4-translated form of loopback.",
+      "search": "  if (addresses.some((candidate) => !isPublicUnicastAddress(candidate.address))) {",
+      "replace": "  if (false) {",
+      "test": "src/pinned-https.test.ts",
+      "killedBy": [
+        "DNS-pinned authenticated HTTPS",
+        "refuses a resolved non-public address that the kb resolver admits, before any request"
+      ]
+    },
+    {
+      "id": "public-address-admits-all-ipv6",
+      "file": "src/public-address.ts",
+      "defect": "The classifier admits IPv6 outside 2000::/3, so embedded IPv4 forms of private addresses pass.",
+      "search": "      if (value === null || !contains(128, ipv6Admitted, value)) return false;",
+      "replace": "      if (value === null) return false;",
+      "test": "src/public-address.test.ts",
+      "killedBy": [
+        "public unicast address classifier",
+        "an IPv6 form that embeds an IPv4 address is never public, whatever the IPv4 address"
+      ]
+    },
+    {
+      "id": "helper-owner-ignores-live-owner",
+      "file": "src/control/helper.ts",
+      "defect": "A second controller replaces the owner record while its owner is still live.",
+      "search": "if(processes.status(owner)!==\"different-or-dead\")throw",
+      "replace": "if(false)throw",
+      "test": "src/control/helper-owner.property.test.ts",
+      "killedBy": [
+        "property: at most one live contender holds helper custody across inspect and commit races, crashes, restarts, and unknown owners"
+      ]
+    },
+    {
+      "id": "helper-owner-ignores-lost-race",
+      "file": "src/control/helper.ts",
+      "defect": "A contender that lost the owner-record compare-and-swap still believes it holds custody.",
+      "search": "if(!acquired)throw new ControlError",
+      "replace": "if(false)throw new ControlError",
+      "test": "src/control/helper-owner.property.test.ts",
+      "killedBy": [
+        "property: at most one live contender holds helper custody across inspect and commit races, crashes, restarts, and unknown owners"
+      ]
+    },
+    {
+      "id": "web-gateway-dispatch-without-audit",
+      "file": "src/control/web-gateway.ts",
+      "defect": "The gateway reaches DNS and the network without first committing a durable started row.",
+      "search": "this.activity.start({id,method,origin:checked.url.origin,ruleId:checked.ruleIds.join(\",\")||null,endpoint:checked.endpoint,decision:checked.approval.decision});started=true;",
+      "replace": "started=true;",
+      "test": "src/control/web-gateway.property.test.ts",
+      "killedBy": [
+        "property: gateway output and network dispatch follow a committed durable audit row, and recovery never retries"
+      ]
+    },
+    {
+      "id": "web-gateway-output-despite-failed-audit",
+      "file": "src/control/web-gateway.ts",
+      "defect": "A failed final audit write is ignored and the response body is still returned.",
+      "search": "this.activity.finish(id,{outcome:response.ok?\"succeeded\":\"failed\",httpStatus:response.status,responseBytes:bytes,errorCode:response.ok?null:\"HTTP_ERROR\"});finished=true;",
+      "replace": "try{this.activity.finish(id,{outcome:response.ok?\"succeeded\":\"failed\",httpStatus:response.status,responseBytes:bytes,errorCode:response.ok?null:\"HTTP_ERROR\"});}catch{}finished=true;",
+      "test": "src/control/web-gateway.property.test.ts",
+      "killedBy": [
+        "property: gateway output and network dispatch follow a committed durable audit row, and recovery never retries"
+      ]
+    },
+    {
+      "id": "web-gateway-returns-redirect",
+      "file": "src/control/web-gateway.ts",
+      "defect": "A redirect response is returned to the caller instead of withheld.",
+      "search": "if(response.status>=300&&response.status<400) throw",
+      "replace": "if(false) throw",
+      "test": "src/control/web-gateway.property.test.ts",
+      "killedBy": [
+        "property: gateway output and network dispatch follow a committed durable audit row, and recovery never retries"
+      ]
+    },
+    {
+      "id": "activity-recovery-keeps-started",
+      "file": "src/control/activity.ts",
+      "defect": "Opening the store after a crash leaves unknown requests started instead of marking them interrupted.",
+      "search": "WHERE outcome='started'\").run(new Date(now()).toISOString());",
+      "replace": "WHERE 0\").run(new Date(now()).toISOString());",
+      "test": "src/control/web-gateway.property.test.ts",
+      "killedBy": [
+        "property: gateway output and network dispatch follow a committed durable audit row, and recovery never retries"
+      ]
+    },
+    {
+      "id": "helper-shutdown-skips-settle",
+      "file": "src/control/helper.ts",
+      "defect": "Helper shutdown closes the service and releases custody without waiting for in-flight requests.",
+      "search": "  await Promise.allSettled(steps.active);\n",
+      "replace": "",
+      "test": "src/control/helper-shutdown.property.test.ts",
+      "killedBy": [
+        "property: helper shutdown settles every in-flight request before closing the service and releases the owner once, last"
+      ]
+    },
+    {
+      "id": "helper-shutdown-aborts-after-settle",
+      "file": "src/control/helper.ts",
+      "defect": "Helper shutdown waits for in-flight requests before aborting them, so abort-aware work holds shutdown open.",
+      "search": "  steps.beginShutdown();\n  await Promise.allSettled(steps.active);\n",
+      "replace": "  await Promise.allSettled(steps.active);\n  steps.beginShutdown();\n",
+      "test": "src/control/helper-shutdown.property.test.ts",
+      "killedBy": [
+        "property: helper shutdown settles every in-flight request before closing the service and releases the owner once, last"
+      ]
+    },
+    {
+      "id": "connections-close-keeps-attempts",
+      "file": "src/control/connections.ts",
+      "defect": "Closing connections leaves sign-in attempts live, so a verification that finishes after shutdown can still be committed.",
+      "search": "close():void {for(const id of this.attempts.keys())this.cancel(id);}",
+      "replace": "close():void {}",
+      "test": "src/control/helper-shutdown.property.test.ts",
+      "killedBy": [
+        "property: closing connections aborts sign-in so no verification or commit survives shutdown"
+      ]
+    },
+    {
+      "id": "managed-confirm-keeps-drifted-plan",
+      "file": "src/runtime.ts",
+      "defect": "Under managed permissions, a confirmation refused for an expired or drifted plan leaves the plan saved, so restoring the interface revives it.",
+      "search": "    try { cancelInvocationPlan(digest, environment); } catch { /* the refusal below stands */ }\n",
+      "replace": "",
+      "test": "src/operation-permission.test.ts",
+      "killedBy": [
+        "operation policy: a plan refused for interface drift is consumed and restoring the interface cannot revive it"
+      ]
+    },
+    {
+      "id": "grant-digest-ignores-closure",
+      "file": "src/operation-permission.ts",
+      "defect": "The capability digest leaves out the executable closure, so a grant survives a changed implementation.",
+      "search": "    closureHash, portableHash:",
+      "replace": "    closureHash: null, portableHash:",
+      "test": "src/operation-permission.test.ts",
+      "killedBy": [
+        "operation policy: capability digest binds adapter, account and current closure"
+      ]
+    },
+    {
       "id": "browser-admission-reclaim-same-boot",
       "file": "src/browser-admission.ts",
       "defect": "A same-boot claim whose owner reads as dead is reclaimed, so PID reuse alone frees a slot a surviving browser daemon may still hold.",

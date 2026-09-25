@@ -8,16 +8,16 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 245 claims: 214 evidenced, 12 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 245 claims: 222 evidenced, 4 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
 | example test | 146 | 1 | 0 |
 | property test | 20 | 1 | 0 |
-| stateful model | 17 | 6 | 0 |
-| Quint model with production trace replay | 20 | 3 | 0 |
+| stateful model | 24 | 0 | 0 |
+| Quint model with production trace replay | 20 | 2 | 0 |
 | Lean proof with differential test | 8 | 0 | 0 |
-| differential oracle | 3 | 1 | 0 |
+| differential oracle | 4 | 0 | 0 |
 | configuration readback | 0 | 0 | 15 |
 | none | 0 | 0 | 4 |
 
@@ -107,7 +107,7 @@ Each claim holds only while its listed assumptions hold.
 | --- | --- | ---: |
 | `bun-runtime` | Bun and JavaScriptCore execute the sources and the test runner as specified. | 8 |
 | `filesystem-atomic-rename` | Same-volume rename and link are atomic. | 33 |
-| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 29 |
+| `filesystem-durability` | Data and directory entries that were fsynced persist across a crash or power loss. | 30 |
 | `same-user-trusted` | Processes running as the same operating-system user are trusted; file modes and owner-only sockets separate users. | 32 |
 | `process-liveness` | Process ID, process start time, and boot identity readings are truthful. | 10 |
 | `monotonic-clock` | The injected monotonic clock never runs backward. | 6 |
@@ -137,11 +137,17 @@ Each claim holds only while its listed assumptions hold.
 
 Every authenticated request is bound to one exact account realm, provider target, transport, contract version, and implementation identity; drift in any of them rejects the request and consumes prepared plans.
 
-- Planned: stateful model in plan Phase 4.
+- Evidenced by stateful model.
 - Source: `AGENTS.md`: “Bind every authenticated request to one exact account realm, provider target, transport, contract version, and implementation identity.”
-- Evidence: `src/auth-storage.test.ts`, `src/beeper-message-like-me-source.test.ts`, `src/client-boundary.test.ts`, `src/local-cli-durable-identity.test.ts`, `src/runtime.test.ts`, `src/web-session-authentication-policy.test.ts`
+- Evidence: `src/auth-storage.test.ts`, `src/beeper-message-like-me-source.test.ts`, `src/client-boundary.test.ts`, `src/local-cli-durable-identity.test.ts`, `src/operation-authority.property.test.ts`, `src/operation-permission.ts`, `src/runtime.test.ts`, `src/runtime.ts`, `src/web-session-authentication-policy.test.ts`
+- Property tests: `src/operation-authority.property.test.ts`: “property: authority never outlives a change of account incarnation, realm, interface, closure, contract or policy”
 - Assumptions: `provider-behaviour`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The model covers one provider-API account: the bundled X interface with `posts.read` and `posts.publish`, on a real state home with a counting executor in place of the provider. Web-session, local CLI, linked-device, portable-plugin and messaging-composite routes share `validateFreshPlan` and the permission layer but rest on the listed example tests.
+  - The model varies the account incarnation, the account realm (a record for a different subject under the same ID), the interface bytes, the executable closure and the contract implementation identity. The provider target and transport are fixed by the X contract, and a transport or contract-version change reaches a plan only through the manifest bytes it binds; neither is varied on its own.
+  - Saved plans bind the reviewed contract implementation identity (`contractImplementationHash`), which is stable across builds of one built-in plugin version, not the exact closure. Under managed permissions the grant binds the exact closure, so a changed closure dispatches nothing until the new identity is granted; without managed permissions a closure change that keeps the reviewed contract identity does not consume a plan.
+  - A plan refused only by policy is kept for a later confirmation under current authority, by design; every other refusal consumes it.
+  - The model samples its schedules: CI runs 2 schedules of up to 8 commands, and the nightly soak runs 20 times as many. Each command spawns the bound state helper for every state operation, so a schedule costs tens of seconds.
 
 #### `no-silent-transport-switch`
 
@@ -394,31 +400,48 @@ Credential publication re-verifies the exact staged bytes and account revision; 
 
 The menu and TUI share exactly one helper owner per state home; a second controller does not acquire custody.
 
-- Planned: stateful model in plan Phase 2.
+- Evidenced by stateful model.
 - Source: `src/control/AGENTS.md`: “The menu and TUI share one helper owner per state home.”
-- Evidence: `src/control/helper-client.test.ts`, `src/control/helper-lifecycle.test.ts`, `src/control/tui.test.ts`
-- Assumptions: `same-user-trusted`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Evidence: `src/control/helper.ts`, `src/control/helper-owner.property.test.ts`, `src/control/helper-client.test.ts`, `src/control/helper-lifecycle.test.ts`, `src/control/tui.test.ts`
+- Property tests: `src/control/helper-owner.property.test.ts`: “property: at most one live contender holds helper custody across inspect and commit races, crashes, restarts, and unknown owners”
+- Assumptions: `same-user-trusted`, `filesystem-durability`
+- Not verified:
+  - The model drives the production owner record (`inspectControlOwner` and `commitControlOwner`) in one process. Process liveness is a fake that the model controls, so `processOwnerStatus`'s own inspection of real processes is outside it; its tests are in `src/process-identity.test.ts`.
+  - Contenders interleave only between inspection and commit. That two separate processes cannot both win the create-if-absent or compare-and-swap write rests on the storage layer's exclusive create and locked replace, under the filesystem-durability assumption.
+  - That the menu and the TUI reach the one helper through its socket, rather than starting their own, rests on the listed example tests only.
+  - The model samples its schedules: CI runs 30 schedules of up to 20 commands over three contenders.
 
 #### `no-cached-authorization-across-change`
 
 Authorization is never cached across a changed account, policy, interface, or executable closure; an A-to-B-to-A account change invalidates grants and previewed plans.
 
-- Planned: stateful model in plan Phase 4.
+- Evidenced by stateful model.
 - Source: `src/control/AGENTS.md`: “Display optimizations must not cache authorization across a changed account, policy, interface or executable closure.”
-- Evidence: `src/control/account-revision.test.ts`, `src/control/connections.test.ts`, `src/operation-permission.test.ts`
+- Evidence: `src/control/account-revision.test.ts`, `src/control/connections.test.ts`, `src/operation-authority.property.test.ts`, `src/operation-permission.test.ts`, `src/operation-permission.ts`, `src/runtime.ts`
+- Property tests: `src/operation-authority.property.test.ts`: “property: authority never outlives a change of account incarnation, realm, interface, closure, contract or policy”
 - Assumptions: `same-user-trusted`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The model covers one provider-API account: the bundled X interface with `posts.read` and `posts.publish`, on a real state home with a counting executor in place of the provider. Web-session, local CLI, linked-device, portable-plugin and messaging-composite routes share `validateFreshPlan` and the permission layer but rest on the listed example tests.
+  - A closure or contract change is simulated by registries whose `implementationClosureHash` or `contractImplementationHash` differ within one process; a real upgrade that loads a different registry in a new process is not modelled.
+  - The display path, `describeOperationPermissions` with its snapshot-local reuse, is checked only by the listed example tests; the model checks that execution never uses authorization from before a change.
+  - `ask` is modelled without a human answer, so it never dispatches; the approval broker's own binding is `approvals.qnt`'s.
+  - The model samples its schedules: CI runs 2 schedules of up to 8 commands, and the nightly soak runs 20 times as many. Each command spawns the bound state helper for every state operation, so a schedule costs tens of seconds.
 
 #### `grant-binds-exact-identity`
 
 Operation grants bind the exact account incarnation, manifest, contract, and executable closure; a change to any of them, or a changed approval, invalidates the prior grant.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by stateful model.
 - Source: `SECURITY.md`: “Grants bind the exact account incarnation, manifest, contract, and executable closure. A changed account, interface, implementation, or approval invalidates the prior grant.”
-- Evidence: `src/control/approval-broker.test.ts`, `src/operation-permission.test.ts`
+- Evidence: `src/control/approval-broker.test.ts`, `src/operation-authority.property.test.ts`, `src/operation-permission.test.ts`, `src/operation-permission.ts`
+- Property tests: `src/operation-authority.property.test.ts`: “property: authority never outlives a change of account incarnation, realm, interface, closure, contract or policy”
 - Assumptions: `same-user-trusted`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - This claim was planned for a Quint model. It is evidenced instead by a stateful model over the production permission layer, which checks after every grant that the capability digest is equal for the same exact identity and distinct from every digest of another identity, and that preparation, reads and confirmations follow only the policy of the current identity.
+  - The model covers one provider-API account: the bundled X interface with `posts.read` and `posts.publish`, on a real state home with a counting executor in place of the provider. Web-session, local CLI, linked-device, portable-plugin and messaging-composite routes share `validateFreshPlan` and the permission layer but rest on the listed example tests.
+  - The contract axis changes the contract implementation identity that `providerContractHash` folds in; a changed contract definition or version reaches the digest through the installed manifest, which the model varies only by display name.
+  - A changed approval is modelled as a changed policy entry (allow, ask or deny) for the current identity; a human approval answered through the broker is not modelled here.
+  - The model samples its schedules: CI runs 2 schedules of up to 8 commands, and the nightly soak runs 20 times as many. Each command spawns the bound state helper for every state operation, so a schedule costs tens of seconds.
 
 #### `approval-allow-once`
 
@@ -437,11 +460,17 @@ An allow-once approval admits one exact pending request at most once (allowed im
 
 Connection and helper shutdown settle owned work before custody is released.
 
-- Planned: stateful model in plan Phase 2.
+- Evidenced by stateful model.
 - Source: `src/control/AGENTS.md`: “Connection and helper shutdown must settle owned work before custody is released.”
-- Evidence: `src/control/connections.test.ts`, `src/control/helper-lifecycle.test.ts`
+- Evidence: `src/control/helper.ts`, `src/control/connections.ts`, `src/control/helper-shutdown.property.test.ts`, `src/control/connections.test.ts`, `src/control/helper-lifecycle.test.ts`
+- Property tests: `src/control/helper-shutdown.property.test.ts`: “property: helper shutdown settles every in-flight request before closing the service and releases the owner once, last”; `src/control/helper-shutdown.property.test.ts`: “property: closing connections aborts sign-in so no verification or commit survives shutdown”
 - Assumptions: `same-user-trusted`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The helper model drives the production shutdown sequencer, `settleHelperShutdown`, with the steps `runControlHelper` passes it replaced by recorders over a set of in-flight requests. That `runControlHelper` passes the real steps and tracks every request in its active set rests on reading it and on `src/control/helper-lifecycle.test.ts`, which starts and stops the real helper.
+  - The wait covers requests in flight when shutdown begins. Clients are disconnected first, so no socket request can start later; a native stdio frame arriving after shutdown began is not modelled.
+  - A request that never settles holds shutdown open. Provider calls end when the service's shutdown signal aborts them; a call that ignores its signal is outside the model.
+  - The connection model drives the production `Connections` class with a fake sign-in probe; real browser sign-in and provider verifiers are outside it.
+  - The models sample their schedules: CI runs 200 helper schedules of up to 14 commands and 12 connection schedules of up to 8 commands over two attempts.
 
 ### `control-plane` (13 claims)
 
@@ -625,7 +654,9 @@ Every mutation carries an idempotency key, so a retried write never double-charg
 - Source: `AGENTS.md`: “Every mutation carries an idempotency key; a retried write never double-charges storage, quota, or provider spend.”
 - Evidence: `src/contract-repair-inbox.test.ts`, `src/run-journal.test.ts`, `src/runtime.test.ts`
 - Assumptions: none beyond the register-wide scope
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - No Quint model covers this claim as stated yet. Related evidence: the fence model (`verification/quint/fence.qnt`, replayed through the production journal and ledger layer) shows that confirmed writes keyed by one intent reach the provider at most once plus elected duplicate-risk successors, and the stateful model in `src/operation-authority.property.test.ts` shows that a new plan for an input already dispatched through `confirmInvocation` never reaches the provider again.
+  - Not established: that every mutation route carries a key (contracts declare `idempotency` as `none` or `local-at-most-once`, and messaging, linked-device, local CLI and media routes have their own journals); that a retry never charges storage or quota again (each preview writes a new plan, and a refused retry writes its claim and receipt); and behaviour after the dedupe window expires.
 
 ### `edge` (5 claims)
 
@@ -1105,11 +1136,16 @@ The messaging automation protocol rejects a second ordinary in-flight request an
 
 A mutation dispatches only after an exact preview and a confirmation whose digest binds that preview; each plan is consumed exactly once, and expired, drifted, or altered plans are consumed without dispatch.
 
-- Planned: stateful model in plan Phase 4.
+- Evidenced by stateful model.
 - Source: `AGENTS.md`: “Keep mutations behind exact preview, confirmation, durable dispatch, and at-most-once evidence.”
-- Evidence: `src/confirmed-write-program.test.ts`, `src/control/menubar-cli.test.ts`, `src/messaging-runtime-composite.test.ts`, `src/providers/x.test.ts`, `src/runtime.test.ts`
+- Evidence: `src/confirmed-write-program.test.ts`, `src/control/menubar-cli.test.ts`, `src/messaging-runtime-composite.test.ts`, `src/operation-authority.property.test.ts`, `src/operation-permission.test.ts`, `src/providers/x.test.ts`, `src/runtime.test.ts`, `src/runtime.ts`
+- Property tests: `src/operation-authority.property.test.ts`: “property: authority never outlives a change of account incarnation, realm, interface, closure, contract or policy”
 - Assumptions: `filesystem-durability`, `provider-behaviour`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The model covers one provider-API account: the bundled X interface with `posts.read` and `posts.publish`, on a real state home with a counting executor in place of the provider. Web-session, local CLI, linked-device, portable-plugin and messaging-composite routes share `validateFreshPlan` and the permission layer but rest on the listed example tests. The model's write is single-dispatch; multi-part and composite plans rest on the listed example tests.
+  - An altered plan is modelled by flipping one byte of the saved plan file; other alterations rest on the strict plan parser's tests. A crash between consuming a plan and its durable dispatch is the fence model's (`confirmed-write-at-most-once`), not this one's.
+  - Expiry is modelled by confirming a day later through the injected clock.
+  - The model samples its schedules: CI runs 2 schedules of up to 8 commands, and the nightly soak runs 20 times as many. Each command spawns the bound state helper for every state operation, so a schedule costs tens of seconds.
 
 #### `confirmed-write-at-most-once`
 
@@ -2808,15 +2844,16 @@ Gateway retrieval uses the pinned transport: one validated DNS address, redirect
 
 The gateway rejects private, loopback, and other non-public addresses (including IPv4-mapped IPv6) after resolution.
 
-- Planned: differential oracle in plan Phase 7.
+- Evidenced by differential oracle.
 - Source: `SECURITY.md`: “private addresses”
 - Also covers: `src/control/AGENTS.md`: “public pinned DNS”
-- Evidence: `src/control/validation.test.ts`, `src/pinned-https.test.ts`
+- Evidence: `src/public-address.ts`, `src/public-address.test.ts`, `src/pinned-https.test.ts`, `src/control/validation.test.ts`, `verification/vectors/generate.py`, `verification/vectors/addresses.json`, `scripts/verification-vectors.test.ts`
 - Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
 - Not verified:
-  - The address classifier comes from `@hraness/kb`, and no independent registry oracle checks it yet. Phase 7 wrote the proposal for one, `kb/plans/kb-ip-classifier-proposal.md`; this claim stays planned until `@hraness/kb` ships a checked classifier and Ghostget pins it.
-  - Probing `@hraness/kb` 0.19.6 found gaps that the proposal records: it treats the IPv4-translated range `::ffff:0:0:0/96`, the rest of `::/8`, and unallocated IPv6 space outside `2000::/3` as public, and it blocks all of `192.0.0.0/16` where the registry reserves only `192.0.0.0/24` and `192.0.2.0/24`.
-  - Until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - The pinned transport checks every resolved answer with Ghostget's own allowlist, `src/public-address.ts`, because the `@hraness/kb` 0.19.6 resolver admits the IPv4-translated range `::ffff:0:0:0/96`, the rest of `::/8`, IPv6 outside `2000::/3`, and `192.88.99.0/24` (`kb/plans/kb-ip-classifier-proposal.md`). The kb check still runs first, so its over-blocking of `192.0.0.0/16` still refuses those addresses.
+  - The Python generator restates the same IANA special-purpose table from the registries, independently of the TypeScript, and compares verdicts on block edges, seeded random addresses, embedded IPv4 forms, and text forms. A row missing from both tables would not be caught; the vectors check the implementation of the table, not the table against the live registries.
+  - Page capture, derivation, and the derivation network proxy (`src/browser.ts`, `src/derive.ts`, `src/model.ts`, `src/derivation-network-proxy.ts`) still rely on the kb classifier alone; this claim covers the gateway's pinned transport only.
+  - DNS answers, the operating system's socket layer, and TLS are assumed; the check covers the address the transport connects to, not routing beyond it.
 
 #### `public-url-matches-url-crate-oracle`
 
@@ -2836,12 +2873,16 @@ The gateway rejects private, loopback, and other non-public addresses (including
 
 A durable audit record exists before any gateway network dispatch, and a failed final audit, revocation, redirect, or oversized body withholds output; crash recovery preserves unknown requests without retrying them.
 
-- Planned: stateful model in plan Phase 2.
+- Evidenced by stateful model.
 - Source: `AGENTS.md`: “through its pinned transport and durable audit boundary.”
 - Also covers: `src/control/AGENTS.md`: “durable metadata before dispatch”
-- Evidence: `src/control/gateway.test.ts`
+- Evidence: `src/control/web-gateway.ts`, `src/control/activity.ts`, `src/control/web-gateway.property.test.ts`, `src/control/gateway.test.ts`
+- Property tests: `src/control/web-gateway.property.test.ts`: “property: gateway output and network dispatch follow a committed durable audit row, and recovery never retries”
 - Assumptions: `filesystem-durability`, `whatwg-url`, `dns-tls`
-- Not verified: The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The model drives the production `WebGateway`, `ActivityStore` and `ApprovalBroker` on a real state home, with a scripted `GatewayTransport` in place of DNS, TLS and sockets. That the pinned transport itself connects only to the address it checked is covered by `gateway-rejects-private-addresses` and its tests, not by this model.
+  - A crash is modelled as abandoning the in-flight call and reopening the store in the same process; a real process death between the SQLite commit and the socket write rests on SQLite's commit durability, under the filesystem-durability assumption.
+  - The model samples its schedules: CI runs 15 schedules of up to 8 requests over twelve scenarios.
 
 #### `gateway-activity-excludes-sensitive`
 
