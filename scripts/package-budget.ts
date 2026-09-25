@@ -1704,20 +1704,25 @@
 // shutdown models, and operation permission changes. The first measurement
 // missed `src/public-address.ts` in the package file list, which the packed
 // smoke caught when the installed CLI could not resolve the import; with it
-// shipped, a clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin
-// arm64 measured 12,008,738 packed bytes and 23,477,699 unpacked bytes
-// across the new 597-file inventory; archive SHA-256
-// 375fa1cb85ab95023710cd34b044226c52267ef5b72f5a5f049f656d236dbfa6.
-// Carry the same projections and allowances: 12,008,738 + 12,387 + 4,096 =
-// 12,025,221 packed; 23,477,699 + 353 + 65 = 23,478,117 unpacked.
+// shipped, the branch measured 12,008,738 packed bytes and 23,477,699
+// unpacked bytes across the new 597-file inventory.
+//
+// The portable retained readback and successor handling add the portable
+// provider host/runtime support, the retained readback and supersession
+// cores, and their tests. Merging both: a clean `npm pack --ignore-scripts`
+// with npm 11.19.0 on darwin arm64 measured 12,017,867 packed bytes and
+// 23,526,405 unpacked bytes across the 597-file inventory; archive SHA-256
+// c26ae0f505f5875d10d2fe95ec5ca210545c4ed5bd7a3f7db4ad36a047e388fa.
+// Carry the same projections and allowances: 12,017,867 + 12,387 + 4,096 =
+// 12,034,350 packed; 23,526,405 + 353 + 65 = 23,526,823 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Release and publication claims evidenced in CI",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "375fa1cb85ab95023710cd34b044226c52267ef5b72f5a5f049f656d236dbfa6",
-  packedBytes: 12_008_738,
-  unpackedBytes: 23_477_699,
+  archiveSha256: "c26ae0f505f5875d10d2fe95ec5ca210545c4ed5bd7a3f7db4ad36a047e388fa",
+  packedBytes: 12_017_867,
+  unpackedBytes: 23_526_405,
   entryCount: 597,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

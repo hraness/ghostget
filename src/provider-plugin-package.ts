@@ -78,6 +78,21 @@ type PortableProviderPluginOperationBaseV1 = {
   readonly dedupeWindowMs: number;
   readonly input: InputSchema;
   readonly implementation: string;
+  /**
+   * Optional, versioned readback declaration. Present only when a web-session
+   * write names the observed R1 operation that Ghostget itself may invoke to
+   * observe whether one lost dispatch applied. Undeclared operations omit the
+   * key, so their canonical manifest bytes and hashes are unchanged.
+   */
+  readonly readback?: PortableProviderPluginReadbackDeclarationV1;
+};
+
+export const PORTABLE_PROVIDER_PLUGIN_READBACK_DECLARATION_VERSION = 1;
+
+export type PortableProviderPluginReadbackDeclarationV1 = {
+  readonly version: typeof PORTABLE_PROVIDER_PLUGIN_READBACK_DECLARATION_VERSION;
+  readonly operation: string;
+  readonly contractVersion: number;
 };
 
 export type PortableProviderApiPluginOperationV1 =
@@ -1027,6 +1042,7 @@ function parseOperation(
       "input",
       "implementation",
       ...(providerApi ? ["requiredScopeSets", "coverage"] : []),
+      ...(Object.hasOwn(operation, "readback") ? ["readback"] : []),
     ],
     "plugin operation",
   );
@@ -1133,6 +1149,20 @@ function parseOperation(
       `plugin operation ${name} must keep R4 authority capture-required`,
     );
   }
+  const readback = Object.hasOwn(operation, "readback")
+    ? parseReadbackDeclaration(operation.readback, name)
+    : undefined;
+  if (
+    readback !== undefined
+    && (
+      transport !== "web-session-api"
+      || (risk !== "R2" && risk !== "R3")
+    )
+  ) {
+    throw new Error(
+      `plugin operation ${name} readback is available only for R2/R3 web-session-api writes`,
+    );
+  }
   const common = {
     name,
     contractVersion: operation.contractVersion as number,
@@ -1146,6 +1176,7 @@ function parseOperation(
     dedupeWindowMs: operation.dedupeWindowMs as number,
     input,
     implementation,
+    ...(readback === undefined ? {} : { readback }),
   };
   if (!providerApi) {
     return Object.freeze(common) as PortableWebSessionPluginOperationV1;
@@ -1161,6 +1192,78 @@ function parseOperation(
       `plugin operation ${name} coverage`,
     ),
   }) as PortableProviderApiPluginOperationV1;
+}
+
+function parseReadbackDeclaration(
+  value: unknown,
+  name: string,
+): PortableProviderPluginReadbackDeclarationV1 {
+  const label = `plugin operation ${name} readback`;
+  const readback = record(value, label);
+  exactKeys(readback, ["version", "operation", "contractVersion"], label);
+  if (readback.version !== PORTABLE_PROVIDER_PLUGIN_READBACK_DECLARATION_VERSION) {
+    throw new Error(`${label} version is unsupported`);
+  }
+  const operation = safeOperationName(readback.operation);
+  if (
+    !Number.isSafeInteger(readback.contractVersion)
+    || (readback.contractVersion as number) < 1
+    || (readback.contractVersion as number) > 1_000_000
+  ) {
+    throw new Error(`${label} contractVersion is invalid`);
+  }
+  return Object.freeze({
+    version: PORTABLE_PROVIDER_PLUGIN_READBACK_DECLARATION_VERSION,
+    operation,
+    contractVersion: readback.contractVersion as number,
+  });
+}
+
+/**
+ * The readback input is the write input with every file-bearing field
+ * removed, so Ghostget can replay the retained bound input without files.
+ */
+export function portableProviderPluginReadbackInputSchema(
+  write: InputSchema,
+): InputSchema {
+  const properties: Record<string, InputField> = Object.create(null) as
+    Record<string, InputField>;
+  for (const [field, definition] of Object.entries(write.properties)) {
+    if (!containsFileInput(definition)) properties[field] = definition;
+  }
+  return Object.freeze({
+    properties: Object.freeze(properties),
+    required: Object.freeze(
+      write.required.filter((field) => properties[field] !== undefined),
+    ),
+  });
+}
+
+function validateReadbackReferences(
+  operations: readonly PortableProviderPluginOperationV1[],
+  surfaceId: string,
+): void {
+  for (const write of operations) {
+    if (write.readback === undefined) continue;
+    const reference = write.readback;
+    const target = operations.find((candidate) =>
+      candidate.name === reference.operation
+      && candidate.contractVersion === reference.contractVersion);
+    if (
+      target === undefined
+      || target === write
+      || target.state !== "observed"
+      || target.risk !== "R1"
+      || target.dispatch !== "none"
+      || target.readback !== undefined
+      || JSON.stringify(target.input)
+        !== JSON.stringify(portableProviderPluginReadbackInputSchema(write.input))
+    ) {
+      throw new Error(
+        `plugin binding ${surfaceId} operation ${write.name} readback must reference one observed dispatch-free R1 operation whose input is the write input without files`,
+      );
+    }
+  }
 }
 
 function parseSubject(
@@ -1378,6 +1481,7 @@ function parseBinding(value: unknown): PortableProviderPluginBindingV1 {
       `plugin binding ${surfaceId} operations must be sorted by name and contract version`,
     );
   }
+  validateReadbackReferences(sortedOperations, surfaceId);
   const common = {
     adapterId,
     surfaceId,

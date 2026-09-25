@@ -59,14 +59,18 @@ import {
 import type {
   PortableProviderPluginBindingV1,
   PortableProviderPluginOperationV1,
+  PortableProviderPluginReadbackDeclarationV1,
   VerifiedPortableProviderPluginPackage,
 } from "./provider-plugin-package";
 import {
   createPortableOperationIdentityV1,
+  type PortableOperationIdentityV1,
 } from "./provider-plugin-portable-identity";
 import type {
   PortablePluginCapabilityRequest,
   PortablePluginCapabilityResult,
+  PortablePluginReadbackObservation,
+  PortablePluginReadbackRequest,
   PortablePluginHttpBody,
   PortablePluginInvocationFile,
   PortablePluginJsonObject,
@@ -1578,6 +1582,7 @@ async function runWebPortableHost(options: {
   readonly operationDeadline?: WebSessionOperationDeadline;
   readonly beforeDispatch?: (event: WebSessionDispatchEvent) => Promise<void>;
   readonly afterDispatchVerified?: (event: WebSessionDispatchEvent) => Promise<void>;
+  readonly readback?: PortablePluginReadbackRequest;
   readonly dependencies: PortableProviderRuntimeDependencies;
 }): Promise<PortableProviderPluginHostResult> {
   const cleanupBarrier = registerPortableProviderPluginCleanupBarrier();
@@ -1687,6 +1692,9 @@ async function runWebPortableHost(options: {
         timeoutMs,
         hostVersion: PORTABLE_HOST_VERSION,
         plannedDispatchIds: plannedIds,
+        ...(options.readback === undefined
+          ? {}
+          : { readback: options.readback }),
         capabilityHost: capabilityHost({
           package: options.package,
           binding: options.binding,
@@ -2114,4 +2122,190 @@ export function createKernelPortableProviderPluginBindingProjections(
     });
   });
   return Object.freeze(bindings);
+}
+
+/** One Ghostget-initiated readback of an unsettled portable write. */
+export type PortableProviderPluginReadbackCall = {
+  /** The exact write identity the unsettled run's receipt carries. */
+  readonly contract: PortableOperationIdentityV1;
+  readonly runId: string;
+  readonly intentHash: string;
+  /** The run's retained write input; file-bearing fields are dropped. */
+  readonly input: OperationInput;
+  readonly auth: GhostgetAuth;
+  readonly signal?: AbortSignal;
+};
+
+export type PortableProviderPluginReadbackOutcome = {
+  /** The declaration the run's exact write carried and Ghostget invoked. */
+  readonly declaration: PortableProviderPluginReadbackDeclarationV1;
+  readonly observation: PortablePluginReadbackObservation;
+};
+
+export type PortableProviderPluginReadbackPort = ((
+  call: PortableProviderPluginReadbackCall,
+) => Promise<PortableProviderPluginReadbackOutcome>) & {
+  /**
+   * Whether the installed package of this exact write identity declares a
+   * readback for it. False for every undeclared plugin, whose runs keep the
+   * explicit-input reconciliation path unchanged.
+   */
+  readonly declares: (contract: PortableOperationIdentityV1) => boolean;
+};
+
+/**
+ * Build the readback port over installed, verified packages. It resolves the
+ * exact installed package and web-session binding the run's write identity
+ * names, requires that write to declare a readback, and invokes only that
+ * declared read-only operation under an invocation lease. Nothing here can
+ * start a dispatch: the operation is dispatch-free R1 and the host plans none.
+ */
+export function createPortableProviderPluginReadbackPort(
+  packages: readonly VerifiedPortableProviderPluginPackage[],
+  environment: Environment,
+  dependencies: PortableProviderRuntimeDependencies,
+): PortableProviderPluginReadbackPort {
+  if (!isResolvedPortableProviderRuntimeDependencies(dependencies)) {
+    throw new Error(
+      "portable provider plugin readback requires resolved kernel runtime dependencies",
+    );
+  }
+  const snapshot = Object.freeze([...packages]);
+  const declares = (contract: PortableOperationIdentityV1): boolean =>
+    snapshot.some((candidate) =>
+      candidate.bundleSha256 === contract.bundleSha256
+      && candidate.manifestSha256 === contract.manifestSha256
+      && candidate.manifest.bindings.some((binding) =>
+        binding.transport === "web-session-api"
+        && binding.transport === contract.transport
+        && binding.surfaceId === contract.surfaceId
+        && binding.adapterId === contract.adapterId
+        && binding.operations.some((operation) =>
+          operation.name === contract.operation
+          && operation.contractVersion === contract.contractVersion
+          && operation.readback !== undefined)));
+  const port = async (
+    call: PortableProviderPluginReadbackCall,
+  ): Promise<PortableProviderPluginReadbackOutcome> => {
+    const contract = call.contract;
+    const packageValue = snapshot.find((candidate) =>
+      candidate.bundleSha256 === contract.bundleSha256
+      && candidate.manifestSha256 === contract.manifestSha256
+      && candidate.manifest.id === contract.pluginId
+      && candidate.manifest.version === contract.pluginVersion);
+    if (packageValue === undefined) {
+      throw new Error(
+        "the exact portable plugin package of the unsettled run is not installed",
+      );
+    }
+    const binding = packageValue.manifest.bindings.find((candidate) =>
+      candidate.transport === contract.transport
+      && candidate.surfaceId === contract.surfaceId
+      && candidate.adapterId === contract.adapterId);
+    const write = binding?.operations.find((candidate) =>
+      candidate.name === contract.operation
+      && candidate.contractVersion === contract.contractVersion);
+    if (
+      binding === undefined
+      || binding.transport !== "web-session-api"
+      || write === undefined
+    ) {
+      throw new Error(
+        "portable plugin readback is available only for web-session-api writes",
+      );
+    }
+    const metadata = {
+      id: packageValue.manifest.id,
+      version: packageValue.manifest.version,
+      hostApiVersion: packageValue.manifest.hostApiVersion,
+      bundleSha256: packageValue.bundleSha256,
+      manifestSha256: packageValue.manifestSha256,
+      capabilities: packageValue.manifest.capabilities,
+    };
+    if (
+      canonicalJson(createPortableOperationIdentityV1({
+        package: metadata,
+        binding,
+        operation: write,
+      })) !== canonicalJson(contract)
+    ) {
+      throw new Error(
+        "portable plugin write identity no longer matches the unsettled run",
+      );
+    }
+    const declaration = write.readback;
+    if (declaration === undefined) {
+      throw new Error("portable plugin write declares no readback");
+    }
+    const operation = binding.operations.find((candidate) =>
+      candidate.name === declaration.operation
+      && candidate.contractVersion === declaration.contractVersion);
+    if (operation === undefined) {
+      throw new Error("portable plugin readback operation disappeared");
+    }
+    const input: Record<string, unknown> = {};
+    for (const field of Object.keys(operation.input.properties)) {
+      if (Object.hasOwn(call.input, field)) input[field] = call.input[field];
+    }
+    const request: PortablePluginReadbackRequest = Object.freeze({
+      version: 1,
+      runId: call.runId,
+      intentHash: call.intentHash,
+      write: Object.freeze({
+        operation: write.name,
+        contractVersion: write.contractVersion,
+      }),
+    });
+    const identity = createPortableOperationIdentityV1({
+      package: metadata,
+      binding,
+      operation,
+    });
+    const lease = acquirePortableProviderPluginInvocationLease(
+      identity,
+      randomUUID(),
+      environment,
+    );
+    const containment =
+      createPortableProviderPluginInvocationLeaseContainmentController(
+        lease,
+        environment,
+      );
+    const outcome = await settlePortableProviderPluginCleanup(
+      async () => {
+        const result = await runWebPortableHost({
+          package: packageValue,
+          binding,
+          operation,
+          input: input as OperationInput,
+          auth: call.auth,
+          environment,
+          dependencies,
+          readback: request,
+          ...(call.signal === undefined ? {} : { signal: call.signal }),
+        });
+        const observation = result.readback;
+        if (
+          observation === undefined
+          || observation.runId !== request.runId
+          || observation.intentHash !== request.intentHash
+          || result.dispatch.started !== 0
+        ) {
+          throw new Error("portable plugin returned an unbound readback");
+        }
+        return Object.freeze({ declaration, observation });
+      },
+      {
+        containment,
+        cleanupComplete: containment.cleanupComplete,
+      },
+    );
+    releasePortableProviderPluginInvocationLease(
+      containment.current,
+      environment,
+    );
+    if (outcome.status === "rejected") throw outcome.reason;
+    return outcome.value;
+  };
+  return Object.freeze(Object.assign(port, { declares }));
 }
