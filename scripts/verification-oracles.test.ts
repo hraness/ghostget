@@ -406,10 +406,12 @@ function caretDivergence(runtime: Omit<OracleUrl, "admitted" | "reason">, oracle
  * - The `url` crate 2.5.8 keeps a drive-letter segment such as `c:` when a
  *   later ".." segment would remove it in an https: path; the URL Standard
  *   keeps it only for file: URLs. A dot segment already makes the gateway
- *   refuse the input, because its serialization differs from it.
+ *   refuse the input, because its serialization differs from it. A
+ *   backslash reaches the same path state, since the special-scheme
+ *   authority treats it as a slash.
  */
 function comparedParse(raw: string): boolean {
-  return /^https:/iu.test(raw) && !raw.includes("[") && !/\/[A-Za-z][:|](?:[/?#]|$)/u.test(raw);
+  return /^https:/iu.test(raw) && !raw.includes("[") && !/[\/\\][A-Za-z][:|](?:[/?#]|$)/u.test(raw);
 }
 
 /**
@@ -438,10 +440,14 @@ async function assertUrlAgreement(admit: Admission, raws: readonly string[]): Pr
   });
 }
 
-async function assertGeneratedUrlAgreement(admit: Admission, numRuns: number): Promise<void> {
-  await assertAsyncProperty(fc.asyncProperty(fc.array(urlInput, { minLength: 1, maxLength: BATCH }), async (raws) => {
+function generatedUrlAgreement(admit: Admission) {
+  return fc.asyncProperty(fc.array(urlInput, { minLength: 1, maxLength: BATCH }), async (raws) => {
     await assertUrlAgreement(admit, raws);
-  }), { numRuns });
+  });
+}
+
+async function assertGeneratedUrlAgreement(admit: Admission, numRuns: number): Promise<void> {
+  await assertAsyncProperty(generatedUrlAgreement(admit), { numRuns });
 }
 
 /** Named examples with the decision the gateway policy documents for each. */
@@ -510,8 +516,17 @@ describe("web gateway URL admission against the Rust url crate", () => {
     expect(admits(raw)).toBeFalse();
   });
 
+  test("the known drive-letter difference through a backslash leaves both sides refusing the input", async () => {
+    const raw = "https:user:pass@a-.co\\m:/../a?q=ä";
+    const [answer] = await oracleUrls([raw]);
+    expect(answer).toMatchObject({ parsed: true, pathname: "/m:/a", admitted: false });
+    expect(runtimeComponents(raw)).toMatchObject({ pathname: "/a" });
+    expect(comparedParse(raw)).toBeFalse();
+    expect(admits(raw)).toBeFalse();
+  });
+
   test("publicUrl agrees with the oracle on generated URL candidates", async () => {
-    await assertGeneratedUrlAgreement(admits, 300);
+    await assertAsyncProperty(generatedUrlAgreement(admits), { numRuns: 300 }, "verification-oracles/url-candidates");
   });
 
   test("seeded defect: comparing a lowercased input with its serialization is caught", async () => {

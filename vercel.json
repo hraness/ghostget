@@ -91,6 +91,15 @@
       ]
     },
     {
+      "source": "/blog/feed.xml",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/atom+xml; charset=utf-8"
+        }
+      ]
+    },
+    {
       "source": "/(.*).md",
       "headers": [
         {
@@ -578,6 +587,66 @@
     {
       "source": "/webmcp/index.html",
       "destination": "/webmcp/",
+      "permanent": true
+    },
+    {
+      "source": "/blog",
+      "destination": "/blog/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/index.html",
+      "destination": "/blog/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/introducing-ghostget",
+      "destination": "/blog/introducing-ghostget/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/introducing-ghostget/index.html",
+      "destination": "/blog/introducing-ghostget/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/built-on-ghostget",
+      "destination": "/blog/built-on-ghostget/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/built-on-ghostget/index.html",
+      "destination": "/blog/built-on-ghostget/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/ghostget-claims-register",
+      "destination": "/blog/ghostget-claims-register/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/ghostget-claims-register/index.html",
+      "destination": "/blog/ghostget-claims-register/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/releases-that-prove-their-origin",
+      "destination": "/blog/releases-that-prove-their-origin/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/releases-that-prove-their-origin/index.html",
+      "destination": "/blog/releases-that-prove-their-origin/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/replayable-property-tests",
+      "destination": "/blog/replayable-property-tests/",
+      "permanent": true
+    },
+    {
+      "source": "/blog/replayable-property-tests/index.html",
+      "destination": "/blog/replayable-property-tests/",
       "permanent": true
     }
   ]

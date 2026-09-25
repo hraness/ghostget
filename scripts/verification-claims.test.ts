@@ -407,7 +407,7 @@ describe("assurance case", () => {
     }
     const managed = section("### Managed blocks outside the register", "### Guides outside the register");
     const blocks = register.guides.flatMap((guide) => guide.managedBlocks.map((block) => ({ guide: guide.path, block })));
-    expect(blocks.map(({ block }) => block.name)).toEqual(["hraness-public-copy", "hraness-delivery", "algal-skills"]);
+    expect(blocks.map(({ block }) => block.name)).toEqual(["hraness-public-copy", "hraness-articles", "hraness-delivery", "hraness-ci", "algal-skills"]);
     for (const { guide, block } of blocks) {
       expect(managed).toContain(`\n| \`${guide}\` | \`${block.name}\` | ${tableCell(block.reason)} |\n`);
     }

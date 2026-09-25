@@ -423,6 +423,40 @@ Control and authority claims, 2026-09-24 (branch `claude/fv-claims-control-auth`
 - Open: plans bind the reviewed contract implementation identity, not the
   exact closure; only a managed grant binds the exact closure. Recorded in
   `auth-request-binding`'s not-verified scope.
+Execution of items 3 and 4, and of the browser-admission models, 2026-09-24:
+
+- Done: `verification/quint/media.qnt` gains the invariants
+  `promotedVerified` (no revision is promoted without passing closed
+  verification of its staged item), `promotedDurable` (every promotion flushed
+  the staged tree and both parents), and `lineageRecoverable` (crash and
+  power-loss damage reaches only the head, and discovery never answers
+  invalid for a lineage whose only damage is a torn revision). Its new
+  variants `stepUnverified`, `stepNoSync` (before D10), and `stepNoRepair`
+  (before D10) each violate the invariant they target, in Quint simulation
+  and in Apalache. The replay runs the real `verifyMediaItem` on every
+  revision the model calls ok, derives each revision's durability from the
+  flushes production made, and diverges when production's post-rename flush
+  of the revision parent is deleted: "state 5: after promote(p) the lineage
+  is [ok B unflushed], the model [ok B]". The progress property is checked as
+  this safety invariant, not as liveness under fairness.
+- Done: `src/beeper-message-like-me-recovery.model.test.ts` is the
+  `fc.commands` model of the Beeper Message Like Me export admission. The
+  directory-lease recovery keeps only its example tests.
+- Done: the messaging stop and no-resubmission laws are checked by a
+  property over single-event schedules in
+  `src/messaging-runtime-execution.test.ts`, against the production composite
+  runtime and a reference model, instead of a stateful model.
+- Done: `src/browser-admission.model.test.ts` is an `fc.commands` model of
+  browser admission across simulated processes that reuse one PID, with owner
+  death, unreadable liveness, reboots, and a clock that jumps on any reading.
+  It replaces the Quint model this plan scheduled for the cap and PID-reuse
+  claims.
+- Every run of the three `fc.commands`-style checks first runs fixed boundary
+  schedules, so each seeded defect in `verification/mutants.json` fails on
+  every run rather than on a lucky seed.
+- Open: `committed-binaries-provenance` stays planned for Phase 6. The
+  provenance records pin sources, patches, and build commands, but no CI job
+  rebuilds either binary, and imsg's record shows no clean rebuild.
 
 ### Phase 5: Lean proofs of pure cores
 
