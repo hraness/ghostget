@@ -2,6 +2,8 @@
 
 > {{GHOSTGET_DESCRIPTION}} Ghostget is an open-source CLI and TypeScript SDK.
 
+Agents that run commands reach the web through a browser they steer click by click, or through credentials they should never hold. Ghostget is a free, open-source CLI and TypeScript SDK that gives them a third route: a fixed list of reviewed web actions. Read a URL as Markdown, keep a searchable copy on your machine, archive one media item with SHA-256 records, or act in a connected account such as Gmail, Beeper, or X through one named operation. A measured article read costs about 3,800 tokens where the raw page carries 36,000. Consequential writes need an exact preview and your confirmation, and the agent never sees a login.
+
 ## When to use Ghostget
 
 Use Ghostget to give a command-capable agent local tools for pages, media, and connected accounts. Reach for it to capture an authorized public URL as Markdown, inspect a page without saving it, archive one authorized finite media item with SHA-256 verification, read a reviewed provider capability into an encrypted snapshot, or invoke one typed account-bound operation such as `messaging.list`.

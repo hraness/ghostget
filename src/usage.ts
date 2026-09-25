@@ -5,7 +5,7 @@
  * identity for a valid help request, so help remains available even when an
  * optional provider runtime is broken.
  */
-export const ghostgetUsage = `Ghostget reads pages, saves media, and connects account tools to your agent.
+export const ghostgetUsage = `Ghostget: Named web actions for AI agents: read pages, save media, use connected accounts
 
 Start here (no account required):
   ghostget read https://example.com                    Read a public page without saving it
