@@ -91,10 +91,15 @@ export async function createMessagingAutomationSession(options: MessagingAutomat
         : selected.provider === "beeper"
           ? (await loadBeeperAutomationRuntime()).createBeeperAutomationProvider({ authorize, execution })
           : (await loadWhatsAppAutomationRuntime()).createWhatsAppAutomationProvider({ authorize, execution, resolveAsset: options.resolveAsset }));
+      let activeCalls = 0;
       const call = async <T>(work: () => Promise<T>): Promise<T> => {
         if (poisoned) throw new AutomationHostRecoveryRequired("Host is fenced");
         if (closed) throw new Error("Host closed");
-        try { return await work(); } finally { if (!persistent) await finishCustody(); }
+        // Custody covers the whole admitted burst: sibling calls queued inside
+        // the provider still reuse it, and it is released only once the last
+        // active call settles — never underneath a sibling's operation.
+        activeCalls++;
+        try { return await work(); } finally { if (!persistent && --activeCalls === 0) await finishCustody(); }
       };
       const status = async (signal?: AbortSignal) => call(async () => {
         const status = await concrete.inspect(signal);

@@ -10,7 +10,7 @@ import {
 import type { LocalCliExecutionOptions } from "../local-cli-execution";
 import { OperationDeadline } from "../operation-deadline";
 import { discoveryDiagnostic, nativeDiagnostic, type DiscoveryDiagnosticPhase } from "../messaging-automation-diagnostics";
-import type { AutomationAction, AutomationConversation, AutomationCoordinate, AutomationIdentity, AutomationMessage, AutomationProviderStatus, AutomationProviderSendResult, MessagingAutomationProvider } from "../messaging-automation-types";
+import type { AutomationAction, AutomationConversation, AutomationCoordinate, AutomationIdentity, AutomationMessage, AutomationProviderStatus, AutomationProviderSendResult, AutomationScopedPage, MessagingAutomationProvider } from "../messaging-automation-types";
 import { AUTOMATION_ACTION_KINDS, automationArray, automationDigest, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationCoordinate, parseAutomationIdentity } from "../messaging-automation-validation";
 import { IMSG_NO_FETCH_RICH_CARDS_AVAILABLE, type ImsgChatCoordinate, type ImsgRpcRequest } from "./imessage-direct";
 import { imsgAutomationProjection as project, withImsgAutomationRuntime, type ImsgChatProjection, type ImsgDirectRuntimeDependencies } from "./imessage-direct-runtime";
@@ -113,15 +113,56 @@ function cursor(value: string | null, identity: AutomationIdentity, coordinates:
   return { version: 1, identity: parsed.identity as string, coordinates: parsed.coordinates as string, rows, anchors };
 }
 
+/** One event scope inside a helper session: cursor decode, anchor proofs and
+ * `messages.after` pages for every coordinate, then the scope's own encoded
+ * nextCursor. Shared by `events` and `eventsScoped`. */
+async function eventsScope(session: Session, identity: AutomationIdentity, coordinates: readonly Extract<AutomationCoordinate, { provider: "imessage" }>[], cursorValue: string | null, limit: number): Promise<Readonly<{ messages: readonly AutomationMessage[]; nextCursor: string; caughtUp: boolean; gap: boolean }>> {
+  if (!methods(session).has("messages.after")) throw new Error("Database event cursor is unavailable");
+  const next = cursor(cursorValue, identity, coordinates);
+  const messages: AutomationMessage[] = []; let caughtUp = true;
+  for (const [index, selected] of coordinates.entries()) {
+    if (messages.length === limit) { caughtUp = false; break; }
+    await exactConversation(session, selected);
+    const anchor = next.anchors[index];
+    if (anchor) {
+      const proof = await session.run([request("messages.after", { chat_id: selected.observedChatRowId, since_rowid: anchor.row - 1, limit: 1, attachments: false, convert_attachments: false, include_reactions: true })]);
+      const proofPage = automationRecord(proof.get("operation"), ["messages", "next_rowid", "has_more"]);
+      const first = automationArray(proofPage.messages, 1)[0];
+      if (!first || (first as Record<string, unknown>).id !== anchor.row || message(first, selected).id !== anchor.id) throw new Error("iMessage cursor anchor changed; re-enrollment is required");
+    }
+    const remaining = limit - messages.length;
+    const result = await session.run([request("messages.after", { chat_id: selected.observedChatRowId, since_rowid: next.rows[index], limit: remaining, attachments: false, convert_attachments: false, include_reactions: true })]);
+    const page = automationRecord(result.get("operation"), ["messages", "next_rowid", "has_more"]);
+    const nextRow = automationInteger(page.next_rowid, next.rows[index]!, Number.MAX_SAFE_INTEGER);
+    if (typeof page.has_more !== "boolean" || page.has_more && nextRow === next.rows[index]) throw new Error("Nonprogressing iMessage cursor");
+    const rawMessages = automationArray(page.messages, remaining);
+    let previous = next.rows[index]!;
+    for (const raw of rawMessages) {
+      const parsed = message(raw, selected);
+      const rowId = automationInteger((raw as Record<string, unknown>).id, previous + 1, nextRow);
+      previous = rowId; messages.push(parsed); next.anchors[index] = { row: rowId, id: parsed.id };
+    }
+    next.rows[index] = nextRow;
+    if (page.has_more) caughtUp = false;
+  }
+  if (new Set(messages.map(item => item.id)).size !== messages.length) throw new Error("Repeated event identity");
+  return { messages, nextCursor: Buffer.from(canonicalJson(next)).toString("base64url"), caughtUp, gap: false };
+}
+
 /** Concrete pinned imsg implementation. It never starts the private Messages
  * bridge, changes OS permissions, or falls back to SMS or another transport. */
 export function createImsgAutomationProvider(options: ImsgAutomationOptions): MessagingAutomationProvider {
   let closed = false; let inFlight: Promise<unknown> | undefined;
   async function run<T>(operation: ImsgAutomationOperation, signal: AbortSignal | undefined, work: (session: Session, identity: AutomationIdentity, reauthorize: () => Promise<void>, phase: (phase: DiscoveryDiagnosticPhase) => void) => Promise<T>): Promise<T> {
-    if (closed || inFlight) throw new Error("iMessage provider is closed or busy");
+    if (closed) throw new Error("iMessage provider is closed");
+    // Provider operations stay serialized — helper sessions and session
+    // custody are not reentrant — but a concurrent caller now queues instead
+    // of failing, so a busy provider is an ordinary wait, not a fence.
+    const previous = inFlight ?? Promise.resolve();
     let diagnosticPhase: DiscoveryDiagnosticPhase = "admission";
     const phase = (value: DiscoveryDiagnosticPhase): void => { diagnosticPhase = value; };
-    const pending = (async () => {
+    const pending = previous.then(async () => {
+      if (closed) throw new Error("iMessage provider is closed");
       signal?.throwIfAborted();
       const admission = await options.authorize(operation, signal);
       if (admission.auth.kind !== "linked-device-store" || admission.auth.provider !== "imessage") throw new Error("iMessage account required");
@@ -140,11 +181,12 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
         if (operation === "conversations" && !signal?.aborted && deadline.remainingTimeMs() === 0) throw discoveryDiagnostic(error, diagnosticPhase, "deadline");
         throw error;
       } finally { deadline.dispose(); }
-    })();
-    inFlight = pending;
+    });
+    // The chain tail never rejects: close() drains it, and one failed
+    // operation must not poison the operations queued behind it.
+    inFlight = pending.then(() => undefined, () => undefined);
     try { return await pending; }
     catch (error) { throw operation === "conversations" ? discoveryDiagnostic(error, diagnosticPhase, signal?.aborted ? "cancelled" : "failed") : error; }
-    finally { if (inFlight === pending) inFlight = undefined; }
   }
   return {
     provider: "imessage",
@@ -189,37 +231,28 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
       const coordinates = automationArray(input.coordinates, 50).map(coordinate).sort((a, b) => canonicalJson(a).localeCompare(canonicalJson(b)));
       if (coordinates.length === 0 || new Set(coordinates.map(sha)).size !== coordinates.length) throw new Error("Distinct iMessage event scopes required");
       const limit = automationInteger(input.limit, 1, 500);
+      return run("events", signal, async (session, identity) => ({ identity, ...(await eventsScope(session, identity, coordinates, input.cursor, limit)) }));
+    },
+    /** All scopes share one helper session; each keeps its own cursor and
+     * yields its own page. A scope-level failure (a stale anchor, a rejected
+     * cursor) is isolated to that scope instead of failing the set. */
+    eventsScoped(input, signal) {
+      const scopes = automationArray(input.scopes, 50).map(value => {
+        const scope = automationRecord(value, ["coordinates", "cursor"]);
+        const coordinates = automationArray(scope.coordinates, 50).map(coordinate).sort((a, b) => canonicalJson(a).localeCompare(canonicalJson(b)));
+        if (coordinates.length === 0 || new Set(coordinates.map(sha)).size !== coordinates.length) throw new Error("Distinct iMessage event scopes required");
+        return { coordinates, cursor: scope.cursor === null ? null : automationText(scope.cursor, 4096) };
+      });
+      if (scopes.length === 0) throw new Error("iMessage event scopes are required");
+      const limit = automationInteger(input.limit, 1, 500);
       return run("events", signal, async (session, identity) => {
-        if (!methods(session).has("messages.after")) throw new Error("Database event cursor is unavailable");
-        const next = cursor(input.cursor, identity, coordinates);
-        const messages: AutomationMessage[] = []; let caughtUp = true;
-        for (const [index, selected] of coordinates.entries()) {
-          if (messages.length === limit) { caughtUp = false; break; }
-          await exactConversation(session, selected);
-          const anchor = next.anchors[index];
-          if (anchor) {
-            const proof = await session.run([request("messages.after", { chat_id: selected.observedChatRowId, since_rowid: anchor.row - 1, limit: 1, attachments: false, convert_attachments: false, include_reactions: true })]);
-            const proofPage = automationRecord(proof.get("operation"), ["messages", "next_rowid", "has_more"]);
-            const first = automationArray(proofPage.messages, 1)[0];
-            if (!first || (first as Record<string, unknown>).id !== anchor.row || message(first, selected).id !== anchor.id) throw new Error("iMessage cursor anchor changed; re-enrollment is required");
-          }
-          const remaining = limit - messages.length;
-          const result = await session.run([request("messages.after", { chat_id: selected.observedChatRowId, since_rowid: next.rows[index], limit: remaining, attachments: false, convert_attachments: false, include_reactions: true })]);
-          const page = automationRecord(result.get("operation"), ["messages", "next_rowid", "has_more"]);
-          const nextRow = automationInteger(page.next_rowid, next.rows[index]!, Number.MAX_SAFE_INTEGER);
-          if (typeof page.has_more !== "boolean" || page.has_more && nextRow === next.rows[index]) throw new Error("Nonprogressing iMessage cursor");
-          const rawMessages = automationArray(page.messages, remaining);
-          let previous = next.rows[index]!;
-          for (const raw of rawMessages) {
-            const parsed = message(raw, selected);
-            const rowId = automationInteger((raw as Record<string, unknown>).id, previous + 1, nextRow);
-            previous = rowId; messages.push(parsed); next.anchors[index] = { row: rowId, id: parsed.id };
-          }
-          next.rows[index] = nextRow;
-          if (page.has_more) caughtUp = false;
+        const results: AutomationScopedPage[] = [];
+        for (const scope of scopes) {
+          signal?.throwIfAborted();
+          try { results.push(await eventsScope(session, identity, scope.coordinates, scope.cursor, limit)); }
+          catch (error) { results.push({ error: error instanceof Error ? error.message : "iMessage event scope failed" }); }
         }
-        if (new Set(messages.map(item => item.id)).size !== messages.length) throw new Error("Repeated event identity");
-        return { identity, messages, nextCursor: Buffer.from(canonicalJson(next)).toString("base64url"), caughtUp, gap: false };
+        return { identity, results };
       });
     },
     async send(input, signal): Promise<AutomationProviderSendResult> {

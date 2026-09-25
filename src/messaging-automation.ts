@@ -10,7 +10,7 @@ import {
 } from "./canonical-json";
 import { ensurePrivateStateDirectory, ghostgetStateHome, snapshotPrivateStateDirectory } from "./storage";
 import { AUTOMATION_ACTION_KINDS, automationArray, automationDate, automationDigest, automationId, automationInteger, automationRecord, automationText, parseAutomationAction, parseAutomationActionKind, parseAutomationCoordinate, parseAutomationIdentity, parseAutomationMessage } from "./messaging-automation-validation";
-import type { AutomationConversation, AutomationEnrollment, AutomationEvent, AutomationGrant, AutomationGrantRequest, AutomationIdentity, AutomationPlan, AutomationPlanRequest, AutomationProviderPage, AutomationProviderSendResult, AutomationRun, MessagingAutomationProvider } from "./messaging-automation-types";
+import type { AutomationConversation, AutomationEnrollment, AutomationEvent, AutomationGrant, AutomationGrantRequest, AutomationIdentity, AutomationPlan, AutomationPlanRequest, AutomationPollResult, AutomationProviderPage, AutomationProviderSendResult, AutomationProviderStatus, AutomationRun, MessagingAutomationProvider } from "./messaging-automation-types";
 export * from "./messaging-automation-types";
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -243,13 +243,37 @@ export class MessagingAutomationHost {
   }
   private activeRun(enrollmentId: string): boolean { return this.db.query<{ n: number }, [string]>("SELECT COUNT(*) AS n FROM runs WHERE enrollment_id=? AND state IN ('started','partial','indeterminate')").get(enrollmentId)!.n > 0; }
   async poll(enrollmentId: string, signal?: AbortSignal): Promise<AutomationEnrollment> {
-    const initial = this.row(enrollmentId); const enrollment = this.enrollment(initial);
-    if (this.activeRun(enrollmentId)) return enrollment;
-    const provider = this.provider(enrollment.identity.provider); const status = await this.status(provider, signal);
-    if (!same(status.identity, enrollment.identity)) { this.db.query("UPDATE enrollments SET ready=0,reason=? WHERE id=?").run("Provider identity changed; enroll the conversation again.", enrollmentId); throw new Error("Messaging provider identity changed."); }
-    if (!status.connected || !status.events.available) { this.db.query("UPDATE enrollments SET ready=0,reason=? WHERE id=?").run(status.events.reason ?? "Provider events are unavailable.", enrollmentId); return this.enrollment(this.row(enrollmentId)); }
-    const page = checkedPage(await provider.events({ coordinates: [enrollment.conversation.coordinate], cursor: initial.cursor, limit: 200 }, signal), enrollment.identity, enrollment.conversation.coordinate); stopped(signal);
-    this.ready(); this.db.transaction(() => {
+    const [result] = await this.pollEnrollments([enrollmentId], signal);
+    if (result === undefined || result.error !== null) throw new Error(result?.error ?? "Messaging poll failed.");
+    if (result.enrollment === null) throw new Error("Messaging enrollment is unavailable.");
+    return result.enrollment;
+  }
+  /** Reads one page per scope through the provider. When the implementation
+   * exposes `eventsScoped` every scope shares one provider session; otherwise
+   * the host issues one `events` call per scope. Each entry is an unvalidated
+   * page (`checkedPage` still proves identity and coordinate downstream) or an
+   * isolated per-scope failure. A call-level failure aborts the set. */
+  private async readScopePages(provider: MessagingAutomationProvider, items: readonly Readonly<{ coordinate: AutomationConversation["coordinate"]; cursor: string | null }>[], signal?: AbortSignal): Promise<readonly (Readonly<{ error: string }> | Readonly<{ page: unknown }>)[]> {
+    if (provider.eventsScoped === undefined) {
+      const pages: (Readonly<{ error: string }> | Readonly<{ page: unknown }>)[] = [];
+      for (const item of items) {
+        try { pages.push({ page: await provider.events({ coordinates: [item.coordinate], cursor: item.cursor, limit: 200 }, signal) }); }
+        catch (error) { pages.push({ error: error instanceof Error ? error.message : "Messaging provider events are unavailable." }); }
+      }
+      return pages;
+    }
+    const response = automationRecord(await provider.eventsScoped({ scopes: items.map(item => ({ coordinates: [item.coordinate], cursor: item.cursor })), limit: 200 }, signal), ["identity", "results"]);
+    const identity = parseAutomationIdentity(response.identity);
+    const results = automationArray(response.results, 50);
+    if (results.length !== items.length) throw new Error("Messaging provider returned the wrong number of scoped pages.");
+    return results.map((result): Readonly<{ error: string }> | Readonly<{ page: unknown }> => {
+      if (Object.getOwnPropertyDescriptor(result, "error") !== undefined) return { error: automationText(automationRecord(result, ["error"]).error, 1024) };
+      const page = automationRecord(result, ["messages", "nextCursor", "caughtUp", "gap"]);
+      return { page: { identity, messages: page.messages, nextCursor: page.nextCursor, caughtUp: page.caughtUp, gap: page.gap } };
+    });
+  }
+  private ingest(enrollmentId: string, initial: StoredEnrollment, page: AutomationProviderPage): AutomationEnrollment {
+    this.db.transaction(() => {
       const current = this.row(enrollmentId); if (current.cursor !== initial.cursor || current.revision !== initial.revision || current.baselining !== initial.baselining || current.gap !== initial.gap || this.activeRun(enrollmentId)) throw new Error("Messaging poll lost its concurrent cursor claim.");
       this.capacity("messages", page.messages.length); if (!initial.baselining) this.capacity("events", page.messages.length);
       let revision = initial.revision;
@@ -267,7 +291,63 @@ export class MessagingAutomationHost {
       }
       const gap = initial.gap === 1 || page.gap;
       this.db.query("UPDATE enrollments SET cursor=?,revision=?,ready=?,reason=?,baselining=?,gap=? WHERE id=?").run(page.nextCursor, revision, !gap && page.caughtUp ? 1 : 0, gap ? "Provider event stream has an unresolved gap." : page.caughtUp ? null : "Provider catchup is incomplete.", initial.baselining && !page.caughtUp ? 1 : 0, gap ? 1 : 0, enrollmentId);
-    }).immediate(); this.checkFiles(); return this.enrollment(this.row(enrollmentId));
+    }).immediate(); return this.enrollment(this.row(enrollmentId));
+  }
+  private tryEnrollment(id: string): AutomationEnrollment | null { try { return this.enrollment(this.row(id)); } catch { return null; } }
+  /** Polls a set of enrollments, sharing one provider status check — and one
+   * provider session via `eventsScoped` where implemented — across the set.
+   * Every id yields exactly one result; per-enrollment failures never abort
+   * the set. Ingest keeps the per-enrollment cursor claim so a stale scope can
+   * never overwrite a concurrently advanced journal. */
+  async pollEnrollments(enrollmentIds: readonly string[], signal?: AbortSignal): Promise<readonly AutomationPollResult[]> {
+    this.ready();
+    const ids = [...new Set(enrollmentIds.map(id => automationId(id)))].sort();
+    const results = new Map<string, AutomationPollResult>();
+    const groups = new Map<string, { provider: MessagingAutomationProvider; items: { initial: StoredEnrollment; enrollment: AutomationEnrollment }[] }>();
+    for (const id of ids) {
+      let initial: StoredEnrollment;
+      try { initial = this.row(id); } catch { results.set(id, { enrollmentId: id, enrollment: null, error: "Messaging enrollment does not exist." }); continue; }
+      const enrollment = this.enrollment(initial);
+      if (this.activeRun(id)) { results.set(id, { enrollmentId: id, enrollment, error: null }); continue; }
+      let group = groups.get(enrollment.identity.provider);
+      if (group === undefined) groups.set(enrollment.identity.provider, group = { provider: this.provider(enrollment.identity.provider), items: [] });
+      group.items.push({ initial, enrollment });
+    }
+    for (const group of groups.values()) {
+      let status: AutomationProviderStatus;
+      try { status = await this.status(group.provider, signal); }
+      catch (error) {
+        const message = error instanceof Error ? error.message : "Messaging provider status is unavailable.";
+        for (const item of group.items) results.set(item.enrollment.id, { enrollmentId: item.enrollment.id, enrollment: null, error: message });
+        continue;
+      }
+      const live: typeof group.items = [];
+      for (const item of group.items) {
+        const id = item.enrollment.id;
+        if (!same(status.identity, item.enrollment.identity)) {
+          this.db.query("UPDATE enrollments SET ready=0,reason=? WHERE id=?").run("Provider identity changed; enroll the conversation again.", id);
+          results.set(id, { enrollmentId: id, enrollment: this.enrollment(this.row(id)), error: "Messaging provider identity changed." });
+        } else if (!status.connected || !status.events.available) {
+          this.db.query("UPDATE enrollments SET ready=0,reason=? WHERE id=?").run(status.events.reason ?? "Provider events are unavailable.", id);
+          results.set(id, { enrollmentId: id, enrollment: this.enrollment(this.row(id)), error: null });
+        } else live.push(item);
+      }
+      if (live.length === 0) continue;
+      const pages = await this.readScopePages(group.provider, live.map(item => ({ coordinate: item.enrollment.conversation.coordinate, cursor: item.initial.cursor })), signal);
+      stopped(signal);
+      for (const [index, item] of live.entries()) {
+        const id = item.enrollment.id; const entry = pages[index]!;
+        if ("error" in entry) { results.set(id, { enrollmentId: id, enrollment: this.tryEnrollment(id), error: entry.error }); continue; }
+        try {
+          const page = checkedPage(entry.page, item.enrollment.identity, item.enrollment.conversation.coordinate);
+          results.set(id, { enrollmentId: id, enrollment: this.ingest(id, item.initial, page), error: null });
+        } catch (error) {
+          results.set(id, { enrollmentId: id, enrollment: this.tryEnrollment(id), error: error instanceof Error ? error.message : "Messaging poll failed." });
+        }
+      }
+    }
+    this.checkFiles();
+    return ids.map(id => results.get(id)!);
   }
   events(raw: Readonly<{ enrollmentIds: readonly string[]; cursor: string | null; limit: number }>): Readonly<{ events: readonly AutomationEvent[]; nextCursor: string; caughtUp: boolean }> {
     this.ready(); const r = automationRecord(raw, ["enrollmentIds", "cursor", "limit"]); const ids = automationArray(r.enrollmentIds, 100).map(automationId).sort();

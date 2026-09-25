@@ -48,7 +48,7 @@ async function fixture() {
   const request = async (method: string, params: unknown) => await server.handle({ protocol, id: String(++sequence), method, params }) as { ok: boolean; result: any; error?: { message: string; code: string } };
   cleanup.push(async () => { await server.close().catch(() => undefined); rmSync(directory, { recursive: true, force: true }); });
   expect(await request("initialize", { providers: [{ provider: "whatsapp", authId: "fixture" }] })).toMatchObject({ ok: true, result: { initialized: true } });
-  return { server, request, host, setSend: (next: typeof send) => { send = next; }, starts: () => starts, options: () => options! };
+  return { server, request, host, provider, setSend: (next: typeof send) => { send = next; }, starts: () => starts, options: () => options! };
 }
 test("fixed stdin-only CLI and non-dispatching action permission descriptors", () => {
   expect(parseGhostgetArguments(["messaging", "automation", "serve", "--stdio"])).toEqual({ ok: true, value: { command: "messaging-automation-serve" } });
@@ -173,6 +173,92 @@ test("enrollment lanes overlap across conversations, serialize within one, and c
     await expect(submission).resolves.toMatchObject({ ok: true, result: { state: "accepted" } });
     expect(submits).toBe(1);
   } finally { releasePoll(); }
+});
+
+test("pollSet shares one scoped provider read, keeps per-scope cursors, and reports each enrollment", async () => {
+  const f = await fixture();
+  const first = (await f.request("enroll", { provider: "whatsapp", coordinate })).result;
+  const second = (await f.request("enroll", { provider: "whatsapp", coordinate: { provider: "whatsapp", conversationJid: "15559876543@s.whatsapp.net" } })).result;
+  let plainCalls = 0; const scopedCalls: number[] = [];
+  const originalEvents = f.provider.events.bind(f.provider); f.provider.events = async input => { plainCalls++; return originalEvents(input); };
+  // Without eventsScoped the host issues one events call per enrollment.
+  const fallback = await f.request("pollSet", { enrollmentIds: [first.id, second.id] });
+  expect(fallback).toMatchObject({ ok: true });
+  expect(fallback.result.results).toHaveLength(2);
+  expect(plainCalls).toBe(2);
+  // With eventsScoped the whole set costs a single provider call; each scope
+  // still returns its own cursor so later single-enrollment polls resume.
+  f.provider.eventsScoped = async input => {
+    scopedCalls.push(input.scopes.length);
+    return { identity, results: input.scopes.map(() => ({ messages: [], nextCursor: "1", caughtUp: true, gap: false })) };
+  };
+  const scoped = await f.request("pollSet", { enrollmentIds: [first.id, second.id] });
+  expect(scoped).toMatchObject({ ok: true });
+  expect(scoped.result.results.map((entry: { enrollmentId: string }) => entry.enrollmentId).sort()).toEqual([first.id, second.id].sort());
+  expect(scoped.result.results.every((entry: { error: string | null }) => entry.error === null)).toBe(true);
+  expect(scopedCalls).toEqual([2]); expect(plainCalls).toBe(2);
+  for (const entry of scoped.result.results as { enrollment: { ready: boolean } }[]) expect(entry.enrollment.ready).toBe(true);
+  // A provider-side scope failure is isolated to that enrollment's result.
+  f.provider.eventsScoped = async () => ({ identity, results: [{ messages: [], nextCursor: "1", caughtUp: true, gap: false }, { error: "synthetic scope failure" }] });
+  const partial = await f.request("pollSet", { enrollmentIds: [first.id, second.id] });
+  expect(partial).toMatchObject({ ok: true });
+  const byId = new Map((partial.result.results as { enrollmentId: string; error: string | null }[]).map(entry => [entry.enrollmentId, entry.error]));
+  expect(byId.size).toBe(2);
+  expect([...byId.values()].filter(error => error === null)).toHaveLength(1);
+  expect([...byId.values()]).toContain("synthetic scope failure");
+});
+
+test("pollSet skips an enrollment whose lane is running another operation", async () => {
+  const f = await fixture();
+  const first = (await f.request("enroll", { provider: "whatsapp", coordinate })).result;
+  const second = (await f.request("enroll", { provider: "whatsapp", coordinate: { provider: "whatsapp", conversationJid: "15559876543@s.whatsapp.net" } })).result;
+  const grant = (await f.request("grant", { intentId: "fixture:set-grant", enrollmentId: first.id, expectedBindingDigest: first.bindingDigest, actions: ["text"], expiresAt: new Date(Date.now() + 300_000).toISOString(), maximumActions: 2, minimumIntervalMs: 0 })).result;
+  const plan = (await f.request("prepare", { enrollmentId: first.id, expectedRevision: 0, intentId: "fixture:set-plan", actions: [{ kind: "text", text: "Synthetic" }] })).result;
+  let release!: () => void; let entered!: () => void;
+  const started = new Promise<void>(resolve => { entered = resolve; }); const gate = new Promise<void>(resolve => { release = resolve; });
+  f.setSend(async (_input, signal) => { entered(); await Promise.race([gate, new Promise<void>(resolve => { if (signal?.aborted) resolve(); else signal?.addEventListener("abort", () => resolve(), { once: true }); })]); return { state: "not-started", reason: "Synthetic owner cancellation" }; });
+  const sending = f.request("submit", { planId: plan.id, grantId: grant.id }); await started;
+  try {
+    const observed: string[][] = []; const original = f.host.pollEnrollments.bind(f.host);
+    f.host.pollEnrollments = async (ids, signal) => { observed.push([...ids]); return original(ids, signal); };
+    const set = await f.request("pollSet", { enrollmentIds: [first.id, second.id] });
+    expect(set).toMatchObject({ ok: true });
+    // The busy lane is not awaited or re-polled; it reports its current row.
+    expect(observed).toEqual([[second.id]]);
+    const byId = new Map((set.result.results as { enrollmentId: string; enrollment: { id: string } | null; error: string | null }[]).map(entry => [entry.enrollmentId, entry]));
+    expect(byId.get(first.id)?.enrollment?.id).toBe(first.id); expect(byId.get(first.id)?.error).toBe(null);
+    expect(byId.get(second.id)?.enrollment?.id).toBe(second.id); expect(byId.get(second.id)?.error).toBe(null);
+  } finally { release(); expect((await sending).ok).toBe(true); }
+});
+
+test("concurrent submits on different enrollments keep their own plan-scoped assets", async () => {
+  const f = await fixture();
+  const first = (await f.request("enroll", { provider: "whatsapp", coordinate })).result;
+  const second = (await f.request("enroll", { provider: "whatsapp", coordinate: { provider: "whatsapp", conversationJid: "15559876543@s.whatsapp.net" } })).result;
+  const digest = (value: string) => createHash("sha256").update(value).digest("hex");
+  const assetOne = (await f.request("asset", { bytesBase64: Buffer.from("one").toString("base64"), sha256: digest("one") })).result;
+  const assetTwo = (await f.request("asset", { bytesBase64: Buffer.from("two").toString("base64"), sha256: digest("two") })).result;
+  const grants = await Promise.all([first, second].map((enrollment, index) =>
+    f.request("grant", { intentId: `fixture:pair-grant-${index}`, enrollmentId: enrollment.id, expectedBindingDigest: enrollment.bindingDigest, actions: ["attachment"], expiresAt: new Date(Date.now() + 300_000).toISOString(), maximumActions: 2, minimumIntervalMs: 0 })));
+  const plans = await Promise.all([[first, assetOne], [second, assetTwo]].map(([enrollment, asset], index) =>
+    f.request("prepare", { enrollmentId: enrollment.id, expectedRevision: 0, intentId: `fixture:pair-plan-${index}`, actions: [{ kind: "attachment", assetId: asset.assetId, name: "sample.txt", mimeType: "text/plain" }] })));
+  let release!: () => void; let entered = 0; let both!: () => void;
+  const started = new Promise<void>(resolve => { both = resolve; }); const gate = new Promise<void>(resolve => { release = resolve; });
+  // Both sends overlap while holding their own plans; a single executing-plan
+  // slot would let the second submit evict the first's asset binding.
+  f.setSend(async input => {
+    if (++entered === 2) both(); await gate;
+    const asset = input.action.kind === "attachment" ? await f.options().resolveAsset(input.action.assetId) : null;
+    return { state: "accepted", messageId: `sent:${asset ? Buffer.from(asset.bytes).toString() : "none"}`, providerReceiptId: null, delivery: "unknown" };
+  });
+  const sending = Promise.all([f.request("submit", { planId: plans[0]!.result.id, grantId: grants[0]!.result.id }), f.request("submit", { planId: plans[1]!.result.id, grantId: grants[1]!.result.id })]);
+  await started; release();
+  const [a, b] = await sending;
+  expect(a).toMatchObject({ ok: true, result: { state: "accepted" } });
+  expect(b).toMatchObject({ ok: true, result: { state: "accepted" } });
+  expect(a.result.accepted[0]?.messageId).toBe("sent:one"); expect(b.result.accepted[0]?.messageId).toBe("sent:two");
+  await expect(f.options().resolveAsset(assetOne.assetId)).rejects.toThrow();
+  await expect(f.options().resolveAsset(assetTwo.assetId)).rejects.toThrow();
 });
 
 

@@ -31,7 +31,10 @@ export class MessagingAutomationRpcServer {
   private readonly enrollmentChains = new Map<string, Promise<unknown>>();
   private readonly requests = new Set<string>();
   private readonly assets = new Map<string, Asset>();
-  private executingPlan: string | null = null;
+  /** Plans currently inside submit(). Multiple scoped submits may run on
+   * different enrollment lanes, so asset resolution and sweeps consult the
+   * whole set; a plan-scoped asset is eligible only while its plan executes. */
+  private readonly executingPlans = new Set<string>();
   private readonly abort = new AbortController();
   private closing: Promise<void> | undefined;
   constructor(private readonly options: Readonly<{
@@ -40,7 +43,7 @@ export class MessagingAutomationRpcServer {
     createSession?: typeof createMessagingAutomationSession;
   }>) {}
   private now() { return this.options.now?.() ?? Date.now(); }
-  private sweep() { for (const [id, asset] of this.assets) if (asset.expires <= this.now() && asset.plan !== this.executingPlan) this.assets.delete(id); }
+  private sweep() { for (const [id, asset] of this.assets) if (asset.expires <= this.now() && (asset.plan === null || !this.executingPlans.has(asset.plan))) this.assets.delete(id); }
   private host() { if (!this.session || this.closed) throw new Error("Host not ready"); return this.session.host; }
   private async dispatch(method: string, raw: unknown): Promise<unknown> {
     this.sweep();
@@ -58,7 +61,7 @@ export class MessagingAutomationRpcServer {
         providers: accounts, environment: this.options.environment, registry: this.options.registry,
         resolveAsset: async id => {
           this.sweep(); const asset = this.assets.get(id);
-          if (!asset || !this.executingPlan || asset.plan !== this.executingPlan || asset.expires <= this.now()) throw new Error("Asset is unavailable for this plan");
+          if (!asset || asset.plan === null || !this.executingPlans.has(asset.plan) || asset.expires <= this.now()) throw new Error("Asset is unavailable for this plan");
           return { bytes: new Uint8Array(asset.bytes), sha256: asset.sha256 };
         },
       });
@@ -109,9 +112,9 @@ export class MessagingAutomationRpcServer {
       return plan;
     }
     if (method === "submit") {
-      const r = automationRecord(raw, ["planId", "grantId"]); const planId = automationId(r.planId); this.executingPlan = planId;
+      const r = automationRecord(raw, ["planId", "grantId"]); const planId = automationId(r.planId); this.executingPlans.add(planId);
       try { return await host.submit({ planId, grantId: automationId(r.grantId) }, this.abort.signal); }
-      finally { this.executingPlan = null; for (const [id, asset] of this.assets) if (asset.plan === planId) this.assets.delete(id); }
+      finally { this.executingPlans.delete(planId); for (const [id, asset] of this.assets) if (asset.plan === planId) this.assets.delete(id); }
     }
     if (method === "run") { const r = automationRecord(raw, ["runId"]); return host.run(automationId(r.runId)); }
     throw new Error("Unknown method");
@@ -126,7 +129,40 @@ export class MessagingAutomationRpcServer {
     if (method === "submit") return typeof params.planId === "string" ? this.host().planEnrollment(params.planId) : null;
     return typeof params.enrollmentId === "string" ? params.enrollmentId : null;
   }
+  /** A set poll joins every listed enrollment lane at once and shares one
+   * provider session across them. Lanes already running another operation are
+   * skipped rather than awaited — their owner is already syncing that journal —
+   * and report their current row so a busy enrollment never stalls the set. */
+  private async dispatchPollSet(raw: unknown): Promise<unknown> {
+    const r = automationRecord(raw, ["enrollmentIds"]);
+    const ids = [...new Set(automationArray(r.enrollmentIds, 50).map(automationId))].sort();
+    const free: string[] = [], busy: string[] = [];
+    for (const id of ids) (this.enrollmentChains.has(id) ? busy : free).push(id);
+    const waits: Promise<unknown>[] = [], releases: (() => void)[] = [], tails: [string, Promise<unknown>][] = [];
+    for (const key of free) {
+      const previous = this.enrollmentChains.get(key) ?? Promise.resolve();
+      let release!: () => void;
+      const gate = new Promise<void>(resolve => { release = resolve; });
+      const tail = previous.then(() => gate);
+      this.enrollmentChains.set(key, tail); tails.push([key, tail]);
+      waits.push(previous); releases.push(release);
+    }
+    try {
+      await Promise.all(waits);
+      const host = this.host();
+      const results = [...await host.pollEnrollments(free, this.abort.signal)];
+      for (const id of busy) {
+        const enrollment = host.enrollments().find(item => item.id === id) ?? null;
+        results.push({ enrollmentId: id, enrollment, error: enrollment === null ? "Messaging enrollment is unavailable." : null });
+      }
+      return { results };
+    } finally {
+      for (const release of releases) release();
+      for (const [key, tail] of tails) void tail.then(() => { if (this.enrollmentChains.get(key) === tail) this.enrollmentChains.delete(key); });
+    }
+  }
   private async dispatchScoped(method: string, raw: unknown): Promise<unknown> {
+    if (method === "pollSet") return this.dispatchPollSet(raw);
     const key = await this.enrollmentKey(method, raw);
     if (key === null) return this.dispatch(method, raw);
     const previous = this.enrollmentChains.get(key) ?? Promise.resolve();
@@ -143,7 +179,7 @@ export class MessagingAutomationRpcServer {
       const r = automationRecord(value, ["protocol", "id", "method", "params"]);
       id = automationText(r.id, 64); if (!/^[A-Za-z0-9._:-]+$/u.test(id) || r.protocol !== protocol) throw new Error("Invalid envelope");
       method = automationText(r.method, 32); priority = ["cancel", "revoke", "close"].includes(method);
-      scoped = ["poll", "history", "prepare", "grant", "submit"].includes(method);
+      scoped = ["poll", "pollSet", "history", "prepare", "grant", "submit"].includes(method);
       if (this.requests.has(id) || (priority ? this.priorityBusy >= 8 : scoped ? this.scopedBusy >= 16 : this.normalBusy)) return { protocol, id, ok: false, error: { code: "not-ready", message: "The owner host is busy or this request is already active." } };
       this.requests.add(id); admitted = true;
       if (priority) this.priorityBusy++; else if (scoped) this.scopedBusy++; else this.normalBusy = true;

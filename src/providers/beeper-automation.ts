@@ -185,10 +185,18 @@ export function createBeeperAutomationProvider(options: BeeperAutomationOptions)
   let closed = false, inFlight: Promise<unknown> | undefined;
 
   async function run<T>(operation: BeeperAutomationOperation, signal: AbortSignal | undefined, work: (admission: BeeperAutomationAdmission, signal: AbortSignal) => Promise<T>): Promise<T> {
-    if (closed || inFlight) throw new Error("Beeper automation provider is closed or busy");
-    const activeSignal = signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal;
-    const pending = (async () => { activeSignal.throwIfAborted(); const before = await options.authorize(operation, activeSignal); if (typeof before.auth.subject !== "string" || before.auth.subject.length === 0) throw new Error("Beeper automation requires a bound local account realm"); const result = await work(before, activeSignal); const after = await options.authorize(operation, activeSignal); if (sha(before) !== sha(after)) throw new Error("Beeper account or permission changed during the operation"); return result; })();
-    inFlight = pending; try { return await pending; } finally { if (inFlight === pending) inFlight = undefined; }
+    if (closed) throw new Error("Beeper automation provider is closed");
+    // Operations stay serialized — the local runtime and its custody are not
+    // reentrant — but a concurrent caller queues instead of failing, so a
+    // busy provider is an ordinary wait, not a fence.
+    const previous = inFlight ?? Promise.resolve();
+    const pending = previous.then(async () => {
+      if (closed) throw new Error("Beeper automation provider is closed");
+      const activeSignal = signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal;
+      activeSignal.throwIfAborted(); const before = await options.authorize(operation, activeSignal); if (typeof before.auth.subject !== "string" || before.auth.subject.length === 0) throw new Error("Beeper automation requires a bound local account realm"); const result = await work(before, activeSignal); const after = await options.authorize(operation, activeSignal); if (sha(before) !== sha(after)) throw new Error("Beeper account or permission changed during the operation"); return result;
+    });
+    inFlight = pending.then(() => undefined, () => undefined);
+    return pending;
   }
 
   async function execute(recipe: LocalCliRecipe, input: OperationInput, auth: GhostgetAuth, signal: AbortSignal): Promise<unknown> {
