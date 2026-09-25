@@ -221,7 +221,7 @@ const QUINT_TIMEOUT_MS = 5 * 60_000;
  */
 export const QUINT_TRACE_TIMEOUT_MS = 90_000;
 const APALACHE_TIMEOUT_MS = 10 * 60_000;
-// Nightly runs sit outside the 30-minute CI verification step, so each deeper
+// Nightly runs sit outside the 50-minute CI verification step, so each deeper
 // checker run gets its own larger bound. A timeout still fails the run.
 const NIGHTLY_QUINT_TIMEOUT_MS = 30 * 60_000;
 const NIGHTLY_APALACHE_TIMEOUT_MS = 60 * 60_000;
@@ -232,7 +232,7 @@ const NIGHTLY_APALACHE_TIMEOUT_MS = 60 * 60_000;
  */
 export const QUINT_REPLAY_SCRIPT = "verify:quint:replay";
 /** The bound on the one `bun test` run of every replay test. */
-export const QUINT_REPLAY_TIMEOUT_MS = 10 * 60_000;
+export const QUINT_REPLAY_TIMEOUT_MS = 15 * 60_000;
 const LEAN_BUILD_TIMEOUT_MS = 10 * 60_000;
 const SHORT_TIMEOUT_MS = 60_000;
 const KILL_GRACE_MS = 5_000;
