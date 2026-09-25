@@ -802,7 +802,10 @@ describe("intent-level confirmed-write fence", () => {
     }
   });
 
-  for (const setup of ["other-subject", "no-subject", "legacy-journal", "fulfilled"] as const) {
+  // A locator whose auth record names no provider subject cannot preview an
+  // R2/R3 action at all, so "no subject" only exists in journals written
+  // before the field did; the legacy-journal case covers it.
+  for (const setup of ["other-subject", "legacy-journal", "fulfilled"] as const) {
     test(`a second locator keeps the per-locator fence: ${setup}`, async () => {
       const testState = fenceState();
       try {
@@ -821,7 +824,7 @@ describe("intent-level confirmed-write fence", () => {
             { expectedCurrentContentSha256: entry.contentSha256 },
           )).toBeTrue();
         }
-        connectSecondLocator(testState, setup === "other-subject" ? "67890" : setup === "no-subject" ? undefined : "12345");
+        connectSecondLocator(testState, setup === "other-subject" ? "67890" : "12345");
         const second = requireResult(await confirm(testState, "succeeded", probe, undefined, SECOND_ACCOUNT));
         expect(second.replayed).toBeFalse();
         expect(probe.crossings).toBe(2);
