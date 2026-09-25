@@ -533,6 +533,93 @@ describe("portable provider plugin protocol messages", () => {
   });
 });
 
+describe("portable provider plugin readback frames", () => {
+  const runId = "0f8fad5b-d9cb-469f-a165-70867728950e";
+  const readback = {
+    protocolVersion: 2,
+    kind: "host.readback",
+    invocationId: "invocation:2",
+    route: { ...invoke.route, operation: "posts.read" },
+    readback: {
+      version: 1,
+      runId,
+      intentHash: "c".repeat(64),
+      write: { operation: "posts.publish", contractVersion: 1 },
+    },
+    input: { body: "hello" },
+    auth: invoke.auth,
+    timeoutMs: 30_000,
+  } as const satisfies PortableProviderPluginMessage;
+  const observed = {
+    protocolVersion: 2,
+    kind: "plugin.readback.result",
+    invocationId: "invocation:2",
+    readback: {
+      version: 1,
+      runId,
+      intentHash: "c".repeat(64),
+      observation: "not-applied",
+      evidence: { matches: 0 },
+    },
+  } as const satisfies PortableProviderPluginMessage;
+  const issues = (value: unknown): readonly string[] => {
+    const parsed = parsePortableProviderPluginMessage(value);
+    return parsed.ok ? [] : parsed.issues;
+  };
+
+  test("round-trips protocol 2 readback frames and keeps protocol 1 unchanged", () => {
+    for (const message of [readback, observed]) {
+      expect(parsePortableProviderPluginFrame(
+        encodePortableProviderPluginMessage(message),
+      )).toEqual(parsedMessage(message));
+    }
+    // Protocol 1 frames still parse, and protocol 2 carries nothing else.
+    expect(parsedMessage(invoke)).toEqual(parsedMessage(invoke));
+    expect(issues({ ...invoke, protocolVersion: 2 })).toEqual([
+      "portable provider plugin protocolVersion 2 carries only readback frames",
+    ]);
+    expect(issues({ ...readback, protocolVersion: 1 }).length).toBeGreaterThan(0);
+    expect(issues({ ...observed, protocolVersion: 3 }).length).toBeGreaterThan(0);
+  });
+
+  test("rejects unknown versions, extra fields, unbound identifiers, and oversized evidence", () => {
+    expect(issues({
+      ...readback,
+      readback: { ...readback.readback, version: 2 },
+    })).toEqual(["host readback request version must be 1"]);
+    expect(issues({
+      ...observed,
+      readback: { ...observed.readback, version: 2 },
+    })).toEqual(["plugin readback observation version must be 1"]);
+    expect(issues({ ...readback, files: [] }).length).toBeGreaterThan(0);
+    expect(issues({
+      ...observed,
+      readback: { ...observed.readback, extra: true },
+    }).length).toBeGreaterThan(0);
+    expect(issues({
+      ...observed,
+      readback: { ...observed.readback, observation: "maybe" },
+    })).toEqual([
+      "plugin readback observation must be applied, not-applied, or unknown",
+    ]);
+    expect(issues({
+      ...observed,
+      readback: { ...observed.readback, runId: runId.toUpperCase() },
+    })).toEqual(["readback runId must be a lowercase UUID"]);
+    expect(issues({
+      ...observed,
+      readback: { ...observed.readback, intentHash: "c".repeat(63) },
+    }).length).toBeGreaterThan(0);
+    expect(issues({
+      ...observed,
+      readback: {
+        ...observed.readback,
+        evidence: { blob: "x".repeat(16 * 1024) },
+      },
+    })).toEqual(["plugin readback evidence exceeds its byte bound"]);
+  });
+});
+
 describe("portable provider plugin frame decoder", () => {
   test("decodes arbitrary chunk boundaries and multiple records in order", () => {
     const stream = Buffer.from(

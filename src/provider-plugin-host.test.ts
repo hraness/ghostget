@@ -900,6 +900,34 @@ describe("portable provider plugin child-process host", () => {
     );
   });
 
+  test("rejects a readback unless the write declared that read-only operation", async () => {
+    await withPackage({ operation: "write" }, async (packageValue) => {
+      const readback = {
+        version: 1 as const,
+        runId: "0f8fad5b-d9cb-469f-a165-70867728950e",
+        intentHash: "c".repeat(64),
+        write: { operation: "messages.send", contractVersion: 1 },
+      };
+      const write = invocation(packageValue, "dispatch", ["messages.send"]);
+      const expected =
+        "portable plugin readback must invoke the read-only operation its write declared";
+      // The fixture write declares no readback: a readback of its profile
+      // lookup is refused before any child process starts.
+      expect(await rejectionMessage(runPortableProviderPluginHost({
+        ...write,
+        route: { ...write.route, operation: "profiles.read" },
+        input: {},
+        plannedDispatchIds: [],
+        readback,
+      }))).toContain(expected);
+      // A readback can never route to a dispatching write.
+      expect(await rejectionMessage(runPortableProviderPluginHost({
+        ...write,
+        readback,
+      }))).toContain(expected);
+    });
+  });
+
   test("rejects invalid file bindings and metadata before spawn", async () => {
     await withPackage(
       { operation: "write", fileInputs: true },

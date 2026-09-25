@@ -3264,13 +3264,23 @@ describe("local at-most-once dispatch ledger", () => {
         },
       }))).toContain("unclaimed retained terminal indeterminate");
       expect(successorCalls).toBe(1);
+      // The journal sweep superseded the source once its successor settled:
+      // the recovery capsule is released while the indeterminate ledger and
+      // its intent claim still fence the intent.
+      expect(readRunJournal(
+        source.receipt.runId,
+        testState.environment,
+      )?.journal.supersededBy).toMatchObject({
+        intentHash,
+        successorRunId: successor.receipt.runId,
+      });
+      expect(existsSync(sourceCapsulePath)).toBeFalse();
       expect(releaseReconciledRunRecovery(
         source.receipt.runId,
         sha256(canonicalJson(source.receipt)),
         testState.environment,
       )).toBe("journal-retained-for-duplicate-successor");
       expect(readFileSync(sourceLedgerPath, "utf8")).toBe(sourceLedgerBytes);
-      expect(readFileSync(sourceCapsulePath, "utf8")).toBe(sourceCapsuleBytes);
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }

@@ -1698,14 +1698,24 @@
 // 0db7a4879c287a20cadee309286755cdcfb00a6d67112f75c2cbcc827b809250. Carry the
 // same projections and allowances: 12,005,010 + 12,387 + 4,096 = 12,021,493
 // packed; 23,467,598 + 353 + 65 = 23,468,016 unpacked.
+//
+// The portable retained readback and successor handling add the portable
+// provider host/runtime support, the retained readback and supersession
+// cores, and their tests: a clean `npm pack --ignore-scripts` with npm
+// 11.19.0 on darwin arm64 measured 12,014,549 packed bytes and 23,516,304
+// unpacked bytes across the unchanged 596-file inventory (the Linux package
+// job measured the same 23,516,304); archive SHA-256
+// 95267a5d6e6eff1ee88fd03243b42ce651161c726ba2223e30f28cd18342a1b3. Carry the
+// same projections and allowances: 12,014,549 + 12,387 + 4,096 = 12,031,032
+// packed; 23,516,304 + 353 + 65 = 23,516,722 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Release and publication claims evidenced in CI",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "0db7a4879c287a20cadee309286755cdcfb00a6d67112f75c2cbcc827b809250",
-  packedBytes: 12_005_010,
-  unpackedBytes: 23_467_598,
+  archiveSha256: "95267a5d6e6eff1ee88fd03243b42ce651161c726ba2223e30f28cd18342a1b3",
+  packedBytes: 12_014_549,
+  unpackedBytes: 23_516_304,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

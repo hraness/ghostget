@@ -12,7 +12,9 @@ import {
   createAuthorizedKernelPortableProviderPluginBindingProjections,
 } from "./provider-plugin-portable-authority";
 import {
+  createPortableProviderPluginReadbackPort,
   resolvePortableProviderRuntimeDependencies,
+  type PortableProviderPluginReadbackPort,
   type PortableProviderRuntimeDependencies,
 } from "./provider-plugin-portable-runtime";
 import {
@@ -30,6 +32,8 @@ type Environment = Readonly<Record<string, string | undefined>>;
 export type PortableProviderPluginCatalog = {
   readonly registry: ProviderPluginRegistry;
   readonly installed: readonly InstalledPortableProviderPlugin[];
+  /** Invokes a write's declared readback on the installed package. */
+  readonly readback: PortableProviderPluginReadbackPort;
 };
 
 function projectWithResolvedDependencies(
@@ -90,5 +94,10 @@ export function createPortableProviderPluginCatalog(
       portable,
     ),
     installed,
+    readback: createPortableProviderPluginReadbackPort(
+      installed.map((entry) => entry.package),
+      environment,
+      dependencies,
+    ),
   });
 }

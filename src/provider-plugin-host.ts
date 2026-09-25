@@ -52,12 +52,15 @@ import {
   parsePortableProviderPluginMessage,
   PortableProviderPluginFrameDecoder,
   PORTABLE_PROVIDER_PLUGIN_PROTOCOL_VERSION,
+  PORTABLE_PROVIDER_PLUGIN_READBACK_PROTOCOL_VERSION,
   type PortablePluginCapabilityRequest,
   type PortablePluginCapabilityResult,
   type PortablePluginInvocationAuth,
   type PortablePluginInvocationFile,
   type PortablePluginJsonObject,
   type PortablePluginJsonValue,
+  type PortablePluginReadbackObservation,
+  type PortablePluginReadbackRequest,
   type PortablePluginRoute,
   type PortableProviderPluginHostMessage,
   type PortableProviderPluginMessage,
@@ -271,6 +274,12 @@ export type PortableProviderPluginHostInvocation = {
   readonly timeoutMs: number;
   readonly hostVersion: string;
   readonly plannedDispatchIds?: readonly string[];
+  /**
+   * Readback mode. The route names the declared read-only readback
+   * operation; the host sends one protocol 2 host.readback frame instead of
+   * host.invoke and accepts only a bound plugin.readback.result.
+   */
+  readonly readback?: PortablePluginReadbackRequest;
   readonly capabilityHost?: PortableProviderPluginCapabilityHost;
   readonly signal?: AbortSignal;
   /** Test-only executable seam. Production callers leave this unset. */
@@ -280,6 +289,8 @@ export type PortableProviderPluginHostInvocation = {
 export type PortableProviderPluginHostResult = {
   readonly output: PortablePluginJsonValue;
   readonly finalUrl: string | null;
+  /** Present only in readback mode: the bound observation. */
+  readonly readback?: PortablePluginReadbackObservation;
   readonly dispatch: {
     readonly planned: number;
     readonly started: number;
@@ -550,6 +561,26 @@ function assertInvocation(
     throw new Error(
       "portable plugin invocation dispatch plan does not match its static operation descriptor",
     );
+  }
+  if (invocation.readback !== undefined) {
+    const request = invocation.readback;
+    const write = binding.operations.find((candidate) =>
+      candidate.name === request.write.operation
+      && candidate.contractVersion === request.write.contractVersion);
+    if (
+      binding.transport !== "web-session-api"
+      || operation.risk !== "R1"
+      || operation.dispatch !== "none"
+      || planned.length !== 0
+      || invocation.files.length !== 0
+      || write?.readback === undefined
+      || write.readback.operation !== operation.name
+      || write.readback.contractVersion !== operation.contractVersion
+    ) {
+      throw new Error(
+        "portable plugin readback must invoke the read-only operation its write declared",
+      );
+    }
   }
 }
 
@@ -1554,16 +1585,29 @@ async function runPortableProviderPluginHostCore(
         state.verified,
       );
     }
-    await writeHostMessage(child, hostMessage({
-      protocolVersion: PORTABLE_PROVIDER_PLUGIN_PROTOCOL_VERSION,
-      kind: "host.invoke",
-      invocationId,
-      route: invocation.route,
-      input: invocation.input,
-      auth: invocation.auth,
-      files: invocation.files,
-      timeoutMs: invocation.timeoutMs,
-    }), timeoutController.signal, written);
+    await writeHostMessage(child, hostMessage(
+      invocation.readback === undefined
+        ? {
+            protocolVersion: PORTABLE_PROVIDER_PLUGIN_PROTOCOL_VERSION,
+            kind: "host.invoke",
+            invocationId,
+            route: invocation.route,
+            input: invocation.input,
+            auth: invocation.auth,
+            files: invocation.files,
+            timeoutMs: invocation.timeoutMs,
+          }
+        : {
+            protocolVersion: PORTABLE_PROVIDER_PLUGIN_READBACK_PROTOCOL_VERSION,
+            kind: "host.readback",
+            invocationId,
+            route: invocation.route,
+            readback: invocation.readback,
+            input: invocation.input,
+            auth: invocation.auth,
+            timeoutMs: invocation.timeoutMs,
+          },
+    ), timeoutController.signal, written);
     invoked = true;
 
     for (;;) {
@@ -1793,7 +1837,43 @@ async function runPortableProviderPluginHostCore(
         }), timeoutController.signal, written);
         continue;
       }
+      if (message.kind === "plugin.readback.result") {
+        const request = invocation.readback;
+        if (
+          request === undefined
+          || message.invocationId !== invocationId
+          || message.readback.runId !== request.runId
+          || message.readback.intentHash !== request.intentHash
+          || state.started !== 0
+          || state.verified !== 0
+        ) {
+          throw valueFreeError(
+            "protocol-violation",
+            "portable provider plugin returned an unbound readback observation",
+            plannedDispatchIds.length,
+            state.started,
+            state.verified,
+          );
+        }
+        resultReceived = true;
+        executionResult = Object.freeze({
+          output: null,
+          finalUrl: null,
+          readback: message.readback,
+          dispatch: Object.freeze({ planned: 0, started: 0, verified: 0 }),
+        });
+        break;
+      }
       if (message.kind === "plugin.result") {
+        if (invocation.readback !== undefined) {
+          throw valueFreeError(
+            "protocol-violation",
+            "portable provider plugin answered a readback with an invocation result",
+            plannedDispatchIds.length,
+            state.started,
+            state.verified,
+          );
+        }
         if (message.invocationId !== invocationId) {
           throw valueFreeError(
             "protocol-violation",
