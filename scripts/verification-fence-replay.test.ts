@@ -55,6 +55,7 @@ import {
 import {
   acquireConfirmedWriteLedgers,
   confirmedWriteLedgerPath,
+  duplicateSourceSupersession,
   intentFenceBlocker,
   intentLedgerPath,
   readRunReceipt,
@@ -319,7 +320,16 @@ class MemoryStore implements FenceStore {
     return { holders: new Set(this.ledger.values()), names: this.ledger.size };
   }
 
-  afterStep(): void {}
+  afterStep(at: Date): void {
+    // The durable repair pass supersedes every duplicate-risk source whose
+    // elected successor settled after its dispatch; the in-memory world
+    // applies the same per-step projection through the same pure core.
+    for (const source of this.list()) {
+      if (source.duplicateSuccessor === undefined || source.supersededBy !== undefined) continue;
+      const event = duplicateSourceSupersession(source, this.get(source.duplicateSuccessor.runId), at);
+      if (event !== null) this.record(source.runId, event);
+    }
+  }
 }
 
 /** The file-backed state layer on a real state home. */

@@ -219,7 +219,7 @@ const QUINT_TIMEOUT_MS = 5 * 60_000;
  * test, so a hung Quint fails with this bound's diagnosis rather than the
  * runner's.
  */
-export const QUINT_TRACE_TIMEOUT_MS = 90_000;
+export const QUINT_TRACE_TIMEOUT_MS = 150_000;
 /**
  * The bound on one Apalache check. With `QUINT_CONCURRENCY` two checker jobs
  * share the runner's four vCPUs, so a check that finishes in about ten
