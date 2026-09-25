@@ -115,6 +115,34 @@ function fetchedReleaseVerificationArguments() {
   ]);
 }
 
+// `git push --porcelain` reports a stale lease as `=` `[up to date]` with exit
+// status 0 when the remote already holds the pushed commit, so success alone
+// does not prove this writer's update. Require the one update line from the
+// leased SHA to the release SHA: ` ` with `<old>..<new>`, or, because the
+// shallow tag fetch leaves the old commit unknown locally, `+` with
+// `<old>...<new> (forced update)`. Fast-forward ancestry stays with the
+// comparison before the write and the ref's non-fast-forward rule.
+function requireLeasedUpdate(stdout, expectedOldSha, verifiedSha) {
+  const lines = typeof stdout === "string"
+    ? stdout.split("\n").filter((line) => line.includes("\t"))
+    : [];
+  const update = lines.length === 1
+    ? /^(?: \t([0-9a-f]{40}):refs\/heads\/website-production\t([0-9a-f]{7,40})\.\.([0-9a-f]{7,40})|\+\t([0-9a-f]{40}):refs\/heads\/website-production\t([0-9a-f]{7,40})\.\.\.([0-9a-f]{7,40}) \(forced update\))$/u.exec(lines[0])
+    : null;
+  const [source, oldPrefix, newPrefix] = update === null
+    ? []
+    : update[1] === undefined ? update.slice(4, 7) : update.slice(1, 4);
+  if (
+    source !== verifiedSha ||
+    oldPrefix === undefined ||
+    newPrefix === undefined ||
+    !expectedOldSha.startsWith(oldPrefix) ||
+    !verifiedSha.startsWith(newPrefix)
+  ) {
+    fail("website-production Git push did not update the ref from the leased SHA");
+  }
+}
+
 function runGit(spawnImplementation, arguments_, environment, label, token) {
   const result = spawnImplementation(GIT_EXECUTABLE, arguments_, {
     encoding: "utf8",
@@ -179,13 +207,14 @@ export function advanceWebsiteProductionRef(options) {
     if (resolved.stdout !== `${verifiedSha}\n`) {
       fail("fetched release tag does not peel to the verified release SHA");
     }
-    runGit(
+    const pushed = runGit(
       options.spawnImplementation,
       pushArguments,
       authenticatedGitEnvironment,
       "website-production Git push",
       token,
     );
+    requireLeasedUpdate(pushed.stdout, options.expectedOldSha, verifiedSha);
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
   }
