@@ -28,6 +28,7 @@ import {
   soakMultiplier,
   soakTestArguments,
 } from "./verification-soak.js";
+import { QUINT_CI_SHARD_COUNT, assignQuintModelShards, readQuintModels } from "./verification-tools.js";
 import { assertProperty } from "../src/test-support.js";
 
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -70,7 +71,7 @@ describe("PR CI test shards", () => {
     expect(new Set(files).size).toBe(files.length);
   });
 
-  test("packs the four CI shards into a disjoint cover of the unit inventory", async () => {
+  test("packs the CI shards into a disjoint cover of the unit inventory", async () => {
     const files = await listSrcUnitTestFiles(repositoryRoot);
     const shards = assignUnitTestShards(files, CI_UNIT_TEST_SHARD_COUNT);
     expect(shards).toHaveLength(CI_UNIT_TEST_SHARD_COUNT);
@@ -177,12 +178,14 @@ describe("complete local and release check composition", () => {
     const sourceJobs = {
       static: ["static", "ubuntu-latest", 15],
       package: ["package", "ubuntu-latest", 20],
-      test: ["test ${{ matrix.shard }}/4", "ubuntu-latest", 40],
+      test: [`test \${{ matrix.shard }}/${String(CI_UNIT_TEST_SHARD_COUNT)}`, "ubuntu-latest", 25],
       "test-omni": ["test-omni", "ubuntu-latest", 25],
       standalone: ["standalone", "ubuntu-latest", 20],
       macos: ["macOS", "macos-15", 45],
-      verification: ["verification", "ubuntu-latest", 55],
+      verification: ["verification", "ubuntu-latest", 20],
+      quint: [`quint \${{ matrix.shard }}/${String(QUINT_CI_SHARD_COUNT)}`, "ubuntu-latest", 25],
     } as const;
+    const shardList = (count: number): number[] => Array.from({ length: count }, (_, index) => index + 1);
     const expectedNode = {
       uses: "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
       with: { "node-version": "24.20.0", "registry-url": "https://registry.npmjs.org", "package-manager-cache": false },
@@ -205,11 +208,12 @@ describe("complete local and release check composition", () => {
     };
     const record = { name: "Record exact source CI identity", run: "bun run ./scripts/release-source-ci.ts record" };
     const install = { run: "bun install --frozen-lockfile --ignore-scripts" };
-    // The one admitted step condition: the verification job's last step only
-    // uploads checker output, and `always()` keeps that output from a failed or
-    // timed-out check. It can run more often, never gate or skip a check.
+    // The one admitted step condition: the last step of a verification or
+    // quint job only uploads checker output, and `always()` keeps that output
+    // from a failed or timed-out check. It can run more often, never gate or
+    // skip a check.
     const retainsOutput = (id: string, step: Step, index: number, length: number): boolean =>
-      id === "verification" && index === length - 1 && step.if === "always()"
+      (id === "verification" || id === "quint") && index === length - 1 && step.if === "always()"
       && step.run === undefined && step.uses?.startsWith("actions/upload-artifact@") === true;
     const validate = (candidate: Workflow): void => {
       if (!isDeepStrictEqual(Object.keys(candidate.jobs).sort(), [...Object.keys(sourceJobs), "required"].sort())) {
@@ -239,8 +243,11 @@ describe("complete local and release check composition", () => {
           throw new Error(`Source CI job ${id} records before setup or after installation`);
         }
       }
-      if (!isDeepStrictEqual(candidate.jobs.test?.strategy, { "fail-fast": false, matrix: { shard: [1, 2, 3, 4] } })) {
-        throw new Error("Source CI no longer expands to all ten work jobs");
+      if (!isDeepStrictEqual(candidate.jobs.test?.strategy, { "fail-fast": false, matrix: { shard: shardList(CI_UNIT_TEST_SHARD_COUNT) } })) {
+        throw new Error("Source CI no longer expands to every unit-test shard");
+      }
+      if (!isDeepStrictEqual(candidate.jobs.quint?.strategy, { "fail-fast": false, matrix: { shard: shardList(QUINT_CI_SHARD_COUNT) } })) {
+        throw new Error("Source CI no longer expands to every Quint model shard");
       }
     };
     expect(() => validate(workflow)).not.toThrow();
@@ -249,6 +256,9 @@ describe("complete local and release check composition", () => {
       candidate => { delete candidate.jobs.verification; },
       candidate => { candidate.jobs.verification!["timeout-minutes"] = 360; },
       candidate => { candidate.jobs.test!.strategy = { "fail-fast": false, matrix: { shard: [1, 2, 3] } }; },
+      candidate => { candidate.jobs.quint!.strategy = { "fail-fast": false, matrix: { shard: [1, 2, 3] } }; },
+      candidate => { delete candidate.jobs.quint; },
+      candidate => { candidate.jobs.quint!.if = "github.event_name == 'push'"; },
       candidate => { candidate.jobs.static!["timeout-minutes"] = 5; },
       candidate => { candidate.jobs.static!.if = "always()"; },
       candidate => { candidate.jobs.static!["continue-on-error"] = true; },
@@ -262,7 +272,9 @@ describe("complete local and release check composition", () => {
       candidate => { candidate.jobs.static!.steps.find(step => step.name === record.name)!.run = `${record.run} || true`; },
       candidate => { const steps = candidate.jobs.static!.steps; const index = steps.findIndex(step => step.name === record.name); steps.splice(1, 0, ...steps.splice(index, 1)); },
       candidate => { const steps = candidate.jobs.static!.steps; const index = steps.findIndex(step => step.name === record.name); steps.push(...steps.splice(index, 1)); },
-      candidate => { candidate.jobs.verification!.steps.find(step => step.run === "bun run verify")!.if = "always()"; },
+      candidate => { candidate.jobs.verification!.steps.find(step => step.run === "bun run verify:claims")!.if = "always()"; },
+      candidate => { candidate.jobs.quint!.steps.find(step => step.run?.includes("verification-tools.ts quint") === true)!.if = "always()"; },
+      candidate => { candidate.jobs.quint!.steps.at(-1)!.if = "success() || failure()"; },
       candidate => { candidate.jobs.verification!.steps.at(-1)!.if = "success() || failure()"; },
       candidate => { candidate.jobs.verification!.steps.at(-1)!.run = "true"; },
       candidate => { const steps = candidate.jobs.verification!.steps; steps.splice(steps.length - 2, 0, steps.pop()!); },
@@ -371,8 +383,22 @@ describe("complete local and release check composition", () => {
     expect(workflow).toContain("bun run check:macos");
     expect(workflow).toContain("bun run ./scripts/ci-test-shard.ts");
     expect(workflow).not.toMatch(/^      - run: bun run check$/gmu);
-    expect(workflow).toContain("needs: [static, package, test, test-omni, standalone, macos, verification]");
-    expect(workflow.match(/^      - run: bun run verify$/gmu)).toHaveLength(1);
+    expect(workflow).toContain("needs: [static, package, test, test-omni, standalone, macos, verification, quint]");
+    expect(workflow.match(/^      - run: bun run verify$/gmu) ?? []).toHaveLength(0);
+    for (const phase of ["verify:claims", "verify:lean", "verify:oracles"]) {
+      expect(workflow.match(new RegExp(`^      - run: bun run ${phase}$`, "gmu"))).toHaveLength(1);
+    }
+    expect(workflow).toContain(`shard: [${Array.from({ length: QUINT_CI_SHARD_COUNT }, (_, index) => index + 1).join(", ")}]`);
+    expect(workflow.match(new RegExp(
+      `^      - run: bun run \\./scripts/verification-tools\\.ts quint \\$\\{\\{ matrix\\.shard \\}\\} ${String(QUINT_CI_SHARD_COUNT)}$`,
+      "gmu",
+    ))).toHaveLength(1);
+    // Every Quint model lands in exactly one shard, so the matrix checks what verify:quint checks.
+    const models = await readQuintModels(repositoryRoot);
+    const shards = assignQuintModelShards(models, QUINT_CI_SHARD_COUNT);
+    expect(shards).toHaveLength(QUINT_CI_SHARD_COUNT);
+    expect(shards.every((shard) => shard.length > 0)).toBe(true);
+    expect(shards.flat().map((model) => model.file).sort()).toEqual(models.map((model) => model.file).sort());
     expect(workflow).toContain(`shard: [${Array.from({ length: CI_UNIT_TEST_SHARD_COUNT }, (_, index) =>
       index + 1
     ).join(", ")}]`);
@@ -668,7 +694,7 @@ describe("nightly verification workflow", () => {
     const { nightly, ci, source } = await load();
     expect(() => validateNightly(nightly, ci)).not.toThrow();
     expect(source).not.toMatch(/secrets\.|id-token|pull_request|push:/u);
-    expect(ci.jobs.required?.needs).toEqual(["static", "package", "test", "test-omni", "standalone", "macos", "verification"]);
+    expect(ci.jobs.required?.needs).toEqual(["static", "package", "test", "test-omni", "standalone", "macos", "verification", "quint"]);
   });
 
   test("rejects each widened or weakened nightly variant", async () => {

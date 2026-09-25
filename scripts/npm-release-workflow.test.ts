@@ -1245,6 +1245,7 @@ describe("npm publication contract", () => {
     const standaloneStart = workflow.indexOf("\n  standalone:\n");
     const macosStart = workflow.indexOf("\n  macos:\n");
     const verificationStart = workflow.indexOf("\n  verification:\n");
+    const quintStart = workflow.indexOf("\n  quint:\n");
     const requiredStart = workflow.indexOf("\n  required:\n");
 
     expect(workflow.match(/^  static:$/gmu)).toHaveLength(1);
@@ -1254,9 +1255,10 @@ describe("npm publication contract", () => {
     expect(workflow.match(/^  standalone:$/gmu)).toHaveLength(1);
     expect(workflow.match(/^  macos:$/gmu)).toHaveLength(1);
     expect(workflow.match(/^  verification:$/gmu)).toHaveLength(1);
+    expect(workflow.match(/^  quint:$/gmu)).toHaveLength(1);
     expect(workflow.match(/^  required:$/gmu)).toHaveLength(1);
     expect(workflow.match(/^  check:$/gmu) ?? []).toHaveLength(0);
-    expect(workflow.match(/^    timeout-minutes: [0-9]+$/gmu)).toHaveLength(8);
+    expect(workflow.match(/^    timeout-minutes: [0-9]+$/gmu)).toHaveLength(9);
     expect(staticStart).toBeGreaterThan(-1);
     expect(packageStart).toBeGreaterThan(staticStart);
     expect(testStart).toBeGreaterThan(packageStart);
@@ -1264,7 +1266,8 @@ describe("npm publication contract", () => {
     expect(standaloneStart).toBeGreaterThan(testOmniStart);
     expect(macosStart).toBeGreaterThan(standaloneStart);
     expect(verificationStart).toBeGreaterThan(macosStart);
-    expect(requiredStart).toBeGreaterThan(verificationStart);
+    expect(quintStart).toBeGreaterThan(verificationStart);
+    expect(requiredStart).toBeGreaterThan(quintStart);
 
     const staticJob = workflow.slice(staticStart, packageStart);
     const packageJob = workflow.slice(packageStart, testStart);
@@ -1272,7 +1275,8 @@ describe("npm publication contract", () => {
     const testOmniJob = workflow.slice(testOmniStart, standaloneStart);
     const standaloneJob = workflow.slice(standaloneStart, macosStart);
     const macosJob = workflow.slice(macosStart, verificationStart);
-    const verificationJob = workflow.slice(verificationStart, requiredStart);
+    const verificationJob = workflow.slice(verificationStart, quintStart);
+    const quintJob = workflow.slice(quintStart, requiredStart);
     const requiredJob = workflow.slice(requiredStart);
 
     const timeoutValues = (job: string): readonly number[] =>
@@ -1281,28 +1285,38 @@ describe("npm publication contract", () => {
 
     expect(timeoutValues(staticJob)).toEqual([15]);
     expect(timeoutValues(packageJob)).toEqual([20]);
-    expect(timeoutValues(testJob)).toEqual([40]);
+    expect(timeoutValues(testJob)).toEqual([25]);
     expect(timeoutValues(testOmniJob)).toEqual([25]);
     expect(timeoutValues(standaloneJob)).toEqual([20]);
     expect(timeoutValues(macosJob)).toEqual([45]);
-    expect(timeoutValues(verificationJob)).toEqual([55]);
+    expect(timeoutValues(verificationJob)).toEqual([20]);
+    expect(timeoutValues(quintJob)).toEqual([25]);
     expect(timeoutValues(requiredJob)).toEqual([5]);
     expect(staticJob.match(/^      - run: bun run check:static$/gmu) ?? []).toHaveLength(1);
     expect(packageJob.match(/^      - run: bun run check:package$/gmu) ?? []).toHaveLength(1);
     expect(packageJob).toContain("git status --porcelain --untracked-files=all -- dist bun.lock");
     expect(packageJob).toContain("./dist/index.js");
     expect(testJob).toContain("bun run ./scripts/ci-test-shard.ts");
-    expect(testJob).toContain("shard: [1, 2, 3, 4]");
+    expect(testJob).toContain("shard: [1, 2, 3, 4, 5, 6, 7, 8]");
     expect(testOmniJob.match(/^      - run: bun run test:omni$/gmu) ?? []).toHaveLength(1);
     expect(standaloneJob.match(/^      - run: bun run test:standalone$/gmu) ?? []).toHaveLength(1);
     expect(macosJob.match(/^      - run: bun run check:macos$/gmu) ?? []).toHaveLength(1);
     expect(macosJob).not.toContain("desktop");
     expect(macosJob.match(/^      - run: bun run check$/gmu) ?? []).toHaveLength(0);
-    expect(verificationJob.match(/^      - run: bun run verify$/gmu) ?? []).toHaveLength(1);
-    expect(workflow.match(/^      - run: bun run verify$/gmu) ?? []).toHaveLength(1);
+    // `bun run verify` is split into its phases: three run once in the
+    // verification job and verify:quint runs as the quint matrix.
+    for (const phase of ["verify:claims", "verify:lean", "verify:oracles"]) {
+      expect(verificationJob.match(new RegExp(`^      - run: bun run ${phase}$`, "gmu")) ?? []).toHaveLength(1);
+      expect(workflow.match(new RegExp(`^      - run: bun run ${phase}$`, "gmu")) ?? []).toHaveLength(1);
+    }
+    expect(quintJob).toContain("shard: [1, 2, 3, 4]");
+    expect(quintJob.match(/^      - run: bun run \.\/scripts\/verification-tools\.ts quint \$\{\{ matrix\.shard \}\} 4$/gmu) ?? [])
+      .toHaveLength(1);
+    expect(workflow.match(/^      - run: bun run verify$/gmu) ?? []).toHaveLength(0);
+    expect(workflow.match(/^      - run: bun run verify:quint$/gmu) ?? []).toHaveLength(0);
     expect(requiredJob.match(/^      - run: bun run check$/gmu) ?? []).toHaveLength(0);
     expect(requiredJob.match(
-      /^    needs: \[static, package, test, test-omni, standalone, macos, verification\]$/gmu,
+      /^    needs: \[static, package, test, test-omni, standalone, macos, verification, quint\]$/gmu,
     ) ?? []).toHaveLength(1);
     expect(workflow.match(/^      - run: bun run check$/gmu) ?? []).toHaveLength(0);
   });

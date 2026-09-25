@@ -170,7 +170,7 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
   const responses: Json = {};
   responses[`${prefix}/git/ref/heads/main`] = { ref: "refs/heads/main", object: { type: "commit", sha: input.main } };
   for (const sha of [input.source, head]) responses[`${prefix}/git/commits/${sha}`] = { sha, tree: { sha: input.tree } };
-  const ciNames = ["static", "package", "test 1/4", "test 2/4", "test 3/4", "test 4/4", "test-omni", "standalone", "macOS", "verification", "Required"];
+  const ciNames = ["static", "package", "test 1/8", "test 2/8", "test 3/8", "test 4/8", "test 5/8", "test 6/8", "test 7/8", "test 8/8", "test-omni", "standalone", "macOS", "verification", "quint 1/4", "quint 2/4", "quint 3/4", "quint 4/4", "Required"];
   for (const [workflowId, path, event, runId, names] of [
     [323493607, ".github/workflows/ci.yml", "push", 100, ciNames],
     [351099999, "dynamic/github-code-scanning/codeql", "dynamic", 200, ["Analyze (javascript-typescript)", "Analyze (actions)"]],
