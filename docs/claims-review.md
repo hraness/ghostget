@@ -1,7 +1,8 @@
 # Nightly verification and the quarterly claims review
 
 `docs/assurance.md` states what Ghostget's checks prove. The `Required` PR gate
-keeps those checks inside a 16-minute verification step. This procedure covers
+runs those checks in one verification step bounded at 50 minutes; a typical run
+takes about 20. This procedure covers
 the deeper nightly checks and the quarterly review that keeps
 `verification/claims.json` honest.
 

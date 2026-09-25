@@ -181,7 +181,7 @@ describe("complete local and release check composition", () => {
       "test-omni": ["test-omni", "ubuntu-latest", 25],
       standalone: ["standalone", "ubuntu-latest", 20],
       macos: ["macOS", "macos-15", 45],
-      verification: ["verification", "ubuntu-latest", 35],
+      verification: ["verification", "ubuntu-latest", 55],
     } as const;
     const expectedNode = {
       uses: "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
@@ -355,7 +355,10 @@ describe("complete local and release check composition", () => {
     expect(manifest.scripts?.["test:npm-release"]).toBe(
       "bun test --no-orphans --timeout 45000 --max-concurrency 1"
       + " ./scripts/release-ref-authority.test.ts ./scripts/npm-release-workflow.test.ts"
-      + " ./scripts/github-release-artifact.test.ts ./scripts/ci-pr-gate.test.ts",
+      + " ./scripts/github-release-artifact.test.ts ./scripts/ci-pr-gate.test.ts"
+      // The release publisher, census, Latest, token-revocation, and npm rerun models.
+      + " ./scripts/release-provider-outcome.test.ts ./scripts/github-release-publish-model.test.ts"
+      + " ./scripts/release-app-token-revocation.test.ts ./scripts/npm-publish-model.test.ts",
     );
   });
 

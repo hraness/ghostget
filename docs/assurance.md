@@ -8,14 +8,14 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 244 claims: 188 evidenced, 37 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 244 claims: 207 evidenced, 18 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 143 | 2 | 0 |
-| property test | 15 | 1 | 0 |
-| stateful model | 9 | 7 | 0 |
-| Quint model with production trace replay | 10 | 26 | 0 |
+| example test | 145 | 2 | 0 |
+| property test | 18 | 1 | 0 |
+| stateful model | 17 | 7 | 0 |
+| Quint model with production trace replay | 16 | 7 | 0 |
 | Lean proof with differential test | 7 | 1 | 0 |
 | differential oracle | 4 | 0 | 0 |
 | configuration readback | 0 | 0 | 15 |
@@ -1233,11 +1233,13 @@ The confirmed-write public boundary preserves the exact selected rejection value
 
 publish_npm runs only after verify, attest and publish succeed (the immutable GitHub Release exists) and publishes the identical canonical bytes; canonical publication has no dependency on npm.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by example test.
 - Source: `AGENTS.md`: “The same tag Release run then publishes the identical canonical bytes to npm”
 - Evidence: `scripts/npm-release-workflow.test.ts`
 - Assumptions: `github-api`, `npm-registry`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The test checks the job graph: `publish_npm` transitively needs exactly `authorize`, `verify`, `attest`, and `publish`, no canonical job needs an npm job, and no job or step carries an `if:` or `continue-on-error` that could run npm after a failed prerequisite or let a canonical job succeed without its work. That GitHub skips a job whose needed jobs did not succeed is the `github-enforcement` assumption.
+  - The identical-bytes half rests on the enumerated example tests of the npm job's artifact-by-ID, archive-hash, and canonical-Release re-read steps.
 
 #### `npm-failure-never-blocks-canonical`
 
@@ -1374,9 +1376,12 @@ Across any sequence of attempts and reruns of a Release run, npm publish is issu
 
 - Planned: Quint model with production trace replay in plan Phase 4.
 - Source: `docs/publishing.md`: “The workflow's `stable-release` concurrency group and npm's version immutability serialize publication”
-- Evidence: `scripts/npm-release-workflow.test.ts`
+- Evidence: `scripts/npm-publish-model.test.ts`, `scripts/npm-release-workflow.test.ts`
 - Assumptions: `github-api`, `github-enforcement`, `npm-registry`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4.
+  - The sampled rerun property in `scripts/npm-publish-model.test.ts` runs the real registry-admission and publish step scripts against a fake npm registry: each attempt issues at most one `npm publish`, only after an absent readback, never changes a held version, and never reports success after an ambiguous or failed write.
+  - The statement does not hold as written when the registry readback lags: after a publish whose response was lost or malformed, a rerun that still reads the version as absent issues a second `npm publish` for it, and only npm's version immutability refuses it (the named test on registry lag). Evidencing the statement needs a durable per-version publish record or an owner-accepted restatement.
 
 #### `npm-release-env-sole-reference`
 
@@ -1627,13 +1632,14 @@ Every minted App token is requested and validated to carry exactly metadata:read
 
 After the operation the helper sends exactly one DELETE /installation/token requiring 204 with zero body, then requires two stable 401 denials from the exact installation-repositories endpoint within a 30-second, at-most-ten-slot absolute schedule; a 200 after 401, nonconvergence, malformed or timing-ambiguous responses fail closed and nothing is retried.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by property test.
 - Source: `AGENTS.md`: “send exactly one empty-204 revocation request and require two stable authorization denials”
 - Also covers: `website/AGENTS.md`: “the shared helper must send exactly one empty-204 token revocation”
-- Evidence: `scripts/npm-release-workflow.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-app-token-revocation.test.ts`
+- Property tests: `scripts/release-app-token-revocation.test.ts`: “property: exactly one DELETE, then two stable denials inside ten absolute slots and 30 seconds, or fail closed”; `scripts/release-app-token-revocation.test.ts`: “property: a minted token is revoked exactly once whatever fails, and an unminted token is never revoked”
 - Assumptions: `monotonic-clock`, `github-api`, `github-enforcement`, `vercel`
 - Not verified:
-  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+  - The properties drive `revokeReleaseAppTokenWithConvergence` and `withReleaseAppToken` with a fake fetch, clock, and sleeper; live revocation against GitHub is retained evidence from one workflow run, not a CI check.
   - GitHub does not guarantee how quickly a revoked token stops working.
 
 #### `release-app-date-before-expiry`
@@ -1781,22 +1787,30 @@ Every read-only gh child process has all WRENCH_RELEASE_APP_* values removed fro
 
 The production writer fetches only the verified tag, peels it locally to the independently verified SHA without executing tagged code, and pushes exactly one refspec with --force-with-lease=refs/heads/website-production:<expected-old>; a stale lease leaves the ref unchanged and the workflow never creates, deletes, force-moves or recreates the branch.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “Fetch only the exact verified tag through the private askpass token, peel it locally”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-ref-authority.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-ref-authority.test.ts`, `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`
 - Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 11 in the Required verification job (every mutant step is found at that length; at length 10 the single-readback mutant is not), and the nightly workflow repeats it with 10,000 samples of up to 20 steps and Apalache to length 12.
+  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
+  - The replay's remote is a local bare repository, not GitHub. GitHub's ref-update ruleset and non-fast-forward rule are assumed under `github-enforcement`. That the workflow never creates, deletes, or recreates the branch, that the tag is fetched through the private askpass token, and that the peel executes no tagged code rest on the writer's fixed argument lists, which only the example tests in `scripts/npm-release-workflow.test.ts` check, and on the production-ref lifecycle ruleset, which only a live readback checks.
+  - Defect found and fixed here: `git push --porcelain` reports a stale `--force-with-lease` as `=` `[up to date]` with exit status 0 when the remote already holds the pushed commit, and the writer accepted that as its own update. It now requires the one porcelain update line from the leased SHA to the release SHA; the test “fails a leased write closed when the remote already holds the release commit” fails on the previous writer, and the replay's seeded `force-push` defect diverges from the model.
 
 #### `promotion-c-le-w-le-m`
 
 Promotion proves release commit C ≤ reviewed workflow source W ≤ protected current main M at every authority check before any provider or ref work, accepts only identical or strictly linear-forward movement of main, rejects rollback or divergence, and binds package, tag, Release, deployment, and production-ref identity to C.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “prove release `C<=W<=M` for protected current main `M`, allowing only linear descendant movement after dispatch”
 - Also covers: `website/AGENTS.md`: “prove `C<=W<=M` for protected current main `M` at every authority sandwich”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-ref-authority.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-ref-authority.test.ts`, `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`
 - Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 11 in the Required verification job (every mutant step is found at that length; at length 10 the single-readback mutant is not), and the nightly workflow repeats it with 10,000 samples of up to 20 steps and Apalache to length 12.
+  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
+  - C ≤ W is the verify job's precondition in `scripts/release-ref-authority.ts`, covered by `scripts/release-ref-authority.test.ts`; the model fixes it and checks W ≤ M at every source check that passes, including a main that forks from C before W. Linear movement is judged against W: a main that later moves back to an earlier descendant of W still satisfies W ≤ M and is accepted, and protected main's non-fast-forward rule, assumed under `github-enforcement`, excludes that move.
+  - The model binds the tag, the Release, Latest, and the production ref to C. The package and deployment identity bindings are covered only by the listed example tests.
 
 #### `promotion-already-exact-no-credentials`
 
@@ -1812,43 +1826,56 @@ When the production ref already equals the verified release, promotion takes a s
 
 A required fast-forward enters production-ref-writer-key only after immutable release, workflow-source and provider-baseline checks pass, then revalidates C<=W<=M, peeled tag, immutable Release and Latest before credentials and mutation.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “admit it automatically after the existing immutable release, exact workflow-source, and provider-baseline checks pass, then revalidate source and immutable release authority before credentials and mutation”
-- Evidence: `scripts/npm-release-workflow.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`
 - Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 11 in the Required verification job (every mutant step is found at that length; at length 10 the single-readback mutant is not), and the nightly workflow repeats it with 10,000 samples of up to 20 steps and Apalache to length 12.
+  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
+  - The model orders the checks inside one run. The `production-ref-writer-key` environment gate, the job `needs` graph, and which steps receive the release-App key are checked only by the workflow example tests in `scripts/npm-release-workflow.test.ts`, and their enforcement is assumed under `github-enforcement`. In the replay the write step stands in for `GitHubApi.advanceRef`, where production mints the release-App token, so the token's own lifecycle is not replayed.
 
 #### `promotion-observation-window`
 
 Provider outcome uses exactly 20 absolute observation slots at minute offsets 0..19 inside one injected monotonic half-open 20-minute window; latency never slides slots, no provider read starts at or after the deadline, and the job has a separate 30-minute timeout.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by property test.
 - Source: `AGENTS.md`: “Keep 20 observation slots at absolute minute offsets zero through 19 inside one injected monotonic 20-minute `[start, deadline)` interval and a separate 30-minute read-only job”
 - Evidence: `scripts/npm-release-workflow.test.ts`
+- Property tests: `scripts/npm-release-workflow.test.ts`: “keeps 20 absolute observation slots under any read latency and partial sleep wakeups”
 - Assumptions: `monotonic-clock`, `github-api`, `github-enforcement`, `vercel`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The property test runs `waitForProviderOutcome` 100 times against a candidate that never appears, with up to 64 generated read latencies from 1 to 45,000 ms and early sleep wakeups. Generated latencies rarely land exactly on the deadline, so the boundary read, clock regression, overflow, and a sleep that never reaches its slot are covered by the example test “enforces one half-open monotonic 20-minute provider observation deadline”.
+  - `verification/quint/promotion.qnt` abstracts time and does not carry this claim. The 30-minute provider job timeout is a workflow setting that an example test checks; GitHub enforcing it is assumed under `github-enforcement`.
 
 #### `promotion-eventual-promotion-or-stuck-evidence`
 
 An immutable Release is eventually promoted or leaves explicit stuck evidence (progress law).
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `kb/plans/formal-verification-assurance.md`: “The progress goal is "an immutable Release is eventually promoted or leaves explicit stuck evidence".”
-- Evidence: none
+- Evidence: `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`
 - Assumptions: `github-api`, `github-enforcement`, `vercel`, `ci-runner`
 - Not verified:
-  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; no automated check covers it yet.
+  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 11 in the Required verification job (every mutant step is found at that length; at length 10 the single-readback mutant is not), and the nightly workflow repeats it with 10,000 samples of up to 20 steps and Apalache to length 12.
+  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
+  - The progress law is checked as a bounded safety property, not as a temporal one: no Quint or Apalache check of a liveness property under fairness runs. The invariant `boundedVerdict` shows that every run reaches a verdict within nine production steps (three authority checks, the baseline, the promotion checks, the write, and the model's three observations), and `stuckHasEvidence` that every stuck verdict names one of ten reasons that the environment state explains. Every production step stays enabled until the verdict, so under weak fairness for the workflow's jobs a run terminates; that step is argued, not checked.
+  - The stuck evidence is the failed run's refusal message; the replay maps each production refusal to the model's reason and fails on a refusal it cannot map. Eventual promotion across runs while the environment keeps faulting is outside the model: it needs Vercel to succeed and expose the exact marker inside the observation window.
   - Progress assumes fair Actions scheduling and an owner who dispatches manual recovery when the automatic path is ineligible.
 
 #### `promotion-success-requires-stable-readbacks`
 
 Promotion succeeds only with one exact successful Vercel Production deployment plus stable terminal tag, Release, Latest, workflow-source, ref, inventory, status and two byte-stable canonical-host readbacks.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “Bind one exact successful Vercel Production deployment plus stable terminal tag, Release, Latest, workflow source, ref, inventory, status, and canonical-host readbacks before promotion succeeds.”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`, `website/production-release-marker.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`, `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`, `website/production-release-marker.test.ts`
 - Assumptions: `github-api`, `github-enforcement`, `vercel`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 11 in the Required verification job (every mutant step is found at that length; at length 10 the single-readback mutant is not), and the nightly workflow repeats it with 10,000 samples of up to 20 steps and Apalache to length 12.
+  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
+  - The replay arms at most one drift per trace: the production ref, the candidate's status history, the apex marker, Latest, a health route, the `www` redirect, the tag commit, the Release, protected main, or the Production inventory. Combined drifts and GraphQL and REST disagreement are covered only by the listed example tests.
+  - Byte stability is checked as digest equality of the stubbed bodies; the canonical host's real HTTP behaviour is assumed under `vercel`.
 
 #### `promotion-candidate-status-history-clean`
 
@@ -2049,11 +2076,16 @@ The reauthorization before checkout uses only actions:read; no Release job holds
 
 A new stable package version must exceed every completed stable Release; a higher raw tag alone is an incomplete request, and the publication path exhausts the bounded completed stable-Release ordering census before creating or publishing a draft.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by stateful model.
 - Source: `docs/publishing.md`: “Choose a new stable package version greater than every completed stable Release. A raw tag is a request, not a completed publication.”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-ref-authority.test.ts`
+- Evidence: `scripts/github-release-publish-model.test.ts`, `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`, `scripts/release-ref-authority.test.ts`
+- Property tests: `scripts/github-release-publish-model.test.ts`: “stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws”
 - Assumptions: `github-api`, `github-enforcement`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.
+  - CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.
+  - The census law itself (a target is admitted exactly when it exceeds every completed stable Release in the 500-Release window) is the sampled property in `scripts/release-provider-outcome.test.ts`; the model checks that a clean census precedes each draft creation and publication, and that success never leaves a higher completed stable Release.
+  - GitHub has no conditional create or publish, so a stable Release that completes between the last census and the PATCH is caught only by the census repeated after publication, which fails the run but cannot undo the already immutable publication. A stable Release that completes after that last census, while the terminal Latest read still names the target, is not detected, and the model injects no such completion.
 
 #### `release-five-file-contract`
 
@@ -2079,93 +2111,126 @@ Before GitHub mutation, the attestation bundle must cryptographically verify for
 
 A draft is created only after an authenticated exact REST 404 by tag plus bounded inventory discovery shows none exists; any other lookup failure aborts.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by stateful model.
 - Source: `docs/publishing.md`: “Only an authenticated exact REST 404 permits draft creation; other lookup failures abort.”
-- Evidence: `scripts/github-release-artifact.test.ts`
+- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/github-release-publish-model.test.ts`
+- Property tests: `scripts/github-release-publish-model.test.ts`: “stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws”
 - Assumptions: `github-api`, `github-enforcement`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.
+  - CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.
+  - The model's lookup faults are HTTP 500 and 403, a status and exit code that disagree, an unparseable response, a 404 with another body, and an unreadable inventory; other malformed responses rest on the parser's example tests.
 
 #### `release-upload-missing-only-no-clobber`
 
 Publication uploads only missing exact asset names without clobber, then downloads each asset by ID within its byte bound and compares bytes and SHA-256 to the verified local artifact before and after publication.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by stateful model.
 - Source: `docs/publishing.md`: “downloads each exact asset ID with its admitted byte bound, and compares its actual bytes and SHA-256”
-- Evidence: `scripts/github-release-artifact.test.ts`
+- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/github-release-publish-model.test.ts`
+- Property tests: `scripts/github-release-publish-model.test.ts`: “stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws”
 - Assumptions: `github-api`, `github-enforcement`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.
+  - CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.
+  - Stored-byte corruption is injected only between publisher invocations, not between an upload and its own readback.
 
 #### `release-draft-resume-exact-only`
 
 A pre-existing draft or published Release from the same attesting attempt, including one that a failed-jobs rerun of that run resumes, resumes only with matching Actions bot, source receipt, body, tag, and every already-uploaded asset; a mismatched draft or another attempt fails closed and is never deleted, recreated, clobbered, or relabeled.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by stateful model.
 - Source: `docs/publishing.md`: “A matching partial draft or published Release from the same attesting attempt, including one a failed-jobs rerun of that run resumes, may resume only with matching source, bot, body, and every already uploaded asset.”
-- Evidence: `scripts/github-release-artifact.test.ts`
+- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/github-release-publish-model.test.ts`, `scripts/verification-release-replay.test.ts`
+- Property tests: `scripts/github-release-publish-model.test.ts`: “stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws”
 - Assumptions: `github-api`, `github-enforcement`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.
+  - CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.
+  - The model represents a failed-jobs rerun as a further invocation of the same attesting attempt, because the rerun publishes that attempt's attested manifest; that the rerun receives that manifest is covered by the `release-failed-jobs-rerun-recovers-publish` claim, not here.
 
 #### `release-single-publish-patch`
 
 The only publication mutation is one PATCH turning the admitted draft non-draft and requesting Latest after the complete five-file readback; no deletion, tag movement or rollback is ever issued.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by stateful model.
 - Source: `docs/publishing.md`: “The only publication PATCH changes the admitted draft to non-draft and requests Latest after the complete five-file readback.”
-- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/npm-release-workflow.test.ts`
+- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/github-release-publish-model.test.ts`, `scripts/npm-release-workflow.test.ts`
+- Property tests: `scripts/github-release-publish-model.test.ts`: “stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws”
 - Assumptions: `github-api`, `github-enforcement`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.
+  - CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.
+  - The model rejects any command outside the publisher's exact reads and three write shapes, so a DELETE, a tag write, or a second PATCH fails it; Git ref writes made outside `publishCanonicalRelease` are covered only by the workflow's example tests.
 
 #### `release-closure-check-before-each-write`
 
 Before each draft creation, missing-asset upload and publication, the helper proves C<=M on fully qualified main and tag refs, requires unchanged release-control closure, and observes two equal combined main-plus-tag advertisements around the proof.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by stateful model.
 - Source: `docs/publishing.md`: “Before each draft creation, missing-asset upload, and publication, fetch only the fully qualified governed main and tag refs, prove `C<=M`, and require unchanged release controls”
-- Evidence: `scripts/release-ref-authority.test.ts`
+- Evidence: `scripts/github-release-publish-model.test.ts`, `scripts/release-ref-authority.test.ts`
+- Property tests: `scripts/github-release-publish-model.test.ts`: “stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws”
 - Assumptions: `github-api`, `github-enforcement`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.
+  - CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.
+  - The model checks that a successful `publication-prewrite` run of the ref-authority helper on current main immediately precedes each draft creation, upload, and publication, and that a failing helper blocks the write. It treats the helper as a black box: its `C<=M` proof, release-control closure, and two equal combined advertisements are covered only by the example tests in `scripts/release-ref-authority.test.ts`.
 
 #### `release-completed-release-original-identity`
 
 A completed Release is accepted only with its original signed identity and exact bot/body receipt; a newly rebuilt artifact never satisfies an existing Release, and a front-run Release or one from another run fails closed.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by stateful model.
 - Source: `docs/publishing.md`: “A completed release is accepted only with its original signed identity, never with a newly rebuilt artifact.”
-- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/npm-release-workflow.test.ts`
+- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/github-release-publish-model.test.ts`, `scripts/npm-release-workflow.test.ts`
+- Property tests: `scripts/github-release-publish-model.test.ts`: “stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws”
 - Assumptions: `github-api`, `github-enforcement`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.
+  - CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.
+  - The model covers the bot author (including an owner-authored completed Release that copies the exact receipt body and asset bytes), exact receipt body, and stored bytes; the signed attestation identity is verified before publication and covered by the `release-attestation-before-mutation` claim's example tests, not by the model.
 
 #### `release-latest-convergence-bounded`
 
 When creating a missing Release, the workflow pins one older immutable Latest predecessor; Latest may only remain that predecessor or advance to the exact target within at most twelve 5-second absolute slots in a 60-second monotonic deadline; any third identity, regression, drift, clock regression or exhaustion fails closed.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by property test.
 - Source: `docs/publishing.md`: “GitHub's Latest projection may remain only that exact predecessor or advance to the exact created target while the workflow makes at most twelve observations at absolute five-second slots inside one 60-second monotonic deadline.”
-- Evidence: `scripts/release-provider-outcome.test.ts`
+- Evidence: `scripts/github-release-publish-model.test.ts`, `scripts/release-provider-outcome.test.ts`
+- Property tests: `scripts/release-provider-outcome.test.ts`: “property: Latest converges only through the exact predecessor to the exact target inside twelve absolute slots and 60 seconds”
 - Assumptions: `monotonic-clock`, `github-api`, `github-enforcement`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The property drives `waitForLatestRelease` with a fake API, monotonic clock, and sleeper. The production publisher's `gh api` reader ignores the per-request timeout it is passed and bounds each read only by its 120-second command timeout; a read that completes after the 60-second deadline fails closed, so the deadline bounds acceptance, not wall time.
+  - The publisher model checks that a fresh publication reads Latest as the target after its terminal authority proof, and one example test in it drives a lagging Latest projection through the production wait on a fake clock; the stateful schedules themselves project Latest immediately.
+  - The publisher model checks that no draft is created while Latest is a completed Release under a non-stable tag, which the completed-Release census skips; the other refusals of `exactLatestPredecessor` (a mutable, malformed, or not strictly older Latest) rest on its example tests in the same file.
+  - How quickly GitHub's Latest projection converges is not verified; the window is a fail-closed ceiling.
 
 #### `release-never-delete-published`
 
 A published immutable Release is never deleted or rewritten, even if terminal readback fails after publication; historical versions, tags and assetless Releases are preserved.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by stateful model.
 - Source: `docs/publishing.md`: “Preserve that immutable release and inspect current authority; never delete or rewrite it.”
-- Evidence: `scripts/github-release-artifact.test.ts`
+- Evidence: `scripts/github-release-artifact.test.ts`, `scripts/github-release-publish-model.test.ts`
+- Property tests: `scripts/github-release-publish-model.test.ts`: “stateful model: every schedule of attempts, faults, and foreign releases keeps the publisher's write laws”
 - Assumptions: `github-api`, `github-enforcement`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - The publisher model drives the production `publishCanonicalRelease` and its bounded asset downloader against an in-memory fake of GitHub; that GitHub behaves like the fake (drafts invisible to the by-tag endpoint, one published Release per tag, `gh release upload` resolving a tag to its published Release or else the newest draft) is the `github-api` assumption.
+  - CI samples up to 1,000 schedules of at most 12 commands; it does not enumerate every interleaving.
+  - The model's history is one assetless predecessor Release; larger histories and tag deletion outside the publisher are not modelled, and the tag rulesets that forbid tag deletion are `github-enforcement` configuration.
 
 #### `stable-release-concurrency-no-cancel-pending`
 
 The stable-release concurrency group serializes Release runs without cancelling a pending tag run.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by example test.
 - Source: `docs/publishing.md`: “The workflow's `stable-release` concurrency group and npm's version immutability serialize publication”
-- Evidence: none
+- Evidence: `scripts/npm-release-workflow.test.ts`
 - Assumptions: `github-api`, `github-enforcement`
 - Not verified:
-  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4; no automated check covers it yet.
-  - The plan records that the `stable-release` concurrency group can cancel a pending tag run.
+  - The test checks the workflow's single `stable-release` concurrency group with `cancel-in-progress: false` and `queue: max`, and that no job declares its own group. That GitHub then queues pending runs in order is the `github-enforcement` assumption; GitHub still cancels pending runs beyond 100 in the group.
+  - No live run has exercised three overlapping tag pushes.
 
 #### `release-failed-jobs-rerun-recovers-publish`
 
@@ -2867,12 +2932,15 @@ Only a verified Production build emits `/.well-known/wrench-release.json`, after
 
 During outcome the apex marker may show only the baseline identity or the exact target; a third identity, changed same-release deployment URL, target-to-baseline regression or disagreement with pinned status URLs fails closed.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by Quint model with production trace replay.
 - Source: `AGENTS.md`: “Outcome requires that deployment URL to equal the pinned status URLs, permits only baseline-to-target movement”
 - Also covers: `website/AGENTS.md`: “Public outcome checks require that URL to equal the pinned deployment status”
-- Evidence: `scripts/npm-release-workflow.test.ts`
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/verification-promotion-replay.test.ts`, `verification/quint/promotion.qnt`
 - Assumptions: `vercel`
-- Not verified: The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Not verified:
+  - `verification/quint/promotion.qnt` checks one run of the website production workflow after its verify job, with seven abstract commits, one release tag, and a three-observation poll budget, against an environment that may move protected main, the production ref, and the tag, replace Latest, finish or fail the Vercel deployment, change the apex marker, and arm one of ten readback drifts between the two terminal readbacks. Quint simulation checks it with 3,000 samples of up to 14 steps and Apalache to length 11 in the Required verification job (every mutant step is found at that length; at length 10 the single-readback mutant is not), and the nightly workflow repeats it with 10,000 samples of up to 20 steps and Apalache to length 12.
+  - Its ITF replay runs the production `revalidateReleaseAuthority`, `createProviderBaseline`, `promoteWebsiteProduction`, and `waitForProviderOutcome` on 300 traces of up to 14 steps per step relation, and the production writer's real `/usr/bin/git` tag fetch, peel, and `--force-with-lease` push against a local bare repository. GitHub's REST and GraphQL answers and the public site are stubs computed from the model state, and longer schedules, more commits, and the production poll budget of 20 are not modelled.
+  - The model's apex marker takes four identities: the baseline, the target at the pinned deployment URL, the target at another deployment URL, and a third release. The replay reaches each refusal: a third identity, a target-to-baseline regression, a changed same-release deployment URL, and disagreement with the pinned status URL. Marker parsing and its canonical form are separate claims.
 
 #### `website-production-build-release-verified`
 
