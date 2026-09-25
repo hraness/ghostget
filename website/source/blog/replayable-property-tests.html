@@ -1,0 +1,55 @@
+<p>When one of Ghostget&#39;s generated tests fails, the report includes the seed that started the random generator and the shrink path to the smallest failing input. Passing those two values back reruns that exact case, on any machine, as often as needed. For two of its data formats, the tests also compare Ghostget&#39;s output with a separate Rust program written to the same rules.</p>
+<p>This matters because of what Ghostget does. It sits between an AI agent and a person&#39;s own accounts, and after that person confirms a preview, it sends messages and posts there for them. A bug that shows up once in CI and then passes on the rerun is one Ghostget cannot afford to shrug off as flaky.</p>
+<h2 id="a-failure-you-cannot-repeat-is-a-failure-you-keep">A failure you cannot repeat is a failure you keep</h2>
+<p>A lot of software now gets written quickly by a model, looks finished, and breaks on the second use. Call it vibe-coded slop. The tests that come with it usually check the three cases the author thought of, and the bug lives in a fourth: a name with an unusual character, an empty reply, a network drop halfway through a save.</p>
+<p>Under that sits a fragile foundation: when a product is built on pieces nobody checked, each new feature inherits their bugs, and the failures that do show up are hard to pin down. &quot;It only breaks if you save, lose connection, then reopen&quot; is the kind of report that is slow to reproduce by hand. If the test that caught it cannot repeat it, the fix is a guess.</p>
+<h2 id="when-every-failure-arrives-with-its-own-recipe">When every failure arrives with its own recipe</h2>
+<p>With property tests, you write the rule the code must follow, and the computer invents hundreds of inputs to try against it. When one breaks the rule, the computer shrinks it to the smallest input that still breaks it and writes down exactly how it produced that input.</p>
+<p>That note turns a failure into a recipe: anyone can run it again, on any machine, and watch the same thing go wrong. Once the bug is fixed, the recipe can be checked into the repository, where that test replays it before trying new inputs, so the same bug cannot return quietly. Far fewer failures end up as &quot;it failed once and we never saw it again&quot;.</p>
+<p>Ghostget adds one more step for its data formats. For two of them, a second program written separately in another language follows the same written rules, and the tests compare the two outputs on generated inputs. When they disagree, one of them has misread the standard.</p>
+<h2 id="rules-first-then-generated-inputs">Rules first, then generated inputs</h2>
+<p>Ghostget&#39;s generated tests use fast-check, a TypeScript library for property tests. A property is a rule stated over all inputs of some kind. Here is the shape of one, written for this post:</p>
+<pre><code class="language-ts">// Rule: reading a service&#39;s JSON result and writing it back changes nothing.
+assertProperty(
+  fc.property(fc.jsonValue(), (output) =&gt; {
+    const parsed = parseResult({ status: &quot;succeeded&quot;, output });
+    expect(parsed.output).toEqual(output);
+  }),
+);
+</code></pre>
+<p><code>fc.jsonValue()</code> produces arbitrary JSON: nested objects, arrays, odd strings, large and tiny numbers. By default each property tries 200 generated cases, and a property that runs longer than 10 seconds counts as a failure. A nightly job multiplies every property&#39;s run count, and its time limit, by 20 unless someone asks for a different factor. That job blocks no merge or release; a failure there is triaged.</p>
+<p>Every property in the repository goes through two shared helpers, <code>assertProperty</code> and <code>assertAsyncProperty</code>. A policy test rejects any direct call to fast-check&#39;s own runner, so the replay rules below apply to all of them.</p>
+<h2 id="each-failure-prints-its-seed-and-path">Each failure prints its seed and path</h2>
+<p>When a property fails, fast-check reports two things: the seed that started its random generator, and the shrink path that leads from the first failing input to the smallest one. Together they are a replay coordinate. A contributor reruns exactly that case, and only that property, like this:</p>
+<pre><code class="language-sh">GHOSTGET_PROPERTY_SEED=&lt;seed from the report&gt; \
+GHOSTGET_PROPERTY_PATH=&lt;path from the report&gt; \
+bun test &lt;test file&gt; --test-name-pattern &#39;^&lt;property name&gt;$&#39;
+</code></pre>
+<p>The helpers are strict about this input. A path without its seed is refused, because a path means nothing without the seed that produced it. The seed must be a whole number that fits in 32 bits, and a path must be short, well formed, and limited in how much replay work it asks for. A mistyped coordinate fails loudly instead of replaying some other case.</p>
+<h2 id="one-failure-that-became-a-permanent-test">One failure that became a permanent test</h2>
+<p>A required CI run failed in the property that checks how Ghostget reads back the result of a read action. The fix itself landed separately, and on 2026-09-23 the repository added a named test that carries the failure&#39;s coordinate. Shrunk, the failing output was this:</p>
+<pre><code class="language-json">{&quot;__proto__&quot;:0}
+</code></pre>
+<p>In JavaScript, <code>__proto__</code> is a special name. <code>JSON.parse</code> keeps it as an ordinary key, but code that copies keys one at a time by assignment can end up changing the copied object&#39;s prototype instead, and the key disappears. The reader was fixed, and the fix is now held by three guards:</p>
+<ol>
+<li>A named example test round-trips <code>{&quot;__proto__&quot;:0}</code> and a nested variant, and checks that the key is still there.</li>
+<li>On 2026-09-24 the seed and path went into a small checked-in seed corpus, so the property replays that coordinate before its ordinary random run, every time.</li>
+<li>A second test asks fast-check to generate the value at that coordinate and checks that it is still <code>{&quot;__proto__&quot;:0}</code>. If a fast-check upgrade moves what a coordinate produces, that test fails and says the corpus entry needs to be found again.</li>
+</ol>
+<p>On 2026-09-24 the corpus held this one entry. Contributors add to it when a failure is found, or when a seed is worth replaying for another reason.</p>
+<h2 id="sequences-of-actions-with-crashes-in-between">Sequences of actions, with crashes in between</h2>
+<p>Some rules concern the order of actions. For those, Ghostget uses fast-check&#39;s command sequences, where the generator invents a list of actions and a simple model says what should be true after each one. The crash tests are the clearest case. The strictest of their rules is about sends: after any crash, a confirmed request reaches the service at most once, and a request that did cross is never forgotten and sent again. A simpler rule, about private files, reads like this in a sketch written for this post:</p>
+<pre><code class="language-ts">// Rule: after any sequence of writes, each possibly interrupted by a crash,
+// the file holds the old value or the new value, never a torn mix.
+fc.commands([writeThatMayCrash, readBack]);
+</code></pre>
+<p>The harness kills the process at a generated point, at one of the steps that make a change durable (creating, writing, renaming, or removing a file or directory, or flushing it to disk). It injects four kinds of fault there: a crash just before the step, one just after, a torn data write, and a simulated power loss that rolls back every change no flush had made durable. The crash position is part of the generated input, so the same seed and path select the same failing sequence and crash point.</p>
+<h2 id="checking-the-output-against-a-second-program">Checking the output against a second program</h2>
+<p>Two of Ghostget&#39;s outputs follow written rules, so the tests compare them with a separate program: a small Rust tool in the repository, used only for testing and never shipped.</p>
+<p><strong>Canonical JSON.</strong> Ghostget writes some JSON in one fixed form so that the same value always hashes to the same digest. The rules for that form come from RFC 8785. The Rust tool implements RFC 8785 separately, with its own strict parser, and the tests feed both sides the same generated values and require identical text. Key order is where a second reading pays off: RFC 8785 sorts object keys by UTF-16 code units, so <code>{&quot;B&quot;:1,&quot;a&quot;:2}</code> is already in order, because capital letters come before lowercase ones. Sorting by a language&#39;s usual alphabetical order would put <code>a</code> first and produce a different digest.</p>
+<p><strong>Public URLs.</strong> Before Ghostget&#39;s web gateway requests a URL for an agent, it decides whether the URL is one it will accept. The Rust tool parses each candidate with the Rust <code>url</code> crate, applies the gateway&#39;s written policy. The tests require both sides to make the same decision. For every URL either side accepts, the tests also require the same parsed parts, apart from the named parser differences below.</p>
+<p>The repository also tests the comparison tests. It plants known mistakes, such as sorting keys by locale order or by UTF-8 bytes, or dropping the plus sign in a number&#39;s exponent, and checks that the comparison catches each one. Where the two URL parsers are known to differ, for example in how they encode <code>^</code> in a path, a test names the difference and checks that Ghostget refuses those inputs.</p>
+<h2 id="what-these-tests-leave-unproved">What these tests leave unproved</h2>
+<p>Ghostget keeps a public register of its claims, and on 2026-09-24 it listed 16 property claims (15 with checks that run, 1 planned), 15 command-sequence model claims (2 with checks that run, 13 planned), and 4 comparison claims (3 with checks that run, 1 planned). One of the three that run compares fixed test vectors from a separate Python generator rather than a second live program. The planned comparison checks the address filter that runs after a web host&#39;s name is resolved; no independent program covers it yet.</p>
+<p>Generated inputs are samples. The default of 200 cases per property, multiplied by 20 at night, is not a proof over every input. The crash tests run one or two generated schedules per property in each CI run. The RFC 8785 program was written from the standard without reference to the TypeScript, but by the same author, so a misreading that both share would pass. One known gap is recorded: for a lone surrogate, Ghostget&#39;s canonical JSON writes an escape where RFC 8785 refuses the input, and a test pins that difference. The URL oracle also restates Ghostget&#39;s written policy, so a rule missing from both the policy text and the code goes unnoticed. None of these tests exercises a live service, browser, or operating system.</p>
+<p>Latest release: {{GHOSTGET_RELEASE}}. The register and the tests described here live in the Ghostget repository on GitHub, under the MIT license.</p>
