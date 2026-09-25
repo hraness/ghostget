@@ -1676,6 +1676,8 @@ describe("npm publication contract", () => {
       "@hraness/ghostget/messaging": ["./src/messaging.ts"],
       "@hraness/ghostget/messaging-automation": ["./src/messaging-automation-types.ts"],
       "@hraness/ghostget/contracts": ["./src/contracts.ts"],
+      // Type checking only: keeps Next's global augmentations out of Ghostget's programs.
+      next: ["./website/next-types.d.ts"],
     });
     const releaseNodeImports = releaseWorkflow.match(/await Promise\.all\(\[(.*?)\]\.map/u)?.[1];
     expect(releaseNodeImports).toBeDefined();

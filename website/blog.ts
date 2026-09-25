@@ -580,10 +580,22 @@ export function renderBuiltOnEntries(items: readonly PortfolioRelatedItem[] = gh
   }).filter((entry) => entry !== "").join("\n");
 }
 
+/** The visible text of a heading's inner HTML: every tag dropped, then the two entities the sources use decoded. */
+function headingLabel(innerHtml: string): string {
+  let text = "";
+  let inTag = false;
+  for (const character of innerHtml) {
+    if (character === "<") inTag = true;
+    else if (character === ">") inTag = false;
+    else if (!inTag) text += character;
+  }
+  return text.replaceAll("&#39;", "’").replaceAll("&amp;", "&");
+}
+
 function tocFromBody(bodyHtml: string): { href: `#${string}`; label: string }[] {
   return [...bodyHtml.matchAll(/<h2 id="([^"]+)">(.*?)<\/h2>/gu)].map((match) => ({
     href: `#${match[1]!}` as const,
-    label: match[2]!.replace(/<[^>]+>/gu, "").replaceAll("&#39;", "’").replaceAll("&amp;", "&"),
+    label: headingLabel(match[2]!),
   }));
 }
 
