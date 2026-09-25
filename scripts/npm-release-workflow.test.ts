@@ -1291,7 +1291,7 @@ describe("npm publication contract", () => {
     expect(timeoutValues(standaloneJob)).toEqual([20]);
     expect(timeoutValues(macosJob)).toEqual([45]);
     expect(timeoutValues(verificationJob)).toEqual([30]);
-    expect(timeoutValues(quintJob)).toEqual([25]);
+    expect(timeoutValues(quintJob)).toEqual([35]);
     expect(timeoutValues(requiredJob)).toEqual([5]);
     expect(staticJob.match(/^      - run: bun run check:static$/gmu) ?? []).toHaveLength(1);
     expect(packageJob.match(/^      - run: bun run check:package$/gmu) ?? []).toHaveLength(1);
