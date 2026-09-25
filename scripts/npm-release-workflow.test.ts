@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -75,7 +76,7 @@ import {
 } from "./release-ref-writer.mjs";
 
 import { releaseIdentity } from "../website/github-release-artifact.mjs";
-import { assertProperty, fc } from "../src/test-support.js";
+import { assertAsyncProperty, assertProperty, fc } from "../src/test-support.js";
 
 const ciWorkflowUrl = new URL("../.github/workflows/ci.yml", import.meta.url);
 const releaseWorkflowUrl = new URL("../.github/workflows/release.yml", import.meta.url);
@@ -1245,6 +1246,7 @@ describe("npm publication contract", () => {
     const standaloneStart = workflow.indexOf("\n  standalone:\n");
     const macosStart = workflow.indexOf("\n  macos:\n");
     const verificationStart = workflow.indexOf("\n  verification:\n");
+    const quintStart = workflow.indexOf("\n  quint:\n");
     const requiredStart = workflow.indexOf("\n  required:\n");
 
     expect(workflow.match(/^  static:$/gmu)).toHaveLength(1);
@@ -1254,9 +1256,10 @@ describe("npm publication contract", () => {
     expect(workflow.match(/^  standalone:$/gmu)).toHaveLength(1);
     expect(workflow.match(/^  macos:$/gmu)).toHaveLength(1);
     expect(workflow.match(/^  verification:$/gmu)).toHaveLength(1);
+    expect(workflow.match(/^  quint:$/gmu)).toHaveLength(1);
     expect(workflow.match(/^  required:$/gmu)).toHaveLength(1);
     expect(workflow.match(/^  check:$/gmu) ?? []).toHaveLength(0);
-    expect(workflow.match(/^    timeout-minutes: [0-9]+$/gmu)).toHaveLength(8);
+    expect(workflow.match(/^    timeout-minutes: [0-9]+$/gmu)).toHaveLength(9);
     expect(staticStart).toBeGreaterThan(-1);
     expect(packageStart).toBeGreaterThan(staticStart);
     expect(testStart).toBeGreaterThan(packageStart);
@@ -1264,7 +1267,8 @@ describe("npm publication contract", () => {
     expect(standaloneStart).toBeGreaterThan(testOmniStart);
     expect(macosStart).toBeGreaterThan(standaloneStart);
     expect(verificationStart).toBeGreaterThan(macosStart);
-    expect(requiredStart).toBeGreaterThan(verificationStart);
+    expect(quintStart).toBeGreaterThan(verificationStart);
+    expect(requiredStart).toBeGreaterThan(quintStart);
 
     const staticJob = workflow.slice(staticStart, packageStart);
     const packageJob = workflow.slice(packageStart, testStart);
@@ -1272,7 +1276,8 @@ describe("npm publication contract", () => {
     const testOmniJob = workflow.slice(testOmniStart, standaloneStart);
     const standaloneJob = workflow.slice(standaloneStart, macosStart);
     const macosJob = workflow.slice(macosStart, verificationStart);
-    const verificationJob = workflow.slice(verificationStart, requiredStart);
+    const verificationJob = workflow.slice(verificationStart, quintStart);
+    const quintJob = workflow.slice(quintStart, requiredStart);
     const requiredJob = workflow.slice(requiredStart);
 
     const timeoutValues = (job: string): readonly number[] =>
@@ -1281,28 +1286,38 @@ describe("npm publication contract", () => {
 
     expect(timeoutValues(staticJob)).toEqual([15]);
     expect(timeoutValues(packageJob)).toEqual([20]);
-    expect(timeoutValues(testJob)).toEqual([40]);
+    expect(timeoutValues(testJob)).toEqual([25]);
     expect(timeoutValues(testOmniJob)).toEqual([25]);
     expect(timeoutValues(standaloneJob)).toEqual([20]);
     expect(timeoutValues(macosJob)).toEqual([45]);
-    expect(timeoutValues(verificationJob)).toEqual([35]);
+    expect(timeoutValues(verificationJob)).toEqual([30]);
+    expect(timeoutValues(quintJob)).toEqual([25]);
     expect(timeoutValues(requiredJob)).toEqual([5]);
     expect(staticJob.match(/^      - run: bun run check:static$/gmu) ?? []).toHaveLength(1);
     expect(packageJob.match(/^      - run: bun run check:package$/gmu) ?? []).toHaveLength(1);
     expect(packageJob).toContain("git status --porcelain --untracked-files=all -- dist bun.lock");
     expect(packageJob).toContain("./dist/index.js");
     expect(testJob).toContain("bun run ./scripts/ci-test-shard.ts");
-    expect(testJob).toContain("shard: [1, 2, 3, 4]");
+    expect(testJob).toContain("shard: [1, 2, 3, 4, 5, 6, 7, 8]");
     expect(testOmniJob.match(/^      - run: bun run test:omni$/gmu) ?? []).toHaveLength(1);
     expect(standaloneJob.match(/^      - run: bun run test:standalone$/gmu) ?? []).toHaveLength(1);
     expect(macosJob.match(/^      - run: bun run check:macos$/gmu) ?? []).toHaveLength(1);
     expect(macosJob).not.toContain("desktop");
     expect(macosJob.match(/^      - run: bun run check$/gmu) ?? []).toHaveLength(0);
-    expect(verificationJob.match(/^      - run: bun run verify$/gmu) ?? []).toHaveLength(1);
-    expect(workflow.match(/^      - run: bun run verify$/gmu) ?? []).toHaveLength(1);
+    // `bun run verify` is split into its phases: three run once in the
+    // verification job and verify:quint runs as the quint matrix.
+    for (const phase of ["verify:claims", "verify:lean", "verify:oracles"]) {
+      expect(verificationJob.match(new RegExp(`^      - run: bun run ${phase}$`, "gmu")) ?? []).toHaveLength(1);
+      expect(workflow.match(new RegExp(`^      - run: bun run ${phase}$`, "gmu")) ?? []).toHaveLength(1);
+    }
+    expect(quintJob).toContain("shard: [1, 2, 3, 4]");
+    expect(quintJob.match(/^      - run: bun run \.\/scripts\/verification-tools\.ts quint \$\{\{ matrix\.shard \}\} 4$/gmu) ?? [])
+      .toHaveLength(1);
+    expect(workflow.match(/^      - run: bun run verify$/gmu) ?? []).toHaveLength(0);
+    expect(workflow.match(/^      - run: bun run verify:quint$/gmu) ?? []).toHaveLength(0);
     expect(requiredJob.match(/^      - run: bun run check$/gmu) ?? []).toHaveLength(0);
     expect(requiredJob.match(
-      /^    needs: \[static, package, test, test-omni, standalone, macos, verification\]$/gmu,
+      /^    needs: \[static, package, test, test-omni, standalone, macos, verification, quint\]$/gmu,
     ) ?? []).toHaveLength(1);
     expect(workflow.match(/^      - run: bun run check$/gmu) ?? []).toHaveLength(0);
   });
@@ -1405,13 +1420,13 @@ describe("npm publication contract", () => {
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
     expect(Object.isFrozen(repairPackageMeasurement)).toBeTrue();
     expect(repairPackageMeasurement).toMatchObject({
-      archiveSha256: "d00e25fa513d0d5bfcbdf8fa407d82b99641164f976ddd913f741a156c25a8c1",
-      packedBytes: 12_004_958, unpackedBytes: 23_467_425, entryCount: 596,
+      archiveSha256: "0db7a4879c287a20cadee309286755cdcfb00a6d67112f75c2cbcc827b809250",
+      packedBytes: 12_005_010, unpackedBytes: 23_467_598, entryCount: 596,
       packedPlatformProjection: 12_387, packedPortabilityAllowance: 4_096,
       payloadPlatformProjection: 353, payloadAllowance: 65,
     });
-    expect(MAX_PACKED_BYTES).toBe(12_021_441);
-    expect(MAX_PACKED_BYTES).toBe(12_004_958 + 12_387 + 4_096);
+    expect(MAX_PACKED_BYTES).toBe(12_021_493);
+    expect(MAX_PACKED_BYTES).toBe(12_005_010 + 12_387 + 4_096);
     expect(budget).toContain("12,004,806 + 12,387 + 4,096 =");
     expect(budget).toContain("12,003,367 + 12,387 + 4,096 =");
     expect(budget).toContain("23,462,195 + 353 + 65 = 23,462,613");
@@ -1526,7 +1541,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("23,029,751 + 353 + 65 = 23,030,169");
     expect(budget).toContain("23,193,728 + 65 = 23,193,793");
     expect(budget).toContain("47684b3e2eb5cf3ed07fbb520aade8c7251d993f75262fbf1af627d9081a1a5f");
-    expect(MAX_UNPACKED_BYTES).toBe(23_467_843);
+    expect(MAX_UNPACKED_BYTES).toBe(23_468_016);
     expect(budget).toContain("23,037,873 + 65 = 23,037,938");
     expect(budget).toContain("f9f3ab38a682690ceaa2699a7309997512030f0fa500a9dc29dcd108123dc41f");
     expect(budget).toContain("23,038,557 + 65 = 23,038,622");
@@ -1559,7 +1574,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("01875f12ab73a49d6c7d6bf520dc3d318db816addee2fa7981889f35c958cf7c");
     expect(budget).toContain("b12909f08f7c19460ced56e30619f4860a1183f4b0106170c07837dae577a937");
     expect(budget).toContain("0b212ac291218528dcf979370110a36f10850e046ca90a536057d9a44e807d1d");
-    expect(MAX_UNPACKED_BYTES).toBe(23_467_425 + 353 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(23_467_598 + 353 + 65);
     expect(budget).toContain("22,794,052 + 65 = 22,794,117");
     expect(budget).toContain("c482efe748f880e3717727d6d39fd92a68953e6eea766642b329ba47ae772d80");
     expect(budget).toContain("22,759,423 + 65 = 22,759,488");
@@ -1595,8 +1610,8 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 596, max: 596 },
       fileCount: { min: 596, max: 596 },
-      packedBytes: { min: 1_600_000, max: 12_021_441 },
-      unpackedBytes: { min: 9_000_000, max: 23_467_843 },
+      packedBytes: { min: 1_600_000, max: 12_021_493 },
+      unpackedBytes: { min: 9_000_000, max: 23_468_016 },
     });
   });
 
@@ -2308,6 +2323,68 @@ describe("npm publication contract", () => {
       }
     } finally {
       await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  test("serializes stable Release runs in one queued concurrency group that never cancels a pending tag run", async () => {
+    // GitHub keeps one running and one pending run per concurrency group and
+    // cancels the pending run when a third arrives, unless the group sets
+    // `queue: max`, which queues up to 100 pending runs in order. A Release
+    // run cancelled while pending never builds, attests, or publishes its tag.
+    const workflow = await readFile(releaseWorkflowUrl, "utf8");
+    const parsed = Bun.YAML.parse(workflow) as {
+      concurrency?: unknown;
+      jobs: Record<string, { concurrency?: unknown }>;
+    };
+    expect(parsed.concurrency).toEqual({ group: "stable-release", "cancel-in-progress": false, queue: "max" });
+    expect(Object.entries(parsed.jobs).filter(([, job]) => job.concurrency !== undefined).map(([name]) => name)).toEqual([]);
+    expect(workflow.match(/^\s*concurrency:/gmu)).toHaveLength(1);
+    expect(workflow.match(/cancel-in-progress/gu)).toHaveLength(1);
+  });
+
+  test("runs npm publication only after the canonical jobs succeed, and canonical jobs never wait on npm", async () => {
+    const workflow = await readFile(releaseWorkflowUrl, "utf8");
+    const parsed = Bun.YAML.parse(workflow) as {
+      jobs: Record<string, {
+        if?: unknown; needs?: string | string[]; "continue-on-error"?: unknown;
+        steps?: { if?: unknown; "continue-on-error"?: unknown }[];
+      }>;
+    };
+    const needs = (name: string): readonly string[] => {
+      const value = parsed.jobs[name]?.needs;
+      return value === undefined ? [] : typeof value === "string" ? [value] : value;
+    };
+    // Every transitive prerequisite, so an indirect dependency on npm is caught too.
+    const closure = (name: string): ReadonlySet<string> => {
+      const seen = new Set<string>();
+      const pending = [...needs(name)];
+      while (pending.length > 0) {
+        const next = pending.pop()!;
+        if (seen.has(next)) continue;
+        seen.add(next);
+        pending.push(...needs(next));
+      }
+      return seen;
+    };
+    expect(Object.keys(parsed.jobs)).toEqual(["authorize", "verify", "attest", "publish", "publish_npm", "admit_npm"]);
+    expect([...closure("publish_npm")].sort()).toEqual(["attest", "authorize", "publish", "verify"]);
+    for (const canonical of ["authorize", "verify", "attest", "publish"]) {
+      const prerequisites = closure(canonical);
+      expect(prerequisites.has("publish_npm") || prerequisites.has("admit_npm")).toBe(false);
+    }
+    // A job-level `if:` could run npm after a failed or skipped prerequisite
+    // (`always()`, `failure()`, `!cancelled()`); without one, GitHub runs a job
+    // only when every needed job succeeded. publish_npm needs authorize only
+    // through verify, so an `if:` on any job, not just the npm jobs, could
+    // carry npm past a failed canonical job. No job may tolerate its own failure.
+    for (const [name, job] of Object.entries(parsed.jobs)) expect([name, job.if]).toEqual([name, undefined]);
+    for (const [name, job] of Object.entries(parsed.jobs)) expect([name, job["continue-on-error"]]).toEqual([name, undefined]);
+    // A tolerated or conditionally skipped step would let a canonical job succeed
+    // without doing its work, and npm would then publish after it.
+    for (const [name, job] of Object.entries(parsed.jobs)) {
+      (job.steps ?? []).forEach((step, index) => {
+        expect([name, index, step["continue-on-error"], step.if]).toEqual([name, index, undefined, undefined]);
+      });
     }
   });
 
@@ -3122,8 +3199,8 @@ fi
         if (writes.length === 1) workflowWriters.push(`${filename}:${name}`);
       }
     }
-    expect(workflowWriters).toEqual(["release.yml:publish"]);
-    expect(contentsWriteOccurrences).toBe(1);
+    expect(workflowWriters).toEqual(["dependabot-auto-merge.yml:enable", "release.yml:publish"]);
+    expect(contentsWriteOccurrences).toBe(2);
     expect(workflow).not.toContain("VERCEL_TOKEN");
     expect(workflow).not.toContain("projectSettings");
     expect(workflow).not.toContain("redeploy");
@@ -5225,7 +5302,11 @@ fi
         return {
           status: 0,
           stderr: "",
-          stdout: args.includes("rev-parse") ? `${providerVerifiedSha}\n` : "ok",
+          stdout: args.includes("rev-parse")
+            ? `${providerVerifiedSha}\n`
+            : args.includes("push")
+              ? `To https://github.com/hraness/ghostget.git\n \t${providerVerifiedSha}:refs/heads/website-production\t${providerPreviousSha.slice(0, 7)}..${providerVerifiedSha.slice(0, 7)}\nDone\n`
+              : "ok",
         };
       },
       verifiedSha: providerVerifiedSha,
@@ -5344,6 +5425,108 @@ fi
       ], directory)).toBe(second);
     } finally {
       await chmod(directory, 0o700).catch(() => undefined);
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  test("fails a leased write closed when the remote already holds the release commit", async () => {
+    // Regression for the promotion.qnt replay: Git reports a stale lease as
+    // `[up to date]` with exit 0 when the remote already holds the pushed
+    // commit, so the writer must require its own fast-forward in the porcelain.
+    const directory = await mkdtemp(join(tmpdir(), "ghostget-ref-uptodate-"));
+    const remote = join(directory, "remote.git");
+    const work = join(directory, "work");
+    const environment = {
+      GIT_AUTHOR_DATE: "1788000000 +0000",
+      GIT_AUTHOR_EMAIL: "test@example.invalid",
+      GIT_AUTHOR_NAME: "Ghostget lease test",
+      GIT_COMMITTER_DATE: "1788000000 +0000",
+      GIT_COMMITTER_EMAIL: "test@example.invalid",
+      GIT_COMMITTER_NAME: "Ghostget lease test",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+      PATH: "/usr/bin:/bin",
+    };
+    const checkedGit = (arguments_: readonly string[], cwd = directory, stdin = ""): string => {
+      const result = Bun.spawnSync(["/usr/bin/git", ...arguments_], {
+        cwd,
+        env: environment,
+        stderr: "pipe",
+        stdin: Buffer.from(stdin),
+        stdout: "pipe",
+      });
+      if (result.exitCode !== 0) throw new Error(result.stderr.toString());
+      return result.stdout.toString().trim();
+    };
+    const advance = (expectedOldSha: string, verifiedSha: string): void => advanceWebsiteProductionRef({
+      environment: { WRENCH_RELEASE_APP_TOKEN: "ghs_lease-test-token" },
+      expectedOldSha,
+      repository: providerRepository,
+      spawnImplementation: (
+        executable: string,
+        args: readonly string[],
+        options: Parameters<typeof spawnSync>[2],
+      ) => spawnSync(
+        executable,
+        args.map((value) => value === "https://github.com/hraness/ghostget.git" ? `file://${remote}` : value),
+        { ...options, cwd: work },
+      ),
+      verifiedSha,
+      verifiedTag: providerTag,
+    });
+    const productionRef = (): string =>
+      checkedGit(["--git-dir", remote, "rev-parse", "refs/heads/website-production"]);
+
+    try {
+      checkedGit(["init", "--quiet", "--bare", remote]);
+      checkedGit(["init", "--quiet", work]);
+      const tree = checkedGit(["mktree"], remote);
+      const previous = checkedGit(["commit-tree", tree, "-m", "previous"], remote);
+      const release = checkedGit(["commit-tree", tree, "-p", previous, "-m", "release"], remote);
+      checkedGit(["update-ref", `refs/tags/${providerTag}`, release], remote);
+      checkedGit(["update-ref", "refs/heads/website-production", previous], remote);
+
+      advance(previous, release);
+      expect(productionRef()).toBe(release);
+
+      // Another writer already moved the ref to the release commit: the lease
+      // on `previous` is stale and this writer performed no update.
+      expect(() => advance(previous, release))
+        .toThrow("website-production Git push did not update the ref from the leased SHA");
+      expect(productionRef()).toBe(release);
+
+      const line = (flag: string, source: string, ref: string, summary: string): string =>
+        `To https://github.com/hraness/ghostget.git\n${flag}\t${source}:${ref}\t${summary}\nDone\n`;
+      const productionBranch = "refs/heads/website-production";
+      const short = (sha: string): string => sha.slice(0, 7);
+      for (const [stdout, accepted] of [
+        [line(" ", release, productionBranch, `${short(previous)}..${short(release)}`), true],
+        [line("+", release, productionBranch, `${short(previous)}...${short(release)} (forced update)`), true],
+        [line("=", release, productionBranch, "[up to date]"), false],
+        [line("!", release, productionBranch, "[rejected] (stale info)"), false],
+        [line(" ", release, productionBranch, `${short(release)}..${short(release)}`), false],
+        [line(" ", previous, productionBranch, `${short(previous)}..${short(previous)}`), false],
+        [line(" ", release, "refs/heads/website-production-canary", `${short(previous)}..${short(release)}`), false],
+        [line("+", release, productionBranch, `${short(previous)}...${short(release)}`), false],
+        [`${line(" ", release, productionBranch, `${short(previous)}..${short(release)}`)}${line(" ", release, productionBranch, `${short(previous)}..${short(release)}`)}`, false],
+        ["ok", false],
+      ] as const) {
+        const write = (): void => advanceWebsiteProductionRef({
+          environment: { WRENCH_RELEASE_APP_TOKEN: "ghs_lease-test-token" },
+          expectedOldSha: previous,
+          repository: providerRepository,
+          spawnImplementation: (_executable: string, args: readonly string[]) => ({
+            status: 0,
+            stderr: "",
+            stdout: args.includes("rev-parse") ? `${release}\n` : args.includes("push") ? stdout : "",
+          }),
+          verifiedSha: release,
+          verifiedTag: providerTag,
+        });
+        if (accepted) expect(write).not.toThrow();
+        else expect(write).toThrow("website-production Git push did not update the ref from the leased SHA");
+      }
+    } finally {
       await rm(directory, { force: true, recursive: true });
     }
   });
@@ -8706,6 +8889,89 @@ fi
     expect(immediateApi.graphqlCalls).toHaveLength(20);
     expect(immediateApi.timeoutMilliseconds).toHaveLength(40);
     expect(now).toBe(60);
+  });
+
+  test("keeps 20 absolute observation slots under any read latency and partial sleep wakeups", async () => {
+    const { baseline, baselineDeployment, promotion } = await providerReceipts("advanced");
+    const window = 1_200_000;
+    const interval = 60_000;
+    await assertAsyncProperty(fc.asyncProperty(
+      fc.record({
+        latencies: fc.array(fc.integer({ min: 1, max: 45_000 }), { minLength: 1, maxLength: 64 }),
+        divisors: fc.array(fc.constantFrom(1, 2, 3), { minLength: 1, maxLength: 8 }),
+      }),
+      async ({ latencies, divisors }) => {
+        let now = 0;
+        let reads = 0;
+        let sleepsThisGap = 0;
+        let sleptSinceObservation = false;
+        let lastReadEnd = 0;
+        const readBegins: number[] = [];
+        const starts: Array<Readonly<{ at: number; slept: boolean; previousEnd: number }>> = [];
+        const timedRead = (timeoutMilliseconds: number | undefined): void => {
+          if (timeoutMilliseconds === undefined) return;
+          readBegins.push(now);
+          now += latencies[reads % latencies.length]!;
+          reads += 1;
+          lastReadEnd = now;
+        };
+        const api = new ProviderApiFixture({
+          deployments: [[baselineDeployment]],
+          readHook: timedRead,
+          refSha: providerVerifiedSha,
+          statuses: terminalBaselineStatus(),
+        });
+        const get = api.get.bind(api);
+        api.get = async (endpoint, options) => {
+          // Every observation begins with the bounded production-ref read.
+          if (options?.timeoutMilliseconds !== undefined
+            && endpoint === `/repos/${providerRepository}/git/ref/heads/website-production`) {
+            starts.push(Object.freeze({ at: now, slept: sleptSinceObservation, previousEnd: lastReadEnd }));
+            sleptSinceObservation = false;
+            sleepsThisGap = 0;
+          }
+          return await get(endpoint, options);
+        };
+        const outcome = waitForProviderOutcome({
+          api,
+          baselineReceipt: baseline,
+          maxPolls: 20,
+          monotonicNow: () => now,
+          pollIntervalMilliseconds: interval,
+          promotionReceipt: promotion,
+          publicSite: new ProviderPublicSiteFixture({
+            markerSnapshots: [providerMarker(providerVerifiedSha, providerTag, 20)],
+            readHook: timedRead,
+          }),
+          sleep: async (milliseconds) => {
+            // Wake early on the first attempts of a gap, never late.
+            const divisor = sleepsThisGap >= 3 ? 1 : divisors[sleepsThisGap % divisors.length]!;
+            sleepsThisGap += 1;
+            sleptSinceObservation = true;
+            now += Math.max(1, Math.ceil(milliseconds / divisor));
+          },
+        });
+        await expect(outcome).rejects.toThrow("timed out waiting for the exact Vercel Production deployment");
+        // The whole half-open window is used, and no provider read starts at or after its deadline.
+        expect(now).toBeGreaterThanOrEqual(window);
+        expect(readBegins.every((begin) => begin >= 0 && begin < window)).toBe(true);
+        expect(starts.length).toBeGreaterThan(0);
+        expect(starts.length).toBeLessThanOrEqual(20);
+        // Only the last observation can stop inside its reads, at the deadline.
+        expect(api.graphqlCalls.length).toBeGreaterThanOrEqual(starts.length - 1);
+        expect(api.graphqlCalls.length).toBeLessThanOrEqual(starts.length);
+        starts.forEach(({ at, slept, previousEnd }, index) => {
+          // Slot k is the absolute offset k minutes: a slept gap lands on it
+          // exactly, and a late read delays only the next observation.
+          const slot = index * interval;
+          expect(at).toBeGreaterThanOrEqual(slot);
+          if (index === 0 || slept) expect(at).toBe(slot);
+          else expect(at).toBe(previousEnd);
+        });
+        // Fewer than 20 observations only when a read itself ran past the deadline.
+        if (starts.length < 20) expect(lastReadEnd).toBeGreaterThanOrEqual(window);
+      },
+    ), { numRuns: 100 });
   });
 
   test("fails recovery closed on stale success, latest ties, or newer deployments", async () => {

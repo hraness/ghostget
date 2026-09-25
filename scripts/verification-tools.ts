@@ -221,7 +221,7 @@ const QUINT_TIMEOUT_MS = 5 * 60_000;
  */
 export const QUINT_TRACE_TIMEOUT_MS = 90_000;
 const APALACHE_TIMEOUT_MS = 10 * 60_000;
-// Nightly runs sit outside the 30-minute CI verification step, so each deeper
+// Nightly runs sit outside the 50-minute CI verification step, so each deeper
 // checker run gets its own larger bound. A timeout still fails the run.
 const NIGHTLY_QUINT_TIMEOUT_MS = 30 * 60_000;
 const NIGHTLY_APALACHE_TIMEOUT_MS = 60 * 60_000;
@@ -232,7 +232,14 @@ const NIGHTLY_APALACHE_TIMEOUT_MS = 60 * 60_000;
  */
 export const QUINT_REPLAY_SCRIPT = "verify:quint:replay";
 /** The bound on the one `bun test` run of every replay test. */
-export const QUINT_REPLAY_TIMEOUT_MS = 10 * 60_000;
+export const QUINT_REPLAY_TIMEOUT_MS = 15 * 60_000;
+/**
+ * How many jobs `verify:quint` runs at once: each model's checks form one job
+ * and the replay run forms another. A GitHub-hosted Linux runner for this
+ * public repository has 4 vCPUs and 16 GB, and one Apalache run holds a 4 GiB
+ * heap, so two jobs fit beside the runner's own processes.
+ */
+export const QUINT_CONCURRENCY = 2;
 const LEAN_BUILD_TIMEOUT_MS = 10 * 60_000;
 const SHORT_TIMEOUT_MS = 60_000;
 const KILL_GRACE_MS = 5_000;
@@ -1580,13 +1587,121 @@ export function quintReplayCommand(bun: string, models: readonly QuintModel[]): 
   return [bun, "run", QUINT_REPLAY_SCRIPT, ...quintReplayTests(models)];
 }
 
+// ---------------------------------------------------------------------------
+// CI shards
+// ---------------------------------------------------------------------------
+
+/**
+ * The number of parallel `quint` jobs PR CI runs. Each job checks the models
+ * `quintModelsForShard` assigns to it at the CI bounds; together they check
+ * exactly what `bun run verify:quint` checks in one process.
+ */
+export const QUINT_CI_SHARD_COUNT = 4;
+const MAX_QUINT_SHARD_COUNT = 16;
+const DEFAULT_QUINT_MODEL_WEIGHT = 60;
+
+// Wall seconds one model took in the CI profile on GitHub-hosted ubuntu-latest
+// (run 36028981199): typecheck, seeded simulations, the Apalache check of every
+// invariant and mutant, and its ITF replay test. Used only to pack shards;
+// every model still runs exactly once. A model without a reading takes the
+// default weight until its first CI log.
+const MEASURED_QUINT_MODEL_WEIGHTS = Object.freeze({
+  "fence.qnt": 460,
+  "release.qnt": 330,
+  "state-claim.qnt": 170,
+  "media.qnt": 155,
+  "path-claim.qnt": 140,
+  "approvals.qnt": 77,
+  "messaging.qnt": 46,
+  "lock.qnt": 20,
+});
+
+export type QuintShard = Readonly<{ shard: number; shardCount: number }>;
+
+export function quintModelWeight(file: string): number {
+  return MEASURED_QUINT_MODEL_WEIGHTS[file as keyof typeof MEASURED_QUINT_MODEL_WEIGHTS]
+    ?? DEFAULT_QUINT_MODEL_WEIGHT;
+}
+
+function positiveShardInteger(value: unknown, label: string): number {
+  if (typeof value === "number") {
+    if (!Number.isInteger(value) || value < 1 || value > MAX_QUINT_SHARD_COUNT) {
+      throw new Error(`${label} must be an integer from 1 to ${String(MAX_QUINT_SHARD_COUNT)}`);
+    }
+    return value;
+  }
+  if (typeof value !== "string" || !/^[1-9][0-9]*$/u.test(value) || Number(value) > MAX_QUINT_SHARD_COUNT) {
+    throw new Error(`${label} must be an integer from 1 to ${String(MAX_QUINT_SHARD_COUNT)}`);
+  }
+  return Number(value);
+}
+
+/** Parse `<shard> <shardCount>` strictly: decimal integers with 1 <= shard <= shardCount <= 16. */
+export function parseQuintShard(shard: unknown, shardCount: unknown): QuintShard {
+  const parsedCount = positiveShardInteger(shardCount, "shardCount");
+  const parsedShard = positiveShardInteger(shard, "shard");
+  if (parsedShard > parsedCount) {
+    throw new Error(`shard ${String(parsedShard)} is outside 1..${String(parsedCount)}`);
+  }
+  return Object.freeze({ shard: parsedShard, shardCount: parsedCount });
+}
+
+/**
+ * Pack the models into `shardCount` shards by measured weight, heaviest
+ * first onto the lightest shard, so the slowest shard is as short as the
+ * heaviest model allows. The packing is a deterministic partition: every
+ * model lands in exactly one shard, and each shard keeps manifest order.
+ */
+export function assignQuintModelShards(
+  models: readonly QuintModel[],
+  shardCount: number,
+): readonly (readonly QuintModel[])[] {
+  if (!Number.isInteger(shardCount) || shardCount < 1 || shardCount > MAX_QUINT_SHARD_COUNT) {
+    throw new Error(`shardCount must be an integer from 1 to ${String(MAX_QUINT_SHARD_COUNT)}`);
+  }
+  if (new Set(models.map((model) => model.file)).size !== models.length) {
+    throw new Error("the model inventory lists a file twice");
+  }
+  const shards: number[][] = Array.from({ length: shardCount }, () => []);
+  const weights = Array.from({ length: shardCount }, () => 0);
+  const ordered = models.map((model, index) => ({ model, index })).sort((left, right) => {
+    const delta = quintModelWeight(right.model.file) - quintModelWeight(left.model.file);
+    return delta !== 0 ? delta : left.model.file.localeCompare(right.model.file);
+  });
+  for (const { index } of ordered) {
+    let lightest = 0;
+    for (let candidate = 1; candidate < shardCount; candidate += 1) {
+      if (weights[candidate]! < weights[lightest]!) lightest = candidate;
+    }
+    shards[lightest]!.push(index);
+    weights[lightest]! += quintModelWeight(models[index]!.file);
+  }
+  return Object.freeze(shards.map((indices) =>
+    Object.freeze([...indices].sort((left, right) => left - right).map((index) => models[index]!))
+  ));
+}
+
+/** The models one CI shard checks; a shard that would check nothing is a misconfiguration. */
+export function quintModelsForShard(models: readonly QuintModel[], shard: QuintShard): readonly QuintModel[] {
+  const selected = assignQuintModelShards(models, shard.shardCount)[shard.shard - 1];
+  if (selected === undefined || selected.length === 0) {
+    throw new Error(`quint shard ${String(shard.shard)}/${String(shard.shardCount)} has no models`);
+  }
+  return selected;
+}
+
 /**
  * Typecheck every model, require each invariant to pass seeded simulation and
  * bounded Apalache checking, require both checkers to find every mutant, and
- * then run every model's replay test.
+ * run every model's replay test. Each model's checks form one job and the
+ * replay run forms another; at most `QUINT_CONCURRENCY` jobs run at once.
  */
-export async function verifyQuint(context: RunContext): Promise<void> {
-  const models = await readQuintModels(context.root);
+export async function verifyQuint(context: RunContext, shard: QuintShard | null = null): Promise<void> {
+  const manifest = await readQuintModels(context.root);
+  const models = shard === null ? manifest : quintModelsForShard(manifest, shard);
+  if (shard !== null) {
+    context.log(`quint shard ${String(shard.shard)}/${String(shard.shardCount)}: ${models.map((model) => model.file).join(", ")}`);
+  }
   const nightly = context.profile === "nightly";
   const node = requireExecutable("node");
   const quint = join(context.root, QUINT.cli);
@@ -1634,8 +1749,7 @@ export async function verifyQuint(context: RunContext): Promise<void> {
     });
     return { result, outDirectory };
   };
-  const summary: Record<string, unknown>[] = [];
-  for (const model of models) {
+  const checkModel = async (model: QuintModel): Promise<Record<string, unknown>> => {
     const name = model.module;
     const bounds = quintBounds(model, context.profile);
     if (nightly && model.nightly === undefined) context.log(`${model.file}: no nightly bounds recorded; repeating the CI bounds`);
@@ -1687,7 +1801,7 @@ export async function verifyQuint(context: RunContext): Promise<void> {
       await writeFile(join(context.artifacts, `apalache-mutant-${name}-${mutant.step}-${mutant.invariant}.itf.json`), counterexample);
       context.log(`${step}: the seeded defect violates ${mutant.invariant}, as required`);
     }
-    summary.push({
+    return {
       model: model.file,
       invariants: model.invariants,
       mutants: model.mutants.map((mutant) => mutant.step),
@@ -1695,8 +1809,15 @@ export async function verifyQuint(context: RunContext): Promise<void> {
       simulation: bounds.simulation,
       apalache: bounds.apalache,
       replay: { test: model.replay.test, target: model.replay.target },
-    });
-  }
+    };
+  };
+  const summary: Record<string, unknown>[] = [];
+  await runAtMost([
+    () => runQuintReplays(context, models),
+    ...models.map((model, index) => async () => {
+      summary[index] = await checkModel(model);
+    }),
+  ], QUINT_CONCURRENCY);
   await writeFile(join(context.artifacts, "toolchain.json"), `${JSON.stringify({
     quint: version,
     apalache: `${APALACHE.version} (build ${APALACHE.build})`,
@@ -1706,7 +1827,30 @@ export async function verifyQuint(context: RunContext): Promise<void> {
     })),
     models: summary,
   }, null, 2)}\n`);
-  await runQuintReplays(context, models);
+}
+
+/**
+ * Run the tasks in order with at most `limit` running at once. After a task
+ * fails no further task starts, the running ones finish, and the failure of
+ * the earliest-listed failed task is rethrown.
+ */
+export async function runAtMost(tasks: readonly (() => Promise<void>)[], limit: number): Promise<void> {
+  if (!Number.isSafeInteger(limit) || limit < 1) throw new Error("runAtMost needs a positive integer limit");
+  const failures = new Map<number, unknown>();
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (failures.size === 0 && next < tasks.length) {
+      const index = next;
+      next += 1;
+      try {
+        await tasks[index]!();
+      } catch (error) {
+        failures.set(index, error);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
+  if (failures.size > 0) throw failures.get(Math.min(...failures.keys()));
 }
 
 /**
@@ -2040,7 +2184,33 @@ export function parseVerificationMode(argv: readonly string[]): VerificationMode
   return mode;
 }
 
-export async function runVerification(mode: VerificationMode, root: string = REPOSITORY_ROOT): Promise<void> {
+export type VerificationRequest = Readonly<{ mode: VerificationMode; shard: QuintShard | null }>;
+
+/**
+ * The command line: one mode, or `quint <shard> <shardCount>` for one CI
+ * shard of the Quint models. Only `quint` shards; the nightly profile and
+ * Lean always run whole.
+ */
+export function parseVerificationRequest(argv: readonly string[]): VerificationRequest {
+  if (argv.length === 3 && argv[0] === "quint") {
+    try {
+      return Object.freeze({ mode: "quint", shard: parseQuintShard(argv[1], argv[2]) });
+    } catch (error) {
+      throw new Error(`usage: bun run ./scripts/verification-tools.ts quint <shard> <shardCount>: ${errorMessage(error)}`);
+    }
+  }
+  if (argv.length !== 1) {
+    throw new Error("usage: bun run ./scripts/verification-tools.ts quint|quint-nightly|lean, or quint <shard> <shardCount>");
+  }
+  return Object.freeze({ mode: parseVerificationMode(argv), shard: null });
+}
+
+export async function runVerification(
+  mode: VerificationMode,
+  root: string = REPOSITORY_ROOT,
+  shard: QuintShard | null = null,
+): Promise<void> {
+  if (shard !== null && mode !== "quint") throw new Error(`verify:${mode} does not shard`);
   const platform = platformKey();
   const cacheDirectory = verificationCacheDirectory();
   const artifacts = join(root, VERIFICATION_ARTIFACTS, mode);
@@ -2074,7 +2244,7 @@ export async function runVerification(mode: VerificationMode, root: string = REP
       log: (line) => console.log(sanitizeCheckerOutput(line, replacements)),
     };
     try {
-      if (mode === "quint" || mode === "quint-nightly") await verifyQuint(context);
+      if (mode === "quint" || mode === "quint-nightly") await verifyQuint(context, shard);
       else await verifyLean(context);
     } catch (error) {
       throw new Error(sanitizeCheckerOutput(errorMessage(error), replacements));
@@ -2085,18 +2255,21 @@ export async function runVerification(mode: VerificationMode, root: string = REP
 }
 
 if (import.meta.main) {
-  let mode: VerificationMode;
+  let request: VerificationRequest;
   try {
-    mode = parseVerificationMode(process.argv.slice(2));
+    request = parseVerificationRequest(process.argv.slice(2));
   } catch (error) {
     console.error(errorMessage(error));
     process.exit(2);
   }
+  const label = request.shard === null
+    ? `verify:${request.mode}`
+    : `verify:${request.mode} shard ${String(request.shard.shard)}/${String(request.shard.shardCount)}`;
   try {
-    await runVerification(mode);
-    console.log(`verify:${mode} passed`);
+    await runVerification(request.mode, REPOSITORY_ROOT, request.shard);
+    console.log(`${label} passed`);
   } catch (error) {
-    console.error(`verify:${mode} failed: ${errorMessage(error)}`);
+    console.error(`${label} failed: ${errorMessage(error)}`);
     process.exit(1);
   }
 }

@@ -41,6 +41,7 @@ import {
   LEAN_DIFFERENTIAL_TESTS,
   PLATFORM_KEYS,
   QUINT,
+  QUINT_CONCURRENCY,
   QUINT_REPLAY_SCRIPT,
   QUINT_REPLAY_TIMEOUT_MS,
   QUINT_TRACE_TIMEOUT_MS,
@@ -78,6 +79,7 @@ import {
   readQuintModels,
   requireFinished,
   requireVerdict,
+  runAtMost,
   runTool,
   sanitizeCheckerOutput,
   verificationCacheDirectory,
@@ -271,7 +273,7 @@ describe("verification CI job", () => {
       const repinned = [changed, ...pinnedArchives().slice(1)].map(({ name, url, bytes, sha256 }) => ({ name, url, bytes, sha256 }));
       expect(createHash("sha256").update(JSON.stringify(repinned)).digest("hex").slice(0, 16)).not.toBe(digest);
     }
-    const verify = job.steps.findIndex((step) => step.run === "bun run verify");
+    const verify = job.steps.findIndex((step) => step.run === "bun run verify:claims");
     const install = job.steps.findIndex((step) => step.run === "bun install --frozen-lockfile --ignore-scripts");
     expect(install).toBeGreaterThanOrEqual(0);
     expect(job.steps.indexOf(cache[0]!)).toBe(install + 1);
@@ -288,19 +290,31 @@ describe("verification CI job", () => {
     expect(source).not.toContain("setup-java");
   });
 
-  test("runs bun run verify once, bounded, without credentials, and retains its sanitized logs", async () => {
+  test("runs the non-Quint verify phases once each, bounded, without credentials, and retains sanitized logs", async () => {
     const source = await workflowSource();
     const workflow = Bun.YAML.parse(source) as Workflow;
     const job = workflow.jobs.verification;
     if (job === undefined) throw new Error("ci.yml has no verification job");
     expect(job.name).toBe("verification");
-    expect(job["timeout-minutes"]).toBe(35);
+    expect(job["timeout-minutes"]).toBe(30);
     expect(job.permissions).toBeUndefined();
     expect(workflow.permissions).toEqual({ contents: "read" });
     expect(job.steps.filter((step) => step.uses?.startsWith("actions/checkout@") === true).map((step) => step.with))
       .toEqual([{ "persist-credentials": false }]);
-    expect(source.match(/^ {6}- run: bun run verify$/gmu)).toHaveLength(1);
-    expect(job.steps.filter((step) => step.run === "bun run verify")).toHaveLength(1);
+    // `bun run verify` is claims && quint && lean && oracles; this job runs the
+    // three fast phases once each and the `quint` matrix runs verify:quint's
+    // models as shards, so no plain `bun run verify` step remains in ci.yml.
+    expect(source.match(/^ {6}- run: bun run verify$/gmu) ?? []).toHaveLength(0);
+    let boundSum = 0;
+    for (const phase of ["claims", "lean", "oracles"] as const) {
+      const run = `bun run verify:${phase}`;
+      expect(source.match(new RegExp(`^ {6}- run: ${run}$`, "gmu"))).toHaveLength(1);
+      const steps = job.steps.filter((step) => step.run === run);
+      expect(steps).toHaveLength(1);
+      const bound = steps[0]!["timeout-minutes"];
+      expect(typeof bound).toBe("number");
+      boundSum += bound!;
+    }
     const upload = job.steps.filter((step) => step.uses?.startsWith("actions/upload-artifact@") === true);
     expect(upload).toHaveLength(1);
     expect(upload[0]!.with).toEqual({
@@ -310,25 +324,26 @@ describe("verification CI job", () => {
       "retention-days": 30,
     });
     expect(job.steps.indexOf(upload[0]!)).toBe(job.steps.length - 1);
-    // A failed or timed-out verify step still uploads its logs: the step bound ends it inside the job bound.
+    // A failed or timed-out phase still uploads its logs: the phase bounds end
+    // every phase inside the job bound even when each phase is slowest allowed.
     expect(upload[0]!.if).toBe("always()");
-    const verifyStep = job.steps.find((step) => step.run === "bun run verify")!;
-    expect(verifyStep["timeout-minutes"]).toBe(30);
-    expect(verifyStep["timeout-minutes"]!).toBeLessThan(job["timeout-minutes"]! - 2);
+    expect(boundSum).toBeLessThanOrEqual(job["timeout-minutes"]! - 2);
     expect(JSON.stringify(job)).not.toContain("secrets.");
     for (const match of source.matchAll(/^\s*(?:- )?uses: (\S+)/gmu)) {
       expect(match[1]).toMatch(/^[A-Za-z0-9-]+\/[A-Za-z0-9-]+@[0-9a-f]{40}$/u);
     }
   });
 
-  test("makes a failed, cancelled, or skipped verification job fail Required", async () => {
+  test("makes a failed, cancelled, or skipped verification or Quint job fail Required", async () => {
     const workflow = Bun.YAML.parse(await workflowSource()) as Workflow;
     const required = workflow.jobs.required;
     if (required === undefined) throw new Error("ci.yml has no Required job");
     expect(required.needs).toContain("verification");
+    expect(required.needs).toContain("quint");
     const gate = required.steps.find((step) => step.name === "Require every selected job");
     expect(gate?.env?.VERIFICATION).toBe("${{ needs.verification.result }}");
-    expect(gate?.run).toMatch(/^for result in .*"\$VERIFICATION"; do$/mu);
+    expect(gate?.env?.QUINT).toBe("${{ needs.quint.result }}");
+    expect(gate?.run).toMatch(/^for result in .*\$VERIFICATION.*\$QUINT.*; do$/mu);
     expect(gate?.run).toContain('if [[ "$result" != success ]]; then');
   });
 });
@@ -667,6 +682,140 @@ describe("bounded checker processes", () => {
         /\S/u,
       );
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Concurrent checker jobs
+// ---------------------------------------------------------------------------
+
+function deferred(): Readonly<{ promise: Promise<void>; resolve: () => void }> {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
+/** Lets every queued callback run, including the ones those callbacks queue. */
+const drain = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+describe("concurrent checker jobs", () => {
+  test("verify:quint runs two jobs at once on a four-vCPU runner", () => {
+    expect(QUINT_CONCURRENCY).toBe(2);
+  });
+
+  test("runs every task once, in order, with at most the limit at once", async () => {
+    const gates = [deferred(), deferred(), deferred(), deferred()];
+    const started: number[] = [];
+    let running = 0;
+    let peak = 0;
+    const done = runAtMost(gates.map((gate, index) => async () => {
+      started.push(index);
+      running += 1;
+      peak = Math.max(peak, running);
+      await gate.promise;
+      running -= 1;
+    }), 2);
+    await drain();
+    expect(started).toEqual([0, 1]);
+    gates[1]!.resolve();
+    await drain();
+    expect(started).toEqual([0, 1, 2]);
+    gates[0]!.resolve();
+    await drain();
+    expect(started).toEqual([0, 1, 2, 3]);
+    gates[2]!.resolve();
+    gates[3]!.resolve();
+    await done;
+    expect(peak).toBe(2);
+    expect(running).toBe(0);
+  });
+
+  test("starts nothing after a failure, waits for running tasks, and rethrows the earliest-listed failure", async () => {
+    const gate = deferred();
+    const events: string[] = [];
+    let settled = false;
+    const done = runAtMost([
+      async () => {
+        events.push("start 0");
+        await gate.promise;
+        events.push("end 0");
+        throw new Error("task 0 failed");
+      },
+      async () => {
+        events.push("start 1");
+        throw new Error("task 1 failed");
+      },
+      async () => {
+        events.push("start 2");
+      },
+    ], 2).finally(() => {
+      settled = true;
+    });
+    const outcome = done.then(() => null, (error: unknown) => error);
+    await drain();
+    expect(events).toEqual(["start 0", "start 1"]);
+    expect(settled).toBeFalse();
+    gate.resolve();
+    const error = await outcome;
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("task 0 failed");
+    expect(events).toEqual(["start 0", "start 1", "end 0"]);
+  });
+
+  test("rejects a limit that is not a positive integer and runs nothing", async () => {
+    let calls = 0;
+    const task = async (): Promise<void> => {
+      calls += 1;
+    };
+    for (const limit of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 53]) {
+      await expect(runAtMost([task], limit)).rejects.toThrow("positive integer limit");
+    }
+    await drain();
+    expect(calls).toBe(0);
+    await runAtMost([], 1);
+    await runAtMost([task], 3);
+    expect(calls).toBe(1);
+  });
+
+  test("property: tasks start once and in order, fill every slot, and none starts after a failure", async () => {
+    await assertAsyncProperty(fc.asyncProperty(
+      fc.array(fc.record({ fails: fc.boolean(), turns: fc.integer({ min: 1, max: 3 }) }), { maxLength: 8 }),
+      fc.integer({ min: 1, max: 4 }),
+      async (plan, limit) => {
+        const started: number[] = [];
+        const failed: number[] = [];
+        const lateStarts: number[] = [];
+        let running = 0;
+        let peak = 0;
+        const tasks = plan.map((step, index) => async () => {
+          if (failed.length > 0) lateStarts.push(index);
+          started.push(index);
+          running += 1;
+          peak = Math.max(peak, running);
+          // Each turn waits for a timer, so a thrown failure is recorded before any other task resumes.
+          for (let turn = 0; turn < step.turns; turn += 1) await drain();
+          running -= 1;
+          if (step.fails) {
+            failed.push(index);
+            throw new Error(`task ${String(index)} failed`);
+          }
+        });
+        const rejection = await runAtMost(tasks, limit).then(() => null, (error: unknown) => error);
+        expect(lateStarts).toEqual([]);
+        expect(running).toBe(0);
+        expect(peak).toBe(Math.min(limit, plan.length));
+        expect(started).toEqual(started.map((_, position) => position));
+        if (failed.length === 0) {
+          expect(rejection).toBeNull();
+          expect(started).toHaveLength(plan.length);
+        } else {
+          expect(rejection).toBeInstanceOf(Error);
+          expect((rejection as Error).message).toBe(`task ${String(Math.min(...failed))} failed`);
+        }
+      },
+    ));
   });
 });
 

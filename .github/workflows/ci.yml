@@ -13,8 +13,10 @@ concurrency:
   cancel-in-progress: true
 
 # PR wall-clock is the slowest job. This workflow runs the complete Linux
-# `bun run check` work as a disjoint union and retains selected macOS coverage.
-# Every source job records its exact checkout and toolchain before its checks.
+# `bun run check` work as a disjoint union of parallel jobs and retains
+# selected macOS coverage: eight unit-test shards, four Quint model shards,
+# and one job for the remaining formal-verification phases. Every source job
+# records its exact checkout and toolchain before its checks.
 jobs:
   static:
     name: static
@@ -44,7 +46,6 @@ jobs:
         run: bun run ./scripts/release-source-ci.ts record
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run check:static
-
   package:
     name: package
     runs-on: ubuntu-latest
@@ -96,15 +97,14 @@ jobs:
             });
             console.log("Synthetic canonical preparation passed; no release authority or provenance.");
           '
-
   test:
-    name: test ${{ matrix.shard }}/4
+    name: test ${{ matrix.shard }}/8
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -130,10 +130,9 @@ jobs:
       - run: bun install --frozen-lockfile --ignore-scripts
       - name: Provision exact native fixture browser when selected
         run: |
-          fixture_browser_root="$(bun run ./scripts/provision-derive-browser.ts --for-shard '${{ matrix.shard }}' 4)"
+          fixture_browser_root="$(bun run ./scripts/provision-derive-browser.ts --for-shard '${{ matrix.shard }}' 8)"
           printf 'GHOSTGET_DERIVE_BROWSER_ROOT=%s\n' "$fixture_browser_root" >> "$GITHUB_ENV"
-      - run: bun run ./scripts/ci-test-shard.ts ${{ matrix.shard }} 4
-
+      - run: bun run ./scripts/ci-test-shard.ts ${{ matrix.shard }} 8
   test-omni:
     name: test-omni
     runs-on: ubuntu-latest
@@ -162,7 +161,6 @@ jobs:
         run: bun run ./scripts/release-source-ci.ts record
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run test:omni
-
   standalone:
     name: standalone
     runs-on: ubuntu-latest
@@ -191,7 +189,6 @@ jobs:
         run: bun run ./scripts/release-source-ci.ts record
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run test:standalone
-
   macos:
     name: macOS
     runs-on: macos-15
@@ -220,11 +217,10 @@ jobs:
         run: bun run ./scripts/release-source-ci.ts record
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run check:macos
-
   verification:
     name: verification
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -260,7 +256,9 @@ jobs:
       # The Rust oracle under verification/oracles/ builds with the runner's
       # rustup at the exact toolchain its rust-toolchain.toml names, and
       # verify:oracles checks both versions again. `cargo build --locked`
-      # admits every crate only at the checksum Cargo.lock records.
+      # admits every crate only at the checksum Cargo.lock records. The whole
+      # oracle phase measured nine seconds on a cold runner, so it needs no
+      # Cargo cache step.
       - name: Install the pinned Rust toolchain
         working-directory: verification/oracles
         run: |
@@ -269,23 +267,83 @@ jobs:
           test "$(rustc --version | cut -d ' ' -f 2)" = "1.97.1"
           test "$(cargo --version | cut -d ' ' -f 2)" = "1.97.1"
           python3 --version
-      # The step bound leaves time inside the job bound to retain the logs
-      # of a failed or timed-out run.
-      - run: bun run verify
-        timeout-minutes: 30
+      # `bun run verify` is `verify:claims && verify:quint && verify:lean &&
+      # verify:oracles`. This job runs the three phases that finish in about
+      # ninety seconds; the `quint` matrix below runs verify:quint's models as
+      # parallel shards. Each step bound leaves time inside the job bound to
+      # retain the logs of a failed or timed-out run.
+      - run: bun run verify:claims
+        timeout-minutes: 5
+      - run: bun run verify:lean
+        timeout-minutes: 10
+      - run: bun run verify:oracles
+        timeout-minutes: 8
       - name: Retain checker output
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: verification-attempt-${{ github.run_attempt }}
           path: artifacts/verification/
           if-no-files-found: error
           retention-days: 30
-
+  quint:
+    name: quint ${{ matrix.shard }}/4
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.20.0"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - name: Pin npm
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.19.0 \
+            --ignore-scripts \
+            --registry=https://registry.npmjs.org
+          test "$(npm --version)" = "11.19.0"
+          node -p 'JSON.stringify({ node: process.version, zlib: process.versions.zlib, platform: process.platform, arch: process.arch })'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+      - name: Record exact source CI identity
+        run: bun run ./scripts/release-source-ci.ts record
+      - run: bun install --frozen-lockfile --ignore-scripts
+      # Checker archives are re-admitted at their pinned size and SHA-256 on
+      # every run, so the cache only saves downloads. The key ends in
+      # pinnedArchivesDigest() from scripts/verification-tools.ts, so any
+      # change to a pinned name, URL, size, or digest starts a fresh cache.
+      - name: Cache pinned checker downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ghostget-verification/downloads
+          key: ghostget-verification-${{ runner.os }}-${{ runner.arch }}-pins-72eb5177a24cbf8d
+      # One shard of `bun run verify:quint`: the same typecheck, seeded
+      # simulation, Apalache, mutant, and ITF replay checks at the same bounds,
+      # over the models scripts/verification-tools.ts assigns to this shard.
+      # Every model runs in exactly one shard; the shard packing is tested.
+      - run: bun run ./scripts/verification-tools.ts quint ${{ matrix.shard }} 4
+        timeout-minutes: 20
+      - name: Retain checker output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verification-quint-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
+          path: artifacts/verification/
+          if-no-files-found: error
+          retention-days: 30
   required:
     name: Required
     if: always()
-    needs: [static, package, test, test-omni, standalone, macos, verification]
+    needs: [static, package, test, test-omni, standalone, macos, verification, quint]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -298,9 +356,10 @@ jobs:
           STANDALONE: ${{ needs.standalone.result }}
           MACOS: ${{ needs.macos.result }}
           VERIFICATION: ${{ needs.verification.result }}
+          QUINT: ${{ needs.quint.result }}
         run: |
           set -euo pipefail
-          for result in "$STATIC" "$PACKAGE" "$TEST" "$TEST_OMNI" "$STANDALONE" "$MACOS" "$VERIFICATION"; do
+          for result in "$STATIC" "$PACKAGE" "$TEST" "$TEST_OMNI" "$STANDALONE" "$MACOS" "$VERIFICATION" "$QUINT"; do
             if [[ "$result" != success ]]; then
               printf 'Unexpected required job result: %s\n' "$result"
               exit 1

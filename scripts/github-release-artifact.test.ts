@@ -170,7 +170,7 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
   const responses: Json = {};
   responses[`${prefix}/git/ref/heads/main`] = { ref: "refs/heads/main", object: { type: "commit", sha: input.main } };
   for (const sha of [input.source, head]) responses[`${prefix}/git/commits/${sha}`] = { sha, tree: { sha: input.tree } };
-  const ciNames = ["static", "package", "test 1/4", "test 2/4", "test 3/4", "test 4/4", "test-omni", "standalone", "macOS", "verification", "Required"];
+  const ciNames = ["static", "package", "test 1/8", "test 2/8", "test 3/8", "test 4/8", "test 5/8", "test 6/8", "test 7/8", "test 8/8", "test-omni", "standalone", "macOS", "verification", "quint 1/4", "quint 2/4", "quint 3/4", "quint 4/4", "Required"];
   for (const [workflowId, path, event, runId, names] of [
     [323493607, ".github/workflows/ci.yml", "push", 100, ciNames],
     [351099999, "dynamic/github-code-scanning/codeql", "dynamic", 200, ["Analyze (javascript-typescript)", "Analyze (actions)"]],
@@ -224,15 +224,15 @@ describe("exact source CI admission", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout.toString()).toBe("");
   });
-  test("admits all eleven jobs and ten real checkouts with exact toolchains and distinct security evidence", () => {
+  test("admits all nineteen jobs and eighteen real checkouts with exact toolchains and distinct security evidence", () => {
     const fixture = sourceCiFixture(); const result = admitSourceCi(fixture.input, fixture.read, fixture.clock);
-    expect(result.ci.jobs).toHaveLength(11); expect(result.checkouts).toHaveLength(10);
+    expect(result.ci.jobs).toHaveLength(19); expect(result.checkouts).toHaveLength(18);
     expect(result.codeql.jobs.map(job => job.name).sort()).toEqual(["Analyze (actions)", "Analyze (javascript-typescript)"]);
     expect(result.security.prComparison).toHaveLength(1); expect(result.security.mainComparison).toEqual([]);
     expect(result.security.exactAnalyses.map(value => value.category)).toEqual(["/language:actions", "/language:javascript-typescript"]);
     expect(result.security.exactAnalyses.map(value => value.resultsCount)).toEqual([41, 41]);
     expect(result.security.distinction).toContain("do not assert zero alerts");
-    expect(fixture.calls.filter(path => path.endsWith("/logs"))).toHaveLength(10);
+    expect(fixture.calls.filter(path => path.endsWith("/logs"))).toHaveLength(18);
     expect(fixture.calls.filter(path => path.endsWith("/git/ref/heads/main"))).toHaveLength(2);
   });
   test("admits the renamed ghostget repository only with the exact immutable repository identity", () => {
