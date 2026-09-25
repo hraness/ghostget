@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import { canonicalJson, sha256 } from "./canonical-json";
+import { hasExactKeys } from "./contracts-shape.js";
 import {
   MESSAGING_RECEIPT_BINDING_CONTRACT_HASH,
   MESSAGING_RECEIPT_BINDING_CONTRACT_ID,
@@ -115,9 +116,7 @@ function record(value: unknown, label: string): Record<string, unknown> {
 }
 
 function exactKeys(value: Record<string, unknown>, keys: readonly string[], label: string): void {
-  const actual = Object.keys(value).sort();
-  const expected = [...keys].sort();
-  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+  if (!hasExactKeys(value, keys)) {
     throw new Error(`${label} has unsupported fields`);
   }
 }

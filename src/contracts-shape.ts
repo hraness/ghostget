@@ -548,3 +548,34 @@ export function shapeJsonSchema(
 export function frozenJson<T extends JsonValue>(value: T): T {
   return freezeJson(value) as T;
 }
+
+/**
+ * True when `value` owns exactly the key set `keys`, with no extras and no
+ * missing keys. Compared as sets, so a smuggled `"a,b"` key can never
+ * equal the expected `["a", "b"]` list the way a comma-joined compare does.
+ */
+export function hasExactKeys(value: object, keys: readonly string[]): boolean {
+  return hasSameKeys(Object.keys(value), keys);
+}
+
+/**
+ * True when `actual` enumerates exactly the key set `keys` — the iterable
+ * form of `hasExactKeys` for Map keys and already-collected name lists.
+ */
+export function hasSameKeys(actual: Iterable<string>, keys: readonly string[]): boolean {
+  const expected = new Set(keys);
+  const list = Array.from(actual);
+  return expected.size === keys.length
+    && list.length === expected.size
+    && list.every((key) => expected.has(key));
+}
+
+/**
+ * Require `value` to own exactly `keys`; throws `ContractParseError` naming
+ * `label` when the key set differs.
+ */
+export function exactKeys(value: object, keys: readonly string[], label: string): void {
+  if (!hasExactKeys(value, keys)) {
+    throw new ContractParseError(label, "has unsupported keys");
+  }
+}

@@ -94,6 +94,7 @@ import {
   type BlueskyXrpcMethod,
 } from "./bluesky-web";
 import { isoBmffVideoDimensions } from "./iso-bmff";
+import { hasExactKeys } from "../contracts-shape.js";
 
 const MAX_BOOTSTRAP_BYTES = 64 * 1024;
 const MAX_READ_BYTES = 8 * 1024 * 1024;
@@ -1237,7 +1238,7 @@ function parseBlueskyPublishedMutationTarget(
     throw new Error("Bluesky provider-accepted post target is not canonical JSON");
   }
   const target = record(value, "Bluesky provider-accepted post target");
-  if (Object.keys(target).sort().join(",") !== "cid,createdAt,media,uri") {
+  if (!hasExactKeys(target, ["cid", "createdAt", "media", "uri"])) {
     throw new Error("Bluesky provider-accepted post target contained unsupported fields");
   }
   const parsedUri = parseBlueskyAtUri(
@@ -1270,7 +1271,7 @@ function parseBlueskyPublishedMutationTarget(
       : null;
     if (rawMedia.mediaType === "video/mp4") {
       if (
-        Object.keys(rawMedia).sort().join(",") !== "cid,height,jobId,mediaType,size,width"
+        !hasExactKeys(rawMedia, ["cid", "height", "jobId", "mediaType", "size", "width"])
         || cid === null
         || typeof rawMedia.jobId !== "string"
         || rawMedia.jobId.length < 1
@@ -1296,7 +1297,7 @@ function parseBlueskyPublishedMutationTarget(
       });
     } else {
       if (
-        Object.keys(rawMedia).sort().join(",") !== "cid,mediaType,size"
+        !hasExactKeys(rawMedia, ["cid", "mediaType", "size"])
         || cid === null
         || (
           rawMedia.mediaType !== "image/jpeg"
@@ -2177,7 +2178,7 @@ function fileInput(value: OperationInput[string]): FileInputValue {
     !isRecord(value)
     || value.kind !== "file"
     || typeof value.reference !== "string"
-    || Object.keys(value).sort().join(",") !== "kind,reference"
+    || !hasExactKeys(value, ["kind", "reference"])
   ) throw new Error("input.media must be one plan-bound file");
   return Object.freeze({ kind: "file", reference: value.reference });
 }

@@ -47,6 +47,7 @@ import {
 } from "../web-session-execution";
 import { failedProviderRead, type ProviderReadFailureStage } from "./read-failure";
 import { scrubXUploadImage } from "./x-image-provenance";
+import { hasExactKeys } from "../contracts-shape.js";
 import {
   rejectXTweetMadeWithAiLabel,
   X_UNLABELED_COPY_POLICY_ERROR,
@@ -1263,7 +1264,7 @@ function parseXWebPublishedMutationTarget(
     throw new Error("X provider-accepted post target is not canonical JSON");
   }
   const target = record(value, "X provider-accepted post target");
-  if (Object.keys(target).sort().join(",") !== "mediaId,postId") {
+  if (!hasExactKeys(target, ["mediaId", "postId"])) {
     throw new Error("X provider-accepted post target contained unsupported fields");
   }
   const postIdValue = postId(
@@ -1457,7 +1458,7 @@ async function readBoundXMedia(
   if (!isRecord(input.media)) throw new Error("X media must be one plan-bound file");
   const descriptor = input.media;
   if (
-    Object.keys(descriptor).sort().join(",") !== "kind,reference"
+    !hasExactKeys(descriptor, ["kind", "reference"])
     || descriptor.kind !== "file"
     || typeof descriptor.reference !== "string"
     || descriptor.reference.length < 1
@@ -1982,7 +1983,7 @@ function articleMediaUploadUrl(
     : command === "APPEND"
       ? ["command", "media_id", "segment_index"]
       : ["command", "media_id"];
-  if (Object.keys(Object.fromEntries(url.searchParams)).sort().join(",") !== expected.sort().join(",")) {
+  if (!hasExactKeys(Object.fromEntries(url.searchParams), expected)) {
     throw new Error("X Article media upload request left its reviewed query shape");
   }
   return url;

@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 
 import { Database, constants as sqliteConstants } from "bun:sqlite";
 import { canonicalJson } from "../canonical-json";
+import { hasExactKeys } from "../contracts-shape.js";
 
 import {
   canonicalWhatsAppParticipantJid,
@@ -1378,7 +1379,7 @@ export async function runWhatsAppInteractionProjectionHelper(): Promise<
   if (session) {
     const record = requestValue as Readonly<Record<string, unknown>>;
     if (
-      Object.keys(record).sort().join("\0") !== "operation\0request"
+      !hasExactKeys(record, ["operation", "request"])
     ) {
       writeSessionFrame(Object.freeze({
         kind: "failed" as const,

@@ -1,3 +1,5 @@
+import { hasExactKeys } from "../contracts-shape.js";
+
 const YOUTUBE_DATA_API_UPLOAD_ORIGIN = "https://www.googleapis.com";
 const YOUTUBE_DATA_API_UPLOAD_PATH = "/upload/youtube/v3/videos";
 const YOUTUBE_UPLOAD_PARTS = "snippet,status";
@@ -62,7 +64,7 @@ function exactRecord(
   keys: readonly string[],
   label: string,
 ): JsonRecord {
-  if (!isRecord(value) || Object.keys(value).sort().join(",") !== [...keys].sort().join(",")) {
+  if (!isRecord(value) || !hasExactKeys(value, keys)) {
     throw new Error(`${label} must contain only its reviewed fields`);
   }
   return value;

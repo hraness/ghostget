@@ -100,6 +100,7 @@ import {
   normalizeLinkedInMessagingList,
 } from "./linkedin-web";
 import { resolveLinkedInMessengerConversationsQueryId } from "./linkedin-web-bootstrap";
+import { hasExactKeys } from "../contracts-shape.js";
 import {
   createLinkedInArticleBrowserTransport,
   type LinkedInArticleBrowserTransport,
@@ -185,7 +186,7 @@ function record(value: unknown, label: string): JsonRecord {
 }
 
 function exactKeys(value: JsonRecord, keys: readonly string[], label: string): void {
-  if (Object.keys(value).sort().join(",") !== [...keys].sort().join(",")) {
+  if (!hasExactKeys(value, keys)) {
     throw new Error(`${label} has unsupported fields`);
   }
 }
@@ -1132,7 +1133,7 @@ function linkedInPostFileInput(value: unknown): FileInputValue | null {
   }
   const descriptor = value[0];
   if (
-    Object.keys(descriptor).sort().join(",") !== "kind,reference"
+    !hasExactKeys(descriptor, ["kind", "reference"])
     || descriptor.kind !== "file"
     || typeof descriptor.reference !== "string"
     || descriptor.reference.length < 1

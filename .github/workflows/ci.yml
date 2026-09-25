@@ -274,6 +274,12 @@ jobs:
       # retain the logs of a failed or timed-out run.
       - run: bun run verify:claims
         timeout-minutes: 5
+      # The committed messaging binaries' compressed and decompressed pins,
+      # reviewed patch digests, and MESSAGING_NATIVE_ARTIFACTS constants are
+      # recomputed from the checked-in bytes on every run; the source rebuild
+      # of the same records runs in verification-nightly.yml.
+      - run: bun run ./scripts/messaging-runtime-provenance.ts verify
+        timeout-minutes: 3
       - run: bun run verify:lean
         timeout-minutes: 10
       - run: bun run verify:oracles

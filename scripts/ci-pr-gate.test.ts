@@ -606,6 +606,7 @@ describe("nightly verification workflow", () => {
     "quint-nightly": "bun run ./scripts/verification-tools.ts quint-nightly",
     "property-soak": `bun run ./scripts/verification-soak.ts \${{ matrix.shard }} ${String(NIGHTLY_SOAK_SHARDS)}`,
     mutants: "bun run ./scripts/verification-mutants.ts",
+    provenance: "bun run ./scripts/messaging-runtime-provenance.ts nightly",
   } as const;
 
   /**

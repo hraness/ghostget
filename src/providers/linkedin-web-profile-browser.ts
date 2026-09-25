@@ -24,6 +24,7 @@ import type {
   WebSessionOperationDeadline,
 } from "../web-session-execution";
 import { jsonScriptLiteral } from "../canonical-json";
+import { hasExactKeys } from "../contracts-shape.js";
 
 const LINKEDIN_ORIGIN = "https://www.linkedin.com";
 const LINKEDIN_FEED_URL = `${LINKEDIN_ORIGIN}/feed/`;
@@ -181,7 +182,7 @@ function exactKeys(
   expected: readonly string[],
   label: string,
 ): void {
-  if (Object.keys(value).sort().join(",") !== [...expected].sort().join(",")) {
+  if (!hasExactKeys(value, expected)) {
     throw new Error(`${label} returned an unexpected result shape`);
   }
 }

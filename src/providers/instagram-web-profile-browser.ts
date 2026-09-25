@@ -15,6 +15,7 @@ import type {
   WebSessionOperationDeadline,
 } from "../web-session-execution";
 import { jsonScriptLiteral } from "../canonical-json";
+import { hasExactKeys } from "../contracts-shape.js";
 
 const INSTAGRAM_ORIGIN = "https://www.instagram.com";
 const INSTAGRAM_ROOT_URL = `${INSTAGRAM_ORIGIN}/`;
@@ -132,7 +133,7 @@ function exactKeys(
   expected: readonly string[],
   label: string,
 ): void {
-  if (Object.keys(value).sort().join(",") !== [...expected].sort().join(",")) {
+  if (!hasExactKeys(value, expected)) {
     throw new Error(`${label} returned an unexpected result shape`);
   }
 }

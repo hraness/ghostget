@@ -1,4 +1,5 @@
 import { canonicalJson } from "../canonical-json";
+import { hasSameKeys } from "../contracts-shape.js";
 
 /**
  * Bluesky authenticated first-party API policy and bounded projections.
@@ -577,9 +578,9 @@ export function authorizeBlueskyXrpcRequest(input: {
     actual.set(name, values);
   }
   const expectedNames = Object.keys(input.expectedQuery).sort();
-  if (
-    [...actual.keys()].sort().join("\0") !== expectedNames.join("\0")
-  ) throw new Error("Bluesky request query names changed from their reviewed contract");
+  if (!hasSameKeys(actual.keys(), expectedNames)) {
+    throw new Error("Bluesky request query names changed from their reviewed contract");
+  }
   for (const name of expectedNames) {
     const expectedValues = input.expectedQuery[name] ?? [];
     const actualValues = actual.get(name) ?? [];
@@ -651,7 +652,7 @@ export function authorizeBlueskyVideoRequest(input: {
     actual.set(name, values);
   }
   const expectedNames = Object.keys(expected.query).sort();
-  if ([...actual.keys()].sort().join("\0") !== expectedNames.join("\0")) {
+  if (!hasSameKeys(actual.keys(), expectedNames)) {
     throw new Error("Bluesky video request query names changed from their reviewed contract");
   }
   for (const name of expectedNames) {

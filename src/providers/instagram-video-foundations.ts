@@ -11,6 +11,7 @@ import {
 } from "../canonical-json";
 import type { FileInputValue, OperationInput } from "../model";
 import type { WebSessionOperationDeadline } from "../web-session-execution";
+import { hasExactKeys, hasSameKeys } from "../contracts-shape.js";
 import {
   isoBmffMp4VideoMetadata,
   isoBmffVideoDimensions,
@@ -185,7 +186,7 @@ function exactNormalizedKeys(
   expected: readonly string[],
   label: string,
 ): void {
-  if (Object.keys(value).sort().join(",") !== [...expected].sort().join(",")) {
+  if (!hasExactKeys(value, expected)) {
     throw new Error(`${label} changed its bounded normalized shape`);
   }
 }
@@ -221,10 +222,8 @@ function exactInstagramVideoPublishBinding(
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const ownKeys = Reflect.ownKeys(descriptors);
   if (
-    ownKeys.length !== INSTAGRAM_VIDEO_PUBLISH_BINDING_KEYS.length
-    || ownKeys.some((key) => typeof key !== "string")
-    || (ownKeys as string[]).sort().join(",")
-      !== [...INSTAGRAM_VIDEO_PUBLISH_BINDING_KEYS].sort().join(",")
+    ownKeys.some((key) => typeof key !== "string")
+    || !hasSameKeys(ownKeys as string[], INSTAGRAM_VIDEO_PUBLISH_BINDING_KEYS)
   ) throw new Error("Instagram video binding contained unsupported fields");
   const snapshot = Object.create(null) as Record<string, unknown>;
   for (const key of INSTAGRAM_VIDEO_PUBLISH_BINDING_KEYS) {
@@ -348,7 +347,7 @@ function instagramJpegDimensions(bytes: Uint8Array): Readonly<{
 function planBoundFile(value: unknown): FileInputValue {
   if (
     !isRecord(value)
-    || Object.keys(value).sort().join(",") !== "kind,reference"
+    || !hasExactKeys(value, ["kind", "reference"])
     || value.kind !== "file"
     || typeof value.reference !== "string"
     || value.reference.length < 1
@@ -816,7 +815,7 @@ export function instagramShortcodeMediaPk(value: unknown): string {
 export function assertInstagramVideoUploadAcknowledgement(value: unknown): void {
   if (
     !isRecord(value)
-    || Object.keys(value).sort().join(",") !== "status"
+    || !hasExactKeys(value, ["status"])
     || value.status !== "ok"
   ) throw new Error("Instagram video upload acknowledgement changed shape");
 }
@@ -828,7 +827,7 @@ export function assertInstagramVideoUploadAcknowledgement(value: unknown): void 
 export function assertInstagramVideoConfigureIndeterminate(value: unknown): void {
   if (
     !isRecord(value)
-    || Object.keys(value).sort().join(",") !== "message,status"
+    || !hasExactKeys(value, ["message", "status"])
     || value.status !== "fail"
     || typeof value.message !== "string"
     || value.message.length < 1
@@ -909,7 +908,7 @@ export function parseInstagramVideoConfigureAccepted(
 export function assertInstagramVideoDeleteAcknowledgement(value: unknown): void {
   if (
     !isRecord(value)
-    || Object.keys(value).sort().join(",") !== "did_delete,status"
+    || !hasExactKeys(value, ["did_delete", "status"])
     || value.status !== "ok"
     || value.did_delete !== true
   ) throw new Error("Instagram video deletion acknowledgement changed shape");

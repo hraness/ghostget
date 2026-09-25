@@ -10,11 +10,12 @@ import {
   ensurePrivateStateDirectory,
   ghostgetStateHome,
   processOwnerStatus
-} from "./index-3r6c27yh.js";
+} from "./index-w2yy5p5y.js";
 import"./index-dw20pbkj.js";
 import {
   startProviderPluginCleanupTrackedOperation
 } from "./index-n4szk3nw.js";
+import"./index-5m1wfgkw.js";
 import"./index-26yq8q16.js";
 import {
   canonicalJson

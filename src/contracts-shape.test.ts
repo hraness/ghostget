@@ -1,8 +1,16 @@
 import { describe, expect, test } from "bun:test";
 
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
+
 import { schemaViolations } from "./contracts-schema.test-support";
 import {
   ContractParseError,
+  exactKeys,
+  hasExactKeys,
   parseShape,
   shapeJsonSchema,
   type Shape,
@@ -240,3 +248,95 @@ function objectPathsOutsidePayload(value: Record<string, unknown>): readonly (re
   paths.push(["choice"]);
   return paths;
 }
+
+describe("exact key sets", () => {
+  test("hasExactKeys accepts exactly the declared key set in any order", () => {
+    expect(hasExactKeys({ b: 1, a: 2 }, ["a", "b"])).toBeTrue();
+    expect(hasExactKeys({}, [])).toBeTrue();
+  });
+
+  test("hasExactKeys rejects extras, missing keys, duplicate declarations, and a comma-smuggled key", () => {
+    expect(hasExactKeys({ a: 1, b: 2, c: 3 }, ["a", "b"])).toBeFalse();
+    expect(hasExactKeys({ a: 1 }, ["a", "b"])).toBeFalse();
+    expect(hasExactKeys({ a: 1, b: 2 }, ["a", "a", "b"])).toBeFalse();
+    // The comma-joined compare it replaces accepted {"a,b": 1} for ["a", "b"].
+    expect(hasExactKeys({ "a,b": 1 }, ["a", "b"])).toBeFalse();
+    expect(hasExactKeys({ "a\0b": 1 }, ["a", "b"])).toBeFalse();
+    expect(hasExactKeys(Object.assign(Object.create(null), { a: 1, b: 2 }), ["a", "b"])).toBeTrue();
+  });
+
+  test("property: matches exact key-set equality on arbitrary key sets", () => {
+    assertProperty(fc.property(
+      fc.array(fc.string({ minLength: 0, maxLength: 8 }), { maxLength: 8 }),
+      fc.array(fc.string({ minLength: 0, maxLength: 8 }), { maxLength: 8 }),
+      (own, expected) => {
+        const value = Object.fromEntries(own.map((key, index) => [key, index]));
+        const expectedSet = new Set(expected);
+        const reference = expectedSet.size === expected.length
+          && Object.keys(value).length === expectedSet.size
+          && Object.keys(value).every((key) => expectedSet.has(key));
+        expect(hasExactKeys(value, expected)).toBe(reference);
+      },
+    ));
+  });
+
+  test("exactKeys throws a ContractParseError naming the label when the key set differs", () => {
+    expect(() => exactKeys({ a: 1, b: 2 }, ["a"], "the doc")).toThrow(ContractParseError);
+    expect(() => exactKeys({ a: 1, b: 2 }, ["a"], "the doc")).toThrow("the doc");
+    exactKeys({ b: 1, a: 2 }, ["a", "b"], "the doc");
+  });
+
+  test("no non-test source file compares a sorted joined key list", () => {
+    // The comma-joined exact-key compare let a smuggled "a,b" key satisfy the
+    // ["a", "b"] list; every strict key-set check goes through hasExactKeys or
+    // exactKeys. String and template text never reach this AST scan, so
+    // browser-injected script strings are out of scope of this rule.
+    const violations: string[] = [];
+    const isSortedJoin = (node: ts.Node): boolean => {
+      if (!ts.isCallExpression(node)) return false;
+      const outer = node.expression;
+      if (!ts.isPropertyAccessExpression(outer) || outer.name.text !== "join") return false;
+      const inner = outer.expression;
+      if (!ts.isCallExpression(inner)) return false;
+      const innerExpr = inner.expression;
+      return ts.isPropertyAccessExpression(innerExpr) && innerExpr.name.text === "sort";
+    };
+    const isJoinCall = (node: ts.Node): boolean => ts.isCallExpression(node)
+      && ts.isPropertyAccessExpression(node.expression)
+      && node.expression.name.text === "join";
+    const scanFile = (path: string): void => {
+      const source = readFileSync(path, "utf8");
+      const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+      const visit = (node: ts.Node): void => {
+        if (
+          ts.isBinaryExpression(node)
+          && [
+            ts.SyntaxKind.EqualsEqualsToken,
+            ts.SyntaxKind.EqualsEqualsEqualsToken,
+            ts.SyntaxKind.ExclamationEqualsToken,
+            ts.SyntaxKind.ExclamationEqualsEqualsToken,
+          ].includes(node.operatorToken.kind)
+          && (
+            isSortedJoin(node.left) || isSortedJoin(node.right)
+            // `keys.join(x) !== list.sort().join(x)` lifts one operand into a
+            // variable; a join-vs-join equality is a key-list compare either way.
+            || (isJoinCall(node.left) && isJoinCall(node.right))
+          )
+        ) {
+          const { line, character } = file.getLineAndCharacterOfPosition(node.getStart(file));
+          violations.push(`${path}:${line + 1}:${character + 1}`);
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(file);
+    };
+    const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+    const files = execFileSync("git", ["ls-files", "src/**/*.ts"], { encoding: "utf8", cwd: repoRoot })
+      .split("\n")
+      .filter((name) => name.length > 0
+        && !name.endsWith(".test.ts")
+        && !name.endsWith(".test-support.ts"));
+    for (const file of files) scanFile(join(repoRoot, file));
+    expect(violations).toEqual([]);
+  });
+});

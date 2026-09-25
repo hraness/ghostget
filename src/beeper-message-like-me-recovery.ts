@@ -7,6 +7,7 @@ import {
   isCanonicalJsonFileText,
   sha256,
 } from "./canonical-json";
+import { hasExactKeys } from "./contracts-shape.js";
 import {
   captureProcessOwnerIdentity,
   currentProcessStartIdentity,
@@ -156,12 +157,7 @@ function exactKeys(
   keys: readonly string[],
   label: string,
 ): void {
-  const actual = Object.keys(value).sort();
-  const expected = [...keys].sort();
-  if (
-    actual.length !== expected.length
-    || actual.some((key, index) => key !== expected[index])
-  ) fail(`${label} has an unsupported shape`);
+  if (!hasExactKeys(value, keys)) fail(`${label} has an unsupported shape`);
 }
 
 function boundedPath(value: unknown, label: string): string {

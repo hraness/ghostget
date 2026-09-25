@@ -6,6 +6,8 @@
  * browser-session executor can enforce without exporting session material.
  */
 
+import { hasExactKeys } from "../contracts-shape.js";
+
 export type XWebOperationType = "query" | "mutation";
 
 export type XWebQueryDescriptorKey = {
@@ -835,8 +837,7 @@ export function validateXWebRichArticleContentState(value: unknown): void {
     if (entry.type !== "MEDIA" || entry.mutability !== "Immutable") {
       throw new Error("X rich Article entities support only reviewed LINK and MEDIA values");
     }
-    const mediaKeys = Object.keys(data).sort().join(",");
-    if (mediaKeys !== "entity_key,media_items" && mediaKeys !== "caption,entity_key,media_items") {
+    if (!hasExactKeys(data, ["entity_key", "media_items"]) && !hasExactKeys(data, ["caption", "entity_key", "media_items"])) {
       throw new Error(`X rich Article entity ${index}.data contained unsupported media fields`);
     }
     if (data.entity_key !== `${index}`) throw new Error("X rich Article media entity_key must bind its entity");

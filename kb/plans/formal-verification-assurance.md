@@ -321,11 +321,12 @@ and an ITF replay test through production code.
    no CI job ran `scripts/release-provider-outcome.test.ts`, although evidenced
    claims cited it. Each release claim's evidence was checked against 26 deliberate
    mutants of the publisher, census, Latest wait, revocation helper, and
-   workflow; every one fails a cited test. Still open:
-   `npm-publish-at-most-once-per-version` stays planned, because under
-   registry read lag a rerun issues a second `npm publish` that only npm's
-   version immutability refuses; the statement needs a durable per-version
-   record or an owner-accepted restatement.
+   workflow; every one fails a cited test. Owner-accepted restatement
+   (2026-09-25): `npm-publish-at-most-once-per-version` is now evidenced at the
+   honest npm-immutability boundary — each attempt issues at most one publish
+   and never changes a held version; a second publish request under registry
+   read lag is admitted by the claim's not-verified scope, since at-most-once
+   issuance would need durable release-side state.
 
    Execution note (2026-09-24), website promotion: `promotion.qnt` models
    one run of `.github/workflows/website-production.yml` after its verify
@@ -416,10 +417,17 @@ Control and authority claims, 2026-09-24 (branch `claude/fv-claims-control-auth`
 - `helper-owner`, `helper-shutdown` and the permission layer gained small
   exported seams (`inspectControlOwner`, `commitControlOwner`,
   `settleHelperShutdown`) that production calls unchanged.
-- Open: `mutation-idempotency-key` stays planned. The fence model and the
-  authority model's retry command cover provider dispatch for confirmed
-  writes only; storage and quota charges of a retry, routes whose contracts
-  declare `idempotency: none`, and the dedupe window's expiry are not covered.
+- Done (2026-09-25): `mutation-idempotency-key` is now evidenced at the
+  dedupe-window boundary. `src/idempotency-fence.property.test.ts` drives the
+  production `intentFenceBlocker` predicate over arbitrary ledger states,
+  duplicate-intent records, and clocks — an unsettled same-intent run fences
+  every clock reading, a fulfilled journal blocks until its window expires,
+  and a duplicate-intent record fences forever. `src/idempotency-inventory.test.ts`
+  enumerates every bundled operation and proves the R1/R2/R3 parse invariants
+  hold on the shipped surface; `verification/mutants.json` gains three seeded
+  defects on the dedupe-expiry, duplicate-intent, and unsettled clauses. The
+  restated claim keeps `idempotency: none` routes' dispatch-free contract and
+  post-window re-admission honest in its not-verified scope.
 - Open: plans bind the reviewed contract implementation identity, not the
   exact closure; only a managed grant binds the exact closure. Recorded in
   `auth-request-binding`'s not-verified scope.
@@ -454,9 +462,17 @@ Execution of items 3 and 4, and of the browser-admission models, 2026-09-24:
 - Every run of the three `fc.commands`-style checks first runs fixed boundary
   schedules, so each seeded defect in `verification/mutants.json` fails on
   every run rather than on a lucky seed.
-- Open: `committed-binaries-provenance` stays planned for Phase 6. The
-  provenance records pin sources, patches, and build commands, but no CI job
-  rebuilds either binary, and imsg's record shows no clean rebuild.
+- Done (2026-09-25): `committed-binaries-provenance` is now evidenced at two
+  levels. `scripts/messaging-runtime-provenance.ts` recomputes every committed
+  pin — compressed and decompressed SHA-256, byte lengths, reviewed patch
+  digests, and the `MESSAGING_NATIVE_ARTIFACTS` constants — in Required CI on
+  every run. Its `nightly` mode on `macos-15` clones each pinned upstream
+  commit, applies the recorded patch stack, asserts the recorded tip commit,
+  and rebuilds: wacli must match the committed executable byte-for-byte under
+  the pinned Go toolchain archive; imsg's record states its signed bytes are
+  non-deterministic, so its evidence is that the pinned recipe builds an
+  arm64 Mach-O — both levels recorded honestly in the claim's not-verified
+  scope.
 
 ### Phase 5: Lean proofs of pure cores
 
@@ -617,18 +633,25 @@ Lane integration caught four real defects the register then covered:
   Its measured weight is 1150 s so the packer isolates it, and the shard
   step and job timeouts moved to 30 and 35 minutes.
 
-The register on `main` carries 246 claims: 223 evidenced, 4 planned, 19
-not-verified, across 90 guideline rules. The still-planned claims and their
-blockers: `strict-foreign-parsing` (property coverage does not yet cite
-every strict parser the claim ranges over), `mutation-idempotency-key`
-(storage and quota charge retries, `idempotency: none` routes, and
-dedupe-window expiry are outside the confirmed-dispatch models),
-`npm-publish-at-most-once-per-version` (registry read lag still admits a
-second issued publish; it needs a durable per-version record or an
-owner-approved narrower claim), and `committed-binaries-provenance`
-(imsg/wacli need a CI source build with provenance evidence before the
-committed binaries can be removed). They stay registered planned claims;
-the quarterly review tracks them.
+The register on `main` at merge carried 246 claims: 223 evidenced, 4 planned,
+19 not-verified, across 90 guideline rules. The follow-up lane (2026-09-25,
+worktree `fv-plan-closeout`) closed all four planned claims to evidenced:
+`strict-foreign-parsing` (shared `hasExactKeys`/`exactKeys` primitives in
+`src/contracts-shape.ts` replaced the comma-joined sorted-key comparisons
+across 30+ source files, an AST lint in `src/contracts-shape.test.ts`
+refuses their reintroduction, and property tests cover order-independence,
+missing/extra/duplicate keys, and comma- and NUL-smuggled keys),
+`mutation-idempotency-key` (restated to the dedupe-window boundary; the
+production `intentFenceBlocker` predicate is driven by a fast-check
+property and the bundled-surface inventory asserts the R1/R2/R3 contract
+invariants; three seeded mutants guard the expiry, duplicate-intent, and
+unsettled clauses), `npm-publish-at-most-once-per-version` (restated to
+the npm-immutability boundary under an owner-approved narrower claim), and
+`committed-binaries-provenance` (`scripts/messaging-runtime-provenance.ts`
+verifies every committed pin in Required CI and rebuilds both binaries
+from pinned source in the nightly macOS job — wacli byte-for-byte, imsg
+as an honestly-recorded non-deterministic signed build). The register now
+reads 246 claims: 227 evidenced, 0 planned, 19 not-verified.
 
 ## Quarterly claims reviews
 
@@ -681,8 +704,8 @@ runs deeper bounds, the property soak, and the named mutants outside
 `Required`, and `docs/claims-review.md` holds the triage and quarterly
 review procedure.
 
-Four claims remain planned with their blockers recorded in the closeout
-above, and the recorded open items stand: the path-claim replay at 60
+No claim remains planned — the four recorded blockers are resolved in the
+closeout above — and the recorded open items stand: the path-claim replay at 60
 traces (each trace drives three real helper processes), the
 `confirmInvocation` program beyond the modeled journal cores,
 `auth-request-binding`'s not-verified scope (plans bind the reviewed

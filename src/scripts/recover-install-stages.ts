@@ -17,6 +17,7 @@ import {
 } from "node:fs";
 import { basename, join, resolve } from "node:path";
 
+import { hasExactKeys } from "../contracts-shape.js";
 import {
   captureProcessOwnerIdentity,
   processOwnerStatus,
@@ -228,8 +229,7 @@ function parseInstallLease(target: string): InstallLeaseRecord {
     typeof value !== "object"
     || value === null
     || Array.isArray(value)
-    || Object.keys(value).sort().join("\0")
-      !== ["owner", "schemaVersion", "token"].join("\0")
+    || !hasExactKeys(value, ["owner", "schemaVersion", "token"])
   ) {
     throw new Error("local installer lease has invalid owner metadata");
   }
@@ -240,8 +240,7 @@ function parseInstallLease(target: string): InstallLeaseRecord {
     || typeof owner !== "object"
     || owner === null
     || Array.isArray(owner)
-    || Object.keys(owner).sort().join("\0")
-      !== ["bootId", "pid", "processStartId"].join("\0")
+    || !hasExactKeys(owner, ["bootId", "pid", "processStartId"])
     || typeof candidate["token"] !== "string"
     || !installLeaseTokenPattern.test(candidate["token"])
   ) {
@@ -322,8 +321,7 @@ function parseInstallMutationClaim(
     typeof value !== "object"
     || value === null
     || Array.isArray(value)
-    || Object.keys(value).sort().join("\0")
-      !== ["claimId", "kind", "owner", "schemaVersion"].join("\0")
+    || !hasExactKeys(value, ["claimId", "kind", "owner", "schemaVersion"])
   ) {
     throw new Error("local installer mutation claim has invalid owner metadata");
   }
@@ -336,8 +334,7 @@ function parseInstallMutationClaim(
     || typeof owner !== "object"
     || owner === null
     || Array.isArray(owner)
-    || Object.keys(owner).sort().join("\0")
-      !== ["bootId", "pid", "processStartId"].join("\0")
+    || !hasExactKeys(owner, ["bootId", "pid", "processStartId"])
   ) {
     throw new Error("local installer mutation claim has invalid owner metadata");
   }
