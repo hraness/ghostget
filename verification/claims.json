@@ -1657,8 +1657,7 @@
         "quote": "Promote an item only after its inspectable archive, versioned manifest, and SHA-256 records pass complete verification."
       },
       "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
         "scripts/verification-media-replay.test.ts",
         "src/media/archive.property.test.ts",
@@ -1674,7 +1673,10 @@
         "media-tools"
       ],
       "notVerified": [
-        "verification/quint/media.qnt and its production replay check that promotion needs the current lock and that only a torn head leaves the lineage, but they take discovery's verification verdict as given. The law \"a promoted item passed closed verification\" is not yet a model invariant, so this claim stays planned; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "verification/quint/media.qnt checks promotedVerified (no revision is promoted without passing closed verification of its staged item) with the other media invariants to Quint simulation depth 12 over 3,000 samples and Apalache length 8. Its ITF replay drives production mediaUrl on the yt-dlp pipeline for 300 traces and runs the real verifyMediaItem on every revision the model calls ok after every step. The stepUnverified variant violates promotedVerified, and a replay whose staged verification answers success diverges at the first failing capture.",
+        "The model has one kind of capture that fails verification: an unrecorded file beside a derivative. Hash mismatches, manifest version and schema faults, and archive layout faults reach promotion only through the same verifyMediaItem call and are covered by the listed manifest and archive tests, which check only their enumerated or sampled cases.",
+        "The direct HTTP pipeline verifies its staged item through the same call but is not replayed against the model; only its example tests apply.",
+        "\"Exactly one head\" is checked as the replay reads it: the lineage is the sequence-ordered revision leaves on disk and the head is the last. The model's noPromotionWithoutLock and noForeignRevision show that only the lock holder's own staged item is renamed into the lineage; unique sequence-numbered leaves that bind their predecessor rest on the listed revision tests."
       ]
     },
     {
@@ -1686,8 +1688,7 @@
         "quote": "The progress property \"a crash never makes a lineage permanently invalid\" drives D10."
       },
       "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
         "scripts/verification-media-replay.test.ts",
         "src/media/archive.property.test.ts",
@@ -1706,10 +1707,11 @@
         "media-tools"
       ],
       "notVerified": [
-        "The progress property is not checked. verification/quint/media.qnt checks only safety: its production replay repairs a torn head by quarantine and recaptures, and the stepQuarantineAny variant shows why only a torn head may be moved. A liveness check under fairness is still scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases.",
+        "Progress is checked as a safety invariant, not as liveness under fairness. verification/quint/media.qnt's lineageRecoverable says a crash or power loss damages a lineage only by tearing a revision, a torn revision never sits below the head, and discovery never answers invalid for a lineage whose only damage is a torn revision; the next locked start quarantines a torn head and recaptures, which the ITF replay drives through production mediaUrl for 300 traces. promotedDurable says every promotion flushed the staged tree and the revision parent before the rename and the revision and staging parents after it, and the replay derives each revision's flag from the flushes production made.",
+        "The stepNoSync variant (promotion without the flushes, as before D10) violates promotedDurable and lineageRecoverable, and stepNoRepair (a torn head answered invalid, as before D10) violates lineageRecoverable. Deleting production's post-rename flush of the revision parent makes the replay diverge.",
+        "Power loss is modelled, not observed: the model tears the head at any time and an older revision only when its promotion was not flushed, so a drive that acknowledges a flush it does not keep is outside the model. F_FULLFSYNC runs in the macOS CI job; on Linux and on filesystems that refuse it, the flush falls back to fsync, which gives no drive-cache guarantee.",
         "Plan defect D10 is fixed: the staging tree and its parent directories are fsynced before and after the promotion rename, and a start that finds a torn head moves it to the quarantine instead of stopping the lineage.",
-        "F_FULLFSYNC runs in the macOS CI job; on Linux and on filesystems that refuse it, the flush falls back to fsync, which gives no drive-cache guarantee.",
-        "Repair quarantines at most one torn head per capture; the direct pipeline promotes durably but does not repair a torn head.",
+        "Repair quarantines at most one torn head per capture; the direct pipeline promotes durably but does not repair a torn head, and it is not replayed against the model.",
         "Quarantined revisions stay until their owner removes them; `ghostget media quarantine` lists them and removes nothing."
       ]
     },
@@ -2971,9 +2973,9 @@
         "quote": "Add a `fc.commands` model for Beeper and Message Like Me recovery."
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 4,
+      "status": "evidenced",
       "evidence": [
+        "src/beeper-message-like-me-recovery.model.test.ts",
         "src/beeper-message-like-me-recovery.test.ts"
       ],
       "assumptions": [
@@ -2982,7 +2984,15 @@
         "provider-behaviour"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The fast-check model covers the export admission claim: acquisition, helper launch, bind, settle, cleanup-unsafe, release, stale controllers, parent or helper death or unreadable liveness, and reboot, over 10 generated sequences of up to 10 commands on a real claim file. Liveness readings come from the model through test-only seams, answered as a truthful processOwnerStatus would; real process-start and boot identity reading is covered by src/process-identity.test.ts.",
+        "The directory-lease recovery (raw working directories and bundle stages) is covered only by the listed example tests. A dead owner's launching lease is reclaimed once its recorded deadline passes, so that path treats the deadline, not a proved child death, as the end of the launch.",
+        "Two seeded defects are killed by the model: taking over an owner whose liveness cannot be read, and taking over a cleanup-unsafe admission in the same boot."
+      ],
+      "properties": [
+        {
+          "path": "src/beeper-message-like-me-recovery.model.test.ts",
+          "test": "retains a live or indeterminate owner and takes over only after death is proved"
+        }
       ]
     },
     {
@@ -2993,9 +3003,8 @@
         "path": "SECURITY.md",
         "quote": "Ghostget checks current provider state before every remaining part and stops on foreign activity, edit, retraction, participant drift, provider drift"
       },
-      "layer": "stateful-model",
-      "status": "planned",
-      "phase": 4,
+      "layer": "property",
+      "status": "evidenced",
       "evidence": [
         "src/messaging-automation.test.ts",
         "src/messaging-runtime-execution.test.ts"
@@ -3005,7 +3014,15 @@
         "provider-behaviour"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The property runs the production composite runtime through a synthetic provider plugin, for one to three parts with at most one adverse event per run: an incoming or extra outgoing message, an edit, a deletion, a reordering, a participant or provider-revision change on the route, a failure before or after the durable fence, a malformed result, or a deadline or abort before or after the fence. It checks the terminal state, proven prefix, stop reason, and dispatch count against a reference model. CI runs 6 generated runs; two seeded runtime defects are killed.",
+        "Two or more adverse events in one run, and the real Beeper, iMessage, and WhatsApp plugins' own drift readings, are covered only by the listed example tests.",
+        "The claim was scheduled as a stateful model; it is evidenced by a property over single-event schedules instead, because each part's recheck is independent of the earlier parts' events."
+      ],
+      "properties": [
+        {
+          "path": "src/messaging-runtime-execution.test.ts",
+          "test": "stops on every drift, failure, or cancellation at the modelled part and never resubmits"
+        }
       ]
     },
     {
@@ -3043,20 +3060,28 @@
         "path": "docs/messaging-automation.md",
         "quote": "reconcile its exact run identity without resubmitting uncertain work."
       },
-      "layer": "stateful-model",
-      "status": "planned",
-      "phase": 4,
+      "layer": "property",
+      "status": "evidenced",
       "evidence": [
         "src/beeper-message-like-me-recovery.test.ts",
         "src/messaging-automation.test.ts",
-        "src/messaging-confirmation-recovery.test.ts"
+        "src/messaging-confirmation-recovery.test.ts",
+        "src/messaging-runtime-execution.test.ts"
       ],
       "assumptions": [
         "filesystem-durability",
         "provider-behaviour"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The property checks that a deadline or abort after the durable fence, a failure after it, or a malformed result leaves the run indeterminate at that part with possibleSubmittedPartIndex set, never failed-before-dispatch; that confirming the same plan again is refused without another provider attempt; and that the stored run read back by its run identity is unchanged. CI runs 6 generated runs over the synthetic provider plugin. A seeded defect that records a post-fence failure as unsent is killed.",
+        "Reconciliation of an indeterminate part against provider state, and Beeper and Message Like Me recovery, are covered only by the listed example tests and the recovery model; the property does not resolve an indeterminate part.",
+        "The claim was scheduled as a stateful model; it is evidenced by a property over single-event schedules instead."
+      ],
+      "properties": [
+        {
+          "path": "src/messaging-runtime-execution.test.ts",
+          "test": "stops on every drift, failure, or cancellation at the modelled part and never resubmits"
+        }
       ]
     },
     {
@@ -3610,10 +3635,10 @@
         "path": "SECURITY.md",
         "quote": "Ghostget caps locally owned browser acquisition at two across processes sharing one state home"
       },
-      "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "layer": "stateful-model",
+      "status": "evidenced",
       "evidence": [
+        "src/browser-admission.model.test.ts",
         "src/browser-admission.property.test.ts",
         "src/browser-admission.test.ts"
       ],
@@ -3622,7 +3647,16 @@
         "process-liveness"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The fast-check model drives production acquireBrowserAdmission and acquireCaptureBrowserWithAdmission against real slot files in one state home, with simulated processes that all reuse one PID, an injected monotonic clock that jumps on every read, owner deaths, unreadable liveness, and reboots. CI runs 8 generated sequences of up to 10 commands. Process and boot identity and owner liveness come from the model through the dependency seams, answered as a truthful processOwnerStatus would; the real readings are covered by src/process-identity.test.ts.",
+        "The acquisitions run one at a time in one process; concurrent creates from separate processes are covered by the listed example and property tests, and the slot create relies on the atomic create-if-absent the filesystem-atomic-rename assumption names.",
+        "Seeded defects that reclaim every claim, or a same-boot claim whose owner reads as dead, are killed by the model.",
+        "The claim was scheduled as a Quint model with production replay; it is evidenced by the stateful model instead."
+      ],
+      "properties": [
+        {
+          "path": "src/browser-admission.model.test.ts",
+          "test": "never runs more than two acquisitions, never reclaims a same-boot claim, and never launches after expiry"
+        }
       ]
     },
     {
@@ -3633,10 +3667,10 @@
         "path": "SECURITY.md",
         "quote": "PID reuse alone cannot reclaim a claim. Automatic reclamation requires a verified prior operating-system boot"
       },
-      "layer": "quint",
-      "status": "planned",
-      "phase": 4,
+      "layer": "stateful-model",
+      "status": "evidenced",
       "evidence": [
+        "src/browser-admission.model.test.ts",
         "src/browser-admission.property.test.ts",
         "src/browser-admission.test.ts",
         "src/process-identity.test.ts"
@@ -3646,7 +3680,16 @@
         "process-liveness"
       ],
       "notVerified": [
-        "The Quint model with production trace replay for this claim is scheduled for plan Phase 4; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The fast-check model drives production acquireBrowserAdmission and acquireCaptureBrowserWithAdmission against real slot files in one state home, with simulated processes that all reuse one PID, an injected monotonic clock that jumps on every read, owner deaths, unreadable liveness, and reboots. CI runs 8 generated sequences of up to 10 commands. Process and boot identity and owner liveness come from the model through the dependency seams, answered as a truthful processOwnerStatus would; the real readings are covered by src/process-identity.test.ts.",
+        "The model checks that a same-boot claim stays occupied after its owner dies or becomes unreadable, and that only a claim from an earlier boot is reclaimed. That a boot identity really changes at reboot and that a process-start identity really distinguishes reused PIDs are assumptions of process-liveness, checked only by the listed example tests.",
+        "A seeded defect that reclaims a same-boot claim whose owner reads as dead is killed by the model.",
+        "The claim was scheduled as a Quint model with production replay; it is evidenced by the stateful model instead."
+      ],
+      "properties": [
+        {
+          "path": "src/browser-admission.model.test.ts",
+          "test": "never runs more than two acquisitions, never reclaims a same-boot claim, and never launches after expiry"
+        }
       ]
     },
     {
@@ -3680,9 +3723,9 @@
         "quote": "deadline revalidation and conditional rollback prevent a browser launch after expiry"
       },
       "layer": "stateful-model",
-      "status": "planned",
-      "phase": 2,
+      "status": "evidenced",
       "evidence": [
+        "src/browser-admission.model.test.ts",
         "src/browser-admission.test.ts"
       ],
       "assumptions": [
@@ -3691,7 +3734,15 @@
         "monotonic-clock"
       ],
       "notVerified": [
-        "The stateful model for this claim is scheduled for plan Phase 2; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The fast-check model drives production acquireBrowserAdmission and acquireCaptureBrowserWithAdmission against real slot files in one state home, with simulated processes that all reuse one PID, an injected monotonic clock that jumps on every read, owner deaths, unreadable liveness, and reboots. CI runs 8 generated sequences of up to 10 commands. Process and boot identity and owner liveness come from the model through the dependency seams, answered as a truthful processOwnerStatus would; the real readings are covered by src/process-identity.test.ts.",
+        "The model checks every sleep against min(remaining capture time, 30 s, the timeout), that no admission is returned at or after that bound, and that a whole capture launches its browser at most once, under a held slot, before its deadline, with no more time than remains. Browser launch is a stub; what a real browser does with its timeout is not checked.",
+        "Seeded defects that drop the deadline revalidation after a create, launch with no time left, or raise the polling cap to 60 s are killed by the model."
+      ],
+      "properties": [
+        {
+          "path": "src/browser-admission.model.test.ts",
+          "test": "never runs more than two acquisitions, never reclaims a same-boot claim, and never launches after expiry"
+        }
       ]
     },
     {
@@ -6571,8 +6622,10 @@
         "ci-runner"
       ],
       "notVerified": [
-        "The example test for this claim is scheduled for plan Phase 6; no automated check covers it yet.",
-        "The release attestation proves that the workflow packed the binaries, not that they came from reviewed source, and imsg provenance records no clean rebuild."
+        "No automated check rebuilds either binary. src/plugins/imessage-direct/vendor/provenance.json and src/plugins/whatsapp-linked-device/vendor/provenance.json pin the upstream commit, the reviewed patch stack by SHA-256, the toolchain, and the build command, but the evidence of the builds is the author's record, not a CI run.",
+        "imsg is not shown reproducible: its record lists one release build, no clean rebuild, and signed bytes that are not identical across builds. wacli's record reports a second identical build on the author's machine, which CI has not repeated.",
+        "Evidencing the claim needs a CI job that fetches the pinned upstream sources and dependencies, applies the reviewed patches, builds with the pinned Go toolchain and, for imsg, the pinned Swift toolchain and macOS SDK on a macOS runner, and compares the bytes; that work is scheduled for plan Phase 6.",
+        "The release attestation proves that the workflow packed the binaries, not that they came from reviewed source."
       ]
     },
     {
