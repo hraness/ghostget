@@ -1698,14 +1698,24 @@
 // 0db7a4879c287a20cadee309286755cdcfb00a6d67112f75c2cbcc827b809250. Carry the
 // same projections and allowances: 12,005,010 + 12,387 + 4,096 = 12,021,493
 // packed; 23,467,598 + 353 + 65 = 23,468,016 unpacked.
+//
+// The control, auth, and provider-control claims add the public-address
+// classification and vectors, pinned HTTPS protections, helper ownership and
+// shutdown models, and operation permission changes: a clean
+// `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64 measured
+// 12,006,304 packed bytes and 23,470,959 unpacked bytes across the unchanged
+// 596-file inventory (the Linux package job measured the same 23,470,959);
+// archive SHA-256 3d865f7d9ad9b52a7910c8dfcf24ff01d98b23c2ea4d950902e14a96a4bd545f.
+// Carry the same projections and allowances: 12,006,304 + 12,387 + 4,096 =
+// 12,022,787 packed; 23,470,959 + 353 + 65 = 23,471,377 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Release and publication claims evidenced in CI",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "0db7a4879c287a20cadee309286755cdcfb00a6d67112f75c2cbcc827b809250",
-  packedBytes: 12_005_010,
-  unpackedBytes: 23_467_598,
+  archiveSha256: "3d865f7d9ad9b52a7910c8dfcf24ff01d98b23c2ea4d950902e14a96a4bd545f",
+  packedBytes: 12_006_304,
+  unpackedBytes: 23_470_959,
   entryCount: 596,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
