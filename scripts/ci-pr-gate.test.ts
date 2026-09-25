@@ -183,7 +183,7 @@ describe("complete local and release check composition", () => {
       standalone: ["standalone", "ubuntu-latest", 20],
       macos: ["macOS", "macos-15", 45],
       verification: ["verification", "ubuntu-latest", 30],
-      quint: [`quint \${{ matrix.shard }}/${String(QUINT_CI_SHARD_COUNT)}`, "ubuntu-latest", 25],
+      quint: [`quint \${{ matrix.shard }}/${String(QUINT_CI_SHARD_COUNT)}`, "ubuntu-latest", 35],
     } as const;
     const shardList = (count: number): number[] => Array.from({ length: count }, (_, index) => index + 1);
     const expectedNode = {
