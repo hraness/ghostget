@@ -113,8 +113,13 @@
         },
         {
           "name": "hraness-delivery",
-          "digest": "e91f59f38e14a5a71aac6b7028e5ffc87c4b3a4e27829df60d5ceade0e58e0a9",
+          "digest": "a4e0480f3225579f69f3098d42f490c0190b555b60bbfd45659cd2e179df14b0",
           "reason": "Synced Hraness delivery and workstation laws, including production-data preservation, runtime-enforced approvals, and delivery-gate guards; no automated check in this repository covers them."
+        },
+        {
+          "name": "hraness-ci",
+          "digest": "1486c84e5fec6062e3c67d4a3509fab274467df31424a8ffc07dc38a900686cf",
+          "reason": "Synced Hraness CI baseline for admission speed and the Required gate; it states no property of the package, CLI, website, or release."
         },
         {
           "name": "algal-skills",

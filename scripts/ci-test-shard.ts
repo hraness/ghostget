@@ -7,36 +7,62 @@ const DEFAULT_CONCURRENCY = 4;
 const MAX_SHARD_COUNT = 16;
 const DEFAULT_FILE_WEIGHT = 2;
 
-// Wall seconds observed for the heaviest `./src` files during Linux
-// `bun run check` on GitHub-hosted ubuntu-latest (run 33969193934).
-// Used only to pack shards; every listed file still runs exactly once.
-// `src/confirmed-write-intent-fence.test.ts` was added from run 35931471436,
-// where its log group closed 176 seconds after the previous one in its shard.
-// `src/state-crash-harness.test.ts` has no CI reading yet: its 475 seconds is
-// one full local run of the file on a loaded macOS arm64 host. Replace it
-// with the first CI log-group reading.
+// Wall seconds observed for the heaviest `./src` files during Linux PR CI on
+// GitHub-hosted ubuntu-latest (run 36028981199, four shards). Used only to
+// pack shards; every listed file still runs exactly once. Files under ten
+// seconds take the default weight. Refresh the table from a shard log when a
+// shard drifts more than a minute from the others.
 const MEASURED_FILE_WEIGHTS = Object.freeze({
-  "src/state-crash-harness.test.ts": 475,
-  "src/messaging-runtime-execution.test.ts": 410,
-  "src/runtime.test.ts": 265,
-  "src/ghostget.test.ts": 208,
-  "src/confirmed-write-intent-fence.test.ts": 176,
-  "src/read-projections.test.ts": 159,
-  "src/read-client.test.ts": 115,
-  "src/provider-plugin-portable-runtime.test.ts": 95,
-  "src/web-session-recovery.test.ts": 62,
-  "src/derive.test.ts": 53,
+  "src/runtime.test.ts": 454,
+  "src/messaging-runtime-execution.test.ts": 423,
+  "src/state-crash-harness.test.ts": 250,
+  "src/ghostget.test.ts": 228,
+  "src/confirmed-write-intent-fence.test.ts": 186,
+  "src/read-projections.test.ts": 155,
+  "src/provider-plugin-portable-runtime.test.ts": 139,
+  "src/read-client.test.ts": 130,
+  "src/control/interface-cli.test.ts": 126,
+  "src/operation-permission.test.ts": 106,
+  "src/session-secrets.test.ts": 96,
+  "src/web-session-recovery.test.ts": 69,
+  "src/support-cli.test.ts": 66,
+  "src/control/menubar-cli.test.ts": 62,
+  "src/derive.test.ts": 55,
+  "src/contracts-cli.test.ts": 53,
   "src/auth-storage.test.ts": 46,
-  "src/session-secrets.test.ts": 42,
+  "src/control/helper-lifecycle.test.ts": 44,
+  "src/scripts/sync-bundled-adapters.test.ts": 42,
   "src/read-projections-omni.test.ts": 36,
-  "src/scripts/sync-bundled-adapters.test.ts": 34,
-  "src/messaging-provider-identity-collision.test.ts": 29,
+  "src/contract-repair-cli.test.ts": 35,
+  "src/control/vault.test.ts": 31,
+  "src/messaging-provider-identity-collision.test.ts": 30,
+  "src/linked-device-lifecycle-runtime.test.ts": 30,
+  "src/messaging-automation.test.ts": 29,
   "src/provider-plugin-store.test.ts": 28,
-  "src/linked-device-lifecycle-runtime.test.ts": 26,
+  "src/control/read-capability.test.ts": 27,
+  "src/client.test.ts": 22,
+  "src/web-session-cleanup-admission.test.ts": 20,
+  "src/read-path-incarnation.test.ts": 20,
   "src/provider-plugin-host.test.ts": 20,
+  "src/providers/beeper-local-runtime.internal.test.ts": 19,
+  "src/provider-contract-inventory.test.ts": 19,
+  "src/catalog-cli.test.ts": 18,
+  "src/messaging-confirmation-recovery.test.ts": 17,
+  "src/adapter-generation.test.ts": 17,
+  "src/cli.test.ts": 16,
+  "src/provider-plugin-lifecycle.test.ts": 15,
+  "src/provider-plugin-invocation-lease.test.ts": 15,
+  "src/read-path-preparation.test.ts": 14,
+  "src/browser-admission.test.ts": 14,
+  "src/control/helper-client.test.ts": 13,
+  "src/control/connections.test.ts": 13,
+  "src/imessage-direct-plugin.test.ts": 12,
+  "src/provider-plugin-runtime.integration.test.ts": 11,
+  "src/beeper-message-like-me-recovery.test.ts": 11,
+  "src/run-journal.property.test.ts": 10,
 });
 
-export const CI_UNIT_TEST_SHARD_COUNT = 4;
+export const CI_UNIT_TEST_SHARD_COUNT = 8;
 export const BUN_TEST_TIMEOUT_MS = 180_000;
 
 export type ShardRequest = {

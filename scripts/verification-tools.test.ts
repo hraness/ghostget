@@ -271,7 +271,7 @@ describe("verification CI job", () => {
       const repinned = [changed, ...pinnedArchives().slice(1)].map(({ name, url, bytes, sha256 }) => ({ name, url, bytes, sha256 }));
       expect(createHash("sha256").update(JSON.stringify(repinned)).digest("hex").slice(0, 16)).not.toBe(digest);
     }
-    const verify = job.steps.findIndex((step) => step.run === "bun run verify");
+    const verify = job.steps.findIndex((step) => step.run === "bun run verify:claims");
     const install = job.steps.findIndex((step) => step.run === "bun install --frozen-lockfile --ignore-scripts");
     expect(install).toBeGreaterThanOrEqual(0);
     expect(job.steps.indexOf(cache[0]!)).toBe(install + 1);
@@ -288,19 +288,31 @@ describe("verification CI job", () => {
     expect(source).not.toContain("setup-java");
   });
 
-  test("runs bun run verify once, bounded, without credentials, and retains its sanitized logs", async () => {
+  test("runs the non-Quint verify phases once each, bounded, without credentials, and retains sanitized logs", async () => {
     const source = await workflowSource();
     const workflow = Bun.YAML.parse(source) as Workflow;
     const job = workflow.jobs.verification;
     if (job === undefined) throw new Error("ci.yml has no verification job");
     expect(job.name).toBe("verification");
-    expect(job["timeout-minutes"]).toBe(55);
+    expect(job["timeout-minutes"]).toBe(30);
     expect(job.permissions).toBeUndefined();
     expect(workflow.permissions).toEqual({ contents: "read" });
     expect(job.steps.filter((step) => step.uses?.startsWith("actions/checkout@") === true).map((step) => step.with))
       .toEqual([{ "persist-credentials": false }]);
-    expect(source.match(/^ {6}- run: bun run verify$/gmu)).toHaveLength(1);
-    expect(job.steps.filter((step) => step.run === "bun run verify")).toHaveLength(1);
+    // `bun run verify` is claims && quint && lean && oracles; this job runs the
+    // three fast phases once each and the `quint` matrix runs verify:quint's
+    // models as shards, so no plain `bun run verify` step remains in ci.yml.
+    expect(source.match(/^ {6}- run: bun run verify$/gmu) ?? []).toHaveLength(0);
+    let boundSum = 0;
+    for (const phase of ["claims", "lean", "oracles"] as const) {
+      const run = `bun run verify:${phase}`;
+      expect(source.match(new RegExp(`^ {6}- run: ${run}$`, "gmu"))).toHaveLength(1);
+      const steps = job.steps.filter((step) => step.run === run);
+      expect(steps).toHaveLength(1);
+      const bound = steps[0]!["timeout-minutes"];
+      expect(typeof bound).toBe("number");
+      boundSum += bound!;
+    }
     const upload = job.steps.filter((step) => step.uses?.startsWith("actions/upload-artifact@") === true);
     expect(upload).toHaveLength(1);
     expect(upload[0]!.with).toEqual({
@@ -310,25 +322,26 @@ describe("verification CI job", () => {
       "retention-days": 30,
     });
     expect(job.steps.indexOf(upload[0]!)).toBe(job.steps.length - 1);
-    // A failed or timed-out verify step still uploads its logs: the step bound ends it inside the job bound.
+    // A failed or timed-out phase still uploads its logs: the phase bounds end
+    // every phase inside the job bound even when each phase is slowest allowed.
     expect(upload[0]!.if).toBe("always()");
-    const verifyStep = job.steps.find((step) => step.run === "bun run verify")!;
-    expect(verifyStep["timeout-minutes"]).toBe(50);
-    expect(verifyStep["timeout-minutes"]!).toBeLessThan(job["timeout-minutes"]! - 2);
+    expect(boundSum).toBeLessThanOrEqual(job["timeout-minutes"]! - 2);
     expect(JSON.stringify(job)).not.toContain("secrets.");
     for (const match of source.matchAll(/^\s*(?:- )?uses: (\S+)/gmu)) {
       expect(match[1]).toMatch(/^[A-Za-z0-9-]+\/[A-Za-z0-9-]+@[0-9a-f]{40}$/u);
     }
   });
 
-  test("makes a failed, cancelled, or skipped verification job fail Required", async () => {
+  test("makes a failed, cancelled, or skipped verification or Quint job fail Required", async () => {
     const workflow = Bun.YAML.parse(await workflowSource()) as Workflow;
     const required = workflow.jobs.required;
     if (required === undefined) throw new Error("ci.yml has no Required job");
     expect(required.needs).toContain("verification");
+    expect(required.needs).toContain("quint");
     const gate = required.steps.find((step) => step.name === "Require every selected job");
     expect(gate?.env?.VERIFICATION).toBe("${{ needs.verification.result }}");
-    expect(gate?.run).toMatch(/^for result in .*"\$VERIFICATION"; do$/mu);
+    expect(gate?.env?.QUINT).toBe("${{ needs.quint.result }}");
+    expect(gate?.run).toMatch(/^for result in .*\$VERIFICATION.*\$QUINT.*; do$/mu);
     expect(gate?.run).toContain('if [[ "$result" != success ]]; then');
   });
 });

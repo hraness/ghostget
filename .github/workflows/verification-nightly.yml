@@ -21,7 +21,7 @@ concurrency:
 # read-only and never part of `Required`: a failure here blocks no merge or
 # release, and is triaged through docs/claims-review.md.
 jobs:
-  quint:
+  quint-nightly:
     name: quint nightly bounds
     runs-on: ubuntu-latest
     timeout-minutes: 240

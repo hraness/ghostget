@@ -90,6 +90,7 @@ These synced blocks sit inside a scanned Guidelines section but have no rules or
 | --- | --- | --- |
 | `AGENTS.md` | `hraness-public-copy` | Synced Hraness public-copy policy for prose; it states no property of the package, CLI, website, or release. |
 | `AGENTS.md` | `hraness-delivery` | Synced Hraness delivery and workstation laws, including production-data preservation, runtime-enforced approvals, and delivery-gate guards; no automated check in this repository covers them. |
+| `AGENTS.md` | `hraness-ci` | Synced Hraness CI baseline for admission speed and the Required gate; it states no property of the package, CLI, website, or release. |
 | `AGENTS.md` | `algal-skills` | Synced contributor tooling instructions for the algal skill pack; it states no property of the package, CLI, website, or release. |
 
 ### Guides outside the register
