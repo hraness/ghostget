@@ -182,7 +182,7 @@ describe("complete local and release check composition", () => {
       "test-omni": ["test-omni", "ubuntu-latest", 25],
       standalone: ["standalone", "ubuntu-latest", 20],
       macos: ["macOS", "macos-15", 45],
-      verification: ["verification", "ubuntu-latest", 20],
+      verification: ["verification", "ubuntu-latest", 30],
       quint: [`quint \${{ matrix.shard }}/${String(QUINT_CI_SHARD_COUNT)}`, "ubuntu-latest", 25],
     } as const;
     const shardList = (count: number): number[] => Array.from({ length: count }, (_, index) => index + 1);
@@ -603,7 +603,7 @@ describe("nightly verification workflow", () => {
   type Workflow = { name?: string; on?: Record<string, unknown>; permissions?: unknown; concurrency?: unknown; jobs: Record<string, Job> };
   const PINNED_ACTION = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40}$/u;
   const COMMANDS = {
-    quint: "bun run ./scripts/verification-tools.ts quint-nightly",
+    "quint-nightly": "bun run ./scripts/verification-tools.ts quint-nightly",
     "property-soak": `bun run ./scripts/verification-soak.ts \${{ matrix.shard }} ${String(NIGHTLY_SOAK_SHARDS)}`,
     mutants: "bun run ./scripts/verification-mutants.ts",
   } as const;
@@ -665,7 +665,7 @@ describe("nightly verification workflow", () => {
         throw new Error(`nightly job ${id} does not run ${command} exactly once`);
       }
     }
-    const cache = candidate.jobs.quint?.steps.filter((step) => step.uses?.startsWith("actions/cache@") === true) ?? [];
+    const cache = candidate.jobs["quint-nightly"]?.steps.filter((step) => step.uses?.startsWith("actions/cache@") === true) ?? [];
     const ciCache = ciStep("actions/cache@");
     if (cache.length !== 1 || ciCache === undefined || cache[0]!.uses !== ciCache.uses || !isDeepStrictEqual(cache[0]!.with, ciCache.with)) {
       throw new Error("the nightly Quint job must share the CI checker cache key");
@@ -704,19 +704,19 @@ describe("nightly verification workflow", () => {
       candidate => { candidate.on = { ...candidate.on, push: { branches: ["main"] } }; },
       candidate => { candidate.permissions = { contents: "write" }; },
       candidate => { candidate.permissions = { contents: "read", "id-token": "write" }; },
-      candidate => { candidate.jobs.quint!.permissions = { actions: "write" }; },
+      candidate => { candidate.jobs["quint-nightly"]!.permissions = { actions: "write" }; },
       candidate => { candidate.jobs.mutants!.environment = "npm-release"; },
       candidate => { candidate.jobs.mutants!.name = "Required"; },
       candidate => { candidate.jobs.mutants!["continue-on-error"] = true; },
       candidate => { delete candidate.jobs.mutants; },
       candidate => { candidate.jobs.extra = structuredClone(candidate.jobs.mutants!); },
-      candidate => { delete candidate.jobs.quint!["timeout-minutes"]; },
-      candidate => { candidate.jobs.quint!.steps[0]!.uses = "actions/checkout@v7"; },
-      candidate => { candidate.jobs.quint!.steps[0]!.with = {}; },
-      candidate => { candidate.jobs.quint!.steps.find(step => step.uses?.startsWith("oven-sh/setup-bun@"))!.with = { "bun-version": "latest" }; },
-      candidate => { candidate.jobs.quint!.steps.find(step => step.uses?.startsWith("actions/cache@"))!.with!.key = "ghostget-verification-nightly"; },
-      candidate => { candidate.jobs.quint!.steps.find(step => step.run === COMMANDS.quint)!.run = "bun run ./scripts/verification-tools.ts quint"; },
-      candidate => { candidate.jobs.quint!.steps.find(step => step.run === COMMANDS.quint)!.if = "false"; },
+      candidate => { delete candidate.jobs["quint-nightly"]!["timeout-minutes"]; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps[0]!.uses = "actions/checkout@v7"; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps[0]!.with = {}; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.uses?.startsWith("oven-sh/setup-bun@"))!.with = { "bun-version": "latest" }; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.uses?.startsWith("actions/cache@"))!.with!.key = "ghostget-verification-nightly"; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.run === COMMANDS["quint-nightly"])!.run = "bun run ./scripts/verification-tools.ts quint"; },
+      candidate => { candidate.jobs["quint-nightly"]!.steps.find(step => step.run === COMMANDS["quint-nightly"])!.if = "false"; },
       candidate => { candidate.jobs.mutants!.steps.find(step => step.run === COMMANDS.mutants)!.run = `${COMMANDS.mutants} || true`; },
       candidate => { candidate.jobs["property-soak"]!.strategy = { "fail-fast": false, matrix: { shard: [1, 2, 3] } }; },
       candidate => { candidate.jobs["property-soak"]!.steps.find(step => step.run === COMMANDS["property-soak"])!.env = {}; },

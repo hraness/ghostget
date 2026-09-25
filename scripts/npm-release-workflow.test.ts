@@ -1289,7 +1289,7 @@ describe("npm publication contract", () => {
     expect(timeoutValues(testOmniJob)).toEqual([25]);
     expect(timeoutValues(standaloneJob)).toEqual([20]);
     expect(timeoutValues(macosJob)).toEqual([45]);
-    expect(timeoutValues(verificationJob)).toEqual([20]);
+    expect(timeoutValues(verificationJob)).toEqual([30]);
     expect(timeoutValues(quintJob)).toEqual([25]);
     expect(timeoutValues(requiredJob)).toEqual([5]);
     expect(staticJob.match(/^      - run: bun run check:static$/gmu) ?? []).toHaveLength(1);
@@ -3198,8 +3198,8 @@ fi
         if (writes.length === 1) workflowWriters.push(`${filename}:${name}`);
       }
     }
-    expect(workflowWriters).toEqual(["release.yml:publish"]);
-    expect(contentsWriteOccurrences).toBe(1);
+    expect(workflowWriters).toEqual(["dependabot-auto-merge.yml:enable", "release.yml:publish"]);
+    expect(contentsWriteOccurrences).toBe(2);
     expect(workflow).not.toContain("VERCEL_TOKEN");
     expect(workflow).not.toContain("projectSettings");
     expect(workflow).not.toContain("redeploy");
