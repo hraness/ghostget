@@ -132,28 +132,32 @@ export class MessagingAutomationRpcServer {
   /** A set poll joins every listed enrollment lane at once and shares one
    * provider session across them. Lanes already running another operation are
    * skipped rather than awaited — their owner is already syncing that journal —
-   * and report their current row so a busy enrollment never stalls the set. */
+   * and report their current stored row, which may not have synced this tick
+   * (a mid-operation state is bounded; the next pollSet re-syncs it). */
   private async dispatchPollSet(raw: unknown): Promise<unknown> {
     const r = automationRecord(raw, ["enrollmentIds"]);
     const ids = [...new Set(automationArray(r.enrollmentIds, 50).map(automationId))].sort();
     const free: string[] = [], busy: string[] = [];
     for (const id of ids) (this.enrollmentChains.has(id) ? busy : free).push(id);
-    const waits: Promise<unknown>[] = [], releases: (() => void)[] = [], tails: [string, Promise<unknown>][] = [];
+    // Classify and claim run in one synchronous stretch, so a free lane is
+    // provably unclaimed here — its tail is just this operation's gate.
+    const releases: (() => void)[] = [], tails: [string, Promise<unknown>][] = [];
     for (const key of free) {
-      const previous = this.enrollmentChains.get(key) ?? Promise.resolve();
       let release!: () => void;
-      const gate = new Promise<void>(resolve => { release = resolve; });
-      const tail = previous.then(() => gate);
+      const tail = new Promise<void>(resolve => { release = resolve; });
       this.enrollmentChains.set(key, tail); tails.push([key, tail]);
-      waits.push(previous); releases.push(release);
+      releases.push(release);
     }
     try {
-      await Promise.all(waits);
       const host = this.host();
-      const results = [...await host.pollEnrollments(free, this.abort.signal)];
-      for (const id of busy) {
-        const enrollment = host.enrollments().find(item => item.id === id) ?? null;
-        results.push({ enrollmentId: id, enrollment, error: enrollment === null ? "Messaging enrollment is unavailable." : null });
+      const results = free.length === 0 ? [] : [...await host.pollEnrollments(free, this.abort.signal)];
+      if (busy.length > 0) {
+        let rows: ReturnType<typeof host.enrollments> = [];
+        try { rows = host.enrollments(); } catch { /* a corrupt unrelated row degrades busy entries below */ }
+        for (const id of busy) {
+          const enrollment = rows.find(item => item.id === id) ?? null;
+          results.push({ enrollmentId: id, enrollment, error: enrollment === null ? "Messaging enrollment is unavailable." : null });
+        }
       }
       return { results };
     } finally {

@@ -72,6 +72,9 @@ export type AutomationEventScope = Readonly<{ coordinates: readonly AutomationCo
 export type AutomationScopedPage =
   | Readonly<{ messages: readonly AutomationMessage[]; nextCursor: string; caughtUp: boolean; gap: boolean }>
   | Readonly<{ error: string }>;
+/** One result per requested enrollment. An entry whose lane was busy with
+ * another operation reports its current stored row — not necessarily synced
+ * this tick — with `error: null`; callers must not assume it provider-synced. */
 export type AutomationPollResult = Readonly<{ enrollmentId: string; enrollment: AutomationEnrollment | null; error: string | null }>;
 
 /**

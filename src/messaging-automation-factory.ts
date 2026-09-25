@@ -43,6 +43,11 @@ export async function createMessagingAutomationSession(options: MessagingAutomat
       }));
       const authorize = async (operation: string, signal?: AbortSignal): Promise<Admission> => {
         signal?.throwIfAborted();
+        // A custody teardown drains registration before releasing: an
+        // authorize admitted mid-teardown would pass the custody checks but
+        // fail barrier registration on a closing claim. Wait for the release
+        // to land first so this call either fences or acquires fresh custody.
+        if (finishing !== undefined) await finishing.catch(() => undefined);
         if (poisoned) throw new AutomationHostRecoveryRequired("Host custody unavailable");
         if (closed) throw new Error("Host closed");
         const description = describe(operation, signal);
@@ -99,7 +104,7 @@ export async function createMessagingAutomationSession(options: MessagingAutomat
         // the provider still reuse it, and it is released only once the last
         // active call settles — never underneath a sibling's operation.
         activeCalls++;
-        try { return await work(); } finally { if (!persistent && --activeCalls === 0) await finishCustody(); }
+        try { return await work(); } finally { if (--activeCalls === 0 && !persistent) await finishCustody(); }
       };
       const status = async (signal?: AbortSignal) => call(async () => {
         const status = await concrete.inspect(signal);
@@ -116,6 +121,7 @@ export async function createMessagingAutomationSession(options: MessagingAutomat
         resolve: (input, signal) => call(() => concrete.resolve(input, signal)),
         history: (input, signal) => call(() => concrete.history(input, signal)),
         events: (input, signal) => call(() => concrete.events(input, signal)),
+        ...(concrete.eventsScoped === undefined ? {} : { eventsScoped: (input: Parameters<NonNullable<MessagingAutomationProvider["eventsScoped"]>>[0], signal?: AbortSignal) => call(() => concrete.eventsScoped!(input, signal)) }),
         send: (input, signal) => call(() => concrete.send(input, signal)),
         close: () => {
           if (closing) return closing;

@@ -1737,20 +1737,24 @@
 // path, the server pollSet dispatch and multi-plan asset tracking, the
 // provider FIFO queues, factory custody refcounting, and the iMessage
 // eventsScoped helper plus tests; the rebuilt automation chunk keeps the
-// same 598-file inventory. A clean `npm pack --ignore-scripts` with npm
-// 11.16.0 on darwin arm64 measured 12,037,168 packed bytes and 23,554,390
-// unpacked bytes; archive SHA-256
-// 17b88afc65d7b6bb0e6c178c53f9fefbada01d77d690e5ac9a10dfc4ec245b87.
-// Carry the same projections and allowances: 12,037,168 + 12,387 + 4,096 =
-// 12,053,651 packed; 23,554,390 + 353 + 65 = 23,554,808 unpacked.
+// same 598-file inventory. Review repairs then forwarded eventsScoped
+// through the factory wrapper, degraded group and per-enrollment faults to
+// per-item results, closed the custody teardown admission window, hoisted
+// the busy-row lookup, made the call refcount decrement unconditional, and
+// scaled the scoped-read deadline. A clean `npm pack --ignore-scripts` with
+// npm 11.16.0 on darwin arm64 measured 12,037,924 packed bytes and
+// 23,557,354 unpacked bytes; archive SHA-256
+// d7ffa146b6948b24fa27556c8897561f8c234039c3b11957d229f2e81d4b879b.
+// Carry the same projections and allowances: 12,037,924 + 12,387 + 4,096 =
+// 12,054,407 packed; 23,557,354 + 353 + 65 = 23,557,772 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Enrollment-scoped automation lanes with batched set polls",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "17b88afc65d7b6bb0e6c178c53f9fefbada01d77d690e5ac9a10dfc4ec245b87",
-  packedBytes: 12_037_168,
-  unpackedBytes: 23_554_390,
+  archiveSha256: "d7ffa146b6948b24fa27556c8897561f8c234039c3b11957d229f2e81d4b879b",
+  packedBytes: 12_037_924,
+  unpackedBytes: 23_557_354,
   entryCount: 598,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MessagingAutomationHost } from "./messaging-automation";
@@ -91,6 +91,13 @@ test("production factory initializes without reading accounts and missing explic
   const description = describeOperationPermission("imessage-direct", "messaging.automation.read", "synthetic-account", { environment, registry });
   setOperationPermission({ adapterId: "imessage-direct", operationId: "messaging.automation.read", authId: "synthetic-account", decision: "ask", expectedRevision: description.revision, expectedCapabilityDigest: description.digest }, { environment, registry });
   await expect(session.host.providerStatus("imessage")).rejects.toThrow("Explicit managed operation allow required");
+});
+test("production factory forwards the optional scoped-events surface through custody", () => {
+  // `eventsScoped` is optional, so TypeScript cannot catch the factory
+  // dropping it — and with the method missing, every scoped poll silently
+  // falls back to one custody session per enrollment. Pin the forwarding.
+  const source = readFileSync(join(import.meta.dir, "messaging-automation-factory.ts"), "utf8");
+  expect(source).toMatch(/eventsScoped:\s*\(input[^)]*\)[^=]*=>\s*call\(\(\)\s*=>\s*concrete\.eventsScoped!/u);
 });
 test("initialize and inspection never imply sync; malformed fields fail without private diagnostics", async () => {
   const f = await fixture(); expect(f.starts()).toBe(0);

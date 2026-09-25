@@ -153,7 +153,7 @@ async function eventsScope(session: Session, identity: AutomationIdentity, coord
  * bridge, changes OS permissions, or falls back to SMS or another transport. */
 export function createImsgAutomationProvider(options: ImsgAutomationOptions): MessagingAutomationProvider {
   let closed = false; let inFlight: Promise<unknown> | undefined;
-  async function run<T>(operation: ImsgAutomationOperation, signal: AbortSignal | undefined, work: (session: Session, identity: AutomationIdentity, reauthorize: () => Promise<void>, phase: (phase: DiscoveryDiagnosticPhase) => void) => Promise<T>): Promise<T> {
+  async function run<T>(operation: ImsgAutomationOperation, signal: AbortSignal | undefined, work: (session: Session, identity: AutomationIdentity, reauthorize: () => Promise<void>, phase: (phase: DiscoveryDiagnosticPhase) => void) => Promise<T>, budgetMs = 30_000): Promise<T> {
     if (closed) throw new Error("iMessage provider is closed");
     // Provider operations stay serialized — helper sessions and session
     // custody are not reentrant — but a concurrent caller now queues instead
@@ -166,7 +166,7 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
       signal?.throwIfAborted();
       const admission = await options.authorize(operation, signal);
       if (admission.auth.kind !== "linked-device-store" || admission.auth.provider !== "imessage") throw new Error("iMessage account required");
-      const deadline = new OperationDeadline(30_000, signal ? { signal } : {});
+      const deadline = new OperationDeadline(budgetMs, signal ? { signal } : {});
       try {
         phase("native-preflight");
         return await withImsgAutomationRuntime(admission.auth, { ...options.execution, operationDeadline: deadline, ...(operation === "conversations" ? { discoveryPhase: phase } : {}), ...(options.dependencies ? { dependencies: options.dependencies } : {}) }, async session => {
@@ -245,6 +245,9 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
       });
       if (scopes.length === 0) throw new Error("iMessage event scopes are required");
       const limit = automationInteger(input.limit, 1, 500);
+      // A scoped call covers up to 50 scopes in one session; the deadline
+      // scales per scope (capped) so a deep backlog degrades per scope rather
+      // than wedging every tick on the shared 30s default.
       return run("events", signal, async (session, identity) => {
         const results: AutomationScopedPage[] = [];
         for (const scope of scopes) {
@@ -253,7 +256,7 @@ export function createImsgAutomationProvider(options: ImsgAutomationOptions): Me
           catch (error) { results.push({ error: error instanceof Error ? error.message : "iMessage event scope failed" }); }
         }
         return { identity, results };
-      });
+      }, Math.min(30_000 + (scopes.length - 1) * 15_000, 300_000));
     },
     async send(input, signal): Promise<AutomationProviderSendResult> {
       const selected = coordinate(input.coordinate), action = parseAutomationAction(input.action), expected = parseAutomationIdentity(input.identity);

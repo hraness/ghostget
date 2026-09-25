@@ -307,11 +307,15 @@ export class MessagingAutomationHost {
     for (const id of ids) {
       let initial: StoredEnrollment;
       try { initial = this.row(id); } catch { results.set(id, { enrollmentId: id, enrollment: null, error: "Messaging enrollment does not exist." }); continue; }
-      const enrollment = this.enrollment(initial);
-      if (this.activeRun(id)) { results.set(id, { enrollmentId: id, enrollment, error: null }); continue; }
-      let group = groups.get(enrollment.identity.provider);
-      if (group === undefined) groups.set(enrollment.identity.provider, group = { provider: this.provider(enrollment.identity.provider), items: [] });
-      group.items.push({ initial, enrollment });
+      try {
+        const enrollment = this.enrollment(initial);
+        if (this.activeRun(id)) { results.set(id, { enrollmentId: id, enrollment, error: null }); continue; }
+        let group = groups.get(enrollment.identity.provider);
+        if (group === undefined) groups.set(enrollment.identity.provider, group = { provider: this.provider(enrollment.identity.provider), items: [] });
+        group.items.push({ initial, enrollment });
+      } catch (error) {
+        results.set(id, { enrollmentId: id, enrollment: this.tryEnrollment(id), error: error instanceof Error ? error.message : "Messaging enrollment is unavailable." });
+      }
     }
     for (const group of groups.values()) {
       let status: AutomationProviderStatus;
@@ -333,7 +337,18 @@ export class MessagingAutomationHost {
         } else live.push(item);
       }
       if (live.length === 0) continue;
-      const pages = await this.readScopePages(group.provider, live.map(item => ({ coordinate: item.enrollment.conversation.coordinate, cursor: item.initial.cursor })), signal);
+      let pages: readonly (Readonly<{ error: string }> | Readonly<{ page: unknown }>)[];
+      try {
+        pages = await this.readScopePages(group.provider, live.map(item => ({ coordinate: item.enrollment.conversation.coordinate, cursor: item.initial.cursor })), signal);
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        // A call-level scoped read failure degrades this provider's items to
+        // per-enrollment errors exactly like the sequential fallback does —
+        // other provider groups and their enrollments are unaffected.
+        const message = error instanceof Error ? error.message : "Messaging provider events are unavailable.";
+        for (const item of live) results.set(item.enrollment.id, { enrollmentId: item.enrollment.id, enrollment: this.tryEnrollment(item.enrollment.id), error: message });
+        continue;
+      }
       stopped(signal);
       for (const [index, item] of live.entries()) {
         const id = item.enrollment.id; const entry = pages[index]!;
