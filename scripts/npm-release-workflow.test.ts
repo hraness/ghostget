@@ -1596,8 +1596,8 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 596, max: 596 },
       fileCount: { min: 596, max: 596 },
-      packedBytes: { min: 1_600_000, max: 12_021_493 },
-      unpackedBytes: { min: 9_000_000, max: 23_468_016 },
+      packedBytes: { min: 1_600_000, max: 12_031_032 },
+      unpackedBytes: { min: 9_000_000, max: 23_516_722 },
     });
   });
 

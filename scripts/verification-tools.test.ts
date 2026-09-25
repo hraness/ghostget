@@ -932,7 +932,9 @@ describe("Quint model manifest", () => {
       expect(model.mutants.length).toBeGreaterThan(0);
       const replay = await repositoryFile(model.replay.test);
       expect(replay).toContain(`"${model.file}"`);
-      expect(replay).toContain("parseItfTrace");
+      // Each replay file drives seeded ITF traces, either through the shared
+      // cache (which calls parseItfTrace) or by parsing traces itself.
+      expect(/parseItfTrace|quintTraceCache/u.test(replay)).toBeTrue();
     }
   });
 
