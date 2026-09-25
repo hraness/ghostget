@@ -1,4 +1,8 @@
 // @bun
+import {
+  hasExactKeys
+} from "./index-5m1wfgkw.js";
+
 // src/storage.ts
 import {
   chmodSync,
@@ -903,7 +907,7 @@ function readStateMarker(path) {
     if (content !== stateMarkerText)
       throw new Error("ghostget state marker is malformed");
     const value = JSON.parse(content);
-    if (typeof value !== "object" || value === null || Array.isArray(value) || Object.keys(value).sort().join(",") !== "kind,schemaVersion" || !("schemaVersion" in value) || value.schemaVersion !== 1 || !("kind" in value) || value.kind !== "io-state")
+    if (typeof value !== "object" || value === null || Array.isArray(value) || !hasExactKeys(value, ["kind", "schemaVersion"]) || !("schemaVersion" in value) || value.schemaVersion !== 1 || !("kind" in value) || value.kind !== "io-state")
       throw new Error("ghostget state marker is malformed");
   }
 }

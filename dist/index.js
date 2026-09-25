@@ -3,6 +3,9 @@ import {
   startProviderPluginCleanupTrackedOperation
 } from "./index-n4szk3nw.js";
 import {
+  hasExactKeys
+} from "./index-5m1wfgkw.js";
+import {
   PROVIDER_PLUGIN_ID_MAX_LENGTH,
   PROVIDER_PLUGIN_OPERATION_NAME_MAX_LENGTH,
   isPortableProviderPluginVersion,
@@ -275,10 +278,9 @@ function record2(value, label) {
   return value;
 }
 function exactKeys2(value, keys, label) {
-  const actual = Object.keys(value).sort().join(",");
-  const expected = [...keys].sort().join(",");
-  if (actual !== expected)
-    throw new Error(`${label} must contain exactly ${expected || "no fields"}`);
+  if (!hasExactKeys(value, keys)) {
+    throw new Error(`${label} must contain exactly ${[...keys].sort().join(",") || "no fields"}`);
+  }
 }
 function boundedHttpsUrl(value, label) {
   if (typeof value !== "string" || value.length < 1 || value.length > 8192 || /[\0\r\n]/u.test(value)) {

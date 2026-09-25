@@ -1705,28 +1705,29 @@
 // missed `src/public-address.ts` in the package file list, which the packed
 // smoke caught when the installed CLI could not resolve the import; with it
 // shipped, the branch measured 12,008,738 packed bytes and 23,477,699
-// unpacked bytes across the new 597-file inventory.
+// unpacked bytes across its 597-file inventory.
 //
 // The portable retained readback and successor handling add the portable
 // provider host/runtime support, the retained readback and supersession
 // cores, and their tests, the public-address classification and vectors, and
 // the subject-keyed confirmed-write fence's authSubject, cross-locator scan,
-// and post-claim recheck. Merging all lanes: a clean `npm pack
-// --ignore-scripts` with npm 11.19.0 on darwin arm64 measured 12,019,445
-// packed bytes and 23,534,110 unpacked bytes across the 597-file inventory;
-// archive SHA-256
-// 3666bc04d8100fe00e1f7805404ee0851efcdc4b62806749b5e4b6ab65f68798.
-// Carry the same projections and allowances: 12,019,445 + 12,387 + 4,096 =
-// 12,035,928 packed; 23,534,110 + 353 + 65 = 23,534,528 unpacked.
+// and post-claim recheck. The planned-claims lane's shared `hasExactKeys`
+// import made the two entry graphs share `contracts-shape`, so the split
+// `dist` build gains one chunk. A clean `npm pack --ignore-scripts` with npm
+// 11.19.0 on darwin arm64 measured 12,020,614 packed bytes and 23,535,472
+// unpacked bytes across the 598-file inventory; archive SHA-256
+// fa943b53e54759afa7c9af3045e194cbe66ac66a9a1200337216d52f8943d9cb.
+// Carry the same projections and allowances: 12,020,614 + 12,387 + 4,096 =
+// 12,037,097 packed; 23,535,472 + 353 + 65 = 23,535,890 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Release and publication claims evidenced in CI",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "3666bc04d8100fe00e1f7805404ee0851efcdc4b62806749b5e4b6ab65f68798",
-  packedBytes: 12_019_445,
-  unpackedBytes: 23_534_110,
-  entryCount: 597,
+  archiveSha256: "fa943b53e54759afa7c9af3045e194cbe66ac66a9a1200337216d52f8943d9cb",
+  packedBytes: 12_020_614,
+  unpackedBytes: 23_535_472,
+  entryCount: 598,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,
