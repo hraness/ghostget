@@ -308,7 +308,10 @@ An ambiguous npm write is readback and diagnosis work, never a blind retry.
 Rerun the failed jobs of the same run: the registry-state step recognizes the
 exact prior publication and completes without a second write. The workflow's
 `stable-release` concurrency group and npm's version immutability serialize
-publication; no separate intent ledger or recovery input exists.
+publication; no separate intent ledger or recovery input exists. The group sets
+`queue: max`, so a pending tag run waits in order behind the running one
+instead of being cancelled when a later tag push arrives; GitHub cancels only
+beyond 100 pending runs.
 
 ## Configure trusted publishing
 
@@ -480,6 +483,9 @@ two equal bounded combined main-plus-tag advertisements around that proof.
 Current main may move linearly while preserving those controls. The publication
 path also exhausts the bounded completed stable-Release ordering census before
 creating or publishing a draft; a higher raw tag alone is an incomplete request.
+It repeats that census after the terminal authority proof, and on a completed
+target, so a higher stable Release that completed out of band during publication
+fails the run instead of leaving the older target as Latest.
 The canonical artifact has no dependency on npm latest.
 
 After publication, require exact immutable release and asset readback, bounded
