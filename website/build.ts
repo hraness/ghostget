@@ -1167,7 +1167,7 @@ export async function buildWebsite(
   const scriptAsset = async (name: string) => {
     const output = browserAssets.get(name);
     if (output === undefined) throw new Error(`Browser script ${name} missing from the shared build.`);
-    return output.text();
+    return output.arrayBuffer();
   };
   const analytics = new Uint8Array(await scriptAsset("analytics"));
   const skillInstall = new Uint8Array(await scriptAsset("skill-install-command"));
@@ -1175,7 +1175,7 @@ export async function buildWebsite(
   const field = new Uint8Array(await scriptAsset("ghostget-field"));
   // The blocking head script is a classic script: wrap the shared ESM output in
   // one strict-mode IIFE so it never leaks a top-level binding.
-  const appearance = new TextEncoder().encode(`(() => { "use strict";\n${await scriptAsset("appearance")}\n})();`);
+  const appearance = new TextEncoder().encode(`(() => { "use strict";\n${new TextDecoder().decode(await scriptAsset("appearance"))}\n})();`);
   const identity = parsePackageIdentity(manifest);
   if (identity.release !== CONTENT_REVIEWED_RELEASE) {
     throw new Error(
