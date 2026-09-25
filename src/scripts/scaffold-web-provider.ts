@@ -12,6 +12,7 @@ import {
 import { isIP } from "node:net";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { hasExactKeys } from "../contracts-shape.js";
 
 import {
   isProviderPluginId,
@@ -86,7 +87,7 @@ function webPluginId(site: string): string {
 }
 
 function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
-  return Object.keys(value).sort().join(",") === [...expected].sort().join(",");
+  return hasExactKeys(value, expected);
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {

@@ -6,6 +6,7 @@ import {
 } from "./canonical-json";
 import { createPrivateJsonIfAbsent, ensurePrivateStateDirectory, ghostgetStateHome, privateStateFilesMayExist, readPrivateStateFileIfPresent, writePrivateJsonIfUnchanged } from "./storage";
 import type { PermissionDecision } from "./control/protocol";
+import { hasExactKeys } from "./contracts-shape.js";
 
 export type PermissionEnvironment = Readonly<Record<string, string | undefined>>;
 export type OperationPolicyEntry = Readonly<{ digest: string; decision: PermissionDecision }>;
@@ -27,14 +28,14 @@ export function parseOperationPolicy(value: unknown): OperationPolicy {
   const fail = (): never => { throw new OperationPermissionError("OPERATION_POLICY_INVALID", "Operation permission policy is invalid; repair it in Ghostget before execution."); };
   if (typeof value !== "object" || value === null || Array.isArray(value)) return fail();
   const record = value as Record<string, unknown>;
-  if (Object.keys(record).sort().join(",") !== "entries,revision,schemaVersion" || record.schemaVersion !== 1
+  if (!hasExactKeys(record, ["entries", "revision", "schemaVersion"]) || record.schemaVersion !== 1
     || !Number.isSafeInteger(record.revision) || (record.revision as number) < 1
     || !Array.isArray(record.entries) || record.entries.length > MAX_ENTRIES) return fail();
   let previous = "";
   const entries = record.entries.map((candidate: unknown): OperationPolicyEntry => {
     if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return fail();
     const entry = candidate as Record<string, unknown>;
-    if (Object.keys(entry).sort().join(",") !== "decision,digest" || typeof entry.digest !== "string" || !DIGEST.test(entry.digest)
+    if (!hasExactKeys(entry, ["decision", "digest"]) || typeof entry.digest !== "string" || !DIGEST.test(entry.digest)
       || entry.digest <= previous || (entry.decision !== "allow" && entry.decision !== "deny" && entry.decision !== "ask")) return fail();
     previous = entry.digest;
     return Object.freeze({ digest: entry.digest, decision: entry.decision });

@@ -117,6 +117,7 @@ import {
   type MetaCometRequestFieldName,
 } from "./meta-bootstrap";
 import { normalizeFacebookGroupFeedHtml } from "./meta-facebook-group";
+import { hasExactKeys } from "../contracts-shape.js";
 import {
   FACEBOOK_MARKETPLACE_PAGINATION_DESCRIPTOR,
   bindFacebookMarketplacePaginationCursor,
@@ -424,7 +425,7 @@ function fileInput(value: OperationInput[string], label = "input.attachment"): F
     !isRecord(value)
     || value.kind !== "file"
     || typeof value.reference !== "string"
-    || Object.keys(value).sort().join(",") !== "kind,reference"
+    || !hasExactKeys(value, ["kind", "reference"])
   ) throw new Error(`${label} must be one plan-bound file`);
   return Object.freeze({ kind: "file", reference: value.reference });
 }
@@ -1037,7 +1038,7 @@ function assertThreadsUploadAcknowledgement(
 ): void {
   if (
     !isRecord(value)
-    || Object.keys(value).sort().join(",") !== "status,upload_id"
+    || !hasExactKeys(value, ["status", "upload_id"])
     || value.status !== "ok"
     || value.upload_id !== uploadId
   ) throw new Error("Threads upload acknowledgement did not bind the exact upload ID");
@@ -1203,7 +1204,7 @@ function threadsCreatedPost(
   // independent permalink readback below to prove actor, text, and image.
   if (
     !isRecord(value)
-    || Object.keys(value).sort().join(",") !== "media,status"
+    || !hasExactKeys(value, ["media", "status"])
     || value.status !== "ok"
     || !isRecord(value.media)
   ) {
@@ -1212,7 +1213,7 @@ function threadsCreatedPost(
       "Threads create response did not match the reviewed success shape",
     );
   }
-  const minimalLocator = Object.keys(value.media).sort().join(",") === "code,permalink,pk";
+  const minimalLocator = hasExactKeys(value.media, ["code", "permalink", "pk"]);
   if (!minimalLocator && uploaded?.mediaType !== 2) {
     throw new ThreadsCreateResponseError(
       "success-shape",
@@ -1739,16 +1740,15 @@ function parseThreadsPublishedMutationTarget(
   if (typeof value.code !== "string" || !/^[A-Za-z0-9_-]{1,64}$/u.test(value.code)) {
     throw new Error("Threads provider-accepted post target returned an invalid post code");
   }
-  const keys = Object.keys(value).sort().join(",");
   const url = parseThreadsPublishedPermalink(value.url, value.code);
-  if (keys === "code,id,url") {
+  if (hasExactKeys(value, ["code", "id", "url"])) {
     const parsed = Object.freeze({ code: value.code, id: value.id, url: url.href });
     if (!isCanonicalJsonText(identifier, parsed)) {
       throw new Error("Threads provider-accepted post target is not canonical");
     }
     return parsed;
   }
-  if (keys !== "code,height,id,mediaType,remoteMediaId,url,width") {
+  if (!hasExactKeys(value, ["code", "height", "id", "mediaType", "remoteMediaId", "url", "width"])) {
     throw new Error("Threads provider-accepted post target contained unsupported fields");
   }
   if (typeof value.remoteMediaId !== "string" || value.remoteMediaId !== value.id) {

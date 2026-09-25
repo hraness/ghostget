@@ -5,6 +5,7 @@ import {
   randomBytes,
 } from "node:crypto";
 import { join } from "node:path";
+import { hasExactKeys } from "./contracts-shape.js";
 
 import {
   canonicalJson,
@@ -130,7 +131,7 @@ function record(value: unknown, label: string): JsonRecord {
 }
 
 function exactKeys(value: JsonRecord, expected: readonly string[], label: string): void {
-  if (Object.keys(value).sort().join(",") !== [...expected].sort().join(",")) {
+  if (!hasExactKeys(value, expected)) {
     throw new Error(`${label} has unsupported fields`);
   }
 }

@@ -4,6 +4,7 @@ import {
   randomBytes,
 } from "node:crypto";
 import { join } from "node:path";
+import { hasExactKeys } from "./contracts-shape.js";
 
 import {
   canonicalJson,
@@ -90,7 +91,7 @@ function cursorEncryptionKey(
   }
   if (
     !isRecord(parsed)
-    || Object.keys(parsed).sort().join(",") !== "key,schemaVersion"
+    || !hasExactKeys(parsed, ["key", "schemaVersion"])
     || parsed.schemaVersion !== 1
     || typeof parsed.key !== "string"
     || !/^[a-f0-9]{64}$/u.test(parsed.key)

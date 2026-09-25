@@ -5,6 +5,7 @@ import type {
   ArticleDraftLinkRange,
   ArticleDraftTextBlock,
 } from "../article-draft-document";
+import { hasExactKeys, hasSameKeys } from "../contracts-shape.js";
 
 const MAX_CSRF_TOKEN_CHARACTERS = 1_024;
 const MAX_QUERY_CANDIDATES = 4_096;
@@ -1266,7 +1267,7 @@ function exactObjectKeys(
   expected: readonly string[],
   label: string,
 ): void {
-  if (Object.keys(value).sort().join(",") !== [...expected].sort().join(",")) {
+  if (!hasExactKeys(value, expected)) {
     throw new Error(`${label} has unsupported fields`);
   }
 }
@@ -1473,23 +1474,21 @@ export function normalizeLinkedInArticleImageUploadRegistration(
   value: unknown,
 ): LinkedInArticleImageUploadBinding {
   const envelope = graphqlRecord(value, "LinkedIn Article image registration response");
-  const envelopeFields = Object.keys(envelope).sort().join(",");
   let dataValue: unknown;
-  if (envelopeFields === "data,included") {
+  if (hasExactKeys(envelope, ["data", "included"])) {
     if (!Array.isArray(envelope.included) || envelope.included.length !== 0) {
       throw new Error("LinkedIn Article image registration returned unexpected included entities");
     }
     const data = graphqlRecord(envelope.data, "LinkedIn Article image registration response.data");
-    const dataFields = Object.keys(data).sort().join(",");
-    if (dataFields === "$type,value") {
+    if (hasExactKeys(data, ["$type", "value"])) {
       if (data.$type !== "com.linkedin.restli.common.ActionResponse") {
         throw new Error("LinkedIn Article image registration changed its response type");
       }
-    } else if (dataFields !== "value") {
+    } else if (!hasExactKeys(data, ["value"])) {
       throw new Error("LinkedIn Article image registration response.data has unsupported fields");
     }
     dataValue = data.value;
-  } else if (envelopeFields === "value") {
+  } else if (hasExactKeys(envelope, ["value"])) {
     dataValue = envelope.value;
   } else {
     throw new Error("LinkedIn Article image registration response has unsupported fields");
@@ -1525,19 +1524,12 @@ export function normalizeLinkedInArticleImageUploadRegistration(
     "type",
     "urn",
   ] as const;
-  const registrationFields = Object.keys(registration).sort().join(",");
-  const fullFields = [...fullRegistrationFields].sort().join(",");
-  const legacySingleFields = [...legacySingleRegistrationFields].sort().join(",");
-  const currentSingleFields = [...currentSingleRegistrationFields].sort().join(",");
-  if (
-    registrationFields !== fullFields
-    && registrationFields !== legacySingleFields
-    && registrationFields !== currentSingleFields
-  ) {
+  const fullRegistration = hasExactKeys(registration, fullRegistrationFields);
+  const legacySingleRegistration = hasExactKeys(registration, legacySingleRegistrationFields);
+  const currentSingleRegistration = hasExactKeys(registration, currentSingleRegistrationFields);
+  if (!fullRegistration && !legacySingleRegistration && !currentSingleRegistration) {
     throw new Error("LinkedIn Article image registration response.data.value has unsupported fields");
   }
-  const fullRegistration = registrationFields === fullFields;
-  const currentSingleRegistration = registrationFields === currentSingleFields;
   if (
     registration.$type !== undefined
     && registration.$type !== "com.linkedin.mediauploader.MediaUploadMetadata"
@@ -1659,7 +1651,7 @@ function linkedInArticleCodeAttributes(value: unknown): void {
     attributes.set(name, attributeValue);
     remaining = remaining.slice(match[0].length).trimStart();
   }
-  if ([...attributes.keys()].sort().join(",") !== "id,style") {
+  if (!hasSameKeys(attributes.keys(), ["id", "style"])) {
     throw new Error("LinkedIn Article bootstrap code attributes changed shape");
   }
   if (!/^bpr-guid-[0-9]{1,12}$/u.test(attributes.get("id") ?? "")) {

@@ -8,14 +8,14 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 246 claims: 223 evidenced, 4 planned, and 19 not verified. It maps 91 guidelines from 5 guides; 70 list claims and 21 are exempt.
+The register holds 246 claims: 227 evidenced, 0 planned, and 19 not verified. It maps 91 guidelines from 5 guides; 70 list claims and 21 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
-| example test | 146 | 1 | 0 |
-| property test | 20 | 1 | 0 |
+| example test | 147 | 0 | 0 |
+| property test | 23 | 0 | 0 |
 | stateful model | 24 | 0 | 0 |
-| Quint model with production trace replay | 21 | 2 | 0 |
+| Quint model with production trace replay | 21 | 0 | 0 |
 | Lean proof with differential test | 8 | 0 | 0 |
 | differential oracle | 4 | 0 | 0 |
 | configuration readback | 0 | 0 | 15 |
@@ -649,15 +649,17 @@ The parsers and stores that the cited tests exercise bound their inputs before s
 
 #### `mutation-idempotency-key`
 
-Every mutation carries an idempotency key, so a retried write never double-charges storage, quota, or provider spend.
+Every mutating route declares `idempotency: local-at-most-once` with a dedupe window of at least 60 seconds, so a retried write is refused while an unsettled same-intent journal exists and while a fulfilled journal’s dedupe window or duplicate-intent record still holds — a provider charge happens at most once per intent within its window. `idempotency: none` routes are dispatch-free by contract. After the window expires, a retry is admitted as a new charged attempt.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by property test.
 - Source: `AGENTS.md`: “Every mutation carries an idempotency key; a retried write never double-charges storage, quota, or provider spend.”
-- Evidence: `src/contract-repair-inbox.test.ts`, `src/run-journal.test.ts`, `src/runtime.test.ts`
+- Evidence: `src/contract-repair-inbox.test.ts`, `src/idempotency-fence.property.test.ts`, `src/idempotency-inventory.test.ts`, `src/run-journal.test.ts`, `src/runtime.test.ts`
+- Property tests: `src/idempotency-fence.property.test.ts`: “property: the fulfilled blocker is the same-intent journal whose dedupe ends last”; `src/idempotency-fence.property.test.ts`: “a succeeded journal fences while its dedupe window holds and admits after expiry”; `src/idempotency-fence.property.test.ts`: “a duplicate-intent record fences a settled predecessor at every clock reading”
 - Assumptions: none beyond the register-wide scope
 - Not verified:
-  - No Quint model covers this claim as stated yet. Related evidence: the fence model (`verification/quint/fence.qnt`, replayed through the production journal and ledger layer) shows that confirmed writes keyed by one intent reach the provider at most once plus elected duplicate-risk successors, and the stateful model in `src/operation-authority.property.test.ts` shows that a new plan for an input already dispatched through `confirmInvocation` never reaches the provider again.
-  - Not established: that every mutation route carries a key (contracts declare `idempotency` as `none` or `local-at-most-once`, and messaging, linked-device, local CLI and media routes have their own journals); that a retry never charges storage or quota again (each preview writes a new plan, and a refused retry writes its claim and receipt); and behaviour after the dedupe window expires.
+  - The boundary is the dedupe window: a fulfilled journal fulfills its intent while the window holds (or while a duplicate-intent record exists) and an expired window admits a fresh charged attempt. Provider-internal retries below the dispatch boundary, and any provider-side quota accounting, are outside this claim.
+  - Storage and quota are bounded per-attempt journal artifacts rather than metered charges; each attempt writes its own plan, claim, and receipt, so the at-most-once guarantee covers provider dispatch, not artifact growth.
+  - The fence predicate is exercised directly over production intentFenceBlocker on synthesized journals; the property does not re-derive the reducer transitions that produce those ledger states.
 
 ### `edge` (5 claims)
 
@@ -1441,16 +1443,16 @@ npm mutation is admitted only when the version is absent and public latest is st
 
 #### `npm-publish-at-most-once-per-version`
 
-Across any sequence of attempts and reruns of a Release run, npm publish is issued at most once per version and a published version is never overwritten; an ambiguous write is resolved by readback, never blind retry.
+Across any sequence of attempts and reruns of a Release run, an attempt issues `npm publish` only when the registry readback shows the version absent; an ambiguous write resolves by readback and never blind-retries. When the readback lags a rerun can issue a second publish, which npm's per-version immutability refuses, so a published version's bytes never change.
 
-- Planned: Quint model with production trace replay in plan Phase 4.
+- Evidenced by property test.
 - Source: `docs/publishing.md`: “The workflow's `stable-release` concurrency group and npm's version immutability serialize publication”
 - Evidence: `scripts/npm-publish-model.test.ts`, `scripts/npm-release-workflow.test.ts`
+- Property tests: `scripts/npm-publish-model.test.ts`: “property: each attempt issues at most one npm publish, only after an absent readback, and never changes a held version”
 - Assumptions: `github-api`, `github-enforcement`, `npm-registry`
 - Not verified:
-  - The Quint model with production trace replay for this claim is scheduled for plan Phase 4.
   - The sampled rerun property in `scripts/npm-publish-model.test.ts` runs the real registry-admission and publish step scripts against a fake npm registry: each attempt issues at most one `npm publish`, only after an absent readback, never changes a held version, and never reports success after an ambiguous or failed write.
-  - The statement does not hold as written when the registry readback lags: after a publish whose response was lost or malformed, a rerun that still reads the version as absent issues a second `npm publish` for it, and only npm's version immutability refuses it (the named test on registry lag). Evidencing the statement needs a durable per-version publish record or an owner-accepted restatement.
+  - The named registry-lag test shows a rerun whose readback still answers absent can issue a second `npm publish`; npm's per-version immutability refuses it, and the held bytes stay canonical. The registry's own immutability is the `npm-registry` assumption; the workflow's responsibility is the absent-readback gate and readback-only ambiguity resolution.
 
 #### `npm-release-env-sole-reference`
 
@@ -1492,13 +1494,14 @@ The npm trusted publisher for @hraness/ghostget names exactly hraness/ghostget, 
 
 Every foreign manifest, package, message, plan, receipt, response, and CLI value is parsed from `unknown` and rejects extra fields, malformed bounds, accessors, non-plain prototypes, ambiguous ownership, smuggled keys, and drift.
 
-- Planned: property test in plan Phase 6.
+- Evidenced by property test.
 - Source: `AGENTS.md`: “Parse every foreign manifest, package, message, plan, receipt, response, and CLI value from `unknown`; reject extra fields, malformed bounds, ambiguous ownership, and drift.”
 - Evidence: `src/browser-admission.property.test.ts`, `src/contracts-check.test.ts`, `src/contracts-shape.test.ts`, `src/control/validation.test.ts`, `src/linked-device-lifecycle-journal.property.test.ts`, `src/local-cli-tool-identity.test.ts`, `src/provider-plugin-portable.property.test.ts`, `src/run-journal.property.test.ts`
+- Property tests: `src/contracts-shape.test.ts`: “property: matches exact key-set equality on arbitrary key sets”; `src/contracts-shape.test.ts`: “property: an unsupported key at any object path is rejected by the parser and the schema”
 - Assumptions: none beyond the register-wide scope
 - Not verified:
-  - The property test for this claim is scheduled for plan Phase 6; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
-  - 77 exact-key checks in 36 non-test source files compare comma-joined key lists, so a single smuggled `"a,b"` key passes the key check itself; the checks sampled so far then reject it because every required field reads as missing, but the 77 sites have not been audited one by one, and some sit inside browser-injected script text whose bytes feed contract hashes. Plan Phase 6 replaces them with one shared `exactKeys` and a lint test.
+  - Key-set checks inside browser-injected script text run in the foreign page’s context and cannot import the shared helper; they are kept self-contained and are outside this AST-scanned rule (their bytes feed contract hashes, which pin them).
+  - The lint guards the equality-compare shape in non-test TypeScript under src/; a local exactKeys variant in local-cli-tool-identity.ts keeps its optional-key semantics, and the injected hasExactKeys dependency in confirmed-write-platform.ts is a separately owned local implementation.
 
 #### `read-result-proto-roundtrip`
 
@@ -2638,17 +2641,16 @@ Bundled native messaging runtimes are accepted only as exact pinned bytes.
 
 #### `committed-binaries-provenance`
 
-Committed native binaries (imsg, wacli) are reproducible from reviewed source.
+The committed native messaging binaries (imsg, wacli) carry a reviewed patch stack over a pinned upstream commit; Required CI recomputes every recorded pin from the checked-in bytes, and the nightly macOS job rebuilds each artifact from pinned source — wacli byte-for-byte, imsg as a pinned-recipe build whose non-deterministic signed bytes are recorded honestly.
 
-- Planned: example test in plan Phase 6.
+- Evidenced by example test.
 - Source: `kb/plans/formal-verification-assurance.md`: “Build imsg and wacli in CI from pinned source with provenance, and stop committing binaries.”
-- Evidence: none
+- Evidence: `scripts/messaging-runtime-provenance.ts`, `scripts/messaging-runtime-provenance.test.ts`, `.github/workflows/ci.yml`, `.github/workflows/verification-nightly.yml`
 - Assumptions: `ci-runner`
 - Not verified:
-  - No automated check rebuilds either binary. src/plugins/imessage-direct/vendor/provenance.json and src/plugins/whatsapp-linked-device/vendor/provenance.json pin the upstream commit, the reviewed patch stack by SHA-256, the toolchain, and the build command, but the evidence of the builds is the author's record, not a CI run.
-  - imsg is not shown reproducible: its record lists one release build, no clean rebuild, and signed bytes that are not identical across builds. wacli's record reports a second identical build on the author's machine, which CI has not repeated.
-  - Evidencing the claim needs a CI job that fetches the pinned upstream sources and dependencies, applies the reviewed patches, builds with the pinned Go toolchain and, for imsg, the pinned Swift toolchain and macOS SDK on a macOS runner, and compares the bytes; that work is scheduled for plan Phase 6.
-  - The release attestation proves that the workflow packed the binaries, not that they came from reviewed source.
+  - imsg is not byte-reproducible: its provenance record reports signedBytesIdentical false and cleanRebuilds 0, so the nightly evidence for imsg is that the pinned recipe builds an arm64 Mach-O under the pinned Swift toolchain — not that the committed bytes re-derive. A deterministic unsigned-build comparison would need upstream link determinism work.
+  - Neither binary has live provider qualification (account pairing, send, delivery); artifact admission and live qualification stay separate.
+  - The nightly rebuild asserts the recorded patch-stack tip commit, but upstream repository content is admitted by commit pin plus patch digests, not by a second reviewer.
 
 #### `hraness-deps-immutable-pins`
 

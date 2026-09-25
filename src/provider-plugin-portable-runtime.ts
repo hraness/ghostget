@@ -85,6 +85,7 @@ import {
   resolveOAuthToken,
 } from "./oauth-google";
 import { summarizePlanFile } from "./plan-assets";
+import { hasExactKeys } from "./contracts-shape.js";
 import {
   createPrivateJsonIfAbsent,
   ghostgetStateHome,
@@ -771,10 +772,9 @@ function parseStoredState(
   }
   const record = value as Record<string, unknown>;
   const legacy = record.schemaVersion === 1
-    && Object.keys(record).sort().join(",") === "key,schemaVersion,value";
+    && hasExactKeys(record, ["key", "schemaVersion", "value"]);
   const current = record.schemaVersion === 2
-    && Object.keys(record).sort().join(",")
-      === "key,revision,schemaVersion,value"
+    && hasExactKeys(record, ["key", "revision", "schemaVersion", "value"])
     && typeof record.revision === "string"
     && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
       .test(record.revision);

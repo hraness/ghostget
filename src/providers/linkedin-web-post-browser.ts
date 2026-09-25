@@ -10,6 +10,7 @@ import {
 } from "../browser";
 import { canonicalJsonScriptLiteral } from "../canonical-json";
 import type { GhostgetManifest } from "../model";
+import { hasExactKeys } from "../contracts-shape.js";
 import type {
   WebSessionCleanupResourcePublisher,
   WebSessionOperationDeadline,
@@ -174,7 +175,7 @@ function exactKeys(
   expected: readonly string[],
   label: string,
 ): void {
-  if (Object.keys(value).sort().join(",") !== [...expected].sort().join(",")) {
+  if (!hasExactKeys(value, expected)) {
     throw new Error(`${label} returned an unexpected result shape`);
   }
 }

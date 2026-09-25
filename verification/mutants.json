@@ -397,6 +397,42 @@
         "generic messaging composite execution property",
         "stops on every drift, failure, or cancellation at the modelled part and never resubmits"
       ]
+    },
+    {
+      "id": "intent-fence-dedupe-never-expires",
+      "file": "src/runtime.ts",
+      "defect": "A succeeded journal fulfills its intent forever; the dedupe-window expiry can never admit a fresh attempt.",
+      "search": "  return journal.duplicateIntent !== undefined || Date.parse(journal.dedupeExpiresAt) >= now.getTime()\n    ? \"fulfilled\"\n    : null;",
+      "replace": "  return journal.duplicateIntent !== undefined || true\n    ? \"fulfilled\"\n    : null;",
+      "test": "src/idempotency-fence.property.test.ts",
+      "killedBy": [
+        "idempotency fence boundary",
+        "a succeeded journal fences while its dedupe window holds and admits after expiry"
+      ]
+    },
+    {
+      "id": "intent-fence-duplicate-intent-ignored",
+      "file": "src/runtime.ts",
+      "defect": "A duplicate-intent record on a settled run no longer fulfills its intent, so a retried duplicate-risk write can charge the provider twice.",
+      "search": "  return journal.duplicateIntent !== undefined || Date.parse(journal.dedupeExpiresAt) >= now.getTime()\n    ? \"fulfilled\"\n    : null;",
+      "replace": "  return false || Date.parse(journal.dedupeExpiresAt) >= now.getTime()\n    ? \"fulfilled\"\n    : null;",
+      "test": "src/idempotency-fence.property.test.ts",
+      "killedBy": [
+        "idempotency fence boundary",
+        "a duplicate-intent record fences a settled predecessor at every clock reading"
+      ]
+    },
+    {
+      "id": "intent-fence-unsettled-passes",
+      "file": "src/runtime.ts",
+      "defect": "An unsettled same-intent journal no longer fences the contender, so a retry can dispatch concurrently.",
+      "search": "  if (journal.ledgerState !== \"succeeded\") return \"unsettled\";",
+      "replace": "  if (journal.ledgerState !== \"succeeded\") return null;",
+      "test": "src/idempotency-fence.property.test.ts",
+      "killedBy": [
+        "idempotency fence boundary",
+        "an unsettled same-intent run fences every clock reading"
+      ]
     }
   ]
 }

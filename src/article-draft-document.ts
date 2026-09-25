@@ -2,6 +2,7 @@ import {
   canonicalJson,
   isCanonicalJsonText,
 } from "./canonical-json";
+import { hasExactKeys } from "./contracts-shape.js";
 
 export const ARTICLE_DRAFT_DOCUMENT_SCHEMA_VERSION = 1;
 export const ARTICLE_DRAFT_DOCUMENT_IMAGE_SCHEMA_VERSION = 2;
@@ -87,9 +88,9 @@ function record(value: unknown, label: string): Record<string, unknown> {
 }
 
 function exactKeys(value: Readonly<Record<string, unknown>>, keys: readonly string[], label: string): void {
-  const actual = Object.keys(value).sort().join(",");
-  const expected = [...keys].sort().join(",");
-  if (actual !== expected) throw new Error(`${label} must contain exactly ${expected || "no fields"}`);
+  if (!hasExactKeys(value, keys)) {
+    throw new Error(`${label} must contain exactly ${[...keys].sort().join(",") || "no fields"}`);
+  }
 }
 
 function boundedHttpsUrl(value: unknown, label: string): string {

@@ -709,11 +709,15 @@ describe("claims and evidence", () => {
       `claim ${example.id} cites the missing evidence path scripts`,
       `claim ${example.id} is an evidenced example claim, but it cites no test file`,
     ]);
-    const planned = claimWith(register, "quint", "planned");
-    expect(await findingsFor({}, await withClaim(planned.id, { evidence: ["scripts/missing-evidence.test.ts"] }))).toEqual([
-      `claim ${planned.id} cites the missing evidence path scripts/missing-evidence.test.ts`,
+    // The committed register has no planned claim left, so borrow one: flip
+    // an evidenced Quint claim to planned-with-phase in the copied register.
+    const plannedId = claimWith(register, "quint", "evidenced").id;
+    const toPlanned = (fields: Readonly<Record<string, JsonValue | undefined>>) =>
+      withClaim(plannedId, { status: "planned", phase: 2, ...fields });
+    expect(await findingsFor({}, await toPlanned({ evidence: ["scripts/missing-evidence.test.ts"] }))).toEqual([
+      `claim ${plannedId} cites the missing evidence path scripts/missing-evidence.test.ts`,
     ]);
-    expect(await findingsFor({}, await withClaim(planned.id, { evidence: [] }))).toEqual([]);
+    expect(await findingsFor({}, await toPlanned({ evidence: [] }))).toEqual([]);
   });
 
   test("removing any claim's quoted text from its source fails that claim", async () => {
@@ -862,8 +866,10 @@ describe("claims and evidence", () => {
       .filter((candidate) => candidate.layer === "quint" && candidate.status === "evidenced")
       .map((candidate) => `claim ${candidate.id} is an evidenced Quint claim, but it cites no model whose replay test drives production code together with that test`);
     expect(committed.length).toBeGreaterThan(0);
+    // `refused` is already the borrowed claim's own committed entry when the
+    // fixture picked an evidenced Quint claim, so dedupe the expected list.
     expect([...broken].sort()).toEqual(
-      ["verification/quint/models.json does not parse: models.json must be an object", refused, ...committed].sort(),
+      [...new Set(["verification/quint/models.json does not parse: models.json must be an object", refused, ...committed])].sort(),
     );
   });
 
@@ -1072,7 +1078,18 @@ describe("register parser", () => {
     const document = await committedDocument();
     const at = (path: JsonPath, value: JsonValue | undefined): JsonValue => jsonWith(document, path, value);
     const evidenced = indexWhere(document, ["claims"], (claim) => claim.status === "evidenced");
-    const planned = indexWhere(document, ["claims"], (claim) => claim.status === "planned");
+    // The committed register has no planned claim left; take a distinct
+    // evidenced claim (not the configuration-readback or not-verified layer,
+    // whose status is pinned) and force it planned-with-phase as the base
+    // for the planned cases.
+    const planned = indexWhere(document, ["claims"], (claim) =>
+      claim.status === "evidenced" && claim.layer === "quint");
+    const plannedDocument = jsonWith(
+      jsonWith(document, ["claims", planned, "status"], "planned"),
+      ["claims", planned, "phase"],
+      2,
+    );
+    const plannedAt = (path: JsonPath, value: JsonValue | undefined): JsonValue => jsonWith(plannedDocument, path, value);
     const listing = indexWhere(document, ["rules"], (rule) => Object.hasOwn(rule, "claims"));
     const exempt = indexWhere(document, ["rules"], (rule) => Object.hasOwn(rule, "exempt"));
     const idAt = (index: number): string => String(jsonAt(document, ["claims", index, "id"]));
@@ -1126,12 +1143,12 @@ describe("register parser", () => {
       [claimAt(["extra"], 1), `claims.json claims[${String(evidenced)}] has an unexpected field "extra"`],
       [claimAt(["layer"], "proof"), `${claim} has an unknown layer`],
       [claimAt(["status"], "done"), `${claim} has an unknown status`],
-      [at(["claims", planned, "phase"], 9), `${plannedClaim} is planned and needs its plan phase from 1 to 8`],
-      [at(["claims", planned, "phase"], 0), `${plannedClaim} is planned and needs its plan phase from 1 to 8`],
-      [at(["claims", planned, "phase"], 1.5), `${plannedClaim} is planned and needs its plan phase from 1 to 8`],
-      [at(["claims", planned, "phase"], "3"), `${plannedClaim} is planned and needs its plan phase from 1 to 8`],
-      [at(["claims", planned, "phase"], undefined), `${plannedClaim} is planned and needs its plan phase from 1 to 8`],
-      [at(["claims", planned, "layer"], "configuration-readback"), `${plannedClaim} at the configuration-readback layer must have status not-verified`],
+      [plannedAt(["claims", planned, "phase"], 9), `${plannedClaim} is planned and needs its plan phase from 1 to 8`],
+      [plannedAt(["claims", planned, "phase"], 0), `${plannedClaim} is planned and needs its plan phase from 1 to 8`],
+      [plannedAt(["claims", planned, "phase"], 1.5), `${plannedClaim} is planned and needs its plan phase from 1 to 8`],
+      [plannedAt(["claims", planned, "phase"], "3"), `${plannedClaim} is planned and needs its plan phase from 1 to 8`],
+      [plannedAt(["claims", planned, "phase"], undefined), `${plannedClaim} is planned and needs its plan phase from 1 to 8`],
+      [plannedAt(["claims", planned, "layer"], "configuration-readback"), `${plannedClaim} at the configuration-readback layer must have status not-verified`],
       [claimAt(["phase"], 3), `${claim} has a phase but is not planned`],
       [claimAt(["phase"], null), `${claim} has a phase but is not planned`],
       [claimAt(["layer"], "configuration-readback"), `${claim} cannot be evidenced at the configuration-readback layer`],

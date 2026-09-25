@@ -4,6 +4,7 @@ import { open } from "node:fs/promises";
 import type { BrowserFileResolver } from "./browser";
 import type { FileInputValue } from "./model";
 import type { WebSessionOperationDeadline } from "./web-session-execution";
+import { hasExactKeys } from "./contracts-shape.js";
 
 export type ArticleDraftImageMediaType = "image/jpeg" | "image/png" | "image/webp";
 
@@ -20,7 +21,7 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 function fileInput(value: unknown, label: string): FileInputValue {
   if (
     !isRecord(value)
-    || Object.keys(value).sort().join(",") !== "kind,reference"
+    || !hasExactKeys(value, ["kind", "reference"])
     || value.kind !== "file"
     || typeof value.reference !== "string"
     || value.reference.length < 1
