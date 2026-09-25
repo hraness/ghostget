@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, constants, lstatSync, mkdirSync, readdirSync, realpathSync, symlinkSync, type BigIntStats } from "node:fs";
 import { lstat, open, readFile, readdir, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
+import { hasExactKeys } from "./contracts-shape.js";
 
 export const deriveBrowserVersion = "152.0.7977.64";
 export const deriveBrowserRootVariable = "GHOSTGET_DERIVE_BROWSER_ROOT";
@@ -139,13 +140,13 @@ export type BrowserToolchainReceipt = Readonly<{
 export function parseBrowserToolchainReceipt(value: unknown, artifact: BrowserArtifact): BrowserToolchainReceipt {
   if (typeof value !== "object" || value === null || Array.isArray(value)) fail();
   const row = value as Record<string, unknown>;
-  if (Object.keys(row).sort().join() !== "archiveSha256,directory,executableSha256,platform,schemaVersion,treeSha256,version"
+  if (!hasExactKeys(row, ["archiveSha256", "directory", "executableSha256", "platform", "schemaVersion", "treeSha256", "version"])
     || row.schemaVersion !== 1 || row.version !== deriveBrowserVersion || row.platform !== artifact.platform
     || row.archiveSha256 !== artifact.archiveSha256
     || row.executableSha256 !== artifact.executableSha256 || row.treeSha256 !== artifact.treeSha256
     || typeof row.directory !== "object" || row.directory === null || Array.isArray(row.directory)) fail();
   const directory = row.directory as Record<string, unknown>;
-  if (Object.keys(directory).sort().join() !== "device,inode,uid"
+  if (!hasExactKeys(directory, ["device", "inode", "uid"])
     || typeof directory.device !== "string" || !/^[0-9]+$/u.test(directory.device)
     || typeof directory.inode !== "string" || !/^[0-9]+$/u.test(directory.inode)
     || !Number.isSafeInteger(directory.uid) || directory.uid !== process.getuid?.()) fail();

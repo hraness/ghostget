@@ -25,6 +25,7 @@ import {
   parseRedditFlairInput,
 } from "../plugins/reddit-web/flair";
 import { failedProviderRead, type ProviderReadFailureStage } from "./read-failure";
+import { hasExactKeys } from "../contracts-shape.js";
 import {
   REDDIT_WEB_OPERATION_NAMES,
   REDDIT_WEB_OPERATIONS,
@@ -168,7 +169,7 @@ function fileInput(value: unknown, label: string): FileInputValue {
     typeof value !== "object"
     || value === null
     || Array.isArray(value)
-    || Object.keys(value).sort().join(",") !== "kind,reference"
+    || !hasExactKeys(value, ["kind", "reference"])
     || (value as { readonly kind?: unknown }).kind !== "file"
     || typeof (value as { readonly reference?: unknown }).reference !== "string"
     || (value as { readonly reference: string }).reference.length < 1

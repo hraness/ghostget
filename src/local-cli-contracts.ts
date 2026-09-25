@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { types as nodeTypes } from "node:util";
 
 import { canonicalJsonWithDefinedMembers } from "./canonical-json";
+import { hasExactKeys } from "./contracts-shape.js";
 import type {
   BrowserDispatchPlan,
   IdempotencyKind,
@@ -96,8 +97,7 @@ export function parseLocalCliContractIdentityV1(
   value: unknown,
 ): LocalCliContractIdentityV1 {
   const record = strictIdentityRecord(value);
-  const keys = Object.keys(record).sort();
-  if (keys.join("\0") !== ["action", "hash", "surface", "tool", "version"].sort().join("\0")) {
+  if (!hasExactKeys(record, ["action", "hash", "surface", "tool", "version"])) {
     throw new Error("local CLI contract identity has unsupported fields");
   }
   if (

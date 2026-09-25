@@ -29,6 +29,7 @@ import type {
 } from "../web-session-execution";
 import { failedProviderRead } from "./read-failure";
 import { substackMp4Metadata } from "./substack-video-mp4";
+import { hasExactKeys, hasSameKeys } from "../contracts-shape.js";
 import {
   SUBSTACK_WEB_OPERATION_NAMES,
   SUBSTACK_WEB_OPERATIONS,
@@ -182,7 +183,7 @@ function requireExactKeys(
   expected: readonly string[],
   label: string,
 ): void {
-  if (Object.keys(value).sort().join(",") !== [...expected].sort().join(",")) {
+  if (!hasExactKeys(value, expected)) {
     throw new Error(`${label} keys did not match the reviewed contract`);
   }
 }
@@ -214,7 +215,7 @@ function fileInput(value: OperationInput[string] | undefined): FileInputValue {
     || value.reference.length < 1
     || value.reference.length > 4_096
     || /[\0\r\n]/u.test(value.reference)
-    || Object.keys(value).sort().join(",") !== "kind,reference"
+    || !hasExactKeys(value, ["kind", "reference"])
   ) throw new Error("input.media must be one plan-bound file");
   return Object.freeze({ kind: "file", reference: value.reference });
 }
@@ -302,10 +303,8 @@ function exactSubstackVideoBinding(
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const ownKeys = Reflect.ownKeys(descriptors);
   if (
-    ownKeys.length !== SUBSTACK_VIDEO_BINDING_KEYS.length
-    || ownKeys.some((key) => typeof key !== "string")
-    || (ownKeys as string[]).sort().join(",")
-      !== [...SUBSTACK_VIDEO_BINDING_KEYS].sort().join(",")
+    ownKeys.some((key) => typeof key !== "string")
+    || !hasSameKeys(ownKeys as string[], SUBSTACK_VIDEO_BINDING_KEYS)
   ) throw new Error("Substack video binding contained unsupported fields");
   const snapshot = Object.create(null) as Record<string, unknown>;
   for (const key of SUBSTACK_VIDEO_BINDING_KEYS) {

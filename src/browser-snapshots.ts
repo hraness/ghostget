@@ -1,4 +1,5 @@
 import { basename, join } from "node:path";
+import { hasExactKeys } from "./contracts-shape.js";
 
 import {
   createPrivateJsonIfAbsent,
@@ -100,7 +101,7 @@ function parseOwnerMarker(content: string): SnapshotOwner {
     typeof value !== "object"
     || value === null
     || Array.isArray(value)
-    || Object.keys(value).sort().join(",") !== "createdAtMs,kind,nonce,pid,schemaVersion"
+    || !hasExactKeys(value, ["createdAtMs", "kind", "nonce", "pid", "schemaVersion"])
     || !("schemaVersion" in value)
     || value.schemaVersion !== 1
     || !("kind" in value)

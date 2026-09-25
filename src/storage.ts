@@ -41,6 +41,7 @@ import {
   type ProcessOwnerIdentity,
 } from "./process-identity";
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
+import { hasExactKeys } from "./contracts-shape.js";
 
 function requireManifestRegistry(
   registry: ProviderPluginRegistry | undefined,
@@ -1123,7 +1124,7 @@ function readStateMarker(path: string): void {
       typeof value !== "object"
       || value === null
       || Array.isArray(value)
-      || Object.keys(value).sort().join(",") !== "kind,schemaVersion"
+      || !hasExactKeys(value, ["kind", "schemaVersion"])
       || !("schemaVersion" in value)
       || value.schemaVersion !== 1
       || !("kind" in value)

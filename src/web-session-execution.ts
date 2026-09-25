@@ -19,6 +19,7 @@ import {
   type OperationDeadlineClock,
 } from "./operation-deadline";
 import type { WebSessionPluginOperationV1 } from "./provider-plugin";
+import { hasExactKeys } from "./contracts-shape.js";
 import {
   startProviderPluginCleanupTrackedOperation,
   type ProviderPluginCleanupBarrierRegistrar,
@@ -121,7 +122,7 @@ export function parseReadFailureProjection(
   const descriptors = Object.getOwnPropertyDescriptors(value);
   if (
     Reflect.ownKeys(descriptors).some((key) => typeof key !== "string")
-    || Object.keys(descriptors).sort().join(",") !== "category,retryDisposition"
+    || !hasExactKeys(descriptors, ["category", "retryDisposition"])
   ) {
     throw new Error("read failure projection is malformed");
   }

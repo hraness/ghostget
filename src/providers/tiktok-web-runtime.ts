@@ -33,6 +33,7 @@ import {
   type TikTokWebViewer,
 } from "./tiktok-web";
 import { tiktokMp4Metadata } from "./tiktok-video-mp4";
+import { hasExactKeys, hasSameKeys } from "../contracts-shape.js";
 
 const TIKTOK_ORIGIN = "https://www.tiktok.com";
 const MAX_VIEWER_BYTES = 2 * 1024 * 1024;
@@ -117,7 +118,7 @@ function exactFileInput(value: unknown, label: string): FileInputValue {
     typeof value !== "object"
     || value === null
     || Array.isArray(value)
-    || Object.keys(value).sort().join(",") !== "kind,reference"
+    || !hasExactKeys(value, ["kind", "reference"])
     || (value as { readonly kind?: unknown }).kind !== "file"
     || typeof (value as { readonly reference?: unknown }).reference !== "string"
     || (value as { readonly reference: string }).reference.length < 1
@@ -183,9 +184,8 @@ function exactTikTokVideoBinding(
   ] as const;
   const ownKeys = Reflect.ownKeys(value);
   if (
-    ownKeys.length !== expected.length
-    || ownKeys.some((key) => typeof key !== "string")
-    || (ownKeys as string[]).sort().join(",") !== [...expected].sort().join(",")
+    ownKeys.some((key) => typeof key !== "string")
+    || !hasSameKeys(ownKeys as string[], expected)
   ) throw new Error("TikTok video binding contained unsupported fields");
   const snapshot = Object.create(null) as Record<string, unknown>;
   for (const key of expected) {

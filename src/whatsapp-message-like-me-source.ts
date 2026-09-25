@@ -12,6 +12,7 @@ import {
   type BeeperMessageLikeMeExportAdmission,
 } from "./beeper-message-like-me-recovery";
 import { canonicalJson, sha256 } from "./canonical-json";
+import { hasExactKeys } from "./contracts-shape.js";
 import {
   canonicalWhatsAppAccountSubjectJid,
   canonicalWhatsAppParticipantJid,
@@ -381,7 +382,7 @@ async function* runMessageExportSession(
       ) return fail("one fixed projection frame was malformed");
       if (frame.kind === "failed") {
         if (
-          Object.keys(frame).sort().join("\0") !== "errorCode\0kind"
+          !hasExactKeys(frame, ["errorCode", "kind"])
           || !("errorCode" in frame)
           || typeof frame.errorCode !== "string"
         ) return fail("the fixed projection failure frame was malformed");
@@ -399,8 +400,7 @@ async function* runMessageExportSession(
       if (frame.kind === "page") {
         if (
           this.#terminal
-          || Object.keys(frame).sort().join("\0")
-            !== "checkpoint\0index\0kind\0messages\0nonConversationChatsExcluded\0projectionGeneration\0selfChatsExcluded\0selfJids\0terminal"
+          || !hasExactKeys(frame, ["checkpoint", "index", "kind", "messages", "nonConversationChatsExcluded", "projectionGeneration", "selfChatsExcluded", "selfJids", "terminal"])
           || !("index" in frame)
           || frame.index !== this.#pages + 1
           || !("selfChatsExcluded" in frame)
@@ -484,8 +484,7 @@ async function* runMessageExportSession(
       }
       if (
         frame.kind !== "seal"
-        || Object.keys(frame).sort().join("\0")
-          !== "checkpoint\0framesSha256\0integrityChecks\0kind\0messages\0pages\0projectionGeneration\0selfChatsExcluded\0selfJids"
+        || !hasExactKeys(frame, ["checkpoint", "framesSha256", "integrityChecks", "kind", "messages", "pages", "projectionGeneration", "selfChatsExcluded", "selfJids"])
         || !("pages" in frame)
         || frame.pages !== this.#pages
         || !("messages" in frame)
@@ -753,7 +752,7 @@ export function createWhatsAppMessageLikeMeSource(
           typeof pageResult.value !== "object"
           || pageResult.value === null
           || Array.isArray(pageResult.value)
-          || Object.keys(pageResult.value).sort().join("\0") !== "response\0selfChatsExcluded"
+          || !hasExactKeys(pageResult.value, ["response", "selfChatsExcluded"])
           || !("response" in pageResult.value)
           || !("selfChatsExcluded" in pageResult.value)
           || (pageResult.value.selfChatsExcluded !== "none-detected"

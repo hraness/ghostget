@@ -48,6 +48,7 @@ import {
   type YouTubeBootstrapConfig,
 } from "./youtube-web";
 import { isoBmffMp4VideoMetadata } from "./iso-bmff";
+import { hasExactKeys, hasSameKeys } from "../contracts-shape.js";
 
 const YOUTUBE_ORIGIN = "https://www.youtube.com";
 const MAX_BOOTSTRAP_BYTES = 2 * 1024 * 1024;
@@ -203,10 +204,8 @@ function exactYouTubeVideoPublishBinding(
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const ownKeys = Reflect.ownKeys(descriptors);
   if (
-    ownKeys.length !== YOUTUBE_VIDEO_PUBLISH_BINDING_KEYS.length
-    || ownKeys.some((key) => typeof key !== "string")
-    || (ownKeys as string[]).sort().join(",")
-      !== [...YOUTUBE_VIDEO_PUBLISH_BINDING_KEYS].sort().join(",")
+    ownKeys.some((key) => typeof key !== "string")
+    || !hasSameKeys(ownKeys as string[], YOUTUBE_VIDEO_PUBLISH_BINDING_KEYS)
   ) throw new Error("YouTube video binding contained unsupported fields");
   const snapshot = Object.create(null) as Record<string, unknown>;
   for (const key of YOUTUBE_VIDEO_PUBLISH_BINDING_KEYS) {
@@ -321,7 +320,7 @@ function fileInput(value: unknown, label: string): FileInputValue {
     typeof value !== "object"
     || value === null
     || Array.isArray(value)
-    || Object.keys(value).sort().join(",") !== "kind,reference"
+    || !hasExactKeys(value, ["kind", "reference"])
     || (value as { readonly kind?: unknown }).kind !== "file"
     || typeof (value as { readonly reference?: unknown }).reference !== "string"
     || (value as { readonly reference: string }).reference.length < 1
@@ -399,7 +398,7 @@ export function parseYouTubeVideoTargetIdentifier(
     typeof value !== "object"
     || value === null
     || Array.isArray(value)
-    || Object.keys(value).sort().join(",") !== "schemaVersion,url,videoId"
+    || !hasExactKeys(value, ["schemaVersion", "url", "videoId"])
   ) throw new Error("YouTube canonical video target contained unsupported fields");
   const target = value as Readonly<Record<string, unknown>>;
   if (target.schemaVersion !== 1) {

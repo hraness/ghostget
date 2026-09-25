@@ -36,6 +36,7 @@ import {
   writePrivateJsonIfUnchanged,
 } from "./storage";
 import { removeSessionSecretsForAuth } from "./session-secrets";
+import { hasExactKeys } from "./contracts-shape.js";
 import {
   removeReadProjectionsForAuth,
   removeReadProjectionAuthIncarnation,
@@ -966,7 +967,7 @@ function assertAuthSnapshot(value: AuthSnapshot): AuthSnapshot {
     typeof value !== "object"
     || value === null
     || Array.isArray(value)
-    || Object.keys(value).sort().join(",") !== "auth,contentSha256"
+    || !hasExactKeys(value, ["auth", "contentSha256"])
     || typeof value.contentSha256 !== "string"
     || !/^[a-f0-9]{64}$/u.test(value.contentSha256)
   ) throw new Error("auth snapshot is malformed");

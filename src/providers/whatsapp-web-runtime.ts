@@ -67,6 +67,7 @@ import {
   type WhatsAppWebOperationName,
 } from "./whatsapp-web";
 import { projectContactDirectionStats } from "./contact-projection";
+import { hasExactKeys } from "../contracts-shape.js";
 
 const WHATSAPP_ORIGIN = "https://web.whatsapp.com";
 const DEFAULT_LIMIT = 50;
@@ -3075,7 +3076,7 @@ export async function syncWhatsAppAuthOnce(
     typeof parsed !== "object"
     || parsed === null
     || Array.isArray(parsed)
-    || Object.keys(parsed).sort().join(",") !== "data,error,success"
+    || !hasExactKeys(parsed, ["data", "error", "success"])
     || !("success" in parsed)
     || parsed.success !== true
     || !("error" in parsed)
@@ -3087,7 +3088,7 @@ export async function syncWhatsAppAuthOnce(
   ) throw new Error("WhatsApp linked-device synchronization returned an unsupported response");
   const data = parsed.data as Record<string, unknown>;
   if (
-    Object.keys(data).sort().join(",") !== "messages_stored,synced"
+    !hasExactKeys(data, ["messages_stored", "synced"])
     || data.synced !== true
     || !Number.isSafeInteger(data.messages_stored)
     || (data.messages_stored as number) < 0

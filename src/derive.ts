@@ -82,6 +82,7 @@ import { localBrowserCdpUrl, uploadThroughInterceptedFileChooser } from "./deriv
 import { sha256 } from "./canonical-json";
 import type { PlatformSurfaceId } from "./platform-catalog";
 import type { ProviderPluginRegistry } from "./provider-plugin-registry";
+import { hasExactKeys } from "./contracts-shape.js";
 import {
   captureProcessOwnerIdentity,
   processOwnerStatus,
@@ -250,7 +251,7 @@ function parseDirectoryIdentity(value: unknown): DirectoryIdentity {
     typeof value !== "object"
     || value === null
     || Array.isArray(value)
-    || Object.keys(value).sort().join(",") !== "device,inode"
+    || !hasExactKeys(value, ["device", "inode"])
     || !("device" in value)
     || typeof value.device !== "string"
     || !/^\d{1,40}$/u.test(value.device)
@@ -313,7 +314,7 @@ async function cloneProfileBound(source: string, directory: string, expected: Di
     typeof response !== "object"
     || response === null
     || Array.isArray(response)
-    || Object.keys(response).sort().join(",") !== "ok,profile,profileDirectory"
+    || !hasExactKeys(response, ["ok", "profile", "profileDirectory"])
     || !("ok" in response)
     || response.ok !== true
     || !("profile" in response)
@@ -616,8 +617,7 @@ function parseDerivationLifecycleOwner(
   }
   const record = value as Record<string, unknown>;
   if (
-    Object.keys(record).sort().join(",")
-      !== "bootId,createdAtMs,derivationId,directoryIdentity,kind,nonce,pid,processStartId,schemaVersion"
+    !hasExactKeys(record, ["bootId", "createdAtMs", "derivationId", "directoryIdentity", "kind", "nonce", "pid", "processStartId", "schemaVersion"])
     || record.schemaVersion !== 1
     || record.kind !== "io-derivation-lifecycle"
     || record.derivationId !== id
@@ -980,8 +980,7 @@ function parseDerivationDirectoryPhase(
   }
   const record = value as Record<string, unknown>;
   if (
-    Object.keys(record).sort().join(",")
-      !== "derivationId,directoryIdentity,kind,schemaVersion"
+    !hasExactKeys(record, ["derivationId", "directoryIdentity", "kind", "schemaVersion"])
     || record.schemaVersion !== 1
     || record.kind !== "io-derivation-directory-phase"
     || record.derivationId !== id
@@ -1034,8 +1033,7 @@ function parseDerivationInitialization(
   }
   const record = value as Record<string, unknown>;
   if (
-    Object.keys(record).sort().join(",")
-      !== "derivationId,directoryIdentity,kind,schemaVersion,socketDirectory,socketIdentity"
+    !hasExactKeys(record, ["derivationId", "directoryIdentity", "kind", "schemaVersion", "socketDirectory", "socketIdentity"])
     || record.schemaVersion !== 1
     || record.kind !== "io-derivation-initialization"
     || record.derivationId !== id
@@ -1163,7 +1161,7 @@ function parseReadyDerivation(value: unknown): ReadyDerivation {
   const record = value as Record<string, unknown>;
   const metadata = record.metadata;
   if (
-    Object.keys(record).sort().join(",") !== "metadata,schemaVersion,state"
+    !hasExactKeys(record, ["metadata", "schemaVersion", "state"])
     || record.schemaVersion !== 1
     || record.state !== "ready"
     || typeof metadata !== "object"
@@ -1172,7 +1170,7 @@ function parseReadyDerivation(value: unknown): ReadyDerivation {
   ) throw new Error("derivation ready marker is malformed");
   const evidence = metadata as Record<string, unknown>;
   if (
-    Object.keys(evidence).sort().join(",") !== "byteLength,device,inode,sha256"
+    !hasExactKeys(evidence, ["byteLength", "device", "inode", "sha256"])
     || typeof evidence.device !== "string"
     || !/^\d{1,40}$/u.test(evidence.device)
     || typeof evidence.inode !== "string"
@@ -1382,7 +1380,7 @@ function parseSealedDerivationReview(value: unknown): SealedDerivationReview {
   const record = value as Record<string, unknown>;
   const har = record.har;
   if (
-    Object.keys(record).sort().join(",") !== "har,schemaVersion,state"
+    !hasExactKeys(record, ["har", "schemaVersion", "state"])
     || record.schemaVersion !== 1
     || record.state !== "sealed"
     || typeof har !== "object"
@@ -1391,7 +1389,7 @@ function parseSealedDerivationReview(value: unknown): SealedDerivationReview {
   ) throw new Error("derivation review seal is malformed");
   const harRecord = har as Record<string, unknown>;
   if (
-    Object.keys(harRecord).sort().join(",") !== "byteLength,device,inode,sha256"
+    !hasExactKeys(harRecord, ["byteLength", "device", "inode", "sha256"])
     || typeof harRecord.device !== "string"
     || !/^\d{1,40}$/u.test(harRecord.device)
     || typeof harRecord.inode !== "string"
@@ -4108,7 +4106,7 @@ export function resolveDerivationFixedUploadInputTarget(
     : typeof countData === "object"
         && countData !== null
         && !Array.isArray(countData)
-        && Object.keys(countData).sort().join(",") === "count,lifecycle,selector"
+        && hasExactKeys(countData, ["count", "lifecycle", "selector"])
         && typeof (countData as Record<string, unknown>).count === "number"
         && (countData as Record<string, unknown>).selector === fixedInputSelector
         && typeof (countData as Record<string, unknown>).lifecycle === "object"

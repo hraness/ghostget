@@ -26,6 +26,7 @@ import {
 } from "./beeper-message-like-me-recovery";
 import { canonicalJson } from "./canonical-json";
 import { ghostgetStateHome } from "./storage";
+import { hasExactKeys } from "./contracts-shape.js";
 
 const APPLE_PHOTOS_WORKER_TIMEOUT_MS = 15 * 60 * 1_000;
 const APPLE_PHOTOS_WORKER_TERMINATION_GRACE_MS = 1_000;
@@ -189,7 +190,7 @@ function parseWorkerProgress(
   } as ApplePhotosLocalSourceProgressEvent);
   if (
     record.phase === "contacts-capture"
-    && Object.keys(record).sort().join(",") === "current,phase,total"
+    && hasExactKeys(record, ["current", "phase", "total"])
     && typeof record.current === "number"
     && Number.isSafeInteger(record.current)
     && record.current >= 1

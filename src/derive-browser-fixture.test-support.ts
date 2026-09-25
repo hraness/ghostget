@@ -2,6 +2,7 @@ import { chmodSync, lstatSync, mkdtempSync, realpathSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
+import { hasExactKeys } from "./contracts-shape.js";
 import {
   agentBrowserCommand,
   browserCommandLifecycle,
@@ -62,7 +63,7 @@ function record(value: unknown): Record<string, unknown> {
 }
 
 function keys(value: Record<string, unknown>, expected: readonly string[]): void {
-  if (Object.keys(value).sort().join("\0") !== [...expected].sort().join("\0")) {
+  if (!hasExactKeys(value, expected)) {
     throw new Error("fixture session result changed shape");
   }
 }
