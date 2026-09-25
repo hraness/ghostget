@@ -985,7 +985,7 @@ function subjectRefusedScan(before: Snapshot, picked: Operation, after: Snapshot
 }
 
 /** How many seeded traces the file-backed world replays: a cover of every action result. */
-const FILE_BACKED_TRACES = 5;
+const FILE_BACKED_TRACES = 7;
 
 /** Each action a trace takes with the result the model records for it (a finish records its outcome). */
 function coverageLabels(trace: ItfTrace): ReadonlySet<string> {
