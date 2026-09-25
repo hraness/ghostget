@@ -6,14 +6,32 @@
       "module": "lock",
       "init": "init",
       "step": "step",
-      "invariants": ["mutualExclusion"],
-      "simulation": { "seed": "20260923", "maxSamples": 2000, "maxSteps": 12 },
-      "apalache": { "length": 10 },
-      "nightly": {
-        "simulation": { "maxSamples": 20000, "maxSteps": 24 },
-        "apalache": { "length": 20 }
+      "invariants": [
+        "mutualExclusion"
+      ],
+      "simulation": {
+        "seed": "20260923",
+        "maxSamples": 2000,
+        "maxSteps": 12
       },
-      "mutants": [{ "step": "stepMutant", "invariant": "mutualExclusion" }],
+      "apalache": {
+        "length": 10
+      },
+      "nightly": {
+        "simulation": {
+          "maxSamples": 20000,
+          "maxSteps": 24
+        },
+        "apalache": {
+          "length": 20
+        }
+      },
+      "mutants": [
+        {
+          "step": "stepMutant",
+          "invariant": "mutualExclusion"
+        }
+      ],
       "replay": {
         "test": "scripts/verification-lock-replay.test.ts",
         "target": "reference",
@@ -27,14 +45,34 @@
       "module": "fence",
       "init": "init",
       "step": "step",
-      "invariants": ["fenceSafety"],
-      "simulation": { "seed": "20260923", "maxSamples": 5000, "maxSteps": 12 },
-      "apalache": { "length": 8 },
+      "invariants": [
+        "fenceSafety"
+      ],
+      "simulation": {
+        "seed": "20260923",
+        "maxSamples": 5000,
+        "maxSteps": 12
+      },
+      "apalache": {
+        "length": 8
+      },
       "mutants": [
-        { "step": "stepHashKeyed", "invariant": "fenceSafety" },
-        { "step": "stepCallerRelease", "invariant": "fenceSafety" },
-        { "step": "stepUnelected", "invariant": "fenceSafety" },
-        { "step": "stepElectInFlight", "invariant": "fenceSafety" }
+        {
+          "step": "stepHashKeyed",
+          "invariant": "fenceSafety"
+        },
+        {
+          "step": "stepCallerRelease",
+          "invariant": "fenceSafety"
+        },
+        {
+          "step": "stepUnelected",
+          "invariant": "fenceSafety"
+        },
+        {
+          "step": "stepElectInFlight",
+          "invariant": "fenceSafety"
+        }
       ],
       "replay": {
         "test": "scripts/verification-fence-replay.test.ts",
@@ -49,10 +87,23 @@
       "module": "pathClaim",
       "init": "init",
       "step": "step",
-      "invariants": ["claimSafety"],
-      "simulation": { "seed": "20260923", "maxSamples": 10000, "maxSteps": 12 },
-      "apalache": { "length": 6 },
-      "mutants": [{ "step": "stepPreFix", "invariant": "claimSafety" }],
+      "invariants": [
+        "claimSafety"
+      ],
+      "simulation": {
+        "seed": "20260923",
+        "maxSamples": 10000,
+        "maxSteps": 12
+      },
+      "apalache": {
+        "length": 6
+      },
+      "mutants": [
+        {
+          "step": "stepPreFix",
+          "invariant": "claimSafety"
+        }
+      ],
       "replay": {
         "test": "scripts/verification-path-claim-replay.test.ts",
         "target": "production",
@@ -66,12 +117,26 @@
       "module": "stateClaim",
       "init": "init",
       "step": "step",
-      "invariants": ["claimSafety"],
-      "simulation": { "seed": "20260924", "maxSamples": 20000, "maxSteps": 12 },
-      "apalache": { "length": 8 },
+      "invariants": [
+        "claimSafety"
+      ],
+      "simulation": {
+        "seed": "20260924",
+        "maxSamples": 20000,
+        "maxSteps": 12
+      },
+      "apalache": {
+        "length": 8
+      },
       "mutants": [
-        { "step": "stepNoHeldListing", "invariant": "claimSafety" },
-        { "step": "stepNoHeldCheck", "invariant": "claimSafety" }
+        {
+          "step": "stepNoHeldListing",
+          "invariant": "claimSafety"
+        },
+        {
+          "step": "stepNoHeldCheck",
+          "invariant": "claimSafety"
+        }
       ],
       "replay": {
         "test": "scripts/verification-state-claim-replay.test.ts",
@@ -86,13 +151,31 @@
       "module": "approvals",
       "init": "init",
       "step": "step",
-      "invariants": ["atMostOneUse", "onlyHolderAllowed"],
-      "simulation": { "seed": "20260925", "maxSamples": 3000, "maxSteps": 20 },
-      "apalache": { "length": 10 },
+      "invariants": [
+        "atMostOneUse",
+        "onlyHolderAllowed"
+      ],
+      "simulation": {
+        "seed": "20260925",
+        "maxSamples": 3000,
+        "maxSteps": 20
+      },
+      "apalache": {
+        "length": 10
+      },
       "mutants": [
-        { "step": "stepShared", "invariant": "atMostOneUse" },
-        { "step": "stepFirstCheck", "invariant": "onlyHolderAllowed" },
-        { "step": "stepAdmitBeforeAwait", "invariant": "atMostOneUse" }
+        {
+          "step": "stepShared",
+          "invariant": "atMostOneUse"
+        },
+        {
+          "step": "stepFirstCheck",
+          "invariant": "onlyHolderAllowed"
+        },
+        {
+          "step": "stepAdmitBeforeAwait",
+          "invariant": "atMostOneUse"
+        }
       ],
       "replay": {
         "test": "scripts/verification-approvals-replay.test.ts",
@@ -108,20 +191,55 @@
       "init": "init",
       "step": "step",
       "invariants": [
-        "noPromotionWithoutLock", "cancelledNeverCreated", "verifiedNeverRemoved", "noForeignRevision",
-        "promotedVerified", "promotedDurable", "lineageRecoverable"
+        "noPromotionWithoutLock",
+        "cancelledNeverCreated",
+        "verifiedNeverRemoved",
+        "noForeignRevision",
+        "promotedVerified",
+        "promotedDurable",
+        "lineageRecoverable"
       ],
-      "simulation": { "seed": "20260927", "maxSamples": 3000, "maxSteps": 12 },
-      "apalache": { "length": 8 },
+      "simulation": {
+        "seed": "20260927",
+        "maxSamples": 3000,
+        "maxSteps": 12
+      },
+      "apalache": {
+        "length": 8
+      },
       "mutants": [
-        { "step": "stepUnfenced", "invariant": "noPromotionWithoutLock" },
-        { "step": "stepUnfenced", "invariant": "noForeignRevision" },
-        { "step": "stepLateCancel", "invariant": "cancelledNeverCreated" },
-        { "step": "stepQuarantineAny", "invariant": "verifiedNeverRemoved" },
-        { "step": "stepUnverified", "invariant": "promotedVerified" },
-        { "step": "stepNoSync", "invariant": "promotedDurable" },
-        { "step": "stepNoSync", "invariant": "lineageRecoverable" },
-        { "step": "stepNoRepair", "invariant": "lineageRecoverable" }
+        {
+          "step": "stepUnfenced",
+          "invariant": "noPromotionWithoutLock"
+        },
+        {
+          "step": "stepUnfenced",
+          "invariant": "noForeignRevision"
+        },
+        {
+          "step": "stepLateCancel",
+          "invariant": "cancelledNeverCreated"
+        },
+        {
+          "step": "stepQuarantineAny",
+          "invariant": "verifiedNeverRemoved"
+        },
+        {
+          "step": "stepUnverified",
+          "invariant": "promotedVerified"
+        },
+        {
+          "step": "stepNoSync",
+          "invariant": "promotedDurable"
+        },
+        {
+          "step": "stepNoSync",
+          "invariant": "lineageRecoverable"
+        },
+        {
+          "step": "stepNoRepair",
+          "invariant": "lineageRecoverable"
+        }
       ],
       "replay": {
         "test": "scripts/verification-media-replay.test.ts",
@@ -136,12 +254,28 @@
       "module": "messaging",
       "init": "init",
       "step": "step",
-      "invariants": ["orderedPrefix", "singleActive", "noRedispatch"],
-      "simulation": { "seed": "20260925", "maxSamples": 2000, "maxSteps": 12 },
-      "apalache": { "length": 10 },
+      "invariants": [
+        "orderedPrefix",
+        "singleActive",
+        "noRedispatch"
+      ],
+      "simulation": {
+        "seed": "20260925",
+        "maxSamples": 2000,
+        "maxSteps": 12
+      },
+      "apalache": {
+        "length": 10
+      },
       "mutants": [
-        { "step": "stepRedispatch", "invariant": "noRedispatch" },
-        { "step": "stepSkip", "invariant": "orderedPrefix" }
+        {
+          "step": "stepRedispatch",
+          "invariant": "noRedispatch"
+        },
+        {
+          "step": "stepSkip",
+          "invariant": "orderedPrefix"
+        }
       ],
       "replay": {
         "test": "scripts/verification-messaging-replay.test.ts",
@@ -156,15 +290,41 @@
       "module": "release",
       "init": "init",
       "step": "step",
-      "invariants": ["publishedBytesAttested", "promotionSound", "exactHandoffPublishes", "promotionNotBlocked"],
-      "simulation": { "seed": "20260927", "maxSamples": 2000, "maxSteps": 12 },
-      "apalache": { "length": 10 },
+      "invariants": [
+        "publishedBytesAttested",
+        "promotionSound",
+        "exactHandoffPublishes",
+        "promotionNotBlocked"
+      ],
+      "simulation": {
+        "seed": "20260927",
+        "maxSamples": 2000,
+        "maxSteps": 12
+      },
+      "apalache": {
+        "length": 10
+      },
       "mutants": [
-        { "step": "stepD7", "invariant": "exactHandoffPublishes" },
-        { "step": "stepD8", "invariant": "promotionNotBlocked" },
-        { "step": "stepD15", "invariant": "promotionNotBlocked" },
-        { "step": "stepUnbound", "invariant": "publishedBytesAttested" },
-        { "step": "stepEarlyDownload", "invariant": "promotionSound" }
+        {
+          "step": "stepD7",
+          "invariant": "exactHandoffPublishes"
+        },
+        {
+          "step": "stepD8",
+          "invariant": "promotionNotBlocked"
+        },
+        {
+          "step": "stepD15",
+          "invariant": "promotionNotBlocked"
+        },
+        {
+          "step": "stepUnbound",
+          "invariant": "publishedBytesAttested"
+        },
+        {
+          "step": "stepEarlyDownload",
+          "invariant": "promotionSound"
+        }
       ],
       "replay": {
         "test": "scripts/verification-release-replay.test.ts",
@@ -179,12 +339,27 @@
       "module": "localCli",
       "init": "init",
       "step": "step",
-      "invariants": ["postSpawnIndeterminate", "noRespawn"],
-      "simulation": { "seed": "20260928", "maxSamples": 2000, "maxSteps": 8 },
-      "apalache": { "length": 8 },
+      "invariants": [
+        "postSpawnIndeterminate",
+        "noRespawn"
+      ],
+      "simulation": {
+        "seed": "20260928",
+        "maxSamples": 2000,
+        "maxSteps": 8
+      },
+      "apalache": {
+        "length": 8
+      },
       "mutants": [
-        { "step": "stepRetryTimeout", "invariant": "noRespawn" },
-        { "step": "stepTrustNotStarted", "invariant": "postSpawnIndeterminate" }
+        {
+          "step": "stepRetryTimeout",
+          "invariant": "noRespawn"
+        },
+        {
+          "step": "stepTrustNotStarted",
+          "invariant": "postSpawnIndeterminate"
+        }
       ],
       "replay": {
         "test": "scripts/verification-local-cli-replay.test.ts",
@@ -208,21 +383,56 @@
         "boundedVerdict",
         "stuckHasEvidence"
       ],
-      "simulation": { "seed": "20260929", "maxSamples": 3000, "maxSteps": 14 },
-      "apalache": { "length": 11 },
+      "simulation": {
+        "seed": "20260929",
+        "maxSamples": 3000,
+        "maxSteps": 14
+      },
+      "apalache": {
+        "length": 11
+      },
       "nightly": {
-        "simulation": { "maxSamples": 10000, "maxSteps": 20 },
-        "apalache": { "length": 12 }
+        "simulation": {
+          "maxSamples": 10000,
+          "maxSteps": 20
+        },
+        "apalache": {
+          "length": 12
+        }
       },
       "mutants": [
-        { "step": "stepNoSource", "invariant": "authorityChain" },
-        { "step": "stepNoFastForward", "invariant": "leasedFastForward" },
-        { "step": "stepNoLease", "invariant": "leasedFastForward" },
-        { "step": "stepNoRecheck", "invariant": "revalidatedBeforeWrite" },
-        { "step": "stepSingleReadback", "invariant": "promotedStable" },
-        { "step": "stepLenientMarker", "invariant": "markerBaselineToTarget" },
-        { "step": "stepPendingIsFailure", "invariant": "stuckHasEvidence" },
-        { "step": "stepUnboundedPoll", "invariant": "boundedVerdict" }
+        {
+          "step": "stepNoSource",
+          "invariant": "authorityChain"
+        },
+        {
+          "step": "stepNoFastForward",
+          "invariant": "leasedFastForward"
+        },
+        {
+          "step": "stepNoLease",
+          "invariant": "leasedFastForward"
+        },
+        {
+          "step": "stepNoRecheck",
+          "invariant": "revalidatedBeforeWrite"
+        },
+        {
+          "step": "stepSingleReadback",
+          "invariant": "promotedStable"
+        },
+        {
+          "step": "stepLenientMarker",
+          "invariant": "markerBaselineToTarget"
+        },
+        {
+          "step": "stepPendingIsFailure",
+          "invariant": "stuckHasEvidence"
+        },
+        {
+          "step": "stepUnboundedPoll",
+          "invariant": "boundedVerdict"
+        }
       ],
       "replay": {
         "test": "scripts/verification-promotion-replay.test.ts",
@@ -230,6 +440,40 @@
         "traces": 300,
         "seed": "20260934",
         "maxSteps": 14
+      }
+    },
+    {
+      "file": "retained.qnt",
+      "module": "retained",
+      "init": "init",
+      "step": "step",
+      "invariants": [
+        "retainedSafety"
+      ],
+      "simulation": {
+        "seed": "20260924",
+        "maxSamples": 2000,
+        "maxSteps": 12
+      },
+      "apalache": {
+        "length": 8
+      },
+      "mutants": [
+        {
+          "step": "stepUntruthfulReadback",
+          "invariant": "retainedSafety"
+        },
+        {
+          "step": "stepSupersedeReleasesLedger",
+          "invariant": "retainedSafety"
+        }
+      ],
+      "replay": {
+        "test": "scripts/verification-retained-replay.test.ts",
+        "target": "production",
+        "traces": 300,
+        "seed": "20260924",
+        "maxSteps": 12
       }
     }
   ]

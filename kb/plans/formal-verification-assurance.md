@@ -217,8 +217,8 @@ and passes after the fix, and `Required` passes.
 | Doctor readback of the intent fence | Done: `ghostget.intentFences` in `ghostget doctor`, claim `intent-fence-readback`. |
 | Bind the recovery realm to the provider subject | Done: recovery capsules record the auth record's subject, claim `recovery-auth-continuity`. |
 | Reconcile across a reauth | Done: web-session and portable reconcile and web duplicate-successor election accept a reconnect that keeps the locator, kind, and recorded subject. Capsules with no subject still need the exact record. |
-| Portable readback protocol | Open: needs a new versioned portable protocol frame and manifest declaration, which is a public interface decision for the owner. |
-| Duplicate successors for portable runs | Open: a source retained for its successor keeps its bundle unquiescent for good. The owner must decide how a retained source releases its bundle hold. |
+| Portable readback protocol | Done (claim `portable-retained-release`, `verification/quint/retained.qnt`). The owner chose an optional versioned readback: a write declares `readback: {version: 1, operation, contractVersion}`, protocol 2 carries only the `host.readback` and `plugin.readback.result` frames, and protocol 1 stays accepted. Ghostget invokes the readback itself, bound to the run, intent, auth realm, and manifest, and only its observed `not-applied` releases the fence. Undeclared plugins keep the explicit-input path. Still open: no owner-approval route reaches portable reconciliation. |
+| Duplicate successors for portable runs | Done (claim `portable-retained-release`). Portable writes elect duplicate-risk successors under the web path's rules. Once the successor settles, the source's journal records `supersededBy`, which releases its recovery material and assets so the bundle is quiescent; its ledger stays indeterminate. Supersession runs at plugin install, disable, and removal and in the doctor repair pass. |
 | Fence keyed by subject across locators | Open: run journals do not record the subject, so this needs a journal schema change. |
 
 ### Phase 2: test infrastructure
