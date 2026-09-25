@@ -8,7 +8,7 @@ A claim is *evidenced* when its layer runs in CI, *planned* when a plan phase sc
 
 ## Summary
 
-The register holds 244 claims: 185 evidenced, 40 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
+The register holds 244 claims: 186 evidenced, 39 planned, and 19 not verified. It maps 90 guidelines from 5 guides; 70 list claims and 20 are exempt.
 
 | Layer | Evidenced | Planned | Not verified |
 | --- | ---: | ---: | ---: |
@@ -16,7 +16,7 @@ The register holds 244 claims: 185 evidenced, 40 planned, and 19 not verified. I
 | property test | 15 | 1 | 0 |
 | stateful model | 5 | 10 | 0 |
 | Quint model with production trace replay | 11 | 26 | 0 |
-| Lean proof with differential test | 7 | 1 | 0 |
+| Lean proof with differential test | 8 | 0 | 0 |
 | differential oracle | 3 | 1 | 0 |
 | configuration readback | 0 | 0 | 15 |
 | none | 0 | 0 | 4 |
@@ -124,7 +124,7 @@ Each claim holds only while its listed assumptions hold.
 | `vercel` | Vercel builds and serves deployments as its project settings and APIs report. | 37 |
 | `administrator-readback` | A signed-in administrator performs the documented live readbacks and reports them faithfully. | 15 |
 | `ci-runner` | GitHub-hosted runners execute the reviewed workflow faithfully. | 16 |
-| `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 15 |
+| `verification-tools` | The pinned Quint, Apalache, JDK, elan, and Lean releases are sound for the outcomes they report. | 16 |
 | `edge-runtime` | The Vercel Edge runtime implements the Web Platform APIs the edge code uses. | 5 |
 
 ## Claims by area
@@ -731,11 +731,14 @@ The length-framed hash input (a 4-byte label length, an 8-byte payload length, t
 
 Identifier grammars and route/operation composite keys satisfy parse(format(x)) = x and are unambiguous.
 
-- Planned: Lean proof with differential test in plan Phase 5.
+- Evidenced by Lean proof with differential test.
 - Source: `AGENTS.md`: “Add property tests for strict parsers, canonical encodings, identifiers, ordering, round trips”
-- Evidence: `src/contracts-repair.test.ts`, `src/local-cli-tool-identity.test.ts`, `src/platform-catalog.property.test.ts`, `src/provider-plugin-registry.test.ts`
-- Assumptions: none beyond the register-wide scope
-- Not verified: The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases.
+- Evidence: `scripts/verification-lean-encodings.test.ts`, `src/contracts-repair.test.ts`, `src/local-cli-tool-identity.test.ts`, `src/platform-catalog.property.test.ts`, `src/provider-plugin-registry.test.ts`, `verification/lean/GhostgetVerification/Encodings/RouteKey.lean`
+- Assumptions: `verification-tools`
+- Not verified:
+  - The Lean proof covers the provider plugin registry keys: the route key `<transport>:<surfaceId>` and the exact-contract key `<transport>:<surfaceId>/<operation>@<contractVersion>`, over the four transports and the surface ID and operation name grammars. Session-secret file names are the separate claim session-secret-filename-injective. Other identifier grammars, such as adapter, auth, and run IDs, portable operation identities, cursor tokens, and platform catalog IDs, are covered only by the listed example and property tests, not by a proof.
+  - The Lean theorems are about a Lean model of the key functions and grammars. The differential test checks that `routeKey`, `operationKey`, `isProviderPluginSurfaceId`, and `isProviderPluginOperationName` agree with that model on generated inputs, not on every input, and the grammars are modelled by hand from their regular expressions.
+  - The registry has no production parser for its keys; the Lean parser is a witness that a key determines its parts. A contract version is modelled as a natural number written in decimal; the registry's own check that it is a positive safe integer is not modelled.
 
 ### `local-cli` (7 claims)
 

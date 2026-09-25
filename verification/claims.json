@@ -2572,17 +2572,22 @@
         "quote": "Add property tests for strict parsers, canonical encodings, identifiers, ordering, round trips"
       },
       "layer": "lean",
-      "status": "planned",
-      "phase": 5,
+      "status": "evidenced",
       "evidence": [
+        "scripts/verification-lean-encodings.test.ts",
         "src/contracts-repair.test.ts",
         "src/local-cli-tool-identity.test.ts",
         "src/platform-catalog.property.test.ts",
-        "src/provider-plugin-registry.test.ts"
+        "src/provider-plugin-registry.test.ts",
+        "verification/lean/GhostgetVerification/Encodings/RouteKey.lean"
       ],
-      "assumptions": [],
+      "assumptions": [
+        "verification-tools"
+      ],
       "notVerified": [
-        "The Lean proof with differential test for this claim is scheduled for plan Phase 5; until then only the listed tests apply, and they cover only their enumerated or sampled cases."
+        "The Lean proof covers the provider plugin registry keys: the route key `<transport>:<surfaceId>` and the exact-contract key `<transport>:<surfaceId>/<operation>@<contractVersion>`, over the four transports and the surface ID and operation name grammars. Session-secret file names are the separate claim session-secret-filename-injective. Other identifier grammars, such as adapter, auth, and run IDs, portable operation identities, cursor tokens, and platform catalog IDs, are covered only by the listed example and property tests, not by a proof.",
+        "The Lean theorems are about a Lean model of the key functions and grammars. The differential test checks that `routeKey`, `operationKey`, `isProviderPluginSurfaceId`, and `isProviderPluginOperationName` agree with that model on generated inputs, not on every input, and the grammars are modelled by hand from their regular expressions.",
+        "The registry has no production parser for its keys; the Lean parser is a witness that a key determines its parts. A contract version is modelled as a natural number written in decimal; the registry's own check that it is a positive safe integer is not modelled."
       ]
     },
     {

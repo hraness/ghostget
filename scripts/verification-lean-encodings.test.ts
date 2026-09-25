@@ -27,7 +27,9 @@ import {
 import { canonicalJson } from "../src/canonical-json.js";
 import { localCliContractHash, type LocalCliContract } from "../src/local-cli-contracts.js";
 import { providerContractHash, type ProviderContract } from "../src/provider-contracts.js";
-import { updateLengthFramedHash, type ProviderPluginRegistry } from "../src/provider-plugin-registry.js";
+import { providerPluginTransports } from "../src/provider-plugin.js";
+import { isProviderPluginOperationName, isProviderPluginSurfaceId } from "../src/provider-plugin-identifiers.js";
+import { operationKey, routeKey, updateLengthFramedHash, type ProviderPluginRegistry } from "../src/provider-plugin-registry.js";
 import { intentLedgerPath } from "../src/runtime.js";
 import { parseSessionSecretFileName, sessionSecretFileName } from "../src/session-secrets.js";
 import { assertAsyncProperty, fc } from "../src/test-support.js";
@@ -210,6 +212,31 @@ const namePart = fc.oneof(
 const secretFileName = fc.tuple(namePart, fc.constantFrom("--", ".", "-", "---", "----", ""), namePart, fc.constantFrom(".json", "", ".JSON", "json"))
   .map(([namespace, separator, authId, suffix]) => `${namespace}${separator}${authId}${suffix}`);
 
+/** Identifier candidates, heavy in the separators the registry keys use and near the length bounds. */
+const kebabSegment = fc.oneof(
+  fc.array(fc.constantFrom("a", "b", "z", "0", "9", "-", "-", ".", ":", "/", "@", "A", "_", "\u00e9"), { maxLength: 8 }).map((parts) => parts.join("")),
+  fc.array(fc.constantFrom("a", "0", "-"), { maxLength: 6 }).map((parts) => `a${parts.join("")}`),
+  fc.array(fc.constantFrom("a", "b", "0", "-", ".", ":", "/", "@"), { maxLength: 6 }).map((parts) => `a${parts.join("")}`),
+  fc.constantFrom("a".repeat(40), "a".repeat(41), "a".repeat(63), "a".repeat(64), "a-b", "a--b", "a-", "-a", ""),
+);
+/** Kebab-shaped runs joined by one separator each, so a grammar that admitted a separator would be exercised. */
+const separated = fc.array(
+  fc.tuple(fc.constantFrom("-", "-", ".", ".", "/", ":", "@", "--", "_"), fc.constantFrom("a", "b0", "z9", "0")),
+  { minLength: 1, maxLength: 4 },
+).map((parts) => `a${parts.flat().join("")}`);
+const identifier = fc.oneof(
+  { arbitrary: separated, weight: 4 },
+  kebabSegment,
+  fc.array(kebabSegment, { minLength: 1, maxLength: 5 }).map((segments) => segments.join(".")),
+  fc.array(fc.constantFrom("a".repeat(40), "b".repeat(40)), { minLength: 4, maxLength: 5 }).map((segments) => segments.join(".")),
+  fc.constantFrom("messaging.list", "conversations.read", "a.b.c.d", "a.b.c.d.e", "a-b.c0-d", "a.b@1", "a:b.c", "a/b.c"),
+  fc.string({ maxLength: 8 }),
+);
+const validSurface = identifier.filter((value) => isProviderPluginSurfaceId(value));
+const validOperation = identifier.filter((value) => isProviderPluginOperationName(value));
+const transport = fc.constantFrom(...providerPluginTransports);
+const contractVersion = fc.oneof(fc.integer({ min: 0, max: 20 }), fc.integer({ min: 0, max: Number.MAX_SAFE_INTEGER }));
+
 // Stand-ins for the registry: only the operation lookup and implementation hash matter to a contract hash.
 
 function stubRegistry(transport: "provider-api" | "local-cli", implementationHash: string): ProviderPluginRegistry {
@@ -332,6 +359,21 @@ describe("Lean encoding proofs agree with the TypeScript", () => {
     }));
   });
 
+  test("the surface ID and operation name grammars match the Lean validSurface and validOperation", async () => {
+    await assertAsyncProperty(fc.asyncProperty(identifier, async (value) => {
+      expect(await lean.ask(query("rsurf", encodeUnits(value)))).toBe(isProviderPluginSurfaceId(value) ? "1" : "0");
+      expect(await lean.ask(query("rop", encodeUnits(value)))).toBe(isProviderPluginOperationName(value) ? "1" : "0");
+    }));
+  });
+
+  test("routeKey and operationKey match the Lean routeKey and operationKey on valid parts", async () => {
+    await assertAsyncProperty(fc.asyncProperty(transport, validSurface, validOperation, contractVersion, async (t, surface, operation, version) => {
+      expect(await lean.ask(query("rkey", [...encodeUnits(t), ...encodeUnits(surface)]))).toBe(renderUnits(routeKey(t, surface)));
+      expect(await lean.ask(query("okey", [...encodeUnits(t), ...encodeUnits(surface), ...encodeUnits(operation), version])))
+        .toBe(renderUnits(operationKey(t, surface, operation, version)));
+    }));
+  });
+
   test("negotiateDocumentRepresentation matches the Lean negotiate over the parsed ranges", async () => {
     await assertAsyncProperty(fc.asyncProperty(acceptHeader, representations, async (header, reps) => {
       const decision = negotiateDocumentRepresentation(header, reps).kind;
@@ -389,6 +431,13 @@ describe("production rejects each seeded defect's counterexample", () => {
     expect(parseSessionSecretFileName(first)).toEqual({ kind: "coordinate", namespace: "a", authId: "b--c" });
     expect(parseSessionSecretFileName(second)).toEqual({ kind: "coordinate", namespace: "a--b", authId: "c" });
     expect(parseSessionSecretFileName("a--b--c.json")?.kind).toBe("ambiguous-historical");
+  });
+
+  test("operationKeyUnseparated: surface a with operation bx.c differs from surface ab with operation x.c", () => {
+    expect(isProviderPluginSurfaceId("a") && isProviderPluginSurfaceId("ab")).toBeTrue();
+    expect(isProviderPluginOperationName("bx.c") && isProviderPluginOperationName("x.c")).toBeTrue();
+    expect(operationKey("local-cli", "a", "bx.c", 1)).not.toBe(operationKey("local-cli", "ab", "x.c", 1));
+    expect(operationKey("local-cli", "a", "bx.c", 1)).toBe("local-cli:a/bx.c@1");
   });
 
   test("negotiateIgnoringQZero: text/html;q=0 refuses the only representation", () => {

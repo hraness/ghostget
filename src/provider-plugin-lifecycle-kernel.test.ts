@@ -567,6 +567,10 @@ function identityFor(bundle: Bundle): PortableOperationIdentityV1 {
 }
 
 /** The durable listings the kernel reads, built from the model's items. */
+/** What one injected listing returns. */
+type Listed<Key extends keyof PortableProviderPluginQuiescenceDependencies> =
+  PortableProviderPluginQuiescenceDependencies[Key] extends (...args: never[]) => infer Result ? Result : never;
+
 function modelDependencies(model: Readonly<LifecycleModel>): PortableProviderPluginQuiescenceDependencies {
   const items = model.items;
   const journalOf = (id: number): number | null => {
@@ -577,7 +581,7 @@ function modelDependencies(model: Readonly<LifecycleModel>): PortableProviderPlu
     listStateDirectory: (path) => path.endsWith("/plans")
       ? items.filter((item) => item.work.kind === "unexpected-entry").map((item) => ({ name: `mystery-${String(item.id)}`, kind: "other" as const }))
       : [],
-    listPlans: () => items.flatMap((item) => {
+    listPlans: () => items.flatMap((item): Listed<"listPlans"> => {
       if (item.work.kind === "invalid" && item.work.of === "plan") return [{ digest: itemDigest(item.id), invalid: true as const }];
       if (item.work.kind !== "plan") return [];
       return [{
@@ -594,7 +598,7 @@ function modelDependencies(model: Readonly<LifecycleModel>): PortableProviderPlu
         plan: { ...storedPlan.plan, portablePluginContract: identityFor(item.work.bundle) },
       } as StoredPlan;
     },
-    listConfirmationClaims: () => items.flatMap((item) => {
+    listConfirmationClaims: () => items.flatMap((item): Listed<"listConfirmationClaims"> => {
       if (item.work.kind === "invalid" && item.work.of === "claim") return [{ digest: itemDigest(item.id), invalid: true as const }];
       if (item.work.kind !== "claim") return [];
       const base = confirmationClaim();
@@ -610,7 +614,7 @@ function modelDependencies(model: Readonly<LifecycleModel>): PortableProviderPlu
         },
       }];
     }),
-    listInvocationLeases: () => items.flatMap((item) => {
+    listInvocationLeases: () => items.flatMap((item): Listed<"listInvocationLeases"> => {
       if (item.work.kind === "invalid" && item.work.of === "lease") return [{ leaseId: itemRunId(item.id), invalid: true as const }];
       if (item.work.kind !== "lease") return [];
       const base = leaseSnapshot();
@@ -621,7 +625,7 @@ function modelDependencies(model: Readonly<LifecycleModel>): PortableProviderPlu
       if (work?.kind !== "lease") throw new Error("unexpected lease owner check");
       return work.owner;
     },
-    listJournals: () => items.flatMap((item) => {
+    listJournals: () => items.flatMap((item): Listed<"listJournals"> => {
       if (item.work.kind === "invalid" && item.work.of === "journal") return [{ runId: itemRunId(item.id), invalid: true as const }];
       if (item.work.kind !== "journal") return [];
       const state = item.work.state;
@@ -640,7 +644,7 @@ function modelDependencies(model: Readonly<LifecycleModel>): PortableProviderPlu
         },
       } as RunJournalSnapshot];
     }),
-    listReceipts: () => items.flatMap((item) => {
+    listReceipts: () => items.flatMap((item): Listed<"listReceipts"> => {
       if (item.work.kind === "invalid" && item.work.of === "receipt") return [{ runId: itemRunId(item.id), invalid: true as const }];
       if (item.work.kind !== "receipt") return [];
       const journal = item.work.journal === null ? null : journalOf(item.work.journal);
@@ -652,7 +656,7 @@ function modelDependencies(model: Readonly<LifecycleModel>): PortableProviderPlu
         status: item.work.status,
       } as RunReceipt];
     }),
-    listRecoveryCapsules: () => items.flatMap((item) => {
+    listRecoveryCapsules: () => items.flatMap((item): Listed<"listRecoveryCapsules"> => {
       if (item.work.kind === "invalid" && item.work.of === "capsule") return [{ runId: itemRunId(item.id), invalid: true as const }];
       if (item.work.kind !== "capsule") return [];
       return [{
@@ -663,7 +667,7 @@ function modelDependencies(model: Readonly<LifecycleModel>): PortableProviderPlu
         },
       }];
     }),
-    listLinkedDeviceLifecycles: () => items.flatMap((item) => {
+    listLinkedDeviceLifecycles: () => items.flatMap((item): Listed<"listLinkedDeviceLifecycles"> => {
       if (item.work.kind === "invalid" && item.work.of === "linked") return [{ journalId: itemRunId(item.id), invalid: true as const }];
       if (item.work.kind !== "linked") return [];
       const base = linkedSnapshot();
@@ -726,7 +730,7 @@ class Transition implements Command<LifecycleModel, LifecycleReal> {
   run(model: LifecycleModel, real: LifecycleReal): void {
     const expected = modelBlockers(model, this.target);
     const report = inspectPortableProviderPluginQuiescence(bundleHash(this.target), real.environment, modelDependencies(model));
-    expect(new Set(report.blockers.map((blocker) => blocker.kind))).toEqual(new Set(expected));
+    expect(new Set<string>(report.blockers.map((blocker) => blocker.kind))).toEqual(new Set<string>(expected));
     expect(report.quiescent).toBe(expected.size === 0);
   }
   toString(): string {

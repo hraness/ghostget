@@ -1412,7 +1412,7 @@ describe("Lean trust base", () => {
     const register = JSON.parse(await repositoryFile("verification/claims.json")) as {
       claims: { id: string; layer: string; status: string; evidence: string[] }[];
     };
-    const ids = ["canonical-json-injective", "hash-framing-injective", "session-secret-filename-injective", "edge-accept-406-only-when-empty"];
+    const ids = ["canonical-json-injective", "hash-framing-injective", "session-secret-filename-injective", "identifier-roundtrip", "edge-accept-406-only-when-empty"];
     const cited = register.claims.filter((claim) => ids.includes(claim.id))
       .map((claim) => ({ id: claim.id, layer: claim.layer, status: claim.status, cites: claim.evidence.includes(LEAN_DIFFERENTIAL_TEST) }))
       .sort((left, right) => ids.indexOf(left.id) - ids.indexOf(right.id));
