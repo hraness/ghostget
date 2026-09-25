@@ -1,13 +1,14 @@
 // Enrollment-scoped automation lanes change the owner-normal admission in
 // src/messaging-automation-server.ts (per-enrollment ordering for
-// poll/history/prepare/grant/submit) and add the planEnrollment lookup to
-// src/messaging-automation.ts: two changed packed source files over the
+// poll/history/prepare/grant/submit), add the planEnrollment lookup to
+// src/messaging-automation.ts, and rebuild the messaging-automation-api dist
+// chunk: two changed packed sources plus their rebuilt bundles over the
 // unchanged 598-file inventory. A clean `bun pm pack --ignore-scripts` with
-// Bun 1.3.14 on darwin arm64 measured 11,879,729 packed bytes and
-// 23,537,764 unpacked bytes; archive SHA-256
-// b1486a1a54b327a54c010f47b0ebccfd81d88455da6688f929a6fb2a32beedd6. Carry the
-// same projections and allowances: 11,879,729 + 12,387 + 4,096 = 11,896,212
-// packed; 23,537,764 + 353 + 65 = 23,538,182 unpacked. Current source CI and
+// Bun 1.3.14 on darwin arm64 measured 11,879,734 packed bytes and
+// 23,537,986 unpacked bytes; archive SHA-256
+// ddb55566de86d8e3351a7388a40eb86057a0a7e5009e401f79d91013e6f07fff. Carry the
+// same projections and allowances: 11,879,734 + 12,387 + 4,096 = 11,896,217
+// packed; 23,537,986 + 353 + 65 = 23,538,404 unpacked. Current source CI and
 // canonical Release must independently measure and admit their exact
 // archives.
 //
@@ -1737,9 +1738,9 @@ export const repairPackageMeasurement = Object.freeze({
   command: "bun pm pack --ignore-scripts",
   npmVersion: "Bun 1.3.14",
   platform: "darwin-arm64",
-  archiveSha256: "b1486a1a54b327a54c010f47b0ebccfd81d88455da6688f929a6fb2a32beedd6",
-  packedBytes: 11_879_729,
-  unpackedBytes: 23_537_764,
+  archiveSha256: "ddb55566de86d8e3351a7388a40eb86057a0a7e5009e401f79d91013e6f07fff",
+  packedBytes: 11_879_734,
+  unpackedBytes: 23_537_986,
   entryCount: 598,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

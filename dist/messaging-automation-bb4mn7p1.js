@@ -492,6 +492,11 @@ class MessagingAutomationHost {
       throw new Error("Messaging run does not exist.");
     return this.runProjection(row);
   }
+  planEnrollment(id) {
+    this.ready();
+    const record = this.db.query("SELECT data FROM plans WHERE id=?").get(automationId(id));
+    return record === null ? null : planData(JSON.parse(record.data)).enrollmentId;
+  }
   cancel(planId) {
     this.ready();
     const controllers = this.planControllers.get(automationId(planId));
