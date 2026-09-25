@@ -37,6 +37,10 @@ Do not use Ghostget as an AI agent, hosted HTTP API, OpenAPI surface, OAuth deve
 - [Ghostget source repository]({{GHOSTGET_REPOSITORY}}): public source, issues, and GitHub private vulnerability reporting
 - [Plugin protocol guide for {{GHOSTGET_RELEASE}}]({{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/plugins.md): complete source-side plugin contract
 
+## Blog
+
+{{BLOG_LLMS_ENTRIES}}
+
 ## Main pages
 
 - [Ghostget home](https://ghostget.com/)

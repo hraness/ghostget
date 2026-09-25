@@ -17,6 +17,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   agentSkillInstallCommands,
   buildWebsite,
+  BLOG_SITE,
   compileUiStylesheet,
   CONTENT_REVIEWED_RELEASE,
   DEFAULT_POSTHOG_HOST,
@@ -39,6 +40,7 @@ import {
   type UiStylesheetImport,
 } from "./build";
 import webmcpRegistrySource from "./source/webmcp-registry.json";
+import { BLOG_POSTS, blogPostPath, blogSitemapPaths } from "./blog";
 import {
   parseWebmcpRegistrySnapshot,
   webmcpProviderPages,
@@ -180,12 +182,12 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.15.0",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.17.0",
         "@hraness/site-footer": "github:hraness/site-footer#v0.15.0",
         "@hraness/ui": "github:hraness/ui#v0.5.16",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.15.0"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.17.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.16"');
     expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.15.0"');
     expect(lockfile).toContain(
@@ -718,7 +720,8 @@ describe("ghostget.com static site", () => {
     const webmcpPages = webmcpProviderPages(
       parseWebmcpRegistrySnapshot(webmcpRegistrySource),
     );
-    expect(sitemap.match(/<url>/gu)).toHaveLength(PUBLIC_PAGES.length + webmcpPages.length);
+    const blogPaths = blogSitemapPaths(BLOG_SITE);
+    expect(sitemap.match(/<url>/gu)).toHaveLength(PUBLIC_PAGES.length + webmcpPages.length + blogPaths.length);
     expect(sitemap).toContain('xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"');
     expect(sitemap.match(/<image:image>/gu)).toHaveLength(editorialImages.length);
     for (const page of PUBLIC_PAGES) {
@@ -736,8 +739,50 @@ describe("ghostget.com static site", () => {
     expect(sitemap).not.toContain("paypal-grapheneos-attestation.webp");
     expect(sitemap).not.toContain("rumour-is-the-exploit.webp");
     expect(sitemap).not.toContain("omarchy-root-escalation.webp");
-    expect(sitemap).not.toContain("<lastmod>");
+    // Only blog rows carry lastmod; every other page keeps the undated form.
+    expect(sitemap.match(/<lastmod>/gu)).toHaveLength(blogPaths.length);
+    for (const entry of blogPaths) {
+      expect(sitemap).toContain(`<loc>${SITE_ORIGIN}${entry.path}</loc>\n    <lastmod>${String(entry.lastModified)}</lastmod>`);
+    }
     expect(sitemap).not.toContain("<changefreq>");
+    const blogIndexHtml = await readFile(join(websiteRoot, "dist/blog/index.html"), "utf8");
+    const blogFeed = await readFile(join(websiteRoot, "dist/blog/feed.xml"), "utf8");
+    expect(blogIndexHtml).toContain(`<link rel="canonical" href="${SITE_ORIGIN}/blog/">`);
+    expect(blogIndexHtml).toContain('"@type":"Blog"');
+    expect(blogIndexHtml).toContain(`<link rel="alternate" type="text/markdown" title="Markdown" href="${SITE_ORIGIN}/blog.md">`);
+    expect(await Bun.file(join(websiteRoot, "dist/blog.md")).exists()).toBe(true);
+    expect(blogFeed).toContain('<feed xmlns="http://www.w3.org/2005/Atom"');
+    expect(llms).toContain(`${SITE_ORIGIN}/blog/`);
+    expect(vercel.redirects).toEqual(expect.arrayContaining([
+      { destination: "/blog/", permanent: true, source: "/blog" },
+      { destination: "/blog/", permanent: true, source: "/blog/index.html" },
+    ]));
+    expect(vercel.headers).toEqual(expect.arrayContaining([{
+      headers: [{ key: "Content-Type", value: "application/atom+xml; charset=utf-8" }],
+      source: "/blog/feed.xml",
+    }]));
+    for (const post of BLOG_POSTS) {
+      const path = blogPostPath(post.slug);
+      const postHtml = await readFile(join(websiteRoot, "dist", path.slice(1), "index.html"), "utf8");
+      expect(postHtml).toContain(`<link rel="canonical" href="${SITE_ORIGIN}${path}">`);
+      expect(postHtml).toContain('<span class="plain-publication__byline" data-author-kind="organization">By Hraness</span>');
+      expect(postHtml).toContain(`<p class="plain-publication__provenance" data-drafting="ai-from-source" data-reviewer-type="ai">Drafted with AI from the source code and reviewed by ${post.admission.review?.reviewer}.</p>`);
+      expect(postHtml).toContain('<section aria-labelledby="article-related-products" class="plain-publication__related">');
+      expect(postHtml).not.toContain("{{");
+      const indexable = post.admission.lifecycle === "indexable";
+      expect(postHtml.includes('<meta name="robots" content="noindex">')).toBe(!indexable);
+      expect(postHtml.includes('"@type":"BlogPosting"')).toBe(indexable);
+      expect(blogIndexHtml.includes(`href="${path}"`)).toBe(indexable);
+      expect(blogFeed.includes(`<id>${SITE_ORIGIN}${path}</id>`)).toBe(indexable);
+      expect(sitemap.includes(`<loc>${SITE_ORIGIN}${path}</loc>`)).toBe(indexable);
+      expect(llms.includes(`${SITE_ORIGIN}${path}`)).toBe(indexable);
+      expect(await Bun.file(join(websiteRoot, "dist", markdownSiblingPath(path).slice(1))).exists()).toBe(indexable);
+      expect(vercel.redirects).toEqual(expect.arrayContaining([
+        { destination: path, permanent: true, source: path.slice(0, -1) },
+        { destination: path, permanent: true, source: `${path}index.html` },
+      ]));
+    }
+
     expect(sitemap).not.toContain("<priority>");
     expect(sitemap).not.toContain("hraness.com");
     expect(sitemap).not.toContain("/preview/");
@@ -808,6 +853,7 @@ describe("ghostget.com static site", () => {
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/docs/"');
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/docs/reference/provider-capabilities/"');
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/about/"');
+      expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/blog/"');
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/contact/"');
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="/privacy/"');
       expect(contentFooter).toContain('class="hraness-marketing-footer__link" href="https://github.com/hraness/ghostget"');

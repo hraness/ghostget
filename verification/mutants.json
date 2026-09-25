@@ -144,6 +144,114 @@
         "linked-device lifecycle journal state machine",
         "keeps every post-begin failure indeterminate until read-only reconciliation"
       ]
+    },
+    {
+      "id": "browser-admission-reclaim-same-boot",
+      "file": "src/browser-admission.ts",
+      "defect": "A same-boot claim whose owner reads as dead is reclaimed, so PID reuse alone frees a slot a surviving browser daemon may still hold.",
+      "search": "        existing.claim.owner.bootId === currentIdentity.bootId\n        || status !== \"different-or-dead\"",
+      "replace": "        status !== \"different-or-dead\"",
+      "test": "src/browser-admission.model.test.ts",
+      "killedBy": [
+        "browser admission stateful model",
+        "never runs more than two acquisitions, never reclaims a same-boot claim, and never launches after expiry"
+      ]
+    },
+    {
+      "id": "browser-admission-reclaim-any-owner",
+      "file": "src/browser-admission.ts",
+      "defect": "Every existing claim is reclaimed, live owners included, so a third acquisition runs beside two live ones.",
+      "search": "        existing.claim.owner.bootId === currentIdentity.bootId\n        || status !== \"different-or-dead\"",
+      "replace": "        false",
+      "test": "src/browser-admission.model.test.ts",
+      "killedBy": [
+        "browser admission stateful model",
+        "never runs more than two acquisitions, never reclaims a same-boot claim, and never launches after expiry"
+      ]
+    },
+    {
+      "id": "browser-admission-no-deadline-revalidation",
+      "file": "src/browser-admission.ts",
+      "defect": "A slot created after the deadline is returned instead of being rolled back.",
+      "search": "  try {\n    throwIfUnavailable(options, now, expiresAt);\n  } catch (error) {\n    try {\n      admission.release();",
+      "replace": "  try {\n  } catch (error) {\n    try {\n      admission.release();",
+      "test": "src/browser-admission.model.test.ts",
+      "killedBy": [
+        "browser admission stateful model",
+        "never runs more than two acquisitions, never reclaims a same-boot claim, and never launches after expiry"
+      ]
+    },
+    {
+      "id": "browser-admission-launch-after-expiry",
+      "file": "src/browser-admission.ts",
+      "defect": "The capture launches its browser even when no launch time remains.",
+      "search": "    if (remainingTimeoutMs < 1) {",
+      "replace": "    if (false) {",
+      "test": "src/browser-admission.model.test.ts",
+      "killedBy": [
+        "browser admission stateful model",
+        "never runs more than two acquisitions, never reclaims a same-boot claim, and never launches after expiry"
+      ]
+    },
+    {
+      "id": "browser-admission-polling-cap-60s",
+      "file": "src/browser-admission.ts",
+      "defect": "Admission polling may wait 60 s instead of at most 30 s.",
+      "search": "const MAX_WAIT_MS = 30_000;",
+      "replace": "const MAX_WAIT_MS = 60_000;",
+      "test": "src/browser-admission.model.test.ts",
+      "killedBy": [
+        "browser admission stateful model",
+        "never runs more than two acquisitions, never reclaims a same-boot claim, and never launches after expiry"
+      ]
+    },
+    {
+      "id": "recovery-unknown-parent-reclaimed",
+      "file": "src/beeper-message-like-me-recovery.ts",
+      "defect": "An export admission whose parent liveness cannot be read is treated like a dead parent and taken over.",
+      "search": "  if (parent === \"unknown\") return \"indeterminate\";\n",
+      "replace": "",
+      "test": "src/beeper-message-like-me-recovery.model.test.ts",
+      "killedBy": [
+        "Beeper Message Like Me export admission stateful model",
+        "retains a live or indeterminate owner and takes over only after death is proved"
+      ]
+    },
+    {
+      "id": "recovery-cleanup-unsafe-same-boot-reclaimed",
+      "file": "src/beeper-message-like-me-recovery.ts",
+      "defect": "A cleanup-unsafe admission is taken over in the same boot, although a descendant of its helper may still run.",
+      "search": "  if (claim.phase === \"cleanup-unsafe\") {\n    // cleanup-unsafe means the recorded helper is not a complete ownership\n    // proof: a descendant or process-group member may have survived after the\n    // recorded child exited. Only a reboot proves every such process is gone.\n    return claim.owner.bootId === currentBootId ? \"indeterminate\" : \"recoverable\";",
+      "replace": "  if (claim.phase === \"cleanup-unsafe\") {\n    return \"recoverable\";",
+      "test": "src/beeper-message-like-me-recovery.model.test.ts",
+      "killedBy": [
+        "Beeper Message Like Me export admission stateful model",
+        "retains a live or indeterminate owner and takes over only after death is proved"
+      ]
+    },
+    {
+      "id": "messaging-prefix-drift-ignored",
+      "file": "src/messaging-runtime.ts",
+      "defect": "A drifted conversation (foreign, edited, deleted, or reordered messages) does not stop the remaining parts.",
+      "search": "          proof.state !== \"proven\"\n          ||",
+      "replace": "          false\n          ||",
+      "test": "src/messaging-runtime-execution.test.ts",
+      "killedBy": [
+        "generic messaging composite execution property",
+        "stops on every drift, failure, or cancellation at the modelled part and never resubmits"
+      ]
+    },
+    {
+      "id": "messaging-post-fence-failure-unsent",
+      "file": "src/messaging-runtime.ts",
+      "defect": "A failure or cancellation after the durable dispatch fence is recorded as failed before dispatch, claiming a possibly sent part was unsent.",
+      "search": "  if (active?.state === \"dispatching\") {\n    return stopMessagingIndeterminate(\n      snapshot,\n      \"provider-result-indeterminate\",",
+      "replace": "  if (active?.state === \"dispatching\") {\n    return stopMessagingBeforeDispatch(\n      snapshot,\n      \"provider-failed-before-dispatch\",",
+      "test": "src/messaging-runtime-execution.test.ts",
+      "killedBy": [
+        "generic messaging composite execution property",
+        "stops on every drift, failure, or cancellation at the modelled part and never resubmits"
+      ]
     }
   ]
 }

@@ -1,0 +1,103 @@
+<p>A few GitHub CLI commands show whether the Ghostget tarball on your disk was built from the public source by the release workflow, at the version tag it claims. That check matters more than usual here, because Ghostget runs on your own computer and acts in accounts you connect to it.</p>
+<p>Latest release: {{GHOSTGET_RELEASE}}.</p>
+<h2 id="software-nobody-checked-installed-by-software-nobody-checked">Software nobody checked, installed by software nobody checked</h2>
+<p>A lot of new tools are vibe-coded slop: software a model wrote quickly that looks finished and breaks on the second use. Their release step usually gets the same treatment. Someone runs a build on a laptop and uploads whatever came out, including an edit they forgot to commit or a dependency that resolved differently that afternoon. Other tools then install that file and build on it, and you end up with fragile foundations: a stack where nobody looked at the layer underneath, including the step that turned code into the download.</p>
+<p>The failure that follows is usually quiet. A release goes out, the upload to one of two places breaks halfway, and the maintainer fixes it by building again and uploading the new file. Now the same version number names two different files, and a user who compares the two has no way to tell which one matches the code they read.</p>
+<h2 id="what-a-checkable-release-looks-like">What a checkable release looks like</h2>
+<p>Ghostget&#39;s releases are built so you can tell which code produced a file. The build runs in public CI from a version tag on the main branch, never on a maintainer&#39;s machine. CI signs a statement about the exact files it produced. The files go into a GitHub Release that is locked once published, so nobody, the maintainer included, can replace them afterward. The copy on npm is the same file.</p>
+<p>Two rules make this hold up when something goes wrong, which is when shortcuts usually happen. Fixing a failed release reuses the files that were already signed; it never builds new ones. And a problem on npm never holds up or undoes the GitHub Release. Both rules are described in a small formal model that a model checker explores within stated limits.</p>
+<h2 id="provenance-and-the-five-release-files">Provenance and the five release files</h2>
+<p><strong>Provenance</strong> is a signed statement, issued by the build service rather than by a person, that names the repository, the commit, the workflow, and the run that produced a file. GitHub Actions issues it, and Sigstore signs it and records it in a public log. The <code>gh</code> command-line tool can check it.</p>
+<p>The GitHub Release is the canonical copy of each version. It holds exactly five files:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>hraness-ghostget-&lt;version&gt;.tgz</code></td>
+<td>The package, packed once.</td>
+</tr>
+<tr>
+<td><code>npm-pack.json</code></td>
+<td>npm&#39;s own record of what went into that tarball.</td>
+</tr>
+<tr>
+<td><code>release-manifest.json</code></td>
+<td>A small identity file: repository, package, version, tag, source commit, workflow, run and attempt, plus the tarball&#39;s size, SHA-256, and SHA-512.</td>
+</tr>
+<tr>
+<td><code>SHA256SUMS</code></td>
+<td>Checksums for the three files above.</td>
+</tr>
+<tr>
+<td><code>provenance.jsonl</code></td>
+<td>The signed provenance for the four files above, so you can check it offline.</td>
+</tr>
+</tbody></table>
+<p>The release workflow refuses to publish a set with a missing, extra, or duplicate file.</p>
+<h2 id="the-rules-the-release-follows">The rules the release follows</h2>
+<p><strong>Build once, sign what you built.</strong> The workflow runs only on a version tag pushed by the repository owner, and it checks that the tag points at a commit already on protected <code>main</code> whose CI run passed. It installs dependencies from the lockfile, builds, packs the tarball, and installs that exact tarball in a clean test project. Only after that does a separate job sign the files. The job that can publish checks the signature against the expected repository, tag, workflow, and run before it creates anything on GitHub. A matching checksum alone is not enough for it to proceed.</p>
+<p><strong>Publish the signed bytes, then read them back.</strong> The workflow creates a draft release, uploads only files that are not there yet, and never overwrites one. Before publishing, it downloads every asset again and compares the bytes with the files that were signed. It publishes, then compares them once more.</p>
+<p><strong>A rerun republishes the signed bytes, never a rebuild.</strong> Releases fail for dull reasons: a network timeout, a slow API. When that happens, the owner re-runs only the failed jobs of the same run. The rerun carries forward the build and its signature from the earlier attempt, and the publishing job downloads that exact artifact. It accepts files whose identity names this run and an attempt no later than the current one, and every signature must name that same attempt. In plain terms:</p>
+<pre><code class="language-text">For any release run:
+  if the GitHub Release is published,
+  then its files are files that an attempt of this same run signed,
+  and that attempt is not later than the one that published them.
+</code></pre>
+<p>Some failures cannot be recovered that way, and the rules say so instead of rebuilding quietly. If the signing job itself failed, re-running only the failed jobs cannot fix it, because the signing job signs only a build made in its own attempt and a failed-jobs rerun does not build again. The owner re-runs all jobs instead, which builds and signs again under a new attempt. Re-running all jobs after the release is already published produces files the release does not name, so that run stops rather than publishing a second set.</p>
+<p><strong>npm mirrors the same file and never holds up GitHub.</strong> The npm job starts only after the GitHub Release exists. It takes the signed tarball from the same run, checks it against the recorded hashes, and reads the registry before writing anything:</p>
+<pre><code class="language-ts">// Simplified from the release workflow&#39;s registry check.
+function npmStep(published: Version | undefined, tarball: Tarball) {
+  if (published === undefined) return &quot;publish with --provenance&quot;;
+  if (published.integrity === tarball.integrity) return &quot;already there, skip&quot;;
+  return &quot;stop: this version exists with different bytes&quot;;
+}
+</code></pre>
+<p>A failed npm upload is fixed by re-running that job in the same run, and the skip case above makes a second attempt harmless. Whatever happens on npm, the GitHub Release stays published and unchanged. After publishing, a later job waits for the registry to show the version, downloads it, and checks npm&#39;s signatures and provenance against the tag and the release workflow.</p>
+<p><strong>The website shows only a checked release.</strong> ghostget.com derives its install commands from the release. Its production build refuses to go live unless the Latest GitHub Release is locked, was published by GitHub Actions, names the expected repository, tag, and commit on its first line, and has a tarball whose size, SHA-256, and SHA-512 match its identity file. The website build checks identity and bytes only. The cryptographic signature check runs in the release workflow and again in the separate promotion workflow, which verifies every signed file before the site goes live.</p>
+<h2 id="how-the-two-recovery-rules-are-checked">How the two recovery rules are checked</h2>
+<p>Ghostget keeps a public register of the claims it makes about itself, and each claim names the kind of check behind it. Two claims cover the recovery rules above:</p>
+<ul>
+<li>Re-running only the failed jobs of a release run publishes the exact bytes that an earlier attempt of the same run signed.</li>
+<li>An npm failure never unpublishes or blocks the GitHub Release.</li>
+</ul>
+<p>Both are marked as evidenced by a model written in Quint, a language for describing a system as states and the steps between them, so a tool can explore many orderings of those steps. The model describes one release run with up to three attempts: jobs that succeed, fail, or are skipped; reruns of failed jobs or of all jobs; drafts; and npm. The Apalache model checker explores it to a depth of 10 steps, and a seeded simulation samples 2,000 runs of up to 12 steps. Traces from the model are then replayed through the production code that checks the publisher&#39;s inputs, website promotion, and canonical downloads, so the model and the shipped checks cannot quietly disagree.</p>
+<p>The register also lists what this leaves out:</p>
+<ul>
+<li>The model and replay cover one run of up to three attempts.</li>
+<li>That GitHub carries a build and its outputs into a failed-jobs rerun is an assumption about GitHub Actions. CI does not check it.</li>
+<li>The model takes the job order, npm after the GitHub Release, from the workflow file. It does not check the workflow file itself.</li>
+<li>Downloading the carried build by its exact ID is covered by example tests, not by the model.</li>
+<li>Draft creation, resuming a draft, and the move to Latest are in the model but are not replayed against production code.</li>
+</ul>
+<p>Related rules have not reached the model yet. The rules that a published release is never deleted or rewritten, and that uploads never overwrite an existing asset, rely on GitHub&#39;s lock and on example tests, and their formal models are listed as planned.</p>
+<h2 id="check-a-download-yourself">Check a download yourself</h2>
+<p>You need the GitHub CLI (<code>gh</code>), signed in. Use an exact version number in place of <code>&lt;version&gt;</code>, for example the one on the <a href="https://github.com/hraness/ghostget/releases/latest">releases page</a>. The commands fit v0.17.0 and later. Releases from v0.16.13 to before v0.17.0 were published while Ghostget was named Wrench, so their tarball is <code>hraness-wrench-&lt;version&gt;.tgz</code> and their signatures name the <code>hraness/wrench</code> repository and workflow. Releases through v0.16.12 have no signed assets.</p>
+<p>Download every asset for that version into its own folder and check the checksums:</p>
+<pre><code class="language-sh">gh release download v&lt;version&gt; -R hraness/ghostget --dir ghostget-&lt;version&gt;
+cd ghostget-&lt;version&gt;
+shasum -a 256 -c SHA256SUMS
+</code></pre>
+<p>Check the tarball&#39;s provenance using the bundle that shipped beside it, and require that the release workflow signed it at that tag on a GitHub-hosted runner:</p>
+<pre><code class="language-sh">gh attestation verify hraness-ghostget-&lt;version&gt;.tgz \
+  -R hraness/ghostget \
+  --bundle provenance.jsonl \
+  --signer-workflow hraness/ghostget/.github/workflows/release.yml \
+  --source-ref refs/tags/v&lt;version&gt; \
+  --deny-self-hosted-runners
+</code></pre>
+<p>A pass exits with status 0. When the output is not going to a terminal, the command may print nothing, so check the exit status, or add <code>--format json</code> to see the certificate: the repository, the tag, the workflow, and the run and attempt that signed the file. You can also confirm that the file belongs to the locked release:</p>
+<pre><code class="language-sh">gh release verify v&lt;version&gt; -R hraness/ghostget
+gh release verify-asset v&lt;version&gt; hraness-ghostget-&lt;version&gt;.tgz -R hraness/ghostget
+</code></pre>
+<p>Then install the file you just checked, rather than downloading it again:</p>
+<pre><code class="language-sh">bun add --global ./hraness-ghostget-&lt;version&gt;.tgz
+ghostget --version
+</code></pre>
+<p>The <a href="/docs/tutorials/getting-started/">getting-started guide</a> picks up from there.</p>
+<p>If you install from npm instead, run <code>npm audit signatures</code> in the project where you installed it. It reports the installed packages with verified registry signatures and verified provenance. On 2026-09-24 the npm copy of the latest release was the same file as the GitHub copy: npm&#39;s recorded SHA-512 matched the one in the release&#39;s identity file. The GitHub Release is the copy to rely on. If npm ever lags behind it, install from the GitHub Release URL.</p>
+<h2 id="what-a-passing-check-does-not-cover">What a passing check does not cover</h2>
+<p>A passing check shows that the file came from the named workflow, at the named tag and commit, in the public Ghostget repository, on GitHub&#39;s own runners. It says nothing about whether that code is correct or safe, or about the dependencies the build installed. It trusts GitHub and Sigstore to issue and log signatures honestly. It covers the package only. The website is a separate deployment with its own proof, described in deploy proofs.</p>
