@@ -23,6 +23,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ghostgetSupportProfile } from "../src/support-profile";
 
 import { AskAiAboutThis } from "./ask-ai-runtime.js";
+import {
+  CLAIMS_JSON_OUTPUT,
+  CLAIMS_PAGE_PATH,
+  claimsTemplateValues,
+  readClaimsRegisterSource,
+} from "./claims-register";
 import { product, type PortfolioProductId } from "@hraness/design-kit/portfolio";
 import {
   EDITORIAL_ARTICLE_IMAGE_SIZES,
@@ -205,6 +211,14 @@ export const PUBLIC_PAGES = [
     outputFile: "docs/how-to/author-provider-plugin/index.html",
     sourceFile: "docs-how-to-author-provider-plugin.html",
     title: "Author and verify Ghostget provider plugins",
+  },
+  {
+    canonicalPath: CLAIMS_PAGE_PATH,
+    description:
+      "Every claim in Ghostget's public register with its current verification status, generated from the repository's verification/claims.json on each release.",
+    outputFile: "claims/index.html",
+    sourceFile: "claims.html",
+    title: "Ghostget claims register",
   },
   {
     canonicalPath: "/about/",
@@ -466,6 +480,7 @@ type RenderOptions = Readonly<{
   appearanceAsset: string;
   attestation: ProviderCapabilityAttestation;
   beeperFacts: BeeperPresentationFacts;
+  claimsValues: Readonly<Record<string, string>>;
   cssAsset: string;
   fieldAsset: string;
   foilAsset: string;
@@ -958,6 +973,17 @@ function renderTemplate(
     }
     rendered = substituteTemplateValues(rendered, webmcpValues);
   }
+  if (page?.canonicalPath === CLAIMS_PAGE_PATH) {
+    for (const [placeholder, value] of Object.entries(options.claimsValues)) {
+      if (!rendered.includes(placeholder)) {
+        throw new Error(`The claims register page is missing ${placeholder}.`);
+      }
+      // A function replacement keeps `$` sequences in register text literal.
+      rendered = rendered.replaceAll(placeholder, () => value);
+    }
+  } else if (rendered.includes("{{CLAIMS_")) {
+    throw new Error("Only the claims register page may include claims template values.");
+  }
   if (/\{\{[A-Z0-9_]+\}\}/u.test(rendered)) {
     throw new Error("The rendered page contains an unresolved template value.");
   }
@@ -1133,6 +1159,7 @@ export async function buildWebsite(
     blogFragments,
     browserBuild,
     attestation,
+    claimsSource,
   ] = await Promise.all([
     Bun.file(join(repositoryRoot, "package.json")).json(),
     Promise.all(PUBLIC_PAGES.map((page) => readFile(join(sourceRoot, page.sourceFile), "utf8"))),
@@ -1182,6 +1209,7 @@ export async function buildWebsite(
       target: "browser",
     }),
     loadProviderCapabilityAttestation(repositoryRoot),
+    readClaimsRegisterSource(repositoryRoot),
   ]);
   const webmcpSnapshot: WebmcpRegistrySnapshot = parseWebmcpRegistrySnapshot(
     webmcpRegistrySource,
@@ -1236,6 +1264,10 @@ export async function buildWebsite(
     appearanceAsset,
     attestation,
     beeperFacts,
+    claimsValues: claimsTemplateValues(
+      claimsSource.register,
+      (path) => `${REPOSITORY_URL}/blob/${identity.release}/${path}`,
+    ),
     cssAsset,
     foilAsset,
     ghostgetContentFooter: renderGhostgetContentFooter(),
@@ -1312,6 +1344,7 @@ export async function buildWebsite(
       htmlMainToMarkdown(html, `${SITE_ORIGIN}${page.canonicalPath}`),
     )),
     writeFile(join(outputRoot, BLOG_FEED_PATH.slice(1)), renderBlogAtomFeed(BLOG_SITE)),
+    writeFile(join(outputRoot, CLAIMS_JSON_OUTPUT), claimsSource.json),
     writeFile(join(outputRoot, "preview/index.html"), renderPreview(previewTemplate, cssAsset)),
     writeFile(join(outputRoot, "404.html"), renderTemplate(notFoundTemplate, renderOptions)),
     writeFile(join(outputRoot, "404.md"), renderTemplate(notFoundMarkdown, renderOptions, undefined, "text")),
