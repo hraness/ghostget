@@ -26,10 +26,6 @@ export function addDocumentAppearance(html: string, asset: string, format: "html
       ? existing.replace(actions, `$1\n${menu}\n$2`)
       : existing.replace("</header>", `${menu}\n</header>`);
     result = result.replace(existing, amended);
-  } else if (headers === null && /<main class="route-state">/u.test(result)) {
-    result = result.replace("<body>", `<body>\n<a class="skip-link" href="#main">Skip to content</a>
-<header class="topbar guide-topbar"><a class="wordmark" href="/" aria-label="Ghostget home">Ghostget</a><nav aria-label="Primary"><a href="/docs/tutorials/getting-started/">Install</a><a href="/docs/">Docs</a></nav>${menu}</header>`);
-    result = result.replace('<main class="route-state">', '<main class="route-state" id="main">');
   } else throw new Error("Appearance requires exactly one ordinary header.");
   const targets = result.match(/<main\b[^>]*\bid="main"[^>]*>/gu);
   if (targets?.length !== 1 || /\btabindex=/iu.test(targets[0]!)) throw new Error("Expected one owned skip-link target.");
