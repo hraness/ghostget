@@ -199,7 +199,7 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
     }
   }
   const pr = { id: 9000, number: prNumber, merged: true, merged_at: "2026-09-09T00:50:00Z", state: "closed", merge_commit_sha: input.source,
-    merge_base_sha: mergeBase, base: { ref: "main", repo }, head: { sha: head, repo } };
+    merge_base_sha: null, base: { ref: "main", repo }, head: { sha: head, repo } };
   responses[`${prefix}/commits/${input.source}/pulls?per_page=100`] = [pr];
   responses[`${prefix}/pulls/${prNumber}`] = pr;
   const associatedRepo = { id: repo.id, url: `https://api.github.com/${prefix}` };
@@ -224,6 +224,8 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
     responses[`${prefix}/git/commits/${head}`].tree = { sha: shas.head };
     responses[`${prefix}/git/commits/${mergeBase}`] = { sha: mergeBase, tree: { sha: shas.base } };
     responses[`${prefix}/git/commits/${parent}`] = { sha: parent, tree: { sha: shas.parent } };
+    responses[`${prefix}/compare/${parent}...${head}`] = { url: `https://api.github.com/${prefix}/compare/${parent}...${head}`,
+      base_commit: { sha: parent }, merge_base_commit: { sha: mergeBase }, status: "diverged", ahead_by: 1, behind_by: 1 };
     for (const [name, sha] of Object.entries(shas)) {
       responses[`${prefix}/git/trees/${sha}?recursive=1`] = { sha, truncated: false, url: `https://api.github.com/${prefix}/git/trees/${sha}`,
         tree: blobTree(trees[name as keyof typeof trees]) };
@@ -530,7 +532,8 @@ describe("exact source CI admission", () => {
         p.splice(p.findIndex(e => e.path === "e.ts"), 1); },                                           // unreviewed extra then hides
       f => { f.responses[`${f.prefix}/git/commits/${f.input.source}`].parents = []; },
       f => { f.responses[`${f.prefix}/git/commits/${f.input.source}`].parents.push({ sha: "e".repeat(40) }); },
-      f => { delete f.responses[`${f.prefix}/pulls/50`].merge_base_sha; },
+      f => { f.responses[`${f.prefix}/compare/${f.parent}...${f.head}`].merge_base_commit.sha = "9".repeat(40); },
+      f => { f.responses[`${f.prefix}/compare/${f.parent}...${f.head}`].base_commit.sha = "9".repeat(40); },
       f => { f.responses[`${f.prefix}/git/trees/${"c".repeat(40)}?recursive=1`].truncated = true; },
       f => { const t = f.responses[`${f.prefix}/git/trees/${f.input.tree}?recursive=1`].tree as { path: string; sha: string }[];
         t.push({ ...t[0]! }); },                                                                     // duplicate provider path

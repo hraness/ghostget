@@ -175,7 +175,7 @@ function security(read: SourceCiReader, input: SourceCiInput, codeql: ReturnType
   const headCommit = object(read(`${PREFIX}/git/commits/${headSha}`));
   const headTree = text(object(headCommit.tree).sha);
   requireValue(headCommit.sha === headSha && SHA.test(headTree), "reviewed PR source differs");
-  if (headTree !== input.tree) mergedTree(read, input, pr, headSha, headTree);
+  if (headTree !== input.tree) mergedTree(read, input, headSha, headTree);
   const prComparison = comparison(read, headSha, pr);
   const mainComparison = comparison(read, input.source);
   const intervalStart = Math.min(...codeql.jobs.map(job => timestamp(job.started_at)));
@@ -234,24 +234,40 @@ function commitTree(read: SourceCiReader, sha: string): string {
 }
 // A squash or merge integration may legitimately carry a tree that differs
 // from the reviewed head when main moved after the pull request diverged. The
-// released tree is still admissible only when every path is byte-identical to
-// a reviewed side: unchanged paths keep the reviewed head's entry, main-side
-// changes keep the merged parent's entry, and any path both sides changed is
-// unreviewable merge resolution and is rejected.
-function mergedTree(read: SourceCiReader, input: SourceCiInput, pr: ObjectValue, headSha: string, headTree: string) {
-  const mergeBase = text(pr.merge_base_sha); requireValue(SHA.test(mergeBase), "invalid pull request merge base");
+// released tree is still admissible only when every disjoint path is
+// byte-identical to a reviewed side and every path both sides moved replays
+// to the same tree under the mechanical merge machinery.
+function mergedTree(read: SourceCiReader, input: SourceCiInput, headSha: string, headTree: string) {
   const source = object(read(`${PREFIX}/git/commits/${input.source}`));
   const parents = array(source.parents).map(object).map(parent => text(parent.sha));
   requireValue(source.sha === input.source && parents.every(sha => SHA.test(sha))
     && (parents.length === 1 || (parents.length === 2 && parents[1] === headSha)), "merged source parentage differs");
+  // Merged pull requests no longer carry merge_base_sha; the provider's
+  // comparison between the merged parent and the reviewed head still reports
+  // the exact divergence commit.
+  const compared = object(read(`${PREFIX}/compare/${parents[0]!}...${headSha}`));
+  const mergeBase = text(object(compared.merge_base_commit).sha);
+  requireValue(SHA.test(mergeBase) && text(object(compared.base_commit).sha) === parents[0], "pull request merge base differs");
   const [headT, sourceT, baseT, parentT] = [headTree, input.tree, commitTree(read, mergeBase), commitTree(read, parents[0]!)]
     .map(sha => treeEntries(read, sha));
+  let overlap = false;
   for (const path of new Set([...headT.keys(), ...sourceT.keys(), ...baseT.keys(), ...parentT.keys()])) {
     const base = baseT.get(path); const head = headT.get(path); const parent = parentT.get(path); const merged = sourceT.get(path);
     const mainMoved = !isDeepStrictEqual(base, parent); const reviewedMoved = !isDeepStrictEqual(base, head);
-    requireValue(!(mainMoved && reviewedMoved), "release source contains an unreviewed merge resolution");
+    if (mainMoved && reviewedMoved) { overlap = true; continue; }
     requireValue(isDeepStrictEqual(merged, mainMoved ? parent : head), "release source differs from the reviewed merge result");
   }
+  if (overlap) mechanicalMerge(input, parents[0]!, headSha, mergeBase);
+}
+// Both sides moved at least one path: admit the released tree only when it is
+// the exact three-way merge result over the provider's recorded divergence
+// base, replayed from the fetched commits. Resolution content the merge
+// machinery did not produce yields a different tree; an unresolved or
+// ambiguous merge fails the command itself.
+function mechanicalMerge(input: SourceCiInput, parent: string, headSha: string, mergeBase: string): void {
+  command("git", ["fetch", "--quiet", "--no-tags", "origin", parent, headSha, mergeBase]);
+  const result = command("git", ["merge-tree", "--write-tree", `--merge-base=${mergeBase}`, parent, headSha], 4 * 1024 * 1024);
+  requireValue(SHA.test(result.trim()) && result.trim() === input.tree, "release source differs from the mechanical reviewed merge");
 }
 
 /** One read-only admission, with a fresh second control snapshot; never polls or dispatches CI. */
