@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { parseReleaseManifest, releaseAssetNames, releaseAssetByteLimit, type ReleaseAssetDescriptor } from "../website/github-release-artifact.mjs";
 import { attestationVerifyArguments, prepareReleaseDirectory, verifyBuildHandoff, verifyCanonicalReleaseRun, verifyReleaseDirectory } from "./github-release-artifact.js";
 import { downloadReleaseAsset, publishCanonicalRelease, validateReleaseAssets } from "./github-release-publish.js";
+import { releaseBody } from "../website/release-notes.mjs";
 import { MAX_PACKED_BYTES } from "./package-budget.js";
 import { assertProperty } from "../src/test-support.js";
 
@@ -23,7 +24,8 @@ const workflowSha = "b".repeat(40);
 const manifest = parseReleaseManifest({ schema: "hraness-github-release-v1", repository: "hraness/ghostget", repositoryId: 1316443113,
   package: "@hraness/ghostget", version: "0.17.0", tag, sourceSha, workflowSha, workflow: ".github/workflows/release.yml",
   runId: 9001, runAttempt: 1, archive: { name: "hraness-ghostget-0.17.0.tgz", bytes: 4, sha256: "c".repeat(64), sha512: "d".repeat(128) } });
-const body = `wrench-release-source-v1 repository=hraness/ghostget tag=${tag} source_sha=${sourceSha} workflow_run_id=9001\n\nghostget-release-attempt-v1 run_attempt=1`;
+const notes = "Ghostget reads one more source.\n\n## Changes\n\n- Read one more source.";
+const body = releaseBody(notes, `wrench-release-source-v1 repository=hraness/ghostget tag=${tag} source_sha=${sourceSha} workflow_run_id=9001\n\nghostget-release-attempt-v1 run_attempt=1`);
 const names = releaseAssetNames(tag);
 type Json = Record<string, any>;
 
@@ -927,7 +929,7 @@ describe("canonical release publication and safe local input", () => {
           return fault === "remote-corrupt" || (fault === "published-corrupt" && release.draft === false)
             ? Buffer.alloc(expectedBytes) : Buffer.from(`fixture:${asset.name}`);
         };
-        try { await publishCanonicalRelease(directory, manifest, run, download); return { writes, downloads, release }; }
+        try { await publishCanonicalRelease(directory, manifest, notes, run, download); return { writes, downloads, release }; }
         catch (error) { return { writes, downloads, release, error }; }
       };
       const fresh = await execute(); expect(fresh.error).toBeUndefined();
@@ -940,6 +942,7 @@ describe("canonical release publication and safe local input", () => {
       expect(completed.downloads).toHaveLength(5);
       for (const altered of [
         { ...draft(), target_commitish: workflowSha }, { ...draft(), body: `${body} different-attempt` },
+        { ...draft(), body: body.replace("one more source.", "one more source!") },
         { ...draft(), immutable: true }, { ...draft(), author: { id: 894119, type: "User" } },
         { ...draft(), assets: [{ ...assets[0], digest: `sha256:${"0".repeat(64)}` }] },
         { ...draft(), assets: [assets[0], assets[0]] }, { ...draft(), assets: [{ ...assets[0], name: "unexpected" }] },

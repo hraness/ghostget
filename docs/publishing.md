@@ -650,11 +650,22 @@ The create request sends the verified SHA `C` as `target_commitish`, but GitHub
 may normalize that response field to the default branch when the protected tag
 already exists. Response `target_commitish` is informational and is not release
 authority. Every publication readback instead requires Actions bot ID
-`41898282` with type `Bot` and a deterministic body prefix binding repository,
-tag, source SHA, and `GITHUB_RUN_ID`; the separately
-read protected lightweight tag must still peel to `C`. Generated notes may
-follow that prefix but are not release authority. The Release display title and
-bot login are presentation only. An owner rerun of the same
+`41898282` with type `Bot` and a deterministic trailing identity record binding
+repository, tag, source SHA, and `GITHUB_RUN_ID`; the separately
+read protected lightweight tag must still peel to `C`. The Release page follows
+the Hraness release page standard: the title is `Ghostget vX.Y.Z`, and the body
+is a summary, `## Changes`, `## Install`, and `## Verify`, followed by the
+identity record as one HTML comment that forms the final bytes of the body. The
+verify job renders the summary and changes from the version's `CHANGELOG.md`
+section in the tagged commit with `website/release-notes.mjs`, fails when that
+section is missing, empty, or says Unreleased, and carries the notes' SHA-256 to
+the publish and npm jobs; both require the published body to be exactly those
+notes followed by that attempt's identity comment. GitHub's generated notes are
+never used. Identity readers take the record from the last
+`<!-- wrench-release-source-v1 ` marker and require the body to end with `-->`;
+only releases up to v0.18.38, published before the notes, may carry the bare
+record as the whole body. The notes are presentation, not release authority, and
+so are the Release display title and bot login. An owner rerun of the same
 workflow run can therefore recover an already-created exact immutable Release,
 while a front-run Release or a Release from another run fails closed. Promotion
 derives the Release workflow run ID only from that sampled exact source receipt.

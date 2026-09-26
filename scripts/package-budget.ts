@@ -1767,25 +1767,36 @@
 // 34055b94c3b432755cbf9790246e2fd5870479c6302413c3ea56745924bc1f64.
 // Carry the same projections and allowances: 12,038,377 + 12,387 + 4,096 =
 // 12,054,860 packed; 23,558,518 + 353 + 65 = 23,558,936 unpacked.
+// The release page change rewrites the shipped CHANGELOG.md 0.18.38 section
+// as the summary and changes that the release workflow copies onto the
+// GitHub Release page; the dist bundles and the 598-file inventory are
+// unchanged. A clean `npm pack --ignore-scripts` with npm 11.19.0 (the
+// version CI and the release workflow pin) on darwin arm64 measured
+// 12,026,837 packed bytes and 23,560,532 unpacked bytes; archive SHA-256
+// 965bb06d1a290dc830bc9aa40c59dbd7b1ad3957b00e9afa15e04ac561bff6db. The
+// unchanged base measured 12,026,168 packed and 23,558,518 unpacked bytes
+// with the same npm, so the change adds 669 packed and 2,014 unpacked bytes.
+// Carry the same projections and allowances: 12,026,837 + 12,387 + 4,096 =
+// 12,043,320 packed; 23,560,532 + 353 + 65 = 23,560,950 unpacked.
 //
 // Grouped CLI help adds the import-free terminal style module
 // (src/cli-style.ts), per-command help topics in src/usage.ts, the short
 // usage-error renderer and their changelog entry: one additional packed
 // source file.
-// A clean `npm pack --ignore-scripts` with npm 11.16.0 on darwin arm64
-// measured 12,042,221 packed bytes, 23,571,798 unpacked bytes and exactly
+// A clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
+// measured 12,042,831 packed bytes, 23,573,812 unpacked bytes and exactly
 // 599 entries; archive SHA-256
-// 74b801af002c527fd15bee2010536ef256a576a6e88e29ef2b4f096631dedf6d.
-// Carry the same projections and allowances: 12,042,221 + 12,387 + 4,096 =
-// 12,058,704 packed; 23,571,798 + 353 + 65 = 23,572,216 unpacked.
+// a3255fabc42549339f0d600e40b3769750eab951b551f453489ffa00a9e69b45.
+// Carry the same projections and allowances: 12,042,831 + 12,387 + 4,096 =
+// 12,059,314 packed; 23,573,812 + 353 + 65 = 23,574,230 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Grouped CLI help and short usage errors",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.16.0",
+  npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "74b801af002c527fd15bee2010536ef256a576a6e88e29ef2b4f096631dedf6d",
-  packedBytes: 12_042_221,
-  unpackedBytes: 23_571_798,
+  archiveSha256: "a3255fabc42549339f0d600e40b3769750eab951b551f453489ffa00a9e69b45",
+  packedBytes: 12_042_831,
+  unpackedBytes: 23_573_812,
   entryCount: 599,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

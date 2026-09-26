@@ -76,6 +76,7 @@ import {
 } from "./release-ref-writer.mjs";
 
 import { releaseIdentity } from "../website/github-release-artifact.mjs";
+import { releaseBody, releaseNotesSha256 } from "../website/release-notes.mjs";
 import { assertAsyncProperty, assertProperty, fc } from "../src/test-support.js";
 
 const ciWorkflowUrl = new URL("../.github/workflows/ci.yml", import.meta.url);
@@ -1219,7 +1220,7 @@ describe("npm publication contract", () => {
         (MAX_UNPACKED_BYTES + MAX_PACKED_ENTRIES * 1_023 + 1_024) / 512,
       ) * 512,
     );
-    expect(MAX_PACKAGE_TAR_BYTES).toBe(24_186_368);
+    expect(MAX_PACKAGE_TAR_BYTES).toBe(24_188_416);
     expect(MAX_PACKAGE_TAR_BYTES % 512).toBe(0);
     expect(artifact).toContain("maxOutputLength: MAX_PACKAGE_TAR_BYTES");
     expect(artifact).not.toContain("const maximumTarBytes");
@@ -1420,14 +1421,14 @@ describe("npm publication contract", () => {
     expect(budget).toContain("47c0114ba631b314fa5bea489eb79e29a77bb7e06321c4088725b6b238dfe81a");
     expect(Object.isFrozen(repairPackageMeasurement)).toBeTrue();
     expect(repairPackageMeasurement).toMatchObject({
-      archiveSha256: "74b801af002c527fd15bee2010536ef256a576a6e88e29ef2b4f096631dedf6d",
-      packedBytes: 12_042_221, unpackedBytes: 23_571_798, entryCount: 599,
+      archiveSha256: "a3255fabc42549339f0d600e40b3769750eab951b551f453489ffa00a9e69b45",
+      packedBytes: 12_042_831, unpackedBytes: 23_573_812, entryCount: 599,
       packedPlatformProjection: 12_387, packedPortabilityAllowance: 4_096,
       payloadPlatformProjection: 353, payloadAllowance: 65,
     });
-    expect(MAX_PACKED_BYTES).toBe(12_058_704);
-    expect(MAX_PACKED_BYTES).toBe(12_042_221 + 12_387 + 4_096);
-    expect(budget).toContain("34055b94c3b432755cbf9790246e2fd5870479c6302413c3ea56745924bc1f64");
+    expect(MAX_PACKED_BYTES).toBe(12_059_314);
+    expect(MAX_PACKED_BYTES).toBe(12_042_831 + 12_387 + 4_096);
+    expect(budget).toContain("965bb06d1a290dc830bc9aa40c59dbd7b1ad3957b00e9afa15e04ac561bff6db");
     expect(budget).toContain("12,004,806 + 12,387 + 4,096 =");
     expect(budget).toContain("12,003,367 + 12,387 + 4,096 =");
     expect(budget).toContain("23,462,195 + 353 + 65 = 23,462,613");
@@ -1542,7 +1543,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("23,029,751 + 353 + 65 = 23,030,169");
     expect(budget).toContain("23,193,728 + 65 = 23,193,793");
     expect(budget).toContain("47684b3e2eb5cf3ed07fbb520aade8c7251d993f75262fbf1af627d9081a1a5f");
-    expect(MAX_UNPACKED_BYTES).toBe(23_572_216);
+    expect(MAX_UNPACKED_BYTES).toBe(23_574_230);
     expect(budget).toContain("23,037,873 + 65 = 23,037,938");
     expect(budget).toContain("f9f3ab38a682690ceaa2699a7309997512030f0fa500a9dc29dcd108123dc41f");
     expect(budget).toContain("23,038,557 + 65 = 23,038,622");
@@ -1575,7 +1576,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("01875f12ab73a49d6c7d6bf520dc3d318db816addee2fa7981889f35c958cf7c");
     expect(budget).toContain("b12909f08f7c19460ced56e30619f4860a1183f4b0106170c07837dae577a937");
     expect(budget).toContain("0b212ac291218528dcf979370110a36f10850e046ca90a536057d9a44e807d1d");
-    expect(MAX_UNPACKED_BYTES).toBe(23_571_798 + 353 + 65);
+    expect(MAX_UNPACKED_BYTES).toBe(23_573_812 + 353 + 65);
     expect(budget).toContain("22,794,052 + 65 = 22,794,117");
     expect(budget).toContain("c482efe748f880e3717727d6d39fd92a68953e6eea766642b329ba47ae772d80");
     expect(budget).toContain("22,759,423 + 65 = 22,759,488");
@@ -1611,8 +1612,8 @@ describe("npm publication contract", () => {
     expect(packageArtifactBudget).toEqual({
       entryCount: { min: 599, max: 599 },
       fileCount: { min: 599, max: 599 },
-      packedBytes: { min: 1_600_000, max: 12_058_704 },
-      unpackedBytes: { min: 9_000_000, max: 23_572_216 },
+      packedBytes: { min: 1_600_000, max: 12_059_314 },
+      unpackedBytes: { min: 9_000_000, max: 23_574_230 },
     });
   });
 
@@ -3042,6 +3043,7 @@ fi
     const environment = {
       EXPECTED_ARTIFACT_ID: "7002",
       EXPECTED_BUNDLE_SHA256: "c".repeat(64),
+      EXPECTED_RELEASE_NOTES_SHA256: "d".repeat(64),
       GITHUB_RUN_ATTEMPT: "2",
       GITHUB_RUN_ID: "88001",
       VERIFIED_SHA: "a".repeat(40),
@@ -3057,6 +3059,8 @@ fi
       { EXPECTED_ARTIFACT_ID: "7002,7001" },
       { EXPECTED_ARTIFACT_ID: "7002 " },
       { EXPECTED_BUNDLE_SHA256: "" },
+      { EXPECTED_RELEASE_NOTES_SHA256: "" },
+      { EXPECTED_RELEASE_NOTES_SHA256: "D".repeat(64) },
       { GITHUB_RUN_ATTEMPT: "0" },
       { GITHUB_RUN_ID: "" },
       { VERIFIED_SHA: "A".repeat(40) },
@@ -9616,7 +9620,7 @@ describe("automatic npm publication from the tag Release", () => {
       const hashes = Object.fromEntries([archiveName, "npm-pack.json", "release-manifest.json", "SHA256SUMS"]
         .map((name) => [name, sha256(files.get(name) as Buffer)]));
       const environment: Record<string, string> = {
-        DIRECTORY: directory, HANDOFF_DIRECTORY: handoff, EXPECTED_ARTIFACT_ID: "77", EXPECTED_BUNDLE_SHA256: sha256(bundle),
+        DIRECTORY: directory, HANDOFF_DIRECTORY: handoff, EXPECTED_ARTIFACT_ID: "77", EXPECTED_BUNDLE_SHA256: sha256(bundle), EXPECTED_RELEASE_NOTES_SHA256: "d".repeat(64),
         EXPECTED_ARTIFACT_HASHES: JSON.stringify(hashes), VERIFIED_SHA: sourceSha, WORKFLOW_SHA: workflowSha, VERIFIED_TAG: tag,
         GITHUB_RUN_ID: "123456", GITHUB_RUN_ATTEMPT: "2", GITHUB_OUTPUT: output, RUNNER_TEMP: root,
       };
@@ -9746,10 +9750,11 @@ fi
     const archiveSha256 = createHash("sha256").update(archive).digest("hex");
     const expectedIntegrity = `sha512-${createHash("sha512").update(archive).digest("base64")}`;
     const releaseFixture = join(root, "release.json"); const output = join(root, "github-output.txt"); const commandLog = join(root, "commands");
+    const releaseNotes = "Ghostget release summary.\n\n## Changes\n\n- One change.";
     const release = {
       id: 9001, tag_name: tag, target_commitish: sourceSha, draft: false, prerelease: false, immutable: true,
       author: { id: 41898282, type: "Bot" },
-      body: `wrench-release-source-v1 repository=hraness/ghostget tag=${tag} source_sha=${sourceSha} workflow_run_id=123456\n\nghostget-release-attempt-v1 run_attempt=1`,
+      body: releaseBody(releaseNotes, `wrench-release-source-v1 repository=hraness/ghostget tag=${tag} source_sha=${sourceSha} workflow_run_id=123456\n\nghostget-release-attempt-v1 run_attempt=1`),
       assets: [
         { name: `hraness-ghostget-${version}.tgz`, state: "uploaded", digest: `sha256:${archiveSha256}`, size: archive.byteLength },
         { name: "npm-pack.json", state: "uploaded", digest: `sha256:${"1".repeat(64)}`, size: 10 },
@@ -9788,7 +9793,8 @@ exit 98
         await writeFile(releaseFixture, JSON.stringify(fixture));
         const result = await runWorkflowScript(script, {
           CLEAN_TAG: "latest", COMMAND_LOG: commandLog, DEFAULT_BRANCH: "main", EXPECTED_ARCHIVE_SHA256: archiveSha256,
-          EXPECTED_RELEASE_ATTEMPT: "1", EXPECTED_TARBALL_SHA256: archiveSha256, EXPECTED_VERSION: version,
+          EXPECTED_RELEASE_ATTEMPT: "1", EXPECTED_RELEASE_NOTES_SHA256: releaseNotesSha256(releaseNotes),
+          EXPECTED_TARBALL_SHA256: archiveSha256, EXPECTED_VERSION: version,
           GITHUB_OUTPUT: output, GITHUB_REF: `refs/tags/${tag}`, GITHUB_REPOSITORY: "hraness/ghostget", GITHUB_RUN_ID: "123456",
           GITHUB_SHA: sourceSha, NPM_DIRECTORY: npmDirectory, NPM_GLOBALCONFIG: join(root, "globalconfig"), NPM_STATE: "absent",
           NPM_USERCONFIG: join(root, "userconfig"), PATH: `${binaryDirectory}:${process.env.PATH ?? ""}`, PUBLISHED_INTEGRITY: expectedIntegrity,
@@ -9819,7 +9825,11 @@ exit 98
         [{}, { ...release, immutable: false }, "not the exact publication authority"],
         [{}, { ...release, draft: true }, "not the exact publication authority"],
         [{}, { ...release, author: { id: 894119, type: "User" } }, "not the exact publication authority"],
-        [{}, { ...release, body: release.body.replace("run_attempt=1", "run_attempt=2") }, "not the exact publication authority"],
+        [{}, { ...release, body: release.body.replace("run_attempt=1", "run_attempt=2") }, "not the rendered changelog notes"],
+        [{}, { ...release, body: release.body.replace("One change.", "Another change.") }, "not the rendered changelog notes"],
+        [{}, { ...release, body: `${release.body}\n` }, "not the rendered changelog notes"],
+        [{}, { ...release, body: release.body.slice(release.body.indexOf("<!-- ") - 2) }, "not the rendered changelog notes"],
+        [{ EXPECTED_RELEASE_NOTES_SHA256: "0".repeat(64) }, release, "not the rendered changelog notes"],
         [{}, { ...release, assets: release.assets.slice(0, 4) }, "not the exact publication authority"],
         [{}, { ...release, assets: [{ ...release.assets[0], digest: `sha256:${"9".repeat(64)}` }, ...release.assets.slice(1)] }, "not the exact canonical archive bytes"],
         [{}, { ...release, assets: [{ ...release.assets[0], size: archive.byteLength + 1 }, ...release.assets.slice(1)] }, "not the exact canonical archive bytes"],

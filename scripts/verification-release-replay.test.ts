@@ -54,6 +54,8 @@ import {
 } from "./verification-itf.js";
 import { quintModel, quintTraceCache } from "./verification-replay.js";
 import { REPOSITORY_ROOT } from "./verification-tools.js";
+import { releaseBody } from "../website/release-notes.mjs";
+
 
 const MODEL_FILE = "release.qnt";
 const MAX_ATTEMPTS = 3;
@@ -410,7 +412,8 @@ function publishedRelease(f: Fixture, state: ModelSnapshot): Json {
   }));
   return {
     assets, author: { id: 41898282, login: "github-actions[bot]", type: "Bot" },
-    body: `${receipt}\n\nghostget-release-attempt-v1 run_attempt=${String(state.relAttempt)}`,
+    body: releaseBody("Ghostget reads one more source.\n\n## Changes\n\n- Read one more source.",
+      `${receipt}\n\nghostget-release-attempt-v1 run_attempt=${String(state.relAttempt)}`),
     draft: false, id: 10, immutable: true, name: `Ghostget ${f.tag}`, prerelease: false,
     published_at: "2026-09-23T00:00:00Z", tag_name: f.tag, target_commitish: SOURCE_SHA,
   };

@@ -2,6 +2,7 @@ import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { parseReleaseBody } from "./release-notes.mjs";
 import { parseReleaseAssetDescriptors, parseReleaseManifest, releaseIdentity, usesGithubReleaseAssets, verifyReleaseAssetBytes,
   type ReleaseAssetDescriptor } from "./github-release-artifact.mjs";
 
@@ -349,9 +350,17 @@ function verifyCanonicalAssets(identity: ProductionReleaseIdentity, evidence: Pr
   for (const value of [release, latest]) {
     const author = unknownRecord(value.author, "canonical release author");
     if (value.target_commitish !== evidence.headSha || author.id !== 41898282 || author.type !== "Bot"
-      || typeof value.body !== "string" || value.body.split("\n", 1)[0] !== receipt) {
+      || releaseReceiptLine(value.body, identity.tag) !== receipt) {
       throw new Error("Canonical release is not the exact authenticated workflow publication.");
     }
+  }
+}
+
+function releaseReceiptLine(body: unknown, tag: string): string | undefined {
+  try {
+    return parseReleaseBody(body, tag).identity.split("\n", 1)[0];
+  } catch {
+    return undefined;
   }
 }
 
