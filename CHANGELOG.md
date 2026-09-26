@@ -7,6 +7,21 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.39
+
+This release adds suite telemetry for CLI runs, settles lost-submit retries by
+recorded intent, and brings the shared Hraness type foundation and release-page
+standard to ghostget.com and its GitHub Releases.
+
+- Aggregate each CLI run's outcome into the suite telemetry ping, behind the
+  existing bounded opt-out.
+- Arbitrate lost submits by recorded run intent and extend the dispatch
+  window, so a late-arriving duplicate is judged by what the run meant to do
+  rather than which write happened to land first.
+- Adopt the shared heading type foundation and portfolio related cards on
+  ghostget.com, and render GitHub Release pages from the version's
+  CHANGELOG.md section under the Hraness release-page standard.
+
 ## 0.18.38
 
 This is the first published release since 0.18.35. It includes the 0.18.36

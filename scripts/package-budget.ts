@@ -1797,14 +1797,24 @@
 // 12,044,593 packed; 23,565,669 + 353 + 65 = 23,566,087 unpacked. Required
 // Linux CI and canonical Release must independently measure and admit their
 // exact archives.
+// The 0.18.39 release bump carries the version pin across package.json,
+// src/version.ts, the dist bundles, docs and skills, the 0.18.39 CHANGELOG
+// section, and the release-page standard over the same 599-file inventory.
+// A clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
+// measured 12,040,789 packed bytes and 23,566,401 unpacked bytes; archive
+// SHA-256 5d69c97182e1545018e3ab8ab41c752a3d47b860b43d5b4cd70a345c9e41ce90.
+// Carry the same projections and allowances: 12,040,789 + 12,387 + 4,096 =
+// 12,057,272 packed; 23,566,401 + 353 + 65 = 23,566,819 unpacked. Required
+// Linux CI and canonical Release must independently measure and admit their
+// exact archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Aggregate CLI run telemetry adds src/telemetry.ts and its CLI entrypoint wiring",
+  scope: "Release Ghostget 0.18.39 across the same 599-file inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "2ecb6cc258f61709554ca37f66fb58a2cd00ccb1157850fb6d200962127dbe24",
-  packedBytes: 12_028_110,
-  unpackedBytes: 23_565_669,
+  archiveSha256: "5d69c97182e1545018e3ab8ab41c752a3d47b860b43d5b4cd70a345c9e41ce90",
+  packedBytes: 12_040_789,
+  unpackedBytes: 23_566_401,
   entryCount: 599,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
