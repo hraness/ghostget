@@ -6,6 +6,7 @@ import { assertAsyncProperty } from "../src/test-support.js";
 import {
   assertReleaseTagNewerThanPublished,
   exactLatestPredecessor,
+  exactWorkflowPublishedRelease,
   latestReleaseConvergenceBudget,
   requireLatestRelease,
   revalidateLatestReleaseProjection,
@@ -34,6 +35,7 @@ const markerBody = serializeProductionReleaseMarker(createProductionReleaseMarke
 }));
 
 import { releaseAssetNames, usesGithubReleaseAssets } from "../website/github-release-artifact.mjs";
+import { releaseBody } from "../website/release-notes.mjs";
 
 type FetchCall = Readonly<{ init: RequestInit; url: string }>;
 
@@ -779,6 +781,28 @@ test("reads the historical immutable source receipt through the renamed reposito
   }
   expect(releaseSourceReceipt({ repository: "hraness/ghostget", verifiedSha: sourceSha,
     verifiedTag: "v0.17.0", workflowRunId: "9001" })).toContain("repository=hraness/ghostget tag=v0.17.0");
+});
+
+test("reads the source receipt from the trailing identity comment of a release page", () => {
+  const pageTag = "v0.19.0";
+  const receipt = releaseSourceReceipt({ repository: "hraness/ghostget", verifiedSha: sourceSha, verifiedTag: pageTag, workflowRunId: "9001" });
+  const identity = `${receipt}\n\nghostget-release-attempt-v1 run_attempt=2`;
+  const notes = "Ghostget reads one more source.\n\n## Changes\n\n- Read one more source.";
+  const page = { ...release(pageTag, 99), target_commitish: sourceSha,
+    author: { id: 41898282, type: "Bot" }, body: releaseBody(notes, identity) };
+  const coordinates = { repository: "hraness/ghostget", verifiedTag: pageTag, verifiedSha: sourceSha };
+  expect(releaseWorkflowRunIdFromPublishedRelease({ ...coordinates, value: page })).toBe("9001");
+  expect(exactWorkflowPublishedRelease({ ...coordinates, workflowRunId: "9001", value: page })).toBe(page);
+  for (const body of [
+    identity,
+    `${receipt}\n\n${notes}`,
+    `${page.body}\n`,
+    page.body.replace("workflow_run_id=9001", "workflow_run_id=9002"),
+    `<!-- ${identity} -->\n\n${notes}`,
+  ]) {
+    expect(() => exactWorkflowPublishedRelease({ ...coordinates, workflowRunId: "9001", value: { ...page, body } })).toThrow();
+  }
+  expect(() => releaseWorkflowRunIdFromPublishedRelease({ ...coordinates, value: { ...page, body: identity } })).toThrow();
 });
 
 // Completed stable-Release ordering census. Each generated inventory is served

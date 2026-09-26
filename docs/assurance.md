@@ -93,6 +93,7 @@ These synced blocks sit inside a scanned Guidelines section but have no rules or
 | `AGENTS.md` | `hraness-articles` | Synced Hraness article policy for blog posts. website/blog.test.ts checks each post's review record, score, and provenance note and keeps non-indexable posts out of discovery; no automated check covers the prose rules. |
 | `AGENTS.md` | `hraness-delivery` | Synced Hraness delivery and workstation laws, including production-data preservation, runtime-enforced approvals, and delivery-gate guards; no automated check in this repository covers them. |
 | `AGENTS.md` | `hraness-ci` | Synced Hraness CI baseline for admission speed and the Required gate; it states no property of the package, CLI, website, or release. |
+| `AGENTS.md` | `hraness-releases` | Synced Hraness release page standard. website/release-notes.test.ts checks the page shape, the changelog section failures, and the trailing identity record; the claim release-receipt-bot-and-body-prefix covers the publication readback. |
 | `AGENTS.md` | `algal-skills` | Synced contributor tooling instructions for the algal skill pack; it states no property of the package, CLI, website, or release. |
 
 ### Guides outside the register
@@ -2120,11 +2121,11 @@ An exact Release that already existed gets one immediate Latest check and never 
 
 #### `release-receipt-bot-and-body-prefix`
 
-Every publication readback requires Actions bot ID 41898282 of type Bot and a deterministic body prefix binding repository, tag, source SHA and GITHUB_RUN_ID; target_commitish is informational only and the protected tag must peel to C.
+Every publication readback requires Actions bot ID 41898282 of type Bot and a deterministic trailing identity record binding repository, tag, source SHA and GITHUB_RUN_ID after notes rendered from the tagged changelog section; target_commitish is informational only and the protected tag must peel to C.
 
 - Evidenced by example test.
-- Source: `docs/publishing.md`: “Every publication readback instead requires Actions bot ID `41898282` with type `Bot` and a deterministic body prefix binding repository, tag, source SHA, and `GITHUB_RUN_ID`”
-- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`
+- Source: `docs/publishing.md`: “Every publication readback instead requires Actions bot ID `41898282` with type `Bot` and a deterministic trailing identity record binding repository, tag, source SHA, and `GITHUB_RUN_ID`”
+- Evidence: `scripts/npm-release-workflow.test.ts`, `scripts/release-provider-outcome.test.ts`, `website/release-notes.test.ts`
 - Assumptions: `github-api`, `github-enforcement`
 - Not verified: No property test covers this law yet; only the enumerated example cases are checked.
 

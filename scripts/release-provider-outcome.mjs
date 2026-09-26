@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import { parseReleaseAssetDescriptors, releaseIdentity, usesGithubReleaseAssets } from "../website/github-release-artifact.mjs";
+import { parseReleaseBody } from "../website/release-notes.mjs";
 
 import {
   RELEASE_APP_REVOCATION_OBSERVATION_OFFSETS_MILLISECONDS,
@@ -1901,6 +1902,18 @@ export function releaseSourceReceipt({ repository, verifiedSha, verifiedTag, wor
   ].join(" ");
 }
 
+/**
+ * The identity record of a Release page: the trailing HTML comment after the
+ * rendered notes, or the whole body for releases published before the notes.
+ */
+function releaseBodyIdentity(body, tag) {
+  try {
+    return parseReleaseBody(body, tag).identity;
+  } catch {
+    return undefined;
+  }
+}
+
 export function exactWorkflowPublishedRelease({
   repository,
   value,
@@ -1916,10 +1929,12 @@ export function exactWorkflowPublishedRelease({
     workflowRunId,
   });
   const body = expectString(release.body, `${label}.body`);
+  const identity = releaseBodyIdentity(body, verifiedTag);
   if (
     release.author?.id !== GITHUB_ACTIONS_RELEASE_BOT.id
     || release.author?.type !== GITHUB_ACTIONS_RELEASE_BOT.type
-    || (body !== expectedReceipt && !body.startsWith(`${expectedReceipt}\n\n`))
+    || identity === undefined
+    || (identity !== expectedReceipt && !identity.startsWith(`${expectedReceipt}\n\n`))
   ) {
     fail(`Release ${verifiedTag} does not have the exact Actions workflow identity and source receipt`);
   }
@@ -1944,7 +1959,7 @@ export function releaseWorkflowRunIdFromPublishedRelease({
     `source_sha=${sha}`,
     "workflow_run_id=",
   ].join(" ");
-  const firstLine = body.split("\n", 1)[0] ?? "";
+  const firstLine = releaseBodyIdentity(body, tag)?.split("\n", 1)[0] ?? "";
   if (!firstLine.startsWith(prefix)) {
     fail(`Release ${tag} does not have an anchored source receipt`);
   }
@@ -2192,9 +2207,9 @@ const RELEASE_ATTEMPT_RECEIPT = /^ghostget-release-attempt-v1 run_attempt=([1-9]
  * to read; that inventory alone is authority.
  */
 function releaseReceiptAttemptHint(value) {
-  const body = expectRecord(value, "Release receipt").body;
-  if (typeof body !== "string") return undefined;
-  const lines = body.split("\n", 3);
+  const release = expectRecord(value, "Release receipt");
+  if (typeof release.body !== "string" || typeof release.tag_name !== "string") return undefined;
+  const lines = releaseBodyIdentity(release.body, release.tag_name)?.split("\n", 3) ?? [];
   const match = lines[1] === "" ? RELEASE_ATTEMPT_RECEIPT.exec(lines[2] ?? "") : null;
   return match === null ? undefined : Number(match[1]);
 }

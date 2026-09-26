@@ -7,6 +7,7 @@ import { basename, dirname, join } from "node:path";
 import fc from "fast-check";
 import { parseReleaseManifest, releaseAssetNames, type ReleaseManifest } from "../website/github-release-artifact.mjs";
 import { downloadReleaseAsset, publishCanonicalRelease } from "./github-release-publish.js";
+import { releaseBody } from "../website/release-notes.mjs";
 import { assertAsyncProperty } from "../src/test-support.js";
 
 // Stateful model of the canonical GitHub publisher. Every generated schedule
@@ -40,9 +41,10 @@ const attemptCoordinates: Record<AttemptKey, { runId: number; runAttempt: number
   R1: { runId: 9001, runAttempt: 1 }, R2: { runId: 9001, runAttempt: 2 },
   R3: { runId: 9001, runAttempt: 3 }, F1: { runId: 9002, runAttempt: 1 },
 };
-const bodyFor = (runId: number, runAttempt: number): string =>
+const notes = "Ghostget reads one more source.\n\n## Changes\n\n- Read one more source.";
+const bodyFor = (runId: number, runAttempt: number): string => releaseBody(notes,
   `wrench-release-source-v1 repository=${repository} tag=${tag} source_sha=${sourceSha} workflow_run_id=${runId}`
-  + `\n\nghostget-release-attempt-v1 run_attempt=${runAttempt}`;
+  + `\n\nghostget-release-attempt-v1 run_attempt=${runAttempt}`);
 
 type Attempt = Readonly<{ key: AttemptKey; directory: string; manifest: ReleaseManifest; body: string; files: ReadonlyMap<string, Buffer> }>;
 
@@ -311,7 +313,7 @@ async function invoke(world: World, attempt: Attempt, fault: Fault): Promise<Out
   };
   let error: unknown;
   try {
-    await publishCanonicalRelease(attempt.directory, attempt.manifest, run, (asset, current) => downloadReleaseAsset(asset, current, binary));
+    await publishCanonicalRelease(attempt.directory, attempt.manifest, notes, run, (asset, current) => downloadReleaseAsset(asset, current, binary));
   } catch (caught) { error = caught; }
   return { error, writes, violations, downloadsSinceLastWrite, lookupExact404, events };
 }

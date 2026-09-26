@@ -71,6 +71,7 @@ jobs:
       archive_name: ${{ steps.identity.outputs.archive_name }}
       artifact_hashes: ${{ steps.canonical.outputs.artifact_hashes }}
       build_artifact_id: ${{ steps.build_artifact.outputs.artifact-id }}
+      release_notes_sha256: ${{ steps.notes.outputs.notes_sha256 }}
     steps:
       - name: Resolve release request
         id: request
@@ -185,6 +186,15 @@ jobs:
             printf '%s\n' "$generated_status"
             exit 1
           fi
+      - name: Render release notes from the tagged changelog
+        id: notes
+        env:
+          VERIFIED_SHA: ${{ steps.identity.outputs.sha }}
+          VERIFIED_TAG: ${{ steps.identity.outputs.tag }}
+        run: |
+          set -euo pipefail
+          node ./website/release-notes.mjs render "$VERIFIED_TAG" "$VERIFIED_SHA"
+          node ./website/release-notes.mjs notes-sha256 "$VERIFIED_TAG" "$VERIFIED_SHA" >> "$GITHUB_OUTPUT"
       - run: bun pm pack --dry-run --ignore-scripts
       - run: node --input-type=module -e 'await Promise.all(["./dist/index.js","./dist/client.js","./dist/beeper-client.js","./dist/apple-photos-client.js","./dist/whatsapp-client.js","./dist/omni-client.js","./dist/messaging.js","./dist/messaging-automation-api.js","./dist/contracts.js"].map((path) => import(path)))'
       - name: Prepare and install the exact canonical archive
@@ -426,6 +436,7 @@ jobs:
       WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}
       EXPECTED_ARTIFACT_HASHES: ${{ needs.verify.outputs.artifact_hashes }}
       EXPECTED_BUNDLE_SHA256: ${{ needs.attest.outputs.bundle_sha256 }}
+      EXPECTED_RELEASE_NOTES_SHA256: ${{ needs.verify.outputs.release_notes_sha256 }}
     steps:
       - name: Reauthorize current release attempt
         env:
@@ -563,6 +574,7 @@ jobs:
           # attesting attempt; an empty ID would download every run artifact.
           if [[ ! "$EXPECTED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ || \
                 ! "$EXPECTED_BUNDLE_SHA256" =~ ^[a-f0-9]{64}$ || \
+                ! "$EXPECTED_RELEASE_NOTES_SHA256" =~ ^[a-f0-9]{64}$ || \
                 ! "$VERIFIED_SHA" =~ ^[a-f0-9]{40}$ || \
                 ! "$WORKFLOW_SHA" =~ ^[a-f0-9]{40}$ || \
                 ! "$VERIFIED_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ || \
@@ -600,6 +612,7 @@ jobs:
       WORKFLOW_SHA: ${{ needs.verify.outputs.workflow_sha }}
       EXPECTED_ARTIFACT_HASHES: ${{ needs.verify.outputs.artifact_hashes }}
       EXPECTED_BUNDLE_SHA256: ${{ needs.attest.outputs.bundle_sha256 }}
+      EXPECTED_RELEASE_NOTES_SHA256: ${{ needs.verify.outputs.release_notes_sha256 }}
     steps:
       - name: Reauthorize current release attempt
         env:
@@ -764,6 +777,7 @@ jobs:
           set -euo pipefail
           if [[ ! "$EXPECTED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ || \
                 ! "$EXPECTED_BUNDLE_SHA256" =~ ^[a-f0-9]{64}$ || \
+                ! "$EXPECTED_RELEASE_NOTES_SHA256" =~ ^[a-f0-9]{64}$ || \
                 ! "$VERIFIED_SHA" =~ ^[a-f0-9]{40}$ || \
                 ! "$WORKFLOW_SHA" =~ ^[a-f0-9]{40}$ || \
                 ! "$VERIFIED_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ || \
@@ -1073,10 +1087,18 @@ jobs:
           const version = process.env.EXPECTED_VERSION;
           const names = [`hraness-ghostget-${version}.tgz`, "npm-pack.json", "release-manifest.json", "SHA256SUMS", "provenance.jsonl"];
           const receipt = `wrench-release-source-v1 repository=hraness/ghostget tag=v${version} source_sha=${process.env.VERIFIED_SHA} workflow_run_id=${process.env.GITHUB_RUN_ID}`;
-          const body = `${receipt}\n\nghostget-release-attempt-v1 run_attempt=${process.env.EXPECTED_RELEASE_ATTEMPT}`;
+          // The page is the rendered changelog notes, then the identity record as the final HTML comment.
+          const identity = `\n\n<!-- ${receipt}\n\nghostget-release-attempt-v1 run_attempt=${process.env.EXPECTED_RELEASE_ATTEMPT} -->`;
+          const body = typeof release.body === "string" ? release.body : "";
+          const notes = body.endsWith(identity) ? body.slice(0, -identity.length) : "";
+          if (notes.trim() === "" || notes !== notes.trim() || notes.includes("<!--") || notes.includes("-->")
+            || !/^[0-9a-f]{64}$/u.test(process.env.EXPECTED_RELEASE_NOTES_SHA256 ?? "")
+            || require("node:crypto").createHash("sha256").update(notes, "utf8").digest("hex") !== process.env.EXPECTED_RELEASE_NOTES_SHA256) {
+            throw new Error("Canonical Release page is not the rendered changelog notes with this attempt's identity record");
+          }
           if (!Number.isSafeInteger(release.id) || release.id < 1 || release.target_commitish !== process.env.VERIFIED_SHA
             || release.tag_name !== `v${version}` || release.draft !== false || release.prerelease !== false || release.immutable !== true
-            || release.author?.id !== 41898282 || release.author?.type !== "Bot" || release.body !== body
+            || release.author?.id !== 41898282 || release.author?.type !== "Bot"
             || !Array.isArray(release.assets) || release.assets.length !== 5) throw new Error("Immutable canonical Release is not the exact publication authority for npm");
           const seen = new Set();
           for (const asset of release.assets) {
