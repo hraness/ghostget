@@ -166,6 +166,20 @@ ghostget auth list --json
 that proves the profile is signed in, so treat a bind failure as "not signed
 in", not as a malformed command.
 
+The first read of a Chrome, Arc, Brave, Chromium, or Edge sign-in makes macOS
+ask whether `security` may use that browser's "Safe Storage" key. Safari needs
+Full Disk Access for the app that runs Ghostget, and macOS never asks for it.
+Before a first cookie-backed read, tell the person a macOS dialog may appear
+and that choosing Always Allow stops it from coming back. A permission failure
+is not a missing sign-in:
+
+- `permission-denied` (JSON `error.code`, with `reason` `KEYCHAIN_DENIED` or
+  `FDA_DENIED`) or `readFailure.retryDisposition: "grant-permission"` means a
+  person must allow access. Report the message and its `next` step, then
+  stop. Do not re-add or rebind the account and do not retry until they say
+  it is done.
+- `repair-auth` means the account itself needs signing in again or rebinding.
+
 Use OAuth only for a reviewed `provider-api` plugin. Use browser cookies or a private profile only for a reviewed `web-session-api` plugin. Use a linked-device store locator for the reviewed Beeper `local-cli` binding; that locator selects the already-authorized Desktop realm, not arbitrary process authority. Never silently switch transports. A profile snapshot requires the source browser to be closed and may require `--browser-executable` plus explicit `--trust-profile-egress` because a path-backed browser has no domain-containment boundary.
 
 For Gmail/Google Contacts, prefer managed native OAuth:

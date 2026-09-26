@@ -8,6 +8,7 @@ import { parseRuntimeManifest } from "../model";
 import { connectionAccountRevision } from "./account-revision";
 import type { ControlData, ControlRequest } from "./protocol";
 import { ControlError } from "./validation";
+import { cookieAccessRemedy, findCookieAccessError } from "../cookie-access";
 import type { ControlEnvironment } from "./web-policy";
 
 const PROVIDERS=[{id:"x-web",surface:"x",title:"X · browser session",login:"https://x.com/i/flow/login"},{id:"linkedin-web",surface:"linkedin",title:"LinkedIn · browser session",login:"https://www.linkedin.com/login"},{id:"reddit-web",surface:"reddit",title:"Reddit · browser session",login:"https://www.reddit.com/login/"}] as const;
@@ -44,7 +45,13 @@ export class Connections {
       if(this.get(id)!==attempt||attempt.controller.signal.aborted||!binding.subject.matches(subject))throw new Error();
       attempt.subject=subject;attempt.auth={...attempt.auth,subject};
       return {kind:"connection",attemptId:id,status:"verified",subject};
-    } catch {this.cancel(id);throw new ControlError("SIGN_IN_UNVERIFIED","Sign-in could not be verified. Complete it in the selected browser and profile, then start a fresh connection.");}
+    } catch (error) {
+      this.cancel(id);
+      // A macOS permission denial is not a missing sign-in; say which permission stopped the read.
+      const denied=findCookieAccessError(error);
+      if(denied!==null)throw new ControlError(denied.code,`${denied.message}. ${cookieAccessRemedy(denied)}`);
+      throw new ControlError("SIGN_IN_UNVERIFIED","Sign-in could not be verified. Complete it in the selected browser and profile, then start a fresh connection.");
+    }
     finally {clearTimeout(timer);attempt.verifying=false;}
   }
   commit(id:string,subject:string):void {

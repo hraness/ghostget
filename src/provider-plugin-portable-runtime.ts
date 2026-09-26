@@ -1,4 +1,5 @@
-import { acquireCookieRecords, type CookieSelection } from "@hraness/kb/clip/acquire";
+import { type CookieSelection } from "@hraness/kb/clip/acquire";
+import { acquireCookieRecords } from "./cookie-access";
 import { filterCookies, renderCookieHeader } from "@hraness/kb/clip/cookies";
 import { createHash, randomUUID } from "node:crypto";
 import {

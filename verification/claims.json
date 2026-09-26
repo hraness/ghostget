@@ -2488,7 +2488,7 @@
     },
     {
       "id": "read-failure-disposition-table",
-      "statement": "Read failure retry dispositions come from one closed table (retry-once-after-60s, repair-auth, do-not-retry).",
+      "statement": "Read failure retry dispositions come from one closed table (retry-once-after-60s, repair-auth, grant-permission, do-not-retry).",
       "area": "contracts",
       "source": {
         "path": "docs/contracts.md",

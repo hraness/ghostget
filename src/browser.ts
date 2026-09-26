@@ -12,12 +12,12 @@ import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { types as nodeTypes } from "node:util";
 
 import {
-  acquireCookieRecords,
   agentBrowserCommand as packageAgentBrowserCommand,
   browserCookieCommands,
   browserProxyArguments,
   type CookieRecordReader,
 } from "@hraness/kb/clip/acquire";
+import { acquireCookieRecords } from "./cookie-access";
 import { BoundedByteBuffer } from "@hraness/kb/clip/bounded-byte-buffer";
 import {
   cloneBrowserProfile,

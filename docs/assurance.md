@@ -297,7 +297,7 @@ R1 invoke envelopes are consistent: receipt status/runId equal top-level fields,
 
 #### `read-failure-disposition-table`
 
-Read failure retry dispositions come from one closed table (retry-once-after-60s, repair-auth, do-not-retry).
+Read failure retry dispositions come from one closed table (retry-once-after-60s, repair-auth, grant-permission, do-not-retry).
 
 - Evidenced by example test.
 - Source: `docs/contracts.md`: “`readFailureDispositions` exports the same closed table.”

@@ -71,6 +71,7 @@ describe("@hraness/ghostget/contracts", () => {
     expect(contracts.readFailureDispositions).toEqual({
       "target-unavailable": "do-not-retry",
       "auth-repair-required": "repair-auth",
+      "permission-denied": "grant-permission",
       "account-mismatch": "do-not-retry",
       "contract-drift": "do-not-retry",
       "cleanup-required": "do-not-retry",

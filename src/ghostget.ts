@@ -31,6 +31,14 @@ import {
 import { parseGhostgetArguments, ghostgetUsage, type GhostgetArguments } from "./args";
 import { GHOSTGET_COMMAND_NAMES, ghostgetHelpCommandFor } from "./usage";
 import { cliSentence, cliStyle, closestCliName, renderCliError } from "./cli-style";
+import {
+  configureCookieAccessNotice,
+  cookieAccessRemedy,
+  CookieAccessSkippedError,
+  detectCookieAudience,
+  findCookieAccessError,
+  terminalReadKey,
+} from "./cookie-access";
 import type * as BeeperMessageLikeMeCliRuntimeModule from "./beeper-message-like-me-cli";
 import type * as BeeperContactInteractionCliRuntimeModule from "./beeper-contact-interactions-cli";
 import type * as ApplePhotosCliRuntimeModule from "./apple-photos-cli";
@@ -342,6 +350,56 @@ export function renderGhostgetUsageError(
     );
   }
   return renderCliError(style, cliSentence(safe(message)), ghostgetHelpCommandFor(rawArguments));
+}
+
+/** The command to run again after a permission denial. */
+function cookieAccessNext(arguments_: GhostgetArguments): string {
+  if (arguments_.command === "auth-bind") return `ghostget auth bind ${arguments_.id} --site ${arguments_.site}`;
+  return "ghostget doctor";
+}
+
+/**
+ * Explain a keychain or Full Disk Access denial as a denial, never as missing
+ * cookies. Returns null when the error is not a browser permission failure.
+ */
+export function renderCookieAccessFailure(
+  error: unknown,
+  arguments_: GhostgetArguments,
+  environment: Readonly<Record<string, string | undefined>>,
+  output: Output,
+  stderrIsTTY: boolean = process.stderr.isTTY === true,
+): number | null {
+  const skipped = error instanceof CookieAccessSkippedError ? error : null;
+  const denied = skipped === null ? findCookieAccessError(error) : null;
+  if (skipped === null && denied === null) return null;
+  const next = cookieAccessNext(arguments_);
+  const json = ("json" in arguments_ && arguments_.json === true)
+    || detectCookieAudience(environment, stderrIsTTY) === "agent";
+  if (json) {
+    output.stdout(`${JSON.stringify({
+      ok: false,
+      error: denied === null
+        ? { code: "permission-skipped", kind: "keychain", message: `${safe(skipped!.message)}.`, next, settingsUrl: null }
+        : {
+            code: denied.code === "KEYCHAIN_UNAVAILABLE" ? "permission-unknown" : "permission-denied",
+            kind: denied.permission,
+            reason: denied.code,
+            message: `${safe(denied.message)}.`,
+            next,
+            settingsUrl: denied.settingsUrl,
+          },
+    })}\n`);
+    return 3;
+  }
+  const style = cliStyle(environment, stderrIsTTY);
+  if (denied === null) {
+    output.stderr(`${style.symbol("fail")} ${safe(skipped!.message)}.\n${style.symbol("next")} ${next}\n`);
+    return 3;
+  }
+  output.stderr(
+    `${style.symbol("fail")} ${safe(denied.message)}.\n  ${cookieAccessRemedy(denied)}\n${style.symbol("next")} ${next}\n`,
+  );
+  return 3;
 }
 
 export type GhostgetDependencies = {
@@ -3742,6 +3800,16 @@ export async function main(
       };
     }
     let usefulResult = false;
+    if (output === defaultOutput) {
+      configureCookieAccessNotice({
+        environment,
+        stdinIsTTY: process.stdin.isTTY === true,
+        stderrIsTTY: process.stderr.isTTY === true,
+        write: (text) => output.stderr(text),
+        readKey: terminalReadKey,
+        confirm: parsed.value.command === "auth-bind",
+      });
+    }
     const code = await runCommand(
       parsed.value,
       environment,
@@ -3749,12 +3817,14 @@ export async function main(
       dependencies,
       signal,
       () => { usefulResult = true; },
-    );
+    ).finally(() => configureCookieAccessNotice(null));
     if (code === 0 && usefulResult && signal?.aborted !== true) {
       try { void Promise.resolve(onUsefulResult?.()).catch(() => undefined); } catch { /* Optional observation cannot alter completed work. */ }
     }
     return code;
   } catch (error) {
+    const permissionFailure = renderCookieAccessFailure(error, parsed.value, environment, output);
+    if (permissionFailure !== null) return permissionFailure;
     if (error instanceof ContractCaptureRequiredError && parsed.value.command === "invoke"
       && !parsed.value.cacheOnly && !parsed.value.projectionIdentityOnly && signal?.aborted !== true) {
       reportContractRepairLead(() => error.signal, environment, output);

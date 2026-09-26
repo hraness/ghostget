@@ -98,7 +98,7 @@ import {
   getWebSessionContract,
   webSessionContractHash,
 } from "./web-session-contracts";
-import { parseReadFailureProjection, readFailureProjection, WebSessionCleanupUnverifiedError, AuthRepairRequiredError, type ReadFailureProjection, type WebSessionExecutionOptions, type WebSessionOperationExecutor, type PublicWebSessionOperationExecutor } from "./web-session-execution";
+import { parseReadFailureProjection, permissionReadFailure, readFailureProjection, WebSessionCleanupUnverifiedError, AuthRepairRequiredError, type ReadFailureProjection, type WebSessionExecutionOptions, type WebSessionOperationExecutor, type PublicWebSessionOperationExecutor } from "./web-session-execution";
 import { WebSessionCleanupAdmissionBlockedError, type WebSessionCleanupAdmissionIdentity } from "./web-session-cleanup-admission";
 import {
   isPublicWebSessionInvocationAuthority,
@@ -5269,6 +5269,8 @@ async function runPreparedReadCore(invocation: PreparedInvocation, planDigest: s
           : boundedThrownExecutorReason(error),
       ...(cleanupRequired
         ? { readFailure: readFailureProjection("cleanup-required") }
+        : permissionReadFailure(error) !== null
+          ? { readFailure: readFailureProjection("permission-denied") }
         : error instanceof AuthRepairRequiredError
           ? { readFailure: readFailureProjection("auth-repair-required") }
           : error instanceof OperationDeadlineError

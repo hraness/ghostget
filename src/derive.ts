@@ -16,10 +16,10 @@ import { basename, dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  acquireCookieRecords,
   browserCookieCommands,
   type CookieRecordReader,
 } from "@hraness/kb/clip/acquire";
+import { acquireCookieRecords } from "./cookie-access";
 import { isPrivateAddress, isPrivateHostname } from "@hraness/kb/clip/network";
 import type { StrictCookie } from "@hraness/kb/clip/cookies";
 import { assertOwnedPathSync } from "@hraness/local-custody/private-paths";

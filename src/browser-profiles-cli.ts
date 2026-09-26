@@ -1,4 +1,5 @@
 import { discoverBrowserProfiles, type BrowserProfileDiscovery } from "./browser-profiles";
+import { responsibleApp } from "./cli-style";
 
 /** One POSIX-quoted argument, safe to paste even for a name with a quote. */
 export function shellQuote(value: string): string {
@@ -20,6 +21,14 @@ export function browserProfilesJson(
     browsers: discovery.map((entry) => ({
       source: entry.source,
       installed: entry.installed,
+      ...(entry.blocked === undefined
+        ? {}
+        : {
+            blocked: {
+              permission: entry.blocked,
+              settingsUrl: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles",
+            },
+          }),
       profiles: entry.profiles.map((profile) => ({
         profile: profile.profile,
         directory: profile.directory,
@@ -39,6 +48,7 @@ function row(label: string, detail: string): string {
 
 export function renderBrowserProfiles(
   discovery: readonly BrowserProfileDiscovery[],
+  requester = "your terminal app",
 ): string {
   if (discovery.length === 0) {
     return "Browser profile discovery is available on macOS.\n";
@@ -50,6 +60,17 @@ export function renderBrowserProfiles(
     lines.push("  No browser profile was found.", "");
   }
   for (const entry of installed) {
+    if (entry.blocked === "full-disk-access") {
+      lines.push(
+        `  ${entry.source} · blocked: needs Full Disk Access`,
+        "    macOS doesn't ask for this. Turn on",
+        `    ${requester} in System Settings › Privacy & Security › Full Disk Access.`,
+        "    Open Settings:",
+        "    open 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles'",
+        "",
+      );
+      continue;
+    }
     const count = entry.profiles.length;
     lines.push(`  ${entry.source}${count === 1 && entry.profiles[0]?.profile === null
       ? " · one shared cookie store"
@@ -79,5 +100,8 @@ export function browserProfilesResult(
   environment: Readonly<Record<string, string | undefined>>,
 ): Readonly<{ json: Record<string, unknown>; text: string }> {
   const discovery = discoverBrowserProfiles(environment);
-  return { json: { ...browserProfilesJson(discovery) }, text: renderBrowserProfiles(discovery) };
+  return {
+    json: { ...browserProfilesJson(discovery) },
+    text: renderBrowserProfiles(discovery, responsibleApp(environment)),
+  };
 }

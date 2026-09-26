@@ -1,9 +1,9 @@
 import { WebSessionAuthStateError, WebSessionResponseRejectedError, WebSessionReadTransportError } from "./web-session-read-errors";
 import {
-  acquireCookieRecords,
   type CookieRecordReader,
   type CookieSelection,
 } from "@hraness/kb/clip/acquire";
+import { acquireCookieRecords } from "./cookie-access";
 import { BoundedByteBuffer } from "@hraness/kb/clip/bounded-byte-buffer";
 import {
   filterCookies,

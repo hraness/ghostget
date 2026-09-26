@@ -42,6 +42,12 @@ export type BrowserProfileDiscovery = {
   /** Whether this browser keeps profile data on this machine. */
   readonly installed: boolean;
   readonly profiles: readonly BrowserProfile[];
+  /**
+   * Set when macOS privacy settings hide the browser's cookie store from this
+   * process, so it may be installed but cannot be read. Safari needs Full
+   * Disk Access for the app running Ghostget.
+   */
+  readonly blocked?: "full-disk-access";
 };
 
 type ChromiumLayout = { readonly directory: string; readonly userDataSuffix?: readonly string[] };
@@ -234,11 +240,29 @@ function discoverFirefox(home: string): BrowserProfileDiscovery {
   return { source: "firefox", installed: profiles.length > 0, profiles };
 }
 
+/**
+ * Whether this process may look inside Safari's sandboxed data. macOS denies
+ * the lookup with EPERM, without any dialog, until the app running Ghostget has
+ * Full Disk Access.
+ */
+export function safariCookieAccess(home: string): "ok" | "blocked" | "missing" {
+  try {
+    lstatSync(join(home, "Library", "Containers", "com.apple.Safari", "Data", "Library", "Cookies"));
+    return "ok";
+  } catch (error) {
+    const code = (error as { readonly code?: unknown }).code;
+    return code === "EPERM" || code === "EACCES" ? "blocked" : "missing";
+  }
+}
+
 function discoverSafari(home: string): BrowserProfileDiscovery {
   // Safari keeps one cookie store per user and takes no profile selector.
   const store = join(home, "Library", "Containers", "com.apple.Safari", "Data", "Library", "Cookies", "Cookies.binarycookies");
   const legacy = join(home, "Library", "Cookies", "Cookies.binarycookies");
   const cookies = isRegularFile(store) || isRegularFile(legacy);
+  if (!cookies && safariCookieAccess(home) === "blocked") {
+    return { source: "safari", installed: true, profiles: [], blocked: "full-disk-access" };
+  }
   return {
     source: "safari",
     installed: cookies,

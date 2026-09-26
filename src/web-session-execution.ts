@@ -1,6 +1,8 @@
 import { trackWebSessionCleanupBarrier, awaitWebSessionCleanupBarriers, type TrackedWebSessionCleanupBarrier } from "./web-session-cleanup-join";
 import { types as nodeTypes } from "node:util";
 
+import { findCookieAccessError } from "./cookie-access-error";
+
 import type { GhostgetAuth } from "./auth";
 import type {
   BrowserFileResolver,
@@ -67,6 +69,10 @@ export type ReadFailureProjection =
       readonly retryDisposition: "repair-auth";
     }
   | {
+      readonly category: "permission-denied";
+      readonly retryDisposition: "grant-permission";
+    }
+  | {
       readonly category:
         | "account-mismatch"
         | "contract-drift"
@@ -84,6 +90,7 @@ export type ReadFailureProjection =
 const readFailureRetryDisposition = Object.freeze({
   "target-unavailable": "do-not-retry",
   "auth-repair-required": "repair-auth",
+  "permission-denied": "grant-permission",
   "account-mismatch": "do-not-retry",
   "provider-throttled": "retry-once-after-60s",
   "provider-temporary": "retry-once-after-60s",
@@ -94,6 +101,15 @@ const readFailureRetryDisposition = Object.freeze({
   ReadFailureProjection["category"],
   ReadFailureProjection["retryDisposition"]
 >>);
+
+/**
+ * A browser sign-in read that macOS permissions stopped. Checked before every
+ * other classification, so a denied keychain request is never reported as an
+ * expired sign-in (`repair-auth`) or contract drift.
+ */
+export function permissionReadFailure(error: unknown): ReadFailureProjection | null {
+  return findCookieAccessError(error) === null ? null : readFailureProjection("permission-denied");
+}
 
 export function readFailureProjection(
   category: ReadFailureProjection["category"],

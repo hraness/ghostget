@@ -1789,15 +1789,26 @@
 // a3255fabc42549339f0d600e40b3769750eab951b551f453489ffa00a9e69b45.
 // Carry the same projections and allowances: 12,042,831 + 12,387 + 4,096 =
 // 12,059,314 packed; 23,573,812 + 353 + 65 = 23,574,230 unpacked.
+//
+// Browser permission notices add the cookie access modules
+// (src/cookie-access.ts, src/cookie-access-error.ts), the permission-denied
+// read failure, Safari Full Disk Access detection, skill guidance and their
+// changelog entry: two additional packed source files.
+// A clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
+// measured 12,050,663 packed bytes, 23,598,059 unpacked bytes and exactly
+// 601 entries; archive SHA-256
+// 9944c75705bf31ec5448fcb27dd48626038bd7fa10efc54bc205f651cc2837ee.
+// Carry the same projections and allowances: 12,050,663 + 12,387 + 4,096 =
+// 12,067,146 packed; 23,598,059 + 353 + 65 = 23,598,477 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Grouped CLI help and short usage errors",
+  scope: "Browser permission notices and typed denials",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "a3255fabc42549339f0d600e40b3769750eab951b551f453489ffa00a9e69b45",
-  packedBytes: 12_042_831,
-  unpackedBytes: 23_573_812,
-  entryCount: 599,
+  archiveSha256: "9944c75705bf31ec5448fcb27dd48626038bd7fa10efc54bc205f651cc2837ee",
+  packedBytes: 12_050_663,
+  unpackedBytes: 23_598_059,
+  entryCount: 601,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

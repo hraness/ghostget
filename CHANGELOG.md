@@ -18,6 +18,17 @@ Historical entries retain their original delivery coordinates.
   of the whole command reference. Unknown commands suggest the closest
   match. `ghostget read` without a URL no longer prints another tool's
   usage. `-V` prints the version.
+- Before the first Chrome, Arc, Brave, Chromium or Edge sign-in read, Ghostget
+  says that macOS will ask to let `security` use the browser's Safe Storage
+  key and what Always Allow means. `auth bind` waits for Enter first.
+  Agents get one `permission-notice` JSON line instead.
+- A denied keychain request or missing Full Disk Access is now reported as a
+  permission problem (`permission-denied`, reason `KEYCHAIN_DENIED` or
+  `FDA_DENIED`) with the fix, not as missing cookies. Invoke results carry
+  the new `permission-denied` read failure with the `grant-permission`
+  disposition, which agents must not treat as an expired sign-in.
+- `ghostget browsers` reports Safari as "blocked: needs Full Disk Access"
+  with a link to the setting, instead of "Not installed".
 
 ## 0.18.38
 
