@@ -11,6 +11,7 @@
 - `production-release-verifier.ts` – streaming, bounded production checks that bind package version, checked-out HEAD, the GitHub tag commit, the canonical GitHub archive, and the immutable Latest GitHub Release.
 - `vercel-build.ts` – fail-closed Vercel admission that validates the build-owned marker and platform state, runs external release verification only for production, and keeps previews independently buildable.
 - `provider-capability-attestation.ts` – release-bound provider/operation/completeness table derived from built-in plugins and current bundled adapter manifests.
+- `claims-register.ts` – renders the `/claims/` page fragments and serves the `verification/claims.json` register verbatim as `/claims.json`, parsed through the strict register parser.
 - `html-to-markdown.ts` – static markdown variants for public pages.
 - `../edge/` – Edge-safe Accept parsing and markdown, 406, and 404 negotiation.
 - `*.test.ts` – identity, SEO, accessibility, analytics-privacy, negotiation, and build regressions.

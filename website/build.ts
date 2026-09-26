@@ -23,6 +23,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ghostgetSupportProfile } from "../src/support-profile";
 
 import { AskAiAboutThis } from "./ask-ai-runtime.js";
+import {
+  CLAIMS_JSON_OUTPUT,
+  CLAIMS_PAGE_PATH,
+  claimsTemplateValues,
+  readClaimsRegisterSource,
+} from "./claims-register";
 import { product, type PortfolioProductId } from "@hraness/design-kit/portfolio";
 import { renderStatusPageHtml, type StatusPageLink } from "@hraness/design-kit";
 import {
@@ -104,7 +110,7 @@ export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const HRANESS_URL = "https://hraness.com/" as const;
 export const HRANESS_ORGANIZATION_ID = `${HRANESS_URL}#organization` as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.38" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.39" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",
@@ -209,6 +215,14 @@ export const PUBLIC_PAGES = [
     title: "Author and verify Ghostget provider plugins",
   },
   {
+    canonicalPath: CLAIMS_PAGE_PATH,
+    description:
+      "Every claim in Ghostget's public register with its current verification status, generated from the repository's verification/claims.json on each release.",
+    outputFile: "claims/index.html",
+    sourceFile: "claims.html",
+    title: "Ghostget claims register",
+  },
+  {
     canonicalPath: "/about/",
     description:
       "Ghostget is an open-source CLI and TypeScript SDK that lets any agent that can run commands read pages, archive media, and use connected accounts.",
@@ -235,10 +249,10 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/compare/",
     description:
-      "Four ways agents reach the web, from browser-driving libraries to hosted browsers, compared side by side with Ghostget's named actions.",
+      "Five ways agents reach the web, from browser-driving libraries to reader services and hosted browsers, compared side by side with Ghostget's named actions.",
     outputFile: "compare/index.html",
     sourceFile: "compare-index.html",
-    title: "How agents reach the web: browser-use, Playwright MCP, hosted browsers, and Ghostget",
+    title: "How agents reach the web: browser-use, Playwright MCP, reader services, hosted browsers, and Ghostget",
   },
   {
     canonicalPath: "/compare/browser-use/",
@@ -271,6 +285,22 @@ export const PUBLIC_PAGES = [
     outputFile: "compare/agent-browser/index.html",
     sourceFile: "compare-agent-browser.html",
     title: "Ghostget vs agent-browser: a browser the agent can never steer",
+  },
+  {
+    canonicalPath: "/compare/firecrawl/",
+    description:
+      "Firecrawl turns URLs into Markdown and crawls whole sites through a hosted, credit-billed API. Ghostget reads one URL on your machine, free, with no key.",
+    outputFile: "compare/firecrawl/index.html",
+    sourceFile: "compare-firecrawl.html",
+    title: "Ghostget vs Firecrawl: a local page read instead of a hosted scraping API",
+  },
+  {
+    canonicalPath: "/compare/jina-reader/",
+    description:
+      "Jina AI Reader converts a URL to Markdown through its hosted r.jina.ai prefix, rate-limited or token-billed. Ghostget reads the URL on your machine.",
+    outputFile: "compare/jina-reader/index.html",
+    sourceFile: "compare-jina-reader.html",
+    title: "Ghostget vs Jina Reader: URL to Markdown on your machine instead of a hosted prefix",
   },
   {
     canonicalPath: "/compare/personal-agents-browser-use/",
@@ -468,6 +498,7 @@ type RenderOptions = Readonly<{
   appearanceAsset: string;
   attestation: ProviderCapabilityAttestation;
   beeperFacts: BeeperPresentationFacts;
+  claimsValues: Readonly<Record<string, string>>;
   cssAsset: string;
   fieldAsset: string;
   foilAsset: string;
@@ -960,6 +991,17 @@ function renderTemplate(
     }
     rendered = substituteTemplateValues(rendered, webmcpValues);
   }
+  if (page?.canonicalPath === CLAIMS_PAGE_PATH) {
+    for (const [placeholder, value] of Object.entries(options.claimsValues)) {
+      if (!rendered.includes(placeholder)) {
+        throw new Error(`The claims register page is missing ${placeholder}.`);
+      }
+      // A function replacement keeps `$` sequences in register text literal.
+      rendered = rendered.replaceAll(placeholder, () => value);
+    }
+  } else if (rendered.includes("{{CLAIMS_")) {
+    throw new Error("Only the claims register page may include claims template values.");
+  }
   if (/\{\{[A-Z0-9_]+\}\}/u.test(rendered)) {
     throw new Error("The rendered page contains an unresolved template value.");
   }
@@ -1197,6 +1239,7 @@ export async function buildWebsite(
     blogFragments,
     browserBuild,
     attestation,
+    claimsSource,
   ] = await Promise.all([
     Bun.file(join(repositoryRoot, "package.json")).json(),
     Promise.all(PUBLIC_PAGES.map((page) => readFile(join(sourceRoot, page.sourceFile), "utf8"))),
@@ -1248,6 +1291,7 @@ export async function buildWebsite(
       target: "browser",
     }),
     loadProviderCapabilityAttestation(repositoryRoot),
+    readClaimsRegisterSource(repositoryRoot),
   ]);
   const webmcpSnapshot: WebmcpRegistrySnapshot = parseWebmcpRegistrySnapshot(
     webmcpRegistrySource,
@@ -1304,6 +1348,10 @@ export async function buildWebsite(
     appearanceAsset,
     attestation,
     beeperFacts,
+    claimsValues: claimsTemplateValues(
+      claimsSource.register,
+      (path) => `${REPOSITORY_URL}/blob/${identity.release}/${path}`,
+    ),
     cssAsset,
     foilAsset,
     ghostgetContentFooter: renderGhostgetContentFooter(),
@@ -1380,6 +1428,7 @@ export async function buildWebsite(
       htmlMainToMarkdown(html, `${SITE_ORIGIN}${page.canonicalPath}`),
     )),
     writeFile(join(outputRoot, BLOG_FEED_PATH.slice(1)), renderBlogAtomFeed(BLOG_SITE)),
+    writeFile(join(outputRoot, CLAIMS_JSON_OUTPUT), claimsSource.json),
     writeFile(join(outputRoot, "preview/index.html"), renderPreview(previewTemplate, cssAsset)),
     writeFile(join(outputRoot, "404.html"), renderTemplate(
       // A function replacement keeps "$" in route labels literal.

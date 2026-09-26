@@ -36,7 +36,7 @@ export type Layer = (typeof LAYERS)[number];
 export const STATUSES = Object.freeze(["evidenced", "planned", "not-verified"] as const);
 export type Status = (typeof STATUSES)[number];
 
-const LAYER_LABELS: Readonly<Record<Layer, string>> = Object.freeze({
+export const LAYER_LABELS: Readonly<Record<Layer, string>> = Object.freeze({
   example: "example test",
   property: "property test",
   "stateful-model": "stateful model",
@@ -739,7 +739,7 @@ function code(value: string): string {
   return value.includes("`") ? `\`\` ${value} \`\`` : `\`${value}\``;
 }
 
-function statusLine(claim: Claim): string {
+export function statusLine(claim: Claim): string {
   const layer = LAYER_LABELS[claim.layer];
   switch (claim.status) {
     case "evidenced":

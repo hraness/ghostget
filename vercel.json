@@ -35,6 +35,19 @@
       ]
     },
     {
+      "source": "/claims.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/json; charset=utf-8"
+        }
+      ]
+    },
+    {
       "source": "/(.*)",
       "headers": [
         {
@@ -440,6 +453,16 @@
       "permanent": true
     },
     {
+      "source": "/claims",
+      "destination": "/claims/",
+      "permanent": true
+    },
+    {
+      "source": "/claims/index.html",
+      "destination": "/claims/",
+      "permanent": true
+    },
+    {
       "source": "/compare",
       "destination": "/compare/",
       "permanent": true
@@ -487,6 +510,26 @@
     {
       "source": "/compare/agent-browser/index.html",
       "destination": "/compare/agent-browser/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/firecrawl",
+      "destination": "/compare/firecrawl/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/firecrawl/index.html",
+      "destination": "/compare/firecrawl/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/jina-reader",
+      "destination": "/compare/jina-reader/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/jina-reader/index.html",
+      "destination": "/compare/jina-reader/",
       "permanent": true
     },
     {
