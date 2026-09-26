@@ -620,8 +620,6 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 .section-heading h2,
 .final-section h2,
 .route-state h1 {
-  font-size: clamp(2.15rem, 5.4vw, 4.9rem);
-  font-weight: 820;
   letter-spacing: -0.068em;
   line-height: 0.96;
   margin: 0;
@@ -670,8 +668,9 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 .card h3,
 .principle-grid h3,
 .flow h3 {
-  font-size: 1rem;
-  font-weight: 780;
+  font-family: var(--hraness-type-h4-font);
+  font-size: var(--hraness-type-h4-size);
+  font-weight: var(--hraness-type-h4-weight);
   letter-spacing: -0.025em;
   line-height: 1.3;
   margin: 0;
@@ -704,7 +703,9 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .registry-panel h3 {
-  font-size: clamp(1.15rem, 2.2vw, 1.55rem);
+  font-family: var(--hraness-type-h3-font);
+  font-size: var(--hraness-type-h3-size);
+  font-weight: var(--hraness-type-h3-weight);
   letter-spacing: -0.035em;
   margin: 0;
 }
@@ -849,7 +850,6 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .provider-card h3 {
-  font-size: clamp(1rem, 1.7vw, 1.28rem);
   letter-spacing: -0.035em;
   margin: 1.3rem 0 0;
 }
@@ -898,7 +898,9 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 
 .provider-channel-grid h3,
 .provider-action-grid h3 {
-  font-size: 0.86rem;
+  font-family: var(--hraness-type-h4-font);
+  font-size: var(--hraness-type-h4-size);
+  font-weight: var(--hraness-type-h4-weight);
   margin: 0;
 }
 
@@ -1214,8 +1216,6 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .guide-hero h1 {
-  font-size: clamp(2.8rem, 7vw, 6.6rem);
-  font-weight: 840;
   letter-spacing: -0.075em;
   line-height: 0.94;
   margin: 0;
@@ -1252,8 +1252,9 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 
 .guide-article h2,
 .guide-callout h2 {
-  font-size: clamp(1.8rem, 4.2vw, 3.5rem);
-  font-weight: 810;
+  font-family: var(--hraness-type-h2-font);
+  font-size: var(--hraness-type-h2-size);
+  font-weight: var(--hraness-type-h2-weight);
   letter-spacing: -0.06em;
   line-height: 1;
   margin: 0 0 1.6rem;
@@ -1364,7 +1365,6 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .provider-attestation-group > h3 {
-  font-size: clamp(1.35rem, 2.5vw, 2rem);
   letter-spacing: -0.045em;
   margin: 0;
 }
@@ -1716,9 +1716,6 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 
 .editorial-card h3 {
   color: var(--foreground);
-  font-family: var(--font-sans);
-  font-size: 1.35rem;
-  font-weight: 400;
   line-height: 1.08;
   margin: 0 0 0.65rem;
 }
@@ -2083,17 +2080,26 @@ body {
   text-transform: none;
 }
 
-/* Headings: one measured scale at weight 500. */
+/* Headings: the shared per-level type tokens from design-kit typography.css.
+ * h1 and h2 take the display face at or above 1.75rem; h3 and h4 take the
+ * text face. The inert preview keeps its larger hero size below. */
 .hero h1,
 .guide-hero h1,
+.route-state h1,
+.preview-copy h1 {
+  font-family: var(--hraness-type-h1-font);
+  font-weight: var(--hraness-type-h1-weight);
+  letter-spacing: -0.022em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
 .section-heading h2,
 .guide-article > section > h2,
 .guide-callout h2,
-.final-section h2,
-.route-state h1,
-.preview-copy h1 {
-  font-family: var(--font-sans);
-  font-weight: 500;
+.final-section h2 {
+  font-family: var(--hraness-type-h2-font);
+  font-weight: var(--hraness-type-h2-weight);
   letter-spacing: -0.022em;
   line-height: 1.05;
   text-wrap: balance;
@@ -2101,7 +2107,7 @@ body {
 
 .guide-hero h1,
 .route-state h1 {
-  font-size: var(--hraness-paper-heading-size);
+  font-size: var(--hraness-type-h1-size);
   margin: 0 0 1.25rem;
   max-width: 22ch;
 }
@@ -2110,7 +2116,7 @@ body {
 .guide-article > section > h2,
 .guide-callout h2,
 .final-section h2 {
-  font-size: var(--hraness-paper-section-heading-size);
+  font-size: var(--hraness-type-h2-size);
   letter-spacing: -0.012em;
   line-height: 1.15;
   margin: 0 0 1rem;
@@ -2149,17 +2155,17 @@ body {
 }
 
 .provider-attestation-group > h3 {
-  font-family: var(--font-sans);
-  font-size: 1.35rem;
-  font-weight: 600;
+  font-family: var(--hraness-type-h3-font);
+  font-size: var(--hraness-type-h3-size);
+  font-weight: var(--hraness-type-h3-weight);
   letter-spacing: -0.01em;
   margin: 0;
 }
 
 .editorial-card h3 {
-  font-family: var(--font-sans);
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-family: var(--hraness-type-h4-font);
+  font-size: var(--hraness-type-h4-size);
+  font-weight: var(--hraness-type-h4-weight);
   letter-spacing: -0.01em;
   line-height: 1.3;
   margin: 0 0 0.5rem;
@@ -2294,8 +2300,6 @@ body {
 }
 
 .card h3 {
-  font-size: 1.05rem;
-  font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.3;
 }
@@ -2376,9 +2380,9 @@ body {
 }
 
 .provider-card h3 {
-  font-family: var(--font-sans);
-  font-size: 1rem;
-  font-weight: 600;
+  font-family: var(--hraness-type-h4-font);
+  font-size: var(--hraness-type-h4-size);
+  font-weight: var(--hraness-type-h4-weight);
   letter-spacing: -0.01em;
   margin: 0;
 }
@@ -2881,9 +2885,9 @@ body {
 /* The provider heading carries only its id, so it takes the grammar's recipe here. */
 .hraness-marketing-section__heading-group > h2 {
   color: var(--hraness-material-ink, var(--foreground));
-  font-family: var(--hraness-marketing-display-font, var(--font-sans));
+  font-family: var(--hraness-type-h2-font);
   font-size: var(--hraness-paper-section-heading-size);
-  font-weight: var(--hraness-marketing-display-weight, 500);
+  font-weight: var(--hraness-type-h2-weight);
   letter-spacing: var(--hraness-marketing-h2-tracking, -0.012em);
   line-height: var(--hraness-marketing-h2-leading, 1.15);
   margin: 0;
@@ -3034,7 +3038,7 @@ body {
 }
 [data-hraness-theme="paper"] .hraness-marketing-page h2 {
   font-size: var(--hraness-paper-section-heading-size);
-  font-weight: var(--hraness-marketing-display-weight, 500);
+  font-weight: var(--hraness-type-h2-weight);
   line-height: var(--hraness-marketing-h2-leading, 1.2);
   letter-spacing: var(--hraness-marketing-h2-tracking, -.025em);
 }
@@ -3297,13 +3301,11 @@ body {
 
 /* Shared material, with quieter reference pages and clear reading measures. */
 :root[data-palette] .guide-hero h1 {
-  font-weight: 650;
   letter-spacing: -0.05em;
   line-height: 1.04;
 }
 
 :root[data-palette] :is(.guide-article h2, .guide-callout h2) {
-  font-weight: 650;
   letter-spacing: -0.035em;
   line-height: 1.14;
 }

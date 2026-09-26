@@ -23,6 +23,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ghostgetSupportProfile } from "../src/support-profile";
 
 import { AskAiAboutThis } from "./ask-ai-runtime.js";
+import { product, type PortfolioProductId } from "@hraness/design-kit/portfolio";
 import {
   EDITORIAL_ARTICLE_IMAGE_SIZES,
   EDITORIAL_CARD_IMAGE_SIZES,
@@ -350,6 +351,9 @@ const designKitProductMarketingStylesPath = fileURLToPath(
   import.meta.resolve("@hraness/design-kit/product-marketing.css"),
 );
 const designKitFontsDirectory = join(dirname(designKitFontsStylesPath), "fonts");
+const designKitTypographyStylesPath = fileURLToPath(
+  import.meta.resolve("@hraness/design-kit/typography.css"),
+);
 const designKitPlainSiteStylesPath = fileURLToPath(
   import.meta.resolve("@hraness/design-kit/plain-site.css"),
 );
@@ -549,6 +553,28 @@ function renderEditorialFigure(image: EditorialImage): string {
               src="${image.src}" srcset="${editorialImageSrcSet(image)}" width="${image.width}">
             <figcaption><span>${escapeHtml(image.caption)}</span><small>${escapeHtml(image.credit)}</small></figcaption>
           </figure>`;
+}
+
+/** The homepage's related-product tiers, in display order. */
+export const RELATED_CARD_GROUPS = {
+  "{{RELATED_PLATFORM_CARDS}}": ["gobstopper", "xcb", "aicharts"],
+  "{{RELATED_APP_CARDS}}": ["peopleblade", "soulscrape", "message-like-me", "kb"],
+} as const satisfies Readonly<Record<string, readonly PortfolioProductId[]>>;
+
+/**
+ * Static related-product cards, as the shared `MarketingRelated` draws them:
+ * the portfolio mark, the product name, and its one-line description. Every
+ * fact comes from the pinned `@hraness/design-kit/portfolio` snapshot.
+ */
+export function renderRelatedCards(ids: readonly PortfolioProductId[]): string {
+  return ids.map((id) => {
+    const { canonicalUrl, mark, messaging, oneLiner } = product(id);
+    if (!mark.startsWith("data:image/svg+xml,")) throw new Error(`The ${id} portfolio mark must be an inert SVG data URL.`);
+    return `<a class="hraness-marketing-related__card" data-hraness-marketing="card" href="${escapeHtml(canonicalUrl)}">`
+      + `<span aria-hidden="true" class="hraness-marketing-related__card-mark"><img alt="" decoding="async" height="44" src="${escapeHtml(mark)}" width="44"></span>`
+      + `<span class="hraness-marketing-related__card-text"><h4 class="hraness-marketing-related__card-name">${escapeHtml(messaging.names.name)}</h4>`
+      + `<span class="hraness-marketing-related__card-role">${escapeHtml(oneLiner)}</span></span></a>`;
+  }).join("\n              ");
 }
 
 function renderEditorialCards(): string {
@@ -814,8 +840,13 @@ function renderTemplate(
     if (page.canonicalPath === "/") {
       rendered = replaceRequired(rendered, "{{EDITORIAL_CARDS}}", renderEditorialCards());
       rendered = replaceRequired(rendered, "{{GHOSTGET_FIELD}}", options.ghostgetField);
-    } else if (rendered.includes("{{EDITORIAL_CARDS}}") || rendered.includes("{{GHOSTGET_FIELD}}")) {
-      throw new Error("Editorial cards and the hero field belong only on the homepage.");
+      for (const [placeholder, ids] of Object.entries(RELATED_CARD_GROUPS)) {
+        if (!rendered.includes(placeholder)) throw new Error(`Template is missing ${placeholder}.`);
+        const cards = renderRelatedCards(ids);
+        rendered = rendered.replaceAll(placeholder, () => cards);
+      }
+    } else if (/\{\{(?:EDITORIAL_CARDS|GHOSTGET_FIELD|RELATED_[A-Z]+_CARDS)\}\}/u.test(rendered)) {
+      throw new Error("Editorial cards, related cards, and the hero field belong only on the homepage.");
     }
   } else if (rendered.includes("{{JSON_LD}}")) {
     throw new Error("A non-indexable page must not include structured data.");
@@ -1093,6 +1124,7 @@ export async function buildWebsite(
     appearanceCss,
     uiCss,
     designKitFontsCss,
+    designKitTypographyCss,
     designKitProductMarketingCss,
     designKitPlainSiteCss,
     designKitPlainPublicationCss,
@@ -1115,6 +1147,7 @@ export async function buildWebsite(
     readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/appearance-menu.css")), "utf8"),
     readUiStylesheet(),
     readFile(designKitFontsStylesPath, "utf8"),
+    readFile(designKitTypographyStylesPath, "utf8"),
     Promise.all([
       readFile(designKitProductMarketingStylesPath, "utf8"),
       readFile(fileURLToPath(import.meta.resolve(designKitMarketingStylesImports["./syntax-highlighting.css"])), "utf8"),
@@ -1188,7 +1221,7 @@ export async function buildWebsite(
   const lanternCss = lanternMaterial.files.get("lantern-material.css");
   const lanternLicense = lanternMaterial.files.get("LICENSE");
   if (lanternCss === undefined || lanternLicense === undefined) throw new Error("The complete Lantern build snapshot is required.");
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${appearanceCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${lanternCss.toString("utf8")}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${appearanceCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${lanternCss.toString("utf8")}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const appearanceAsset = `/assets/appearance-${contentHash(appearance)}.js`;
