@@ -34,6 +34,7 @@ const protectedReleaseRuntimePaths = Object.freeze([
   "scripts/release-ref-writer.mjs",
   "website/production-release-marker.mjs",
         "website/github-release-artifact.mjs",
+        "website/release-notes.mjs",
 ]);
 
 afterEach(() => {
@@ -572,6 +573,7 @@ describe("Ghostget release and promotion ref authority", () => {
       "scripts/release-ref-writer.mjs",
       "website/production-release-marker.mjs",
         "website/github-release-artifact.mjs",
+        "website/release-notes.mjs",
     ]);
   });
 

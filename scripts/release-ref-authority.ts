@@ -36,6 +36,7 @@ const RELEASE_CONTROL_PATHS = Object.freeze([
   "scripts/release-ref-writer.mjs",
   "website/production-release-marker.mjs",
   "website/github-release-artifact.mjs",
+  "website/release-notes.mjs",
 ] as const);
 
 export type GitCommandResult = Readonly<{

@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import fc from "fast-check";
 import { assertAsyncProperty } from "../src/test-support.js";
+import { releaseBody, releaseNotesSha256 } from "../website/release-notes.mjs";
 
 // A property over reruns of the npm mirror. Each generated attempt runs the
 // real "Admit absent or exact public registry state" and "Publish exact
@@ -31,10 +32,12 @@ const integrityOf = (bytes: Uint8Array) => `sha512-${createHash("sha512").update
 const canonicalIntegrity = integrityOf(archive);
 const foreignIntegrity = integrityOf(foreignArchive);
 
+const releaseNotes = "Ghostget reads one more source.\n\n## Changes\n\n- Read one more source.";
+
 const release = {
   id: 9001, tag_name: tag, target_commitish: sourceSha, draft: false, prerelease: false, immutable: true,
   author: { id: 41898282, type: "Bot" },
-  body: `wrench-release-source-v1 repository=hraness/ghostget tag=${tag} source_sha=${sourceSha} workflow_run_id=123456\n\nghostget-release-attempt-v1 run_attempt=1`,
+  body: releaseBody(releaseNotes, `wrench-release-source-v1 repository=hraness/ghostget tag=${tag} source_sha=${sourceSha} workflow_run_id=123456\n\nghostget-release-attempt-v1 run_attempt=1`),
   assets: [
     { name: `hraness-ghostget-${version}.tgz`, state: "uploaded", digest: `sha256:${archiveSha256}`, size: archive.byteLength },
     { name: "npm-pack.json", state: "uploaded", digest: `sha256:${"1".repeat(64)}`, size: 10 },
@@ -140,6 +143,7 @@ async function harness(workflow: string): Promise<Harness> {
   await chmod(join(bin, "npm"), 0o755); await chmod(join(bin, "gh"), 0o755);
   const environment = {
     DEFAULT_BRANCH: "main", EXPECTED_ARCHIVE_SHA256: archiveSha256, EXPECTED_RELEASE_ATTEMPT: "1",
+    EXPECTED_RELEASE_NOTES_SHA256: releaseNotesSha256(releaseNotes),
     EXPECTED_TARBALL_SHA256: archiveSha256, EXPECTED_VERSION: version, GITHUB_OUTPUT: output,
     GITHUB_REF: `refs/tags/${tag}`, GITHUB_REPOSITORY: "hraness/ghostget", GITHUB_RUN_ID: "123456", GITHUB_SHA: sourceSha,
     NPM_DIRECTORY: npmDirectory, NPM_GLOBALCONFIG: join(root, "globalconfig"), NPM_USERCONFIG: join(root, "userconfig"),

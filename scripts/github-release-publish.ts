@@ -9,6 +9,7 @@ import {
   parseOptionalIncludedGitHubResponse, releaseSourceReceipt, requireLatestRelease,
   waitForLatestRelease, revalidateLatestReleaseProjection,
 } from "./release-provider-outcome.mjs";
+import { releaseBody, releaseNotesSha256, releaseTitle, renderReleaseNotes } from "../website/release-notes.mjs";
 
 const repository = "hraness/ghostget";
 const prefix = `/repos/${repository}`;
@@ -115,12 +116,24 @@ export function validateReleaseAssets(releaseValue: unknown, manifest: ReleaseMa
   return { missing: names.filter(name => !found.has(name)), descriptors };
 }
 
-export async function publishCanonicalRelease(directory: string, manifest: ReleaseManifest, run: Runner = command, download: AssetDownloader = downloadReleaseAsset): Promise<void> {
+/**
+ * Render the release page notes from the checked-out tagged CHANGELOG.md and
+ * require them to hash to the value the verify job rendered from the same tag.
+ */
+export function verifiedReleaseNotes(manifest: ReleaseManifest, expectedSha256: string | undefined, changelog: string): string {
+  if (typeof expectedSha256 !== "string" || !/^[0-9a-f]{64}$/u.test(expectedSha256)) throw new Error("Expected release notes SHA-256 is not exact");
+  const notes = renderReleaseNotes({ changelog, tag: manifest.tag, sourceSha: manifest.sourceSha });
+  if (releaseNotesSha256(notes) !== expectedSha256) throw new Error("Release notes differ from the notes the verify job rendered");
+  return notes;
+}
+
+export async function publishCanonicalRelease(directory: string, manifest: ReleaseManifest, notes: string, run: Runner = command, download: AssetDownloader = downloadReleaseAsset): Promise<void> {
   const get = async (endpoint: string): Promise<unknown> => JSON.parse(successful(run, ["gh", "api", "--method", "GET", endpoint]));
   const api = { get };
   const coordinates = { repository, verifiedSha: manifest.sourceSha, verifiedTag: manifest.tag, workflowRunId: String(manifest.runId) };
   const receipt = releaseSourceReceipt(coordinates);
-  const body = `${receipt}\n\nghostget-release-attempt-v1 run_attempt=${manifest.runAttempt}`;
+  const body = releaseBody(notes, `${receipt}\n\nghostget-release-attempt-v1 run_attempt=${manifest.runAttempt}`);
+  const title = releaseTitle(manifest.tag);
   const endpoint = `${prefix}/releases/tags/${manifest.tag}`;
   const lookup = run(["gh", "api", "--include", endpoint]);
   const response = parseOptionalIncludedGitHubResponse(lookup.stdout, "exact canonical release lookup");
@@ -160,13 +173,13 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
     const author = object(value.author);
     if (!Number.isSafeInteger(value.id) || Number(value.id) <= 0 || value.draft !== true || value.prerelease !== false
       || value.immutable === true || value.tag_name !== manifest.tag || value.target_commitish !== manifest.sourceSha
-      || value.name !== `Ghostget ${manifest.tag}` || value.body !== body || author.id !== 41898282 || author.type !== "Bot") {
+      || value.name !== title || value.body !== body || author.id !== 41898282 || author.type !== "Bot") {
       throw new Error("Existing draft is not this exact verified run attempt; preserve it for diagnosis");
     }
   };
   await authority("prewrite");
   if (release === undefined) release = mutate("POST", `${prefix}/releases`, {
-    tag_name: manifest.tag, target_commitish: manifest.sourceSha, name: `Ghostget ${manifest.tag}`,
+    tag_name: manifest.tag, target_commitish: manifest.sourceSha, name: title,
     body, draft: true, prerelease: false, make_latest: "false",
   });
   validateDraft(release);
@@ -190,10 +203,10 @@ export async function publishCanonicalRelease(directory: string, manifest: Relea
   await authority("prewrite");
   const published = mutate("PATCH", `${prefix}/releases/${draftId}`, { draft: false, make_latest: "true" });
   exactWorkflowPublishedRelease({ ...coordinates, value: published });
-  if (published.id !== draftId || validateReleaseAssets(published, manifest, directory).missing.length !== 0) throw new Error("Published identity or asset bytes differ from the exact draft");
+  if (published.id !== draftId || published.body !== body || validateReleaseAssets(published, manifest, directory).missing.length !== 0) throw new Error("Published identity or asset bytes differ from the exact draft");
   const readback = object(await get(endpoint));
   exactWorkflowPublishedRelease({ ...coordinates, value: readback });
-  if (readback.id !== draftId || readback.published_at !== published.published_at
+  if (readback.id !== draftId || readback.body !== body || readback.published_at !== published.published_at
     || validateReleaseAssets(readback, manifest, directory).missing.length !== 0) throw new Error("Immutable publication readback differs");
   verifyRemoteBytes(readback);
   await waitForLatestRelease({ api, predecessorRelease: predecessor, repository, targetRelease: readback, verifiedTag: manifest.tag });
@@ -235,5 +248,6 @@ if (import.meta.main) {
   if (directoryValue === undefined || extra.length !== 0) throw new Error("Usage: github-release-publish.ts <verified-directory>");
   const directory = resolve(directoryValue);
   const manifest = await verifyPublicationHandoff(directory);
-  await publishCanonicalRelease(directory, manifest);
+  const notes = verifiedReleaseNotes(manifest, process.env.EXPECTED_RELEASE_NOTES_SHA256, readFileSync("CHANGELOG.md", "utf8"));
+  await publishCanonicalRelease(directory, manifest, notes);
 }

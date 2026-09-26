@@ -127,6 +127,11 @@
           "reason": "Synced Hraness CI baseline for admission speed and the Required gate; it states no property of the package, CLI, website, or release."
         },
         {
+          "name": "hraness-releases",
+          "digest": "405d2510c33ffd0c5944d2572319206fccaa9308c40b546f2c63e233ba4b92b9",
+          "reason": "Synced Hraness release page standard. website/release-notes.test.ts checks the page shape, the changelog section failures, and the trailing identity record; the claim release-receipt-bot-and-body-prefix covers the publication readback."
+        },
+        {
           "name": "algal-skills",
           "digest": "34d9d322ecc66cbc7608480876028b5dccde1f44631fc6f2198ba9c23d417cab",
           "reason": "Synced contributor tooling instructions for the algal skill pack; it states no property of the package, CLI, website, or release."
@@ -5009,17 +5014,18 @@
     },
     {
       "id": "release-receipt-bot-and-body-prefix",
-      "statement": "Every publication readback requires Actions bot ID 41898282 of type Bot and a deterministic body prefix binding repository, tag, source SHA and GITHUB_RUN_ID; target_commitish is informational only and the protected tag must peel to C.",
+      "statement": "Every publication readback requires Actions bot ID 41898282 of type Bot and a deterministic trailing identity record binding repository, tag, source SHA and GITHUB_RUN_ID after notes rendered from the tagged changelog section; target_commitish is informational only and the protected tag must peel to C.",
       "area": "release",
       "source": {
         "path": "docs/publishing.md",
-        "quote": "Every publication readback instead requires Actions bot ID `41898282` with type `Bot` and a deterministic body prefix binding repository, tag, source SHA, and `GITHUB_RUN_ID`"
+        "quote": "Every publication readback instead requires Actions bot ID `41898282` with type `Bot` and a deterministic trailing identity record binding repository, tag, source SHA, and `GITHUB_RUN_ID`"
       },
       "layer": "example",
       "status": "evidenced",
       "evidence": [
         "scripts/npm-release-workflow.test.ts",
-        "scripts/release-provider-outcome.test.ts"
+        "scripts/release-provider-outcome.test.ts",
+        "website/release-notes.test.ts"
       ],
       "assumptions": [
         "github-api",

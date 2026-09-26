@@ -18,6 +18,7 @@ import {
   type ProductionReleaseEvidence,
 } from "./production-release-verifier";
 import { parseReleaseAssetDescriptors, releaseAssetNames, releaseIdentity } from "./github-release-artifact.mjs";
+import { releaseBody } from "./release-notes.mjs";
 
 test.each(["v0.16.15", "v0.17.0"])("canonical %s admission binds immutable archive bytes without npm availability", async tag => {
   const brand = releaseIdentity(tag);
@@ -35,7 +36,8 @@ test.each(["v0.16.15", "v0.17.0"])("canonical %s admission binds immutable archi
       browser_download_url: `https://github.com/hraness/ghostget/releases/download/${tag}/${name}` };
   });
   const release = { id: 1, tag_name: tag, draft: false, prerelease: false, immutable: true, target_commitish: sourceSha,
-    author: { id: 41898282, type: "Bot" }, body: `wrench-release-source-v1 repository=${brand.repository} tag=${tag} source_sha=${sourceSha} workflow_run_id=123`, assets };
+    author: { id: 41898282, type: "Bot" }, body: releaseBody("Ghostget reads one more source.\n\n## Changes\n\n- Read one more source.",
+      `wrench-release-source-v1 repository=${brand.repository} tag=${tag} source_sha=${sourceSha} workflow_run_id=123\n\nghostget-release-attempt-v1 run_attempt=1`), assets };
   const evidence = { headSha: sourceSha, githubTagCommitSha: sourceSha, githubRelease: release, latestGithubRelease: release,
     canonicalAssets: { archive, manifest } };
   const identity = { name: brand.package, version };

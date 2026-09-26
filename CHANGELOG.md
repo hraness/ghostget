@@ -9,14 +9,49 @@ Historical entries retain their original delivery coordinates.
 
 ## 0.18.38
 
-- Admit released trees that legitimately differ from the reviewed pull request
-  head when main moved after the pull request diverged. The release source-CI
-  check now proves path-by-path that the merged tree carries only
-  byte-identical reviewed head content and byte-identical main-side changes,
-  rejecting unreviewed additions, dropped reviewed content, and conflict
-  resolutions. The v0.18.37 tag bound a squash merge whose parent had advanced
-  past the reviewed branch point, so its release could not pass the previous
-  exact-tree requirement. No product behavior changes.
+This is the first published release since 0.18.35. It includes the 0.18.36
+and 0.18.37 changes, which were tagged but never published, and fixes for
+state, approval, media, and network defects found while writing formal models
+of Ghostget's runtime.
+
+- Removing an auth record removes only its own session secrets. Secret files
+  are named so that two accounts can no longer share or claim one file, and
+  older ambiguous files are removed when their header names the removed
+  account.
+- Canonical JSON encoding rejects values that are not JSON, such as sparse
+  arrays, maps, dates, and byte arrays, instead of giving distinct inputs one
+  content address.
+- When a path helper dies holding a claim, exactly one other helper reclaims
+  it, and a current helper refuses to write beside a claim that an older
+  helper moved aside.
+- Cancelling a media capture stops yt-dlp together with its FFmpeg and HLS
+  children, and those process groups also stop when Ghostget exits.
+  Promotion flushes the new revision to disk before it takes its place, and a
+  lock with a stale heartbeat is reclaimed. Quarantined revisions can be
+  listed.
+- An Allow once approval is honored for the first process that checks it and
+  no other, even if the approving process crashes before releasing it.
+- The menu-bar snapshot, cache reads, and permission checks read auth state
+  without creating it.
+- `ghostget doctor` reads back intent fences, and recovery continues after
+  the same provider account reconnects under a new auth record.
+- The write fence refuses a second write to the same provider account while an
+  unsettled run for it exists under a different auth record.
+- An indeterminate portable write can settle through the readback that its
+  plugin declares, and an elected successor releases its source run.
+- The web gateway classifies every resolved address itself and refuses
+  private and other non-public addresses.
+- Automation work is serialized per enrollment, so work for different
+  contacts runs at the same time.
+- The ghostget.com site uses a Gruvbox palette, a shared footer, and new
+  product copy, and adds a blog.
+- The release source-CI check admits a merged tree that differs from the
+  reviewed pull request head when main moved after the pull request
+  diverged. It proves path by path that the tree carries only byte-identical
+  reviewed content and byte-identical main-side changes, and rejects
+  unreviewed additions, dropped reviewed content, and conflict resolutions.
+  The v0.18.37 tag was a squash merge of that kind, so its release failed the
+  previous exact-tree check.
 
 ## 0.18.37
 
