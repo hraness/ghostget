@@ -7,6 +7,18 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.39
+
+This release adds suite telemetry for CLI runs, settles lost-submit retries by
+recorded intent, groups the CLI help surface, and brings the shared Hraness
+type foundation and release-page standard to ghostget.com and its GitHub
+Releases.
+
+- Aggregate each CLI run's outcome into the suite telemetry ping, behind the
+  existing bounded opt-out.
+- Arbitrate lost submits by recorded run intent and extend the dispatch
+  window, so a late-arriving duplicate is judged by what the run meant to do
+  rather than which write happened to land first.
 - Shorter, grouped help. Bare `ghostget` shows a start-here list that fits
   one screen, and `ghostget --help` groups commands by task. Policy notes
   moved to `ghostget help policy` and rarely used commands to
@@ -20,6 +32,12 @@ Historical entries retain their original delivery coordinates.
   usage. `-V` prints the version.
 - Help requests such as `ghostget read --help` count as help and send no
   run ping. `ghostget help policy` explains the ping and how to turn it off.
+- Adopt the shared heading type foundation and portfolio related cards on
+  ghostget.com, and render GitHub Release pages from the version's
+  CHANGELOG.md section under the Hraness release-page standard.
+- Render the 404 page with the shared design-kit status page, serve the live
+  claims register at /claims/ and /claims.json, and add a Ghostget vs
+  Firecrawl and Jina AI Reader comparison page.
 
 ## 0.18.38
 

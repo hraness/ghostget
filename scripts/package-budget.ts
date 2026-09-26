@@ -1797,25 +1797,25 @@
 // 12,044,593 packed; 23,565,669 + 353 + 65 = 23,566,087 unpacked. Required
 // Linux CI and canonical Release must independently measure and admit their
 // exact archives.
-//
-// Grouped CLI help adds the import-free terminal style module
-// (src/cli-style.ts), per-command help topics in src/usage.ts, the short
-// usage-error renderer and their changelog entry over the aggregate run
-// telemetry base: one additional packed source file, 600 files total.
+// The 0.18.39 release bump carries the version pin across package.json,
+// src/version.ts, the rebuilt dist bundles, docs and skills, the 0.18.39
+// CHANGELOG section, and the release-page standard over the merged 600-file
+// inventory (grouped CLI help added src/cli-style.ts).
 // A clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
-// measured 12,044,151 packed bytes, 23,579,133 unpacked bytes and exactly
-// 600 entries; archive SHA-256
-// bdd17288cd127fad87eced743f63b7217880fb033a656ca9c780af275da66a55.
-// Carry the same projections and allowances: 12,044,151 + 12,387 + 4,096 =
-// 12,060,634 packed; 23,579,133 + 353 + 65 = 23,579,551 unpacked.
+// measured 12,044,402 packed bytes and 23,580,088 unpacked bytes; archive
+// SHA-256 7b7e8e9feda9e61ca4e6f426b5b68e674102a37143ebbe39da8a24d0138a68af.
+// Carry the same projections and allowances: 12,044,402 + 12,387 + 4,096 =
+// 12,060,885 packed; 23,580,088 + 353 + 65 = 23,580,506 unpacked. Required
+// Linux CI and canonical Release must independently measure and admit their
+// exact archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Grouped CLI help and short usage errors over aggregate run telemetry",
+  scope: "Release Ghostget 0.18.39 over the merged 600-file inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "bdd17288cd127fad87eced743f63b7217880fb033a656ca9c780af275da66a55",
-  packedBytes: 12_044_151,
-  unpackedBytes: 23_579_133,
+  archiveSha256: "7b7e8e9feda9e61ca4e6f426b5b68e674102a37143ebbe39da8a24d0138a68af",
+  packedBytes: 12_044_402,
+  unpackedBytes: 23_580_088,
   entryCount: 600,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
