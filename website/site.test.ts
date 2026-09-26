@@ -185,16 +185,16 @@ describe("ghostget.com static site", () => {
       devDependencies: {
         "@hraness/design-kit": "github:hraness/design-kit#v0.19.0",
 
-        "@hraness/site-footer": "github:hraness/site-footer#v0.18.0",
+        "@hraness/site-footer": "github:hraness/site-footer#v0.19.2",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
       },
     });
     expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.19.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
 
-    expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.18.0"');
+    expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.19.2"');
     expect(lockfile).toContain(
-      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#19213e6"', 
+      '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#cb49020"', 
     );
   });
 
