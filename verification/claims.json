@@ -788,6 +788,12 @@
     },
     {
       "guide": "website/AGENTS.md",
+      "anchor": "Give ordinary HTML",
+      "digest": "c3da9eac5f0a18427cf042100214fc9151f26fa8f6b42170c960487d10c76018",
+      "exempt": "Presentation rule for the informational website; it states no safety or integrity property."
+    },
+    {
+      "guide": "website/AGENTS.md",
       "anchor": "Keep the page useful",
       "digest": "06f62cdf536a9556d356b62f6aacbc237f8e69deeb1c2962ad8c45ceb28648d8",
       "exempt": "Presentation rule for the informational website; it states no safety or integrity property."

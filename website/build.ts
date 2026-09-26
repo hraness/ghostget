@@ -1,3 +1,4 @@
+import { addDocumentAppearance } from "./appearance";
 import { releaseArchiveUrl } from "./github-release-artifact.mjs";
 import { snapshotMarketingPreset } from "./marketing-preset";
 import { snapshotLanternMaterial } from "./lantern-material";
@@ -10,7 +11,7 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -100,7 +101,7 @@ export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const HRANESS_URL = "https://hraness.com/" as const;
 export const HRANESS_ORGANIZATION_ID = `${HRANESS_URL}#organization` as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.35" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.36" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",
@@ -458,6 +459,7 @@ export function agentSkillInstallCommands(
 
 type RenderOptions = Readonly<{
   analyticsAsset: string;
+  appearanceAsset: string;
   attestation: ProviderCapabilityAttestation;
   beeperFacts: BeeperPresentationFacts;
   cssAsset: string;
@@ -767,6 +769,7 @@ function renderTemplate(
   template: string,
   options: RenderOptions,
   page?: PublicPage,
+  format: "html" | "text" = "html",
   structuredDataOverride?: Readonly<Record<string, unknown>>,
 ): string {
   const { packageIdentity: identity } = options;
@@ -927,7 +930,7 @@ function renderTemplate(
   if (/\{\{[A-Z0-9_]+\}\}/u.test(rendered)) {
     throw new Error("The rendered page contains an unresolved template value.");
   }
-  return rendered;
+  return addDocumentAppearance(rendered, options.appearanceAsset, format);
 }
 
 export function renderPreview(template: string, cssAsset: string): string {
@@ -1001,6 +1004,7 @@ function renderBlogPages(
       }, renderBlogIndexMain()),
       options,
       indexPage,
+      "html",
       blogIndexJsonLd(BLOG_SITE, shared, HRANESS_ORGANIZATION_ID),
     ),
     indexable: true,
@@ -1028,7 +1032,7 @@ function renderBlogPages(
     }, renderBlogPostMain(post, fragment));
     pages.push({
       html: indexable
-        ? renderTemplate(filled, options, page, blogPostJsonLd(post, BLOG_SITE, shared, HRANESS_ORGANIZATION_ID))
+        ? renderTemplate(filled, options, page, "html", blogPostJsonLd(post, BLOG_SITE, shared, HRANESS_ORGANIZATION_ID))
         : renderTemplate(filled, options),
       indexable,
       page,
@@ -1084,6 +1088,9 @@ export async function buildWebsite(
     llmsTemplate,
     css,
     paperThemeCss,
+    paletteSystemCss,
+    paletteBridgeCss,
+    appearanceCss,
     uiCss,
     designKitFontsCss,
     designKitProductMarketingCss,
@@ -1092,10 +1099,7 @@ export async function buildWebsite(
     hranessSiteFooterCss,
     blogShell,
     blogFragments,
-    analyticsBuild,
-    skillInstallBuild,
-    foilBuild,
-    fieldBuild,
+    browserBuild,
     attestation,
   ] = await Promise.all([
     Bun.file(join(repositoryRoot, "package.json")).json(),
@@ -1106,6 +1110,9 @@ export async function buildWebsite(
     readFile(join(sourceRoot, "llms.txt"), "utf8"),
     readFile(join(sourceRoot, "styles.css"), "utf8"),
     readFile(join(repositoryRoot, "website/vendor/paper-theme/paper-theme.css"), "utf8"),
+    readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/palette-system.css")), "utf8"),
+    readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/palette-bridge.css")), "utf8"),
+    readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/appearance-menu.css")), "utf8"),
     readUiStylesheet(),
     readFile(designKitFontsStylesPath, "utf8"),
     Promise.all([
@@ -1125,29 +1132,17 @@ export async function buildWebsite(
       post.bodyFile,
       await readFile(join(sourceRoot, "blog", post.bodyFile), "utf8"),
     ] as const)).then((entries) => new Map(entries)),
+    // One shared build keeps every package file on one parse: bun's in-process
+    // bundler reuses a closed resolver-cache fd when sibling builds revisit a
+    // symlinked dependency inside a `bun test` process (oven-sh/bun#33099).
     Bun.build({
-      entrypoints: [join(sourceRoot, "analytics.ts")],
-      format: "esm",
-      minify: true,
-      sourcemap: "none",
-      target: "browser",
-    }),
-    Bun.build({
-      entrypoints: [join(sourceRoot, "skill-install-command.ts")],
-      format: "esm",
-      minify: true,
-      sourcemap: "none",
-      target: "browser",
-    }),
-    Bun.build({
-      entrypoints: [join(sourceRoot, "foil.ts")],
-      format: "esm",
-      minify: true,
-      sourcemap: "none",
-      target: "browser",
-    }),
-    Bun.build({
-      entrypoints: [join(sourceRoot, "ghostget-field.ts")],
+      entrypoints: [
+        join(sourceRoot, "analytics.ts"),
+        join(sourceRoot, "skill-install-command.ts"),
+        join(sourceRoot, "foil.ts"),
+        join(sourceRoot, "ghostget-field.ts"),
+        join(sourceRoot, "appearance.ts"),
+      ],
       format: "esm",
       minify: true,
       sourcemap: "none",
@@ -1164,26 +1159,23 @@ export async function buildWebsite(
   );
   const webmcpIndexValues = webmcpIndexTemplateValues(webmcpSnapshot);
   const allPages: readonly PublicPage[] = [...PUBLIC_PAGES, ...webmcpPages];
-  if (!analyticsBuild.success || analyticsBuild.outputs.length !== 1) {
-    const messages = analyticsBuild.logs.map((log) => log.message).join("\n");
-    throw new Error(`Analytics build failed: ${messages || "no browser output"}`);
+  if (!browserBuild.success || browserBuild.outputs.length !== 5) {
+    const messages = browserBuild.logs.map((log) => log.message).join("\n");
+    throw new Error(`Browser script build failed: ${messages || "no browser output"}`);
   }
-  const analytics = new Uint8Array(await analyticsBuild.outputs[0]!.arrayBuffer());
-  if (!skillInstallBuild.success || skillInstallBuild.outputs.length !== 1) {
-    const messages = skillInstallBuild.logs.map((log) => log.message).join("\n");
-    throw new Error(`Skill install control build failed: ${messages || "no browser output"}`);
-  }
-  const skillInstall = new Uint8Array(await skillInstallBuild.outputs[0]!.arrayBuffer());
-  if (!foilBuild.success || foilBuild.outputs.length !== 1) {
-    const messages = foilBuild.logs.map((log) => log.message).join("\n");
-    throw new Error(`Foil controller build failed: ${messages || "no browser output"}`);
-  }
-  const foil = new Uint8Array(await foilBuild.outputs[0]!.arrayBuffer());
-  if (!fieldBuild.success || fieldBuild.outputs.length !== 1) {
-    const messages = fieldBuild.logs.map((log) => log.message).join("\n");
-    throw new Error(`Ghostget field controller build failed: ${messages || "no browser output"}`);
-  }
-  const field = new Uint8Array(await fieldBuild.outputs[0]!.arrayBuffer());
+  const browserAssets = new Map(browserBuild.outputs.map((output) => [basename(output.path, ".js"), output]));
+  const scriptAsset = async (name: string) => {
+    const output = browserAssets.get(name);
+    if (output === undefined) throw new Error(`Browser script ${name} missing from the shared build.`);
+    return output.arrayBuffer();
+  };
+  const analytics = new Uint8Array(await scriptAsset("analytics"));
+  const skillInstall = new Uint8Array(await scriptAsset("skill-install-command"));
+  const foil = new Uint8Array(await scriptAsset("foil"));
+  const field = new Uint8Array(await scriptAsset("ghostget-field"));
+  // The blocking head script is a classic script: wrap the shared ESM output in
+  // one strict-mode IIFE so it never leaks a top-level binding.
+  const appearance = new TextEncoder().encode(`(() => { "use strict";\n${new TextDecoder().decode(await scriptAsset("appearance"))}\n})();`);
   const identity = parsePackageIdentity(manifest);
   if (identity.release !== CONTENT_REVIEWED_RELEASE) {
     throw new Error(
@@ -1196,9 +1188,10 @@ export async function buildWebsite(
   const lanternCss = lanternMaterial.files.get("lantern-material.css");
   const lanternLicense = lanternMaterial.files.get("LICENSE");
   if (lanternCss === undefined || lanternLicense === undefined) throw new Error("The complete Lantern build snapshot is required.");
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${lanternCss.toString("utf8")}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${appearanceCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${lanternCss.toString("utf8")}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
+  const appearanceAsset = `/assets/appearance-${contentHash(appearance)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
   const foilAsset = `/assets/foil-${contentHash(foil)}.js`;
   const fieldAsset = `/assets/field-${contentHash(field)}.js`;
@@ -1207,6 +1200,7 @@ export async function buildWebsite(
   const whatsappFacts = createWhatsAppPresentationFacts(providerDirectory, attestation);
   const renderOptions = {
     analyticsAsset,
+    appearanceAsset,
     attestation,
     beeperFacts,
     cssAsset,
@@ -1287,13 +1281,16 @@ export async function buildWebsite(
     writeFile(join(outputRoot, BLOG_FEED_PATH.slice(1)), renderBlogAtomFeed(BLOG_SITE)),
     writeFile(join(outputRoot, "preview/index.html"), renderPreview(previewTemplate, cssAsset)),
     writeFile(join(outputRoot, "404.html"), renderTemplate(notFoundTemplate, renderOptions)),
-    writeFile(join(outputRoot, "404.md"), renderTemplate(notFoundMarkdown, renderOptions)),
+    writeFile(join(outputRoot, "404.md"), renderTemplate(notFoundMarkdown, renderOptions, undefined, "text")),
     writeFile(join(outputRoot, "llms.txt"), renderTemplate(
       replaceRequired(llmsTemplate, "{{BLOG_LLMS_ENTRIES}}", renderBlogLlmsEntries(BLOG_SITE)),
       renderOptions,
+      undefined,
+      "text",
     )),
     writeFile(join(outputRoot, cssAsset.slice(1)), compiledCss),
     writeFile(join(outputRoot, analyticsAsset.slice(1)), analytics),
+    writeFile(join(outputRoot, appearanceAsset.slice(1)), appearance),
     writeFile(join(outputRoot, skillInstallAsset.slice(1)), skillInstall),
     writeFile(join(outputRoot, foilAsset.slice(1)), foil),
     writeFile(join(outputRoot, fieldAsset.slice(1)), field),

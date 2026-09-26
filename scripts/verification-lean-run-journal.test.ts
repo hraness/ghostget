@@ -650,7 +650,40 @@ const LIFECYCLE_EXAMPLES: [Start, Step[]][] = [
   walk(1, true, [...READY_STEPS, ["succeeded", "start"], ["indeterminate", "start"], ["succeeded", "start"]]),
 ];
 
+// A partial run needs one verified dispatch and at least one remaining dispatch.
+// Retain that narrow path explicitly; random schedules need not happen to choose it.
+const PARTIAL_START: Start = {
+  planned: 2, planHasAssets: false, publishR3Web: true, variant: "operation",
+  duplicate: false, startedAt: 0, dedupe: 100_000, lease: 100_000,
+};
+const PARTIAL_SCHEDULE: Step[] = (
+  ["confirmation-consumed", "ledger-claimed", "recovery-stored", "dispatch-started", "dispatch-verified", "finished"] as const
+).map((type) => ({
+  kind: "event", advance: false, type, index: type === "dispatch-verified" ? "verify" : "start",
+  outcome: "partial", noOp: false, reconciled: "unstated", leaseDelta: 1000,
+  intentHash: 1, successor: "other", delta: 1,
+}));
+
+async function compareSchedule(begin: Start, schedule: readonly Step[]): Promise<Model> {
+  let model = initial(begin);
+  for (const entry of schedule) {
+    if (entry.kind === "overwrite") {
+      model = overwrite(model, entry.field, entry.value);
+      continue;
+    }
+    const verdict = await compare(model, begin.variant, resolve(model, entry));
+    if (verdict.next !== null) model = verdict.next;
+  }
+  return model;
+}
+
 describe("run journal: transitionRunJournal agrees with the Lean model", () => {
+  test("one verified dispatch out of two can finish as partial", async () => {
+    const result = await compareSchedule(PARTIAL_START, PARTIAL_SCHEDULE);
+    expect({ phase: result.phase, status: result.status, verified: result.verified, planned: result.planned })
+      .toEqual({ phase: "terminal", status: "partial", verified: 1, planned: 2 });
+  });
+
   test("a started dispatch cannot finish as failed", async () => {
     const started = await compare(READY, "operation", { ...EVENT, type: "dispatch-started", index: 1 });
     expect(started.next?.started).toBe(1);
@@ -673,16 +706,13 @@ describe("run journal: transitionRunJournal agrees with the Lean model", () => {
   test("generated schedules, and the comparison finds a seeded defect", async () => {
     compared.length = 0;
     await assertAsyncProperty(fc.asyncProperty(start, fc.array(step, { minLength: 1, maxLength: 24 }), async (begin, schedule) => {
-      let model = initial(begin);
-      for (const entry of schedule) {
-        if (entry.kind === "overwrite") {
-          model = overwrite(model, entry.field, entry.value);
-          continue;
-        }
-        const verdict = await compare(model, begin.variant, resolve(model, entry));
-        if (verdict.next !== null) model = verdict.next;
-      }
-    }), { numRuns: 500 + LIFECYCLE_EXAMPLES.length, interruptAfterTimeLimit: 300_000, examples: LIFECYCLE_EXAMPLES });
+      await compareSchedule(begin, schedule);
+    }), {
+      // fast-check counts explicit examples toward numRuns: keep 500 generated schedules too.
+      numRuns: 500 + LIFECYCLE_EXAMPLES.length + 1,
+      examples: [...LIFECYCLE_EXAMPLES, [PARTIAL_START, PARTIAL_SCHEDULE]],
+      interruptAfterTimeLimit: 300_000,
+    });
 
     // Every event type was accepted and rejected, and invalid journals were compared.
     for (const type of EVENT_TYPES) {

@@ -183,12 +183,14 @@ describe("ghostget.com static site", () => {
     expect(manifest).toMatchObject({
       devDependencies: {
         "@hraness/design-kit": "github:hraness/design-kit#v0.17.0",
+
         "@hraness/site-footer": "github:hraness/site-footer#v0.15.0",
-        "@hraness/ui": "github:hraness/ui#v0.5.16",
+        "@hraness/ui": "github:hraness/ui#v0.5.18",
       },
     });
     expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.17.0"');
-    expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.16"');
+    expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
+
     expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.15.0"');
     expect(lockfile).toContain(
       '"@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#8b6336d"', 
@@ -365,7 +367,16 @@ describe("ghostget.com static site", () => {
     expect(builtCss.split(lanternCss)).toHaveLength(2);
     expect(html).toContain('data-hraness-marketing-preset="editorial"');
     expect(html).toContain('data-hraness-material="lantern"');
-    expect(html).toContain('<main id="main">');
+    expect(html).toContain('<main id="main" tabindex="-1">');
+    for (const page of pages) {
+      const appearanceAsset = /<script src="(\/assets\/appearance-[a-f0-9]+\.js)"><\/script>/u.exec(page.html)?.[1];
+      expect(appearanceAsset).toBeDefined();
+      expect(page.html.indexOf(`<script src="${appearanceAsset}"></script>`)).toBeLessThan(page.html.indexOf('<link rel="stylesheet"'));
+      expect(page.html.match(/data-hraness-appearance-menu/gu)).toHaveLength(1);
+      expect(page.html.match(/role="menuitemradio"/gu)).toHaveLength(3);
+      expect(page.html).toMatch(/<main\b[^>]*\bid="main"[^>]*\btabindex="-1"/u);
+      expect((await readFile(join(websiteRoot, "dist", appearanceAsset!.slice(1)))).byteLength).toBeGreaterThan(0);
+    }
     expect(html).not.toContain('class="hraness-marketing-field"');
     for (const page of pages.slice(1)) expect(page.html).not.toContain('data-hraness-material="lantern"');
     for (const path of ["LICENSE", "provenance.json"]) {
@@ -381,6 +392,7 @@ describe("ghostget.com static site", () => {
       "@hraness/ui/components.css",
       "@hraness/ui/stylex.css",
       "@hraness/design-kit/syntax-highlighting.css",
+      "@hraness/design-kit/appearance-menu.css",
       "@hraness/site-footer/stylex.css",
     ]) {
       const stylesheet = (await readFile(
@@ -409,7 +421,16 @@ describe("ghostget.com static site", () => {
     expect(sourceCss).toMatch(/\.wordmark\s*\{[^}]*font-family:\s*var\(--font-sans\)/su);
     expect(sourceCss).toMatch(/\.hero h1,[\s\S]*?\.preview-copy h1\s*\{[^}]*font-family:\s*var\(--font-sans\)/u);
     expect(sourceCss).toMatch(/\.hero h1,[\s\S]*?\.preview-copy h1\s*\{[^}]*font-weight:\s*500/u);
-    expect(sourceCss).toContain("--hraness-site-accent: var(--accent);");
+    expect(sourceCss).toContain("--hraness-site-accent: var(--ghostget-action);");
+    expect(sourceCss).toContain("--hraness-site-accent-ink: var(--ghostget-action-ink);");
+    expect(sourceCss).toContain("--ghostget-action: var(--primary);");
+    expect(sourceCss).toContain("--ghostget-action-ink: var(--primary-foreground);");
+    expect(sourceCss).toContain("--ghostget-action-soft: var(--accent);");
+    expect(sourceCss).not.toMatch(/--accent\s*:/u);
+    expect(cssPropertyValues(sourceCss, ".registry-domain-strip a:hover", "color").at(-1))
+      .toBe("var(--ghostget-action)");
+    expect(cssPropertyValues(sourceCss, ".registry-domain-strip a:focus-visible", "outline").at(-1))
+      .toBe("2px solid var(--ghostget-action)");
     expect(sourceCss).toMatch(/\.preview-copy > p:last-child\s*\{(?![^}]*font-family)[^}]*\}/su);
     expect(sourceCss).toMatch(/\.preview-eyebrow\s*\{[^}]*font-family:\s*var\(--font-mono\)/su);
     expect(sourceCss).toMatch(/\.preview-flow li\s*\{[^}]*font-family:\s*var\(--font-mono\)/su);
@@ -534,9 +555,7 @@ describe("ghostget.com static site", () => {
     expect(field?.match(/class="ghostget-spirit /gu)).toHaveLength(3);
     expect(field?.match(/class="ghostget-blob /gu)).toHaveLength(3);
     expect(field?.match(/class="ghostget-edge"/gu)).toHaveLength(8);
-    expect(field?.match(/data-gg-prox/gu)?.length).toBeGreaterThanOrEqual(21);
-    expect(field?.match(/data-gg-spirit/gu)).toHaveLength(3);
-    expect(field?.match(/data-gg-blob/gu)).toHaveLength(3);
+    expect(field?.match(/data-hraness-hero-item/gu)).toHaveLength(13);
     expect(field).toContain('class="ghostget-card__name">Beeper<');
     expect(field).toContain('class="ghostget-card__name">Gmail<');
     expect(field).toContain('class="ghostget-card__name">WhatsApp<');
@@ -665,10 +684,10 @@ describe("ghostget.com static site", () => {
     expect(await Bun.file(join(websiteRoot, "dist/preview.md")).exists()).toBe(false);
     expect(notFound).toContain('<meta name="robots" content="noindex, nofollow">');
     expect(notFound).toContain(
-      '<meta name="theme-color" content="#f8f7f4" media="(prefers-color-scheme: light)">',
+      '<meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">',
     );
     expect(notFound).toContain(
-      '<meta name="theme-color" content="#12100f" media="(prefers-color-scheme: dark)">',
+      '<meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">',
     );
     expect(notFound).toContain("Privacy: this page uses cookieless, personless PostHog analytics");
     expect(notFound).toContain('href="/llms.txt"');
@@ -804,6 +823,11 @@ describe("ghostget.com static site", () => {
     expect(sourceCss).toContain("grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr)");
     expect(sourceCss).toContain("min-block-size: 2.75rem");
     expect(builtCss).toContain("@media (pointer: coarse)");
+    const fieldController = await readFile(join(websiteRoot, "source/ghostget-field.ts"), "utf8");
+    expect(fieldController).toContain('import { attachHeroLight } from "@hraness/design-kit/browser";');
+    expect(fieldController).toContain('document.querySelector<HTMLElement>(".ghostget-product-hero")');
+    expect(fieldController).toContain("if (hero !== null) attachHeroLight(hero);");
+    expect(fieldController).not.toContain("requestAnimationFrame");
     for (const css of [sourceCss, builtCss]) {
       expect(css).toMatch(
         /\.ghostget-product-hero\s*\{[^{}]*\bgrid-column:\s*1\s*\/\s*-1\s*;/u,
@@ -814,15 +838,27 @@ describe("ghostget.com static site", () => {
         "ghostget-spirit-bob",
         "ghostget-edge-flow",
       ]) {
-        expect(css).toContain(`@keyframes ${keyframes}`);
+        expect(css).not.toContain(`@keyframes ${keyframes}`);
       }
       expect(css).toContain(".ghostget-field");
-      expect(css).toContain("--prox");
+      expect(css).toMatch(
+        /@media\s*\(forced-colors:\s*active\),\s*\(prefers-reduced-transparency:\s*reduce\),\s*print\s*\{\s*\.ghostget-field\s*\{\s*display:\s*none;\s*\}\s*\}/u,
+      );
+      expect(css).toContain("--hraness-hero-proximity");
+      expect(css).toContain("var(--hraness-hero-drift-x, 0px)");
+      expect(css).toContain("var(--hraness-hero-drift-y, 0px)");
+      // The Agent Skill command stays on one line and scrolls inside its own box, so the
+      // grid item that holds it must shrink below that line at phone widths instead of
+      // pushing the install commands past the viewport edge.
+      expect(cssPropertyValues(css, ".skill-install", "min-inline-size")).toContain("0");
+      for (const selector of [".ghostget-blob", ".ghostget-card", ".ghostget-edge", ".ghostget-spirit", ".ghostget-spirit__body"]) {
+        expect(cssPropertyValues(css, selector, "animation").every((value) => value === "none")).toBe(true);
+      }
       expect(css).toMatch(/prefers-reduced-motion: reduce[^}]*\}[^}]*\.ghostget-card/u);
       expect(cssPropertyValues(css, ".ghostget-product-hero .hero-explainer", "color").at(-1))
         .toBe("var(--hraness-material-muted, var(--muted))");
       expect(cssPropertyValues(css, '.hraness-marketing-action[data-emphasis="primary"]', "color").at(-1))
-        .toBe("var(--accent-ink)");
+        .toBe("var(--ghostget-action-ink)");
       const providerMarkDisplay = cssPropertyValues(css, ".provider-mark", "display");
       expect(providerMarkDisplay.length).toBeGreaterThan(0);
       expect(providerMarkDisplay).not.toContain("none");
@@ -1087,10 +1123,10 @@ describe("ghostget.com static site", () => {
       expect(pageHtml).toContain('href="/privacy/"');
       expect(pageHtml).toContain('href="/llms.txt"');
       expect(pageHtml).toContain(
-        '<meta name="theme-color" content="#f8f7f4" media="(prefers-color-scheme: light)">',
+        '<meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">',
       );
       expect(pageHtml).toContain(
-        '<meta name="theme-color" content="#12100f" media="(prefers-color-scheme: dark)">',
+        '<meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">',
       );
       expect(pageHtml.match(/<meta name="theme-color"/gu)).toHaveLength(2);
       expect(pageHtml.match(/<h1\b/gu)).toHaveLength(1);

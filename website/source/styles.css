@@ -7,10 +7,10 @@
   --muted: #625e56;
   --line: rgb(26 25 22 / 12%);
   --line-strong: rgb(26 25 22 / 24%);
-  --accent: #9a5d16;
-  --accent-ink: #ffffff;
-  --accent-bright: #d99a4a;
-  --accent-soft: #f1e3cd;
+  --ghostget-action: #9a5d16;
+  --ghostget-action-ink: #ffffff;
+  --ghostget-action-bright: #d99a4a;
+  --ghostget-action-soft: #f1e3cd;
   --focus: #9a5d16;
   --code-background: #14171a;
   --code-foreground: #f3f0e8;
@@ -24,11 +24,11 @@
   --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --font-text: var(--font-sans);
   --font-heading: var(--font-sans);
-  --primary: var(--accent);
+  --primary: var(--ghostget-action);
   --inverse: var(--code-background);
   --inverse-foreground: var(--code-foreground);
-  --hraness-site-accent: var(--accent);
-  --hraness-site-accent-ink: var(--accent-ink);
+  --hraness-site-accent: var(--ghostget-action);
+  --hraness-site-accent-ink: var(--ghostget-action-ink);
   --hraness-site-footer-measure: 72rem;
   --page-inline: clamp(1.25rem, 4vw, 3rem);
   --section-block: clamp(4rem, 9vw, 7.5rem);
@@ -47,23 +47,25 @@
     --muted: #a8a69f;
     --line: rgb(240 237 228 / 14%);
     --line-strong: rgb(240 237 228 / 26%);
-    --accent: #e6ad63;
-    --accent-ink: #1a1206;
-    --accent-bright: #f0be78;
-    --accent-soft: #2b2117;
+    --ghostget-action: #e6ad63;
+    --ghostget-action-ink: #1a1206;
+    --ghostget-action-bright: #f0be78;
+    --ghostget-action-soft: #2b2117;
     --focus: #e6ad63;
     --code-background: #090b0d;
     --shadow-low: 0 1px 2px rgb(0 0 0 / 30%), 0 24px 48px -24px rgb(0 0 0 / 60%);
   }
 }
 
-/* The shared paper palette owns ordinary pages. Fixed terminal and preview
+/* The shared palette owns ordinary pages. Fixed terminal and preview
  * colors remain product-owned, independent of the document appearance. */
 :root[data-hraness-theme="paper"] {
   --ghostget-action: var(--primary);
-  --accent-ink: var(--primary-foreground);
-  --accent-soft: var(--accent);
-  --accent-bright: #d99a4a;
+  --ghostget-action-ink: var(--primary-foreground);
+  --ghostget-action-soft: var(--accent);
+  --ghostget-action-bright: #d99a4a;
+  --hraness-site-accent: var(--ghostget-action);
+  --hraness-site-accent-ink: var(--ghostget-action-ink);
   --line-strong: var(--control-border);
   --code-background: #14171a;
   --code-foreground: #f3f0e8;
@@ -112,7 +114,7 @@ a {
 }
 
 a:hover {
-  text-decoration-color: var(--ghostget-action, var(--accent));
+  text-decoration-color: var(--ghostget-action);
 }
 
 :where(a, button, input, summary, [tabindex]):focus-visible {
@@ -126,7 +128,7 @@ pre {
 }
 
 code:not(pre code):not(.hraness-marketing-flow__code) {
-  background: color-mix(in srgb, var(--accent-soft) 55%, transparent);
+  background: color-mix(in srgb, var(--ghostget-action-soft) 55%, transparent);
   border-radius: 0.25rem;
   font-size: 0.88em;
   padding: 0.08em 0.3em;
@@ -269,7 +271,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 
 .hero-orbit::before,
 .hero-orbit::after {
-  background: var(--accent-bright);
+  background: var(--ghostget-action-bright);
   border-radius: 50%;
   box-shadow: 0 0 1.5rem rgb(241 167 45 / 75%);
   content: "";
@@ -363,7 +365,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .hero h1 span {
-  color: var(--accent-bright);
+  color: var(--ghostget-action-bright);
 }
 
 .hero-statement {
@@ -390,6 +392,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 .skill-install {
   margin-top: clamp(1.75rem, 4vw, 2.75rem);
   max-width: 47rem;
+  min-inline-size: 0;
 }
 
 .skill-install-label {
@@ -416,7 +419,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .skill-install-prompt {
-  color: var(--accent-bright);
+  color: var(--ghostget-action-bright);
   flex: 0 0 auto;
   font-family: var(--font-mono);
   font-size: 0.9rem;
@@ -482,7 +485,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .skill-install-copy[data-copy-state="copied"] {
-  background: var(--accent-bright);
+  background: var(--ghostget-action-bright);
   color: #18130b;
 }
 
@@ -539,7 +542,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 
 .hero .button-primary,
 .section-dark .button-primary {
-  background: var(--accent-bright);
+  background: var(--ghostget-action-bright);
   color: #18130b;
 }
 
@@ -581,7 +584,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .proof-list li::before {
-  background: var(--accent-bright);
+  background: var(--ghostget-action-bright);
   border-radius: 50%;
   content: "";
   height: 0.34rem;
@@ -649,7 +652,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 
 .card {
   background:
-    linear-gradient(140deg, color-mix(in srgb, var(--surface-raised) 94%, transparent), color-mix(in srgb, var(--accent-soft) 30%, var(--surface)));
+    linear-gradient(140deg, color-mix(in srgb, var(--surface-raised) 94%, transparent), color-mix(in srgb, var(--ghostget-action-soft) 30%, var(--surface)));
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   min-height: 14rem;
@@ -657,7 +660,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .card-index {
-  color: var(--ghostget-action, var(--accent));
+  color: var(--ghostget-action);
   display: block;
   font-family: var(--font-mono);
   font-size: 0.7rem;
@@ -690,8 +693,8 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .registry-panel {
-  background: color-mix(in srgb, var(--surface-raised) 94%, var(--accent));
-  border: 1px solid color-mix(in srgb, var(--line) 78%, var(--accent));
+  background: color-mix(in srgb, var(--surface-raised) 94%, var(--ghostget-action));
+  border: 1px solid color-mix(in srgb, var(--line) 78%, var(--ghostget-action));
   border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
@@ -727,8 +730,8 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .registry-domain-strip a {
-  background: color-mix(in srgb, var(--surface) 80%, var(--accent) 6%);
-  border: 1px solid color-mix(in srgb, var(--line) 82%, var(--accent));
+  background: color-mix(in srgb, var(--surface) 80%, var(--ghostget-action) 6%);
+  border: 1px solid color-mix(in srgb, var(--line) 82%, var(--ghostget-action));
   border-radius: 999px;
   color: var(--foreground);
   display: inline-block;
@@ -740,18 +743,18 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .registry-domain-strip a:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--ghostget-action);
+  color: var(--ghostget-action);
 }
 
 .registry-domain-strip a:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ghostget-action);
   outline-offset: 2px;
 }
 
 .registry-domain-more a {
   border-style: dashed;
-  color: var(--accent);
+  color: var(--ghostget-action);
 }
 
 .registry-stats {
@@ -762,8 +765,8 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .registry-stat {
-  background: color-mix(in srgb, var(--surface-raised) 94%, var(--accent));
-  border: 1px solid color-mix(in srgb, var(--line) 78%, var(--accent));
+  background: color-mix(in srgb, var(--surface-raised) 94%, var(--ghostget-action));
+  border: 1px solid color-mix(in srgb, var(--line) 78%, var(--ghostget-action));
   border-radius: var(--radius-md);
   min-width: 9.5rem;
   padding: 0.9rem 1.05rem;
@@ -786,7 +789,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .provider-card {
-  --provider-accent: var(--ghostget-action, var(--accent));
+  --provider-accent: var(--ghostget-action);
   background: color-mix(in srgb, var(--surface-raised) 92%, var(--provider-accent));
   border: 1px solid color-mix(in srgb, var(--line) 78%, var(--provider-accent));
   border-radius: var(--radius-md);
@@ -902,7 +905,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 .provider-channel-grid p,
 .provider-action-grid p {
   color: var(--muted);
-  font-size: 0.88rem;
+  font-size: 1rem;
   line-height: 1.58;
   margin: 0.7rem 0 0;
 }
@@ -936,7 +939,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .flow li::before {
-  background: var(--accent-bright);
+  background: var(--ghostget-action-bright);
   border: 4px solid var(--dark-background);
   border-radius: 50%;
   box-shadow: 0 0 0 1px var(--dark-line), 0 0 1rem rgb(241 167 45 / 40%);
@@ -1121,7 +1124,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .faq-list summary::after {
-  color: var(--ghostget-action, var(--accent));
+  color: var(--ghostget-action);
   content: "+";
   font-family: var(--font-mono);
   font-size: 1.25rem;
@@ -1323,7 +1326,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 
 .guide-callout {
   background:
-    linear-gradient(140deg, color-mix(in srgb, var(--surface-raised) 94%, transparent), color-mix(in srgb, var(--accent-soft) 38%, var(--surface)));
+    linear-gradient(140deg, color-mix(in srgb, var(--surface-raised) 94%, transparent), color-mix(in srgb, var(--ghostget-action-soft) 38%, var(--surface)));
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   margin-top: clamp(2rem, 6vw, 5rem);
@@ -1342,7 +1345,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 
 .editorial-cluster .card h3 a,
 .guide-cluster .card h3 a {
-  text-decoration-color: color-mix(in srgb, var(--ghostget-action, var(--accent)) 45%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--ghostget-action) 45%, transparent);
 }
 
 .provider-directory-guide {
@@ -1395,7 +1398,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .provider-adapter summary::after {
-  color: var(--ghostget-action, var(--accent));
+  color: var(--ghostget-action);
   content: "+";
   flex: 0 0 auto;
   font-family: var(--font-mono);
@@ -1618,7 +1621,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .preview-eyebrow {
-  color: var(--accent-bright);
+  color: var(--ghostget-action-bright);
   font-family: var(--font-mono);
   font-size: clamp(0.68rem, 1.8vw, 0.78rem);
   font-weight: 700;
@@ -1725,7 +1728,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .editorial-card a:hover h3 {
-  color: var(--ghostget-action, var(--accent));
+  color: var(--ghostget-action);
 }
 
 .preview-flow li {
@@ -1742,7 +1745,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .preview-flow span {
-  color: var(--accent-bright);
+  color: var(--ghostget-action-bright);
   margin-right: 0.35rem;
 }
 
@@ -2051,8 +2054,6 @@ body {
 
 /* Labels: sentence case in the text face. Monospace stays with code. */
 .eyebrow,
-.prompt-label,
-.skill-install-label,
 .command-label {
   color: var(--muted);
   font-family: var(--font-sans);
@@ -2067,6 +2068,19 @@ body {
 .guide-hero .eyebrow,
 .route-state .eyebrow {
   margin: 0 0 0.75rem;
+}
+
+/* Paragraph labels keep the same sentence-case label treatment at the 16px
+ * reading floor. */
+.prompt-label,
+.skill-install-label {
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.4;
+  text-transform: none;
 }
 
 /* Headings: one measured scale at weight 500. */
@@ -2165,14 +2179,14 @@ body {
 }
 
 .button-primary {
-  background: var(--ghostget-action, var(--accent));
-  border-color: var(--ghostget-action, var(--accent));
-  color: var(--accent-ink);
+  background: var(--ghostget-action);
+  border-color: var(--ghostget-action);
+  color: var(--ghostget-action-ink);
 }
 
 .button-primary:hover {
-  background: color-mix(in srgb, var(--ghostget-action, var(--accent)) 86%, black);
-  border-color: color-mix(in srgb, var(--ghostget-action, var(--accent)) 86%, black);
+  background: color-mix(in srgb, var(--ghostget-action) 86%, black);
+  border-color: color-mix(in srgb, var(--ghostget-action) 86%, black);
 }
 
 .button-secondary,
@@ -2206,7 +2220,7 @@ body {
 }
 
 .skill-install-prompt {
-  color: var(--ghostget-action, var(--accent));
+  color: var(--ghostget-action);
   font-weight: 600;
 }
 
@@ -2233,13 +2247,13 @@ body {
 }
 
 .skill-install-copy[data-copy-state="copied"] {
-  background: var(--ghostget-action, var(--accent));
-  color: var(--accent-ink);
+  background: var(--ghostget-action);
+  color: var(--ghostget-action-ink);
 }
 
 .skill-install-note {
   color: var(--muted);
-  font-size: 0.88rem;
+  font-size: 1rem;
 }
 
 .content,
@@ -2292,12 +2306,12 @@ body {
 }
 
 .card h3 a:hover {
-  text-decoration-color: var(--ghostget-action, var(--accent));
+  text-decoration-color: var(--ghostget-action);
 }
 
 .card p {
   color: var(--muted);
-  font-size: 0.95rem;
+  font-size: 1rem;
   line-height: 1.5;
   margin: 0.6rem 0 0;
 }
@@ -2315,7 +2329,7 @@ body {
 }
 
 .editorial-card a:hover h3 {
-  color: var(--ghostget-action, var(--accent));
+  color: var(--ghostget-action);
 }
 
 /* Provider directory: compact cards with name, count, and access method. */
@@ -2376,13 +2390,13 @@ body {
 
 .provider-card h3 a:hover {
   text-decoration: underline;
-  text-decoration-color: var(--ghostget-action, var(--accent));
+  text-decoration-color: var(--ghostget-action);
 }
 
 .provider-card .provider-state {
   color: var(--foreground);
   font-family: var(--font-sans);
-  font-size: 0.85rem;
+  font-size: 1rem;
   font-weight: 500;
   margin-top: 0.85rem;
 }
@@ -2393,7 +2407,7 @@ body {
 
 .provider-capabilities {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 1rem;
   line-height: 1.45;
   margin-top: 0.3rem;
 }
@@ -2401,7 +2415,7 @@ body {
 .provider-transport {
   color: var(--muted);
   font-family: var(--font-sans);
-  font-size: 0.8rem;
+  font-size: 1rem;
   letter-spacing: 0;
   margin-top: auto;
   padding-top: 0.85rem;
@@ -2415,7 +2429,7 @@ body {
 .provider-feature-copy {
   color: var(--muted);
   display: block;
-  font-size: 0.88rem;
+  font-size: 1rem;
   line-height: 1.5;
   margin-top: 0.6rem;
   max-width: 36rem;
@@ -2426,7 +2440,7 @@ body {
   border: 0;
   border-radius: 0;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 1rem;
   margin: 1.25rem 0 0;
   padding: 0;
 }
@@ -2477,7 +2491,7 @@ body {
 
 .prompt-card p {
   color: var(--muted);
-  font-size: 0.95rem;
+  font-size: 1rem;
 }
 
 .prompt-card .prompt-label {
@@ -2796,7 +2810,7 @@ body {
 }
 
 .hraness-marketing-action[data-emphasis="primary"] {
-  color: var(--accent-ink);
+  color: var(--ghostget-action-ink);
 }
 
 .hraness-marketing-page ::selection {
@@ -2827,7 +2841,7 @@ body {
 }
 
 .proof-transcript__prompt {
-  color: var(--accent-bright);
+  color: var(--ghostget-action-bright);
 }
 
 .proof-transcript__meta {
@@ -2848,7 +2862,7 @@ body {
 
 .install-summary {
   color: var(--muted);
-  font-size: 0.95rem;
+  font-size: 1rem;
   line-height: 1.5;
   margin: 0.25rem 0 0;
 }
@@ -2899,9 +2913,22 @@ body {
   margin-bottom: 0;
 }
 
+/* Meaningful copy keeps the 16px reading floor at every width; the shared
+ * marketing roles that default smaller are rebound here rather than in the
+ * immutable preset. */
+.hraness-marketing-primitive p,
+.hraness-marketing-interface p,
+.hraness-marketing-flow__detail,
+.hraness-marketing-hero__boundary,
+.hraness-marketing-cta__footnote,
+.hraness-marketing-card__meta,
+.hraness-marketing-related__label {
+  font-size: 1rem;
+}
+
 /* Link color is scoped to prose surfaces; actions and navigation inherit. */
 :where(.install-summary, .skill-install-note, .provider-status-note, .hraness-marketing-question__answer, .hraness-marketing-maker__links, .hraness-marketing-proof-frame__caption, .hraness-marketing-section__body > p) a {
-  color: var(--ghostget-action, var(--accent));
+  color: var(--ghostget-action);
 }
 
 .home-reading {
@@ -3055,8 +3082,8 @@ body {
 /* --------------------------------------------------------------------------
  * Hero field: drifting provider cards, wandering blur blobs, and ghosts.
  * Decorative only; the field is aria-hidden and pointer-transparent. Cards
- * and edges sharpen under --prox (pointer proximity, set by the field
- * controller) while CSS drift keeps the scene moving without a pointer.
+ * sharpen under shared pointer proximity. Motion rests when the pointer
+ * leaves, the hero is offscreen, or a motion preference changes.
  * ----------------------------------------------------------------------- */
 
 .ghostget-product-hero {
@@ -3077,10 +3104,9 @@ body {
   z-index: 0;
 }
 
-/* --- blur blobs: organic drift plus a slow pointer chase (--bx/--by) ------ */
+/* --- organic light, moved by the shared bounded pointer drift ----------- */
 
 .ghostget-blob {
-  animation: ghostget-blob-drift var(--s, 80s) ease-in-out infinite;
   aspect-ratio: 1;
   border-radius: 50%;
   filter: blur(68px);
@@ -3089,44 +3115,38 @@ body {
   opacity: 0.5;
   position: absolute;
   top: var(--y);
-  translate: calc(-50% + var(--bx, 0px)) calc(-50% + var(--by, 0px));
+  translate: calc(-50% + var(--hraness-hero-drift-x, 0px) * 2.5) calc(-50% + var(--hraness-hero-drift-y, 0px) * 2.5);
 }
 
 .ghostget-blob--blue {
   --x: 18%; --y: 26%; --w: 52vmin; --s: 88s;
-  background: radial-gradient(closest-side, color-mix(in oklch, #4f86d9 34%, transparent), transparent);
+  background: radial-gradient(closest-side, color-mix(in srgb, #4f86d9 34%, transparent), transparent);
 }
 .ghostget-blob--violet {
   --x: 74%; --y: 62%; --w: 58vmin; --s: 74s;
-  background: radial-gradient(closest-side, color-mix(in oklch, #8b70cb 30%, transparent), transparent);
+  background: radial-gradient(closest-side, color-mix(in srgb, #8b70cb 30%, transparent), transparent);
 }
 .ghostget-blob--coral {
   --x: 46%; --y: 88%; --w: 44vmin; --s: 96s;
-  background: radial-gradient(closest-side, color-mix(in oklch, #d86a4b 26%, transparent), transparent);
+  background: radial-gradient(closest-side, color-mix(in srgb, #d86a4b 26%, transparent), transparent);
 }
 
-@keyframes ghostget-blob-drift {
-  0% { transform: translate(-4%, -3%) scale(1); }
-  33% { transform: translate(3%, -1%) scale(1.07); }
-  66% { transform: translate(-1%, 4%) scale(0.96); }
-  100% { transform: translate(-4%, -3%) scale(1); }
-}
+
 
 /* --- provider cards ----------------------------------------------------- */
 
 .ghostget-card {
   align-items: center;
-  animation: ghostget-card-drift var(--s, 42s) ease-in-out var(--d, 0s) infinite alternate;
   background: var(--surface-raised);
   border: 1px solid color-mix(in srgb, var(--line) 80%, var(--provider-accent));
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-low);
   display: flex;
-  filter: blur(calc((1 - var(--prox, 0)) * 1.5px));
+  filter: blur(calc((1 - var(--hraness-hero-proximity, 0)) * 1.5px));
   gap: 0.55rem;
   inline-size: var(--w);
   left: var(--x);
-  opacity: calc(0.4 + var(--prox, 0) * 0.6);
+  opacity: calc(0.4 + var(--hraness-hero-proximity, 0) * 0.6);
   padding: 0.6rem 0.8rem;
   position: absolute;
   rotate: var(--r, 0deg);
@@ -3135,10 +3155,7 @@ body {
   transition: filter 0.5s, opacity 0.5s;
 }
 
-@keyframes ghostget-card-drift {
-  0% { transform: translate(calc(var(--dx, 0px) * -1), calc(var(--dy, 0px) * -1)); }
-  100% { transform: translate(var(--dx, 0px), var(--dy, 0px)); }
-}
+
 
 .ghostget-card__mark {
   align-items: center;
@@ -3171,27 +3188,23 @@ body {
 }
 
 .ghostget-edge {
-  animation: ghostget-edge-flow 26s linear infinite;
   fill: none;
-  opacity: calc(0.14 + var(--prox, 0) * 0.6);
+  opacity: calc(0.14 + var(--hraness-hero-proximity, 0) * 0.6);
   stroke: var(--muted);
   stroke-dasharray: 1.8 3.4;
   stroke-width: 0.28;
   transition: opacity 0.5s;
 }
 
-@keyframes ghostget-edge-flow {
-  to { stroke-dashoffset: -52; }
-}
+
 
 /* --- spirits: cute ghosts drifting between the providers ---------------- */
 
 .ghostget-spirit {
-  animation: ghostget-card-drift var(--s, 52s) ease-in-out var(--d, 0s) infinite alternate;
-  filter: blur(calc((1 - var(--prox, 0)) * 1.2px)) drop-shadow(0 6px 14px color-mix(in oklch, var(--ink) 10%, transparent));
+  filter: blur(calc((1 - var(--hraness-hero-proximity, 0)) * 1.2px)) drop-shadow(0 6px 14px color-mix(in srgb, var(--foreground) 10%, transparent));
   inline-size: var(--w);
   left: var(--x);
-  opacity: calc(0.5 + var(--prox, 0) * 0.5);
+  opacity: calc(0.5 + var(--hraness-hero-proximity, 0) * 0.5);
   position: absolute;
   top: var(--y);
   translate: -50% -50%;
@@ -3199,15 +3212,11 @@ body {
 }
 
 .ghostget-spirit__body {
-  animation: ghostget-spirit-bob var(--bob, 8s) ease-in-out infinite alternate;
   display: block;
   inline-size: 100%;
 }
 
-@keyframes ghostget-spirit-bob {
-  0% { transform: translateY(-5%); }
-  100% { transform: translateY(5%); }
-}
+
 
 .ghostget-spirit__shape {
   fill: var(--surface-raised);
@@ -3215,17 +3224,17 @@ body {
   stroke-width: 1.1;
 }
 
-.ghostget-spirit__eye { fill: var(--ink); }
-.ghostget-spirit__blush { fill: color-mix(in oklch, #d86a4b 32%, transparent); }
+.ghostget-spirit__eye { fill: var(--foreground); }
+.ghostget-spirit__blush { fill: color-mix(in srgb, #d86a4b 32%, transparent); }
 .ghostget-spirit__mouth {
   fill: none;
-  stroke: var(--ink);
+  stroke: var(--foreground);
   stroke-linecap: round;
   stroke-width: 1.4;
 }
 
 .ghostget-spirit__eyes {
-  transform: translate(var(--gx, 0px), var(--gy, 0px));
+  transform: translate(calc(var(--hraness-hero-drift-x, 0px) * 0.4), calc(var(--hraness-hero-drift-y, 0px) * 0.4));
   transform-box: fill-box;
   transition: transform 0.25s ease-out;
 }
@@ -3284,4 +3293,108 @@ body {
   .ghostget-spirit { inline-size: calc(var(--w) * 0.72); }
   .ghostget-blob { filter: blur(48px); opacity: 0.4; }
   .ghostget-edges { display: none; }
+}
+
+/* Shared material, with quieter reference pages and clear reading measures. */
+:root[data-palette] .guide-hero h1 {
+  font-weight: 650;
+  letter-spacing: -0.05em;
+  line-height: 1.04;
+}
+
+:root[data-palette] :is(.guide-article h2, .guide-callout h2) {
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.14;
+}
+
+:root[data-palette] :is(.answer-lede, .guide-article section > p, .guide-list, .guide-steps) {
+  max-inline-size: 70ch;
+  text-wrap: pretty;
+}
+
+:root[data-palette] :is(.breadcrumbs, .provider-adapter summary span:last-child) {
+  font-size: 0.875rem;
+}
+
+:root[data-palette] .review-note {
+  font-size: 1rem;
+}
+
+:root[data-palette] :is(.breadcrumbs, .guide-article > section, .provider-attestation-group) {
+  border: 0;
+}
+
+:root[data-palette] :is(.card, .provider-card, .provider-card-featured, .guide-callout, .demo-media video, .prompt-card) {
+  border: 0;
+  box-shadow: var(--hraness-material-lift, var(--elevation-low));
+}
+
+:root[data-palette] :is(.provider-mark, .editorial-card img) {
+  border: 0;
+}
+
+:root[data-palette] .command-panel {
+  border: 0;
+  box-shadow: var(--hraness-material-inset, var(--elevation-low));
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+:root[data-palette] :is(pre, .table-scroll) {
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+:root[data-palette] .command-panel code {
+  font-size: 0.875rem;
+}
+
+.ghostget-field::after {
+  background: radial-gradient(ellipse at 25% 48%, color-mix(in srgb, var(--background) 94%, transparent), color-mix(in srgb, var(--background) 74%, transparent) 42%, transparent 74%);
+  content: "";
+  inset: 0;
+  position: absolute;
+}
+
+.ghostget-card {
+  border: 0;
+  box-shadow: var(--hraness-material-lift, var(--elevation-low));
+}
+
+.ghostget-card,
+.ghostget-spirit {
+  transform: translate(var(--hraness-hero-drift-x, 0px), var(--hraness-hero-drift-y, 0px));
+}
+
+@media (forced-colors: active), (prefers-reduced-transparency: reduce), print {
+  .ghostget-field { display: none; }
+}
+
+@media (forced-colors: active) {
+  :root[data-palette] :is(.card, .provider-card, .provider-card-featured, .guide-callout, .prompt-card, .command-panel) {
+    border: 1px solid CanvasText;
+  }
+}
+
+/* One shared appearance controller serves every ordinary public header. */
+.ghostget-appearance[data-ready="false"] { display: none; }
+.ghostget-appearance { flex: 0 0 auto; margin-inline-start: auto; }
+.topbar > nav { margin-inline-start: auto; }
+.ghostget-appearance .hraness-design-theme-toggle__trigger {
+  border-color: transparent;
+  box-shadow: var(--elevation-low);
+}
+@media (max-width: 48rem) {
+  .hraness-marketing-header__actions { margin-inline-start: auto; }
+  .topbar.guide-topbar { flex-direction: row; align-items: center; }
+  .topbar > nav { order: 3; flex-basis: 100%; }
+}
+@media (forced-colors: active) {
+  .ghostget-appearance .hraness-design-theme-toggle__trigger {
+    border-color: ButtonText;
+    box-shadow: none;
+  }
 }
