@@ -1778,14 +1778,23 @@
 // with the same npm, so the change adds 669 packed and 2,014 unpacked bytes.
 // Carry the same projections and allowances: 12,026,837 + 12,387 + 4,096 =
 // 12,043,320 packed; 23,560,532 + 353 + 65 = 23,560,950 unpacked.
+// The run-intent arbitration change adds the run.by-intent host query and
+// scoped admission for every enrollment read, extends the plan window, and
+// carries its regression tests plus the regenerated dist chunk over the same
+// 598-file inventory. A clean `npm pack --ignore-scripts` with npm 11.19.0 on
+// darwin arm64 measured 12,039,276 packed bytes and 23,561,480 unpacked
+// bytes; archive SHA-256
+// a6f33eb557bfe7b5521c3bb884075270cadb0b7935f41d2015952343ea3fcd32.
+// Carry the same projections and allowances: 12,039,276 + 12,387 + 4,096 =
+// 12,055,759 packed; 23,561,480 + 353 + 65 = 23,561,898 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Release pages copied from the tagged changelog section",
+  scope: "Run-intent dispatch arbitration and full scoped-read admission",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "965bb06d1a290dc830bc9aa40c59dbd7b1ad3957b00e9afa15e04ac561bff6db",
-  packedBytes: 12_026_837,
-  unpackedBytes: 23_560_532,
+  archiveSha256: "a6f33eb557bfe7b5521c3bb884075270cadb0b7935f41d2015952343ea3fcd32",
+  packedBytes: 12_039_276,
+  unpackedBytes: 23_561_480,
   entryCount: 598,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
