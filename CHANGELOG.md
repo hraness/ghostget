@@ -7,6 +7,17 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.38
+
+- Admit released trees that legitimately differ from the reviewed pull request
+  head when main moved after the pull request diverged. The release source-CI
+  check now proves path-by-path that the merged tree carries only
+  byte-identical reviewed head content and byte-identical main-side changes,
+  rejecting unreviewed additions, dropped reviewed content, and conflict
+  resolutions. The v0.18.37 tag bound a squash merge whose parent had advanced
+  past the reviewed branch point, so its release could not pass the previous
+  exact-tree requirement. No product behavior changes.
+
 ## 0.18.37
 
 - Admit the current four-language dynamic CodeQL matrix in the release
