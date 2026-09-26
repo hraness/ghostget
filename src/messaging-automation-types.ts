@@ -65,6 +65,18 @@ export type AutomationProviderSendResult =
   | Readonly<{ state: "not-started"; reason: string }>
   | Readonly<{ state: "indeterminate"; reason: string }>;
 
+/** One cursor scope inside a multi-scope provider event read. The cursor is
+ * opaque to the host and validates against this scope's coordinates exactly as
+ * it does for a single `events` call. */
+export type AutomationEventScope = Readonly<{ coordinates: readonly AutomationCoordinate[]; cursor: string | null }>;
+export type AutomationScopedPage =
+  | Readonly<{ messages: readonly AutomationMessage[]; nextCursor: string; caughtUp: boolean; gap: boolean }>
+  | Readonly<{ error: string }>;
+/** One result per requested enrollment. An entry whose lane was busy with
+ * another operation reports its current stored row — not necessarily synced
+ * this tick — with `error: null`; callers must not assume it provider-synced. */
+export type AutomationPollResult = Readonly<{ enrollmentId: string; enrollment: AutomationEnrollment | null; error: string | null }>;
+
 /**
  * Trusted Ghostget host port, never handed to an agent. Production implementations
  * check existing operation permissions and exact identity before each operation.
@@ -81,6 +93,13 @@ export interface MessagingAutomationProvider {
   }>>;
   history(input: Readonly<{ coordinate: AutomationCoordinate; limit: number }>, signal?: AbortSignal): Promise<AutomationProviderPage>;
   events(input: Readonly<{ coordinates: readonly AutomationCoordinate[]; cursor: string | null; limit: number }>, signal?: AbortSignal): Promise<AutomationProviderPage>;
+  /** Optional multi-scope event read. Implementations may run one provider
+   * session across every scope instead of one session per `events` call; each
+   * scope keeps its own cursor and yields one ordered result. When absent the
+   * host issues per-scope `events` calls. */
+  eventsScoped?(input: Readonly<{ scopes: readonly AutomationEventScope[]; limit: number }>, signal?: AbortSignal): Promise<Readonly<{
+    identity: AutomationIdentity; results: readonly AutomationScopedPage[];
+  }>>;
   send(input: Readonly<{
     identity: AutomationIdentity;
     coordinate: AutomationCoordinate;
@@ -129,6 +148,10 @@ export interface MessagingAutomationHostApi {
   grantStatus(grantId: string): AutomationGrant;
   revoke(grantId: string): void;
   poll(enrollmentId: string, signal?: AbortSignal): Promise<AutomationEnrollment>;
+  /** Provider-syncs a set of enrollments, sharing provider sessions across
+   * them where the implementation supports it. Every requested enrollment
+   * yields exactly one result; per-enrollment failures never abort the set. */
+  pollEnrollments(enrollmentIds: readonly string[], signal?: AbortSignal): Promise<readonly AutomationPollResult[]>;
   events(input: Readonly<{ enrollmentIds: readonly string[]; cursor: string | null; limit: number }>): Readonly<{
     events: readonly AutomationEvent[]; nextCursor: string; caughtUp: boolean;
   }>;

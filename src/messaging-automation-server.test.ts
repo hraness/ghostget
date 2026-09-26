@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MessagingAutomationHost } from "./messaging-automation";
@@ -37,7 +37,7 @@ async function fixture() {
   };
   const provider: MessagingAutomationProvider = {
     provider: "whatsapp", inspect: async () => status, conversations: async () => ({ identity, conversations: [], complete: true }),
-    resolve: async () => ({ identity, conversation: { coordinate, title: "Synthetic", kind: "single", participants: [coordinate.conversationJid] } }),
+    resolve: async input => ({ identity, conversation: { coordinate: input, title: "Synthetic", kind: "single", participants: [(input as typeof coordinate).conversationJid] } }),
     history: async () => ({ identity, messages: [], nextCursor: "0", caughtUp: true, gap: false }),
     events: async () => ({ identity, messages: [], nextCursor: "0", caughtUp: true, gap: false }),
     send: (input, signal) => send(input, signal), close: async () => undefined,
@@ -48,7 +48,7 @@ async function fixture() {
   const request = async (method: string, params: unknown) => await server.handle({ protocol, id: String(++sequence), method, params }) as { ok: boolean; result: any; error?: { message: string; code: string } };
   cleanup.push(async () => { await server.close().catch(() => undefined); rmSync(directory, { recursive: true, force: true }); });
   expect(await request("initialize", { providers: [{ provider: "whatsapp", authId: "fixture" }] })).toMatchObject({ ok: true, result: { initialized: true } });
-  return { server, request, host, setSend: (next: typeof send) => { send = next; }, starts: () => starts, options: () => options! };
+  return { server, request, host, provider, setSend: (next: typeof send) => { send = next; }, starts: () => starts, options: () => options! };
 }
 test("fixed stdin-only CLI and non-dispatching action permission descriptors", () => {
   expect(parseGhostgetArguments(["messaging", "automation", "serve", "--stdio"])).toEqual({ ok: true, value: { command: "messaging-automation-serve" } });
@@ -92,6 +92,13 @@ test("production factory initializes without reading accounts and missing explic
   setOperationPermission({ adapterId: "imessage-direct", operationId: "messaging.automation.read", authId: "synthetic-account", decision: "ask", expectedRevision: description.revision, expectedCapabilityDigest: description.digest }, { environment, registry });
   await expect(session.host.providerStatus("imessage")).rejects.toThrow("Explicit managed operation allow required");
 });
+test("production factory forwards the optional scoped-events surface through custody", () => {
+  // `eventsScoped` is optional, so TypeScript cannot catch the factory
+  // dropping it — and with the method missing, every scoped poll silently
+  // falls back to one custody session per enrollment. Pin the forwarding.
+  const source = readFileSync(join(import.meta.dir, "messaging-automation-factory.ts"), "utf8");
+  expect(source).toMatch(/eventsScoped:\s*\(input[^)]*\)[^=]*=>\s*call\(\(\)\s*=>\s*concrete\.eventsScoped!/u);
+});
 test("initialize and inspection never imply sync; malformed fields fail without private diagnostics", async () => {
   const f = await fixture(); expect(f.starts()).toBe(0);
   expect(await f.request("status", { provider: "whatsapp" })).toMatchObject({ ok: true, result: status }); expect(f.starts()).toBe(0);
@@ -126,10 +133,139 @@ test("priority cancel and revoke run during pending submit, while ordinary work 
   let entered!: () => void; const started = new Promise<void>(resolve => { entered = resolve; }); let calls = 0;
   f.setSend(async (_input, signal) => { calls++; entered(); await new Promise<void>(resolve => { if (signal?.aborted) resolve(); else signal?.addEventListener("abort", () => resolve(), { once: true }); }); return { state: "not-started", reason: "Synthetic owner cancellation" }; });
   const sending = f.request("submit", { planId: plan.id, grantId: grant.id }); await started;
-  expect(await f.request("status", { provider: "whatsapp" })).toMatchObject({ ok: false, error: { code: "not-ready" } });
+  // Submit holds only its enrollment lane; unrelated ordinary work proceeds.
+  expect(await f.request("status", { provider: "whatsapp" })).toMatchObject({ ok: true, result: status });
+  // The ordinary lane still bounds itself: while one normal request runs, the
+  // next is refused rather than queued.
+  let releaseStatus!: () => void; const statusGate = new Promise<void>(resolve => { releaseStatus = resolve; });
+  const originalStatus = f.host.providerStatus.bind(f.host); let statusCalls = 0;
+  f.host.providerStatus = async (selected, signal) => { if (++statusCalls === 1) await statusGate; return originalStatus(selected, signal); };
+  const held = f.request("status", { provider: "whatsapp" });
+  while (statusCalls === 0) await new Promise<void>(resolve => setImmediate(resolve));
+  expect(await f.request("events", { enrollmentIds: [enrollment.id], cursor: null, limit: 10 })).toMatchObject({ ok: false, error: { code: "not-ready" } });
+  releaseStatus(); expect(await held).toMatchObject({ ok: true });
   expect(await f.request("revoke", { grantId: grant.id })).toMatchObject({ ok: true, result: { revoked: true } });
   expect(await f.request("cancel", { planId: plan.id })).toMatchObject({ ok: true, result: { cancelled: true } });
   expect((await sending).ok).toBe(true); expect(calls).toBe(1);
+});
+test("enrollment lanes overlap across conversations, serialize within one, and cover submit", async () => {
+  const f = await fixture();
+  const first = (await f.request("enroll", { provider: "whatsapp", coordinate })).result;
+  const second = (await f.request("enroll", { provider: "whatsapp", coordinate: { provider: "whatsapp", conversationJid: "15559876543@s.whatsapp.net" } })).result;
+  expect(second.id).not.toBe(first.id);
+  const grant = (await f.request("grant", { intentId: "fixture:lane-grant", enrollmentId: first.id, expectedBindingDigest: first.bindingDigest, actions: ["text"], expiresAt: new Date(Date.now() + 300_000).toISOString(), maximumActions: 2, minimumIntervalMs: 0 })).result;
+  const plan = (await f.request("prepare", { enrollmentId: first.id, expectedRevision: 0, intentId: "fixture:lane-plan", actions: [{ kind: "text", text: "Synthetic" }] })).result;
+  const until = (check: () => boolean) => new Promise<void>((resolve, reject) => { const attempt = () => check() ? resolve() : setImmediate(attempt); attempt(); setTimeout(() => reject(new Error("Timed out waiting for lane state")), 5_000).unref(); });
+  let releasePoll!: () => void; const pollGate = new Promise<void>(resolve => { releasePoll = resolve; });
+  const polls: string[] = []; let submits = 0;
+  const originalPoll = f.host.poll.bind(f.host); f.host.poll = async (id, signal) => { polls.push(id); if (id === first.id) await pollGate; return originalPoll(id, signal); };
+  const originalSubmit = f.host.submit.bind(f.host); f.host.submit = (input, signal) => { submits++; return originalSubmit(input, signal); };
+  try {
+    const pending = f.request("poll", { enrollmentId: first.id });
+    await until(() => polls.length === 1);
+    // A different enrollment runs beside the held one and completes.
+    await expect(f.request("poll", { enrollmentId: second.id })).resolves.toMatchObject({ ok: true });
+    expect(polls).toEqual([first.id, second.id]);
+    // Same-enrollment requests queue on the lane instead of racing the cursor claim.
+    const queued = f.request("poll", { enrollmentId: first.id });
+    const submission = f.request("submit", { planId: plan.id, grantId: grant.id });
+    await new Promise<void>(resolve => setTimeout(resolve, 25));
+    expect(polls).toEqual([first.id, second.id]); expect(submits).toBe(0);
+    releasePoll();
+    await expect(pending).resolves.toMatchObject({ ok: true });
+    await expect(queued).resolves.toMatchObject({ ok: true });
+    // The queued same-enrollment poll runs before submit reaches the lane;
+    // submit's own internal poll may already have appended beside it.
+    expect(polls.slice(0, 3)).toEqual([first.id, second.id, first.id]);
+    await expect(submission).resolves.toMatchObject({ ok: true, result: { state: "accepted" } });
+    expect(submits).toBe(1);
+  } finally { releasePoll(); }
+});
+
+test("pollSet shares one scoped provider read, keeps per-scope cursors, and reports each enrollment", async () => {
+  const f = await fixture();
+  const first = (await f.request("enroll", { provider: "whatsapp", coordinate })).result;
+  const second = (await f.request("enroll", { provider: "whatsapp", coordinate: { provider: "whatsapp", conversationJid: "15559876543@s.whatsapp.net" } })).result;
+  let plainCalls = 0; const scopedCalls: number[] = [];
+  const originalEvents = f.provider.events.bind(f.provider); f.provider.events = async input => { plainCalls++; return originalEvents(input); };
+  // Without eventsScoped the host issues one events call per enrollment.
+  const fallback = await f.request("pollSet", { enrollmentIds: [first.id, second.id] });
+  expect(fallback).toMatchObject({ ok: true });
+  expect(fallback.result.results).toHaveLength(2);
+  expect(plainCalls).toBe(2);
+  // With eventsScoped the whole set costs a single provider call; each scope
+  // still returns its own cursor so later single-enrollment polls resume.
+  f.provider.eventsScoped = async input => {
+    scopedCalls.push(input.scopes.length);
+    return { identity, results: input.scopes.map(() => ({ messages: [], nextCursor: "1", caughtUp: true, gap: false })) };
+  };
+  const scoped = await f.request("pollSet", { enrollmentIds: [first.id, second.id] });
+  expect(scoped).toMatchObject({ ok: true });
+  expect(scoped.result.results.map((entry: { enrollmentId: string }) => entry.enrollmentId).sort()).toEqual([first.id, second.id].sort());
+  expect(scoped.result.results.every((entry: { error: string | null }) => entry.error === null)).toBe(true);
+  expect(scopedCalls).toEqual([2]); expect(plainCalls).toBe(2);
+  for (const entry of scoped.result.results as { enrollment: { ready: boolean } }[]) expect(entry.enrollment.ready).toBe(true);
+  // A provider-side scope failure is isolated to that enrollment's result.
+  f.provider.eventsScoped = async () => ({ identity, results: [{ messages: [], nextCursor: "1", caughtUp: true, gap: false }, { error: "synthetic scope failure" }] });
+  const partial = await f.request("pollSet", { enrollmentIds: [first.id, second.id] });
+  expect(partial).toMatchObject({ ok: true });
+  const byId = new Map((partial.result.results as { enrollmentId: string; error: string | null }[]).map(entry => [entry.enrollmentId, entry.error]));
+  expect(byId.size).toBe(2);
+  expect([...byId.values()].filter(error => error === null)).toHaveLength(1);
+  expect([...byId.values()]).toContain("synthetic scope failure");
+});
+
+test("pollSet skips an enrollment whose lane is running another operation", async () => {
+  const f = await fixture();
+  const first = (await f.request("enroll", { provider: "whatsapp", coordinate })).result;
+  const second = (await f.request("enroll", { provider: "whatsapp", coordinate: { provider: "whatsapp", conversationJid: "15559876543@s.whatsapp.net" } })).result;
+  const grant = (await f.request("grant", { intentId: "fixture:set-grant", enrollmentId: first.id, expectedBindingDigest: first.bindingDigest, actions: ["text"], expiresAt: new Date(Date.now() + 300_000).toISOString(), maximumActions: 2, minimumIntervalMs: 0 })).result;
+  const plan = (await f.request("prepare", { enrollmentId: first.id, expectedRevision: 0, intentId: "fixture:set-plan", actions: [{ kind: "text", text: "Synthetic" }] })).result;
+  let release!: () => void; let entered!: () => void;
+  const started = new Promise<void>(resolve => { entered = resolve; }); const gate = new Promise<void>(resolve => { release = resolve; });
+  f.setSend(async (_input, signal) => { entered(); await Promise.race([gate, new Promise<void>(resolve => { if (signal?.aborted) resolve(); else signal?.addEventListener("abort", () => resolve(), { once: true }); })]); return { state: "not-started", reason: "Synthetic owner cancellation" }; });
+  const sending = f.request("submit", { planId: plan.id, grantId: grant.id }); await started;
+  try {
+    const observed: string[][] = []; const original = f.host.pollEnrollments.bind(f.host);
+    f.host.pollEnrollments = async (ids, signal) => { observed.push([...ids]); return original(ids, signal); };
+    const set = await f.request("pollSet", { enrollmentIds: [first.id, second.id] });
+    expect(set).toMatchObject({ ok: true });
+    // The busy lane is not awaited or re-polled; it reports its current row.
+    expect(observed).toEqual([[second.id]]);
+    const byId = new Map((set.result.results as { enrollmentId: string; enrollment: { id: string } | null; error: string | null }[]).map(entry => [entry.enrollmentId, entry]));
+    expect(byId.get(first.id)?.enrollment?.id).toBe(first.id); expect(byId.get(first.id)?.error).toBe(null);
+    expect(byId.get(second.id)?.enrollment?.id).toBe(second.id); expect(byId.get(second.id)?.error).toBe(null);
+  } finally { release(); expect((await sending).ok).toBe(true); }
+});
+
+test("concurrent submits on different enrollments keep their own plan-scoped assets", async () => {
+  const f = await fixture();
+  const first = (await f.request("enroll", { provider: "whatsapp", coordinate })).result;
+  const second = (await f.request("enroll", { provider: "whatsapp", coordinate: { provider: "whatsapp", conversationJid: "15559876543@s.whatsapp.net" } })).result;
+  const digest = (value: string) => createHash("sha256").update(value).digest("hex");
+  const assetOne = (await f.request("asset", { bytesBase64: Buffer.from("one").toString("base64"), sha256: digest("one") })).result;
+  const assetTwo = (await f.request("asset", { bytesBase64: Buffer.from("two").toString("base64"), sha256: digest("two") })).result;
+  const grants = await Promise.all([first, second].map((enrollment, index) =>
+    f.request("grant", { intentId: `fixture:pair-grant-${index}`, enrollmentId: enrollment.id, expectedBindingDigest: enrollment.bindingDigest, actions: ["attachment"], expiresAt: new Date(Date.now() + 300_000).toISOString(), maximumActions: 2, minimumIntervalMs: 0 })));
+  const plans = await Promise.all([[first, assetOne], [second, assetTwo]].map(([enrollment, asset], index) =>
+    f.request("prepare", { enrollmentId: enrollment.id, expectedRevision: 0, intentId: `fixture:pair-plan-${index}`, actions: [{ kind: "attachment", assetId: asset.assetId, name: "sample.txt", mimeType: "text/plain" }] })));
+  let release!: () => void; let entered = 0; let both!: () => void;
+  const started = new Promise<void>(resolve => { both = resolve; }); const gate = new Promise<void>(resolve => { release = resolve; });
+  // Both sends overlap while holding their own plans; a single executing-plan
+  // slot would let the second submit evict the first's asset binding.
+  f.setSend(async input => {
+    if (++entered === 2) both(); await gate;
+    const asset = input.action.kind === "attachment" ? await f.options().resolveAsset(input.action.assetId) : null;
+    return { state: "accepted", messageId: `sent:${asset ? Buffer.from(asset.bytes).toString() : "none"}`, providerReceiptId: null, delivery: "unknown" };
+  });
+  const sending = Promise.all([f.request("submit", { planId: plans[0]!.result.id, grantId: grants[0]!.result.id }), f.request("submit", { planId: plans[1]!.result.id, grantId: grants[1]!.result.id })]);
+  await started; release();
+  const [a, b] = await sending;
+  expect(a).toMatchObject({ ok: true, result: { state: "accepted" } });
+  expect(b).toMatchObject({ ok: true, result: { state: "accepted" } });
+  expect(a.result.accepted[0]?.messageId).toBe("sent:one"); expect(b.result.accepted[0]?.messageId).toBe("sent:two");
+  await expect(f.options().resolveAsset(assetOne.assetId)).rejects.toThrow();
+  await expect(f.options().resolveAsset(assetTwo.assetId)).rejects.toThrow();
 });
 
 

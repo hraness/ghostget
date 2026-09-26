@@ -27,9 +27,14 @@ export class MessagingAutomationRpcServer {
   private closed = false;
   private normalBusy = false;
   private priorityBusy = 0;
+  private scopedBusy = 0;
+  private readonly enrollmentChains = new Map<string, Promise<unknown>>();
   private readonly requests = new Set<string>();
   private readonly assets = new Map<string, Asset>();
-  private executingPlan: string | null = null;
+  /** Plans currently inside submit(). Multiple scoped submits may run on
+   * different enrollment lanes, so asset resolution and sweeps consult the
+   * whole set; a plan-scoped asset is eligible only while its plan executes. */
+  private readonly executingPlans = new Set<string>();
   private readonly abort = new AbortController();
   private closing: Promise<void> | undefined;
   constructor(private readonly options: Readonly<{
@@ -38,7 +43,7 @@ export class MessagingAutomationRpcServer {
     createSession?: typeof createMessagingAutomationSession;
   }>) {}
   private now() { return this.options.now?.() ?? Date.now(); }
-  private sweep() { for (const [id, asset] of this.assets) if (asset.expires <= this.now() && asset.plan !== this.executingPlan) this.assets.delete(id); }
+  private sweep() { for (const [id, asset] of this.assets) if (asset.expires <= this.now() && (asset.plan === null || !this.executingPlans.has(asset.plan))) this.assets.delete(id); }
   private host() { if (!this.session || this.closed) throw new Error("Host not ready"); return this.session.host; }
   private async dispatch(method: string, raw: unknown): Promise<unknown> {
     this.sweep();
@@ -56,7 +61,7 @@ export class MessagingAutomationRpcServer {
         providers: accounts, environment: this.options.environment, registry: this.options.registry,
         resolveAsset: async id => {
           this.sweep(); const asset = this.assets.get(id);
-          if (!asset || !this.executingPlan || asset.plan !== this.executingPlan || asset.expires <= this.now()) throw new Error("Asset is unavailable for this plan");
+          if (!asset || asset.plan === null || !this.executingPlans.has(asset.plan) || asset.expires <= this.now()) throw new Error("Asset is unavailable for this plan");
           return { bytes: new Uint8Array(asset.bytes), sha256: asset.sha256 };
         },
       });
@@ -107,27 +112,86 @@ export class MessagingAutomationRpcServer {
       return plan;
     }
     if (method === "submit") {
-      const r = automationRecord(raw, ["planId", "grantId"]); const planId = automationId(r.planId); this.executingPlan = planId;
+      const r = automationRecord(raw, ["planId", "grantId"]); const planId = automationId(r.planId); this.executingPlans.add(planId);
       try { return await host.submit({ planId, grantId: automationId(r.grantId) }, this.abort.signal); }
-      finally { this.executingPlan = null; for (const [id, asset] of this.assets) if (asset.plan === planId) this.assets.delete(id); }
+      finally { this.executingPlans.delete(planId); for (const [id, asset] of this.assets) if (asset.plan === planId) this.assets.delete(id); }
     }
     if (method === "run") { const r = automationRecord(raw, ["runId"]); return host.run(automationId(r.runId)); }
     throw new Error("Unknown method");
   }
+  /** Enrollment-scoped methods keep total order per enrollment but run
+   * concurrently across different enrollments: a poll on one conversation must
+   * not starve independent polls, reads and dispatches on the others. The
+   * journal's cursor claim and active-run checks already reject same-enrollment
+   * overlap; the chain turns that rejection into ordinary queueing. */
+  private async enrollmentKey(method: string, raw: unknown): Promise<string | null> {
+    const params = raw !== null && typeof raw === "object" ? raw as Record<string, unknown> : {};
+    if (method === "submit") return typeof params.planId === "string" ? this.host().planEnrollment(params.planId) : null;
+    return typeof params.enrollmentId === "string" ? params.enrollmentId : null;
+  }
+  /** A set poll joins every listed enrollment lane at once and shares one
+   * provider session across them. Lanes already running another operation are
+   * skipped rather than awaited — their owner is already syncing that journal —
+   * and report their current stored row, which may not have synced this tick
+   * (a mid-operation state is bounded; the next pollSet re-syncs it). */
+  private async dispatchPollSet(raw: unknown): Promise<unknown> {
+    const r = automationRecord(raw, ["enrollmentIds"]);
+    const ids = [...new Set(automationArray(r.enrollmentIds, 50).map(automationId))].sort();
+    const free: string[] = [], busy: string[] = [];
+    for (const id of ids) (this.enrollmentChains.has(id) ? busy : free).push(id);
+    // Classify and claim run in one synchronous stretch, so a free lane is
+    // provably unclaimed here — its tail is just this operation's gate.
+    const releases: (() => void)[] = [], tails: [string, Promise<unknown>][] = [];
+    for (const key of free) {
+      let release!: () => void;
+      const tail = new Promise<void>(resolve => { release = resolve; });
+      this.enrollmentChains.set(key, tail); tails.push([key, tail]);
+      releases.push(release);
+    }
+    try {
+      const host = this.host();
+      const results = free.length === 0 ? [] : [...await host.pollEnrollments(free, this.abort.signal)];
+      if (busy.length > 0) {
+        let rows: ReturnType<typeof host.enrollments> = [];
+        try { rows = host.enrollments(); } catch { /* a corrupt unrelated row degrades busy entries below */ }
+        for (const id of busy) {
+          const enrollment = rows.find(item => item.id === id) ?? null;
+          results.push({ enrollmentId: id, enrollment, error: enrollment === null ? "Messaging enrollment is unavailable." : null });
+        }
+      }
+      return { results };
+    } finally {
+      for (const release of releases) release();
+      for (const [key, tail] of tails) void tail.then(() => { if (this.enrollmentChains.get(key) === tail) this.enrollmentChains.delete(key); });
+    }
+  }
+  private async dispatchScoped(method: string, raw: unknown): Promise<unknown> {
+    if (method === "pollSet") return this.dispatchPollSet(raw);
+    const key = await this.enrollmentKey(method, raw);
+    if (key === null) return this.dispatch(method, raw);
+    const previous = this.enrollmentChains.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const tail = previous.then(() => gate);
+    this.enrollmentChains.set(key, tail);
+    try { await previous; return await this.dispatch(method, raw); }
+    finally { release(); void tail.then(() => { if (this.enrollmentChains.get(key) === tail) this.enrollmentChains.delete(key); }); }
+  }
   async handle(value: unknown): Promise<unknown> {
-    let id = "invalid", method = "", priority = false, admitted = false;
+    let id = "invalid", method = "", priority = false, scoped = false, admitted = false;
     try {
       const r = automationRecord(value, ["protocol", "id", "method", "params"]);
       id = automationText(r.id, 64); if (!/^[A-Za-z0-9._:-]+$/u.test(id) || r.protocol !== protocol) throw new Error("Invalid envelope");
       method = automationText(r.method, 32); priority = ["cancel", "revoke", "close"].includes(method);
-      if (this.requests.has(id) || (priority ? this.priorityBusy >= 8 : this.normalBusy)) return { protocol, id, ok: false, error: { code: "not-ready", message: "The owner host is busy or this request is already active." } };
+      scoped = ["poll", "pollSet", "history", "prepare", "grant", "submit"].includes(method);
+      if (this.requests.has(id) || (priority ? this.priorityBusy >= 8 : scoped ? this.scopedBusy >= 16 : this.normalBusy)) return { protocol, id, ok: false, error: { code: "not-ready", message: "The owner host is busy or this request is already active." } };
       this.requests.add(id); admitted = true;
-      if (priority) this.priorityBusy++; else this.normalBusy = true;
-      const result = await this.dispatch(method, r.params);
+      if (priority) this.priorityBusy++; else if (scoped) this.scopedBusy++; else this.normalBusy = true;
+      const result = scoped ? await this.dispatchScoped(method, r.params) : await this.dispatch(method, r.params);
       return { protocol, id, ok: true, result };
     } catch (error) {
       return { protocol, id, ok: false, error: { code: error instanceof AutomationHostRecoveryRequired ? "recovery-required" : this.closed ? "not-ready" : "unavailable", message: error instanceof AutomationHostRecoveryRequired ? "Provider cleanup requires explicit host recovery; this instance cannot continue." : (!this.closed && method === "conversations" ? discoveryDiagnosticMessage(error) : null) ?? "The requested operation is unavailable. Review account permissions, provider setup, scope and current state." } };
-    } finally { if (admitted) { this.requests.delete(id); if (priority) this.priorityBusy--; else this.normalBusy = false; } }
+    } finally { if (admitted) { this.requests.delete(id); if (priority) this.priorityBusy--; else if (scoped) this.scopedBusy--; else this.normalBusy = false; } }
   }
   close(): Promise<void> {
     this.closed = true; this.abort.abort(); this.assets.clear();

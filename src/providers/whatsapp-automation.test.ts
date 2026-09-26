@@ -93,6 +93,23 @@ test("WhatsApp reaction events retain changes and removals in their public conte
   const page = await f.provider.events({ coordinates: [target], cursor: history.nextCursor, limit: 10 });
   expect(page.messages.map(value => [value.kind, value.text])).toEqual([["reaction", "👍"], ["reaction", "❤️"], ["reaction", null]]);
 });
+test("WhatsApp concurrent operations queue on the provider instead of rejecting", async () => {
+  const f = fixture(); await f.provider.start(); const identity = (await f.provider.inspect()).identity;
+  f.state.pauseRequest = true;
+  const entered = new Promise<void>(resolve => { f.state.entered = resolve; });
+  const controller = new AbortController();
+  const sending = f.provider.send({ identity, coordinate: target, intentId: "queued", action: { kind: "text", text: "synthetic" } }, controller.signal);
+  await entered;
+  const inspected = f.provider.inspect();
+  let settled = false; void inspected.then(() => { settled = true; }, () => { settled = true; });
+  await new Promise(resolve => setTimeout(resolve, 25));
+  // Queued behind the held send — neither rejected nor started early.
+  expect(settled).toBe(false); expect(f.operations.filter(operation => operation === "inspect").length).toBe(2);
+  controller.abort();
+  await expect(inspected).resolves.toMatchObject({ connected: true });
+  expect((await sending).state).toBe("indeterminate");
+  await f.provider.close();
+});
 test("WhatsApp lost receipt stays indeterminate and close cancels then joins active work", async () => {
   const f = fixture(); await f.provider.start(); const identity = (await f.provider.inspect()).identity; f.state.failReceipt = true;
   const input = { identity, coordinate: target, intentId: "uncertain", action: { kind: "text" as const, text: "synthetic" } };

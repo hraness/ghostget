@@ -19,16 +19,17 @@ function fixture(route = target) {
   const database = join(directory, "chat.db"); writeFileSync(database, "synthetic", { mode: 0o600 });
   const calls: { method: string; params: Record<string, unknown> }[] = [];
   const admissions: ImsgAutomationOperation[] = []; const barriers: Promise<void>[] = [];
-  const state = { faultMethod: "chats.list", fault: "", databaseReady: true, revokeOnChats: false, changeIdentityOnChats: false, injectedCode: null as DiscoveryDiagnosticCode | null, bridge: true, malformed: false, linkQueued: false, linkConflict: false, accountIdentity: "a".repeat(64), foreign: false, replace: false, anchorChanged: false, authorizationError: false, revokeOnAsset: false, bytes: Buffer.from("test attachment"), hash: "", historyAttachments: [] as unknown[], chats: [{ ...chat, id: route.observedChatRowId, guid: route.chatGuid }] as Record<string, unknown>[], exactChat: { ...chat, id: route.observedChatRowId, guid: route.chatGuid } as Record<string, unknown> };
+  const state = { faultMethod: "chats.list", fault: "", databaseReady: true, revokeOnChats: false, changeIdentityOnChats: false, injectedCode: null as DiscoveryDiagnosticCode | null, bridge: true, malformed: false, linkQueued: false, linkConflict: false, accountIdentity: "a".repeat(64), foreign: false, replace: false, anchorChanged: false, authorizationError: false, revokeOnAsset: false, bytes: Buffer.from("test attachment"), hash: "", historyAttachments: [] as unknown[], sessions: 0, holdAuthorize: null as Promise<void> | null, chats: [{ ...chat, id: route.observedChatRowId, guid: route.chatGuid }] as Record<string, unknown>[], exactChat: { ...chat, id: route.observedChatRowId, guid: route.chatGuid } as Record<string, unknown> };
   state.hash = createHash("sha256").update(state.bytes).digest("hex");
   const readMethods = ["status", "chats.list", "chats.get", "messages.history", "messages.after", "send", "message.send_status"];
   const provider = createImsgAutomationProvider({
-    async authorize(operation) { admissions.push(operation); if (state.authorizationError) throw new Error("revoked"); return { auth: { schemaVersion: 1, id: "imessage-fixture", kind: "linked-device-store", provider: "imessage", path: directory }, accountIdentity: state.accountIdentity, implementationIdentity: "b".repeat(64) }; },
+    async authorize(operation) { admissions.push(operation); if (state.holdAuthorize) { const gate = state.holdAuthorize; state.holdAuthorize = null; await gate; } if (state.authorizationError) throw new Error("revoked"); return { auth: { schemaVersion: 1, id: "imessage-fixture", kind: "linked-device-store", provider: "imessage", path: directory }, accountIdentity: state.accountIdentity, implementationIdentity: "b".repeat(64) }; },
     execution: { registerCleanupBarrier(barrier) { barriers.push(barrier); return () => {}; } },
     async resolveAsset() { if (state.revokeOnAsset) state.authorizationError = true; return { bytes: state.bytes, sha256: state.hash }; },
     dependencies: {
       binaryPath: "/synthetic/imsg", expectedMessagesStorePath: directory,
       async run(invocation) {
+        state.sessions++;
         await invocation.beforeSpawn?.();
         const replies = [];
         for (const line of invocation.stdin.trim().split("\n")) {
@@ -179,6 +180,50 @@ test("permission revoked during attachment admission prevents the provider send"
   const f = fixture(); f.state.revokeOnAsset = true;
   expect((await f.send({ kind: "attachment", assetId: "asset-1", name: "fixture.txt", mimeType: "text/plain" })).state).toBe("not-started");
   expect(f.calls.filter(call => call.method === "send")).toHaveLength(0); await f.close();
+});
+
+test("iMessage concurrent operations queue on the provider instead of rejecting", async () => {
+  const f = fixture();
+  let release!: () => void; f.state.holdAuthorize = new Promise<void>(resolve => { release = resolve; });
+  const first = f.provider.inspect();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  const second = f.provider.history({ coordinate: target, limit: 10 });
+  let secondSettled = false; void second.then(() => { secondSettled = true; }, () => { secondSettled = true; });
+  await new Promise(resolve => setTimeout(resolve, 25));
+  // Queued, not rejected and not started: the busy provider is a wait, not a fence.
+  expect(secondSettled).toBe(false); expect(f.calls.filter(call => call.method === "messages.history")).toHaveLength(0);
+  release();
+  await expect(first).resolves.toMatchObject({ connected: true });
+  await expect(second).resolves.toMatchObject({ caughtUp: false });
+  expect(f.calls.some(call => call.method === "messages.history")).toBe(true);
+  await f.close();
+});
+
+test("iMessage scoped events share one admission and isolate per-scope failures", async () => {
+  const f = fixture();
+  const beforeAdmissions = f.admissions.length;
+  const scoped = await f.provider.eventsScoped!({ scopes: [{ coordinates: [target], cursor: null }], limit: 10 });
+  expect(scoped.results).toHaveLength(1);
+  const page = scoped.results[0]!; expect("error" in page).toBe(false);
+  if ("error" in page) return;
+  expect(page.messages.map(value => value.id)).toEqual(["fixture-guid"]); expect(page.caughtUp).toBe(true);
+  // One session = one authorize plus one reauthorization; two plain events
+  // calls would admit twice as much.
+  expect(f.admissions.length - beforeAdmissions).toBe(2);
+  const resumed = await f.provider.eventsScoped!({
+    scopes: [
+      { coordinates: [target], cursor: page.nextCursor },
+      { coordinates: [target], cursor: "not-json" },
+    ], limit: 10,
+  });
+  expect(resumed.results).toHaveLength(2);
+  const resumedPage = resumed.results[0]!; expect("error" in resumedPage).toBe(false);
+  if (!("error" in resumedPage)) expect(resumedPage.messages).toHaveLength(0);
+  expect(resumed.results[1]).toMatchObject({ error: expect.any(String) });
+  // The scoped cursor is a real single-coordinate cursor: a plain events poll resumes it.
+  const next = await f.provider.events({ coordinates: [target], cursor: page.nextCursor, limit: 10 });
+  expect(next.messages).toHaveLength(0); expect(next.caughtUp).toBe(true);
+  await f.close();
 });
 
 
