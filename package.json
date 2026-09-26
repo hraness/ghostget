@@ -1,6 +1,6 @@
 {
   "name": "@hraness/ghostget",
-  "version": "0.18.37",
+  "version": "0.18.38",
   "description": "Ghostget gives your AI agent named web actions: read a page, archive one media item, or use a connected account, without credentials or a browser to steer.",
 
   "license": "MIT",

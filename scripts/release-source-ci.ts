@@ -173,7 +173,9 @@ function security(read: SourceCiReader, input: SourceCiInput, codeql: ReturnType
   repository(base.repo); repository(head.repo);
   const headSha = text(head.sha); requireValue(SHA.test(headSha), "invalid reviewed PR source");
   const headCommit = object(read(`${PREFIX}/git/commits/${headSha}`));
-  requireValue(headCommit.sha === headSha && object(headCommit.tree).sha === input.tree, "reviewed PR tree differs from release source");
+  const headTree = text(object(headCommit.tree).sha);
+  requireValue(headCommit.sha === headSha && SHA.test(headTree), "reviewed PR source differs");
+  if (headTree !== input.tree) mergedTree(read, input, pr, headSha, headTree);
   const prComparison = comparison(read, headSha, pr);
   const mainComparison = comparison(read, input.source);
   const intervalStart = Math.min(...codeql.jobs.map(job => timestamp(job.started_at)));
@@ -205,6 +207,51 @@ function security(read: SourceCiReader, input: SourceCiInput, codeql: ReturnType
   }).sort((left, right) => left.category.localeCompare(right.category));
   return { pullRequest: number, reviewedHead: headSha, sameMergedTree: input.tree, prComparison, mainComparison, exactAnalyses,
     distinction: "Successful PR security comparison and successful exact-main analyses; result counts do not assert zero alerts." };
+}
+
+type TreeEntry = Readonly<{ mode: string; type: string; sha: string }>;
+function treeEntries(read: SourceCiReader, treeSha: string): Map<string, TreeEntry> {
+  const data = object(read(`${PREFIX}/git/trees/${treeSha}?recursive=1`));
+  requireValue(text(data.sha) === treeSha && data.truncated === false, "provider tree is missing or truncated");
+  const raw = data.tree;
+  requireValue(Array.isArray(raw) && raw.length <= 100_000, "missing or oversized provider tree");
+  const entries = new Map<string, TreeEntry>();
+  for (const value of raw) {
+    const entry = object(value); const path = text(entry.path);
+    const item = { mode: text(entry.mode), type: text(entry.type), sha: text(entry.sha) };
+    requireValue(SHA.test(item.sha) && (item.type === "blob" || item.type === "tree" || item.type === "commit"),
+      "invalid provider tree entry");
+    requireValue(!entries.has(path), "duplicate provider tree path");
+    entries.set(path, item);
+  }
+  return entries;
+}
+function commitTree(read: SourceCiReader, sha: string): string {
+  const commit = object(read(`${PREFIX}/git/commits/${sha}`));
+  const tree = text(object(commit.tree).sha);
+  requireValue(commit.sha === sha && SHA.test(tree), "provider commit tree differs");
+  return tree;
+}
+// A squash or merge integration may legitimately carry a tree that differs
+// from the reviewed head when main moved after the pull request diverged. The
+// released tree is still admissible only when every path is byte-identical to
+// a reviewed side: unchanged paths keep the reviewed head's entry, main-side
+// changes keep the merged parent's entry, and any path both sides changed is
+// unreviewable merge resolution and is rejected.
+function mergedTree(read: SourceCiReader, input: SourceCiInput, pr: ObjectValue, headSha: string, headTree: string) {
+  const mergeBase = text(pr.merge_base_sha); requireValue(SHA.test(mergeBase), "invalid pull request merge base");
+  const source = object(read(`${PREFIX}/git/commits/${input.source}`));
+  const parents = array(source.parents).map(object).map(parent => text(parent.sha));
+  requireValue(source.sha === input.source && parents.every(sha => SHA.test(sha))
+    && (parents.length === 1 || (parents.length === 2 && parents[1] === headSha)), "merged source parentage differs");
+  const [headT, sourceT, baseT, parentT] = [headTree, input.tree, commitTree(read, mergeBase), commitTree(read, parents[0]!)]
+    .map(sha => treeEntries(read, sha));
+  for (const path of new Set([...headT.keys(), ...sourceT.keys(), ...baseT.keys(), ...parentT.keys()])) {
+    const base = baseT.get(path); const head = headT.get(path); const parent = parentT.get(path); const merged = sourceT.get(path);
+    const mainMoved = !isDeepStrictEqual(base, parent); const reviewedMoved = !isDeepStrictEqual(base, head);
+    requireValue(!(mainMoved && reviewedMoved), "release source contains an unreviewed merge resolution");
+    requireValue(isDeepStrictEqual(merged, mainMoved ? parent : head), "release source differs from the reviewed merge result");
+  }
 }
 
 /** One read-only admission, with a fresh second control snapshot; never polls or dispatches CI. */

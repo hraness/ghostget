@@ -1757,14 +1757,24 @@
 // ed90b463e90de04a24c08eb2346c738a792d0b3be178ed263673ead86713cd9b.
 // Carry the same projections and allowances: 12,038,177 + 12,387 + 4,096 =
 // 12,054,660 packed; 23,557,921 + 353 + 65 = 23,558,339 unpacked.
+// The moved-main release-source admission adds the provider-tree proof for
+// merges whose parent advanced past the reviewed branch point, its fixtures
+// and tests, and the 0.18.38 version bump across package.json,
+// CHANGELOG.md, and the regenerated dist bundles over the same 598-file
+// inventory. A clean `npm pack --ignore-scripts` with npm 11.16.0 on darwin
+// arm64 measured 12,038,377 packed bytes and 23,558,518 unpacked bytes;
+// archive SHA-256
+// 34055b94c3b432755cbf9790246e2fd5870479c6302413c3ea56745924bc1f64.
+// Carry the same projections and allowances: 12,038,377 + 12,387 + 4,096 =
+// 12,054,860 packed; 23,558,518 + 353 + 65 = 23,558,936 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Release source-CI admission for the four-language CodeQL matrix",
+  scope: "Release source-CI admission for main-moved merge trees",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "ed90b463e90de04a24c08eb2346c738a792d0b3be178ed263673ead86713cd9b",
-  packedBytes: 12_038_177,
-  unpackedBytes: 23_557_921,
+  archiveSha256: "34055b94c3b432755cbf9790246e2fd5870479c6302413c3ea56745924bc1f64",
+  packedBytes: 12_038_377,
+  unpackedBytes: 23_558_518,
   entryCount: 598,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

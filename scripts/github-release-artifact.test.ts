@@ -167,9 +167,11 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
     workflowSha256: "4".repeat(64), lockSha256: "5".repeat(64) };
   const prefix = "repos/hraness/ghostget"; const head = "6".repeat(40);
   const repo = { id: 1316443113, full_name: "hraness/ghostget" };
+  const parent = "7".repeat(40); const mergeBase = "8".repeat(40);
   const responses: Json = {};
   responses[`${prefix}/git/ref/heads/main`] = { ref: "refs/heads/main", object: { type: "commit", sha: input.main } };
   for (const sha of [input.source, head]) responses[`${prefix}/git/commits/${sha}`] = { sha, tree: { sha: input.tree } };
+  responses[`${prefix}/git/commits/${input.source}`].parents = [{ sha: parent }];
   const ciNames = ["static", "package", "test 1/8", "test 2/8", "test 3/8", "test 4/8", "test 5/8", "test 6/8", "test 7/8", "test 8/8", "test-omni", "standalone", "macOS", "verification", "quint 1/4", "quint 2/4", "quint 3/4", "quint 4/4", "Required"];
   for (const [workflowId, path, event, runId, names] of [
     [323493607, ".github/workflows/ci.yml", "push", 100, ciNames],
@@ -197,7 +199,7 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
     }
   }
   const pr = { id: 9000, number: prNumber, merged: true, merged_at: "2026-09-09T00:50:00Z", state: "closed", merge_commit_sha: input.source,
-    base: { ref: "main", repo }, head: { sha: head, repo } };
+    merge_base_sha: mergeBase, base: { ref: "main", repo }, head: { sha: head, repo } };
   responses[`${prefix}/commits/${input.source}/pulls?per_page=100`] = [pr];
   responses[`${prefix}/pulls/${prNumber}`] = pr;
   const associatedRepo = { id: repo.id, url: `https://api.github.com/${prefix}` };
@@ -215,7 +217,20 @@ function sourceCiFixture(attempt = 1, prNumber = 50) {
   responses[`${prefix}/code-scanning/analyses?ref=refs%2Fheads%2Fmain&tool_name=CodeQL&per_page=20`] = analyses;
   const calls: string[] = [];
   const read = (path: string): unknown => { calls.push(path); if (!(path in responses)) throw new Error(`Unexpected fixture path: ${path}`); return structuredClone(responses[path]); };
-  return { input, responses, read, calls, prefix, head, analyses, clock: () => Date.parse("2026-09-09T02:00:00Z") };
+  const blobTree = (entries: Record<string, string>) => Object.entries(entries)
+    .map(([path, sha]) => ({ path, mode: "100644", type: "blob", sha }));
+  const movedMain = (trees: { base: Record<string, string>; head: Record<string, string>; parent: Record<string, string>; source: Record<string, string> }) => {
+    const shas = { base: "a".repeat(40), head: "b".repeat(40), parent: "c".repeat(40), source: input.tree };
+    responses[`${prefix}/git/commits/${head}`].tree = { sha: shas.head };
+    responses[`${prefix}/git/commits/${mergeBase}`] = { sha: mergeBase, tree: { sha: shas.base } };
+    responses[`${prefix}/git/commits/${parent}`] = { sha: parent, tree: { sha: shas.parent } };
+    for (const [name, sha] of Object.entries(shas)) {
+      responses[`${prefix}/git/trees/${sha}?recursive=1`] = { sha, truncated: false, url: `https://api.github.com/${prefix}/git/trees/${sha}`,
+        tree: blobTree(trees[name as keyof typeof trees]) };
+    }
+    return shas;
+  };
+  return { input, responses, read, calls, prefix, head, parent, mergeBase, analyses, movedMain, clock: () => Date.parse("2026-09-09T02:00:00Z") };
 }
 
 describe("exact source CI admission", () => {
@@ -468,6 +483,60 @@ describe("exact source CI admission", () => {
     expect(() => admitSourceCi(calendar.input, calendar.read, marchClock)).not.toThrow();
     calendar.responses[`${calendar.prefix}/actions/runs/100/attempts/1/jobs?per_page=100`].jobs[0].started_at = "2026-02-30T01:00:01Z";
     expect(() => admitSourceCi(calendar.input, calendar.read, marchClock)).toThrow("invalid provider timestamp");
+  });
+  test("admits a moved main only when the released tree is byte-identical to a reviewed side", () => {
+    const blob = (n: number) => n.toString(16).padStart(40, "0");
+    const fixture = sourceCiFixture();
+    fixture.movedMain({
+      base: { "a.ts": blob(1), "b.ts": blob(1), "c.ts": blob(1) },
+      head: { "a.ts": blob(1), "b.ts": blob(2), "c.ts": blob(1), "d.ts": blob(9) },
+      parent: { "a.ts": blob(5), "b.ts": blob(1), "c.ts": blob(1), "e.ts": blob(7) },
+      source: { "a.ts": blob(5), "b.ts": blob(2), "c.ts": blob(1), "d.ts": blob(9), "e.ts": blob(7) },
+    });
+    const result = admitSourceCi(fixture.input, fixture.read, fixture.clock);
+    expect(result.security.reviewedHead).toBe(fixture.head);
+    expect(result.security.sameMergedTree).toBe(fixture.input.tree);
+    for (const second of [fixture.head, "f".repeat(40)]) {
+      const two = sourceCiFixture();
+      two.movedMain({
+        base: { "a.ts": blob(1) }, head: { "a.ts": blob(2) }, parent: { "a.ts": blob(1), "m.ts": blob(3) },
+        source: { "a.ts": blob(2), "m.ts": blob(3) },
+      });
+      two.responses[`${two.prefix}/git/commits/${two.input.source}`].parents = [{ sha: two.parent }, { sha: second }];
+      if (second === fixture.head) expect(admitSourceCi(two.input, two.read, two.clock).security.pullRequest).toBe(50);
+      else expect(() => admitSourceCi(two.input, two.read, two.clock)).toThrow("parentage differs");
+    }
+  });
+  test("rejects moved-main merges carrying unreviewed, dropped, or resolved content", () => {
+    const blob = (n: number) => n.toString(16).padStart(40, "0");
+    type Fixture = ReturnType<typeof sourceCiFixture>;
+    const trees = (f: Fixture) => f.movedMain({
+      base: { "a.ts": blob(1), "b.ts": blob(1), "c.ts": blob(1) },
+      head: { "a.ts": blob(1), "b.ts": blob(2), "c.ts": blob(1), "d.ts": blob(9) },
+      parent: { "a.ts": blob(5), "b.ts": blob(1), "c.ts": blob(1), "e.ts": blob(7) },
+      source: { "a.ts": blob(5), "b.ts": blob(2), "c.ts": blob(1), "d.ts": blob(9), "e.ts": blob(7) },
+    });
+    const sourceTree = (f: Fixture) => f.responses[`${f.prefix}/git/trees/${f.input.tree}?recursive=1`].tree as { path: string; sha: string }[];
+    const mutations: ((fixture: Fixture) => void)[] = [
+      f => { sourceTree(f).find(e => e.path === "a.ts")!.sha = blob(8); },                             // smuggled main-side bytes
+      f => { sourceTree(f).find(e => e.path === "b.ts")!.sha = blob(1); },                             // PR change rolled back
+      f => { sourceTree(f).push({ path: "z.ts", sha: blob(3) }); },                                    // unreviewed addition
+      f => { const t = sourceTree(f); t.splice(t.findIndex(e => e.path === "d.ts"), 1); },             // reviewed content dropped
+      f => { const t = sourceTree(f); t.splice(t.findIndex(e => e.path === "e.ts"), 1); },             // main change dropped
+      f => { const t = f.responses[`${f.prefix}/git/trees/${"b".repeat(40)}?recursive=1`].tree as { path: string; sha: string }[];
+        t.find(e => e.path === "a.ts")!.sha = blob(3); },                                              // overlap becomes a resolution
+      f => { const t = f.responses[`${f.prefix}/git/trees/${"a".repeat(40)}?recursive=1`].tree as { path: string }[];
+        t.splice(t.findIndex(e => e.path === "e.ts"), 1); const p = f.responses[`${f.prefix}/git/trees/${"c".repeat(40)}?recursive=1`].tree as { path: string }[];
+        p.splice(p.findIndex(e => e.path === "e.ts"), 1); },                                           // unreviewed extra then hides
+      f => { f.responses[`${f.prefix}/git/commits/${f.input.source}`].parents = []; },
+      f => { f.responses[`${f.prefix}/git/commits/${f.input.source}`].parents.push({ sha: "e".repeat(40) }); },
+      f => { delete f.responses[`${f.prefix}/pulls/50`].merge_base_sha; },
+      f => { f.responses[`${f.prefix}/git/trees/${"c".repeat(40)}?recursive=1`].truncated = true; },
+      f => { const t = f.responses[`${f.prefix}/git/trees/${f.input.tree}?recursive=1`].tree as { path: string; sha: string }[];
+        t.push({ ...t[0]! }); },                                                                     // duplicate provider path
+      f => { f.responses[`${f.prefix}/git/trees/${f.input.tree}?recursive=1`].sha = "f".repeat(40); },
+    ];
+    for (const mutate of mutations) { const fixture = sourceCiFixture(); trees(fixture); mutate(fixture); expect(() => admitSourceCi(fixture.input, fixture.read, fixture.clock)).toThrow(); }
   });
   test("rejects incomplete, foreign, stale, failed, skipped, and ambiguous provider evidence", () => {
     type Fixture = ReturnType<typeof sourceCiFixture>;
