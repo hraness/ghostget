@@ -1787,15 +1787,25 @@
 // a6f33eb557bfe7b5521c3bb884075270cadb0b7935f41d2015952343ea3fcd32.
 // Carry the same projections and allowances: 12,039,276 + 12,387 + 4,096 =
 // 12,055,759 packed; 23,561,480 + 353 + 65 = 23,561,898 unpacked.
+// Aggregate CLI run telemetry adds src/telemetry.ts and its bounded opt-out
+// install-token wiring in the CLI entrypoint: one new packed source file and
+// its rebuilt chunks over the merged base, 599 files total. A clean
+// `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64 measured
+// 12,028,110 packed bytes and 23,565,669 unpacked bytes; archive SHA-256
+// 2ecb6cc258f61709554ca37f66fb58a2cd00ccb1157850fb6d200962127dbe24. Carry
+// the same projections and allowances: 12,028,110 + 12,387 + 4,096 =
+// 12,044,593 packed; 23,565,669 + 353 + 65 = 23,566,087 unpacked. Required
+// Linux CI and canonical Release must independently measure and admit their
+// exact archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Run-intent dispatch arbitration and full scoped-read admission",
+  scope: "Aggregate CLI run telemetry adds src/telemetry.ts and its CLI entrypoint wiring",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "a6f33eb557bfe7b5521c3bb884075270cadb0b7935f41d2015952343ea3fcd32",
-  packedBytes: 12_039_276,
-  unpackedBytes: 23_561_480,
-  entryCount: 598,
+  archiveSha256: "2ecb6cc258f61709554ca37f66fb58a2cd00ccb1157850fb6d200962127dbe24",
+  packedBytes: 12_028_110,
+  unpackedBytes: 23_565_669,
+  entryCount: 599,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

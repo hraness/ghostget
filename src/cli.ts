@@ -294,5 +294,14 @@ if (import.meta.main) {
   // Set once for this executable and its children; programmatic calls never
   // mutate inherited state or compete to restore a process-global variable.
   process.env.GHOSTGET_CLI_DEPTH = String(depth === null ? 8 : Math.min(depth + 1, 8));
+  // Aggregate run telemetry reports the product name and version only, and
+  // stays lazy: static help/version output never mints state or reaches out.
+  const args = process.argv.slice(2);
+  const staticOnly = args.length === 0 || args.every((arg) => arg === "--help" || arg === "-h" || arg === "--version" || arg === "-V");
+  if (depth === 0 && !staticOnly) {
+    void import("./telemetry")
+      .then((telemetry) => telemetry.reportGhostgetCliRun(GHOSTGET_VERSION, process.env))
+      .catch(() => {});
+  }
   await runGhostgetCliProcess(undefined, undefined, undefined, undefined, undefined, undefined, depth === 0);
 }
