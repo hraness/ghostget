@@ -1,8 +1,8 @@
 import {
-  acquireCookieRecords,
   type CookieRecordReader,
   type CookieSelection,
 } from "@hraness/kb/clip/acquire";
+import { acquireCookieRecords } from "./cookie-access";
 import { renderCookieHeader, type StrictCookie } from "@hraness/kb/clip/cookies";
 import type { GhostgetAuth } from "./auth";
 import type { OperationInput } from "./model";

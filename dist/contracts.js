@@ -31,6 +31,7 @@ var idempotencyKinds = Object.freeze(["none", "local-at-most-once"]);
 var readFailureDispositions = Object.freeze({
   "target-unavailable": "do-not-retry",
   "auth-repair-required": "repair-auth",
+  "permission-denied": "grant-permission",
   "account-mismatch": "do-not-retry",
   "contract-drift": "do-not-retry",
   "cleanup-required": "do-not-retry",
@@ -41,6 +42,7 @@ var readFailureDispositions = Object.freeze({
 var readFailureCategories = Object.freeze(Object.keys(readFailureDispositions));
 var retryDispositions = Object.freeze([
   "do-not-retry",
+  "grant-permission",
   "repair-auth",
   "retry-once-after-60s"
 ]);

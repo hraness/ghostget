@@ -200,7 +200,7 @@ describe("parseInvokeReadResult", () => {
   });
 
   test("every runtime read-failure category has exactly the disposition the runtime assigns", () => {
-    expect(readFailureCategories).toHaveLength(8);
+    expect(readFailureCategories).toHaveLength(9);
     for (const category of readFailureCategories) {
       expect<unknown>(readFailureProjection(category)).toEqual({ category, retryDisposition: readFailureDispositions[category] });
       const parsed = parseInvokeReadResult(failedEnvelope(category));

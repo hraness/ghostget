@@ -1,5 +1,6 @@
 import { OperationDeadlineError } from "../operation-deadline";
 import {
+  permissionReadFailure,
   readFailureProjection,
   type ReadFailureProjection,
   type WebSessionExecution,
@@ -64,6 +65,8 @@ export function providerReadFailureProjection(
   error: unknown,
   options: ProviderReadFailureOptions,
 ): ReadFailureProjection {
+  const permission = permissionReadFailure(error);
+  if (permission !== null) return permission;
   let deadlineCause: unknown = error;
   for (let depth = 0; depth < 8 && deadlineCause !== undefined; depth += 1) {
     if (deadlineCause instanceof OperationDeadlineError) {

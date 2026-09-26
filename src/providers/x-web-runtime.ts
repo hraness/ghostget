@@ -36,6 +36,7 @@ import {
   type WebSessionNetworkDependencies,
 } from "../web-session-client";
 import {
+  permissionReadFailure,
   readFailureProjection,
   startWebSessionCleanupTrackedOperation,
   type ReadFailureProjection,
@@ -171,6 +172,8 @@ function xProfileReadFailure(
   error: unknown,
   stage: XProfileReadStage,
 ): ReadFailureProjection {
+  const permission = permissionReadFailure(error);
+  if (permission !== null) return permission;
   let deadlineCause: unknown = error;
   for (let depth = 0; depth < 8 && deadlineCause !== undefined; depth += 1) {
     if (deadlineCause instanceof OperationDeadlineError) {

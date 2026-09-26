@@ -1,5 +1,5 @@
 import { OperationDeadlineError } from "../operation-deadline";
-import { readFailureProjection, type ReadFailureProjection } from "../web-session-execution";
+import { permissionReadFailure, readFailureProjection, type ReadFailureProjection } from "../web-session-execution";
 import {
   LinkedInFeedBrowserFailure,
   LinkedInFeedBrowserResponseRejectedError,
@@ -20,6 +20,8 @@ export function linkedInProfileActivityReadFailure(
   error: unknown,
   stage: LinkedInProfileActivityStage,
 ): ReadFailureProjection {
+  const permission = permissionReadFailure(error);
+  if (permission !== null) return permission;
   let deadlineCause: unknown = error;
   for (let depth = 0; depth < 8 && deadlineCause !== undefined; depth += 1) {
     if (deadlineCause instanceof OperationDeadlineError) {

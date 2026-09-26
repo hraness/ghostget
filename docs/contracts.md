@@ -36,8 +36,12 @@ commands are not available while a state home is in gateway-only mode.
    `parseInvokeReadResult`.
 4. On `status: "failed"`, act only on `readFailure.retryDisposition`:
    `retry-once-after-60s` allows one retry after 60 seconds,
-   `repair-auth` means the locator must be repaired before any retry, and
-   `do-not-retry` ends the read. `readFailureDispositions` exports the same
+   `repair-auth` means the locator must be repaired before any retry,
+   `grant-permission` means macOS blocked the browser sign-in read (a denied
+   keychain request or missing Full Disk Access) and a person must allow it
+   before any retry, and `do-not-retry` ends the read. Never treat
+   `grant-permission` as an expired sign-in: re-adding the account does not
+   help. `readFailureDispositions` exports the same
    closed table.
 
 ## Repair handoffs

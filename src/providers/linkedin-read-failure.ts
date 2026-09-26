@@ -1,5 +1,5 @@
 import { OperationDeadlineError } from "../operation-deadline";
-import { readFailureProjection, type ReadFailureProjection } from "../web-session-execution";
+import { permissionReadFailure, readFailureProjection, type ReadFailureProjection } from "../web-session-execution";
 import {
   WebSessionAuthStateError,
   WebSessionReadTransportError,
@@ -13,6 +13,8 @@ import {
 /** Typed provider metadata owns authority/retry decisions. Message text is never
  * accepted as evidence for a session switch, account mismatch or retry. */
 export function linkedInProfileReadFailure(error: unknown): ReadFailureProjection {
+  const permission = permissionReadFailure(error);
+  if (permission !== null) return permission;
   let current = error;
   for (let depth = 0; depth < 8 && current instanceof Error; depth += 1) {
     if (current instanceof OperationDeadlineError) return readFailureProjection(current.failure === "timed-out" ? "operation-timeout" : "contract-drift");

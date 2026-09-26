@@ -99,8 +99,10 @@ projection with a closed `category` and its only valid
 `retryDisposition`. A caller may make at most one retry for the read, after
 60 seconds, and only when the disposition is
 `retry-once-after-60s`. A transport retry consumes that same budget. Never
-retry `repair-auth` or `do-not-retry`; report the bounded category and
-continue with the next independent row. Do not parse receipt errors or
+retry `repair-auth`, `grant-permission`, or `do-not-retry`; report the
+bounded category and continue with the next independent row.
+`grant-permission` asks a person to allow a macOS keychain or Full Disk
+Access request, which is different from signing in again. Do not parse receipt errors or
 provider exception text to invent a retry policy. Do not clear durable cleanup
 admission or reboot a host without separate operator authorization.
 
