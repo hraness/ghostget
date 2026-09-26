@@ -899,6 +899,12 @@
     },
     {
       "guide": "website/AGENTS.md",
+      "anchor": "The HTML 404 renders",
+      "digest": "c34425a70895c13e96541c1283f008b887acf1aeb5c5b848209ca84c603964d9",
+      "exempt": "Presentation rule for the informational website; it states no safety or integrity property."
+    },
+    {
+      "guide": "website/AGENTS.md",
       "anchor": "Public content pages",
       "digest": "8a064dd611e5b50e576beda80d2208546bcc3dcc0a7f559e7536620032f5a0bd",
       "claims": [

@@ -618,8 +618,7 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
 }
 
 .section-heading h2,
-.final-section h2,
-.route-state h1 {
+.final-section h2 {
   letter-spacing: -0.068em;
   line-height: 0.96;
   margin: 0;
@@ -1480,45 +1479,6 @@ code:not(pre code):not(.hraness-marketing-flow__code) {
   max-width: 50rem;
 }
 
-.route-state {
-  align-content: center;
-  display: grid;
-  min-height: 100svh;
-  padding: var(--section-block) var(--page-inline);
-}
-
-.route-state > * {
-  max-width: 50rem;
-}
-
-.route-state > p:not(.eyebrow, .visually-hidden) {
-  color: var(--muted);
-  font-size: clamp(1rem, 1.8vw, 1.2rem);
-  line-height: 1.65;
-  margin: 1.5rem 0 1.25rem;
-}
-
-.route-state .recovery-links {
-  color: var(--muted);
-  line-height: 1.65;
-  margin: 0 0 2rem;
-  padding-left: 1.2rem;
-}
-
-.route-state .recovery-links a {
-  color: var(--foreground);
-}
-
-.route-state .button {
-  justify-self: start;
-}
-
-.route-state > .privacy-note {
-  font-size: 0.78rem;
-  margin: 1.25rem 0 0;
-  max-width: 40rem;
-}
-
 .visually-hidden {
   clip: rect(0 0 0 0);
   clip-path: inset(50%);
@@ -2062,8 +2022,7 @@ body {
 }
 
 .section-heading .eyebrow,
-.guide-hero .eyebrow,
-.route-state .eyebrow {
+.guide-hero .eyebrow {
   margin: 0 0 0.75rem;
 }
 
@@ -2085,7 +2044,6 @@ body {
  * text face. The inert preview keeps its larger hero size below. */
 .hero h1,
 .guide-hero h1,
-.route-state h1,
 .preview-copy h1 {
   font-family: var(--hraness-type-h1-font);
   font-weight: var(--hraness-type-h1-weight);
@@ -2105,8 +2063,7 @@ body {
   text-wrap: balance;
 }
 
-.guide-hero h1,
-.route-state h1 {
+.guide-hero h1 {
   font-size: var(--hraness-type-h1-size);
   margin: 0 0 1.25rem;
   max-width: 22ch;

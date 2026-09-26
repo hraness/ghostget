@@ -183,13 +183,13 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.19.0",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.21.0",
 
         "@hraness/site-footer": "github:hraness/site-footer#v0.19.2",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.19.0"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.21.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
 
     expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.19.2"');
@@ -695,13 +695,21 @@ describe("ghostget.com static site", () => {
     expect(notFound).toContain(
       '<meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">',
     );
-    expect(notFound).toContain("Privacy: this page uses cookieless, personless PostHog analytics");
+    expect(notFound).toContain("Privacy: cookieless PostHog analytics");
+    // The shared design-kit status page: the homepage's primary action, three
+    // next links, one quiet agent line, and known pages for "Did you mean".
+    expect(notFound).toContain('<div class="hraness-status-page" data-hraness-status-routes="');
+    expect(notFound).toContain('<h1 class="hraness-status-page__title">We can’t find that page</h1>');
+    expect(notFound).toContain('data-emphasis="primary" data-foil="" href="/#start">Install Ghostget</a>');
+    expect(notFound.match(/class="hraness-status-page__next-link"/gu)).toHaveLength(3);
+    expect(notFound).toContain('<p class="hraness-status-page__agent">');
     expect(notFound).toContain('href="/llms.txt"');
-    expect(notFound).toContain('href="/sitemap.xml"');
-    expect(notFound).toContain('href="/docs/tutorials/getting-started/"');
+    expect(notFound).toContain("[&quot;/docs/tutorials/getting-started/&quot;,&quot;Get started with Ghostget&quot;]");
+    expect(notFound).not.toContain('href="/sitemap.xml"');
+    expect(notFound).toMatch(/<script type="module" src="\/assets\/status-page-[a-f0-9]+\.js"><\/script>/u);
+    expect(notFound.match(/<header\b[^>]*class="topbar guide-topbar"/gu)).toHaveLength(1);
     expect(notFound).not.toContain('type="application/ld+json"');
     expect(notFoundMarkdown).toContain("# Page not found");
-    expect(notFound).toContain("<h1>Page not found</h1>");
     expect(notFound).not.toContain(`<meta name="description" content="${SITE_DESCRIPTION}">`);
     expect(notFoundMarkdown).toContain("https://ghostget.com/llms.txt");
     expect(notFoundMarkdown).toContain("https://ghostget.com/sitemap.xml");
