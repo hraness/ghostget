@@ -65,12 +65,20 @@ export type AuthLines = {
 };
 
 /** `auth add`: what was saved, and the command that checks it. */
-export function authSavedLines(auth: AuthSummary, style: CliStyle, linkedDeviceNext?: string): AuthLines {
+export function authSavedLines(
+  auth: AuthSummary,
+  style: CliStyle,
+  linkedDeviceNext?: string,
+  platform: string = process.platform,
+): AuthLines {
   const result = `${style.symbol("ok")} Saved ${auth.id} (${describeAuthSource(auth)}).`;
   if (auth.kind === "linked-device-store") {
     return { result, next: linkedDeviceNext ?? null, note: null };
   }
-  const note = auth.kind === "cookie-source" && KEYCHAIN_BROWSERS.has(auth.source)
+  // Both notes describe macOS privacy prompts; other systems never show them.
+  const note = platform !== "darwin"
+    ? null
+    : auth.kind === "cookie-source" && KEYCHAIN_BROWSERS.has(auth.source)
     ? `macOS will ask to let security use "${browserDisplayName(auth.source)} Safe Storage" from your keychain.`
     : auth.kind === "cookie-source" && auth.source === "safari"
       ? "Safari cookies need Full Disk Access for this terminal app."

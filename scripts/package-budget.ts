@@ -1805,19 +1805,19 @@
 // adapter install renderers and their changelog entry: one additional packed
 // source file.
 // A clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
-// measured 12,054,165 packed bytes, 23,606,871 unpacked bytes and exactly
+// measured 12,054,305 packed bytes, 23,607,129 unpacked bytes and exactly
 // 602 entries; archive SHA-256
-// cbe2888ce929f0b7b9515fa66fc7165e60b9c3956320138d9b05cd69e4fcd29c.
-// Carry the same projections and allowances: 12,054,165 + 12,387 + 4,096 =
-// 12,070,648 packed; 23,606,871 + 353 + 65 = 23,607,289 unpacked.
+// de35326665b5453f45930b4fb9da5664b75aa29b968d7551d65e04ec0563b17f.
+// Carry the same projections and allowances: 12,054,305 + 12,387 + 4,096 =
+// 12,070,788 packed; 23,607,129 + 353 + 65 = 23,607,547 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Human sign-in command output",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "cbe2888ce929f0b7b9515fa66fc7165e60b9c3956320138d9b05cd69e4fcd29c",
-  packedBytes: 12_054_165,
-  unpackedBytes: 23_606_871,
+  archiveSha256: "de35326665b5453f45930b4fb9da5664b75aa29b968d7551d65e04ec0563b17f",
+  packedBytes: 12_054_305,
+  unpackedBytes: 23_607_129,
   entryCount: 602,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,

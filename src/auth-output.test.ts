@@ -39,17 +39,22 @@ describe("auth output copy", () => {
   });
 
   test("auth add for a Chromium browser warns about the keychain prompt", () => {
-    expect(authSavedLines({ kind: "cookie-source", id: "x-main", source: "chrome", profile: "Profile 1" }, plain)).toEqual({
+    expect(authSavedLines({ kind: "cookie-source", id: "x-main", source: "chrome", profile: "Profile 1" }, plain, undefined, "darwin")).toEqual({
       result: "✓ Saved x-main (Chrome · Profile 1).",
       next: "ghostget auth bind x-main --site <site>",
       note: "macOS will ask to let security use \"Chrome Safe Storage\" from your keychain.",
     });
-    expect(authSavedLines({ kind: "cookie-source", id: "s", source: "safari" }, ascii)).toEqual({
+    expect(authSavedLines({ kind: "cookie-source", id: "s", source: "safari" }, ascii, undefined, "darwin")).toEqual({
       result: "OK Saved s (Safari).",
       next: "ghostget auth bind s --site <site>",
       note: "Safari cookies need Full Disk Access for this terminal app.",
     });
-    expect(authSavedLines({ kind: "cookie-source", id: "ff", source: "firefox" }, plain).note).toBeNull();
+    expect(authSavedLines({ kind: "cookie-source", id: "ff", source: "firefox" }, plain, undefined, "darwin").note).toBeNull();
+    expect(authSavedLines({ kind: "cookie-source", id: "x-main", source: "chrome" }, plain, undefined, "linux")).toEqual({
+      result: "✓ Saved x-main (Chrome).",
+      next: "ghostget auth bind x-main --site <site>",
+      note: null,
+    });
   });
 
   test("auth add for a linked device keeps its own next step", () => {
@@ -96,7 +101,7 @@ describe("auth output copy", () => {
   });
 
   test("hints go to stderr for people only", () => {
-    const lines = authSavedLines({ kind: "cookie-source", id: "x-main", source: "chrome" }, plain);
+    const lines = authSavedLines({ kind: "cookie-source", id: "x-main", source: "chrome" }, plain, undefined, "darwin");
     const human = capture();
     writeAuthLines(lines, "human", human.output);
     expect(human.stdout()).toBe("✓ Saved x-main (Chrome).\n");
@@ -126,7 +131,7 @@ describe("auth commands through main", () => {
       expect(result.stderr()).toBe("");
       const human = capture();
       expect(await main(["auth", "add", "y-main", "--cookie-source", "arc"], { ...environment, HRANESS_AUDIENCE: "human" }, human.output)).toBe(0);
-      expect(human.stderr()).toBe("macOS will ask to let security use \"Arc Safe Storage\" from your keychain.\nNext: ghostget auth bind y-main --site <site>\n");
+      expect(human.stderr()).toBe(`${process.platform === "darwin" ? "macOS will ask to let security use \"Arc Safe Storage\" from your keychain.\n" : ""}Next: ghostget auth bind y-main --site <site>\n`);
     });
   }, 60_000);
 

@@ -33,7 +33,8 @@ Historical entries retain their original delivery coordinates.
   lines instead of JSON: `✓ Saved x-main (Chrome · Profile 1).`, which
   account a sign-in belongs to, and aligned rows with a count. People get one
   `Next:` hint on stderr. No file paths or fingerprints appear. `--json` and
-  agents still get JSON.
+  agents still get JSON. Scripts that parsed the default output of
+  `auth list` or `auth bind` should add `--json`.
 
 ## 0.18.38
 
