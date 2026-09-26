@@ -2,6 +2,7 @@
 
 import { ghostgetUsage } from "./usage";
 import { terminalIntro } from "./cli-intro";
+import { reportGhostgetCliRun } from "./telemetry";
 import { GHOSTGET_VERSION } from "./version";
 import type {
   GhostgetCatalogCommand,
@@ -294,5 +295,7 @@ if (import.meta.main) {
   // Set once for this executable and its children; programmatic calls never
   // mutate inherited state or compete to restore a process-global variable.
   process.env.GHOSTGET_CLI_DEPTH = String(depth === null ? 8 : Math.min(depth + 1, 8));
+  // Aggregate run telemetry reports the product name and version only.
+  if (depth === 0) void reportGhostgetCliRun(GHOSTGET_VERSION, process.env);
   await runGhostgetCliProcess(undefined, undefined, undefined, undefined, undefined, undefined, depth === 0);
 }

@@ -236,4 +236,10 @@ Optional updates and support:
   HRANESS_SUPPORT_AUDIENCE=agent|human|off selects presentation (default: agent).
   Human presentation requires interactive stderr. Off suppresses due offers too.
   HRANESS_SUPPORT=off disables ambient support; support dismiss opts out locally.
+
+Telemetry:
+  One aggregate run ping reports the product name and version to Hraness
+  Accounts; no arguments, paths, account data, or output ever leave the
+  machine. A locally minted install token joins daily-active counts only.
+  HRANESS_TELEMETRY=off or GHOSTGET_TELEMETRY=off disables it entirely.
 `;
