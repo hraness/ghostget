@@ -682,7 +682,7 @@
     "@hraness/desktop-foundation": "https://github.com/hraness/desktop-foundation/releases/download/v0.7.0/hraness-desktop-foundation-0.7.0.tgz"
   },
   "devDependencies": {
-    "@hraness/design-kit": "github:hraness/design-kit#v0.17.0",
+    "@hraness/design-kit": "github:hraness/design-kit#v0.19.0",
     "@hraness/direct": "https://github.com/hraness/direct/releases/download/v0.7.21/hraness-direct-0.7.21.tgz",
     "@hraness/site-footer": "github:hraness/site-footer#v0.18.0",
     "@hraness/ui": "github:hraness/ui#v0.5.18",
