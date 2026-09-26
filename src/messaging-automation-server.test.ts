@@ -133,20 +133,39 @@ test("priority cancel and revoke run during pending submit, while ordinary work 
   let entered!: () => void; const started = new Promise<void>(resolve => { entered = resolve; }); let calls = 0;
   f.setSend(async (_input, signal) => { calls++; entered(); await new Promise<void>(resolve => { if (signal?.aborted) resolve(); else signal?.addEventListener("abort", () => resolve(), { once: true }); }); return { state: "not-started", reason: "Synthetic owner cancellation" }; });
   const sending = f.request("submit", { planId: plan.id, grantId: grant.id }); await started;
-  // Submit holds only its enrollment lane; unrelated ordinary work proceeds.
+  // Submit holds only its enrollment lane; unrelated scoped reads proceed.
   expect(await f.request("status", { provider: "whatsapp" })).toMatchObject({ ok: true, result: status });
   // The ordinary lane still bounds itself: while one normal request runs, the
-  // next is refused rather than queued.
-  let releaseStatus!: () => void; const statusGate = new Promise<void>(resolve => { releaseStatus = resolve; });
-  const originalStatus = f.host.providerStatus.bind(f.host); let statusCalls = 0;
-  f.host.providerStatus = async (selected, signal) => { if (++statusCalls === 1) await statusGate; return originalStatus(selected, signal); };
-  const held = f.request("status", { provider: "whatsapp" });
-  while (statusCalls === 0) await new Promise<void>(resolve => setImmediate(resolve));
-  expect(await f.request("events", { enrollmentIds: [enrollment.id], cursor: null, limit: 10 })).toMatchObject({ ok: false, error: { code: "not-ready" } });
-  releaseStatus(); expect(await held).toMatchObject({ ok: true });
+  // next normal request is refused rather than queued. Scoped reads and the
+  // events drain keep flowing beside the held ordinary lane.
+  let releaseConversations!: () => void; const conversationsGate = new Promise<void>(resolve => { releaseConversations = resolve; });
+  const originalConversations = f.host.conversations.bind(f.host); let conversationCalls = 0;
+  f.host.conversations = async (input, signal) => { if (++conversationCalls === 1) await conversationsGate; return originalConversations(input, signal); };
+  const held = f.request("conversations", { provider: "whatsapp", limit: 10 });
+  while (conversationCalls === 0) await new Promise<void>(resolve => setImmediate(resolve));
+  expect(await f.request("conversations", { provider: "whatsapp", limit: 10 })).toMatchObject({ ok: false, error: { code: "not-ready" } });
+  expect(await f.request("events", { enrollmentIds: [enrollment.id], cursor: null, limit: 10 })).toMatchObject({ ok: true });
+  expect(await f.request("enrollments", {})).toMatchObject({ ok: true });
+  releaseConversations(); expect(await held).toMatchObject({ ok: true });
   expect(await f.request("revoke", { grantId: grant.id })).toMatchObject({ ok: true, result: { revoked: true } });
   expect(await f.request("cancel", { planId: plan.id })).toMatchObject({ ok: true, result: { cancelled: true } });
   expect((await sending).ok).toBe(true); expect(calls).toBe(1);
+});
+test("run.by-intent arbitrates a lost dispatch response, and plans outlive a congested lane", async () => {
+  const f = await fixture();
+  const enrollment = (await f.request("enroll", { provider: "whatsapp", coordinate })).result;
+  const grant = (await f.request("grant", { intentId: "fixture:grant", enrollmentId: enrollment.id, expectedBindingDigest: enrollment.bindingDigest, actions: ["text"], expiresAt: new Date(Date.now() + 300_000).toISOString(), maximumActions: 2, minimumIntervalMs: 0 })).result;
+  const plan = (await f.request("prepare", { enrollmentId: enrollment.id, expectedRevision: 0, intentId: "fixture:intent", actions: [{ kind: "text", text: "Synthetic" }] })).result;
+  // A dispatch lane saturated past two minutes is ordinary congestion now:
+  // the prepared plan stays dispatchable inside its five-minute window.
+  expect(Date.parse(plan.expiresAt) - Date.now()).toBeGreaterThan(240_000);
+  // Before any dispatch the intent has no row: a lost submit response could
+  // still prove the send never started.
+  expect(await f.request("run.by-intent", { intentId: "fixture:intent" })).toMatchObject({ ok: true, result: { run: null } });
+  expect(await f.request("submit", { planId: plan.id, grantId: grant.id })).toMatchObject({ ok: true, result: { state: "accepted" } });
+  // The settled row is the receipt the lost response could not deliver.
+  expect(await f.request("run.by-intent", { intentId: "fixture:intent" }))
+    .toMatchObject({ ok: true, result: { run: { intentId: "fixture:intent", enrollmentId: enrollment.id, state: "accepted" } } });
 });
 test("enrollment lanes overlap across conversations, serialize within one, and cover submit", async () => {
   const f = await fixture();

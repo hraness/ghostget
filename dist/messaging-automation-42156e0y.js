@@ -567,7 +567,7 @@ class MessagingAutomationHost {
     if (Buffer.byteLength(canonicalJson(actions)) > 256 * 1024)
       throw new Error("Messaging plan exceeds its byte bound.");
     const intentId = automationId(r.intentId);
-    const binding = { enrollmentId: enrollment.id, expectedRevision, intentId, actions, bindingDigest: enrollment.bindingDigest, expiresAt: new Date(this.now() + 120000).toISOString() };
+    const binding = { enrollmentId: enrollment.id, expectedRevision, intentId, actions, bindingDigest: enrollment.bindingDigest, expiresAt: new Date(this.now() + 300000).toISOString() };
     const digest = sha256(canonicalJson(binding));
     const plan = Object.freeze({ ...binding, id: `plan:${digest}`, digest });
     this.db.transaction(() => {
@@ -593,6 +593,11 @@ class MessagingAutomationHost {
     if (row === null)
       throw new Error("Messaging run does not exist.");
     return this.runProjection(row);
+  }
+  runByIntent(intentId) {
+    this.ready();
+    const row = this.db.query(`SELECT ${RUN_COLUMNS} FROM runs WHERE intent_id=?`).get(automationId(intentId));
+    return row === null ? null : this.runProjection(row);
   }
   planEnrollment(id) {
     this.ready();
