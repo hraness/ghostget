@@ -1,0 +1,8 @@
+Usage: ghostget thread <split|publish> <site> [options]
+
+Split long text into a thread, or publish one after a preview.
+
+Commands
+  thread split <site> --text <text|@file|-> [--json]
+  thread publish <site> --adapter <id> --text <text|@file|-> --auth <id>
+                 [--preview] [--headed] [--json]

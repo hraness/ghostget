@@ -1,0 +1,14 @@
+Usage: ghostget contracts <catalog|check|repair|schema> [options]
+
+Machine-readable descriptions of every installed action, for agents that
+plan work before running it.
+
+Commands
+  contracts catalog [--adapter <id>]... [--json]
+                                     Print the action catalog
+  contracts check --plan <file|-> [--auth-state] [--json]
+                                     Check a plan against installed actions
+  contracts repair [--id <sha256> | --plan <file|->] [--json]
+                                     Show suggested fixes without running them
+  contracts schema <catalog|check|plan|invoke-read|repair> [--json]
+                                     Print one document's JSON Schema

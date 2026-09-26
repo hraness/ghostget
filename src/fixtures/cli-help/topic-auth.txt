@@ -1,0 +1,32 @@
+Usage: ghostget auth <list|add|bind|remove|login|pair|sync> [options]
+
+Connect accounts you're already signed in to. Ghostget reads the sign-in
+from your browser when it needs it and never stores your password.
+
+Commands
+  auth list                          List connected accounts
+  auth add <id> --cookie-source <browser> [--cookie-profile <name>]
+                                     Connect from a browser profile
+  auth add <id> --cookies-file <path>
+                                     Connect from exported cookies
+  auth add <id> --browser-profile <name|path> --trust-profile-egress
+                                     Use a whole Chrome profile
+  auth add <id> --oauth-provider <site> --token-file <path> --scopes <list>
+  auth add <id> --linked-device <site> [--device-store <directory>]
+  auth bind <id> --site <site> [--force]
+                                     Check which account is signed in
+  auth login <id> --client-file <desktop-client.json> [--no-open]
+                                     Connect Google with your own OAuth app
+  auth pair <id> [--phone <number>]  Pair a linked device
+  auth sync <id> --once              Refresh a linked device's local copy
+  auth remove <id> --yes             Remove an account from Ghostget
+
+Options
+  --subject <account-id>             Expect this account
+  --force                            Replace an existing account
+  --json                             Print machine-readable output
+
+Example
+  ghostget browsers
+  ghostget auth add x-main --cookie-source chrome --cookie-profile Default
+  ghostget auth bind x-main --site x

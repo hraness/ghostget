@@ -29,6 +29,8 @@ import {
   type InvocationAuthority,
 } from "./web-session-authentication-policy";
 import { parseGhostgetArguments, ghostgetUsage, type GhostgetArguments } from "./args";
+import { GHOSTGET_COMMAND_NAMES, ghostgetHelpCommandFor } from "./usage";
+import { cliSentence, cliStyle, closestCliName, renderCliError } from "./cli-style";
 import type * as BeeperMessageLikeMeCliRuntimeModule from "./beeper-message-like-me-cli";
 import type * as BeeperContactInteractionCliRuntimeModule from "./beeper-contact-interactions-cli";
 import type * as ApplePhotosCliRuntimeModule from "./apple-photos-cli";
@@ -316,6 +318,30 @@ const inspectDefaultClipEnvironment = async (): Promise<GhostgetClipEnvironmentI
 
 export function renderGhostgetUsage(): string {
   return ghostgetUsage;
+}
+
+/**
+ * One-line usage error plus the per-command help to read next. The full help
+ * never follows a usage error.
+ */
+export function renderGhostgetUsageError(
+  message: string,
+  rawArguments: readonly string[],
+  environment: Readonly<Record<string, string | undefined>>,
+  isTTY: boolean = process.stderr.isTTY === true,
+): string {
+  const style = cliStyle(environment, isTTY);
+  const first = rawArguments[0] ?? "";
+  if (message === `unknown command: ${first}`) {
+    const shown = safe(first).slice(0, 64);
+    const suggestion = closestCliName(first, GHOSTGET_COMMAND_NAMES);
+    return renderCliError(
+      style,
+      `Unknown command "${shown}".${suggestion === null ? "" : ` Did you mean "${suggestion}"?`}`,
+      "ghostget --help",
+    );
+  }
+  return renderCliError(style, cliSentence(safe(message)), ghostgetHelpCommandFor(rawArguments));
 }
 
 export type GhostgetDependencies = {
@@ -3694,9 +3720,7 @@ export async function main(
 ): Promise<number> {
   const parsed = parseGhostgetArguments(rawArguments);
   if (!parsed.ok) {
-    output.stderr(
-      `${safe(parsed.message)}\n\n${renderGhostgetUsage()}`,
-    );
+    output.stderr(renderGhostgetUsageError(parsed.message, rawArguments, environment));
     return 2;
   }
   try {

@@ -1,0 +1,50 @@
+Usage: ghostget <command> [options]
+
+Ghostget gives your AI agent named web actions: read a page, archive one
+media item, or use a connected account, without credentials or a browser to
+steer.
+
+Start here
+  ghostget read <url>                 Read a public page, no account needed
+  ghostget browsers                   List browser profiles you can connect
+  ghostget auth add <id> [options]    Connect an account from a browser
+  ghostget auth bind <id> --site <site>
+                                      Check which account is signed in
+  ghostget capabilities               See the actions you can run
+
+Read and save
+  ghostget clip <url> [options]       Save a page as a Markdown note
+  ghostget media <url> [options]      Save one video or audio item, checked
+  ghostget search <query>             Search your saved notes
+
+Connect accounts
+  ghostget auth list|add|bind|remove  Manage connected accounts
+  ghostget login                      Sign in to Hraness Accounts (updates
+                                      and support; not needed for sites)
+
+Run actions
+  ghostget invoke <adapter> <action>  Run an action (or: ghostget <adapter>
+                                      <action>)
+  ghostget confirm <digest>           Run a previewed change once
+  ghostget runs list                  Review past runs
+
+Control Ghostget
+  ghostget menubar                    Show Ghostget in the menu bar
+  ghostget tui                        Open the keyboard control panel
+  ghostget doctor                     Check everything Ghostget needs
+
+Extend Ghostget
+  ghostget adapter|plugin|contracts   Add and check site support
+  ghostget derive                     Record a site's API from a browser
+  ghostget web|interface|platforms    Web rules, API drafts, site policy
+
+Messaging and exports
+  ghostget messaging|beeper|whatsapp|imessage|apple-photos [options]
+
+Options
+  -h, --help                          Show help for any command
+  -V, --version                       Print the version
+  --json                              Print machine-readable output
+
+More: ghostget help <command> · ghostget help policy · ghostget help advanced
+Optional support: ghostget support · Turn off: HRANESS_SUPPORT=off

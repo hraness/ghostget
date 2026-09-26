@@ -1,0 +1,5 @@
+Usage: ghostget login [--json]
+       ghostget logout [--json]
+
+Sign in to Hraness Accounts for product updates and optional support. You
+don't need this to connect sites; use ghostget auth add for that.

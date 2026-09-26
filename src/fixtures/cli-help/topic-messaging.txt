@@ -1,0 +1,19 @@
+Usage: ghostget <messaging|beeper|whatsapp|imessage|apple-photos> ...
+
+Local messaging tools. Private content goes to files you name, never to the
+command line or standard output.
+
+Commands
+  messaging automation serve --stdio
+  messaging routes|resolve|context|preview --input <-|@file>
+            --private-output <absolute-file> [--json]
+  messaging reconcile <run-id> [--json]
+  beeper export-message-like-me --auth <id> --output <new-directory>
+  beeper export-contact-interactions --auth <id>
+  whatsapp export-message-like-me --auth <id> --output <new-directory>
+  whatsapp automation install [--binary <file>] [--json]
+  imessage transport install [--binary <file>] [--json]
+  apple-photos export-contact-evidence [--library <path>] [--json]
+
+iMessage needs Full Disk Access for your terminal app, and macOS asks
+before your terminal app can control Messages.

@@ -1,0 +1,34 @@
+Ghostget policy
+
+Risk levels
+  R1 reads run right away. R2 and R3 changes make a preview that lasts five
+  minutes; ghostget confirm <digest> makes the change once. R4 is blocked.
+  Signed-in actions use each site's own API. Ghostget never runs arbitrary
+  scripts, requests, selectors, cookies or file transfers for an agent.
+
+Saved reads
+  A successful read of an account's data is saved encrypted. Add
+  --cache-only to get it back without going to the site, or
+  --projection-identity-only to get only its identity. A normal read always
+  checks the site again. Reads without a known account are never saved.
+  Run ghostget auth bind first so private reads can be saved.
+
+Combined inboxes
+  ghostget omni read merges supported inboxes into one encrypted local view.
+  --cache-only returns that view without new reads. --from-exact-cache
+  rebuilds it from saved reads only.
+
+Local browsers
+  Ghostget runs at most two browsers of its own at a time for page capture,
+  shared by every process that uses the same state folder. A capture waits
+  up to 30 seconds for a free browser. Attaching to your own browser with
+  --browser-live or --cdp doesn't count. ghostget doctor --json shows the
+  state folder.
+
+Updates and support
+  After useful work, Ghostget may print one short line on stderr about
+  updates or support. Output and exit codes don't change. Agents read
+  ghostget support protocol --json once, then check
+  ghostget support offer --json at the end of a task with a person.
+  HRANESS_SUPPORT_AUDIENCE=agent|human|off picks who sees it (default:
+  agent). HRANESS_SUPPORT=off turns it off; ghostget support dismiss opts out.

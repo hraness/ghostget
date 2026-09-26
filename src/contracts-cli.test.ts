@@ -321,7 +321,7 @@ describe("ghostget contracts schema and CLI dispatch", () => {
       expect(JSON.parse(schema.stdout)).toEqual(contractSchema("invoke-read"));
       const usage = await run(["contracts", "nothing"]);
       expect(usage.exitCode).toBe(2);
-      expect(usage.stderr.join("")).toContain("contracts requires catalog, check, repair, or schema");
+      expect(usage.stderr.join("")).toContain("Contracts requires catalog, check, repair, or schema");
     } finally {
       state.dispose();
     }

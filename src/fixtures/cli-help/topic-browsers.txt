@@ -1,0 +1,10 @@
+Usage: ghostget browsers [--json]
+
+List browsers and profiles on this Mac that Ghostget can read a sign-in
+from, with the flags to paste into ghostget auth add.
+
+Options
+  --json                             Print machine-readable output
+
+Example
+  ghostget browsers
