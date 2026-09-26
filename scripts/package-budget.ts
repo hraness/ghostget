@@ -1778,26 +1778,45 @@
 // with the same npm, so the change adds 669 packed and 2,014 unpacked bytes.
 // Carry the same projections and allowances: 12,026,837 + 12,387 + 4,096 =
 // 12,043,320 packed; 23,560,532 + 353 + 65 = 23,560,950 unpacked.
+// The run-intent arbitration change adds the run.by-intent host query and
+// scoped admission for every enrollment read, extends the plan window, and
+// carries its regression tests plus the regenerated dist chunk over the same
+// 598-file inventory. A clean `npm pack --ignore-scripts` with npm 11.19.0 on
+// darwin arm64 measured 12,039,276 packed bytes and 23,561,480 unpacked
+// bytes; archive SHA-256
+// a6f33eb557bfe7b5521c3bb884075270cadb0b7935f41d2015952343ea3fcd32.
+// Carry the same projections and allowances: 12,039,276 + 12,387 + 4,096 =
+// 12,055,759 packed; 23,561,480 + 353 + 65 = 23,561,898 unpacked.
+// Aggregate CLI run telemetry adds src/telemetry.ts and its bounded opt-out
+// install-token wiring in the CLI entrypoint: one new packed source file and
+// its rebuilt chunks over the merged base, 599 files total. A clean
+// `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64 measured
+// 12,028,110 packed bytes and 23,565,669 unpacked bytes; archive SHA-256
+// 2ecb6cc258f61709554ca37f66fb58a2cd00ccb1157850fb6d200962127dbe24. Carry
+// the same projections and allowances: 12,028,110 + 12,387 + 4,096 =
+// 12,044,593 packed; 23,565,669 + 353 + 65 = 23,566,087 unpacked. Required
+// Linux CI and canonical Release must independently measure and admit their
+// exact archives.
 //
 // Grouped CLI help adds the import-free terminal style module
 // (src/cli-style.ts), per-command help topics in src/usage.ts, the short
-// usage-error renderer and their changelog entry: one additional packed
-// source file.
+// usage-error renderer and their changelog entry over the aggregate run
+// telemetry base: one additional packed source file, 600 files total.
 // A clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
-// measured 12,042,831 packed bytes, 23,573,812 unpacked bytes and exactly
-// 599 entries; archive SHA-256
-// a3255fabc42549339f0d600e40b3769750eab951b551f453489ffa00a9e69b45.
-// Carry the same projections and allowances: 12,042,831 + 12,387 + 4,096 =
-// 12,059,314 packed; 23,573,812 + 353 + 65 = 23,574,230 unpacked.
+// measured 12,044,110 packed bytes, 23,578,983 unpacked bytes and exactly
+// 600 entries; archive SHA-256
+// 18cdb7fd96c1ea094e38ba49841d450ea8a538a1069a88e02a11a4e139add1eb.
+// Carry the same projections and allowances: 12,044,110 + 12,387 + 4,096 =
+// 12,060,593 packed; 23,578,983 + 353 + 65 = 23,579,401 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Grouped CLI help and short usage errors",
+  scope: "Grouped CLI help and short usage errors over aggregate run telemetry",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "a3255fabc42549339f0d600e40b3769750eab951b551f453489ffa00a9e69b45",
-  packedBytes: 12_042_831,
-  unpackedBytes: 23_573_812,
-  entryCount: 599,
+  archiveSha256: "18cdb7fd96c1ea094e38ba49841d450ea8a538a1069a88e02a11a4e139add1eb",
+  packedBytes: 12_044_110,
+  unpackedBytes: 23_578_983,
+  entryCount: 600,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

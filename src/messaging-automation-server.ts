@@ -117,6 +117,7 @@ export class MessagingAutomationRpcServer {
       finally { this.executingPlans.delete(planId); for (const [id, asset] of this.assets) if (asset.plan === planId) this.assets.delete(id); }
     }
     if (method === "run") { const r = automationRecord(raw, ["runId"]); return host.run(automationId(r.runId)); }
+    if (method === "run.by-intent") { const r = automationRecord(raw, ["intentId"]); return { run: host.runByIntent(automationId(r.intentId)) }; }
     throw new Error("Unknown method");
   }
   /** Enrollment-scoped methods keep total order per enrollment but run
@@ -183,7 +184,7 @@ export class MessagingAutomationRpcServer {
       const r = automationRecord(value, ["protocol", "id", "method", "params"]);
       id = automationText(r.id, 64); if (!/^[A-Za-z0-9._:-]+$/u.test(id) || r.protocol !== protocol) throw new Error("Invalid envelope");
       method = automationText(r.method, 32); priority = ["cancel", "revoke", "close"].includes(method);
-      scoped = ["poll", "pollSet", "history", "prepare", "grant", "submit"].includes(method);
+      scoped = ["poll", "pollSet", "history", "prepare", "grant", "submit", "events", "enrollments", "status", "run", "run.by-intent", "grant.get", "grant.by-intent"].includes(method);
       if (this.requests.has(id) || (priority ? this.priorityBusy >= 8 : scoped ? this.scopedBusy >= 16 : this.normalBusy)) return { protocol, id, ok: false, error: { code: "not-ready", message: "The owner host is busy or this request is already active." } };
       this.requests.add(id); admitted = true;
       if (priority) this.priorityBusy++; else if (scoped) this.scopedBusy++; else this.normalBusy = true;

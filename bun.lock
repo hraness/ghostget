@@ -21,7 +21,7 @@
       "devDependencies": {
         "@hraness/design-kit": "github:hraness/design-kit#v0.19.0",
         "@hraness/direct": "https://github.com/hraness/direct/releases/download/v0.7.21/hraness-direct-0.7.21.tgz",
-        "@hraness/site-footer": "github:hraness/site-footer#v0.18.0",
+        "@hraness/site-footer": "github:hraness/site-footer#v0.19.2",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
         "@hraness/web-discovery": "github:hraness/web-discovery#v0.8.0",
         "@informalsystems/quint": "0.32.0",
@@ -142,7 +142,7 @@
 
     "@hraness/result": ["@hraness/result@github:hraness/result#17b311c", {}, "hraness-result-17b311c", "sha512-OzIzJ598pWxKqpuYO+Omki/LYlhZ+bg04u7N0DuhW9FoAruP3ocRs4eyCyWxEEa4gtpEG9AEaTlheYnDlXh2mQ=="],
 
-    "@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#19213e6", { "peerDependencies": { "react": ">=18 <20" }, "optionalPeers": ["react"] }, "hraness-site-footer-19213e6", "sha512-IY4iB65EHKhEYLlX5sXMHDcGzjCCiR5mStytxkil3WV+Kg9uigMCTRRe7oEn68HIpQQXwtWL5r6fkdp2Gxl8TA=="],
+    "@hraness/site-footer": ["@hraness/site-footer@github:hraness/site-footer#cb49020", { "peerDependencies": { "react": ">=18 <20" }, "optionalPeers": ["react"] }, "hraness-site-footer-cb49020", "sha512-Yt6lBU5cT5rH1IVB9MsTDZj5mDO2KCXg/oE88kXrMpqC0+W/gw+TM27QQSqDGN68JF3eoWqwpRSn7sdY4LEU2w=="],
 
     "@hraness/suite-accounts": ["@hraness/suite-accounts@github:hraness/suite-accounts#715486f", { "dependencies": { "@convex-dev/better-auth": "0.12.5", "@hraness/result": "github:hraness/result#17b311c0b31cf456777efc7d7f5fa1f1cafefe74", "@stylexjs/stylex": "0.19.0", "better-auth": "1.6.25", "convex": "1.44.0", "jose": "6.2.4" }, "peerDependencies": { "react": ">=18.3.1 <20", "react-dom": ">=18.3.1 <20" }, "optionalPeers": ["react", "react-dom"] }, "hraness-suite-accounts-715486f", "sha512-oLzc9WsZR+In0o4kAPSOFrd4C5cMCsAY2/x4CMFnYOcJ2cl048vNC8ODT4ZvE7vHmoqkAELH6ywGq+1ju2Y99w=="],
 

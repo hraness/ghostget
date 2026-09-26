@@ -386,7 +386,7 @@ export class MessagingAutomationHost {
     if (!enrollment.ready || enrollment.revision !== expectedRevision) throw new Error("Messaging context is stale or unavailable.");
     const actions = automationArray(r.actions, 8).map(parseAutomationAction); if (actions.length === 0) throw new Error("Messaging plan is empty.");
     if (Buffer.byteLength(canonicalJson(actions)) > 256 * 1024) throw new Error("Messaging plan exceeds its byte bound.");
-    const intentId = automationId(r.intentId); const binding = { enrollmentId: enrollment.id, expectedRevision, intentId, actions, bindingDigest: enrollment.bindingDigest, expiresAt: new Date(this.now() + 120000).toISOString() };
+    const intentId = automationId(r.intentId); const binding = { enrollmentId: enrollment.id, expectedRevision, intentId, actions, bindingDigest: enrollment.bindingDigest, expiresAt: new Date(this.now() + 300000).toISOString() };
     const digest = sha256(canonicalJson(binding)); const plan = Object.freeze({ ...binding, id: `plan:${digest}`, digest });
     this.db.transaction(() => { this.capacity("plans"); this.db.query("INSERT OR IGNORE INTO plans VALUES(?,?)").run(plan.id, canonicalJson(plan)); }).immediate(); this.checkFiles(); return plan;
   }
@@ -397,6 +397,13 @@ export class MessagingAutomationHost {
     return Object.freeze({ id: automationId(row.id), planId: automationId(row.plan_id), intentId: automationId(row.intent_id), enrollmentId: automationId(row.enrollment_id), state: row.state, accepted: Object.freeze(accepted), totalActions, reason: row.reason === null ? null : automationText(row.reason, 1024), retryable: false });
   }
   run(id: string): AutomationRun { this.ready(); const row = this.db.query<StoredRun, [string]>(`SELECT ${RUN_COLUMNS} FROM runs WHERE id=?`).get(automationId(id)); if (row === null) throw new Error("Messaging run does not exist."); return this.runProjection(row); }
+  /** Intent-keyed lookup lets an owner arbitrate a dispatch whose response was
+   * lost: no row proves the run insert never committed, while a terminal row
+   * carries the settled outcome. Null is evidence, not an error. */
+  runByIntent(intentId: string): AutomationRun | null {
+    this.ready(); const row = this.db.query<StoredRun, [string]>(`SELECT ${RUN_COLUMNS} FROM runs WHERE intent_id=?`).get(automationId(intentId));
+    return row === null ? null : this.runProjection(row);
+  }
   /** Resolves the enrollment a stored plan dispatches against so the owner can
    * order submit on that enrollment's lane. Missing plans yield no lane; the
    * dispatch revalidates the record and fails closed. */

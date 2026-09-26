@@ -18,6 +18,8 @@ Historical entries retain their original delivery coordinates.
   of the whole command reference. Unknown commands suggest the closest
   match. `ghostget read` without a URL no longer prints another tool's
   usage. `-V` prints the version.
+- Help requests such as `ghostget read --help` count as help and send no
+  run ping. `ghostget help policy` explains the ping and how to turn it off.
 
 ## 0.18.38
 

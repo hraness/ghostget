@@ -71,7 +71,7 @@ async function spawn(
   environment: Readonly<Record<string, string | undefined>> = {},
 ): Promise<{ readonly stdout: string; readonly stderr: string; readonly exitCode: number }> {
   const child = Bun.spawn([...command], {
-    env: { PATH: process.env.PATH, HOME: privateHome, GHOSTGET_STATE_HOME: join(privateHome, "state"), ...environment },
+    env: { PATH: process.env.PATH, HOME: privateHome, GHOSTGET_STATE_HOME: join(privateHome, "state"), HRANESS_TELEMETRY: "off", ...environment },
     stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",

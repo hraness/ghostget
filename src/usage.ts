@@ -422,6 +422,12 @@ Updates and support
   ghostget support offer --json at the end of a task with a person.
   HRANESS_SUPPORT_AUDIENCE=agent|human|off picks who sees it (default:
   agent). HRANESS_SUPPORT=off turns it off; ghostget support dismiss opts out.
+
+Telemetry
+  Each run sends one ping with the product name and version to Hraness
+  Accounts. Arguments, paths, account data and output never leave the machine.
+  A token made on this machine counts daily active installs only.
+  HRANESS_TELEMETRY=off or GHOSTGET_TELEMETRY=off turns it off.
 `;
 
 const advancedHelp = `Ghostget advanced commands
