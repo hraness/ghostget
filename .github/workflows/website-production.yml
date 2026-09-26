@@ -115,7 +115,7 @@ jobs:
           printf 'release_sha=%s\n' "$release_sha" >> "$GITHUB_OUTPUT"
           printf 'release_run_id=%s\n' "$release_run_id" >> "$GITHUB_OUTPUT"
           printf 'release_run_attempt=%s\n' "$release_run_attempt" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           fetch-tags: false
@@ -225,7 +225,7 @@ jobs:
       advance_required: ${{ steps.baseline.outputs.advance_required }}
       receipt: ${{ steps.baseline.outputs.receipt }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           fetch-tags: false
@@ -266,7 +266,7 @@ jobs:
     outputs:
       receipt: ${{ steps.promotion.outputs.receipt }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           fetch-tags: false
@@ -329,7 +329,7 @@ jobs:
     outputs:
       receipt: ${{ steps.promotion.outputs.receipt }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           fetch-tags: false
@@ -440,7 +440,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           fetch-tags: false
