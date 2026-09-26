@@ -10,6 +10,7 @@ import {
   renderHranessSiteFooter,
   type HranessMailingListConfig,
 } from "@hraness/site-footer";
+import { product } from "@hraness/design-kit/portfolio";
 import { HranessSiteFooter } from "@hraness/site-footer/react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -182,13 +183,13 @@ describe("ghostget.com static site", () => {
     expect(packageFiles).not.toContain("vercel.json");
     expect(manifest).toMatchObject({
       devDependencies: {
-        "@hraness/design-kit": "github:hraness/design-kit#v0.17.0",
+        "@hraness/design-kit": "github:hraness/design-kit#v0.19.0",
 
         "@hraness/site-footer": "github:hraness/site-footer#v0.18.0",
         "@hraness/ui": "github:hraness/ui#v0.5.18",
       },
     });
-    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.17.0"');
+    expect(lockfile).toContain('"@hraness/design-kit": "github:hraness/design-kit#v0.19.0"');
     expect(lockfile).toContain('"@hraness/ui": "github:hraness/ui#v0.5.18"');
 
     expect(lockfile).toContain('"@hraness/site-footer": "github:hraness/site-footer#v0.18.0"');
@@ -419,8 +420,11 @@ describe("ghostget.com static site", () => {
     expect(sourceCss).not.toContain("--font-serif");
     expect(sourceCss).toMatch(/body\s*\{[^}]*font-family:\s*var\(--font-sans\)/su);
     expect(sourceCss).toMatch(/\.wordmark\s*\{[^}]*font-family:\s*var\(--font-sans\)/su);
-    expect(sourceCss).toMatch(/\.hero h1,[\s\S]*?\.preview-copy h1\s*\{[^}]*font-family:\s*var\(--font-sans\)/u);
-    expect(sourceCss).toMatch(/\.hero h1,[\s\S]*?\.preview-copy h1\s*\{[^}]*font-weight:\s*500/u);
+    expect(sourceCss).toMatch(/\.hero h1,[\s\S]*?\.preview-copy h1\s*\{[^}]*font-family:\s*var\(--hraness-type-h1-font\)/u);
+    expect(sourceCss).toMatch(/\.hero h1,[\s\S]*?\.preview-copy h1\s*\{[^}]*font-weight:\s*var\(--hraness-type-h1-weight\)/u);
+    expect(cssPropertyValues(sourceCss, ".guide-hero h1", "font-size").at(-1)).toBe("var(--hraness-type-h1-size)");
+    expect(sourceCss).not.toMatch(/--hraness-paper-(?:section-)?heading-size\s*:/u);
+    expect(builtCss).toContain("--hraness-type-h2-font:");
     expect(sourceCss).toContain("--hraness-site-accent: var(--ghostget-action);");
     expect(sourceCss).toContain("--hraness-site-accent-ink: var(--ghostget-action-ink);");
     expect(sourceCss).toContain("--ghostget-action: var(--primary);");
@@ -648,9 +652,11 @@ describe("ghostget.com static site", () => {
     const relatedSection = /<section\b[^>]*data-hraness-marketing="related"[\s\S]*?<\/section>/u.exec(html)?.[0];
     expect(relatedSection).toBeDefined();
     expect(relatedSection).toContain('hraness-marketing-related__group-heading');
-    for (const href of ["https://gobstopper.sh", "https://xcb.sh", "https://aicharts.io", "https://peopleblade.com", "https://soulscrape.com", "https://textbutler.app", "https://wordcell.io"]) {
-      expect(relatedSection).toContain(`href="${href}"`);
+    for (const [id, href] of [["gobstopper", "https://gobstopper.sh"], ["xcb", "https://xcb.sh"], ["aicharts", "https://aicharts.io"], ["peopleblade", "https://peopleblade.com"], ["soulscrape", "https://soulscrape.com"], ["message-like-me", "https://textbutler.app"], ["kb", "https://wordcell.io"]] as const) {
+      const { mark, messaging, oneLiner } = product(id);
+      expect(relatedSection).toContain(`<a class="hraness-marketing-related__card" data-hraness-marketing="card" href="${href}"><span aria-hidden="true" class="hraness-marketing-related__card-mark"><img alt="" decoding="async" height="44" src="${mark.replaceAll("&", "&amp;").replaceAll('"', "&quot;")}" width="44"></span><span class="hraness-marketing-related__card-text"><h4 class="hraness-marketing-related__card-name">${messaging.names.name}</h4><span class="hraness-marketing-related__card-role">${oneLiner}</span></span></a>`);
     }
+    expect(relatedSection).not.toMatch(/hraness-marketing-card__(?:title|meta|body)/u);
     expect(html.indexOf('data-hraness-marketing="related"')).toBeLessThan(html.indexOf('data-hraness-marketing="cta"'));
     expect(html).toContain('data-hraness-marketing="cta"');
     expect(html).toContain("Use an Agent Skill, CLI, or TypeScript SDK");

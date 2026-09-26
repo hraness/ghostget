@@ -155,6 +155,7 @@ describe("Built on Ghostget hub", () => {
   test("stops the build on a relation nobody has reviewed for the hub", () => {
     expect(() => renderBuiltOnEntries([{
       href: "https://example.com/",
+      mark: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E",
       name: "Example",
       productId: "example" as never,
       relationId: "runtime:example:wrench:unreviewed",

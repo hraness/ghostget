@@ -555,6 +555,9 @@ export const BUILT_ON_RELATIONS: Readonly<Record<string, Readonly<{ href: string
     href: "https://textbutler.app/blog/how-textbutler-uses-ghostget",
     label: "How Textbutler imports Beeper and WhatsApp history via Ghostget",
   },
+  // Registered in design-kit v0.18.2. The hub lists it once a Ghostget release
+  // emits the text-only capture bundle Sponge imports; no release does yet.
+  "contract:sponge:wrench:imports-captures-from": null,
 };
 
 export function ghostgetRelations(): readonly PortfolioRelatedItem[] {
@@ -605,8 +608,9 @@ export function renderBlogPostMain(post: BlogPost, bodyFragment: string): string
     : bodyFragment;
   const related = ghostgetRelations().map((item) => ({
     href: item.href,
+    mark: item.mark,
     name: item.name,
-    relationship: item.relationship,
+    role: item.role,
   }));
   const article = renderArticleHtml({
     afterHtml: renderArticleSourcesHtml({ sources: post.sources }) + renderArticleRelatedHtml({ items: related }),
