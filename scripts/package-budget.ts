@@ -1747,14 +1747,24 @@
 // d7ffa146b6948b24fa27556c8897561f8c234039c3b11957d229f2e81d4b879b.
 // Carry the same projections and allowances: 12,037,924 + 12,387 + 4,096 =
 // 12,054,407 packed; 23,557,354 + 353 + 65 = 23,557,772 unpacked.
+// The release source-CI admission repair admits the current four-language
+// CodeQL matrix (actions, javascript-typescript, python, rust) instead of
+// the stale two-language contract, updates its fixtures, and carries the
+// 0.18.37 version bump across package.json, CHANGELOG.md, and the
+// regenerated dist bundles over the same 598-file inventory. A clean
+// `npm pack --ignore-scripts` with npm 11.16.0 on darwin arm64 measured
+// 12,038,177 packed bytes and 23,557,921 unpacked bytes; archive SHA-256
+// ed90b463e90de04a24c08eb2346c738a792d0b3be178ed263673ead86713cd9b.
+// Carry the same projections and allowances: 12,038,177 + 12,387 + 4,096 =
+// 12,054,660 packed; 23,557,921 + 353 + 65 = 23,558,339 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Enrollment-scoped automation lanes with batched set polls",
+  scope: "Release source-CI admission for the four-language CodeQL matrix",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "d7ffa146b6948b24fa27556c8897561f8c234039c3b11957d229f2e81d4b879b",
-  packedBytes: 12_037_924,
-  unpackedBytes: 23_557_354,
+  archiveSha256: "ed90b463e90de04a24c08eb2346c738a792d0b3be178ed263673ead86713cd9b",
+  packedBytes: 12_038_177,
+  unpackedBytes: 23_557_921,
   entryCount: 598,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
