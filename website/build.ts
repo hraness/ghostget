@@ -101,7 +101,7 @@ export const PUBLISHER_URL = "https://github.com/hraness" as const;
 export const HRANESS_URL = "https://hraness.com/" as const;
 export const HRANESS_ORGANIZATION_ID = `${HRANESS_URL}#organization` as const;
 export const SKILL_REPOSITORY = "hraness/ghostget" as const;
-export const CONTENT_REVIEWED_RELEASE = "v0.18.36" as const;
+export const CONTENT_REVIEWED_RELEASE = "v0.18.37" as const;
 export const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com" as const;
 export const DEMO_PUBLIC_FILES = [
   "wrench-first-capture.gif",

@@ -7,6 +7,15 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+## 0.18.37
+
+- Admit the current four-language dynamic CodeQL matrix in the release
+  source-CI check: Actions, JavaScript and TypeScript, Python, and Rust. The
+  verification oracles added in #357 and #358 made the repository a
+  four-language tree, so the previous two-language union pin rejected the
+  exact current evidence and blocked the v0.18.36 tag release. No product
+  behavior changes.
+
 ## 0.18.36
 
 - Give the website a softer Gruvbox palette, woven hero lighting, readable

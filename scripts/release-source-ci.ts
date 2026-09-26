@@ -21,9 +21,10 @@ const SHA = /^[a-f0-9]{40}$/u;
 const HASH = /^[a-f0-9]{64}$/u;
 const JOBS = ["static", "package", "test 1/8", "test 2/8", "test 3/8", "test 4/8", "test 5/8", "test 6/8", "test 7/8", "test 8/8", "test-omni", "standalone", "macOS", "verification", "quint 1/4", "quint 2/4", "quint 3/4", "quint 4/4", "Required"];
 // The shared desktop-foundation runner replaced the repository-owned Swift
-// menu in PR #272. This source tree contains Actions and JavaScript/TypeScript;
-// require both exact jobs and analyses, and reject any missing or extra language.
-const CODEQL_LANGUAGES = ["actions", "javascript-typescript"] as const;
+// menu in PR #272, and the verification oracles in #357 and #358 made this a
+// four-language tree (Actions, JavaScript/TypeScript, Python, Rust). Require
+// every exact job and analysis, and reject any missing or extra language.
+const CODEQL_LANGUAGES = ["actions", "javascript-typescript", "python", "rust"] as const;
 const CODEQL_JOBS = CODEQL_LANGUAGES.map(language => `Analyze (${language})`);
 const CODEQL_CATEGORIES = CODEQL_LANGUAGES.map(language => `/language:${language}`);
 const TOOLCHAIN = { node: "24.20.0", npm: "11.19.0", bun: "1.3.14" } as const;
