@@ -1803,19 +1803,19 @@
 // usage-error renderer and their changelog entry over the aggregate run
 // telemetry base: one additional packed source file, 600 files total.
 // A clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
-// measured 12,044,110 packed bytes, 23,578,983 unpacked bytes and exactly
+// measured 12,044,151 packed bytes, 23,579,133 unpacked bytes and exactly
 // 600 entries; archive SHA-256
-// 18cdb7fd96c1ea094e38ba49841d450ea8a538a1069a88e02a11a4e139add1eb.
-// Carry the same projections and allowances: 12,044,110 + 12,387 + 4,096 =
-// 12,060,593 packed; 23,578,983 + 353 + 65 = 23,579,401 unpacked.
+// bdd17288cd127fad87eced743f63b7217880fb033a656ca9c780af275da66a55.
+// Carry the same projections and allowances: 12,044,151 + 12,387 + 4,096 =
+// 12,060,634 packed; 23,579,133 + 353 + 65 = 23,579,551 unpacked.
 export const repairPackageMeasurement = Object.freeze({
   scope: "Grouped CLI help and short usage errors over aggregate run telemetry",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "18cdb7fd96c1ea094e38ba49841d450ea8a538a1069a88e02a11a4e139add1eb",
-  packedBytes: 12_044_110,
-  unpackedBytes: 23_578_983,
+  archiveSha256: "bdd17288cd127fad87eced743f63b7217880fb033a656ca9c780af275da66a55",
+  packedBytes: 12_044_151,
+  unpackedBytes: 23_579_133,
   entryCount: 600,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
