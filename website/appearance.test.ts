@@ -19,9 +19,7 @@ test("one final header menu preserves content and precedes first stylesheet for 
     expect(html).toContain('data-ready="false"');
     expect(html).toContain('aria-label="Appearance: System" disabled');
   }
-  const recovery = addDocumentAppearance(head + '<main class="route-state"><h1>Missing</h1></main></body></html>', asset);
-  expect(recovery).toContain('<main class="route-state" id="main" tabindex="-1">');
-  expect(recovery.match(/data-hraness-appearance-menu/gu)).toHaveLength(1);
+  expect(() => addDocumentAppearance(head + '<main><h1>Missing</h1></main></body></html>', asset)).toThrow("ordinary header");
 });
 
 test("every ordinary authored template has one accepted composition; preview remains inert", async () => {
