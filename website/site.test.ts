@@ -72,6 +72,12 @@ import {
   BEEPER_LOCAL_OPERATION_NAMES,
   BEEPER_LOCAL_OPERATION_RUNTIME_TRANSPORTS,
 } from "../src/providers/beeper-local";
+import {
+  LAYER_LABELS,
+  LAYERS,
+  parseClaimsRegister,
+  type Status,
+} from "../scripts/verification-claims";
 
 const repositoryRoot = resolve(import.meta.dir, "..");
 const websiteRoot = import.meta.dir;
@@ -1511,6 +1517,60 @@ describe("ghostget.com static site", () => {
     expect(providerActionLines.every((line) =>
       /^- \*\*[^*]+\*\* \(`[^`]+`\) · [^\s].+$/u.test(line))).toBe(true);
     expect(providerMarkdown).not.toMatch(/observed|capture-required|reservation|completeness|adapter/iu);
+
+    const claimsPage = pages.find((page) => page.definition.canonicalPath === "/claims/");
+    const claimsRegisterSource = await readFile(
+      join(repositoryRoot, "verification/claims.json"),
+      "utf8",
+    );
+    const claimsRegister = parseClaimsRegister(JSON.parse(claimsRegisterSource) as unknown);
+    const claimsByStatus = (status: Status): number =>
+      claimsRegister.claims.filter((claim) => claim.status === status).length;
+    expect(claimsPage?.html).toContain("<h1>The Ghostget claims register</h1>");
+    expect(claimsPage?.html).toContain(
+      `The register holds ${claimsRegister.claims.length} claims: ${claimsByStatus("evidenced")} evidenced, ${claimsByStatus("planned")} planned, and ${claimsByStatus("not-verified")} not verified.`,
+    );
+    const exemptRuleCount = claimsRegister.rules.filter((rule) => rule.exempt !== null).length;
+    expect(claimsPage?.html).toContain(
+      `It maps ${claimsRegister.rules.length} guidelines from ${claimsRegister.guides.length} guides; ${claimsRegister.rules.length - exemptRuleCount} list claims and ${exemptRuleCount} are exempt.`,
+    );
+    for (const layer of LAYERS) {
+      const inLayer = claimsRegister.claims.filter((claim) => claim.layer === layer);
+      const row = `<tr><td>${LAYER_LABELS[layer]}</td><td align="right">${String(inLayer.filter((claim) => claim.status === "evidenced").length)}</td><td align="right">${String(inLayer.filter((claim) => claim.status === "planned").length)}</td><td align="right">${String(inLayer.filter((claim) => claim.status === "not-verified").length)}</td></tr>`;
+      if (inLayer.length === 0) {
+        expect(claimsPage?.html).not.toContain(row);
+        continue;
+      }
+      expect(claimsPage?.html).toContain(row);
+    }
+    for (const claim of claimsRegister.claims) {
+      expect(claimsPage?.html).toContain(`<h4><code>${claim.id}</code></h4>`);
+      const escapedStatement = claim.statement
+        .replaceAll("&", "&amp;").replaceAll('"', "&quot;")
+        .replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+        .replaceAll(/`([^`]+)`/gu, "<code>$1</code>");
+      expect(claimsPage?.html).toContain(`<p>${escapedStatement}</p>`);
+    }
+    expect(claimsPage?.html).toContain('href="/claims.json"');
+    expect(claimsPage?.html).toContain('href="/blog/ghostget-claims-register/"');
+    expect(claimsPage?.html).not.toContain("{{CLAIMS_");
+    const claimsMarkdown = await readFile(
+      join(websiteRoot, "dist", markdownSiblingPath("/claims/").slice(1)),
+      "utf8",
+    );
+    expect(claimsMarkdown).toContain("# The Ghostget claims register");
+    expect(claimsMarkdown).toContain("not verified.");
+    const claimsJson = await readFile(join(websiteRoot, "dist/claims.json"), "utf8");
+    expect(claimsJson).toBe(claimsRegisterSource);
+    const claimsJsonHeaders = vercel.headers.find((rule: { source: string }) =>
+      rule.source === "/claims.json");
+    expect(claimsJsonHeaders?.headers).toEqual([
+      { key: "Cache-Control", value: "no-store, max-age=0" },
+      { key: "Content-Type", value: "application/json; charset=utf-8" },
+    ]);
+    expect(sitemap).toContain(`<loc>${SITE_ORIGIN}/claims/</loc>`);
+    expect(llms).toContain(`${SITE_ORIGIN}/claims/`);
+    expect(llms).toContain(`${SITE_ORIGIN}/claims.json`);
 
     const beeper = pages.find((page) => page.definition.canonicalPath === "/docs/how-to/connect-beeper/");
     const beeperFacts = createBeeperPresentationFacts(providerDirectory);

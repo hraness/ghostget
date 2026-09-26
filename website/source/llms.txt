@@ -36,6 +36,7 @@ Do not use Ghostget as an AI agent, hosted HTTP API, OpenAPI surface, OAuth deve
 - [Omarchy and named web operations](https://ghostget.com/omarchy-root-escalation/): a desktop that lets any user process escalate to root is not a named Ghostget operation
 - [Security model](https://ghostget.com/docs/explanation/security-model/): how Ghostget keeps sign-ins on your machine, ties each action to one account, and handles a write whose outcome is unknown
 - [Author and verify provider plugins](https://ghostget.com/docs/how-to/author-provider-plugin/): create, check, test, pack, trust, and install one content-addressed bundle
+- [Claims register](https://ghostget.com/claims/): every claim the maintainer rules make about Ghostget with its current verification status, generated from the repository's claims file on each release; the raw register is also served at https://ghostget.com/claims.json
 - [Ghostget source repository]({{GHOSTGET_REPOSITORY}}): public source, issues, and GitHub private vulnerability reporting
 - [Plugin protocol guide for {{GHOSTGET_RELEASE}}]({{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/plugins.md): complete source-side plugin contract
 

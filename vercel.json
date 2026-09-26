@@ -35,6 +35,19 @@
       ]
     },
     {
+      "source": "/claims.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/json; charset=utf-8"
+        }
+      ]
+    },
+    {
       "source": "/(.*)",
       "headers": [
         {
@@ -437,6 +450,16 @@
     {
       "source": "/docs/how-to/author-provider-plugin/index.html",
       "destination": "/docs/how-to/author-provider-plugin/",
+      "permanent": true
+    },
+    {
+      "source": "/claims",
+      "destination": "/claims/",
+      "permanent": true
+    },
+    {
+      "source": "/claims/index.html",
+      "destination": "/claims/",
       "permanent": true
     },
     {
