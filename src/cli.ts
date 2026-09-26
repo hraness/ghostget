@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
-import { ghostgetUsage } from "./usage";
+import { ghostgetBareUsage, ghostgetHelpRequest } from "./usage";
+import { cliStyle, renderCliError } from "./cli-style";
 import { terminalIntro } from "./cli-intro";
 import { GHOSTGET_VERSION } from "./version";
 import type {
@@ -106,7 +107,8 @@ export function isImmediateGhostgetHelpRequest(
 export function isImmediateGhostgetVersionRequest(
   rawArguments: readonly string[],
 ): boolean {
-  return rawArguments.length === 1 && rawArguments[0] === "--version";
+  return rawArguments.length === 1
+    && (rawArguments[0] === "--version" || rawArguments[0] === "-V");
 }
 
 function hasOnlyOptionalJson(
@@ -188,12 +190,28 @@ export async function runGhostgetCliProcess(
   loadSupport: () => Promise<GhostgetSupportModule> = loadGhostgetSupport,
   standaloneRoot = false,
 ): Promise<void> {
-  if (isImmediateGhostgetHelpRequest(rawArguments)) {
-    if (output === defaultOutput) output.stdout(terminalIntro({ isTTY: process.stdout.isTTY, columns: process.stdout.columns, term: process.env.TERM }));
-    output.stdout(ghostgetUsage);
+  const help = ghostgetHelpRequest(rawArguments);
+  if (help !== null && help.kind !== "delegate") {
+    if (help.kind === "unknown-topic") {
+      const style = cliStyle(process.env, process.stderr.isTTY === true);
+      (output.stderr ?? defaultOutput.stderr)(renderCliError(
+        style,
+        `No help topic named "${help.topic.replace(/[^\x20-\x7e]/gu, "?").slice(0, 64)}".`,
+        "ghostget --help",
+      ));
+      process.exitCode = 2;
+      return;
+    }
+    if (help.kind === "bare") {
+      if (output === defaultOutput) output.stdout(terminalIntro({ isTTY: process.stdout.isTTY, columns: process.stdout.columns, term: process.env.TERM }));
+      output.stdout(ghostgetBareUsage(GHOSTGET_VERSION));
+    } else {
+      output.stdout(help.text);
+    }
     process.exitCode = 0;
     return;
   }
+  if (help !== null) rawArguments = help.arguments;
   if (isImmediateGhostgetVersionRequest(rawArguments)) {
     output.stdout(`${GHOSTGET_VERSION}\n`);
     process.exitCode = 0;
@@ -297,7 +315,9 @@ if (import.meta.main) {
   // Aggregate run telemetry reports the product name and version only, and
   // stays lazy: static help/version output never mints state or reaches out.
   const args = process.argv.slice(2);
-  const staticOnly = args.length === 0 || args.every((arg) => arg === "--help" || arg === "-h" || arg === "--version" || arg === "-V");
+  const staticOnly = args.length === 0
+    || ghostgetHelpRequest(args) !== null
+    || args.every((arg) => arg === "--help" || arg === "-h" || arg === "--version" || arg === "-V");
   if (depth === 0 && !staticOnly) {
     void import("./telemetry")
       .then((telemetry) => telemetry.reportGhostgetCliRun(GHOSTGET_VERSION, process.env))

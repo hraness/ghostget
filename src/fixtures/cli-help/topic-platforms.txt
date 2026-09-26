@@ -1,0 +1,4 @@
+Usage: ghostget platforms [site] [--json]
+
+Show the reviewed policy for each supported site: what Ghostget may read or
+change there. This lists policy, not installed adapters.

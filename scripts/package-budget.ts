@@ -1797,15 +1797,26 @@
 // 12,044,593 packed; 23,565,669 + 353 + 65 = 23,566,087 unpacked. Required
 // Linux CI and canonical Release must independently measure and admit their
 // exact archives.
+//
+// Grouped CLI help adds the import-free terminal style module
+// (src/cli-style.ts), per-command help topics in src/usage.ts, the short
+// usage-error renderer and their changelog entry over the aggregate run
+// telemetry base: one additional packed source file, 600 files total.
+// A clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
+// measured 12,044,151 packed bytes, 23,579,133 unpacked bytes and exactly
+// 600 entries; archive SHA-256
+// bdd17288cd127fad87eced743f63b7217880fb033a656ca9c780af275da66a55.
+// Carry the same projections and allowances: 12,044,151 + 12,387 + 4,096 =
+// 12,060,634 packed; 23,579,133 + 353 + 65 = 23,579,551 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Aggregate CLI run telemetry adds src/telemetry.ts and its CLI entrypoint wiring",
+  scope: "Grouped CLI help and short usage errors over aggregate run telemetry",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "2ecb6cc258f61709554ca37f66fb58a2cd00ccb1157850fb6d200962127dbe24",
-  packedBytes: 12_028_110,
-  unpackedBytes: 23_565_669,
-  entryCount: 599,
+  archiveSha256: "bdd17288cd127fad87eced743f63b7217880fb033a656ca9c780af275da66a55",
+  packedBytes: 12_044_151,
+  unpackedBytes: 23_579_133,
+  entryCount: 600,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

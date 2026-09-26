@@ -4447,7 +4447,7 @@ describe("CLI previews and exit semantics", () => {
     try {
       const usage = capture();
       expect(await main(["unknown-command"], testState.environment, usage.output)).toBe(2);
-      expect(usage.stderr()).toContain("unknown command");
+      expect(usage.stderr()).toContain("Unknown command");
 
       const missing = capture();
       expect(await main(["capabilities", "missing", "--json"], testState.environment, missing.output)).toBe(3);
@@ -4632,33 +4632,30 @@ describe("CLI previews and exit semantics", () => {
 
   test("renders the canonical Ghostget command surface", async () => {
     const usage = renderGhostgetUsage();
-    expect(usage).toStartWith("Ghostget: Named web actions for AI agents: read pages, save media, use connected accounts\n");
-    expect(usage).toContain("Start here (no account required):\n  ghostget read https://example.com");
-    expect(usage).toContain("Command reference:\n  ghostget login");
-    expect(usage).toContain("ghostget invoke <adapter> <operation>");
-    expect(usage).toContain("Shorthand for 'ghostget invoke'");
-    expect(usage).toContain("ghostget plugin list [--json]");
-    expect(usage).toContain("ghostget plugin show <id> [--json]");
-    expect(usage).toContain("ghostget imessage transport install [--binary <absolute-reviewed-imsg-file>] [--json]");
-    expect(usage).toContain("ghostget whatsapp automation install [--binary <absolute-reviewed-wacli-file>] [--json]");
-    expect(usage).toContain("ghostget messaging automation serve --stdio");
-    expect(usage).toContain("ghostget plugin scaffold --site <id>");
-    expect(usage).toContain("ghostget plugin check <directory> [--json]");
-    expect(usage).toContain(
-      "ghostget derive finish <derivation-id> --output <directory> [--review-origin <exact-https-origin>]",
-    );
-    expect(usage).toContain("[--fixtures - | --field-names -] [--json]");
-    expect(usage).toContain("Compatibility alias for 'ghostget plugin scaffold'");
+    expect(usage).toStartWith("Usage: ghostget <command> [options]\n");
+    expect(usage).toContain("Start here\n  ghostget read <url>");
+    expect(usage).toContain("ghostget invoke <adapter> <action>");
+    expect(usage).toContain("ghostget login                      Sign in to Hraness Accounts");
+    expect(usage).toContain("More: ghostget help <command> · ghostget help policy · ghostget help advanced");
     expect(usage).not.toContain("install-local.sh");
     expect(usage).not.toContain("uninstall-local.sh");
+    expect(usage.split("\n").length - 1).toBeLessThanOrEqual(60);
 
     const output = capture();
     expect(await main(
       ["unknown-command"],
-      process.env,
+      { ...process.env, NO_COLOR: "1", LANG: "en_US.UTF-8", TERM: "xterm-256color" },
       output.output,
     )).toBe(2);
-    expect(output.stderr()).toBe(`unknown command: unknown-command\n\n${usage}`);
+    expect(output.stderr()).toBe('✗ Unknown command "unknown-command".\n→ ghostget --help\n');
+
+    const missing = capture();
+    expect(await main(
+      ["read"],
+      { ...process.env, NO_COLOR: "1", LANG: "en_US.UTF-8", TERM: "xterm-256color" },
+      missing.output,
+    )).toBe(2);
+    expect(missing.stderr()).toBe("✗ A page URL is missing.\n→ ghostget read --help\n");
   });
 
   test("keeps exact write inputs encrypted on disk after preview", async () => {
