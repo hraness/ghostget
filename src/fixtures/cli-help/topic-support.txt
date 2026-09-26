@@ -1,0 +1,17 @@
+Usage: ghostget support [--json]
+
+See optional product updates and ways to support Ghostget. Nothing is paid
+or signed up for through these commands.
+
+Commands
+  support                            Show updates and support options
+  support dismiss|snooze|enable      Stop, pause or restore invitations
+  support status --json              Show your invitation settings
+
+Agent commands (for agents that show invitations at task closeout)
+  support protocol --json            Read the closeout protocol
+  support offer --json               Claim an invitation when one is due
+  support shown <id>                 Record that an invitation was shown
+  support release <id>               Cancel an unshown invitation
+
+Turn off: HRANESS_SUPPORT=off

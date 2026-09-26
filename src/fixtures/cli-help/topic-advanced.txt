@@ -1,0 +1,17 @@
+Ghostget advanced commands
+
+  ghostget tui --snapshot            Print the control panel as plain text
+  ghostget vault --help              Import an X token from 1Password
+  ghostget web request <https-url>   Fetch public text through your web rules
+  ghostget interface list|export|import
+                                     OpenAPI drafts of installed actions
+  ghostget transcriber setup --engine whisper-cpp --model <file>
+                                     Set up local transcripts for media
+  ghostget verify <archive-folder>   Check a saved media archive
+  ghostget omni read --input <json>  Read several inboxes as one list
+  ghostget plans list|cancel         Manage change previews
+  ghostget runs show|reconcile       Inspect or settle one run
+  ghostget operator doctor           Same as ghostget doctor
+
+Use one controller at a time: run ghostget menubar stop before opening the
+TUI. Setup guide: https://ghostget.com/getting-started

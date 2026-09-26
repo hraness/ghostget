@@ -22,7 +22,7 @@ import {
   routedGhostgetCatalogCommand,
   runGhostgetCliProcess,
 } from "./cli";
-import { ghostgetUsage } from "./usage";
+import { ghostgetBareUsage, ghostgetHelpRequest, ghostgetUsage } from "./usage";
 import { GHOSTGET_VERSION } from "./version";
 
 const repositoryRoot = process.cwd();
@@ -79,7 +79,9 @@ describe("lazy ghostget CLI entrypoint", () => {
             throw new Error("the full CLI graph must stay lazy for help");
           },
         );
-        expect(stdout).toBe(ghostgetUsage);
+        expect(stdout).toBe(
+          rawArguments.length === 0 ? ghostgetBareUsage(GHOSTGET_VERSION) : ghostgetUsage,
+        );
         expect(loaded).toBe(0);
       }
     } finally {
@@ -107,9 +109,9 @@ describe("lazy ghostget CLI entrypoint", () => {
       expect(loaded).toBe(0);
       expect(process.exitCode).toBe(0);
       expect(isImmediateGhostgetVersionRequest(["--version"])).toBeTrue();
+      expect(isImmediateGhostgetVersionRequest(["-V"])).toBeTrue();
       for (const rawArguments of [
         ["version"],
-        ["-V"],
         ["--version", "extra"],
       ]) expect(isImmediateGhostgetVersionRequest(rawArguments)).toBeFalse();
 
@@ -120,7 +122,8 @@ describe("lazy ghostget CLI entrypoint", () => {
 
       const rejected = await runProcess(cliPath, ["--version", "extra"], process.env);
       expect(rejected).toMatchObject({ exitCode: 2, stdout: "" });
-      expect(rejected.stderr).toContain("unknown command: --version");
+      expect(rejected.stderr).toContain('Unknown command "--version".');
+      expect(rejected.stderr).not.toContain("Usage:");
     } finally {
       process.exitCode = previousExitCode;
     }
@@ -203,9 +206,11 @@ describe("lazy ghostget CLI entrypoint", () => {
       expect(isPublicGhostgetCommand(["inspect"])).toBeFalse();
       expect(isPublicGhostgetCommand(["operator", "doctor"])).toBeFalse();
       expect(isPublicGhostgetCommand(["url-metadata", "backfill"])).toBeTrue();
-      expect(ghostgetUsage).toContain(
-        "ghostget url-metadata backfill [metadata-options]",
-      );
+      expect(ghostgetHelpRequest(["url-metadata", "--help"])).toBeNull();
+      expect(ghostgetHelpRequest(["help", "url-metadata"])).toEqual({
+        kind: "delegate",
+        arguments: ["url-metadata", "--help"],
+      });
     } finally {
       process.exitCode = previousExitCode ?? 0;
     }
@@ -471,7 +476,8 @@ throw new Error("private fallback did not load a forbidden module");
 
   test("has only static help and release identity as eager dependencies and bounds startup CPU work", async () => {
     const source = readFileSync(cliPath, "utf8");
-    expect(source).toContain('import { ghostgetUsage } from "./usage"');
+    expect(source).toContain('import { ghostgetBareUsage, ghostgetHelpRequest } from "./usage"');
+    expect(source).toContain('import { cliStyle, renderCliError } from "./cli-style"');
     expect(source).toContain('import { GHOSTGET_VERSION } from "./version"');
     expect(source).toContain('import("./ghostget")');
     expect(source).toContain('import("./catalog-cli")');

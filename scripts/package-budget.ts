@@ -1798,24 +1798,25 @@
 // Linux CI and canonical Release must independently measure and admit their
 // exact archives.
 // The 0.18.39 release bump carries the version pin across package.json,
-// src/version.ts, the dist bundles, docs and skills, the 0.18.39 CHANGELOG
-// section, and the release-page standard over the same 599-file inventory.
+// src/version.ts, the rebuilt dist bundles, docs and skills, the 0.18.39
+// CHANGELOG section, and the release-page standard over the merged 600-file
+// inventory (grouped CLI help added src/cli-style.ts).
 // A clean `npm pack --ignore-scripts` with npm 11.19.0 on darwin arm64
-// measured 12,040,789 packed bytes and 23,566,401 unpacked bytes; archive
-// SHA-256 5d69c97182e1545018e3ab8ab41c752a3d47b860b43d5b4cd70a345c9e41ce90.
-// Carry the same projections and allowances: 12,040,789 + 12,387 + 4,096 =
-// 12,057,272 packed; 23,566,401 + 353 + 65 = 23,566,819 unpacked. Required
+// measured 12,044,402 packed bytes and 23,580,088 unpacked bytes; archive
+// SHA-256 7b7e8e9feda9e61ca4e6f426b5b68e674102a37143ebbe39da8a24d0138a68af.
+// Carry the same projections and allowances: 12,044,402 + 12,387 + 4,096 =
+// 12,060,885 packed; 23,580,088 + 353 + 65 = 23,580,506 unpacked. Required
 // Linux CI and canonical Release must independently measure and admit their
 // exact archives.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Release Ghostget 0.18.39 across the same 599-file inventory",
+  scope: "Release Ghostget 0.18.39 over the merged 600-file inventory",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
-  archiveSha256: "5d69c97182e1545018e3ab8ab41c752a3d47b860b43d5b4cd70a345c9e41ce90",
-  packedBytes: 12_040_789,
-  unpackedBytes: 23_566_401,
-  entryCount: 599,
+  archiveSha256: "7b7e8e9feda9e61ca4e6f426b5b68e674102a37143ebbe39da8a24d0138a68af",
+  packedBytes: 12_044_402,
+  unpackedBytes: 23_580_088,
+  entryCount: 600,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

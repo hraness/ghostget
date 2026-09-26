@@ -1,0 +1,10 @@
+Usage: ghostget omni read --input <json|@file|-> [options]
+
+Read your inboxes from several connected sites as one list.
+
+Options
+  --cache-only                       Return the saved view without new reads
+  --from-exact-cache                 Rebuild from saved reads only
+  --identity-only                    Print only the query identity
+  --headed                           Show the browser window if one is used
+  --json                             Print machine-readable output

@@ -1,0 +1,16 @@
+Usage: ghostget adapter <command> [options]
+
+Adapters are Ghostget's reviewed support for one site.
+
+Commands
+  adapter sync-bundled [--json]      Install or update the bundled adapters
+  adapter validate <manifest>        Check an adapter manifest
+  adapter install <manifest> [--force]
+                                     Install an adapter
+  adapter remove <id> --yes          Remove an adapter
+  adapter init <id> (--origin <https-origin> | --platform <site>)
+                --output <directory> Start a new adapter
+  adapters [--json]                  List public page-capture adapters
+
+Example
+  ghostget adapter sync-bundled

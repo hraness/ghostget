@@ -23,7 +23,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ghostgetSupportProfile } from "../src/support-profile";
 
 import { AskAiAboutThis } from "./ask-ai-runtime.js";
+import {
+  CLAIMS_JSON_OUTPUT,
+  CLAIMS_PAGE_PATH,
+  claimsTemplateValues,
+  readClaimsRegisterSource,
+} from "./claims-register";
 import { product, type PortfolioProductId } from "@hraness/design-kit/portfolio";
+import { renderStatusPageHtml, type StatusPageLink } from "@hraness/design-kit";
 import {
   EDITORIAL_ARTICLE_IMAGE_SIZES,
   EDITORIAL_CARD_IMAGE_SIZES,
@@ -50,6 +57,7 @@ import {
   renderBlogIndexMain,
   renderBlogLlmsEntries,
   renderBlogPostMain,
+  type BlogPost,
   type BlogSite,
 } from "./blog";
 import type { SitemapPath } from "@hraness/web-discovery";
@@ -207,6 +215,14 @@ export const PUBLIC_PAGES = [
     title: "Author and verify Ghostget provider plugins",
   },
   {
+    canonicalPath: CLAIMS_PAGE_PATH,
+    description:
+      "Every claim in Ghostget's public register with its current verification status, generated from the repository's verification/claims.json on each release.",
+    outputFile: "claims/index.html",
+    sourceFile: "claims.html",
+    title: "Ghostget claims register",
+  },
+  {
     canonicalPath: "/about/",
     description:
       "Ghostget is an open-source CLI and TypeScript SDK that lets any agent that can run commands read pages, archive media, and use connected accounts.",
@@ -233,10 +249,10 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/compare/",
     description:
-      "Four ways agents reach the web, from browser-driving libraries to hosted browsers, compared side by side with Ghostget's named actions.",
+      "Five ways agents reach the web, from browser-driving libraries to reader services and hosted browsers, compared side by side with Ghostget's named actions.",
     outputFile: "compare/index.html",
     sourceFile: "compare-index.html",
-    title: "How agents reach the web: browser-use, Playwright MCP, hosted browsers, and Ghostget",
+    title: "How agents reach the web: browser-use, Playwright MCP, reader services, hosted browsers, and Ghostget",
   },
   {
     canonicalPath: "/compare/browser-use/",
@@ -269,6 +285,22 @@ export const PUBLIC_PAGES = [
     outputFile: "compare/agent-browser/index.html",
     sourceFile: "compare-agent-browser.html",
     title: "Ghostget vs agent-browser: a browser the agent can never steer",
+  },
+  {
+    canonicalPath: "/compare/firecrawl/",
+    description:
+      "Firecrawl turns URLs into Markdown and crawls whole sites through a hosted, credit-billed API. Ghostget reads one URL on your machine, free, with no key.",
+    outputFile: "compare/firecrawl/index.html",
+    sourceFile: "compare-firecrawl.html",
+    title: "Ghostget vs Firecrawl: a local page read instead of a hosted scraping API",
+  },
+  {
+    canonicalPath: "/compare/jina-reader/",
+    description:
+      "Jina AI Reader converts a URL to Markdown through its hosted r.jina.ai prefix, rate-limited or token-billed. Ghostget reads the URL on your machine.",
+    outputFile: "compare/jina-reader/index.html",
+    sourceFile: "compare-jina-reader.html",
+    title: "Ghostget vs Jina Reader: URL to Markdown on your machine instead of a hosted prefix",
   },
   {
     canonicalPath: "/compare/personal-agents-browser-use/",
@@ -466,6 +498,7 @@ type RenderOptions = Readonly<{
   appearanceAsset: string;
   attestation: ProviderCapabilityAttestation;
   beeperFacts: BeeperPresentationFacts;
+  claimsValues: Readonly<Record<string, string>>;
   cssAsset: string;
   fieldAsset: string;
   foilAsset: string;
@@ -958,10 +991,82 @@ function renderTemplate(
     }
     rendered = substituteTemplateValues(rendered, webmcpValues);
   }
+  if (page?.canonicalPath === CLAIMS_PAGE_PATH) {
+    for (const [placeholder, value] of Object.entries(options.claimsValues)) {
+      if (!rendered.includes(placeholder)) {
+        throw new Error(`The claims register page is missing ${placeholder}.`);
+      }
+      // A function replacement keeps `$` sequences in register text literal.
+      rendered = rendered.replaceAll(placeholder, () => value);
+    }
+  } else if (rendered.includes("{{CLAIMS_")) {
+    throw new Error("Only the claims register page may include claims template values.");
+  }
   if (/\{\{[A-Z0-9_]+\}\}/u.test(rendered)) {
     throw new Error("The rendered page contains an unresolved template value.");
   }
   return addDocumentAppearance(rendered, options.appearanceAsset, format);
+}
+
+/**
+ * The shared design-kit 404 body. The primary action matches the homepage
+ * hero; the three next links cover what Ghostget is, the install guide, and
+ * the provider reference. `routes` feeds "Did you mean" and is never listed.
+ */
+export function renderGhostgetStatusPage(routes: readonly StatusPageLink[]): string {
+  return renderStatusPageHtml({
+    agentIndexHref: "/llms.txt",
+    next: [
+      {
+        description: "Install the CLI, read your first page, and watch the recorded demo.",
+        href: "/docs/tutorials/getting-started/",
+        label: "Getting started",
+      },
+      {
+        description: "Every site and named action your agent can call, and how each one runs.",
+        href: "/docs/reference/provider-capabilities/",
+        label: "Supported sites and actions",
+      },
+      {
+        description: "What the CLI and SDK do, and what they leave to your agent.",
+        href: "/about/",
+        label: "About Ghostget",
+      },
+    ],
+    primaryAction: { href: "/#start", label: "Install Ghostget" },
+    rootElement: "div",
+    routes,
+    siteName: "Ghostget",
+  });
+}
+
+const STATUS_ROUTE_LABEL_LIMIT = 48;
+
+/** A page title cut to the lead clause the "Did you mean" hint can show. */
+export function statusRouteLabel(title: string): string {
+  const lead = title.split(":")[0]!.split(", and ")[0]!.trim();
+  if (lead.length <= STATUS_ROUTE_LABEL_LIMIT) return lead;
+  const cut = lead.slice(0, STATUS_ROUTE_LABEL_LIMIT - 1);
+  return `${cut.slice(0, cut.lastIndexOf(" ")).trimEnd()}…`;
+}
+
+/** Known pages for "Did you mean": every public page, the blog, and each listed post. */
+export function statusPageRoutes(
+  pages: readonly Pick<PublicPage, "canonicalPath" | "title">[],
+  posts: readonly Pick<BlogPost, "slug" | "title">[],
+): StatusPageLink[] {
+  return [
+    ...pages.map((page) => {
+      // WebMCP registry pages carry long registry titles; the domain reads better.
+      const provider = /^\/providers\/([^/]+)\/$/u.exec(page.canonicalPath)?.[1];
+      return {
+        href: page.canonicalPath,
+        label: statusRouteLabel(provider === undefined ? page.title : `${provider} on Ghostget`),
+      };
+    }),
+    { href: BLOG_PATH, label: statusRouteLabel(BLOG_TITLE) },
+    ...posts.map((post) => ({ href: blogPostPath(post.slug), label: statusRouteLabel(post.title) })),
+  ];
 }
 
 export function renderPreview(template: string, cssAsset: string): string {
@@ -1128,11 +1233,13 @@ export async function buildWebsite(
     designKitProductMarketingCss,
     designKitPlainSiteCss,
     designKitPlainPublicationCss,
+    designKitStatusPageCss,
     hranessSiteFooterCss,
     blogShell,
     blogFragments,
     browserBuild,
     attestation,
+    claimsSource,
   ] = await Promise.all([
     Bun.file(join(repositoryRoot, "package.json")).json(),
     Promise.all(PUBLIC_PAGES.map((page) => readFile(join(sourceRoot, page.sourceFile), "utf8"))),
@@ -1156,6 +1263,7 @@ export async function buildWebsite(
     })),
     readFile(designKitPlainSiteStylesPath, "utf8"),
     readFile(designKitPlainPublicationStylesPath, "utf8"),
+    readFile(fileURLToPath(import.meta.resolve("@hraness/design-kit/status-page.css")), "utf8"),
     readFile(
       fileURLToPath(import.meta.resolve("@hraness/site-footer/stylex.css")),
       "utf8",
@@ -1175,6 +1283,7 @@ export async function buildWebsite(
         join(sourceRoot, "foil.ts"),
         join(sourceRoot, "ghostget-field.ts"),
         join(sourceRoot, "appearance.ts"),
+        join(sourceRoot, "status-page.ts"),
       ],
       format: "esm",
       minify: true,
@@ -1182,6 +1291,7 @@ export async function buildWebsite(
       target: "browser",
     }),
     loadProviderCapabilityAttestation(repositoryRoot),
+    readClaimsRegisterSource(repositoryRoot),
   ]);
   const webmcpSnapshot: WebmcpRegistrySnapshot = parseWebmcpRegistrySnapshot(
     webmcpRegistrySource,
@@ -1192,7 +1302,7 @@ export async function buildWebsite(
   );
   const webmcpIndexValues = webmcpIndexTemplateValues(webmcpSnapshot);
   const allPages: readonly PublicPage[] = [...PUBLIC_PAGES, ...webmcpPages];
-  if (!browserBuild.success || browserBuild.outputs.length !== 5) {
+  if (!browserBuild.success || browserBuild.outputs.length !== 6) {
     const messages = browserBuild.logs.map((log) => log.message).join("\n");
     throw new Error(`Browser script build failed: ${messages || "no browser output"}`);
   }
@@ -1206,6 +1316,7 @@ export async function buildWebsite(
   const skillInstall = new Uint8Array(await scriptAsset("skill-install-command"));
   const foil = new Uint8Array(await scriptAsset("foil"));
   const field = new Uint8Array(await scriptAsset("ghostget-field"));
+  const statusPage = new Uint8Array(await scriptAsset("status-page"));
   // The blocking head script is a classic script: wrap the shared ESM output in
   // one strict-mode IIFE so it never leaks a top-level binding.
   const appearance = new TextEncoder().encode(`(() => { "use strict";\n${new TextDecoder().decode(await scriptAsset("appearance"))}\n})();`);
@@ -1221,13 +1332,14 @@ export async function buildWebsite(
   const lanternCss = lanternMaterial.files.get("lantern-material.css");
   const lanternLicense = lanternMaterial.files.get("LICENSE");
   if (lanternCss === undefined || lanternLicense === undefined) throw new Error("The complete Lantern build snapshot is required.");
-  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${appearanceCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${lanternCss.toString("utf8")}\n`;
+  const compiledCss = `${uiCss}\n\n${designKitFontsCss.trim()}\n\n${designKitTypographyCss.trim()}\n\n${designKitProductMarketingCss.trim()}\n\n${designKitPlainSiteCss.trim()}\n\n${designKitPlainPublicationCss.trim()}\n\n${designKitStatusPageCss.trim()}\n\n${hranessSiteFooterCss.trim()}\n\n${paperThemeCss.trim()}\n\n${paletteSystemCss.trim()}\n\n${paletteBridgeCss.replace('@import "./palette-system.css";', "").trim()}\n\n${appearanceCss.trim()}\n\n${css.trimEnd()}\n\n${marketingPreset.files.get("product-marketing-preset.css")!.toString("utf8")}\n\n${lanternCss.toString("utf8")}\n`;
   const cssAsset = `/assets/styles-${contentHash(compiledCss)}.css`;
   const analyticsAsset = `/assets/analytics-${contentHash(analytics)}.js`;
   const appearanceAsset = `/assets/appearance-${contentHash(appearance)}.js`;
   const skillInstallAsset = `/assets/skill-install-${contentHash(skillInstall)}.js`;
   const foilAsset = `/assets/foil-${contentHash(foil)}.js`;
   const fieldAsset = `/assets/field-${contentHash(field)}.js`;
+  const statusPageAsset = `/assets/status-page-${contentHash(statusPage)}.js`;
   const providerDirectory = createProviderDirectory(attestation);
   const beeperFacts = createBeeperPresentationFacts(providerDirectory);
   const whatsappFacts = createWhatsAppPresentationFacts(providerDirectory, attestation);
@@ -1236,6 +1348,10 @@ export async function buildWebsite(
     appearanceAsset,
     attestation,
     beeperFacts,
+    claimsValues: claimsTemplateValues(
+      claimsSource.register,
+      (path) => `${REPOSITORY_URL}/blob/${identity.release}/${path}`,
+    ),
     cssAsset,
     foilAsset,
     ghostgetContentFooter: renderGhostgetContentFooter(),
@@ -1312,8 +1428,16 @@ export async function buildWebsite(
       htmlMainToMarkdown(html, `${SITE_ORIGIN}${page.canonicalPath}`),
     )),
     writeFile(join(outputRoot, BLOG_FEED_PATH.slice(1)), renderBlogAtomFeed(BLOG_SITE)),
+    writeFile(join(outputRoot, CLAIMS_JSON_OUTPUT), claimsSource.json),
     writeFile(join(outputRoot, "preview/index.html"), renderPreview(previewTemplate, cssAsset)),
-    writeFile(join(outputRoot, "404.html"), renderTemplate(notFoundTemplate, renderOptions)),
+    writeFile(join(outputRoot, "404.html"), renderTemplate(
+      // A function replacement keeps "$" in route labels literal.
+      replaceHtmlRequired(notFoundTemplate, "{{STATUS_PAGE_ASSET}}", escapeHtml(statusPageAsset)).replace(
+        "{{STATUS_PAGE}}",
+        () => renderGhostgetStatusPage(statusPageRoutes(allPages, BLOG_POSTS.filter(isIndexablePost))),
+      ),
+      renderOptions,
+    )),
     writeFile(join(outputRoot, "404.md"), renderTemplate(notFoundMarkdown, renderOptions, undefined, "text")),
     writeFile(join(outputRoot, "llms.txt"), renderTemplate(
       replaceRequired(llmsTemplate, "{{BLOG_LLMS_ENTRIES}}", renderBlogLlmsEntries(BLOG_SITE)),
@@ -1327,6 +1451,7 @@ export async function buildWebsite(
     writeFile(join(outputRoot, skillInstallAsset.slice(1)), skillInstall),
     writeFile(join(outputRoot, foilAsset.slice(1)), foil),
     writeFile(join(outputRoot, fieldAsset.slice(1)), field),
+    writeFile(join(outputRoot, statusPageAsset.slice(1)), statusPage),
     writeFile(
       join(outputRoot, "robots.txt"),
       `User-agent: *\nAllow: /\n\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`,

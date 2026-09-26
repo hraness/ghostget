@@ -1,0 +1,19 @@
+Usage: ghostget clip <url> [slug] [options]
+       ghostget <url> [slug] [options]
+
+Save a page as a Markdown note in your notes folder.
+
+Options
+  --auth <id>                    Save with a connected account
+  --output <directory>           Where to save (default: kb/articles)
+  --media none|images|all        Save images or all supported media
+  --evidence none|source|screenshot|all
+                                 Keep the page source or a screenshot
+  --stdout                       Print Markdown instead of saving
+  --force                        Replace an existing note
+  --json                         Print machine-readable output
+
+Capture options from ghostget read --help also apply.
+
+Example
+  ghostget clip https://example.com example-page

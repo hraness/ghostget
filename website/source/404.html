@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
     <meta name="robots" content="noindex, nofollow">
-    <meta name="description" content="This page doesn’t exist on ghostget.com. The links here lead to the install guide, the site map, and the llms.txt site guide.">
+    <meta name="description" content="This page doesn’t exist on ghostget.com. Install Ghostget or start from the getting started guide.">
     <title>Page not found · Ghostget</title>
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
@@ -16,24 +16,26 @@
     <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
     <script type="module" src="{{ANALYTICS_ASSET}}"></script>
     <script type="module" src="{{FOIL_ASSET}}"></script>
+    <script type="module" src="{{STATUS_PAGE_ASSET}}"></script>
   </head>
   <body>
-    <main class="route-state">
-      <p class="eyebrow">404 · Ghostget {{GHOSTGET_VERSION}}</p>
-      <h1>Page not found</h1>
-      <p>This page may have moved. The Ghostget {{GHOSTGET_RELEASE}} install guide and the rest of the site are still available. Start from one of these pages:</p>
-      <ul class="recovery-links">
-        <li><a href="/llms.txt">Agent site guide (llms.txt)</a></li>
-        <li><a href="/sitemap.xml">XML sitemap</a></li>
-        <li><a href="/docs/tutorials/getting-started/">Install and Ghostget developer resources</a></li>
-        <li><a href="/about/">About Ghostget</a></li>
-        <li><a href="/contact/">Contact and security reporting</a></li>
-        <li><a href="/privacy/">Privacy and data custody</a></li>
-      </ul>
-      <a class="button button-primary" href="/">Return to ghostget.com</a>
-      <p class="privacy-note">Privacy: this page uses cookieless, personless PostHog analytics. No replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
-      <p class="visually-hidden">Current install command: {{GHOSTGET_INSTALL_COMMAND}}</p>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar guide-topbar">
+      <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> Ghostget</a>
+      <nav aria-label="Primary">
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+      </nav>
+    </header>
+    <main class="status-main" id="main">
+      {{STATUS_PAGE}}
     </main>
+    <aside aria-label="Ghostget project information" class="site-disclosure">
+      <p>Ghostget {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
+      <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
+    </aside>
     {{HRANESS_SITE_FOOTER}}
   </body>
 </html>

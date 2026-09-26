@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en" data-hraness-theme="paper" data-palette="gruvbox">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
+    <title>Ghostget claims register</title>
+    <meta name="description" content="Every claim in Ghostget's public register with its current verification status, generated from the repository's verification/claims.json on each release.">
+    <meta name="robots" content="max-image-preview:large">
+    <link rel="canonical" href="https://ghostget.com/claims/">
+    <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
+    <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180">
+    <link rel="stylesheet" href="{{CSS_ASSET}}">
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+    {{MARKDOWN_ALTERNATE}}
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Ghostget">
+    <meta property="og:title" content="Ghostget claims register">
+    <meta property="og:description" content="Every claim in Ghostget's public register with its current verification status, generated from the repository's verification/claims.json on each release.">
+    <meta property="og:url" content="https://ghostget.com/claims/">
+    <meta property="og:image" content="https://ghostget.com/og.png">
+    <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Ghostget claims register">
+    <meta name="twitter:description" content="Every claim in Ghostget's public register with its current verification status, generated from the repository's verification/claims.json on each release.">
+    <meta name="twitter:image" content="https://ghostget.com/og.png">
+    <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
+    <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
+    <meta name="ghostget-posthog-key" content="{{POSTHOG_KEY}}">
+    <script type="application/ld+json">{{JSON_LD}}</script>
+    <script type="module" src="{{ANALYTICS_ASSET}}"></script>
+    <script type="module" src="{{FOIL_ASSET}}"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar guide-topbar">
+      <a aria-label="Ghostget home" class="wordmark hraness-foil-text" data-foil="" href="/"><span aria-hidden="true" class="brand-mark hraness-foil-mark" data-foil=""><img alt="" class="hraness-foil-mark__image" decoding="async" height="20" src="/marks/wrench.svg" width="20" /><span aria-hidden="true" class="hraness-foil-mark__paint"></span></span> Ghostget</a>
+      <nav aria-label="Primary">
+        <a href="/docs/tutorials/getting-started/">Install</a>
+        <a href="/docs/reference/provider-capabilities/">Providers</a>
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/hraness/ghostget">GitHub <span aria-hidden="true">↗</span></a>
+      </nav>
+    </header>
+    <main class="guide-main" id="main">
+      <nav aria-label="Breadcrumb" class="breadcrumbs"><ol><li><a href="/">Ghostget</a></li><li aria-current="page">Claims register</li></ol></nav>
+      <article class="guide-article">
+        <header class="guide-hero">
+          <p class="eyebrow">Verification · Ghostget {{GHOSTGET_VERSION}}</p>
+          <h1>The Ghostget claims register</h1>
+          <p class="answer-lede">Ghostget's repository keeps a public register of the claims its maintainer rules make about the product. Each entry is one claim with a status, the kind of check behind it, the conditions it assumes, and what that check leaves out. The build generates this page from that register, so the counts always match the current release.</p>
+          <p class="review-note">Latest release: {{GHOSTGET_RELEASE}}. For a guided read of the claims that matter most when an agent writes on your behalf, see the post <a href="/blog/ghostget-claims-register/">What Ghostget has and has not verified</a>.</p>
+        </header>
+
+        <section aria-labelledby="how-to-read">
+          <h2 id="how-to-read">How to read a claim</h2>
+          <p>A claim is <strong>evidenced</strong> when its layer runs in CI, <strong>planned</strong> when the verification plan schedules its layer, and <strong>not verified</strong> when no automated check covers it. Evidenced does not mean proved. It means a named check runs on every change and passes.</p>
+          <p>Each entry also carries its own not-verified scope: the part of the claim the check does not cover. The repository's <code>verify:claims</code> check fails when the generated assurance document is stale, when a rule in a scanned maintainer guide has no current register entry, when a rule does not list exactly the claims that quote it, when an evidenced property claim names a test that runs no property, or when an evidence path no longer exists.</p>
+        </section>
+
+        <section aria-labelledby="claims-summary">
+          <h2 id="claims-summary">Summary</h2>
+          {{CLAIMS_SUMMARY}}
+          <div class="table-scroll" role="region" tabindex="0" aria-label="Claims by kind of check and status">
+            {{CLAIMS_LAYER_TABLE}}
+          </div>
+          <p>Small models and proofs are tied to the code they describe: Quint models are replayed against the production implementation, and each Lean proof is paired with a test that checks the TypeScript agrees on generated inputs. The <a href="/blog/ghostget-claims-register/">register walkthrough</a> explains each kind of check in plain words.</p>
+        </section>
+
+        <section aria-labelledby="claims-not-verified">
+          <h2 id="claims-not-verified">What is not verified</h2>
+          <p>The register as a whole does not verify:</p>
+          {{CLAIMS_SCOPE_LIST}}
+          <p>Every claim below also lists its own not-verified scope.</p>
+          {{CLAIMS_NOT_VERIFIED_CLAIMS}}
+          {{CLAIMS_COVERAGE}}
+        </section>
+
+        <section aria-labelledby="claims-by-area">
+          <h2 id="claims-by-area">Claims by area</h2>
+          <p>Claims are grouped by the register's area labels. The identifier names the claim in <code>verification/claims.json</code>.</p>
+          {{CLAIMS_BY_AREA}}
+        </section>
+
+        <section aria-labelledby="claims-assumptions">
+          <h2 id="claims-assumptions">Environmental assumptions</h2>
+          <p>Each claim holds only while its listed assumptions hold.</p>
+          <div class="table-scroll" role="region" tabindex="0" aria-label="Environmental assumptions and claim counts">
+            {{CLAIMS_ASSUMPTIONS_TABLE}}
+          </div>
+        </section>
+
+        <aside class="guide-callout" aria-labelledby="claims-sources">
+          <h2 id="claims-sources">Where the register lives</h2>
+          <p>The source file is <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/verification/claims.json"><code>verification/claims.json</code></a>, and <a href="{{GHOSTGET_REPOSITORY}}/blob/{{GHOSTGET_RELEASE}}/docs/assurance.md"><code>docs/assurance.md</code></a> renders the same data as a document. The raw register is also served from this site at <a href="/claims.json"><code>/claims.json</code></a>, and this page as Markdown at <a href="/claims.md"><code>/claims.md</code></a>.</p>
+        </aside>
+      </article>
+    </main>
+    <aside aria-label="Ghostget project information" class="site-disclosure">
+      <p>Ghostget {{GHOSTGET_VERSION}} · MIT · <a href="{{GHOSTGET_REPOSITORY}}">Source on GitHub</a> · <a href="/about/">About</a> · <a href="/contact/">Contact</a> · <a href="/privacy/">Privacy</a> · <a href="/llms.txt">llms.txt</a></p>
+      <p class="privacy-note">Privacy: cookieless PostHog analytics measure page lifecycle and Core Web Vitals. No person profiles, replay, broad autocapture, or URL queries; Do Not Track is honored.</p>
+    </aside>
+    {{HRANESS_SITE_FOOTER}}
+  </body>
+</html>
