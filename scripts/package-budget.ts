@@ -1767,15 +1767,26 @@
 // 34055b94c3b432755cbf9790246e2fd5870479c6302413c3ea56745924bc1f64.
 // Carry the same projections and allowances: 12,038,377 + 12,387 + 4,096 =
 // 12,054,860 packed; 23,558,518 + 353 + 65 = 23,558,936 unpacked.
+//
+// Grouped CLI help adds the import-free terminal style module
+// (src/cli-style.ts), per-command help topics in src/usage.ts, the short
+// usage-error renderer and their changelog entry: one additional packed
+// source file.
+// A clean `npm pack --ignore-scripts` with npm 11.16.0 on darwin arm64
+// measured 12,042,221 packed bytes, 23,571,798 unpacked bytes and exactly
+// 599 entries; archive SHA-256
+// 74b801af002c527fd15bee2010536ef256a576a6e88e29ef2b4f096631dedf6d.
+// Carry the same projections and allowances: 12,042,221 + 12,387 + 4,096 =
+// 12,058,704 packed; 23,571,798 + 353 + 65 = 23,572,216 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Release source-CI admission for main-moved merge trees",
+  scope: "Grouped CLI help and short usage errors",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "34055b94c3b432755cbf9790246e2fd5870479c6302413c3ea56745924bc1f64",
-  packedBytes: 12_038_377,
-  unpackedBytes: 23_558_518,
-  entryCount: 598,
+  archiveSha256: "74b801af002c527fd15bee2010536ef256a576a6e88e29ef2b4f096631dedf6d",
+  packedBytes: 12_042_221,
+  unpackedBytes: 23_571_798,
+  entryCount: 599,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
   payloadPlatformProjection: 353,

@@ -1,0 +1,13 @@
+Usage: ghostget derive <command> [options]
+
+Record how a site's own web app calls its API, then turn the recording into
+an adapter. Requires a browser you control.
+
+Commands
+  derive start <id> <url> [--auth <id>] [--headed] [--json]
+  derive list [--json]
+  derive browser <derivation-id> -- <browser command>
+  derive review <derivation-id> [--offset <n> --limit <n>] [--json]
+  derive finish <derivation-id> --output <directory> [--json]
+  derive analyze <har> --adapter <id> --origin <origin> --output <directory>
+  derive discard <derivation-id> --yes

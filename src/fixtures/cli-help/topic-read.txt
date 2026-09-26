@@ -1,0 +1,16 @@
+Usage: ghostget read <url> [options]
+
+Read a page and print it as Markdown. Nothing is saved.
+
+Options
+  --auth <id>                    Read with a connected account
+  --mode auto|http|browser|file  How to fetch the page (default: auto)
+  --browser-profile <name|path>  Use a signed-in Chrome profile
+  --cookie-source <browser>      chrome|arc|brave|chromium|edge|firefox|safari
+  --cookie-profile <name|path>   Which profile of that browser
+  --cookies-file <path>          Use exported cookies instead of a browser
+  --json                         Print machine-readable output
+  --timeout-ms <n>               Stop waiting after this many milliseconds
+
+Example
+  ghostget read https://example.com

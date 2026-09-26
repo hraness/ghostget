@@ -1,0 +1,18 @@
+Ghostget gives your AI agent named web actions: read a page, archive one
+media item, or use a connected account, without credentials or a browser to
+steer.
+
+Start here
+  ghostget read https://example.com   Read a public page, no account needed
+  ghostget browsers                   Find the browser you're signed in to
+  ghostget auth add x-main --cookie-source chrome
+                                      Connect an account from that browser
+  ghostget capabilities               See the actions you can run
+  ghostget menubar                    Show Ghostget in the menu bar
+
+Everyday
+  ghostget clip <url>                 Save a page as a Markdown note
+  ghostget invoke <adapter> <action>  Run an action with a connected account
+
+All commands: ghostget --help · Topics: ghostget help <topic>
+ghostget 0.0.0

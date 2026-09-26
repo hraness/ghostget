@@ -1,0 +1,18 @@
+Usage: ghostget <command> [options]
+
+Keep saved pages as a Markdown notes folder and search it.
+
+Commands
+  init [directory] [--json]          Create a notes folder
+  pdf <file-or-url> [options]        Save a PDF as a note
+  list [--tag <tag>] [--json]        List notes
+  search <query> [--json]            Search notes
+  index [--json]                     Build the search index
+  refresh|check|graph [--json]       Rebuild or check links between notes
+  backlinks|links <note> [--json]    Show links to or from a note
+  url-metadata backfill [options]    Fill in titles for saved links
+  context <repository-path> [--json] Find notes about a file or folder
+  agents identity|check|audit        Check a repository's agent guides
+  adapters [--json]                  List page-capture adapters
+
+Most commands take --root <directory> to pick the notes folder.

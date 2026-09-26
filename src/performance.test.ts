@@ -190,12 +190,15 @@ describe("Ghostget hardening performance gates", () => {
     const cliSource = readFileSync(cliPath, "utf8");
     const usageSource = readFileSync(join(import.meta.dir, "usage.ts"), "utf8");
     const introSource = readFileSync(join(import.meta.dir, "cli-intro.ts"), "utf8");
+    const styleSource = readFileSync(join(import.meta.dir, "cli-style.ts"), "utf8");
     expect(runtimeImportDeclarations(cliSource)).toEqual([
-      'import { ghostgetUsage } from "./usage";',
+      'import { ghostgetBareUsage, ghostgetHelpRequest } from "./usage";',
+      'import { cliStyle, renderCliError } from "./cli-style";',
       'import { terminalIntro } from "./cli-intro";',
       'import { GHOSTGET_VERSION } from "./version";',
     ]);
     expect(runtimeImportDeclarations(usageSource)).toEqual([]);
+    expect(runtimeImportDeclarations(styleSource)).toEqual([]);
     expect(runtimeImportDeclarations(introSource)).toEqual([]);
 
     const previousExitCode = process.exitCode;

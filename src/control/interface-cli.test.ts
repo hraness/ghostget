@@ -50,9 +50,10 @@ describe("public interface CLI", () => {
     const f = fixture();
     const help = await run(f, ["--help"]);
     expect(help).toEqual({ exitCode: 0, stdout: ghostgetUsage, stderr: "" });
-    expect(help.stdout).toContain("ghostget web request <https-url> [--method GET|HEAD]");
-    expect(help.stdout).toContain("ghostget interface import <openapi.json>");
-    expect(help.stdout).toContain("Save an inert draft; activation requires an authorized local control client");
+    expect(help.stdout).toContain("ghostget web|interface|platforms");
+    const webHelp = await run(f, ["help", "web"]);
+    expect(webHelp.exitCode).toBe(0); expect(webHelp.stderr).toBe("");
+    expect(webHelp.stdout).toContain("ghostget web request <https-url> [--method GET|HEAD]");
     for (const args of [["interface"], ["interface", "--help"]]) {
       const result = await run(f, args);
       expect(result.exitCode).toBe(0); expect(result.stderr).toBe("");

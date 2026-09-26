@@ -1,0 +1,11 @@
+Usage: ghostget capabilities [adapter] [--json]
+
+List the actions installed adapters offer. An adapter is Ghostget's support
+for one site, such as x-web.
+
+Options
+  --json                             Print machine-readable output
+
+Example
+  ghostget adapter sync-bundled
+  ghostget capabilities x-web

@@ -882,8 +882,14 @@ export function parseGhostgetArguments(raw: readonly string[]): ParseGhostgetRes
   }
   const first = raw[0] ?? "";
   if (/^https?:\/\//iu.test(first)) return { ok: true, value: { command: "clip", arguments: raw } };
-  if (first === "clip" || first === "capture") return { ok: true, value: { command: "clip", arguments: raw.slice(1) } };
-  if (first === "read" || first === "inspect") return { ok: true, value: { command: "read", arguments: raw.slice(1) } };
+  if (first === "clip" || first === "capture") {
+    if (raw.length === 1) return { ok: false, message: "A page URL is missing" };
+    return { ok: true, value: { command: "clip", arguments: raw.slice(1) } };
+  }
+  if (first === "read" || first === "inspect") {
+    if (raw.length === 1) return { ok: false, message: "A page URL is missing" };
+    return { ok: true, value: { command: "read", arguments: raw.slice(1) } };
+  }
   if (first === "media") {
     const mediaArguments = raw.slice(1);
     const mediaMode = mediaArguments[0];

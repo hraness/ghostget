@@ -7,6 +7,18 @@ Historical entries retain their original delivery coordinates.
 
 ## Unreleased
 
+- Shorter, grouped help. Bare `ghostget` shows a start-here list that fits
+  one screen, and `ghostget --help` groups commands by task. Policy notes
+  moved to `ghostget help policy` and rarely used commands to
+  `ghostget help advanced`.
+- Every command family has its own help: `<command> --help`, `-h` and
+  `ghostget help <command>` print the same text and exit 0, even for
+  commands that need arguments, such as `ghostget auth add --help`.
+- A usage mistake prints one line and the help command to run next, instead
+  of the whole command reference. Unknown commands suggest the closest
+  match. `ghostget read` without a URL no longer prints another tool's
+  usage. `-V` prints the version.
+
 ## 0.18.38
 
 - Admit released trees that legitimately differ from the reviewed pull request

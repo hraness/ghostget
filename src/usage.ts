@@ -3,237 +3,573 @@
  *
  * The installed entrypoint imports only static help, terminal identity, and release
  * identity for a valid help request, so help remains available even when an
- * optional provider runtime is broken.
+ * optional provider runtime is broken. This module must stay import-free.
  */
-export const ghostgetUsage = `Ghostget: Named web actions for AI agents: read pages, save media, use connected accounts
 
-Start here (no account required):
-  ghostget read https://example.com                    Read a public page without saving it
-  ghostget adapter sync-bundled                        Set up reviewed provider capabilities
-  ghostget capabilities                               See what you can use
+const GHOSTGET_DESCRIPTION = `Ghostget gives your AI agent named web actions: read a page, archive one
+media item, or use a connected account, without credentials or a browser to
+steer.`;
 
-Control Ghostget:
-  ghostget tui                                        Open the keyboard-driven control panel
-  ghostget tui --snapshot                             Print a plain-text control overview
-  ghostget menubar                                    Start the menu-bar companion
-  ghostget menubar doctor                             Check companion installation
-  ghostget vault --help                               Import an X token from 1Password on a desktop
+/** Bare `ghostget`: at most 25 lines including the terminal banner. */
+export function ghostgetBareUsage(version: string): string {
+  return `${GHOSTGET_DESCRIPTION}
 
-Use one controller at a time. Run ghostget menubar stop before opening the TUI.
-Setup guide: https://ghostget.com/getting-started
+Start here
+  ghostget read https://example.com   Read a public page, no account needed
+  ghostget browsers                   Find the browser you're signed in to
+  ghostget auth add x-main --cookie-source chrome
+                                      Connect an account from that browser
+  ghostget capabilities               See the actions you can run
+  ghostget menubar                    Show Ghostget in the menu bar
 
-Command reference:
-  ghostget login [--json]                             Sign in to Hraness Accounts
-  ghostget logout [--json]                            Sign out of Hraness Accounts
-  ghostget --version                                  Print the exact Ghostget release version
-  ghostget support [--json]                           View optional product updates and support
-  ghostget support protocol --json                    Read the optional agent closeout protocol
-  ghostget support offer --json                       Claim an invitation when due at task closeout
-  ghostget support shown <id>                         Acknowledge human-facing output after presentation
-  ghostget support release <id>                       Cancel an invitation before presentation
-  ghostget support dismiss|snooze|enable               Set shared invitation preferences
-  ghostget support status --json                      Inspect local invitation preferences
-  ghostget init [directory] [--json]                    Initialize a Markdown vault
-  ghostget inspect <url> [capture-options]              Inspect capture without persistence
-  ghostget pdf <file-or-url> [pdf-options]               Capture a PDF into the vault
-  ghostget refresh|check|graph [vault-options]           Maintain or inspect the vault graph
-  ghostget backlinks|links <note> [vault-options]        Navigate explicit note relationships
-  ghostget list [query-options]                          Query notes and metadata
-  ghostget index [semantic-options]                      Build the local semantic index
-  ghostget search <query> [semantic-options]             Search the local vault
-  ghostget url-metadata backfill [metadata-options]      Backfill saved URL metadata
-  ghostget context <repository-path> [context-options]   Resolve scoped agent context
-  ghostget agents identity|check|audit [...]             Inspect repository agent guides
-  ghostget adapters [--json]                             List public capture adapters
+Everyday
+  ghostget clip <url>                 Save a page as a Markdown note
+  ghostget invoke <adapter> <action>  Run an action with a connected account
 
-  ghostget <url> [slug] [clip-options] [--auth <id>]       Capture a durable clip
-  ghostget clip <url> [slug] [clip-options] [--auth <id>]  Capture a durable clip
-  ghostget read <url> [clip-options] [--auth <id>]         Read without persistence
-  ghostget archive <url> [media-options]            Create a verified complete media archive
-  ghostget media [archive|audio|video|transcript] <url> [media-options]
-  ghostget audio|video|transcript <url> [media-options]
-  ghostget verify <archive-item-directory> [--json] Verify every archived media artifact
-  ghostget media quarantine [--output <dir>] [--json] List revisions moved aside after an interrupted save
-  ghostget transcriber setup --engine whisper-cpp --model <file> [media-options]
-  ghostget doctor [--json]                         Check capture, media, auth, and action dependencies
-  ghostget capabilities [adapter] [--json]         List installed semantic capabilities
-  ghostget contracts catalog [--adapter <id>]... [--json]
-                                                 Emit the machine-checkable contract catalog
-  ghostget contracts check --plan <file|-> [--auth-state] [--json]
-                                                 Check a collection plan against installed contracts
-  ghostget contracts repair [--id <sha256>|--plan <file|-> [--record]] [--json]
-                                                 Inspect bounded repair leads without executing them
-  ghostget contracts schema <catalog|check|plan|invoke-read|repair> [--json]
-                                                 Print one contract document's JSON Schema
-  ghostget web request <https-url> [--method GET|HEAD]
-                                                 Retrieve public text through native web rules and approvals
-  ghostget interface list                          List user and imported OpenAPI drafts
-  ghostget interface export [adapter]              Export installed semantic interfaces as OpenAPI
-  ghostget interface import <openapi.json> [--expected-digest <sha256>]
-                                                 Save an inert draft; activation requires an authorized local control client
-  ghostget whatsapp automation install [--binary <absolute-reviewed-wacli-file>] [--json]
-  ghostget imessage transport install [--binary <absolute-reviewed-imsg-file>] [--json]
-                                                 Install only the current reviewed iMessage transport bytes
-  ghostget plugin list [--json]                    List trusted source and installed portable plugins
-  ghostget plugin show <id> [--json]               Inspect one source or portable plugin
-  ghostget plugin scaffold --site <id> --display-name <name> --origin <https-origin>
-                           --operation <semantic.action> --risk <R1|R2|R3>
-                           --evidence <internal-api-evidence.json> --candidate <index>
-                           --output <empty-directory> [--json]
-  ghostget plugin init <id> --display-name <name> --surface <id> --origin <https-origin>
-                     --operation <semantic.action>
-                     [--transport provider-api|web-session-api|linked-device]
-                     [--scope-set <comma-list>...] [--coverage <comma-list>]
-                     --output <empty-directory> [--json]
-  ghostget plugin check <directory> [--json]        Check a source or portable plugin
-  ghostget plugin test <directory> --trust-code [--json]
-                                                Run secret-free portable fixtures
-  ghostget plugin pack <directory> --output <empty.ghostgetplugin-directory> [--json]
-  ghostget plugin install <package-directory> --trust-code
-                    [--expected-current <bundle-sha256>] [--json]
-  ghostget plugin doctor [--json]
-  ghostget plugin disable <id> [--expected-current <bundle-sha256>] [--json]
-  ghostget plugin remove <id> [--expected-current <bundle-sha256>] --yes [--json]
-  ghostget platforms [surface-id] [--json]         Inspect reviewed policy, not installed adapters
-  ghostget thread split <surface-id> --text <text|@file|-> [--json]
-  ghostget thread publish <surface-id> --adapter <id> --text <text|@file|-> --auth <id>
-                        [--preview] [--headed] [--json]
-  ghostget operator doctor [--json]                Compatibility alias for 'ghostget doctor'
-
-  ghostget browsers [--json]                      List local browser profiles usable as cookie sources
-
-  ghostget auth list [--json]
-  ghostget auth login <id> --client-file <desktop-client.json>
-                         [--no-open] [--force] [--json]
-  ghostget auth bind <id> --site <provider-surface-id> [--force] [--json]
-  ghostget auth add <id> --cookie-source <browser> [--cookie-profile <name>]
-                       [--subject <provider-viewer-or-account-id>] [--force]
-  ghostget auth add <id> --cookies-file <path>
-                       [--subject <provider-viewer-or-account-id>] [--force]
-  ghostget auth add <id> --browser-profile <name|path> --trust-profile-egress
-                       [--browser-executable <absolute-browser-binary>]
-                       [--cookie-source <browser> [--cookie-profile <name>]]
-                       [--subject <provider-viewer-or-account-id>] [--force]
-  ghostget auth add <id> --oauth-provider <provider-surface-id> --token-file <path>
-                       --scopes <comma-list> [--subject <provider-viewer-or-account-id>] [--force]
-  ghostget auth add <id> --linked-device <provider-surface-id> [--device-store <private-directory>]
-                       [--subject <provider-account-id>] [--force]
-  ghostget auth pair <id> [--phone <international-number>]
-  ghostget auth sync <id> --once [--json]       Explicitly connect and refresh the local projection
-  ghostget auth remove <id> --yes
-
-  ghostget apple-photos export-contact-evidence
-                [--library <normalized-absolute-.photoslibrary>] [--json]
-                # private cluster evidence; returned JSON has no images, crops, or templates
-
-  ghostget beeper export-message-like-me --auth <id> --output <new-absolute-directory>
-                [--limit-chats <n>] [--limit-messages <n>]
-                [--max-participants <n>] [--json]
-  ghostget beeper export-contact-interactions --auth <id>
-                [--limit-chats <n>] [--limit-messages <n>]
-                [--max-participants <n>] [--json]
-                # body-free receipt/output envelope on stdout; progress on stderr
-
-  ghostget whatsapp export-message-like-me --auth <id>
-                  --output <new-absolute-directory> [--json]
-                  # local wacli.db bundle only; no send, pairing, or cloud sync
-
-  ghostget messaging automation serve --stdio
-  ghostget messaging routes --input <-|@absolute-private-file>
-                          --private-output <absolute-mode-0600-file> [--json]
-  ghostget messaging resolve --input <-|@absolute-private-file>
-                           --private-output <absolute-mode-0600-file> [--json]
-  ghostget messaging context --input <-|@absolute-private-file>
-                           --private-output <absolute-mode-0600-file> [--json]
-  ghostget messaging preview --input <-|@absolute-private-file>
-                           --private-output <absolute-mode-0600-file> [--json]
-  ghostget messaging reconcile <run-id> [--json]
-                # capability refs and bodies never appear in argv or stdout
-
-  ghostget adapter init <id> (--origin <https-origin> | --platform <surface-id>)
-                             --output <directory> [--force]
-  ghostget adapter sync-bundled [--json]                 Install or safely upgrade reviewed bundled manifests
-  ghostget adapter scaffold [plugin-scaffold-options]  Compatibility alias for 'ghostget plugin scaffold'
-  ghostget adapter validate <manifest> [--json]
-  ghostget adapter install <manifest> [--force | --upgrade-from <prior-bundled-manifest>...]
-  ghostget adapter remove <id> --yes
-
-  ghostget derive start <id> <url> [--auth <id>] [--content none|text] [--domains <list>]
-                       [--cookie-origin <exact-https-origin>...] [--fixture <media>...]
-                       [--allow-remote-actions] [--headed] [--json]
-  ghostget derive list [--json]
-  ghostget derive browser <derivation-id> -- <semantic agent-browser command>
-                       # bounded textbox reset: cleartext @snapshot-textbox-ref
-                       # bounded upload: upload @ref|@single-file-input|@single-image-input|@single-video-input fixture:<n>...
-                       # chooser upload: choose-upload @upload-control-ref fixture:<n>...
-                       # terminal upload: upload-and-seal @ref|@single-file-input|@single-image-input|@single-video-input fixture:<n>...
-  ghostget derive review <derivation-id> [--review-origin <exact-https-origin>]
-                       [--offset <n> --limit <1-100>] [--json]
-  ghostget derive review <derivation-id> --entry <zero-based>
-                       [--review-origin <exact-https-origin>]
-                       [--fixtures - | --field-names -] [--json]
-  ghostget derive finish <derivation-id> --output <directory> [--review-origin <exact-https-origin>]
-                       [--platform <surface-id>] [--force] [--json]
-  ghostget derive analyze <har> --adapter <id> --origin <origin> --output <directory> [--platform <surface-id>]
-  ghostget derive discard <derivation-id> --yes
-
-  ghostget invoke <adapter> <operation> [--input <json|@file|->] [--auth <id>]
-                [--preview | --cache-only | --projection-identity-only]
-                [--duplicate-risk-of <run-id>]
-                [--headed] [--json]
-  ghostget omni read --input <json|@file|->
-                [--cache-only | --identity-only | --from-exact-cache]
-                [--headed] [--json]
-  ghostget <adapter> <operation> [invoke-options]  Shorthand for 'ghostget invoke'
-  ghostget confirm <plan-digest> [--headed] [--private-output <absolute-path> --receipt-binding-output <absolute-path>] [--json]
-  ghostget plans list [--json]
-  ghostget plans cancel <plan-digest> --yes
-  ghostget runs list [--json]
-  ghostget runs show <run-id> [--private-output <absolute-path> --receipt-binding-output <absolute-path>] [--json]
-  ghostget runs reconcile <run-id> [--input <json|@file|->] [--json]  Reconcile from transport-specific external evidence
-
-Local browser admission:
-  Ghostget runs at most two locally owned browsers across processes sharing one
-  state home for fresh/profile page capture. Polling consumes the capture
-  timeout and has a 30-second budget; an in-flight bounded state helper may
-  settle later, but no browser launches after deadline revalidation. Initialize
-  a new state home serially with 'ghostget runs list --json'.
-  Explicit CDP and browser-live attachments skip this gate. Same-boot stale
-  claims stay occupied; use 'ghostget doctor --json' for the state-home path.
-  Managed provider/bootstrap and derivation sessions remain outside this cap.
-
-Risk policy:
-  R1 authenticated reads execute directly. R2/R3 writes create an exact, five-minute
-  preview plan; run 'ghostget confirm <digest>' to execute it once. R4 is blocked.
-  Signed-in site actions use code-owned first-party API or linked-device protocol
-  contracts; browser action recipes are rejected across protected site families.
-  Ghostget never exposes arbitrary eval, request, selector, cookie, storage, or raw
-  file-transfer capabilities.
-
-Read projections:
-  Successful subject-bound R1 results publish encrypted exact-query snapshots.
-  Repeat the invocation with --cache-only to return that snapshot without a browser
-  or provider roundtrip. --projection-identity-only returns only opaque auth/query
-  identity and the validated input hash without decoding the snapshot. A normal
-  invocation explicitly revalidates it. Unbound reads are never cached.
-  Bind the auth locator to its verified account subject before private snapshots can
-  be served.
-
-Omni views:
-  Supported provider inbox reads materialize into encrypted Conversation, Message,
-  and Notification entities. 'omni read --cache-only' returns the merged local view
-  without provider work. A normal omni read explicitly revalidates each declared
-  source; --from-exact-cache rebuilds derivatives from exact snapshots only.
-
-Optional updates and support:
-  Successful standalone work may write a compact agent discovery notice to stderr,
-  including with --json or a PTY; command stdout and exit status stay unchanged.
-  Read support protocol --json, then check offer --json once at human task closeout.
-  Present persistently before shown <id>; acknowledgement records output, not consent.
-  Collapsed progress does not qualify. Final-only hosts omit shown; reservations expire
-  after ten minutes without a weekly cooldown, so a later task may offer again.
-  A quiet result needs no mention. No signup or payment occurs through these commands.
-  HRANESS_SUPPORT_AUDIENCE=agent|human|off selects presentation (default: agent).
-  Human presentation requires interactive stderr. Off suppresses due offers too.
-  HRANESS_SUPPORT=off disables ambient support; support dismiss opts out locally.
+All commands: ghostget --help · Topics: ghostget help <topic>
+ghostget ${version}
 `;
+}
+
+/** Root `--help`: grouped, at most 60 lines, stdout, exit 0. */
+export const ghostgetUsage = `Usage: ghostget <command> [options]
+
+${GHOSTGET_DESCRIPTION}
+
+Start here
+  ghostget read <url>                 Read a public page, no account needed
+  ghostget browsers                   List browser profiles you can connect
+  ghostget auth add <id> [options]    Connect an account from a browser
+  ghostget auth bind <id> --site <site>
+                                      Check which account is signed in
+  ghostget capabilities               See the actions you can run
+
+Read and save
+  ghostget clip <url> [options]       Save a page as a Markdown note
+  ghostget media <url> [options]      Save one video or audio item, checked
+  ghostget search <query>             Search your saved notes
+
+Connect accounts
+  ghostget auth list|add|bind|remove  Manage connected accounts
+  ghostget login                      Sign in to Hraness Accounts (updates
+                                      and support; not needed for sites)
+
+Run actions
+  ghostget invoke <adapter> <action>  Run an action (or: ghostget <adapter>
+                                      <action>)
+  ghostget confirm <digest>           Run a previewed change once
+  ghostget runs list                  Review past runs
+
+Control Ghostget
+  ghostget menubar                    Show Ghostget in the menu bar
+  ghostget tui                        Open the keyboard control panel
+  ghostget doctor                     Check everything Ghostget needs
+
+Extend Ghostget
+  ghostget adapter|plugin|contracts   Add and check site support
+  ghostget derive                     Record a site's API from a browser
+  ghostget web|interface|platforms    Web rules, API drafts, site policy
+
+Messaging and exports
+  ghostget messaging|beeper|whatsapp|imessage|apple-photos [options]
+
+Options
+  -h, --help                          Show help for any command
+  -V, --version                       Print the version
+  --json                              Print machine-readable output
+
+More: ghostget help <command> · ghostget help policy · ghostget help advanced
+Optional support: ghostget support · Turn off: HRANESS_SUPPORT=off
+`;
+
+const readHelp = `Usage: ghostget read <url> [options]
+
+Read a page and print it as Markdown. Nothing is saved.
+
+Options
+  --auth <id>                    Read with a connected account
+  --mode auto|http|browser|file  How to fetch the page (default: auto)
+  --browser-profile <name|path>  Use a signed-in Chrome profile
+  --cookie-source <browser>      chrome|arc|brave|chromium|edge|firefox|safari
+  --cookie-profile <name|path>   Which profile of that browser
+  --cookies-file <path>          Use exported cookies instead of a browser
+  --json                         Print machine-readable output
+  --timeout-ms <n>               Stop waiting after this many milliseconds
+
+Example
+  ghostget read https://example.com
+`;
+
+const clipHelp = `Usage: ghostget clip <url> [slug] [options]
+       ghostget <url> [slug] [options]
+
+Save a page as a Markdown note in your notes folder.
+
+Options
+  --auth <id>                    Save with a connected account
+  --output <directory>           Where to save (default: kb/articles)
+  --media none|images|all        Save images or all supported media
+  --evidence none|source|screenshot|all
+                                 Keep the page source or a screenshot
+  --stdout                       Print Markdown instead of saving
+  --force                        Replace an existing note
+  --json                         Print machine-readable output
+
+Capture options from ghostget read --help also apply.
+
+Example
+  ghostget clip https://example.com example-page
+`;
+
+const authHelp = `Usage: ghostget auth <list|add|bind|remove|login|pair|sync> [options]
+
+Connect accounts you're already signed in to. Ghostget reads the sign-in
+from your browser when it needs it and never stores your password.
+
+Commands
+  auth list                          List connected accounts
+  auth add <id> --cookie-source <browser> [--cookie-profile <name>]
+                                     Connect from a browser profile
+  auth add <id> --cookies-file <path>
+                                     Connect from exported cookies
+  auth add <id> --browser-profile <name|path> --trust-profile-egress
+                                     Use a whole Chrome profile
+  auth add <id> --oauth-provider <site> --token-file <path> --scopes <list>
+  auth add <id> --linked-device <site> [--device-store <directory>]
+  auth bind <id> --site <site> [--force]
+                                     Check which account is signed in
+  auth login <id> --client-file <desktop-client.json> [--no-open]
+                                     Connect Google with your own OAuth app
+  auth pair <id> [--phone <number>]  Pair a linked device
+  auth sync <id> --once              Refresh a linked device's local copy
+  auth remove <id> --yes             Remove an account from Ghostget
+
+Options
+  --subject <account-id>             Expect this account
+  --force                            Replace an existing account
+  --json                             Print machine-readable output
+
+Example
+  ghostget browsers
+  ghostget auth add x-main --cookie-source chrome --cookie-profile Default
+  ghostget auth bind x-main --site x
+`;
+
+const browsersHelp = `Usage: ghostget browsers [--json]
+
+List browsers and profiles on this Mac that Ghostget can read a sign-in
+from, with the flags to paste into ghostget auth add.
+
+Options
+  --json                             Print machine-readable output
+
+Example
+  ghostget browsers
+`;
+
+const capabilitiesHelp = `Usage: ghostget capabilities [adapter] [--json]
+
+List the actions installed adapters offer. An adapter is Ghostget's support
+for one site, such as x-web.
+
+Options
+  --json                             Print machine-readable output
+
+Example
+  ghostget adapter sync-bundled
+  ghostget capabilities x-web
+`;
+
+const invokeHelp = `Usage: ghostget invoke <adapter> <action> [options]
+       ghostget <adapter> <action> [options]
+
+Run one action from ghostget capabilities. Reads run right away. Changes,
+such as posting, print a preview first; run ghostget confirm <digest> to
+make the change once.
+
+Options
+  --input <json|@file|->             Action input
+  --auth <id>                        Connected account to use
+  --preview                          Show the change without making it
+  --cache-only                       Return the last saved result only
+  --headed                           Show the browser window if one is used
+  --json                             Print machine-readable output
+
+Example
+  ghostget invoke x-web timeline.read --auth x-main
+`;
+
+const confirmHelp = `Usage: ghostget confirm <digest> [--headed] [--json]
+
+Make a previewed change once. Previews expire after five minutes.
+
+Related
+  ghostget plans list                List previews waiting for confirmation
+  ghostget plans cancel <digest> --yes
+                                     Drop a preview
+  ghostget runs list                 List finished runs
+  ghostget runs show <run-id>        Show one run
+  ghostget runs reconcile <run-id>   Settle a run whose result was unclear
+`;
+
+const omniHelp = `Usage: ghostget omni read --input <json|@file|-> [options]
+
+Read your inboxes from several connected sites as one list.
+
+Options
+  --cache-only                       Return the saved view without new reads
+  --from-exact-cache                 Rebuild from saved reads only
+  --identity-only                    Print only the query identity
+  --headed                           Show the browser window if one is used
+  --json                             Print machine-readable output
+`;
+
+const doctorHelp = `Usage: ghostget doctor [--json]
+
+Check that capture, media, accounts and actions have what they need, and
+say what to fix.
+
+Options
+  --json                             Print machine-readable output
+`;
+
+const loginHelp = `Usage: ghostget login [--json]
+       ghostget logout [--json]
+
+Sign in to Hraness Accounts for product updates and optional support. You
+don't need this to connect sites; use ghostget auth add for that.
+`;
+
+const adapterHelp = `Usage: ghostget adapter <command> [options]
+
+Adapters are Ghostget's reviewed support for one site.
+
+Commands
+  adapter sync-bundled [--json]      Install or update the bundled adapters
+  adapter validate <manifest>        Check an adapter manifest
+  adapter install <manifest> [--force]
+                                     Install an adapter
+  adapter remove <id> --yes          Remove an adapter
+  adapter init <id> (--origin <https-origin> | --platform <site>)
+                --output <directory> Start a new adapter
+  adapters [--json]                  List public page-capture adapters
+
+Example
+  ghostget adapter sync-bundled
+`;
+
+const pluginHelp = `Usage: ghostget plugin <command> [options]
+
+Plugins add site support as code. Only install plugins you trust.
+
+Commands
+  plugin list [--json]               List installed plugins
+  plugin show <id> [--json]          Show one plugin
+  plugin init <id> [options]         Start a new plugin
+  plugin scaffold [options]          Start a plugin from recorded API evidence
+  plugin check <directory>           Check a plugin
+  plugin test <directory> --trust-code
+                                     Run a plugin's offline tests
+  plugin pack <directory> --output <directory>
+                                     Package a plugin
+  plugin install <directory> --trust-code
+                                     Install a packaged plugin
+  plugin doctor [--json]             Check installed plugins
+  plugin disable <id>                Turn a plugin off
+  plugin remove <id> --yes           Remove a plugin
+
+Guide: https://ghostget.com/docs/plugins
+`;
+
+const contractsHelp = `Usage: ghostget contracts <catalog|check|repair|schema> [options]
+
+Machine-readable descriptions of every installed action, for agents that
+plan work before running it.
+
+Commands
+  contracts catalog [--adapter <id>]... [--json]
+                                     Print the action catalog
+  contracts check --plan <file|-> [--auth-state] [--json]
+                                     Check a plan against installed actions
+  contracts repair [--id <sha256> | --plan <file|->] [--json]
+                                     Show suggested fixes without running them
+  contracts schema <catalog|check|plan|invoke-read|repair> [--json]
+                                     Print one document's JSON Schema
+`;
+
+const deriveHelp = `Usage: ghostget derive <command> [options]
+
+Record how a site's own web app calls its API, then turn the recording into
+an adapter. Requires a browser you control.
+
+Commands
+  derive start <id> <url> [--auth <id>] [--headed] [--json]
+  derive list [--json]
+  derive browser <derivation-id> -- <browser command>
+  derive review <derivation-id> [--offset <n> --limit <n>] [--json]
+  derive finish <derivation-id> --output <directory> [--json]
+  derive analyze <har> --adapter <id> --origin <origin> --output <directory>
+  derive discard <derivation-id> --yes
+`;
+
+const messagingHelp = `Usage: ghostget <messaging|beeper|whatsapp|imessage|apple-photos> ...
+
+Local messaging tools. Private content goes to files you name, never to the
+command line or standard output.
+
+Commands
+  messaging automation serve --stdio
+  messaging routes|resolve|context|preview --input <-|@file>
+            --private-output <absolute-file> [--json]
+  messaging reconcile <run-id> [--json]
+  beeper export-message-like-me --auth <id> --output <new-directory>
+  beeper export-contact-interactions --auth <id>
+  whatsapp export-message-like-me --auth <id> --output <new-directory>
+  whatsapp automation install [--binary <file>] [--json]
+  imessage transport install [--binary <file>] [--json]
+  apple-photos export-contact-evidence [--library <path>] [--json]
+
+iMessage needs Full Disk Access for your terminal app, and macOS asks
+before your terminal app can control Messages.
+`;
+
+const threadHelp = `Usage: ghostget thread <split|publish> <site> [options]
+
+Split long text into a thread, or publish one after a preview.
+
+Commands
+  thread split <site> --text <text|@file|-> [--json]
+  thread publish <site> --adapter <id> --text <text|@file|-> --auth <id>
+                 [--preview] [--headed] [--json]
+`;
+
+const platformsHelp = `Usage: ghostget platforms [site] [--json]
+
+Show the reviewed policy for each supported site: what Ghostget may read or
+change there. This lists policy, not installed adapters.
+`;
+
+const notesHelp = `Usage: ghostget <command> [options]
+
+Keep saved pages as a Markdown notes folder and search it.
+
+Commands
+  init [directory] [--json]          Create a notes folder
+  pdf <file-or-url> [options]        Save a PDF as a note
+  list [--tag <tag>] [--json]        List notes
+  search <query> [--json]            Search notes
+  index [--json]                     Build the search index
+  refresh|check|graph [--json]       Rebuild or check links between notes
+  backlinks|links <note> [--json]    Show links to or from a note
+  url-metadata backfill [options]    Fill in titles for saved links
+  context <repository-path> [--json] Find notes about a file or folder
+  agents identity|check|audit        Check a repository's agent guides
+  adapters [--json]                  List page-capture adapters
+
+Most commands take --root <directory> to pick the notes folder.
+`;
+
+const supportHelp = `Usage: ghostget support [--json]
+
+See optional product updates and ways to support Ghostget. Nothing is paid
+or signed up for through these commands.
+
+Commands
+  support                            Show updates and support options
+  support dismiss|snooze|enable      Stop, pause or restore invitations
+  support status --json              Show your invitation settings
+
+Agent commands (for agents that show invitations at task closeout)
+  support protocol --json            Read the closeout protocol
+  support offer --json               Claim an invitation when one is due
+  support shown <id>                 Record that an invitation was shown
+  support release <id>               Cancel an unshown invitation
+
+Turn off: HRANESS_SUPPORT=off
+`;
+
+const policyHelp = `Ghostget policy
+
+Risk levels
+  R1 reads run right away. R2 and R3 changes make a preview that lasts five
+  minutes; ghostget confirm <digest> makes the change once. R4 is blocked.
+  Signed-in actions use each site's own API. Ghostget never runs arbitrary
+  scripts, requests, selectors, cookies or file transfers for an agent.
+
+Saved reads
+  A successful read of an account's data is saved encrypted. Add
+  --cache-only to get it back without going to the site, or
+  --projection-identity-only to get only its identity. A normal read always
+  checks the site again. Reads without a known account are never saved.
+  Run ghostget auth bind first so private reads can be saved.
+
+Combined inboxes
+  ghostget omni read merges supported inboxes into one encrypted local view.
+  --cache-only returns that view without new reads. --from-exact-cache
+  rebuilds it from saved reads only.
+
+Local browsers
+  Ghostget runs at most two browsers of its own at a time for page capture,
+  shared by every process that uses the same state folder. A capture waits
+  up to 30 seconds for a free browser. Attaching to your own browser with
+  --browser-live or --cdp doesn't count. ghostget doctor --json shows the
+  state folder.
+
+Updates and support
+  After useful work, Ghostget may print one short line on stderr about
+  updates or support. Output and exit codes don't change. Agents read
+  ghostget support protocol --json once, then check
+  ghostget support offer --json at the end of a task with a person.
+  HRANESS_SUPPORT_AUDIENCE=agent|human|off picks who sees it (default:
+  agent). HRANESS_SUPPORT=off turns it off; ghostget support dismiss opts out.
+`;
+
+const advancedHelp = `Ghostget advanced commands
+
+  ghostget tui --snapshot            Print the control panel as plain text
+  ghostget vault --help              Import an X token from 1Password
+  ghostget web request <https-url>   Fetch public text through your web rules
+  ghostget interface list|export|import
+                                     OpenAPI drafts of installed actions
+  ghostget transcriber setup --engine whisper-cpp --model <file>
+                                     Set up local transcripts for media
+  ghostget verify <archive-folder>   Check a saved media archive
+  ghostget omni read --input <json>  Read several inboxes as one list
+  ghostget plans list|cancel         Manage change previews
+  ghostget runs show|reconcile       Inspect or settle one run
+  ghostget operator doctor           Same as ghostget doctor
+
+Use one controller at a time: run ghostget menubar stop before opening the
+TUI. Setup guide: https://ghostget.com/getting-started
+`;
+
+type HelpTopic = { readonly text: string } | { readonly delegate: string };
+
+/**
+ * Help topics by command or topic name. `delegate` names a command that owns
+ * its help: `ghostget help <name>` runs `ghostget <name> --help`.
+ */
+const HELP_TOPICS: Readonly<Record<string, HelpTopic>> = {
+  read: { text: readHelp },
+  inspect: { text: readHelp },
+  clip: { text: clipHelp },
+  capture: { text: clipHelp },
+  auth: { text: authHelp },
+  browsers: { text: browsersHelp },
+  capabilities: { text: capabilitiesHelp },
+  invoke: { text: invokeHelp },
+  confirm: { text: confirmHelp },
+  plans: { text: confirmHelp },
+  runs: { text: confirmHelp },
+  omni: { text: omniHelp },
+  doctor: { text: doctorHelp },
+  operator: { text: doctorHelp },
+  login: { text: loginHelp },
+  logout: { text: loginHelp },
+  adapter: { text: adapterHelp },
+  adapters: { text: adapterHelp },
+  plugin: { text: pluginHelp },
+  plugins: { text: pluginHelp },
+  contracts: { text: contractsHelp },
+  derive: { text: deriveHelp },
+  messaging: { text: messagingHelp },
+  beeper: { text: messagingHelp },
+  whatsapp: { text: messagingHelp },
+  imessage: { text: messagingHelp },
+  "apple-photos": { text: messagingHelp },
+  thread: { text: threadHelp },
+  platforms: { text: platformsHelp },
+  init: { text: notesHelp },
+  notes: { text: notesHelp },
+  pdf: { text: notesHelp },
+  refresh: { text: notesHelp },
+  check: { text: notesHelp },
+  graph: { text: notesHelp },
+  backlinks: { text: notesHelp },
+  links: { text: notesHelp },
+  list: { text: notesHelp },
+  index: { text: notesHelp },
+  search: { text: notesHelp },
+  "url-metadata": { delegate: "url-metadata" },
+  context: { text: notesHelp },
+  agents: { text: notesHelp },
+  support: { text: supportHelp },
+  policy: { text: policyHelp },
+  advanced: { text: advancedHelp },
+  help: { text: ghostgetUsage },
+  menubar: { delegate: "menubar" },
+  tui: { delegate: "tui" },
+  vault: { delegate: "vault" },
+  web: { delegate: "web" },
+  interface: { delegate: "interface" },
+  media: { delegate: "media" },
+  archive: { delegate: "media" },
+  audio: { delegate: "media" },
+  video: { delegate: "media" },
+  transcript: { delegate: "media" },
+  verify: { delegate: "media" },
+  transcriber: { delegate: "media" },
+};
+
+/** Commands whose own parser already prints help on stdout and exits 0. */
+const SELF_HELP_COMMANDS = new Set([
+  "menubar", "tui", "vault", "web", "interface", "url-metadata",
+  "media", "archive", "audio", "video", "transcript", "verify", "transcriber",
+]);
+
+export type GhostgetHelpRequest =
+  | { readonly kind: "bare" }
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "delegate"; readonly arguments: readonly string[] }
+  | { readonly kind: "unknown-topic"; readonly topic: string };
+
+const ADAPTER_ID = /^[a-z][a-z0-9-]{0,47}$/u;
+const ACTION_ID = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$/u;
+
+function topicFor(name: string, next: string | undefined): string {
+  if (/^https?:\/\//iu.test(name)) return "clip";
+  if (HELP_TOPICS[name] !== undefined) return name;
+  if (ADAPTER_ID.test(name) && next !== undefined && ACTION_ID.test(next)) return "invoke";
+  return name;
+}
+
+function resolveTopic(name: string, next: string | undefined): GhostgetHelpRequest {
+  const key = topicFor(name, next);
+  const topic = HELP_TOPICS[key];
+  if (topic === undefined) return { kind: "unknown-topic", topic: name };
+  if ("delegate" in topic) return { kind: "delegate", arguments: [topic.delegate, "--help"] };
+  return { kind: "text", text: topic.text };
+}
+
+/**
+ * Classify a help request without loading any command. Returns null when the
+ * arguments are not a help request, so the command runs normally.
+ */
+export function ghostgetHelpRequest(raw: readonly string[]): GhostgetHelpRequest | null {
+  if (raw.length === 0) return { kind: "bare" };
+  const first = raw[0] ?? "";
+  if (first === "help" || first === "--help" || first === "-h") {
+    const topic = raw[1];
+    return topic === undefined ? { kind: "text", text: ghostgetUsage } : resolveTopic(topic, raw[2]);
+  }
+  const separator = raw.indexOf("--");
+  const scanned = separator === -1 ? raw : raw.slice(0, separator);
+  if (!scanned.includes("--help") && !scanned.includes("-h")) return null;
+  if (SELF_HELP_COMMANDS.has(first)) return null;
+  return resolveTopic(first, raw[1]);
+}
+
+/** Top-level command names, for "Did you mean" suggestions. */
+export const GHOSTGET_COMMAND_NAMES: readonly string[] = Object.freeze(
+  Object.keys(HELP_TOPICS).filter((name) =>
+    !["help", "permissions", "keychain", "policy", "advanced", "notes"].includes(name)),
+);
+
+/** The per-command help to point at from a usage error. */
+export function ghostgetHelpCommandFor(raw: readonly string[]): string {
+  const first = raw[0];
+  if (first === undefined) return "ghostget --help";
+  const key = topicFor(first, raw[1]);
+  if (HELP_TOPICS[key] === undefined || key === "help") return "ghostget --help";
+  return key === "invoke" && first !== "invoke" ? "ghostget invoke --help" : `ghostget ${key} --help`;
+}
