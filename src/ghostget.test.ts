@@ -2852,7 +2852,7 @@ describe("reviewed platform policy helpers", () => {
         manifestPath,
       ], testState.environment, installed.output, dependencies)).toBe(0);
       expect(installed.stdout()).toContain(
-        "Installed synthetic-cli-official-adapter",
+        "Installed the synthetic-cli-official-adapter adapter.",
       );
       expect(installed.stderr()).toBe("");
 

@@ -1,4 +1,13 @@
 #!/usr/bin/env bun
+import {
+  adapterInstalledLines,
+  authBoundLines,
+  authListText,
+  authSavedLines,
+  writeAuthLines,
+  type AuthOutputAudience,
+  type AuthSummary,
+} from "./auth-output";
 import { browserProfilesResult } from "./browser-profiles-cli";
 import { existsSync, lstatSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -291,6 +300,39 @@ const defaultOutput: Output = {
   stdout: (value) => process.stdout.write(value),
   stderr: (value) => process.stderr.write(value),
 };
+
+/**
+ * Who reads this command's output. Only the real terminal counts as a TTY, so
+ * captured output (tests, the SDK) is `quiet` unless HRANESS_AUDIENCE says
+ * otherwise.
+ */
+function outputAudience(
+  environment: Readonly<Record<string, string | undefined>>,
+  output: Output,
+): AuthOutputAudience {
+  return detectCookieAudience(environment, output === defaultOutput && process.stderr.isTTY === true);
+}
+
+function outputStyle(environment: Readonly<Record<string, string | undefined>>, output: Output) {
+  return cliStyle(environment, output === defaultOutput && process.stdout.isTTY === true);
+}
+
+function authSummary(auth: GhostgetAuth): AuthSummary {
+  // Profiles and subjects come from browsers and providers; sanitize them.
+  const subject = auth.subject === undefined ? {} : { subject: safe(auth.subject) };
+  switch (auth.kind) {
+    case "cookie-source":
+      return { kind: auth.kind, id: auth.id, source: auth.source, ...(auth.profile === undefined ? {} : { profile: safe(auth.profile) }), ...subject };
+    case "browser-profile":
+      return { kind: auth.kind, id: auth.id, ...(auth.cookieSource === undefined ? {} : { cookieSource: auth.cookieSource }), ...subject };
+    case "oauth-token-file":
+      return { kind: auth.kind, id: auth.id, provider: auth.provider, ...subject };
+    case "linked-device-store":
+      return { kind: auth.kind, id: auth.id, provider: auth.provider, ...subject };
+    default:
+      return { kind: "cookies-file", id: auth.id, ...subject };
+  }
+}
 
 const loadMediaRuntime = (): Promise<MediaRuntime> => import("./media");
 const loadBeeperMessageLikeMeCliRuntime = (): Promise<BeeperMessageLikeMeCliRuntime> =>
@@ -2579,7 +2621,14 @@ async function runCommand(
       } : {}),
     }));
     if (arguments_.json) output.stdout(exactTerminalJson({ ok: true, auth: values }));
-    else print(output, values, false);
+    else if (outputAudience(environment, output) === "agent") print(output, values, false);
+    else {
+      writeAuthLines(
+        authListText(listAuth(environment).map(authSummary), outputStyle(environment, output)),
+        outputAudience(environment, output),
+        output,
+      );
+    }
     return 0;
   }
   if (arguments_.command === "auth-bind") {
@@ -2635,13 +2684,22 @@ async function runCommand(
           `auth locator ${auth.id} changed while its account was being probed; the concurrent value was preserved`,
         );
       }
-      print(output, {
-        ok: true,
-        id: bound.id,
-        site: arguments_.site,
-        subject: bound.subject,
-        realmFingerprint: sha256(canonicalJson(bound)).slice(0, 16),
-      }, arguments_.json);
+      const boundAudience = outputAudience(environment, output);
+      if (arguments_.json || boundAudience === "agent") {
+        print(output, {
+          ok: true,
+          id: bound.id,
+          site: arguments_.site,
+          subject: bound.subject,
+          realmFingerprint: sha256(canonicalJson(bound)).slice(0, 16),
+        }, true);
+      } else {
+        writeAuthLines(
+          authBoundLines({ id: safe(bound.id), site: arguments_.site, subject: safe(subject) }, outputStyle(environment, output)),
+          boundAudience,
+          output,
+        );
+      }
       return 0;
     } finally {
       if (containment !== null) {
@@ -2792,25 +2850,26 @@ async function runCommand(
               ...(arguments_.subject === undefined ? {} : { subject: arguments_.subject }),
             })
             : (() => { throw new Error("auth add has no selected locator"); })();
-    const path = saveAuth(auth, environment, { force: arguments_.force });
-    output.stdout(`Saved ${safe(auth.id)} auth locator (${auth.kind}) to ${safe(path)}.\n`);
+    saveAuth(auth, environment, { force: arguments_.force });
+    let linkedDeviceNext: string | undefined;
     if (auth.kind === "linked-device-store") {
       const binding = dependencies.providerPluginRegistry.resolveAccountRoute(
         auth.provider,
       );
-      if (
-        binding?.transport === "linked-device"
+      linkedDeviceNext = binding?.transport === "linked-device"
         && binding.linkedDeviceLifecycle !== undefined
-      ) {
-        output.stdout(
-          `Next: ghostget auth pair ${safe(auth.id)} (optionally add --phone <international-number>).\n`,
-        );
-      } else {
-        output.stdout(
-          `Next: ghostget auth bind ${safe(auth.id)} --site ${safe(auth.provider)}.\n`,
-        );
-      }
+        ? `ghostget auth pair ${safe(auth.id)} (optionally add --phone <international-number>)`
+        : `ghostget auth bind ${safe(auth.id)} --site ${safe(auth.provider)}`;
     }
+    const saved = authSavedLines(authSummary(auth), outputStyle(environment, output), linkedDeviceNext);
+    // The linked-device hint has always been part of the result; keep it for
+    // every audience so scripts that pair next still see it.
+    const savedAudience = outputAudience(environment, output);
+    writeAuthLines(
+      { ...saved, result: savedAudience === "human" || linkedDeviceNext === undefined ? saved.result : `${saved.result}\nNext: ${linkedDeviceNext}` },
+      savedAudience,
+      output,
+    );
     return 0;
   }
   if (arguments_.command === "auth-remove") {
@@ -3225,8 +3284,10 @@ async function runCommand(
         return Object.freeze({ id: result.value.id, path });
       },
     );
-    output.stdout(
-      `Installed ${safe(installed.id)} at ${safe(installed.path)}.\n`,
+    writeAuthLines(
+      adapterInstalledLines(safe(installed.id), outputStyle(environment, output)),
+      outputAudience(environment, output),
+      output,
     );
     return 0;
   }

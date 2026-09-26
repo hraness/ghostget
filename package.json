@@ -551,6 +551,7 @@
     "src/cli-style.ts",
     "src/cookie-access.ts",
     "src/cookie-access-error.ts",
+    "src/auth-output.ts",
     "src/version.ts",
     "src/web-session-authentication-policy.ts",
     "src/web-session-cleanup-admission.ts",

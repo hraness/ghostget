@@ -29,6 +29,11 @@ Historical entries retain their original delivery coordinates.
   disposition, which agents must not treat as an expired sign-in.
 - `ghostget browsers` reports Safari as "blocked: needs Full Disk Access"
   with a link to the setting, instead of "Not installed".
+- `auth add`, `auth bind`, `auth list` and `adapter install` print plain
+  lines instead of JSON: `✓ Saved x-main (Chrome · Profile 1).`, which
+  account a sign-in belongs to, and aligned rows with a count. People get one
+  `Next:` hint on stderr. No file paths or fingerprints appear. `--json` and
+  agents still get JSON.
 
 ## 0.18.38
 
