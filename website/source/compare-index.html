@@ -6,8 +6,8 @@
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbf1c7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#282828" media="(prefers-color-scheme: dark)">
-    <title>How agents reach the web: browser-use, Playwright MCP, hosted browsers, and Ghostget</title>
-    <meta name="description" content="Four ways agents reach the web, from browser-driving libraries to hosted browsers, compared side by side with Ghostget's named actions.">
+    <title>How agents reach the web: browser-use, Playwright MCP, reader services, hosted browsers, and Ghostget</title>
+    <meta name="description" content="Five ways agents reach the web, from browser-driving libraries to reader services and hosted browsers, compared side by side with Ghostget's named actions.">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://ghostget.com/compare/">
     <link rel="icon" href="/icon.png" type="image/png" sizes="512x512">
@@ -17,16 +17,16 @@
     {{MARKDOWN_ALTERNATE}}
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Ghostget">
-    <meta property="og:title" content="How agents reach the web: browser-use, Playwright MCP, hosted browsers, and Ghostget">
-    <meta property="og:description" content="Four ways agents reach the web, from browser-driving libraries to hosted browsers, compared side by side with Ghostget's named actions.">
+    <meta property="og:title" content="How agents reach the web: browser-use, Playwright MCP, reader services, hosted browsers, and Ghostget">
+    <meta property="og:description" content="Five ways agents reach the web, from browser-driving libraries to reader services and hosted browsers, compared side by side with Ghostget's named actions.">
     <meta property="og:url" content="https://ghostget.com/compare/">
     <meta property="og:image" content="https://ghostget.com/og.png">
     <meta property="og:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="How agents reach the web: browser-use, Playwright MCP, hosted browsers, and Ghostget">
-    <meta name="twitter:description" content="Four ways agents reach the web, from browser-driving libraries to hosted browsers, compared side by side with Ghostget's named actions.">
+    <meta name="twitter:title" content="How agents reach the web: browser-use, Playwright MCP, reader services, hosted browsers, and Ghostget">
+    <meta name="twitter:description" content="Five ways agents reach the web, from browser-driving libraries to reader services and hosted browsers, compared side by side with Ghostget's named actions.">
     <meta name="twitter:image" content="https://ghostget.com/og.png">
     <meta name="twitter:image:alt" content="{{GHOSTGET_SOCIAL_IMAGE_ALT}}">
     <meta name="ghostget-posthog-host" content="{{POSTHOG_HOST}}">
@@ -51,8 +51,8 @@
       <article class="guide-article">
         <header class="guide-hero">
           <p class="eyebrow">Comparison · Ghostget {{GHOSTGET_VERSION}}</p>
-          <h1>Four ways agents reach the web, and where Ghostget fits</h1>
-          <p class="answer-lede">“Browser use for agents” covers four kinds of product: agent libraries that drive the browser for you, tool servers that give your agent browser controls, browser CLIs that let it steer from the shell, and hosted browsers you rent by the session. Ghostget works differently. It offers named, reviewed actions that each return one result, and the agent never gets a browser to steer.</p>
+          <h1>Five ways agents reach the web, and where Ghostget fits</h1>
+          <p class="answer-lede">“Browser use for agents” names four of the five approaches below: agent libraries that drive the browser for you, tool servers that give your agent browser controls, browser CLIs that let it steer from the shell, and hosted browsers you rent by the session. The fifth skips your browser entirely: hosted reader services fetch the URL on their own servers and return Markdown. Ghostget works differently. It offers named, reviewed actions that each return one result, and the agent never gets a browser to steer.</p>
           <p class="review-note">This page describes each project as published in September 2026 and Ghostget {{GHOSTGET_RELEASE}}. Linked pages cover one tool each in more detail.</p>
         </header>
 
@@ -78,6 +78,12 @@
           <h2 id="lane-hosted">Hosted browsers you rent by the session</h2>
           <p><a href="https://www.browserbase.com/">Browserbase</a>, <a href="https://steel.dev/">Steel</a>, and <a href="https://www.hyperbrowser.ai/">Hyperbrowser</a> sell managed cloud sessions: parallel Chromium with proxies, stealth, replay, and compliance tiers that the three approaches above can run on. They answer where the browser runs and at what scale, not what the agent is allowed to do once it is inside one.</p>
           <p><a href="/compare/browserbase/">Ghostget vs Browserbase</a> covers when hosted sessions are the right tool and when local named operations replace the session entirely.</p>
+        </section>
+
+        <section aria-labelledby="lane-readers">
+          <h2 id="lane-readers">Reader services fetch the URL for you</h2>
+          <p><a href="https://firecrawl.dev/">Firecrawl</a> and <a href="https://jina.ai/reader">Jina AI Reader</a> remove the steering entirely: you hand them a URL, their servers fetch and render it, and clean Markdown or structured data comes back. Firecrawl grows that one call into a pipeline with crawl, map, search, interact, and agent endpoints, billed in per-page credits. Jina Reader keeps it to a prefix, <code>r.jina.ai</code>, rate-limited without a key and billed by output tokens with one. Neither leaves a file on your machine by default.</p>
+          <p><a href="/compare/firecrawl/">Ghostget vs Firecrawl</a> and <a href="/compare/jina-reader/">Ghostget vs Jina Reader</a> compare hosted fetching with a local read that saves Markdown into a searchable vault.</p>
         </section>
 
         <section aria-labelledby="lane-named">
@@ -124,6 +130,12 @@
                   <td>Browser workloads that need managed infrastructure</td>
                 </tr>
                 <tr>
+                  <th scope="row"><a href="/compare/firecrawl/">Firecrawl</a> and <a href="/compare/jina-reader/">Jina Reader</a></th>
+                  <td>Clean Markdown or structured data from the service's own fetch and rendering</td>
+                  <td>Only pages the hosted service can reach, at a per-page credit or per-token price</td>
+                  <td>URL collection and extraction you want someone else's infrastructure to run</td>
+                </tr>
+                <tr>
                   <th scope="row">Ghostget</th>
                   <td>One typed result per named operation</td>
                   <td>Only the reviewed operations in the installed release</td>
@@ -137,12 +149,12 @@
         <section aria-labelledby="lane-choose">
           <h2 id="lane-choose">Choose the approach before the tool</h2>
           <p>If the job is open-ended, a browser-driving agent earns its context cost. If the job recurs, the fixed contract wins: a named operation is cheaper in tokens, safer in blast radius, and reviewable in a way a thousand improvised clicks are not. An agent setup can use both: a browser driver for one-off work, and fixed actions for the paths that must be right every time.</p>
-          <p>Ghostget supplies those fixed actions. It publishes no hosted browser, no MCP server, and no agent loop; it supplies the local operations your agent calls from whatever harness you already use.</p>
+          <p>Ghostget supplies those fixed actions. It publishes no hosted browser, reader service, MCP server, or agent loop; it supplies the local operations your agent calls from whatever harness you already use.</p>
         </section>
 
         <aside class="guide-callout" aria-labelledby="compare-next">
           <h2 id="compare-next">Read the detailed comparisons</h2>
-          <p>Per-tool pages: <a href="/compare/browser-use/">browser-use</a>, <a href="/compare/playwright-mcp/">Playwright MCP</a>, <a href="/compare/agent-browser/">agent-browser</a>, and <a href="/compare/browserbase/">Browserbase</a>. A separate piece covers <a href="/compare/personal-agents-browser-use/">persistent personal agents that keep a live browser</a>. Then check the <a href="/docs/reference/provider-capabilities/">supported action set</a> and the <a href="/docs/explanation/security-model/">security model</a>.</p>
+          <p>Per-tool pages: <a href="/compare/browser-use/">browser-use</a>, <a href="/compare/playwright-mcp/">Playwright MCP</a>, <a href="/compare/agent-browser/">agent-browser</a>, <a href="/compare/browserbase/">Browserbase</a>, <a href="/compare/firecrawl/">Firecrawl</a>, and <a href="/compare/jina-reader/">Jina Reader</a>. A separate piece covers <a href="/compare/personal-agents-browser-use/">persistent personal agents that keep a live browser</a>. Then check the <a href="/docs/reference/provider-capabilities/">supported action set</a> and the <a href="/docs/explanation/security-model/">security model</a>.</p>
         </aside>
       </article>
     </main>

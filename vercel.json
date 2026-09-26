@@ -513,6 +513,26 @@
       "permanent": true
     },
     {
+      "source": "/compare/firecrawl",
+      "destination": "/compare/firecrawl/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/firecrawl/index.html",
+      "destination": "/compare/firecrawl/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/jina-reader",
+      "destination": "/compare/jina-reader/",
+      "permanent": true
+    },
+    {
+      "source": "/compare/jina-reader/index.html",
+      "destination": "/compare/jina-reader/",
+      "permanent": true
+    },
+    {
       "source": "/about",
       "destination": "/about/",
       "permanent": true

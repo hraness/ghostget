@@ -2035,13 +2035,15 @@ describe("ghostget.com static site", () => {
     const compareIndex = pages.find((page) =>
       page.definition.canonicalPath === "/compare/");
     expect(compareIndex?.html).toContain(
-      "<h1>Four ways agents reach the web, and where Ghostget fits</h1>",
+      "<h1>Five ways agents reach the web, and where Ghostget fits</h1>",
     );
     for (const comparePath of [
       "/compare/browser-use/",
       "/compare/browserbase/",
       "/compare/playwright-mcp/",
       "/compare/agent-browser/",
+      "/compare/firecrawl/",
+      "/compare/jina-reader/",
     ]) {
       const comparison = pages.find((page) =>
         page.definition.canonicalPath === comparePath);
@@ -2092,6 +2094,14 @@ describe("ghostget.com static site", () => {
     const browserbasePage = pages.find((page) =>
       page.definition.canonicalPath === "/compare/browserbase/");
     expect(browserbasePage?.html).toContain("Stagehand");
+    const firecrawlPage = pages.find((page) =>
+      page.definition.canonicalPath === "/compare/firecrawl/");
+    expect(firecrawlPage?.html).toContain("credit");
+    expect(firecrawlPage?.html).toContain("1,000");
+    const jinaReaderPage = pages.find((page) =>
+      page.definition.canonicalPath === "/compare/jina-reader/");
+    expect(jinaReaderPage?.html).toContain("r.jina.ai");
+    expect(jinaReaderPage?.html).toContain("20 requests");
 
     expect(html).toContain('id="measured"');
     expect(html).toContain("145,617 bytes");

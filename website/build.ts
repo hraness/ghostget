@@ -249,10 +249,10 @@ export const PUBLIC_PAGES = [
   {
     canonicalPath: "/compare/",
     description:
-      "Four ways agents reach the web, from browser-driving libraries to hosted browsers, compared side by side with Ghostget's named actions.",
+      "Five ways agents reach the web, from browser-driving libraries to reader services and hosted browsers, compared side by side with Ghostget's named actions.",
     outputFile: "compare/index.html",
     sourceFile: "compare-index.html",
-    title: "How agents reach the web: browser-use, Playwright MCP, hosted browsers, and Ghostget",
+    title: "How agents reach the web: browser-use, Playwright MCP, reader services, hosted browsers, and Ghostget",
   },
   {
     canonicalPath: "/compare/browser-use/",
@@ -285,6 +285,22 @@ export const PUBLIC_PAGES = [
     outputFile: "compare/agent-browser/index.html",
     sourceFile: "compare-agent-browser.html",
     title: "Ghostget vs agent-browser: a browser the agent can never steer",
+  },
+  {
+    canonicalPath: "/compare/firecrawl/",
+    description:
+      "Firecrawl turns URLs into Markdown and crawls whole sites through a hosted, credit-billed API. Ghostget reads one URL on your machine, free, with no key.",
+    outputFile: "compare/firecrawl/index.html",
+    sourceFile: "compare-firecrawl.html",
+    title: "Ghostget vs Firecrawl: a local page read instead of a hosted scraping API",
+  },
+  {
+    canonicalPath: "/compare/jina-reader/",
+    description:
+      "Jina AI Reader converts a URL to Markdown through its hosted r.jina.ai prefix, rate-limited or token-billed. Ghostget reads the URL on your machine.",
+    outputFile: "compare/jina-reader/index.html",
+    sourceFile: "compare-jina-reader.html",
+    title: "Ghostget vs Jina Reader: URL to Markdown on your machine instead of a hosted prefix",
   },
   {
     canonicalPath: "/compare/personal-agents-browser-use/",
