@@ -1852,20 +1852,21 @@
 // Carry the same projections and allowances: 12,061,280 + 12,387 + 4,096 =
 // 12,077,763 packed; 23,627,901 + 353 + 65 = 23,628,319 unpacked.
 // Menu action error rows over the desktop-foundation v0.8.0 bump (menu
-// protocol v2 surface, MenuActionError, actionErrorItem, lintMenu): a clean
-// npm 11.16.0 pack --ignore-scripts on this branch measured 604 entries,
-// 12,062,612 packed bytes and 23,632,554 unpacked bytes; archive SHA-256
-// 4996e020a557c8dc7f108a98fe75a6a0b7ac5a84f167e9d68e463e4edcf84249.
-// Carry the same projections and allowances: 12,062,612 + 12,387 + 4,096 =
-// 12,079,095 packed; 23,632,554 + 353 + 65 = 23,632,972 unpacked.
+// protocol v2 surface, MenuActionError, actionErrorItem, lintMenu) merged
+// with the help-advanced agent-verb move: a clean npm 11.16.0 pack
+// --ignore-scripts on the merged tree measured 604 entries, 12,062,831
+// packed bytes and 23,633,266 unpacked bytes; archive SHA-256
+// a091637d0a6df2ce09e14d0f2c4ebc5ef3b8b7d138c07625950ddf050ce3b30c.
+// Carry the same projections and allowances: 12,062,831 + 12,387 + 4,096 =
+// 12,079,314 packed; 23,633,266 + 353 + 65 = 23,633,684 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Menu action errors over desktop-foundation 0.8.0",
+  scope: "Menu action errors over desktop-foundation 0.8.0 and help advanced",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "4996e020a557c8dc7f108a98fe75a6a0b7ac5a84f167e9d68e463e4edcf84249",
-  packedBytes: 12_062_612,
-  unpackedBytes: 23_632_554,
+  archiveSha256: "a091637d0a6df2ce09e14d0f2c4ebc5ef3b8b7d138c07625950ddf050ce3b30c",
+  packedBytes: 12_062_831,
+  unpackedBytes: 23_633_266,
   entryCount: 604,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
