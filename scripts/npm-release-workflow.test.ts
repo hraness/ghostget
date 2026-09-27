@@ -1546,7 +1546,7 @@ describe("npm publication contract", () => {
     expect(budget).toContain("23,029,751 + 353 + 65 = 23,030,169");
     expect(budget).toContain("23,193,728 + 65 = 23,193,793");
     expect(budget).toContain("47684b3e2eb5cf3ed07fbb520aade8c7251d993f75262fbf1af627d9081a1a5f");
-    expect(budget).toContain("23,688,039 + 353 + 65 = 23,688,457");
+    expect(budget).toContain("23,688,277 + 353 + 65 = 23,688,695");
     expect(MAX_UNPACKED_BYTES).toBe(23_759_243);
     expect(budget).toContain("23,037,873 + 65 = 23,037,938");
     expect(budget).toContain("f9f3ab38a682690ceaa2699a7309997512030f0fa500a9dc29dcd108123dc41f");

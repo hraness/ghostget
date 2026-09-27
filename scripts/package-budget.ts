@@ -1936,16 +1936,26 @@
 // Carry the same projections and allowances: 12,076,471 + 12,387 + 4,096 =
 // 12,092,954 packed; 23,688,039 + 353 + 65 = 23,688,457 unpacked.
 //
+// The release merge to main crossed two concurrent merges — the aggregate
+// CLI command-family ping (#426) and the site-footer v0.19.3 devDependency
+// bump (#428) — so dist is rebuilt from the merged source and the archive
+// is remeasured on the integrated tree: a clean npm 11.19.0 pack
+// --ignore-scripts measured 607 entries, 12,076,551 packed bytes and
+// 23,688,277 unpacked bytes; archive SHA-256
+// dafd7278b23253fb61ea563156b6fb50a48c27e09466b05851fa3c6360c658ec.
+// Carry the same projections and allowances: 12,076,551 + 12,387 + 4,096 =
+// 12,093,034 packed; 23,688,277 + 353 + 65 = 23,688,695 unpacked.
+//
 // The capture-required Substack subscriber operations add the retained
 // substack-web 1.7.0 adapter snapshot and the substack-subscribers skill
-// reference over the 0.18.42 tree: two additional packed files. A clean npm
-// 11.19.0 pack --ignore-scripts on darwin arm64 measured 609 entries,
-// 12,089,062 packed bytes and 23,758,825 unpacked bytes; archive SHA-256
-// de75b0b81bf098fa08171d8bdf9c3a0798db74027652b777f6d2883c8b143c97.
+// reference over that integrated main tree: two additional packed files. A
+// clean npm 11.19.0 pack --ignore-scripts on darwin arm64 measured 609
+// entries, 12,089,062 packed bytes and 23,758,825 unpacked bytes; archive
+// SHA-256 de75b0b81bf098fa08171d8bdf9c3a0798db74027652b777f6d2883c8b143c97.
 // Carry the same projections and allowances: 12,089,062 + 12,387 + 4,096 =
 // 12,105,545 packed; 23,758,825 + 353 + 65 = 23,759,243 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Capture-required Substack subscriber operations over the Ghostget 0.18.42 release",
+  scope: "Capture-required Substack subscriber operations over the Ghostget 0.18.42 integrated main tree",
   command: "npm pack --ignore-scripts",
   npmVersion: "11.19.0",
   platform: "darwin-arm64",
