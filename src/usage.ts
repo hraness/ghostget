@@ -379,11 +379,7 @@ Commands
   support dismiss|snooze|enable      Stop, pause or restore invitations
   support status --json              Show your invitation settings
 
-Agent commands (for agents that show invitations at task closeout)
-  support protocol --json            Read the closeout protocol
-  support offer --json               Claim an invitation when one is due
-  support shown <id>                 Record that an invitation was shown
-  support release <id>               Cancel an unshown invitation
+Agent commands moved to ghostget help advanced.
 
 Turn off: HRANESS_SUPPORT=off
 `;
@@ -449,7 +445,10 @@ Use one controller at a time: run ghostget menubar stop before opening the
 TUI. Setup guide: https://ghostget.com/getting-started
 `;
 
-type HelpTopic = { readonly text: string } | { readonly delegate: string };
+type HelpTopic =
+  | { readonly text: string }
+  | { readonly delegate: string }
+  | { readonly advanced: string };
 
 /**
  * Help topics by command or topic name. `delegate` names a command that owns
@@ -501,7 +500,7 @@ const HELP_TOPICS: Readonly<Record<string, HelpTopic>> = {
   agents: { text: notesHelp },
   support: { text: supportHelp },
   policy: { text: policyHelp },
-  advanced: { text: advancedHelp },
+  advanced: { advanced: advancedHelp },
   help: { text: ghostgetUsage },
   menubar: { delegate: "menubar" },
   tui: { delegate: "tui" },
@@ -526,6 +525,7 @@ const SELF_HELP_COMMANDS = new Set([
 export type GhostgetHelpRequest =
   | { readonly kind: "bare" }
   | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "advanced"; readonly text: string }
   | { readonly kind: "delegate"; readonly arguments: readonly string[] }
   | { readonly kind: "unknown-topic"; readonly topic: string };
 
@@ -544,6 +544,7 @@ function resolveTopic(name: string, next: string | undefined): GhostgetHelpReque
   const topic = HELP_TOPICS[key];
   if (topic === undefined) return { kind: "unknown-topic", topic: name };
   if ("delegate" in topic) return { kind: "delegate", arguments: [topic.delegate, "--help"] };
+  if ("advanced" in topic) return { kind: "advanced", text: topic.advanced };
   return { kind: "text", text: topic.text };
 }
 
