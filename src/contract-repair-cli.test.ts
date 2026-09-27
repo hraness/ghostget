@@ -46,8 +46,9 @@ describe("usage-driven repair signals", () => {
       }
       const attempt = capture();
       expect(await main(missingArgs, s.environment, attempt.output, dependencies)).toBe(3);
-      expect(attempt.stderr()).toContain("ghostget contracts repair --id");
-      expect(attempt.stdout()).toBe("");
+      expect(attempt.stderr()).toBe("");
+      expect(attempt.stdout()).toContain('"ok":false');
+      expect(attempt.stdout()).toContain("ghostget contracts repair --id");
       expect(calls).toBe(0);
       const entries = readContractRepairInbox(s.environment).entries;
       expect(entries).toHaveLength(1);
@@ -125,8 +126,10 @@ describe("usage-driven repair signals", () => {
     try {
       const result = capture();
       expect(await main(missingArgs, { ...s.environment, GHOSTGET_REPAIR_SIGNALS: "off" }, result.output)).toBe(3);
-      expect(result.stderr()).toContain("capture-required");
-      expect(result.stderr()).not.toContain("repair lead");
+      expect(result.stderr()).toBe("");
+      expect(result.stdout()).toContain('"ok":false');
+      expect(result.stdout()).toContain("capture-required");
+      expect(result.stdout()).not.toContain("repair lead");
       expect(existsSync(join(s.environment.GHOSTGET_STATE_HOME, "repair-signals"))).toBeFalse();
     } finally { s.dispose(); }
   });

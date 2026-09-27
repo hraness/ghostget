@@ -115,7 +115,10 @@ describe("read-path preparation binds the current incarnation without creating o
       },
     );
     expect(code).not.toBe(0);
-    expect(stderr.join("")).toContain("auth locator x-main has no lifetime identity yet");
+    // --json routes the failure to stdout as a JSON envelope.
+    expect(stderr.join("")).toBe("");
+    expect(stdout.join("")).toContain('"ok":false');
+    expect(stdout.join("")).toContain("Auth locator x-main has no lifetime identity yet");
     expect(cacheReads).toBe(0);
     expect(existsSync(incarnationPath(root, "x-main"))).toBeFalse();
     expect(fingerprint(root)).toEqual(before);
@@ -191,7 +194,9 @@ describe("read-path preparation binds the current incarnation without creating o
     const before = fingerprint(root);
     const cacheOnly = await run("--cache-only");
     expect(cacheOnly.code).not.toBe(0);
-    expect(cacheOnly.stderr).toContain("auth locator x-main has no lifetime identity yet");
+    expect(cacheOnly.stderr).toBe("");
+    expect(cacheOnly.stdout).toContain('"ok":false');
+    expect(cacheOnly.stdout).toContain("Auth locator x-main has no lifetime identity yet");
     expect(existsSync(incarnationPath(root, "x-main"))).toBeFalse();
     expect(fingerprint(root)).toEqual(before);
 

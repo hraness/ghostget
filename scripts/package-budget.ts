@@ -1851,14 +1851,21 @@
 // 7e93bffa218491dbe4f78c0733fd4964df6437d734cf767e4ed0b3ebb11563fe.
 // Carry the same projections and allowances: 12,061,280 + 12,387 + 4,096 =
 // 12,077,763 packed; 23,627,901 + 353 + 65 = 23,628,319 unpacked.
+// The CLI spot checks add the version product name, the --json error
+// envelope and the empty auth list's inline next step: a clean npm 11.16.0
+// pack --ignore-scripts on this branch measured 604 entries, 12,061,823
+// packed bytes and 23,629,960 unpacked bytes; archive SHA-256
+// e30b97c08fc757579c1fa5f35d3b1fa283680f04cc59b4ffc7d30aa9c848ec04.
+// Carry the same projections and allowances: 12,061,823 + 12,387 + 4,096 =
+// 12,078,306 packed; 23,629,960 + 353 + 65 = 23,630,378 unpacked.
 export const repairPackageMeasurement = Object.freeze({
-  scope: "Quiet keychain notices and typed permission denials",
+  scope: "CLI spot checks: version name, --json errors, auth-list hint",
   command: "npm pack --ignore-scripts",
-  npmVersion: "11.19.0",
+  npmVersion: "11.16.0",
   platform: "darwin-arm64",
-  archiveSha256: "7e93bffa218491dbe4f78c0733fd4964df6437d734cf767e4ed0b3ebb11563fe",
-  packedBytes: 12_061_280,
-  unpackedBytes: 23_627_901,
+  archiveSha256: "e30b97c08fc757579c1fa5f35d3b1fa283680f04cc59b4ffc7d30aa9c848ec04",
+  packedBytes: 12_061_823,
+  unpackedBytes: 23_629_960,
   entryCount: 604,
   packedPlatformProjection: 12_387,
   packedPortabilityAllowance: 4_096,
