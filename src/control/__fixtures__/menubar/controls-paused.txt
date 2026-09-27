@@ -1,0 +1,21 @@
+[mark.masks Gg, offline] Ghostget · controls paused
+Ghostget
+⊘ Ghostget controls are paused · Close the Ghostget TUI, then choose Refresh
+─────────
+↗ Open Ghostget ↗ (primary)  ⌘O
+─────────
+Outputs (2) ▸
+  x-timeline-2026-09-26.md · 18.0 KB · 5 min ago
+    ⌥ Show in Finder
+  example-com.pdf · 392.7 KB · 3 hr ago
+    ⌥ Show in Finder
+  ─────────
+  Open outputs folder
+    ⌥ Copy folder location
+↻ Refresh  ⌘R
+─────────
+Open at login · macOS shows a notice when you turn this on
+─────────
+♡ Help & support ↗
+  ⌥ Copy diagnostics
+Quit Ghostget

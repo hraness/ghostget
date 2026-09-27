@@ -66,6 +66,8 @@ export type GhostgetAuth =
       readonly source: CookieSource;
       readonly profile?: string;
       readonly subject?: string;
+      /** The human handle verified beside the subject, such as "@name". */
+      readonly displayName?: string;
     }
   | {
       readonly schemaVersion: 1;
@@ -457,6 +459,18 @@ export function normalizeAuthSubject(value: string): string {
   return value;
 }
 
+/** A verified human handle, such as "@name" or "u/name"; looser than a
+ * subject because providers differ on handle syntax, but still bounded,
+ * single-line and free of bidi overrides. */
+export function normalizeAuthDisplayName(value: string): string {
+  if (
+    !isSafeString(value, 128)
+    || value.trim() !== value
+    || /[<>\\^`|{}\u202a-\u202e\u2066-\u2069]/u.test(value)
+  ) throw new Error("auth record has an invalid displayName");
+  return value;
+}
+
 export const normalizeOAuthSubject = normalizeAuthSubject;
 
 function isSafeAuthPath(value: unknown): value is string {
@@ -564,6 +578,7 @@ export function parseAuth(value: unknown): GhostgetAuth {
     const expected = ["schemaVersion", "id", "kind", "source"];
     if (record.profile !== undefined) expected.push("profile");
     if (record.subject !== undefined) expected.push("subject");
+    if (record.displayName !== undefined) expected.push("displayName");
     if (!exactKeys(record, expected)) throw new Error("auth record has unsupported fields");
     if (typeof record.source !== "string" || !cookieSources.includes(record.source as CookieSource)) {
       throw new Error("auth record has an invalid cookie source");
@@ -578,6 +593,10 @@ export function parseAuth(value: unknown): GhostgetAuth {
       throw new Error("auth record has an invalid subject");
     }
     const subject = typeof record.subject === "string" ? normalizeAuthSubject(record.subject) : undefined;
+    if (record.displayName !== undefined && typeof record.displayName !== "string") {
+      throw new Error("auth record has an invalid displayName");
+    }
+    const displayName = typeof record.displayName === "string" ? normalizeAuthDisplayName(record.displayName) : undefined;
     return {
       schemaVersion: 1,
       id: record.id,
@@ -585,6 +604,7 @@ export function parseAuth(value: unknown): GhostgetAuth {
       source: record.source as CookieSource,
       ...(typeof record.profile !== "string" ? {} : { profile: record.profile }),
       ...(subject === undefined ? {} : { subject }),
+      ...(displayName === undefined ? {} : { displayName }),
     };
   }
   if (record.kind === "cookies-file") {

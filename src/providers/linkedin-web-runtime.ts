@@ -728,6 +728,20 @@ export async function probeLinkedInWebSubject(
     readonly signal?: AbortSignal;
   } = {},
 ): Promise<string> {
+  return (await probeLinkedInWebIdentity(auth, options)).subject;
+}
+
+/** The Voyager identity probe resolves the public profile slug beside the
+ * member URN subject, so menus and the TUI can name the account instead of
+ * printing the numeric member ID. */
+export async function probeLinkedInWebIdentity(
+  auth: GhostgetAuth,
+  options: {
+    readonly timeoutMs?: number;
+    readonly dependencies?: LinkedInWebRuntimeDependencies;
+    readonly signal?: AbortSignal;
+  } = {},
+): Promise<{ readonly subject: string; readonly displayName: string | null }> {
   if (auth.kind === "browser-profile") {
     const timeoutMs = options.timeoutMs ?? 60_000;
     const deadline = new OperationDeadline(timeoutMs, {
@@ -746,12 +760,13 @@ export async function probeLinkedInWebSubject(
         }),
         "authenticated web subject probe",
       );
-      return identityFromMeResponse(
+      const identity = identityFromMeResponse(
         await deadline.run(
           () => transport!.currentIdentityResponse(),
           "authenticated web subject probe",
         ),
-      ).subject;
+      );
+      return { subject: identity.subject, displayName: identity.publicIdentifier };
     } finally {
       try {
         await transport?.close();
@@ -769,7 +784,8 @@ export async function probeLinkedInWebSubject(
     },
   );
   const csrf = linkedInCsrfTokenFromJSessionId(webSessionCookie(client.cookies, "JSESSIONID"));
-  return (await currentIdentity(client, csrf)).subject;
+  const identity = await currentIdentity(client, csrf);
+  return { subject: identity.subject, displayName: identity.publicIdentifier };
 }
 
 function boundLinkedInStatsIdentity(

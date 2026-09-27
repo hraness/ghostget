@@ -422,6 +422,7 @@ export const redditWebPlugin = defineProviderPlugin({
       const runtime = await import("../../providers/reddit-web-runtime");
       return {
         probe: runtime.probeRedditWebSubject,
+        probeIdentity: runtime.probeRedditWebIdentity,
         execute: (_manifest, recipe, input, auth, options) =>
           runtime.executeRedditWebOperation(recipe, input, auth, options),
         reconcile: async (operation, input, auth, context) => {

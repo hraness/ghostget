@@ -9,9 +9,14 @@ export interface AccountView {
   readonly provider: string | null;
   readonly kind: string;
   readonly subject: string | null;
+  /** The verified human handle, such as "@name"; null before a verify that
+   * resolved it or for account kinds without one. Display-only. */
+  readonly displayName: string | null;
   readonly revision: string;
   readonly status: "configured" | "verified" | "reconnect-required";
   readonly source: string | null;
+  /** The Chromium profile directory a browser sign-in reads, or null. */
+  readonly profile: string | null;
   readonly tokenStorage: "external" | "ghostget-import" | "managed-oauth" | null;
   /** Stored access-token expiry for OAuth accounts; null when unknown or absent. */
   readonly tokenExpiresAt: string | null;
@@ -144,7 +149,7 @@ export type ControlData =
   | { readonly kind: "snapshot"; readonly snapshot: ControlSnapshot }
   | { readonly kind: "approvals"; readonly approvals: readonly ApprovalView[] }
   | { readonly kind: "activity"; readonly page: ActivityPage }
-  | { readonly kind: "connection"; readonly attemptId: string; readonly status: "awaiting-sign-in" | "verified"; readonly subject: string | null }
+  | { readonly kind: "connection"; readonly attemptId: string; readonly status: "awaiting-sign-in" | "verified"; readonly subject: string | null; readonly displayName: string | null }
   | { readonly kind: "document"; readonly text: string; readonly filename: string }
   | { readonly kind: "prompt"; readonly text: string }
   | { readonly kind: "success"; readonly message: string };

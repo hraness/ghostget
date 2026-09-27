@@ -261,7 +261,11 @@ test("property: closing connections aborts sign-in so no verification or commit 
     });
     const testRegistry = { ...registry, requireSessionRoute: (site: Parameters<typeof registry.requireSessionRoute>[0]) => {
       const binding = registry.requireSessionRoute(site);
-      return { ...binding, subject: { ...binding.subject, probe } };
+      // `verify` prefers a binding's probeIdentity over probe, so the
+      // controlled probe must back both or the real browser read escapes
+      // the model's release and abort timing.
+      const probeIdentity = async (auth: unknown, context: { signal: AbortSignal }) => ({ subject: await probe(auth, context), displayName: null });
+      return { ...binding, subject: { ...binding.subject, probe, ...(binding.subject.probeIdentity === undefined ? {} : { probeIdentity }) } };
     } };
     const connections = new Connections(environment, () => testRegistry as typeof registry, async () => undefined);
     const attempts: string[] = [];

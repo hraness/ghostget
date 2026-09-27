@@ -126,9 +126,9 @@ export class TuiController {
         return;
       }
       if (response.data.kind === "connection") {
-        if (request.action === "connection.begin") this.state.attempt = { attemptId: response.data.attemptId, accountId: request.id, provider: request.provider, browser: `${request.browser}${request.profile ? ` / ${request.profile}` : ""}`, subject: response.data.subject };
-        else if (request.action === "connection.verify" && this.state.attempt?.attemptId === response.data.attemptId) this.state.attempt = { ...this.state.attempt, subject: response.data.subject };
-        this.state.notice = response.data.status === "verified" ? "Account verified. Press s to review and save this identity." : "Finish sign-in in the opened browser, return here, then press v to verify.";
+        if (request.action === "connection.begin") this.state.attempt = { attemptId: response.data.attemptId, accountId: request.id, provider: request.provider, browser: `${request.browser}${request.profile ? ` / ${request.profile}` : ""}`, subject: response.data.subject, displayName: response.data.displayName };
+        else if (request.action === "connection.verify" && this.state.attempt?.attemptId === response.data.attemptId) this.state.attempt = { ...this.state.attempt, subject: response.data.subject, displayName: response.data.displayName };
+        this.state.notice = response.data.status === "verified" ? `Account verified${response.data.displayName === null ? "" : ` as ${response.data.displayName}`}. Press s to review and save this identity.` : "Finish sign-in in the opened browser, return here, then press v to verify.";
       } else {
         this.state.notice = response.data.kind === "success" ? tuiText(response.data.message) : "Action completed. Refresh to inspect current state.";
         if (request.action === "connection.commit") { this.accountId = this.state.attempt?.accountId ?? this.accountId; this.state.attempt = null; }
@@ -144,7 +144,7 @@ export class TuiController {
   }
 
   private pickAccount(): void {
-    this.choices("Select permission scope", [{ label: "No account (public scope)", action: "account:public" }, ...(this.state.snapshot?.accounts ?? []).map((account, index) => ({ label: `${account.id} · ${account.provider ?? account.kind}`, action: `account:${index}` }))]);
+    this.choices("Select permission scope", [{ label: "No account (public scope)", action: "account:public" }, ...(this.state.snapshot?.accounts ?? []).map((account, index) => ({ label: `${account.displayName ?? account.id} · ${account.provider ?? account.kind}`, action: `account:${index}` }))]);
   }
   private connect(): void {
     if (!this.state.browserConnections) { this.state.notice = "Browser connection from this panel requires macOS. Use ghostget auth --help for provider CLI setup; existing accounts work here."; return; }
@@ -302,7 +302,7 @@ export class TuiController {
     if (attempt !== null) {
       if (text === "v") this.review("Verify the signed-in browser account?", [`Account: ${attempt.accountId}`, `Provider: ${attempt.provider} · browser: ${attempt.browser}`, "Ghostget will read the signed-in identity from this browser. Complete sign-in there before continuing."], { action: "connection.verify", attemptId: attempt.attemptId });
       if (text === "x") this.review("Cancel this sign-in attempt?", [`Account: ${attempt.accountId}`, "This discards the pending Ghostget connection. It does not close or sign out the browser."], { action: "connection.cancel", attemptId: attempt.attemptId });
-      if (text === "s" && attempt.subject !== null) this.review("Save this verified account?", [`Account: ${attempt.accountId}`, `Provider: ${attempt.provider} · browser: ${attempt.browser}`, `Verified subject: ${attempt.subject}`, "Save only if this is the identity you intended to connect."], { action: "connection.commit", attemptId: attempt.attemptId, expectedSubject: attempt.subject });
+      if (text === "s" && attempt.subject !== null) this.review("Save this verified account?", [`Account: ${attempt.accountId}`, `Provider: ${attempt.provider} · browser: ${attempt.browser}`, ...(attempt.displayName === null ? [] : [`Signed in as: ${attempt.displayName}`]), `Verified subject: ${attempt.subject}`, "Save only if this is the identity you intended to connect."], { action: "connection.commit", attemptId: attempt.attemptId, expectedSubject: attempt.subject });
     }
     if (this.state.section === "Activity") {
       if (text === "n" && this.state.activity?.nextCursor != null) { this.state.activityPrevious.push(this.state.activityCursor); this.state.activityPrevious = this.state.activityPrevious.slice(-100); this.state.activityCursor = this.state.activity.nextCursor; this.state.selected = 0; await this.refresh(); }

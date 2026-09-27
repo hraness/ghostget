@@ -1,0 +1,255 @@
+{
+  "version": 2,
+  "type": "snapshot",
+  "appId": "ghostget",
+  "name": "Ghostget",
+  "mark": {
+    "symbol": "mark.masks",
+    "letters": "Gg",
+    "accessibilityLabel": "Ghostget"
+  },
+  "tooltip": "Ghostget · accounts, approvals and outputs",
+  "revision": 1,
+  "items": [
+    {
+      "kind": "header",
+      "label": "Ghostget"
+    },
+    {
+      "kind": "status",
+      "symbol": "status.running",
+      "label": "Ready · 1 account"
+    },
+    {
+      "kind": "separator"
+    },
+    {
+      "kind": "action",
+      "id": "open-website",
+      "label": "Open Ghostget",
+      "symbol": "action.open",
+      "opens": "browser",
+      "shortcut": "CmdOrCtrl+O",
+      "role": "primary"
+    },
+    {
+      "kind": "separator"
+    },
+    {
+      "kind": "submenu",
+      "label": "Accounts (1)",
+      "symbol": "item.contact",
+      "items": [
+        {
+          "kind": "action",
+          "id": "account:select:x-main",
+          "label": "X · Chrome · Personal",
+          "subtitle": "Verified · x-main",
+          "symbol": "item.contact",
+          "state": "off",
+          "tooltip": "Choose it to set this account's permissions",
+          "alternate": {
+            "id": "account:copy:x-main",
+            "label": "Copy account ID",
+            "symbol": "action.copy"
+          }
+        },
+        {
+          "kind": "separator"
+        },
+        {
+          "kind": "action",
+          "id": "connect:x-web:safari",
+          "label": "Connect X in Safari",
+          "symbol": "action.add",
+          "enabled": true
+        },
+        {
+          "kind": "action",
+          "id": "connect:x-web:chrome-default",
+          "label": "Connect X in Chrome · Personal",
+          "symbol": "action.add",
+          "enabled": true
+        },
+        {
+          "kind": "action",
+          "id": "connect:x-web:chrome-profile-1",
+          "label": "Connect X in Chrome · Work",
+          "symbol": "action.add",
+          "enabled": true
+        },
+        {
+          "kind": "action",
+          "id": "connect:linkedin-web:safari",
+          "label": "Connect LinkedIn in Safari",
+          "symbol": "action.add",
+          "enabled": true
+        },
+        {
+          "kind": "action",
+          "id": "connect:linkedin-web:chrome-default",
+          "label": "Connect LinkedIn in Chrome · Personal",
+          "symbol": "action.add",
+          "enabled": true
+        },
+        {
+          "kind": "action",
+          "id": "connect:linkedin-web:chrome-profile-1",
+          "label": "Connect LinkedIn in Chrome · Work",
+          "symbol": "action.add",
+          "enabled": true
+        },
+        {
+          "kind": "action",
+          "id": "connect:reddit-web:safari",
+          "label": "Connect Reddit in Safari",
+          "symbol": "action.add",
+          "enabled": true
+        },
+        {
+          "kind": "action",
+          "id": "connect:reddit-web:chrome-default",
+          "label": "Connect Reddit in Chrome · Personal",
+          "symbol": "action.add",
+          "enabled": true
+        },
+        {
+          "kind": "action",
+          "id": "connect:reddit-web:chrome-profile-1",
+          "label": "Connect Reddit in Chrome · Work",
+          "symbol": "action.add",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "kind": "submenu",
+      "label": "Outputs",
+      "symbol": "action.folder",
+      "items": [
+        {
+          "kind": "label",
+          "label": "No outputs yet",
+          "subtitle": "Saved pages appear here"
+        }
+      ]
+    },
+    {
+      "kind": "submenu",
+      "label": "Permissions",
+      "symbol": "action.permission",
+      "items": [
+        {
+          "kind": "label",
+          "label": "For public operations"
+        },
+        {
+          "kind": "action",
+          "id": "account:public",
+          "label": "Use public operations",
+          "state": "on",
+          "enabled": true,
+          "tooltip": "Choose an account under Accounts for its private operations"
+        },
+        {
+          "kind": "label",
+          "label": "No operations to set here"
+        }
+      ]
+    },
+    {
+      "kind": "submenu",
+      "label": "Advanced",
+      "symbol": "action.settings",
+      "items": [
+        {
+          "kind": "submenu",
+          "label": "Web rules (0)",
+          "items": [
+            {
+              "kind": "label",
+              "label": "Direct reads allowed"
+            }
+          ]
+        },
+        {
+          "kind": "submenu",
+          "label": "Interfaces (0)",
+          "items": [
+            {
+              "kind": "label",
+              "label": "No interfaces installed"
+            }
+          ]
+        },
+        {
+          "kind": "submenu",
+          "label": "Recent reads",
+          "items": [
+            {
+              "kind": "label",
+              "label": "No recent reads"
+            }
+          ]
+        },
+        {
+          "kind": "separator"
+        },
+        {
+          "kind": "action",
+          "id": "refresh",
+          "label": "Refresh",
+          "symbol": "action.refresh",
+          "shortcut": "CmdOrCtrl+R"
+        },
+        {
+          "kind": "action",
+          "id": "clip:0",
+          "label": "Copy CLI help command",
+          "symbol": "action.copy"
+        },
+        {
+          "kind": "separator"
+        },
+        {
+          "kind": "action",
+          "id": "disconnect:x-main",
+          "label": "Disconnect X · Chrome · Personal",
+          "subtitle": "x-main",
+          "role": "destructive",
+          "symbol": "action.signOut",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "kind": "separator"
+    },
+    {
+      "kind": "action",
+      "id": "foundation.login",
+      "label": "Open at login",
+      "state": "off",
+      "subtitle": "macOS shows a notice when you turn this on"
+    },
+    {
+      "kind": "separator"
+    },
+    {
+      "kind": "action",
+      "id": "support:open",
+      "label": "Help & support",
+      "symbol": "action.support",
+      "opens": "browser",
+      "alternate": {
+        "id": "support:diagnostics",
+        "label": "Copy diagnostics",
+        "symbol": "action.copy"
+      }
+    },
+    {
+      "kind": "quit",
+      "label": "Quit Ghostget"
+    }
+  ]
+}

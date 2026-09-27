@@ -13,7 +13,7 @@ export type AuthOutputAudience = "human" | "agent" | "quiet";
 
 /** The subset of a saved sign-in these lines describe. */
 export type AuthSummary =
-  | { readonly kind: "cookie-source"; readonly id: string; readonly source: string; readonly profile?: string; readonly subject?: string }
+  | { readonly kind: "cookie-source"; readonly id: string; readonly source: string; readonly profile?: string; readonly subject?: string; readonly displayName?: string }
   | { readonly kind: "cookies-file"; readonly id: string; readonly subject?: string }
   | { readonly kind: "browser-profile"; readonly id: string; readonly cookieSource?: string; readonly subject?: string }
   | {
@@ -95,13 +95,14 @@ export function authSavedLines(
   return { result, next: `ghostget auth bind ${auth.id} --site <site>`, note };
 }
 
-/** `auth bind`: which account the sign-in belongs to. */
+/** `auth bind`: which account the sign-in belongs to. A verified handle
+ * names the account for people; the subject stays in the JSON output. */
 export function authBoundLines(
-  bound: { readonly id: string; readonly site: string; readonly subject: string },
+  bound: { readonly id: string; readonly site: string; readonly subject: string; readonly displayName?: string },
   style: CliStyle,
 ): AuthLines {
   return {
-    result: `${style.symbol("ok")} ${bound.id} is signed in to ${bound.site} as ${bound.subject}.`,
+    result: `${style.symbol("ok")} ${bound.id} is signed in to ${bound.site} as ${bound.displayName ?? bound.subject}.`,
     next: `ghostget capabilities`,
     note: null,
   };
@@ -141,13 +142,14 @@ export function authListText(auths: readonly AuthSummary[], style: CliStyle): Au
   const sourceWidth = Math.max(...sources.map((source) => source.length));
   const rows = auths.map((auth, index) => {
     const problem = tokenProblem(auth);
+    const handle = auth.kind === "cookie-source" ? auth.displayName : undefined;
     const state = problem === "expired"
       ? `${style.symbol("fail")} token expired`
       : problem === "unreadable"
         ? `${style.symbol("fail")} token missing or unreadable`
         : auth.subject === undefined
           ? `${style.symbol("off")} no account yet`
-          : `as ${auth.subject}`;
+          : `as ${handle ?? auth.subject}`;
     return `${auth.id.padEnd(idWidth)}  ${(sources[index] ?? "").padEnd(sourceWidth)}  ${state}`.trimEnd();
   });
   const broken = auths.filter((auth) => tokenProblem(auth) !== null);

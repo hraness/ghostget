@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { createAuth, loadAuthSnapshotIfPresent, removeAuth, replaceAuthIfUnchanged, saveAuth, type AuthSnapshot, type GhostgetAuth } from "../auth";
+import { createAuth, loadAuthSnapshotIfPresent, normalizeAuthDisplayName, removeAuth, replaceAuthIfUnchanged, saveAuth, type AuthSnapshot, type GhostgetAuth } from "../auth";
 import type { ProviderPluginRegistry } from "../provider-plugin-registry";
 import { withReadProjectionAuthAdmission } from "../read-projections";
 import { installManifest, loadInstalledManifestSnapshot } from "../storage";
@@ -13,7 +13,8 @@ import type { ControlEnvironment } from "./web-policy";
 
 const PROVIDERS=[{id:"x-web",surface:"x",title:"X · browser session",login:"https://x.com/i/flow/login"},{id:"linkedin-web",surface:"linkedin",title:"LinkedIn · browser session",login:"https://www.linkedin.com/login"},{id:"reddit-web",surface:"reddit",title:"Reddit · browser session",login:"https://www.reddit.com/login/"}] as const;
 type Begin=Extract<ControlRequest,{action:"connection.begin"}>;
-type Attempt={readonly id:string;readonly request:Begin;readonly current:AuthSnapshot|null;readonly expiresAt:number;controller:AbortController;auth:GhostgetAuth;subject:string|null;verifying:boolean};
+type CookieSourceAuth=Extract<GhostgetAuth,{kind:"cookie-source"}>;
+type Attempt={readonly id:string;readonly request:Begin;readonly current:AuthSnapshot|null;readonly expiresAt:number;controller:AbortController;auth:CookieSourceAuth;subject:string|null;verifying:boolean};
 export const connectionProviders=PROVIDERS.map(({id,title})=>({id,title}));
 export class Connections {
   private readonly attempts=new Map<string,Attempt>();
@@ -25,29 +26,38 @@ export class Connections {
     if(request.profile!==null && (request.browser!=="chrome" || !/^(?:Default|Profile [1-9][0-9]{0,2})$/u.test(request.profile)))throw new ControlError("PROFILE_UNSUPPORTED","Choose Default or a numbered Chrome profile.");
     const current=loadAuthSnapshotIfPresent(request.id,this.environment);
     if((current===null?null:connectionAccountRevision(current,this.environment))!==request.expectedRevision)throw new ControlError("ACCOUNT_CHANGED","The account changed. Refresh before reconnecting.");
-    const auth=createAuth(request.id,{source:request.browser,...(request.profile===null?{}:{profile:request.profile})});
+    const created=createAuth(request.id,{source:request.browser,...(request.profile===null?{}:{profile:request.profile})});
+    if(created.kind!=="cookie-source")throw new ControlError("CONNECTION_UNSUPPORTED","This provider has no compatible sign-in verifier.");
+    const auth=created;
     const binding=this.registry().requireSessionRoute(provider.surface);
     if(!binding.authKinds.includes(auth.kind)||binding.subject.probe===undefined)throw new ControlError("CONNECTION_UNSUPPORTED","This provider has no compatible sign-in verifier.");
     const id=randomUUID();const attempt:Attempt={id,request,current,auth,subject:null,expiresAt:this.now()+600_000,controller:new AbortController(),verifying:false};
     this.attempts.set(id,attempt);
     try {await this.open(request.browser,request.profile,provider.login);}catch{this.attempts.delete(id);throw new ControlError("BROWSER_UNAVAILABLE","The selected browser could not be opened.");}
-    return {kind:"connection",attemptId:id,status:"awaiting-sign-in",subject:null};
+    return {kind:"connection",attemptId:id,status:"awaiting-sign-in",subject:null,displayName:null};
   }
   async verify(id:string):Promise<ControlData> {
     const attempt=this.get(id);if(attempt.verifying)throw new ControlError("CONNECTION_BUSY","Verification is already running.");
     // A failed re-verification cannot leave an older successful proof available to commit.
     attempt.subject=null;
-    const {subject:_previousSubject,...unverifiedAuth}=attempt.auth;attempt.auth=unverifiedAuth;
+    const {subject:_previousSubject,displayName:_previousName,...unverifiedAuth}=attempt.auth;attempt.auth=unverifiedAuth;
     // A fresh controller lets the person retry after a denial or timeout
     // without the last probe's cancelled signal; the attempt still expires.
     attempt.controller=new AbortController();
     attempt.verifying=true;const timer=setTimeout(()=>attempt.controller.abort(),60_000);
     try {
       const provider=PROVIDERS.find(item=>item.id===attempt.request.provider)!;const binding=this.registry().requireSessionRoute(provider.surface);
-      const subject=await binding.subject.probe!(attempt.auth,{environment:this.environment,signal:attempt.controller.signal});
-      if(this.get(id)!==attempt||attempt.controller.signal.aborted||!binding.subject.matches(subject))throw new Error();
-      attempt.subject=subject;attempt.auth={...attempt.auth,subject};
-      return {kind:"connection",attemptId:id,status:"verified",subject};
+      const identity=binding.subject.probeIdentity!==undefined
+        ? await binding.subject.probeIdentity(attempt.auth,{environment:this.environment,signal:attempt.controller.signal})
+        : {subject:await binding.subject.probe!(attempt.auth,{environment:this.environment,signal:attempt.controller.signal}),displayName:null};
+      if(this.get(id)!==attempt||attempt.controller.signal.aborted||!binding.subject.matches(identity.subject))throw new Error();
+      // The handle is display-only: a handle the auth contract cannot carry
+      // is dropped rather than failing an otherwise verified sign-in.
+      let displayName:string|null=null;
+      if(identity.displayName!==null){try{displayName=normalizeAuthDisplayName(identity.displayName);}catch{displayName=null;}}
+      attempt.subject=identity.subject;
+      attempt.auth={...attempt.auth,subject:identity.subject,...(displayName===null?{}:{displayName})};
+      return {kind:"connection",attemptId:id,status:"verified",subject:identity.subject,displayName};
     } catch (error) {
       // Keep the attempt: the cleared subject above already revoked any prior
       // proof, so commit stays impossible until a later verify succeeds, and

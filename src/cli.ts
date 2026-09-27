@@ -342,7 +342,7 @@ if (import.meta.main) {
     || args.every((arg) => arg === "--help" || arg === "-h" || arg === "--version" || arg === "-V");
   if (depth === 0 && !staticOnly) {
     void import("./telemetry")
-      .then((telemetry) => telemetry.reportGhostgetCliRun(GHOSTGET_VERSION, process.env))
+      .then((telemetry) => telemetry.reportGhostgetCliRun(GHOSTGET_VERSION, process.env, args))
       .catch(() => {});
   }
   await runGhostgetCliProcess(undefined, undefined, undefined, undefined, undefined, undefined, depth === 0);

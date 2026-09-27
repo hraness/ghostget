@@ -20,6 +20,7 @@ import { X_UNLABELED_COPY_POLICY_ERROR } from "./x-made-with-ai";
 import {
   buildXWebRichArticleContentState,
   executeXWebOperation,
+  probeXWebIdentity,
   readXWebArticleDraftDesiredState,
   readXWebDesiredState,
   readXWebPublishedMutationTarget,
@@ -1865,6 +1866,25 @@ describe("X authenticated internal-API runtime", () => {
       `GET https://x.com/i/api/graphql/${VIEWER_QUERY_ID}/Viewer`,
       "GET https://x.com/i/api/graphql/zoF7_t363wZyzylk-BLfZQ/TweetDetail",
     ]);
+  });
+
+  test("the identity probe resolves the screen name beside the numeric subject", async () => {
+    const calls: CapturedRequest[] = [];
+    const runtimeDependencies = dependencies(calls, (request) => {
+      if (request.url.href === "https://x.com/home") {
+        return new Response(homeHtml(), { headers: { "content-type": "text/html" } });
+      }
+      if (request.url.href === MAIN_URL) {
+        return new Response(mainBundle(
+          descriptor("Viewer", "u4ni7JqpqdAQxWQfkLsdUQ", "query"),
+        ), { headers: { "content-type": "application/javascript" } });
+      }
+      if (request.url.pathname.endsWith("/Viewer")) return jsonResponse(viewerResponse());
+      throw new Error(`unexpected test request ${request.url.href}`);
+    });
+
+    expect(await probeXWebIdentity(xAuth, { dependencies: runtimeDependencies }))
+      .toEqual({ subject: VIEWER_ID, displayName: "@wrench_test" });
   });
 
   test("rejects a TweetDetail response that omits the requested focal post", async () => {
