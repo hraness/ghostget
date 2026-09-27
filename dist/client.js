@@ -316,6 +316,20 @@ function boundedMessage(value) {
     return value.trim();
   return `${bytes.subarray(0, MAX_ERROR_BYTES).toString("utf8").trim()}\u2026`;
 }
+function envelopeMessage(stdout) {
+  try {
+    const parsed = JSON.parse(stdout);
+    if (typeof parsed !== "object" || parsed === null || parsed.ok !== false)
+      return "";
+    const error = parsed.error;
+    if (typeof error !== "object" || error === null)
+      return "";
+    const message = error.message;
+    return typeof message === "string" ? boundedMessage(message) : "";
+  } catch {
+    return "";
+  }
+}
 function cliSourcePath() {
   const besideSource = fileURLToPath(new URL("./cli.ts", import.meta.url));
   if (existsSync(besideSource))
@@ -548,7 +562,7 @@ function runIdentityCommand(command, options, label, responseLabel = `${label} r
   const stdout = String(result.stdout ?? "");
   const stderr = String(result.stderr ?? "");
   if (stdout.trim().length === 0 || code !== 0) {
-    throw new Error(boundedMessage(stderr) || `${label} exited ${code}`);
+    throw new Error(boundedMessage(stderr) || envelopeMessage(stdout) || `${label} exited ${code}`);
   }
   return parseOutput(stdout, responseLabel);
 }

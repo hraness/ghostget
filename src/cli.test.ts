@@ -105,22 +105,36 @@ describe("lazy ghostget CLI entrypoint", () => {
         forbiddenLoader,
         forbiddenLoader,
       );
-      expect(stdout).toBe(`${GHOSTGET_VERSION}\n`);
+      expect(stdout).toBe(`ghostget ${GHOSTGET_VERSION}\n`);
       expect(loaded).toBe(0);
       expect(process.exitCode).toBe(0);
       expect(isImmediateGhostgetVersionRequest(["--version"])).toBeTrue();
       expect(isImmediateGhostgetVersionRequest(["-V"])).toBeTrue();
+      expect(isImmediateGhostgetVersionRequest(["--version", "--json"])).toBeTrue();
       for (const rawArguments of [
         ["version"],
         ["--version", "extra"],
+        ["--version", "--json", "extra"],
       ]) expect(isImmediateGhostgetVersionRequest(rawArguments)).toBeFalse();
+      let json = "";
+      await runGhostgetCliProcess(
+        ["--version", "--json"],
+        { stdout: (value) => { json += value; } },
+        forbiddenLoader,
+        forbiddenLoader,
+        forbiddenLoader,
+      );
+      expect(JSON.parse(json)).toEqual({ name: "ghostget", version: GHOSTGET_VERSION });
+      expect(loaded).toBe(0);
 
       const packageJson = JSON.parse(
         readFileSync(join(sourcePackageRoot, "package.json"), "utf8"),
       ) as { readonly version?: unknown };
       expect(packageJson.version).toBe(GHOSTGET_VERSION);
 
-      const rejected = await runProcess(cliPath, ["--version", "extra"], process.env);
+      const humanEnvironment = Object.fromEntries(Object.entries(process.env).filter(([name]) =>
+        name !== "HRANESS_AUDIENCE" && !["AI_AGENT", "CLAUDECODE", "CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED", "CURSOR_AGENT", "GEMINI_CLI"].includes(name)));
+      const rejected = await runProcess(cliPath, ["--version", "extra"], humanEnvironment);
       expect(rejected).toMatchObject({ exitCode: 2, stdout: "" });
       expect(rejected.stderr).toContain('Unknown command "--version".');
       expect(rejected.stderr).not.toContain("Usage:");

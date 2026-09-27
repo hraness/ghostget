@@ -375,24 +375,47 @@ export function renderGhostgetUsage(): string {
  * One-line usage error plus the per-command help to read next. The full help
  * never follows a usage error.
  */
+/** The one sentence and one next command for a usage error, before styling. */
+export function ghostgetUsageErrorParts(
+  message: string,
+  rawArguments: readonly string[],
+): { readonly message: string; readonly next: string } {
+  const first = rawArguments[0] ?? "";
+  if (message === `unknown command: ${first}`) {
+    const shown = safe(first).slice(0, 64);
+    const suggestion = closestCliName(first, GHOSTGET_COMMAND_NAMES);
+    return {
+      message: `Unknown command "${shown}".${suggestion === null ? "" : ` Did you mean "${suggestion}"?`}`,
+      next: "ghostget --help",
+    };
+  }
+  return { message: cliSentence(safe(message)), next: ghostgetHelpCommandFor(rawArguments) };
+}
+
 export function renderGhostgetUsageError(
   message: string,
   rawArguments: readonly string[],
   environment: Readonly<Record<string, string | undefined>>,
   isTTY: boolean = process.stderr.isTTY === true,
 ): string {
-  const style = cliStyle(environment, isTTY);
-  const first = rawArguments[0] ?? "";
-  if (message === `unknown command: ${first}`) {
-    const shown = safe(first).slice(0, 64);
-    const suggestion = closestCliName(first, GHOSTGET_COMMAND_NAMES);
-    return renderCliError(
-      style,
-      `Unknown command "${shown}".${suggestion === null ? "" : ` Did you mean "${suggestion}"?`}`,
-      "ghostget --help",
-    );
-  }
-  return renderCliError(style, cliSentence(safe(message)), ghostgetHelpCommandFor(rawArguments));
+  const parts = ghostgetUsageErrorParts(message, rawArguments);
+  return renderCliError(cliStyle(environment, isTTY), parts.message, parts.next);
+}
+
+/**
+ * `--json` and agents read errors as one JSON document on stdout, with the
+ * same exit code: `{"ok":false,"error":{"code","message","next"}}`.
+ */
+export function wantsJsonErrors(
+  rawArguments: readonly string[],
+  environment: Readonly<Record<string, string | undefined>>,
+  stderrIsTTY: boolean,
+): boolean {
+  return rawArguments.includes("--json") || detectCookieAudience(environment, stderrIsTTY) === "agent";
+}
+
+export function ghostgetErrorJson(code: string, message: string, next: string): string {
+  return `${JSON.stringify({ ok: false, error: { code, message, next } })}\n`;
 }
 
 /** The command to run again after a permission denial. */
@@ -2170,22 +2193,30 @@ function printPreview(output: Output, value: Record<string, unknown>, json: bool
   output.stdout(json ? exactTerminalJson(value) : exactTerminalJson(value));
 }
 
+/** Records a bounded repair lead and returns its inspect id, or null when no
+ * usable lead was stored. Human mode prints the hint on stderr; `--json` keeps
+ * stderr clean and the caller folds the id into the error envelope's `next`. */
 function reportContractRepairLead(
   createSignal: () => ContractRepairSignal,
   environment: Readonly<Record<string, string | undefined>>,
   output: Output,
-): void {
-  if (environment.GHOSTGET_REPAIR_SIGNALS === "off") return;
+  json = false,
+): string | null {
+  if (environment.GHOSTGET_REPAIR_SIGNALS === "off") return null;
   try {
     const signal = createSignal();
     const status = cacheContractRepairSignal(signal, environment);
-    if (status === "stored" || status === "duplicate") {
-      output.stderr(`ghostget: repair lead only; do not retry automatically. Inspect: ghostget contracts repair --id ${signal.id} --json\n`);
-    } else {
-      output.stderr(`ghostget: repair diagnostics ${status}; the original operation outcome is unchanged.\n`);
+    if (status !== "stored" && status !== "duplicate") {
+      if (!json) output.stderr(`ghostget: repair diagnostics ${status}; the original operation outcome is unchanged.\n`);
+      return null;
     }
+    if (!json) {
+      output.stderr(`ghostget: repair lead only; do not retry automatically. Inspect: ghostget contracts repair --id ${signal.id} --json\n`);
+    }
+    return signal.id;
   } catch {
-    output.stderr("ghostget: repair diagnostics unavailable; the original operation outcome is unchanged.\n");
+    if (!json) output.stderr("ghostget: repair diagnostics unavailable; the original operation outcome is unchanged.\n");
+    return null;
   }
 }
 
@@ -3606,7 +3637,7 @@ async function runCommand(
         && result.live.receipt.dispatch.started === 0 && result.live.receipt.dispatch.verified === 0
         && result.live.receipt.adapter.id === invocation.manifest.id && result.live.receipt.operation === invocation.operationId
         && !result.live.replayed && result.live.privateArtifactsPreserved !== true && signal?.aborted !== true) {
-        reportContractRepairLead(() => projectContractRepairSignal(invocation.manifest, invocation.operationId, "contract-drift", dependencies.providerPluginRegistry), environment, output);
+        reportContractRepairLead(() => projectContractRepairSignal(invocation.manifest, invocation.operationId, "contract-drift", dependencies.providerPluginRegistry), environment, output, arguments_.json);
       }
       if (result.live.receipt.status === "succeeded" || result.live.receipt.status === "submitted") onUsefulResult?.();
       return result.live.receipt.status === "succeeded" || result.live.receipt.status === "submitted" ? 0 : result.live.receipt.status === "indeterminate" ? 5 : 3;
@@ -3862,8 +3893,14 @@ export async function main(
   onUsefulResult?: () => void,
 ): Promise<number> {
   const parsed = parseGhostgetArguments(rawArguments);
+  const stderrIsTTY = output === defaultOutput && process.stderr.isTTY === true;
   if (!parsed.ok) {
-    output.stderr(renderGhostgetUsageError(parsed.message, rawArguments, environment));
+    if (wantsJsonErrors(rawArguments, environment, stderrIsTTY)) {
+      const parts = ghostgetUsageErrorParts(parsed.message, rawArguments);
+      output.stdout(ghostgetErrorJson("usage", parts.message, parts.next));
+    } else {
+      output.stderr(renderGhostgetUsageError(parsed.message, rawArguments, environment));
+    }
     return 2;
   }
   try {
@@ -3911,9 +3948,10 @@ export async function main(
   } catch (error) {
     const permissionFailure = renderCookieAccessFailure(error, parsed.value, environment, output);
     if (permissionFailure !== null) return permissionFailure;
+    let repairLeadId: string | null = null;
     if (error instanceof ContractCaptureRequiredError && parsed.value.command === "invoke"
       && !parsed.value.cacheOnly && !parsed.value.projectionIdentityOnly && signal?.aborted !== true) {
-      reportContractRepairLead(() => error.signal, environment, output);
+      repairLeadId = reportContractRepairLead(() => error.signal, environment, output, wantsJsonErrors(rawArguments, environment, stderrIsTTY));
     }
     if (error instanceof LinkedDeviceLifecycleIndeterminateError) {
       const failure = {
@@ -3951,9 +3989,13 @@ export async function main(
       }
       return 5;
     }
-    output.stderr(
-      `ghostget: ${safe(error instanceof Error ? error.message : String(error))}\n`,
-    );
+    const message = safe(error instanceof Error ? error.message : String(error));
+    if (wantsJsonErrors(rawArguments, environment, stderrIsTTY)) {
+      output.stdout(ghostgetErrorJson("failed", cliSentence(message),
+        repairLeadId === null ? "ghostget doctor" : `ghostget contracts repair --id ${repairLeadId} --json`));
+    } else {
+      output.stderr(`ghostget: ${message}\n`);
+    }
     return 3;
   }
 }

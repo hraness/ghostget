@@ -1335,7 +1335,9 @@ describe("auth CLI", () => {
         }),
       });
       expect(code).toBe(3);
-      expect(wrench.stderr()).toContain(
+      expect(wrench.stderr()).toBe("");
+      expect(wrench.stdout()).toContain('"ok":false');
+      expect(wrench.stdout()).toContain(
         "schema-1 export requires the pinned darwin/arm64 Beeper CLI artifact",
       );
       expect(readdirSync(testState.directory)).toEqual([]);
@@ -3326,7 +3328,9 @@ describe("reviewed platform policy helpers", () => {
       expect(await main([
         "thread", "split", "x", "--text", "🙂".repeat(3_501), "--json",
       ], testState.environment, tooMany.output)).toBe(3);
-      expect(tooMany.stderr()).toContain("more than the reviewed 25-item limit");
+      expect(tooMany.stderr()).toBe("");
+      expect(tooMany.stdout()).toContain('"ok":false');
+      expect(tooMany.stdout()).toContain("more than the reviewed 25-item limit");
 
       const oversizedPath = join(testState.directory, "oversized-thread.txt");
       writeFileSync(oversizedPath, "a".repeat(64 * 1024 + 1), { encoding: "utf8", mode: 0o600 });
@@ -4016,7 +4020,9 @@ describe("CLI previews and exit semantics", () => {
           throw new Error("explicit auth must fail before execution");
         },
       })).toBe(3);
-      expect(explicit.stderr()).toContain(
+      expect(explicit.stderr()).toBe("");
+      expect(explicit.stdout()).toContain('"ok":false');
+      expect(explicit.stdout()).toContain(
         "is public and does not accept an auth locator",
       );
     } finally {
@@ -4299,7 +4305,9 @@ describe("CLI previews and exit semantics", () => {
         "--preview",
         "--json",
       ], testState.environment, web.output)).toBe(3);
-      expect(web.stderr()).toContain("account-bound auth subject");
+      expect(web.stderr()).toBe("");
+      expect(web.stdout()).toContain('"ok":false');
+      expect(web.stdout()).toContain("account-bound auth subject");
       expect(existsSync(join(testState.directory, "plans"))).toBeFalse();
 
       installManifest(xThreadManifest(), { force: false, environment: testState.environment });
@@ -4320,7 +4328,9 @@ describe("CLI previews and exit semantics", () => {
         "--preview",
         "--json",
       ], testState.environment, provider.output)).toBe(3);
-      expect(provider.stderr()).toContain("account-bound auth subject");
+      expect(provider.stderr()).toBe("");
+      expect(provider.stdout()).toContain('"ok":false');
+      expect(provider.stdout()).toContain("account-bound auth subject");
       expect(existsSync(join(testState.directory, "plans"))).toBeFalse();
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
@@ -4458,7 +4468,9 @@ describe("CLI previews and exit semantics", () => {
 
       const nonexistent = capture();
       expect(await main(["confirm", "a".repeat(64), "--json"], testState.environment, nonexistent.output)).toBe(3);
-      expect(nonexistent.stderr()).toContain("could not safely open encrypted plan");
+      expect(nonexistent.stderr()).toBe("");
+      expect(nonexistent.stdout()).toContain('"ok":false');
+      expect(nonexistent.stdout()).toContain("Could not safely open encrypted plan");
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }
@@ -4499,8 +4511,9 @@ describe("CLI previews and exit semantics", () => {
         "--json",
       ], testState.environment, invalid.output, dependencies)).toBe(2);
       expect(observedBinaries).toEqual([]);
-      expect(invalid.stdout()).toBe("");
-      expect(invalid.stderr()).toContain("normalized-absolute-reviewed-imsg-file");
+      expect(invalid.stderr()).toBe("");
+      expect(invalid.stdout()).toContain('"ok":false');
+      expect(invalid.stdout()).toContain("normalized-absolute-reviewed-imsg-file");
 
       const code = await main([
         "imessage",
@@ -4558,15 +4571,18 @@ describe("CLI previews and exit semantics", () => {
             "--json",
           ], testState.environment, output.output)).toBe(3);
           expect(performance.now() - startedAt).toBeLessThan(2_000);
-          expect(output.stdout()).toBe("");
-          expect(output.stderr()).toMatch(
+          // --json errors are a JSON envelope on stdout; it carries the same
+          // path-free message and stderr stays empty.
+          expect(output.stderr()).toBe("");
+          expect(output.stdout()).toContain('"ok":false');
+          expect(output.stdout()).toMatch(
             /source (?:file does not exist|is not a trusted executable file)/u,
           );
-          expect(output.stderr()).not.toContain(source);
-          expect(output.stderr()).not.toContain("private-source-canary");
-          expect(output.stderr()).not.toContain("private-missing-canary");
-          expect(output.stderr()).not.toContain("private-symlink-canary");
-          expect(output.stderr()).not.toContain("private-fifo-canary");
+          expect(output.stdout()).not.toContain(source);
+          expect(output.stdout()).not.toContain("private-source-canary");
+          expect(output.stdout()).not.toContain("private-missing-canary");
+          expect(output.stdout()).not.toContain("private-symlink-canary");
+          expect(output.stdout()).not.toContain("private-fifo-canary");
           expect(existsSync(imsgInstalledBinaryPath(testState.environment)))
             .toBeFalse();
         }
@@ -4580,8 +4596,9 @@ describe("CLI previews and exit semantics", () => {
           target,
           "--json",
         ], testState.environment, digestOutput.output)).toBe(3);
-        expect(digestOutput.stderr()).toContain("reviewed digest");
-        expect(digestOutput.stderr()).not.toContain(target);
+        expect(digestOutput.stderr()).toBe("");
+        expect(digestOutput.stdout()).toContain("reviewed digest");
+        expect(digestOutput.stdout()).not.toContain(target);
         const destination = imsgInstalledBinaryPath(testState.environment);
         expect(existsSync(destination)).toBeFalse();
 
@@ -4596,11 +4613,12 @@ describe("CLI previews and exit semantics", () => {
           target,
           "--json",
         ], testState.environment, destinationOutput.output)).toBe(3);
-        expect(destinationOutput.stderr()).toContain(
-          "existing imsg install does not match the reviewed artifact",
+        expect(destinationOutput.stderr()).toBe("");
+        expect(destinationOutput.stdout()).toContain(
+          "Existing imsg install does not match the reviewed artifact",
         );
-        expect(destinationOutput.stderr()).not.toContain(target);
-        expect(destinationOutput.stderr()).not.toContain(destination);
+        expect(destinationOutput.stdout()).not.toContain(target);
+        expect(destinationOutput.stdout()).not.toContain(destination);
         expect(readFileSync(destination, "utf8")).toBe(mismatchedBytes);
 
         const unsafeState = join(sourceRoot, "private-state-canary");
@@ -4617,12 +4635,12 @@ describe("CLI previews and exit semantics", () => {
           ...testState.environment,
           GHOSTGET_STATE_HOME: unsafeState,
         }, output.output)).toBe(3);
-        expect(output.stdout()).toBe("");
-        expect(output.stderr()).toContain(
+        expect(output.stderr()).toBe("");
+        expect(output.stdout()).toContain(
           "Web policy is missing, unsafe, or invalid. Requests are blocked.",
         );
-        expect(output.stderr()).not.toContain(unsafeState);
-        expect(output.stderr()).not.toContain("private-state-canary");
+        expect(output.stdout()).not.toContain(unsafeState);
+        expect(output.stdout()).not.toContain("private-state-canary");
       } finally {
         rmSync(sourceRoot, { recursive: true, force: true });
         rmSync(testState.directory, { recursive: true, force: true });
@@ -4909,13 +4927,18 @@ describe("UTF-8 stdin", () => {
         Buffer.from('"]'),
       ]));
       await child.stdin.end();
-      const [stderr, exitCode] = await Promise.all([
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(child.stdout).text(),
         new Response(child.stderr).text(),
         child.exited,
       ]);
       expect(exitCode).toBe(3);
-      expect(stderr).toContain("valid UTF-8 JSON on stdin");
-      expect(stderr).not.toContain("derivation was not found");
+      // --json errors are a JSON envelope on stdout.
+      expect(stderr).toBe("");
+      expect(stdout).toContain('"ok":false');
+      expect(stdout).toContain("UTF-8 JSON on stdin");
+      expect(stdout).not.toContain("derivation was not found");
+      expect(stdout).not.toContain(privateText);
       expect(stderr).not.toContain(privateText);
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
@@ -5032,13 +5055,16 @@ describe("UTF-8 stdin", () => {
       });
       await child.stdin.write(Buffer.concat([Buffer.from('{"body":"'), Buffer.from([0xff]), Buffer.from('"}') ]));
       await child.stdin.end();
-      const [stderr, exitCode] = await Promise.all([
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(child.stdout).text(),
         new Response(child.stderr).text(),
         child.exited,
       ]);
 
       expect(exitCode).toBe(3);
-      expect(stderr).toMatch(/Invalid byte sequence|encoded data was not valid/u);
+      expect(stderr).toBe("");
+      expect(stdout).toContain('"ok":false');
+      expect(stdout).toMatch(/Invalid byte sequence|encoded data was not valid/u);
     } finally {
       rmSync(testState.directory, { recursive: true, force: true });
     }

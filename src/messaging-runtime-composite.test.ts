@@ -202,6 +202,7 @@ describe("messaging composite preview binding", () => {
     chmodSync(outputRoot, 0o700);
     roots.push(outputRoot);
     const privateOutput = join(outputRoot, "same.json");
+    const stdout: string[] = [];
     const stderr: string[] = [];
     expect(await main([
       "confirm",
@@ -211,8 +212,10 @@ describe("messaging composite preview binding", () => {
       "--receipt-binding-output",
       privateOutput,
       "--json",
-    ], validEnvironment, { stdout: () => {}, stderr: (value) => stderr.push(value) })).toBe(3);
-    expect(stderr.join("")).toContain("distinct private output and receipt-binding paths");
+    ], validEnvironment, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) })).toBe(3);
+    expect(stderr.join("")).toBe("");
+    expect(stdout.join("")).toContain('"ok":false');
+    expect(stdout.join("")).toContain("distinct private output and receipt-binding paths");
     expect(loadInvocationPlan(stored.digest, validEnvironment)).toEqual(stored);
     expect(existsSync(privateOutput)).toBeFalse();
 
@@ -244,6 +247,7 @@ describe("messaging composite preview binding", () => {
     const privateOutput = join(outputRoot, "run.json");
     const receiptOutput = join(outputRoot, "receipt.json");
     writeFileSync(receiptOutput, "preexisting\n", { mode: 0o600 });
+    const stdout: string[] = [];
     const stderr: string[] = [];
 
     expect(await main([
@@ -254,10 +258,12 @@ describe("messaging composite preview binding", () => {
       "--receipt-binding-output",
       receiptOutput,
       "--json",
-    ], environment, { stdout: () => {}, stderr: (value) => stderr.push(value) })).toBe(3);
-    expect(stderr.join("")).toContain("failed physical reservation");
-    expect(stderr.join("")).not.toContain(privateOutput);
-    expect(stderr.join("")).not.toContain(receiptOutput);
+    ], environment, { stdout: (value) => stdout.push(value), stderr: (value) => stderr.push(value) })).toBe(3);
+    expect(stderr.join("")).toBe("");
+    expect(stdout.join("")).toContain('"ok":false');
+    expect(stdout.join("")).toContain("failed physical reservation");
+    expect(stdout.join("")).not.toContain(privateOutput);
+    expect(stdout.join("")).not.toContain(receiptOutput);
     expect(loadInvocationPlan(stored.digest, environment)).toEqual(stored);
     expect(readFileSync(receiptOutput, "utf8")).toBe("preexisting\n");
     expect(readFileSync(privateOutput, "utf8"))

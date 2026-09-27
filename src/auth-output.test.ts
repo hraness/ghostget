@@ -89,10 +89,11 @@ describe("auth output copy", () => {
       note: null,
     });
     expect(authListText([], plain)).toEqual({
-      result: "No saved sign-ins.",
-      next: "ghostget auth add <id> --cookie-source chrome",
+      result: "No saved sign-ins.\n→ ghostget auth add <id> --cookie-source chrome",
+      next: null,
       note: null,
     });
+    expect(authListText([], ascii).result).toBe("No saved sign-ins.\n-> ghostget auth add <id> --cookie-source chrome");
     expect(authListText([auths[0]!], ascii).result).toBe("x-main  Chrome · Profile 1  as 2244994945\n\n1 saved sign-in.");
   });
 

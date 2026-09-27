@@ -913,9 +913,11 @@ describe("generic messaging composite execution", () => {
     }, { providerPluginRegistry: setup.registry });
 
     expect(exitCode).toBe(3);
-    expect(writes.map((write) => write.stream)).toEqual(["stdout", "stderr"]);
+    // --json keeps the recovery receipt on stdout and the failure joins it
+    // there as a JSON envelope; stderr stays empty.
+    expect(writes.map((write) => write.stream)).toEqual(["stdout", "stdout"]);
     const stdout = writes.filter((write) => write.stream === "stdout");
-    expect(stdout).toHaveLength(1);
+    expect(stdout).toHaveLength(2);
     const receipt = JSON.parse(stdout[0]!.value) as {
       readonly format: string;
       readonly planDigest: string;
@@ -931,12 +933,14 @@ describe("generic messaging composite execution", () => {
       state: "submitted",
     });
     expect(stdout[0]!.value).not.toContain("private bubble");
-    const stderr = writes.filter((write) => write.stream === "stderr")
-      .map((write) => write.value)
-      .join("");
-    expect(stderr).toContain("reservation changed before final export");
-    expect(stderr).not.toContain(runOutput);
-    expect(stderr).not.toContain(receiptBindingOutput);
+    const failure = JSON.parse(stdout[1]!.value) as {
+      readonly ok: boolean;
+      readonly error: { readonly message: string };
+    };
+    expect(failure.ok).toBe(false);
+    expect(failure.error.message).toContain("reservation changed before final export");
+    expect(stdout[1]!.value).not.toContain(runOutput);
+    expect(stdout[1]!.value).not.toContain(receiptBindingOutput);
   });
 
   test("allows initial provider lag before any accepted prefix has been observed", async () => {
